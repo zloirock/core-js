@@ -1,0 +1,3791 @@
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import { entryToGlobalHint, hasNarrowEntry } from './index.js';
+import {
+  anchorPathScope,
+  peelSkippableWrapperPath,
+  allProxySelectingInit,
+  argumentOverridesSlot,
+  cachedContainerPaths,
+  collectParamBindingNames,
+  containerSlotWritten,
+  findVarOwnerDeclaring,
+  forOfHeadElements,
+  forXHeadLoopPath,
+  getTypeArgs,
+  hoistedBindingVisibleInScope,
+  hoistedDeclarationInScope,
+  hopAnchorStart,
+  isDestructurePattern,
+  isSloppyAtPath,
+  initializerReachesRead,
+  isNullLiteralNode,
+  isTypeAnnotationWrapper,
+  isVoidExpression,
+  lookupReadPath,
+  objectLevelPairedProperty,
+  ownerWritePathIndex,
+  patternSlotCertainDefault,
+  pathOfNode,
+  positionalElementPath,
+  POSSIBLE_GLOBAL_OBJECTS,
+  peelParenAndTSParentPath,
+  peelParenAndTSSlotChild,
+  peelZeroArgIifeReturn,
+  proxySelectingBranchKey,
+  referencesArgumentsObject,
+  resolveCallArgument,
+  singleReturnBodyExpression,
+  singleQuasiString,
+  SELECTION_TEST_FIELDS,
+  SKIPPABLE_WRAPPER_TYPES,
+  staleVarRedeclNodes,
+  unwrapRuntimeExpr,
+  varInitStaleByRedecl,
+  wrapScopeBindingLookup,
+  isBareUndefinedIdentifier,
+  noReassignmentReachesUsage,
+  patternSlotHasDefault,
+  peelTSParenthesized,
+  staticKeyNames,
+  walkAstNodes,
+  withCanonQuestion,
+  writeNeverRuns,
+  writesPastCeiling,
+} from './helpers/ast-patterns.js';
+import {
+  $Object,
+  CONSTRUCTOR_ALIASES,
+  GENERATOR_LIKE_NAMES,
+  MAX_DEPTH,
+  PATTERN_WRAPPERS,
+  $Primitive,
+  PROMISE_SYNONYMS,
+  DISTRIBUTIVE_UTILITIES,
+  STRUCTURE_PRESERVING_WRAPPERS,
+  TYPE_HINTS,
+  TYPEOF_HINT_GROUPS,
+  bigIntLiteralValue,
+  canonicalArrayIndex,
+  intersectHintSets,
+  isBigIntLiteralNode,
+  primitiveTypeOf,
+  toHint,
+} from './resolve-node-type/base.js';
+import {
+  collectQualifiedSegments,
+  isUnionType,
+  literalTypeValueNode,
+  typeRefName,
+  typeRefSegments,
+} from './resolve-node-type/ast-shapes.js';
+import { isKnownGlobalName, staticReceiverHint } from './detect-usage/globals.js';
+import { decidedLiveOperandKey, pureEntryTarget } from './detect-usage/resolve.js';
+import { createAwaited } from './resolve-node-type/awaited.js';
+import { createBindingAnalysis } from './resolve-node-type/binding-analysis.js';
+import { createCallResolution } from './resolve-node-type/call-resolution.js';
+import { createClassContext } from './resolve-node-type/class-context.js';
+import { createClassFields } from './resolve-node-type/class-fields.js';
+import { createClassObjectMember } from './resolve-node-type/class-object-member.js';
+import { createClosureAnalysis } from './resolve-node-type/closure-analysis.js';
+import { createDiscriminantNarrow } from './resolve-node-type/discriminant-narrow.js';
+import { createElementTypes } from './resolve-node-type/element-types.js';
+import { createEnumTypes } from './resolve-node-type/enum-types.js';
+import { createExpressionDispatch } from './resolve-node-type/expression-dispatch.js';
+import { createGlobalResolve } from './resolve-node-type/global-resolve.js';
+import { createPredicateGuards, guardProves } from './resolve-node-type/guard-shapes.js';
+import { createKnownGlobals } from './resolve-node-type/known-globals.js';
+import { createMemberResolve } from './resolve-node-type/member-resolve.js';
+import {
+  createNameResolution,
+  isAmbientClassNode,
+} from './resolve-node-type/name-resolution.js';
+import { createNarrowByGuards } from './resolve-node-type/narrow-by-guards.js';
+import { createPatternBindings } from './resolve-node-type/pattern-bindings.js';
+import { createReturnType } from './resolve-node-type/return-type.js';
+import {
+  assignRightKey,
+  createStraightLineFlow,
+} from './resolve-node-type/straight-line-flow.js';
+import { createTypeAnnotationResolve } from './resolve-node-type/type-annotation-resolve.js';
+import { createStructuralKey } from './resolve-node-type/structural-key.js';
+import { createTypeExpansion } from './resolve-node-type/type-expansion.js';
+import { createTypeFolding } from './resolve-node-type/type-folding.js';
+import { createOverloadFold } from './resolve-node-type/overload-fold.js';
+import { createTypeMembers } from './resolve-node-type/type-members.js';
+import { createTypeQuery } from './resolve-node-type/type-query.js';
+import { createTypeResolveDispatch } from './resolve-node-type/type-resolve-dispatch.js';
+import { createTypeSubst } from './resolve-node-type/type-subst.js';
+import { createTypeofGuards } from './resolve-node-type/typeof-guards.js';
+import { createUserTypeResolve } from './resolve-node-type/user-type-resolve.js';
+import { createValueOps, matchCtorIdentityNarrowAlternate } from './resolve-node-type/value-ops.js';
+import { blockAlwaysExits, canFallThrough } from './resolve-node-type/exit-analysis.js';
+
+const {
+  constructors: KNOWN_CONSTRUCTORS,
+  globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+  globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
+  staticMethods: KNOWN_STATIC_METHOD_RETURN_TYPES,
+  staticProperties: KNOWN_STATIC_PROPERTY_RETURN_TYPES,
+  instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
+  instanceProperties: KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
+  staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
+} = knownBuiltInReturnTypes;
+
+const { hasOwn } = Object;
+
+// binding adapter shared with `walkStaticReceiverChain`. `getBindingPolyfillHint` is a
+// side-channel for the post-rewrite alias `_globalThis` -> `globalThis` mapping, kept off
+// the binding object so closure / alias trackers preserve WeakMap identity. covers both
+// pure-import bindings (`import _Array$from` -> entry `array/from` -> hint `Array`) and
+// alias-only bindings (`_globalThis` registered via `registerGlobalAlias`, no entry path).
+// string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
+// `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
+// from the resolver path (destructure-leaf -> proxy-global)
+function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic) {
+  return {
+    packages: null,
+    // the shared proxy-nav walks (`globalProxyMemberName` hop/leaf gates) consult
+    // `isMutatedGlobalSlot(adapter, key)` = `adapter.isMutatedStatic('globalThis', key)`;
+    // without the method the gate silently no-ops for every resolve-node-type caller and a
+    // type narrow walks THROUGH a user-replaced proxy hop (`globalThis.self = fake`) to a
+    // pristine constructor - a wrong-Maybe on the foreign runtime value
+    isMutatedStatic: (object, key, read) => isMutatedStatic(object, key, read),
+    // forward the use-site `path` to the scope-binding hook so the estree caller applies its
+    // namespace-over-hoist filter (+ phantom declaration-violation filter) position-aware; a
+    // path-less lookup drops a namespace twin conservatively. babel's default hook ignores the arg.
+    // var-hoist fallback (estree side only - fires when the native lookup is empty, a no-op for
+    // babel which hoists natively): estree-toolkit leaves a `var` declared in a nested block out
+    // of the function scope, so a static-receiver source like `if (c) { var G = Array } ({from}=G)`
+    // would otherwise lose its binding here and diverge from babel. a name read apart from the use
+    // (`read`, an alias's initializer) is climbed for from where it is read (`lookupReadPath`), as the
+    // detection adapters climb, and a declaration below the scope asked is none of its answer
+    hasBinding: ({ scope, name, path = null, read = null }) => !!getScopeBinding({ scope, name, path, read })
+      || (!!path && !!hoistedDeclarationInScope(scope, lookupReadPath(path, read), name)),
+    getBinding: ({ scope, name, path = null, read = null }) => getScopeBinding({ scope, name, path, read })
+      ?? hoistedBindingVisibleInScope(scope, path, name),
+    // forward the raw hint verbatim (mirroring the unplugin estree adapter's `polyfillHint`):
+    // it carries BOTH proxy-global aliases (`_globalThis` -> `globalThis`) AND pure-import
+    // constructor stubs (`_Array$from` -> `Array`, `_Promise` -> `Promise`). each consumer
+    // applies its OWN gate - the shared proxy-root recogniser re-checks
+    // `POSSIBLE_GLOBAL_OBJECTS` (so a constructor hint resolves to null there, unchanged), while
+    // `walkStaticReceiverStep` wants the ungated constructor name to recover a sibling-rewritten
+    // stub. gating here stripped the constructor hints and left that recovery dead on babel only
+    getBindingPolyfillHint(scope, name) {
+      return getPolyfillBindingHint(scope, name) ?? null;
+    },
+    isStringLiteral: node => babelNodeType(node) === 'StringLiteral',
+    getStringValue: node => babelNodeType(node) === 'StringLiteral' ? node.value : null,
+  };
+}
+
+// `cycleSeenSets` + `cycleFlipDetector` live in `resolve-node-type/user-type-resolve.js`
+// (their only consumer). `getOrInitMap` lives in `resolve-node-type/base.js` (consumed
+// by typeof-guards + name-resolution).
+
+// eslint-disable-next-line max-statements -- factory of type inference engine
+function createResolveNodeType(babelNodeType, t, {
+  getPolyfillBindingEntry = () => null,
+  getPolyfillBindingHint = () => null,
+  isReassignedBinding = () => false,
+  // a user-monkey-patched static (`Array.from = ...`) no longer returns its KNOWN type, so the
+  // static-call return narrow must bail to generic - else `Array.from(x).at(0)` type-locks to
+  // `_atMaybeArray` over a patched return that may be a non-array (ie:11 wrong-Maybe). emitters wire
+  // their per-file mutated-static accessor; default no-op keeps standalone resolver tests unchanged
+  isMutatedStatic = () => false,
+  isWrittenContainerSlot = () => false,
+  // the adapter that decides this build's selections (`decidedSelection`), late-bound by the emitters
+  // like the census hooks above: the type layer reads its decisions, so a decided arm narrows like an
+  // unconditional one - a write in an arm the build never takes is none and one in an arm it always takes runs,
+  // in a ternary's or a logical's arm as in an `if`'s; a return past an exit it always takes returns nothing; a
+  // selection or a guard's test, a discriminant check's included, is the part that runs, while the statement
+  // index of discriminant roots stays syntactic. default null decides nothing
+  getDecisionAdapter = () => null,
+  // may this file spell `key` as a member key on an identifier-rooted chain (the census's
+  // `memberKeyNames`)? a gate, never a proof: the default, for a resolver no census feeds, answers yes
+  spellsMemberKey = () => true,
+  // does this file declare a TS runtime binding below its top level (the census's
+  // `nestedTSRuntimeDeclarations`)? the default, for a resolver no census feeds, answers yes
+  nestedTSRuntimeDeclarations = () => true,
+  // scope-binding lookup hook: the estree caller filters bindings its tracker OVER-HOISTS out
+  // of `namespace N { ... }` bodies (a raw `scope.getBinding` surfaced the namespace twin for
+  // a use OUTSIDE the block and narrowed to the WRONG flavor); babel scopes namespaces
+  // correctly and keeps the raw lookup
+  getScopeBinding = (scope, name, path = null) => scope?.getBinding(name, path ?? undefined),
+} = {}) {
+  // every type-layer binding lookup routes through this wrap: the violation list is merged with
+  // the canonical AST scan (the native scope models mis-attribute e.g. switch-DISCRIMINANT
+  // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
+  getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations);
+  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic);
+
+  // --- AST walkers & predicates ---
+  // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
+  // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
+  // discriminator + value-type sniffing into the Babel name. callers stay parser-agnostic
+  function isLiteralOf(node, kind) {
+    return babelNodeType(node) === `${ kind }Literal`;
+  }
+
+  // every literal node the resolver folds, as its real runtime VALUE. equality narrowing keys off
+  // this directly - `===` separates `1` from `'1'`, and a bigint from a same-digit number. bigints
+  // read through the shared reader so source radix does not matter
+  function literalExactValue(node) {
+    if (isLiteralOf(node, 'String') || isLiteralOf(node, 'Numeric') || isLiteralOf(node, 'Boolean')) return node.value;
+    if (isBigIntLiteralNode(node)) return bigIntLiteralValue(node);
+    // negative numeric literals (`-1`, `-0`) parse as UnaryExpression { operator: '-',
+    // argument: NumericLiteral } - the raw `value` slot is undefined on the wrapper,
+    // so callers that compare against stringified numeric keys (`K extends -1 ? ...`)
+    // would otherwise see `null` from the wrapper and bail
+    if (node?.type === 'UnaryExpression' && node.operator === '-' && isLiteralOf(node.argument, 'Numeric')) {
+      return -node.argument.value;
+    }
+    return null;
+  }
+
+  // the same values as a property KEY: only strings and numbers name one, and `obj[1]` / `obj['1']`
+  // index the same slot, so the number coerces. booleans and bigints are not keys on their own
+  // terms and drop out here rather than being spelled out as a second literal-shape list
+  function literalKeyValue(node) {
+    const value = literalExactValue(node);
+    if (typeof value === 'string') return value;
+    return typeof value === 'number' ? String(value) : null;
+  }
+
+  // statically-known property name from a Member/OptionalMemberExpression. accepts:
+  //   - non-computed Identifier (`obj.x`)
+  //   - computed string/numeric literal (`obj['x']` / `obj[0]`) - cross-parser via
+  //     `literalKeyValue` (babel: StringLiteral/NumericLiteral, ESTree/oxc: Literal+typeof)
+  //   - computed single-quasi TemplateLiteral (`obj[`x`]`) via `singleQuasiString`
+  // returns null for dynamic shapes (Identifier alias, BinaryExpression concat, MemberExpression
+  // chain, computed expressions). callers wanting alias-chain / enum / Symbol resolution should
+  // route through `resolveComputedKeyName` (scope-aware) or `indexedAccessKey` (TS-position)
+  function getMemberProperty(node) {
+    if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+    const { property, computed } = node;
+    if (!computed) return property?.type === 'Identifier' ? property.name : null;
+    return literalKeyValue(property) ?? singleQuasiString(property);
+  }
+
+  function getKeyName(key) {
+    if (key?.type === 'Identifier') return key.name;
+    // `#` prefix keeps private keys disjoint from same-named public members at match time
+    if (key?.type === 'PrivateIdentifier') return `#${ key.name }`;
+    if (key?.type === 'PrivateName') return `#${ key.id.name }`;
+    return literalKeyValue(key);
+  }
+
+  // T["key"] / T[0] / T[`key`] index literal - unwrap TSLiteralType; fall through template-literal
+  // for parity with computed-member resolution. null for non-literal / keyof / union indexes
+  // `literalValue` is the leaf extractor, defaulting to the key domain - a caller folding a
+  // literal-typed binding for an EQUALITY comparison passes the type-keeping one instead
+  function indexedAccessKey(indexType, literalValue = literalKeyValue) {
+    // oxc keeps a `("len")` index / annotation as TSParenthesizedType where babel strips it at parse;
+    // peel so both parsers reach the inner literal (else the const-typed key folds on babel only)
+    const peeled = peelTSParenthesized(indexType);
+    // the literal-TYPE peel is the shared canon: TS wraps the literal, Flow's literal type IS the
+    // value node. spelled locally, this read stayed TS-only, so every consumer of the key - the
+    // member resolver among them - silently bailed on a Flow index
+    const literal = literalTypeValueNode(peeled) ?? peeled;
+    return literalValue(literal) ?? singleQuasiString(literal);
+  }
+
+  // unified TSIndexedAccessType dispatcher under generic substitution. walks down the
+  // chain to the root TSTypeReference, collecting raw indexType nodes outer-first;
+  // length-1 = direct `T[k]` / `T[number]`, length-N = chained `T[k1]...[kN]`. resolves
+  // through (in order): T[number] inner, argPath descend, single-step constraint
+  // fallback (root-is-typeparam path) - then call-site arg-literal rewrite for the
+  // `NamedType[K]` shape, finally plain resolveTypeAnnotation
+  function resolveIndexedAccessSubst(node, typeParamMap, scope, depth, seen) {
+    const indexNodes = [];
+    let root = node;
+    while (root?.type === 'TSIndexedAccessType') {
+      // peel each collected index: oxc keeps `T[(K)]` as TSParenthesizedType, so the type-param /
+      // keyof / arg-literal analyses below would miss the inner index on that parser only
+      indexNodes.unshift(peelTSParenthesized(root.indexType));
+      root = peelTSParenthesized(root.objectType);
+    }
+    const rootName = root && typeRefName(root);
+    // an alias instantiation's spelled arguments, where it kept them: the access reads the argument's
+    // members, which the type the map resolved it to no longer carries
+    const spelled = spelledTypeArgsOf(typeParamMap);
+    if (spelled?.has(rootName)) return resolveTypeAnnotation(applyAliasSubstDeep(node, spelled), scope, depth + 1, seen);
+    if (rootName && typeParamMap.has(rootName)) {
+      const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth, seen });
+      if (direct !== null) return direct;
+      // a SUPPLIED-but-opaque root is a deliberate stand-down, not an unknown to re-derive: the
+      // plain lane answers a bare ref from the parameter's own declared default / constraint,
+      // which is a type-specific Maybe over whatever the caller really passed
+      if (typeParamMap.get(rootName) === null) return null;
+    }
+    // `NamedType[K]` shape: K is out of scope at the call site, so `isKeyofTargeting`'s
+    // constraint walk can't find K - rewrite each typeparam indexNode to the literal
+    // bound to it at the call site (recorded on the side via `getTypeParamArgPath`) and
+    // hand the synthetic literal-indexed chain back to the SUBSTITUTION dispatcher, which
+    // re-reads the now-literal keys against the map before degrading to the plain lane. covers
+    // `pick<K extends keyof Items>(k: K): Items[K]` called as `pick('a')` / `pick(0)` /
+    // ``pick(`a`)`` / chained `T[K1][K2]` with multiple typeparam slots
+    const concrete = indexNodes.map(idx => indexFromArgLiteral(idx, typeParamMap));
+    if (concrete.some((c, i) => c !== indexNodes[i])) {
+      const rebuilt = rebuildIndexedAccess(root, concrete);
+      // the rebuilt chain carries literal indices, so its own re-entry finds nothing left to
+      // rewrite and terminates in the plain lane one hop down
+      const resolved = substituteTypeParams(rebuilt, typeParamMap, scope, depth, seen);
+      if (resolved !== null) return resolved;
+    }
+    return resolveTypeAnnotation(node, scope, depth, seen);
+  }
+
+  // re-fold the unfolded `(root, indexNodes)` pair back into a chained TSIndexedAccessType.
+  // outer-most index applied last so the resulting AST matches the structure the unfold
+  // loop originally walked
+  function rebuildIndexedAccess(root, indexNodes) {
+    let node = root;
+    for (const idx of indexNodes) node = { type: 'TSIndexedAccessType', objectType: node, indexType: idx };
+    return node;
+  }
+
+  // map a typeparam-bound indexType to its concrete literal indexType using the call-
+  // site argPath. returns the original indexType when the rewrite doesn't apply (not a
+  // typeparam ref, no recorded argPath, or arg isn't a static literal) - the caller's
+  // `some((c, i) => c !== indexNodes[i])` guard then sees no change and falls through.
+  // accepted arg shapes: bare String/Numeric literal, runtime-peeled `as const`, and
+  // single-quasi TemplateLiteral - the same shapes `indexedAccessKey` recognises on
+  // the type side. shape is re-emitted with babel-named TSLiteralType slots since the
+  // downstream consumers walk through `isLiteralOf` (parser-agnostic)
+  function indexFromArgLiteral(indexType, typeParamMap) {
+    if (indexType?.type !== 'TSTypeReference') return indexType;
+    const name = typeRefName(indexType);
+    if (!name || !typeParamMap.has(name)) return indexType;
+    const argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, name);
+    if (!argPath?.node) return indexType;
+    const peeled = resolveRuntimeExpression(argPath)?.node ?? argPath.node;
+    if (isLiteralOf(peeled, 'String')) return synthLiteralIndex('StringLiteral', peeled.value);
+    if (isLiteralOf(peeled, 'Numeric')) return synthLiteralIndex('NumericLiteral', peeled.value);
+    // negated numeric arg (`pick(-1)`): parses as a UnaryExpression wrapper whose `value` slot is
+    // undefined, so the Numeric check above misses it. mirror the type-side `literalKeyValue`, which
+    // already unwraps `-N`, so `Items[K]` with `K = -1` resolves the `{ "-1": ... }` member
+    if (peeled?.type === 'UnaryExpression' && peeled.operator === '-' && isLiteralOf(peeled.argument, 'Numeric')) {
+      return synthLiteralIndex('NumericLiteral', -peeled.argument.value);
+    }
+    const quasi = singleQuasiString(peeled);
+    if (quasi !== null) return synthLiteralIndex('StringLiteral', quasi);
+    return indexType;
+  }
+
+  function synthLiteralIndex(literalType, value) {
+    return { type: 'TSLiteralType', literal: { type: literalType, value } };
+  }
+
+  // single resolution attempt against a known-mapped typeparam: T[number] inner,
+  // argPath descent through literal keys, single-step constraint fallback. returns null
+  // on miss so caller can fall through to plain resolveTypeAnnotation
+  function resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth, seen }) {
+    if (indexNodes.length === 1 && indexNodes[0]?.type === 'TSNumberKeyword') {
+      const inner = resolveInnerType(typeParamMap.get(rootName));
+      if (inner) return inner;
+    }
+    // literal-key indexed access (`T['k']` / `T['k']['j']`): descend the type-param's mapped
+    // arg object-literal hop-by-hop to the final key's property type. keyof / number / constraint
+    // forms are NOT resolved here - they fall through to the constraint branch below or, for
+    // `T[keyof T]`, downstream via resolveTypeAnnotation -> resolveKeyofSelfValueUnion
+    const literalKeys = indexNodes.map(node => indexedAccessKey(node));
+    if (literalKeys.every(k => k !== null)) {
+      const argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);
+      const literal = argPath && resolveRuntimeExpression(argPath);
+      // Array slots retain their positional lookup; object slots share the member writer proof.
+      let propType;
+      if (literal && t.isArrayExpression(literal.node)) {
+        let cursor = literal;
+        for (const key of literalKeys.slice(0, -1)) cursor &&= walkObjectLiteralPropertyPath(cursor, key);
+        cursor &&= resolveRuntimeExpression(cursor);
+        const key = literalKeys.at(-1);
+        const element = cursor && t.isArrayExpression(cursor.node) && walkObjectLiteralPropertyPath(cursor, key);
+        propType = element ? resolveNodeType(element) : cursor && t.isObjectExpression(cursor.node) && resolveObjectMember(cursor, key);
+      } else if (literal && t.isObjectExpression(literal.node)) propType = resolveObjectMemberPath(literal, literalKeys, argPath);
+      if (propType) return propType;
+    }
+    // a literal key or a `keyof` over the parameter itself, on a parameter an argument bound (`pick(c)`
+    // against `pick<T>(o: T): T[keyof T]`): the type the parameter resolved to no longer carries the
+    // members either reads, so they are read off the argument. a literal argument is the literal-key
+    // read's above, with the writes and hand-outs it honours, so a `keyof` folds its own keys read that
+    // way; any other argument is read key by key as a static read of it is, the keys a `keyof` names
+    // coming off its declared type - and where that type names none one by one, the type itself folds
+    // in the argument's own scope
+    const argPath = indexNodes.length === 1 && returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);
+    const argValue = argPath && resolveRuntimeExpression(argPath);
+    const root = { type: 'TSTypeReference', typeName: { type: 'Identifier', name: rootName } };
+    if (t.isObjectExpression(argValue?.node)) {
+      const keys = isKeyofTargeting(indexNodes[0], root, scope) && staticKeyNames(argValue.node.properties);
+      const read = keys?.length && foldUnionTypes(keys, key => resolveObjectMemberPath(argValue, [key], argPath));
+      if (read) return read;
+    } else if (argPath) {
+      const declared = isKeyofTargeting(indexNodes[0], root, scope) && findExpressionAnnotation(argPath);
+      const declaredType = declared && unwrapTypeAnnotation(declared.annotation);
+      const members = declaredType && getTypeMembers({ objectType: declaredType, scope: declared.scope });
+      const keys = literalKeys[0] === null ? members && staticKeyNames(members) : literalKeys;
+      let read = null;
+      if (keys?.length) read = foldUnionTypes(keys, key => memberResolveCluster.resolveMemberOfObjectPath(argPath, key, null));
+      else if (declaredType && !keys) {
+        const indexType = { type: 'TSTypeOperator', operator: 'keyof', typeAnnotation: declaredType };
+        const access = { type: 'TSIndexedAccessType', objectType: declaredType, indexType };
+        read = resolveTypeAnnotation(access, declared.scope, depth + 1, seen);
+      }
+      if (read) return read;
+    }
+    // single-step constraint fallback: `<T extends {k: number[]}>(o: T): T['k']` with no
+    // arg-Path match still resolves through constraint. multi-step constraint walking
+    // requires alias-chain follow + per-hop subst - deferred until concrete repro
+    if (indexNodes.length === 1) {
+      const paramInfo = findTypeParameter(rootName, scope);
+      if (paramInfo?.constraint) {
+        const syntheticNode = { type: 'TSIndexedAccessType', objectType: paramInfo.constraint, indexType: indexNodes[0] };
+        return resolveTypeAnnotation(syntheticNode, paramInfo.scope, depth, seen);
+      }
+    }
+    return null;
+  }
+
+  // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
+  // SpreadElement encountered before the match could have injected `key` -> bail.
+  // forward iteration with `return-on-first-match` would be double-wrong: it would return an
+  // early match for `{a: 1, ...spread}` (spread might override) AND bail for `{...spread, a: 1}`
+  // (the LATER literal wins even after the spread). returns null when no key matches, when
+  // a spread sits before the latest match, or when the matched value is a leaf method
+  // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics).
+  // An identity-only caller can share a data-slot cursor within its immutable closure walk;
+  // cache methods as null and each visited key once, so distinct keys also cost one list scan.
+  function findObjectLiteralKey(propsPath, key, onMethod, ownDataCache = null) {
+    const data = ownDataCache && memoize(ownDataCache, propsPath, () => ({ at: propsPath.length, keys: new Map() }));
+    if (data?.keys.has(key)) return data.keys.get(key)?.get('value') ?? null;
+    for (let i = (data?.at ?? propsPath.length) - 1; i >= 0; i--) {
+      const prop = propsPath[i];
+      const { node } = prop;
+      if (data) data.at = i;
+      if (node.type === 'SpreadElement') {
+        if (data) data.at = 0;
+        return null;
+      }
+      const name = node.computed ? resolveComputedKeyName(node.key, prop.scope, undefined, false) : getKeyName(node.key);
+      // Only a resolved key participates in explicit-slot precedence.
+      if (data && name !== null && !data.keys.has(name)) data.keys.set(name, babelNodeType(node) === 'ObjectMethod' ? null : prop);
+      if (name !== key) continue;
+      if (data) return data.keys.get(key)?.get('value') ?? null;
+      if (babelNodeType(node) === 'ObjectMethod') {
+        // a setter as the LAST decl for `key` makes it an accessor: a paired getter behind it
+        // supplies the read value (resolved by onMethod); a plain data property behind it is
+        // SHADOWED (reading yields the getter's value or undefined, never the stale data) - so
+        // search for a getter only, else bail. mirrors `findObjectMember`'s setter handling
+        if (node.kind === 'set') {
+          for (let j = i - 1; j >= 0; j--) {
+            const earlier = propsPath[j];
+            if (earlier.node.type === 'SpreadElement') return null;
+            const matches = memberKeyMatches(earlier.node.key, earlier.node.computed, key, earlier.get('key'));
+            if (!matches) continue;
+            if (earlier.node.kind === 'set') continue;
+            // nearest earlier definition decides - see the `findObjectMember` twin
+            return earlier.node.kind === 'get' ? onMethod(earlier) : null;
+          }
+          return null;
+        }
+        return onMethod(prop);
+      }
+      return prop.get('value');
+    }
+    return null;
+  }
+
+  // Walk into an object/array literal one key deep, returning the intermediate Path.
+  // Final value reads use resolveObjectMemberPath with its writer and escape checks.
+  // Method shorthand and spread bail: neither supplies a walkable value path.
+  // `ownDataCache` excludes getter evaluation and shares a data cursor for identity-only walks.
+  // Its caller owns the cache lifetime; semantic walks retain the uncached getter-return route.
+  function walkObjectLiteralPropertyPath(argPath, key, ownDataCache = null) {
+    if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
+    if (argPath?.node?.type === 'ArrayExpression') {
+      const index = canonicalArrayIndex(key);
+      return index === null ? null : positionalElementPath(argPath, index, isMutatedStatic);
+    }
+    if (argPath?.node?.type !== 'ObjectExpression') return null;
+    // A getter names the value path through its single returned expression.
+    return findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key,
+      prop => prop.node.kind === 'get' ? getterReturnPath(prop) : null, ownDataCache);
+  }
+
+  // a literal written INLINE as a getter's return argument is built fresh on every read, so no
+  // caller of an earlier read can have mutated the object THIS read observes - the premise the
+  // field-flow fold exists to protect. only the inline shape qualifies: `return inner;` hands back
+  // a named object whose writes are exactly what that fold is for
+  const getterFreshLiterals = new WeakSet();
+
+  // the single returned expression of a getter, as a PATH: the shared `singleReturnBodyExpression`
+  // owns which bodies qualify, and the matching statement is located by node identity
+  function getterReturnPath(prop) {
+    const bodyPath = methodFnPath(prop)?.get?.('body');
+    if (bodyPath?.node?.type !== 'BlockStatement') return null;
+    const wanted = singleReturnBodyExpression(bodyPath.node);
+    if (!wanted) return null;
+    const stmt = bodyPath.get('body').find(item => item.node?.type === 'ReturnStatement');
+    const argument = stmt?.get?.('argument');
+    if (argument?.node !== wanted) return null;
+    if (wanted.type === 'ObjectExpression' || wanted.type === 'ArrayExpression') getterFreshLiterals.add(wanted);
+    return argument;
+  }
+
+  // is this literal one a getter builds fresh per read? asked by the member spine, which then reads
+  // its slot off the literal itself rather than through the writer fold
+  function isGetterFreshLiteral(node) {
+    return getterFreshLiterals.has(node);
+  }
+
+  // [key] where key is a string/number literal, a const binding (chain) to one, or an
+  // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots).
+  // `literalValue` is the LEAF extractor: the key domain coerces every literal to its string
+  // key (`obj[1]` and `obj['1']` index the same slot), while a caller comparing with `===`
+  // passes an extractor that keeps the runtime type apart. only the leaves differ - the
+  // alias / IIFE / enum-member folding above them is identical, so it is not duplicated
+  // the same key NAME, for a consumer that will CLAIM a polyfill on it. the fold is the one above;
+  // what this adds is the shape gate a claim needs: a name the caller cannot attribute to a plain
+  // container, or one asked without a path to the program, declines rather than claims - over-
+  // resolving calls a method the source does not, under-resolving only degrades the read. the
+  // REWRITTEN member is gated here: a slot the program writes no longer holds the declared value,
+  // so the runtime key is not the folded one and claiming on it would call a different method.
+  // asked of the same per-program write index the TYPE read uses, so the two cannot drift apart
+  function resolveClaimableComputedKeyName(key, scope, path) {
+    const name = resolveComputedKeyName(key, scope);
+    if (name === null) return null;
+    const memberName = getMemberProperty(key);
+    const objectName = key?.object?.type === 'Identifier' ? key.object.name : null;
+    if (!path || !memberName || !objectName) return null;
+    return memberResolveCluster.enumSlotExternallyWritten(path, [objectName], memberName) ? null : name;
+  }
+
+  // Initial literal arguments are facts of the complete caller set. An in-flight null also
+  // refuses recursive source queries. Mapped-arguments spellings are indexed once per function;
+  // each read still asks the existing write-order canon whether they can precede that read.
+  const parameterLiteralValues = new WeakMap();
+  const parameterReadFacts = new WeakMap();
+
+  function resolveParameterLiteralValue(parameter, readNode, readPath) {
+    const fn = parameter.parentPath;
+    const parameterRead = pathOfNode(readPath, readNode);
+    if (!parameterRead) return null;
+    let facts = parameterReadFacts.get(fn.node);
+    if (!facts) {
+      const names = collectParamBindingNames(fn.node.params);
+      let closed = fn.node.params.every(param => param.type === 'Identifier')
+        && names?.size === fn.node.params.length;
+      const argumentsReads = [];
+      if (closed && isSloppyAtPath(fn)) {
+        referencesArgumentsObject(fn.node, argumentsReads);
+        // A numeric slot can affect the mapped binding at its read position. Any
+        // other arguments use may expose callers (callee, handouts, descriptors).
+        closed = !writesPastCeiling(argumentsReads) && argumentsReads.every(read => {
+          const member = peelParenAndTSParentPath(pathOfNode(fn, read))?.node;
+          return unwrapRuntimeExpr(member?.object) === read
+            && canonicalArrayIndex(getMemberProperty(member)) !== null;
+        });
+      }
+      parameterReadFacts.set(fn.node, facts = { closed, argumentsReads });
+    }
+    if (!facts.closed || !noReassignmentReachesUsage({
+      reassignmentNodes: facts.argumentsReads, usagePath: parameterRead, usageNode: readNode, bindingScopeNode: fn.node,
+    })) return null;
+    if (parameterLiteralValues.has(parameter.node)) return parameterLiteralValues.get(parameter.node);
+    parameterLiteralValues.set(parameter.node, null);
+    if (!parameterCallerSites.has(parameter.node)) parameterCallerSites.set(parameter.node,
+      patternBindingsCluster.parameterCallSites(parameter, {
+        staticIsMutated: isMutatedStatic,
+        getBindingEntry: (scope, name, path, sourceRead) => getPolyfillBindingEntry(scope, name,
+          hopAnchorStart({ node: sourceRead, ctx: { path } }), useBindingThunk({ scope, name, path, read: sourceRead })),
+      }));
+    const sites = parameterCallerSites.get(parameter.node);
+    if (!sites?.length) return null;
+    let value = null;
+    for (const { pairing, callPath, argIndex } of sites) {
+      if (pairing.argsUnknown || (callPath.node.type === 'TaggedTemplateExpression' && argIndex === 0)) return null;
+      const argument = resolveCallArgument(pairing.args ?? [], argIndex, isMutatedStatic);
+      const argumentPath = argument && pathOfNode(callPath, argument);
+      if (!argumentPath) return null;
+      // Positional pairing can flatten inline spreads; their iterator may change
+      // the scalar the call supplies. Retain the ordinary undecided selection there.
+      for (let cur = argumentPath; cur && cur.node !== callPath.node; cur = cur.parentPath) {
+        if (cur.node.type === 'SpreadElement') return null;
+      }
+      const argumentValue = resolveComputedKeyName(argument, anchorPathScope(argumentPath).scope,
+        literalExactValue, false, argumentPath);
+      if (argumentValue === null || (value !== null && !Object.is(value, argumentValue))) return null;
+      value = argumentValue;
+    }
+    parameterLiteralValues.set(parameter.node, value);
+    return value;
+  }
+
+  function resolveComputedKeyName(key, scope, literalValue = literalKeyValue, enumDeclarations = true, readPath = null) {
+    // follow const-binding chains by looping instead of recursing - the Identifier branch
+    // re-drives the whole resolution on the binding's init at an incremented depth
+    let depth = 0;
+    while (true) {
+      if (depth > MAX_DEPTH) return null;
+      // a transparent wrapper (`o['data' as string]`, a paren node) is the key it wraps
+      key = unwrapRuntimeExpr(key);
+      // a zero-arg IIFE computed key (`o[(() => 'data')()]`) evaluates to its return - peel and
+      // re-drive. read-only classification keeps the node in place, so peeling a SE-bearing IIFE is
+      // still sound (the correct runtime key). the Identifier branch reaches an IIFE-valued alias init
+      // through this same top on its next loop turn
+      const iifeRet = peelZeroArgIifeReturn(key, { staticIsMutated: isMutatedStatic });
+      if (iifeRet) {
+        key = iifeRet;
+        depth += 1;
+        continue;
+      }
+      // ... and a SEQUENCE key evaluates to its tail (`o[(eff(), 'data')]`) - the same read-only
+      // classification, so the prefix's effect stays where it stands and the tail is the runtime key
+      // ... and a SEQUENCE key's prefix effect stays where it stands: the tail is the runtime key
+      const seqTail = unwrapRuntimeExpr(key)?.type === 'SequenceExpression' ? unwrapRuntimeExpr(key).expressions.at(-1) : null;
+      if (seqTail) {
+        key = seqTail;
+        depth += 1;
+        continue;
+      }
+      const literal = literalValue(key);
+      if (literal !== null) return literal;
+      // single-quasi TemplateLiteral (`` `foo` `` with no interpolations) resolves to its
+      // cooked text. matches `getMemberProperty`'s template handling so `box.kind === \`A\``
+      // (and identifier chains pointing at such templates) classify the same as `'A'`
+      const quasi = singleQuasiString(key);
+      if (quasi !== null) return quasi;
+      if (!scope) return null;
+      // A local, unwritten function returning a literal proves the key even with effects.
+      // Inspect only its retained body; an opaque return still leaves explicit slots intact.
+      if (key?.type === 'CallExpression' && key.callee?.type === 'Identifier') {
+        const binding = getScopeBinding({ scope, name: key.callee.name });
+        const fn = binding && !binding.constantViolations?.length && binding.path?.node;
+        const ret = fn?.type === 'FunctionDeclaration' && !fn.async && !fn.generator
+          && singleReturnBodyExpression(fn.body);
+        if (ret) return literalValue(ret) ?? singleQuasiString(ret);
+      }
+      if (key?.type === 'Identifier') {
+        // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
+        // does not surface here for a use outside its block; no use-path at this site, so the
+        // estree hook drops the twin conservatively (generic dispatch) rather than mis-resolving
+        const binding = getScopeBinding({ scope, name: key.name, path: readPath });
+        if (!binding || binding.constantViolations?.length) return null;
+        const decl = binding.path;
+        const fn = decl.parentPath;
+        if (readPath && literalValue === literalExactValue && decl.node.type === 'Identifier'
+          && t.isFunction(fn?.node) && fn.node.params.includes(decl.node)) {
+          return resolveParameterLiteralValue(decl, key, readPath);
+        }
+        if (!t.isVariableDeclarator(decl.node)) return null;
+        if (readPath && !initializerReachesRead({
+          adapter: getDecisionAdapter(), binding, declaratorNode: decl.node, usagePath: readPath, usageNode: key,
+        })) return null;
+        if (!decl.node.init) {
+          // A type-only or uninitialised declaration provides no runtime value for a selection.
+          // Existing computed-key callers have no read anchor and keep their annotation lookup.
+          if (readPath) return null;
+          // no value init: a binding typed by a string-literal type (`declare const k: 'len'`) still
+          // names a static key - TS only permits a literal-typed (or unique-symbol) binding as a
+          // computed key, so read the literal off the id's type annotation. non-literal types bail
+          return indexedAccessKey(decl.node.id?.typeAnnotation?.typeAnnotation, literalValue);
+        }
+        scope = decl.scope ?? scope;
+        if (readPath) readPath = decl;
+        // peel `as const` / `satisfies` / parens so `const k = 'len' as const` folds to its literal
+        key = unwrapRuntimeExpr(decl.node.init);
+        depth += 1;
+        continue;
+      }
+      // `Enum.A` - TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
+      // not scope.getBinding - estree-toolkit adapter doesn't register enum bindings the
+      // same way babel does; type-declaration walker works uniformly for both
+      const memberName = getMemberProperty(key);
+      // Runtime object keys cannot rely on an enum declaration: its member may have been replaced.
+      if (enumDeclarations && memberName !== null && key.object?.type === 'Identifier') {
+        const objectName = key.object.name;
+        // a lexically-nearer value binding of the same name (const / let / var / param, reassigned or
+        // not) shadows the enum - read enum member values only when the enum is the nearest value
+        // declaration. the shadow test needs the binding SCOPE only, so use the const-agnostic lookup
+        // (`constantBindingPath` would miss a reassigned `let Enum` and read the enum value under it)
+        if (enumIsNearestValue(objectName, scope, bindingDeclaratorPath(objectName, scope))) {
+          // TS merges enum blocks - the member may live in any block
+          for (const enumDecl of findAllEnumDeclarations(objectName, scope)) {
+            const member = findEnumMember(enumDecl, memberName);
+            const initValue = member?.initializer ? literalValue(member.initializer) : null;
+            if (initValue !== null) return initValue;
+          }
+        }
+      }
+      return null;
+    }
+  }
+
+  // a COMPUTED key is a value expression, not a name: `{ [k]: T }` keyed by a const must fold `k`
+  // to its string before matching, or `getKeyName` reads the bare identifier (`k`) and both misses
+  // the real member (`t.len` unresolved) and spuriously matches an accessed `t.k`. non-computed keys
+  // (and callers with no computed member) keep the literal read via the default flag
+  function keyMatchesName(key, name, scope = null, computed = false) {
+    if (computed) return scope ? resolveComputedKeyName(key, scope) === name : false;
+    return getKeyName(key) === name;
+  }
+
+  function isMemberLike(path) {
+    return t.isMemberExpression(path.node) || t.isOptionalMemberExpression(path.node);
+  }
+
+  // name-based resolution cluster: scope walks for type / enum / namespace declarations,
+  // type-parameter lookup, and ambient `declare` walks. predicates (`isTypeAlias` /
+  // `isInterfaceDeclaration`) ship from `ast-shapes` - the cluster imports them directly.
+  // `isAmbientFunctionNode` / `isAmbientClassNode` / `isAmbientFunctionOrClassNode` are
+  // module-level consts in the cluster file - identity-stable for `ambientDeclCache`'s
+  // `matchType` key
+  const nameResolutionCluster = createNameResolution({ t, getScopeBinding });
+  const {
+    withLookupPath,
+    currentLookupPath,
+    isFunctionLike,
+    isFunctionOrClassDeclaration,
+    isClassLikeDeclaration,
+    findAmbientDeclarationPath,
+    findAmbientFunctionPaths,
+    findAmbientClassPath,
+    findNamespacedFunctionPath,
+    findNamespacedValueAnnotation,
+    findOverloadsForName,
+    findDeclPathBySegments,
+    findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
+    findAllEnumDeclarations,
+    enumIsNearestValue,
+    findAllTypeDeclarations,
+    typeParamName,
+    findTypeParameter,
+  } = nameResolutionCluster;
+
+  // the ALTERNATE read of an own ctor-identity narrow a prior render left in a declarator
+  // (`const from = G === Array ? _Array$from : G.from`): the type layer reads THROUGH its own guard
+  // to the source's member read, so a claim asked after that render answers as the flat spelling
+  // `G.from(...)` does. asked of the rendered conditional itself, the union of a pure import and a
+  // member read resolved to nothing, and one source typed differently by whether a sibling had
+  // rendered first. the consequent must be the pure import of exactly the static the alternate
+  // reads - the shape alone does not vouch for a user-written ternary
+  function ownCtorNarrowAlternatePath(path) {
+    if (path?.node?.type !== 'ConditionalExpression') return null;
+    const alternate = matchCtorIdentityNarrowAlternate(path.node, (name, key) => {
+      const hop = { node: path.node.consequent, ctx: { scope: anchorPathScope(path).scope, path } };
+      return staticPairFromPolyfillEntry(name, hop)?.method === key;
+    });
+    return alternate ? path.get('alternate') : null;
+  }
+
+  // the part of a user selection `node` - asked where `path` stands, the selection's own path or its
+  // host's - that this build ever runs (`decidedLiveOperand`): the operand it yields, or its test where
+  // it yields the test's own answer. null where nothing is decided or no adapter decides selections
+  function decidedLiveNode(node, path) {
+    const key = decidedLiveKey(node, path);
+    return key ? node[key] : null;
+  }
+
+  // ... that part of a selection as a path: the selection's value is that operand's alone
+  function decidedOperandPath(path) {
+    const key = decidedLiveKey(path.node, path);
+    return key ? path.get(key) : null;
+  }
+
+  // A source literal, or a stable binding chain to one, decides a selection independently of
+  // polyfill presence. Keep this answer in the type resolver's value canon: both emitters ask it
+  // through their shared adapter, and every existing selection consumer then sees the same arm.
+  function resolveConstantSelection(node, path) {
+    const testKey = SELECTION_TEST_FIELDS[node?.type];
+    if (!testKey || !path) return null;
+    const adapter = getDecisionAdapter();
+    if (adapter?.isOptedOut?.(node)) return null;
+    const test = unwrapRuntimeExpr(node[testKey]);
+    // This decision can drive a pure fold, so only a direct literal/read may stand in the test slot.
+    // Effects inside an alias initializer have already run at its declaration and remain in the tree.
+    if (test?.type !== 'Identifier' && literalExactValue(test) === null) return null;
+    const anchored = anchorPathScope(path);
+    const value = resolveComputedKeyName(test, anchored.scope, literalExactValue, false, anchored);
+    if (value === null) return null;
+    const truthy = !!value;
+    if (node.type !== 'LogicalExpression') {
+      return { skip: truthy ? 'alternate' : 'consequent', fold: truthy ? 'consequent' : 'alternate', substituted: false };
+    }
+    const runsRight = node.operator === '&&' ? truthy : node.operator === '||' && !truthy;
+    return { skip: runsRight ? null : 'right', fold: runsRight ? 'right' : 'left', substituted: false };
+  }
+
+  // ... the key that part stands at (`decidedLiveOperandKey`); a node that selects nothing has none
+  function decidedLiveKey(node, path) {
+    const adapter = getDecisionAdapter();
+    return adapter?.decidedSelection && SELECTION_TEST_FIELDS[node?.type]
+      ? decidedLiveOperandKey(node, { scope: anchorPathScope(path).scope, adapter, path }) : null;
+  }
+
+  // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
+  // iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
+  // `x as Type`, `x!`, `x satisfies Type`. `hops`, where passed, collects every reference the walk
+  // follows to its binding's value, in order
+  function resolveRuntimeExpression(path, hops = null) {
+    let depth = MAX_DEPTH;
+    while (depth-- && path.node) {
+      path = resolvePath(path, hops);
+      if (!path.node) break;
+      const { type } = path.node;
+      if (SKIPPABLE_WRAPPER_TYPES.has(type)) {
+        path = path.get('expression');
+      // our own guard render is transparent to the value question - see `ownCtorNarrowAlternatePath` -
+      // and a selection this build decides is the operand it yields (`decidedOperandPath`)
+      } else if (type === 'ConditionalExpression' || type === 'LogicalExpression') {
+        const operand = ownCtorNarrowAlternatePath(path) ?? decidedOperandPath(path);
+        if (!operand) break;
+        path = operand;
+      // chain-AssignmentExpression `(a = init)` evaluates to its right operand at runtime.
+      // common shape: `const x = a = init` / `const x = a = b = init`. peel here so the
+      // alias walker reaches the rightmost value through nested assignment chains
+      } else if (type === 'AssignmentExpression' && path.node.operator === '=') {
+        path = path.get('right');
+      // SequenceExpression `(a, b, c)` evaluates to its last expression at runtime - the canonical
+      // transpiler indirect-call idiom `(0, ref)(...)` / `new (0, C)()` / [`(0, String.raw)\`...\``].
+      // descend to the tail (transparent-to-tail, matching the value-path SequenceExpression case in
+      // expression-dispatch) so the call / new / tagged dispatch resolves through the wrapped callee
+      } else if (type === 'SequenceExpression') {
+        const expressions = path.get('expressions');
+        if (!expressions.length) break;
+        path = expressions.at(-1);
+      } else break;
+    }
+    return path;
+  }
+
+  function unwrapTypeAnnotation(node) {
+    while (node) {
+      if (isTypeAnnotationWrapper(node)) {
+        node = node.typeAnnotation;
+        continue;
+      }
+      // parens are a semantic no-op in type position; oxc keeps `(X)` as TSParenthesizedType
+      // where babel strips it at parse - peeling HERE makes every unwrap-mediated `.type`
+      // dispatch across the resolver paren-safe on both parsers, instead of per-site peels
+      if (node.type === 'TSParenthesizedType') {
+        node = node.typeAnnotation;
+        continue;
+      }
+      return node;
+    }
+    return null;
+  }
+  // peelTSParenthesized is imported from helpers/ast-patterns and shared with siblings that
+  // pattern-match TSUnionType / TSIntersectionType / TSTypeQuery on the oxc parser path
+
+  // `function fn(x = 'a')` - default wraps param in AssignmentPattern; type is on `.left`.
+  // `function fn(...xs: T[])` - RestElement carries `T[]` annotation; caller must unwrap one level
+  function effectiveParam(param) {
+    if (!param) return { param: null, isRest: false };
+    if (param.type === 'AssignmentPattern') return { param: param.left, isRest: false };
+    if (param.type === 'RestElement') return { param, isRest: true };
+    return { param, isRest: false };
+  }
+
+  // forward decls for late-bound cluster outputs (`type-resolve-dispatch`, `awaited`,
+  // `call-resolution`, `class-object-member`, `member-resolve`, `type-annotation-resolve`,
+  // `closure-analysis`, `pattern-bindings`, `class-fields`, `type-members`, `type-query`).
+  // these clusters are instantiated below all helper function declarations they consume;
+  // forward-decl `let`s let earlier factory functions capture the bindings via closure -
+  // all reads happen at call time, by which point the destructure assignments below have
+  // populated them
+  /* eslint-disable prefer-const -- destructuring assignment below rebinds these */
+  let buildCallSiteSubst, substituteTypeParams, functionTypeParams;
+  let findExpressionAnnotation, findTypeMember, getTypeMembers, arrayElementType, classSubstInner, methodFnPath;
+  let findClassPathForTypeReference, findClassMember, findObjectMember;
+  let resolveObjectMember, resolveTypeAnnotation, resolveKnownContainerType, resolveStructuralContainerType, extendsClauseName;
+  /* eslint-enable prefer-const -- destructuring assignment below rebinds these */
+
+  // known-globals cluster: type-from-hint conversion + built-in / global member resolvers
+  // backed by the shared `KNOWN_*` registries. instantiated early so typeExpansion (below)
+  // sees `isPromiseRefName` + the rest of the factory body sees `typeFromHint` /
+  // `resolveInnerType` etc. service captures factory hoisted helpers (`resolveNodeType` /
+  // `resolveGlobalName` / `resolveMemberPropertyName` / `isMemberLike` / `isNullableOrNever`)
+  // via closure - all calls happen at AST-walk time, after factory init
+  const {
+    resolveGlobalMember,
+    typeFromHint,
+    resolveInnerType,
+    unwrapPromise,
+    promiseRefInner,
+    isPromiseRefName,
+    lookupNested,
+    resolveKnownInstanceMember,
+    resolveKnownStaticReturnType,
+    resolveKnownPropertyReturnType,
+    resolveGlobalStaticReference,
+    resolveKnownGlobalReference,
+  } = createKnownGlobals({
+    // thunk: `commonType` is declared further down the factory - same forward-decl shape the
+    // other late deps use
+    commonType: (...args) => commonType(...args),
+    // same forward-decl thunk: the return-type cluster is built after this one
+    resolveReturnType: (...args) => resolveReturnType(...args),
+    // and the type-folding cluster, which owns the element-container build, is built after it too
+    elementContainerType: (...args) => elementContainerType(...args),
+    resolveRuntimeExpression,
+    babelNodeType,
+    isMemberLike,
+    isMutatedStatic,
+    isNullableOrNever: (...args) => isNullableOrNever(...args),
+    resolveMemberPropertyName: (...args) => resolveMemberPropertyName(...args),
+    resolveGlobalName: (...args) => resolveGlobalName(...args),
+    resolveNodeType,
+    KNOWN_STATIC_METHOD_RETURN_TYPES,
+    KNOWN_STATIC_PROPERTY_RETURN_TYPES,
+    KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
+    KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
+    KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+  });
+
+  // type-folding cluster: tuple structural ops + commonType / equality fold +
+  // union / intersection / tuple resolved-fold + annotation-context resolvers. instantiated
+  // between known-globals and type-expansion so its outputs flow into every later cluster
+  // as direct destructure refs. forward-declared `let`s cover the awaited cluster output
+  // (`peelStructurePreservingWrapper`), element-types output (`extractElementAnnotation`),
+  // and typeQuery output (`resolveTypeQueryBinding`) - all late-bound via thunks
+  // eslint-disable-next-line prefer-const -- destructuring assignment below rebinds these
+  let peelStructurePreservingWrapper, extractElementAnnotation, resolveTypeQueryBinding, pickLastAmbientOverload;
+  const {
+    tupleElements,
+    rebuildTupleElements,
+    tupleAsArrayType,
+    elementContainerType,
+    resolveParametersParams,
+    resolveThisParamAnnotation,
+    findTupleElement,
+    resolveAnnotationInContext,
+    typesEqual,
+    innersEqual,
+    commonType,
+    isNullableOrNever,
+    isNullableOrNeverAnnotation,
+    foldUnionTypes,
+    foldUnionArmTypes,
+    foldIntersectionTypes,
+    resolveTupleInner,
+    resolveNonNullableAnnotation,
+    safeInnerType,
+  } = createTypeFolding({
+    t,
+    resolveRuntimeExpression,
+    effectiveParam,
+    resolveInnerType,
+    substituteTypeParams: (...args) => substituteTypeParams(...args),
+    applySubst: (...args) => applySubst(...args),
+    applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
+    peelStructurePreservingWrapper: (...args) => peelStructurePreservingWrapper(...args),
+    followTypeAliasChain: (...args) => followTypeAliasChain(...args),
+    extractElementAnnotation: (...args) => extractElementAnnotation(...args),
+    resolveTypeQueryBinding: (...args) => resolveTypeQueryBinding(...args),
+    pickLastAmbientOverload: (...args) => pickLastAmbientOverload(...args),
+    findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
+    peelTSParenthesized,
+    unwrapTypeAnnotation,
+  });
+
+  // value-ops cluster: per-shape runtime resolvers - binary-operator narrowing, union /
+  // nullish-coalesce / default-ternary handlers, numeric / member-name extraction. consumed
+  // by `resolveNodeTypeExpression`'s dispatch switch. depends only on type-folding outputs
+  // (`isNullableOrNever` / `commonType`) + factory hoisted helpers; no late deps
+  const {
+    resolveNumericType,
+    resolveMemberPropertyName,
+    resolveUnionType,
+    resolveDesugarDefaultTernary,
+    resolveBinaryOperatorType,
+  } = createValueOps({
+    getScopeBinding,
+    literalKeyValue,
+    singleQuasiString,
+    getKeyName,
+    resolveRuntimeExpression,
+    resolveComputedKeyName,
+    resolveNodeType,
+    resolvePath,
+    isNullableOrNever,
+    commonType,
+  });
+
+  // global-resolve cluster: bare-Identifier / global-proxy / `<Cls>.prototype` resolution +
+  // `extends` chain walker. `resolveClassInheritance` needs forward-decl thunks for
+  // `resolveKnownContainerType` / `resolveTypeAnnotation` (factory `let`s populated when
+  // type-annotation-resolve cluster binds them later)
+  const {
+    isGlobalProxy,
+    polyfillHintGlobalName,
+    resolveGlobalName,
+    resolvePrototypeAsInstance,
+    resolveClassInheritance,
+  } = createGlobalResolve({
+    t,
+    getScopeBinding,
+    isMemberLike,
+    keyMatchesName,
+    resolveMemberPropertyName,
+    resolveKnownConstructor,
+    resolvePrototypeInstance,
+    resolveGlobalSurfaceKeyPath,
+    resolveRuntimeExpression,
+    resolveSuperClassPath: (...args) => resolveSuperClassPath(...args),
+    resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    resolveComputedKeyName,
+    getKeyName,
+    babelBindingAdapter,
+    decidedOperandPath,
+  });
+
+  // Structural identity and complete member maps share one collector. The conditional picker reads
+  // source shapes directly; container resolution retains argument maps before their dispatch types
+  // lose the fields needed to disprove a relation.
+  const { structuralKey, structuralMembers, compareMemberShapes } = createStructuralKey({
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    getKeyName,
+    unwrapTypeAnnotation,
+    peelTSParenthesized,
+    typeRefSegments,
+    findAllTypeDeclarations,
+  });
+
+  // mapped + conditional type evaluation lives in the `type-expansion` cluster. service
+  // object passes function references that close over the factory's later-declared deps
+  // (`getTypeMembers`, `resolveInnerType`) via function-declaration hoisting.
+  // `applyAliasSubstDeep` / `substituteTypeParams` go through thunks because they're `let`
+  // bindings (assigned by the `type-subst` / `type-resolve-dispatch` cluster destructures
+  // further down), not hoisted function declarations
+  const {
+    mappedTypeKeyName,
+    mappedTypeConstraint,
+    unwrapMappedTypePassthrough,
+    expandMappedTypeMembers,
+    evaluateConditionalType,
+    pickConditionalBranchVia,
+    isUnconstrainedTypeShape,
+    collectInferredNames,
+    matchTemplatePattern,
+    typeRefSegmentsEqual,
+    dropMapKeys,
+    trueBranchSubst,
+  } = createTypeExpansion({
+    literalKeyValue,
+    applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
+    unwrapTypeAnnotation,
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    getKeyName,
+    peelTSParenthesized,
+    substituteTypeParams: (...args) => substituteTypeParams(...args),
+    resolveInnerType,
+    // late-bound: type-annotation-resolve cluster builds resolveTypeAnnotation after this
+    // factory runs. used in `infer T extends C` to convert the constraint AST keyword
+    // (TSStringKeyword / TSNumberKeyword / ...) to the internal $Primitive representation
+    // before substitution; otherwise downstream `toHint` walks an AST node and crashes
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    // shared parser-shape helper: babel wraps TSTypeParameter.name as Identifier,
+    // oxc stores the bare string. extractInferTarget reuses it for `infer U` extraction
+    typeParamName,
+    foldUnionTypes,
+    isNullableOrNever,
+    typesEqual,
+    typeRefName,
+    typeRefSegments,
+    isPromiseRefName,
+    resolveStructuralContainerType: (...args) => resolveStructuralContainerType(...args),
+    structuralKey,
+    compareMemberShapes,
+  });
+
+  // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
+  // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
+  // reference uses a non-identifier head (e.g. an `import("...").Type` form)
+  // `typeRefSegments` / `isQualifiedNameNode` / `qualifiedNameLeft` / `qualifiedNameRight`
+  // / `collectQualifiedSegments` / `typeRefName` / `isTypeAlias` / `isInterfaceDeclaration`
+  // / `typeAliasBody` / `extendsId` / `synthInterfaceExtendsRef` live in
+  // `resolve-node-type/ast-shapes.js` (closure-free pure predicates).
+
+  // --- Alias chain & substitution ---
+  // `type-subst` cluster: alias chain walker (`followTypeAliasChain` /
+  // `swapAliasToTSTypeQueryWithSubst`) + AST substitution machinery (`applyAliasSubstDeep` /
+  // `applySubst` / `substMembers` / `substMemberAnnotations` / `dropTypeParamSubst`).
+  // `followTypeAliasChain` invokes `applySubst` on the terminal node when a trivial mapped
+  // passthrough lands (or folds accumulated subst into the whole mapped type for `as`-rename
+  // shapes); keeping the two halves in one closure avoids the circular service dep a separate
+  // `alias-chain` / `ast-subst` split would need. `functionTypeParams`
+  // stays a forward-decl `let` here because
+  // awaited cluster (which exposes it) is instantiated later
+  const {
+    followTypeAliasChain,
+    swapAliasToTSTypeQueryWithSubst,
+    applyAliasSubstDeep,
+    applySubst,
+    substMembers,
+    shadowMethodTypeParams,
+    dropTypeParamSubst,
+  } = createTypeSubst({
+    unwrapTypeAnnotation,
+    findTypeDeclaration,
+    typeParamName,
+    // forward-decl thunk: `buildSubstMap` (user-type-resolve cluster) is instantiated later;
+    // `followTypeAliasChain` accumulates each generic hop through it as the one capture-avoiding builder
+    buildSubstMap: (...args) => buildSubstMap(...args),
+    unwrapMappedTypePassthrough,
+    tupleElements,
+    rebuildTupleElements,
+    mappedTypeKeyName,
+    dropMapKeys,
+    trueBranchSubst,
+    functionTypeParams: (...args) => functionTypeParams(...args),
+  });
+
+  // --- Scope lookup & declarations ---
+  function constantBindingPath(name, scope) {
+    if (!scope) return null;
+    const binding = getScopeBinding({ scope, name });
+    return binding?.constant ? binding.path : null;
+  }
+
+  // the binding's declaration path regardless of const-ness. `typeof X` reads X's DECLARED type
+  // (TS uses the annotation, not the narrowed value), which is stable even when X is reassigned -
+  // so the const gate of `constantBindingPath` is wrong for that annotation lookup
+  function bindingDeclaratorPath(name, scope) {
+    return getScopeBinding({ scope, name })?.path ?? null;
+  }
+
+  // type-query cluster (`resolveTypeQuery`, `resolveTypeofFromSegments`,
+  // `resolveTypeQueryBinding`, `resolveReturnTypeFromTypeQuery`) lives in
+  // `resolve-node-type/type-query.js`. instantiation appears below alongside the other
+  // late clusters (it consumes `applyAliasSubstDeep` through a thunk and several factory
+  // function decls)
+
+  // computed enum initializers: TS evaluates `1 + 2` / `'a' + 'b'` at compile time;
+  // we can't but operand-shape inference covers the common cases. TemplateLiteral always
+  // yields string; BinaryExpression preserves the kind if both operands match.
+  // enum-type resolution lives in `resolve-node-type/enum-types.js`. wired immediately
+  // after name-resolution so its outputs are available to the downstream type-name resolver
+  const {
+    findEnumMember,
+    resolveEnumMemberType,
+    resolveEnumType,
+  } = createEnumTypes({ babelNodeType });
+
+  // declaration / scope-walk helpers (`isClassLikeDeclaration` /
+  // `findNamespacedFunctionPath` / `findTypeDeclaration` / `findEnumDeclaration` /
+  // `findAllTypeDeclarations` / `typeParamName` / `findTypeParameter` etc.) live in
+  // `resolve-node-type/name-resolution.js`
+
+  // the box a BARE `Set` / `Array` reference resolves to. The constructor table records no element
+  // and the reference wrote none, which is `Set<any>` - it matches whatever it is weighed against.
+  // The RETURN-hint table's unrecorded element means the opposite, an elision, and the shared
+  // decoder marks for that reading; the two type-argument lanes stamp their own answer over this box
+  function resolveKnownConstructor(name) {
+    return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new)?.unmark('innerElided') ?? null : null;
+  }
+
+  // the instance `<name>.prototype` reads as. A known constructor whose family is a dispatch hint is that
+  // family, the receiver its member read `<name>.prototype.<key>` dispatches on: `new` names none for the
+  // abstract `Iterator` and any object for `Object`. Every other name reads as what `new` yields
+  function resolvePrototypeInstance(name) {
+    const known = resolveKnownConstructor(name);
+    if (!isKnownGlobalName(name)) return known;
+    const family = new $Object(name);
+    return TYPE_HINTS.has(toHint(family)) && toHint(known) !== toHint(family) ? family : known;
+  }
+
+  // user-type-resolve cluster: walks `type` / `interface` / `class` / `enum` declarations
+  // to produce Type objects; handles generic substitution, default type params, namespace-
+  // qualified extends, alias cycle detection. instantiated here so its outputs flow into
+  // every later cluster directly. `substituteTypeParams` / `resolveTypeAnnotation` /
+  // `resolveKnownContainerType` are factory `let` thunks (assigned by later clusters);
+  // `extendsClauseName` is closureAnalysis output thunked via the forward-decl let
+  const {
+    resolveUserDefinedType,
+    buildSubstMap,
+    spelledTypeArgsOf,
+  } = createUserTypeResolve({
+    typeParamName,
+    findTypeDeclaration,
+    findDeclPathBySegments,
+    withLookupPath,
+    currentLookupPath,
+    findTypeParameter,
+    isClassLikeDeclaration,
+    extendsClauseName: (...args) => extendsClauseName(...args),
+    resolveKnownConstructor,
+    resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
+    resolveEnumType,
+    findAllEnumDeclarations,
+    substituteTypeParams: (...args) => substituteTypeParams(...args),
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    applyAliasSubstDeep,
+  });
+
+  // --- Type annotation resolver ---
+  // build the typeParamMap for entering a nested type decl. produces a Type-object-valued
+  // binding map: `Map<string, ResolvedType>` for `substituteTypeParams` consumption
+  // (distinct from AST-valued `buildSubstMap` -> `applyAliasSubstDeep`).
+  // two-phase rebuild:
+  //   1. resolve callArgs through OUTER `typeParamMap` - args live in caller-scope, may
+  //      reference type-params whose names collide with this decl's params (`B<T>` calling
+  //      `A<T>` where each T is a different scope). substituting under the outer map
+  //      resolves refs to concrete types BEFORE the inner scope strips them
+  //   2. build localMap from outer-non-colliding bindings + freshly resolved declParam
+  //      entries. outer bindings whose name MATCHES a declParam are dropped (variable
+  //      capture guard - nested decl's `T` is its own scope per TS spec)
+  // when nothing was substituted AND no name collides, return typeParamMap as-is so
+  // caller's identity preserves for downstream memoize keys
+
+  // `substMemberAnnotations` / `substMembers` live in `resolve-node-type/type-subst.js`
+
+  // `TRANSPARENT_WRAPPERS` / `KEY_FILTERING_WRAPPERS` / `STRUCTURE_PRESERVING_WRAPPERS` /
+  // `PROMISE_SYNONYMS` live in `resolve-node-type/base.js`
+
+  // return-type cluster: function return resolution including call-site type-param inference.
+  // instantiated before awaited so awaited's `resolveBodyReturnType` dep is bound. cluster
+  // captures hoisted factory function decls (`resolveTypeAnnotation` / `generatorTypeParams` /
+  // `classSubstInner` / etc.) via closure; thunks for `substituteTypeParams` (forward-decl let)
+  // and `resolveNodeType`
+  const returnTypeCluster = createReturnType({
+    functionTypeParams: (...args) => functionTypeParams(...args),
+    getScopeBinding,
+    t,
+    babelNodeType,
+    unwrapTypeAnnotation,
+    effectiveParam,
+    typeParamName,
+    tupleElements,
+    mappedTypeConstraint,
+    resolveNodeType,
+    resolvePath,
+    resolveInnerType,
+    resolveRuntimeIterableElement: (...args) => patternBindingsCluster.resolveRuntimeIterableElement(...args),
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    substituteTypeParams: (...args) => substituteTypeParams(...args),
+    generatorTypeParams,
+    classSubstInner: (...args) => classSubstInner(...args),
+    shadowMethodTypeParams,
+    dropTypeParamSubst,
+    isNullableOrNever,
+    safeInnerType,
+    elementContainerType,
+    commonType,
+    foldUnionTypes,
+    mergeArmHints,
+    annotationUnionHints: (annotation, scope) => isUnionType(annotation) ? annotationUnionHints(annotation, scope) : null,
+    // `findPatternKeyPath` is a hoisted function DECLARATION of this factory - already bound here,
+    // so it passes by value. its two neighbours are pattern-bindings cluster exports assigned
+    // later, so those keep the thunk (a direct read would capture undefined)
+    findPatternKeyPath,
+    resolveDestructuredMember: (...args) => resolveDestructuredMember(...args),
+    resolveObjectMemberPath: (...args) => resolveObjectMemberPath(...args),
+    walkObjectLiteralPropertyPath,
+    decidedLiveKey,
+    isMutatedStatic,
+  });
+  const { resolveReturnType, resolveReturnUnionHints, resolveBodyReturnType, collectReturnPaths } = returnTypeCluster;
+
+  // awaited cluster: AST-level + Type-object Awaited peel + `await` expression resolver.
+  // the two walkers cross-reference (AST `peelAwaitedCommonSteps` <-> Type
+  // `pickAwaitedConditionalBranch`); consolidated into one
+  // closure so the cycle resolves internally - no forward-decl thunks needed at this layer.
+  // `findTypeMember` / `getTypeMembers` are forward-decl `let`s thunked here because
+  // type-members cluster is instantiated late
+  const awaitedCluster = createAwaited({
+    t,
+    babelNodeType,
+    findTypeDeclaration,
+    unwrapTypeAnnotation,
+    peelTSParenthesized,
+    rebuildTupleElements,
+    indexedAccessKey,
+    findTypeMember: (...args) => findTypeMember(...args),
+    followTypeAliasChain,
+    applySubst,
+    unwrapMappedTypePassthrough,
+    foldUnionTypes,
+    foldIntersectionTypes,
+    promiseRefInner,
+    unwrapPromise,
+    resolveNodeType,
+    resolveRuntimeExpression,
+    resolveBodyReturnType,
+    resolveAnnotationInContext,
+    isFunctionLike,
+    findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
+    buildSubstMap,
+    findClassMember: (...args) => findClassMember(...args),
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    keyMatchesName,
+    findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
+    pickConditionalBranchVia,
+    isUnconstrainedTypeShape,
+  });
+  ({ peelStructurePreservingWrapper, functionTypeParams } = awaitedCluster);
+  const {
+    unwrapPassthroughWrapper,
+    passthroughModifierDelta,
+    resolveAwaitedAnnotation,
+    resolveAwaitExpressionType,
+    resolveIndexedAccessMemberAnnotationAST,
+  } = awaitedCluster;
+
+  // `resolveTypeAnnotation` + `resolveConstructorType` + `resolveConstructorCallType` live
+  // in `resolve-node-type/type-annotation-resolve.js` along with the named-utility-type
+  // dispatch (`resolveNamedType`), literal / conditional / indexed-access / keyof handlers,
+  // and the cluster-private `resolveExtractExclude` / `resolveKnownContainerType`.
+  // forward-declared via `let` near the top of the factory; instantiation
+  // appears further down once the late cluster outputs (typeQuery / element-types / awaited)
+  // it consumes are bound
+
+  // dispatcher over the two pattern-key walkers (ArrayPattern numeric index / ObjectPattern
+  // string key). returns null for anything else (Identifier handled by caller, RestElement
+  // / nested patterns covered inside the underlying walkers). shared by `assignmentBindsTarget`
+  // (predicate) and resolvePath's destructure branch (key-path consumer). NOT collapsible onto
+  // the pattern-bindings cluster export: this hoisted declaration serves pre-cluster-init
+  // callers through its null path, where a const-destructured delegate dies in the TDZ
+  function findPatternKeyPath(pattern, name, scope) {
+    if (pattern?.type === 'ArrayPattern') return findArrayPatternKeyPath(pattern, name, scope);
+    if (pattern?.type === 'ObjectPattern') return findDestructuredKeyPath(pattern, name, scope);
+    return null;
+  }
+
+  // does a write the file recorded reach slot `keys` - or a prefix of it - of the container the
+  // binding at `holderPath` holds? the detection census's record, the one every reader of such a slot
+  // consults (`containerSlotWritten`, asked through the type layer's binding adapter): a literal
+  // walk past a written slot reads a value the runtime may no longer hold. the same record answers
+  // which prototype slots the file writes (`prototypeChainMayLend`)
+  const slotCensusAdapter = { ...babelBindingAdapter, isWrittenContainerSlot, isMutatedStaticSlot: isMutatedStatic };
+  function pathSlotWritten(holderPath, keys) {
+    return keys.length > 0 && containerSlotWritten(unwrapRuntimeExpr(holderPath?.node), keys.map(String), {
+      scope: holderPath?.scope, adapter: slotCensusAdapter, path: holderPath,
+    });
+  }
+
+  // walk an RHS path (`right` of an AssignmentExpression with destructure LHS) along the
+  // key-path produced by `findPatternKeyPath`, returning the path bound to that slot - or
+  // null when the RHS shape doesn't match (annotation fallback handled by callers), or where a
+  // binding on the way holds a slot the file wrote (`pathSlotWritten`). path-returning
+  // companion to `resolveObjectMemberPath` which produces a Type; used in resolvePath where
+  // downstream needs the live Path
+  function followKeyPathInRhs(rhsPath, keyPath) {
+    if (!keyPath?.length || pathSlotWritten(rhsPath, keyPath)) return null;
+    let cur = resolveRuntimeExpression(rhsPath);
+    // Array-pattern steps are iterator positions; object keys, including numeric keys, are strings.
+    // The type companion also serves indexed property reads and owns their numeric-string fold.
+    for (const [at, step] of keyPath.entries()) {
+      let next;
+      if (typeof step === 'number') {
+        // -1 marks rest-element ("whole tail" slice) - no single Path to surface
+        if (step < 0) return null;
+        if (!t.isArrayExpression(cur.node) || isMutatedStatic('Array.prototype', 'Symbol.iterator')) return null;
+        next = positionalElementPath(cur, step, isMutatedStatic);
+        if (!next) return null;
+      } else {
+        if (!t.isObjectExpression(cur.node)) return null;
+        const prop = findObjectMember(cur, step);
+        if (!prop?.node || !t.isObjectProperty(prop.node)) return null;
+        next = prop.get('value');
+      }
+      // ... and a slot holding another BINDING reads that binding's container on
+      if (pathSlotWritten(next, keyPath.slice(at + 1))) return null;
+      cur = resolveRuntimeExpression(next);
+    }
+    return cur;
+  }
+
+  // the init path of a `var name = X` re-declaration that reaches `usagePath` straight-line, when
+  // estree-toolkit block-scoped the var and never recorded the redecl as a constantViolation (babel
+  // records it and narrows to its RHS: `var x=[]; { var x='hi' } x.at()` -> string). locate the redecl
+  // declarators' paths (matched by node identity against the AST-walk result) and reuse the shared
+  // straight-line analysis over BOTH the parser-recorded reassignments AND the redecls, so the
+  // genuine reaching write wins regardless of order. returns the init ONLY when that reaching write
+  // is a redecl - a recorded reassignment reaching instead returns null, leaving the caller's
+  // recorded-violation branch (which handles `=` + destructure-assignment slots) to take over
+  function findReachingStaleRedecl(binding, usagePath, name) {
+    // declarator-shaped gap writes, as the canon hands them: assignment-shaped writes reach the
+    // race through the binding's (canonically merged) violations, and only a redecl declarator
+    // can win it (`reaching.node.type === 'VariableDeclarator'` below)
+    const gapNodes = new Set(staleVarRedeclNodes({ binding, usagePath, name, adapter: getDecisionAdapter() }));
+    if (!gapNodes.size) return null;
+    // the SAME owner the node scan used (`staleVarRedeclNodes` -> `findVarOwnerDeclaring`): a `var`
+    // hoists to the owner that DECLARES it, which is not necessarily the nearest function / program
+    // above the use, so a private nearest-owner climb could index a different subtree than the one
+    // the gap nodes came from and silently resolve none of them
+    const owner = findVarOwnerDeclaring(usagePath, name)?.owner ?? null;
+    if (!owner) return null;
+    // resolve the redecl paths through the shared per-owner write index - a dedicated
+    // owner-wide traverse per query re-walked the whole owner each time
+    const writeIndex = ownerWritePathIndex(owner);
+    const redeclPaths = [];
+    for (const node of gapNodes) {
+      const redeclPath = writeIndex.get(node);
+      if (redeclPath) redeclPaths.push(redeclPath);
+    }
+    if (!redeclPaths.length) return null;
+    // handed over as EXTRA violations, not spliced into a synthesized binding: the sorted-assignment
+    // cache keys on binding identity, and a fresh object per query defeated it outright
+    const reaching = findLastStraightLineAssignment(binding, usagePath, redeclPaths);
+    return reaching?.node?.type === 'VariableDeclarator' && reaching.node.init ? reaching : null;
+  }
+
+  function reachingStaleVarRedeclInit(binding, usagePath, name) {
+    const reaching = findReachingStaleRedecl(binding, usagePath, name);
+    if (!reaching) return null;
+    const initPath = reaching.get('init');
+    // a destructure-pattern redecl (`var [x] = ['s']`) binds the SLOT for `name`, not the whole RHS -
+    // follow the key-path to the destructured element, the same way resolvePath's assignment-destructure
+    // branch does. without this the whole array `['s']` narrows `x`, dispatching the array-only `at`
+    // variant onto a string receiver (wrong on ie:11)
+    // ... and a slot a default may fill holds one of two values (`patternSlotHasDefault`)
+    const { id } = reaching.node;
+    if (isDestructurePattern(id)) {
+      const keyPath = !patternSlotHasDefault(id, name) && findPatternKeyPath(id, name, reaching.scope);
+      if (!keyPath) return null;
+      // a rest-bound slot is always an Array - but the RHS being spread is not necessarily
+      // one: `var [...r] = "abc"` spreads a STRING into a fresh Array, so returning the RHS
+      // init would mis-type the slot as the RHS (`_atMaybeString` on an Array). the RHS
+      // aliases the slot ONLY for the exact whole-RHS shape - a single-step position-0 rest
+      // (`var [...r] = rhs`) whose RHS itself resolves to an Array. a positioned rest
+      // (`[a, ...r]` - a slice), a nested rest (`[a, [...b]]` - an element's slice), and a
+      // key READ off a rest (`[...{ length }]`) all bail to the generic helper (sound on
+      // the array) - the sentinel cannot prove whole-RHS coverage there
+      if (keyPath.some(step => typeof step === 'number' && step < 0)) {
+        return keyPath.length === 1 && keyPath[0] === -1
+          && resolveNodeType(initPath)?.constructor === 'Array' ? initPath : null;
+      }
+      return followKeyPathInRhs(initPath, keyPath) ?? null;
+    }
+    return initPath;
+  }
+
+  // a dominating var-redecl binding the name through an array-REST has no single RHS node
+  // to hand back when the slot is a SLICE (`var [a, ...rest] = [[1], 2, 3]` - rest is
+  // [2, 3]), so the path machinery above declines - but the slice TYPE is still derivable:
+  // an Array whose inner is the literal tail elements' common type (`rest[0]` then resolves
+  // number and a number receiver injects nothing). a spread / hole in the RHS, a non-literal
+  // RHS, or a key READ off the rest keep the bare-Array degrade (inner unknown); the
+  // whole-RHS `[...r]` shape with a STRING rhs is the same slice family (chars -> string)
+  function resolveStaleRedeclSliceType(binding, usagePath, name) {
+    const reaching = findReachingStaleRedecl(binding, usagePath, name);
+    if (!reaching) return null;
+    const { id } = reaching.node;
+    if (id?.type !== 'ArrayPattern') return null;
+    const keyPath = findPatternKeyPath(id, name, reaching.scope);
+    if (keyPath?.length !== 1 || typeof keyPath[0] !== 'number' || keyPath[0] >= 0) return null;
+    const initPath = reaching.get('init');
+    const sliceStart = -keyPath[0] - 1;
+    const initNode = initPath.node;
+    if (initNode?.type === 'ArrayExpression' && initNode.elements?.length >= 0) {
+      if (initNode.elements.some(el => !el || el.type === 'SpreadElement')) return new $Object('Array');
+      let inner = null;
+      const elements = cachedContainerPaths(initPath, 'elements');
+      for (let i = sliceStart; i < elements.length; i++) {
+        const resolved = resolveNodeType(elements[i]);
+        if (!resolved) return new $Object('Array');
+        inner = i === sliceStart ? resolved : commonType(inner, resolved);
+        if (!inner) return new $Object('Array');
+      }
+      return new $Object('Array', safeInnerType(inner));
+    }
+    // spreading a STRING builds an Array of its chars
+    if (resolveNodeType(initPath)?.type === 'string') return new $Object('Array', new $Primitive('string'));
+    return new $Object('Array');
+  }
+
+  // --- Type utilities & runtime expression resolver ---
+  // `hops` - see `resolveRuntimeExpression`
+  function resolvePath(path, hops = null) {
+    let depth = MAX_DEPTH;
+    while (depth-- && t.isIdentifier(path.node)) {
+      hops?.push(path);
+      // An initializer reached through a binding may carry only its parent's scope.
+      path = anchorPathScope(path);
+      if (!path.scope) break;
+      // route through the hook with the use-path: drops an over-hoisted namespace twin for a
+      // use outside its block, and (estree side) drops the phantom declaration-violations the
+      // gate below reads - a phantom namespace/declare-global twin or a for-init self-violation
+      // no longer abandons a sound alias narrow babel performs
+      const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
+      // a binding written past the ceiling is not followed through its writes (`writesPastCeiling`)
+      if (!binding || writesPastCeiling(binding.constantViolations)) break;
+      // injector-recorded reassignment flag: the destructure-emitter saw `constantViolations`
+      // at registration time (pre-AST-mutation, when scope was fresh) and stored the flag.
+      // babel's post-mutation scope can't be queried reliably here -- the original binding
+      // is replaced and the new one has empty `constantViolations`. break out of the alias
+      // walk so downstream narrowing (e.g. via the polyfill UID this binding was rewritten
+      // to) doesn't dispatch type-specific instance polyfills for a value whose runtime
+      // identity is no longer guaranteed
+      if (isReassignedBinding(path.node.name, binding)) break;
+      // estree-toolkit block-scopes a `var`, so `binding.path` may be a STALE declarator whose init
+      // was overwritten by a nested-block `var name = X` re-declaration it never recorded (babel
+      // records it). when such a redecl is the reaching write, narrow to its init - covers both empty
+      // and mixed constantViolations. else (no redecl reaches): empty -> generic; recorded violations
+      // -> fall through to the branch below. no-op on babel, whose violations already carry the redecl
+      if (varInitStaleByRedecl({ binding, usagePath: path, name: path.node.name, adapter: getDecisionAdapter() })) {
+        const reachingInit = reachingStaleVarRedeclInit(binding, path, path.node.name);
+        if (reachingInit?.node) {
+          path = reachingInit;
+          continue;
+        }
+        if (!binding.constantViolations?.length) break;
+      }
+      // mutable binding with reassignments: follow the last preceding-block `=` assignment
+      // before `path` so `let f: Foo = init; f = { kind:'b', data:'str' }; f.data.at(0)`
+      // (and `if (...) { f = {...}; f.data.at(0); }`) narrows `f` to the RHS shape, not the
+      // declared union. uses `findPrecedingBlockAssignment` (relative to use site) rather
+      // than `findLastStraightLineAssignment` (relative to var-scope) so assignments nested
+      // in conditional blocks still apply when the use site shares the same block, and the
+      // latter where the block walk finds none - an arm this build always takes, an IIFE body -
+      // so a member read off the binding takes the value its direct read is typed by
+      const { path: bindingPath } = binding;
+      const initPath = followableVarInit(bindingPath);
+      // a write in an arm the build never takes does not run (`writeNeverRuns`)
+      const violations = binding.constantViolations?.length
+        ? binding.constantViolations.filter(v => !isOwnBindingWrite(v, bindingPath)
+          && !writeNeverRuns({ write: v, usagePath: path, adapter: getDecisionAdapter() }))
+        : null;
+      if (violations?.length) {
+        const lastAssign = findPrecedingBlockAssignment(binding, path) ?? findLastStraightLineAssignment(binding, path);
+        if (lastAssign?.node?.type === 'AssignmentExpression' && lastAssign.node.operator === '=') {
+          const { left } = lastAssign.node;
+          // simple `f = X` reassignment - follow RHS directly
+          if (left?.type === 'Identifier' && left.name === path.node.name) {
+            path = lastAssign.get(assignRightKey(lastAssign.node));
+            continue;
+          }
+          // destructure-assignment `[f] = [X]` / `({f} = {f: X})` - resolveBindingType handles
+          // these via key-path walks, but resolvePath is invoked from `resolveRuntimeExpression`
+          // (member-chain resolution) which never reaches that fallback. extract the matching
+          // RHS slot here so `f.data.at(0)` after `[f] = [{data: ['x']}]` narrows correctly
+          // ... a slot a default may fill holds one of two values, which the RHS slot alone does not name
+          const keyPath = !patternSlotHasDefault(left, path.node.name) && findPatternKeyPath(left, path.node.name, lastAssign.scope);
+          if (keyPath) {
+            const elem = followKeyPathInRhs(lastAssign.get('right'), keyPath);
+            if (elem?.node) {
+              path = elem;
+              continue;
+            }
+          }
+          break;
+        }
+        if (initPath && noReassignmentReachesUsage({
+          reassignmentNodes: violations.map(v => v.node), usagePath: path,
+          bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
+          bindingAnchor: { decl: binding.path.node, kind: binding.kind },
+        })) {
+          path = initPath;
+          continue;
+        }
+        break;
+      }
+      if (initPath) {
+        path = initPath;
+        continue;
+      }
+      const captured = positionalCaptureValue(bindingPath, path.node.name);
+      if (captured) {
+        path = captured;
+        continue;
+      }
+      // A relocated head's source binding must not follow the generated identifier that replaced it.
+      const elementPath = bindingPath.node.id?.name === path.node.name && forXHeadElementPath(bindingPath);
+      if (elementPath) {
+        path = elementPath;
+        continue;
+      }
+      if (isFunctionOrClassDeclaration(bindingPath.node)) return anchorPathScope(bindingPath);
+      break;
+    }
+    return anchorPathScope(path);
+  }
+
+  // the value an array pattern's binding `name` captures whole off its declarator's init, or null. Only
+  // positional captures carry a whole value. Field extractions keep the field-flow fold, which can
+  // include writes and live defaults absent from the literal initializer
+  function positionalCaptureValue(bindingPath, name) {
+    const { id, init } = bindingPath.node;
+    if (!init || id?.type !== 'ArrayPattern' || patternSlotHasDefault(id, name)) return null;
+    const keys = findPatternKeyPath(id, name, bindingPath.scope);
+    const captured = keys?.every(key => typeof key === 'number' && key >= 0) && followKeyPathInRhs(bindingPath.get('init'), keys);
+    return captured?.node ? captured : null;
+  }
+
+  // the for-x heads whose element `forXHeadElementPath` is reading right now
+  const forXHeadsBeingRead = new Set();
+
+  // the value a for-x HEAD binding holds, which no init can spell: what the loop ITERATES. a SOLE
+  // element names one value and answers for the whole loop - the one clause of the shared primitive
+  // that is about the element's VALUE and not merely about the claims below it, which is what a walk
+  // standing ON the binding needs (`['a', 42]` reads the same to every static below and is still two
+  // values here). without it the walk stopped at the name, so a member read off such a head answered
+  // generically where the very same literal under a plain `const` resolves it - `for (const el of
+  // [{ w() {} }]) el.w.at` dispatched an instance helper for a member that is provably a function
+  function forXHeadElementPath(bindingPath) {
+    if (!t.isVariableDeclarator(bindingPath.node) || bindingPath.node.init
+      || isDestructurePattern(bindingPath.node.id)) return null;
+    const elements = forOfHeadElements(bindingPath, { sameCallee: true });
+    if (!elements?.length) return null;
+    // Local containers keep their binding-aware slot flow. A proven global constructor or realm
+    // has the same surface at the element read and at each loop-body use.
+    const loop = forXHeadLoopPath(bindingPath);
+    const literal = unwrapRuntimeExpr(loop?.node?.right);
+    const literalPath = literal ? walkPathToNode(loop.get('right'), literal) : null;
+    if (!literalPath || isMutatedStatic('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(loop.get('right'), ['Symbol.iterator'])) return null;
+    const first = positionalElementPath(literalPath, 0, isMutatedStatic);
+    if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') {
+      // an element reading its own head back (`for (const Y of [Y])`) names no value: the head is
+      // asked again while its element resolves
+      if (forXHeadsBeingRead.has(bindingPath.node)) return null;
+      forXHeadsBeingRead.add(bindingPath.node);
+      let globalName;
+      try {
+        globalName = first && resolveGlobalName(anchorPathScope(first));
+      } finally {
+        forXHeadsBeingRead.delete(bindingPath.node);
+      }
+      if (!globalName || (!POSSIBLE_GLOBAL_OBJECTS.has(globalName) && !resolveKnownConstructor(globalName))) return null;
+      return first;
+    }
+    // ... and a LONGER literal answers only where its own COMMON TYPE resolves. The shared primitive's
+    // agreement is about the claims below a SLOT, not about the value a walk standing ON the binding
+    // reads - `['a', 42]` reads the same to every static below and is still two values - so the type
+    // ladder answers that half itself, with the same question it answers for any array literal
+    if (elements.length > 1 && !resolveArrayLiteralCommonType(literalPath)) return null;
+    return first;
+  }
+
+  // returns the init path to follow for `const X = init` style bindings, or null when:
+  //  - not a VariableDeclarator (function / class / param / catch / import...)
+  //  - destructured binding (init is the collection, not the element value)
+  //  - explicit annotation + nullish placeholder init (`const x: T | null = null`) -
+  //    annotation declares the intended runtime type; init is a placeholder, so
+  //    `resolveBindingType` will pick the annotation up downstream
+  // broader annotations (`object`, `any`) fall through to init so `const x: object =
+  // [1, 2, 3]` narrows to Array via the init expression
+  function followableVarInit(bindingPath) {
+    if (!t.isVariableDeclarator(bindingPath.node)) return null;
+    const { id } = bindingPath.node;
+    if (isDestructurePattern(id)) return null;
+    let initPath = bindingPath.get('init');
+    if (!initPath?.node) return null;
+    if (id?.typeAnnotation && isNullishInit(initPath.node, bindingPath.scope, bindingPath)) return null;
+    // zero-arg IIFE on init (`const x = (() => RHS)()`) evaluates to the function body's
+    // sole expression at runtime. peel one IIFE layer when the callee is an expression-body
+    // arrow with no params - downstream alias-walker then reaches RHS just like `const x = RHS`.
+    // FunctionExpression IIFEs stay opaque (their body is always a BlockStatement, never an
+    // expression), as do multi-statement bodies / param'd IIFEs (side effects / arg binding
+    // can't be statically inlined)
+    const iifeBody = zeroArgIifeBodyPath(initPath);
+    if (iifeBody) initPath = iifeBody;
+    return initPath;
+  }
+
+  // returns the inner expression Path when `initPath` wraps a zero-arg arrow call with an
+  // expression-only body, otherwise null
+  function zeroArgIifeBodyPath(initPath) {
+    const { node } = initPath;
+    if (node?.type !== 'CallExpression' || node.arguments?.length) return null;
+    // peel paren / chain / TS-wrappers off the callee: oxc preserves `(() => x)()` as
+    // `CallExpression { callee: ParenthesizedExpression { ArrowFunctionExpression } }`,
+    // babel strips the paren on parse. without this both parsers must agree on the IIFE
+    // shape or the unplugin path silently misses the alias-walk's chain-narrow downstream
+    const arrow = unwrapRuntimeExpr(node.callee);
+    if (arrow?.type !== 'ArrowFunctionExpression' || arrow.params?.length) return null;
+    if (arrow.body?.type === 'BlockStatement') return null;
+    // an async / generator IIFE evaluates to a Promise / Generator, NOT the body expression - peeling to
+    // the body would narrow `const x = (async () => [1, 2, 3])()` to Array and inject `Array#includes` on a
+    // Promise. keep it opaque so the call's real (wrapper) return type stands
+    if (arrow.async || arrow.generator) return null;
+    const arrowPath = walkPathToNode(initPath.get('callee'), arrow);
+    return arrowPath?.get('body') ?? null;
+  }
+
+  // walk a wrapped path through `.get('expression')` until its node matches `target`.
+  // mirrors `unwrapRuntimeExpr` on the node side - paths produced by callee-side peels
+  // (ParenthesizedExpression / ChainExpression / TS expression wrappers) all expose
+  // their inner shape through the `expression` slot, so a single walker covers every
+  // combination. returns null when the walk overshoots (defensive against mismatched
+  // wrapper depth between node and path)
+  function walkPathToNode(pathStart, target) {
+    let walker = pathStart;
+    while (walker?.node && walker.node !== target) walker = walker.get('expression');
+    return walker?.node === target ? walker : null;
+  }
+
+  // `null` / `undefined` literal or `void <expr>` - placeholders that don't reflect runtime
+  // type. covers babel `NullLiteral` + ESTree `Literal { value: null }` (oxc); the `regex`
+  // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree.
+  // shared `unwrapRuntimeExpr` strips ParenthesizedExpression / TS expression wrappers
+  // (`null as any`, `(null)`) so the nullish-tail is recognized through user-applied wrappers
+  // `scope` / `path` must come from the node's OWNER (the declarator, the assignment), not from a
+  // `.get(...)` child: estree child paths carry no scope, and a scope-less lookup silently reports
+  // every `undefined` as the global one
+  function isNullishInit(node, scope, path = null) {
+    const inner = unwrapRuntimeExpr(node);
+    if (!inner) return false;
+    if (isNullLiteralNode(inner)) return true;
+    // `undefined` is shadowable (`const undefined = X` / `(undefined) => ...`), so the bare shape ALONE is
+    // over-resolve - require no local binding too, the scope gate the docstring mandates and the sibling
+    // consumers (return-type / pattern-bindings) already apply; a shadowed local is a value, not nullish
+    // through the injected scope bridge, not `scope.getBinding` directly: the estree adapter
+    // supplies its own lookup, and the raw call silently misses every shadow on that side
+    if (isBareUndefinedIdentifier(inner) && !getScopeBinding({ scope, name: 'undefined', path })) return true;
+    return isVoidExpression(inner);
+  }
+
+  // TS lib types whose first type-param is the yielded element type, structurally
+  // equivalent to Generator's TYield slot. `Iterator<T,...>`/`AsyncIterator<T,...>` carry
+  // `GENERATOR_LIKE_NAMES` imported from base - shared with `SINGLE_ELEMENT_COLLECTIONS` so
+  // the two callers don't maintain parallel hardcoded lists. all members share param-0 =
+  // TYield, matching `resolveGeneratorTypeParam`'s contract
+  // if annotation resolves to one of GENERATOR_LIKE_NAMES, return its type params; otherwise null
+  // handles aliased types: type MyGen<T> = Generator<T> -> substitutes T with actual args
+  // supports chained aliases with different param names: type A<T> = B<T>; type B<U> = Generator<U>
+  function generatorTypeParams(annotation, scope) {
+    const { node: ref, subst } = followTypeAliasChain(annotation, scope);
+    const refName = typeRefName(ref);
+    if (!GENERATOR_LIKE_NAMES.has(refName)) return null;
+    const params = getTypeArgs(ref)?.params;
+    if (!params?.length) return null;
+    if (!subst) return params;
+    // `Generator<T[]>` carries the type-param inside `TSArrayType` / `TSUnionType` -
+    // deep subst descends into it
+    return params.map(p => applyAliasSubstDeep(p, subst));
+  }
+
+  // resolve a specific Generator/AsyncGenerator type parameter from an expression
+  // paramIndex: 0 = TYield, 1 = TReturn, 2 = TNext
+  function resolveGeneratorTypeParam(exprPath, paramIndex) {
+    // direct annotation: identifier with type, type cast, etc.
+    const info = findExpressionAnnotation(exprPath);
+    if (info) {
+      const params = generatorTypeParams(info.annotation, info.scope);
+      if (params?.[paramIndex]) return resolveTypeAnnotation(params[paramIndex], info.scope);
+      return null;
+    }
+    // call expression: resolve callee function's return type annotation. async-generator
+    // `yield* await inner()` parses the delegate as AwaitExpression wrapping the call -
+    // peel one level so the call's return-type signature reaches the dispatch (Awaited<>
+    // on a Generator return is the same Generator shape, so unwrap is sound here).
+    // That peel is also the ONLY route by which an optional call arrives here: a bare
+    // `make?.()` delegate resolves through the callee earlier and never reaches this branch,
+    // so the optional arm of the union below manifests only behind an `await`
+    let resolved = resolveRuntimeExpression(exprPath);
+    if (t.isAwaitExpression(resolved.node)) resolved = resolveRuntimeExpression(resolved.get('argument'));
+    if (t.isCallExpression(resolved.node) || t.isOptionalCallExpression(resolved.node)
+      || t.isNewExpression(resolved.node)) {
+      const callee = resolveRuntimeExpression(resolved.get('callee'));
+      if (t.isFunction(callee.node) && callee.node.returnType) {
+        const params = generatorTypeParams(unwrapTypeAnnotation(callee.node.returnType), callee.scope);
+        if (params?.[paramIndex]) return resolveTypeAnnotation(params[paramIndex], callee.scope);
+      }
+    }
+    return null;
+  }
+
+  // --- Class / object member resolvers ---
+  // `binding-analysis` cluster: closure / mutation tracking. instantiated early because
+  // its `isReflectConstructCallee` feeds `class-context`'s service. service deps are
+  // factory function decls (hoisted) + a known-static registry
+  const bindingAnalysisCluster = createBindingAnalysis({
+    getScopeBinding,
+    resolveComputedKeyName,
+    resolveRuntimeExpression,
+    getDecisionAdapter,
+    bindingAdapter: slotCensusAdapter,
+    walkObjectLiteralPropertyPath,
+    scannedMethodInstall: (...args) => classFieldsCluster.scannedMethodInstall(...args),
+    t,
+    memoize,
+    findProgramPath,
+    getDeclaratorBindingName,
+    staticPairFromPolyfillEntry,
+    namespaceFromPolyfillBinding,
+    resolveGlobalMember,
+    globalNamedThroughOwnImport,
+    staticPairFromDestructure: (...args) => callResolutionCluster.staticPairFromDestructure(...args),
+    lookupNested,
+    KNOWN_STATIC_METHOD_RETURN_TYPES,
+    // thunk: closureAnalysisCluster instantiates below; resolved at the census's first
+    // build, after factory init completes. visitor keys across contributions are DISJOINT
+    // (Identifier / NewExpression here vs class / assignment / update / for-x there)
+    extraProgramCensusCollectors: () => [closureAnalysisCluster.moduleFieldCensusCollector()],
+    forwardedObjectClosure: (...args) => closureAnalysisCluster.anonymousObjectClosure(...args),
+  });
+  const {
+    buildProgramIndex,
+    programCensus,
+    collectBindingReferences,
+    classBindingName,
+    isClassExported,
+    isReceiverNewOfClass,
+    objectBindingName,
+    isReflectConstructCallee,
+    callArgumentEscapes,
+    classBindingRefClassifier,
+    computeAliasClosureFromBinding,
+    memberUseIsDirectCall,
+    methodReadLeaks,
+    resolveStaticCalleePair,
+  } = bindingAnalysisCluster;
+
+  // `resolveThisAnchor` / `resolveThisObject` / `resolveSuperClassPath`
+  // / `resolveClassContext` / `buildParentClassSubstFromNodes` / `buildParentClassSubst`
+  // live in `resolve-node-type/class-context.js`. service captures `isReflectConstructCallee`
+  // from `binding-analysis` (destructured just above) and the `type-subst` `applyAliasSubstDeep`
+  // directly - it is a const bound before this factory runs, no thunk needed
+  const {
+    resolveThisAnchor,
+    resolveThisObject,
+    resolveExpressionToClassPath,
+    resolveSuperClassPath,
+    resolveClassContext,
+    buildParentClassSubstFromNodes,
+    buildParentClassSubst,
+  } = createClassContext({
+    t,
+    resolveRuntimeExpression,
+    isReflectConstructCallee,
+    buildSubstMap,
+    // forward-decl thunk: call-resolution instantiates later in the factory body
+    constructionTypeArgs: (...args) => callResolutionCluster.constructionTypeArgs(...args),
+    findAmbientDeclarationPath,
+    findDeclPathBySegments,
+    isClassLikeDeclaration,
+    applyAliasSubstDeep,
+  });
+
+  // oxc-wrapped paths don't implement `findParent`; walk the chain directly so unplugin
+  // and babel share this helper
+  function findProgramPath(path) {
+    let current = path;
+    while (current && !t.isProgram(current.node)) current = current.parentPath;
+    return current;
+  }
+
+  // generic memoize over a `Map` / `WeakMap` cache. uses `has` to distinguish "not yet computed"
+  // from "computed as null/undefined" - some caches store null sentinels (closures bailed
+  // on leak, descendants bailed on anonymous, etc.). centralizes the get/has/set boilerplate
+  function memoize(cache, key, compute) {
+    if (cache.has(key)) return cache.get(key);
+    const value = compute();
+    cache.set(key, value);
+    return value;
+  }
+
+  // declarator-init binding name extractor: `const X = <init>` / `let X = <init>` / etc.
+  // returns `X` only when init === path.node and id is a plain Identifier. shared between
+  // class-expression `const C = class{}` form and object-literal `const o = {...}` form.
+  // destructured ids (`const {a} = ...`) bail to null - no stable single name to enumerate
+  function getDeclaratorBindingName(path) {
+    // through the wrapper peel, both halves: a cast or parens between the declarator and its value
+    // (`const C = (class {} as any)`) makes the raw parent the WRAPPER, where the name reads null.
+    // no shape has been found where the null CHANGES an answer - the export check has other routes
+    // to the same name - so this is the position question asked the way the pair contract requires,
+    // not a repair
+    const parent = peelParenAndTSParentPath(path)?.node;
+    if (parent?.type === 'VariableDeclarator' && parent.init === peelParenAndTSSlotChild(path)
+      && t.isIdentifier(parent.id)) {
+      return parent.id.name;
+    }
+    return null;
+  }
+
+  // `binding-analysis` public surface (instantiated above class-context): `classBindingName` /
+  // `isClassExported` / `isNewOfClass` / `isReceiverNewOfClass` / `objectBindingName` /
+  // `isReflectConstructCallee` / `classBindingRefClassifier` / `computeAliasClosureFromBinding`.
+  // additional cluster-internal helpers (export classification, static-call recognition,
+  // mutation classification) stay private to the cluster
+
+  // closure-analysis cluster: module-wide closure builders + temporal-flow + module-field
+  // index. instantiated before `class-fields` because the field-flow scan consumes its
+  // outputs. service deps from `binding-analysis` are already destructured; the rest are
+  // factory function decls (hoisted) or pure imports
+  const closureAnalysisCluster = createClosureAnalysis({
+    resolveComputedKeyName,
+    installedMethodWriteReceiver: (...args) => classFieldsCluster.installedMethodWriteReceiver(...args),
+    resolveStaticCalleePair,
+    // forward-decl thunks: the own-`this` scan reuses the class-fields method enumerators, and that
+    // cluster is instantiated after this one
+    ownerMethodFns: (...args) => ownerMethodFns(...args),
+    staticOwnerMethodFns: (...args) => staticOwnerMethodFns(...args),
+    callArgumentEscapes,
+    getScopeBinding,
+    t,
+    babelBindingAdapter,
+    memoize,
+    getKeyName,
+    objectBindingName,
+    computeAliasClosureFromBinding,
+    classBindingName,
+    classBindingRefClassifier,
+    buildProgramIndex,
+    programCensus,
+    memberUseIsDirectCall,
+    methodReadLeaks,
+  });
+  const {
+    computeObjectAliasClosure,
+    isReceiverInClosure,
+    isReceiverPrototypeInClosure,
+    getClosureTemporalBound,
+    getClassInstanceTemporalBound,
+    getClassInstanceClosure,
+    getClassBindingClosure,
+    classAncestorPaths,
+    getClassConstructorNames,
+    classRefLandsOutside,
+    collectClassDescendantPaths,
+    pushIfWriteMatches,
+    getModuleFieldIndex,
+  } = closureAnalysisCluster;
+  ({ extendsClauseName } = closureAnalysisCluster);
+
+  // class / object field-flow type inference lives in `resolve-node-type/class-fields.js`.
+  // public outputs: `resolveClassFieldType`, `resolveObjectFieldFlow`. `resolveNodeType`
+  // thunk via late binding (the cluster recurses into the resolver entry for init /
+  // write-RHS types). all other deps are factory function decls (hoisted) or upstream
+  // cluster outputs (closure-analysis just above)
+  const classFieldsCluster = createClassFields({
+    anchorPathScope,
+    resolveComputedKeyName,
+    isMutatedStatic,
+    objectDispatchesForeignPrototype: (...args) => expressionDispatchCluster.objectDispatchesForeignPrototype(...args),
+    scanThisNodes: closureAnalysisCluster.scanThisNodes,
+    t,
+    getKeyName,
+    literalKeyValue,
+    singleQuasiString,
+    memoize,
+    findProgramPath,
+    methodFnPath: (...args) => methodFnPath(...args),
+    findObjectMember: (...args) => findObjectMember(...args),
+    resolveObjectMember: (...args) => resolveObjectMember(...args),
+    resolveNodeType,
+    resolveReturnType,
+    resolveReturnUnionHints,
+    foldUnionTypes,
+    mergeArmHints,
+    getModuleFieldIndex,
+    pushIfWriteMatches,
+    classBindingName,
+    isClassExported,
+    isReceiverNewOfClass,
+    collectClassDescendantPaths,
+    classAncestorPaths,
+    getClassBindingClosure,
+    getClassConstructorNames,
+    resolveExpressionToClassPath,
+    resolveRuntimeExpression,
+    classRefLandsOutside,
+    getClassInstanceClosure,
+    getClassInstanceTemporalBound,
+    getClosureTemporalBound,
+    isReceiverInClosure,
+    isReceiverPrototypeInClosure,
+    computeObjectAliasClosure,
+    isNullableOrNever,
+    commonType,
+    getDecisionAdapter,
+  });
+  const {
+    resolveClassFieldType,
+    resolveObjectFieldFlow,
+    callableSlotReassigned,
+    staticFieldShadowable,
+    instanceMemberShadowable,
+    thisAnchorIsProvable,
+    ownerMethodFns,
+    staticOwnerMethodFns,
+  } = classFieldsCluster;
+
+  // class-object-member cluster: class body + merged-interface + object literal member
+  // resolution. instantiated after classFields (consumes its `resolveClassFieldType` output);
+  // forward-decl `let`s above let returnType / awaited / classFields service objects route
+  // these through thunks
+  // shared overload select+fold for every call-return site (class methods, merged interfaces, ambient fns)
+  const foldOverloadReturns = createOverloadFold({ resolveNodeType, isNullableOrNeverAnnotation, unwrapTypeAnnotation, foldUnionTypes });
+  const classObjectMemberCluster = createClassObjectMember({
+    t,
+    keyMatchesName,
+    literalKeyValue,
+    singleQuasiString,
+    resolveComputedKeyName,
+    buildSubstMap,
+    unwrapTypeAnnotation,
+    typesEqual,
+    commonType,
+    collectReturnPaths,
+    resolveRuntimeExpression,
+    resolveNodeType,
+    resolveReturnType,
+    foldOverloadReturns,
+    functionTypeParams,
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    applySubst,
+    applyAliasSubstDeep,
+    resolveSuperClassPath,
+    buildParentClassSubst,
+    resolveClassFieldType,
+    staticFieldShadowable,
+    instanceMemberShadowable,
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    findNamespacedFunctionPath,
+    findOverloadsForName,
+    classCallableSlotReassigned: classFieldsCluster.classCallableSlotReassigned,
+  });
+  ({
+    classSubstInner,
+    methodFnPath,
+    findClassMember,
+    findObjectMember,
+    resolveObjectMember,
+  } = classObjectMemberCluster);
+  const {
+    memberKeyMatches,
+    namespaceExportReturn,
+    resolveClassMember,
+    applySubstToTypeRefArgs,
+  } = classObjectMemberCluster;
+
+  // serialize `x`, `this.data`, `obj.a.b` - null for computed / shapes we don't probe
+  function pathKey(node) {
+    if (node?.type === 'Identifier') return node.name;
+    if (node?.type === 'ThisExpression') return 'this';
+    const propName = getMemberProperty(node);
+    if (propName !== null) {
+      const parent = pathKey(node.object);
+      return parent === null ? null : `${ parent }.${ propName }`;
+    }
+    return null;
+  }
+
+  // strip outer parens + leading `!` so `if (!(x === 'a'))` narrows identically to `x !== 'a'`.
+  // returns the peeled test plus a flag the caller XOR-s into its own polarity tracker.
+  // peels ALL consecutive `!` operators (parity-tracked) so `!!X` -> X with negated=false,
+  // `!!!X` -> X with negated=true. without this, double-bang coercion `!!(typeof x === 'a')`
+  // (idiom for explicit boolean cast) leaves a leftover UnaryExpression that the binary /
+  // call branches below don't pattern-match against
+  function peelNegation(test) {
+    // unwrapRuntimeExpr strips parens + ChainExpression + TS wrappers (`as` / `satisfies` / `!`)
+    // so `((x as any) instanceof Array)` and `Array.isArray?.(x)` (ESTree wraps optional calls
+    // in ChainExpression) reach the same `BinaryExpression` / `CallExpression` shape that the
+    // typeof / instanceof / known-static branches below pattern-match against
+    let negated = false;
+    test = unwrapRuntimeExpr(test);
+    while (test?.type === 'UnaryExpression' && test.operator === '!') {
+      negated = !negated;
+      test = unwrapRuntimeExpr(test.argument);
+    }
+    return { test, negated };
+  }
+
+  // discriminated-union narrowing lives in `resolve-node-type/discriminant-narrow.js`.
+  // consolidates the guards collector (`findDiscriminantGuards`) and the narrowing entry
+  // points (`narrowDiscriminatedUnion` / `narrowUnionByAssignmentLiteral` /
+  // `findPrecedingBlockAssignment`) - the narrowing path calls the collector internally so
+  // they share one closure. `flattenCondition` / `siblingExitCondition` /
+  // `getStatementSiblings` come from `typeofGuardsCluster` (instantiated below) via thunks
+  // because typeofGuards depends on `createPredicateGuards` which lands after this point;
+  // the thunks resolve at AST-walk time after factory init completes
+  const {
+    flattenUnionBranches,
+    findPrecedingBlockAssignment,
+    narrowUnionByAssignmentLiteral,
+    narrowDiscriminatedUnion,
+  } = createDiscriminantNarrow({
+    getScopeBinding,
+    t,
+    peelNegation,
+    pathKey,
+    getMemberProperty,
+    flattenCondition: (...args) => typeofGuardsCluster.flattenCondition(...args),
+    resolveComputedKeyName,
+    getStatementSiblings: (...args) => typeofGuardsCluster.getStatementSiblings(...args),
+    siblingExitCondition: (...args) => typeofGuardsCluster.siblingExitCondition(...args),
+    literalExactValue,
+    findPatternKeyPath,
+    getKeyName,
+    unwrapTypeAnnotation,
+    canFallThrough,
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    findTypeMember: (...args) => findTypeMember(...args),
+    followTypeAliasChain,
+    applySubst,
+    collectBindingReferences,
+  });
+
+  // post-rewrite alias `const from = _Array$from` / pure-import binding `_Number$isFinite`: the
+  // injector exposes the canonical entry path (`array/from`), which the detection canon decomposes
+  // (`pureEntryTarget`: the static's global and member, the member against the registry's own
+  // camelCase keys; an instance or a family entry names no static).
+  // `useStart` positions the injector's name-keyed lookup: a USER-named body-extract record serves
+  // only inside its hosting scope span, so a position-blind ask cannot be served (a same-named
+  // binding elsewhere in the file would read the wrong entry - wrong-Maybe throw). the span also
+  // holds every same-named binding declared inside it - a parameter, a catch clause - so the record
+  // goes to the binding the name reads (`useBinding`, `read` its spelling when a hop carries one,
+  // looked up only where a USER record is in play). kept in factory (not in call-return cluster)
+  // because the binding-analysis and guard clusters instantiated upstream consume it as a service dep
+  function staticPairFromPolyfillBinding(scope, name, useStart, path = null, read = null) {
+    const target = pureEntryTarget(getPolyfillBindingEntry(scope, name, useStart, useBindingThunk({ scope, name, path, read })));
+    return target?.member ? { constructor: target.global, method: target.member } : null;
+  }
+
+  // the binding a name read resolves to, deferred: the injector asks it only of a USER record
+  function useBindingThunk(lookup) {
+    return () => getScopeBinding(lookup);
+  }
+
+  // the hop-shaped ask: `hop` stands on the identifier spelling `name`, its anchor
+  // (`hopAnchorStart`) is the use position. gates on KNOWN_STATIC_METHOD_RETURN_TYPES the same as
+  // `staticPairFromDestructure` does - asymmetric acceptance otherwise resurfaces stale entries for
+  // unknown constructors (`reflect/xxx` shimmed but not tracked structurally) and downstream
+  // call-return inference reads garbage
+  function staticPairFromPolyfillEntry(name, hop) {
+    const pair = staticPairFromPolyfillBinding(hop.ctx.scope, name, hopAnchorStart(hop), hop.ctx.path, hop.node);
+    return pair && hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor) ? pair : null;
+  }
+
+  // post-rewrite VALUE alias of a whole namespace / constructor (`_Math` from 'math/namespace',
+  // `_Map` from 'map/constructor'): the import binding's entry path names the global it
+  // carries, so member reads off the swapped value (`_Math.max(...)`) keep resolving in the
+  // known-static analyses exactly like the original (`Math.max(...)`)
+  function namespaceFromPolyfillBinding(name, hop) {
+    const entry = getPolyfillBindingEntry(hop.ctx.scope, name, hopAnchorStart(hop),
+      useBindingThunk({ scope: hop.ctx.scope, name, path: hop.ctx.path, read: hop.node }));
+    if (!entry) return null;
+    const segments = entry.split('/');
+    // ... and the family a narrow entry widens to (`_Reflect` from 'reflect') carries that same value
+    if (segments.length === 1) {
+      const family = entryToGlobalHint(entry);
+      return family !== null && hasNarrowEntry(family) ? family : null;
+    }
+    if (segments.length !== 2) return null;
+    const [head, tail] = segments;
+    if (tail !== 'namespace' && tail !== 'index' && tail !== 'constructor') return null;
+    return entryToGlobalHint(head);
+  }
+
+  // the global the value at `path` names: this build's own import of the whole constructor or
+  // namespace (`_Reflect`), which a rewrite may have put in the source's place, else the global the
+  // resolver names. only a whole-value entry proves that identity: a static helper's import shares its
+  // owner's hint but holds another value (`Object.keys` returns an array)
+  function globalNamedThroughOwnImport(path) {
+    const value = peelSkippableWrapperPath(path);
+    return t.isIdentifier(value?.node)
+      && namespaceFromPolyfillBinding(value.node.name, { node: value.node, ctx: { scope: value.scope, path: value } })
+      || resolveGlobalName(path);
+  }
+
+  // `resolveCallReturnType` + `functionTypeReturnAnnotation` live in
+  // `resolve-node-type/call-resolution.js`
+
+  // --- Destructuring resolver ---
+  // `resolveElementType` / `extractElementAnnotation` (+ shared `resolveUserTypeElement`
+  // alias / interface-extends walker) live in `resolve-node-type/element-types.js`
+  const elementTypesCluster = createElementTypes({
+    babelNodeType,
+    unwrapTypeAnnotation,
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    tupleElements,
+    resolveTupleInner,
+    commonType,
+    isNullableOrNever,
+    findTypeDeclaration,
+    applyAliasSubstDeep,
+    buildSubstMap,
+  });
+  ({ extractElementAnnotation } = elementTypesCluster);
+  const { resolveElementType } = elementTypesCluster;
+
+  // straight-line-flow cluster instantiated first so pattern-bindings can consume
+  // `findLastStraightLineAssignment` for `resolveBindingType` (last assignment before usage)
+  const straightLineFlowCluster = createStraightLineFlow({ t, babelNodeType, decidedLiveNode, getDecisionAdapter });
+  const { findLastStraightLineAssignment } = straightLineFlowCluster;
+
+  // pattern-bindings cluster: destructuring + for-of binding resolution + the full
+  // `resolveBindingType` entry-point. ~23 functions total. service object is heavy (~26
+  // entries) but all deps are hoisted function decls or upstream cluster outputs;
+  // `resolveNodeType` / `substituteTypeParams` thunked
+  const patternBindingsCluster = createPatternBindings({
+    t,
+    isMutatedStatic,
+    getScopeBinding,
+    violationToAssignment: (...args) => callResolutionCluster.violationToAssignment(...args),
+    getDecisionAdapter,
+    babelNodeType,
+    resolveNodeType,
+    mergeArmHints,
+    resolveRuntimeExpression,
+    resolveInnerType,
+    commonType,
+    foldUnionTypes,
+    isNullishInit,
+    anchorPathScope,
+    isNullableOrNever,
+    findAllEnumDeclarations,
+    resolveEnumMemberType,
+    findTypeMember: (...args) => findTypeMember(...args),
+    substituteTypeParams: (...args) => substituteTypeParams(...args),
+    followTypeAliasChain,
+    promiseRefInner,
+    unwrapPromise,
+    unwrapTypeAnnotation,
+    findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
+    extractElementAnnotation,
+    resolveElementType,
+    findTupleElement,
+    resolveObjectMember,
+    resolveObjectFieldFlow,
+    resolveGlobalSurfaceKeyPath: (value, keys) => resolveGlobalSurfaceKeyPath(value, keys, false),
+    findObjectMember,
+    // forward-decl thunk: the member-resolve cluster is built after this one
+    resolveMemberOfObjectPath: (...args) => memberResolveCluster.resolveMemberOfObjectPath(...args),
+    typedIndexElement: (...args) => memberResolveCluster.typedIndexElement(...args),
+    arrayElementOfType: (...args) => memberResolveCluster.arrayElementOfType(...args),
+    walkObjectLiteralPropertyPath,
+    isGetterFreshLiteral,
+    pathSlotWritten,
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    resolveComputedKeyName,
+    getKeyName,
+    findLastStraightLineAssignment,
+    resolveStaleRedeclSliceType,
+    withLookupPath,
+    // the awaited cluster assigned this factory `let` above, and `reset()` re-runs the clusters'
+    // own reset hooks without re-binding them - so it passes by value here
+    functionTypeParams,
+    collectBindingReferences,
+    violationRunsDeferred: straightLineFlowCluster.violationRunsDeferred,
+    usageRunsDeferred: straightLineFlowCluster.usageRunsDeferred,
+    projectLocalFlowValue,
+    defaultAliasRefClassifier: bindingAnalysisCluster.defaultAliasRefClassifier,
+    protoSetterCalleeArms: bindingAnalysisCluster.protoSetterCalleeArms,
+  });
+  const {
+    annotationAtKeyPath,
+    findArrayPatternKeyPath,
+    findDestructuredKeyPath,
+    findForLoopParent,
+    resolveArrayLiteralElement,
+    resolveArrayLiteralCommonType,
+    findBindingAnnotation,
+    bindingDestructuringPattern,
+    findNameAnnotation,
+    isOwnBindingWrite,
+    resolveAnnotatedMember,
+    resolveAnnotatedMemberPath,
+    resolveForOfResolvedElement,
+    resolveObjectMemberPath,
+    resolveDestructuredMember,
+    collectPatternKeyPath,
+    resolveBindingType,
+    reachableValueUnionHints,
+    resolveLocalFlowValue,
+  } = patternBindingsCluster;
+
+  // type-query <-> call-return form a small dep cycle (typeQuery's `resolveReturnTypeFromTypeQuery`
+  // uses `shadowedAliasReturnAnnotation`; call-return's `resolveCallReturnTypeFromAnnotation`
+  // uses `resolveReturnTypeFromTypeQuery`). break it by instantiating typeQuery first with a
+  // thunk for shadowedAliasReturnAnnotation, then call-return reads `resolveReturnTypeFromTypeQuery`
+  // from the typeQuery destructure directly
+  const typeQueryCluster = createTypeQuery({
+    foldUnionArmTypes,
+    t,
+    constantBindingPath,
+    bindingDeclaratorPath,
+    findAllEnumDeclarations,
+    enumIsNearestValue,
+    withLookupPath,
+    resolveEnumMemberType,
+    isFunctionOrClassDeclaration,
+    isFunctionLike,
+    findAmbientDeclarationPath,
+    findNamespacedFunctionPath,
+    findOverloadsForName,
+    findTypeMember: (...args) => findTypeMember(...args),
+    findBindingAnnotation,
+    findObjectMember,
+    findClassMember,
+    methodFnPath,
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    resolveNodeType,
+    resolveRuntimeExpression,
+    resolveClassMember,
+    resolveObjectMemberPath,
+    resolveAnnotatedMemberPath,
+    annotationAtKeyPath,
+    bindingDestructuringPattern,
+    resolveReturnType,
+    unwrapTypeAnnotation,
+    applyAliasSubstDeep,
+    buildCallSiteSubst: (...args) => buildCallSiteSubst(...args),
+    // forward-decl thunk: call-resolution instantiates later in the factory body
+    shadowedAliasReturnAnnotation: (...args) => callResolutionCluster.shadowedAliasReturnAnnotation(...args),
+  });
+  ({ resolveTypeQueryBinding, pickLastAmbientOverload } = typeQueryCluster);
+  const {
+    resolveTypeQuery,
+    resolveTypeofFromSegments,
+    resolveReturnTypeFromTypeQuery,
+    typeofSource,
+    declaredTypeofTarget,
+  } = typeQueryCluster;
+
+  // call-resolution cluster: consolidates call-return (dispatch `foo()` / `obj.method()` /
+  // aliased static / typeof-binding calls to a return type) + expression-annotation (find
+  // the raw TS / Flow annotation of any expression path). the two walkers cross-reference
+  // each other (resolveCallReturnTypeFromAnnotation -> findExpressionAnnotation;
+  // findExpressionAnnotation -> functionTypeReturnAnnotation on call-callee annotations);
+  // one cluster closure resolves the cycle internally. `staticPairFromPolyfillEntry` stays
+  // in the factory (binding-analysis cluster consumer) and is passed through here. assigns
+  // forward-declared `findExpressionAnnotation` + `buildCallSiteSubst`; typeQuery
+  // (instantiated earlier) sees the latter via a thunk
+  const callResolutionCluster = createCallResolution({
+    foldUnionArmTypes,
+    resolveMemberPropertyName,
+    t,
+    babelNodeType,
+    commonType,
+    findOverloadsForName,
+    getScopeBinding,
+    hasParamTypeRef: returnTypeCluster.hasParamTypeRef,
+    babelBindingAdapter,
+    isMemberLike,
+    isMutatedStatic,
+    isWrittenContainerSlot,
+    isFunctionLike,
+    isNullableOrNever,
+    resolveNodeType,
+    resolveRuntimeExpression,
+    resolveReturnType,
+    withLookupPath,
+    foldOverloadReturns,
+    findAmbientFunctionPaths,
+    resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
+    resolveKnownStaticReturnType,
+    typeFromHint,
+    resolveKnownInstanceMember,
+    KNOWN_INSTANCE_METHOD_RETURN_TYPES,
+    staticPairFromPolyfillEntry,
+    lookupNested,
+    KNOWN_STATIC_METHOD_RETURN_TYPES,
+    swapAliasToTSTypeQueryWithSubst,
+    resolveReturnTypeFromTypeQuery,
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    unwrapTypeAnnotation,
+    followTypeAliasChain,
+    applySubst,
+    shadowMethodTypeParams,
+    applyAliasSubstDeep,
+    isNullableOrNeverAnnotation,
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    keyMatchesName,
+    findBindingAnnotation,
+    findPatternKeyPath,
+    annotationAtKeyPath,
+    findTupleElement,
+    arrayElementType: (...args) => arrayElementType(...args),
+    findTypeMember: (...args) => findTypeMember(...args),
+    narrowUnionByAssignmentLiteral,
+    buildSubstMap,
+    typeParamName,
+    effectiveParam,
+    resolveIndexedAccessMemberAnnotationAST,
+    foldUnionTypes,
+  });
+  ({ findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
+  const {
+    resolveCallReturnType,
+    resolveIndexSignatureValue,
+    indexAccessKeyKind,
+    shadowedAliasReturnAnnotation,
+    functionTypeReturnAnnotation,
+  } = callResolutionCluster;
+
+  // type-annotation-resolve cluster: ResolveTypeAnnotation + named-utility-type dispatch.
+  // instantiated here because it consumes typeQuery / call-resolution / element-types
+  // outputs (all just-destructured). assigns the factory's forward-declared `let`s for
+  // `resolveTypeAnnotation` / `resolveConstructorType` / `resolveConstructorCallType`
+  const typeAnnotationResolveCluster = createTypeAnnotationResolve({
+    structuralMembers,
+    flattenUnionBranches,
+    evaluateConditionalType: (...args) => evaluateConditionalType(...args),
+    t,
+    babelNodeType,
+    isNullableOrNever,
+    isLiteralOf,
+    KNOWN_CONSTRUCTORS,
+    CONSTRUCTOR_ALIASES,
+    PROMISE_SYNONYMS,
+    DISTRIBUTIVE_UTILITIES,
+    STRUCTURE_PRESERVING_WRAPPERS,
+    MAX_DEPTH,
+    isAmbientClassNode,
+    typeRefSegmentsEqual,
+    typeRefName,
+    findTypeParameter,
+    findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
+    getScopeBinding,
+    collectQualifiedSegments,
+    unwrapTypeAnnotation,
+    safeInnerType,
+    followTypeAliasChain,
+    applySubst,
+    shadowedAliasReturnAnnotation,
+    resolveKnownConstructor,
+    typeFromHint,
+    resolveInnerType,
+    effectiveParam,
+    resolveParametersParams,
+    resolveThisParamAnnotation,
+    resolveAnnotationInContext,
+    resolveNonNullableAnnotation,
+    resolveAwaitedAnnotation,
+    resolveReturnTypeFromTypeQuery,
+    resolveTypeQueryBinding,
+    declaredTypeofTarget,
+    spelledTypeArgsOf,
+    resolveTypeQuery,
+    unwrapPromise,
+    resolveTypeofFromSegments,
+    resolveClassInheritance,
+    resolveUserDefinedType,
+    resolveElementType,
+    foldUnionTypes,
+    foldIntersectionTypes,
+    commonType,
+    typesEqual,
+    innersEqual,
+    findTypeMember: (...args) => findTypeMember(...args),
+    findTupleElement,
+    unwrapMappedTypePassthrough,
+    tupleAsArrayType,
+    elementContainerType,
+    getTypeMembers: (...args) => getTypeMembers(...args),
+    pickConditionalBranchVia,
+    isUnconstrainedTypeShape,
+  });
+  ({
+    resolveTypeAnnotation,
+    resolveKnownContainerType,
+    resolveStructuralContainerType,
+  } = typeAnnotationResolveCluster);
+  const {
+    resolveConstructorType,
+    resolveConstructorCallType,
+    resolveNamedType,
+    isKeyofTargeting,
+  } = typeAnnotationResolveCluster;
+
+  // type-members cluster: member-resolution against any TS / Flow type-position node
+  // (interface / class merging, tuple indexing, structure-preserving wrappers, conditional /
+  // mapped / indexed-access / alias-chain dispatch). instantiated late so its service object
+  // sees the already-bound `resolveTypeAnnotation` (let from `type-annotation-resolve`),
+  // typeQuery / call-resolution / class-context outputs. `unwrapPassthroughWrapper` is
+  // direct (awaited destructured early); the forward-decl `let`s `findTypeMember` /
+  // `getTypeMembers` are this cluster's OUTPUTS, populated by the destructure assignment below
+  const typeMembersCluster = createTypeMembers({
+    matchTemplatePattern,
+    memoize,
+    unwrapTypeAnnotation,
+    peelTSParenthesized,
+    isNullableOrNeverAnnotation,
+    isClassLikeDeclaration,
+    keyMatchesName,
+    getKeyName,
+    literalKeyValue,
+    indexedAccessKey,
+    findAllTypeDeclarations,
+    findTypeDeclaration,
+    extendsClauseName,
+    buildSubstMap,
+    buildParentClassSubstFromNodes,
+    substMembers,
+    applySubst,
+    shadowedAliasReturnAnnotation,
+    applyAliasSubstDeep,
+    applySubstToTypeRefArgs,
+    findTupleElement,
+    followTypeAliasChain,
+    unwrapMappedTypePassthrough,
+    expandMappedTypeMembers,
+    isUnconstrainedTypeShape,
+    pickConditionalBranchVia,
+    resolveTypeQueryBinding,
+    typeofSource,
+    declaredTypeofTarget,
+    resolveIndexedAccessMemberAnnotationAST,
+    buildCallSiteSubst,
+    resolveTypeAnnotation,
+    functionTypeReturnAnnotation,
+    unwrapPassthroughWrapper,
+    passthroughModifierDelta,
+    collectInferredNames,
+    dropMapKeys,
+  });
+  ({ arrayElementType, findTypeMember, getTypeMembers } = typeMembersCluster);
+
+  // member-resolve cluster: typed-side member walking + runtime receiver-aware dispatch.
+  // groups annotation-based member-resolution (chain walker, return resolver, typed-member
+  // dispatcher) + runtime member-dispatch (from-member-expr, array-index, enum-member) in one
+  // closure, so the dispatch consumes `resolveTypedMember` / `resolveIndexSignatureMember`
+  // directly without a cross-cluster service dep. service captures pattern-bindings / classFields /
+  // class-object-member / classContext / nameResolution / enumTypes / value-ops / typeQuery /
+  // discriminant-narrow / type-subst outputs. real thunks: `substituteTypeParams`
+  // (type-resolve-dispatch instantiates below) and `findAnnotationGuard` (narrow-by-guards
+  // instantiates below). everything else is already bound here and passes direct - including
+  // `findExpressionAnnotation` / `functionTypeReturnAnnotation` (both from the call-resolution
+  // cluster above) and the hoisted `resolveNodeType` function declaration
+  const memberResolveCluster = createMemberResolve({
+    t,
+    typeofSource,
+    getModuleFieldIndex,
+    namespaceExportReturn,
+    findNamespacedValueAnnotation,
+    KNOWN_INSTANCE_METHOD_RETURN_TYPES,
+    // forward-decl thunk: narrow-by-guards instantiates later in the factory body
+    findAnnotationGuard: path => findAnnotationGuard(path),
+    getScopeBinding,
+    isLiteralOf,
+    isNullableOrNever,
+    unwrapTypeAnnotation,
+    getTypeMembers,
+    keyMatchesName,
+    findNameAnnotation,
+    withLookupPath,
+    findExpressionAnnotation,
+    functionTypeReturnAnnotation,
+    applyAliasSubstDeep,
+    shadowMethodTypeParams,
+    foldUnionTypes,
+    foldOverloadReturns,
+    followTypeAliasChain,
+    applySubst,
+    isNullableOrNeverAnnotation,
+    commonType,
+    narrowDiscriminatedUnion,
+    swapAliasToTSTypeQueryWithSubst,
+    resolveTypeQueryBinding,
+    resolveObjectMember,
+    resolveClassContext,
+    resolveClassMember,
+    resolveAnnotatedMember,
+    substituteTypeParams: (...args) => substituteTypeParams(...args),
+    resolveTypeAnnotation,
+    findTypeMember,
+    findTypeDeclaration,
+    findTypeParameter,
+    isKeyofTargeting,
+    resolveIndexSignatureValue,
+    indexAccessKeyKind,
+    resolveMemberPropertyName,
+    resolveRuntimeExpression,
+    resolveInnerType,
+    collectBindingReferences,
+    computeObjectAliasClosure,
+    objectBindingName,
+    resolveThisObject,
+    resolveObjectFieldFlow,
+    walkObjectLiteralPropertyPath,
+    isGetterFreshLiteral,
+    pathSlotWritten,
+    isMemberLike,
+    findAmbientClassPath,
+    resolveArrayLiteralElement,
+    findAllEnumDeclarations,
+    resolveEnumMemberType,
+    resolveEnumType,
+    enumIsNearestValue,
+    bindingDeclaratorPath,
+    resolveNodeType,
+    // assigned by the awaited cluster above - passed by value, like the binding-analysis twin
+    functionTypeParams,
+    getDecisionAdapter,
+  });
+  ({ findClassPathForTypeReference } = memberResolveCluster);
+  const {
+    resolveMemberCallChain,
+    resolveBindingReturnInfo,
+    memberCallReturnAnnotation,
+    memberCallParams,
+    resolveFromMemberExpression,
+    resolveArrayIndexAccess,
+    arrayElementsMayBeRetyped,
+    aliasedElementsMayBeRetyped,
+    resolveEnumMemberAccess,
+  } = memberResolveCluster;
+
+  // pattern-bindings cluster public surface (destructured above): array-literal / for-of /
+  // destructuring resolvers + `findBindingAnnotation` + `resolveBindingType` (the integrated
+  // entry that ties destructuring + for-of + straight-line-flow's
+  // `findLastStraightLineAssignment` lookup into one entry-point). straight-line-flow
+  // cluster (`findLastStraightLineAssignment` + IIFE / var-scope walkers) lives in
+  // `resolve-node-type/straight-line-flow.js`
+
+  // --- Guard parsing & narrowing ---
+  // `narrow-by-guards` cluster (`resolveGuardType` / `findGuardsForBinding` /
+  // `resolveTypeGuardNarrowing` + cluster-internal mutation / classification helpers) lives
+  // in `resolve-node-type/narrow-by-guards.js`. cluster instantiation appears below
+  // alongside the other late clusters (the typeof-guards cluster outputs feed its service)
+  //
+  // guard builders (`typeofGuard` / `instanceofGuard` / `guardFromHint` /
+  // `guardFromResolvedType` / `isTypeofVar`) live alongside `createPredicateGuards` in
+  // `resolve-node-type/guard-shapes.js` - pure top-level exports imported directly so
+  // typeof-guards and the predicate path both consume without going through factory closure
+
+  // alias-chain walker + AST substitution machinery consolidated into `type-subst.js`,
+  // instantiated near the top of the factory (alongside the typeFolding / typeExpansion
+  // clusters). `functionTypeParams` reaches it through the forward-decl `let` thunk
+
+  // Type-object substitution dispatch (`substituteTypeParams` chain) lives in
+  // `resolve-node-type/type-resolve-dispatch.js`. consumes `unwrapMappedTypePassthrough`
+  // / `evaluateConditionalType` from the `type-expansion` cluster; the rest are factory
+  // function declarations passed through closure
+  ({ substituteTypeParams } = createTypeResolveDispatch({
+    structuralMembers,
+    typeRefSegments,
+    resolveKnownConstructor,
+    resolveKnownContainerType,
+    resolveUserDefinedType,
+    resolveNamedType,
+    findTypeParameter,
+    findTypeDeclaration,
+    typeDeclarationShadowsGlobal,
+    getScopeBinding,
+    isNullableOrNever,
+    safeInnerType,
+    tupleAsArrayType,
+    elementContainerType,
+    foldUnionTypes,
+    foldIntersectionTypes,
+    resolveTypeAnnotation,
+    resolveIndexedAccessSubst,
+    unwrapTypeAnnotation,
+    unwrapMappedTypePassthrough,
+    evaluateConditionalType,
+  }));
+
+  // user-defined type-predicate cluster lives in `resolve-node-type/guard-shapes.js`;
+  // wire it with the type-resolution helpers it consumes and bind the two public entries
+  const predicateGuardsCluster = createPredicateGuards({
+    getScopeBinding,
+    resolveMemberCallChain,
+    unwrapTypeAnnotation,
+    memberCallReturnAnnotation,
+    memberCallParams,
+    resolveBindingReturnInfo,
+    findAmbientFunctionPaths,
+    findNameAnnotation,
+    resolveTypeAnnotation,
+  });
+  const { parseUserPredicateGuardEntries, parseAssertionGuardEntries } = predicateGuardsCluster;
+
+  // typeof / instanceof / switch / preceding-exit guard cluster lives in
+  // `resolve-node-type/typeof-guards.js`. wired here so the predicate-guards entries
+  // (already bound above) and the exit-analysis pure helpers thread into its service
+  const typeofGuardsCluster = createTypeofGuards({
+    t,
+    decidedLiveNode,
+    getScopeBinding,
+    peelNegation,
+    isLiteralOf,
+    getMemberProperty,
+    constantBindingPath,
+    lookupNested,
+    parseUserPredicateGuardEntries,
+    parseAssertionGuardEntries,
+    blockAlwaysExits,
+    canFallThrough,
+    KNOWN_STATIC_TYPE_GUARDS,
+    babelBindingAdapter,
+    staticPairFromPolyfillBinding,
+  });
+  const {
+    findEnclosingTypeGuards,
+    nearestPrecedingGuardIndex,
+    findConditionalGuards,
+    findSwitchCaseGuards,
+    findEarlyExitGuards,
+    getStatementSiblings,
+  } = typeofGuardsCluster;
+
+  // guard-narrowing cluster: filters union annotations / synthesises from positive guards.
+  // service deps span factory function decls + typeof-guards cluster outputs + late-bound
+  // `type-subst` `applyAliasSubstDeep` (thunk). instantiated after typeof-guards above
+  const narrowByGuardsCluster = createNarrowByGuards({
+    getScopeBinding,
+    t,
+    resolveTypeAnnotation,
+    isNullableOrNever,
+    foldUnionTypes,
+    resolveKnownConstructor,
+    findNameAnnotation,
+    followTypeAliasChain,
+    applyAliasSubstDeep,
+    findEnclosingTypeGuards,
+    nearestPrecedingGuardIndex,
+    findConditionalGuards,
+    findSwitchCaseGuards,
+    findEarlyExitGuards,
+    getStatementSiblings,
+    canFallThrough,
+  });
+  const {
+    resolveGuardType,
+    findGuardsForBinding,
+    findAnnotationGuard,
+    resolveTypeGuardNarrowing,
+  } = narrowByGuardsCluster;
+
+  // --- Entry / public API ---
+  let resolveCache = new WeakMap();
+
+  // Pre-mutation Type cache for plugin-side rewrites: emitters mutate the AST, so
+  // when a sibling rewrite later re-resolves a node whose CallExpression callee was swapped
+  // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), the new shape isn't recognized
+  // by `resolveNodeTypeExpression`. Emitters stash the resolved Type here BEFORE mutation;
+  // resolveNodeTypeExpression hits this WeakMap first. WeakMap (vs node-attached property)
+  // avoids polluting AST nodes - sibling plugins iterate `node` own-properties / clone via
+  // `Object.assign`-style merges; an opaque side-channel won't leak into their pipelines.
+  // {get,set} bundle around `resolvedTypeCache` - closure indirection so per-file `reset()`
+  // re-binding propagates to consumers (direct WeakMap export would leave stale refs). declared
+  // ahead of every closing use so the binding can never be read before its initializer runs
+  let resolvedTypeCache = new WeakMap();
+  const resolvedType = {
+    get: node => resolvedTypeCache.get(node),
+    set: (node, type) => resolvedTypeCache.set(node, type),
+  };
+
+  // expression-dispatch cluster: the big switch mapping runtime AST node kind to a resolved
+  // Type object. instantiated late so all dependent cluster outputs (callResolution /
+  // patternBindings / classContext / awaited / known-globals / global-resolve / value-ops)
+  // are bound as direct const refs. `resolvedTypeCache` shared via factory `let` (reassigned
+  // in `reset()` below)
+  const expressionDispatchCluster = createExpressionDispatch({
+    t,
+    isMutatedStatic,
+    getScopeBinding,
+    collectBindingReferences,
+    resolveStaticCalleePair: bindingAnalysisCluster.resolveStaticCalleePair,
+    protoSetterCalleeArms: bindingAnalysisCluster.protoSetterCalleeArms,
+    globalNamedThroughOwnImport,
+    babelNodeType,
+    KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+    getCachedType: resolvedType.get,
+    resolvePath,
+    resolveNodeType,
+    resolveBindingType,
+    unwrapTypeAnnotation,
+    polyfillHintGlobalName,
+    resolveGlobalName,
+    resolveConstructorType,
+    resolveConstructorCallType,
+    resolveCallReturnType,
+    typeFromHint,
+    resolveArrayLiteralCommonType,
+    elementContainerType,
+    resolveThisAnchor,
+    computeObjectAliasClosure,
+    thisAnchorIsProvable,
+    resolveExpressionToClassPath,
+    resolveClassInheritance,
+    resolveFromMemberExpression,
+    resolveArrayIndexAccess,
+    resolveEnumMemberAccess,
+    resolveKnownPropertyReturnType,
+    resolveGlobalStaticReference,
+    resolvePrototypeAsInstance,
+    resolveKnownGlobalReference,
+    resolveBinaryOperatorType,
+    resolveUnionType,
+    resolveDesugarDefaultTernary,
+    ownCtorNarrowAlternatePath,
+    resolveNumericType,
+    resolveTypeAnnotation,
+    resolveAwaitExpressionType,
+    generatorTypeParams,
+    resolveGeneratorTypeParam,
+    decidedOperandPath,
+    spellsMemberKey,
+    getDecisionAdapter,
+  });
+  const { resolveNodeTypeExpression, installedPrototypeFamilies } = expressionDispatchCluster;
+  // Rebuild per-file to bound memory and drop retained entries from previous parses
+  // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic).
+  //
+  // INVARIANT: all per-file caches MUST be node-keyed (WeakMap, NodePath identity). cross-
+  // program-state retention only matters when a Node identity is reused across parses,
+  // which Babel's parser doesn't do (fresh AST per file). reset() runs at parser-level
+  // entry (per-file). adding a NEW cache here means: (a) declare let-binding above, (b)
+  // re-assign to fresh WeakMap in reset, (c) use ONLY node-identity / NodePath as keys -
+  // never strings (file paths / type names) which can collide across parses
+  function reset(options) {
+    returnTypeCluster.reset();
+    typeofGuardsCluster.reset();
+    narrowByGuardsCluster.reset();
+    nameResolutionCluster.reset();
+    bindingAnalysisCluster.reset(options);
+    memberResolveCluster.reset();
+    classFieldsCluster.reset();
+    closureAnalysisCluster.reset();
+    straightLineFlowCluster.reset();
+    patternBindingsCluster.reset();
+    predicateGuardsCluster.reset();
+    typeMembersCluster.reset();
+    typeAnnotationResolveCluster.reset();
+    callResolutionCluster.resetExpressionAnnotationCache();
+    expressionDispatchCluster.reset();
+    resolveCache = new WeakMap();
+    resolvedTypeCache = new WeakMap();
+  }
+
+  function resolveNodeType(path) {
+    const { node } = path;
+    if (!node) return null;
+    if (resolveCache.has(node) && !patternBindingsCluster.needsLocalFlowQuery(node)) return resolveCache.get(node);
+    // sentinel before recursion: circular references (e.g. `const a = b.x(); const b = a.x();`)
+    // resolve to null (unknown type) instead of causing infinite recursion
+    resolveCache.set(node, null);
+    // anchor the path on the lookup-path stack for the WHOLE resolution chain - covers
+    // direct annotation lookups, member-type substitution, generic-arg resolution, etc.
+    // parsers (estree-toolkit) that don't expose TSModuleDeclaration as scope can then
+    // fall back to walking path ancestors for namespace-local type decls regardless of
+    // how deep into the resolver chain the lookup happens. the resolution is one synchronous
+    // question (`withCanonQuestion`): the union over the branches of a long selection looks up
+    // every branch from its own place in it, and each lookup climbed the selection again
+    const anchored = anchorPathScope(path);
+    return withCanonQuestion(() => withLookupPath(anchored, () => resolveNodeTypeInternal(anchored, node)));
+  }
+
+  // explicit-annotation override of expression-derived Identifier resolution. fires only
+  // when the init walk produced something AND the binding has a declared annotation:
+  //   - refinesInner: same outer, init lacks inner, annotation supplies it
+  //     (`const s: Set<string> = new Set()`)
+  //   - overridesNullish: init resolved to `$Primitive('null'|'undefined')`, typically from
+  //     `return null as any` / `return undefined as any` body inference on an `any`-returning
+  //     callee. TS treats `const r: T = init` as type T regardless of init's static type;
+  //     the scalar carries no info, so the annotation wins
+  function preferAnnotationOverExpression(result, annotated) {
+    if (!annotated) return result;
+    const refinesInner = !result.inner && annotated.inner && typesEqual(result, annotated);
+    const overridesNullish = (annotated.constructor || annotated.primitive) && result.primitive
+      && (result.type === 'null' || result.type === 'undefined');
+    return refinesInner || overridesNullish ? annotated : result;
+  }
+
+  // The common reaching value replaces the single-write expression search for a covered read.
+  // Original Type stamps still win; guards and annotations retain their fallback priorities.
+  function projectLocalFlowValue(path, value) {
+    const expression = resolvedTypeCache.get(path.node) || value.type;
+    value.type = expression ? preferAnnotationOverExpression(expression, value.annotated)
+      : resolveTypeGuardNarrowing(path) || value.annotated;
+    if (value.type?.type === 'unknown') value.type = resolveTypeGuardNarrowing(path) || value.type;
+  }
+
+  function resolveNodeTypeInternal(path, node) {
+    let result;
+    try {
+      const flow = resolveLocalFlowValue(path);
+      if (flow) {
+        resolveCache.set(node, flow.type);
+        return flow.type;
+      }
+      result = resolveNodeTypeExpression(path);
+      if (!result) {
+        // guards win over the raw binding type: for open annotations and unannotated
+        // bindings they yield the most specific type, otherwise we fall back.
+        result = resolveTypeGuardNarrowing(path) || resolveBindingType(path);
+      } else if (t.isIdentifier(path.node)) {
+        result = preferAnnotationOverExpression(result, resolveBindingType(path));
+      }
+      // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise -
+      // allow typeof / instanceof guards to refine it to a concrete type
+      if (result?.type === 'unknown') {
+        result = resolveTypeGuardNarrowing(path) || result;
+      }
+    } catch (error) {
+      // drop the sentinel so a future query may retry instead of seeing a stale `null`
+      resolveCache.delete(node);
+      throw error;
+    }
+    resolveCache.set(node, result);
+    return result;
+  }
+
+  // RHS of `= expr` in assignment or variable declarator
+  function getPatternInit(p) {
+    if (t.isAssignmentExpression(p?.node)) return p.get('right');
+    if (t.isVariableDeclarator(p?.node)) return p.get('init');
+    // NO AssignmentPattern arm ON PURPOSE: a param default is NOT an authoritative receiver -
+    // it feeds only the undefined-argument branch, and a runtime argument may be ANY type
+    // (the provider's union-hints unit locks this; over-inject stays the safe verdict)
+    return null;
+  }
+
+  // a key path off a GLOBAL object that spells `<Ctor>.prototype`, with proxy-global hops allowed
+  // ahead of the constructor (`globalThis.self.Array.prototype`): the instance type that surface
+  // hosts, or null for every other shape. a user-replaced slot answers null - the walk honors the
+  // redirection exactly as the member-read type channel does
+  // a SELECTING receiver whose every branch lands on the same proxy surface reads ONE realm
+  // whichever branch runs, so the selection cannot change the surface (`self ?? globalThis` holds
+  // `Array.prototype` either way) and the first branch answers for all of them. the verdict and the
+  // branch order are the core's own canon - the second leg's drain re-anchors by the same pair
+  function realmSelectingBranch(path) {
+    if (!proxySelectingBranchKey(path?.node) || !allProxySelectingInit(path.node, { adapter: babelBindingAdapter })) {
+      return null;
+    }
+    let cur = path;
+    for (let key = proxySelectingBranchKey(cur.node); key; key = proxySelectingBranchKey(cur.node)) {
+      cur = resolveRuntimeExpression(cur.get(key));
+    }
+    return cur;
+  }
+
+  // a claim reached through a LITERAL the source wrote - an array WRAPPER's slot, an object hop -
+  // starts its key path INSIDE that literal, so the surface question is asked of what the descent
+  // lands on and of the keys that are left (`[, { Array: { prototype: { at } } }] = [eff(), globalThis]`
+  // reads the same surface its flat twin does). a SPREAD at or before the slot makes the position
+  // runtime-determined, and the pairing is unprovable from there on
+  function descendLiteralKeyPrefix(path, keyPath) {
+    let receiver = path;
+    let keys = keyPath;
+    while (isMemberLike(receiver)) {
+      const key = resolveMemberPropertyName(receiver);
+      if (key === null || key === undefined) return null;
+      keys = [key, ...keys];
+      receiver = resolveRuntimeExpression(receiver.get('object'));
+    }
+    while (keys.length > 1) {
+      const [step] = keys;
+      const node = receiver?.node;
+      if (node?.type === 'ArrayExpression' && typeof step === 'number' && step >= 0) {
+        const element = positionalElementPath(receiver, step, isMutatedStatic);
+        if (!element) return null;
+        receiver = resolveRuntimeExpression(element);
+      } else if (node?.type === 'ObjectExpression' && typeof step === 'string') {
+        const member = findObjectMember(receiver, step);
+        if (!member?.node || objectLevelPairedProperty(receiver.node, step, undefined, { preservesBody: true })?.match !== member.node
+          || callableSlotReassigned(receiver, member.node, step)) return null;
+        const value = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
+        if (!value?.node) return null;
+        receiver = resolveRuntimeExpression(value);
+      } else {
+        const context = resolveClassContext(receiver);
+        if (!context?.isStatic || typeof step !== 'string') break;
+        const found = findClassMember({ classPath: context.classPath, name: step, isStatic: true });
+        if (!found || classFieldsCluster.classCallableSlotReassigned(found.member, false)) return null;
+        const { member } = found;
+        const value = member.node.kind === 'get' ? getterReturnPath(member) : member.get('value');
+        if (!value?.node || member.node.kind === 'set') return null;
+        receiver = resolveRuntimeExpression(value);
+      }
+      keys = keys.slice(1);
+    }
+    return { receiver, keys };
+  }
+
+  function resolveGlobalSurfaceKeyPath(initPath, keyPath, projectValues = true, verdict = null,
+    { unionHints = false, depth = 0 } = {}) {
+    if (depth > MAX_DEPTH) return null;
+    if (keyPath.length && keyPath.at(-1) !== 'prototype') return null;
+    const init = resolveRuntimeExpression(initPath);
+    const descended = descendLiteralKeyPrefix(realmSelectingBranch(init) ?? init, keyPath);
+    if (!descended || descended.keys.at(-1) !== 'prototype') return null;
+    const { receiver: inner, keys } = descended;
+    const resolved = realmSelectingBranch(inner) ?? inner;
+    // Project each constructor arm at its own read. The source selection and its effects stay intact.
+    if (resolved?.node?.type === 'ConditionalExpression') {
+      const arms = [resolved.get('consequent'), resolved.get('alternate')];
+      return unionHints
+        ? mergeArmHints(arms, 0, () => null, arm => resolveGlobalSurfaceKeyPath(arm, keys, projectValues, verdict,
+          { unionHints: true, depth: depth + 1 }))
+        : foldUnionTypes(arms, arm => resolveGlobalSurfaceKeyPath(arm, keys, projectValues, verdict, { depth: depth + 1 }));
+    }
+    // a MEMO the emitter planted mid-render stands where the source wrote the nav, and what it holds
+    // is the alias it was registered under - the name a claim asking AFTER that memo landed reads
+    // ... and a root the value canon proves to BE the global object without naming it - a call
+    // yielding it, a captured slot holding such a call - names it the way the member spelling's
+    // own chain typing does (`isGlobalProxy`): without it `{ Array: { prototype: { at } } } = _ref`
+    // over `const [_ref] = [realm()]` took the generic dispatcher on the leg that keeps the ref,
+    // where the leg re-anchoring it on the global narrowed
+    const rootName = resolveGlobalName(resolved)
+      ?? (resolved?.node?.type === 'Identifier'
+        ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null)
+      ?? (isGlobalProxy(resolved) ? 'globalThis' : null);
+    // The same projection serves member and pattern spellings of a mutable container.
+    // Its own leaf fallback asks only for a pristine surface, so cycles stay in that walk.
+    if (!rootName) return projectValues ? resolveObjectMemberPath(resolved, keys, resolved, unionHints, { projectValues: true }) : null;
+    const aliased = resolved?.node?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(rootName)
+      && !resolveKnownConstructor(rootName)
+      ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null;
+    const root = aliased ?? rootName;
+    // A recognized surface whose slot was replaced is an unknown answer, not permission
+    // to retry the less restrictive member walk and infer the original constructor again.
+    if (verdict && (POSSIBLE_GLOBAL_OBJECTS.has(root) || resolveKnownConstructor(root))) verdict.knownSurface = true;
+    const hops = keys.slice(0, -1);
+    // the constructor is the last hop the pattern names, or the init itself where the hops carry
+    // none - a collapsed proxy nav leaves the ctor there (`{ prototype: { at } } = _globalThis.Array`).
+    // `destructuredGlobalKeyPathLeaf` walks the same chain for the SYMBOL fold, but answers a leaf off
+    // a proxy ROOT: it has no arm for the ctor arriving in the init, and its root test reads an
+    // identifier where this one is handed a resolved global NAME
+    const ctorName = hops.length ? hops.at(-1) : root;
+    // a realm root the source SPELLS asks its own slot, read where the source captures it (`globalThis = fake`
+    // makes the key path the user's object; a minted one meets no write), and every hop of the key path its
+    // own, read where the init stands - each ahead of a write of it or not
+    const rootRead = resolved?.node ? { node: resolved.node, path: resolved } : null;
+    const keyRead = { node: initPath.node, path: initPath };
+    if (POSSIBLE_GLOBAL_OBJECTS.has(root) && resolved?.node?.type === 'Identifier' && resolved.node.name === root
+      && babelBindingAdapter.isMutatedStatic('globalThis', root, rootRead)) return null;
+    function proxyStep(step) {
+      return typeof step === 'string' && POSSIBLE_GLOBAL_OBJECTS.has(step)
+        && !babelBindingAdapter.isMutatedStatic('globalThis', step, keyRead);
+    }
+    // where the ctor comes from the KEY PATH, everything ahead of it walks the global object
+    if (hops.length && (!POSSIBLE_GLOBAL_OBJECTS.has(root) || !hops.slice(0, -1).every(proxyStep))) return null;
+    if (typeof ctorName !== 'string' || babelBindingAdapter.isMutatedStatic('globalThis', ctorName)) return null;
+    const instance = resolvePrototypeInstance(ctorName);
+    return unionHints ? mergeArmHints([resolved], 0, () => instance, () => null) : instance;
+  }
+
+  // resolve the type of the object from which a property is accessed:
+  // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj).
+  // anchored like `resolveNodeType`: this public entry reads `path.scope` /
+  // `parentPath.scope` on its own routes, and a scope-gap parser degrades exactly the way
+  // the anchor exists to prevent
+  function resolvePropertyObjectType(path) {
+    path = anchorPathScope(path);
+    // a destructure prop is asked more than once, and an emitter REWRITES the pattern between those
+    // asks (a consumed hop leaves, a memo takes the init's place, a cast goes with the init it wraps).
+    // where the HOST holds one receiver for the whole pattern the first answer is a fact about the
+    // source and is kept, so a later ask cannot re-derive it from a tree the source never wrote; a
+    // host that supplies a receiver PER ITERATION (a for-x head) legitimately answers differently
+    // each time and is never cached
+    const cacheKey = path?.node?.type === 'ObjectProperty' || path?.node?.type === 'Property' ? path.node : null;
+    if (cacheKey && destructureReceiverTypes.has(cacheKey)) return destructureReceiverTypes.get(cacheKey);
+    // `perIteration: false` is the ANSWER's own claim that it does not depend on which element the
+    // host supplies - the slot fold of a for-x head is exactly that, and a leg that RELOCATES the
+    // head then re-detects the pattern against a minted name nothing types
+    const verdict = { perIteration: true };
+    const answer = resolvePropertyObjectTypeUncached(path, verdict);
+    if (cacheKey && (!verdict.perIteration || fixedReceiverHost(path))) destructureReceiverTypes.set(cacheKey, answer);
+    return answer;
+  }
+
+  // does the pattern this prop sits in read ONE receiver, fixed for the whole program? a declarator
+  // or an assignment does; a loop head re-binds per element, and a parameter takes whatever the
+  // caller passes
+  function fixedReceiverHost(path) {
+    let cur = path?.parentPath;
+    while (cur && PATTERN_WRAPPERS.has(babelNodeType(cur.node))) cur = cur.parentPath;
+    const type = babelNodeType(cur?.node);
+    if (type === 'AssignmentExpression') return true;
+    // a plain `for (const { at } = x; ...)` evaluates its init ONCE, so only the two heads that
+    // re-bind per element are excluded
+    const declarationHost = babelNodeType(cur.parentPath?.parentPath?.node);
+    return type === 'VariableDeclarator'
+      && declarationHost !== 'ForInStatement' && declarationHost !== 'ForOfStatement';
+  }
+
+  // the receiver type each destructure prop resolved to, by prop node - see above. a WeakMap keyed
+  // by node needs no reset: a new parse brings new nodes, and the entries of the old one go with it
+  const destructureReceiverTypes = new WeakMap();
+
+  // drop the cached answers of every prop under `patternNode`: an emitter that RE-ROOTS a pattern
+  // (the proxy flatten anchoring `{ Array: { prototype: { at } } } = _ref` at `_globalThis.Array`)
+  // hands its leaves a receiver the source never spelled, and the answer kept above is the one the
+  // leaves gave off the old root - null where that root was an element the walk could not type.
+  // asked by the rebuild itself, so a requeued leaf re-derives off the anchored init the way a leaf
+  // the flatten reached FIRST does
+  function forgetDestructureReceiverTypes(patternNode) {
+    walkAstNodes({ root: patternNode, visit: node => {
+      if (node.type === 'ObjectProperty' || node.type === 'Property') destructureReceiverTypes.delete(node);
+      return true;
+    } });
+  }
+
+  // the host patterns whose leaves already answered, asked once per pattern
+  const primedPatterns = new WeakSet();
+
+  // ask every leaf of the pattern `prop` sits in for its receiver type while the pattern still reads
+  // as the source wrote it: the emitters' routes rewrite it, and a leaf re-dispatched after that
+  // reads the answer kept above instead of a tree the source never wrote. both bindings ask at the
+  // same points of their dispatch, so a rewrite cannot leave one leg narrower than the other
+  function primeDestructureReceiverTypes(prop) {
+    let host = prop?.parentPath;
+    while (host?.node && host.node.type !== 'VariableDeclarator' && host.node.type !== 'AssignmentExpression'
+      && host.node.type !== 'ForOfStatement' && host.node.type !== 'ForInStatement') {
+      host = host.parentPath;
+    }
+    const pattern = host?.node ? host.get(host.node.type === 'VariableDeclarator' ? 'id' : 'left') : null;
+    if (!pattern?.node || primedPatterns.has(pattern.node)) return;
+    primedPatterns.add(pattern.node);
+    // the dialect's own property type: each parser visits only the name it spells
+    pattern.traverse({ [prop.node.type](leaf) {
+      const valueType = leaf.node.value?.type;
+      if (valueType !== 'ObjectPattern' && valueType !== 'ArrayPattern') resolvePropertyObjectType(leaf);
+    } });
+  }
+
+  // no answer at all, as against an answer of NOTHING: the slot walk that finds no literal to
+  // descend leaves the question to the routes below, while one that reads a cross-family pair
+  // answers the typeless verdict on purpose
+  const NO_SLOT_ANSWER = Symbol('no-slot-answer');
+
+  // the loop's ELEMENT is what the pattern destructures, so it answers a claim the pattern names
+  // DIRECTLY. a claim one or more HOPS in reads the element's SLOT, and where the iterable is a
+  // LITERAL that slot is a path this walk can descend - the same read a declarator host performs.
+  // where every element provably LACKS the hop, the pattern's own default is what runs, and its
+  // type is the answer; an annotated iterable has no path to walk and keeps the element type.
+  // Literal slots use their value paths; a builtin prototype uses the shared surface walk.
+  function forOfElementSlotType(forOfPath, keyPath, slotDefault) {
+    if (!keyPath?.length) return NO_SLOT_ANSWER;
+    const iterated = resolveRuntimeExpression(forOfPath.get('right'));
+    if (t.isArrayExpression(iterated?.node) && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(forOfPath.get('right'), ['Symbol.iterator']))) return null;
+    const elements = iterated?.node?.type === 'ArrayExpression'
+      ? cachedContainerPaths(iterated, 'elements') : [];
+    const values = elements.map(element => resolveRuntimeExpression(element));
+    // the head may destructure an ARRAY wrapper first (`for (const [{ y }] of [[{ y: [5] }]])`): a numeric
+    // step descends the element literal the way the object step descends a property
+    const literalElements = values.length !== 0 && values.every(value => typeof keyPath[0] === 'number'
+      ? t.isArrayExpression(value?.node) : t.isObjectExpression(value?.node));
+    if (slotDefault?.node && literalElements && typeof keyPath[0] !== 'number'
+      && elements.every(element => !pathSlotWritten(element, keyPath))
+      && values.every(value => slotDefaultFiresCertainly(value, keyPath, slotDefault.parentPath))) {
+      return resolveNodeType(slotDefault);
+    }
+    if (!literalElements) {
+      return values.length ? foldUnionTypes(elements, element => pathSlotWritten(element, keyPath) ? null
+        : resolveGlobalSurfaceKeyPath(element, keyPath)) : NO_SLOT_ANSWER;
+    }
+    // ... and where the hop STANDS, the leaf reads that SLOT of each element, not the element:
+    // answering the element type handed a nested claim the plain-object answer, which resolves to
+    // no polyfill at all and cost usage-global the module the read needs. a CROSS-FAMILY pair folds
+    // to nothing, and nothing is the honest answer - both families have to reach the leaf then
+    return foldUnionTypes(elements, element => {
+      // Keep the source binding as the field-flow anchor: a resolved literal alone loses
+      // writes made through that name. Numeric slots and getter returns share the member walk.
+      const slot = resolveObjectMemberPath(resolveRuntimeExpression(element), keyPath, element);
+      if (slotDefault?.node && slot?.primitive && slot.type === 'undefined') return resolveNodeType(slotDefault);
+      return slot ?? (pathSlotWritten(element, keyPath) ? null : resolveGlobalSurfaceKeyPath(element, keyPath));
+    });
+  }
+
+  // does the literal the init spells leave the slot a pattern level's DEFAULT pairs provably undefined
+  // (`patternSlotCertainDefault`)? the level holding that slot is read off the init through inline
+  // literals alone: a binding on the way holds a container the file may have written since
+  function slotDefaultFiresCertainly(initPath, keyPath, defaultPath) {
+    let level = initPath;
+    for (const step of keyPath.slice(0, -1)) {
+      const literal = unwrapRuntimeExpr(level?.node);
+      if (!t.isObjectExpression(literal) && !t.isArrayExpression(literal)) return false;
+      level = walkObjectLiteralPropertyPath(level, step);
+    }
+    const holder = defaultPath.parentPath?.node?.type === 'ArrayPattern' ? defaultPath.parentPath : defaultPath.parentPath?.parentPath;
+    return !!level?.node && !!patternSlotCertainDefault(holder?.node, unwrapRuntimeExpr(level.node), defaultPath.node, {
+      scope: defaultPath.scope, adapter: slotCensusAdapter, path: defaultPath,
+    });
+  }
+
+  // A closed parameter has one source receiver per proven invocation. Keep that source
+  // fact before pure mirrors replace arguments; both the scalar and family queries read it.
+  // Defaults select undefined alone, and nested defaults change the remaining member path.
+  const parameterReceiverFacts = new WeakMap();
+  const parameterCallerSites = new WeakMap();
+  const primedParameterFunctions = new WeakSet();
+  function resolveParameterReceiver(objectPattern) {
+    if (parameterReceiverFacts.has(objectPattern.node)) return parameterReceiverFacts.get(objectPattern.node);
+    let parameter = objectPattern;
+    const defaults = [];
+    while (PATTERN_WRAPPERS.has(babelNodeType(parameter.parentPath?.node))) {
+      parameter = parameter.parentPath;
+      if (parameter.node.type === 'AssignmentPattern') defaults.unshift(parameter);
+    }
+    const fn = parameter.parentPath;
+    if (!t.isFunction(fn?.node) || !fn.node.params.includes(parameter.node)) return null;
+    parameterReceiverFacts.set(objectPattern.node, null);
+    const parameterAnnotation = findBindingAnnotation(parameter);
+    if (!parameterAnnotation && referencesArgumentsObject(fn.node)) return null;
+    if (!parameterCallerSites.has(parameter.node)) {
+      parameterCallerSites.set(parameter.node, patternBindingsCluster.parameterCallSites(parameter, {
+        staticIsMutated: isMutatedStatic,
+        getBindingEntry: (scope, name, path, readNode) => getPolyfillBindingEntry(scope, name,
+          hopAnchorStart({ node: readNode, ctx: { path } }), useBindingThunk({ scope, name, path, read: readNode })),
+      }));
+    }
+    const sites = parameterCallerSites.get(parameter.node);
+    const keyPath = collectPatternKeyPath(objectPattern);
+    if (!keyPath) return null;
+    const levels = defaults.map(path => ({ path, depth: collectPatternKeyPath(path.get('left')).length }));
+    const rootDefault = !sites?.length && levels.find(level => level.depth === 0)?.path.get('right');
+    const rootDefaultInfo = rootDefault?.node ? findExpressionAnnotation(rootDefault) : null;
+    const rootDefaultType = rootDefaultInfo && (keyPath.length
+      ? resolveAnnotatedMemberPath(rootDefaultInfo.annotation, keyPath, rootDefaultInfo.scope)
+      : resolveTypeAnnotation(rootDefaultInfo.annotation, rootDefaultInfo.scope));
+    // An open parameter has no runtime caller census. A written receiver annotation still
+    // describes the supplied TypeScript arguments, while the peeled default source remains
+    // a distinct runtime arm. Opaque / cross-family annotations keep the conservative answer.
+    if (!sites?.length && !rootDefaultType && !parameterAnnotation) return null;
+    function read(source, keys, unionHints = false, supplied = false) {
+      // A supplied value follows the parameter's written annotation in its declaration scope.
+      // Runtime defaults keep their own source arm; an opaque annotation proves no family.
+      if (supplied && parameterAnnotation && (keys.length || source === parameter)) {
+        const type = keys.length ? resolveAnnotatedMemberPath(parameterAnnotation, keys, parameter.scope)
+          : resolveTypeAnnotation(parameterAnnotation, parameter.scope);
+        if (!unionHints) return type;
+        const projected = unwrapTypeAnnotation(annotationAtKeyPath(parameterAnnotation, keys, parameter.scope));
+        return isUnionType(projected) ? annotationUnionHints(projected, parameter.scope)
+          : type && mergeArmHints([source], 0, () => type);
+      }
+      if (!source?.node) return keys.length ? null : unionHints ? new Set() : new $Primitive('undefined');
+      // A slot write does not erase the caller's explicit annotation; runtime values still use the field walk below.
+      if (keys.length && pathSlotWritten(source, keys) && !findExpressionAnnotation(source)) return null;
+      const verdict = {};
+      const surface = resolveGlobalSurfaceKeyPath(source, keys, false, verdict);
+      if (verdict.knownSurface) return unionHints ? surface && mergeArmHints([source], 0, () => surface) : surface;
+      if (!keys.length) {
+        if (unionHints) return mergeArmHints([source], 0);
+        const peeled = peelSkippableWrapperPath(source);
+        const runtime = resolveNodeType(peeled);
+        if (runtime || peeled.node === source.node) return runtime;
+        // A transparent assertion can hide a runtime union whose scalar fold is null. Preserve
+        // that union before using the assertion as a fallback; direct sources avoid this query.
+        return mergeArmHints([source], 0)?.size ? null : resolveNodeType(source);
+      }
+      const runtime = resolveObjectMemberPath(resolveRuntimeExpression(source), keys, source, unionHints);
+      if (runtime || unionHints) return runtime;
+      const info = findExpressionAnnotation(source);
+      return info ? resolveAnnotatedMemberPath(info.annotation, keys, info.scope) : null;
+    }
+    function project(source, offset = 0, at = 0, supplied = false) {
+      for (; at < levels.length; at++) {
+        const { path, depth } = levels[at];
+        const keys = keyPath.slice(offset, depth);
+        const type = read(source, keys, false, supplied);
+        if (type?.primitive && type.type === 'undefined'
+          || source?.node && keys.length && slotDefaultFiresCertainly(source, keys, path)) {
+          source = path.get('right');
+          offset = depth;
+          supplied = false;
+        } else if (!type) return [null];
+        else if (type.mayBeNullish && !isNullableOrNever(type)) {
+          return [...project(source, offset, at + 1, supplied), ...project(path.get('right'), depth, at + 1)];
+        }
+      }
+      const keys = keyPath.slice(offset);
+      return [{ source, keys, supplied, type: read(source, keys, false, supplied) }];
+    }
+    const receivers = sites?.length ? sites.flatMap(({ pairing, callPath, argIndex }) => {
+      if (pairing.argsUnknown) return [null];
+      const argument = resolveCallArgument(pairing.args ?? [], argIndex, isMutatedStatic);
+      if (!argument && argumentOverridesSlot(pairing.args ?? [], argIndex,
+        () => !!getScopeBinding({ scope: callPath.scope, name: 'undefined', path: callPath }), isMutatedStatic)) return [null];
+      const source = argument ? pathOfNode(callPath, argument) : null;
+      return argument && !source?.node ? [null] : project(source, 0, 0, true);
+    }) : parameterAnnotation ? [
+      ...project(parameter, 0, levels[0]?.depth === 0 ? 1 : 0, true),
+      ...levels[0]?.depth === 0 ? project(null) : [],
+    ] : [...project(null), { source: rootDefault, keys: keyPath, type: rootDefaultType }];
+    let hints = new Set();
+    for (const receiver of receivers) {
+      const type = receiver?.type;
+      if (type) {
+        if (isNullableOrNever(type)) continue;
+        const hint = toHint(type);
+        if (hint && TYPE_HINTS.has(hint)) hints.add(hint);
+      } else {
+        const inner = receiver && read(receiver.source, receiver.keys, true, receiver.supplied);
+        if (!inner) {
+          hints = null;
+          break;
+        }
+        for (const hint of inner) hints.add(hint);
+      }
+    }
+    const fact = { type: foldUnionTypes(receivers, receiver => receiver?.type ?? null), hints };
+    parameterReceiverFacts.set(objectPattern.node, fact);
+    // One mirror can replace a whole caller container. Prime its sibling patterns from
+    // the same source tree now, even when that sibling's first query comes after rendering.
+    if (!primedParameterFunctions.has(fn.node)) {
+      primedParameterFunctions.add(fn.node);
+      for (const node of fn.node.params) walkAstNodes({ root: node, visit: child => {
+        if (child.type === 'ObjectPattern' && child !== objectPattern.node) {
+          const path = pathOfNode(fn, child);
+          if (path?.node) resolveParameterReceiver(path);
+        }
+        return !t.isFunction(child);
+      } });
+    }
+    return fact;
+  }
+
+  function resolvePropertyObjectTypeUncached(path, verdict = {}) {
+    if (isMemberLike(path)) {
+      // A declared enum's own value slot is not an instance-method lookup. Keep visiting
+      // computed-key expressions; only the proven enum member suppresses dispatch.
+      const type = resolveNodeType(path.get('object'));
+      if (type?.primitive !== false && memberResolveCluster.resolveEnumMemberAccess(path, true)) return new $Object('Object');
+      return type;
+    }
+    // `key in obj` presence probe: the receiver whose prototype answers is the RIGHT operand
+    // (the instance-probe meta and its union extras dispatch with the BinaryExpression path).
+    // a resolved type narrows the method-keyed variants the same way a member read does -
+    // `'at' in []` must not fabricate es.string.at beside the array variant
+    if (path.node?.type === 'BinaryExpression' && path.node.operator === 'in') {
+      return resolveNodeType(path.get('right'));
+    }
+    if (!t.isObjectProperty(path.node)) return null;
+    const objectPattern = path.parentPath;
+    if (!t.isObjectPattern(objectPattern?.node)) return null;
+    if (objectPattern.node.typeAnnotation) {
+      return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
+    }
+    const parameter = resolveParameterReceiver(objectPattern);
+    if (parameter) {
+      verdict.perIteration = false;
+      return parameter.type;
+    }
+    const parent = objectPattern.parentPath;
+    // a DEFAULT between this pattern and its slot makes the receiver a two-armed value: the slot's
+    // own type when it is defined, the default's when it is not. picking the slot's alone injects
+    // that family and drops the default's - the arm that runs exactly when the slot is absent - so
+    // the two fold, and a cross-family pair collapses to the typeless answer both arms can take
+    const slotDefault = parent?.node?.type === 'AssignmentPattern' && parent.node.left === objectPattern.node
+      ? parent.get('right') : null;
+    if (slotDefault?.node && t.isFunction(parent.parentPath?.node)
+      && patternBindingsCluster.defaultParamNeverOverridden(parent)) {
+      verdict.perIteration = false;
+      return resolveNodeType(slotDefault);
+    }
+    function foldDefault(type) {
+      if (!slotDefault?.node) return type;
+      if (type?.inheritedPresent) return type;
+      const defaultType = resolveNodeType(slotDefault);
+      if (type?.primitive && type.type === 'undefined') return defaultType;
+      return type && defaultType ? commonType(type, defaultType) : null;
+    }
+    // direct parent owns the init - resolve the whole RHS
+    const directInit = getPatternInit(parent);
+    if (directInit?.node) return foldDefault(resolveNodeType(directInit));
+    // nested pattern: collect key path via shared walk, resolve through the init
+    let ancestor = parent;
+    let outerDefault = false;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
+      outerDefault ||= ancestor.node.type === 'AssignmentPattern' && ancestor !== parent;
+      ancestor = ancestor.parentPath;
+    }
+    const keyPath = collectPatternKeyPath(objectPattern);
+    if (keyPath?.length) {
+      const initPath = getPatternInit(ancestor);
+      if (initPath?.node) {
+        // a CAST NARROWS where it resolves and never blocks: what the leaf reads at runtime is the
+        // VALUE, and an annotation is one more way to learn its type - so `box as SomeShape` answers
+        // from the shape, while `as any` names nothing and the read falls through to the value routes
+        // below, reaching exactly the type an uncast receiver reaches.
+        // by node TYPE, not a babel-types helper: the estree adapter carries no `isTSAsExpression`,
+        // and a helper that quietly answers `undefined` there would leave one leg on the peeled read
+        const annotated = initPath.node.type === 'TSAsExpression' || initPath.node.type === 'TSTypeAssertion'
+          ? findExpressionAnnotation(initPath) : null;
+        const castType = annotated
+          ? resolveAnnotatedMemberPath(annotated.annotation, keyPath, annotated.scope) : null;
+        if (castType) return castType;
+        // ... and where it names nothing, the VALUE routes read THROUGH it: both dialects spell the
+        // wrapper `TSAsExpression`, and only its expression carries what runs
+        const valueInit = annotated ? initPath.get('expression') ?? initPath : initPath;
+        // ... and a default the init's LITERAL provably leaves firing is the receiver ALONE: the slot's
+        // own arm never runs (`{ A: { at } = fa() } = {}` reads `at` off `fa()` and nothing else)
+        if (slotDefault?.node && slotDefaultFiresCertainly(valueInit, keyPath, parent)) return resolveNodeType(slotDefault);
+        // the init path travels UNRESOLVED as well: the slot read asks it whether a binding stands
+        // between the literal and this read, and answers flow-aware where one does
+        const member = resolveObjectMemberPath(resolveRuntimeExpression(valueInit), keyPath, valueInit, false,
+          { projectValues: !outerDefault });
+        if (member) return foldDefault(member);
+        // ... and a BUILT-IN surface the pattern navigates to off a global object answers the way its
+        // member spelling does: the hops name a constructor and its `prototype` reads as an instance
+        // (`{ Array: { prototype: { at } } } = globalThis` narrows exactly as `globalThis.Array
+        // .prototype.at` - without this the leaf took the generic dispatcher on both legs).
+        const surface = resolveGlobalSurfaceKeyPath(valueInit, keyPath, !outerDefault);
+        if (surface) return foldDefault(surface);
+      }
+    }
+    const forOfPath = t.isForOfStatement(ancestor?.node) ? ancestor : findForLoopParent(ancestor);
+    if (!t.isForOfStatement(forOfPath?.node)) return null;
+    const slotted = forOfElementSlotType(forOfPath, keyPath, slotDefault);
+    if (slotted !== NO_SLOT_ANSWER) {
+      // the fold is over EVERY element the literal names, so it answers for every iteration alike -
+      // unlike the element type below, which is what one turn of the loop holds
+      verdict.perIteration = false;
+      return slotted === null ? foldDefault(null) : foldDefault(slotted);
+    }
+    return resolveForOfResolvedElement(forOfPath);
+  }
+
+  // `toHint`, `intersectHintSets`, `primitiveTypeOf` live in `resolve-node-type/base.js`
+  // (closure-independent pure helpers); imported at the top of this module
+
+  // union-of-hints side channel for receivers whose Type resolution fails ONLY because the
+  // value is a cross-family union (`number[] | string` annotation, `c ? arr : str`,
+  // `a ?? s`): the single-Type model cannot represent the union, but the injection layer
+  // consumes a hint SET (meta.includedHints) and then injects exactly the union's variants
+  // instead of every variant of the method (an unknown receiver pulls e.g. the Iterator
+  // group of `includes` even though the static union provably excludes it). arm rules:
+  //   - a statically nullish arm contributes nothing (a nullish receiver throws either way)
+  //   - a resolved arm whose family is OUTSIDE the hint-dispatch domain (`Map` / `Set` /
+  //     `WeakRef` / ... - TYPE_HINTS is the domain) contributes nothing: their methods are
+  //     not hint-dispatched, so no variant could match anyway. class-annotated arms resolve
+  //     into the `object` family and contribute `object` (honest - the receiver IS one)
+  //   - an UNRESOLVED arm bails the whole set - the receiver may be anything (over-inject)
+  //
+  // input domain mirrors `resolvePropertyObjectType`: a member-like path (`x.includes`)
+  // derives off the object slot, a destructure ObjectProperty (`const { includes } = x`)
+  // off the pattern annotation / direct init or the same nested field/index lookup.
+  // Unenumerable receivers stay null (the conservative full set).
+  const UNION_HINTS_MAX_DEPTH = 8;
+  function resolvePropertyUnionHints(path) {
+    // anchored like `resolveNodeType` - a public scope-reading entry (see resolvePropertyObjectType)
+    path = anchorPathScope(path);
+    let hints = null;
+    if (isMemberLike(path)) {
+      hints = unionReceiverHints(path.get('object'), 0);
+    } else if (t.isObjectProperty(path.node)) {
+      const objectPattern = path.parentPath;
+      if (!t.isObjectPattern(objectPattern?.node)) return null;
+      if (objectPattern.node.typeAnnotation) {
+        const annotation = unwrapTypeAnnotation(objectPattern.node.typeAnnotation);
+        if (isUnionType(annotation)) hints = annotationUnionHints(annotation, objectPattern.scope);
+      } else {
+        const parameter = resolveParameterReceiver(objectPattern);
+        if (parameter) return parameter.hints?.size ? parameter.hints : null;
+        const initPath = getPatternInit(objectPattern.parentPath);
+        if (initPath?.node) hints = unionReceiverHints(resolveRuntimeExpression(initPath), 0);
+        else hints = nestedReceiverUnionHints(objectPattern, path);
+      }
+    }
+    return hints?.size ? hints : null;
+  }
+
+  // A nested pattern reads the same fields and array slots as the corresponding member chain.
+  // Reuse its mutation gates, then the element-union fallback for reordered array literals.
+  // The nearest default contributes its own families; a default above that receiver keeps the walk open.
+  function nestedReceiverUnionHints(objectPattern, anchorPath) {
+    const keyPath = collectPatternKeyPath(objectPattern);
+    const ownDefault = objectPattern.parentPath?.node?.type === 'AssignmentPattern' ? objectPattern.parentPath : null;
+    let ancestor = objectPattern.parentPath;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
+      if (ancestor.node.type === 'AssignmentPattern' && ancestor !== ownDefault) return null;
+      ancestor = ancestor.parentPath;
+    }
+    const initPath = keyPath?.length ? getPatternInit(ancestor) : null;
+    if (!initPath?.node) return null;
+    const fields = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath, true, { projectValues: true })
+      ?? resolveGlobalSurfaceKeyPath(initPath, keyPath, true, null, { unionHints: true });
+    // An empty field census alone proves no family, not absence: a spread can still supply the slot.
+    if (ownDefault && fields?.size === 0) return null;
+    const index = keyPath.length === 1 ? canonicalArrayIndex(keyPath[0]) : null;
+    const iterated = typeof keyPath[0] === 'number';
+    const arms = fields || index === null || iterated && (isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
+      || pathSlotWritten(initPath, ['Symbol.iterator'])) ? null : literalElementUnionPaths(initPath, index, anchorPath);
+    const hints = fields ?? (arms ? mergeArmHints(arms, 0) : null);
+    if (!ownDefault || !hints) return hints;
+    const fallback = mergeArmHints([ownDefault.get('right')], 0);
+    return fallback ? new Set([...hints, ...fallback]) : null;
+  }
+
+  // the element paths an index read off an array LITERAL - spelled in place, or held by a binding whose
+  // references only read or reorder it - may land on: the literal's own element at a known index, and
+  // every element once a reordering call ran or where the index is unknown. null where a reference may
+  // put another value there (a write, a hand-out, an installing mutator) or a spread shifts the positions
+  function literalElementUnionPaths(holderPath, index, anchorPath) {
+    const hops = [];
+    const literal = resolveRuntimeExpression(holderPath, hops);
+    if (!t.isArrayExpression(literal?.node) || literal.node.elements.some(element => element?.type === 'SpreadElement')) return null;
+    const permutes = [];
+    if (t.isIdentifier(holderPath.node) && (arrayElementsMayBeRetyped(holderPath, anchorPath, { permutes })
+      || aliasedElementsMayBeRetyped(hops, anchorPath, permutes))) return null;
+    const elements = cachedContainerPaths(literal, 'elements').filter(element => element?.node);
+    if (index === null || permutes.length) return elements;
+    const element = cachedContainerPaths(literal, 'elements')[index];
+    return element?.node ? [element] : [];
+  }
+
+  function unionReceiverHints(path, depth) {
+    if (depth > UNION_HINTS_MAX_DEPTH || !path?.node) return null;
+    path = peelSkippableWrapperPath(path);
+    const flow = withCanonQuestion(() => resolveLocalFlowValue(path));
+    if (flow) return flow.hints;
+    const read = path;
+    // A mutable binding owns the pairing of pattern writes. Following it before that pairing
+    // can mistake the whole RHS container for the field assigned to the receiver.
+    if (!t.isIdentifier(path.node) || !getScopeBinding({ scope: path.scope, name: path.node.name, path })?.constantViolations?.length) {
+      path = resolveRuntimeExpression(path);
+    }
+    const { type } = path.node;
+    if (type === 'LogicalExpression') return mergeArmHints([path.get('left'), path.get('right')], depth);
+    if (type === 'ConditionalExpression') return mergeArmHints([path.get('consequent'), path.get('alternate')], depth);
+    // an object carrying an INSTALLED prototype dispatches that prototype's family - and its
+    // initializer's too where the read may come before every install - so the families name the
+    // receiver even though the object itself stays untyped. checked on the RUNTIME expression the
+    // caller already resolved the alias to - the install channels read the object's own literal and the
+    // declarator's reference set from there - for the read the caller asked
+    const installed = installedPrototypeHints(path, read === path ? null : read);
+    if (installed) return installed;
+    const info = findExpressionAnnotation(path);
+    const annotation = info && unwrapTypeAnnotation(info.annotation);
+    if (isUnionType(annotation)) return annotationUnionHints(annotation, info.scope);
+    // a constructor or namespace the realm holds is a FUNCTION or a plain object value, whatever
+    // the arm spells (`c ? Map : Set`, `globalThis.Math`, the binding our own render swapped in) -
+    // never an instance of its own family. only a name no binding captures reads the realm: an
+    // alias or a destructured name is a binding, whose values the arms below follow write by write.
+    // the realm object itself stays untyped: its own reads are the proxy walks', and an emitter that
+    // captures it re-asks off the capture, which no answer here would reach
+    const realmName = type === 'Identifier' ? babelBindingAdapter.hasBinding({
+      scope: path.scope,
+      name: path.node.name,
+      path,
+    }) ? null : path.node.name
+      : isMemberLike(path) ? resolveGlobalName(path) : null;
+    const globalHint = POSSIBLE_GLOBAL_OBJECTS.has(realmName) ? null
+      : staticReceiverHint('static', realmName) ?? staticReceiverHint('static', polyfillHintGlobalName(path));
+    if (globalHint) return new Set([globalHint]);
+    if (type === 'CallExpression' || type === 'OptionalCallExpression') {
+      const callee = peelSkippableWrapperPath(path.get('callee'));
+      const key = isMemberLike(callee) ? resolveMemberPropertyName(callee) : null;
+      return key === null || key === undefined ? null
+        : memberResolveCluster.resolveMemberOfObjectPath(callee.get('object'), key, path, true);
+    }
+    // a mutable binding's reachable VALUES form a union exactly as an annotation's arms do - fold
+    // the declarator init with every write the resolver could enumerate. reached only after the
+    // single-Type resolution already failed, so a narrow the positional analysis DID prove is
+    // never widened by this
+    if (type === 'Identifier') return bindingValueUnionHints(path, depth);
+    // ... and an index read off an array literal is each element it may land on - any index, where the
+    // key is unknown
+    if (!isMemberLike(path)) return null;
+    const key = resolveMemberPropertyName(path);
+    if (key === 'prototype') {
+      // Mutable user values belong to the member walk below; this fallback proves only a realm surface.
+      const surface = resolveGlobalSurfaceKeyPath(path.get('object'), ['prototype'], false, null, { unionHints: true });
+      if (surface) return surface;
+    }
+    const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
+    if (key !== null && key !== undefined) {
+      const fields = memberResolveCluster.resolveMemberOfObjectPath(path.get('object'), key, null, true);
+      if (fields || index === null) return fields;
+    }
+    const arms = literalElementUnionPaths(path.get('object'), index, path);
+    return arms ? mergeArmHints(arms, depth) : null;
+  }
+
+  // A pattern-bound leaf asks the shared field extraction, not the whole initializer. A direct
+  // binding enumerates its own writes; a param / for-x / catch value is an open set.
+  // a function-scoped `var` is excluded outright: one parser hoists it natively and the other
+  // block-scopes it, so its write set is RECOVERED on one side and native on the other - the two
+  // emitters would then enumerate different values and inject different sets for the same source
+  function bindingValueUnionHints(path, depth) {
+    const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
+    const declaratorPath = binding?.path;
+    const declarator = declaratorPath?.node;
+    if (declarator?.type === 'VariableDeclarator' && isDestructurePattern(declarator.id)) {
+      return resolveBindingType(path, true);
+    }
+    if (!declarator || declarator.type !== 'VariableDeclarator'
+      || declarator.id?.type !== 'Identifier' || declarator.id.name !== path.node.name
+      || binding.kind === 'var') return null;
+    // a `const` for-of HEAD holds each element of the literal it iterates, one per pass
+    if (!declarator.init) {
+      const loop = forXHeadLoopPath(declaratorPath);
+      if (t.isForOfStatement(loop?.node) && t.isArrayExpression(resolveRuntimeExpression(loop.get('right')).node)
+        && (isMutatedStatic('Array.prototype', 'Symbol.iterator') || pathSlotWritten(loop.get('right'), ['Symbol.iterator']))) return null;
+      const elements = t.isForOfStatement(loop?.node) && binding.kind === 'const'
+        ? literalElementUnionPaths(loop.get('right'), null, path) : null;
+      return elements?.length ? mergeArmHints(elements, depth) : null;
+    }
+    return reachableValueUnionHints(binding, declaratorPath, path.node.name, path, depth);
+  }
+
+  function mergeArmHints(arms, depth, resolve = resolveNodeType, resolveHints = unionReceiverHints) {
+    const merged = new Set();
+    for (const arm of arms) {
+      if (!arm?.node) return null;
+      const peeled = peelSkippableWrapperPath(arm);
+      const armPath = t.isIdentifier(peeled.node) ? peeled : resolveRuntimeExpression(peeled);
+      const type = resolve(armPath);
+      if (type) {
+        if (isNullableOrNever(type)) continue;
+        const hint = toHint(type);
+        if (!hint) return null;
+        if (TYPE_HINTS.has(hint)) merged.add(hint);
+        continue;
+      }
+      const inner = resolveHints(armPath, depth + 1);
+      if (!inner) return null;
+      for (const hint of inner) merged.add(hint);
+    }
+    return merged;
+  }
+
+  // installed-prototype families as HINTS, for the read at `readPath`. an empty family set means no
+  // install was found, which is not a narrowing statement about the receiver - only a non-empty one names it
+  function installedPrototypeHints(initPath, readPath = null) {
+    const families = initPath?.node ? installedPrototypeFamilies(initPath, readPath) : null;
+    if (!families?.size) return null;
+    const hints = new Set();
+    for (const family of families) {
+      const hint = toHint(new $Object(family));
+      // a family outside the hint-dispatch domain (`Map` / `Set` / ...) cannot restrict the variant
+      // set - its methods are not hint-dispatched, so declining keeps the receiver's full dispatch
+      if (!hint || !TYPE_HINTS.has(hint)) return null;
+      hints.add(hint);
+    }
+    return hints;
+  }
+
+  function annotationUnionHints(annotation, scope) {
+    const merged = new Set();
+    for (const arm of annotation.types) {
+      const unwrapped = unwrapTypeAnnotation(arm);
+      if (isNullableOrNeverAnnotation(unwrapped)) continue;
+      const resolved = resolveTypeAnnotation(unwrapped, scope);
+      if (!resolved) return null;
+      if (isNullableOrNever(resolved)) continue;
+      const hint = toHint(resolved);
+      if (!hint) return null;
+      if (TYPE_HINTS.has(hint)) merged.add(hint);
+    }
+    return merged;
+  }
+
+  // collect type hints to include/exclude from typeof / instanceof guards when no annotation
+  // returns { includedHints: Set } for positive typeof (whitelist, future-proof)
+  // or { excludedHints: Set } for negative-only guards (blacklist)
+  // or null when no hints can be determined
+  function resolveGuardHints(path) {
+    // anchored like `resolveNodeType` - a public scope-reading entry (see resolvePropertyObjectType)
+    path = anchorPathScope(path);
+    const info = findGuardsForBinding(path);
+    if (!info) return null;
+    const { classification } = info;
+    // only unannotated or open (unknown/any/object/mixed) bindings accept hint-based narrowing.
+    // 'closed' is already filtered by findGuardsForBinding
+    if (classification.kind !== 'none' && classification.kind !== 'open') return null;
+    // a false answer that proves nothing (`guardProves`) excludes no hint either
+    const guards = info.guards.filter(guardProves);
+    // bail if any positive guard resolves to a concrete type (already handled by resolveTypeGuardNarrowing)
+    if (guards.some(g => g.positive && resolveGuardType(g))) return null;
+
+    // resolve typeof / typeof-or guard to a set of hints
+    function typeofGuardHints(guard) {
+      if (guard.kind === 'typeof') {
+        return hasOwn(TYPEOF_HINT_GROUPS, guard.value) ? TYPEOF_HINT_GROUPS[guard.value] : null;
+      }
+      if (guard.kind === 'typeof-or') {
+        const union = new Set();
+        for (const value of guard.values) {
+          if (hasOwn(TYPEOF_HINT_GROUPS, value)) {
+            for (const hint of TYPEOF_HINT_GROUPS[value]) union.add(hint);
+          }
+        }
+        return union.size ? union : null;
+      }
+      return null;
+    }
+
+    function addHintsToSet(target, guard) {
+      const hints = typeofGuardHints(guard);
+      if (hints) {
+        for (const hint of hints) target.add(hint);
+        return true;
+      }
+      const hint = toHint(resolveGuardType(guard));
+      if (hint) {
+        target.add(hint);
+        return true;
+      }
+      return false;
+    }
+
+    function deleteHintsFromSet(target, guard) {
+      const hints = typeofGuardHints(guard);
+      if (hints) {
+        for (const hint of hints) target.delete(hint);
+        return;
+      }
+      const hint = toHint(resolveGuardType(guard));
+      if (hint) target.delete(hint);
+    }
+
+    // check for positive typeof guards -> use whitelist approach
+    // whitelist is future-proof: unknown future hints are excluded by default
+    let included = null;
+    for (const guard of guards) {
+      if (!guard.positive) continue;
+      const hints = typeofGuardHints(guard);
+      if (hints) included = intersectHintSets(included, hints);
+    }
+
+    if (included) {
+      // subtract negative guards from the whitelist
+      for (const guard of guards) {
+        if (!guard.positive) deleteHintsFromSet(included, guard);
+      }
+      return included.size ? { includedHints: included } : null;
+    }
+
+    // no positive typeof -> use blacklist approach (conservative: unknown future hints are included)
+    const excluded = new Set();
+    for (const guard of guards) {
+      if (!guard.positive) addHintsToSet(excluded, guard);
+    }
+    return excluded.size ? { excludedHints: excluded } : null;
+  }
+
+  function isString(path) {
+    return primitiveTypeOf(resolveNodeType(path)) === 'string';
+  }
+
+  function isObject(path) {
+    return resolveNodeType(path)?.primitive === false;
+  }
+
+  return {
+    // Use the existing declaration-identity reference index for scoped provider decisions.
+    collectBindingReferences(path, name = path.node.name, { closed = false } = {}) {
+      path = anchorPathScope(path);
+      const binding = getScopeBinding({ scope: path.scope, name, path });
+      const owner = binding?.scope?.block ?? binding?.scope?.path?.node;
+      if (closed && owner?.type === 'Program'
+        && bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path))) return null;
+      return binding ? bindingAnalysisCluster.collectBindingReferences(binding, path) : null;
+    },
+    isObject,
+    isString,
+    // the call-site scan both the type resolver (default-type authoritativeness) and the
+    // destructure dispatches (caller-lossy emission soundness) gate on: a non-exported,
+    // non-escaping function whose every call leaves this param slot to its default
+    paramDefaultNeverOverridden: patternBindingsCluster.defaultParamNeverOverridden,
+    parameterCallSites: patternBindingsCluster.parameterCallSites,
+    reset,
+    resolveClaimableComputedKeyName,
+    resolveComputedKeyName,
+    resolveConstantSelection,
+    resolveGuardHints,
+    resolveNodeType,
+    resolvePropertyObjectType,
+    resolveForOfResolvedElement,
+    forgetDestructureReceiverTypes,
+    primeDestructureReceiverTypes,
+    resolvePropertyUnionHints,
+    resolvedType,
+    toHint,
+  };
+}
+
+export { createResolveNodeType };
+export { nodePathInScope } from './resolve-node-type/base.js';

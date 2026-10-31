@@ -8,6 +8,10 @@
     "url": "{docs-version}/docs/engines"
   },
   {
+    "title": "TypeScript type definitions",
+    "url": "{docs-version}/docs/typescript-type-definitions"
+  },
+  {
     "title": "Features",
     "children": [
       {
@@ -311,6 +315,10 @@
               {
                 "title": "Extractors",
                 "url": "{docs-version}/docs/features/proposals/extractors"
+              },
+              {
+                "title": "Object.keysLength",
+                "url": "{docs-version}/docs/features/proposals/object-keys-length"
               }
             ]
           },
@@ -318,44 +326,12 @@
             "title": "Stage 1 proposals",
             "children": [
               {
-                "title": "Observable",
-                "url": "{docs-version}/docs/features/proposals/observable"
-              },
-              {
-                "title": "New collections methods",
-                "url": "{docs-version}/docs/features/proposals/collection-methods"
-              },
-              {
-                "title": ".of and .from methods on collection constructors",
-                "url": "{docs-version}/docs/features/proposals/collection-of-from"
-              },
-              {
-                "title": "compositeKey and compositeSymbol",
-                "url": "{docs-version}/docs/features/proposals/keys-composition"
-              },
-              {
-                "title": "Array filtering",
-                "url": "{docs-version}/docs/features/proposals/array-filtering"
-              },
-              {
-                "title": "Array deduplication",
-                "url": "{docs-version}/docs/features/proposals/array-unique"
-              },
-              {
                 "title": "DataView get/set Uint8Clamped methods",
                 "url": "{docs-version}/docs/features/proposals/data-view-get-set-uint8-clamped"
               },
               {
-                "title": "Number.fromString",
-                "url": "{docs-version}/docs/features/proposals/number-from-string"
-              },
-              {
                 "title": "String.cooked",
                 "url": "{docs-version}/docs/features/proposals/string-cooked"
-              },
-              {
-                "title": "String.prototype.codePoints",
-                "url": "{docs-version}/docs/features/proposals/string-code-points"
               },
               {
                 "title": "Pattern matching",
@@ -369,19 +345,6 @@
               {
                 "title": "Demethodize function",
                 "url": "{docs-version}/docs/features/proposals/function-demethodize"
-              },
-              {
-                "title": "Function.{ isCallable, isConstructor }",
-                "url": "{docs-version}/docs/features/proposals/function-is-callable-is-constructor"
-              }
-            ]
-          },
-          {
-            "title": "Pre-stage 0 proposals",
-            "children": [
-              {
-                "title": "Reflect metadata",
-                "url": "{docs-version}/docs/features/proposals/reflect-metadata"
               }
             ]
           }
@@ -401,10 +364,6 @@
           {
             "title": "Base64 utility methods",
             "url": "{docs-version}/docs/features/web-standards/atob-btoa"
-          },
-          {
-            "title": "setTimeout and setInterval",
-            "url": "{docs-version}/docs/features/web-standards/settimeout-setinterval"
           },
           {
             "title": "setImmediate",

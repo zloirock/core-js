@@ -1,0 +1,23 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.get-own-property-symbols";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.includes";
+import "core-js/modules/es.string.includes";
+// A copied method can run with the rest copy as this and a different field type.
+const wrap = {
+  box: {
+    data: [10, 20],
+    read() {
+      return this.data.includes("02");
+    }
+  }
+};
+const {
+  ...copy
+} = wrap.box;
+copy.data = "1020";
+export const result = copy.read();

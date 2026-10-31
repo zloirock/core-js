@@ -2,32 +2,37 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js-compat.svg)](https://www.npmjs.com/package/core-js-compat) [![core-js-compat downloads](https://img.shields.io/npm/dm/core-js-compat.svg?label=npm%20i%20core-js-compat)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/compat.svg)](https://www.npmjs.com/package/@core-js/compat) [![@core-js/compat downloads](https://img.shields.io/npm/dm/@core-js/compat.svg?label=npm%20i%20@core-js/compat)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
 
 </div>
 
-**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
+**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/v4/docs/2023-02-14-so-whats-next.md)**
 ---
 
-[`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://core-js.io) modules and API for getting a list of required core-js modules by browserslist query.
+[`@core-js/compat` package](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) contains data about the necessity of [`core-js`](https://core-js.io) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
-import compat from 'core-js-compat';
+import compat from '@core-js/compat/compat';
 
 const {
   list,                       // array of required modules
   targets,                    // object with targets for each module
 } = compat({
   targets: '> 1%',            // browserslist query or object of minimum environment versions to support, see below
+  // when `targets` is not specified, project browserslist config is used if present
+  configPath: './packages/app', // directory to search for browserslist config (for monorepos)
+  ignoreBrowserslistConfig: false, // set to `true` to ignore browserslist config
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
-    'core-js/actual',         // - an entry point
-    'esnext.array.unique-by', // - a module name (or just a start of a module name)
+    'actual',                 // - an entry point
+    'esnext.string.dedent',   // - a module name
     /^web\./,                 // - regex that a module name must satisfy
   ],
   exclude: [                  // optional list / filter of modules to exclude, the signature is similar to `modules` option
     'web.atob',
   ],
-  version: '3.51',            // used `core-js` version, by default - the latest
+  version: '4.0',             // used `core-js` version, by default - the latest
+  // special values: 'node_modules' - reads version from installed core-js
+  //                 'package.json' - reads version range from project's package.json
   inverse: false,             // inverse of the result - shows modules that are NOT required for the target environment
 });
 
@@ -44,7 +49,7 @@ console.log(targets);
   'es.iterator.concat': { ios: '18.5-18.7', samsung: '30' },
   ...
   'web.dom-exception.stack': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
-  'web.immediate': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
+  'web.set-immediate': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' },
   'web.structured-clone': { chrome: '151', 'chrome-android': '154', edge: '152', ios: '18.5-18.7', safari: '26.6', samsung: '30' }
 }
 */
@@ -52,7 +57,7 @@ console.log(targets);
 
 ### `targets` option
 `targets` could be [a `browserslist` query](https://github.com/browserslist/browserslist) or a targets object that specifies minimum environment versions to support:
-```js
+```ts
 // browserslist query:
 'defaults, not IE 11, maintained node versions';
 // object (all these fields are optional):
@@ -72,7 +77,6 @@ console.log(targets);
   node: 'current',        // NodeJS version, you can use 'current' to set it to the currently used one
   opera: '12',            // Opera version
   'opera-android': '7',   // Opera for Android version
-  phantom: '1.9',         // PhantomJS headless browser version
   quest: '5.0',           // Meta Quest Browser version
   'react-native': '0.70', // React Native version (default Hermes engine)
   rhino: '1.7.13',        // Rhino engine version
@@ -92,31 +96,38 @@ console.log(targets);
 
 ```js
 // equals of the method from the example above
-require('core-js-compat/compat')({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
-// or
-require('core-js-compat').compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+import compat from '@core-js/compat/compat';
+compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 
 // full compat data:
-require('core-js-compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
-// or
-require('core-js-compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
+import data from '@core-js/compat/data' with { type: 'json' };
+// => { [ModuleName]: { [EngineName]: EngineVersion } }
 
 // map of modules by `core-js` entry points:
-require('core-js-compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
-// or
-require('core-js-compat').entries; // => { [EntryPoint]: Array<ModuleName> }
+import entries from '@core-js/compat/entries' with { type: 'json' };
+// => { [EntryPoint]: Array<ModuleName> }
 
 // full list of modules:
-require('core-js-compat/modules'); // => Array<ModuleName>
-// or
-require('core-js-compat').modules; // => Array<ModuleName>
+import modules from '@core-js/compat/modules' with { type: 'json' };
+// => Array<ModuleName>
+
+// the subset of entries which available in the passed `core-js` version:
+import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
+getEntriesListForTargetVersion('4.0'); // => Array<EntryName>
 
 // the subset of modules which are available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.51'); // => Array<ModuleName>
-// or
-require('core-js-compat').getModulesListForTargetVersion('3.51'); // => Array<ModuleName>
+import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
+getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
+
+// built-in definitions - globals, static and instance members mapped to polyfill modules (used by `@core-js/babel-plugin`):
+import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
+// => { globals, statics, instance }
+
+// known return types for built-in members (used by `@core-js/babel-plugin` for type inference):
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+// => { staticMethods, staticProperties, instanceMethods, instanceProperties, ... }
 ```
 
-If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
+If you want to help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/v4/CONTRIBUTING.md#how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/v4/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)

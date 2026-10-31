@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#substr', assert => {
   const { substr } = String.prototype;
   assert.isFunction(substr);
@@ -21,8 +19,6 @@ QUnit.test('String#substr', assert => {
     assert.throws(() => substr.call(Symbol('substr test'), 1, 3), 'throws on symbol context');
   }
 
-  if (STRICT) {
-    assert.throws(() => substr.call(null, 1, 3), TypeError, 'Throws on null as `this`');
-    assert.throws(() => substr.call(undefined, 1, 3), TypeError, 'Throws on undefined as `this`');
-  }
+  assert.throws(() => substr.call(null, 1, 3), TypeError, 'Throws on null as `this`');
+  assert.throws(() => substr.call(undefined, 1, 3), TypeError, 'Throws on undefined as `this`');
 });

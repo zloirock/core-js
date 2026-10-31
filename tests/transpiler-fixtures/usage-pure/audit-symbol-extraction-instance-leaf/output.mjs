@@ -1,0 +1,48 @@
+import _Array$of from "@core-js/pure/actual/array/of";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
+import _globalThis from "@core-js/pure/actual/global-this";
+import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
+import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
+import _Set from "@core-js/pure/actual/set/constructor";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
+// A symbol-iterator value keeps the claims nested beneath its pattern.
+// Sibling statics must not hide instance properties read from that value.
+const name = _nameMaybeFunction(_getIteratorMethod(_globalThis));
+const viaAlias = _nameMaybeFunction(_getIteratorMethod(_globalThis));
+const {
+  customQ
+} = _Set;
+const viaSibling = _nameMaybeFunction(_getIteratorMethod(_globalThis)); // NEGATIVES. two leaves keep the destructure: each polyfilled leaf would need the receiver again,
+// and the receiver is the synth CALL - re-running it re-reads the source's `Symbol.iterator`
+const {
+  name: twoA,
+  bind: twoB
+} = _getIteratorMethod(_globalThis); // a leaf needing no polyfill stays a plain read, and a non-pattern value keeps the plain synth
+const {
+  bind
+} = _getIteratorMethod(_globalThis);
+const plain = _getIteratorMethod(_globalThis); // a non-proxy receiver reaches the synth through the emitters' own symbol route rather than the
+// plan - it asks the SAME shared helper, so the leaf resolves there too, with or without a sibling
+const arrayIteratorKey = _Symbol$iterator;
+const previousArrayIterator = _Object$getOwnPropertyDescriptor(Array, arrayIteratorKey);
+_Object$defineProperty(Array, arrayIteratorKey, {
+  configurable: true,
+  value: _getIteratorMethod(Array.prototype)
+});
+const viaCtor = _nameMaybeFunction(_getIteratorMethod(Array));
+const _ref = {
+    of: _Array$of,
+    [_Symbol$iterator]: _getIteratorMethod(Array)
+  },
+  {
+    of
+  } = _ref;
+const viaSiblingCtor = _nameMaybeFunction(_getIteratorMethod(_ref));
+if (previousArrayIterator) _Object$defineProperty(Array, arrayIteratorKey, previousArrayIterator);else delete Array[arrayIteratorKey];
+// NEGATIVE: a DEFAULTED leaf keeps the destructure - binding the dispatcher result directly would
+// drop the user's default, and guarding it is the instance-default channel's own shape
+const {
+  name: viaDefault = fallback()
+} = _getIteratorMethod(Array);
+console.log(name, viaAlias, viaSibling, customQ, twoA, twoB, bind, plain, viaCtor, of, viaSiblingCtor, viaDefault);

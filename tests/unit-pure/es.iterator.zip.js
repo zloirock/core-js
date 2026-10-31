@@ -1,11 +1,10 @@
 import { createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
-import from from 'core-js-pure/es/array/from';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import zip from 'core-js-pure/es/iterator/zip';
+import from from '@core-js/pure/es/array/from';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import zip from '@core-js/pure/es/iterator/zip';
 
 QUnit.test('Iterator.zip', assert => {
   assert.isFunction(zip);
@@ -159,9 +158,9 @@ QUnit.test('Iterator.zip', assert => {
 
   assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
   assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
-  if (DESCRIPTORS) {
-    let valueRead = false;
-    const exhausted = () => ({
+  let valueRead = false;
+  function exhausted() {
+    return {
       next() {
         return defineProperty({ done: true }, 'value', {
           get() {
@@ -169,12 +168,12 @@ QUnit.test('Iterator.zip', assert => {
           },
         });
       },
-    });
-    assert.deepEqual(from(zip([exhausted(), [1, 2]])), [], 'shortest');
-    assert.deepEqual(from(zip([[1], exhausted()], { mode: 'longest' })), [[1, undefined]], 'longest');
-    assert.deepEqual(from(zip([exhausted(), exhausted()], { mode: 'strict' })), [], 'strict');
-    assert.false(valueRead, 'the value of a done result is not read');
+    };
   }
+  assert.deepEqual(from(zip([exhausted(), [1, 2]])), [], 'shortest');
+  assert.deepEqual(from(zip([[1], exhausted()], { mode: 'longest' })), [[1, undefined]], 'longest');
+  assert.deepEqual(from(zip([exhausted(), exhausted()], { mode: 'strict' })), [], 'strict');
+  assert.false(valueRead, 'the value of a done result is not read');
   {
     // iterator-zip: .next() result must be validated as an object
     const primitiveNextIter = {

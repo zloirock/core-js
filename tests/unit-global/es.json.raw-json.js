@@ -1,4 +1,4 @@
-import { FREEZING, BUN, GLOBAL } from '../helpers/constants.js';
+import { BUN, GLOBAL } from '../helpers/constants.js';
 
 // Bun 1.1.45 corrupts native RawJSON objects after GC and can crash during stringify.
 QUnit[BUN && GLOBAL.Bun.version === '1.1.45' ? 'skip' : 'test']('JSON.rawJSON', assert => {
@@ -13,7 +13,7 @@ QUnit[BUN && GLOBAL.Bun.version === '1.1.45' ? 'skip' : 'test']('JSON.rawJSON', 
   const raw = rawJSON(1);
   assert.true(hasOwn(raw, 'rawJSON'), 'own rawJSON');
   assert.same(raw.rawJSON, '1', 'is string 1');
-  if (FREEZING) assert.true(isFrozen(raw), 'frozen');
+  assert.true(isFrozen(raw), 'frozen');
 
   assert.same(stringify(rawJSON('"qwe"')), '"qwe"');
   assert.same(stringify(rawJSON('null')), 'null');

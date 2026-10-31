@@ -1,0 +1,942 @@
+import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
+import {
+  appendMemoDeclarator,
+  isInitlessVarDecl,
+  emptyMemoActivationValue,
+  isNonReferencePosition,
+  markGeneratedMemoDeclarator,
+  isPrologueDirectiveStatement,
+  isTopLevelImportLike,
+  invalidateScopeVarIndex,
+  programPrologueEndIndex,
+  requireCallSource,
+  runsWithoutOwnVarSlot,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { hostSlot, renderInjectedImportNodes, renderMemoActivation } from '@core-js/polyfill-provider/render';
+import estreeToBabel from './estree-to-babel.js';
+import ImportInjectorState, {
+  buildCanonicalRenameMap,
+  canDropUnusedMemo,
+  collectInjectorCensus,
+  createPureImportLiveness,
+  isCanonicalSlotOrder,
+  localizeVarlessMemos,
+  refDeclarationOrder,
+  unwrapWriteOnlyGuardMemos,
+} from '@core-js/polyfill-provider/injector-base';
+import { polyfillOrderComparator } from '@core-js/polyfill-provider/plugin-options/inject';
+import { ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
+import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
+
+// babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
+// with `scope.referencesSet` / `scope.uidsSet` (real Sets) and throws on the legacy
+// accessors. one probe of any scope at injector construction commits the bag to a single
+// path - no runtime checks on subsequent calls. the API surface is invariant across all
+// scopes of a given babel install, so probing once is sufficient
+function makeScopeBag(probeScope, setKey, mapKey) {
+  if (probeScope[setKey]) return {
+    has: (scope, name) => scope[setKey].has(name),
+    add: (scope, name) => scope[setKey].add(name),
+  };
+  return {
+    has: (scope, name) => !!scope[mapKey]?.[name],
+    add(scope, name) { (scope[mapKey] ??= {})[name] = true; },
+  };
+}
+
+// the comments a statement OWNS as its own annotation (`ownedLeadingComments`): a license banner
+// stays at the head where it was written, while an adjacent pragma travels with the line it marks
+function attachedLeadingComments(node) {
+  return ownedLeadingComments({ comments: node.leadingComments ?? [], statementLine: node.loc?.start?.line });
+}
+
+export default class ImportInjector extends ImportInjectorState {
+  #t;
+  #programPath;
+  // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
+  // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
+  #idByName = new Map();
+  // every Identifier node this injector PLACED into the AST (the clones `addPureImport`
+  // hands back, which the substitution visitor drops in via `replaceWith`). node-IDENTITY
+  // membership, not name: a polyfill-rewritten member key (`[Symbol.iterator]` -> the placed
+  // `[_Symbol$iterator]`) is in here; a user binding the user typed - including the user's own
+  // deduped `@core-js/pure` import reused under the same UID - is NOT. consumed by the
+  // computed-key synth gate to bail exactly the rewritten-member keys unplugin also bails on
+  // flush runs multiple times (pre, programExit) - skip already-emitted.
+  // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
+  // to compute newGlobals)
+  #emittedGlobals = new Set();
+  #flushedPure = new Set();
+  // emit history for canonical reorder at programExit. each `flush()` only sorts WITHIN
+  // its own batch; with two flushes per file (pre / post-synth-swap) the cross-batch
+  // relative order can invert vs canonical. node -> canonical key map per emit so
+  // `reorderImportRegion()` can lift surviving emissions and re-sort the union in one go
+  #emittedKeyByNode = new Map();
+  // coupling state: `reorderRefsAfterImports` assumes the import-region is already
+  // canonical-sorted (so its `isImportRegion` accumulator finds the contiguous prefix
+  // ending at the same byte position regardless of pre/post flush ordering). without
+  // pre-sort the ref-region boundary may land mid-imports, leaving `var _ref;` above
+  // sibling imports. flag set by `reorderImportRegion`, asserted by
+  // `reorderRefsAfterImports` so caller-order violations surface as a clear error
+  #importRegionSorted = false;
+  // scope-bag accessors specialised once per injector to the babel version's API
+  #scopeReferences;
+  #scopeUids;
+  #sourcePrologueNodes = new Set();
+  #memoReuseContext;
+
+  constructor({
+    t,
+    programPath,
+    pkg,
+    packages = null,
+    mode,
+    importStyle,
+    absoluteImports = false,
+    emitsGlobalModules = true,
+    adapter = null,
+  }) {
+    super({ absoluteImports, mode, pkg, importStyle, packages, emitsGlobalModules });
+    this.#t = t;
+    this.#programPath = programPath;
+    this.#memoReuseContext = adapter ? { adapter } : null;
+    const program = programPath.scope.getProgramParent();
+    this.#scopeReferences = makeScopeBag(program, 'referencesSet', 'references');
+    this.#scopeUids = makeScopeBag(program, 'uidsSet', 'uids');
+  }
+
+  // the nodes WE put in the program that are still standing, by node IDENTITY rather than by
+  // shape: a sibling CommonJS rewriter REPLACES our `ImportDeclaration` with a `require` of its
+  // own, and that is the right outcome - nothing is owed. What is owed is the opposite state, an
+  // ESM import of ours left in a body a sibling turned CommonJS, and only identity tells the two
+  // apart (a sibling's own `require('core-js/...')` prints exactly like ours)
+  survivingEmittedNodes(body) {
+    return (body ?? []).filter(node => this.#emittedKeyByNode.has(node));
+  }
+
+  isNameTaken(name) {
+    if (super.isNameTaken(name)) return true;
+    const { scope } = this.#programPath;
+    const program = scope.getProgramParent();
+    // `program.globals` captures undeclared identifier uses - sloppy-mode assignment
+    // targets (`_Map = foo()`) and unbound reads (`Map` as NewExpression callee) both
+    // land here. without it, UID generator would pick `_Map` and collide with a user's
+    // accidental `_Map = ...` sloppy global (reassigning our const import throws at runtime)
+    return scope.hasBinding(name) || !!program.globals[name]
+      || this.#scopeReferences.has(program, name) || this.#scopeUids.has(program, name);
+  }
+
+  // publish every allocated UID into program.references/.uids so sibling transforms
+  // don't collide via scope.generateUidIdentifierBasedOnNode.
+  // writing to babel internals is fragile but intentional: `scope.generateUid` strips
+  // trailing digits (turning `_ref9` into `_ref` on next call), which breaks our skip-1
+  // `_ref, _ref2, _ref3, ...` scheme. publishing to .references/.uids is the smallest
+  // bridge to babel's UID tracking that preserves the scheme. `scope.crawl()` at programExit
+  // resets both `.references` and `.uids` (babel@7 and @8 `resetScope` clears both Sets), so the
+  // scheme survives via `usedNames` durability + reads happening after the crawl, not via `.uids`
+  uniqueName(prefix, extraCheck) {
+    const name = super.uniqueName(prefix, extraCheck);
+    const program = this.#programPath.scope.getProgramParent();
+    this.#scopeReferences.add(program, name);
+    this.#scopeUids.add(program, name);
+    return name;
+  }
+
+  // own UID generator - Babel's scope.generateUidIdentifier strips trailing digits,
+  // so after `_ref9` it would hand out `_ref` / `_ref2` instead of `_ref10` / `_ref11`,
+  // colliding with earlier slots.
+  // callers choose:
+  //   `generateDeclaredRef(scope)` - `scope.push({id})` emits `var _refN;` at the target block
+  //   `generateLocalRef(scope)`    - UID only (caller emits its own `const _refN = ...` inline)
+  // arrow-expression-body declarations are normalized post-pass by `normalizeArrowRefParams`
+  // (see there for why it can't run in-visit)
+  #generateRefId(scope) {
+    const name = this.generateRefName(n => scope.hasBinding(n));
+    this.declaredRefNames.add(name);
+    return this.#t.identifier(name);
+  }
+
+  // provenance registry for the plugin's OWN memo writes (`_ref = <expr>` built by the
+  // compat memoize): the synthesized assignment never registers a scope constantViolation,
+  // so the resolver's trusted-write follow cannot see it - this per-file map is the proof
+  // of the single synthetic write (ref names are unique per file by construction)
+  #memoWrites = new Map();
+
+  recordMemoWrite(name, assignNode) {
+    this.#memoWrites.set(name, assignNode);
+  }
+
+  getMemoWrite(name) {
+    return this.#memoWrites.get(name) ?? null;
+  }
+
+  // declarator registry for the same refs: the memo-dense append path below skips babel's
+  // per-ref binding registration (quadratic), so a MID-PASS scope lookup misses those refs -
+  // the registry serves a synthetic binding view until the programExit re-crawl
+  #memoDeclarators = new Map();
+
+  getMemoDeclarator(name) {
+    return this.#memoDeclarators.get(name) ?? null;
+  }
+
+  generateDeclaredRef(scope, useNode, id = this.#generateRefId(scope)) {
+    this.declaredRefNames.add(id.name);
+    // `scope.push` unshifts `var _ref;` into the scope's own block. when the use site sits in a
+    // HEADER/SIGNATURE position - a loop header or a function parameter list - that block-hosted var
+    // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
+    // enclosing-scope anchor); see #refUseEscapesScopeBlock for the two cases. Signature/field
+    // refs receive their own lexical activation after the host renders settle.
+    const target = this.#refUseEscapesScopeBlock(scope, useNode) ? scope.parent : this.#varSlotBlockHost(scope) ?? scope;
+    if (runsWithoutOwnVarSlot(scope.path) || scope.path.isClass()
+      || scope.path.isFunction() && this.#refUseEscapesScopeBlock(scope, useNode)) this.#varlessRefs.add(id.name);
+    this.#pushRefDeclarator(target, id);
+    return id;
+  }
+
+  #varlessRefs = new Set();
+  // Actual lexical arrows minted by the allocator. A dead ref can leave its activation
+  // empty after later guard composition; return shape alone cannot identify a user IIFE.
+  #memoActivations = new WeakSet();
+
+  // After host/synth renders settle and before sibling lowerings clone their parameters,
+  // move signature/field memos from enclosing vars into each expression's lexical frame.
+  localizeVarlessRefs() {
+    if (!this.#varlessRefs.size) return;
+    const localized = localizeVarlessMemos(this.#programPath.node, this.#varlessRefs, (expression, refs) => {
+      const rendered = estreeToBabel(renderMemoActivation(hostSlot(expression), refs));
+      this.#memoActivations.add(rendered.callee);
+      for (const declarator of rendered.callee.body.body[0].declarations) {
+        markGeneratedMemoDeclarator(declarator);
+        this.#memoDeclarators.set(declarator.id.name, declarator);
+      }
+      return rendered;
+    });
+    this.#varlessRefs.clear();
+    if (localized.size) {
+      this.#declaredRefHosts.clear();
+      this.#programPath.scope.crawl();
+    }
+  }
+
+  // a block the PLUGIN minted around a bodyless `var` host - a lift needed a statement slot - is no
+  // scope the source has: its `var` hoists the bindings past it, and the ref goes the same way, to
+  // the statement list the slot's owner stands in (the other leg's `refHostOf` anchor)
+  #varSlotBlockHost(scope) {
+    const { path } = scope;
+    if (!path.isBlockStatement() || Number.isInteger(path.node.start)) return null;
+    const owner = path.parentPath;
+    const slot = owner?.isIfStatement() ? path.key === 'consequent' || path.key === 'alternate'
+      : (owner?.isLoop() || owner?.isLabeledStatement() || owner?.isWithStatement()) && path.key === 'body';
+    if (!slot || path.node.body.every(statement => statement.type !== 'VariableDeclaration' || statement.kind !== 'var')) return null;
+    return owner.parentPath?.scope ?? null;
+  }
+
+  // append a `var <id>;` declarator to `target`'s scope. first ref per scope goes through
+  // babel's own `scope.push` (block-ensure / params-push semantics stay babel's); every
+  // later ref appends a declarator to the SAME hosting declaration directly, path-less
+  // (`appendMemoDeclarator`) - babel's `push` re-materializes a path for every existing
+  // declarator on each call, quadratic on memo-dense files. a params-push landing
+  // (arrow expression body / IIFE FunctionExpression - no declaration to append to) is
+  // detected by the trailing param and recorded for the post-pass normalizer, falling back
+  // to per-ref `scope.push` for that scope
+  #declaredRefHosts = new Map();
+  #paramLandedRefNames = new Set();
+  #pushRefDeclarator(target, id) {
+    const host = this.#declaredRefHosts.get(target);
+    if (host?.node?.declarations && host.parentPath) {
+      // `id` goes in directly (no clone) - babel's own `push` binds the very identifier it
+      // was handed. NO per-ref `registerBinding`: the path it needs re-materializes every
+      // sibling declarator (`get('declarations.N')` walks the whole list - quadratic on
+      // memo-dense files), name collisions are guarded by the injector's own `usedNames`
+      // (not scope lookups), and `pruneUnusedRefs` re-crawls the scope at programExit
+      // before anything reads these bindings
+      const declarator = appendMemoDeclarator(host.node, this.#t.variableDeclarator(id));
+      this.#memoDeclarators.set(id.name, declarator);
+      return;
+    }
+    target.push({ id });
+    // where the ref ACTUALLY landed only the fresh binding knows: babel's `push` redirects
+    // internally (a switch/case scope hosts on the enclosing function, callable scopes may
+    // land the id as a trailing PARAM), so `target.path` is not the landing node
+    const bindingPath = target.getBinding(id.name)?.path;
+    const parent = bindingPath?.parentPath;
+    if (parent?.isVariableDeclaration()) {
+      markGeneratedMemoDeclarator(bindingPath.node);
+      this.#declaredRefHosts.set(target, parent);
+    } else {
+      this.#paramLandedRefNames.add(id.name);
+      // a param-landed ref has no declarator until the post-pass normalizer materializes the
+      // `var` - synthesize one over the SAME id node so the memo-provenance follow sees the
+      // init-less declarator shape during the pass (identity on the id keeps user params out)
+      this.#memoDeclarators.set(id.name, this.#t.variableDeclarator(id));
+    }
+  }
+
+  // true when the ref's use site is outside the block that `scope.push` would host its `var` in, so a
+  // block-local `var _ref;` would be invisible from the use:
+  //   - loop header: a block-body loop gives body uses their own block scope, so a memo on the loop
+  //     scope is a header use; a bodyless loop shares its scope with the body, confirmed by source
+  //     range. either way the memo must PRECEDE the loop, not sit in its nested scope (pushing there
+  //     block-converts a bodyless body and lands the `var` after its header use)
+  //   - function parameter: a param default evaluates in the param scope, which can't see body vars.
+  //     babel usually anchors a param-default use on an AssignmentPattern (which hoists out), but a
+  //     TS parameter-property (`constructor(public x = ...)`) anchors it on the function, so push
+  //     would land in the body. range-check (not "not in body") so an arrow's expression body is
+  //     never mistaken for a parameter
+  #refUseEscapesScopeBlock(scope, useNode) {
+    if (scope.path.isLoop()) {
+      const { body } = scope.path.node;
+      if (body?.type === 'BlockStatement') return true;
+      if (!useNode || !body) return false;
+      // only a BODY use is safe to host inside the loop, and a use with no range cannot be shown to
+      // be one - a minted node has none. treat the unprovable case as the header use it comes from:
+      // hoisting is valid for either (`var` is function-scoped), it just stops a bodyless body from
+      // being block-converted to host a declaration after its own use. a use re-emitted from a COPY
+      // is no longer such a case - `rangePreservingTypes` gives the copy its original's span, so the
+      // body test decides it, which is what the other emitter already did
+      return useNode.start === undefined
+        || !(useNode.start >= body.start && useNode.end <= body.end);
+    }
+    if (scope.path.isFunction() && useNode?.start !== undefined) {
+      return scope.path.node.params?.some(p => useNode.start >= p.start && useNode.end <= p.end) ?? false;
+    }
+    return false;
+  }
+
+  generateLocalRef(scope) { return this.#generateRefId(scope); }
+
+  // `scope.push` appends the ref as a trailing function parameter instead of block-converting
+  // in two cases (both Babel internal behavior):
+  //   - ArrowFunctionExpression with expression body: no block to host `var _ref;`
+  //   - FunctionExpression in IIFE position: Babel pushes to params for callable scopes
+  // both shapes need post-pass normalization to `var _ref;` in body so output stays
+  // symmetric across the babel <-> unplugin pipelines (unplugin's flush hosts its `var _ref;`
+  // block in the same body slot).
+  // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
+  // container pointers still point at the pre-convert arrow.body slot - they clobber the
+  // new block when they fire.
+  // Only actual scope-pushed refs or unused sentinels may move. Local refs can be real
+  // argument-fed capture parameters; their generated names alone authorize no relocation.
+  normalizeArrowRefParams() {
+    // the walk is needed only when at least one `scope.push` landed a ref OUTSIDE a var
+    // declaration (trailing param / any unlocatable landing). it stays a WHOLE-program
+    // traverse then: a later emission may CLONE a function that already carries pushed ref
+    // params (rescue re-emits run after the pushes), and a host list recorded at push time
+    // would miss the clone - the common case this gate serves is the zero-param-push file
+    if (!this.#paramLandedRefNames.size) return;
+    const t = this.#t;
+    const refNames = this.#paramLandedRefNames;
+    const isSentinel = this.hasGeneratedUnusedName.bind(this);
+    function normalize(path) {
+      const params = path.node?.params;
+      if (!params) return;
+      let n = params.length;
+      while (n > 0) {
+        const p = params[n - 1];
+        if (p?.type !== 'Identifier' || (!refNames.has(p.name) && !isSentinel(p.name))) break;
+        n--;
+      }
+      if (n === params.length) return;
+      const refParams = params.slice(n);
+      path.node.params = params.slice(0, n);
+      let bodyPath = path.get('body');
+      if (!bodyPath.isBlockStatement()) {
+        bodyPath.replaceWith(t.blockStatement([t.returnStatement(path.node.body)]));
+        bodyPath = path.get('body');
+      }
+      bodyPath.unshiftContainer('body', t.variableDeclaration('var',
+        refParams.map(p => markGeneratedMemoDeclarator(t.variableDeclarator(t.cloneNode(p))))));
+    }
+    this.#programPath.traverse({
+      ArrowFunctionExpression: normalize,
+      FunctionExpression: normalize,
+    });
+  }
+
+  // walk every scope (program + descendants) feeding each binding pair to `visit`.
+  // shared between plugin-shape collection and free-name collection - both need an O(N)
+  // pass over the full scope graph after `scope.crawl()`. caller decides what to do with
+  // each [name, binding] pair (filter to a multimap / accumulate names into a Set / etc.)
+  #forEachScopeBinding(visit) {
+    function apply(scope) {
+      for (const entry of Object.entries(scope.bindings)) visit(entry);
+    }
+    apply(this.#programPath.scope);
+    this.#programPath.traverse({ Scopable({ scope }) { apply(scope); } });
+  }
+
+  // plugin-emitted shape: `scope.push({ id })` produces a `var _refN;` declarator. user
+  // collisions (`let`/`const`) differ in `kind`. arrow-fn-param shape is normalized to var
+  // by `normalizeArrowRefParams` BEFORE prune runs. CatchClause / Function params host
+  // bindings without VariableDeclaration parent - filtered out here too
+  static #isPluginShapeBinding(binding) {
+    const parent = binding?.path?.parentPath?.node;
+    return parent?.type === 'VariableDeclaration' && parent.kind === 'var';
+  }
+
+  // walk plugin-shape bindings under one name; remove declarators with no references AND
+  // no SE-bearing init AND no constantViolations. returns true iff any binding stays alive.
+  // multi-declarator `var _ref, _refOther` removes only the dead declarator, leaving siblings
+  #removeDeadBindings(bindings) {
+    let survivor = false;
+    for (const binding of bindings) {
+      const declPath = binding.path.parentPath;
+      // a LOOP HEAD binding (the relocated for-x head's minted name, its pattern extracted whole
+      // below) is the loop's `left`: the loop still iterates, so the head stays, unread or not
+      const loop = declPath?.parentPath?.node;
+      if (!canDropUnusedMemo(binding.path.node?.id, binding.path.node?.init, {
+        owned: this.isGeneratedFamilyName(binding.identifier.name),
+        hasUses: binding.references || binding.constantViolations.length,
+        removable: !((loop?.type === 'ForOfStatement' || loop?.type === 'ForInStatement') && loop.left === declPath.node),
+      })) {
+        survivor = true;
+        continue;
+      }
+      const block = declPath.parentPath;
+      if (declPath.node.declarations.length === 1) declPath.remove();
+      else binding.path.remove();
+      const call = block?.parentPath?.parentPath;
+      const returned = emptyMemoActivationValue(call?.node, this.#memoActivations);
+      if (returned) call.replaceWith(returned);
+      // ... and an arrow the source wrote with an expression body, which babel braced to host the
+      // declarator (`scope.push`), gets its expression back once the declarator leaves: the block is
+      // no text the source wrote. an arrow the allocator minted is the activation's own, above
+      else if (block?.isBlockStatement() && block.parentPath?.isArrowFunctionExpression()
+        && Number.isInteger(block.parentPath.node.start) && !Number.isInteger(block.node.start)
+        && !block.node.directives?.length && block.node.body.length === 1
+        && block.node.body[0].type === 'ReturnStatement' && block.node.body[0].argument) {
+        block.replaceWith(block.node.body[0].argument);
+      }
+    }
+    return survivor;
+  }
+
+  // single per-program walk feeding BOTH the plugin-shape binding multimap AND the taken-name
+  // set the renamer consults. naive split: two `#forEachScopeBinding` passes (each O(scope-graph))
+  // - folding halves the cost on large modules.
+  // `byName`: dedupe by binding identity (re-crawl after replaceWith can produce duplicate
+  // entries reachable through multiple traversal paths); user's `let _refN` shadow excluded
+  // upstream by the plugin-shape filter.
+  // `taken`: surviving `var _refN;` bindings (scope-binding walk above) + program.globals
+  // (rebuilt by the programExit crawl). the crawl resets .references/.uids to empty Sets, so
+  // those carry none of the plugin's published UIDs at renumber time - the binding walk is
+  // what keeps the renumber from collapsing `_ref2` back onto `_ref`
+  #indexBindingsAndTakenNames() {
+    const byName = new Map();
+    const taken = new Set();
+    this.#forEachScopeBinding(([name, binding]) => {
+      taken.add(name);
+      // index plugin-shape (initless `var _refN;`) bindings for the prune, PLUS every
+      // binding of a GENERATED name regardless of shape: local `const _refN = init` memos
+      // and IIFE memo params share the canonical slot space, so the renumber must reach
+      // their bindings too (the terminal decision keeps observable initializers and live
+      // uses, so the prune semantics for declared refs are unchanged)
+      if (!ImportInjector.#isPluginShapeBinding(binding) && !this.isGeneratedFamilyName(name)) return;
+      let list = byName.get(name);
+      if (!list) byName.set(name, list = []);
+      if (!list.includes(binding)) list.push(binding);
+    });
+    const program = this.#programPath.scope.getProgramParent();
+    for (const n of Object.keys(program.globals ?? {})) taken.add(n);
+    // seeded user-owned names (`globalThis.<name>` slots) never re-enter `program.globals`
+    // after their references were rewritten to member reads - without this the renumber
+    // compacts a correctly-avoided `_ref2` back onto the user's slot name
+    for (const n of this.reservedNames) taken.add(n);
+    return { byName, taken };
+  }
+
+  // a pure-import binding whose ONLY occurrence is its own import specifier is an ORPHAN:
+  // a claim requested it and a later routing superseded the read (a user-mutated static rides
+  // the injected CONSTRUCTOR, stranding the static's earlier-ordered import). bundle weight,
+  // not correctness. liveness comes from the shared flush census - the same one answer the
+  // unplugin emitter's emission filter reads, ctor-static exception included. the pruned
+  // import leaves the registry with its node, so the registry is the emission afterwards -
+  // what the debug report lists
+  pruneUnusedPureImports() {
+    const nameBySource = new Map();
+    for (const [source, name] of this.pureImports) nameBySource.set(name, source);
+    if (!nameBySource.size) return;
+    const isLive = createPureImportLiveness({
+      pureImports: this.pureImports,
+      existingPureImports: this.existingPureImports,
+      census: this.#ensureExitCensus(),
+    });
+    for (const bodyPath of this.#programPath.get('body')) {
+      const { node } = bodyPath;
+      const local = node?.type === 'ImportDeclaration' && node.specifiers?.length === 1
+        && node.specifiers[0].type === 'ImportDefaultSpecifier' ? node.specifiers[0].local.name
+        : node?.type === 'VariableDeclaration' && node.declarations?.length === 1
+          && node.declarations[0].id?.type === 'Identifier'
+          && requireCallSource(node.declarations[0].init) !== null ? node.declarations[0].id.name : null;
+      if (!local || !nameBySource.has(local) || isLive(nameBySource.get(local), local)) continue;
+      bodyPath.remove();
+      this.pureImports.delete(nameBySource.get(local));
+    }
+  }
+
+  // ONE flush census per programExit, shared by the ref prune and the pure-import prune
+  // (the ref prune's tree mutations - dead initless declarators, slot renames, the guard
+  // unwrap - carry no pure-name content, so the pure counts stay valid). the write-only
+  // guard-memo unwrap rides the first computation exactly once: a second application over
+  // already-collapsed candidates would read `.right` of a node that is no longer a write
+  #exitCensus = null;
+  #ensureExitCensus() {
+    if (this.#exitCensus) return this.#exitCensus;
+    const mintedRefNames = new Set();
+    for (const [, names] of this.generatedRefFamilies()) for (const name of names) mintedRefNames.add(name);
+    const census = collectInjectorCensus(this.#programPath.node, {
+      mintedRefNames,
+      pureNames: new Set(this.pureImports.values()),
+      memoReuse: !!this.#memoReuseContext,
+      memoActivations: this.#memoActivations,
+    });
+    // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
+    // is write-only: the read it once served was replaced by a receiver-independent claim,
+    // which only exists after every claim landed - so the unwrap lives here, ahead of the
+    // slot rank's consumers. a TOP-LEVEL guard keeps its memo (the locked kept-swap canon)
+    const rewrittenAncestors = new WeakSet();
+    unwrapWriteOnlyGuardMemos(census, {
+      injectorState: this,
+      contextForMemo: (name, write, occurrence) => {
+        let path = this.#programPath;
+        for (let i = 1; i < occurrence.ancestors.length; i++) {
+          const key = occurrence.keys[i];
+          const listKey = occurrence.listKeys[i];
+          const node = occurrence.ancestors[i];
+          const container = listKey ? path.node[listKey] : path.node;
+          if (container?.[key] !== node) return null;
+          path = path.constructor.get({ parentPath: path, parent: path.node, container, listKey, key });
+          path.setContext(path.parentPath.context);
+        }
+        invalidateScopeVarIndex(path, rewrittenAncestors);
+        return this.#memoReuseContext ? { ...this.#memoReuseContext, scope: path.scope, path } : null;
+      },
+    });
+    this.#exitCensus = census;
+    return census;
+  }
+
+  // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
+  // emission but kept the scope.push), then renumber survivors so the output matches unplugin.
+  // `scope.crawl()` is O(program size) but runs once per file at programExit - amortized
+  // over all in-file polyfill rewrites it's negligible vs the O(N) traversal that already
+  // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
+  // out of sync with the live AST
+  pruneUnusedRefs() {
+    const families = [...this.generatedRefFamilies()].filter(([, names]) => names.size);
+    if (!families.length) return;
+    const allGenerated = new Set();
+    for (const [, names] of families) for (const name of names) allGenerated.add(name);
+    // FAST PATH - the shared flush census, no crawl, no scope-graph walk. it covers EVERY
+    // generated slot-family name (declared `var _refN;`, local `const _refN = ...` UIDs, and
+    // `_unusedN` rest sentinels): the canonical numbering is one shared slot space per family,
+    // so locals rank and renumber like declared refs - excluding them left non-releasable
+    // holes and produced SWAP maps against the unplugin emitter's full-registry canon. a DECLARED
+    // ref's own declarator id is exactly one occurrence - a second occurrence proves a live
+    // use; a wholesale-discarded emission leaves zero. any slot-shaped identifier OUTSIDE the
+    // generated registry (a nested user binding, a sibling-plugin introduction) routes to the
+    // full path so the taken-aware renumber can keep avoiding it
+    const { refCounts, refDeclIdCounts, printRank, foreignSlotName } = this.#ensureExitCensus();
+    if (!foreignSlotName) {
+      let hasDead = false;
+      for (const [name, count] of refCounts) {
+        // one rule for every slot shape: a name spelled ONLY in declarator-id positions has no
+        // reader, whether a `var _refN;` declares it or an inline `const _refN = ...` memo does.
+        // a sentinel lives in a PATTERN slot, never a declarator id, so its own spelling keeps it
+        // live - and for a declared ref this is the same count the single-occurrence rule gave
+        if (count <= (refDeclIdCounts.get(name) ?? 0)) {
+          hasDead = true;
+          break;
+        }
+      }
+      // fast-path exit needs the numbering to ALREADY be canonical, not just hole-free:
+      // every name used (no dead), each family a perfect compact `<prefix>..<prefix>N` set
+      // (all slots ours - canonical assignment cannot land elsewhere), and each family's
+      // print rank ascending in slot order (first-ranked holds the lowest slot). any other
+      // state routes to the crawl below, where the taken-aware canonical renumber decides
+      if (!hasDead && printRank.length === allGenerated.size
+        && families.every(([prefix]) => isCanonicalSlotOrder(
+          prefix, printRank.filter(name => this.generatedRefFamilies().get(prefix).has(name))))) return;
+    }
+    this.#programPath.scope.crawl();
+    const { byName, taken } = this.#indexBindingsAndTakenNames();
+
+    // step 1: drop unused / dead var declarators per name. three outcomes:
+    //   1. no plugin-shape bindings  -> drop from `declaredRefNames` only (catch / fn-param
+    //      shape still owns the slot; can't free for reclaim or survivors would shadow-collide)
+    //   2. at least one survivor     -> keep in `declaredRefNames`, name stays live
+    //   3. all bindings dead         -> drop from `declaredRefNames` AND record in `prunedNames` so
+    //      step 2's `taken` releases the slot (`program.uids` is never un-published by
+    //      `uniqueName`, so removed slots otherwise block survivors from reclaiming)
+    // snapshot iteration: walk a frozen copy of the declared set, mutate the original safely
+    const prunedNames = new Set();
+    // eslint-disable-next-line unicorn/no-useless-spread -- snapshot intentional: see comment above
+    for (const name of [...this.declaredRefNames]) {
+      const bindings = byName.get(name);
+      if (!bindings?.length) {
+        this.declaredRefNames.delete(name);
+        this.generatedRefFamilies().get('_ref').delete(name);
+        continue;
+      }
+      if (!this.#removeDeadBindings(bindings)) {
+        this.declaredRefNames.delete(name);
+        this.generatedRefFamilies().get('_ref').delete(name);
+        byName.delete(name);
+        prunedNames.add(name);
+      }
+    }
+
+    // ... and the LOCAL slots: an inline `const _refN = <init>` memo is in the family registry but
+    // never in `declaredRefNames`, so the walk above never offered it. one the emission ORPHANED -
+    // every reader re-spelled the receiver it held - is dead text whose declarator carries the only
+    // surviving spelling of the name; the removal keeps any whose init still evaluates
+    for (const [, names] of families) {
+      // snapshot: the loop deletes from the very set it walks
+      // eslint-disable-next-line unicorn/no-useless-spread -- snapshot intentional
+      for (const name of [...names]) {
+        if (this.declaredRefNames.has(name)) continue;
+        const bindings = byName.get(name);
+        if (!bindings?.length || this.#removeDeadBindings(bindings)) continue;
+        names.delete(name);
+        byName.delete(name);
+        prunedNames.add(name);
+      }
+    }
+
+    // step 2: build the rename map over the whole generated slot space, one family at a
+    // time. `taken` = every occupied name minus the ones the plugin owns (all generated
+    // survivors + just-pruned slots). `ownedBindings` = identity set guarding the rename
+    // against user's nested `let _ref3` shadow. `_unusedN` sentinels live in destructure
+    // PATTERNS (binding-backed like any declarator target), so the same machinery covers them
+    const aliveByPrefix = new Map();
+    for (const [prefix, names] of families) {
+      const alive = new Set([...names].filter(name => this.declaredRefNames.has(name) || byName.get(name)?.length));
+      if (alive.size) aliveByPrefix.set(prefix, alive);
+    }
+    if (!aliveByPrefix.size) return;
+    for (const [, names] of families) for (const name of names) taken.delete(name);
+    for (const name of prunedNames) taken.delete(name);
+    const ownedBindings = new Set();
+    for (const [, alive] of aliveByPrefix) {
+      for (const name of alive) for (const b of byName.get(name) ?? []) ownedBindings.add(b);
+    }
+    const renameMap = buildCanonicalRenameMap({ printRank, aliveByPrefix, isTaken: name => taken.has(name) });
+    if (!renameMap.size) return;
+
+    // sync every registry with post-rename names so subsequent consumers
+    // (reorderRefsAfterImports) match `var _refN;` declarations against the renamed set
+    this.canonicalizeGeneratedNames(renameMap);
+
+    // COLLECTION-FIRST application: plugin-emitted ref Identifiers can be NODE-SHARED across
+    // positions (a declarator id reused as the memo write's LHS), and babel visits the shared
+    // object once per position - an in-visit mutation then feeds the SECOND visit the renamed
+    // name, which a swap-shaped map maps BACK (observed as `var _ref, _ref;` + a split
+    // write/read pair). collect every node against its ORIGINAL name first (Map identity
+    // de-dups shared nodes), then mutate once per node object
+    // a NON-REFERENCE spelling of the name (an object-literal key, a class field key, a member
+    // property, a label, a private name) is source text, not our binding - the scope lookup
+    // answers with our binding for it all the same, so the position is what tells them apart,
+    // exactly as the census above ranks by it
+    const renameNodes = new Map();
+    this.#programPath.traverse({
+      Identifier(p) {
+        const to = renameMap.get(p.node.name);
+        if (!to || isNonReferencePosition(p.parentPath?.node, p.node) || !ownedBindings.has(p.scope.getBinding(p.node.name))) return;
+        renameNodes.set(p.node, to);
+      },
+    });
+    for (const [node, to] of renameNodes) node.name = to;
+  }
+
+  // base returns a string; babel consumers need an Identifier - cache one per name so
+  // repeated `addPureImport` calls return clones of the same source-shape Identifier.
+  // `t.identifier(name)` has `loc=null` so clones inherit null - the cache provides
+  // node-IDENTITY stability across clones (downstream node-equality and skippedNodes
+  // identity checks), NOT loc/range preservation
+  addPureImport(entry, hint) {
+    const name = super.addPureImport(entry, hint);
+    let id = this.#idByName.get(name);
+    if (!id) {
+      id = this.#t.identifier(name);
+      this.#idByName.set(name, id);
+    }
+    return this.#t.cloneNode(id);
+  }
+
+  // Retarget an already-flushed own import without replacing its local name. Match surviving
+  // clones by the same source and local; an elided import is emitted again by the normal flush.
+  promotePureImport(entry, nextEntry) {
+    const source = `${ this.mode }/${ entry }`;
+    const name = super.promotePureImport(entry, nextEntry);
+    if (!name) return null;
+    const nextSource = `${ this.mode }/${ nextEntry }`;
+    const previousPath = this.#resolvePath(source);
+    let present = false;
+    for (const node of this.#programPath.node.body) {
+      const declaration = node.type === 'VariableDeclaration' && node.declarations.length === 1 ? node.declarations[0] : null;
+      const literal = node.type === 'ImportDeclaration'
+        && node.specifiers.some(specifier => specifier.type === 'ImportDefaultSpecifier' && specifier.local.name === name)
+        ? node.source : declaration?.id?.name === name && requireCallSource(declaration.init) === previousPath
+          ? declaration.init.arguments[0] : null;
+      if (!literal || literal.value !== previousPath) continue;
+      literal.value = this.#resolvePath(nextSource);
+      this.#emittedKeyByNode.set(node, nextSource);
+      present = true;
+    }
+    this.#flushedPure.delete(source);
+    if (present) this.#flushedPure.add(nextSource);
+    return name;
+  }
+
+  // `options` carries the reassignment poison - swallowing it here silently registered a WRITTEN
+  // binding as the dedup target, and every later read of the entry resolved to the user's
+  // reassigned value instead of the polyfill
+  registerUserPureImport(entry, name, options) {
+    super.registerUserPureImport(entry, name, options);
+    // guard against dead writes: a repeat registration for the same name would otherwise
+    // overwrite `#idByName` with a fresh Identifier, breaking the node-IDENTITY contract
+    // that `addPureImport` relies on (clones share identity with the cached source node)
+    if (!this.#idByName.has(name)) this.#idByName.set(name, this.#t.identifier(name));
+  }
+
+  #resolvePath(subpath, pkg = null) {
+    return resolveImportPath(pkg ?? this.pkg, subpath, this.absoluteImports);
+  }
+
+  #buildNodes() {
+    // A sibling can elide an import before a later helper needs it again. Cloned imports
+    // still satisfy the same source and local name; only an absent binding is unflushed.
+    if (this.importStyle !== 'require' && this.#flushedPure.size) {
+      const present = new Set(this.survivingEmittedNodes(this.#programPath.node.body)
+        .map(node => this.#emittedKeyByNode.get(node)));
+      for (const node of this.#programPath.node.body) {
+        if (node.type !== 'ImportDeclaration') continue;
+        const specifier = node.specifiers.find(spec => spec.type === 'ImportDefaultSpecifier');
+        const name = specifier?.local.name;
+        const source = name && this.getBindingInfo(name)?.source;
+        if (source && this.pureImports.get(source) === name && node.source.value === this.#resolvePath(source)) present.add(source);
+      }
+      for (const source of this.#flushedPure) {
+        if (!present.has(source) && !this.#programPath.scope.getBinding(this.pureImports.get(source))) this.#flushedPure.delete(source);
+      }
+    }
+    // subtract plugin-emitted so a re-flush doesn't re-emit. a user's own global import is
+    // REMOVED and re-emitted through `addGlobalImport`, so it never needs suppressing here
+    const newGlobals = [...this.globalImports.difference(this.#emittedGlobals)];
+    const newPure = [...this.pureImports].filter(([s]) => !this.#flushedPure.has(s));
+    if (!newGlobals.length && !newPure.length) return null;
+    for (const mod of newGlobals) this.#emittedGlobals.add(mod);
+    for (const [source] of newPure) this.#flushedPure.add(source);
+    // the render canon spells the import set once for both emitters; this binding CONVERTS
+    // the canonical nodes at the insertion boundary. `key` = bare module name for globals
+    // (compat-data order lookup) / the pure source (the comparator's deterministic lex tail)
+    const rendered = renderInjectedImportNodes({
+      globalModules: newGlobals,
+      pureEntries: newPure,
+      importStyle: this.importStyle,
+      resolve: (subpath, pkg) => this.#resolvePath(subpath, pkg),
+      globalPackages: this.globalImportPackages,
+    });
+    const nodes = [];
+    for (const { node, key } of rendered) {
+      const converted = estreeToBabel(node);
+      nodes.push(converted);
+      this.#emittedKeyByNode.set(converted, key);
+    }
+    return nodes;
+  }
+
+  // canonical-sort the union of all flushed plugin imports across all `flush()` calls.
+  // each individual flush only sorts within its own batch; with two flushes per file
+  // (visitor pre-pass / post-synth-swap), the cross-batch relative order can invert vs
+  // canonical compat-data order. called from programExit AFTER all flushes - sorts only
+  // emitted nodes among themselves while keeping non-emitted statements (sibling-plugin
+  // helper var declarations etc.) in their ORIGINAL positions. without slot-preserving
+  // permutation, `import X; const _hot = ...; import Y;` would relocate `_hot` past every
+  // sorted import - silent evaluation-order change for sibling-injected helper code.
+  // node-identity match (== check on `body[i] === entry.node`) avoids touching user-side
+  // imports or sibling-plugin emissions interleaved in the same region
+  reorderImportRegion() {
+    // set the precondition flag at the end so a caller-side guard (`#assertSorted` in
+    // `reorderRefsAfterImports`) reflects "this method ran" rather than "we entered and may
+    // have early-returned". flag is observed by downstream methods that REQUIRE the sort to
+    // have completed before they walk the import region; sort-no-op cases (fewer than 2
+    // entries, empty body) still satisfy the precondition trivially - the import region
+    // can't be out of order if there's nothing to sort
+    const { body } = this.#programPath.node;
+    const hasWork = this.#emittedKeyByNode.size >= 2 && body?.length;
+    if (!hasWork) {
+      this.#importRegionSorted = true;
+      return;
+    }
+    // collect indices + sort keys of emitted slots IN-ORDER. non-emitted statements
+    // (sibling helper vars, comments-as-statements, ...) keep their original positions,
+    // so the sort only permutes emitted entries among the slots they already occupy
+    const slots = [];
+    for (let i = 0; i < body.length; i++) {
+      const key = this.#emittedKeyByNode.get(body[i]);
+      if (key !== undefined) slots.push({ index: i, key, node: body[i] });
+    }
+    if (slots.length >= 2) {
+      // sort by the canonical comparator: compat-data order with lex-fallback for unknown
+      // keys (pure-import sources land in the lex tail). emitted nodes have unique node
+      // identity so unique-by-node holds even if two pure imports share a source string
+      const sorted = [...slots].sort((a, b) => polyfillOrderComparator(a.key, b.key));
+      for (let i = 0; i < slots.length; i++) {
+        body[slots[i].index] = sorted[i].node;
+      }
+    }
+    this.#importRegionSorted = true;
+  }
+
+  flush() {
+    while (true) {
+      const nodes = this.#buildNodes();
+      if (!nodes) break;
+      // BELOW the body-resident prologue THE SOURCE CARRIED: real directives live in
+      // `program.directives` and an unshift already lands under them, but a sibling transform that
+      // re-emitted one as a raw statement leaves it in `body` - injecting above it would silently
+      // disable the directive. membership, not shape: a same-valued string the source wrote BELOW
+      // an import never was a directive, and the imports still belong above it
+      const flushBody = this.#programPath.node.body;
+      let prologueEnd = 0;
+      while (prologueEnd < flushBody.length && this.#sourcePrologueNodes.has(flushBody[prologueEnd])) prologueEnd++;
+      // the anchor above an unshift is whatever babel printed last before the body: the last real
+      // directive, else the hashbang - both hold the shared copy of a comment on the line under them
+      const { directives, interpreter } = this.#programPath.node;
+      this.#releaseAnchorComments(prologueEnd === 0
+        ? directives?.at(-1) ?? interpreter : flushBody[prologueEnd - 1], flushBody.slice(prologueEnd));
+      if (prologueEnd === 0) this.#programPath.unshiftContainer('body', nodes);
+      else this.#programPath.get('body')[prologueEnd - 1].insertAfter(nodes);
+    }
+  }
+
+  // babel hands an OWN-LINE comment between two statements to both of them - trailing on the
+  // first, leading on the second - and the printer emits the trailing copy, so a block spliced
+  // between them lands after the comment and the statement it marks loses it. an opt-out pragma
+  // then guards OUR import instead of the author's line. a comment that ENDS the anchor's own
+  // line really is its trailing comment and stays
+  #releaseAnchorComments(previous, following) {
+    if (!previous?.trailingComments?.length) return;
+    // scan EVERY node below the anchor, not just the first: a `scope.push` ref block already sits
+    // there and carries no comments, so the owner of the shared one is further down. a comment no
+    // node below claims is trailing-only - releasing it would print it nowhere
+    const owned = new Set(following.flatMap(attachedLeadingComments));
+    const anchorLine = previous.loc?.end?.line;
+    const kept = previous.trailingComments.filter(comment => !owned.has(comment)
+      || comment.loc?.start?.line === anchorLine);
+    if (kept.length !== previous.trailingComments.length) previous.trailingComments = kept;
+  }
+
+  // the body-resident prologue the SOURCE carried, recorded before any of our head insertions or
+  // an entry replacement moved things around - membership, not shape, decides what may be hoisted back
+  recordSourcePrologue(body) {
+    this.#sourcePrologueNodes = new Set((body ?? []).slice(0, programPrologueEndIndex(body ?? [])));
+  }
+
+  // Move declared refs below the import header after all scope pushes settle.
+  // This includes explicitly supplied rest-exclusion sentinels.
+  reorderRefsAfterImports() {
+    if (!this.#importRegionSorted) {
+      throw new Error(brand('import-injector: reorderRefsAfterImports() must follow reorderImportRegion()'));
+    }
+    const { body } = this.#programPath.node;
+    if (!body?.length) return;
+    // a body-resident prologue statement must stay FIRST. `scope.push` and the import flush both
+    // land at the head, so a directive a sibling transform re-emitted as a raw statement ends up
+    // UNDER them and stops being a directive at all (`'use client'` disabled, `'use strict'` not
+    // applied). moving it back past imports and initless vars is inert - neither is an executable
+    // statement whose order a directive could depend on
+    for (let slot = 0; slot < body.length; slot++) {
+      if (this.#sourcePrologueNodes.has(body[slot])) {
+        if (slot === 0) continue;
+        if (body.slice(0, slot).some(node => !isTopLevelImportLike(node) && !isInitlessVarDecl(node)
+          && !this.#sourcePrologueNodes.has(node))) break;
+        const [prologue] = body.splice(slot, 1);
+        body.splice(body.findLastIndex((node, at) => at < slot && this.#sourcePrologueNodes.has(node)) + 1, 0, prologue);
+        continue;
+      }
+      if (!isTopLevelImportLike(body[slot]) && !isInitlessVarDecl(body[slot])) break;
+    }
+    const refsSet = this.declaredRefNames;
+
+    // import-region members - the reorder loop accumulates `importEnd` over them and bails
+    // on the first non-member. coverage:
+    //   - `import ... from 'm'`
+    //   - `export { x } from 'm'` / `export * from 'm'` / `export * as ns from 'm'` re-exports;
+    //     TC39 module records fetch the re-exported module before evaluating user body so the
+    //     re-export belongs in the import header. `ExportNamedDeclaration` without `.source`
+    //     is a local re-export of an already-bound id - excluded via the `.source` check
+    //   - `require('m')` ExpressionStatement (CJS bare require)
+    //   - mixed-declarator `var fs = require('fs'), x = 1` - any declarator with `require(...)`
+    //     counts the row in (`some` not `every`); otherwise such rows would push `var _ref;`
+    //     before them, violating the `imports -> requires -> var _ref -> user code` layout
+    //   - a directive-prologue statement that survived in `body[]`: a sibling plugin re-emitted
+    //     `'use strict'` as a raw statement instead of via `program.directives` (shared
+    //     `isDirectiveStatement` accepts the `.directive` marker on the statement OR inner literal,
+    //     and rejects a bare non-directive `'foo';` so it can't extend the region)
+    // the directive term is babel-side only - unplugin's flush skips directives in its
+    // own anchor scan
+    function isImportRegion(stmt) {
+      return isTopLevelImportLike(stmt) || isPrologueDirectiveStatement(stmt);
+    }
+
+    // collect EVERY movable ref `var` in the body, not just a leading run. scope.push tags each
+    // declaration `_blockHoist: 2`, so Babel's end-of-pipeline block-hoist would otherwise lift
+    // it ABOVE the (unhoisted) import header - violating import/first - whenever a ref lands
+    // after a lifted side-effect statement that a leading-run-only scan would stop short of.
+    // they are initless vars (runtime-hoisted regardless of textual position), so merging them
+    // into one fresh declaration placed just past the import header is semantically inert and
+    // matches unplugin's layout. the fresh `merged` node carries no `_blockHoist`, so block-hoist
+    // leaves it in place; removing the original `bh2` nodes drops their lift entirely
+    // migrate our memoize ref `var`s below the import header - else Babel's end-of-pipeline block-hoist
+    // (`_blockHoist: 2` from `scope.push`) lifts them above the unhoisted imports, an import/first
+    // violation. pull every initless declarator that is one of OUR refs. a node whose declarators are
+    // ALL initless rides over WHOLE (initless vars hoist regardless of position, so moving the foreign
+    // siblings is inert and dropping the node removes its block-hoist lift); a node that ALSO carries an
+    // init-bearing declarator - a sibling `scope.push({id, init})` MERGED into the same reused
+    // `declaration:${kind}:${blockHoist}` slot - is SPLIT: only the initless refs migrate, the rest
+    // stays in place with its `_blockHoist` (the sibling's concern). emptied nodes drop, mutated split
+    const pulledDeclarators = [];
+    const droppedNodes = new Set();
+    const splitNodes = new Set();
+    for (const stmt of body) {
+      if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'var') continue;
+      const allInitless = stmt.declarations.every(d => !d.init && d.id.type === 'Identifier');
+      // pull our refs; when the whole node is initless also pull the foreign siblings (inert hoist)
+      const pulled = stmt.declarations.filter(d => !d.init && d.id.type === 'Identifier'
+        && (allInitless || refsSet.has(d.id.name)));
+      if (pulled.every(d => !refsSet.has(d.id.name))) continue; // sibling-only initless var migrates separately
+      pulledDeclarators.push(...pulled);
+      const remaining = stmt.declarations.filter(d => !pulled.includes(d));
+      if (remaining.length) {
+        stmt.declarations = remaining;
+        splitNodes.add(stmt);
+      } else {
+        droppedNodes.add(stmt);
+      }
+    }
+    if (!pulledDeclarators.length) return;
+    const kept = body.filter(s => !droppedNodes.has(s));
+    let importEnd = 0;
+    for (let i = 0; i < kept.length; i++) {
+      if (isImportRegion(kept[i])) {
+        importEnd = i + 1;
+        continue;
+      }
+      // scan past nodes that hoisting relocates regardless of their textual position here:
+      // sibling-injected initless vars, and split nodes (their `_blockHoist` lifts them above the
+      // imports). neither pins where our fresh merged `var _ref;` lands; a genuine init-bearing
+      // statement (source order matters) still halts the scan
+      if (isInitlessVarDecl(kept[i]) || splitNodes.has(kept[i])) continue;
+      break;
+    }
+    // canonical declaration order: `_ref` family first, ascending slot within each family.
+    // pull order is allocation order, which the print-order renumber no longer matches; the
+    // unplugin emitter's flush sorts the same way, so both emitters print one sequence
+    pulledDeclarators.sort((a, b) => refDeclarationOrder(a.id.name, b.id.name));
+    const merged = this.#t.variableDeclaration('var', pulledDeclarators);
+    kept.splice(importEnd, 0, merged);
+    this.#programPath.node.body = kept;
+  }
+}

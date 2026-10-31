@@ -18,10 +18,9 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
   var calls = '';
   var expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
 
-  var addGetter = function (key, chr) {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
+  var addGetter = function (key, char) {
     Object.defineProperty(O, key, { get: function () {
-      calls += chr;
+      calls += char;
       return true;
     } });
   };
@@ -31,14 +30,15 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
     global: 'g',
     ignoreCase: 'i',
     multiline: 'm',
-    sticky: 'y'
+    sticky: 'y',
   };
 
   if (INDICES_SUPPORT) pairs.hasIndices = 'd';
 
-  for (var key in pairs) addGetter(key, pairs[key]);
+  Object.keys(pairs).forEach(function (key) {
+    addGetter(key, pairs[key]);
+  });
 
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
 
   return result !== expected || calls !== expected;

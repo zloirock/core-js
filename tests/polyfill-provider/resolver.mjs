@@ -1,0 +1,703 @@
+// Unit tests for `resolver.js` and the public-API surfaces of `index.js`:
+// `resolve(meta)`, `entryToGlobalHint(entry)`, `createPolyfillContext(...)`,
+// and `createPolyfillResolver(...).resolver.filter` (closure-internal, exercised
+// indirectly through resolveUsage with crafted descs / paths)
+import {
+  createPolyfillContext,
+  entryToGlobalHint,
+  hasConstructorEntry,
+  hasNarrowEntry,
+  hasNarrowEntryStaticKey,
+  resolve,
+} from '../../packages/core-js-polyfill-provider/index.js';
+import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
+import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
+import { createDetectionAdapter, enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { adapters, createChecker } from './harness.mjs';
+
+const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
+
+// --- resolve(meta): top-level meta dispatcher ---
+// API quirk: misses return `undefined` (not `null`). `kind: 'instance'` is NOT a
+// recognised meta shape - instance methods are resolved via
+// `kind: 'property', placement: 'prototype', key: <method>`, which falls through
+// the static branches into `instance[key]` lookup
+
+// global: well-known constructor → resolves with pure + global descs
+{
+  const r = resolve({ kind: 'global', name: 'Promise' });
+  checkTruthy('resolve/global Promise resolves', r && r.desc, JSON.stringify(r));
+  checkTruthy('resolve/global Promise has pure', r?.desc?.pure);
+}
+
+// global: unknown identifier → undefined
+check('resolve/global unknown returns undefined',
+  resolve({ kind: 'global', name: 'NotARealGlobal_xyz' }), undefined);
+
+// a `kind: 'global'` meta answers `kind: 'global'` or nothing - never `'instance'`. the proxy-hop
+// planners resolve their leaf / root that way and act on the answer directly, so an instance verdict
+// there would be a shape they never test for. enumerated over the three catalogue families a global
+// name can also appear in (constructor / namespace / instance-method-named global)
+for (const name of ['Promise', 'Math', 'Iterator', 'globalThis']) {
+  const resolved = resolve({ kind: 'global', name });
+  if (!resolved) continue;
+  check(`resolve/global ${ name } answers kind 'global'`, resolved.kind, 'global');
+}
+
+// property/static: `Array.from`
+{
+  const r = resolve({ kind: 'property', placement: 'static', object: 'Array', key: 'from' });
+  checkTruthy('resolve/Array.from static resolves', r && r.desc, JSON.stringify(r));
+}
+
+// property/static: unknown method on known object → undefined
+check('resolve/Array.notAMethod static returns undefined',
+  resolve({ kind: 'property', placement: 'static', object: 'Array', key: 'notAMethod_xyz' }), undefined);
+
+// property/prototype: `.includes` falls through to instance lookup (placement=prototype
+// skips the two static branches; instance[key] resolves)
+{
+  const r = resolve({ kind: 'property', placement: 'prototype', object: 'String', key: 'includes' });
+  checkTruthy('resolve/.includes prototype resolves via instance', r && r.desc, JSON.stringify(r));
+}
+
+// property/prototype: `.at` instance method
+{
+  const r = resolve({ kind: 'property', placement: 'prototype', object: 'Array', key: 'at' });
+  checkTruthy('resolve/.at prototype resolves via instance', r && r.desc);
+}
+
+// property: unknown instance method → undefined
+check('resolve/.unknownMethod prototype returns undefined',
+  resolve({ kind: 'property', placement: 'prototype', object: 'Array', key: 'definitelyNotAMethod_xyz' }), undefined);
+
+// `kind: 'instance'` is NOT recognised - falls through to undefined. Real instance-method
+// resolution goes through kind:'property' + placement:'prototype'
+check('resolve/kind=instance unsupported (falls through)',
+  resolve({ kind: 'instance', key: 'at' }), undefined);
+
+// A bare string key is not symbol provenance and must not manufacture an iterator helper.
+{
+  const r = resolve({ kind: 'in', key: 'iterator' });
+  check('resolve/in ordinary iterator key has no entry', r, undefined);
+}
+
+// `in` operator with `placement: 'static'` on POSSIBLE_GLOBAL_OBJECTS: `'X' in window` etc.
+// `'Promise' in globalThis` -> resolves as `kind: 'global'`
+{
+  const r = resolve({ kind: 'in', placement: 'static', object: 'globalThis', key: 'Promise' });
+  checkTruthy('resolve/in Promise in globalThis -> global', r?.kind === 'global');
+}
+
+// Entry hints have one truth table, including acronym and malformed-path boundaries.
+for (const [entry, expected] of [
+  ['promise/constructor', 'Promise'],
+  ['array', 'Array'],
+  ['symbol', 'Symbol'],
+  ['url/constructor', 'URL'],
+  ['regexp/constructor', 'RegExp'],
+  ['error/constructor', 'Error'],
+  ['array/from', null],
+  ['array/instance/at', null],
+  ['not-a-real-thing-xyz', null],
+  ['eval-error', 'EvalError'],
+  ['42foo', null],
+  ['', null],
+  ['promise', 'Promise'],
+  ['weak-map', 'WeakMap'],
+  ['is-iterable', null],
+  ['promise/try', null],
+  ['array-buffer/is-view', null],
+  ['typed-array/instance/to-sorted', null],
+  ['/promise', null],
+  ['promise/', null],
+  ['42', null],
+  ['_foo', null],
+  [null, null],
+  ['url', 'URL'],
+  ['url-search-params', 'URLSearchParams'],
+  ['dom-exception', 'DOMException'],
+]) check(`entryToGlobalHint/${ entry }`, entryToGlobalHint(entry), expected);
+
+// A narrow entry is either spelling the resolver widens: `Reflect`'s `reflect/namespace` is one, while
+// an object rest still takes a constructor's index alone. A global-only constructor is narrow in that
+// flavor only; a namespace with no entry of its own and a native static owner have none.
+for (const [name, pure, global, constructor] of [
+  ['Map', true, true, true],
+  ['Reflect', true, true, false],
+  ['ArrayBuffer', false, true, false],
+  ['Math', false, false, false],
+  ['Object', false, false, false],
+]) {
+  check(`hasNarrowEntry/${ name }`, hasNarrowEntry(name), pure);
+  check(`hasNarrowEntry/${ name } global`, hasNarrowEntry(name, 'global'), global);
+  check(`hasConstructorEntry/${ name }`, hasConstructorEntry(name), constructor);
+}
+
+// ... and the static keys whose reads can owe such a family: `Reflect`'s own beside a constructor's
+for (const [key, expected] of [['groupBy', true], ['ownKeys', true], ['getPrototypeOf', true], ['trunc', false], ['fromEntries', false]]) {
+  check(`hasNarrowEntryStaticKey/${ key }`, hasNarrowEntryStaticKey(key), expected);
+}
+
+// --- createPolyfillContext: top-level operations ---
+
+// happy-path context
+{
+  const ctx = createPolyfillContext({ method: 'usage-global' });
+  check('createPolyfillContext/default mode', ctx.mode, 'actual');
+  check('createPolyfillContext/default pkg', ctx.pkg, 'core-js');
+  checkTruthy('createPolyfillContext/packages includes pkg', ctx.packages.includes('core-js'));
+}
+
+// usage-pure auto-picks `@core-js/pure` package
+{
+  const ctx = createPolyfillContext({ method: 'usage-pure' });
+  check('createPolyfillContext/usage-pure default pkg', ctx.pkg, '@core-js/pure');
+}
+
+// an explicit mode is carried through untouched - nothing promotes `es` / `stable` to a
+// wider layer, so a caller asking for stable-only entries cannot be handed stage 3+ ones
+for (const mode of ['es', 'stable', 'actual', 'full']) {
+  const ctx = createPolyfillContext({ method: 'usage-global', mode });
+  check(`createPolyfillContext/mode '${ mode }' kept as-is`, ctx.mode, mode);
+}
+
+// mode === null defaults to 'actual' (??= guard)
+{
+  const ctx = createPolyfillContext({ method: 'usage-global', mode: null });
+  check('createPolyfillContext/mode null defaults to actual', ctx.mode, 'actual');
+}
+
+// version === null falls through ??= default ('node_modules'); conditional-spread shapes
+// like `{ version: cond ? '4.1' : null }` must not throw - mirrors d.ts `version?: string | null`
+doesNotThrow('createPolyfillContext/version null OK',
+  () => createPolyfillContext({ method: 'usage-global', version: null }));
+
+// package === null falls through ??= default; mirrors d.ts `package?: string | null`
+{
+  const globalCtx = createPolyfillContext({ method: 'usage-global', package: null });
+  check('createPolyfillContext/package null defaults to core-js', globalCtx.pkg, 'core-js');
+  const pureCtx = createPolyfillContext({ method: 'usage-pure', package: null });
+  check('createPolyfillContext/package null defaults to @core-js/pure', pureCtx.pkg, '@core-js/pure');
+}
+
+// --- createPolyfillContext: package shape guards ---
+
+throwsWith('createPolyfillContext/package empty string',
+  () => createPolyfillContext({ method: 'usage-global', package: '' }),
+  '[core-js] `package` must be');
+throwsWith('createPolyfillContext/package pure slash',
+  () => createPolyfillContext({ method: 'usage-global', package: '/' }),
+  '[core-js] `package` must be');
+throwsWith('createPolyfillContext/package non-string',
+  () => createPolyfillContext({ method: 'usage-global', package: 42 }),
+  '[core-js] `package` must be');
+throwsWith('createPolyfillContext/additionalPackages invalid entry',
+  () => createPolyfillContext({ method: 'usage-global', additionalPackages: ['/', 'ok'] }),
+  '[core-js] `additionalPackages[0]` must be');
+
+// --- createPolyfillContext: trailing slash stripping ---
+
+{
+  const ctx = createPolyfillContext({ method: 'usage-global', package: 'my-core-js///' });
+  check('createPolyfillContext/strips trailing slashes from pkg', ctx.pkg, 'my-core-js');
+  checkTruthy('createPolyfillContext/strips slashes from packages list',
+    ctx.packages.every(p => !p.endsWith('/')));
+}
+
+{
+  const ctx = createPolyfillContext({
+    method: 'usage-global',
+    additionalPackages: ['my-fork//', '@org/pure'],
+  });
+  // dedup preserves order, first match is main pkg
+  checkTruthy('createPolyfillContext/additionalPackages slashes stripped',
+    ctx.packages.every(p => !p.endsWith('/')));
+  checkTruthy('createPolyfillContext/additionalPackages lowercased',
+    ctx.packages.every(p => p === p.toLowerCase()));
+}
+
+// --- createPolyfillContext.getCoreJSEntry ---
+
+{
+  const ctx = createPolyfillContext({ method: 'usage-global' });
+  // `core-js` bare → '' (root entry)
+  check('getCoreJSEntry/bare core-js', ctx.getCoreJSEntry('core-js'), '');
+  // `core-js/actual/promise` → 'actual/promise'
+  check('getCoreJSEntry/actual/promise',
+    ctx.getCoreJSEntry('core-js/actual/promise'), 'actual/promise');
+  // unknown subpath under known pkg → null
+  check('getCoreJSEntry/unknown subpath',
+    ctx.getCoreJSEntry('core-js/this/does/not/exist'), null);
+  // non-core-js path → null
+  check('getCoreJSEntry/foreign package',
+    ctx.getCoreJSEntry('lodash/chunk'), null);
+}
+
+// additionalPackages: aliases also match
+{
+  const ctx = createPolyfillContext({
+    method: 'usage-global',
+    additionalPackages: ['@my/fork'],
+  });
+  check('getCoreJSEntry/additionalPackages match',
+    ctx.getCoreJSEntry('@my/fork/actual/promise'), 'actual/promise');
+}
+
+// --- createPolyfillContext.isEntryNeeded ---
+
+{
+  const ctx = createPolyfillContext({ method: 'usage-global', mode: 'actual' });
+  checkTruthy('isEntryNeeded/known entry resolves to bool',
+    typeof ctx.isEntryNeeded('promise/constructor') === 'boolean');
+  // the empty entry names no layer file, so it is needed nowhere
+  check('isEntryNeeded/empty entry is not needed', ctx.isEntryNeeded(''), false);
+}
+
+// an included entry is imported from the configured layer, so it has to exist there: a proposal the
+// `full` layer alone carries, included at the default `actual`, made both emitters import a file the
+// package does not ship. the verdict is the validator's, at construction, and names the mode
+throwsWith('createPolyfillContext/include of an entry outside the mode is refused',
+  () => createPolyfillContext({ method: 'usage-pure', mode: 'actual', include: ['iterator/range'] }),
+  "\"include\" entry paths are not available at mode: 'actual':\n    iterator/range");
+throwsWith('createPolyfillContext/exclude of an entry outside the mode is refused too',
+  () => createPolyfillContext({ method: 'usage-pure', mode: 'actual', exclude: ['iterator/range'] }),
+  "\"exclude\" entry paths are not available at mode: 'actual'");
+{
+  const ctx = createPolyfillContext({ method: 'usage-pure', mode: 'full', include: ['iterator/range'] });
+  check('createPolyfillContext/the same include at the layer that ships it is needed', ctx.isEntryNeeded('iterator/range'), true);
+  // the mode prefix and the instance segment are spelling, not identity: the include names the same entry
+  const spelled = createPolyfillContext({ method: 'usage-pure', mode: 'actual', include: ['actual/array/instance/at'] });
+  check('createPolyfillContext/an include spelled with mode and instance segment is accepted', spelled.isEntryNeeded('array/at'), true);
+}
+
+// the published surface re-asks the `mode` enum: a caller that never ran `initPluginOptions` gets the
+// validator's verdict, not a context that answers "no polyfill" to every entry of a layer that ships nothing
+throwsWith('createPolyfillContext/mode outside the enum is refused',
+  () => createPolyfillContext({ method: 'usage-global', mode: 'bogus' }),
+  "[core-js] `mode` must be one of 'es', 'stable', 'actual', 'full' (received \"bogus\")");
+
+// the helper entries (the emit canon of a `[Symbol.iterator]` read) are decided by the targets alone.
+// the entry-path form of `exclude` was already exempt; the module form reached the same helper through
+// its module list, emptied it, and flipped the canon to a raw static-symbol read on every target
+{
+  // through `initPluginOptions`: the module form of `exclude` lives in the fused predicate it
+  // builds, and the targets' own verdict travels beside it
+  function context(options) {
+    return createPolyfillContext(initPluginOptions({ version: '4.0', targets: { ie: 11 }, ...options }));
+  }
+  const helperModules = ['es.object.to-string', 'es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'];
+  const excluded = context({ method: 'usage-pure', mode: 'actual', exclude: helperModules });
+  check('isEntryNeeded/control - the module exclude empties the helper module list',
+    excluded.getModulesForEntry('actual/get-iterator').length, 0);
+  check('isEntryNeeded/the helper survives a module-form exclude', excluded.isEntryNeeded('get-iterator'), true);
+  const callback = context({ method: 'usage-pure', mode: 'actual', shouldInjectPolyfill: () => false });
+  check('isEntryNeeded/the helper survives a user callback dropping every module', callback.isEntryNeeded('get-iterator'), true);
+  const entryExcluded = context({ method: 'usage-pure', mode: 'actual', exclude: ['get-iterator'] });
+  check('isEntryNeeded/the helper survives an entry-path exclude', entryExcluded.isEntryNeeded('get-iterator'), true);
+  // ... and only the targets may drop it: an engine that has every module natively
+  const modern = context({ method: 'usage-pure', mode: 'actual', targets: { chrome: 200 } });
+  check('isEntryNeeded/control - the modern engine needs none of the helper modules',
+    modern.getModulesForEntry('actual/get-iterator').length, 0);
+  check('isEntryNeeded/targets needing none of its modules drop the helper', modern.isEntryNeeded('get-iterator'), false);
+  // a filter may still ADD it beyond the targets: the entry-path include and the module include alike
+  check('isEntryNeeded/an entry-path include forces the helper beyond the targets',
+    context({ method: 'usage-pure', mode: 'actual', targets: { chrome: 200 }, include: ['get-iterator'] }).isEntryNeeded('get-iterator'), true);
+  check('isEntryNeeded/a module include forces the helper beyond the targets',
+    context({ method: 'usage-pure', mode: 'actual', targets: { chrome: 200 }, include: ['es.array.iterator'] }).isEntryNeeded('get-iterator'), true);
+  // an ordinary entry keeps the user filters: the same exclude drops it
+  check('isEntryNeeded/control - an ordinary entry still follows the module exclude',
+    context({ method: 'usage-pure', mode: 'actual', exclude: ['es.array.at'] }).isEntryNeeded('array/at'), false);
+}
+
+// what an entry installs is present - the question a user's own fallback asks, which `isEntryNeeded` cannot
+// answer: it says no alike for an entry every target carries and for one a filter drops. both methods count
+// the data subset the build is configured for, the version and the mode, whatever the targets and the user's
+// filter say
+{
+  function context(options) {
+    return createPolyfillContext(initPluginOptions({ version: '4.0', mode: 'actual', ...options }));
+  }
+  const modern = context({ method: 'usage-global', targets: { chrome: 200 } });
+  check('isEntryAvailable/control - a modern engine needs no module of it', modern.isEntryNeeded('weak-set/constructor'), false);
+  check('isEntryAvailable/carried natively by every target', modern.isEntryAvailable('weak-set/constructor'), true);
+  check('isEntryAvailable/injected where the targets need it',
+    context({ method: 'usage-global', targets: { ie: 11 } }).isEntryAvailable('weak-set/constructor'), true);
+  const excluded = context({ method: 'usage-global', targets: { ie: 11 }, exclude: ['es.weak-set.constructor'] });
+  check('isEntryAvailable/control - the other modules of the entry still inject', excluded.isEntryNeeded('weak-set/constructor'), true);
+  check('isEntryAvailable/a module the targets need and the exclude drops still counts present',
+    excluded.isEntryAvailable('weak-set/constructor'), true);
+  check('isEntryAvailable/so does every module a user callback drops',
+    context({ method: 'usage-global', targets: { ie: 11 }, shouldInjectPolyfill: () => false }).isEntryAvailable('weak-set/constructor'),
+    true);
+  check('isEntryAvailable/pure, an entry the targets need',
+    context({ method: 'usage-pure', targets: { ie: 11 } }).isEntryAvailable('weak-set/constructor'), true);
+  check('isEntryAvailable/pure, an entry-path exclude where the targets need it',
+    context({ method: 'usage-pure', targets: { ie: 11 }, exclude: ['weak-set/constructor'] }).isEntryAvailable('weak-set/constructor'), true);
+  check('isEntryAvailable/an entry the mode does not ship', modern.isEntryAvailable('iterator/range'), false);
+  check('isEntryAvailable/control - the mode that ships it',
+    context({ method: 'usage-global', mode: 'full', targets: { ie: 11 } }).isEntryAvailable('iterator/range'), true);
+  // ... and whether the build can spell it: usage-global answers by the data subset as well, pure drops an
+  // entry path the user excludes, since it substitutes nothing it excludes
+  check('isEntryCarried/usage-global, the defining module excluded', excluded.isEntryCarried('weak-set/constructor'), true);
+  check('isEntryCarried/usage-global, an entry the mode does not ship', modern.isEntryCarried('iterator/range'), false);
+  check('isEntryCarried/pure, an entry-path exclude',
+    context({ method: 'usage-pure', targets: { chrome: 200 }, exclude: ['weak-set/constructor'] }).isEntryCarried('weak-set/constructor'), false);
+  check('isEntryCarried/control - pure, the entry kept',
+    context({ method: 'usage-pure', targets: { ie: 11 } }).isEntryCarried('weak-set/constructor'), true);
+}
+
+// the build's backing of a global or static, the one every canon deciding a user's selection asks
+// (`adapter.served`): pure respells a read it substitutes, and both methods count the rest present where the
+// data subset carries it, so a filter dropping a module the targets need still backs it, a global the subset
+// lacks at the mode backs nothing, and neither does an adapter wired with no build
+{
+  function served(options, meta) {
+    const { resolver } = createPolyfillResolver({ version: '4.0', ...options }, makeFilterEnv());
+    const { resolvePure, isEntryAvailable } = resolver;
+    return createDetectionAdapter({ method: options.method, resolvePure, isEntryAvailable }, () => ({})).served(meta, null);
+  }
+  const PROMISE = { kind: 'global', name: 'Promise' };
+  const RESOLVE = { kind: 'property', object: 'Promise', key: 'resolve', placement: 'static' };
+  const pure = { method: 'usage-pure', targets: { ie: 11 } };
+  const global = { method: 'usage-global', targets: { ie: 11 } };
+  checkDeep('served/pure substitutes the global', served(pure, PROMISE), { substituted: true });
+  checkDeep('served/pure substitutes the static', served(pure, RESOLVE), { substituted: true });
+  checkDeep('served/pure, carried natively by every target', served({ ...pure, targets: { chrome: 200 } }, PROMISE), { substituted: false });
+  checkDeep('served/pure, the constructor excluded where the targets need it',
+    served({ ...pure, exclude: ['promise/constructor'] }, PROMISE), { substituted: false });
+  check('served/pure, a global the subset lacks at the mode', served(pure, { kind: 'global', name: 'AsyncIterator' }), null);
+  checkDeep('served/control - the same exclude leaves the static substituted',
+    served({ ...pure, exclude: ['promise/constructor'] }, RESOLVE), { substituted: true });
+  checkDeep('served/usage-global injects it', served(global, PROMISE), { substituted: false });
+  checkDeep('served/usage-global, the module excluded where the targets need it',
+    served({ ...global, exclude: ['es.promise.constructor'] }, PROMISE), { substituted: false });
+  checkDeep('served/usage-global, the static of an excluded constructor',
+    served({ ...global, exclude: ['es.promise.constructor'] }, RESOLVE), { substituted: false });
+  check('served/usage-global, a global the subset lacks at the mode',
+    served(global, { kind: 'global', name: 'AsyncIterator' }), null);
+  check('served/an unknown global', served(global, { kind: 'global', name: 'NotABuiltIn' }), null);
+  for (const method of ['usage-pure', 'usage-global']) {
+    check(`served/${ method }, no build wired`, createDetectionAdapter({ method }, () => ({})).served(PROMISE, null), null);
+  }
+}
+
+// the version autodetect reads the installed package, `core-js` or `@core-js/pure` - a usage-pure
+// project need not carry `core-js` at all
+{
+  const ctx = createPolyfillContext({ method: 'usage-pure' });
+  checkTruthy('createPolyfillContext/version autodetect resolves a layer', ctx.getModulesForEntry('actual/array/at').length > 0);
+}
+
+// a version the compat normaliser cannot use is a user-facing verdict on the `version` option and
+// leaves branded like every other option verdict, its cause kept: bare it read as a crash of ours
+for (const [version, reason] of [['4', 'minor component required'], ['3.0', 'works only with `core-js@4`']]) {
+  throwsWith(`createPolyfillContext/version ${ version } is refused with the brand`,
+    () => createPolyfillContext({ method: 'usage-global', version }), '[core-js] invalid `version` option: ');
+  throwsWith(`createPolyfillContext/version ${ version } keeps the normaliser's reason`,
+    () => createPolyfillContext({ method: 'usage-global', version }), reason);
+}
+
+// exclude wins over default
+{
+  const ctx = createPolyfillContext({
+    method: 'usage-pure',
+    mode: 'actual',
+    exclude: ['actual/array/from'],
+  });
+  check('isEntryNeeded/exclude rejects', ctx.isEntryNeeded('actual/array/from'), false);
+}
+
+// include adds entries that targets-default would reject
+{
+  const ctx = createPolyfillContext({
+    method: 'usage-pure',
+    mode: 'actual',
+    include: ['actual/array/from'],
+  });
+  check('isEntryNeeded/include accepts', ctx.isEntryNeeded('actual/array/from'), true);
+}
+
+// --- createPolyfillContext.getModulesForEntry ---
+
+{
+  const ctx = createPolyfillContext({ method: 'usage-global', mode: 'actual' });
+  const mods = ctx.getModulesForEntry('actual/promise/constructor');
+  checkTruthy('getModulesForEntry/known entry returns array', Array.isArray(mods) && mods.length > 0);
+  // cached: second call returns same array reference (cache hit)
+  check('getModulesForEntry/cache returns same reference',
+    ctx.getModulesForEntry('actual/promise/constructor'), mods);
+}
+
+// unknown entry returns empty array
+{
+  const ctx = createPolyfillContext({ method: 'usage-global', mode: 'actual' });
+  const mods = ctx.getModulesForEntry('totally/unknown/entry/xyz');
+  checkTruthy('getModulesForEntry/unknown returns empty array', Array.isArray(mods) && mods.length === 0);
+}
+
+// shouldInjectPolyfill filter takes effect
+{
+  const ctx = createPolyfillContext({
+    method: 'usage-global',
+    mode: 'actual',
+    shouldInjectPolyfill: () => false,
+  });
+  const mods = ctx.getModulesForEntry('actual/promise/constructor');
+  check('getModulesForEntry/shouldInjectPolyfill false drops all', mods.length, 0);
+}
+
+// --- createPolyfillResolver: filter logic via stubs ---
+
+// minimal stubs: typeResolvers return null so resolveHint doesn't enhance meta; predicates
+// inspect plain-object "paths" we construct directly. these stubs let us test the filter
+// branches without parsing real code
+function makeFilterEnv() {
+  const stubTypeResolvers = {
+    resolvePropertyObjectType: () => null,
+    resolveGuardHints: () => null,
+    toHint: () => null,
+    isString: arg => arg?.node?.isStringMarker === true,
+    isObject: arg => arg?.node?.isObjectMarker === true,
+  };
+  const stubAstPredicates = {
+    isMemberLike: () => false,
+    isCallee: (node, parent) => parent?.type === 'CallExpression' && parent.callee === node,
+    isSpreadElement: arg => arg?.type === 'SpreadElement',
+  };
+  return { typeResolvers: stubTypeResolvers, astPredicates: stubAstPredicates };
+}
+
+// An unnamed read off a native global owes its own statics, not every prototype method.
+for (const [label, meta, options, expected] of [
+  ['Array', { kind: 'global', name: 'Array' }, {}, ['array/from', 'array/from-async', 'array/of']],
+  ['realm Array', { kind: 'property', object: 'globalThis', key: 'Array', placement: 'static' }, {}, ['array/from', 'array/from-async', 'array/of']],
+  ['filtered static', { kind: 'global', name: 'Array' }, { exclude: ['es.array.of'] }, ['array/from', 'array/from-async']],
+  ['native constructor entry', { kind: 'global', name: 'Number' }, {}, [
+    'number/constructor', 'number/epsilon', 'number/max-safe-integer', 'number/min-safe-integer',
+    'number/is-finite', 'number/is-integer', 'number/is-nan', 'number/is-safe-integer', 'number/parse-float', 'number/parse-int',
+  ]],
+  ['native constructor dependencies', { kind: 'global', name: 'RegExp' }, {}, ['regexp/constructor', 'regexp/escape']],
+  ['filtered constructor keeps statics', { kind: 'global', name: 'RegExp' }, { exclude: ['es.regexp.constructor'] },
+    ['regexp/constructor', 'regexp/escape']],
+  ['filtered static keeps dependencies', { kind: 'global', name: 'RegExp' }, { exclude: ['es.regexp.escape'] },
+    ['regexp/constructor', 'regexp/escape']],
+  ['filtered static keeps constructor', { kind: 'global', name: 'RegExp' },
+    { exclude: ['es.regexp.escape', 'es.string.repeat', 'es.string.pad-start'] }, ['regexp/constructor']],
+  ['case-sensitive name', { kind: 'global', name: 'array' }, {}, null],
+  ['unknown name', { kind: 'global', name: 'Missing' }, {}, null],
+  ['Object prototype name', { kind: 'global', name: 'toString' }, {}, null],
+  ['foreign member', { kind: 'property', object: 'other', key: 'Array', placement: 'static' }, {}, null],
+]) {
+  const { resolver } = createPolyfillResolver({ method: 'usage-global', version: '4.0', targets: { ie: 11 }, ...options }, {
+    ...makeFilterEnv(), readsUnnamedStatic: () => true, isEscapedCtor: () => true,
+  });
+  checkDeep(`unnamed static entries/${ label }`, resolver.resolveUsage(meta), expected);
+}
+
+// Prototype leaves keep a resolved alias, while direct constructors and realm hops
+// still need their own substitution. The metadata names the proven constructor.
+for (const parser of adapters) for (const [source, fallback] of [
+  ['Map.prototype.constructor', true], ['globalThis.Map.prototype.constructor', true],
+  ['const C = Map; C.prototype.constructor', false], ['const C = Map; (C.prototype).has', false],
+]) {
+  const program = parser.parseAndScope(source);
+  const path = parser.pickPath(program, 'MemberExpression');
+  const { resolver } = createPolyfillResolver({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }, makeFilterEnv());
+  const result = resolver.resolvePureOrGlobalFallback({ kind: 'property', object: 'Map',
+    key: path.node.property.name, placement: 'prototype' }, path);
+  check(`${ parser.name }/prototype alias fallback/${ source }`, !!result.fallback, fallback);
+}
+
+// Exercise enrichment with the real resolver. Prototype entries live in the instance
+// namespace; methods carried by a routed constructor have no separate instance entry.
+for (const [key, expectedEntry] of [
+  ['String.prototype.at', 'string/instance/at'],
+  ['Array.prototype.flat', 'array/instance/flat'],
+  ['Map.prototype.has', null],
+  ['Iterator.prototype.map', null],
+]) {
+  const { resolver } = createPolyfillResolver({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }, makeFilterEnv());
+  const entries = [];
+  let lookups = 0;
+  enrichMutatedStatics({
+    mutatedStatics: new Set([key]),
+    resolvePure(meta) { lookups++; return resolver.resolvePure(meta); },
+    injectPureImport(entry) { entries.push(entry); },
+  });
+  check(`enrichment/${ key }/lookup`, lookups, 1);
+  check(`enrichment/${ key }/entry`, entries.join(','), expectedEntry ?? '');
+}
+
+// `Error` global has `[['min-args', 2]]` filter - `new Error('msg')` (1 arg) gets filtered,
+// `new Error('msg', { cause })` (2 args) passes
+function makeCallExprPath({ arguments: args }) {
+  const calleeNode = { type: 'Identifier', name: 'Error' };
+  const argNodes = args.map(a => a.node);
+  const callNode = { type: 'CallExpression', callee: calleeNode, arguments: argNodes };
+  const argPaths = args.map(a => ({ node: a.node, parent: callNode, parentPath: { node: callNode } }));
+  return {
+    node: calleeNode,
+    parent: callNode,
+    parentPath: {
+      node: callNode,
+      get: key => key === 'arguments' ? argPaths : null,
+    },
+    get: key => key === 'object' ? null : null,
+  };
+}
+
+// --- filter: min-args ---
+
+{
+  const env = makeFilterEnv();
+  const { resolver } = createPolyfillResolver({
+    method: 'usage-global', version: '4.0', targets: { ie: 11 },
+  }, env);
+
+  // `new Error('msg')` (1 arg) -> filter `[['min-args', 2]]` rejects -> resolveUsage returns null
+  const oneArgPath = makeCallExprPath({ arguments: [{ node: { type: 'StringLiteral', value: 'msg' } }] });
+  const oneArgResult = resolver.resolveUsage({ kind: 'global', name: 'Error' }, oneArgPath);
+  check('filter/min-args 1 arg rejected', oneArgResult, null);
+
+  // `new Error('msg', { cause })` (2 args) -> filter passes -> deps returned
+  const twoArgPath = makeCallExprPath({
+    arguments: [
+      { node: { type: 'StringLiteral', value: 'msg' } },
+      { node: { type: 'ObjectExpression' } },
+    ],
+  });
+  const twoArgResult = resolver.resolveUsage({ kind: 'global', name: 'Error' }, twoArgPath);
+  checkTruthy('filter/min-args 2 args accepted',
+    Array.isArray(twoArgResult) && twoArgResult.length > 0,
+    `expected deps, got ${ JSON.stringify(twoArgResult) }`);
+}
+
+// spread argument blocks min-args bypass (`new Error(...args)` could be 0+ args, can't
+// statically tell - conservative non-reject)
+{
+  const env = makeFilterEnv();
+  const { resolver } = createPolyfillResolver({
+    method: 'usage-global', version: '4.0', targets: { ie: 11 },
+  }, env);
+
+  const spreadPath = makeCallExprPath({
+    arguments: [{ node: { type: 'SpreadElement', argument: { type: 'Identifier', name: 'args' } } }],
+  });
+  const result = resolver.resolveUsage({ kind: 'global', name: 'Error' }, spreadPath);
+  checkTruthy('filter/min-args spread arg blocks bypass (conservative)',
+    Array.isArray(result) && result.length > 0,
+    `expected deps from spread bypass, got ${ JSON.stringify(result) }`);
+}
+
+// --- filter: not-a-callee (member access without call) ---
+
+{
+  const env = makeFilterEnv();
+  const { resolver } = createPolyfillResolver({
+    method: 'usage-global', version: '4.0', targets: { ie: 11 },
+  }, env);
+
+  // bare reference to `Error` (no call) - isCallee returns false, filter doesn't reject -
+  // wait, filter returns FALSE when not callee. so `false` means "filter didn't reject",
+  // meta resolution proceeds. but `Error` global has only filter-gated deps - if filter
+  // doesn't apply, deps come through. Verified by integration: this matches the docs
+  // "min-args" only narrows when the meta IS a call
+  const refPath = {
+    node: { type: 'Identifier', name: 'Error' },
+    parent: { type: 'ExpressionStatement' },
+    parentPath: { node: { type: 'ExpressionStatement' } },
+    get: () => null,
+  };
+  const result = resolver.resolveUsage({ kind: 'global', name: 'Error' }, refPath);
+  // not-a-callee => filter returns false (didn't reject) => deps still emitted.
+  // unrejected filters lets bare ref `Error` register the polyfill - the const may be
+  // re-assigned or thrown later
+  checkTruthy('filter/bare reference (not callee) leaves deps unfiltered',
+    Array.isArray(result) && result.length > 0,
+    `expected deps for bare reference, got ${ JSON.stringify(result) }`);
+}
+
+// `filter/unknown name throws` is not directly testable from the public API: descs come
+// from `built-in-definitions.json` (frozen) and the unknown-filter throw lives inside the
+// closure-private `filter` function. The throw path is exercised through the data-shape
+// contract during build (entry data generation), where adding a new filter name without
+// updating the dispatch would fail the integration fixtures
+
+// --- enhanceMeta: a KNOWN receiver type outside the hint domain walks the ladder to `rest` ---
+
+// the type resolvers are stubbed to answer ONE receiver type per env - the ladder is under test,
+// not the type layer. `toString` is the rest-bearing instance desc; `at` carries only type variants,
+// so a receiver none of them names owes nothing there
+function makeTypedEnv(objType, hint) {
+  const env = makeFilterEnv();
+  env.typeResolvers.resolvePropertyObjectType = () => objType;
+  env.typeResolvers.toHint = () => hint;
+  env.typeResolvers.resolvePropertyUnionHints = () => null;
+  return env;
+}
+const typedMemberPath = { node: { type: 'MemberExpression' }, parent: {}, parentPath: null, get: () => null };
+const typedOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+for (const [hint, expected] of [['set', false], ['array', false], ['number', false], ['function', true], ['object', true], [null, true]]) {
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv(null, hint));
+  check(`parameter static candidate/${ hint }`, !!resolver.resolveUsage({
+    kind: 'property', placement: 'static', object: 'Object', key: 'values', parameterStaticCandidate: true,
+  }, typedMemberPath), expected);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Element' }, 'element'));
+  check('enhanceMeta/a known type outside the hint domain takes the desc rest',
+    JSON.stringify(resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath)),
+    JSON.stringify(['object/to-string']));
+  check('enhanceMeta/a known type outside the hint domain owes nothing to a typed desc without rest',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'at' }, typedMemberPath), null);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: true, type: 'undefined' }, 'undefined'));
+  check('enhanceMeta/a nullish receiver owes nothing, whatever the desc carries',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Map' }, 'map'));
+  check('enhanceMeta/a known type without the member takes the same rest',
+    JSON.stringify(resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath)),
+    JSON.stringify(['object/to-string']));
+}
+// a type whose own member needs no polyfill says so in the DATA - an empty variant the lookup finds
+// before the ladder's tail (`number` on `toString`); a known type without any variant walks to `rest`
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: true, type: 'number' }, 'number'));
+  check('enhanceMeta/a hinted type with an empty variant takes nothing, not rest',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
+}
+{
+  const { resolver } = createPolyfillResolver(typedOptions, makeTypedEnv({ primitive: false, constructor: 'Error' }, 'error'));
+  check('enhanceMeta/an owner brought into the hint domain takes its empty variant, not rest',
+    resolver.resolveUsage({ kind: 'property', placement: 'prototype', key: 'toString' }, typedMemberPath), null);
+}
+
+// Finite value unions select only relevant families. Broad guard sets still need the
+// generic dispatcher when their unmatched alternatives can carry another native family.
+for (const [hints, expectedPure, expectedGlobal] of [
+  [['array', 'function'], 'array/instance/includes', ['array/instance/includes']],
+  [['string', 'function'], 'string/instance/includes', ['string/instance/includes']],
+  [['array', 'string'], 'instance/includes', ['array/instance/includes', 'string/instance/includes']],
+]) {
+  const env = makeTypedEnv(null, null);
+  env.typeResolvers.resolvePropertyUnionHints = () => new Set(hints);
+  const meta = { kind: 'property', key: 'includes' };
+  const { resolver: global } = createPolyfillResolver(typedOptions, env);
+  const { resolver: pure } = createPolyfillResolver({ ...typedOptions, method: 'usage-pure' }, env);
+  check(`finite includes union/${ hints }/global`, JSON.stringify(global.resolveUsage(meta, typedMemberPath)?.sort()), JSON.stringify(expectedGlobal));
+  check(`finite includes union/${ hints }/pure`, pure.resolvePure(meta, typedMemberPath)?.entry, expectedPure);
+}
+for (const excluded of [false, true]) {
+  const env = makeTypedEnv(null, null);
+  env.astPredicates.isMemberLike = () => true;
+  env.typeResolvers.resolveGuardHints = () => excluded
+    ? { excludedHints: new Set(['string']) } : { includedHints: new Set(['array', 'object', 'date']) };
+  const { resolver } = createPolyfillResolver({ ...typedOptions, method: 'usage-pure' }, env);
+  check(`broad guard/${ excluded }/pure`, resolver.resolvePure({ kind: 'property', key: 'at' }, typedMemberPath)?.entry, 'instance/at');
+}
+
+finish();

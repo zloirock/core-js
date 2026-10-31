@@ -4,7 +4,6 @@ import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
 import config from './config/config.mjs';
-import { argv, fs } from 'zx';
 
 const { copy, mkdir, readFile, readJson, readdir, writeFile } = fs;
 
@@ -161,7 +160,7 @@ function isRelativePath(href) {
 // a copy of a repository file (see `copyCommonFiles`) links other repository files by paths relative to its place there
 function resolveRepositoryPath(href) {
   const { posix } = path;
-  const [link, hash] = href.split('#');
+  const [link, hash] = href.split('#', 2);
   const target = link.startsWith('/') ? posix.normalize(link.slice(1)) : posix.join(posix.dirname(fileMetadata.repoPath), link);
   // GitHub redirects between `tree` and `blob` anyway, the extension only saves the redirect
   const kind = posix.extname(target) ? 'blob' : 'tree';
@@ -392,11 +391,10 @@ async function build() {
 
   let currentVersion = '';
   let versionsMenu = '';
-  let isChangelog;
   for (const mdPath of mdFiles) {
     const content = await readFile(mdPath, 'utf8');
+    const isChangelog = mdPath.includes('/changelog');
     isDocs = mdPath.includes('/docs');
-    isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
 
     const title = getTitle(content);

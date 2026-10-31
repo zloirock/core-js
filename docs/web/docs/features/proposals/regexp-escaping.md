@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-regex-escaping)
 
 ## Modules
-[`es.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.escape.js).
+[`es.regexp.escape`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.escape.js).
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,7 @@ class RegExp {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/regexp-escaping
-core-js(-pure)/es|stable|actual|full/regexp/escape
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/escape
 ```
 
 ## Examples
@@ -30,3 +30,6 @@ RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u200
 RegExp.escape('💩'); // => '💩'
 RegExp.escape('\uD83D'); // => '\\ud83d'
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/regexp-escaping`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/regexp-escaping.d.ts)

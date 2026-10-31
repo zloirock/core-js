@@ -1,0 +1,20 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.symbol.async-iterator";
+import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.reject";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.string.repeat";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.number.to-fixed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// @ts-expect-error a generic named without its type arguments is the shape under test
+async function* gen(): AsyncGenerator<Promise<Promise>> {}
+for await (const val of gen()) val.toFixed(2);
+export {};

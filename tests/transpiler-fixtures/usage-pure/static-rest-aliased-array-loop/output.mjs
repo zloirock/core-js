@@ -1,0 +1,14 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+// The loop captures its element without changing the stored container.
+const source = [Array];
+let result;
+for (const _ref2 of [source]) {
+  const [_ref] = _ref2,
+    from = _Array$from,
+    {
+      from: _unused,
+      ...rest
+    } = _ref;
+  result = from([1]);
+}
+export { result };

@@ -1,12 +1,11 @@
+// @types: annex-b/object-proto
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var isObject = require('../internals/is-object');
 var isPossiblePrototype = require('../internals/is-possible-prototype');
 var toObject = require('../internals/to-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
-// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 // eslint-disable-next-line es/no-object-setprototypeof -- safe
 var setPrototypeOf = Object.setPrototypeOf;
@@ -17,7 +16,7 @@ var PROTO = '__proto__';
 // https://tc39.es/ecma262/#sec-object.prototype.__proto__
 // Deno 2.9+ patch this accessor, so we can't use `in` for feature detection,
 // and its getter throws under `node --disable-proto=throw`, so it's read inside `try`
-if (DESCRIPTORS && getPrototypeOf && setPrototypeOf) try {
+try {
   if ({}[PROTO] !== ObjectPrototype) defineBuiltInAccessor(ObjectPrototype, PROTO, {
     configurable: true,
     get: function __proto__() {
@@ -28,6 +27,6 @@ if (DESCRIPTORS && getPrototypeOf && setPrototypeOf) try {
       if (isPossiblePrototype(proto) && isObject(O)) {
         setPrototypeOf(O, proto);
       }
-    }
+    },
   });
 } catch (error) { /* empty */ }

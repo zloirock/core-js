@@ -1,0 +1,3991 @@
+// Unit tests for `helpers/pattern-matching.js` and `helpers/path-normalize.js`. Both are
+// parser-agnostic pure string / data logic - heavily consumed by plugin-options validation
+// and entry detection across babel-plugin + unplugin; regressions here surface as silent
+// pattern matcher / import-id misnormalisation downstream
+import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
+import { receiverPerformsEveryInitEffect } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
+import {
+  findUniqueName,
+  isEntryPattern,
+  isModulePattern,
+  patternToRegExp,
+  safeErrorMessage,
+  safeStringify,
+  toStatelessRegExp,
+  validatePatternList,
+} from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
+import {
+  WINDOWS_UNC_PREFIX_RE,
+  canonicalisePackage,
+  isCoreJSFile,
+  lookupEntryModules,
+  normalizeImportSource,
+  resolveImportPath,
+  stripQueryHash,
+  isDeclarationFile,
+} from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
+import {
+  buildOffsetToLine,
+  buildOffsetToLineColumn,
+  directiveCoveredLine,
+  disableDirectiveAnchors,
+  disableDirectiveKind,
+  isNextLineDisableDirective,
+  mergeVisitors,
+  parseDisableDirectives,
+} from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
+import {
+  arrayLiteralIterableElements,
+  findNearestVarScopeOwner,
+  forOfIterableElements,
+  foldWalkReach,
+  bindingBoundName,
+  bindingWrittenBeyondItsFrame,
+  buildScopeReassignmentIndex,
+  callArgumentPathAt,
+  callArgumentMayBeObserved,
+  effectiveArgsLength,
+  emptyMemoActivationValue,
+  findIifeArgPath,
+  annexBHoistOutrunsBinding,
+  isSloppyAtPath,
+  classDefinitionTimePaths,
+  classOwnThisMethodInfo,
+  definitionTimeSlotOf,
+  discardedSequenceElement,
+  discardedSequenceElementPath,
+  functionScopeBindsVarOrFunction,
+  getDirectStatementBody,
+  identifierReferencedInSubtree,
+  declaredIdentifierNodes,
+  aliasReadGuardedAgainstNullish,
+  inferTypeParameterNames,
+  isBindingDeclarationPath,
+  isConditionalExpressionSlot,
+  isDeferredContextStep,
+  isAmbientTypeDeclaration,
+  isTSTypeOnlyIdentifierPath,
+  nonEmittedExpressionAncestor,
+  navComputedKeyEffects,
+  observableSequenceElements,
+  peelTransparentWrapperPath,
+  positionalElementPath,
+  positionalElements,
+  resolveCallArgumentCoords,
+  resolveCallArgument,
+  resolveFallbackReceiverPath,
+  stepOverChainWrappers,
+  suspensionPointBefore,
+  walkAstNodes,
+  recomputedBindingWrites,
+  synthHoistedBinding,
+  typeParameterInScope,
+  directiveValue,
+  defaultImportSourcesOf,
+  extractIndirectRequireSEPrefix,
+  hoistedDeclarationInScope,
+  findObjectKeyBeforeSpread,
+  findTSRuntimeBindingInPath,
+  findVarOwnerDeclaring,
+  importBindingView,
+  pureImportEntryOf,
+  pureImportEntryOfProgram,
+  rootProgramOf,
+  isDirectiveStatement,
+  isStatementPosition,
+  programPrologueEndIndex,
+  pruneEmptiedHopProps,
+  prologueEndIndex,
+  resolveBatchDirectivePromotionPolicy,
+  isFunctionParamDestructureParent,
+  isReusableReceiver,
+  assignmentValueDiscarded,
+  methodReadsUsageCensus,
+  memberChainKeys,
+  migratableClaimSe,
+  nodeSpan,
+  paramListReadsName,
+  patternReceiverSlotNodes,
+  patternSlotSpreadShifted,
+  patternSlotValues,
+  peelMemoizeWrappers,
+  peelSequenceTail,
+  peelZeroArgIifeReturn,
+  privateNameSpelling,
+  pureCtorNameFromImportSource,
+  SKIPPABLE_WRAPPER_TYPES,
+  siblingHostingIndex,
+  useOutrunsWrite,
+  writeOutrunsUse,
+  writeSitsInEarlySlot,
+  wrapScopeBindingLookup,
+  arrayLiteralSlotValue,
+  flattenInlineArraySpreads,
+  objectLevelPairedProperty,
+  pairedArrayWrapInitElement,
+  spreadAtOrBefore,
+  staticMemberFromEntrySegment,
+  TS_EXPR_WRAPPERS,
+  unwrapRuntimeExpr,
+  zeroArgIifeSideEffectFree,
+  usableAliasInfo,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { brand, tagError, wrapWithCause } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
+import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
+import { adapters, babelAdapter, createChecker, findNode, findTypeNode } from './harness.mjs';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
+
+const { check, checkDeep, checkTruthy, doesNotThrow, finish, runBoth, throwsWith } = createChecker('helpers');
+
+// --- toStatelessRegExp ---
+
+// stateful RegExp (g flag): returns new RegExp without g, same source
+{
+  const stateless = toStatelessRegExp(/foo/g);
+  check('toStatelessRegExp/g flag stripped', stateless.global, false);
+  check('toStatelessRegExp/source preserved', stateless.source, 'foo');
+}
+
+// y (sticky) flag: the flag goes, the ANCHOR it carried moves into the source. `/array/y` was
+// written to match at the start and nothing else - stripped bare, it matched 99 of 363 module names
+// and silently excluded them all. sticky beats global, so `gy` anchors the same way; and the copy is
+// exactly as stateless as a plain strip: three tests, three hits, `lastIndex` untouched
+{
+  const stateless = toStatelessRegExp(/array/y);
+  check('toStatelessRegExp/y flag stripped', stateless.sticky, false);
+  check('toStatelessRegExp/y keeps its anchor: no match past the start', stateless.test('es.array.at'), false);
+  check('toStatelessRegExp/y keeps its anchor: a match at the start', stateless.test('array.at'), true);
+  // eslint-disable-next-line sonarjs/stateful-regex -- the shadowed `g` beside `y` is the shape under test
+  const globalSticky = toStatelessRegExp(/array/gy);
+  check('toStatelessRegExp/gy anchors too', globalSticky.test('es.array.at'), false);
+  check('toStatelessRegExp/gy flags stripped', globalSticky.flags, '');
+  check('toStatelessRegExp/other flags survive', toStatelessRegExp(/array/iy).flags, 'i');
+  checkDeep('toStatelessRegExp/anchored copy is stateless',
+    [stateless.test('array.at'), stateless.test('array.at'), stateless.test('array.at'), stateless.lastIndex],
+    [true, true, true, 0]);
+  // the raw sticky is the state the helper exists to remove: the second test starts at lastIndex 5
+  const raw = /array/y;
+  checkDeep('toStatelessRegExp/control - the raw sticky is stateful', [raw.test('array.at'), raw.test('array.at')], [true, false]);
+}
+
+// non-stateful already (no g/y): returns same instance (no clone)
+{
+  const re = /foo/i;
+  check('toStatelessRegExp/non-stateful returns same instance', toStatelessRegExp(re), re);
+}
+
+// non-RegExp input throws TypeError
+throwsWith('toStatelessRegExp/null throws',
+  () => toStatelessRegExp(null), '[core-js] toStatelessRegExp: expected RegExp');
+throwsWith('toStatelessRegExp/string throws',
+  () => toStatelessRegExp('foo'), '[core-js] toStatelessRegExp: expected RegExp');
+
+// --- patternToRegExp ---
+
+// RegExp input: returns stateless copy
+{
+  const re = patternToRegExp(/es\.array\.at/);
+  checkTruthy('patternToRegExp/RegExp input', re instanceof RegExp);
+  check('patternToRegExp/RegExp input matches', re.test('es.array.at'), true);
+}
+
+// string input compiled with anchors + non-capturing group
+{
+  const re = patternToRegExp('es\\.array\\.at');
+  check('patternToRegExp/string anchored start', re.test('foo es.array.at'), false);
+  check('patternToRegExp/string anchored end', re.test('es.array.at foo'), false);
+  check('patternToRegExp/string whole match', re.test('es.array.at'), true);
+}
+
+// alternation: wraps in non-capturing group so `a|b` matches WHOLE a or WHOLE b
+{
+  const re = patternToRegExp('es\\.array|es\\.set');
+  check('patternToRegExp/alternation whole a', re.test('es.array'), true);
+  check('patternToRegExp/alternation whole b', re.test('es.set'), true);
+  // without grouping, `^es\.array|es\.set$` would match `xxxes.set`; with grouping it shouldn't
+  check('patternToRegExp/alternation prefix-only rejected', re.test('xxxes.set'), false);
+}
+
+// empty string returns null (`/^$/` would match zero-length entries, never real module)
+check('patternToRegExp/empty string returns null', patternToRegExp(''), null);
+
+// malformed regex source returns null (try-catch around `new RegExp`)
+check('patternToRegExp/malformed returns null', patternToRegExp('(unclosed'), null);
+
+// --- isModulePattern / isEntryPattern ---
+
+// the entries map decides: a string it resolves is an entry path, every other string is raw regex
+// source over module names. the spelling test it replaced (`es.` prefix, a `*`) read the documented
+// raw regex `es\.array\.from` as an entry path and refused the build
+check('isModulePattern/es. prefix', isModulePattern('es.array.at'), true);
+check('isModulePattern/esnext. prefix', isModulePattern('esnext.array.foo'), true);
+check('isModulePattern/web. prefix', isModulePattern('web.url'), true);
+check('isModulePattern/wildcard contains', isModulePattern('actual/*/at'), true);
+check('isModulePattern/RegExp instance', isModulePattern(/foo/), true);
+check('isModulePattern/non-string non-regex', isModulePattern(42), false);
+check('isModulePattern/entry path (no prefix)', isModulePattern('actual/promise'), false);
+check('isModulePattern/escaped-dot regex source', isModulePattern('es\\.array\\.from'), true);
+check('isModulePattern/regex source with alternation', isModulePattern('es\\.(array|string)\\.at'), true);
+check('isModulePattern/entry-shaped typo is not an entry', isModulePattern('array/at/'), true);
+
+check('isEntryPattern/entry path', isEntryPattern('actual/promise'), true);
+check('isEntryPattern/mode-less entry path', isEntryPattern('array/at'), true);
+check('isEntryPattern/full-only entry path', isEntryPattern('iterator/range'), true);
+check('isEntryPattern/module pattern rejected', isEntryPattern('es.array.at'), false);
+check('isEntryPattern/escaped-dot regex source rejected', isEntryPattern('es\\.array\\.from'), false);
+check('isEntryPattern/wildcard rejected', isEntryPattern('actual/*/at'), false);
+check('isEntryPattern/trailing slash is no entry', isEntryPattern('array/at/'), false);
+check('isEntryPattern/inherited key is no entry', isEntryPattern('constructor'), false);
+check('isEntryPattern/non-string', isEntryPattern(42), false);
+// the two are a partition of the strings: nothing is both, nothing is neither
+for (const pattern of ['array/at', 'es.array.at', 'es\\.array\\.at', 'array/at/', 'constructor', 'actual']) {
+  check(`isEntryPattern|isModulePattern/partition: ${ pattern }`, isEntryPattern(pattern) !== isModulePattern(pattern), true);
+}
+
+// --- canonicalisePackage ---
+
+// the one spelling of a package name: interior `//` runs collapse, trailing slashes drop, and a
+// slash-only name reaches `''` - the null-space the option validator rejects by asking this function
+check('canonicalisePackage/plain', canonicalisePackage('core-js'), 'core-js');
+check('canonicalisePackage/trailing slash', canonicalisePackage('@core-js/pure/'), '@core-js/pure');
+check('canonicalisePackage/trailing run', canonicalisePackage('@core-js/pure///'), '@core-js/pure');
+check('canonicalisePackage/interior run', canonicalisePackage('my//core-js'), 'my/core-js');
+check('canonicalisePackage/slash only', canonicalisePackage('/'), '');
+check('canonicalisePackage/slash run only', canonicalisePackage('///'), '');
+check('canonicalisePackage/empty', canonicalisePackage(''), '');
+
+// --- safeErrorMessage ---
+
+// always a STRING - every call site interpolates the result into a diagnostic, so a raw non-string
+// `.message` (a Symbol) would throw at the interpolation the function exists to protect
+check('safeErrorMessage/Error', safeErrorMessage(new Error('plain')), 'plain');
+check('safeErrorMessage/primitive throw', safeErrorMessage('oops'), 'oops');
+check('safeErrorMessage/number', safeErrorMessage(42), '42');
+check('safeErrorMessage/null', safeErrorMessage(null), 'null');
+check('safeErrorMessage/symbol payload', safeErrorMessage(Symbol('x')), 'Symbol(x)');
+check('safeErrorMessage/symbol message', typeof safeErrorMessage({ message: Symbol('m') }), 'string');
+check('safeErrorMessage/null-prototype object', safeErrorMessage(Object.create(null)), '<unreadable>');
+check('safeErrorMessage/throwing toString', safeErrorMessage({ toString() { throw new Error('inner'); } }), '<unreadable>');
+{
+  const hostile = new Proxy({}, { get() { throw new Error('trap'); } });
+  check('safeErrorMessage/throwing message getter', safeErrorMessage(hostile), '<unreadable>');
+}
+
+// --- safeStringify ---
+
+check('safeStringify/string', safeStringify('foo'), '"foo"');
+check('safeStringify/number', safeStringify(42), '42');
+check('safeStringify/null', safeStringify(null), 'null');
+check('safeStringify/undefined', safeStringify(undefined), undefined);
+check('safeStringify/boolean', safeStringify(true), 'true');
+check('safeStringify/symbol', safeStringify(Symbol('s')), 'Symbol(s)');
+check('safeStringify/bigint', safeStringify(42n), '42n');
+check('safeStringify/Infinity', safeStringify(Infinity), 'Infinity');
+check('safeStringify/-Infinity', safeStringify(-Infinity), '-Infinity');
+check('safeStringify/NaN', safeStringify(NaN), 'NaN');
+
+{
+  // function bodies have a return-style statement so eslint's `no-empty-function` doesn't fire
+  function namedFn() { return null; }
+  check('safeStringify/named function', safeStringify(namedFn), '[Function namedFn]');
+  // anonymous arrow body returns undefined explicitly
+  check('safeStringify/anonymous arrow', safeStringify(() => undefined), '[Function]');
+}
+
+// circular reference: JSON.stringify throws, fallback `[Object]`
+{
+  const obj = {};
+  obj.self = obj;
+  check('safeStringify/circular returns fallback', safeStringify(obj), '[Object]');
+}
+
+// adversarial function with throwing `.name` getter: returns `[Function]` without crashing
+{
+  function fn() { return null; }
+  Object.defineProperty(fn, 'name', { get() { throw new Error('hostile'); } });
+  check('safeStringify/hostile name returns [Function]', safeStringify(fn), '[Function]');
+}
+
+// --- validatePatternList ---
+
+// undefined/null/empty array: no-op
+checkTruthy('validatePatternList/undefined no-op',
+  validatePatternList('include', undefined) === undefined);
+checkTruthy('validatePatternList/null no-op',
+  validatePatternList('include', null) === undefined);
+checkTruthy('validatePatternList/empty array no-op',
+  validatePatternList('include', []) === undefined);
+
+// valid list passes
+checkTruthy('validatePatternList/valid mixed',
+  validatePatternList('include', ['es.array.at', /web\..+/]) === undefined);
+
+// non-array throws
+throwsWith('validatePatternList/non-array throws',
+  () => validatePatternList('include', 'es.array.at'),
+  '`include` must be an array');
+
+// empty string item rejected
+throwsWith('validatePatternList/empty string item rejected',
+  () => validatePatternList('include', ['ok', '']),
+  '`include[1]` must be a non-empty string');
+
+// non-string non-regex item rejected
+throwsWith('validatePatternList/number item rejected',
+  () => validatePatternList('include', ['ok', 42]),
+  '`include[1]` must be a string or RegExp');
+
+// --- findUniqueName ---
+
+// startSuffix=null, prefix free: returns prefix bare
+check('findUniqueName/null suffix bare available',
+  findUniqueName('_x', null, () => false), '_x');
+
+// startSuffix=null, prefix taken: skips 1, returns _x2
+{
+  const taken = new Set(['_x']);
+  check('findUniqueName/null suffix prefix taken skips 1',
+    findUniqueName('_x', null, n => taken.has(n)), '_x2');
+}
+
+// startSuffix=null, prefix taken AND _x2 taken: returns _x3
+{
+  const taken = new Set(['_x', '_x2']);
+  check('findUniqueName/null suffix walks past first taken',
+    findUniqueName('_x', null, n => taken.has(n)), '_x3');
+}
+
+// numeric startSuffix=3: starts at _x3
+check('findUniqueName/numeric start=3',
+  findUniqueName('_x', 3, () => false), '_x3');
+
+// numeric startSuffix=0: clamped to 2 (skip-1 invariant)
+check('findUniqueName/numeric start<2 clamped to 2',
+  findUniqueName('_x', 0, () => false), '_x2');
+check('findUniqueName/numeric start=1 clamped to 2',
+  findUniqueName('_x', 1, () => false), '_x2');
+
+// startSuffix=undefined throws explicitly
+throwsWith('findUniqueName/undefined suffix throws',
+  () => findUniqueName('_x', undefined, () => false),
+  'startSuffix must be null');
+
+// throw message carries `[core-js]` prefix (consistent with sibling helpers)
+throwsWith('findUniqueName/undefined suffix throw is core-js-prefixed',
+  () => findUniqueName('_x', undefined, () => false),
+  '[core-js]');
+
+// negative startSuffix throws RangeError-shape (silent clamp would mask caller bug)
+throwsWith('findUniqueName/negative throws non-negative',
+  () => findUniqueName('_x', -1, () => false),
+  'must be non-negative');
+throwsWith('findUniqueName/negative throw is core-js-prefixed',
+  () => findUniqueName('_x', -5, () => false),
+  '[core-js]');
+
+// non-number startSuffix (string / boolean / object): TypeError, not coerced
+throwsWith('findUniqueName/string suffix throws',
+  () => findUniqueName('_x', '3', () => false),
+  'finite non-negative number');
+throwsWith('findUniqueName/boolean suffix throws',
+  () => findUniqueName('_x', true, () => false),
+  'finite non-negative number');
+throwsWith('findUniqueName/object suffix throws',
+  () => findUniqueName('_x', {}, () => false),
+  'finite non-negative number');
+
+// non-finite startSuffix (NaN, Infinity): TypeError (silent NaN would loop forever)
+throwsWith('findUniqueName/NaN suffix throws',
+  () => findUniqueName('_x', NaN, () => false),
+  'finite non-negative number');
+throwsWith('findUniqueName/Infinity suffix throws',
+  () => findUniqueName('_x', Infinity, () => false),
+  'finite non-negative number');
+
+// conflict scan from numeric start: _x3 taken -> _x4
+{
+  const taken = new Set(['_x3']);
+  check('findUniqueName/numeric start with conflict increments',
+    findUniqueName('_x', 3, n => taken.has(n)), '_x4');
+}
+
+// large gap: _x5..._x9 taken, returns _x10 (cross 1-digit / 2-digit boundary)
+{
+  const taken = new Set(['_x5', '_x6', '_x7', '_x8', '_x9']);
+  check('findUniqueName/conflict span crosses digit boundary',
+    findUniqueName('_x', 5, n => taken.has(n)), '_x10');
+}
+
+// --- stripQueryHash ---
+
+check('stripQueryHash/no query passes through', stripQueryHash('foo/bar'), 'foo/bar');
+check('stripQueryHash/query suffix stripped', stripQueryHash('foo/bar?t=1'), 'foo/bar');
+check('stripQueryHash/hash suffix stripped', stripQueryHash('foo/bar#h'), 'foo/bar');
+check('stripQueryHash/Vite import suffix stripped',
+  stripQueryHash('foo/bar?import&t=123'), 'foo/bar');
+
+// Windows UNC long-path: `\\?\` prefix preserved, query inside not detected
+check('stripQueryHash/UNC long-path preserved',
+  stripQueryHash('\\\\?\\C:\\foo'), '\\\\?\\C:\\foo');
+// Windows device path: `\\.\` preserved
+check('stripQueryHash/UNC device path preserved',
+  stripQueryHash('\\\\.\\COM1'), '\\\\.\\COM1');
+// forward-slash UNC: `//?/` preserved (Vite/Rollup path-normalization stage)
+check('stripQueryHash/forward UNC preserved',
+  stripQueryHash('//?/C:/foo'), '//?/C:/foo');
+
+// --- normalizeImportSource ---
+
+// lowercase + forward slashes
+check('normalizeImportSource/Windows backslash to forward',
+  normalizeImportSource('Core-JS\\Actual\\Promise'), 'core-js/actual/promise');
+// duplicate slashes collapsed (Farm artifact)
+check('normalizeImportSource/duplicate slashes collapsed',
+  normalizeImportSource('core-js//actual///promise'), 'core-js/actual/promise');
+// query/hash stripped
+check('normalizeImportSource/strip query',
+  normalizeImportSource('core-js/actual/promise?t=1'), 'core-js/actual/promise');
+// UNC prefix stripped before slash collapse
+check('normalizeImportSource/UNC forward stripped',
+  normalizeImportSource('//?/C:/foo'), 'c:/foo');
+
+// --- WINDOWS_UNC_PREFIX_RE ---
+
+checkTruthy('WINDOWS_UNC_PREFIX_RE matches //?/', WINDOWS_UNC_PREFIX_RE.test('//?/'));
+checkTruthy('WINDOWS_UNC_PREFIX_RE matches //./', WINDOWS_UNC_PREFIX_RE.test('//./'));
+check('WINDOWS_UNC_PREFIX_RE rejects //x/', WINDOWS_UNC_PREFIX_RE.test('//x/'), false);
+check('WINDOWS_UNC_PREFIX_RE rejects bare //', WINDOWS_UNC_PREFIX_RE.test('//'), false);
+
+// --- lookupEntryModules ---
+
+// known full prefix entry
+{
+  const result = lookupEntryModules('actual/promise');
+  checkTruthy('lookupEntryModules/known entry returns array', Array.isArray(result));
+}
+
+// known bare entry (top-level)
+{
+  const result = lookupEntryModules('actual');
+  checkTruthy('lookupEntryModules/actual top entry', Array.isArray(result));
+}
+
+// unknown entry returns null
+check('lookupEntryModules/unknown returns null', lookupEntryModules('totally-not-real-xyz'), null);
+
+// non-string returns null
+check('lookupEntryModules/non-string returns null', lookupEntryModules(42), null);
+
+// prototype-chain access guarded: `constructor` / `toString` / `__proto__` return null
+// not the prototype's own value
+check('lookupEntryModules/constructor guarded', lookupEntryModules('constructor'), null);
+check('lookupEntryModules/toString guarded', lookupEntryModules('toString'), null);
+check('lookupEntryModules/__proto__ guarded', lookupEntryModules('__proto__'), null);
+
+// --- resolveImportPath ---
+
+// absoluteImports=false: returns plain `pkg/subpath`
+check('resolveImportPath/relative path',
+  resolveImportPath('core-js', 'actual/promise', false), 'core-js/actual/promise');
+check('resolveImportPath/default false',
+  resolveImportPath('core-js', 'actual/promise'), 'core-js/actual/promise');
+
+// absoluteImports=true with unknown package: falls back to `pkg/subpath`
+check('resolveImportPath/absoluteImports unknown falls back',
+  resolveImportPath('totally-not-a-real-package-xyz', 'foo', true),
+  'totally-not-a-real-package-xyz/foo');
+
+// --- isCoreJSFile ---
+
+// core-js internals
+check('isCoreJSFile/core-js/internals path', isCoreJSFile('node_modules/core-js/internals/foo.js'), true);
+check('isCoreJSFile/core-js/modules path', isCoreJSFile('core-js/modules/es.array.at.js'), true);
+check('isCoreJSFile/core-js-pure/actual path', isCoreJSFile('core-js-pure/actual/promise.js'), true);
+check('isCoreJSFile/@core-js/pure path', isCoreJSFile('@core-js/pure/actual/promise.js'), true);
+check('isCoreJSFile/core-js-bundle root', isCoreJSFile('node_modules/core-js-bundle/index.js'), true);
+check('isCoreJSFile/@core-js/bundle root', isCoreJSFile('node_modules/@core-js/bundle/index.js'), true);
+
+// canonical form: backslashes / case / queries handled via normalizeImportSource
+check('isCoreJSFile/Windows backslashes',
+  isCoreJSFile('node_modules\\core-js\\modules\\es.array.at.js'), true);
+check('isCoreJSFile/Uppercase path',
+  isCoreJSFile('node_modules/Core-JS/MODULES/es.array.at.js'), true);
+
+// non-core-js paths
+check('isCoreJSFile/user code', isCoreJSFile('src/index.js'), false);
+check('isCoreJSFile/lodash', isCoreJSFile('node_modules/lodash/chunk.js'), false);
+check('isCoreJSFile/non-string', isCoreJSFile(42), false);
+check('isCoreJSFile/empty string', isCoreJSFile(''), false);
+
+// `core-js/index.js` root entry classified as internal (not a transformable user file)
+check('isCoreJSFile/core-js root index', isCoreJSFile('node_modules/core-js/index.js'), true);
+
+// `core-js/configurator.js` sits next to the root index and is equally internal
+check('isCoreJSFile/core-js configurator', isCoreJSFile('node_modules/core-js/configurator.js'), true);
+
+// --- buildOffsetToLine ---
+
+// empty code: only line 1 exists
+{
+  const offsetToLine = buildOffsetToLine('');
+  check('buildOffsetToLine/empty offset 0', offsetToLine(0), 1);
+}
+
+// single line LF: line 1 within range, line 2 after newline
+{
+  const offsetToLine = buildOffsetToLine('foo\nbar');
+  check('buildOffsetToLine/LF line 1', offsetToLine(0), 1);
+  check('buildOffsetToLine/LF line 1 last char', offsetToLine(2), 1);
+  check('buildOffsetToLine/LF after newline -> line 2', offsetToLine(4), 2);
+}
+
+// CR-only (no following LF): treated as line break
+{
+  const offsetToLine = buildOffsetToLine('foo\rbar');
+  check('buildOffsetToLine/CR line 1', offsetToLine(0), 1);
+  check('buildOffsetToLine/CR after -> line 2', offsetToLine(4), 2);
+}
+
+// CRLF: only LF half advances line (CR + LF treated as single break)
+{
+  const offsetToLine = buildOffsetToLine('foo\r\nbar');
+  check('buildOffsetToLine/CRLF after -> line 2', offsetToLine(5), 2);
+}
+
+// U+2028 (line separator) and U+2029 (paragraph separator)
+{
+  const offsetToLine = buildOffsetToLine('foo\u2028bar\u2029baz');
+  check('buildOffsetToLine/U+2028 advances line', offsetToLine(4), 2);
+  check('buildOffsetToLine/U+2029 advances line', offsetToLine(8), 3);
+}
+
+// multi-line: each break advances by 1
+{
+  const offsetToLine = buildOffsetToLine('a\nb\nc\nd');
+  check('buildOffsetToLine/line 4', offsetToLine(6), 4);
+}
+
+// --- buildOffsetToLineColumn ---
+
+// 1-based line + column; both reset at every line terminator. shared lineStarts table
+// drives O(log n) lookup, so this is the canonical helper for diagnostic position output
+{
+  const pos = buildOffsetToLineColumn('foo\nbar');
+  check('buildOffsetToLineColumn/LF line 1 col 1', JSON.stringify(pos(0)), '{"line":1,"column":1}');
+  check('buildOffsetToLineColumn/LF line 1 last char', JSON.stringify(pos(2)), '{"line":1,"column":3}');
+  check('buildOffsetToLineColumn/LF line 2 col 1', JSON.stringify(pos(4)), '{"line":2,"column":1}');
+}
+
+// CRLF: column resets after the LF half (CR + LF still counted as one terminator)
+{
+  const pos = buildOffsetToLineColumn('foo\r\nbar');
+  check('buildOffsetToLineColumn/CRLF line 2 col 1', JSON.stringify(pos(5)), '{"line":2,"column":1}');
+}
+
+// U+2028 / U+2029 advance the line just like LF. literal escape sequences in source
+// are forbidden by `es/no-json-superset`; build via `String.fromCharCode` so the file
+// stays ASCII while the runtime string still carries the ES line-terminator code points
+{
+  const ls = String.fromCharCode(0x2028);
+  const ps = String.fromCharCode(0x2029);
+  const pos = buildOffsetToLineColumn(`a${ ls }b${ ps }c`);
+  check('buildOffsetToLineColumn/U+2028 line 2', JSON.stringify(pos(2)), '{"line":2,"column":1}');
+  check('buildOffsetToLineColumn/U+2029 line 3', JSON.stringify(pos(4)), '{"line":3,"column":1}');
+}
+
+// offset === code.length: valid EOF anchor; offset must NOT report past-EOF as out-of-range
+{
+  const pos = buildOffsetToLineColumn('abc');
+  check('buildOffsetToLineColumn/EOF anchor', JSON.stringify(pos(3)), '{"line":1,"column":4}');
+}
+
+// non-integer / out-of-range offsets return null so callers can skip the location chunk
+{
+  const pos = buildOffsetToLineColumn('abc');
+  check('buildOffsetToLineColumn/null offset', pos(null), null);
+  check('buildOffsetToLineColumn/undefined offset', pos(undefined), null);
+  check('buildOffsetToLineColumn/negative offset', pos(-1), null);
+  check('buildOffsetToLineColumn/past-EOF offset', pos(10), null);
+  check('buildOffsetToLineColumn/fractional offset', pos(1.5), null);
+  check('buildOffsetToLineColumn/NaN offset', pos(NaN), null);
+}
+
+// empty source: only offset 0 is in range and maps to line 1 col 1
+{
+  const pos = buildOffsetToLineColumn('');
+  check('buildOffsetToLineColumn/empty offset 0', JSON.stringify(pos(0)), '{"line":1,"column":1}');
+  check('buildOffsetToLineColumn/empty past-EOF', pos(1), null);
+}
+
+// --- mergeVisitors ---
+
+// no overlap: merge keeps both
+{
+  const a = { CallExpression: () => 'a' };
+  const b = { MemberExpression: () => 'b' };
+  const merged = mergeVisitors(a, b);
+  checkTruthy('mergeVisitors/no overlap keeps both',
+    merged.CallExpression && merged.MemberExpression);
+}
+
+// overlap with function shorthand on both: chained as enter
+{
+  const calls = [];
+  const merged = mergeVisitors(
+    { Foo: () => calls.push('a') },
+    { Foo: () => calls.push('b') },
+  );
+  merged.Foo.enter();
+  checkTruthy('mergeVisitors/function shorthand chained',
+    calls.length === 2 && calls[0] === 'a' && calls[1] === 'b');
+}
+
+// overlap with { enter, exit } shape: phase-aligned chaining
+{
+  const log = [];
+  const merged = mergeVisitors(
+    { Foo: { enter: () => log.push('aE'), exit: () => log.push('aX') } },
+    { Foo: { enter: () => log.push('bE'), exit: () => log.push('bX') } },
+  );
+  merged.Foo.enter();
+  merged.Foo.exit();
+  checkTruthy('mergeVisitors/enter+exit chained per phase',
+    log.length === 4 && log[0] === 'aE' && log[1] === 'bE' && log[2] === 'aX' && log[3] === 'bX');
+}
+
+// only one side has the phase: kept as-is
+{
+  const merged = mergeVisitors(
+    { Foo: { enter: () => 'a-enter' } },
+    { Foo: { exit: () => 'b-exit' } },
+  );
+  checkTruthy('mergeVisitors/different phases preserved',
+    typeof merged.Foo.enter === 'function' && typeof merged.Foo.exit === 'function');
+}
+
+// `$` metadata: shallow merge
+{
+  const merged = mergeVisitors(
+    { $: { scope: true } },
+    { $: { other: 'flag' } },
+  );
+  checkTruthy('mergeVisitors/$ metadata shallow-merged',
+    merged.$.scope === true && merged.$.other === 'flag');
+}
+
+// Splitting the overlap path must preserve mixed formats, call state and source handlers.
+{
+  const calls = [];
+  const state = {};
+  const path = {};
+  const argument = {};
+  function first(...args) { calls.push(['first', this, ...args]); }
+  function second(...args) { calls.push(['second', this, ...args]); }
+  function leave() { calls.push(['leave', this]); }
+  const base = { Foo: first };
+  const extra = { Foo: { enter: second, exit: leave } };
+  const merged = mergeVisitors(base, extra);
+  merged.Foo.enter.call(state, path, argument);
+  merged.Foo.exit.call(state);
+  checkDeep('mergeVisitors/mixed handlers retain order and arguments', calls, [
+    ['first', state, path, argument], ['second', state, path, argument], ['leave', state],
+  ]);
+  check('mergeVisitors/source shorthand unchanged', base.Foo, first);
+  check('mergeVisitors/source enter unchanged', extra.Foo.enter, second);
+  check('mergeVisitors/unpaired exit keeps identity', merged.Foo.exit, leave);
+}
+
+// null handler on either side: treated as no-op (no crash)
+{
+  function fn() { return 'kept'; }
+  const merged = mergeVisitors({ Foo: fn }, { Foo: null });
+  check('mergeVisitors/null in extra preserves base', merged.Foo, fn);
+}
+{
+  function fn() { return 'kept'; }
+  const merged = mergeVisitors({ Foo: null }, { Foo: fn });
+  check('mergeVisitors/null in base accepts extra', merged.Foo, fn);
+}
+
+// empty objects on both sides: key dropped (avoid crashable empty handler)
+{
+  const merged = mergeVisitors({ Foo: {} }, { Foo: {} });
+  check('mergeVisitors/empty both drops key', merged.Foo, undefined);
+}
+
+// --- parseDisableDirectives ---
+
+// no comments: returns null
+check('parseDisableDirectives/no comments', parseDisableDirectives({ comments: null }), null);
+check('parseDisableDirectives/empty array', parseDisableDirectives({ comments: [] }), null);
+
+// a sibling plugin's synthesized comment can lack `value` as it can lack a position, and the
+// comments array can carry a hole: neither is a directive, and neither aborts the whole file
+{
+  const synthetic = [{ type: 'CommentLine' }, null, { type: 'CommentBlock', value: undefined }];
+  doesNotThrow('parseDisableDirectives/value-less and null comments do not throw',
+    () => parseDisableDirectives({ comments: synthetic, firstStmtStart: 10 }));
+  check('parseDisableDirectives/value-less comments are no directive',
+    parseDisableDirectives({ comments: synthetic, firstStmtStart: 10 }), null);
+  // ... and the real directive beside them is still read
+  const mixed = [...synthetic, { type: 'CommentLine', value: ' core-js-disable-file', start: 0, end: 25 }];
+  check('parseDisableDirectives/a real directive beside synthesized comments still counts',
+    parseDisableDirectives({ comments: mixed, firstStmtStart: 30 }), true);
+  check('disableDirectiveKind/non-string value', disableDirectiveKind(undefined), null);
+}
+
+// `core-js-disable-file` above first statement: returns true
+{
+  const result = parseDisableDirectives({
+    comments: [{ value: ' core-js-disable-file', end: 25 }],
+    firstStmtStart: 50,
+  });
+  check('parseDisableDirectives/disable-file above first stmt', result, true);
+}
+{
+  // firstStmtStart undefined: file directive always wins
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-file', end: 50 }],
+    firstStmtStart: undefined,
+  });
+  check('parseDisableDirectives/disable-file with no firstStmtStart', result, true);
+}
+{
+  // disable-file BELOW first statement: ignored (not a file-scope directive)
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-file', end: 100 }],
+    firstStmtStart: 50,
+  });
+  check('parseDisableDirectives/disable-file below first stmt ignored', result, null);
+}
+
+// `core-js-disable-line` with `loc`: adds the line itself
+{
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-line', loc: { start: { line: 5 }, end: { line: 5 } } }],
+  });
+  checkTruthy('parseDisableDirectives/disable-line via loc',
+    result instanceof Set && result.has(5));
+}
+
+// `core-js-disable-line` via offsetToLine fallback when loc missing
+{
+  const offsetToLine = buildOffsetToLine('line1\nline2\nline3');
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-line', start: 6, end: 11 }],
+    offsetToLine,
+  });
+  checkTruthy('parseDisableDirectives/disable-line via offsetToLine',
+    result instanceof Set && result.has(2));
+}
+
+// a `-line` inside a block comment that closes lower covers the line the comment OPENS on: the
+// README's "current line" is where the directive stands, and the re-anchor channels read the same
+// line through the one rule
+{
+  const result = parseDisableDirectives({
+    comments: [{ value: ' note\n core-js-disable-line ', loc: { start: { line: 3 }, end: { line: 5 } } }],
+  });
+  checkTruthy('parseDisableDirectives/block -line covers the line it opens on',
+    result instanceof Set && result.has(3) && !result.has(5));
+  check('directiveCoveredLine/block -line', directiveCoveredLine({ value: ' note\n core-js-disable-line ', loc: { start: { line: 3 }, end: { line: 5 } } }), 3);
+  check('directiveCoveredLine/-next-line covers the line after it closes',
+    directiveCoveredLine({ value: ' core-js-disable-next-line', loc: { start: { line: 3 }, end: { line: 5 } } }), 6);
+  check('directiveCoveredLine/offsets',
+    directiveCoveredLine({ value: ' core-js-disable-line', start: 6, end: 30 }, buildOffsetToLine('abc\n\n// core-js-disable-line\nx')), 3);
+  check('directiveCoveredLine/no position', directiveCoveredLine({ value: ' core-js-disable-line' }, null), null);
+}
+
+// `core-js-disable-next-line`: adds the FOLLOWING line
+{
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: 3 }, end: { line: 3 } } }],
+  });
+  checkTruthy('parseDisableDirectives/disable-next-line adds next',
+    result instanceof Set && result.has(4));
+}
+
+// `core-js-disable-next-line` over a MULTI-LINE statement covers the statement's whole span, and
+// the depth it sits at is the source's: the retired 64-node budget truncated the scan at ~16
+// levels of nested callbacks and the opt-out was silently revoked from there down. build the
+// target statement under `depth` block levels and assert the span at a depth on each side
+{
+  function directiveLines(depth) {
+    // the directive sits on line `depth`, so the statement it covers opens on the next one
+    const targetLine = depth + 1;
+    let statement = {
+      type: 'ExpressionStatement',
+      loc: { start: { line: targetLine }, end: { line: targetLine + 2 } },
+    };
+    for (let i = depth; i > 0; i--) {
+      statement = {
+        type: 'BlockStatement',
+        body: [statement],
+        loc: { start: { line: i }, end: { line: targetLine + 2 + (depth - i) } },
+      };
+    }
+    return parseDisableDirectives({
+      comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: depth }, end: { line: depth } } }],
+      ast: { type: 'Program', body: [statement], loc: { start: { line: 1 }, end: { line: 400 } } },
+    });
+  }
+  for (const depth of [8, 80]) {
+    const result = directiveLines(depth);
+    checkTruthy(`parseDisableDirectives/multi-line span at depth ${ depth } covers statement start`,
+      result instanceof Set && result.has(depth + 1));
+    checkTruthy(`parseDisableDirectives/multi-line span at depth ${ depth } covers statement end`,
+      result instanceof Set && result.has(depth + 3));
+  }
+}
+
+// the scan descends a statement list through a binary search over the members' start lines, so it
+// has to find the same members the element-wise filter found: siblings SHARING the covered line (the
+// farthest end wins), a multi-line member deep in a long list, a block that merely CLOSES on the
+// covered line beside a member opening there, and a list the search cannot order - a hole, a member
+// without a position - which falls back to the element-wise push
+{
+  function spanStmt(start, end) {
+    return { type: 'ExpressionStatement', loc: { start: { line: start }, end: { line: end } } };
+  }
+  function scan(body, directiveLine) {
+    return parseDisableDirectives({
+      comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: directiveLine }, end: { line: directiveLine } } }],
+      ast: { type: 'Program', body, loc: { start: { line: 1 }, end: { line: 100000 } } },
+    });
+  }
+  // two statements open on line 3; the second runs to line 6 - the span is 3..6, not 3
+  const shared = scan([spanStmt(1, 1), spanStmt(3, 3), spanStmt(3, 6), spanStmt(7, 7)], 2);
+  checkTruthy('parseDisableDirectives/siblings sharing the covered line: the farthest end wins',
+    shared instanceof Set && shared.has(3) && shared.has(6) && !shared.has(7));
+  // a multi-line member in the middle of a long list, and one at its very end
+  const long = [];
+  for (let line = 1; line <= 3000; line++) long.push(spanStmt(line, line));
+  long[1500] = spanStmt(1501, 1505);
+  for (let i = 1501; i < long.length; i++) long[i] = spanStmt(i + 5, i + 5);
+  const middle = scan(long, 1500);
+  checkTruthy('parseDisableDirectives/a multi-line member found deep in a long list',
+    middle instanceof Set && middle.has(1501) && middle.has(1505) && !middle.has(1506));
+  const tail = scan(long, long.at(-1).loc.start.line - 1);
+  checkTruthy('parseDisableDirectives/the last member of a long list is found',
+    tail instanceof Set && tail.has(long.at(-1).loc.start.line));
+  // a block closing on the covered line beside a statement opening there: only what OPENS there spans
+  const block = { type: 'BlockStatement', body: [spanStmt(2, 2)], loc: { start: { line: 1 }, end: { line: 4 } } };
+  const closing = scan([block, spanStmt(4, 5), spanStmt(6, 6)], 3);
+  checkTruthy('parseDisableDirectives/a block closing on the covered line does not widen the span',
+    closing instanceof Set && closing.has(4) && closing.has(5) && !closing.has(6) && !closing.has(2));
+  // a hole in a list the scan has to SEARCH (a sparse array literal opening a line above the covered
+  // one, the member opening on the covered line behind the hole): a probe landing on the hole cannot
+  // order the list, and the element-wise push still finds that member and its span
+  const holey = {
+    type: 'ArrayExpression',
+    elements: [null, { type: 'ObjectExpression', properties: [], loc: { start: { line: 3 }, end: { line: 5 } } }],
+    loc: { start: { line: 2 }, end: { line: 6 } },
+  };
+  const holeStmt = { type: 'ExpressionStatement', expression: holey, loc: { start: { line: 2 }, end: { line: 6 } } };
+  const withHole = scan([spanStmt(1, 1), holeStmt, spanStmt(7, 7)], 2);
+  checkTruthy('parseDisableDirectives/a sparse list still finds the member behind the hole',
+    withHole instanceof Set && withHole.has(3) && withHole.has(5) && !withHole.has(6) && !withHole.has(7));
+  const synthetic = { type: 'ExpressionStatement' };
+  const withSynthetic = scan([spanStmt(1, 1), synthetic, spanStmt(3, 6), synthetic, spanStmt(7, 7)], 2);
+  checkTruthy('parseDisableDirectives/position-less members do not hide the covered one',
+    withSynthetic instanceof Set && withSynthetic.has(3) && withSynthetic.has(6) && !withSynthetic.has(7));
+  // ... and one sitting between the members opening on the covered line and the block enclosing them
+  // from a line above: the walk back steps over it and still descends the block, whose own member
+  // opening on the covered line runs the farthest
+  const enclosing = { type: 'BlockStatement', body: [spanStmt(3, 6)], loc: { start: { line: 2 }, end: { line: 6 } } };
+  const between = scan([spanStmt(1, 1), enclosing, synthetic, spanStmt(3, 3), spanStmt(3, 3), spanStmt(3, 3), spanStmt(3, 3), spanStmt(7, 7), spanStmt(8, 8)], 2);
+  checkTruthy('parseDisableDirectives/a position-less member is stepped over on the way back',
+    between instanceof Set && between.has(3) && between.has(6) && !between.has(7));
+}
+
+// the offset-carrying parser: the same scan through `offsetToLine` on a real oxc program, the covered
+// statement sitting among many one-liners
+{
+  const lines = [];
+  for (let i = 0; i < 400; i++) lines.push(`use(${ i });`);
+  lines.splice(200, 0, '// core-js-disable-next-line', 'call(', '  a,', '  b);');
+  const code = lines.join('\n');
+  const oxc = adapters.find(adapter => adapter.name === 'oxc');
+  const program = oxc.parseAndScope(code).node;
+  const offsetToLine = buildOffsetToLine(code);
+  const comments = [{ value: ' core-js-disable-next-line', start: code.indexOf('// core-js'), end: code.indexOf('// core-js') + '// core-js-disable-next-line'.length }];
+  const result = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: 0, ast: program });
+  checkTruthy('parseDisableDirectives/oxc offsets: the multi-line statement among many one-liners is spanned',
+    result instanceof Set && result.has(202) && result.has(204) && !result.has(205) && !result.has(200));
+}
+
+// a whitespace JSXText run between two children opens on the covered line and ends on the next: it is
+// text, not a host, so the directive stops at the covered line and the child below stays live
+{
+  function child(line) {
+    return { type: 'JSXExpressionContainer', loc: { start: { line }, end: { line } } };
+  }
+  const element = {
+    type: 'JSXElement',
+    loc: { start: { line: 2 }, end: { line: 5 } },
+    children: [child(3), { type: 'JSXText', loc: { start: { line: 3 }, end: { line: 4 } } }, child(4)],
+  };
+  const statement = { type: 'ExpressionStatement', expression: element, loc: { start: { line: 2 }, end: { line: 5 } } };
+  const result = parseDisableDirectives({
+    comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: 2 }, end: { line: 2 } } }],
+    ast: { type: 'Program', body: [statement], loc: { start: { line: 1 }, end: { line: 5 } } },
+  });
+  checkTruthy('parseDisableDirectives/JSX text run does not span the directive onto the next child',
+    result instanceof Set && result.has(3) && !result.has(4));
+}
+
+// comment without directive: ignored
+check('parseDisableDirectives/foreign comment ignored',
+  parseDisableDirectives({ comments: [{ value: ' just a regular comment', end: 10 }] }), null);
+
+// comment missing both loc and offsetToLine: skipped silently
+check('parseDisableDirectives/no loc no offsetToLine skipped',
+  parseDisableDirectives({ comments: [{ value: 'core-js-disable-line' }] }), null);
+
+// JSDoc multi-line continuation: `m` flag picks up directive on continuation line
+{
+  const result = parseDisableDirectives({
+    comments: [{
+      value: '*\n * regular\n * core-js-disable-line\n ',
+      loc: { start: { line: 1 }, end: { line: 4 } },
+    }],
+  });
+  checkTruthy('parseDisableDirectives/JSDoc continuation directive recognised',
+    result instanceof Set && result.size > 0);
+}
+
+// --- isStatementPosition ---
+
+// a statement position is a statement list's member or an un-braced control body; a loop head's
+// declaration and an export's declaration are statement-shaped nodes in slots that are not
+{
+  const declaration = { type: 'VariableDeclaration', declarations: [] };
+  const statement = { type: 'ExpressionStatement', expression: { type: 'Identifier', name: 'x' } };
+  check('isStatementPosition/statement list member', isStatementPosition(declaration, { type: 'Program', body: [declaration] }), true);
+  check('isStatementPosition/block member', isStatementPosition(statement, { type: 'BlockStatement', body: [statement] }), true);
+  check('isStatementPosition/switch case consequent', isStatementPosition(statement, { type: 'SwitchCase', consequent: [statement] }), true);
+  check('isStatementPosition/un-braced if body', isStatementPosition(statement, { type: 'IfStatement', consequent: statement, alternate: null }), true);
+  check('isStatementPosition/loop head declaration', isStatementPosition(declaration, { type: 'ForOfStatement', left: declaration, body: statement }), false);
+  check('isStatementPosition/export declaration', isStatementPosition(declaration, { type: 'ExportNamedDeclaration', declaration }), false);
+  check('isStatementPosition/a sibling, not the node', isStatementPosition(declaration, { type: 'Program', body: [statement] }), false);
+  check('isStatementPosition/no parent', isStatementPosition(declaration, null), false);
+}
+
+// --- disableDirectiveKind / isNextLineDisableDirective ---
+
+check('disableDirectiveKind/file', disableDirectiveKind(' core-js-disable-file'), 'file');
+check('disableDirectiveKind/line', disableDirectiveKind(' core-js-disable-line'), 'line');
+check('disableDirectiveKind/next-line with a reason', disableDirectiveKind(' core-js-disable-next-line -- reason'), 'next-line');
+check('disableDirectiveKind/plain comment', disableDirectiveKind(' plain note'), null);
+check('isNextLineDisableDirective/line spelling is not', isNextLineDisableDirective(' core-js-disable-line'), false);
+check('isNextLineDisableDirective/JSDoc continuation', isNextLineDisableDirective('*\n * core-js-disable-next-line\n '), true);
+
+// Every line terminator still starts a directive; indentation keeps the full whitespace alphabet.
+for (const newline of ['\n', '\r', '\r\n', '\u2028', '\u2029']) {
+  for (const kind of ['file', 'line', 'next-line']) {
+    const prefix = `*${ newline }\t *\v\f\u00A0\uFEFF `;
+    check(`disableDirectiveKind/continuation ${ JSON.stringify(newline) }/${ kind }`,
+      disableDirectiveKind(`${ prefix }core-js-disable-${ kind } -- reason`), kind);
+    check(`disableDirectiveKind/invalid suffix ${ JSON.stringify(newline) }/${ kind }`,
+      disableDirectiveKind(`${ prefix }core-js-disable-${ kind }-extra`), null);
+  }
+}
+{
+  // A long directive-free JSDoc must not rescan the remaining blank lines from each line start.
+  const prefix = ' *\n'.repeat(20000);
+  check('disableDirectiveKind/long blank JSDoc miss', disableDirectiveKind(`${ prefix } * ordinary comment`), null);
+  check('disableDirectiveKind/long blank JSDoc hit', disableDirectiveKind(`${ prefix } * core-js-disable-file`), 'file');
+  check('disableDirectiveKind/first directive wins',
+    disableDirectiveKind(`${ prefix } * core-js-disable-line\n * core-js-disable-file`), 'line');
+}
+
+// --- disableDirectiveAnchors ---
+
+// babel-shaped locs: `at` stamps a node with its line span, `read` builds a one-read statement
+{
+  function at(node, line, endLine = line) {
+    return { ...node, loc: { start: { line }, end: { line: endLine } } };
+  }
+  function id(name, line) {
+    return at({ type: 'Identifier', name }, line);
+  }
+  function read(line, endLine = line) {
+    return at({ type: 'ExpressionStatement', expression: id('x', line) }, line, endLine);
+  }
+  function program(body, endLine) {
+    return at({ type: 'Program', body }, 1, endLine);
+  }
+  function notLed() {
+    return false;
+  }
+  function same(anchors, expected) {
+    return anchors.length === expected.length && anchors.every((node, i) => node === expected[i]);
+  }
+  function anchorsOf(body, lines, { endLine = 10, isLed = notLed, settled = null } = {}) {
+    return disableDirectiveAnchors({ ast: program(body, endLine), disabledLines: new Set(lines), isLed, settled });
+  }
+
+  // two statements sharing the covered line: the led one keeps its directive, the other takes an anchor
+  {
+    const first = read(2);
+    const second = read(2);
+    const anchors = anchorsOf([first, second, read(3)], [2], { isLed: node => node === first });
+    checkTruthy('disableDirectiveAnchors/the unled sibling on the covered line anchors', same(anchors, [second]));
+  }
+  // a covered host is one anchor: nothing under it is looked at
+  {
+    const block = at({ type: 'BlockStatement', body: [read(3), read(4)] }, 2, 5);
+    const host = at({ type: 'IfStatement', test: id('c', 2), consequent: block }, 2, 5);
+    checkTruthy('disableDirectiveAnchors/a covered host prunes its body', same(anchorsOf([host], [2, 3, 4, 5]), [host]));
+  }
+  // a covered line inside an uncovered statement is reached through it
+  {
+    const inner = [read(4), read(4)];
+    const fn = at({ type: 'FunctionExpression', params: [], body: at({ type: 'BlockStatement', body: inner }, 2, 5) }, 2, 5);
+    const callNode = at({ type: 'CallExpression', callee: id('f', 2), arguments: [fn] }, 2, 5);
+    const outer = at({ type: 'ExpressionStatement', expression: callNode }, 2, 5);
+    checkTruthy('disableDirectiveAnchors/nested covered siblings anchor themselves', same(anchorsOf([outer], [4]), inner));
+  }
+  // a covered node in a position the printers share a line on hands the anchor to its statement
+  {
+    const callNode = at({ type: 'CallExpression', callee: id('f', 2), arguments: [id('a', 3), id('b', 3)] }, 2, 3);
+    const outer = at({ type: 'ExpressionStatement', expression: callNode }, 2, 3);
+    checkTruthy('disableDirectiveAnchors/arguments hoist to their statement, once', same(anchorsOf([outer], [3]), [outer]));
+  }
+  // object and pattern properties and class members are their own anchors
+  {
+    function member(name, line) {
+      return at({ type: 'ObjectProperty', key: id(name, line) }, line);
+    }
+    function declare(target, init, line, endLine) {
+      const declarator = at({ type: 'VariableDeclarator', id: target, init }, line, endLine);
+      return at({ type: 'VariableDeclaration', declarations: [declarator] }, line, endLine);
+    }
+    const props = [member('k', 3), member('j', 3)];
+    const decl = declare(id('o', 2), at({ type: 'ObjectExpression', properties: props }, 2, 4), 2, 4);
+    const members = [at({ type: 'ClassMethod', key: id('m', 6) }, 6), at({ type: 'ClassMethod', key: id('n', 6) }, 6)];
+    const klass = at({ type: 'ClassDeclaration', id: id('A', 5), body: at({ type: 'ClassBody', body: members }, 5, 7) }, 5, 7);
+    const patternProps = [member('at', 9), member('flat', 9)];
+    const pattern = declare(at({ type: 'ObjectPattern', properties: patternProps }, 8, 10), id('arr', 10), 8, 10);
+    const anchors = anchorsOf([decl, klass, pattern], [3, 6, 9]);
+    checkTruthy('disableDirectiveAnchors/properties and members anchor themselves', same(anchors, [...props, ...members, ...patternProps]));
+  }
+  // a switch case is printed inline by its switch on one leg, so it hands the anchor to the switch
+  {
+    const kase = at({ type: 'SwitchCase', test: at({ type: 'NumericLiteral', value: 1 }, 3), consequent: [read(3)] }, 3);
+    const sw = at({ type: 'SwitchStatement', discriminant: id('x', 2), cases: [kase] }, 2, 4);
+    checkTruthy('disableDirectiveAnchors/a switch case hoists to its switch', same(anchorsOf([sw], [3]), [sw]));
+  }
+  // an unbraced body is a statement position of its own
+  {
+    const body = read(3);
+    const host = at({ type: 'IfStatement', test: id('c', 2), consequent: body }, 2, 3);
+    checkTruthy('disableDirectiveAnchors/an unbraced body anchors itself', same(anchorsOf([host], [3]), [body]));
+  }
+  // a JSX child and a template quasi are text: both hand the anchor up to the statement
+  {
+    const child = at({ type: 'JSXExpressionContainer', expression: id('x', 3) }, 3);
+    const jsx = at({ type: 'ExpressionStatement', expression: at({ type: 'JSXElement', children: [child] }, 2, 4) }, 2, 4);
+    const quasis = [at({ type: 'TemplateElement', value: { raw: '' } }, 5), at({ type: 'TemplateElement', value: { raw: 'text' } }, 6)];
+    const literal = at({ type: 'TemplateLiteral', quasis, expressions: [id('y', 6)] }, 5, 6);
+    const template = at({ type: 'ExpressionStatement', expression: literal }, 5, 6);
+    const anchors = anchorsOf([jsx, template], [3, 6]);
+    checkTruthy('disableDirectiveAnchors/JSX children and template parts hoist to the statement', same(anchors, [jsx, template]));
+  }
+  // a settled node is pruned whole; a comment hung on a node is never a candidate; Program never anchors
+  {
+    const settledRead = read(2, 3);
+    const plain = read(1);
+    plain.leadingComments = [at({ type: 'CommentLine', value: ' core-js-disable-line' }, 4)];
+    const anchors = anchorsOf([plain, settledRead], [1, 2, 3, 4], { endLine: 4, settled: new Set([settledRead]) });
+    checkTruthy('disableDirectiveAnchors/settled pruned, comments skipped, Program excluded', same(anchors, [plain]));
+  }
+  // a synthesized wrapper without a position is looked through
+  {
+    const inner = read(2);
+    checkTruthy('disableDirectiveAnchors/a positionless wrapper is looked through',
+      same(anchorsOf([{ type: 'BlockStatement', body: [inner] }], [2]), [inner]));
+  }
+  // the oxc dialect: offsets plus the line mapper
+  {
+    const code = 'a(); b();\nc();\n';
+    function span(type, start, end, extra = {}) {
+      return { type, start, end, ...extra };
+    }
+    function expressionAt(start, end) {
+      return span('ExpressionStatement', start, end, { expression: span('Identifier', start, end - 3, { name: 'x' }) });
+    }
+    const first = expressionAt(0, 4);
+    const second = expressionAt(5, 9);
+    const ast = span('Program', 0, code.length, { body: [first, second, expressionAt(10, 14)] });
+    const anchors = disableDirectiveAnchors({
+      ast, disabledLines: new Set([1]), offsetToLine: buildOffsetToLine(code), isLed: node => node === first,
+    });
+    checkTruthy('disableDirectiveAnchors/oxc offsets resolve through the line mapper', same(anchors, [second]));
+  }
+  check('disableDirectiveAnchors/no directive set means no anchors', anchorsOf([read(1)], [], { isLed: notLed }).length, 0);
+  check('disableDirectiveAnchors/a null directive set means no anchors',
+    disableDirectiveAnchors({ ast: program([read(1)], 1), disabledLines: null, isLed: notLed }).length, 0);
+}
+
+// --- tagError ---
+
+// happy path: stamps `[core-js] [tag] ` prefix on string `.message`
+{
+  const error = new Error('boom');
+  tagError(error, 'input.ts');
+  check('tagError/stamps prefix', error.message, '[core-js] [input.ts] boom');
+}
+
+// idempotent: already-tagged messages are not double-stamped
+{
+  const error = new Error('[core-js] [input.ts] already tagged');
+  tagError(error, 'input.ts');
+  check('tagError/idempotent on same tag', error.message, '[core-js] [input.ts] already tagged');
+}
+
+// bare `[core-js]` (no `[tag]`): the brand and the tag are ONE stamp, so the tag joins the brand
+// the message already carries - an option error raised inside a transform prints one brand, with
+// its file, not `[core-js] [file] [core-js] ...`
+{
+  const error = new Error('[core-js] inner callback failed');
+  tagError(error, 'input.ts');
+  check('tagError/tags a branded message behind its brand', error.message,
+    '[core-js] [input.ts] inner callback failed');
+}
+
+// non-string tag: the brand alone. on babel's `unknown file:` path the host names no file and the
+// brand is the only signal left; dropping the whole stamp with the tag dropped that too
+{
+  const error = new Error('boom');
+  tagError(error, undefined);
+  check('tagError/undefined tag stamps the brand alone', error.message, '[core-js] boom');
+  tagError(error, null);
+  check('tagError/null tag is idempotent on the brand', error.message, '[core-js] boom');
+  tagError(error, 42);
+  check('tagError/number tag is idempotent on the brand', error.message, '[core-js] boom');
+  const later = new Error('[core-js] boom');
+  tagError(later, 'input.ts');
+  check('tagError/a tag can still join a bare brand later', later.message, '[core-js] [input.ts] boom');
+}
+
+// the idempotency anchor is the whole stamp, separator included: `[core-js] [t]x` is not a head
+// the stamp can produce, so it is stamped like any other message rather than mistaken for done
+{
+  const error = new Error('[core-js] [t]x');
+  tagError(error, 't');
+  check('tagError/anchor includes the separator', error.message, '[core-js] [t] [t]x');
+}
+
+// --- brand / wrapWithCause ---
+
+check('brand/stamps', brand('boom'), '[core-js] boom');
+check('brand/idempotent', brand('[core-js] boom'), '[core-js] boom');
+check('brand/bracket without the separator is not the brand', brand('[core-js]boom'), '[core-js] [core-js]boom');
+{
+  const inner = new Error('inner');
+  const wrapped = wrapWithCause('failed: inner', inner);
+  check('wrapWithCause/brands the message', wrapped.message, '[core-js] failed: inner');
+  check('wrapWithCause/keeps the cause', wrapped.cause, inner);
+  check('wrapWithCause/does not double a branded message', wrapWithCause('[core-js] failed', inner).message, '[core-js] failed');
+}
+
+// non-string `.message`: user Error subclass with object message, missing-message object
+{
+  const error = { message: { code: 'EBUSY' } };
+  tagError(error, 'input.ts');
+  check('tagError/object message skips', JSON.stringify(error.message), '{"code":"EBUSY"}');
+  // a primitive `throw 'oops'` arrives at catch as the string itself; `.message`
+  // on a String / Number / plain object lookup is `undefined`, which hits the same
+  // typeof short-circuit
+  const noMessage = {};
+  tagError(noMessage, 'input.ts');
+  check('tagError/undefined message skips', noMessage.message, undefined);
+}
+
+// null / undefined error: no crash (defensive)
+{
+  let crashed = false;
+  try {
+    tagError(null, 'input.ts');
+    tagError(undefined, 'input.ts');
+  } catch { crashed = true; }
+  check('tagError/null/undefined error survives', crashed, false);
+}
+
+// frozen Error instance: TypeError on assignment swallowed, original message preserved
+{
+  const error = new Error('frozen original');
+  Object.freeze(error);
+  tagError(error, 'input.ts');
+  check('tagError/frozen error preserves message', error.message, 'frozen original');
+}
+
+// hostile `get message()` throws: tagError must NOT unwind (would lose the original error
+// downstream); read is wrapped, message is left untouched and identity preserved
+{
+  const error = Object.create(null);
+  Object.defineProperty(error, 'message', { get() { throw new Error('hostile'); } });
+  let crashed = false;
+  try {
+    tagError(error, 'input.ts');
+  } catch {
+    crashed = true;
+  }
+  check('tagError/hostile message getter does not unwind', crashed, false);
+}
+
+// hostile getter + thrown error identity check: the caller can still rethrow the original
+{
+  const original = Object.create(null);
+  Object.defineProperty(original, 'message', { get() { throw new Error('hostile'); } });
+  let caught;
+  try {
+    try {
+      throw original;
+    } catch (error) {
+      tagError(error, 'input.ts');
+      throw error;
+    }
+  } catch (error) {
+    caught = error;
+  }
+  check('tagError/hostile message preserves original identity', caught, original);
+}
+
+// empty tag string: accepted (not blocked by the typeof gate), produces `[core-js] [] msg`
+{
+  const error = new Error('boom');
+  tagError(error, '');
+  check('tagError/empty tag stamps without crash', error.message, '[core-js] [] boom');
+}
+
+// tag with regex meta chars: prefix check is a literal substring match, no injection.
+// `.+?` / `[/.+?^$]` would interpret as regex alternation if includes ever switched to
+// pattern matching - guard against that by asserting both stamp and idempotent re-tag
+{
+  const error = new Error('boom');
+  tagError(error, '[/.+?^$]');
+  check('tagError/regex meta tag stamps literally', error.message, '[core-js] [[/.+?^$]] boom');
+  tagError(error, '[/.+?^$]');
+  check('tagError/regex meta tag idempotent', error.message, '[core-js] [[/.+?^$]] boom');
+}
+
+// custom error subclass without stack: tagging works (no stack interaction)
+{
+  class CustomError extends Error {
+    constructor(message, options) {
+      super(message, options);
+      this.name = 'CustomError';
+      delete this.stack;
+    }
+  }
+  const error = new CustomError('custom boom');
+  tagError(error, 'input.ts');
+  check('tagError/custom error class without stack', error.message, '[core-js] [input.ts] custom boom');
+}
+
+// mid-message `[tag]` does NOT block re-stamping (only head-anchored prefix matches).
+// previous `includes` semantics would have skipped this; startsWith correctly stamps
+{
+  const error = new Error('failure at [input.ts] during phase 2');
+  tagError(error, 'input.ts');
+  check('tagError/mid-message tag does not block', error.message,
+    '[core-js] [input.ts] failure at [input.ts] during phase 2');
+}
+
+// already head-tagged: skip (idempotent at outer wrapper rethrow)
+{
+  const error = new Error('[core-js] [input.ts] boom');
+  tagError(error, 'input.ts');
+  check('tagError/head-tagged idempotent', error.message, '[core-js] [input.ts] boom');
+}
+
+// head-tagged with DIFFERENT tag: the outer file context joins behind the one brand, the inner
+// tag stays as the nesting it is (an inner transform of another file)
+{
+  const error = new Error('[core-js] [inner.ts] inner failure');
+  tagError(error, 'outer.ts');
+  check('tagError/head-tagged different tag re-stamps', error.message,
+    '[core-js] [outer.ts] [inner.ts] inner failure');
+}
+
+// --- peelSequenceTail ---
+
+// the single spelling of the comma-sequence descent. no source produces a cyclic AST, so these
+// assertions are the only oracle the guard has - the corpus cannot fail on it
+{
+  function id(name) {
+    return { type: 'Identifier', name };
+  }
+  function commaSeq(...expressions) {
+    return { type: 'SequenceExpression', expressions };
+  }
+
+  check('peelSequenceTail/non-sequence is identity', peelSequenceTail(id('X'))?.name, 'X');
+  check('peelSequenceTail/flat tail', peelSequenceTail(commaSeq(id('a'), id('X')))?.name, 'X');
+  check('peelSequenceTail/nested tail', peelSequenceTail(commaSeq(id('a'), commaSeq(id('b'), id('X'))))?.name, 'X');
+
+  // `step` runs on each tail - a wrapper between hops peels only through it
+  const wrapped = commaSeq(id('a'), { type: 'ParenthesizedExpression', expression: commaSeq(id('b'), id('X')) });
+  check('peelSequenceTail/without step a wrapper stops the descent',
+    peelSequenceTail(wrapped)?.type, 'ParenthesizedExpression');
+  check('peelSequenceTail/step peels between hops',
+    peelSequenceTail(wrapped, { step: unwrapRuntimeExpr })?.name, 'X');
+
+  // `onPrefix` sees every hop's full expression list
+  {
+    const seen = [];
+    peelSequenceTail(commaSeq(id('a'), commaSeq(id('b'), id('X'))), {
+      onPrefix: expressions => { seen.push(expressions.length); },
+    });
+    checkDeep('peelSequenceTail/onPrefix sees each hop', seen, [2, 2]);
+  }
+
+  // returning false from `onPrefix` REFUSES the hop: the descent stops on that node, which is how
+  // a caller that must not step through an effectful prefix reports it
+  check('peelSequenceTail/onPrefix false stops on the node',
+    peelSequenceTail(commaSeq(id('a'), id('X')), { onPrefix: () => false })?.type, 'SequenceExpression');
+
+  // a self-referential tail terminates instead of spinning; an empty list is not stepped into
+  {
+    const cyclic = commaSeq(id('a'));
+    cyclic.expressions.push(cyclic);
+    check('peelSequenceTail/cyclic tail terminates', peelSequenceTail(cyclic)?.type, 'SequenceExpression');
+    check('peelSequenceTail/empty sequence is not stepped into', peelSequenceTail(commaSeq())?.type, 'SequenceExpression');
+  }
+
+  // a caller alternating its own loop with this one guards the whole alternation by sharing `visited`
+  {
+    const visited = new Set();
+    const tail = id('X');
+    const outer = commaSeq(id('a'), tail);
+    check('peelSequenceTail/shared visited first pass', peelSequenceTail(outer, { visited })?.name, 'X');
+    check('peelSequenceTail/shared visited refuses a re-descent to the same tail',
+      peelSequenceTail(outer, { visited })?.type, 'SequenceExpression');
+  }
+}
+
+// A cycle guard is needed only after a sequence step, including when wrappers were peeled first.
+for (const adapter of adapters) {
+  const program = adapter.parseAndScope('const value = [ordinary, (ordinary as unknown), (first(), ordinary)];');
+  const { elements } = adapter.pickPath(program, 'ArrayExpression').node;
+  const { Set: NativeSet } = globalThis;
+  const allocations = [];
+  for (const element of elements) {
+    let count = 0;
+    let answer;
+    globalThis.Set = class extends NativeSet {
+      constructor(...args) {
+        super(...args);
+        count++;
+      }
+    };
+    try {
+      answer = peelSequenceTail(unwrapRuntimeExpr(element), { step: unwrapRuntimeExpr });
+    } finally {
+      globalThis.Set = NativeSet;
+    }
+    check(`peelSequenceTail/allocation probe preserves value [${ adapter.name }]`, answer.name, 'ordinary');
+    allocations.push(count);
+  }
+  checkDeep(`peelSequenceTail/only sequence descent allocates [${ adapter.name }]`, allocations, [0, 0, 1]);
+}
+
+// --- the sequence descent's REFUSING consumers ---
+
+// a zero-arg IIFE reached through a comma-sequence callee: the descent must refuse an effectful
+// prefix at ANY level, not only the outermost, and still reach the arrow through pure ones. the
+// domain is enumerated element-wise because a single-level check answers three of these five wrong
+{
+  function id(name) {
+    return { type: 'Identifier', name };
+  }
+  function commaSeq(...expressions) {
+    return { type: 'SequenceExpression', expressions };
+  }
+  function iife(callee) {
+    return { type: 'CallExpression', callee, arguments: [], optional: false };
+  }
+  function arrow(body) {
+    return { type: 'ArrowFunctionExpression', params: [], body, async: false, generator: false };
+  }
+  function effect() {
+    return { type: 'CallExpression', callee: id('sideEffect'), arguments: [], optional: false };
+  }
+
+  const fn = arrow(id('X'));
+  const nestedEffectful = commaSeq(id('pure'), commaSeq(effect(), fn));
+  for (const [label, node, expected] of [
+    ['bare callee', iife(fn), true],
+    ['pure prefix', iife(commaSeq(id('pure'), fn)), true],
+    ['effectful prefix', iife(commaSeq(effect(), fn)), false],
+    ['pure outside, effectful inside', iife(nestedEffectful), false],
+    ['pure at both levels', iife(commaSeq(id('a'), commaSeq(id('b'), fn))), true],
+  ]) {
+    check(`zeroArgIifeSideEffectFree/${ label }`, zeroArgIifeSideEffectFree(node), expected);
+  }
+  // the RETURN peel reaches the same arrow through either nesting - refusal is the effect gate's
+  // job, not the peel's
+  check('peelZeroArgIifeReturn/through a flat sequence callee',
+    peelZeroArgIifeReturn(iife(commaSeq(id('p'), fn)))?.name, 'X');
+  const nestedPure = commaSeq(id('p'), commaSeq(id('q'), fn));
+  check('peelZeroArgIifeReturn/through a nested sequence callee',
+    peelZeroArgIifeReturn(iife(nestedPure))?.name, 'X');
+}
+
+// --- isFunctionParamDestructureParent ---
+
+// minimal path-like shape: `.node` + `.parentPath`. parser-agnostic helper exposed in
+// `ast-patterns.js`; the shared ancestor climb ends on the tree and on a cycle, never on a hop
+// budget, so synthetic paths exercise both terminations without needing a real parser run
+{
+  // legitimate nested ObjectPattern in function param: `function({ outer: { inner } }) {}`
+  // chain bottom-up: inner ObjectPattern -> ObjectProperty.value -> outer ObjectPattern ->
+  // FunctionDeclaration.params[0]
+  function buildPath(node, parentPath) {
+    return { node, parentPath };
+  }
+  const innerOP = { type: 'ObjectPattern', properties: [] };
+  const valueProp = { type: 'ObjectProperty', value: innerOP };
+  const outerOP = { type: 'ObjectPattern', properties: [valueProp] };
+  const fnDecl = { type: 'FunctionDeclaration', params: [outerOP] };
+  const innerPath = buildPath(innerOP,
+    buildPath(valueProp,
+      buildPath(outerOP,
+        buildPath(fnDecl, null))));
+  checkTruthy('isFunctionParamDestructureParent/normal nested ObjectPattern',
+    isFunctionParamDestructureParent(innerPath));
+}
+
+// nesting past the retired 32-hop budget is answered by the TREE, both ways: a 40-deep chain
+// owned by a function is a param destructure, the same chain owned by a declarator is not. the
+// budget used to throw `pattern nesting exceeds 32 levels` on both - a build abort on legal source
+{
+  function nestedPatternPath(depth, ownerNode) {
+    const innerOP = { type: 'ObjectPattern', properties: [] };
+    const innerPath = { node: innerOP, parentPath: null };
+    let currentPath = innerPath;
+    let prevNode = innerOP;
+    for (let i = 0; i < depth; i++) {
+      const wrapperNode = { type: 'ObjectPattern', properties: [prevNode] };
+      currentPath.parentPath = { node: wrapperNode, parentPath: null };
+      currentPath = currentPath.parentPath;
+      prevNode = wrapperNode;
+    }
+    if (ownerNode) currentPath.parentPath = { node: { ...ownerNode, params: [prevNode] }, parentPath: null };
+    return innerPath;
+  }
+  check('isFunctionParamDestructureParent/40-deep param nest resolves',
+    isFunctionParamDestructureParent(nestedPatternPath(40, { type: 'FunctionDeclaration' })), true);
+  check('isFunctionParamDestructureParent/40-deep non-param nest still false',
+    isFunctionParamDestructureParent(nestedPatternPath(40, null)), false);
+}
+
+// a CYCLIC parent chain - the case the retired budget nominally defended - terminates on the
+// visited set and answers with the helper's own bail, not a throw and not a hang
+{
+  const objectPattern = { type: 'ObjectPattern', properties: [] };
+  const wrapperNode = { type: 'ObjectPattern', properties: [objectPattern] };
+  const path = { node: objectPattern, parentPath: null };
+  const wrapperPath = { node: wrapperNode, parentPath: null };
+  path.parentPath = wrapperPath;
+  wrapperPath.parentPath = path;
+  wrapperNode.properties.push(wrapperNode);
+  check('isFunctionParamDestructureParent/cyclic parent chain bails', isFunctionParamDestructureParent(path), false);
+}
+
+// shallow non-function-param ObjectPattern: `const { x } = obj` -> VariableDeclarator,
+// not a function-like owner. helper returns false (no throw)
+{
+  const objectPattern = { type: 'ObjectPattern', properties: [] };
+  const declarator = { type: 'VariableDeclarator', id: objectPattern };
+  const path = { node: objectPattern, parentPath: { node: declarator, parentPath: null } };
+  check('isFunctionParamDestructureParent/non-param destructure returns false',
+    isFunctionParamDestructureParent(path), false);
+}
+
+// --- paramListReadsName ---
+
+// param-position read detection guarding param-destructure body-extract. synthetic param
+// nodes (no parser needed) - the helper is a pure structural walk over `.params`
+{
+  function id(name) { return { type: 'Identifier', name }; }
+  const ofBinding = { type: 'ObjectProperty', key: id('of'), value: id('of'), computed: false, shorthand: true };
+  const restEl = { type: 'RestElement', argument: id('rest') };
+  function dflt(name, right) {
+    return {
+      type: 'ObjectProperty', key: id(name), computed: false,
+      value: { type: 'AssignmentPattern', left: id(name), right },
+    };
+  }
+
+  // `{ of, dflt = of, ...rest } = Array` - sibling in-pattern default reads `of`
+  const patternDefaultReadsOf = [{
+    type: 'AssignmentPattern',
+    left: { type: 'ObjectPattern', properties: [ofBinding, dflt('dflt', id('of')), restEl] },
+    right: id('Array'),
+  }];
+  checkTruthy('paramListReadsName/in-pattern default reads binding',
+    paramListReadsName(patternDefaultReadsOf, 'of'));
+
+  // the binding declaration itself is never counted as a read
+  check('paramListReadsName/bare binding is not a read',
+    paramListReadsName([{
+      type: 'AssignmentPattern',
+      left: { type: 'ObjectPattern', properties: [ofBinding, restEl] },
+      right: id('Array'),
+    }], 'of'), false);
+
+  // later top-level param default reads an earlier param binding: `({ of } = Array, y = of)`
+  checkTruthy('paramListReadsName/later param default reads binding',
+    paramListReadsName([
+      { type: 'AssignmentPattern', left: { type: 'ObjectPattern', properties: [ofBinding] }, right: id('Array') },
+      { type: 'AssignmentPattern', left: id('y'), right: id('of') },
+    ], 'of'));
+
+  // ArrayPattern element default reads a sibling element binding: `[of, y = of]`
+  checkTruthy('paramListReadsName/array-pattern element default reads binding',
+    paramListReadsName([{
+      type: 'ArrayPattern',
+      elements: [id('of'), { type: 'AssignmentPattern', left: id('y'), right: id('of') }],
+    }], 'of'));
+
+  // computed key reads the binding: `{ of, [of]: picked }`
+  checkTruthy('paramListReadsName/computed key reads binding',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [ofBinding, { type: 'ObjectProperty', key: id('of'), value: id('picked'), computed: true }],
+    }], 'of'));
+
+  // a default-position closure captures the param binding: `{ p = () => of }`
+  checkTruthy('paramListReadsName/nested closure default reads binding',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [dflt('p', { type: 'ArrowFunctionExpression', params: [], body: id('of') })],
+    }], 'of'));
+
+  // estree `Property` node type behaves like babel `ObjectProperty`
+  checkTruthy('paramListReadsName/estree Property default reads binding',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [{
+        type: 'Property', key: id('dflt'), computed: false,
+        value: { type: 'AssignmentPattern', left: id('dflt'), right: id('of') },
+      }],
+    }], 'of'));
+
+  // negative: default reads a DIFFERENT name, not the queried binding
+  check('paramListReadsName/default reads unrelated name',
+    paramListReadsName([{ type: 'ObjectPattern', properties: [ofBinding, dflt('dflt', id('seed'))] }], 'of'), false);
+
+  // negative: a non-computed member property is a name, not a read (`{ p = x.of }`)
+  check('paramListReadsName/non-computed member property is not a read',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [dflt('p', { type: 'MemberExpression', object: id('x'), property: id('of'), computed: false })],
+    }], 'of'), false);
+
+  // guards
+  check('paramListReadsName/empty params', paramListReadsName([], 'of'), false);
+  check('paramListReadsName/empty name', paramListReadsName(patternDefaultReadsOf, ''), false);
+  check('paramListReadsName/non-array params', paramListReadsName(null, 'of'), false);
+}
+
+// --- isDirectiveStatement (widened: `.directive` marker on the statement OR the inner literal) ---
+// oxc + babel real directives carry `.directive` on the ExpressionStatement
+check('isDirectiveStatement/stmt marker', isDirectiveStatement({ type: 'ExpressionStatement', directive: 'use strict' }), true);
+// sibling-plugin synth shape: marker on the inner StringLiteral / Literal instead of the statement
+check('isDirectiveStatement/inner-literal marker',
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } }), true);
+// an empty-string directive IS part of the prologue per the spec (any string-literal statement
+// extends it) - rejecting it stopped the prologue scan ahead of a following 'use strict'
+check('isDirectiveStatement/empty stmt marker', isDirectiveStatement({ type: 'ExpressionStatement', directive: '' }), true);
+check('isDirectiveStatement/empty inner marker',
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: '', directive: '' } }), true);
+// a bare non-directive string-literal statement must NOT qualify (would wrongly extend the import region)
+check('isDirectiveStatement/non-directive string',
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), false);
+check('isDirectiveStatement/non-expression-statement', isDirectiveStatement({ type: 'ReturnStatement' }), false);
+check('isDirectiveStatement/nullish', isDirectiveStatement(null), false);
+
+// --- directiveValue (shared extractor: both shapes feed the `=== 'use strict'` reads) ---
+// statement marker shape (oxc / babel real directives)
+check('directiveValue/stmt marker', directiveValue({ type: 'ExpressionStatement', directive: 'use strict' }), 'use strict');
+// inner-literal marker shape (sibling-plugin synth re-emit) - the value the statement-only read missed
+check('directiveValue/inner-literal marker',
+  directiveValue({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } }), 'use strict');
+// statement marker wins when both present
+check('directiveValue/stmt marker preferred over inner',
+  directiveValue({ directive: 'use asm', expression: { directive: 'use strict' } }), 'use asm');
+// empty-string directive is a real (prologue-extending) value, NOT null
+check('directiveValue/empty stmt marker', directiveValue({ directive: '' }), '');
+// a non-directive node yields null so `=== 'use strict'` is cleanly false
+check('directiveValue/non-directive', directiveValue({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), null);
+check('directiveValue/nullish', directiveValue(null), null);
+
+// --- the prologue-end pair: marker-based for ANY body, marker-less-tolerant for the PROGRAM ---
+
+// `prologueEndIndex` answers for a block that admits no prologue at all (a class static block),
+// so it must never promote a marker-less string; the program half must, or a head insertion
+// lands above a re-emitted `'use client'` and silently disables it
+function markedDirective(directive) {
+  return { type: 'ExpressionStatement', directive, expression: { type: 'Literal', value: directive, directive } };
+}
+function bareDirective(value) {
+  return { type: 'ExpressionStatement', expression: { type: 'Literal', value } };
+}
+const realCode = { type: 'ExpressionStatement', expression: { type: 'CallExpression' } };
+
+for (const [name, end] of [['prologueEndIndex', prologueEndIndex], ['programPrologueEndIndex', programPrologueEndIndex]]) {
+  check(`${ name }/empty body`, end([]), 0);
+  check(`${ name }/nullish body`, end(null), 0);
+  check(`${ name }/no prologue`, end([realCode, markedDirective('use strict')]), 0);
+  check(`${ name }/one marked directive`, end([markedDirective('use strict'), realCode]), 1);
+  check(`${ name }/consecutive marked directives`,
+    end([markedDirective('use strict'), markedDirective('use asm'), realCode]), 2);
+  check(`${ name }/a marked directive past code does not extend`,
+    end([markedDirective('use strict'), realCode, markedDirective('use asm')]), 1);
+  check(`${ name }/whole body is prologue`, end([markedDirective('use strict')]), 1);
+}
+
+check('prologueEndIndex/marker-less known directive is NOT prologue',
+  prologueEndIndex([bareDirective('use client'), realCode]), 0);
+check('programPrologueEndIndex/marker-less known directive IS prologue',
+  programPrologueEndIndex([bareDirective('use client'), realCode]), 1);
+check('programPrologueEndIndex/marker-less UNKNOWN string is not',
+  programPrologueEndIndex([bareDirective('not-a-directive'), realCode]), 0);
+check('programPrologueEndIndex/marker-less known value after a marked one',
+  programPrologueEndIndex([markedDirective('use strict'), bareDirective('use server'), realCode]), 2);
+check('programPrologueEndIndex/an unknown string stops the scan at itself',
+  programPrologueEndIndex([markedDirective('use strict'), bareDirective('nope'), bareDirective('use client')]), 1);
+
+// --- findTSRuntimeBindingInPath: a parameter property binds the body, never the decorators ---
+// The two arms of this climb have DIFFERENT reach and the difference is the whole point: a TS
+// runtime declaration (enum / namespace / import-equals) shadows the statement's entire subtree,
+// including a decorator inside it, while a parameter property only reaches the parameter list and
+// the body - a decorator hanging off that same list is evaluated where the class is defined, so
+// the name there is still the global. Synthetic node-only paths, so one chain covers both dialects
+{
+  function buildConstructorPath({ probeIn, statement = null }) {
+    const decoratorArg = { type: 'NewExpression', callee: { type: 'Identifier', name: 'Map' }, arguments: [] };
+    const decorator = { type: 'Decorator', expression: decoratorArg };
+    const parameter = {
+      type: 'TSParameterProperty',
+      decorators: [decorator],
+      parameter: { type: 'Identifier', name: 'Map' },
+    };
+    const bodyRead = { type: 'NewExpression', callee: { type: 'Identifier', name: 'Map' }, arguments: [] };
+    const bodyStmt = { type: 'ExpressionStatement', expression: bodyRead };
+    const ctor = {
+      type: 'FunctionExpression',
+      params: [parameter],
+      body: { type: 'BlockStatement', body: [bodyStmt] },
+    };
+    const program = { type: 'Program', sourceType: 'module', body: statement ? [statement, ctor] : [ctor] };
+    const programPath = { node: program, parentPath: null };
+    const ctorPath = { node: ctor, key: statement ? 1 : 0, listKey: 'body', parentPath: programPath };
+    if (probeIn === 'body') {
+      const stmtPath = { node: bodyStmt, key: 0, listKey: 'body', parentPath: { node: ctor.body, key: 'body', listKey: null, parentPath: ctorPath } };
+      return { node: bodyRead, key: 'expression', listKey: null, parentPath: stmtPath };
+    }
+    const paramPath = { node: parameter, key: 0, listKey: 'params', parentPath: ctorPath };
+    const decoratorPath = { node: decorator, key: 0, listKey: 'decorators', parentPath: paramPath };
+    return { node: decoratorArg, key: 'expression', listKey: null, parentPath: decoratorPath };
+  }
+  const enumStatement = {
+    type: 'TSEnumDeclaration',
+    id: { type: 'Identifier', name: 'Map' },
+    members: [],
+  };
+  checkTruthy('findTSRuntimeBindingInPath/parameter property reaches the constructor body',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'body' }), 'Map'));
+  check('findTSRuntimeBindingInPath/parameter property does not reach its own decorator',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator' }), 'Map'), false);
+  // the other arm keeps its wider reach - the decorator really does sit inside the enum's scope
+  checkTruthy('findTSRuntimeBindingInPath/enum declaration reaches the decorator',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator', statement: enumStatement }), 'Map'));
+  // an unrelated name is unaffected from either position
+  check('findTSRuntimeBindingInPath/unshadowed name from the body',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'body' }), 'Set'), false);
+  check('findTSRuntimeBindingInPath/unshadowed name from the decorator',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator' }), 'Set'), false);
+}
+
+// --- nodeHasUseStrict directive-shape coverage (end-to-end via hoistedDeclarationInScope) ---
+// a sloppy-mode block-nested `function Foo(){}` Annex-B-hoists to the function scope and shadows the
+// outer name, so usage-pure must NOT substitute. a `'use strict'` on the enclosing function block-
+// scopes the declaration -> no shadow -> the global resolves. the strict signal must be read from
+// BOTH the statement marker and the inner-literal marker (sibling-plugin synth shape) - else strict is
+// mis-classified sloppy and the shadow gate falsely fires. synthetic node-only paths (no parser run)
+{
+  function buildSloppyShadowPath(directiveStmt) {
+    const fooFn = { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'Foo' }, params: [], body: { type: 'BlockStatement', body: [] } };
+    const ifBlock = { type: 'IfStatement', test: { type: 'Identifier', name: 'cond' }, consequent: { type: 'BlockStatement', body: [fooFn] }, alternate: null };
+    const usageNode = { type: 'NewExpression', callee: { type: 'Identifier', name: 'Foo' }, arguments: [] };
+    const usageStmt = { type: 'ExpressionStatement', expression: usageNode };
+    const body = directiveStmt ? [directiveStmt, ifBlock, usageStmt] : [ifBlock, usageStmt];
+    const fnDecl = { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'outer' }, params: [], body: { type: 'BlockStatement', body } };
+    const program = { type: 'Program', sourceType: 'script', body: [fnDecl] };
+    const fnPath = { node: fnDecl, parentPath: { node: program, parentPath: null } };
+    return { node: usageNode, parentPath: { node: usageStmt, parentPath: fnPath } };
+  }
+  // statement marker (oxc / babel real directive) vs inner-literal marker (sibling-plugin synth shape)
+  const stmtMarker = { type: 'ExpressionStatement', directive: 'use strict', expression: { type: 'Literal', value: 'use strict' } };
+  const innerMarker = { type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } };
+  // sloppy (no directive): the Annex-B block-function shadow is detected
+  checkTruthy('hoistedDeclarationInScope/sloppy block-fn shadow detected',
+    !!hoistedDeclarationInScope(null, buildSloppyShadowPath(null), 'Foo'));
+  // strict via statement marker: shadow block-scoped, gate stays silent
+  check('hoistedDeclarationInScope/strict stmt-marker suppresses shadow',
+    !!hoistedDeclarationInScope(null, buildSloppyShadowPath(stmtMarker), 'Foo'), false);
+  // strict via inner-literal marker: same suppression
+  check('hoistedDeclarationInScope/strict inner-literal suppresses shadow',
+    !!hoistedDeclarationInScope(null, buildSloppyShadowPath(innerMarker), 'Foo'), false);
+}
+
+// --- extractIndirectRequireSEPrefix ---
+
+function call(name) {
+  return { type: 'CallExpression', callee: { type: 'Identifier', name }, arguments: [] };
+}
+function seq(...expressions) {
+  return { type: 'SequenceExpression', expressions };
+}
+
+function requireStmt(callType) {
+  return {
+    type: 'ExpressionStatement',
+    expression: {
+      type: callType,
+      callee: seq(call('spy'), { type: 'Identifier', name: 'require' }),
+      arguments: [{ type: 'StringLiteral', value: 'core-js/promise' }],
+    },
+  };
+}
+// non-optional indirect require keeps the callee-sequence side-effect prefix
+check('extractIndirectRequireSEPrefix/plain call recovers prefix',
+  extractIndirectRequireSEPrefix(requireStmt('CallExpression')).length, 1);
+// babel models `(spy(), require)?.('core-js/...')` as OptionalCallExpression - same recovery
+check('extractIndirectRequireSEPrefix/optional call recovers prefix',
+  extractIndirectRequireSEPrefix(requireStmt('OptionalCallExpression')).length, 1);
+// a side-effect-free callee prefix yields no recovered slots on either call shape
+check('extractIndirectRequireSEPrefix/optional call no SE prefix',
+  extractIndirectRequireSEPrefix({
+    type: 'ExpressionStatement',
+    expression: {
+      type: 'OptionalCallExpression',
+      callee: seq({ type: 'NumericLiteral', value: 0 }, { type: 'Identifier', name: 'require' }),
+      arguments: [{ type: 'StringLiteral', value: 'core-js/promise' }],
+    },
+  }).length, 0);
+
+for (const [label, prefix, expected] of [
+  ['accessor callee prefix', '(box.g, require)', 1],
+  ['optional accessor callee prefix', '(box.g, require)?.', 1],
+  ['nested accessor callee prefix', '(0, (box.g, require))', 1],
+  ['quiet accessor callee prefix', '(box.quietGetter, require)', 0],
+  ['quiet data callee prefix', '(box.quiet, require)', 0],
+]) runBoth(`extractIndirectRequireSEPrefix/scoped ${ label }`, `
+  const box = { get g() { effect(); return 0; }, get quietGetter() { return 0; }, quiet: 0 };
+  ${ prefix }('core-js/es/array/from');
+`, (parser, program, row) => {
+  const stmt = parser.pickPath(program, 'ExpressionStatement', p => !p.parentPath?.node
+    || p.parentPath.node.type === 'Program');
+  for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    check(`${ row }/${ method }/scope answers accessor`,
+      extractIndirectRequireSEPrefix(stmt.node, { scope: stmt.scope, adapter, path: stmt }).length, expected);
+  }
+  check(`${ row }/context-free answer is not reused`, extractIndirectRequireSEPrefix(stmt.node).length, 0);
+});
+
+// --- peelMemoizeWrappers: peel parens / chain ONLY (TS wrappers kept) - shared memo peel ---
+{
+  const inner = { type: 'Identifier', name: 'z' };
+  check('peelMemoizeWrappers/ParenthesizedExpression peeled',
+    peelMemoizeWrappers({ type: 'ParenthesizedExpression', expression: inner }), inner);
+  check('peelMemoizeWrappers/ChainExpression peeled',
+    peelMemoizeWrappers({ type: 'ChainExpression', expression: inner }), inner);
+  check('peelMemoizeWrappers/nested wrappers peeled',
+    peelMemoizeWrappers({ type: 'ChainExpression', expression: { type: 'ParenthesizedExpression', expression: inner } }), inner);
+  // Source-shape consumers retain the cast; runtime reuse has its own transparent view.
+  const tsWrap = { type: 'TSAsExpression', expression: inner };
+  check('peelMemoizeWrappers/TSAsExpression NOT peeled', peelMemoizeWrappers(tsWrap), tsWrap);
+  check('peelMemoizeWrappers/null safe', peelMemoizeWrappers(null), null);
+}
+
+// --- unwrapRuntimeExpr: peels the WHOLE skippable set, and the memo peel is its TS-less subset ---
+// enumerated over the set itself rather than over sampled types: a member added to
+// SKIPPABLE_WRAPPER_TYPES without a matching peel would otherwise pass unnoticed, and the pair of
+// loops is what keeps the two peels from silently converging onto one behavior
+{
+  const inner = { type: 'Identifier', name: 'z' };
+  for (const type of SKIPPABLE_WRAPPER_TYPES) {
+    check(`unwrapRuntimeExpr/${ type } peeled`, unwrapRuntimeExpr({ type, expression: inner }), inner);
+    // the memo peel keeps exactly the TS members and drops the rest
+    const wrapped = { type, expression: inner };
+    check(`peelMemoizeWrappers/${ type } ${ TS_EXPR_WRAPPERS.has(type) ? 'kept' : 'peeled' }`,
+      peelMemoizeWrappers(wrapped), TS_EXPR_WRAPPERS.has(type) ? wrapped : inner);
+  }
+  check('unwrapRuntimeExpr/nested mixed wrappers peeled', unwrapRuntimeExpr({
+    type: 'ChainExpression',
+    expression: { type: 'TSAsExpression', expression: { type: 'ParenthesizedExpression', expression: inner } },
+  }), inner);
+  const bare = { type: 'CallExpression' };
+  check('unwrapRuntimeExpr/non-wrapper returned as is', unwrapRuntimeExpr(bare), bare);
+  check('unwrapRuntimeExpr/null safe', unwrapRuntimeExpr(null), null);
+}
+
+// --- isReusableReceiver: runtime value and scoped binding prove adjacent reads ---
+check('isReusableReceiver/Identifier', isReusableReceiver({ type: 'Identifier', name: 'x' }), true);
+check('isReusableReceiver/ThisExpression', isReusableReceiver({ type: 'ThisExpression' }), true);
+check('isReusableReceiver/CallExpression', isReusableReceiver({ type: 'CallExpression' }), false);
+check('isReusableReceiver/MemberExpression', isReusableReceiver({ type: 'MemberExpression' }), false);
+check('isReusableReceiver/parenthesized Identifier',
+  isReusableReceiver({ type: 'ParenthesizedExpression', expression: { type: 'Identifier', name: 'x' } }), true);
+check('isReusableReceiver/chain-wrapped this',
+  isReusableReceiver({ type: 'ChainExpression', expression: { type: 'ThisExpression' } }), true);
+check('isReusableReceiver/TS-wrapped Identifier uses the runtime view',
+  isReusableReceiver({ type: 'TSAsExpression', expression: { type: 'Identifier', name: 'x' } }), true);
+check('isReusableReceiver/null safe', isReusableReceiver(null), false);
+check('isReusableReceiver/identifier across key effects',
+  isReusableReceiver({ type: 'Identifier', name: 'x' }, { interveningEffects: true }), false);
+check('isReusableReceiver/this across key effects',
+  isReusableReceiver({ type: 'ThisExpression' }, { interveningEffects: true }), true);
+check('isReusableReceiver/parenthesized identifier across key effects',
+  isReusableReceiver({ type: 'ParenthesizedExpression', expression: { type: 'Identifier', name: 'x' } },
+    { interveningEffects: true }), false);
+for (const [label, source, expected, keyExpected = expected, calleeExpected = expected] of [
+  ['const', 'const rows = []; rows.at(0);', true],
+  ['unchanged let', 'let rows = []; rows.at(0);', true],
+  ['live import', "import { rows } from './rows.js'; rows.at(0);", false],
+  ['getter writes let', 'let rows = []; const box = { get at() { rows = []; } }; rows.at(0);', false, false, true],
+  ['unbound', 'rows.at(0);', true, true, false],
+  ['unbound optional method', 'rows.at?.(0);', true, true, false],
+  ['pristine builtin', 'Array.at(0);', true, true, true],
+]) runBoth(`isReusableReceiver/scoped ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(row, isReusableReceiver(path.node.object, { ctx: { scope: path.scope, adapter, path } }), expected);
+  check(`${ row }/direct callee`, isReusableReceiver(path.node.object, { directCallee: true, ctx: { scope: path.scope, adapter, path } }), calleeExpected);
+  check(`${ row }/key effects require stable binding`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx: { scope: path.scope, adapter, path } }), keyExpected);
+});
+
+for (const [label, source, writes, expected] of [
+  ['written realm name', 'rows.at(0);', ['globalThis.rows'], false],
+  ['unrelated realm write', 'rows.at(0);', ['globalThis.other'], true],
+  ['erased realm name', 'declare const rows: number[]; rows.at(0);', ['globalThis.rows'], false],
+  ['runtime shadow', 'const rows = []; rows.at(0);', ['globalThis.rows'], true],
+  ['written builtin', 'Array.at(0);', ['globalThis.Array'], false],
+]) runBoth(`isReusableReceiver/realm store ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(writes),
+  });
+  check(row, isReusableReceiver(path.node.object, { ctx: { scope: path.scope, adapter, path } }), expected);
+});
+
+for (const [label, source, expected, effectExpected = expected, calleeExpected = effectExpected] of [
+  ['ambient const', 'declare const rows: number[]; rows.at(0);', true, true, false],
+  ['ambient let', 'declare let rows: number[]; rows.at(0);', true, true, false],
+  ['ambient var', 'declare var rows: number[]; rows.at(0);', true, true, false],
+  [
+    'ambient function',
+    '// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'
+    + 'declare function rows(): number[]; rows.at(0);',
+    true,
+    true,
+    false,
+  ],
+  ['ambient class', 'declare class rows { static at(index: number): number; } rows.at(0);', true, true, false],
+  ['ambient wrapped', 'declare const rows: number[]; (rows as number[]).at(0);', true, true, false],
+  ['ambient write before read', 'declare let rows: number[]; rows = other; rows.at(0);', true, true, false],
+  ['ambient write after read', 'declare let rows: number[]; rows.at(0); rows = other;', true, true, false],
+  ['ambient deferred writer', 'declare let rows: number[]; function write() { rows = other; } rows.at(0);', false, false],
+  ['runtime const', 'const rows: number[] = []; rows.at(0);', true],
+  ['runtime parameter', 'function probe(rows: number[]) { return rows.at(0); }', true],
+  ['runtime shadow', 'declare const rows: number[]; function probe(rows: number[]) { return rows.at(0); }', true],
+]) runBoth(`isReusableReceiver/runtime declaration ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effect`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), effectExpected);
+  check(`${ row }/direct callee does not revive an erased binding`,
+    isReusableReceiver(path.node.object, { directCallee: true, ctx }), calleeExpected);
+});
+
+runBoth('isReusableReceiver/guarded ambient receiver', 'declare const rows: number[][]; (rows as number[][]).flat?.().includes(1);',
+  (parser, program, row) => {
+    const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'flat');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    check(row, isReusableReceiver(path.node.object, { ctx }), true);
+    check(`${ row }/key effect`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), true);
+  });
+
+for (const [label, source, discarded] of [
+  ['statement tail', 'let x; (before(), ({ x } = source));', true],
+  ['nested statement tail', 'let x; (before(), (inside(), ({ x } = source)));', true],
+  ['sequence prefix', 'let x; consume((({ x } = source), after()));', true],
+  ['used sequence tail', 'let x; const result = (before(), ({ x } = source));', false],
+  ['returned sequence tail', 'let x; function read() { return (before(), ({ x } = source)); }', false],
+]) runBoth(`assignmentValueDiscarded/${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'AssignmentExpression');
+  check(row, assignmentValueDiscarded(path), discarded);
+  check(`${ row }/sequence value`, discardedSequenceElement(path), discarded);
+  check(`${ row }/replacement owns its element`, !!discardedSequenceElementPath(path), discarded);
+});
+
+for (const source of [
+  'const rows = []; rows;',
+  'rows;',
+  'class C extends B { constructor() { this; super(); } }',
+  'Object.value;',
+]) runBoth(`observableSequenceElements/first source read ${ source }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'ExpressionStatement');
+  const ctx = { scope: path.scope, adapter: parser, path };
+  check(row, observableSequenceElements([path.node.expression], ctx, { preserveSourceReads: true }).length, 1);
+});
+
+for (const [label, source, names] of [
+  [
+    'root and key prefixes',
+    '(rootFirst, rootLast, value)[(keyFirst, keyLast, "x")][(leafFirst, leafLast, "y")];',
+    ['rootFirst', 'rootLast', 'keyFirst', 'keyLast', 'leafFirst', 'leafLast'],
+  ],
+  ['optional member spine', '(rootRead, value)?.[(keyRead, "x")].y;', ['rootRead', 'keyRead']],
+  ['nested sequence keys', '(rootRead, (rootInner, value))[(keyRead, (keyInner, "x"))];', ['rootRead', 'rootInner', 'keyRead', 'keyInner']],
+  ['quiet first reads remain', 'value[(quietRead, "x")];', ['quietRead']],
+]) runBoth(`navComputedKeyEffects/${ label }`, source, (parser, program, row) => {
+  const [{ expression }] = program.node.body;
+  const effects = navComputedKeyEffects(expression);
+  checkDeep(row, effects.map(node => node.name), names);
+  for (let i = 0; i < names.length; i++) {
+    const sourcePath = parser.pickPath(program, 'Identifier', p => p.node.name === names[i]);
+    check(`${ row }/source identity ${ i }`, effects[i], sourcePath.node);
+  }
+});
+
+for (const [label, source, expected, mutatedStatics = []] of [
+  ['unused function writer', 'let rows = []; function write() { rows = other; } rows.at(0);', true],
+  ['unused arrow writer', 'let rows = []; const write = () => { rows = other; }; rows.at(0);', true],
+  ['negated function writer', 'let rows = []; (!function () { rows = other; })(); rows.at(0);', true],
+  ['native literal forEach writer', 'let rows = []; [0].forEach(() => { rows = other; }); rows.at(0);', true],
+  ['unknown forEach writer', 'let rows = []; collection.forEach(() => { rows = other; }); rows.at(0);', false],
+  ['replaced forEach writer', 'let rows = []; Array.prototype.forEach = handOut; [0].forEach(() => { rows = other; }); rows.at(0);', false, ['Array.prototype.forEach']],
+  ['completed function writer', 'let rows = []; function write() { rows = other; } write(); rows.at(0);', true],
+  ['later function writer', 'let rows = []; function write() { rows = other; } [rows.at(0), write()];', true],
+  ['closed transitive writer', 'let rows = []; function write() { rows = other; } function invoke() { write(); } invoke(); rows.at(0);', true],
+  ['discarded generator', 'let rows = []; (function* () { rows = other; })(); rows.at(0);', true],
+  ['discarded async generator', 'let rows = []; (async function* () { rows = other; })(); rows.at(0);', true],
+  ['nonconstructible arrow', 'let rows; try { new (() => { rows = other; })(); } catch {} rows.at(0);', true],
+  ['closed discarded construction', 'let rows = []; new function () { rows = other; }(); rows.at(0);', true],
+  ['unused field class', 'let rows = []; class Writer { value = (rows = other); } rows.at(0);', true],
+  ['unused private field class', 'let rows = []; class Writer { #value = (rows = other); } rows.at(0);', true],
+  ['completed field class', 'let rows = []; class Writer { value = (rows = other); } new Writer(); rows.at(0);', true],
+  ['callback consumer', 'let rows = []; function write() { rows = other; } handOut(write); rows.at(0);', false],
+  ['getter caller', 'let rows = []; function write() { rows = other; } const box = { get value() { write(); } }; rows.at(0);', false],
+  ['coerced function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write + 0); } }; rows.at(0);', false],
+  ['compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write == 1); } }; rows.at(0);', false],
+  ['ordered function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write < 2); } }; rows.at(0);', false],
+  // eslint-disable-next-line no-template-curly-in-string -- the test source contains a template
+  ['interpolated function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void `${ write }`; } }; rows.at(0);', false],
+  ['keyed function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void ({ [write]: 1 }); } }; rows.at(0);', false],
+  ['discarded function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void write; } }; rows.at(0);', true],
+  ['identity-compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write === other); } }; rows.at(0);', true],
+  ['null-compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write == null); } }; rows.at(0);', true],
+  ['undefined-compared function writer', 'let rows = []; function write() { rows = other; } const box = { get value() { void (write != void 0); } }; rows.at(0);', true],
+  ['recursive caller', 'let rows = []; function write() { rows = other; write(); } write(); rows.at(0);', false],
+  ['exported writer', 'let rows = []; export function write() { rows = other; } rows.at(0);', false],
+  ['arguments identity escape', 'let rows = []; function write() { saved = arguments.callee; rows = other; } write(); rows.at(0);', false],
+  ['constructor instance retained', 'let rows = []; const instance = new function () { rows = other; }(); rows.at(0);', false],
+  ['constructor instance coerced', 'let rows = []; void (new function () { rows = other; }() + 0); rows.at(0);', false],
+  ['named constructor instance coerced', 'let rows = []; function Writer() { rows = other; } void (new Writer() + 0); rows.at(0);', false],
+  ['constructor instance escape', 'let rows = []; new function () { save(this); rows = other; }(); rows.at(0);', false],
+  ['constructor self escape', 'let rows = []; new function again() { save(again); rows = other; }(); rows.at(0);', false],
+  ['retained generator', 'let rows = []; const iterator = (function* () { rows = other; })(); iterator.next(); rows.at(0);', false],
+  ['coerced generator result', 'let rows = []; void ((function* () { rows = other; })() + 0); rows.at(0);', false],
+  ['named generator result coerced', 'let rows = []; function* writer() { rows = other; } void (writer() + 0); rows.at(0);', false],
+  ['discarded generator resume', 'let rows = []; (function* () { rows = other; })().next(); rows.at(0);', true],
+  ['discarded suspended generator', 'let rows = []; (function* () { rows = other; yield 1; rows = other; })().next(); rows.at(0);', true],
+  ['yielded writer escapes', 'let rows = []; const write = (function* () { yield () => { rows = other; }; })().next().value; rows.at(0);', false],
+  ['native timeout callback', 'let rows = []; setTimeout(() => { rows = other; }); rows.at(0);', true],
+  ['native interval callback', 'let rows = []; setInterval(() => { rows = other; }); rows.at(0);', true],
+  ['native immediate callback', 'let rows = []; setImmediate(() => { rows = other; }); rows.at(0);', true],
+  ['native microtask callback', 'let rows = []; queueMicrotask(() => { rows = other; }); rows.at(0);', true],
+  ['native animation callback', 'let rows = []; requestAnimationFrame(() => { rows = other; }); rows.at(0);', true],
+  ['native idle callback', 'let rows = []; requestIdleCallback(() => { rows = other; }); rows.at(0);', true],
+  ['shadowed timeout callback', 'let rows = []; function setTimeout(fn) { handOut(fn); } setTimeout(() => { rows = other; }); rows.at(0);', false],
+  ['overwritten timeout callback', 'let rows = []; setTimeout = handOut; setTimeout(() => { rows = other; }); rows.at(0);', false, ['globalThis.setTimeout']],
+  ['class constructed by getter', 'let rows = []; class Writer { value = (rows = other); } const box = { get at() { new Writer(); } }; rows.at(0);', false],
+  ['private class constructed by getter', 'let rows = []; class Writer { #value = (rows = other); } const box = { get at() { new Writer(); } }; rows.at(0);', false],
+  ['class static identity escape', 'let rows = []; class Writer { static { save(this); } value = (rows = other); } rows.at(0);', false],
+]) runBoth(`isReusableReceiver/closed writer ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at' && p.node.object.name === 'rows');
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    collectBindingReferences: resolver.collectBindingReferences,
+    getMutatedStatics: () => new Set(mutatedStatics),
+  });
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effects keep nonlocal writers captured`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), false);
+});
+
+// Function.caller can retain even an anonymous arrow after its closed call completes.
+// Strict code closes that implicit identity channel; an unrun body never opens it.
+for (const [label, invocation, expected] of [
+  ['sloppy forEach function', '[0].forEach(function () { steal(); rows = other; });', false],
+  ['sloppy forEach arrow', '[0].forEach(() => { steal(); rows = other; });', false],
+  ['sloppy direct IIFE', '(function () { steal(); rows = other; })();', false],
+  ['sloppy closed named call', 'function write() { steal(); rows = other; } write();', false],
+  ['sloppy closed forwarder', '(fn => fn())(() => { steal(); rows = other; });', false],
+  ['sloppy generator resume', '(function* () { steal(); rows = other; })().next();', false],
+  ['sloppy discarded generator default', '(function* (value = steal()) { rows = other; })();', false],
+  ['sloppy discarded async generator default', '(async function* (value = steal()) { rows = other; })();', false],
+  ['sloppy scheduler callback', 'setTimeout(function () { steal(); rows = other; });', false],
+  ['quiet sloppy forwarder', '(fn => fn())(() => { rows = ["held"]; });', true],
+  ['quiet sloppy named writer', 'const held = []; function write() { rows = held; } write();', true],
+  ['sloppy parameter default', '[0].forEach(function (value = steal()) { rows = ["held"]; });', false],
+  ['sloppy property read', 'const held = {}; [0].forEach(() => { rows = held.value; });', false],
+  ['sloppy coercion', 'const held = {}; [0].forEach(() => { rows = held + 1; });', false],
+  ['sloppy global store', '[0].forEach(() => { unknown = []; rows = ["held"]; });', false],
+  ['strict callback', '[0].forEach(function () { "use strict"; steal(); rows = other; });', true],
+  ['strict named writer', 'function write() { "use strict"; steal(); rows = other; } write();', true],
+  ['unused sloppy writer', 'function write() { steal(); rows = other; } void write;', true],
+  ['unrun sloppy generator', '(function* () { steal(); rows = other; })();', true],
+  ['unrun sloppy generator literal default', '(function* (value = 1) { steal(); rows = other; })();', true],
+]) runBoth(`isReusableReceiver/caller escape ${ label }`, `let rows = [];
+function steal() { save(steal.caller); }
+${ invocation }
+rows.at(0);`, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    collectBindingReferences: resolver.collectBindingReferences,
+  });
+  check(row, isReusableReceiver(path.node.object, { ctx: { scope: path.scope, adapter, path } }), expected);
+}, undefined, 'script');
+
+for (const [wrapper, wrap] of [
+  ['as', receiver => `(${ receiver } as any)`],
+  ['satisfies', receiver => `(${ receiver } satisfies unknown)`],
+  ['non-null', receiver => `${ receiver }!`],
+]) for (const [label, source, expected, effectsExpected] of [
+  ['constant', receiver => `const rows = []; ${ receiver }.at(0);`, true, true],
+  ['parameter', receiver => `function probe(rows: number[]) { return ${ receiver }.at(0); }`, true, true],
+  ['parameter default', receiver => `function probe(rows: number[], value = ${ receiver }.at(0)) { return value; }`, true, true],
+  ['instance field', receiver => `function probe(rows: number[]) { return class Reader { value = ${ receiver }.at(0); }; }`, true, true],
+  ['completed parameter write', receiver => `function probe(rows: number[]) { rows = other; return ${ receiver }.at(0); }`, true, true],
+  ['unbound adjacent read', receiver => `${ receiver }.at(0);`, true, true],
+  ['live import', receiver => `import { rows } from './rows.js'; ${ receiver }.at(0);`, false, false],
+  [
+    'getter writer',
+    receiver => `// @ts-expect-error the getter exists for its write alone\nlet rows = []; const box = { get at() { rows = []; } }; ${ receiver }.at(0);`,
+    false,
+    false,
+  ],
+  ['deferred writer', receiver => `function probe(rows: number[]) { function write() { rows = other; } return ${ receiver }.at(0); }`, false, false],
+  ['resumable owner', receiver => `function* probe(rows: number[]) { yield () => ${ receiver }.at(0); rows = other; }`, false, false],
+  ['this', () => `function probe() { return ${ wrap('this') }.at(0); }`, true, true],
+  ['allocated receiver', () => `${ wrap('[]') }.at(0);`, false, false],
+]) runBoth(`isReusableReceiver/TS ${ wrapper }/${ label }`, source(wrap('rows')), (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const receiver = path.node.object;
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(receiver, { ctx }), expected);
+  check(`${ row }/key effects use the same binding proof`, isReusableReceiver(receiver, { interveningEffects: true, ctx }), effectsExpected);
+  checkTruthy(`${ row }/source wrapper retained`, receiver !== unwrapRuntimeExpr(receiver));
+});
+
+for (const [label, source, expected, receiverExpected] of [
+  ['mutable local', 'let forward; if (flag) forward = () => []; forward();', true, true],
+  ['live import', "import { forward } from './forward.js'; forward();", false, false],
+  ['unbound accessor', 'forward();', false, true],
+]) runBoth(`isReusableReceiver/direct callee ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'CallExpression', p => p.node.callee.name === 'forward');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  check(row, isReusableReceiver(path.node.callee, { directCallee: true, ctx }), expected);
+  check(`${ row }/ordinary receiver uses its frame proof`, isReusableReceiver(path.node.callee, { ctx }), receiverExpected);
+  check(`${ row }/intervening effects use the binding proof`, isReusableReceiver(path.node.callee, { directCallee: true, interveningEffects: true, ctx }), expected);
+});
+check('isReusableReceiver/direct callee keeps this', isReusableReceiver({ type: 'ThisExpression' }, { directCallee: true, interveningEffects: true }), true);
+
+for (const [label, source, expected, writerExpected, effectExpected = expected] of [
+  ['function name shadowed by var', 'const probe = function rows() { var rows = readAnything(); return rows.at(0); };', true, false],
+  ['function name shadowed by let', 'const probe = function rows() { let rows = readAnything(); return rows.at(0); };', true, false],
+  ['function name shadowed by const', 'const probe = function rows() { const rows = readAnything(); return rows.at(0); };', true, false],
+  ['parameter written before lookup', 'function probe(rows) { rows = readAnything(); return rows.at(0); }', true, false],
+  ['local written before lookup', 'function probe() { let rows = []; rows = other; return rows.at(0); }', true, false],
+  ['local written after lookup', 'function probe() { let rows = []; const value = rows.at(0); rows = other; return value; }', true, false],
+  ['conditional local write', 'function probe(rows) { if (flag) rows = other; return rows.at(0); }', true, false],
+  ['loop writes before lookup', 'function probe(rows) { for (let i = 0; i < 2; i++) rows = other; return rows.at(0); }', true, false],
+  ['block lexical write', 'function probe() { { let rows = []; rows = other; return rows.at(0); } }', true, false],
+  ['immediately invoked read', 'function probe(rows) { rows = other; return (() => rows.at(0))(); }', true, false],
+  ['deferred read without deferred writer', 'function probe(rows) { rows = other; return () => rows.at(0); }', true, false],
+  ['module writer before nested reader', 'let rows = []; rows = other; function probe() { return rows.at(0); }', true, false],
+  ['nested parameter default read', 'function outer(rows) { rows = other; function probe(value = rows.at(0)) { return value; } return probe; }', true, false],
+  ['instance field read', 'function outer(rows) { rows = other; return class Probe { value = rows.at(0); }; }', true, false],
+  ['generator deferred reader', 'function* outer(rows) { yield () => rows.at(0); rows = other; }', false, false],
+  ['generator current reader', 'function* outer(rows) { rows = other; yield rows.at(0); }', true, false],
+  ['nested generator lexical block reader', 'function* outer() { { let rows = []; yield () => rows.at(0); rows = other; } }', false, false],
+  ['closed synchronous writer', 'let rows = []; (() => { rows = other; })(); rows.at(0);', true, false, false],
+  ['closed function writer', 'let rows = []; (function () { rows = other; })(); rows.at(0);', true, false, false],
+  ['closed tagged writer', 'let rows = []; (function () { rows = other; })``; rows.at(0);', true, false, false],
+  ['closed callback forwarder', 'let rows = []; (fn => fn())(() => { rows = other; }); rows.at(0);', true, false, false],
+  ['closed block callback forwarder', 'let rows = []; (function (fn) { return fn(); })(() => { rows = other; }); rows.at(0);', true, false, false],
+  ['callback escapes from forwarder', 'let rows = []; let saved; (fn => (saved = fn, fn()))(() => { rows = other; }); rows.at(0);', false, true],
+  ['callback returned from forwarder', 'let rows = []; const saved = (fn => fn)(() => { rows = other; }); rows.at(0);', false, true],
+  ['unknown callback consumer', 'let rows = []; handOut(() => { rows = other; }); rows.at(0);', false, true],
+  ['default callback forwarding parameter', 'let rows = []; ((fn = save()) => fn())(() => { rows = other; }); rows.at(0);', false, true],
+  ['self-escaped forwarded callback', 'let rows = []; let saved; (fn => fn())(function again() { saved = again; rows = other; }); rows.at(0);', false, true],
+  ['arguments-escaped forwarded callback', 'let rows = []; let saved; (fn => fn())(function () { saved = arguments.callee; rows = other; }); rows.at(0);', false, true],
+  ['suspended forwarded callback', 'let rows = []; (fn => fn())(async () => { await pause(); rows = other; }); rows.at(0);', false, true],
+  ['self-named forwarding parameter', 'let rows = []; (function fn(fn) { return fn(); })(() => { rows = other; }); rows.at(0);', false, true],
+  ['closed async writer without suspension', 'let rows = []; (async () => { rows = other; })(); rows.at(0);', true, false, false],
+  ['async writer with suspension', 'let rows = []; (async () => { await first; rows = other; })(); rows.at(0);', false, true],
+  ['escaped named immediate writer', 'let rows = []; let saved; (function again() { saved = again; rows = other; })(); rows.at(0);', false, true],
+  ['arguments immediate writer', 'let rows = []; let saved; (function () { saved = arguments.callee; rows = other; })(); rows.at(0);', false, true],
+  ['constructed writer with callable result', 'let rows = []; const result = new function () { rows = other; }(); rows.at(0);', false, true],
+  ['closure writer', 'function probe(rows) { function write() { rows = other; } return rows.at(0); }', false, true],
+  ['getter writer', 'function probe(rows) { const box = { get value() { rows = other; } }; return rows.at(0); }', false, true],
+  ['method writer', 'function probe(rows) { const box = { write() { rows = other; } }; return rows.at(0); }', false, true],
+  ['instance field writer', 'function probe(rows) { class Writer { value = (rows = other); } return rows.at(0); }', false, true],
+  ['private field writer', 'function probe(rows) { class Writer { #value = (rows = other); } return rows.at(0); }', false, true],
+  ['static field write', 'function probe(rows) { class Writer { static value = (rows = other); } return rows.at(0); }', true, false],
+  ['computed field key write', "function probe(rows) { class Writer { [(rows = other, 'value')] = 0; } return rows.at(0); }", true, false],
+  ['computed method key write', "function probe(rows) { const box = { [(rows = other, 'value')]() {} }; return rows.at(0); }", true, false],
+  ['computed class method key write', "function probe(rows) { class Writer { [(rows = other, 'value')]() {} } return rows.at(0); }", true, false],
+]) runBoth(`isReusableReceiver/adjacent reads ${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  const binding = adapter.getBinding({ scope: path.scope, name: path.node.object.name, path });
+  check(`${ row }/writer frame`, bindingWrittenBeyondItsFrame(binding), writerExpected);
+  check(row, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effects use the same activation proof`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), effectExpected);
+  check(`${ row }/missing owner supplies no frame proof`, isReusableReceiver(path.node.object, { ctx: { ...ctx, path: null } }), false);
+});
+
+runBoth('isReusableReceiver/definition-time method decorator write',
+  'function probe(rows) { class Writer { @decorate(rows = other) value() {} } return rows.at(0); }',
+  (parser, program, row) => {
+    const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const binding = adapter.getBinding({ scope: path.scope, name: path.node.object.name, path });
+    check(`${ row }/writer frame`, bindingWrittenBeyondItsFrame(binding), false);
+    check(`${ row }/adjacent reuse`, isReusableReceiver(path.node.object, { ctx }), true);
+    check(`${ row }/key effects use the definition-time proof`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), true);
+  }, ['decorators-legacy']);
+
+for (const key of ["(rows = [2], 'at')", "(() => (rows = [2], 'at'))()"]) {
+  runBoth('isReusableReceiver/store inside the computed read', `let rows = [1]; rows[${ key }](0);`,
+    (parser, program, row) => {
+      const path = parser.pickPath(program, 'MemberExpression', p => p.node.computed);
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      check(row, isReusableReceiver(path.node.object, { interveningEffects: true, ctx: { scope: path.scope, adapter, path } }), false);
+    });
+}
+
+for (const source of ["'held'", '12', 'true', 'null', '1n']) runBoth(`isReusableReceiver/primitive ${ source }`, `void 0; ${ source };`,
+  (parser, program, row) => {
+    const node = program.node.body.at(-1).expression;
+    check(row, isReusableReceiver(node), true);
+    check(`${ row }/key effects`, isReusableReceiver(node, { interveningEffects: true }), true);
+  });
+for (const source of ['/held/', '[]', '({})']) runBoth(`isReusableReceiver/allocated identity ${ source }`, `${ source };`,
+  (parser, program, row) => {
+    const node = program.node.body[0].expression;
+    check(row, isReusableReceiver(node), false);
+    check(`${ row }/key effects`, isReusableReceiver(node, { interveningEffects: true }), false);
+  });
+
+for (const [label, source, dropped, expected, carriedImportHint, priorPass] of [
+  ['matching import', 'import _self from "@core-js/pure/actual/self"; _self.at(0);', false, true],
+  ['prior source import', 'import _self from "@core-js/pure/actual/self"; _self.at(0);', false, false, false, true],
+  ['foreign module replaces import', 'import _self from "foreign-module"; _self.at(0);', false, false],
+  ['another pure entry replaces import', 'import _self from "@core-js/pure/actual/global-this"; _self.at(0);', false, false],
+  ['dropped emission is unbound', '_self.at(0);', true, false],
+  ['mutable local shadow', 'let _self = []; function write() { _self = other; } _self.at(0);', false, false],
+  ['mutable alias carries import source', 'let _self = []; function write() { _self = other; } _self.at(0);', false, false, true],
+  ['pending import', '_self.at(0);', false, true],
+]) runBoth(`isReusableReceiver/own import ${ label }`, source, (parser, program, row) => {
+  const state = new ImportInjectorState({ absoluteImports: false, mode: 'actual', pkg: '@core-js/pure', importStyle: 'import' });
+  check(`${ row }/allocated name`, state.addPureImport('self', 'self'), '_self');
+  if (priorPass) state.registerUserPureImport('self', '_self');
+  if (dropped) state.pureImports.clear();
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const realAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', getInjector: () => state });
+  const adapter = carriedImportHint ? {
+    ...realAdapter,
+    getBinding: (...args) => ({ ...realAdapter.getBinding(...args), importSource: '@core-js/pure/actual/self' }),
+  } : realAdapter;
+  const ctx = { scope: path.scope, adapter, path, injectorState: state };
+  check(`${ row }/receiver reuse`, isReusableReceiver(path.node.object, { ctx }), expected);
+  check(`${ row }/key effects`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), expected);
+  check(`${ row }/first receiver read`, observableSequenceElements([path.node.object], ctx, { preserveSourceReads: true }).length,
+    expected ? 0 : 1);
+});
+
+// An alias initializer carries its declaration scope even when its consumer path
+// sits below an unrelated hoisted variable or constructor parameter with the same name.
+for (const [label, source] of [
+  ['inner var shadow', 'var rows = []; function read() { var rows = globalThis; return rows.at(0); }'],
+  ['inner parameter property', 'const rows = []; class C { constructor(private rows: any) { rows.at(0); } }'],
+  ['inner enum', 'const rows = []; function read() { enum rows { at = 1 } return rows.at; }'],
+]) runBoth(`wrapScopeBindingLookup/explicit declaration scope ${ label }`, source, (parser, program, row) => {
+  const use = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  const native = program.scope.getBinding('rows');
+  const binding = lookup({ scope: program.scope, name: 'rows', path: use });
+  check(`${ row }/keeps outer declaration`, binding?.path === native.path, true);
+  check(`${ row }/keeps outer scope`, binding?.scope === native.scope, true);
+  check(`${ row }/actual inner scope still shadows`, lookup({ scope: use.scope, name: 'rows', path: use })?.path === native.path, false);
+});
+
+// A later sibling can add or remove a parameter property on an existing constructor node.
+// A previous lookup must not freeze that constructor's parameter names.
+runBoth('wrapScopeBindingLookup/current parameter property shape',
+  'const rows = []; class C { constructor() { rows.at(0); } }', (parser, program, row) => {
+    const use = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+    const owner = findNearestVarScopeOwner(use).node;
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    const outer = lookup({ scope: use.scope, name: 'rows', path: use });
+    const property = parser.pickPath(parser.parseAndScope('class C { constructor(public rows: any) {} }'), 'TSParameterProperty').node;
+    owner.params.push(property);
+    check(`${ row }/new property shadows outer binding`, lookup({ scope: use.scope, name: 'rows', path: use })?.kind, 'param');
+    owner.params.pop();
+    check(`${ row }/removed property restores outer binding`, lookup({ scope: use.scope, name: 'rows', path: use })?.path, outer.path);
+  });
+
+// Only the exact empty lexical activation an allocator owns may lose its frame.
+for (const [label, source, expected] of [
+  ['owned lexical return', '(() => { return value; })();', true],
+  ['source lexical return', '(() => { return value; })();', false],
+  ['cloned lexical owner', '(() => { return value; })();', false],
+  ['remaining memo', '(() => { var held; return value; })();', false],
+  ['sibling effect', '(() => { effect(); return value; })();', false],
+  ['sibling directive', '(() => { "use strict"; return value; })();', false],
+  ['own parameter', '((held) => { return value; })();', false],
+  ['call argument', '(() => { return value; })(effect());', false],
+  ['async owner', '(async () => { return value; })();', false],
+  ['nonlexical owner', '(function () { return value; })();', false],
+  ['direct body', '(() => value)();', false],
+  ['empty return', '(() => { return; })();', false],
+  ['optional sibling call', '(() => { return value; })?.();', false],
+]) runBoth(`emptyMemoActivationValue/${ label }`, source, (parser, program, row) => {
+  const type = label === 'optional sibling call' && parser.name === 'babel' ? 'OptionalCallExpression' : 'CallExpression';
+  const activationCall = parser.pickPath(program, type).node;
+  // The allocator emits its arrow directly; parser-required callee parens are not its owner.
+  activationCall.callee = unwrapRuntimeExpr(activationCall.callee);
+  const owned = new WeakSet(label === 'source lexical return' ? [] : [activationCall.callee]);
+  if (label === 'cloned lexical owner') activationCall.callee = structuredClone(activationCall.callee);
+  const value = emptyMemoActivationValue(activationCall, owned);
+  check(row, !!value, expected);
+  if (expected) check(`${ row }/preserves actual return expression`, value === activationCall.callee.body.body[0].argument, true);
+});
+
+// --- canonical spread guards (all positional / object-key spread-bail sites delegate here) ---
+// spreadAtOrBefore: a spread AT or BEFORE the index shifts later positions -> true; accepts paths or nodes
+const SP = { type: 'SpreadElement' };
+function EL(name) { return { type: 'Identifier', name }; }
+check('spreadAtOrBefore/spread at index', spreadAtOrBefore([SP, EL('b')], 0), true);
+check('spreadAtOrBefore/spread before index', spreadAtOrBefore([SP, EL('b'), EL('c')], 2), true);
+check('spreadAtOrBefore/spread after index', spreadAtOrBefore([EL('a'), EL('b'), SP], 1), false);
+// the canonical array-slot read pairs a slot strictly BEFORE a spread exactly, like the positional
+// pairing, and refuses one at or past it
+check('arrayLiteralSlotValue/slot before a spread pairs', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [EL('a'), SP] }, 0)?.name, 'a');
+check('arrayLiteralSlotValue/slot past a spread declines', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [SP, EL('b')] }, 1), null);
+check('arrayLiteralSlotValue/slot at a spread declines', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [EL('a'), SP] }, 1), null);
+// ... an INLINE-array spread is a longer literal: its items pair by their expanded positions
+const INLINE = { type: 'SpreadElement', argument: { type: 'ArrayExpression', elements: [EL('x'), EL('y')] } };
+check('arrayLiteralSlotValue/inline spread expands', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [INLINE, EL('c')] }, 1)?.name, 'y');
+check('arrayLiteralSlotValue/slot past an inline spread pairs', arrayLiteralSlotValue({ type: 'ArrayExpression', elements: [INLINE, EL('c')] }, 2)?.name, 'c');
+check('spreadAtOrBefore/no spread', spreadAtOrBefore([EL('a'), EL('b')], 1), false);
+check('spreadAtOrBefore/path form (.node)', spreadAtOrBefore([{ node: SP }, { node: EL('b') }], 1), true);
+check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtOrBefore(null, 0), false);
+
+// the positional pairing expands an INLINE-array spread (a longer literal) and still declines any
+// other spread at or before the slot; `flattenInlineArraySpreads` writes that expansion into the
+// literal, opaque nested spreads staying unresolved
+check('pairedArrayWrapInitElement/inline spread expands', pairedArrayWrapInitElement([INLINE, EL('c')], 1)?.name, 'y');
+check('pairedArrayWrapInitElement/bare spread declines', pairedArrayWrapInitElement([SP, EL('c')], 1), null);
+check('pairedArrayWrapInitElement/parenthesized inline spread expands',
+  pairedArrayWrapInitElement([{ type: 'SpreadElement', argument: { type: 'ParenthesizedExpression', expression: INLINE.argument } }], 1)?.name, 'y');
+
+// --- callArgumentPathAt ---
+// the coordinate steps into the spread array through its wrappers on both legs: babel strips the
+// parens and keeps the cast node, oxc keeps a paren NODE and the cast
+for (const [label, code] of [['cast', 'f(...([[1, 2]] as any));'], ['parens', 'f(...([[1, 2]]));']]) {
+  runBoth(`callArgumentPathAt/${ label } spread array steps into the element`, code, (adapter, programPath, name) => {
+    const argPaths = programPath.get('body')[0].get('expression').get('arguments');
+    const coords = resolveCallArgumentCoords(argPaths.map(path => path.node), 0);
+    checkDeep(`${ name } coordinate`, coords, [0, 0]);
+    const path = callArgumentPathAt(argPaths, coords);
+    checkDeep(`${ name } element`, path?.node?.elements?.map(el => el.value), [1, 2]);
+  });
+}
+runBoth('callArgumentPathAt/spread of a wrapped binding has no coordinate', 'f(...(g as any));', (adapter, programPath, name) => {
+  const argPaths = programPath.get('body')[0].get('expression').get('arguments');
+  check(name, resolveCallArgumentCoords(argPaths.map(path => path.node), 0), null);
+});
+
+// --- positionalElementPath ---
+// an array literal is read at runtime positions: the inline spread expands, a hole is no element,
+// a spread of a binding leaves no static position at or past it
+runBoth('positionalElementPath/positions through an inline spread and a hole', '[...[[1, 2]], , x, ...g, y];', (adapter, programPath, name) => {
+  const arrayPath = programPath.get('body')[0].get('expression');
+  checkDeep(`${ name } types`, [0, 1, 2, 3, 4].map(i => positionalElementPath(arrayPath, i)?.node?.type ?? null),
+    ['ArrayExpression', null, 'Identifier', null, null]);
+  check(`${ name } length`, effectiveArgsLength(arrayPath.node.elements), null);
+  check(`${ name } length (static)`, effectiveArgsLength(arrayPath.node.elements.slice(0, 3)), 3);
+});
+check('positionalElements/inline spread expands, hole stays null',
+  positionalElements([INLINE, null, EL('c')]).map(el => el?.name ?? null).join(','), 'x,y,,c');
+check('positionalElements/spread of a binding has no list', positionalElements([EL('a'), SP]), null);
+
+// Nested literal spreads share one coordinate for node and path readers. Unknown spreads
+// stop only the positions they can shift; empty arrays and holes retain their runtime widths.
+for (const [source, expected] of [
+  ['f(...[...[a]], b);', ['a', 'b']],
+  ['f(...[...[], a, ...[b, ...[c]]], d);', ['a', 'b', 'c', 'd']],
+  ['f(...([...[, ...[a]]] as any), b);', [null, 'a', 'b']],
+  ['f(...[...[a, ...unknown]], b);', ['a', null, null]],
+]) {
+  runBoth(`nested positional spread/${ source }`, source, (adapter, programPath, name) => {
+    const args = programPath.get('body')[0].get('expression').get('arguments');
+    const nodes = args.map(path => path.node);
+    for (const [index, value] of expected.entries()) {
+      const coords = resolveCallArgumentCoords(nodes, index);
+      check(`${ name } node ${ index }`, resolveCallArgument(nodes, index)?.name ?? null, value);
+      check(`${ name } path ${ index }`, (coords && callArgumentPathAt(args, coords)?.node?.name) ?? null, value);
+    }
+    const opaque = source.includes('unknown');
+    check(`${ name } length`, effectiveArgsLength(nodes), opaque ? null : expected.length);
+    checkDeep(`${ name } list`, positionalElements(nodes)?.map(node => node?.name ?? null) ?? null, opaque ? null : expected);
+  });
+}
+runBoth('nested spread keeps the selected receiver path',
+  'const [{ values }] = [...[...[Object]]];', (adapter, programPath, name) => {
+    const [statement] = programPath.get('body');
+    const [declarator] = statement.get('declarations');
+    const pattern = declarator.get('id');
+    const [object] = pattern.get('elements');
+    check(`${ name } receiver`, resolveFallbackReceiverPath(pattern, object.node)?.node?.name, 'Object');
+  });
+
+// Loop readers expand only fully known literal spreads; the path keeps raw coordinates.
+for (const [source, expected] of [
+  ['for (const { from } of [...[...[Array]]]) {}', 'Array'],
+  ['for (const { from } of ([...[...[Array]]] as const)) {}', 'Array'],
+  ['for (const { from } of [...[...unknown]]) {}', null],
+  ['for (const { from } of [...[Array, Object]]) {}', null],
+  ['for (const { from } of [...[, Array]]) {}', null],
+  ['for await (const { from } of [...[Array]]) {}', null],
+]) {
+  runBoth(`loop spread receiver/${ source }`, source, (adapter, programPath, name) => {
+    const [loop] = programPath.get('body');
+    const [declarator] = loop.get('left').get('declarations');
+    check(`${ name } path`, resolveFallbackReceiverPath(declarator, declarator.node.id)?.node?.name ?? null, expected);
+    const list = arrayLiteralIterableElements(loop.node.right);
+    check(`${ name } literal expansion`, list?.length ?? null,
+      source.includes('unknown') ? null : source.includes('Object') || source.includes('[,') ? 2 : 1);
+    check(`${ name } iterable proof`, !!forOfIterableElements(loop.node),
+      !source.includes('unknown') && !source.includes('[,') && !source.includes('await'));
+  });
+}
+
+// --- IIFE argument reads through a cast spread array (both adapters) ---
+// the per-branch mirror, the bare-pattern locator and the coordinate read all step into
+// `...([[x]] as any)` the way `unwrapRuntimeExpr` peels the node: a leg that read the raw argument
+// mirrored on one parser and bailed on the other
+runBoth('iife arg through a cast spread array: per-branch receiver path',
+  '// @ts-expect-error a spread argument tsc cannot place is the shape under test\n'
+  + 'const r = (([{ from: f }]) => f)(...([[pick ? Array : userObj]] as any));', (adapter, programPath, name) => {
+    const [declaration] = programPath.get('body');
+    const [declarator] = declaration.get('declarations');
+    const arrow = peelTransparentWrapperPath(declarator.get('init').get('callee'));
+    const [arrayPattern] = arrow.get('params');
+    const [objectPattern] = arrayPattern.get('elements');
+    check(`${ name } receiver`, resolveFallbackReceiverPath(arrayPattern, objectPattern.node)?.node?.type, 'ConditionalExpression');
+    check(`${ name } argument`, findIifeArgPath(arrow, arrayPattern.node)?.node?.type, 'ArrayExpression');
+  });
+runBoth('iife arg through a cast spread array: bare-pattern locator',
+  '// @ts-expect-error a spread argument tsc cannot place is the shape under test\nconst r = (({ at }) => at)(...([[1, 2]] as any));', (adapter, programPath, name) => {
+    const [declaration] = programPath.get('body');
+    const [declarator] = declaration.get('declarations');
+    const arrow = peelTransparentWrapperPath(declarator.get('init').get('callee'));
+    const [param] = arrow.get('params');
+    check(`${ name } argument`, findIifeArgPath(arrow, param.node)?.node?.elements?.map(el => el.value).join(','), '1,2');
+  });
+runBoth('call argument coordinates: cast spread, nested spread, later positional',
+  'f(...([a] as any), ...[b, ...c]); g(a, ...[b], c);', (adapter, programPath, name) => {
+    const [first, second] = programPath.get('body').map(statement => statement.get('expression'));
+    function nodes(callPath) {
+      return callPath.get('arguments').map(path => path.node);
+    }
+    checkDeep(`${ name } first slot inside the cast`, resolveCallArgumentCoords(nodes(first), 0), [0, 0]);
+    checkDeep(`${ name } ahead of a nested spread`, resolveCallArgumentCoords(nodes(first), 1), [1, 0]);
+    check(`${ name } past a nested spread`, resolveCallArgumentCoords(nodes(first), 2), null);
+    check(`${ name } nested spread has no length`, effectiveArgsLength(nodes(first)), null);
+    checkDeep(`${ name } later positional`, resolveCallArgumentCoords(nodes(second), 2), [2]);
+    check(`${ name } length`, effectiveArgsLength(nodes(second)), 3);
+  });
+{
+  const elements = [INLINE, EL('c'), { type: 'SpreadElement', argument: { type: 'ArrayExpression', elements: [SP] } }];
+  flattenInlineArraySpreads(elements);
+  check('flattenInlineArraySpreads/inline spread spliced in place', elements.map(e => e.name ?? e.type).join(','), 'x,y,c,SpreadElement');
+}
+// findObjectKeyBeforeSpread: last matching data property, or null if a spread sits AFTER the match
+function prop(key, tag) { return { type: 'Property', key, tag }; }
+function matchA(p) { return p.key === 'a'; }
+check('findObjectKeyBeforeSpread/trailing spread bails',
+  findObjectKeyBeforeSpread([prop('a', 1), SP], matchA), null);
+check('findObjectKeyBeforeSpread/leading spread keeps later match',
+  findObjectKeyBeforeSpread([SP, prop('a', 2)], matchA)?.tag, 2);
+check('findObjectKeyBeforeSpread/duplicate keys last-wins',
+  findObjectKeyBeforeSpread([prop('a', 1), prop('a', 2)], matchA)?.tag, 2);
+check('findObjectKeyBeforeSpread/match after a mid spread wins',
+  findObjectKeyBeforeSpread([prop('a', 1), SP, prop('a', 2)], matchA)?.tag, 2);
+check('findObjectKeyBeforeSpread/no match', findObjectKeyBeforeSpread([prop('b', 1)], matchA), null);
+
+// objectLevelPairedProperty: the property a plain key pairs with in an object LEVEL - last wins,
+// a spread after the match or a later key nothing can name declines, a getter is no data value,
+// and a scope-aware caller names the later key itself
+function dataProp(name, value, computed = false) {
+  return { type: 'Property', key: computed ? { type: 'CallExpression' } : { type: 'Identifier', name }, value: EL(value), computed };
+}
+function level(...properties) { return { type: 'ObjectExpression', properties }; }
+check('objectLevelPairedProperty/pairs the last spelling of the key',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), dataProp('w', 'y')), 'w')?.read?.name, 'y');
+check('objectLevelPairedProperty/a spread after the match declines',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), SP), 'w'), null);
+check('objectLevelPairedProperty/a later unnameable key declines',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), dataProp('k', 'z', true)), 'w'), null);
+check('objectLevelPairedProperty/a caller naming the later key keeps the pair',
+  objectLevelPairedProperty(level(dataProp('w', 'x'), dataProp('k', 'z', true)), 'w', () => 'q')?.read?.name, 'x');
+const getterProp = {
+  type: 'Property',
+  kind: 'get',
+  key: { type: 'Identifier', name: 'w' },
+  value: { type: 'FunctionExpression', body: { type: 'BlockStatement', body: [] } },
+};
+check('objectLevelPairedProperty/a getter is no data value', objectLevelPairedProperty(level(getterProp), 'w'), null);
+check('objectLevelPairedProperty/a non-object level declines',
+  objectLevelPairedProperty({ type: 'ArrayExpression', elements: [] }, 'w'), null);
+
+// `privateNameSpelling` is the single canon for the private-name `#name`: babel nests the id under
+// `.id`, estree carries `.name` directly - both must spell identically, and a non-private node is null
+check('privateNameSpelling/babel PrivateName', privateNameSpelling({ type: 'PrivateName', id: { name: 'x' } }), '#x');
+check('privateNameSpelling/estree PrivateIdentifier', privateNameSpelling({ type: 'PrivateIdentifier', name: 'x' }), '#x');
+check('privateNameSpelling/non-private is null', privateNameSpelling({ type: 'Identifier', name: 'x' }), null);
+check('privateNameSpelling/nullish is null', privateNameSpelling(null), null);
+
+// `classOwnThisMethodInfo` reads the RAW member type, so both parser spellings of an auto-accessor
+// field must collect its initializer: babel emits ClassAccessorProperty, ESTree/oxc AccessorProperty.
+// matching one only would silently drop the own-this method and leave a leak undetected on that parser
+function accessorFieldClass(memberType) {
+  const fn = { type: 'FunctionExpression', params: [], body: { type: 'BlockStatement', body: [] } };
+  return { type: 'ClassDeclaration', body: { type: 'ClassBody', body: [
+    { type: memberType, static: false, computed: false, key: { type: 'Identifier', name: 'm' }, value: fn },
+  ] } };
+}
+for (const spelling of ['ClassAccessorProperty', 'AccessorProperty']) {
+  const info = classOwnThisMethodInfo(accessorFieldClass(spelling), false);
+  check(`classOwnThisMethodInfo/${ spelling } collects the accessor-held method`,
+    [...info?.methodKeys ?? []].join(','), 'm');
+}
+
+// --- defaultImportSourcesOf / pureImportEntryOfProgram: the program's one import-binding index ---
+// name -> source of the first top-level declaration binding it, on both parsers: the censuses ask
+// it per name, so it is ONE table per program rather than a scan per ask, and it is trusted only
+// while the body keeps the length it was built over
+
+const PURE_FROM = '@core-js/pure/actual/array/from';
+for (const adapter of adapters) {
+  const label = `[${ adapter.name }]`;
+  // first-wins in body order; a named import binds no default; a plain library import is a source
+  // without a pure entry; a require declarator counts in every spelling the require canon peels
+  const program = adapter.parseAndScope([
+    `import _from from '${ PURE_FROM }';`,
+    `import { default as _named, "default" as _string } from '${ PURE_FROM }';`,
+    `import * as namespace from '${ PURE_FROM }';`,
+    "import { named } from '@core-js/pure/actual/array/of';",
+    "import fs from 'node:fs';",
+    "var _of = require('@core-js/pure/actual/array/of');",
+    "var _seq = (0, require)('@core-js/pure/actual/array/at');",
+    "var _opt = require?.('@core-js/pure/actual/array/flat');",
+    'var _tpl = require(`@core-js/pure/actual/array/includes`);',
+    "var _tail = require('@core-js/pure/actual/array/keys').default;",
+    "var _two = require('@core-js/pure/actual/array/values', 1);",
+    'var _later = 1;',
+    "_later = require('@core-js/pure/actual/array/entries');",
+  ].join('\n')).node;
+  const sources = defaultImportSourcesOf(program);
+  check(`defaultImportSourcesOf/default import ${ label }`, sources.get('_from'), PURE_FROM);
+  check(`defaultImportSourcesOf/named default ${ label }`, sources.get('_named'), PURE_FROM);
+  check(`defaultImportSourcesOf/string default ${ label }`, sources.get('_string'), PURE_FROM);
+  check(`defaultImportSourcesOf/namespace is not the default ${ label }`, sources.has('namespace'), false);
+  check(`defaultImportSourcesOf/named import binds no default ${ label }`, sources.has('named'), false);
+  check(`defaultImportSourcesOf/library import is a source ${ label }`, sources.get('fs'), 'node:fs');
+  check(`defaultImportSourcesOf/require declarator ${ label }`, sources.get('_of'), '@core-js/pure/actual/array/of');
+  check(`defaultImportSourcesOf/sequence-callee require ${ label }`, sources.get('_seq'), '@core-js/pure/actual/array/at');
+  check(`defaultImportSourcesOf/optional require ${ label }`, sources.get('_opt'), '@core-js/pure/actual/array/flat');
+  check(`defaultImportSourcesOf/template-literal require ${ label }`, sources.get('_tpl'), '@core-js/pure/actual/array/includes');
+  check(`defaultImportSourcesOf/member tail is not the module ${ label }`, sources.has('_tail'), false);
+  check(`defaultImportSourcesOf/two-argument call is not a require ${ label }`, sources.has('_two'), false);
+  check(`defaultImportSourcesOf/a later assignment binds nothing ${ label }`, sources.has('_later'), false);
+  check(`pureImportEntryOfProgram/pure source spells its entry ${ label }`, pureImportEntryOfProgram(program, '_from'), 'array/from');
+  check(`pureImportEntryOfProgram/library source has no entry ${ label }`, pureImportEntryOfProgram(program, 'fs'), null);
+  check(`pureImportEntryOfProgram/unbound name ${ label }`, pureImportEntryOfProgram(program, 'nope'), null);
+  check(`pureImportEntryOfProgram/no program ${ label }`, pureImportEntryOfProgram(null, '_from'), null);
+  // the same table serves the same node again
+  check(`defaultImportSourcesOf/same body, same table ${ label }`, defaultImportSourcesOf(program), sources);
+
+  // the TS `import x = require(...)` spelling binds like the ESM default import; a type-only one
+  // does not, and the export wrapper / modifier changes nothing about the binding, on either form
+  const tsEquals = adapter.parseAndScope([
+    `import _eq = require("${ PURE_FROM }");`,
+    'import type _typed = require("@core-js/pure/actual/array/of");',
+    'export import _exported = require("@core-js/pure/actual/array/at");',
+    'export const _exportedVar = require("@core-js/pure/actual/array/includes");',
+    `import type _only from '${ PURE_FROM }';`,
+    `import type { default as _onlyNamed } from '${ PURE_FROM }';`,
+    `import { type default as _spec, default as _live } from '${ PURE_FROM }';`,
+  ].join('\n'), 'module', ['typescript']).node;
+  check(`defaultImportSourcesOf/TS import-equals binds ${ label }`, defaultImportSourcesOf(tsEquals).get('_eq'), PURE_FROM);
+  check(`pureImportEntryOfProgram/TS import-equals spells its entry ${ label }`, pureImportEntryOfProgram(tsEquals, '_eq'), 'array/from');
+  check(`defaultImportSourcesOf/type-only import-equals binds nothing ${ label }`, defaultImportSourcesOf(tsEquals).has('_typed'), false);
+  check(`defaultImportSourcesOf/exported import-equals binds like the plain one ${ label }`, defaultImportSourcesOf(tsEquals).get('_exported'), '@core-js/pure/actual/array/at');
+  check(`defaultImportSourcesOf/exported require var binds like the plain one ${ label }`, defaultImportSourcesOf(tsEquals).get('_exportedVar'), '@core-js/pure/actual/array/includes');
+  for (const name of ['_only', '_onlyNamed', '_spec']) {
+    check(`defaultImportSourcesOf/erased ${ name } ${ label }`, defaultImportSourcesOf(tsEquals).has(name), false);
+  }
+  check(`defaultImportSourcesOf/live specifier beside erased one ${ label }`, defaultImportSourcesOf(tsEquals).get('_live'), PURE_FROM);
+
+  // an in-file `require` binding makes every require alias opaque; the imports stay
+  const shadowed = adapter.parseAndScope([
+    `import _from from '${ PURE_FROM }';`,
+    "var _of = require('@core-js/pure/actual/array/of');",
+    'function require() {}',
+  ].join('\n')).node;
+  check(`defaultImportSourcesOf/shadowed require drops the alias ${ label }`, defaultImportSourcesOf(shadowed).has('_of'), false);
+  check(`defaultImportSourcesOf/shadowed require keeps the import ${ label }`, defaultImportSourcesOf(shadowed).get('_from'), PURE_FROM);
+
+  // the body is spliced by the split and the injectors: a body of another length rebuilds the
+  // table, so a binding added or removed after the first ask is answered from the live body
+  const grown = adapter.parseAndScope(`import _from from '${ PURE_FROM }';\nuse(_from);`).node;
+  check(`defaultImportSourcesOf/before the splice ${ label }`, defaultImportSourcesOf(grown).has('_at'), false);
+  const [added] = adapter.parseAndScope("import _at from '@core-js/pure/actual/array/at';").node.body;
+  grown.body.push(added);
+  check(`defaultImportSourcesOf/a spliced-in import is seen ${ label }`, defaultImportSourcesOf(grown).get('_at'), '@core-js/pure/actual/array/at');
+  grown.body.shift();
+  check(`defaultImportSourcesOf/a spliced-out import is gone ${ label }`, defaultImportSourcesOf(grown).has('_from'), false);
+
+  // the path form climbs to the program and answers the same
+  const nested = adapter.parseAndScope(`import _from from '${ PURE_FROM }';\nfunction f() { return _from([1]); }`);
+  const use = adapter.pickPath(nested, 'Identifier', p => p.node.name === '_from' && p.parentPath?.node?.type === 'CallExpression');
+  check(`rootProgramOf/climbs to the program ${ label }`, rootProgramOf(use), nested.node);
+  check(`pureImportEntryOf/path form answers like the node form ${ label }`, pureImportEntryOf(use, '_from'), 'array/from');
+}
+
+// --- findVarOwnerDeclaring: the var-scope declarator list ---
+// the alias registry keys its entry under EVERY same-name `var` declarator of the owner, because a
+// redeclaration merges into one runtime binding while the two scope trackers disagree about which
+// declarator a read resolves to. so the canon must report all of them, in source order, INCLUDING
+// the value-less `var M;` (it binds the same slot) and EXCLUDING both a tsc-elided `declare var`
+// (no runtime slot at all) and a nested function's own `var` (a different scope)
+{
+  function varDeclaration(name, { init = null, declare = false } = {}) {
+    return {
+      type: 'VariableDeclaration', kind: 'var', declare: declare || undefined,
+      declarations: [{ type: 'VariableDeclarator', id: { type: 'Identifier', name }, init }],
+    };
+  }
+  const first = varDeclaration('M', { init: { type: 'Identifier', name: 'globalThis' } });
+  const bare = varDeclaration('M');
+  const ambient = varDeclaration('A', { declare: true });
+  const nested = varDeclaration('M');
+  const innerFn = {
+    type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'inner' }, params: [],
+    body: { type: 'BlockStatement', body: [nested] },
+  };
+  const usageStmt = { type: 'ExpressionStatement', expression: { type: 'Identifier', name: 'M' } };
+  const program = { type: 'Program', sourceType: 'module', body: [first, bare, ambient, innerFn, usageStmt] };
+  const programPath = { node: program, parentPath: null };
+  const usagePath = { node: usageStmt, parentPath: programPath };
+
+  const found = findVarOwnerDeclaring(usagePath, 'M');
+  checkTruthy('findVarOwnerDeclaring/owner is the program', found?.owner.node === program);
+  check('findVarOwnerDeclaring/declarator is the FIRST declaration',
+    found?.declarator === first.declarations[0], true);
+  check('findVarOwnerDeclaring/every same-name declarator, source order',
+    found?.declarators.length, 2);
+  check('findVarOwnerDeclaring/value-less redeclaration kept',
+    found?.declarators[1] === bare.declarations[0], true);
+  check('findVarOwnerDeclaring/nested function var excluded',
+    found?.declarators.includes(nested.declarations[0]), false);
+  // ambient: tsc erases it, so the reference resolves to the global and the name is not declared here
+  check('findVarOwnerDeclaring/ambient declare var is not a declaration', findVarOwnerDeclaring(usagePath, 'A'), null);
+}
+
+// --- resolveImportPath: repeated resolution is stable ---
+// the absolute form is served from a per-specifier memo, so a second ask must return the same
+// string as the first (and the relative form must stay untouched by the memo entirely)
+{
+  const first = resolveImportPath('@core-js/pure', 'actual/array/from', true);
+  check('resolveImportPath/absolute is stable across calls',
+    resolveImportPath('@core-js/pure', 'actual/array/from', true), first);
+  check('resolveImportPath/relative unaffected',
+    resolveImportPath('@core-js/pure', 'actual/array/from', false), '@core-js/pure/actual/array/from');
+}
+
+// --- methodReadsUsageCensus: the census gate both emitters read ---
+// enumerated over the WHOLE method domain, not a range: the predicate decides whether a file pays
+// the per-file census walk and the name reservation it feeds, so a method silently falling on the
+// wrong side either costs every file a dead walk or drops a reservation a minted name needs
+check('methodReadsUsageCensus/usage-global reads it', methodReadsUsageCensus('usage-global'), true);
+check('methodReadsUsageCensus/usage-pure reads it', methodReadsUsageCensus('usage-pure'), true);
+check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('entry-global'), false);
+
+// --- subsume: the rescue-list contract and the closed form domain ---
+// the rescue list is what an emit re-emits verbatim; "nothing to re-emit" reaches this canon spelled
+// three ways (omitted / undefined / null), and all three must mean the same empty set rather than a
+// crash inside the shared helper. the form domain is enumerated MEMBER BY MEMBER: an unrecognised
+// form used to answer "consumed nothing", which is precisely the answer that strands a rewrite
+{
+  function walkNode(root, visit) {
+    visit(root);
+    for (const key of ['object', 'property', 'left', 'right']) if (root[key]) walkNode(root[key], visit);
+  }
+  function region() {
+    return {
+      type: 'MemberExpression', start: 0, end: 10, computed: false,
+      object: { type: 'Identifier', start: 0, end: 5, name: 'globalThis' },
+      property: { type: 'Identifier', start: 6, end: 10, name: 'Map' },
+    };
+  }
+  const base = { form: 'replace', walkNode, isProxyGlobal: node => node, outerPrefix: () => [] };
+
+  const omitted = subsume(region(), { ...base });
+  checkTruthy('subsume/omitted rescue list skips the region', omitted.size > 0);
+  checkDeep('subsume/undefined rescue list matches omitted',
+    [...subsume(region(), { ...base, rescueRoots: undefined })].length, [...omitted].length);
+  checkDeep('subsume/null rescue list matches omitted',
+    [...subsume(region(), { ...base, rescueRoots: null })].length, [...omitted].length);
+  check('subsume/an empty region is the empty set regardless of the list',
+    subsume(null, { ...base, rescueRoots: null }).size, 0);
+
+  // every form named in the contract is accepted; nothing else is
+  for (const form of ['replace', 'dropped-key', 'kept-spine', 'init-globals']) {
+    let threw = false;
+    try {
+      subsume(region(), { ...base, form, skippableTypes: new Set(), tsWrappers: new Set() });
+    } catch { threw = true; }
+    check(`subsume/known form ${ form } is accepted`, threw, false);
+  }
+  throwsWith('subsume/unknown form throws instead of answering "consumed nothing"',
+    () => subsume(region(), { ...base, form: 'replace-all' }), 'unknown form');
+  throwsWith('subsume/a missing form throws too',
+    () => subsume(region(), { ...base, form: undefined }), 'unknown form');
+  // the message carries the SUBSYSTEM prefix and no brand of its own: this throw happens during a
+  // transform, where each plugin's outer catch stamps `[core-js] [<file>] ` exactly once. a
+  // self-applied brand here would double-stamp, the same reason the queue's invariants stay bare
+  {
+    let message = '';
+    try {
+      subsume(region(), { ...base, form: 'nope' });
+    } catch (error) { message = error.message; }
+    check('subsume/throw is not self-branded', message.startsWith('[core-js]'), false);
+    check('subsume/throw names its subsystem', message.startsWith('subsume: '), true);
+  }
+}
+
+// --- usableAliasInfo: the read-time half of the injector's flow-trust refusal ---
+// the rule is spelled once and asked at every read of an injector record, in both plugins; the
+// domain is closed, so enumerate it - the flag decides, and nothing else about the record does
+{
+  check('usableAliasInfo/no record', usableAliasInfo(null), null);
+  check('usableAliasInfo/undefined record', usableAliasInfo(undefined), null);
+  const guarded = { hint: 'globalThis', entry: { name: '_globalThis' }, aliasGuarded: true };
+  check('usableAliasInfo/guarded record declines', usableAliasInfo(guarded), null);
+  const open = { hint: 'globalThis', entry: { name: '_globalThis' }, aliasGuarded: false };
+  check('usableAliasInfo/unguarded record passes through', usableAliasInfo(open), open);
+  const absent = { hint: 'Symbol', entry: null };
+  check('usableAliasInfo/absent flag reads as unguarded', usableAliasInfo(absent), absent);
+  // the flag is the ONLY question: an empty-but-unguarded record still passes, so a consumer
+  // reading a missing field sees `undefined` from the record rather than the guard's `null`
+  const empty = { aliasGuarded: false };
+  check('usableAliasInfo/empty unguarded record still passes', usableAliasInfo(empty), empty);
+  check('usableAliasInfo/consumer field of a declined record', usableAliasInfo(guarded)?.hint ?? null, null);
+  check('usableAliasInfo/consumer field of an accepted record', usableAliasInfo(open)?.hint ?? null, 'globalThis');
+}
+
+// --- import-binding view: the type-only spelling lives on either side ---
+// a specifier under `import type { X }` keeps its OWN kind 'value', so reading node-then-parent
+// through a plain `??` stops at that 'value' and the binding reads as a runtime import - the exact
+// shape a type-space shadow check asks about
+{
+  function decl(kind) {
+    return { type: 'ImportDeclaration', importKind: kind, source: { value: 'immutable' } };
+  }
+  function named(specKind = 'value') {
+    return { type: 'ImportSpecifier', importKind: specKind };
+  }
+  const rows = [
+    ['import type { X }', named(), decl('type'), 'type'],
+    ['import { type X }', named('type'), decl('value'), 'type'],
+    ['import type X (default)', { type: 'ImportDefaultSpecifier' }, decl('type'), 'type'],
+    ['flow import typeof { X }', named(), decl('typeof'), 'typeof'],
+    ['plain value import', named(), decl('value'), 'value'],
+  ];
+  for (const [label, node, parent, want] of rows) {
+    check(`importBindingView/${ label } reads as ${ want }`, importBindingView(node, parent).importKind, want);
+    check(`importBindingView/${ label } keeps its source`, importBindingView(node, parent).importSource, 'immutable');
+  }
+  // a non-import binding carries neither field, whatever its own shape says
+  const view = importBindingView({ type: 'VariableDeclarator', importKind: 'type' }, decl('type'));
+  check('importBindingView/non-import binding has no kind', view.importKind, null);
+  check('importBindingView/non-import binding has no source', view.importSource, null);
+}
+
+// entry-path segments back to registry keys. kebab -> camel alone cannot restore a capital that
+// does not start a word, and every one of those misses reads as "not a known built-in" - silently,
+// at whatever the caller's widest answer is
+{
+  function source(ns) { return `@core-js/pure/actual/${ ns }/constructor`; }
+  const constructors = [
+    ['map', 'Map'],
+    ['weak-map', 'WeakMap'],
+    // the conversion alone answers `Regexp` / `Url` / `UrlSearchParams` / `DomException` here
+    ['regexp', 'RegExp'],
+    ['url', 'URL'],
+    ['url-search-params', 'URLSearchParams'],
+    ['dom-exception', 'DOMException'],
+  ];
+  for (const [segment, want] of constructors) {
+    check(`pureCtorNameFromImportSource/${ segment }`,
+      pureCtorNameFromImportSource(source(segment), null, entryToGlobalHint), want);
+  }
+  // a namespace the hint index does not name keeps the plain conversion - dropping it would lose
+  // constructors the index has no entry for
+  check('pureCtorNameFromImportSource/outside the hint index',
+    pureCtorNameFromImportSource(source('array-buffer'), null, entryToGlobalHint), 'ArrayBuffer');
+  // and with no resolver injected at all, the conversion is all there is
+  check('pureCtorNameFromImportSource/no resolver', pureCtorNameFromImportSource(source('url')), 'Url');
+
+  const members = [
+    ['Array', 'from', 'from'],
+    ['Array', 'from-async', 'fromAsync'],
+    ['Reflect', 'set-prototype-of', 'setPrototypeOf'],
+    // the conversion answers `isNan` / `rawJson` / `isRawJson` / `utc` here
+    ['Number', 'is-nan', 'isNaN'],
+    ['JSON', 'raw-json', 'rawJSON'],
+    ['JSON', 'is-raw-json', 'isRawJSON'],
+    ['Date', 'utc', 'UTC'],
+  ];
+  for (const [constructor, segment, want] of members) {
+    check(`staticMemberFromEntrySegment/${ constructor }.${ segment }`,
+      staticMemberFromEntrySegment(constructor, segment), want);
+  }
+  // an unresolved constructor and a segment the table does not name both keep the plain
+  // conversion rather than inventing a key
+  check('staticMemberFromEntrySegment/no constructor',
+    staticMemberFromEntrySegment(null, 'is-nan'), 'isNan');
+  check('staticMemberFromEntrySegment/unknown member',
+    staticMemberFromEntrySegment('Number', 'no-such-method'), 'noSuchMethod');
+}
+
+// the desugared-default ternary (`_ref === void 0 ? D : _ref`) is matched by SHAPE, and equality has
+// no operand order - a lowering writes the reference first, a hand-written or minified guard just as
+// readily writes the probe first. both spellings must answer the same, and a strict `=== null` must
+// answer neither: it leaves `undefined` on the self branch, so folding to the default would collapse
+// to a value the runtime never takes
+{
+  function ident(name) { return { type: 'Identifier', name }; }
+  const VOID_ZERO = { type: 'UnaryExpression', operator: 'void', argument: { type: 'NumericLiteral', value: 0 } };
+  const NULL_LITERAL = { type: 'NullLiteral' };
+  const UNDEFINED_STRING = { type: 'StringLiteral', value: 'undefined' };
+  function typeOf(name) { return { type: 'UnaryExpression', operator: 'typeof', argument: ident(name) }; }
+  function ternary(left, operator, right) {
+    return {
+      type: 'ConditionalExpression',
+      test: { type: 'BinaryExpression', operator, left, right },
+      consequent: { type: 'ArrayExpression', elements: [] },
+      alternate: ident('a'),
+    };
+  }
+  const rows = [
+    ['a === void 0', ident('a'), '===', VOID_ZERO, 'consequent'],
+    ['void 0 === a', VOID_ZERO, '===', ident('a'), 'consequent'],
+    ['a == null', ident('a'), '==', NULL_LITERAL, 'consequent'],
+    ['null == a', NULL_LITERAL, '==', ident('a'), 'consequent'],
+    ['typeof a === "undefined"', typeOf('a'), '===', UNDEFINED_STRING, 'consequent'],
+    ['"undefined" === typeof a', UNDEFINED_STRING, '===', typeOf('a'), 'consequent'],
+    ['a === null', ident('a'), '===', NULL_LITERAL, null],
+    ['null === a', NULL_LITERAL, '===', ident('a'), null],
+  ];
+  for (const [label, left, operator, right, want] of rows) {
+    check(`matchSelfDefaultTernarySlot/${ label }`, matchSelfDefaultTernarySlot(ternary(left, operator, right)), want);
+  }
+  // the inverse spelling puts the self-reference on the OTHER branch, in both operand orders
+  const inverse = ternary(ident('a'), '!==', VOID_ZERO);
+  inverse.consequent = ident('a');
+  inverse.alternate = { type: 'ArrayExpression', elements: [] };
+  check('matchSelfDefaultTernarySlot/a !== void 0', matchSelfDefaultTernarySlot(inverse), 'alternate');
+  const inverseYoda = ternary(VOID_ZERO, '!==', ident('a'));
+  inverseYoda.consequent = ident('a');
+  inverseYoda.alternate = { type: 'ArrayExpression', elements: [] };
+  check('matchSelfDefaultTernarySlot/void 0 !== a', matchSelfDefaultTernarySlot(inverseYoda), 'alternate');
+}
+
+// `nodeSpan` and the claim-SE regions are the two cross-dialect readers the emitters share: babel
+// hands them CLONES, which keep `loc` and lose the numeric pair, while oxc hands them the numbers
+// and no `loc`. both spellings have to answer the same, and the region split has to name three
+// homes - an effect with no region at all is what makes a claim stand down.
+{
+  function shape(value) { return JSON.stringify(value); }
+  check('nodeSpan/numeric pair leads', shape(nodeSpan({ start: 3, end: 9 })), shape({ start: 3, end: 9 }));
+  check('nodeSpan/loc index answers a clone', shape(nodeSpan({ loc: { start: { index: 3 }, end: { index: 9 } } })), shape({ start: 3, end: 9 }));
+  check('nodeSpan/numeric wins over loc', shape(nodeSpan({ start: 1, end: 2, loc: { start: { index: 7 }, end: { index: 8 } } })), shape({ start: 1, end: 2 }));
+  check('nodeSpan/neither spelling answers', nodeSpan({ type: 'Identifier' }), null);
+  check('nodeSpan/half a span is no span', nodeSpan({ start: 3 }), null);
+  check('nodeSpan/nullish node', nodeSpan(null), null);
+
+  const root = { start: 10, end: 20 };
+  function se(start, end) { return { start, end }; }
+  check('migratableClaimSe/no SE channel at all', shape(migratableClaimSe({ sideEffects: [], rootNode: root, end: 30 })), shape({ leading: [], migrated: [] }));
+  const inside = se(12, 15);
+  const after = se(21, 25);
+  const before = se(2, 5);
+  check('migratableClaimSe/inside the root rides in the test',
+    shape(migratableClaimSe({ sideEffects: [inside], rootNode: root, end: 30 })), shape({ leading: [], migrated: [] }));
+  check('migratableClaimSe/between root and claim migrates',
+    shape(migratableClaimSe({ sideEffects: [after], rootNode: root, end: 30 })), shape({ leading: [], migrated: [after] }));
+  check('migratableClaimSe/before the root leads',
+    shape(migratableClaimSe({ sideEffects: [before], rootNode: root, end: 30 })), shape({ leading: [before], migrated: [] }));
+  check('migratableClaimSe/all three regions at once',
+    shape(migratableClaimSe({ sideEffects: [before, inside, after], rootNode: root, end: 30 })), shape({ leading: [before], migrated: [after] }));
+  check('migratableClaimSe/an effect straddling the root has no region',
+    migratableClaimSe({ sideEffects: [se(5, 15)], rootNode: root, end: 30 }), null);
+  check('migratableClaimSe/an effect past the claim has no region',
+    migratableClaimSe({ sideEffects: [se(31, 40)], rootNode: root, end: 30 }), null);
+  check('migratableClaimSe/a position-less effect has no region',
+    migratableClaimSe({ sideEffects: [{ type: 'CallExpression' }], rootNode: root, end: 30 }), null);
+  check('migratableClaimSe/a CLONE root still answers',
+    shape(migratableClaimSe({ sideEffects: [after], rootNode: { loc: { start: { index: 10 }, end: { index: 20 } } }, end: 30 })),
+    shape({ leading: [], migrated: [after] }));
+}
+
+// --- buildScopeReassignmentIndex: the target through its wrappers, the shadows the census owns ---
+// a write spelled through a TS wrapper or parens is a write neither tracker records; the census is
+// its only recorder and reads the target through the wrappers. an `export let` in a namespace body
+// shadows like the bare form; a switch discriminant is skipped at the switch's own root (its writes
+// target the OUTER binding, and the root's bindings are the case-level lexicals); in sloppy code a
+// nested function's block-level `function` is that function's own hoist, not a write to the outer
+for (const adapter of adapters) {
+  // the index is asked at the owner a binding is hosted by: for these `let`s the body block, which
+  // the function-level scan would shadow (a block's own lexicals are not the function's)
+  const wrapped = adapter.parseAndScope('// @ts-expect-error the writes cross the inferred types on purpose, and only their targets are asked\n'
+    + 'function f() { let a = []; a! = 1; let b = []; (b as any) = 2; let c = []; c = 3; (d)++; }');
+  const wrappedIndex = buildScopeReassignmentIndex(adapter.pickPath(wrapped, 'BlockStatement').node);
+  check(`buildScopeReassignmentIndex/non-null target [${ adapter.name }]`, wrappedIndex.get('a')?.length ?? 0, 1);
+  check(`buildScopeReassignmentIndex/as-cast target [${ adapter.name }]`, wrappedIndex.get('b')?.length ?? 0, 1);
+  check(`buildScopeReassignmentIndex/bare target [${ adapter.name }]`, wrappedIndex.get('c')?.length ?? 0, 1);
+  check(`buildScopeReassignmentIndex/wrapped update target [${ adapter.name }]`, wrappedIndex.get('d')?.length ?? 0, 1);
+
+  const exported = adapter.parseAndScope('var X = 1; namespace N { export let X; X = 2; }');
+  check(`buildScopeReassignmentIndex/export-wrapped namespace lexical shadows [${ adapter.name }]`,
+    buildScopeReassignmentIndex(exported.node).get('X').length, 1);
+  const unshadowed = adapter.parseAndScope('var X = 1; namespace N { X = 2; }');
+  check(`buildScopeReassignmentIndex/a namespace write of the outer name counts [${ adapter.name }]`,
+    buildScopeReassignmentIndex(unshadowed.node).get('X').length, 2);
+
+  const switched = adapter.parseAndScope("function f() { var K = 'x'; switch (K = 'q') { case 'q': let K = 'a'; K = 'b'; } }");
+  const fn = adapter.pickPath(switched, 'FunctionDeclaration');
+  check(`buildScopeReassignmentIndex/discriminant writes the outer binding [${ adapter.name }]`,
+    buildScopeReassignmentIndex(fn.node).get('K').length, 2);
+  check(`buildScopeReassignmentIndex/at the switch root the discriminant is skipped [${ adapter.name }]`,
+    buildScopeReassignmentIndex(adapter.pickPath(switched, 'SwitchStatement').node).get('K').length, 1);
+
+  // a loop's body block is a scope of its own, so a namesake it declares owns the writes there: the head
+  // keeps the writes of its own name in the body
+  const twinned = adapter.parseAndScope("for (let s = 'abc'; c; ) { let s = [1]; s = [2]; }");
+  check(`buildScopeReassignmentIndex/a loop body namesake owns its writes [${ adapter.name }]`,
+    buildScopeReassignmentIndex(adapter.pickPath(twinned, 'ForStatement').node).get('s')?.length ?? 0, 0);
+  const headWritten = adapter.parseAndScope("for (let s = 'abc'; c; ) { s = [2]; }");
+  check(`buildScopeReassignmentIndex/a loop body write of the head counts [${ adapter.name }]`,
+    buildScopeReassignmentIndex(adapter.pickPath(headWritten, 'ForStatement').node).get('s')?.length ?? 0, 1);
+
+  const annexB = adapter.parseAndScope('function h() { var A = 1; function inner() { { function A() {} } A = 2; } }');
+  const owner = adapter.pickPath(annexB, 'FunctionDeclaration').node;
+  check(`buildScopeReassignmentIndex/sloppy: the nested block function hoists and shadows [${ adapter.name }]`,
+    buildScopeReassignmentIndex(owner, true).get('A').length, 1);
+  check(`buildScopeReassignmentIndex/strict: the block function is block-scoped, the write reaches out [${ adapter.name }]`,
+    buildScopeReassignmentIndex(owner, false).get('A').length, 2);
+
+  // the catch PARAMETER anchors at its own clause: the outer binding's write is not its own, its
+  // body's write is
+  const caught = adapter.parseAndScope('function h() { let data = 1; data = 2; try {} catch (data) { data = 3; } }');
+  const clause = adapter.pickPath(caught, 'CatchClause');
+  const use = adapter.pickPath(caught, 'Identifier', p => p.node.name === 'data' && p.parentPath?.node?.type === 'AssignmentExpression'
+    && p.parentPath.node.right?.value === 3);
+  const writes = recomputedBindingWrites({ kind: 'let', bindingPath: clause, usePath: use, name: 'data', fallback: [] });
+  check(`recomputedBindingWrites/catch parameter: one write, its clause's own [${ adapter.name }]`, writes.length, 1);
+  check(`recomputedBindingWrites/catch parameter: the clause's write [${ adapter.name }]`, writes[0]?.right?.value, 3);
+}
+
+// --- isSloppyAtPath: ONE answer for the strictness every write index depends on ---
+// the index builder takes strictness as a FLAG, so two consumers answering that question
+// differently get different write sets for the same owner. the predicate is the single answer
+// both ask - the provider's cached lookup and babel's own fresh scan of a rewritten tree
+for (const [mode, sourceType, sloppy, writes] of [['sloppy script', 'script', true, 1], ['strict module', 'module', false, 2]]) {
+  const code = 'function h(x){ var A = Array; function inner() { { function A() {} } A = 1; } return A.from(x); }';
+  const prog = babelAdapter.parseAndScope(code, sourceType);
+  const owner = babelAdapter.pickPath(prog, 'FunctionDeclaration', p => p.node.id?.name === 'h');
+  check(`isSloppyAtPath/${ mode }`, isSloppyAtPath(owner), sloppy);
+  check(`buildScopeReassignmentIndex/${ mode }: writes recorded for the outer name`,
+    (buildScopeReassignmentIndex(owner.node, isSloppyAtPath(owner)).get('A') ?? []).length, writes);
+}
+
+// --- isConditionalExpressionSlot: the expression slots that run on some paths only ---
+{
+  const test = { type: 'Identifier', name: 't' };
+  const update = { type: 'Identifier', name: 'u' };
+  check('isConditionalExpressionSlot/do-while test', isConditionalExpressionSlot({ type: 'DoWhileStatement', test }, test), true);
+  check('isConditionalExpressionSlot/while test', isConditionalExpressionSlot({ type: 'WhileStatement', test }, test), false);
+  check('isConditionalExpressionSlot/for update', isConditionalExpressionSlot({ type: 'ForStatement', test, update }, update), true);
+  check('isConditionalExpressionSlot/for test', isConditionalExpressionSlot({ type: 'ForStatement', test, update }, test), false);
+  check('isConditionalExpressionSlot/for-of left', isConditionalExpressionSlot({ type: 'ForOfStatement', left: test, right: update }, test), true);
+  check('isConditionalExpressionSlot/for-of right', isConditionalExpressionSlot({ type: 'ForOfStatement', left: test, right: update }, update), false);
+  check('isConditionalExpressionSlot/case test', isConditionalExpressionSlot({ type: 'SwitchCase', test }, test), true);
+  check('isConditionalExpressionSlot/if test', isConditionalExpressionSlot({ type: 'IfStatement', test }, test), false);
+  check('isConditionalExpressionSlot/no child', isConditionalExpressionSlot({ type: 'DoWhileStatement', test }, null), false);
+}
+
+// --- definitionTimeSlotOf / classDefinitionTimePaths: the slots a class runs where it is defined ---
+{
+  const key = { type: 'Identifier', name: 'k' };
+  const dec = { type: 'Decorator', expression: key };
+  const sup = { type: 'Identifier', name: 'B' };
+  const value = { type: 'ArrayExpression', elements: [] };
+  check('definitionTimeSlotOf/class heritage', definitionTimeSlotOf({ type: 'ClassDeclaration', superClass: sup }, sup), 'superClass');
+  check('definitionTimeSlotOf/class decorator', definitionTimeSlotOf({ type: 'ClassDeclaration', decorators: [dec] }, dec), 'decorators');
+  check('definitionTimeSlotOf/member computed key', definitionTimeSlotOf({ type: 'MethodDefinition', computed: true, key }, key), 'key');
+  check('definitionTimeSlotOf/member plain key', definitionTimeSlotOf({ type: 'MethodDefinition', computed: false, key }, key), null);
+  check('definitionTimeSlotOf/field value', definitionTimeSlotOf({ type: 'PropertyDefinition', key, value }, value), null);
+  check('definitionTimeSlotOf/parameter decorator', definitionTimeSlotOf({ type: 'Identifier', name: 'x', decorators: [dec] }, dec), 'decorators');
+  check('definitionTimeSlotOf/missing child', definitionTimeSlotOf({ type: 'ClassDeclaration', superClass: sup }, null), null);
+}
+for (const adapter of adapters) {
+  // a decorated member and a computed-key member stay separate: `@d [k]()` reads as the call `d[k]()`
+  const prog = adapter.parseAndScope('@dec class C extends B { @d m() {} [k]() {} n(@p x) {} y = v; static z = w; }', 'module', ['decorators-legacy']);
+  const classPath = adapter.pickPath(prog, 'ClassDeclaration');
+  const slots = classDefinitionTimePaths(classPath);
+  const spelled = slots.map(p => p.node.type === 'Decorator' ? `@${ p.node.expression.name }` : p.node.name).sort();
+  checkDeep(`classDefinitionTimePaths/heritage, every decorator, the computed key - never a value [${ adapter.name }]`,
+    spelled, ['@d', '@dec', '@p', 'B', 'k']);
+}
+
+// --- getDirectStatementBody: only a scope anchor hosts a statement list ---
+{
+  const list = [{ type: 'EmptyStatement' }];
+  const block = { type: 'BlockStatement', body: list };
+  check('getDirectStatementBody/a function wraps its list', getDirectStatementBody({ type: 'FunctionDeclaration', body: block }), list);
+  check('getDirectStatementBody/a loop holds a block, not a list', getDirectStatementBody({ type: 'WhileStatement', body: block }), null);
+  check('getDirectStatementBody/a catch clause holds a block, not a list', getDirectStatementBody({ type: 'CatchClause', body: block }), null);
+  check('getDirectStatementBody/a block hosts directly', getDirectStatementBody(block), list);
+  checkDeep('getDirectStatementBody/a switch flattens its cases',
+    getDirectStatementBody({ type: 'SwitchStatement', cases: [{ consequent: [1] }, { consequent: [2, 3] }] }), [1, 2, 3]);
+}
+
+// --- findTSRuntimeBindingInPath: a parameter default never sees the body's declaration ---
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope('function f(a = Map) { enum Map { A } return a; } function g() { enum Map { B } Map; }');
+  const inDefault = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Map' && p.parentPath?.node?.type === 'AssignmentPattern');
+  const inBody = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Map' && p.parentPath?.node?.type === 'ExpressionStatement');
+  check(`findTSRuntimeBindingInPath/parameter default does not see the body enum [${ adapter.name }]`, findTSRuntimeBindingInPath(inDefault, 'Map'), false);
+  check(`findTSRuntimeBindingInPath/body use sees the body enum [${ adapter.name }]`, findTSRuntimeBindingInPath(inBody, 'Map'), true);
+}
+
+// --- synthHoistedBinding: a sloppy block function is a hoisted binding too ---
+for (const adapter of adapters) {
+  for (const [mode, sourceType, hoisted] of [['sloppy', 'script', true], ['strict', 'module', false]]) {
+    const prog = adapter.parseAndScope('function h() { { function Array() {} } Array; }', sourceType);
+    const use = adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Array' && p.parentPath?.node?.type === 'ExpressionStatement');
+    const synth = synthHoistedBinding(use, 'Array');
+    check(`synthHoistedBinding/${ mode }: block function binding [${ adapter.name }]`, synth?.kind ?? null, hoisted ? 'hoisted' : null);
+    if (hoisted) check(`synthHoistedBinding/${ mode }: stands on the declaration [${ adapter.name }]`, synth.node.type, 'FunctionDeclaration');
+    check(`functionScopeBindsVarOrFunction/${ mode }: the body-extract bail follows Annex B [${ adapter.name }]`,
+      functionScopeBindsVarOrFunction(adapter.pickPath(prog, 'FunctionDeclaration'), 'Array'), hoisted);
+  }
+}
+
+// --- annexBHoistOutrunsBinding: whose name reaches past the block its binding covers ---
+// the same hoist, asked of the DECLARATION: only a sloppy block-level function has uses a
+// block-scoped binding cannot see. a declaration the var-scope owner holds directly is
+// function-scoped whatever the strictness, an intervening lexical keeps the hoist inside the
+// block, and a binding that is no function declaration at all is never in question
+for (const adapter of adapters) {
+  for (const [label, sourceType, code, outruns] of [
+    ['sloppy block-nested function', 'script', '{ function F() {} }', true],
+    ['sloppy block function inside a function body', 'script', 'function h() { { function F() {} } }', true],
+    ['strict block-nested function', 'module', '{ function F() {} }', false],
+    ['sloppy program-level function', 'script', 'function F() {}', false],
+    ['sloppy function-body-level function', 'script', 'function h() { function F() {} }', false],
+    ['intervening lexical blocks the hoist', 'script', '{ let F; { function F() {} } }', false],
+  ]) {
+    const prog = adapter.parseAndScope(code, sourceType);
+    const decl = adapter.pickPath(prog, 'FunctionDeclaration', p => p.node.id?.name === 'F');
+    check(`annexBHoistOutrunsBinding/${ label } [${ adapter.name }]`, annexBHoistOutrunsBinding(decl), outruns);
+  }
+  const varProg = adapter.parseAndScope('{ var F = 1; }', 'script');
+  check(`annexBHoistOutrunsBinding/a declarator is not a block function [${ adapter.name }]`,
+    annexBHoistOutrunsBinding(adapter.pickPath(varProg, 'VariableDeclarator')), false);
+  // the hoist carries a NAME, and a default export declares a FunctionDeclaration that binds none -
+  // the question is answered off the id slot, before any scope walk
+  const anonProg = adapter.parseAndScope('export default function () {}');
+  check(`annexBHoistOutrunsBinding/a nameless default export binds no name [${ adapter.name }]`,
+    annexBHoistOutrunsBinding(adapter.pickPath(anonProg, 'FunctionDeclaration')), false);
+  check('annexBHoistOutrunsBinding/no path', annexBHoistOutrunsBinding(null), false);
+}
+
+// --- identifierReferencedInSubtree: a declaration of the name is no reference, nor is type space ---
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope([
+    'function f({ from } = Array) { var f = 1; return from([1]); }',
+    'function g() { let x: typeof g; }',
+    'function h() { return h; }',
+    'function m() { const [x = m] = []; }',
+    'function n() { class n {} }',
+    'function nestedDefault() { const helper = function inner({ value = nestedDefault }) {}; }',
+    'function nestedBinding() { const helper = function inner({ nestedBinding }) {}; }',
+    'function nestedRead() { const helper = function inner(nestedRead) { return nestedRead; }; }',
+  ].join('\n'));
+  const bodies = adapter.collectPaths(prog, 'FunctionDeclaration').map(p => [p.node.id.name, p.node.body]);
+  const expected = {
+    f: false,
+    g: false,
+    h: true,
+    m: true,
+    n: false,
+    nestedDefault: true,
+    nestedBinding: false,
+    nestedRead: true,
+  };
+  for (const [name, body] of bodies) {
+    check(`identifierReferencedInSubtree/${ name } [${ adapter.name }]`, identifierReferencedInSubtree(body, name), expected[name]);
+    check(`identifierReferencedInSubtree/set/${ name } [${ adapter.name }]`,
+      identifierReferencedInSubtree(body, new Set([name, 'absentName'])), expected[name]);
+    check(`identifierReferencedInSubtree/empty/${ name } [${ adapter.name }]`,
+      identifierReferencedInSubtree(body, new Set()), false);
+  }
+  check(`identifierReferencedInSubtree/every declaration probed [${ adapter.name }]`, bodies.length, Object.keys(expected).length);
+}
+
+// A nearby reference needs no descent into earlier function declarations. A miss still
+// searches their defaults and bodies, and a declaration alone still names no reference.
+for (const adapter of adapters) for (const width of [16, 64]) {
+  const declarations = Array.from({ length: width }, (_, index) => `function nested${ index }(local = fallback) { var nestedOnly; return hidden; }`).join(' ');
+  const program = adapter.parseAndScope(`function outer() { ${ declarations } use(nearby); }`);
+  const { body } = adapter.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'outer').node;
+  const functions = body.body.filter(node => node.type === 'FunctionDeclaration');
+  const descriptors = functions.map(node => Object.getOwnPropertyDescriptor(node, 'body'));
+  let visits = 0;
+  for (const [index, node] of functions.entries()) Object.defineProperty(node, 'body', {
+    configurable: true, enumerable: true,
+    get() { visits++; return descriptors[index].value; },
+  });
+  const queries = [
+    ['nearby', true, false], ['hidden', true, true], ['fallback', true, null],
+    ['nestedOnly', false, true], ['absent', false, true],
+  ].flatMap(([name, expected, walked]) => [false, true].map(set => ({ name, expected, walked, set })));
+  try {
+    for (const { name, expected, walked, set } of queries) {
+      visits = 0;
+      const label = `identifierReferencedInSubtree/lazy bodies/${ adapter.name }/${ width }/${ set }/${ name }`;
+      check(`${ label }/answer`, identifierReferencedInSubtree(body, set ? new Set([name]) : name), expected);
+      if (walked !== null) check(`${ label }/body walk`, visits > 0, walked);
+      if (!expected) check(`${ label }/complete miss`, visits, width);
+    }
+  } finally {
+    for (const [index, node] of functions.entries()) Object.defineProperty(node, 'body', descriptors[index]);
+  }
+}
+
+// Unrelated declarations need no temporary sets in a reference query. Matching binding
+// identities still suppress declarations without hiding defaults or nested body reads.
+for (const adapter of adapters) for (const width of [32, 128]) {
+  const padding = Array.from({ length: width }, (_, i) => `var unused${ i } = 0;`).join(' ');
+  for (const [shape, tail, expected] of [
+    ['binding', '', false],
+    ['default', 'var { value = needle } = source;', true],
+    ['nested binding', 'function inner(needle) { var needle; }', false],
+    ['nested read', 'function inner(needle) { return needle; }', true],
+  ]) {
+    const program = adapter.parseAndScope(`function holder(needle) { ${ padding } ${ tail } }`);
+    const fn = adapter.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'holder').node;
+    const { Set: NativeSet } = globalThis;
+    for (const query of ['needle', new Set(['needle', 'absent'])]) {
+      let allocations = 0;
+      let answer;
+      const label = `identifierReferencedInSubtree/allocations/${ adapter.name }/${ width }/${ shape }/${ typeof query }`;
+      globalThis.Set = class extends NativeSet {
+        constructor(...args) {
+          super(...args);
+          allocations++;
+        }
+      };
+      try {
+        check(`${ label }/control value`, new Set(['control']).has('control'), true);
+        check(`${ label }/counter control`, allocations, 1);
+        allocations = 0;
+        answer = identifierReferencedInSubtree(fn, query);
+      } finally {
+        globalThis.Set = NativeSet;
+      }
+      check(`${ label }/reference`, answer, expected);
+      checkTruthy(`${ label }/bounded sets`, allocations > 0 && allocations <= 8, `${ allocations } sets`);
+    }
+    checkDeep(`declaredIdentifierNodes/all/${ adapter.name }/${ width }/${ shape }`,
+      [...declaredIdentifierNodes(fn)], [fn.id, fn.params[0]]);
+    check(`declaredIdentifierNodes/empty selection/${ adapter.name }/${ width }/${ shape }`,
+      declaredIdentifierNodes(fn, () => false), null);
+  }
+}
+
+// Metadata is not a reference position. Its width must not multiply source-slot queries.
+for (const adapter of adapters) {
+  const reads = [];
+  for (const width of [0, 64]) {
+    const program = adapter.parseAndScope('receiver.property;');
+    const member = adapter.pickPath(program, 'MemberExpression').node;
+    const { property } = member;
+    let count = 0;
+    Object.defineProperty(member, 'property', { enumerable: true, get() {
+      count++;
+      return property;
+    } });
+    for (let index = 0; index < width; index++) member[`metadata${ index }`] = index;
+    check(`identifierReferencedInSubtree/metadata/${ width } [${ adapter.name }]`,
+      identifierReferencedInSubtree(member, 'absentName'), false);
+    reads.push(count);
+    check(`identifierReferencedInSubtree/property name [${ adapter.name }]`,
+      identifierReferencedInSubtree(member, 'property'), false);
+    member.computed = true;
+    check(`identifierReferencedInSubtree/computed property [${ adapter.name }]`,
+      identifierReferencedInSubtree(member, 'property'), true);
+  }
+  check(`identifierReferencedInSubtree/metadata width budget [${ adapter.name }]`, reads[1], reads[0]);
+}
+
+// A logical-left read guards its own alias, but not an unrelated name.
+for (const adapter of adapters) {
+  for (const [left, expected] of [['value', true], ['other', false]]) {
+    const program = adapter.parseAndScope(`const out = ${ left } && value.member;`);
+    const read = adapter.pickPath(program, 'Identifier', p => p.node.name === 'value' && p.parentPath.node.type === 'MemberExpression');
+    check(`aliasReadGuardedAgainstNullish/logical/${ left } [${ adapter.name }]`,
+      aliasReadGuardedAgainstNullish(read, 'value'), expected);
+  }
+  for (const [expression, expected] of [
+    ['value?.member', true],
+    ['(value)?.member', true],
+    ['value.member?.next', false],
+    ['value.member?.()', false],
+    ['(value.member)?.next', false],
+    ['other?.[value.member]', false],
+    ['value && value.member?.next', true],
+  ]) {
+    const program = adapter.parseAndScope(`const out = ${ expression };`);
+    const read = adapter.collectPaths(program, 'Identifier', p => p.node.name === 'value').at(-1);
+    check(`aliasReadGuardedAgainstNullish/optional/${ expression } [${ adapter.name }]`,
+      aliasReadGuardedAgainstNullish(read, 'value'), expected);
+  }
+}
+
+// --- isBindingDeclarationPath: the complete declaration predicate, through pattern shells ---
+for (const adapter of adapters) {
+  // a non-shorthand property: its KEY is a name, its VALUE the binding, and a shorthand spells
+  // both with one identifier the pick could not tell apart
+  const prog = adapter.parseAndScope('function f({ k: a }, b = c) { let [d] = []; e; }');
+  const expected = { a: true, b: true, c: false, d: true, e: false, f: true };
+  for (const [name, declared] of Object.entries(expected)) {
+    const path = adapter.pickPath(prog, 'Identifier', p => p.node.name === name);
+    check(`isBindingDeclarationPath/${ name } [${ adapter.name }]`, isBindingDeclarationPath(path), declared);
+  }
+}
+
+// --- typeParameterInScope / inferTypeParameterNames ---
+// babel paths only: estree-toolkit opens no paths inside type annotations, so the climb from a
+// type reference has nothing to stand on there (the annotation lane asks from its host path instead)
+{
+  const prog = babelAdapter.parseAndScope([
+    'interface Box<Set> { v: Set }',
+    'function f<WeakSet>(v: WeakSet) {}',
+    'type Picked<T> = T extends Array<infer Promise> ? Promise : never;',
+    'type Fallen<T> = T extends Array<infer Symbol> ? 1 : Symbol;',
+    '// @ts-expect-error the global namespace named as a type is the shape under test',
+    'interface Plain { v: Reflect }',
+  ].join('\n'));
+  function reference(name) {
+    return babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === name && p.parentPath?.node?.type === 'TSTypeReference').at(-1);
+  }
+  check('typeParameterInScope/interface parameter', typeParameterInScope(reference('Set'), 'Set'), true);
+  check('typeParameterInScope/function parameter', typeParameterInScope(reference('WeakSet'), 'WeakSet'), true);
+  check('typeParameterInScope/infer covers the true branch', typeParameterInScope(reference('Promise'), 'Promise'), true);
+  check('typeParameterInScope/infer does not cover the false branch', typeParameterInScope(reference('Symbol'), 'Symbol'), false);
+  check('typeParameterInScope/no parameter', typeParameterInScope(reference('Reflect'), 'Reflect'), false);
+}
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope('type P<T> = T extends Array<infer U> ? (T extends [infer V] ? U : V) : never; type Q = number;');
+  const [picked, plain] = adapter.collectPaths(prog, 'TSTypeAliasDeclaration').map(p => p.node);
+  checkDeep(`inferTypeParameterNames/every infer of the subtree [${ adapter.name }]`, [...inferTypeParameterNames(picked) ?? []].sort(), ['U', 'V']);
+  check(`inferTypeParameterNames/none [${ adapter.name }]`, inferTypeParameterNames(plain), null);
+  check(`inferTypeParameterNames/the extends clause alone [${ adapter.name }]`, [...inferTypeParameterNames(findTypeNode(picked, 'TSConditionalType').extendsType)].join(','), 'U');
+}
+
+// --- isTSTypeOnlyIdentifierPath: a name in type space reads nothing, a reference keeps injecting ---
+// babel paths, for the reason above; the structural rule reads the parent's type and the child's
+// slot, which the estree leg hands it through its own pared-down path
+{
+  const prog = babelAdapter.parseAndScope([
+    'interface Box<Set> { v: number }',
+    'type Fn = (WeakSet: number) => void;',
+    'declare function ambient(WeakMap: number): void;',
+    'class Overloaded { m(Symbol: number): void; m(Symbol: any) { return Symbol; } }',
+    'interface Keys { [ArrayBuffer: string]: number; Reflect: number; [Map.name]: number }',
+    'class Keyed { [Map.name] = 1; }',
+    'type Mapped = { [BigInt in "a"]: 1 };',
+    'declare namespace NS { type Uint8Array = number }',
+    'type Member = NS.Uint8Array;',
+    'declare const annotated: DisposableStack;',
+    'const cast = value as AggregateError;',
+    '// @ts-expect-error a bare generic in the implements clause of an empty class is the shape under test',
+    'class Impl implements Iterable<WeakRef> {}',
+    'interface Shadowed<Promise> { v: Promise }',
+    'interface Ext extends Date {}',
+  ].join('\n'));
+  function identifierIn(name, parentType = null) {
+    const [first] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === name
+      && (!parentType || p.parentPath?.node?.type === parentType));
+    return first;
+  }
+  const expected = {
+    Set: true, WeakSet: true, WeakMap: true, ArrayBuffer: true, Reflect: true, BigInt: true, Uint8Array: true,
+    DisposableStack: false, AggregateError: false, WeakRef: true, Date: false,
+  };
+  for (const [name, typeOnly] of Object.entries(expected)) {
+    check(`isTSTypeOnlyIdentifierPath/${ name }`, isTSTypeOnlyIdentifierPath(identifierIn(name)), typeOnly);
+  }
+  check('isTSTypeOnlyIdentifierPath/overload signature parameter', isTSTypeOnlyIdentifierPath(identifierIn('Symbol', 'TSDeclareMethod')), true);
+  check('isTSTypeOnlyIdentifierPath/implementation parameter is a binding, not type space',
+    isTSTypeOnlyIdentifierPath(identifierIn('Symbol', 'ClassMethod')), false);
+  check('isTSTypeOnlyIdentifierPath/reference to a type parameter in scope', isTSTypeOnlyIdentifierPath(identifierIn('Promise', 'TSTypeReference')), true);
+  check('isTSTypeOnlyIdentifierPath/qualified root is the reference', isTSTypeOnlyIdentifierPath(identifierIn('NS', 'TSQualifiedName')), false);
+  // a COMPUTED key is decided by its HOST, not by being computed: erased with an interface,
+  // evaluated by a class. the read is dispatched on the MEMBER, so the member is what is asked
+  const keyReads = babelAdapter.collectPaths(prog, 'MemberExpression', p => p.node.object?.name === 'Map');
+  check('isTSTypeOnlyIdentifierPath/computed key of an interface member is erased',
+    isTSTypeOnlyIdentifierPath(keyReads[0]), true);
+  check('isTSTypeOnlyIdentifierPath/the same key on a class field is a read',
+    isTSTypeOnlyIdentifierPath(keyReads[1]), false);
+  check('isTSTypeOnlyIdentifierPath/both key hosts were found', keyReads.length, 2);
+}
+
+// --- nonEmittedExpressionAncestor: a read inside a declaration that never reaches the emit ---
+// every shape TS erases whole is enumerated against its emitted twin, because the answer turns on
+// a FLAG (or, on the estree leg, a node type) rather than on the shape of the read itself
+{
+  const prog = babelAdapter.parseAndScope([
+    'declare class Ambient { [Map.name]: number }',
+    'abstract class Abstract { abstract [WeakMap.name]: number; }',
+    'class Declared { declare [Promise.name]: number; }',
+    'declare namespace NS { class Nested { [ArrayBuffer.name]: number } }',
+    'class Live { [Set.name] = 1; }',
+    'abstract class LiveMember { [WeakSet.name] = 2; }',
+    'declare const query: typeof Symbol;',
+    '// @ts-expect-error a computed key tsc refuses is the shape under test',
+    'declare class BareKey { [Date]: number }',
+    'declare class OptionalKey { [Uint8Array?.name]: number }',
+    '// @ts-expect-error the decorator is a read on an abstract member, not a callable',
+    'abstract class Decorated { @(Reflect.ownKeys({})) abstract accessor v: number; }',
+  ].join('\n'), 'module', ['decorators', 'decoratorAutoAccessors']);
+  function readOf(name) {
+    const [first] = babelAdapter.collectPaths(prog, 'MemberExpression', p => p.node.object?.name === name);
+    return first;
+  }
+  const erased = {
+    Map: 'ambient class',
+    WeakMap: 'abstract member',
+    Promise: 'declare member',
+    ArrayBuffer: 'class inside an ambient namespace',
+  };
+  for (const [name, label] of Object.entries(erased)) {
+    check(`nonEmittedExpressionAncestor/${ label }`, !!nonEmittedExpressionAncestor(readOf(name)), true);
+  }
+  const emitted = {
+    Set: 'plain field of a plain class',
+    WeakSet: 'concrete member of an abstract class',
+    Reflect: 'decorator on an erased member is still an expression',
+  };
+  for (const [name, label] of Object.entries(emitted)) {
+    check(`nonEmittedExpressionAncestor/${ label }`, nonEmittedExpressionAncestor(readOf(name)), null);
+  }
+  // the annotation lane dispatches from the DECLARATOR that holds the annotation, and its claim is
+  // an expectation about the environment rather than a read - the subject filter is what keeps it
+  const [declarator] = babelAdapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'query');
+  check('nonEmittedExpressionAncestor/an ambient declarator is not a subject', nonEmittedExpressionAncestor(declarator), null);
+  const [typeofName] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Symbol');
+  check('nonEmittedExpressionAncestor/a name under an annotation keeps its claim', nonEmittedExpressionAncestor(typeofName), null);
+  check('nonEmittedExpressionAncestor/no path', nonEmittedExpressionAncestor(null), null);
+  // the other two subject shapes a computed key is written with, each carrying a form of its own:
+  // a BARE global as the whole key, and a global read through an optional receiver
+  const [bareKey] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Date');
+  check('nonEmittedExpressionAncestor/bare name as the whole key', !!nonEmittedExpressionAncestor(bareKey), true);
+  const [optionalKey] = babelAdapter.collectPaths(prog, 'OptionalMemberExpression', p => p.node.object?.name === 'Uint8Array');
+  check('nonEmittedExpressionAncestor/optional receiver in the key', !!nonEmittedExpressionAncestor(optionalKey), true);
+}
+
+// the emit question through BOTH parsers: the answer turns on a flag on one leg and on a node type
+// of its own on the other (`abstract` is `TSAbstractPropertyDefinition` under oxc), so a leg that
+// silently answered "runtime" here would inject into a member that never reaches the emit
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope([
+    'declare class Ambient { [Map.name]: number }',
+    'abstract class Abstract { abstract [WeakMap.name]: number; }',
+    'class Declared { declare [Promise.name]: number; }',
+    'declare namespace NS { class Nested { [ArrayBuffer.name]: number } }',
+    'class Live { [Set.name] = 1; }',
+  ].join('\n'));
+  function memberRead(name) {
+    const [first] = adapter.collectPaths(prog, 'MemberExpression', p => p.node.object?.name === name);
+    return first;
+  }
+  const erased = { Map: 'ambient class', WeakMap: 'abstract member', Promise: 'declare member', ArrayBuffer: 'ambient namespace' };
+  for (const [name, what] of Object.entries(erased)) {
+    check(`nonEmittedExpressionAncestor/${ what } [${ adapter.name }]`, !!nonEmittedExpressionAncestor(memberRead(name)), true);
+  }
+  check(`nonEmittedExpressionAncestor/plain field [${ adapter.name }]`, nonEmittedExpressionAncestor(memberRead('Set')), null);
+}
+
+// --- stepOverChainWrappers: the wrapper step both chain walks share ---
+// the two halves it reports are what a reader needs - the node the member above would see, and the
+// path that member sits at - and the ROOT flag is the whole difference between a value carrier
+// being transparent and being a consumer of the store
+for (const adapter of adapters) {
+  const prog = adapter.parseAndScope('const w = (v = globalThis).window.self;\nconst t = (nav as any).at;');
+  const [carried] = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'globalThis');
+  const atRoot = stepOverChainWrappers(carried.node, carried.parentPath, true);
+  check(`stepOverChainWrappers/carrier at the root is transparent [${ adapter.name }]`,
+    atRoot[1]?.node?.type, 'MemberExpression');
+  const notRoot = stepOverChainWrappers(carried.node, carried.parentPath, false);
+  check(`stepOverChainWrappers/the same carrier off the root is a consumer [${ adapter.name }]`,
+    notRoot[1]?.node?.type, 'AssignmentExpression');
+  check(`stepOverChainWrappers/off the root the child is unchanged [${ adapter.name }]`,
+    notRoot[0], carried.node);
+  const [wrapped] = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'nav');
+  const overCast = stepOverChainWrappers(wrapped.node, wrapped.parentPath);
+  check(`stepOverChainWrappers/a TS cast between hops is stepped over [${ adapter.name }]`,
+    overCast[1]?.node?.type, 'MemberExpression');
+  // the wrappers a cast wears differ by dialect (oxc keeps the source paren over the cast, babel
+  // drops it), so the claim is the INVARIANT: whatever the step returns is what the member reads
+  check(`stepOverChainWrappers/and the stepped-over wrapper is what the member reads [${ adapter.name }]`,
+    overCast[1]?.node?.object, overCast[0]);
+  const [plain] = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'w');
+  checkDeep(`stepOverChainWrappers/nothing to step over [${ adapter.name }]`,
+    stepOverChainWrappers(plain.node, plain.parentPath)[0], plain.node);
+}
+
+// --- isDeclarationFile: the file-level twin of the emit question ---
+{
+  const declaration = [
+    'a.d.ts', 'a.d.mts', 'a.d.cts', '/pkg/types/index.d.ts', 'C:\\pkg\\index.d.ts',
+    '/pkg/a.d.ts?v=2', '/pkg/a.d.ts#frag', 'file:///pkg/a.d.ts', 'A.D.TS',
+  ];
+  for (const name of declaration) check(`isDeclarationFile/${ name }`, isDeclarationFile(name), true);
+  // the suffix is the WHOLE claim, so every near-miss around it is spelled out
+  const source = [
+    'a.ts', 'a.mts', 'a.cts', 'a.js', 'a.d.js', 'declaration.ts', '/pkg/d.ts',
+    'a.d.ts.js', 'ad.ts', 'a.dts', '/pkg/x.d.ts/inner.ts',
+  ];
+  for (const name of source) check(`isDeclarationFile/${ name } is source`, isDeclarationFile(name), false);
+  check('isDeclarationFile/no name', isDeclarationFile(null), false);
+  check('isDeclarationFile/non-string', isDeclarationFile(42), false);
+}
+
+// --- isAmbientTypeDeclaration: one reading of `declare`, whatever the declaration ---
+// the Flow node types were added when the emit question started asking this predicate; the TS
+// shapes beside them are what the resolver lanes have always narrowed
+{
+  const prog = babelAdapter.parseAndScope([
+    'declare class C {}',
+    'declare function f(): void;',
+    'declare const v: number;',
+    'declare namespace N { const w: number }',
+    'declare enum E { X }',
+    'interface I { v: number }',
+    'type T = number;',
+    'class Plain {}',
+    'function g() {}',
+  ].join('\n'));
+  function first(type) { return babelAdapter.collectPaths(prog, type)[0]?.node; }
+  const ambient = {
+    ClassDeclaration: 'declare class',
+    TSDeclareFunction: 'declare function',
+    TSModuleDeclaration: 'declare namespace',
+    TSEnumDeclaration: 'declare enum',
+    TSInterfaceDeclaration: 'interface',
+    TSTypeAliasDeclaration: 'type alias',
+  };
+  for (const [type, label] of Object.entries(ambient)) {
+    check(`isAmbientTypeDeclaration/${ label }`, isAmbientTypeDeclaration(first(type)), true);
+  }
+  const [ambientVar, plainClass, plainFn] = [
+    babelAdapter.collectPaths(prog, 'VariableDeclaration')[0]?.node,
+    babelAdapter.collectPaths(prog, 'ClassDeclaration')[1]?.node,
+    babelAdapter.collectPaths(prog, 'FunctionDeclaration')[0]?.node,
+  ];
+  check('isAmbientTypeDeclaration/declare const', isAmbientTypeDeclaration(ambientVar), true);
+  check('isAmbientTypeDeclaration/plain class', isAmbientTypeDeclaration(plainClass), false);
+  check('isAmbientTypeDeclaration/plain function', isAmbientTypeDeclaration(plainFn), false);
+  check('isAmbientTypeDeclaration/no node', isAmbientTypeDeclaration(null), false);
+  // Flow writes the same two declarations as node types instead of a flag
+  const flow = babelAdapter.parseAndScope('declare class F {}\ndeclare function h(): void;', 'module', ['flow']);
+  check('isAmbientTypeDeclaration/DeclareClass', isAmbientTypeDeclaration(babelAdapter.collectPaths(flow, 'DeclareClass')[0]?.node), true);
+  check('isAmbientTypeDeclaration/DeclareFunction', isAmbientTypeDeclaration(babelAdapter.collectPaths(flow, 'DeclareFunction')[0]?.node), true);
+}
+
+// --- resolveBatchDirectivePromotionPolicy: a removal may never change the prologue ---
+
+// the entry slot a removal would leave: `0;` (a promotion the guard blocked) or gone. bodies are
+// duck-typed, which is what the policy reads - the decision is positional, never parser-dialect
+function promotionVerdict(body, candidateIndices, injectedImportsBreakPrologue = false) {
+  const { toRemove, toReplaceWithNoop } = resolveBatchDirectivePromotionPolicy({
+    body, candidateIndices, injectedImportsBreakPrologue,
+  });
+  return { removed: toRemove.length, noop: toReplaceWithNoop.length };
+}
+
+// the case the guard exists for, in its worst spelling: no prologue at all, so the removal CREATES
+// one and a sloppy script silently becomes strict
+checkDeep('promotionPolicy/no prologue, literal behind', promotionVerdict([realCode, bareDirective('use strict'), realCode], [0]), { removed: 0, noop: 1 });
+checkDeep('promotionPolicy/prologue already there', promotionVerdict([markedDirective('use strict'), realCode, bareDirective('use asm'), realCode], [1]), { removed: 0, noop: 1 });
+// nothing to promote: the next surviving sibling is not a string, or a non-directive already
+// stands in the prefix, or the injected block will break the prologue itself
+checkDeep('promotionPolicy/next sibling is code', promotionVerdict([realCode, realCode], [0]), { removed: 1, noop: 0 });
+checkDeep('promotionPolicy/non-directive prefix', promotionVerdict([realCode, realCode, bareDirective('use strict')], [1]), { removed: 1, noop: 0 });
+checkDeep('promotionPolicy/injected imports break the prologue', promotionVerdict([realCode, bareDirective('use strict'), realCode], [0], true), { removed: 1, noop: 0 });
+// a run of literals promotes WHOLE, so the terminator is owed even when the mode-changing one is
+// not the first of them
+checkDeep('promotionPolicy/literal run', promotionVerdict([realCode, bareDirective('a'), bareDirective('use strict'), realCode], [0]), { removed: 0, noop: 1 });
+// batch: the later candidate decides first, and its `0;` is the non-directive that blocks the
+// earlier one - so exactly one terminator lands
+checkDeep('promotionPolicy/two candidates share one terminator', promotionVerdict([realCode, realCode, bareDirective('use strict'), realCode], [0, 1]), { removed: 1, noop: 1 });
+
+// --- bindingBoundName: whichever shape the binding takes ---
+check('bindingBoundName/babel record', bindingBoundName({ identifier: { name: 'a' } }), 'a');
+check('bindingBoundName/estree record', bindingBoundName({ name: 'b' }), 'b');
+check('bindingBoundName/declarator id', bindingBoundName({ path: { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'c' } } } }), 'c');
+check('bindingBoundName/pattern declarator answers nothing', bindingBoundName({ path: { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' } } } }), null);
+// the accessor is asked of whatever a lookup handed back, an ABSENT binding included
+check('bindingBoundName/no binding at all', bindingBoundName(null), null);
+check('bindingBoundName/an empty view', bindingBoundName({}), null);
+
+// --- the chains these predicates are asked over: detached, dropped, position-less ---
+
+// every one of these walks climbs a parent chain, and three of the shapes it is handed carry a hole
+// where a node is expected: a chain that overshoots its stop and reaches a detached / tree-root path
+// (node `null`), a statement list whose member an emitter DROPPED, a path a caller built with no
+// parent at all. None is reachable through a parse, so no fixture can put one here; each is what the
+// resolver itself hands these helpers mid-rewrite, and reading the hole through throws before any
+// answer. The rows below stand the shape up directly and pin the answer the walk stops on.
+
+// the write climb: a class eval slot sits ABOVE the hole, so a climb that read through it would
+// answer `true` - the control row spells the same chain WITHOUT the hole and gets exactly that
+{
+  const write = { type: 'AssignmentExpression', start: 20, end: 30 };
+  const decorator = { type: 'Decorator', expression: write, start: 18, end: 30 };
+  const classNode = { type: 'ClassDeclaration', decorators: [decorator], body: { type: 'ClassBody', body: [] }, start: 0, end: 60 };
+  const classPath = { node: classNode, parentPath: null };
+  const holedPath = { node: decorator, listKey: 'decorators', key: 0, parentPath: { node: null, parentPath: classPath } };
+  const wholePath = { node: decorator, listKey: 'decorators', key: 0, parentPath: classPath };
+  check('early slot/write climb stops at a detached step', writeSitsInEarlySlot({ node: write, key: 'expression', parentPath: holedPath }), false);
+  check('early slot/the same chain without the hole reaches the class decorator', writeSitsInEarlySlot({ node: write, key: 'expression', parentPath: wholePath }), true);
+}
+
+// the mirror's climb, over the pair only a CLASS ranks: its own decorator list runs at definition
+// time, ahead of every field value the body holds, and the class node is where that pair is read -
+// an ancestry step above a class MEMBER would answer about the class enclosing THIS one
+{
+  const useNode = { type: 'Identifier', name: 'x', start: 5, end: 6 };
+  const decorator = { type: 'Decorator', expression: useNode, start: 2, end: 8 };
+  const write = { type: 'AssignmentExpression', start: 38, end: 48 };
+  const field = { type: 'ClassProperty', computed: false, key: { type: 'Identifier', name: 'p' }, value: write, start: 36, end: 50 };
+  const classNode = { type: 'ClassDeclaration', decorators: [decorator], body: { type: 'ClassBody', body: [field] }, start: 0, end: 60 };
+  const classPath = { node: classNode, parentPath: null };
+  const decPath = { node: decorator, listKey: 'decorators', key: 0, parentPath: classPath };
+  check('early slot, mirror: a use in the class\'s own decorator outruns a field value below it',
+    useOutrunsWrite(write, { node: useNode, key: 'expression', parentPath: decPath }), true);
+  // its own nodes, not the pair above: the span index is memoized per use NODE, and a shared one
+  // would answer this row from the row before it
+  const holedUse = { type: 'Identifier', name: 'z', start: 5, end: 6 };
+  const holedDec = { type: 'Decorator', expression: holedUse, start: 2, end: 8 };
+  const holedPath = { node: holedDec, listKey: 'decorators', key: 0, parentPath: { node: null, parentPath: classPath } };
+  check('early slot, mirror: the climb stops at a detached step', useOutrunsWrite(write, { node: holedUse, key: 'expression', parentPath: holedPath }), false);
+  check('early slot, mirror: a use path with no parent at all outruns nothing',
+    useOutrunsWrite(write, { node: { type: 'Identifier', name: 'y', start: 5, end: 6 } }), false);
+  // the OTHER half of the memo pair asks the same question in reverse and reads the same parent slot
+  // to key its memo by, so the parentless use reaches it too
+  check('early slot: a use path with no parent at all is outrun by nothing',
+    writeOutrunsUse(write, { node: { type: 'Identifier', name: 'w', start: 5, end: 6 } }), false);
+}
+
+// statement placement over a list an emitter has dropped a member from: the hole occupies no span
+// and hosts nothing, while the members around it still place their own writes
+{
+  const first = { type: 'VariableDeclaration', start: 0, end: 10 };
+  const third = { type: 'ExpressionStatement', start: 31, end: 50 };
+  const block = { type: 'BlockStatement', body: [first, null, third] };
+  const blockPath = { node: block, parentPath: null };
+  const siblings = block.body.map((node, key) => ({ node, listKey: 'body', key, parentPath: blockPath }));
+  check('statement placement: a dropped member does not displace the ones around it',
+    siblingHostingIndex(siblings, { type: 'AssignmentExpression', start: 33, end: 40 }), 2);
+  check('statement placement: and hosts nothing where it stood',
+    siblingHostingIndex(siblings, { type: 'AssignmentExpression', start: 12, end: 20 }), -1);
+  // a bare node placed by span alone, with no span to place it by: the search over an ASCENDING
+  // list of disjoint spans answers "no member" for every partial one, so the placement needs no
+  // span test of its own ahead of it
+  for (const [label, target] of [
+    ['neither end', { type: 'AssignmentExpression' }],
+    ['a start only', { type: 'AssignmentExpression', start: 12 }],
+    ['an end only', { type: 'AssignmentExpression', end: 20 }],
+  ]) check(`statement placement: a node with ${ label } is hosted by nothing`, siblingHostingIndex(siblings, target), -1);
+}
+
+// the deferral step is asked of an ancestor NODE, and the climbs that ask it run off the top of
+// their chain - the step above a detached path has no node to classify
+check('deferral step/no node is no deferred context', isDeferredContextStep(null, null), false);
+
+// the suspension search is asked for a read position, and a read an emitter minted has none. the
+// search over an ascending list ranks nothing before such a read, so a caller holding a
+// position-less read needs no test of its own ahead of the call
+{
+  const await0 = { type: 'AwaitExpression', argument: { type: 'NumericLiteral', value: 0 }, start: 30, end: 37 };
+  const fnNode = {
+    type: 'FunctionDeclaration',
+    async: true,
+    body: { type: 'BlockStatement', body: [{ type: 'ExpressionStatement', expression: await0, start: 30, end: 38 }] },
+  };
+  check('suspension point/a read below the await is parked behind it', suspensionPointBefore(fnNode, 40), 30);
+  check('suspension point/a read above it is not', suspensionPointBefore(fnNode, 10), null);
+  check('suspension point/a read with no position of its own is not', suspensionPointBefore(fnNode, undefined), null);
+}
+
+// Source-only pairing keeps a supplied argument distinct from a pattern's default obligations.
+// In particular, an absent or unreadable array slot must not masquerade as its own fallback.
+for (const [label, source, name, all, supplied] of [
+  ['array leaf', 'const [value = fallback] = [actual];', 'value', ['fallback', 'actual'], ['actual']],
+  ['array nested', 'const [{ of } = Array] = [Map];', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['object nested', 'const { x: { of } = Array } = { x: Map };', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['stored source', 'let held; const [{ of } = Array] = (held = [Map]);', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['stored array slot', 'let held; const [{ of } = Array] = [held = Map];', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['stored object slot', 'let held; const { x: { of } = Array } = { x: held = Map };', 'of', ['Map.of', 'Array.of'], ['Map.of']],
+  ['absent slot', 'const [{ of } = Array] = [];', 'of', ['Array.of'], []],
+  ['unknown source', 'const [{ of } = Array] = values;', 'of', ['Array.of'], []],
+  ['array siblings', 'const [other, { of: value } = Array, ...rest] = [Boolean, Map];',
+    'value', ['Map.of', 'Array.of'], ['Map.of']],
+  ['renamed object siblings', 'const { value: other, x: { of: value } = Array, tail } = { value: Number, x: Map };',
+    'value', ['Map.of', 'Array.of'], ['Map.of']],
+  ['property name is not a binding', 'const { value: other, x: { of } = Array } = { value: Number, x: Map };',
+    'value', [], []],
+]) {
+  for (const adapter of adapters) {
+    const program = adapter.parseAndScope(source);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
+    function values(ctx) {
+      return patternSlotValues(id, init, name, ctx).map(value => {
+        const { root, keys } = memberChainKeys(value);
+        return [root.name, ...keys].join('.');
+      });
+    }
+    checkDeep(`patternSlotValues/${ label } [${ adapter.name }]: complete union`, values(), all);
+    checkDeep(`patternSlotValues/${ label } [${ adapter.name }]: supplied alone`, values({ includeDefaults: false }), supplied);
+  }
+}
+
+// Object-rest receivers are a separate proof input, never aliases of the copied rest binding.
+for (const adapter of adapters) for (const source of [
+  'const { from, ...rest } = Array;',
+  'const [{ from, ...rest }] = [Array];',
+  'const { value: { from, ...rest } } = { value: Array };',
+]) {
+  const program = adapter.parseAndScope(source);
+  const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  const restSources = [];
+  checkDeep(`object-rest slot values [${ adapter.name }]: ${ source }`, patternSlotValues(id, init, 'rest', { restSources }), []);
+  checkDeep(`object-rest source [${ adapter.name }]: ${ source }`, restSources.map(value => value.name), ['Array']);
+}
+
+// Stored values must expose the same spread ambiguity to enumeration and its completeness gate.
+for (const adapter of adapters) for (const [source, shifted] of [
+  ['let held; const [{ of }] = (held = [Map]);', false],
+  ['let held; const [{ of }] = (held = [...values, Map]);', true],
+  ['let held; const { x: [{ of }] } = { x: held = [...values, Map] };', true],
+  ['let held; const [[{ of }]] = [held = [...values, Map]];', true],
+  // the keyed spelling of an array slot reports the shift the positional spelling reports (a
+  // ctx-less pairing reads literal STRING keys; the numeric spelling folds through the ctx resolver)
+  ["let held; const { '1': { of } } = (held = [...values, Map]);", true],
+  ["let held; const { '0': { of } } = (held = [Map, ...values]);", false],
+  ["let held; const { x: { '1': { of } } } = { x: held = [...values, Map] };", true],
+]) {
+  const program = adapter.parseAndScope(source);
+  const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
+  check(`stored spread completeness [${ adapter.name }]: ${ source }`, patternSlotSpreadShifted(id, init, 'of'), shifted);
+}
+
+// Every read of a literal's slot asks both lookups below, so a lookup that scans the literal makes N
+// reads of one literal quadratic. A leaf slot's shift check reads no key of the literal, and a plain
+// key never reaches the key canon; the nested and computed rows are the controls that the counter
+// sees the literal's keys at all
+const SLOT_KEYS = Array.from({ length: 32 }, (unused, i) => `a${ i }`);
+function countingKeyCtx() {
+  const reads = [];
+  return {
+    reads,
+    resolveKey({ node, computed }) {
+      reads.push(node);
+      return computed ? node.value : node.name;
+    },
+  };
+}
+for (const adapter of adapters) {
+  for (const [label, entries, pattern, shifted, scanned] of [
+    ['leaf slot', SLOT_KEYS.map(key => `['${ key }']: Map`), 'a0: value', false, false],
+    ['nested slot', [...SLOT_KEYS.map(key => `['${ key }']: Map`), "['a0']: [...values, Map]"], 'a0: [, value]', true, true],
+  ]) {
+    const program = adapter.parseAndScope(`const { ${ pattern } } = { ${ entries.join(', ') } };`);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    const ctx = countingKeyCtx();
+    check(`literal slot shift [${ adapter.name }]: ${ label }`, patternSlotSpreadShifted(id, init, 'value', ctx), shifted);
+    const literalKeys = new Set(init.properties.map(({ key }) => key));
+    check(`literal slot shift [${ adapter.name }]: ${ label } reads literal keys`, ctx.reads.some(node => literalKeys.has(node)), scanned);
+  }
+  for (const [label, entries, reads] of [
+    ['plain keys', SLOT_KEYS.map(key => `${ key }: Map`), 0],
+    ['computed key', ["['a0']: Map"], 1],
+  ]) {
+    const program = adapter.parseAndScope(`const { a0: value } = { ${ entries.join(', ') } };`);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+    const ctx = countingKeyCtx();
+    checkDeep(`literal slot values [${ adapter.name }]: ${ label }`, patternSlotValues(id, init, 'value', ctx).map(value => value.name), ['Map']);
+    check(`literal slot values [${ adapter.name }]: ${ label } key canon reads`, ctx.reads.length, reads);
+  }
+}
+
+for (const [source, keys] of [
+  ['const { first: { Map: other }, wanted: { WeakSet: value }, last } = box;', ['WeakSet']],
+  ['const [other, { Map: value = WeakMap }] = [Set, globalThis];', ['Map']],
+  ['const { value: other, x: { Map: value }, ...rest } = globalThis;', ['Map']],
+  ['const { value: other, ...rest } = globalThis;', []],
+  ['let held; const { Map: value } = (held = globalThis);', ['Map']],
+  ['let held; const { x: { Map: value } } = { x: held = globalThis };', ['Map']],
+  ['let held; const [{ Map: value }] = [held = globalThis];', ['Map']],
+  ['const [{ Map: value } = globalThis] = [];', ['Map']],
+  ['const { x: { Map: value } = globalThis } = {};', ['Map']],
+]) {
+  for (const adapter of adapters) {
+    const program = adapter.parseAndScope(source);
+    const { id, init } = adapter.pickPath(program, 'VariableDeclarator', path => path.node.init !== null).node;
+    checkDeep(`patternReceiverSlotNodes/sibling bindings [${ adapter.name }]: ${ source }`,
+      patternReceiverSlotNodes(id, init, 'value').map(property => property.key.name), keys);
+  }
+}
+
+// The receiver and value pairers follow the same positional reads when requested by a census.
+for (const [label, source, receivers, shallow] of [
+  ['array receiver', 'const [{ groupBy: value }] = list;', ['list.0'], []],
+  ['nested array receiver', 'const [[{ groupBy: value }]] = list;', ['list.0.0'], []],
+  ['object then array', 'const { entries: [{ groupBy: value }] } = list;', ['list.entries.0'], []],
+  ['array then object', 'const [{ entry: { groupBy: value } }] = list;', ['list.0.entry'], []],
+  ['invocation receiver', 'const [{ groupBy: value }] = list();', ['list.0'], []],
+  ['slot default', 'const [{ groupBy: value } = Map] = list;', ['list.0', 'Map'], ['Map']],
+  ['unknown key default', 'const { [key]: { groupBy: value } = Map } = list;', ['Map'], ['Map']],
+  ['wrapped unknown key default', 'const [{ [key]: { groupBy: value } = Map }] = [globalThis];', ['Map'], ['Map']],
+  ['different candidate sources', 'const [{ groupBy: value }] = [...items, Map, Object];', ['Map', 'Object'], ['Map', 'Object']],
+  ['hole before slot', 'const [, { groupBy: value }] = list;', ['list.1'], []],
+  ['rest after slot', 'const [{ groupBy: value }, ...rest] = list;', ['list.0'], []],
+  ['rest is no indexed slot', 'const [...{ groupBy: value }] = list;', [], []],
+  ['literal source', 'const [{ groupBy: value }] = [Map];', ['Map'], ['Map']],
+  ['missing literal slot', 'const [{ groupBy: value }] = [];', [], []],
+]) for (const adapter of adapters) {
+  const program = adapter.parseAndScope(source);
+  const { id, init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  for (const readsThrough of [false, true]) {
+    const slotReceivers = new Map();
+    const slots = patternReceiverSlotNodes(id, init, 'value', { readsThrough, slotReceivers });
+    const actual = slotReceivers.values().flatMap(sources => sources.map(receiver => {
+      const { root, keys } = memberChainKeys(receiver);
+      return [root.name ?? root.callee?.name, ...keys].join('.');
+    })).toArray();
+    check(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]: slot count`, slots.length, (readsThrough ? receivers : shallow).length);
+    checkDeep(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]`, actual, readsThrough ? receivers : shallow);
+  }
+}
+
+runBoth('walkAstNodes/leave follows children in source order', 'outer(first, inner(second), third);', (adapter, program, label) => {
+  const root = adapter.pickPath(program, 'CallExpression').node;
+  const entered = [];
+  const left = [];
+  function labelOf(node) {
+    return node.type === 'CallExpression' ? `call:${ node.callee.name }` : node.name;
+  }
+  walkAstNodes({
+    root,
+    visit(node) { entered.push(labelOf(node)); },
+    leave(node, parent) {
+      left.push(labelOf(node));
+      if (node.name === 'second') check(`${ label }: leave receives parent`, parent.callee.name, 'inner');
+    },
+  });
+  checkDeep(`${ label }: enter order`, entered, ['call:outer', 'outer', 'first', 'call:inner', 'inner', 'second', 'third']);
+  checkDeep(`${ label }: leave order`, left, ['outer', 'first', 'inner', 'second', 'call:inner', 'third', 'call:outer']);
+});
+
+runBoth('walkAstNodes/pruning skips descendants and leave', 'outer(first, inner(second), third);', (adapter, program, label) => {
+  const root = adapter.pickPath(program, 'CallExpression').node;
+  const entered = [];
+  const left = [];
+  function labelOf(node) {
+    return node.type === 'CallExpression' ? `call:${ node.callee.name }` : node.name;
+  }
+  walkAstNodes({
+    root,
+    visit(node) {
+      entered.push(labelOf(node));
+      return node.type !== 'CallExpression' || node.callee.name !== 'inner';
+    },
+    leave(node) { left.push(labelOf(node)); },
+  });
+  checkDeep(`${ label }: pruned enter order`, entered, ['call:outer', 'outer', 'first', 'call:inner', 'third']);
+  checkDeep(`${ label }: pruned leave order`, left, ['outer', 'first', 'third', 'call:outer']);
+  let rootLeft = false;
+  walkAstNodes({ root, visit: () => false, leave() { rootLeft = true; } });
+  check(`${ label }: pruned root has no leave`, rootLeft, false);
+});
+
+for (const [label, source] of [
+  ['closed array slot', 'const holder = [[1]]; holder[0].at(0);'],
+  ['closed nested slot', 'const holder = [[[1]]]; holder[0][0].at(0);'],
+  ['closed object slot', 'const holder = { rows: [1] }; holder.rows.at(0);'],
+  ['numeric object slot', 'const holder = { 0: [1] }; holder[0].at(0);'],
+  ['unknown own data override', 'const holder = { rows: [1], [key]: other }; holder.rows.at(0);'],
+  ['spread data override', 'const holder = { rows: [1], ...other }; holder.rows.at(0);'],
+  ['known slot after unknown key', 'const holder = { [key]: other, rows: [[1]] }; holder.rows[0].at(0);'],
+  ['unknown deeper value', 'const holder = { rows: [[1]], [key]: other }; holder.rows[0].at(0);'],
+  ['own slot destructured', 'const holder = { rows: [1] }; const { rows: alias } = holder; alias.push(2); holder.rows.at(0);'],
+  ['inherited slot destructured', 'const holder = { rows: [1] }; const { other: alias } = holder; holder.rows.at(0);'],
+  ['completed slot write', 'const holder = [1]; holder[0] = "a"; holder[0].at(0);'],
+  ['completed holder write', 'let holder = [[1]]; holder = [[2]]; holder[0].at(0);'],
+  ['length preserves slot', 'const holder = [[1], [2]]; holder.length = 1; holder[0].at(0);'],
+  ['truncated slot', 'const holder = [[1], [2]]; holder.length = 1; holder[1].at(0);'],
+  ['empty slot', 'const holder = [, [2]]; holder[0].at(0);'],
+  ['inherited slot', 'const holder = {}; holder.rows.at(0);'],
+  ['getter slot', 'const holder = { get rows() { return [1]; } }; holder.rows.at(0);'],
+  ['opaque method exposes holder', 'const holder = [[1]]; holder.custom(); holder[0].at(0);'],
+  ['method getter exposes holder', 'const holder = [[1]]; const method = holder.splice; holder[0].at(0);'],
+  ['holder handed out', 'const holder = [[1]]; unknown(holder); holder[0].at(0);'],
+  ['inner holder handed out', 'const holder = [[[1]]]; unknown(holder[0]); holder[0][0].at(0);'],
+  ['only leaf handed out', 'const holder = [[1]]; unknown(holder[0]); holder[0].at(0);'],
+  ['deferred slot writer', 'const holder = [[1]]; function change() { holder[0] = [2]; } holder[0].at(0);'],
+  ['deferred holder writer', 'let holder = [[1]]; function change() { holder = [[2]]; } holder[0].at(0);'],
+  ['exported holder', 'export const holder = [[1]]; holder[0].at(0);'],
+  ['dynamic read', 'const holder = [[1]]; holder[key].at(0);'],
+  ['future write', 'const holder = [[1]]; holder[0].at(0); holder[0] = [2];'],
+]) runBoth(`isReusableReceiver/member read captured ${ label }`, source, (parser, program, row) => {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+  const ctx = { adapter, path, scope: path.scope };
+  check(row, isReusableReceiver(path.node.object, { ctx }), false);
+  check(`${ row }/intervening key effects`, isReusableReceiver(path.node.object, { interveningEffects: true, ctx }), false);
+});
+
+for (const adapter of adapters) for (const [label, source] of [
+  ['object sibling', 'const { w: { at: method }, z: {} } = holder;'],
+  ['defaulted sibling', 'const { w: { at: method }, z: {} = fallback } = holder;'],
+  ['array sibling', 'const { w: { at: method }, z: [{}] } = holder;'],
+]) {
+  const program = adapter.parseAndScope(source);
+  const pattern = adapter.pickPath(program, 'VariableDeclarator').node.id;
+  const [first, sibling] = pattern.properties;
+  const changed = first.value;
+  changed.properties = [];
+  pruneEmptiedHopProps(pattern, { mint: () => ({ type: 'Identifier', name: '_unused' }), consumedPatterns: new Set([changed]) });
+  check(`${ label } [${ adapter.name }]: only consumed hop retired`, pattern.properties.length, 1);
+  check(`${ label } [${ adapter.name }]: native empty sibling retained`, pattern.properties[0], sibling);
+}
+
+// --- foldWalkReach ---
+
+// the fold walk stands in every selection the build decided and every statement or sequence an answer may stand in -
+// a binding this pass minted, a literal no source position marks the user's - with all their ancestors, and nowhere
+// else; a tree too deep to tell asks for every node
+for (const adapter of adapters) {
+  const label = `foldWalkReach [${ adapter.name }]`;
+  const root = adapter.parseAndScope(`function untouched() { return b ? c : d; }
+export function f() {
+  (_ref, 0);
+  _ref;
+  x = y || z;
+  if (q) { 0; }
+}`).node;
+  const decided = findNode(root, node => node.type === 'LogicalExpression');
+  const rendered = { type: 'ExpressionStatement', expression: { type: adapter.name === 'babel' ? 'BooleanLiteral' : 'Literal', value: true } };
+  root.body.push(rendered);
+  const injectorState = { isOwnPassGeneratedName: name => name === '_ref' };
+  const reach = foldWalkReach(root, { isDecided: node => node === decided, injectorState });
+  const f = findNode(root, node => node.type === 'FunctionDeclaration' && node.id.name === 'f');
+  const [sequenceStatement, mintedStatement, decidedStatement, guard] = f.body.body;
+  check(`${ label }: the decided selection`, reach.has(decided), true);
+  check(`${ label }: its statement`, reach.has(decidedStatement), true);
+  check(`${ label }: a sequence leading with a minted binding`, reach.has(findNode(root, node => node.type === 'SequenceExpression')), true);
+  check(`${ label }: its statement too`, reach.has(sequenceStatement), true);
+  check(`${ label }: a statement of a minted binding`, reach.has(mintedStatement), true);
+  check(`${ label }: an unpositioned rendered literal`, reach.has(rendered), true);
+  check(`${ label }: the function holding them`, reach.has(f), true);
+  check(`${ label }: the program`, reach.has(root), true);
+  check(`${ label }: an undecided selection`, reach.has(findNode(root, node => node.type === 'ConditionalExpression')), false);
+  check(`${ label }: the function holding it`, reach.has(root.body[0]), false);
+  check(`${ label }: the user's own literal statement`, reach.has(guard.consequent.body[0]), false);
+  check(`${ label }: the statement holding it`, reach.has(guard), false);
+}
+{
+  let deep = { type: 'Identifier', name: 'leaf' };
+  for (let depth = 0; depth < 1100; depth++) deep = { type: 'UnaryExpression', operator: '!', prefix: true, argument: deep };
+  const root = { type: 'Program', body: [{ type: 'ExpressionStatement', expression: deep }] };
+  check('foldWalkReach: a tree too deep to tell', foldWalkReach(root, { isDecided: () => false, injectorState: null }), null);
+}
+
+// Free receivers follow actual source writes, including lowercase slots outside the built-in census.
+for (const [source, ordinary, effects = ordinary] of [
+  ['rows.at(0);', true],
+  ['function write() { other = next; } rows.at(0);', true],
+  ['function write(rows) { rows = next; } rows.at(0);', true],
+  ['function write() { let rows; rows = next; } rows.at(0);', true],
+  ['rows = next; rows.at(0);', true],
+  ['rows.at(0); rows = next;', true],
+  ['function write() { rows = next; } rows.at(0);', false],
+  ['function write() { [rows] = next; } rows.at(0);', false],
+  ['function write() { for (rows of values) {} } rows.at(0);', false],
+  ['rows[(rows = next, "at")](0);', true, false],
+  // Intentionally invalid TS: an ambient const write must still prevent receiver reuse.
+  ['// @ts-expect-error the write to a constant binding still sits in the source, and it is the shape under test\n'
+    + 'declare const rows: number[]; function write() { rows = next; } rows.at(0);', false],
+  ['const rows = []; function write() { globalThis.rows = next; } rows.at(0);', true],
+]) runBoth(`isReusableReceiver/source free write/${ source }`, source, (parser, program, label) => {
+  const read = parser.pickPath(program, 'MemberExpression', path => path.node.object?.name === 'rows');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: read.scope, path: read, adapter };
+  const before = JSON.stringify(program.node);
+  check(`${ label } adjacent reads`, isReusableReceiver(read.node.object, { ctx }), ordinary);
+  check(`${ label } across effects`, isReusableReceiver(read.node.object, { ctx, interveningEffects: true }), effects);
+  check(`${ label } read-only`, JSON.stringify(program.node), before);
+});
+
+// A receiver can replace a literal init only when it performs every observable part.
+// The optional quiet proof applies at every nested level; an unknown computed key remains observable.
+for (const [name, source, expected] of [
+  ['unknown computed key', 'const value = { [key]: quiet, y: receiver };', false],
+  ['folded computed key', "const value = { ['known']: quiet, y: receiver };", true],
+  ['nested quiet sibling', 'const value = { x: { sibling: stable(), y: receiver } };', true],
+  ['nested observable sibling', 'const value = { x: { sibling: noisy(), y: receiver } };', false],
+]) runBoth(`receiver performs every init effect/${ name }`, source, (adapter, program, label) => {
+  const { init } = adapter.pickPath(program, 'VariableDeclarator').node;
+  const receiver = findNode(init, node => node.type === 'Identifier' && node.name === 'receiver');
+  function isQuiet(node) {
+    return node.type === 'Identifier' || node.type === 'CallExpression' && node.callee?.name === 'stable';
+  }
+  check(label, receiverPerformsEveryInitEffect(init, receiver, null, isQuiet), expected);
+});
+
+// Argument timing does not need a guard for plain values or deferred function bodies.
+// TDZ examples intentionally read before initialization; plain reads add no effect-order guard.
+for (const [name, expression, expected, before = 'const index = 0;', after = ''] of [
+  ['literal', '0', false],
+  ['negative index', '-1', false],
+  ['bigint value', '1n', false],
+  ['bigint numeric coercion', '+1n', true],
+  ['constant arithmetic', 'index - 1', false],
+  ['string length arithmetic', "'abc'.length - 1", false],
+  ['parameter', 'value', false],
+  ['external value', 'externalValue', false],
+  ['initialized lexical', 'index', false],
+  ['function body deferred', '() => effect()', false],
+  ['array allocation', '[value, -1]', false],
+  ['object allocation', '{ value, get read() { return effect(); } }', false],
+  ['object value effect', '{ value: effect() }', true],
+  ['literal computed key', "{ ['known']: value }", false],
+  ['regexp computed key', '{ [/key/]: value }', true],
+  ['conditional allocation', 'value ? [1] : { value: 2 }', false],
+  ['conditional effect', 'value ? effect() : 0', true],
+  ['logical effect', 'value && effect()', true],
+  ['sequence effect', '(effect(), value)', true],
+  // eslint-disable-next-line no-template-curly-in-string -- the string is template source under test
+  ['literal template', '`value:${1}`', false],
+  // eslint-disable-next-line no-template-curly-in-string -- the string is template source under test
+  ['coercing template', '`value:${value}`', true],
+  ['class computed key', 'class { [effect()]() {} }', true],
+  ['class static effect', 'class { static { effect(); } }', true],
+  ['strict equality', 'value === externalValue', false],
+  ['argument call', 'effect()', true],
+  ['property read', 'value.key', true],
+  ['string length key effect', "'abc'[(effect(), 'length')]", true],
+  ['argument coercion', 'value + 1', true],
+  ['unary coercion', '+value', true],
+  ['spread allocation', '[...value]', true],
+  ['object spread', '{ ...value }', true],
+  ['computed method key', '{ [effect()]() {} }', true],
+  ['lexical TDZ value', 'later', false, '', 'const later = 0;'],
+  ['lexical TDZ typeof', 'typeof later', false, '', 'const later = 0;'],
+]) runBoth(`call argument timing/${ name }`,
+  `function probe(value) { ${ before } consume(${ expression }); ${ after } }`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', candidate => candidate.node.callee.name === 'consume');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    check(label, callArgumentMayBeObserved(path.node.arguments[0], { scope: path.scope, path, adapter }), expected);
+  });
+
+runBoth('isReusableReceiver/function name shadowed by block var',
+  'const probe = function rows() { if (flag) { var rows = readAnything(); } return rows.at(0); };', (parser, program, label) => {
+    const use = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: use.scope, adapter, path: use };
+    const binding = adapter.getBinding({ scope: use.scope, name: 'rows', path: use });
+    check(`${ label }/write stays in the activation`, bindingWrittenBeyondItsFrame(binding), false);
+    check(`${ label }/read has a scope anchor`, isReusableReceiver(use.node.object, { ctx }), true);
+  });
+
+// An emptied tracker path must rebuild the binding's live writes, not erase the surviving assignment.
+runBoth('wrapScopeBindingLookup/emptied tracker path',
+  'let rows = []; if (flag) rows = other; rows.at(0);', (parser, program, label) => {
+    const use = parser.pickPath(program, 'MemberExpression', candidate => candidate.node.property.name === 'at');
+    const native = use.scope.getBinding('rows');
+    const empty = { node: null, type: 'AssignmentExpression', parentPath: null };
+    const binding = { ...native, constantViolations: [empty, ...native.constantViolations], constant: false };
+    const lookup = wrapScopeBindingLookup(() => binding);
+    const options = { scope: use.scope, name: 'rows', path: use };
+    const live = lookup(options);
+    check(`${ label }/retired path removed`, live.constantViolations.includes(empty), false);
+    check(`${ label }/live conditional write retained`, live.constantViolations.length, 1);
+    check(`${ label }/repeated lookup preserves identity`, lookup(options), live);
+  });
+
+finish();

@@ -1,0 +1,1 @@
+({ some }).some(fn);

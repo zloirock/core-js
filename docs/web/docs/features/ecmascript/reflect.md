@@ -1,7 +1,7 @@
 # ECMAScript: Reflect
 
 ## Modules
-[`es.reflect.apply`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.apply.js), [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.construct.js), [`es.reflect.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.delete-property.js), [`es.reflect.get`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.has.js), [`es.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set-prototype-of.js), [`es.reflect.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.to-string-tag.js).
+[`es.reflect.apply`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.apply.js), [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.construct.js), [`es.reflect.define-property`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.delete-property.js), [`es.reflect.get`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.has.js), [`es.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.set-prototype-of.js), [`es.reflect.to-string-tag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.reflect.to-string-tag.js).
 
 ## Built-ins signatures
 ```ts
@@ -18,28 +18,27 @@ namespace Reflect {
   ownKeys(target: Object): Array<string | symbol>;
   preventExtensions(target: Object): boolean;
   set(target: Object, propertyKey: PropertyKey, V: any, receiver?: any): boolean;
-  setPrototypeOf(target: Object, proto: Object | null): boolean; // requires __proto__ - IE11+
+  setPrototypeOf(target: Object, proto: Object | null): boolean;
   @@toStringTag: 'Reflect';
 }
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/reflect
-core-js(-pure)/es|stable|actual|full/reflect/apply
-core-js(-pure)/es|stable|actual|full/reflect/construct
-core-js(-pure)/es|stable|actual|full/reflect/define-property
-core-js(-pure)/es|stable|actual|full/reflect/delete-property
-core-js(-pure)/es|stable|actual|full/reflect/get
-core-js(-pure)/es|stable|actual|full/reflect/get-own-property-descriptor
-core-js(-pure)/es|stable|actual|full/reflect/get-prototype-of
-core-js(-pure)/es|stable|actual|full/reflect/has
-core-js(-pure)/es|stable|actual|full/reflect/is-extensible
-core-js(-pure)/es|stable|actual|full/reflect/own-keys
-core-js(-pure)/es|stable|actual|full/reflect/prevent-extensions
-core-js(-pure)/es|stable|actual|full/reflect/set
-core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
-core-js(-pure)/es|stable|actual|full/reflect/to-string-tag
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/apply
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/construct
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/define-property
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/delete-property
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/get
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/get-own-property-descriptor
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/get-prototype-of
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/has
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/is-extensible
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/own-keys
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/prevent-extensions
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/set
+{ core-js, @core-js/pure }/es|stable|actual|full/reflect/set-prototype-of
 ```
 
 ## Examples

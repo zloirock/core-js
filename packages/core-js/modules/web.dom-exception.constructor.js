@@ -1,32 +1,30 @@
+// @types: web/dom-exception
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var postMessage = require('../internals/message-channel-post');
 var fails = require('../internals/fails');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
-var defineProperty = require('../internals/object-define-property').f;
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var hasOwn = require('../internals/has-own-property');
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
-var errorToString = require('../internals/error-to-string');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
 var clearErrorStack = require('../internals/error-stack-clear');
-var InternalStateModule = require('../internals/internal-state');
-var DESCRIPTORS = require('../internals/descriptors');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
 var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var DATA_CLONE_ERROR = 'DataCloneError';
 var Error = getBuiltIn('Error');
+var defineProperty = Object.defineProperty;
 // NodeJS < 17.0 does not expose `DOMException` to global
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
   try {
-    // eslint-disable-next-line es/no-weak-map -- safe
     postMessage(new WeakMap());
   } catch (error) {
     if (error.name === DATA_CLONE_ERROR && error.code === 25) return error.constructor;
@@ -34,8 +32,8 @@ var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
 })();
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
 var ErrorPrototype = Error.prototype;
-var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
+var errorToString = ErrorPrototype.toString;
+var getInternalState = internalStateGetterFor(DOM_EXCEPTION);
 var HAS_STACK = 'stack' in new Error(DOM_EXCEPTION);
 
 var codeFor = function (name) {
@@ -52,13 +50,8 @@ var $DOMException = function DOMException() {
     type: DOM_EXCEPTION,
     name: name,
     message: message,
-    code: code
+    code: code,
   });
-  if (!DESCRIPTORS) {
-    this.name = name;
-    this.message = message;
-    this.code = code;
-  }
   if (HAS_STACK) {
     var error = new Error(message);
     error.name = DOM_EXCEPTION;
@@ -66,7 +59,7 @@ var $DOMException = function DOMException() {
   }
 };
 
-var DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
+var DOMExceptionPrototype = $DOMException.prototype = Object.create(ErrorPrototype);
 
 var createGetterDescriptor = function (get) {
   return { enumerable: true, configurable: true, get: get };
@@ -78,14 +71,12 @@ var getterFor = function (key) {
   });
 };
 
-if (DESCRIPTORS) {
-  // `DOMException.prototype.code` getter
-  defineBuiltInAccessor(DOMExceptionPrototype, 'code', getterFor('code'));
-  // `DOMException.prototype.message` getter
-  defineBuiltInAccessor(DOMExceptionPrototype, 'message', getterFor('message'));
-  // `DOMException.prototype.name` getter
-  defineBuiltInAccessor(DOMExceptionPrototype, 'name', getterFor('name'));
-}
+// `DOMException.prototype.code` getter
+defineBuiltInAccessor(DOMExceptionPrototype, 'code', getterFor('code'));
+// `DOMException.prototype.message` getter
+defineBuiltInAccessor(DOMExceptionPrototype, 'message', getterFor('message'));
+// `DOMException.prototype.name` getter
+defineBuiltInAccessor(DOMExceptionPrototype, 'name', getterFor('name'));
 
 defineProperty(DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
 
@@ -94,10 +85,8 @@ var INCORRECT_CONSTRUCTOR = fails(function () {
   return !(new NativeDOMException() instanceof Error);
 });
 
-// Safari 10.1 / Chrome 32- / IE8- DOMException.prototype.toString bugs
-var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
-  return ErrorPrototype.toString !== errorToString || String(new NativeDOMException(1, 2)) !== '2: 1';
-});
+// Safari 10.1 DOMException.prototype.toString bugs
+var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || NativeDOMExceptionPrototype.toString !== errorToString;
 
 // Deno 1.6.3- DOMException.prototype.code just missed
 var INCORRECT_CODE = INCORRECT_CONSTRUCTOR || fails(function () {
@@ -114,24 +103,24 @@ var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISS
 // `DOMException` constructor
 // https://webidl.spec.whatwg.org/#idl-DOMException
 $({ global: true, constructor: true, forced: FORCED_CONSTRUCTOR }, {
-  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
+  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException,
 });
 
 var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
 if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMException)) {
-  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
+  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString, { unsafe: true });
 }
 
-if (INCORRECT_CODE && DESCRIPTORS && NativeDOMException === PolyfilledDOMException) {
+if (INCORRECT_CODE && NativeDOMException === PolyfilledDOMException) {
   defineBuiltInAccessor(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
     return codeFor(anObject(this).name);
   }));
 }
 
 // `DOMException` constants
-for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
+Object.keys(DOMExceptionConstants).forEach(function (key) {
   var constant = DOMExceptionConstants[key];
   var constantName = constant.s;
   var descriptor = createPropertyDescriptor(6, constant.c);
@@ -141,4 +130,4 @@ for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
   if (!hasOwn(PolyfilledDOMExceptionPrototype, constantName)) {
     defineProperty(PolyfilledDOMExceptionPrototype, constantName, descriptor);
   }
-}
+});

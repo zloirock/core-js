@@ -1,0 +1,2 @@
+// NEGATIVE: a parameter shadows the name - neither the inline proof nor the substitution fires
+export const shadowedRoot = (globalThis => globalThis)(null)?.window?.Promise.resolve(4).finally(() => {});

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-math-sum)
 
 ## Modules
-[`es.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sum-precise.js).
+[`es.math.sum-precise`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.math.sum-precise.js).
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,7 @@ namespace Math {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/math-sum
-core-js(-pure)/es|stable|actual|full/math/sum-precise
+{ core-js, @core-js/pure }/es|stable|actual|full/math/sum-precise
 ```
 
 ## Examples
@@ -23,3 +23,6 @@ core-js(-pure)/es|stable|actual|full/math/sum-precise
 1e20 + 0.1 + -1e20; // => 0
 Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/math-sum`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/math-sum.d.ts)

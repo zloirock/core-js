@@ -1,6 +1,7 @@
+// @types: proposals/array-buffer-base64
 'use strict';
+/* eslint-disable es/no-uint8array-prototype-tohex -- safe */
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
@@ -9,9 +10,7 @@ var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);
 var $Array = Array;
 
-var Uint8Array = globalThis.Uint8Array;
-
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toHex || !(function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.toHex || !(function () {
   try {
     // https://issues.chromium.org/issues/454630441
     // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- required for testing
@@ -25,7 +24,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.t
 
 // `Uint8Array.prototype.toHex` method
 // https://tc39.es/ecma262/#sec-uint8array.prototype.tohex
-if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
+$({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   toHex: function toHex() {
     anUint8Array(this);
     notDetached(this.buffer);
@@ -35,5 +34,5 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
       result[i] = hex.length === 1 ? '0' + hex : hex;
     }
     return join(result, '');
-  }
+  },
 });

@@ -1,0 +1,1 @@
+[BABEL] unknown file: [core-js] `method` must be one of 'entry-global', 'usage-global', 'usage-pure' (received undefined) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

@@ -1,0 +1,387 @@
+// the parser-agnostic halves of the emitters' usage visitors. each plugin keeps its own
+// referenced-position gating, JSX / TS dialect filters and destructure host classification -
+// everything its parser spells differently - and funnels every usage it accepts through the
+// handlers here, so the emission decisions stay single-sourced. spans several sibling modules'
+// domains (members, destructure, globals, annotations) on purpose: homing it in any one of them
+// would add a cross-import between siblings, and the emitters are its only consumers
+import {
+  annotationNameIsGlobal,
+  checkTypeAnnotations,
+  typeOnlyImportShadows,
+  walkTypeAnnotationGlobals,
+} from './annotations.js';
+import { isKnownGlobalName } from './globals.js';
+import { hasMemberDefinitionKey } from '../index.js';
+import {
+  aliasWriteCtorNames,
+  classifyDestructureLeafHost,
+  collectDestructureUnionCandidates,
+  decidedSelection,
+  defaultDroppedAsDead,
+  destructurePatternHostPath,
+  prepareDestructureUnion,
+  staticContainerReceiverName,
+} from './destructure.js';
+import { agreeingTernaryArm, resolveObjectName } from './resolve.js';
+import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
+import {
+  assignmentValueDiscarded,
+  canonQuestionScope,
+  destructureReceiverNode,
+  hasObjectRestAncestor,
+  ownRelocatedHeadElement,
+  hasRestSiblingExcept,
+  isExportSpecifierLocal,
+  isTypeAnnotationNodeType,
+  isUndefinedNode,
+  pathValueSlot,
+  patternSlotTarget,
+  PRIMITIVE_LITERAL_TYPES,
+  SKIPPABLE_WRAPPER_TYPES,
+  typeDeclarationUnreferencedInFile,
+  unwrapParens,
+  unwrapRuntimeExpr,
+  walkAstNodes,
+  withCanonQuestion,
+} from '../helpers/ast-patterns.js';
+
+export function createUsageHandlerCore({
+  adapter,
+  onUsage: reportUsage,
+  method,
+  isEntryAvailable,
+  resolveMeta,
+  resolvePure = null,
+  // the type layer's own key-name resolver, so a computed member key (`E.A` off a TS enum) is
+  // named by the one resolver that already folds it instead of a second copy living here
+  resolveStaticKey = null,
+  suppressProxyGlobals = false,
+  keptProxyHops = null,
+  onSuppressedProxyHop = null,
+  suppressKeptNavRoot = null,
+  // told of a usage-pure claim standing where its value is discarded: its render may perform nothing
+  // there, so the emitter's leave walk has to run (`renderPerformsNothing`)
+  onDiscardedClaim = null,
+}) {
+  function onUsage(meta, path) {
+    if (onDiscardedClaim && method === 'usage-pure' && assignmentValueDiscarded(path, SKIPPABLE_WRAPPER_TYPES)) onDiscardedClaim();
+    reportUsage(meta, path);
+  }
+  // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
+  // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
+  // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
+  const skipUpdateTargets = method === 'usage-pure';
+  let handledObjects = new WeakSet();
+  let proxySegments = method === 'usage-global' ? new WeakMap() : null;
+
+  // Reject ordinary names before the host analyzes their reference position. A stored-nav
+  // hook still consumes local aliases, so its names must reach the full identifier funnel.
+  function mayEmitGlobalUsage(name) {
+    return !!suppressKeptNavRoot || isKnownGlobalName(name);
+  }
+
+  // the identifier tail every host runs after its own referenced-position gates
+  function emitGlobalUsage(path) {
+    const { node } = path;
+    // a TYPE reference reaches this lane rather than the annotation walk - both parsers report it
+    // as a referenced identifier - so the type-space shadow question belongs here, where every
+    // binding's identifier visitor already funnels. `hasBinding` below answers the VALUE question
+    // and deliberately ignores a type-only import, which in a type position IS the shadow
+    if (isTypeAnnotationNodeType(path.parent?.type)) {
+      if (typeOnlyImportShadows({ adapter, scope: path.scope, name: node.name, path, hostType: path.parent.type })) return;
+      // ... and a type DECLARATION nothing in the file names declares a surface no value here can
+      // have, so no read reaches this mention - the reference convention has nothing to serve
+      if (typeDeclarationUnreferencedInFile(path)) return;
+    }
+    // the ROOT of a nav stored by a USER assignment renders the stored canon from the root's
+    // visit - the one place a member-channel skip or a declined claim cannot hide (a claim
+    // that declines leaves no render owning the value's hops). ungated by name: an ALIAS root
+    // (`const galias = globalThis; (ntm = (se, galias).window.self)`) stores the same canon,
+    // and the hook self-gates cheaply (a parent climb, then the plan's own proxy-root proof)
+    if (suppressKeptNavRoot?.(path)) return;
+    // The alias hook above also consumes ordinary names. Only known globals can request a
+    // polyfill below, so their scope lookup need not run for every local reference in the file.
+    if (!isKnownGlobalName(node.name)) return;
+    // a name the file BINDS is that binding's, wherever the declaration sits: the sloppy host is a
+    // CommonJS wrapper, so a top-level `var` binds afresh like every other one and a self-reference
+    // (`var X = X`) reads the hoisted undefined rather than the realm
+    if (adapter.hasBinding({ scope: path.scope, name: node.name, path })) return;
+    if (isExportSpecifierLocal(path)) return;
+    // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
+    if (handledObjects.has(node)) return;
+    onUsage({ kind: 'global', name: node.name }, path);
+  }
+
+  // the handled/suppressed head both member visitors run BEFORE their host-specific write
+  // gates: a hop marked handled emits no meta - the marking keeps a rewrite from landing
+  // inside the outer span, while a hop recorded as still-live gets
+  // its render driven through `onSuppressedProxyHop`
+  function memberAlreadyHandled(path) {
+    if (!handledObjects.has(path.node)) return false;
+    if (keptProxyHops?.has(path.node)) onSuppressedProxyHop?.(path);
+    return true;
+  }
+
+  function emitMemberUsage(path) {
+    const { node } = path;
+    // Metadata asks several questions of the same receiver without rewriting it.
+    // End their shared question before onUsage can replace nodes or register bindings.
+    const meta = withCanonQuestion(() => {
+      // An unsupported key can still need a constructor fallback. Only a plain receiver
+      // with no global or guarded alias answer may skip metadata; its children remain live.
+      if (!node.computed && node.property.type === 'Identifier'
+        && !hasMemberDefinitionKey(node.property.name) && !isKnownGlobalName(node.property.name)) {
+        const receiver = node.object;
+        if (receiver.type === 'Identifier' && !isKnownGlobalName(receiver.name)) {
+          const ctx = { scope: path.scope, adapter, path };
+          const candidates = [];
+          const object = resolveObjectName({ objectNode: receiver, ...ctx, readNode: receiver, resolveStaticKey })
+            ?? staticContainerReceiverName({ node: receiver, ...ctx,
+              unionSink: candidates, conditionalSink: candidates, selectionSink: candidates });
+          if (!object && !candidates.length && !aliasWriteCtorNames({ name: receiver.name, ...ctx, read: receiver }).length) return null;
+        }
+      }
+      return handleMemberExpressionNode({
+        node,
+        scope: path.scope,
+        adapter,
+        handledObjects,
+        suppressProxyGlobals,
+        path,
+        resolveMeta,
+        isEntryAvailable,
+        resolvePure,
+        keptProxyHops,
+        resolveStaticKey,
+        proxySegments,
+      });
+    });
+    if (meta) {
+      onUsage(meta, path);
+      // usage-global union: extra reachable receiver / key targets each earn a side-effect import
+      for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
+    }
+  }
+
+  // does a dead part hold anything the transform would answer for - a known global no local binds?
+  // pure folds the selection only then, or where it respells the read that decides it: a selection
+  // with nothing of the transform's own stays as the source wrote it
+  function holdsUnboundGlobal(dead, path) {
+    let holds = false;
+    walkAstNodes({ root: dead, visit(node) {
+      holds ||= node.type === 'Identifier' && isKnownGlobalName(node.name) && !adapter.hasBinding({
+        scope: path.scope,
+        name: node.name,
+        path,
+      });
+      return !holds;
+    } });
+    return holds;
+  }
+
+  // does no visitor read anything in `node`: a plain literal, or a bare name no polyfillable global goes by - what
+  // usage-global leaves unchanged whether it skips the node or visits it
+  function visitorsReadNothing(node) {
+    const value = unwrapParens(node);
+    if (value?.type === 'Identifier') return !isKnownGlobalName(value.name);
+    return isUndefinedNode(value) || (PRIMITIVE_LITERAL_TYPES.has(value?.type) && value.type !== 'RegExpLiteral'
+      && value.type !== 'BigIntLiteral' && !value.regex && value.bigint === undefined);
+  }
+
+  // the slots outer folds hand down, by the selection each puts there (`deadBranchOf`)
+  const inheritedSlots = new WeakMap();
+
+  // the question scope a selection level asked in (`withCanonQuestion`), held for the visit of its left
+  // operand: usage-pure keeps no answer from one visit to the next, so every level would walk the levels
+  // below it again. the left operand is entered right after its level, whose visit only marks, so nothing
+  // is rewritten in between; any other entry here, whose visit may rewrite, drops the scope. only a level
+  // whose left is a level too holds it: that left is the next visit, so no hold outlives the chain to pin
+  // the file's tree past its teardown
+  let heldLevel = null;
+  function levelQuestionScope(node) {
+    const scope = heldLevel && unwrapParens(heldLevel.level.left) === node ? heldLevel.scope : canonQuestionScope();
+    const holds = node.type === 'LogicalExpression' && unwrapParens(node.left).type === 'LogicalExpression';
+    heldLevel = holds ? { level: node, scope } : null;
+    return scope;
+  }
+  function dropsHeldLevel(entry) {
+    return (...args) => {
+      heldLevel = null;
+      return entry(...args);
+    };
+  }
+
+  // the part of a user selection this build never evaluates, asked by each emitter's visitor of a
+  // `||` / `??` / `&&`, a conditional, an `if` and a pattern default: `{ skip, fold, slot }` - `skip` the key
+  // of the operand that never runs (null where only the test is dead text, or the `if` has no such branch),
+  // `fold` what usage-pure replaces the selection with once the claims rendered (an operand key, or
+  // `true` / `false` for the value a decided test yields), null where the selection keeps its text,
+  // and `slot` the slot it folds in (`pathValueSlot`, read by `foldedOperandNeedsValue`) - or null
+  function deadBranchOf(path) {
+    // a default the build drops as dead (`defaultDroppedAsDead`), in usage-global alone: usage-pure's render answers
+    // for the slot instead - it drops such a default with the pattern it rewrites, the level's mirror included, and
+    // a default it keeps over a raw slot keeps its raw globals' imports
+    if (path.node.type === 'AssignmentPattern') {
+      return method === 'usage-global' && withCanonQuestion(() => defaultDroppedAsDead(path, { adapter, resolvePure }))
+        ? { skip: 'right', fold: null, slot: null } : null;
+    }
+    // ... and of a `||` / `??` / `&&` a decision skips nothing but the right, which usage-global folds nothing over: a
+    // right no visitor reads anything in leaves the decision nothing to act on
+    if (method === 'usage-global' && path.node.type === 'LogicalExpression' && visitorsReadNothing(path.node.right)) return null;
+    const scope = method === 'usage-pure' ? levelQuestionScope(path.node) : null;
+    // an `if` only where nothing is rewritten: usage-pure has no fold for a statement yet, and a dead
+    // branch it skipped would keep the source's raw globals in its output
+    const dead = path.node.type === 'IfStatement' && method === 'usage-pure' ? null
+      : withCanonQuestion(() => decidedSelection(path.node, { scope: path.scope, adapter, path }), scope);
+    if (!dead) return null;
+    const skipped = dead.skip && path.node[dead.skip];
+    const folds = method === 'usage-pure' && (dead.substituted || (skipped && holdsUnboundGlobal(skipped, path)));
+    const slot = folds ? inheritedSlots.get(path.node) ?? pathValueSlot(path) : null;
+    // the operand a fold puts where the selection stood fills its slot: a selection there folds for it
+    if (slot && typeof dead.fold === 'string') inheritedSlots.set(unwrapRuntimeExpr(path.node[dead.fold]), slot);
+    return { skip: skipped ? dead.skip : null, fold: folds ? dead.fold : null, slot };
+  }
+
+  function emitBinaryInUsage(path) {
+    const meta = handleBinaryIn({
+      node: path.node,
+      scope: path.scope,
+      adapter,
+      handledObjects,
+      isEntryAvailable,
+      suppressProxyGlobals,
+      path,
+      resolveStaticKey,
+      resolvePure,
+    });
+    if (!meta) return;
+    onUsage(meta, path);
+    // usage-global reachable union targets of a reassigned `in` key / receiver alias
+    for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
+  }
+
+  // destructure-prop emit funnel: every prop meta gets its computed `Symbol.X` key provenance
+  // checked once here, so a string spelling of the key stays untagged and the symbol-routed
+  // emit paths leave it as a plain property read. hosts capture `keyNode` / `computed` BEFORE
+  // their dispatch - a usage-pure emit may restructure the property, detaching the node.
+  // `meta` may be null (an unresolvable - e.g. BRANCHING - computed key, or a mutated-static
+  // receiver): the primary dispatch skips, but the union still runs - the provider synthesizes
+  // its branch-key carrier there, so every producer bail keeps its reachable arm keys
+  function emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects = null }) {
+    if (method === 'usage-pure') {
+      const target = patternSlotTarget(path.node.value);
+      if (hasObjectRestAncestor(path) || (target?.type === 'ObjectPattern'
+        && hasRestSiblingExcept(target.properties, null))) {
+        const pure = meta && resolvePure?.(meta, path);
+        // Native rest still performs the excluded reads. A receiverless static import does
+        // not repeat them; an instance helper would read its slot a second time.
+        if (!pure || pure.kind === 'instance') return;
+        // Rest retains the selected receiver. When both arms name this same constructor,
+        // the static can extract without erasing the condition or its effects.
+        if (meta.fromFallback) {
+          const descriptor = classifyDestructureLeafHost({ objectPattern: path.parentPath });
+          const host = descriptor.pattern ?? destructurePatternHostPath(path);
+          const source = ownRelocatedHeadElement(host) ?? destructureReceiverNode(
+            host,
+            null,
+            adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic,
+          );
+          const arm = agreeingTernaryArm(source, host, adapter, { preservesEffects: true });
+          if (arm && resolveObjectName({ objectNode: arm, scope: host.scope, adapter, path: host }) === meta.object) {
+            meta = { ...meta, fromFallback: false };
+          }
+        }
+      }
+    }
+    const { scope } = path;
+    const tagged = meta ? tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }) : null;
+    // usage-global reachable receiver / key union, in the member twin's order: its verdict phase
+    // runs BEFORE the primary dispatch (it is what stamps `receiverInstanceFree`, and the primary
+    // has to see it - otherwise the resolver's placement-agnostic instance fallback fabricates rows
+    // the receiver provably never dispatches), its ENUMERATION after, where it always ran
+    const union = prepareDestructureUnion({
+      meta: tagged,
+      keyNode,
+      computed,
+      scope,
+      adapter,
+      path,
+      resolvePure,
+      containerWalkObjects,
+    });
+    // extras ATTACH to the meta, the way `attachMemberUnionExtras` does for the member twin: the
+    // callback's fallback-branch backstop skips a meta the choke already served, and reading the
+    // extras off the meta is what tells it this producer did route through one
+    const extras = collectDestructureUnionCandidates(union);
+    if (tagged && extras.length) tagged.extraCandidates = extras;
+    if (tagged) onUsage(tagged, path);
+    for (const extra of extras) onUsage(extra, path);
+  }
+
+  // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
+  // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor). route through
+  // the adapter's `hasBinding` so the same filters apply as for the identifier tail: ambient
+  // declarations (`declare const Map`) DON'T shadow (binding is tsc-elided); TS-runtime
+  // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk)
+  function annotationGlobal(path) {
+    return (name, hostType) => {
+      // ... and a type DECLARATION nothing in the file names declares a surface no value here can
+      // have, so no read reaches its annotations - the same rule the identifier tail applies, asked
+      // here because this walk is the lane one binding routes its type space through
+      if (typeDeclarationUnreferencedInFile(path)) return;
+      if (annotationNameIsGlobal({ ...annotationCtx(path), name, hostType })) onUsage({ kind: 'global', name }, path);
+    };
+  }
+
+  // what the walk resolves a qualified chain's ROOT against, and what the sink filters each name by
+  function annotationCtx(path) {
+    return { scope: path.scope, adapter, path };
+  }
+
+  function checkTypeAnnotation(path) {
+    checkTypeAnnotations(path.node, annotationGlobal(path), annotationCtx(path));
+  }
+
+  // the annotation hosts both parsers spell identically; the dialect-specific host lists
+  // (babel's split method / field node types, oxc's TS signature shapes) stay on the plugins
+  const annotationDeclVisitors = {
+    VariableDeclarator(path) {
+      if (path.node.id?.typeAnnotation) {
+        walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path), annotationCtx(path));
+      }
+    },
+    CatchClause(path) {
+      if (path.node.param?.typeAnnotation) {
+        walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path), annotationCtx(path));
+      }
+    },
+  };
+
+  // per-file state drop for the host that reuses one visitor object across files (babel)
+  function reset() {
+    handledObjects = new WeakSet();
+    proxySegments = method === 'usage-global' ? new WeakMap() : null;
+  }
+
+  return {
+    skipUpdateTargets,
+    mayEmitGlobalUsage,
+    emitGlobalUsage: dropsHeldLevel(emitGlobalUsage),
+    memberAlreadyHandled: dropsHeldLevel(memberAlreadyHandled),
+    emitMemberUsage: dropsHeldLevel(emitMemberUsage),
+    emitBinaryInUsage: dropsHeldLevel(emitBinaryInUsage),
+    emitDestructurePropUsage: dropsHeldLevel(emitDestructurePropUsage),
+    deadBranchOf,
+    annotationGlobal: dropsHeldLevel(annotationGlobal),
+    annotationCtx: dropsHeldLevel(annotationCtx),
+    checkTypeAnnotation: dropsHeldLevel(checkTypeAnnotation),
+    annotationDeclVisitors: Object.fromEntries(Object.entries(annotationDeclVisitors)
+      .map(([type, visit]) => [type, dropsHeldLevel(visit)])),
+    isHandled: node => handledObjects.has(node),
+    // the marking's premise is that the claim's render OWNS the receiver's hops. an emitter that
+    // re-emits the receiver by node identity keeps that premise from holding, and only it knows -
+    // so it releases the marks and the hops claim for themselves on the re-visit
+    releaseHandled: dropsHeldLevel(node => handledObjects.delete(node)),
+    reset: dropsHeldLevel(reset),
+  };
+}

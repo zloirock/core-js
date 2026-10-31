@@ -1,0 +1,23 @@
+import _at from "@core-js/pure/actual/instance/at";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+// a union arm the resolver cannot resolve - a cross-module type, an inline object type - may be the
+// runtime value: a guard that does not rule it out leaves the union whole, exactly as the same
+// annotation resolves with no guard at all, so the generic helper dispatches and both families
+// inject. a guard that RULES the other arms out still narrows (the literal `typeof` on the
+// resolvable arm)
+import type { Cursor } from './cursor';
+declare function assertPresent<T>(v: T): asserts v is NonNullable<T>;
+export function imported(x: number[] | Cursor | null) {
+  assertPresent(x);
+  return _at(x).call(x, 0);
+}
+export function inlineObject(x: number[] | {
+  at(i: number): string;
+}) {
+  if (typeof x === 'function') throw new TypeError('bad input');
+  return _at(x).call(x, 1);
+}
+export function ruledOut(x: string | Cursor) {
+  if (typeof x === 'string') return _includesMaybeString(x).call(x, 'a');
+  return null;
+}

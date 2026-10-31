@@ -1,11 +1,9 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
 QUnit.test('Object.create', assert => {
   const { create, getPrototypeOf, getOwnPropertyNames } = Object;
   function getPropertyNames(object) {
-    let result = [];
+    const result = [];
     do {
-      result = result.concat(getOwnPropertyNames(object));
+      result.push(...getOwnPropertyNames(object));
     } while (object = getPrototypeOf(object));
     return result;
   }
@@ -29,8 +27,4 @@ QUnit.test('Object.create', assert => {
   assert.false('toString' in object);
   assert.same(object.w, 2);
   assert.deepEqual(getPropertyNames(create(null)), []);
-});
-
-QUnit.test('Object.create.sham flag', assert => {
-  assert.same(Object.create.sham, DESCRIPTORS ? undefined : true);
 });

@@ -1,0 +1,2721 @@
+import { resolvedStaticClaimRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
+import { planSymbolReceiverRoot, planStaticFallbackReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
+import {
+  collectFoldedReceiverSideEffects,
+  memberProxyHopName,
+  deleteHostAboveChain,
+  claimIsInert,
+  detectCommonJS,
+  extractIndirectRequireSEPrefix,
+  isAssignOrForXWriteTargetPath,
+  claimDeleteOperand as isDeleteOperand,
+  isDeleteTarget,
+  isESMMarkerStatement,
+  isExportSpecifierLocal,
+  isForXWriteTarget,
+  isInUpdateOperand,
+  isMemberWriteHost,
+  isThisReceiver,
+  isDeoptedGlobalSlotRead,
+  isDeoptedStaticRead,
+  mutatedSlotLeftNativeWarning,
+  isTSTypeOnlyIdentifierPath,
+  collectFileCensus,
+  foldWalkReach,
+  methodReadsUsageCensus,
+  withTraversalCaches,
+  withVarScopeOwners,
+  memberKeyName,
+  memberKeyNamesReducer,
+  nestedTSRuntimeDeclarationsReducer,
+  patternOrderReducer,
+  mutatedGlobalSlotNames,
+  isTaggedTemplateTag,
+  peelNestedSequenceExpressions,
+  isCalleeReference,
+  valueIsDroppedAt,
+  unwrapRuntimeExpr,
+  resolveBatchDirectivePromotionPolicy,
+  leavingAnswerStatements,
+  foldedOperandNeedsValue,
+  pathValueSlot,
+  performsNothing,
+  renderPerformsNothing,
+  sequenceElementsKept,
+  isConsumedEntryImport,
+  resolveModuleFormat,
+  moduleFormatReducer,
+  keptNavChainEndPath,
+  memberChainEndPath,
+  deleteOverOpenContinuation,
+  peelParenAndTSSlotPath,
+  peelSkippableWrapperPath,
+  peelTransparentExpr,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+  usableAliasInfo,
+  isMemberAccessNode,
+  spelledWriteSlot,
+  POSSIBLE_GLOBAL_OBJECTS,
+  nodePositionKey,
+  propBindingIdentifier,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  ownEmittedNavClaim,
+  ownEmittedPatternClaim,
+  ownOutputTests,
+  restSentinelNamesReducer,
+  sentinelAlreadyProcessed,
+} from '@core-js/polyfill-provider/detect-usage/own-output';
+import {
+  enrichMutatedStatics,
+  escapedCtorReferencesReducer,
+  mutationShapesReducer,
+  settleCensusWrites,
+} from '@core-js/polyfill-provider/detect-usage/mutations';
+import { isSymbolIteratorPatternClaim } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import {
+  minifierSequenceReducer,
+  planMinifierSequenceSplit,
+  renderNestedKeyedPatternCapture,
+} from '@core-js/polyfill-provider/destructure-host-shape';
+import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
+import {
+  createClassHelpers,
+  ctorAliasShapesReducer,
+  proxyWriteOriginsReducer,
+  registerAliasPrePassSite,
+  remapInheritedStaticMeta,
+} from '@core-js/polyfill-provider/helpers/class-walk';
+import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
+import {
+  hostSlot,
+  hostSlotNode,
+  nullFirstGuardTest,
+  renderBoundRawBranch,
+  renderCapturedReceiver,
+  renderCtorIdentityNarrow,
+  renderDestructureAssignments,
+  renderGuardedChainTail,
+  renderDeleteShortCircuitGuard,
+  renderInExpressionPlan,
+  renderLogicalSlotPatch,
+  planMethodCall,
+  renderMethodCall,
+  renderShortCircuitGuard,
+  renderSymbolReceiverRoot,
+  renderStaticFallbackReceiver,
+} from '@core-js/polyfill-provider/render';
+import estreeToBabel from './internals/estree-to-babel.js';
+import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
+import {
+  DISABLE_NEXT_LINE_DIRECTIVE,
+  disableDirectiveAnchors,
+  directiveCoveredLine,
+  isNextLineDisableDirective,
+  mergeVisitors,
+  parseDisableDirectives,
+} from '@core-js/polyfill-provider/helpers/source-scan';
+import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
+import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
+import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
+import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
+import {
+  attachMemberUnionExtras,
+  destructureHostInitNode,
+  enumerateFallbackDestructureBranches,
+  renameSplitPropsToSentinels,
+  restoreIdleRelocations,
+  restoreUnclaimedFlattens,
+  staticContainerReceiverName,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  isKnownGlobalName,
+  isSourcedSymbolIteratorMeta,
+  SYMBOL_ITERATOR_PURE_RESULT,
+} from '@core-js/polyfill-provider/detect-usage/globals';
+import {
+  isAliasProxyHopChain,
+  canCollapseDeletedNavigation,
+  receiverSequenceTailKeys,
+  storedUserAssignmentOf,
+  unbackedRealmHopFoldAbove,
+  resolveKey as sharedResolveKey,
+  realmSelectionCollapseOperand,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  planGuardedDestructureNarrow,
+  planGuardedStaticNarrow,
+  resolveSymbolIteratorEntry,
+  symbolIteratorHint,
+  planDeletedProxyClaim,
+  planLogicalSlotPatch,
+} from '@core-js/polyfill-provider/detect-usage/members';
+import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { NARROW_ENTRY } from '@core-js/polyfill-provider';
+import createASTHelpers, {
+  deoptionalizeAstNode,
+  rangePreservingTypes,
+  destructuredValueAbove,
+  isOptionalNode,
+  proxyHopSwapSlotPath,
+  removePatternSlot,
+} from './internals/babel-compat.js';
+import ImportInjector from './internals/import-injector.js';
+import {
+  collectPrePassSites,
+  createBabelAdapter,
+  createSyntaxVisitors,
+  createUsageVisitors,
+  instantiationSlotNeedsParens,
+  foldInstantiationsPass,
+  restoreParenCompensations,
+  rebuildLaggedScopeBinding,
+  USAGE_VISITORS_IS_HANDLED,
+  USAGE_VISITORS_RELEASE_HANDLED,
+  USAGE_VISITORS_RESET,
+} from './internals/detect-usage.js';
+import runEntryDetection from './internals/detect-entry.js';
+import createDestructureEmitter from './internals/destructure-emitter.js';
+import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
+
+// the minifier-sequence split, applied as body surgery ahead of the traversal: the plan is the
+// core's (`planMinifierSequenceSplit` - the shape, the products, their spans), this binding
+// converts the products, inherits the replaced statement's attached comments the way
+// `replaceWithMultiple` does, and splices them in by identity. a node splice, not a path
+// replacement: the products are visited like any other statement once the program's body is
+// walked, and there is nothing queued yet to re-queue. an un-braced control-flow slot is braced
+// around its products with the host's own block. accepted: a comment between two operands of a
+// ONE-LINE sequence prints inline before its product on this pass (`/* c */use(at);`) and on its
+// own line after a re-parse - the generator lays a leading block comment by the previous
+// statement's line, and the products share it by design (their spans are the entry gate's and the
+// opt-out's provenance). bytes differ between the first two passes, nothing else does: the import
+// set, the claims and the honoured opt-outs are the same on every pass
+function splitMinifierSequence(programPath, t, census) {
+  for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(programPath.node, { embed: hostSlot, census })) {
+    const converted = products.map(product => t.inheritsComments(t.removeComments(estreeToBabel(product)), product));
+    t.inheritLeadingComments(converted[0], statement);
+    // The operand is now a statement. Transfer its outer comments to that host so
+    // replacing the operand later cannot discard a comment between sequence products.
+    for (const product of converted) {
+      t.inheritLeadingComments(product, product.expression);
+      t.inheritTrailingComments(product, product.expression);
+      product.leadingComments?.sort((a, b) => a.start - b.start);
+      product.trailingComments?.sort((a, b) => a.start - b.start);
+      product.expression.leadingComments = null;
+      product.expression.trailingComments = null;
+    }
+    t.inheritTrailingComments(converted[converted.length - 1], statement);
+    if (statements) statements.splice(statements.indexOf(statement), 1, ...converted);
+    else host[key] = t.blockStatement(converted);
+  }
+}
+
+export default function plugin(api, options) {
+  const { types } = api;
+  const isWebpack = api.caller?.(caller => caller?.name === 'babel-loader');
+  let babelTargets;
+  const getBabelTargets = typeof api.targets === 'function' ? () => babelTargets ??= api.targets() : null;
+  const stateKey = Symbol('core-js-file');
+  let idle = createFilePlugin(api, options, getBabelTargets, isWebpack);
+
+  // Babel prints the value of a shorthand default, skipping comments on its key.
+  // Share those comment objects with the value before the final generator runs.
+  function inheritShorthandDefaultComments({ node }) {
+    if (node.shorthand && node.value?.type === 'AssignmentPattern') types.inheritsComments(node.value.left, node.key);
+  }
+
+  // Babel reuses a plugin instance across concurrent or nested files. A file owns its
+  // binding state through post(), including the late helper sweep and import flush.
+  // Reuse one completed state for sequential files; overlapping files get their own.
+  return {
+    name: 'core-js@4',
+    pre(...args) {
+      const state = idle ?? createFilePlugin(api, options, getBabelTargets, isWebpack);
+      idle = null;
+      this[stateKey] = state;
+      return state.pre.apply(this, args);
+    },
+    visitor: {
+      ObjectProperty: inheritShorthandDefaultComments,
+      Program: { exit(path, pass) {
+        return this[stateKey]?.visitor?.Program.exit.call(this, path, pass);
+      } },
+    },
+    post(...args) {
+      const state = this[stateKey];
+      try {
+        const result = state.post.apply(this, args);
+        idle = state;
+        return result;
+      } finally {
+        this[stateKey] = null;
+      }
+    },
+  };
+}
+
+// One native binding context. Configuration cache queries belong to the outer factory;
+// creating a context during an overlapping transform cannot reopen Babel's config cache.
+function createFilePlugin(api, options, getBabelTargets, isWebpack) {
+  // every clone in this plugin goes through the range-preserving wrapper: babel's own `cloneNode`
+  // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
+  const { types: babelTypes } = api;
+  const t = rangePreservingTypes(babelTypes);
+
+  // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
+  // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
+  const pathsKeepParent = Number.parseInt(api.version, 10) >= 8;
+  // set at program entry, read by the late-bound compat callbacks below
+  let currentSynthSwap = null;
+  // late-bound like `currentSynthSwap`: the file's opt-out directives, which the shared canon reads
+  // through the adapter (`isOptedOut`)
+  let currentIsDisabled = null;
+  // late-bound like `currentSynthSwap`: the usage visitors exist only inside the program visit,
+  // and the emitters reach their handled-marks release through here
+  let currentUsageVisitors = null;
+
+  // `getPolyfillBindingEntry` / `getPolyfillBindingHint` read `injector` lazily (assigned in
+  // Program enter, declared below) - same late-binding closure pattern as `createASTHelpers`
+  // / `createBabelAdapter`. entry path resolves polyfilled-static aliases (`const from =
+  // Array.from` after rewrite). hint covers BOTH pure-import bindings (`_Array$from` -> entry
+  // `array/from` -> hint `Array`) AND alias-only bindings (`_globalThis` registered via
+  // `registerGlobalAlias`, no standalone entry path) so the proxy-global recognizer reaches
+  // `extends g.Array<...>` after the in-place `globalThis` -> `_globalThis` rewrite
+  const typeResolvers = createResolveNodeType(node => node?.type, t, {
+    // a GUARDED alias registration (refused flow-trust) must not feed the type channel: its
+    // hint would narrow member types over a flow the registration explicitly refused to trust
+    // `useStart` (the use-site node's start) anchors the injector's name-keyed view
+    // positionally: a USER-named body-extract record serves only inside its hosting scope span,
+    // and `useBinding` (the binding the use reads) to that binding alone
+    getPolyfillBindingEntry(scope, name, useStart = null, useBinding = null) {
+      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart, useBinding))?.entry ?? null;
+    },
+    getPolyfillBindingHint(scope, name, useStart = null, useBinding = null) {
+      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart, useBinding))?.hint ?? null;
+    },
+    isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
+    // a declaration the plugin's own render inserted is in the AST but not in babel's scope; without
+    // the recovery the resolver's reassignment follow degrades to generic where the estree side keeps
+    // the narrow
+    getScopeBinding(scope, name, path = null) {
+      return scope?.getBinding(name) ?? (path ? rebuildLaggedScopeBinding(path, name, scope) : null);
+    },
+    // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
+    // traversal, after init, so the deferred reference is safe
+    isMutatedStatic: (object, key, read) => adapter.isMutatedStaticSlot(object, key, read),
+    isWrittenContainerSlot: (...args) => adapter.isWrittenContainerSlot(...args),
+    getDecisionAdapter: () => adapter,
+    spellsMemberKey: key => memberKeyNames?.has(key) ?? true,
+    nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
+  });
+  const {
+    resolveClaimableComputedKeyName,
+    resolvePropertyObjectType,
+    resolveForOfResolvedElement,
+    forgetDestructureReceiverTypes,
+    primeDestructureReceiverTypes,
+    resolveNodeType,
+    resolvedType,
+    toHint,
+  } = typeResolvers;
+
+  const { resolver, createDebugOutput, importStyle: importStyleOption } = createPolyfillResolver(options, {
+    typeResolvers,
+    // the per-file mutation census the ENTRY choice consults (a ctor whose members cannot be
+    // named carries its own statics); `adapter` is built below, so the closure defers like the
+    // type layer's twin above
+    isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
+    // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
+    isEscapedCtor: (name, heldInSlot) => escapedCtorNames?.has(name, heldInSlot) === true,
+    readsUnnamedStatic: name => escapedCtorNames?.readsUnnamedStatic(name) === true,
+    astPredicates: {
+      isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
+      // babel's own `t.is*({ callee: node })` matchers are strict-identity, which the shared answer
+      // is not: the argument order is all this adapter adds
+      isCallee: (node, parent) => isCalleeReference(parent, node),
+      isSpreadElement: node => t.isSpreadElement(node),
+    },
+    getBabelTargets,
+  });
+
+  const { method, absoluteImports = false } = options;
+  const {
+    getCoreJSEntry,
+    getModulesForEntry,
+    isEntryNeeded,
+    isEntryAvailable,
+    isEntryCarried,
+    mode,
+    packages,
+    pkg,
+    resolvePure: resolvePureUnfiltered,
+    resolvePureOrGlobalFallback,
+    resolveUsage,
+  } = resolver;
+  // pre-pass result: set of `"ObjectName.keyName"` strings the user mutated somewhere in
+  // the current file (`Array.from = X`, `[Array.from] = X`, `delete Array.from`, ...).
+  // factory-scoped so the resolvePure filter and the adapter getter see the per-file value
+  let mutatedStatics = null;
+  // typing asks a YES/NO about ONE namespace, and the cheap census the shared walk already produced
+  // answers it: its target roots are a SUPERSET of what a scoped walk could attribute, so a namespace
+  // none of them names is provably untouched, and an over-report only degrades a narrow (over-inject,
+  // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required.
+  // the READING of those roots is the provider's - `adapter.isMutatedStaticSlot`
+  let mutationRoots = null;
+  // the census's container-slot record, held in its own per-file slot rather than read off the
+  // census: the mutation pre-pass shares the read canons, and those consult this record - so the
+  // window it runs in must not see it, or the walk that REGISTERS a patch through a written slot
+  // bails on the very record its own writes feed. the unplugin twin nulls the same pair
+  let writtenContainerSlots = null;
+  let containerSlotIndex = null;
+  // the census's member-key names, which gate the type layer's install walk (`spellsMemberKey`): set
+  // with the slots above, after the pre-pass, as the unplugin twin sets its own - the window between
+  // reads the gate open in both emitters
+  let memberKeyNames = null;
+  // does the file declare a TS runtime binding below its top level (the census's
+  // `nestedTSRuntimeDeclarations`)? set with the census, before any scoped walk asks a binding
+  let nestedTSRuntimeDeclarations = null;
+  let fileCensus = null;
+  let prePassSites = null;
+  // the census's escape half, by NAME. Its sets also key AST-bearing escape-walk caches,
+  // so the answer must be released with the rest of the census after each file.
+  let escapedCtorNames = null;
+  let lateEscapeProgram = null;
+
+  // Siblings can introduce a constructor after the source census. Refresh only when a late
+  // entry question asks for escapes, before that traversal substitutes the new references.
+  // A shallow Program owns the new census: the source tree keeps its pristine flow tables.
+  function refreshLateCtorEscapes() {
+    if (lateEscapeProgram) {
+      const program = lateEscapeProgram;
+      lateEscapeProgram = null;
+      const source = escapedCtorNames;
+      const late = collectFileCensus({ ...program }, [escapedCtorReferencesReducer({ isOptedOut: currentIsDisabled })]).escapedCtorNames;
+      escapedCtorNames = {
+        has: (name, held) => source?.has(name, held) === true || late.has(name, held),
+        readsUnnamedStatic: name => source?.readsUnnamedStatic(name) === true || late.readsUnnamedStatic(name),
+      };
+      // Earlier source reads already share one minted binding. Widen its entry in place,
+      // rather than mint a second constructor binding for a sibling's newly opaque use.
+      for (const [sourcePath, name] of injector.pureImports) {
+        const entry = sourcePath.slice(mode.length + 1);
+        if (!NARROW_ENTRY.test(entry)) continue;
+        const info = injector.getBindingInfo(name);
+        const result = resolvePure({ kind: 'global', name: info.hint }, null);
+        if (result && result.entry !== entry) injector.promotePureImport(entry, result.entry);
+      }
+    }
+  }
+  // a static the user monkey-patches must never bind to the frozen receiver-less import:
+  // every pipeline (member emission, destructure props, param synth) resolves through this
+  // filter, so the read keeps flowing through the substituted constructor instead - save a read
+  // the write does not speak for (`isDeoptedStaticRead`): the detect it computes from and a read
+  // running before every write of the pair, which take what this build serves. `read` - the read where the
+  // caller holds it apart from `path` (the adapter's `served`)
+  function resolvePure(meta, path, read = undefined) {
+    return isDeoptedStaticRead({ meta, adapter, path, read }) ? null : resolvePureUnfiltered(meta, path);
+  }
+
+  let injector, importStyle, format, debugOutput;
+  // one debug note per DEOPTED global name per file (fired lazily at the first suppressed read)
+  let deoptNotedNames = new Set();
+  function noteDeoptedGlobal(name) {
+    if (deoptNotedNames.has(name)) return;
+    deoptNotedNames.add(name);
+    debugOutput?.warn(mutatedSlotLeftNativeWarning(name));
+  }
+
+  const {
+    isInTypeAnnotation,
+    deoptionalizeDanglingOptionalParent,
+    emitGuardedClaim,
+    isRenderedPlanTail,
+    navGuardTestNode,
+    collapseKeptNavValueNode,
+    collapseClaimlessCallRootedNav,
+    collapseShortCircuitNavInPlace,
+    destructureProbeNode,
+    renderWriteHostProbeGuard,
+    renderResolvedStaticClaimNode,
+    flushKeptNavCollapseAt,
+    keptNavHopClaimSuppressed,
+    flushKeptNavCollapses,
+    markThrowingExtraction,
+    generateRef,
+    generateLocalRef,
+    generateUnusedId,
+    cloneHost,
+    isWrappedInParens,
+    normalizeOptionalChain,
+    inheritConsumedMemberComments,
+    replaceInstanceLike,
+    replaceInstanceChainCombined,
+    replaceCallWithSimple,
+    withSideEffects,
+    reset: resetASTHelpers,
+  } = createASTHelpers(t, {
+    getInjector: () => injector,
+    getAdapter: () => adapter,
+    typeResolvers,
+    resolvePureGlobalEntry(name, path = null) {
+      return resolvePure({ kind: 'global', name }, path);
+    },
+    resolvePureStaticEntry(object, key, path = null) {
+      return resolvePure({ kind: 'property', object, key, placement: 'static' }, path);
+    },
+    resolvePurePrototypeEntry(object, key, path = null) {
+      return resolvePure({ kind: 'property', object, key, placement: 'prototype' }, path);
+    },
+    // late-bound like getInjector: the per-file injector exists only inside the program visit
+    injectPureGlobal(entry, hintName) {
+      return injector.addPureImport(entry, hintName);
+    },
+    // late-bound like the injector - the synth-swap emitter exists only inside the program visit.
+    // only its receiver-collapse half is wanted here, for a chain the guard channel found no real
+    // probe on
+    // the detector marks a claimed receiver's hops handled because the claim's render owns them.
+    // an emitter that re-emits the receiver BY IDENTITY breaks that premise, so it says so here and
+    // the hops claim for themselves on the re-visit
+    releaseHandledNode(node) {
+      currentUsageVisitors?.[USAGE_VISITORS_RELEASE_HANDLED]?.(node);
+    },
+    collapseReceiverHops(receiver, path, { hopsOnly = false } = {}) {
+      const swap = currentSynthSwap?.();
+      return swap && path?.scope
+        ? swap.collapseProxyGlobalReceiver(receiver, { hopsOnly, aliasCtx: { scope: path.scope, adapter, path } })
+        : null;
+    },
+  });
+
+  // Per-binding-context adapter: each active file reads its own `injector`.
+  // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
+  const adapter = createBabelAdapter({
+    getInjector: () => injector,
+    nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
+    method,
+    isOptedOut: node => !!currentIsDisabled?.(node),
+    // the build's backing of a global or static (`served`), and the set it is configured for (`available`)
+    resolvePure,
+    isEntryCarried,
+    isEntryAvailable,
+    getMutatedStatics: () => mutatedStatics,
+    getWrittenContainerSlots: () => writtenContainerSlots,
+    getContainerSlotIndex: () => containerSlotIndex,
+    getMutationRoots: () => mutationRoots,
+    getPackages: () => packages,
+    parameterCallSites: typeResolvers.parameterCallSites,
+    collectBindingReferences: typeResolvers.collectBindingReferences,
+    resolveConstantSelection: typeResolvers.resolveConstantSelection,
+  });
+
+  // forward references into `createClassHelpers` below: assigned once, right after that call and
+  // before any traversal, so the optional-chain deopt check can resolve `super.from?.()` to its
+  // inherited static and reject an own-member shadow of `this.X`
+  let resolveSuperStaticFn = null;
+  let isShadowedByClassOwnMemberFn = null;
+  // dead Optional*-typed links (optional: false) around a swapped receiver print with a
+  // parenthesized chain boundary under babel codegen where the unplugin emitter spells plain -
+  // retype them in BOTH directions from the slot, stopping at a genuine `?.`
+  function retypeDeadOptionalLinks(path) {
+    for (let p = path; p && isOptionalNode(p.node) && !p.node.optional; p = p.parentPath) {
+      deoptionalizeAstNode(p.node);
+    }
+    for (let d = path.node.object; d && isOptionalNode(d) && !d.optional; d = d.object ?? d.callee) {
+      deoptionalizeAstNode(d);
+    }
+  }
+
+  // is this member the OPERAND of a `delete`? transparent wrappers (parens as a NODE, TS casts) sit
+  // between them in one paren spelling and not the other, so the climb peels them - the same rule the
+  // shared write-host predicate applies to its own hosts
+  function skipPolyfillableOptional(node, scope, path) {
+    return isPolyfillableOptional({
+      node,
+      scope,
+      path,
+      adapter,
+      resolve: meta => resolvePure(meta, path),
+      resolveSuperStatic: resolveSuperStaticFn,
+      mutatedSet: mutatedStatics,
+      isShadowedByClassOwnMember: isShadowedByClassOwnMemberFn,
+    });
+  }
+
+  return {
+    name: 'core-js@4',
+    /* eslint-disable max-statements -- IIFE encapsulates plugin closure state + helpers
+       coordinating per-file lifecycle (initFile / programExit / postHook). synth-swap
+       pipeline lives in `internals/synth-swap-emitter.js`; destructure pipeline lives
+       in `internals/destructure-emitter.js`. remaining inner functions are tightly coupled
+       to closure state (skippedNodes / debugOutput / disabledLines) and inline by design */
+    ...(() => {
+      let skippedNodes = new WeakSet();
+      // the user selections the detect pass found partly dead, with what usage-pure folds each to once
+      // its claims rendered - keyed by source span, which a copy an emission took of one keeps, so the
+      // copy folds as its original does; a node without a span is keyed by itself
+      let deadSelections = new Map();
+      // did a claim stand where its value is discarded? its render may then leave as a fold's answer does
+      let discardedClaims = false;
+      let originalBodyNodes = new WeakSet();
+      let sourceGlobalUses = new WeakMap();
+      // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
+      // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
+      // that pass at all (pre bailed on a destroyed Program, and with it `programExit`) still takes
+      // the full walk. never OR the answer into it: the reset already made it true
+      let parensPending = true;
+      let disabledLines = null;
+      let skipFile;
+      // per-file count of modules injected by entry expansion - a non-zero count means the
+      // emitted import block breaks the directive prologue, making `0;` placeholders moot
+      let entryModulesInjected = 0;
+      // entry import paths collected in entry-global pass 1, decided as a BATCH in pass 2 (after the
+      // TOTAL module count is known) via the shared `resolveBatchDirectivePromotionPolicy` - so a
+      // zero-module entry near the prologue can't see an incremental `0` and emit a spurious `0;`
+      let entryDirectiveCandidates = [];
+      // synth-swap pipeline: receivers accumulated as the visitor walks, drained at
+      // programExit. factory in `internals/synth-swap-emitter.js`. instantiated per-file
+      // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
+      // freshly-allocated WeakSet
+      let synthSwap;
+      currentSynthSwap = () => synthSwap;
+      currentIsDisabled = node => isDisabled(node);
+
+      function isDisabled(node) {
+        return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
+      }
+      // the opt-outs this pass honoured reach the next pass through the printed tree: the canon
+      // (`disableDirectiveAnchors`) names every outermost covered node the reprint would leave
+      // without its directive, and this binding leads it the way babel's generator lays comments -
+      // as the NEAREST comment of the node's own leading run, which is also where it reads whether
+      // the author's directive already stands there. appended by hand: `t.addComment` prepends a
+      // leading comment, and a directive with a comment under it covers that comment's line.
+      // runs at the last reachable point (`post()`), on the tree the generator prints
+      function anchorDisableDirectives(programNode) {
+        if (!disabledLines || !programNode) return;
+        function isLed(node) {
+          const run = node.leadingComments;
+          const comment = run?.at(-1);
+          if (!comment || !isNextLineDisableDirective(comment.value)) return false;
+          // A moved directive keeps its source gap; attached text alone does not prove coverage.
+          const covered = directiveCoveredLine(comment);
+          return covered === null || covered === node.loc?.start.line;
+        }
+        for (const node of disableDirectiveAnchors({ ast: programNode, disabledLines, isLed })) {
+          (node.leadingComments ??= []).push({ type: 'CommentLine', value: ` ${ DISABLE_NEXT_LINE_DIRECTIVE }` });
+        }
+      }
+
+      const {
+        injectModulesForEntry,
+        injectModulesForModeEntry,
+        isProposalEntry,
+        outputDebug,
+      } = createModuleInjectors({
+        mode,
+        getModulesForEntry,
+        getDebugOutput() { return debugOutput; },
+        injectGlobal: moduleName => injector.addGlobalImport(moduleName),
+        // the report reads the injector once the file is done, so a per-file injector is read late
+        getEmitted: () => injector?.emittedPolyfills() ?? [],
+      });
+
+      function injectPureImport(entry, hint) {
+        return injector.addPureImport(entry, hint);
+      }
+
+      function handleSymbolIterator(path, sideEffects, receiverEffectCount, symbolReceiverProxyRoot) {
+        // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
+        // current class's); let the native runtime form stand for `super[Symbol.iterator]`
+        if (t.isSuper(path.node.object)) return;
+        // peel `arr[Symbol.iterator]!()` etc. so the call parent is recognised. resolve the entry +
+        // viability BEFORE skipping the computed key below: if the get-iterator(-method) entry is
+        // excluded we bail, leaving the `Symbol.iterator` KEY for the regular static-symbol rewrite
+        // (`globalThis.Symbol.iterator` -> `_Symbol$iterator`), which subsumes the proxy-global root.
+        // skipping it first then bailing stranded a raw `globalThis` (ie:11 ReferenceError) / left the
+        // broken `_globalThis.Symbol.iterator` (`_globalThis.Symbol` is undefined in the pure variant)
+        const callerPath = peelParenAndTSSlotPath(path);
+        // the MEMBER and the caller above it, the one convention all three callers now use -
+        // the resolver peels the callee itself, so a seal or a TS wrapper needs no compensation
+        const entry = resolveSymbolIteratorEntry(path.node, callerPath.parent);
+        if (!isEntryNeeded(entry)) return;
+        const rootPlan = planSymbolReceiverRoot(symbolReceiverProxyRoot, {
+          sideEffects,
+          receiverEffectCount,
+          resolvePure: meta => resolvePure(meta, path),
+        });
+        if (rootPlan) {
+          const root = renderSymbolReceiverRoot(rootPlan, {
+            injectImport: (rootEntry, hint) => injectPureImport(rootEntry, hint).name,
+            embed: node => hostSlot(t.cloneNode(node)),
+          });
+          path.node.object = estreeToBabel(root.receiver);
+          sideEffects = root.sideEffects?.map(hostSlotNode);
+          receiverEffectCount = root.receiverEffectCount;
+          if (root.optional) {
+            path.node.type = 'OptionalMemberExpression';
+            path.node.optional = true;
+          }
+        }
+        // a proxy-global receiver DEEPER than the immediate symbol hop (`(c++, globalThis.self).Array.prototype
+        // [Symbol.iterator]`) is not covered by symbolReceiverProxyRoot (it resolves only the hop directly before
+        // the symbol); collapse it through the shared receiver collapse so it matches unplugin - a raw
+        // `globalThis.self` off the deeper chain reads undefined off-engine. no-op once already collapsed
+        if (synthSwap && path.scope
+          && (path.node.object?.type === 'MemberExpression' || path.node.object?.type === 'OptionalMemberExpression')) {
+          const collapsedRecv = synthSwap.collapseProxyGlobalReceiver(path.node.object, { aliasCtx: { scope: path.scope, adapter, path } });
+          if (collapsedRecv) path.node.object = collapsedRecv;
+        }
+        if (path.node.computed) {
+          // meta.sideEffects carries the key prefix; a side-effecting receiver is hoisted ahead of
+          // it by the emit (hoistReceiverSE) so order holds. skip the SequenceExpression TAIL (the
+          // Symbol.iterator member) + wrappers so it is not also polyfilled in place
+          let cur = peelNestedSequenceExpressions(path.node.property).tail;
+          while (cur) {
+            skippedNodes.add(cur);
+            if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) cur = cur.expression;
+            else break;
+          }
+        }
+        const id = injectPureImport(entry, symbolIteratorHint(entry));
+        // thread `meta.sideEffects` through to the replacement helpers. detect-usage
+        // captures SE during dispatch (e.g. inline-call receiver `(() => arr)()[Symbol.iterator]()`
+        // where the SE-bearing receiver is the MemberExpression object); without forwarding,
+        // those effects silently dropped when the parent call gets rewritten
+        if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional, sideEffects, receiverEffectCount);
+        else replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects, receiverEffectCount });
+      }
+
+      // destructure rewrite pipeline (parameter-default synth-swap entry, top-level extraction,
+      // nested proxy-global flatten, catch-clause receiver). instantiated per-file in `initFile`
+      // so closure-captured per-file state stays in sync; public `handleObjectPropertyResult` /
+      // `extractCatchClause` become local consts so existing call sites stay unchanged
+      let destructureEmit;
+
+      const {
+        resolveStaticInheritedMember,
+        isInheritedStaticLookup,
+        isInStaticContext,
+        isShadowedByClassOwnMember,
+        reset: resetClassHelpers,
+      } = createClassHelpers({
+        t,
+        adapter,
+        resolveKey: sharedResolveKey,
+        getInjector: () => injector,
+        attachUnionExtras: attachMemberUnionExtras,
+        containerReceiverName: staticContainerReceiverName,
+      });
+      // wire the forward references so the top-level optional-chain deopt check can resolve
+      // supers and reject own-static shadows of `this.X`
+      resolveSuperStaticFn = resolveStaticInheritedMember;
+      isShadowedByClassOwnMemberFn = isShadowedByClassOwnMember;
+
+      const usageGlobalCallback = createUsageGlobalCallback({
+        adapter,
+        resolveUsage,
+        injectModulesForModeEntry,
+        isProposalEntry,
+        isDisabled,
+        resolveStaticInheritedMember,
+        isInheritedStaticLookup,
+        isInStaticContext,
+        isShadowedByClassOwnMember,
+        enumerateFallbackBranches(meta, path) {
+          return enumerateFallbackDestructureBranches(meta, path, adapter, { resolvePure, followIndirection: true });
+        },
+      });
+
+      // any detached ancestor puts our node outside the live AST - polyfill emission
+      // would land nowhere. verify each link still occupies its prior position in the parent
+      // via direct index lookup (`parent[listKey][key]`); avoids the O(N) `list.includes`
+      // per ancestor that ballooned into O(depth*width) on deep member-chains in large files.
+      // `slot !== cur.node` catches babel's stale path keys after sibling `.remove()`: when
+      // babel hasn't re-indexed yet, `cur.key` may still point at the array slot but the
+      // slot now contains a different node (or `undefined` after the splice)
+      function isOrphaned(path) {
+        let cur = path;
+        for (; cur?.parentPath; cur = cur.parentPath) {
+          if (cur.removed) return true;
+          // grandparent removed leaves parent dangling - parent's `.node` survives but it's
+          // no longer reachable from the program tree. without this check we'd polyfill into
+          // dead branches that sibling plugins already amputated
+          if (cur.parentPath.removed) return true;
+          const parentNode = cur.parentPath.node;
+          if (!parentNode) return true;
+          // A shared node can occupy the new slot while this path still writes its retired container.
+          if (!cur.listKey && cur.container !== parentNode) return true;
+          const slot = cur.listKey ? parentNode[cur.listKey]?.[cur.key] : parentNode[cur.key];
+          if (slot !== cur.node) {
+            // a stale LIST index is NOT an orphan: a sibling insert (e.g. a memoize `var _ref;`
+            // pushed ahead of this statement) shifts the container, and babel@8 re-keys cached
+            // ancestor paths lazily, so `cur.key` can point past the node while it still lives at
+            // a new index. fall back to membership - a genuine remove/replace (node absent from
+            // the list, or any non-list slot mismatch) stays orphaned
+            if (cur.listKey && parentNode[cur.listKey]?.includes(cur.node)) continue;
+            return true;
+          }
+        }
+        // root: a sibling plugin may have installed a new Program (`file.ast.program = clone`)
+        // while keeping the old tree reachable through our cached paths. the slot-check above
+        // never hit Program because it has no parentPath. compare against the file's current
+        // program node - stale roots produce orphan emission into a detached AST. a
+        // `currentProgram ? ... : false` ternary would default to "not orphan" whenever
+        // the hub / file / ast / program chain is undefined - missing the case where the
+        // sibling plugin REMOVED `file.ast.program` outright (rare but plausible in test
+        // harnesses or aggressive AST swaps). comparing directly lets the inequality run
+        // anyway: an absent program slot won't match our cur.node, flagging orphan correctly.
+        // when the path itself is `cur === null` (parentPath walk exhausted), `cur?.node` is
+        // undefined and matches a likewise-undefined program, returning false - still treats
+        // truly synthetic root-less paths as live to avoid suppressing legitimate emissions
+        return cur?.node !== path.hub?.file?.ast?.program;
+      }
+
+      function shouldSkipPath(path) {
+        // DETACHMENT is this leg's own question - babel reports it as a stale container or an
+        // orphaned path; the four SHAPE questions are the shared ones
+        return (path.parentPath && !path.parentPath.container) || isOrphaned(path)
+          || claimIsInert({ node: path.node, path, isDisabled, skippedNodes, isInTypeAnnotation });
+      }
+
+      // detect `(recv)?.inner?.(args).outer(args)` with polyfillable instance inner+outer;
+      // resolve inner via callee path so `[].at` -> `_atMaybeArray` (not generic `_at`)
+      function findInnerPolyChain(path) {
+        if (!path.isOptionalMemberExpression()) return null;
+        const outerCaller = peelParenAndTSSlotPath(path);
+        // a GET tail over the same chain (`recv.m?.().at`) combines too: the standalone emit
+        // memoizes the callee and rebuilds the optional call off it, which resolves the inner
+        // method-get on a bare `_ref` and so loses the receiver type the chain still carries
+        const parentCall = t.isCallExpression(outerCaller.parent) || t.isOptionalCallExpression(outerCaller.parent)
+          ? outerCaller.parent : null;
+        const outerCall = parentCall?.callee === outerCaller.node ? parentCall : null;
+        // user parens on the callee END the chain: the outer call runs on whatever the chain
+        // produced, so a short-circuited chain must make it THROW. combining folds that call's
+        // arguments into the guard's alternate and returns void 0 instead - stand down and let the
+        // paren-lookup emit, which keeps the call outside the ternary, take the shape. the
+        // unplugin declines the same shape
+        if (outerCall && isWrappedInParens(outerCaller)) return null;
+        // rare but possible wrappers: ParenthesizedExpression (babel's
+        // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
+        // peel both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
+        let current = peelSkippableWrapperPath(path.get('object'));
+        // outer call's immediate (wrapper-peeled) receiver. when the descent below crosses
+        // non-optional Member/Call hops (`.map(...)` / `.slice(...)`) to reach the optional
+        // inner, this differs from the inner - the combine then threads the surviving hops
+        // onto the memoized inner result instead of dropping them (value corruption)
+        const outerObjectNode = current.node;
+        while (isOptionalNode(current.node)) {
+          if (current.node.optional) break;
+          current = peelSkippableWrapperPath(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
+        }
+        if (!current.isOptionalCallExpression() || !current.node.optional) return null;
+        const callee = current.get('callee');
+        const calleeNode = callee.node;
+        if (calleeNode?.type !== 'MemberExpression' && calleeNode?.type !== 'OptionalMemberExpression') return null;
+        const methodKey = memberKeyName(calleeNode);
+        if (methodKey === null) return null;
+        // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
+        // OR-chain template, but `super` is not a primary expression and the codegen
+        // throws at parse time. let `super` chains fall through to the instance
+        // transform's dedicated super-call handling instead
+        if (calleeNode.object?.type === 'Super') return null;
+        const meta = { kind: 'property', object: null, key: methodKey, placement: 'prototype' };
+        const { result } = resolvePureOrGlobalFallback(meta, callee);
+        if (result?.kind !== 'instance') return null;
+        return {
+          innerCallee: calleeNode,
+          innerCalleePath: callee,
+          innerArgs: current.node.arguments,
+          innerEntry: result.entry,
+          innerHintName: result.hintName,
+          chainStartNode: current.node,
+          hasHops: current.node !== outerObjectNode,
+          outerIsCall: !!outerCall,
+          // the combine SPLICES this call's memo into the hops above it, so their own dispatch
+          // later resolves a receiver that no longer spells the chain - carry the pre-splice type
+          // across, the way `annotateCallReturnType` does for a replaced callee. without it a hop
+          // degrades to the generic helper (`_at`) where the same chain WITHOUT the `?.` resolves
+          // the narrowed one (`_atMaybeArray`), and unplugin - which resolves hops off the
+          // original path - keeps the narrowed one either way
+          chainStartType: resolveNodeType(current),
+        };
+      }
+
+      // mark the chain-combine's consumed inner pieces skipped (the optional call, its method
+      // member, and the method key) so re-traversal won't re-process them as a standalone call
+      // (a dead `_ref` via extractCheck). the receiver subtree (innerCallee.object) stays
+      // VISITABLE so its proxy-globals (`globalThis` -> `_globalThis`), statics (`Array.from` ->
+      // `_Array$from`), and nested polyfillable chains (`a.flat?.()`) still substitute - matching
+      // the single-call path, including through a TS-cast wrapper (`(globalThis as any).flat?.()`):
+      // the memo reuses the original receiver node, so leaving its inner proxy-global visitable
+      // lets the Identifier visitor substitute it (`_ref = _globalThis as any`) instead of stranding
+      // a raw global. unplugin's combined-chain delegates to the same receiver resolver for parity
+      function markCombinedChainConsumed({ chainStartNode, innerCallee }) {
+        skippedNodes.add(chainStartNode);
+        skippedNodes.add(innerCallee);
+        if (innerCallee.property) skippedNodes.add(innerCallee.property);
+      }
+
+      // inherited-static dispatch -- super.method(args) or this.method(args) in static ctx
+      // (plain / ! / ?.()) -> id.call(this, args). the subclass constructor must stay the
+      // receiver, else the pure static result downgrades to the base class.
+      // sideEffects channel covers computed-key SE: `super[(fn(),'X')](args)` collected fn()
+      // into meta.sideEffects via members.js; emit wraps the call in SequenceExpression
+      function replaceInheritedStatic(path, id, sideEffects) {
+        const callerPath = peelParenAndTSSlotPath(path);
+        const callParent = callerPath.parentPath;
+        if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+          && callParent.node.callee === callerPath.node) {
+          const callExpr = estreeToBabel(renderMethodCall(planMethodCall({
+            receiver: t.thisExpression(), prepared: true, methodGuarded: true, args: callParent.node.arguments,
+          }), { lookup: hostSlot(id), embed: node => hostSlot(t.cloneNode(node)) }));
+          // The host wrapper retains minted-effect identity and marks the generated sequence.
+          callParent.replaceWith(withSideEffects(callExpr, sideEffects));
+        } else {
+          peelParenAndTSSlotPath(path).replaceWith(withSideEffects(id, sideEffects));
+        }
+      }
+
+      // `X in Y` rewrite. The branch decision and side-effect harvest live in the shared
+      // planInExpression; here we only render the chosen shape into babel AST
+      const foldedInTests = new WeakSet();
+      function handleInExpression(meta, path) {
+        // the wrap below re-queues the test it keeps; without this it would wrap its own wrap
+        if (foldedInTests.has(path.node)) return;
+        const plan = planInExpression({
+          meta,
+          left: path.node.left,
+          right: path.node.right,
+          isEntryNeeded,
+          resolveFallback: m => resolvePureOrGlobalFallback(m, path),
+          // typed-instance fold candidate: the receiver's resolved type hint (null for
+          // unknown / static-receiver / symbol shapes - the plan gates on it)
+          receiverHint: !meta.object && meta.key && !meta.symbolSourced
+            ? toHint(resolveNodeType(path.get('right'))) : null,
+          parent: path.parentPath?.node ?? null,
+          ctx: { scope: path.scope, adapter, path },
+        });
+        if (plan.kind === 'noop') return;
+        const rendered = renderInExpressionPlan(plan, {
+          injectImport: (entry, hint) => injectPureImport(entry, hint).name,
+          embed: hostSlot,
+          cloneSource: () => t.cloneNode(path.node),
+        });
+        if (rendered.swapLeft) {
+          // swap only the LHS in place so the RHS keeps its visited state (not re-traversed)
+          path.get('left').replaceWith(estreeToBabel(rendered.swapLeft));
+          if (rendered.leadingSe.length) {
+            path.replaceWith(t.sequenceExpression([
+              ...rendered.leadingSe.map(effect => estreeToBabel(effect)), path.node]));
+          }
+          return;
+        }
+        const replacement = estreeToBabel(rendered.replace);
+        // the kept membership test is re-queued by `replaceWith`; without the mark it would wrap
+        // its own wrap. the helper form CONSUMES the operand the way `in` did, so a guard rendered
+        // for the operand's own chain must stay INSIDE the argument - climbing out of the call
+        // answers `undefined` where the source throws, and strands the memo it built
+        if (plan.kind === 'fold-after-test') foldedInTests.add(replacement.expressions[0]);
+        if (rendered.throwsAtTail) {
+          markThrowingExtraction(replacement.type === 'SequenceExpression'
+            ? replacement.expressions.at(-1) : replacement);
+        }
+        path.replaceWith(replacement);
+      }
+
+      // the instance rewrite REPLACES the parent call (`arr.at(0)` -> `_atMaybeArray(arr).call(arr, 0)`),
+      // so the type it resolved to is gone from the tree the next member above reads: capture it
+      // BEFORE the rewrite and hand it back after. the COMBINED render replaces a different path
+      // than the one held here, so it takes the type as an argument and stamps its own replacement
+      // Discarded call values have no consumer to inherit this stamp.
+      function captureInstanceCallType(path) {
+        const callerPath = peelParenAndTSSlotPath(path);
+        const callParent = callerPath.parentPath;
+        const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+          && callParent.node.callee === callerPath.node;
+        const type = isCallParent && !valueIsDroppedAt(callParent) ? resolveNodeType(callParent) : null;
+        return type ? { callParent, type } : null;
+      }
+
+      function reattachInstanceCallType(captured) {
+        if (captured?.callParent?.node) resolvedType.set(captured.callParent.node, captured.type);
+      }
+
+      // stash return type on CallExpression before callee replacement so downstream
+      // resolveNodeType can still determine e.g. Promise.all -> Array
+      function annotateCallReturnType(path) {
+        const callerPath = peelParenAndTSSlotPath(path);
+        const callParent = callerPath.parentPath;
+        if (!(callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+          || callerPath.parent.callee !== callerPath.node || valueIsDroppedAt(callParent)) return;
+        const type = resolveNodeType(callParent);
+        if (type) resolvedType.set(callParent.node, type);
+      }
+
+      // runtime ctor guard render: the DECISION (static entry, callee-ness, optional-call
+      // bail, ctor comparator) is the shared provider plan; this only builds the AST -
+      // `(M === _Map ? _Map$groupBy : M.groupBy)`. A raw callee binds `this`, or its call
+      // stays in the branch when argument timing needs it. The raw branch is skip-marked:
+      // the re-queued traversal must neither re-enter this handler nor substitute the raw static.
+      // The raw member is the guard's live fallback - a narrow would corrupt the untaken flow.
+      const guardedNarrowRendered = new WeakSet();
+      function emitGuardedStaticNarrow(meta, path) {
+        const memberNode = path.node;
+        if (guardedNarrowRendered.has(memberNode)) return true;
+        const plan = planGuardedStaticNarrow({
+          memberNode, parent: peelParenAndTSSlotPath(path).parentPath?.node, meta, path, resolvePure, adapter,
+        });
+        if (!plan) return false;
+        if (plan.bail) return true;
+        if (plan.captureReceiver) plan.recvIdent = generateRef(path.scope, memberNode);
+        // the receiver hop the guard absorbed is captured PLAIN - its `?.` is answered once, above the
+        // whole render, by the short-circuit the plan hoists over that hop's own base
+        const captureSource = plan.receiverHop
+          ? t.memberExpression(t.cloneNode(plan.receiverHop.object),
+            plan.receiverHop.computed
+              ? t.cloneNode(plan.receiverHop.property) : t.identifier(plan.receiverHop.property.name),
+            plan.receiverHop.computed)
+          : plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
+        // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
+        // the source runs it - so the raw branch reads off the bare identifier instead of re-running
+        // the sequence (`(n++, M === _Map ? _Map$groupBy : M.groupBy)`), and so it does off the left
+        // of a selection the build decides, its dead right gone with the render. the member's own `?.`
+        // stays on that read unless a hoisted guard answers it
+        const readProperty = memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name);
+        const readNode = !(plan.seqPrefix.length || plan.captureReceiver || plan.decidedSelection) ? memberNode
+          : memberNode.optional && !plan.hoisted
+            ? t.optionalMemberExpression(t.cloneNode(plan.recvIdent), readProperty, memberNode.computed, true)
+            : t.memberExpression(t.cloneNode(plan.recvIdent), readProperty, memberNode.computed);
+        // a hoisted chain guard has already proved the receiver, so the raw branch drops the `?.`
+        // the source wrote on the hop - the tail above it rides inside the guard's live branch
+        const plainRead = plan.hoisted && readNode === memberNode
+          ? t.memberExpression(t.cloneNode(memberNode.object),
+            memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
+            memberNode.computed)
+          : readNode;
+        const rawBranch = plan.isCallee && !plan.callInBranches
+          ? estreeToBabel(renderBoundRawBranch(hostSlot(t.cloneNode(plainRead)), hostSlot(t.cloneNode(plan.recvIdent))))
+          : plainRead;
+        guardedNarrowRendered.add(memberNode);
+        // the whole chain is the canon's fold - one branch per candidate ctor, innermost-last.
+        // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
+        // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
+        // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
+        const callPath = plan.callInBranches ? peelParenAndTSSlotPath(path).parentPath : null;
+        const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+          call: callPath?.node,
+          ctx: { scope: path.scope, path, adapter, injectorState: injector },
+          embed: node => hostSlot(t.cloneNode(node)),
+          cloneCall: (source, callee, args, optional) => hostSlot({
+            ...t.cloneNode(source), callee: estreeToBabel(callee),
+            arguments: args.map(estreeToBabel), optional,
+          }),
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
+          spellRecv: () => {
+            const testRecv = t.cloneNode(plan.recvIdent);
+            skippedNodes.add(testRecv);
+            return hostSlot(testRecv);
+          },
+        }));
+        // the plan's continuation rides inside the live branch and the short-circuit is spelled once
+        // above the whole thing; the replaced path climbs with it. the tail steps are REBUILT, never
+        // reused - the source spelling carries a `?.` the guard has already answered
+        let tailPath = path;
+        let hoisted = narrow;
+        if (plan.chainTail.length) {
+          for (const step of plan.chainTail) {
+            let up = tailPath.parentPath;
+            while (up?.node && up.node !== step) up = up.parentPath;
+            if (up?.node) tailPath = up;
+          }
+          hoisted = estreeToBabel(renderGuardedChainTail(plan.chainTail, hostSlot(narrow), {
+            cloneHost,
+            cloneCall: (step, built) => hostSlot(step.type === 'OptionalCallExpression' || step.optional
+              ? t.optionalCallExpression(estreeToBabel(built), step.arguments.map(argument => t.cloneNode(argument)), true)
+              : t.callExpression(estreeToBabel(built), step.arguments.map(argument => t.cloneNode(argument)))),
+          }));
+        }
+        // the short-circuit tests the value the source's own `?.` guards: the hop's base where the
+        // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
+        // capture, the test rides inside the capture sequence, after the memo it reads
+        if (plan.hoisted) {
+          hoisted = estreeToBabel(renderShortCircuitGuard(nullFirstGuardTest(hostSlot(t.cloneNode(
+            plan.receiverHop ? plan.receiverHop.object : plan.recvIdent))), hostSlot(hoisted)));
+        }
+        if (plan.hoistInsideCapture) {
+          hoisted = estreeToBabel(renderCapturedReceiver(
+            hostSlot(t.cloneNode(plan.recvIdent)), hostSlot(captureSource), hostSlot(hoisted)));
+        }
+        const guard = plan.seqPrefix.length
+          ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), hoisted]) : hoisted;
+        t.traverseFast(rawBranch, n => skippedNodes.add(n));
+        // the generator prints the `expr<T>` instantiation slot without the parens its precedence
+        // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
+        // uninvoked) - so the guard ternary, which is what will OCCUPY that slot after the swap,
+        // takes them here. this is the ONE paren node spelled before the lowerings rather than in
+        // `post()`, and it is safe for a structural reason: what it wraps is `binding === ctor ?
+        // static : raw`, which cannot hold an `await` or a `yield`, so regenerator never has to
+        // explode it. it is also only reachable when the fold could not run - a foldable host takes
+        // the type arguments during the usage traversal, and by then there is no node left to find.
+        // a WRAPPER between the swap and the instantiation is not this rule's to compensate: the
+        // slot then holds the wrapper, whose own priority the late restoration reads off the same
+        // predicate - and every wrapper that owes the parens is a TS cast, which that pass covers
+        if (tailPath !== path) tailPath.replaceWith(guard);
+        else if (callPath) callPath.replaceWith(guard);
+        else if (path.parentPath?.node?.type === 'TSInstantiationExpression'
+          && instantiationSlotNeedsParens(guard)) path.replaceWith(t.parenthesizedExpression(guard));
+        else path.replaceWith(guard);
+        return true;
+      }
+
+      // the RAW branch of a guarded read is a member this very rule would narrow again on re-entry -
+      // built and marked handled in one place, for the sole-prop render and every read of a split
+      function markedRawBranch(readPlan, key) {
+        const raw = t.memberExpression(t.cloneNode(readPlan.recvIdent), t.identifier(key));
+        t.traverseFast(raw, node => skippedNodes.add(node));
+        return raw;
+      }
+
+      // the residual the shared rename yields, in this leg's declarator - marked handled whole, since
+      // the source's own props are gone from it
+      function restResidualDeclarator(patternNode, plan) {
+        const id = renameSplitPropsToSentinels(patternNode, () => generateUnusedId().name);
+        const residual = t.variableDeclarator(id, t.cloneNode(plan.recvIdent));
+        t.traverseFast(residual, node => skippedNodes.add(node));
+        return residual;
+      }
+
+      // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders as
+      // the declarator's value, which is equivalent down to the throw - on a nullish receiver the raw
+      // branch dereferences it exactly as the pattern would. a multi-prop pattern splits as the shared
+      // plan admits it, including scalar defaults and proven effect-free computed keys
+      function emitGuardedDestructureNarrow(meta, prop) {
+        const pattern = prop.parentPath;
+        const host = pattern?.parentPath;
+        const admitted = planGuardedDestructureNarrow({
+          propNode: prop.node,
+          patternNode: pattern?.node,
+          hostNode: host?.node,
+          // the statement question is this leg's own: its parser records parens as `extra`, so the
+          // TS-wrapper climb is what reaches the host's real statement
+          hostInStatement: !!host?.isAssignmentExpression()
+            && !!peelParenAndTSSlotPath(host).parentPath?.isExpressionStatement(),
+          meta,
+          path: prop,
+          resolvePure,
+          adapter,
+        });
+        if (!admitted) return false;
+        const { plan, split, restResidual, bindingName, hostKind, nested, capture, captureFirst, keepPatternLive, detach } = admitted;
+        if (nested) {
+          const declaration = nested.host.parentPath;
+          if (capture && destructureEmit.unwrapExportedHost(declaration)) return true;
+          if (!captureFirst
+            && destructureEmit.renderNestedParamSynth({ prop, meta, fallbackOnBail: !!capture })) return true;
+          if (!capture) return false;
+          const rendered = renderNestedKeyedPatternCapture(capture, {
+            mintRef: () => (hostKind === 'declarator' ? generateLocalRef : generateRef)(prop.scope).name,
+            embed: hostSlot,
+            narrow: plan,
+            split,
+            assignment: hostKind !== 'declarator',
+            preserveResult: hostKind === 'assignment-value',
+            injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          });
+          if (rendered.expression) {
+            const expression = estreeToBabel(rendered.expression);
+            for (const [index, element] of rendered.elements.entries()) {
+              if (element.guarded) t.traverseFast(expression.expressions[index + 1], node => skippedNodes.add(node));
+            }
+            nested.host.replaceWith(expression);
+            return true;
+          }
+          const captured = estreeToBabel(rendered.capture);
+          const elements = rendered.elements.filter(element => element.declarator);
+          const extracted = elements.map(element => estreeToBabel(element.declarator));
+          for (const [index, element] of elements.entries()) {
+            if (element.guarded) t.traverseFast(extracted[index], node => skippedNodes.add(node));
+          }
+          const declarator = nested.host;
+          declarator.get('id').replaceWith(captured.id);
+          declarator.scope.registerBinding(declarator.parentPath.node.kind, declarator.get('id'), declarator);
+          declarator.insertAfter(extracted);
+          return true;
+        }
+        // a captured receiver (`const { groupBy } = box.C`) is read once into a ref the guard tests
+        const captureSource = plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
+        if (captureSource) plan.recvIdent = generateRef(prop.scope);
+        const rawBranch = markedRawBranch(plan, meta.key);
+        const narrow = !split && estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          spellRecv: () => hostSlot(t.cloneNode(plan.recvIdent)),
+          captureReceiver: captureSource && detach !== 'after' ? hostSlot(captureSource) : null,
+          mintRef: () => generateRef(prop.scope).name,
+          embed: node => hostSlot(t.cloneNode(node, true)),
+        }));
+        const value = plan.seqPrefix.length
+          ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
+        if (detach) {
+          const anchor = hostKind === 'declarator' ? host : peelParenAndTSSlotPath(host).parentPath;
+          if (hostKind !== 'assignment-value' && !Array.isArray(anchor.container)) return false;
+          if (captureSource) {
+            host.node[hostKind === 'declarator' ? 'init' : 'right'] = detach === 'before' ? t.cloneNode(plan.recvIdent)
+              : estreeToBabel(renderCapturedReceiver(hostSlot(t.cloneNode(plan.recvIdent)),
+                hostSlot(captureSource), hostSlot(t.cloneNode(plan.recvIdent))));
+          }
+          removePatternSlot(prop);
+          if (hostKind === 'assignment-value') {
+            host.replaceWith(estreeToBabel(renderDestructureAssignments([{ name: bindingName, value: hostSlot(value) }], {
+              residual: hostSlot(t.cloneNode(host.node, true)), detach, receiver: hostSlot(t.cloneNode(plan.recvIdent)),
+            })));
+            return true;
+          }
+          const placed = hostKind === 'declarator'
+            ? t.variableDeclarator(t.identifier(bindingName), value)
+            : t.expressionStatement(t.assignmentExpression('=', t.identifier(bindingName), value));
+          if (detach === 'before') anchor.insertBefore(placed);
+          else anchor.insertAfter(placed);
+          return true;
+        }
+        // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
+        // the plan answered for all of them, so nothing here waits on a later visit
+        if (split) {
+          const reads = split.map((item, index) => estreeToBabel(renderCtorIdentityNarrow(
+            captureSource ? { ...item.plan, recvIdent: plan.recvIdent } : item.plan,
+            hostSlot(markedRawBranch(captureSource ? plan : item.plan, item.key)), {
+              injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+              spellRecv: () => hostSlot(t.cloneNode(captureSource ? plan.recvIdent : item.plan.recvIdent)),
+              captureReceiver: captureSource && index === 0 ? hostSlot(captureSource) : null,
+              mintRef: () => generateRef(prop.scope).name,
+              embed: node => hostSlot(t.cloneNode(node, true)),
+            })));
+          if (hostKind === 'declarator') {
+            const declaration = host.parentPath;
+            const at = declaration.node.declarations.indexOf(host.node);
+            declaration.node.declarations.splice(at, 1,
+              ...split.map((item, index) => t.variableDeclarator(t.identifier(item.name), reads[index])),
+              // the REST reads the same receiver BEHIND the reads, with every consumed key renamed
+              // to a sentinel so it still gathers exactly what the source left it
+              ...restResidual ? [restResidualDeclarator(pattern.node, plan)] : []);
+            if (split.some(item => item.defaultValue)) declaration.requeue();
+          } else {
+            host.replaceWith(estreeToBabel(renderDestructureAssignments(
+              split.map((item, index) => ({ name: item.name, value: hostSlot(reads[index]) })), {
+                receiver: hostKind === 'assignment-value' ? hostSlot(t.cloneNode(plan.recvIdent)) : null,
+              })));
+          }
+          return true;
+        }
+        if (hostKind === 'declarator') {
+          host.node.id = keepPatternLive ? prop.node.value : t.identifier(bindingName);
+          host.node.init = value;
+        } else if (hostKind === 'assignment-statement') {
+          host.node.left = keepPatternLive ? prop.node.value : t.identifier(bindingName);
+          host.node.right = value;
+        } else {
+          host.replaceWith(t.sequenceExpression([
+            t.assignmentExpression('=', keepPatternLive ? prop.node.value : t.identifier(bindingName), value), t.cloneNode(plan.recvIdent),
+          ]));
+        }
+        if (keepPatternLive) {
+          // The guard already supplies the constructor's slots. Revisit source expressions
+          // in the moved pattern, including defaults, without mirroring its receiver again.
+          for (const item of prop.node.value.properties) skippedNodes.add(item);
+          host.requeue();
+        } else if (plan.destructureDefault) host.requeue();
+        return true;
+      }
+
+      function usagePureCallback(meta, path) {
+        if (shouldSkipPath(path)) return;
+        // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
+        // Identifier, and `<_Map/>` would call the polyfill as a React component at runtime
+
+        if (meta.kind === 'in') return handleInExpression(meta, path);
+
+        // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
+        if (isDeleteTarget(peelParenAndTSSlotPath(path).parentPath?.node)) return;
+
+        // a pass over our own output must not claim the member again - the shared census
+        // family (provider own-output), ahead of EVERY route: the guarded-narrow render's
+        // alternate deliberately keeps this very read, and re-claiming nests the guard.
+        // BOTH spellings ask the whole family: the other leg's parser calls an optional member a
+        // plain one, so asking a single census here answered a different question per LEG about one
+        // source - and an optional claim's receiver carries our renders just the same (a stored
+        // guard read through `?.`, whose `?.` the first pass deliberately kept)
+        if ((path.isMemberExpression() || path.isOptionalMemberExpression())
+          && ownEmittedNavClaim(path.node, path, ownOutputTests(injector), adapter, meta)) return;
+        if (path.isObjectProperty() && (ownEmittedPatternClaim(path, ownOutputTests(injector), adapter)
+          || sentinelAlreadyProcessed(path, { node: path.node, meta, injector }))) return;
+
+        if (meta.guardedAliasHint && (path.isObjectProperty()
+          ? emitGuardedDestructureNarrow(meta, path) : emitGuardedStaticNarrow(meta, path))) return;
+
+        let inheritedStatic = false;
+        if (meta.kind === 'property') {
+          if (path.isObjectProperty()) {
+            if (destructureEmit.tryPatternMirror({ prop: path, meta })
+              || destructureEmit.capturePatternForExtraction({ prop: path, meta })) return;
+            // a pattern-valued `[Symbol.iterator]` prop still dispatches: its extraction
+            // destructures the get-iterator-method result (helper canon, matching the
+            // identifier-valued form); every other pattern-valued prop stays native
+            // ... a pattern-valued prop is turned away with ONE route still owed it: a for-x HEAD
+            // hosts no statement for the shared plan's extraction, so its static is served by the
+            // mirror of the iterated element or by nothing at all. the emitter's narrow entry asks
+            // exactly that and returns - the routes below own a binding value, never a pattern
+            // a binding the source parenthesizes is a binding too: the node dialect keeps its paren as a node;
+            // a slot the source spells (a member, an asserted binding) is written as spelled
+            if (!propBindingIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
+              && !spelledWriteSlot(path.node.value)
+              && !isSymbolIteratorPatternClaim(path.node,
+                isSourcedSymbolIteratorMeta(meta) ? SYMBOL_ITERATOR_PURE_RESULT.entry : null)) {
+              return;
+            }
+            // ConditionalExpression / LogicalExpression init - resolver may pick a branch
+            // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
+            // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
+            // per-branch synth-swap fires regardless of which branch the resolver picked
+            // ... unless every value the selection can yield IS the realm: it names ONE object, so the
+            // prop resolves like a plain proxy receiver and keeps the ordinary route, which is what
+            // binds it an ENTRY - this dispatch hands the per-branch swap a meta with none, by design.
+            // on the per-branch route such a selection spells ONE arm as a literal and leaves the
+            // other reading the realm natively, which is the arm a browser takes
+            const realmInit = meta.fromFallback && destructureHostInitNode(path);
+            if (meta.fromFallback && !(realmInit && realmSelectionCollapseOperand(realmInit,
+              { adapter, injectorState: injector, scope: path.scope, path }))) {
+              return destructureEmit.handleObjectPropertyResult({
+                prop: path, meta, kind: null, entry: null, hintName: null,
+              });
+            }
+          } else {
+            if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
+            // `path.isReferenced()` drops grandparent - pass it explicitly
+            // `isForXWriteTarget` marks every same-shape member in a for-of/in BODY (not just the head) as
+            // part of the write set. `isMemberWriteHost` adds the immediate write hosts (`=` / update / `delete` /
+            // destructuring) AND climbs TS-cast / paren wrappers: a cast-wrapped LHS (`(globalThis.window.Set as
+            // any) = fn`) reads as `isReferenced` above (the cast IS a read position), so without it the member
+            // whole-swaps to the imported `_Set` const - reassigning a frozen import
+            // `isMemberWriteHost` covers update operands too (`(obj.at)++` - the rewrite would
+            // be a function call receiver, not writable), climbing the same wrapper set
+            if (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)) {
+              // The shared patch serves one read before the conditional fallback write.
+              const patch = planLogicalSlotPatch(meta, path, {
+                tests: ownOutputTests(injector), skippedNodes, resolvePure,
+                ctx: { path, scope: path.scope, adapter, injectorState: injector },
+              });
+              if (patch) {
+                const product = renderLogicalSlotPatch(patch, {
+                  injectImport: (entry, hint) => injectPureImport(entry, hint).name,
+                  cloneReceiver: node => t.cloneNode(node, true),
+                  mintRef: () => generateRef(path.scope, path.node).name,
+                  embed: hostSlot,
+                });
+                path.node.object = estreeToBabel(product.receiver);
+                path.node.property = estreeToBabel(product.property);
+                patch.hostPath.replaceWith(estreeToBabel(product.expression));
+              }
+              return;
+            }
+            // shadow check for `this.X` - polyfill would bypass the user's own member
+            // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
+            // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
+            // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
+            if (isThisReceiver(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
+            // `super.X` and unshadowed `this.X` in static ctx resolve against the super
+            // class's static surface via the same path - `this` in static ctx is the
+            // constructor, so inherited static lookup behaves exactly like `super.X`.
+            // cache the predicate so the instance-fallback bail below doesn't re-walk
+            inheritedStatic = isInheritedStaticLookup(path);
+            const inheritedMeta = inheritedStatic ? resolveStaticInheritedMember(path) : null;
+            // `extends MyPromise` (user-aliased pure import) - map binding to global hint.
+            // carry through `meta.sideEffects` from the original resolution: SE from
+            // computed-key `super[(fn(), 'X')]()` or SequenceExpression receiver must be
+            // preserved through the super-to-static remap, not dropped
+            if (inheritedStatic) meta = remapInheritedStaticMeta(injector, meta, inheritedMeta);
+            if (inheritedStatic && !meta) return;
+            // re-check mutation gate AFTER remap: the pre-remap `meta.object` was null
+            // (this-receiver, kind='property' but unresolved); remap fills it with the super
+            // class name. without the re-check, `this.from(arr)` inside `class C extends Array`
+            // silently bypasses user's `Array.from = ...` monkey-patch
+            // this-receiver dispatch cannot route through the substituted constructor object
+            // (the patch lives on the namespace, not the prototype chain) - keep the bail
+            if (inheritedStatic && isDeoptedStaticRead({ meta, adapter, path })) return;
+            // the tag slot may hold a TS wrapper over the member (`(arr.at as any)\`x\`` - the
+            // wrapper survives in babel's AST): climb to the tagged-template host; the shared
+            // predicate unwraps its tag slot, so the identity subsumes the old `path.key` check
+            if (isTaggedTemplateTag(peelParenAndTSSlotPath(path).parentPath?.node, path.node, meta.placement)) return;
+            // provenance gate: a string-spelled key (`arr['Symbol.iterator']`) is a plain
+            // property read and stays raw
+            if (isSourcedSymbolIteratorMeta(meta)) {
+              return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount, meta.symbolReceiverProxyRoot);
+            }
+          }
+        }
+
+        // a SLOT-mutated global name is DEOPTED (see the slot-deopt model in the provider's
+        // mutation pre-pass): the file writes the name itself, so its reads stay verbatim on
+        // the live binding - save a read running before every write (`isDeoptedGlobalSlotRead`)
+        if (isDeoptedGlobalSlotRead(meta, adapter, path)) {
+          noteDeoptedGlobal(meta.name);
+          return;
+        }
+        const { result, fallback } = resolvePureOrGlobalFallback(meta, path);
+        // inherited-static lookup where the member doesn't exist as static on the super class:
+        // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only on
+        // Array. `fallback` path would rewrite `this.at(0)` to `_Array.at(0)`, but `_Array.at`
+        // is undefined (no static). skip fallback + bail; runtime `this.at(...)` throws on the
+        // user's side rather than being silently miswired into a dead polyfill call
+        if (inheritedStatic && !result) return;
+        const fallbackPlan = fallback && planStaticFallbackReceiver(path.node, meta, fallback,
+          { scope: path.scope, adapter, path }, {
+            resolvePure: m => resolvePure(m, path),
+            resolveGlobal: ({ name }) => resolvePure({ kind: 'global', name }, path),
+            mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true,
+          });
+        if (fallbackPlan) {
+          if (fallbackPlan.kind === 'retain') {
+            // The declined member no longer owns this receiver's independent claim.
+            if (fallbackPlan.release) currentUsageVisitors?.[USAGE_VISITORS_RELEASE_HANDLED]?.(fallbackPlan.release);
+            return;
+          }
+          const receiverPath = fallbackPlan.sequence
+            ? peelSkippableWrapperPath(path.get('object')).get('expressions').at(-1)
+            : meta.placement === 'prototype'
+              ? peelSkippableWrapperPath(path.get('object')).get('object') : path.get('object');
+          if (fallbackPlan.kind === 'guard') {
+            const { guard, detached, effects } = fallbackPlan;
+            // Collapse the kept value against the source reader, before replacing the slot.
+            collapseKeptNavValueNode(guard, path, { observed: true });
+            receiverPath.replaceWith(t.cloneNode(injectPureImport(fallback.entry, fallback.hintName)));
+            normalizeOptionalChain(path, false);
+            retypeDeadOptionalLinks(path);
+            // Native paths retain Babel's Optional* types and transparent TS wrappers.
+            // Parentheses seal the continuation; a non-null assertion does not.
+            let tip = path;
+            while (!isWrappedInParens(tip)) {
+              const slot = peelParenAndTSSlotPath(tip, TS_EXPR_WRAPPERS);
+              const par = slot.parentPath;
+              if ((par?.isMemberExpression() || par?.isOptionalMemberExpression()) && par.node.object === slot.node) {
+                tip = par;
+                continue;
+              }
+              if ((par?.isCallExpression() || par?.isOptionalCallExpression()) && par.node.callee === slot.node) {
+                tip = par;
+                continue;
+              }
+              break;
+            }
+            const test = nullFirstGuardTest(navGuardTestNode(guard, path, null, null, { detached }), { embed: hostSlot });
+            const deleteHost = deleteOverOpenContinuation(tip.node, tip.parentPath);
+            const guarded = estreeToBabel(deleteHost
+              ? renderDeleteShortCircuitGuard(test, hostSlot(deleteHost.node.argument))
+              : renderShortCircuitGuard(test, hostSlot(tip.node)));
+            (deleteHost ?? tip).replaceWith(withSideEffects(guarded, effects));
+            return;
+          }
+          if (fallbackPlan.hadChainAssign) collapseKeptNavValueNode(receiverPath.node, path, { immediate: true });
+          receiverPath.replaceWith(estreeToBabel(renderStaticFallbackReceiver(fallbackPlan, {
+            injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+            cloneHost: node => t.cloneWithoutRetiring(node), embed: hostSlot,
+          })));
+          // The member itself remains raw: its optional call must still guard a missing
+          // method. Only dead assignment-chain link types need native retyping.
+          normalizeOptionalChain(path, false);
+          if (fallbackPlan.hadChainAssign) retypeDeadOptionalLinks(path);
+          return;
+        }
+        if (!result) {
+          // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod.
+          // gated on symbol provenance - a string-spelled key stays a plain property read
+          if (path.isObjectProperty() && isSourcedSymbolIteratorMeta(meta)) {
+            destructureEmit.handleObjectPropertyResult({ prop: path, meta, ...SYMBOL_ITERATOR_PURE_RESULT });
+          }
+          // an ALIAS-rooted proxy-hop chain whose leaf is NON-polyfilled (`const g = globalThis; new
+          // g.self.Array(3)` / `g['self'].Array.isArray(...)`) has no leaf usage and no `kind:'global'`
+          // trigger on the alias root - and a NAME-rooted chain THROUGH a kept store the same way
+          // (`(v = globalThis.window?.self)?.window.X` - the name's own trigger renders the store,
+          // never the hops above it): the redundant hop survives, reading an undefined hop off the
+          // alias off-engine (ie:11 / Node). `isAliasProxyHopChain` is the provider detection;
+          // peel to the root path and collapse (which self-gates on the hop and the store again)
+          const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+          // the CALL-rooted twin of the alias arm below: a proxy nav rooted in an inline-resolvable
+          // call whose leaf polyfills nothing (`(() => globalThis)().window.self.userSlot`) has no
+          // claim to drive any channel here, so the hops rode raw - a native `self` read where the
+          // ponyfill is the point, and the unplugin leg collapsed the same source through its own
+          // suppressed-hop callback (its visitor reaches the hops this leg's subtree-skip hides)
+          if (collapseClaimlessCallRootedNav(path, meta)) return;
+          // a WRITE host consumes the nav without claiming it, so no claim channel leads a render
+          // here - and the receiver's own probe still owes the guard that every READING consumer of
+          // the same nav gets, on both emitters (`(eff(), null == _globalThis.window ? void 0 :
+          // _self).Array.prototype.at = 1`). the write target itself is untouched
+          if (renderWriteHostProbeGuard(path)) return;
+          if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx)) {
+            let rootPath = path;
+            while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
+            // a hop a nav-collapse render already emitted keeps the shape the plan chose - re-run
+            // here it would collapse against a receiver the plan never picked
+            if (isRenderedPlanTail(rootPath.parentPath?.node)) return;
+            // the hop collapse refuses a short-circuitable nav (the probe canon) - render the
+            // kept-nav plan in place there, or a raw polyfillable hop key strands off a
+            // defined receiver (`window['self']` - the web.self class miss)
+            // ... but never where the value flows into a DESTRUCTURING pattern: that read is the
+            // claim channel's, and it memoizes the probe (`null == (_ref = ga.window) ? void 0 :
+            // _at(_ref.Array.prototype)`) exactly as it does for a BARE root and for a plain read
+            // off this same alias. collapsing here preempted it and spelled the alias branch's fold
+            // instead - one receiver, two spellings, chosen by which channel got there first
+            if (!synthSwap.collapseProxyHopRoot(rootPath, aliasCtx, { keptSeqHopFold: true })
+              && !destructuredValueAbove(path)) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
+          }
+          return;
+        }
+
+        const { entry, kind, hintName } = result;
+
+        // a proxy-global root (`globalThis`) navigating a NON-pure leaf through redundant proxy hops
+        // (`globalThis.self.Array`) must collapse the hops, else the bare identifier swap leaves
+        // `_globalThis.self.Array` reading an undefined `.self` off the global off-engine (ie:11 / Node).
+        // a pure-ctor leaf is whole-swapped by the synth-swap path; a bare root collapses to nothing.
+        // a memo-rebuilt nav into a MUTATED landing (`_ref.self.self.Set`, ctor slot patched) roots
+        // at a plugin ref that never gets its own global meta, so the root-anchored collapse has no
+        // identifier site to fire from - drive it from the ref; the natural member swap would
+        // otherwise respell the guarded read off the always-defined ponyfill instead of dropping
+        // the hops onto the guarded ref. non-mutated ref-rooted navs keep their natural handling
+        // (receiver-independent ctor substitution and the leaf ponyfill swap)
+        if (kind === 'global' && !path.isObjectProperty()) {
+          // the walk to the ROOT steps through what stands BETWEEN two hops - a TS cast, a paren
+          // node, a sequence tail - by the shared root walk's own peel (`receiverSequenceTailKeys`
+          // replays `peelReceiverSequenceTail`). stopped at the first wrapper, the `delete` fold
+          // below took a mid-run member for the root and landed the hop's own ponyfill where the
+          // paren twin lands the root binding (`delete (f().window as any).self.k` -> `_self.k`).
+          // what wraps the root itself stays on the path, for the carrier reads below
+          let chainRootPath = path;
+          while (chainRootPath.isMemberExpression() || chainRootPath.isOptionalMemberExpression()) {
+            const objectPath = chainRootPath.get('object');
+            const keys = receiverSequenceTailKeys(objectPath.node);
+            const core = keys.length ? objectPath.get(keys.join('.')) : objectPath;
+            chainRootPath = core.isMemberExpression() || core.isOptionalMemberExpression() ? core : objectPath;
+          }
+          // a hop a nav-collapse render already emitted keeps the shape the plan chose. asked at
+          // the CHAIN ROOT, the node whose object is the render - the same anchor the sibling arm
+          // above uses. asking it at `path` instead would miss a single-hop render, whose object
+          // already IS the emitted leaf
+          if (isRenderedPlanTail(chainRootPath.parentPath?.node)) return;
+          const drivePath = chainRootPath.isIdentifier() && injector?.getMemoWrite?.(chainRootPath.node.name)
+            && mutatedStaticLandingVerdict({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }) === 'yes'
+            ? chainRootPath : path;
+          if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null,
+            { keptSeqHopFold: true })) return;
+          const chainRootCore = unwrapRuntimeExpr(chainRootPath.node);
+          const deleted = planDeletedProxyClaim(path.node, {
+            aliasCtx: { scope: path.scope, adapter, path },
+            resolvePure: m => resolvePure(m, path),
+            claimName: hintName,
+            deleteFold: canCollapseDeletedNavigation({
+              hosted: deleteHostAboveChain(path, path.node, unwrapRuntimeExpr),
+              mutationPath: path,
+              guardNode: path.scope ? memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node : null,
+              aliasCtx: { scope: path.scope, adapter, path },
+              resolvePure: m => resolvePure(m, path),
+            }),
+          });
+          if (deleted) {
+            if (deleted.keep) {
+              synthSwap?.refreshKeptStore(path, deleted.keep);
+              peelParenAndTSSlotPath(path).replaceWith(deleted.effects.length
+                ? t.sequenceExpression([...deleted.effects, deleted.keep]) : deleted.keep);
+              return;
+            }
+            const base = deleted.alias ? t.cloneNode(deleted.alias)
+              : injectPureImport(deleted.pure.entry, deleted.pure.hintName);
+            const dropped = deleted.alias ? [] : collectFoldedReceiverSideEffects(path.node,
+              { ctx: { scope: path.scope, adapter, path } });
+            const landing = peelParenAndTSSlotPath(path);
+            landing.replaceWith(dropped.length ? t.sequenceExpression([...dropped, base]) : base);
+            deoptionalizeDanglingOptionalParent(landing);
+            return;
+          }
+          // the call-rooted twin of the hop-collapse drive: a claim on a proxy HOP whose chain
+          // roots in an inline-resolvable call has no root-identifier visit to fold from, so the
+          // claimless channel owns the run - fired at the chain END, and only where navigation
+          // CONTINUES above this claim (`f().self.customUserSlot` with the slot mutated folds
+          // onto the root ponyfill, the identifier twin's bytes; a terminal PROBE keeps its slot
+          // over the deepest ponyfill the run hands it, the claim canon)
+          if (chainRootCore?.type === 'CallExpression' && memberProxyHopName(path.node)) {
+            // anchored at the member ABOVE the last consecutive proxy hop, not the chain top:
+            // an ordinary mid-chain key (`...self.callRootBox.list` - the mutated slot) ends
+            // the all-proxy run the channel folds, and everything above it reads off the base
+            let callChainEnd = path;
+            for (let up = callChainEnd.parentPath;
+              (up?.isMemberExpression?.() || up?.isOptionalMemberExpression?.())
+              && unwrapRuntimeExpr(up.node.object) === callChainEnd.node
+              && memberProxyHopName(callChainEnd.node);
+              up = callChainEnd.parentPath) callChainEnd = up;
+            if (callChainEnd !== path && collapseClaimlessCallRootedNav(callChainEnd, meta)) return;
+          }
+          // the hop collapse refused a short-circuitable nav (the probe canon): render the
+          // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands
+          // off a defined receiver (`window['self']` - the web.self class miss)
+          // the same chain walk the kept-nav verdict uses; `unwrap` steps the TS wrappers between
+          // hops (a BARE wrapper `nav!.X` erases and the short-circuit survives, a PARENTHESIZED
+          // layer seals - the member above parses PLAIN, so the render keeps the source's throw
+          // semantics by node type)
+          // ... and THROUGH a sequence the run stands in: the sequence hands its last operand on, so
+          // the member reading it is this run's consumer and the render belongs there. anchored at
+          // the sequence instead, this channel lands the run's bare ROOT and leaves the probe hop
+          // raw off it (`(eff(), _globalThis.window?.self).Array` - a native `self` read in exactly
+          // the realms the ponyfill answers for), where the other leg lowers the guard
+          const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr, throughSequenceTail: true });
+          if (chainEnd !== path && !synthSwap?.ownsReceiver(chainEnd.node)
+            && collapseShortCircuitNavInPlace(chainEnd)) return;
+        }
+
+        if (path.isObjectProperty()) {
+          destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
+        } else {
+          const id = kind === 'instance' || inheritedStatic ? injectPureImport(entry, hintName) : null;
+          if (kind === 'static' && id) inheritConsumedMemberComments(id, path.node);
+          // a WRITE host is never a read: the member is being assigned, updated or DELETED, so swapping
+          // it changes what the statement acts on - `delete X.flat.name` became `delete _nameMaybeFunction(...)`,
+          // whose operand is a CALL, so the delete stopped deleting anything at all. the property-meta
+          // branch has carried this bail from the start; the instance one never did
+          // the member that IS the delete OPERAND is never read - swapping it changed what the statement
+          // acts on (`delete X.flat.name` became `delete _nameMaybeFunction(...)`, whose operand is a
+          // CALL, so the delete stopped deleting anything). only the target: the members BELOW it are
+          // read on the way there and keep their claims (`flat` above still swaps)
+          if (kind === 'instance' && (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)
+            || isDeleteOperand(path))) return;
+          if (kind === 'instance') {
+            // a SE-wrapped proxy-global RECEIVER (`(c++, globalThis.self).Array.prototype.flat`) is skipped by
+            // the natural visitors: the provider marks the wrapped root handled (expecting a collapse), but the
+            // bare-receiver collapse runs in the secondary Identifier visit, which the handled-mark suppresses.
+            // collapse the receiver's proxy hops explicitly - climb to its proxy root (a SequenceExpression keeps
+            // its consuming member directly above, so the shared collapse needs no sequence-walk) and route
+            // through the same `collapseProxyHopRoot` the alias-hop-chain branch uses. without this the emit reads
+            // off a raw `(c++, globalThis.self).Array.prototype` whose `.self` is undefined off-engine (ie:11)
+            if (synthSwap && path.scope) {
+              // peel transparent wrappers (parens / TS cast / non-null) while climbing so a TS-wrapped receiver
+              // (`((c++, globalThis.self).Array.prototype as any).flat`) reaches its proxy root and collapses
+              // its hops like the unwrapped form, instead of leaving `_globalThis.self` (undefined off-engine,
+              // diverging from unplugin which drops it)
+              let recvRoot = peelSkippableWrapperPath(path.get('object'));
+              while (recvRoot.isMemberExpression() || recvRoot.isOptionalMemberExpression()) {
+                recvRoot = peelSkippableWrapperPath(recvRoot.get('object'));
+              }
+              // ... and where the hop collapse refuses the nav (a live `?.` over the probe), the
+              // guard render owns it: the dispatch memoizes this receiver, and a raw hop frozen in
+              // that memo is the very read the ponyfill exists for
+              // ... and where a SEQUENCE stands around that nav the hop drive cannot reach it at
+              // all (its climb walks members): the guard render lands in the sequence's own tail,
+              // and a raw hop frozen in this dispatch's memo is the read the ponyfill exists for
+              if (!synthSwap.collapseProxyHopRoot(recvRoot, {
+                scope: path.scope,
+                adapter,
+                path,
+                // the hop key is named by the same claim-safe resolver detection uses: without it a
+                // hop spelled by a TS enum member stays a RAW realm read here while every other
+                // spelling of that key collapses, and a stripped realm has no such slot to read
+                resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
+              })
+                && recvRoot.isSequenceExpression()) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
+            }
+            const innerChain = findInnerPolyChain(path);
+            if (innerChain) {
+              const innerId = injectPureImport(innerChain.innerEntry, innerChain.innerHintName);
+              markCombinedChainConsumed(innerChain);
+              // pass `meta.sideEffects` through: outer-key computed SE (e.g.
+              // `(arr?.at?.(0))[(fn(), 'map')](x => x)`) was captured by detect-usage but
+              // dropped when the inner-chain rewrite replaced the parent expression with a
+              // conditional. SequenceExpression wrap preserves the SE in source order
+              replaceInstanceChainCombined(path, id, { ...innerChain, innerId, sideEffects: meta.sideEffects,
+                outerReturnType: captureInstanceCallType(path)?.type, skipOptional: skipPolyfillableOptional });
+              return;
+            }
+            // capture pre-mutation Type object for the parent CallExpression and re-attach
+            // post-replacement. parallel to static branch's `annotateCallReturnType` but
+            // post-replace - instance rewrite REPLACES the parent CallExpression entirely
+            // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), losing any pre-set
+            // annotation; static rewrite only swaps the callee identifier so the parent
+            // node persists. without this type-cache downstream `arr2.at(-1)` (where `arr2 =
+            // arr.concat(x)`) falls back to generic `_at` because the rewritten init shape
+            // (`_concatMaybeArray(arr).call(arr, x)`) isn't recognized by `resolveNodeType`.
+            const captured = captureInstanceCallType(path);
+            replaceInstanceLike({
+              path, id, skipOptional: skipPolyfillableOptional,
+              sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+            });
+            reattachInstanceCallType(captured);
+          } else if (inheritedStatic) {
+            // super.X and unshadowed this.X in static ctx (this = subclass ctor): emit
+            // id.call(this, ...) so the receiver is preserved, else the result downgrades to base
+            replaceInheritedStatic(path, id, meta.sideEffects);
+          } else {
+            const wasOptional = path.node.optional;
+            const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+              && isMemberAccessNode(path.node);
+            const replacePath = proxyHopClaim ? proxyHopSwapSlotPath(path) : peelParenAndTSSlotPath(path);
+            for (const product of resolvedStaticClaimRoutes({
+              kind, hintName, entry, meta, aliasCtx: { scope: path.scope, adapter, path },
+              resolvePure: m => resolvePure(m, path),
+              deletion: () => canCollapseDeletedNavigation({
+                hosted: deleteHostAboveChain(path, path.node, unwrapRuntimeExpr), mutationPath: path,
+                guardNode: path.scope ? memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node : null,
+                aliasCtx: { scope: path.scope, adapter, path }, resolvePure: m => resolvePure(m, path),
+              }),
+            })) {
+              if (product.kind === 'written-store') {
+                if (product.effects) replacePath.replaceWith(renderResolvedStaticClaimNode(product));
+                else synthSwap.refreshKeptStore(path, product.store);
+                return;
+              }
+              if (product.kind === 'guard') {
+                if (!product.object) continue;
+                annotateCallReturnType(path);
+                const guardedId = injectPureImport(entry, hintName);
+                if (kind === 'static') inheritConsumedMemberComments(guardedId, path.node);
+                if (emitGuardedClaim({
+                  path, replacePath, id: guardedId, guardObject: product.object,
+                  sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+                  proxyRootClaim: product.proxyRoot,
+                  substituteGlobal(name) {
+                    const resolved = resolvePure({ kind: 'global', name }, path);
+                    return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
+                  },
+                })) return;
+                continue;
+              }
+              if (product.kind === 'collapse') {
+                annotateCallReturnType(path);
+                replacePath.replaceWith(t.cloneNode(product.node));
+                return;
+              }
+              if (product.kind === 'settle') {
+                collapseKeptNavValueNode(product.receiver, path, { immediate: true });
+                continue;
+              }
+              annotateCallReturnType(path);
+              const replacement = renderResolvedStaticClaimNode(product);
+              if (kind === 'static') inheritConsumedMemberComments(replacement.expressions?.at(-1) ?? replacement, path.node);
+              replacePath.replaceWith(replacement);
+              if (product.live) return;
+              if (product.foldAbove) {
+                const fold = unbackedRealmHopFoldAbove(replacePath, replacePath.node,
+                  { adapter, resolvePure: m => resolvePure(m, path) }, { deleted: product.deletedRun });
+                const dropped = fold && product.deletedRun && !fold.carriesOwnEffects
+                  ? collectFoldedReceiverSideEffects(fold.path.node, { ctx: { scope: fold.path.scope, adapter, path: fold.path } }) : [];
+                if (fold) fold.path.replaceWith(dropped.length ? t.sequenceExpression([...dropped, fold.node]) : fold.node);
+              }
+              normalizeOptionalChain(replacePath, !wasOptional);
+              if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
+              return;
+            }
+          }
+        }
+      }
+
+      function entryGlobalCallback(source, path) {
+        if (isDisabled(path.node)) return;
+        const entry = getCoreJSEntry(source);
+        if (entry === null) return;
+        // synthesized-by-sibling imports lack `loc`; skip to avoid double-processing an
+        // entry another plugin pre-injected (same user-facing entry -> duplicate module
+        // side-effects). surface the skip through debug so users understand why an entry
+        // in the output didn't expand into individual modules
+        if (!path.node.loc) {
+          debugOutput?.warn(`skipped location-less entry import "${ source }" (likely sibling-plugin synthesized)`);
+          return;
+        }
+        // sibling plugin may have detached the path between detect-entries scanning the
+        // body and our callback firing (rare race: another entry-detector running ahead
+        // and removing siblings invalidates path indices). `path.remove()` on a stale
+        // path throws "We can't replace this node, we've already been removed". the
+        // orphan guard mirrors `shouldSkipPath`'s `isOrphaned` check used by the
+        // usage-* visitors, applied here so entry-global has equivalent staleness handling
+        if (isOrphaned(path)) return;
+        // the entry-global pass hands us every specifier-less import; mark only actual
+        // core-js entries so `import 'lodash'` doesn't mask "entry not found"
+        debugOutput?.markEntryFound();
+        entryModulesInjected += injectModulesForEntry(entry);
+        // DEFER the remove / `0;`-promotion decision to the pass-2 batch (below): the directive-
+        // promotion view must be the file's TOTAL injected count, not the incremental subset visible
+        // when THIS entry is processed left-to-right. module injection only REGISTERS (the body is
+        // unchanged until `flush()`), so this path stays valid for pass 2
+        entryDirectiveCandidates.push(path);
+      }
+
+      // entry-global pass 2: partition every collected entry into remove / `0;`-promotion through the
+      // shared batch resolver, fed the TOTAL injected-module count. mirrors unplugin's `detectEntries`
+      // so the directive-promotion decision is single-sourced in the provider (no incremental fork).
+      // `body.indexOf` reads the live (pre-flush) order; module imports flush after
+      function applyEntryDirectivePromotions(programPath) {
+        if (!entryDirectiveCandidates.length) return;
+        const { body } = programPath.node;
+        const nodeToPath = new Map();
+        const candidateIndices = [];
+        for (const path of entryDirectiveCandidates) {
+          const idx = body.indexOf(path.node);
+          if (idx === -1) continue;
+          nodeToPath.set(path.node, path);
+          candidateIndices.push(idx);
+        }
+        candidateIndices.sort((a, b) => a - b);
+        const { toRemove, toReplaceWithNoop } = resolveBatchDirectivePromotionPolicy({
+          body, candidateIndices, injectedImportsBreakPrologue: entryModulesInjected > 0,
+        });
+        const replaceSet = new Set(toReplaceWithNoop);
+        for (const node of [...toRemove, ...toReplaceWithNoop]) {
+          const path = nodeToPath.get(node);
+          if (!path) continue;
+          // indirect-require SE prefix preservation takes precedence: `(spy(), require)('core-js/...')`
+          // passes detection via the SequenceExpression tail peel, but raw removal drops `spy()`. the
+          // emitted prefix statements already break the prologue, so no `0;` placeholder is needed; a
+          // side-effect-free prefix (`(0, require)(...)`) yields none and drops as expected
+          const sePrefix = extractIndirectRequireSEPrefix(node, { scope: path.scope, adapter, path });
+          if (sePrefix.length) {
+            path.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
+          } else if (replaceSet.has(node)) {
+            path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
+          } else {
+            // Babel transfers comments to siblings on removal. The last entry has no
+            // sibling yet: imports flush later, so the program must retain its comments.
+            if (body.length === 1) t.inheritsComments(programPath.node, node);
+            path.remove();
+          }
+        }
+      }
+
+      const isPure = method === 'usage-pure';
+      function usageCallback(meta, path) {
+        const global = meta.kind === 'global' ? meta.name : meta.object;
+        if (isKnownGlobalName(global)) {
+          // A source reference that usage-global leaves raw is no late introduction. Keep its
+          // name too: a sibling can replace a marker's spelling without replacing the node.
+          if (lateEscapeProgram && sourceGlobalUses.get(path.node) !== global) refreshLateCtorEscapes();
+          else if (!lateEscapeProgram) sourceGlobalUses.set(path.node, global);
+        }
+        return isPure ? usagePureCallback(meta, path) : usageGlobalCallback(meta, path);
+      }
+      const commonVisitorOptions = {
+        adapter,
+        parameterCallSites: typeResolvers.parameterCallSites,
+        onUsage: usageCallback,
+        method,
+        isEntryAvailable: isEntryNeeded,
+        toHint,
+        resolvedType,
+        resolvePure,
+        // the part of a selection the build never evaluates is no usage: it is skipped - and seeded
+        // skipped for the post-sweep, which re-dispatches referenced globals on its own - and a fold
+        // the core asks for waits for the claims: folding HERE would reshape a receiver a claim still
+        // pairs (an IIFE argument, a destructure init)
+        onDeadBranch(path, dead) {
+          if (dead.skip) {
+            t.traverseFast(path.node[dead.skip], node => skippedNodes.add(node));
+            path.skipKey(dead.skip);
+          }
+          if (dead.fold !== null) deadSelections.set(nodePositionKey(path.node) ?? path.node, dead);
+        },
+        onDiscardedClaim() {
+          discardedClaims = true;
+        },
+        // detection names a computed member key through the TYPE layer's resolver rather than a
+        // copy of its enum fold - one name, one resolver
+        resolveStaticKey: (node, scope, path) => resolveClaimableComputedKeyName(node, scope, path),
+      };
+      // hops the detector suppressed while the meta KEEPS its receiver path: they survive into the
+      // output, so this emitter still renders them (the marking only guards the unplugin emitter)
+      const keptProxyHops = new WeakSet();
+      // the kept-nav hooks render AHEAD of the claim channel - they fire from the detector's own
+      // suppression points, so the inert test every claim runs never reaches them and the file's
+      // opt-out has to be asked here. without it `core-js-disable-next-line` over a STORED nav was
+      // honoured by the other emitter and ignored by this one
+      function keptNavHookOptedOut(path) {
+        return isDisabled(path.node);
+      }
+      const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
+        ...commonVisitorOptions,
+        keptProxyHops: isPure ? keptProxyHops : undefined,
+        // 'plan': the deferred flush owns the render; an ASSIGNMENT (the stored canon): the
+        // value collapses IN PLACE right now - the guard channel is live but no claim fired,
+        // and nothing else would spell the kept value (`(k = ((globalThis.window.self)))?.X`
+        // renders `k = null == _globalThis.window ? void 0 : _self` like its claimed twin)
+        suppressKeptNavHop: isPure ? path => {
+          if (keptNavHookOptedOut(path)) return false;
+          const owned = keptNavHopClaimSuppressed(path);
+          if (owned && owned !== 'plan') collapseKeptNavValueNode(owned, path, { immediate: true });
+          return !!owned;
+        } : undefined,
+        // the same stored canon from the nav's proxy-global ROOT (the identifier visit is the
+        // one place the member subtree-skip cannot hide): the funnel plans the kept value and
+        // reports whether it rendered - every other shape falls through to the normal claim
+        // EVERY store on the value spine, not only the innermost: a nav can be kept twice
+        // (`ntm = (ntw = globalThis).window?.self`), and the inner write - whose value is the bare
+        // root - carries no navigation for the plan to render, so stopping there left the outer
+        // store's hops raw
+        suppressKeptNavRoot: isPure ? path => {
+          if (keptNavHookOptedOut(path)) return false;
+          const seen = new Set();
+          let rendered = false;
+          for (let at = path; at?.parentPath;) {
+            const stored = storedUserAssignmentOf(at);
+            if (!stored || seen.has(stored)) break;
+            seen.add(stored);
+            rendered = !!collapseKeptNavValueNode(stored, path, { immediate: true }) || rendered;
+            while (at?.node && at.node !== stored) at = at.parentPath;
+            at = at?.parentPath;
+          }
+          return rendered;
+        } : undefined,
+        onSuppressedProxyHop: isPure ? path => {
+          if (keptNavHookOptedOut(path)) return;
+          // the node ITSELF as well as its parent: a render whose alternate ends in a tail hop
+          // (`_self.window` under the guard) is re-entered ON that hop, and the drive then folded
+          // a hop the plan deliberately kept - our own output, re-collapsed one step further than
+          // the other leg ever spells it
+          if (isRenderedPlanTail(path.node) || isRenderedPlanTail(path.parentPath?.node)) return;
+          // the chain walk and the two verdicts it carries - the nav must be CONSUMED by a step
+          // above it, and a POLYFILLED dispatch there owns the receiver itself (it memoized and
+          // rebuilt the call, so a render over its callee would strip the invocation's receiver) -
+          // are the SAME questions the unplugin emitter asks, so the walk is shared. only the key
+          // reader and the polyfill lookup stay dialect-local
+          const chainEnd = keptNavChainEndPath({
+            path,
+            keyOf: memberKeyName,
+            resolvesProperty: (key, endPath) => !!resolvePure({ kind: 'property', key }, endPath),
+          });
+          // the live probe inside a pending synth still needs its own global substitution,
+          // but this drive must leave the registered receiver attached for the synth's drain.
+          if (!chainEnd || synthSwap?.ownsReceiver(chainEnd.node)) return;
+          // a QUEUED kept-nav plan owns the assignment's whole emission - a fold or render
+          // firing inside its span detaches the nodes the deferred flush renders from; the
+          // stored canon (an owning ASSIGNMENT comes back) renders the kept value in place
+          const owned = keptNavHopClaimSuppressed(path);
+          if (owned === 'plan') return;
+          if (owned) {
+            collapseKeptNavValueNode(owned, path, { immediate: true });
+            return;
+          }
+          // same precedence the meta-driven arm keeps: the hop COLLAPSE owns every chain it can
+          // take, and only the navs it refuses - the short-circuiting probe - earn the render
+          const hopCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+          if (synthSwap?.collapseProxyHopRoot(path, hopCtx)) return;
+          collapseShortCircuitNavInPlace(chainEnd);
+        } : undefined,
+        suppressProxyGlobals: isPure,
+        walkAnnotations: !isPure,
+        // gates proxy-global receiver suppression on the member resolving to a real pure
+        // replacement (usage-pure only - usage-global never suppresses proxy receivers)
+        resolveMeta: isPure ? resolvePure : undefined,
+      }) : null;
+      currentUsageVisitors = usageVisitors;
+      // usage-pure already has walkAnnotations=false, matching the helper-pass config;
+      // usage-global diverges (annotations needed for usage, not helpers) and needs its own
+      const helperVisitors = isPure ? usageVisitors
+        : method !== 'entry-global' ? createUsageVisitors({
+          ...commonVisitorOptions,
+          suppressProxyGlobals: false,
+          walkAnnotations: false,
+        }) : null;
+
+      // --- init: per-file state reset ---
+
+      function initFile(path) {
+        const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        const { comments } = path.hub.file.ast;
+        // babel lifts directives into Program.directives, so body[0] is already post-prologue.
+        // `directives === true` signals `disable-file` - collapse both skip sources into one write.
+        // body[0] may be a sibling-plugin-synthesized node WITHOUT `.start` (helper class
+        // declaration, generator helper, etc.); using its undefined start would trip
+        // `parseDisableDirectives`'s "no firstStmtStart -> file-wide disable" branch on any
+        // top-of-file directive comment, producing a false-positive whole-file skip. scan
+        // for the first body node that carries a real `.start` so the boundary check stays
+        // anchored at user code
+        const firstStmtStart = path.node.body.find(n => n?.start !== undefined)?.start;
+        const directives = isInternalCoreJS ? null : parseDisableDirectives({
+          comments, offsetToLine: undefined, firstStmtStart, ast: path.node,
+        });
+        const fileDisabled = directives === true;
+        skipFile = isInternalCoreJS || fileDisabled || isDeclarationFile(path.hub.file.opts.filename);
+        disabledLines = fileDisabled ? null : directives;
+        // Directives precede every census: a retained read on an opted-out subtree is never served.
+        // Ask the format owner with the filename and the goal babel actually parsed with. Only
+        // a declared SCRIPT speaks there: `module` is babel's default, not a statement about the file.
+        // The verdict is not written back onto `path.node.sourceType`: the tree is a foreign
+        // pipeline's, and the module transforms reading it after us key on that field
+        const formatOptions = {
+          id: path.hub.file.opts.filename,
+          program: path.node,
+          declaredSourceType: path.node.sourceType,
+          importStyleOption,
+          // only this method removes an ESM statement, and only the entry shape it recognises; a
+          // statement the author opted out of is not removed either, so it still holds the spelling
+          consumesESM: method === 'entry-global'
+            ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
+            : null,
+        };
+        // ONE raw walk collects format, name reservation and shape facts. The format reducer
+        // publishes FIRST, after collection: subsequent results and scoped walks consult the
+        // strictness model, which memoises its answer per node. Computed on the
+        // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
+        // gate, after the minifier split) is invariant to the split - the split only
+        // re-parents existing expression nodes into their own statements. Entry-global collects
+        // format and minifier-sequence facts; the remaining reducers belong to the usage lanes
+        fileCensus = collectFileCensus(path.node, [
+          moduleFormatReducer(moduleFormat => {
+            format = resolveModuleFormat({ ...formatOptions, moduleFormat });
+          }),
+          minifierSequenceReducer(),
+          ...methodReadsUsageCensus(method) ? [
+            memberKeyNamesReducer(),
+            ctorAliasShapesReducer(),
+            mutationShapesReducer(packages),
+            escapedCtorReferencesReducer({ isOptedOut: disabledLines?.size ? isDisabled : null }),
+            restSentinelNamesReducer(),
+            proxyWriteOriginsReducer(),
+            nestedTSRuntimeDeclarationsReducer(),
+            patternOrderReducer(),
+          ] : [],
+        ]);
+        // the minifier-sequence split lands before any usage / entry visitor sees the program, and
+        // after the directives were read: a `-next-line` over a collapsed statement spans the whole
+        // statement the author wrote, so every product stays covered. gated below skipFile so a
+        // `core-js-disable-file` directive, internal core-js source or a declaration file is
+        // returned verbatim, not rewritten (entry-global needs it too - a `require('core-js/...')`
+        // collapsed into a comma sequence - so the gate is `!skipFile`, not the narrower entry
+        // exclusion below)
+        if (!skipFile) splitMinifierSequence(path, t, fileCensus);
+        nestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
+        // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
+        // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
+        // before: a global-flavor bail there would drop an import instead of adding one.
+        // internal core-js files don't need it either (they manage their own globals).
+        // reset FIRST: the read canons the pre-pass shares consult the live slot through the
+        // adapter, and the previous file's set must not gate this file's collection
+        mutatedStatics = null;
+        writtenContainerSlots = null;
+        escapedCtorNames = null;
+        const prePass = !skipFile && method !== 'entry-global'
+          ? collectPrePassSites(path, adapter, fileCensus,
+            (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath), {
+              collectMutations: isPure,
+              collectDestructures: isPure ? fileCensus.hasDestructureSource : fileCensus.hasCtorAliasShapes,
+            }) : null;
+        prePassSites = prePass?.sites ?? [];
+        mutatedStatics = prePass?.mutated ?? null;
+        escapedCtorNames = fileCensus.escapedCtorNames ?? null;
+        mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
+        writtenContainerSlots = fileCensus.writtenContainerSlots ?? null;
+        containerSlotIndex = fileCensus.containerSlotIndex ?? null;
+        memberKeyNames = fileCensus.memberKeyNames ?? null;
+        importStyle = format.importStyle;
+        injector = new ImportInjector({
+          t,
+          programPath: path,
+          adapter,
+          pkg,
+          packages,
+          mode,
+          importStyle,
+          absoluteImports,
+          emitsGlobalModules: method !== 'usage-pure',
+        });
+        // every install's never-run answer is settled on the tree as the source wrote it, before a render
+        // rebuilds the node an install stands in
+        settleCensusWrites({ mutatedSet: mutatedStatics, adapter });
+        // user-owned global-object property names: in a script-scope output a top-level
+        // `var <name>` temp ALIASES `globalThis.<name>`, so a temp write would clobber the
+        // user's slot. `program.globals` only sees unbound identifier REFERENCES - property
+        // keys never land there (and a re-routed reference drops out of it). reserve the
+        // Identifier keys of bare proxy-global members (reads AND writes; shadow-blind
+        // over-approximation only shifts temp numbering) plus the mutated slot names (covers
+        // `Object.defineProperty(self, 'X', ...)`-style writes with no member-key spelling).
+        // mirrors unplugin, whose raw-AST name scan reserves every identifier-shaped name
+        if (methodReadsUsageCensus(method)) {
+          injector.seedReservedNames(fileCensus.memberKeyNames);
+          injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
+        }
+        skippedNodes = new WeakSet();
+        deadSelections = new Map();
+        discardedClaims = false;
+        // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
+        // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
+        synthSwap = createSynthSwapEmitter({
+          adapter, injectPureImport, injector, resolvePure, skippedNodes, t,
+        });
+        destructureEmit = createDestructureEmitter({
+          adapter,
+          generateRef,
+          paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
+          parameterCallSites: typeResolvers.parameterCallSites,
+          resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
+          resolvePure,
+          generateLocalRef,
+          generateUnusedId,
+          getDebugOutput: () => debugOutput,
+          injector,
+          injectPureImport,
+          isDisabled,
+          isEntryNeeded,
+          isEntryAvailable,
+          resolvePropertyObjectType,
+          forgetDestructureReceiverTypes,
+          primeDestructureReceiverTypes,
+          resolveForOfResolvedElement,
+          resolveNodeType,
+          toHint,
+          skippedNodes,
+          synthSwap,
+          t,
+          resolvedType,
+          markThrowingExtraction,
+          destructureProbeNode,
+          collapseKeptNavValueNode,
+        });
+        // drop per-file AST-keyed caches so memory is deterministic under long-running
+        // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
+        typeResolvers.reset();
+        resetASTHelpers();
+        resetClassHelpers();
+        // usage-pure shares one visitor instance (commonVisitorOptions match), reset skips dupe
+        usageVisitors?.[USAGE_VISITORS_RESET]?.();
+        if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
+        debugOutput = createDebugOutput?.() ?? null;
+        // the format owner's two reports, emitted here because the debug sink is only allocated
+        // now: what the source SPELLS is settled well before any of it reaches the tree
+        if (format.requireDeclined) {
+          debugOutput?.warn('the file binds `require` itself, so the injected imports stay ESM');
+        }
+        if (format.sourceIsMixed) {
+          debugOutput?.warn('the source mixes ESM and CommonJS, so its output is mixed whatever the injection spells');
+        }
+        deoptNotedNames = new Set();
+        // entry-global handles re-emit via detectEntries
+        if (!skipFile && method !== 'entry-global') {
+          const removed = new Set();
+          scanExistingCoreJSImports(path.node, {
+            packages,
+            pkg,
+            mode,
+            adapter,
+            isDisabled,
+            // the user's global import is REMOVED here and re-emitted through
+            // `addGlobalImport`, so nothing may suppress it as already-present
+            onGlobalImport: (mod, node, modPkg) => {
+              injector.addGlobalImport(mod, modPkg);
+              removed.add(node);
+            },
+            // a user binding the file WRITES through is poisoned as a dedup target - the
+            // pre-mutation scope's constantViolations carry the reassignment fact
+            onPureImport: (entry, name) => injector.registerUserPureImport(entry, name, {
+              reassigned: (path.scope.getBinding(name)?.constantViolations.length ?? 0) > 0,
+            }),
+          });
+          // a re-parse of our own pure output carries rest/SE-key sentinels already in place -
+          // adopt the census' sentinel-position names so the dispatcher skip re-arms, exactly
+          // as unplugin's post pass does (the sentinel names co-occur with pure imports; a
+          // file with none has nothing to adopt from). Prior output can use another flavor;
+          // the current flavor's dedup targets do not enumerate all recognizable source imports.
+          if (method === 'usage-pure' && fileCensus?.restSentinelNames?.size
+            && ownOutputTests(injector).programMayHoldOwnOutput(path.node)) {
+            injector.adoptUnusedNames(fileCensus.restSentinelNames);
+          }
+          if (removed.size) {
+            for (const stmt of path.get('body')) {
+              if (!removed.has(stmt.node)) continue;
+              // an indirect-require removal keeps its side-effect prefix (callee's AND an outer comma
+              // sequence's - `0, (spy(), require)('core-js/X')` keeps `spy()`), same helper the entry path
+              // uses; the emitted prefix statements stay VISITED so a polyfillable use inside them
+              // (`(arr.includes(1), require)(...)`) still injects. a side-effect-free prefix drops whole
+              const sePrefix = extractIndirectRequireSEPrefix(stmt.node, { scope: stmt.scope, adapter, path: stmt });
+              if (sePrefix.length) stmt.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
+              else stmt.remove();
+            }
+          }
+          // Body surgery can reparent a retained require prefix. Rebind only the host lane;
+          // mutation classification stays the source verdict collected before import registration.
+          if (removed.size && prePassSites.length) {
+            prePassSites = collectPrePassSites(path, adapter, fileCensus, null, {
+              collectMutations: false, collectDestructures: true,
+            }).sites;
+          }
+          // mutated-key enrichment runs AFTER the scan registers the user's existing pure imports, so
+          // `injectPureImport` dedups a mutated key against a same-entry user import instead of emitting
+          // a duplicate (scan-before-enrich, mirroring unplugin). pure-only: it pins pure entries
+          if (method === 'usage-pure') {
+            enrichMutatedStatics({ mutatedStatics, resolvePure: resolvePureUnfiltered, injectPureImport });
+          }
+          // early ctor-alias registration (visit-order independence): a member use textually
+          // BEFORE its alias write (a hoisted-var read, an earlier-defined closure body) is
+          // visited before the destructure emitter would register the alias - pre-register every
+          // destructure-of-global site through the same trust gates, so the guarded/static narrow
+          // decision reads a complete table on every visit. runs on the post-split AST so
+          // minifier-collapsed shapes register like their split forms. BOTH usage modes: pure
+          // folds through the hints, usage-global resolves its injections through them - without
+          // the table a split-anchor / hoisted-var alias drops the injection (the unsafe direction)
+          if (fileCensus.hasCtorAliasShapes) {
+            for (const site of prePassSites) {
+              if (!isDisabled(site.path.node)) registerAliasPrePassSite({ ...site, adapter, injector });
+            }
+          }
+        }
+      }
+
+      // augment a visitor set with the unconditional proxy-hop trigger: an anchored plan must
+      // fire even when NO leaf resolves (`{ Map: { customY } } = globalThis` - the point is
+      // the re-anchored residual), so leaf-driven dispatch alone cannot cover it. lives in
+      // the MAIN traversal - the dedicated normalize pre-pass traverse is retired - AND in the
+      // Program:exit re-walks (helper bodies, retained loop headers), whose cloned subtrees the main
+      // pass never saw; without it such a host keeps its raw hop while the plain form re-anchors.
+      // the flatten is a usage-pure receiver rewrite, so gate HERE like `withCatchExtractor` -
+      // every caller routes through this single point and usage-global stays untouched
+      function withProxyHopTrigger(visitors) {
+        if (!isPure) return visitors;
+        return mergeVisitors(visitors, {
+          'VariableDeclarator|AssignmentExpression': {
+            enter(path) {
+              destructureEmit.noteOwnedComments(path);
+              destructureEmit.tryFlattenProxyHopHost(path, true);
+            },
+            // probed-anchor guard retypes land at the HOST's exit: every per-prop channel of
+            // the pattern has dispatched by then (the traversal-time resolvable spelling never
+            // leaks), and a sibling plugin's later lowering (preset-env destructuring in a
+            // composed pipeline) clones the emitted node - a Program-exit flush would retype
+            // the orphaned original and lose the guard
+            exit(path) {
+              destructureEmit.tryFlattenProxyHopHost(path);
+              destructureEmit.flushProbedAnchorSwaps(path.node);
+              // kept nav-collapse renders land here too - requeued, so the remaining merged
+              // passes (ES5 lowerings included) still visit everything they carry
+              if (path.isAssignmentExpression()) flushKeptNavCollapseAt(path);
+            },
+          },
+        });
+      }
+
+      // augment a visitor set with the CatchClause extractor so a catch binding still gets its
+      // destructure-derived instance polyfill in the contexts the main traversal doesn't reach:
+      // sibling-injected helper bodies and retained loop headers. `destructureEmit` is read lazily
+      // so the per-file emitter is always current.
+      // catch extraction is a usage-pure-only body-extract rewrite; usage-global only adds
+      // side-effect imports and must NOT restructure a catch param, so gate HERE - this is the
+      // single point every caller (helper-body re-traversal, retained-header re-walk) routes through,
+      // so none can attach it in usage-global. without the gate, a sibling-injected helper catch
+      // (`catch ({ at, ...rest })`) reachable from reTraverseHelperBodies gets needlessly rewritten
+      function withCatchExtractor(visitors) {
+        if (!isPure) return visitors;
+        return {
+          ...visitors,
+          CatchClause: path => destructureEmit.extractCatchClause(path),
+          ForOfStatement: path => destructureEmit.extractLoopLeft(path),
+          ForInStatement: path => destructureEmit.extractLoopLeft(path),
+        };
+      }
+
+      // every pass that walks source-shaped nodes - the main pre-traverse, which also visits the
+      // side effects a destructure lift plants ahead of its host, and the retained-header re-walk -
+      // needs the SAME augmented set. compose it once instead of rebuilding the merged visitor object
+      const usageWalkVisitors = usageVisitors ? withProxyHopTrigger(withCatchExtractor(usageVisitors)) : null;
+
+      // a `for` header is the one destructure host with no statement slot: its init is RETAINED
+      // in the loop header instead of being lifted ahead of the host and visited there. every
+      // emitter that collapses a receiver plants RAW clones of the harvested side effects -
+      // copies taken before the main traversal reached their source - and relies on the
+      // substrate re-visiting them, which only happens where the host lifts. walk the recorded
+      // headers with the same visitors the drain uses, so a `for`-hosted claim polyfills its own
+      // re-emitted effects like every other position instead of shipping them raw. the emitter
+      // records the hosts as it dispatches, so this costs nothing on a file that has none
+      function rewalkRetainedForInits() {
+        const hosts = destructureEmit?.retainedForInitHosts;
+        if (!hosts?.size) return;
+        if (usageWalkVisitors) {
+          for (const forStatement of hosts) {
+            if (forStatement.node?.init) forStatement.get('init').traverse(usageWalkVisitors);
+          }
+        }
+        hosts.clear();
+      }
+
+      // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
+
+      // every pre-phase entry point shares this preamble. defensive - a sibling plugin may have
+      // destroyed Program before our pre fires. primitive-state reset BEFORE the early-return so a
+      // missing initFile leaves the plugin in a known-clean shape rather than carrying state across
+      // files (see `resetPerFilePrimitives` docstring for the full rationale). returns whether the
+      // file was INITIALIZED - callers read `skipFile` themselves, because a skipped file still has
+      // its own fresh injector while an uninitialized one would leave the PREVIOUS file's in place
+      function beginFile(path) {
+        resetPerFilePrimitives();
+        if (!path?.node) return false;
+        initFile(path);
+        // the body-resident prologue AS THE SOURCE WROTE IT, before any entry replacement or head
+        // insertion of ours: a `'use client'` a sibling transform re-emitted as a raw statement is a
+        // directive here and must stay first, while a same-valued string BELOW an import never was
+        // one and must not be promoted into the prologue
+        injector?.recordSourcePrologue(path.node.body);
+        return true;
+      }
+
+      function preTraverse(path, visitors) {
+        if (!beginFile(path) || skipFile) return;
+        // the HOST rewrite, ahead of detection: a realm-selecting destructure init names ONE object,
+        // so every meta below resolves against that object instead of against a branch of it, and no
+        // route has to unpick a selection the plan has already declared dead
+        if (isPure) for (const site of prePassSites) destructureEmit.collapseRealmSelectingHost(site.path);
+        prePassSites = null;
+        function walk() {
+          return path.traverse(visitors);
+        }
+        withTraversalCaches(!isPure, isPure && pathsKeepParent ? () => withVarScopeOwners(walk) : walk);
+        destructureEmit.pruneEmptiedHostDeclarators();
+        destructureEmit.prepareSplitLiftedPrefixes();
+        destructureEmit.splitFlatMultiDecls();
+        destructureEmit.flushForInitCarries();
+        // the sentinel `var`s a discarded-element render owes, asked of the finished tree
+        destructureEmit.flushDiscardedElementSentinels();
+        destructureEmit.unexportSentinelDeclarations(path);
+        // AFTER the split canon: a host that renders its declarator late (the retained `for`
+        // header) has planted its SE clones by now, and BEFORE the flush so the walk's own
+        // imports still make this batch
+        rewalkRetainedForInits();
+        destructureEmit.rehomeOwnedComments();
+        // emit visitor-collected imports BEFORE synth-swap apply: each flush unshift's
+        // at program top, so imports added between flushes land ABOVE the previous batch.
+        // keeps synth-swap imports on top - the two-phase emission ordering existing
+        // fixtures encode
+        injector?.flush();
+        // drain registered synth-swap receivers BEFORE other plugins run their visitors:
+        // sibling transforms (transform-parameters extracting param defaults to body var
+        // declarations, transform-destructuring rewriting ObjectPatterns) typically clone
+        // AST nodes, breaking node-identity lookup. applying here lets the synth literal
+        // ride along with whatever rewrite happens downstream. programExit's apply pass
+        // handles any synth-swap registrations from `reTraverseHelperBodies` (sibling-
+        // injected nodes), idempotent via per-pending `applied` flag
+        synthSwap?.apply(path);
+        foldDeadSelections(path);
+        injector?.flush();
+        injector?.localizeVarlessRefs();
+        // snapshot AFTER flush so programExit's reTraverseHelperBodies skips
+        // already-traversed nodes (our flushed imports, lifted SE statements) and only
+        // visits sibling-plugin-injected helper bodies (class transforms, destructuring,
+        // etc.) that were spliced after our pre-pass. snapshotting before flush would
+        // re-traverse our own injected imports redundantly
+        originalBodyNodes = new WeakSet(path.node.body);
+      }
+
+      // --- Program.exit ---
+
+      // re-traverse helper-injected body nodes (class/spread/destructuring transforms).
+      // runs BEFORE synth-swap drain: helper-visitors queue polyfill imports for identifiers
+      // that synth-swap could then consume. reversing the order would emit synth-swap
+      // against a pre-scan state that misses helper-injected globals.
+      // include CatchClause extractor so sibling-injected `catch ({at}) {...}` inside
+      // helper bodies still gets extracted for polyfill dispatch. extractor is idempotent
+      // so even if helperVisitors === usageVisitors already re-visited a catch, no harm.
+      // catch-clause coverage is attached HERE and in usage-pure pre() but NOT in usage-global
+      // pre(): only usage-pure has the body-extract rewrite that synthesises destructure-derived
+      // catch-clause bindings (`catch ({ at }) -> catch (_err) { const at = _err.at; ... }`),
+      // so usage-global has nothing for the extractor to consume there.
+      // skip when `originalBodyNodes` is null - that's a `core-js-disable-file` path
+      // where preTraverse early-returned before the snapshot was taken (multi-file batch:
+      // the previous file's postHook nullified `originalBodyNodes`); without the guard
+      // `null.has(...)` throws TypeError on every body child here
+      function reTraverseHelperBodies(path) {
+        if (!originalBodyNodes) return;
+        const helperWithCatch = withProxyHopTrigger(withCatchExtractor(helperVisitors));
+        for (const childPath of path.get('body')) {
+          if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
+        }
+      }
+
+      // the partly dead user selections still standing once the claims rendered fold to what they yield
+      // - an operand, kept a value in its slot (`foldedOperandNeedsValue`), or the value a decided test
+      // answers: a claim owns the selection it reads and has already dropped what never runs where it took
+      // the rest. a fold to what performs nothing (`performsNothing`: a literal, `void` of one, a binding
+      // this build minted) is an answer, and so is what a claim standing where its value is discarded
+      // rendered that performs nothing (`renderPerformsNothing`: `'from' in Array;` is `true`). an answer
+      // leaves the place discarding it - through any transparent wrapper, parens and TS casts alike - once
+      // the walk is out of that place, the unplugin leg's order: a sequence ahead of its value, save one its
+      // slot needs (`sequenceElementsKept`), and a listed statement holding nothing else, save one whose
+      // leaving would promote the next statement into a directive (`leaveAnswerStatement`) - no bare
+      // `false;`, `true;` or `_Set;` stays
+      function foldDeadSelections(programPath) {
+        if (!deadSelections.size && !discardedClaims) return;
+        const answers = new WeakSet();
+        function isAnswer(value, path) {
+          const inner = peelTransparentExpr(value);
+          return answers.has(inner)
+            || renderPerformsNothing(inner, { adapter, scope: path.scope, path, injectorState: injector });
+        }
+        // the walk stands only where a fold may act (`foldWalkReach`), and in what a fold puts in place
+        const reach = foldWalkReach(programPath.node, {
+          isDecided: node => deadSelections.has(nodePositionKey(node) ?? node),
+          injectorState: injector,
+        });
+        programPath.traverse({
+          enter(path) {
+            if (reach && !reach.has(path.node)) path.skip();
+          },
+          'LogicalExpression|ConditionalExpression'(selection) {
+            const dead = deadSelections.get(nodePositionKey(selection.node) ?? selection.node);
+            if (!dead) return;
+            const { fold, slot } = dead;
+            const operand = typeof fold === 'boolean' ? t.booleanLiteral(fold) : selection.node[fold];
+            const replacement = foldedOperandNeedsValue(operand, slot) ? t.sequenceExpression([t.numericLiteral(0), operand]) : operand;
+            const ctx = { adapter, scope: selection.scope, path: selection, injectorState: injector };
+            if (performsNothing(operand, ctx)) answers.add(peelTransparentExpr(replacement));
+            reach?.add(replacement);
+            selection.replaceWith(replacement);
+          },
+          SequenceExpression: { exit(sequence) {
+            const { expressions } = sequence.node;
+            const kept = sequenceElementsKept(expressions, element => isAnswer(element, sequence),
+              () => pathValueSlot(sequence));
+            if (kept === expressions) return;
+            if (kept.length > 1) sequence.node.expressions = kept;
+            else sequence.replaceWith(kept[0]);
+          } },
+          ExpressionStatement: { exit(statement) {
+            if (statement.inList && isAnswer(statement.node.expression, statement)) leaveAnswerStatement(statement);
+          } },
+        });
+      }
+
+      // ... asked of the live list (a statement an earlier visit removed is gone from it already) less the
+      // nodes of ours standing in it: an import flushed ahead may leave with the answer it served (`typeof
+      // _Symbol` was its one read), so it holds no place in the prologue question - nor takes the comments
+      // the leaving statement carries, which go ahead of the source statement after it, else behind the one
+      // before it, else inside the body that held it
+      function leaveAnswerStatement(statement) {
+        const ours = new Set(injector?.survivingEmittedNodes(statement.container));
+        const body = ours.size ? statement.container.filter(node => !ours.has(node)) : statement.container;
+        const at = body.indexOf(statement.node);
+        if (!leavingAnswerStatements(body, [at]).length) return;
+        const { node } = statement;
+        const comments = [...node.leadingComments ?? [], ...node.trailingComments ?? []];
+        node.leadingComments = null;
+        node.trailingComments = null;
+        const next = body[at + 1];
+        const prev = body[at - 1];
+        if (comments.length && next) {
+          next.leadingComments = [...comments.filter(comment => !next.leadingComments?.includes(comment)),
+            ...next.leadingComments ?? []];
+        } else if (comments.length && prev) {
+          prev.trailingComments = [...prev.trailingComments ?? [],
+            ...comments.filter(comment => !prev.trailingComments?.includes(comment))];
+        } else if (comments.length) statement.parent.innerComments = [...statement.parent.innerComments ?? [], ...comments];
+        statement.remove();
+      }
+
+      // one whole-program post-sweep for built-ins a sibling transform injects AFTER our pre-pass.
+      // BOTH methods need it: usage-pure SUBSTITUTES the introduced reference (`Promise`->`_Promise`),
+      // usage-global INJECTS the side-effect import - either way the reference surfaced after pre() ran,
+      // so the primary pass never saw it. two shapes:
+      //   - raw globals (regenerator mutating a node in-place to `Promise`, `using` referencing
+      //     `SuppressedError`). a sibling-introduced bare global lands here whenever it is not otherwise
+      //     covered; current transforms happen to put such globals in helper bodies (swept by
+      //     reTraverseHelperBodies) or beside instance methods that pull the constructor in transitively,
+      //     but neither is guaranteed, so this is the backstop - an isolated bare-global reference (no
+      //     helper, no co-located method) reaches a polyfill ONLY through here
+      //   - statics inlined into an EXISTING statement (babel@8 emits `Object.assign(...)` for object
+      //     spread under setSpreadProperties; the rest-spread plugin skips it, so pre() never saw it).
+      //     an introduced static is `<global>.<static>`, synthetic (no source position); source members
+      //     carry a position and were already handled in pre(). shape alone is NOT enough to isolate it
+      //     (see the member visitor: the plugin's own proxy chains share the shape) - the object must
+      //     also be a real polyfillable global
+      // `core-js-disable-file` is honored upstream (programExit returns before this runs); a line-level
+      // disable cannot reach an introduced node - it has no source position to match against disabledLines
+      function postSweepIntroduced(path) {
+        const memberHandler = helperVisitors?.['MemberExpression|OptionalMemberExpression'];
+        // entry-global has no usage visitor (it replaces an entry import, never detects usage), so
+        // there is nothing to sweep - skip the whole-program walk
+        if (!memberHandler) return;
+        const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
+        // read-only where the primary traversal is: its climbs share the same runs
+        withTraversalCaches(!isPure, () => path.traverse({
+          'MemberExpression|OptionalMemberExpression'(member) {
+            const obj = member.node.object;
+            // gate the object on `isKnownGlobalName`, NOT shape alone: the plugin's own synthetic
+            // members (`_globalThis.Array` proxy chains, `_Array$from.call` substitution wrappers)
+            // ALSO present as `<Identifier>.<static>` with the object unresolved by `getBinding`
+            // (the injected import binding is invisible to scope) - shape cannot tell them from a
+            // sibling-introduced `Object.assign`. requiring the object to be a real polyfillable
+            // global excludes those synth names (`_globalThis` / `_Array$from` are not globals);
+            // the handler then makes the polyfillability call (bails on already-handled / no-polyfill)
+            if (typeof member.node.start !== 'number' && obj?.type === 'Identifier'
+              && isKnownGlobalName(obj.name) && !member.scope.getBinding(obj.name)) memberHandler(member);
+          },
+          Identifier(idPath) {
+            // This sweep claims globals alone; local and minted names need no scope lookup.
+            if (!isKnownGlobalName(idPath.node.name)) return;
+            if (!idPath.isReferencedIdentifier()) return;
+            // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
+            // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,
+            // `import X = require()`) plus type-only TSImportEquals filtering. pass `idPath`
+            // explicitly so the TS-runtime walk anchors at the reference site (catches
+            // `function f() { enum Map; ... }` shadowing); without it the walk anchors at the
+            // Program scope and misses nested TS-runtime bindings
+            if (adapter.hasBinding({ scope: idPath.scope, name: idPath.node.name, path: idPath })) return;
+            if (isExportSpecifierLocal(idPath)) return;
+            // skip a global at a write position - UpdateExpression operand (`Map++`), for-of /
+            // for-in head bare-Identifier LHS (`for (Map of arr)`), or assignment LHS (`Map = x`,
+            // `Map ||= x`). for usage-pure a frozen import binding cannot occupy that slot, so this is
+            // required; for usage-global it is harmless - the primary pass over-injects at writes, but
+            // a sibling never INTRODUCES a write-position global (the introduced shapes are all reads),
+            // and a global being overwritten needs no polyfill anyway. a TS-non-null / paren wrapper
+            // (`Map! ||= x`, `for (Map! of arr)`) keeps `isReferencedIdentifier` true, so the for-x /
+            // assignment checks peel transparent ancestors first
+            if (isInUpdateOperand(idPath.parentPath) || isAssignOrForXWriteTargetPath(idPath)) return;
+            // same predicate as the primary visitor - skip disabled / type-annotation /
+            // delete-target positions so this sweep doesn't overrule their exclusions
+            if (shouldSkipPath(idPath)) return;
+            // mirror `handleIdentifier` - TS type-only positions never need a polyfill
+            if (isTSTypeOnlyIdentifierPath(idPath)) return;
+            // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
+            if (isHandled?.(idPath.node)) return;
+            usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
+          },
+        }));
+      }
+
+      function programExit(path) {
+        // postHook nulls `injector` after a clean pre/programExit/post cycle; a SECOND
+        // Program.exit firing on the same file (sibling plugin re-walking, or a multi-file
+        // batch where this file's pre() bailed early but Program.exit still fires)
+        // would crash inside `injector?.flush()` / `reorderImportRegion()` etc. on the
+        // method calls of a null receiver. symmetric with postHook's own `if (!injector) return`
+        if (!injector) return;
+        // kept nav-collapse mutations land after every claim resolver has seen the source chain
+        flushKeptNavCollapses();
+        // the FOLD half only - the parens wait for `post()`, which spells out its own reason. this
+        // one is here to catch what a sibling inserted before our exit ran, and it sits AHEAD of the
+        // skipFile bail below because a disabled file is reprinted just the same: the compensations
+        // are damage control for that reprint, not injection. re-running over an already-folded tree
+        // is inert - a folded host no longer carries an instantiation node. what the placement does
+        // NOT buy a disabled file is getting ahead of the lowerings: that file runs no usage
+        // traversal, so this is its ONLY fold, and by `Program:exit` every sibling visitor has read
+        // the node already - `((h.m)<T>)?.(a)` loses its receiver there exactly as it does with no
+        // core-js in the list at all
+        parensPending = foldInstantiationsPass(path);
+        // probed-anchor destructure inits retype into their guard spelling at the same point
+        destructureEmit?.flushProbedAnchorSwaps();
+        // skipFile (`core-js-disable-file` directive or internal core-js source) means
+        // pre() early-returned without a snapshot; running the postHook walk would
+        // re-traverse helper bodies that the primary pass intentionally skipped, queue
+        // synth-swap entries against an unflushed receiver map, and flush imports the
+        // user explicitly suppressed. exit clean so no polyfill leaks into a disabled file
+        if (skipFile) return;
+        lateEscapeProgram = path.node;
+        reTraverseHelperBodies(path);
+        // helper-body re-traversal may have touched fresh multi-decl declarations
+        destructureEmit.pruneEmptiedHostDeclarators();
+        destructureEmit.prepareSplitLiftedPrefixes();
+        destructureEmit.splitFlatMultiDecls();
+        destructureEmit.flushForInitCarries();
+        // the sentinel `var`s a discarded-element render owes, asked of the finished tree
+        destructureEmit.flushDiscardedElementSentinels();
+        destructureEmit.unexportSentinelDeclarations(path);
+        destructureEmit.joinBodylessVarBlocks(path);
+        rewalkRetainedForInits();
+        destructureEmit.rehomeOwnedComments();
+        postSweepIntroduced(path);
+        // drain deferred synth-swap receivers via program walk - finds receivers via
+        // node-identity WeakMap regardless of where sibling plugins (transform-parameters
+        // extracting param defaults to body var declarations) moved them. `?.` symmetric
+        // with the preTraverse call at the head of program() - both gated on the same
+        // factory-time conditional that may leave `synthSwap` undefined
+        synthSwap?.apply(path);
+        foldDeadSelections(path);
+        injector?.flush();
+        finalizeInjector();
+        // a moved head no claim took up goes back, once the flush has placed its refs
+        restoreIdleRelocations(path.node);
+        // a file that injected nothing prints as written: the wrapper splices are undone
+        if (injector && !injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(path.node);
+        // outputDebug() + closure-captured state cleanup deferred to postHook so the
+        // late-CJS detection (`postHook`'s diagnostic warn) can add to
+        // debug output before format(). siblings' programExit + post may run AFTER ours;
+        // nulling here would make postHook bail early and silently drop the ESM/CJS warning
+      }
+
+      // --- post(): detect sibling CJS transform ---
+
+      function postHook() {
+        // LAST reachable point: `post()` runs after every sibling's `Program:exit`, so a shape a
+        // later-ordered sibling inserted is compensated here or nowhere. ahead of the injector bail -
+        // a skipped file is reprinted just the same
+        restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
+        anchorDisableDirectives(this.file?.path?.node);
+        if (!injector) return;
+        // a sibling CommonJS rewriter that runs after our last flush leaves whatever it did not
+        // reach behind in ESM, and the file goes out mixed. the question is asked of OUR nodes
+        // against the REST of the body, and counting our own imports as the file's ESM markers
+        // inverts it: a rewrite that reached everything reads as "no markers left" and a rewrite
+        // that missed our import reads as "markers are still here"
+        const { body } = this.file.path.node;
+        const ours = new Set(injector.survivingEmittedNodes(body));
+        // a body that was ALREADY CommonJS when we read it did not BECOME one after our flush, so a
+        // mixed output there is our own emission choice and its own report says so - this one is
+        // about a rewrite that happened behind us. and the advice it carries is to CHOOSE a
+        // spelling, so a caller who already chose one has nothing to read here
+        if (importStyleOption === undefined && !format.markers.hasCJS
+          && [...ours].some(isESMMarkerStatement)
+          && detectCommonJS({ type: 'Program', sourceType: 'script', body: body.filter(node => !ours.has(node)) })) {
+          debugOutput?.warn(
+            'a sibling plugin rewrote the file body to CommonJS after our last flush; the '
+            + 'polyfill imports it did not reach are still ESM. set `importStyle: "require"` '
+            + 'or order core-js after the module transform',
+          );
+        }
+        // outputDebug AFTER potential warning add so format() includes the late-CJS diagnostic.
+        // then drop closure-captured per-file state so the previous file's AST + injector don't
+        // pin references between `initFile` calls (Babel runs the visitor object for every
+        // transformed file in the same plugin instance). next `initFile` re-allocates
+        // everything; explicit nulling makes the GC bound deterministic
+        outputDebug();
+        injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
+        // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
+        // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
+        // emitters do. its derived slots go with it - they are read only during traversal
+        lateEscapeProgram = sourceGlobalUses = null;
+        prePassSites = fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = null;
+        writtenContainerSlots = containerSlotIndex = memberKeyNames = null;
+      }
+
+      // every per-file slot that is NOT heap-allocated, in one place: postHook nulls the
+      // heap-allocated members (injector, synthSwap, destructureEmit, debugOutput) explicitly and
+      // leaves the rest intact across files, so they are reset here, before any early return - a
+      // multi-file batch where `initFile` skips (path.node missing) must not carry the PREVIOUS
+      // file's `skipFile=true`, or its format verdict, into the next file's programExit
+      function resetPerFilePrimitives() {
+        skipFile = false;
+        disabledLines = null;
+        entryModulesInjected = 0;
+        entryDirectiveCandidates = [];
+        importStyle = format = null;
+        originalBodyNodes = null;
+        sourceGlobalUses = new WeakMap();
+        lateEscapeProgram = null;
+        parensPending = true;
+        skippedNodes = new WeakSet();
+        deadSelections = new Map();
+        discardedClaims = false;
+        nestedTSRuntimeDeclarations = null;
+      }
+
+      // post-flush import-region housekeeping: canonical-sort the union of all flushed
+      // polyfill imports (across pre + post-synth batches) into compat-data order;
+      // normalize arrow-expression-body to block + lift trailing-`_ref` params into
+      // `var _ref;`; drop refs that no remaining body site reads; re-anchor ref
+      // declarations below the import region. ORDER MATTERS: normalize THEN prune so
+      // prune walks the post-normalize scope bindings (arrow params are still params
+      // pre-normalize; prune only sees block-scoped vars). shared between the main
+      // `programExit` and entry-global's `post()` so both modes produce the same
+      // canonical layout regardless of sibling-plugin import-injection timing
+      function finalizeInjector() {
+        if (!injector) return;
+        injector.reorderImportRegion();
+        injector.localizeVarlessRefs();
+        injector.normalizeArrowRefParams();
+        // Source reference lists describe the removed patterns. Final receiver proofs
+        // use the existing reference census over the rewritten tree instead.
+        typeResolvers.reset({ currentTreeReferences: true });
+        injector.pruneUnusedRefs();
+        injector.pruneUnusedPureImports();
+        injector.reorderRefsAfterImports();
+      }
+
+      // wrap a plugin-lifecycle handler (pre / post / programExit / Program.exit visitor)
+      // so any thrown error carries the brand before re-propagation. the file is babel's to name:
+      // `@babel/core` (7 and 8 alike) prefixes `<filename>: ` - or `unknown file: ` - to every
+      // error leaving pre / traverse / post, so a file tag of our own printed the path twice.
+      // visitor handlers receive `this === pluginPass` from babel just like pre/post, so the
+      // same wrapper covers all four call shapes
+      function withBrand(fn) {
+        return function wrappedHandler(...args) {
+          try {
+            return fn.apply(this, args);
+          } catch (error) {
+            tagError(error);
+            throw error;
+          }
+        };
+      }
+
+      // --- mode-specific plugin objects ---
+
+      // every pre/post handler below is a named function expression, not an arrow, because it needs
+      // babel's `this` (`this === pluginPass`, carrying `.file.path`); an arrow would inherit the
+      // enclosing IIFE-scope `this` and drop the file
+
+      if (method === 'entry-global') {
+        return {
+          pre: withBrand(function entryGlobalPre() {
+            // an uninitialized file must not reach the flush below: the injector would still be the
+            // PREVIOUS file's, and flushing it emits into a program it does not belong to
+            if (!beginFile(this.file.path)) return;
+            if (!skipFile) {
+              // `runEntryDetection` unifies the dual dispatch (ExpressionStatement body
+              // scan + ImportDeclaration traversal) so the caller doesn't thread a visitor
+              // object through manual pre-call + filtered traverse
+              runEntryDetection(this.file.path, entryGlobalCallback);
+              applyEntryDirectivePromotions(this.file.path);
+            }
+            // entry-global reprints the file like every babel mode but runs no usage traversal, so
+            // the fold has no earlier mount here and this is its only one - OUTSIDE the skip,
+            // because a disabled file is reprinted just the same and would otherwise be handed back
+            // unparsable. the paren half runs in this mode's `post`, like everywhere else
+            parensPending = foldInstantiationsPass(this.file.path);
+            injector.flush();
+            // snapshot AFTER compensating AND after the flush, for the same reason the usage path
+            // snapshots there: the flush inserts the import block, and nodes missing from the set
+            // read as sibling-inserted. without a snapshot at all this mode has none, so its post
+            // pass would re-walk the whole file it just finished walking
+            originalBodyNodes = new WeakSet(this.file.path.node.body);
+          }),
+          post: withBrand(function entryGlobalPost() {
+            // the twin of `postHook`'s first line, for the same reasons spelled out there: last
+            // reachable point, and ahead of every bail because a skipped file is reprinted too
+            restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
+            anchorDisableDirectives(this.file?.path?.node);
+            injector?.flush();
+            // shared with the main `programExit` tail (`finalizeInjector`): canonical-sort
+            // the import region across all flushes and lift trailing arrow-`_ref` params
+            // so sibling-plugin imports inserted between our flushes don't leak above the
+            // sorted polyfill region
+            finalizeInjector();
+            outputDebug();
+            // mirror `postHook`'s closure-captured state cleanup so multi-file batch GC bound is
+            // deterministic - without nulling, FILE A's injector + AST refs survive until the next
+            // initFile reassigns. entryGlobalPre runs the SAME `initFile`, which allocates synthSwap
+            // / destructureEmit / skippedNodes too: entry-global never USES them, but they still pin
+            // the AST (destructureEmit captures injector -> programPath), so null them all here
+            injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
+          }),
+        };
+      }
+
+      if (!isPure) {
+        const syntaxVisitors = createSyntaxVisitors({
+          injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
+        });
+        return {
+          pre: withBrand(function usageGlobalPre() {
+            preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors));
+          }),
+          visitor: { Program: { exit: withBrand(programExit) } },
+          post: withBrand(postHook),
+        };
+      }
+
+      return {
+        pre: withBrand(function usagePurePre() {
+          preTraverse(this.file.path, usageWalkVisitors);
+        }),
+        visitor: { Program: { exit: withBrand(programExit) } },
+        post: withBrand(postHook),
+      };
+    })(),
+    /* eslint-enable max-statements -- close defer-block opened above */
+  };
+}

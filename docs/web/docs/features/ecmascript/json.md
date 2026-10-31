@@ -2,7 +2,7 @@
 Since the `JSON` object is missing only in very old engines like IE7-, `core-js` does not provide a full `JSON.stringify` polyfill; however, it fixes existing implementations according to the current standard. `JSON.parse` is fully polyfilled.
 
 ## Modules
-[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.raw-json.js), [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js) and [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js).
+[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.raw-json.js), [`es.json.stringify`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.stringify.js) and [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.to-string-tag.js).
 
 ## Built-ins signatures
 ```ts
@@ -17,12 +17,11 @@ namespace JSON {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/json
-core-js(-pure)/es|stable|actual|full/json/is-raw-json
-core-js(-pure)/es|stable|actual|full/json/parse
-core-js(-pure)/es|stable|actual|full/json/raw-json
-core-js(-pure)/es|stable|actual|full/json/stringify
-core-js(-pure)/es|stable|actual|full/json/to-string-tag
+{ core-js, @core-js/pure }/es|stable|actual|full/json
+{ core-js, @core-js/pure }/es|stable|actual|full/json/is-raw-json
+{ core-js, @core-js/pure }/es|stable|actual|full/json/parse
+{ core-js, @core-js/pure }/es|stable|actual|full/json/raw-json
+{ core-js, @core-js/pure }/es|stable|actual|full/json/stringify
 ```
 
 ## Examples

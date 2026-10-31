@@ -1,5 +1,3 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#matchAll', assert => {
   const { matchAll } = String.prototype;
   const { assign } = Object;
@@ -99,29 +97,6 @@ QUnit.test('String#matchAll', assert => {
     value: undefined,
     done: true,
   });
-  /* IE8- issue
-  iterator = 'abc'.matchAll(/\B/g);
-  assert.isIterator(iterator);
-  assert.isIterable(iterator);
-  assert.deepEqual(iterator.next(), {
-    value: assign([''], {
-      input: 'abc',
-      index: 1,
-    }),
-    done: false,
-  });
-  assert.deepEqual(iterator.next(), {
-    value: assign([''], {
-      input: 'abc',
-      index: 2,
-    }),
-    done: false,
-  });
-  assert.deepEqual(iterator.next(), {
-    value: undefined,
-    done: true,
-  });
-  */
   data = [null, undefined, NaN, 42, {}, []];
   for (const target of data) {
     assert.notThrows(() => ''.matchAll(target), `Not throws on ${ target } as the first argument`);
@@ -132,14 +107,12 @@ QUnit.test('String#matchAll', assert => {
   regExpLike[Symbol.match] = true;
   assert.deepEqual(Array.from(matchAll.call('ab', regExpLike), match => match[0]), ['a'], 'regex-like argument');
 
-  if (DESCRIPTORS && typeof Symbol == 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     const symbol = Symbol('matchAll test');
     assert.throws(() => matchAll.call(symbol, /./), 'throws on symbol context');
     assert.throws(() => matchAll.call('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => matchAll.call(null, /./g), TypeError, 'Throws on null as `this`');
-    assert.throws(() => matchAll.call(undefined, /./g), TypeError, 'Throws on undefined as `this`');
-  }
+  assert.throws(() => matchAll.call(null, /./g), TypeError, 'Throws on null as `this`');
+  assert.throws(() => matchAll.call(undefined, /./g), TypeError, 'Throws on undefined as `this`');
 });

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-flatMap)
 
 ## Modules
-[`es.array.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.flat.js), [`es.array.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.flat-map.js), [`es.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat.js) and [`es.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat-map.js).
+[`es.array.flat`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.flat.js), [`es.array.flat-map`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.flat-map.js), [`es.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.unscopables.flat.js) and [`es.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.unscopables.flat-map.js).
 
 ## Built-ins signatures
 ```ts
@@ -16,9 +16,12 @@ class Array {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-flat-map
-core-js(-pure)/es|stable|actual|full/array(/virtual)/flat
-core-js(-pure)/es|stable|actual|full/array(/virtual)/flat-map
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/flat
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/flat-map
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-flat-map`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-flat-map.d.ts)
 
 ## Examples
 ```js

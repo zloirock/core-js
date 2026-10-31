@@ -1,6 +1,6 @@
 # ECMAScript: Symbol
 ## Modules
-[`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match-all.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js).
+[`es.symbol.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.constructor.js), [`es.symbol.for`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.for.js), [`es.symbol.key-for`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.key-for.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.match.js), [`es.symbol.match-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.match-all.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.unscopables.js), [`es.object.get-own-property-symbols`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.object.get-own-property-symbols.js).
 
 ## Built-ins signatures
 ```ts
@@ -26,8 +26,6 @@ class Symbol {
   static unscopables: @@unscopables;
   static for(key: string): symbol;
   static keyFor(sym: symbol): string | void;
-  static useSimple(): void;
-  static useSetter(): void;
 }
 
 class Object {
@@ -48,26 +46,26 @@ class Object {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js(-pure)/es|stable|actual|full/symbol
-core-js(-pure)/es|stable|actual|full/symbol/async-dispose
-core-js(-pure)/es|stable|actual|full/symbol/async-iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-dispose
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-iterator
 core-js/es|stable|actual|full/symbol/description
-core-js(-pure)/es|stable|actual|full/symbol/dispose
-core-js(-pure)/es|stable|actual|full/symbol/has-instance
-core-js(-pure)/es|stable|actual|full/symbol/is-concat-spreadable
-core-js(-pure)/es|stable|actual|full/symbol/iterator
-core-js(-pure)/es|stable|actual|full/symbol/match
-core-js(-pure)/es|stable|actual|full/symbol/match-all
-core-js(-pure)/es|stable|actual|full/symbol/replace
-core-js(-pure)/es|stable|actual|full/symbol/search
-core-js(-pure)/es|stable|actual|full/symbol/species
-core-js(-pure)/es|stable|actual|full/symbol/split
-core-js(-pure)/es|stable|actual|full/symbol/to-primitive
-core-js(-pure)/es|stable|actual|full/symbol/to-string-tag
-core-js(-pure)/es|stable|actual|full/symbol/unscopables
-core-js(-pure)/es|stable|actual|full/symbol/for
-core-js(-pure)/es|stable|actual|full/symbol/key-for
-core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/dispose
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/has-instance
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/is-concat-spreadable
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/match
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/match-all
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/replace
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/search
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/species
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/split
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/to-primitive
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/to-string-tag
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/unscopables
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/for
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/key-for
+{ core-js, @core-js/pure }/es|stable|actual|full/object/get-own-property-symbols
 ```
 
 ## Basic examples
@@ -115,21 +113,9 @@ Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
 ```
 
-## Caveats when using `Symbol` polyfill
-
-- We can't add a new primitive type, `Symbol` returns an object.
-- `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-- By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
-
-You can disable defining setters in `Object.prototype`. *Example*:
-```ts
-Symbol.useSimple();
-let object1 = { [Symbol('symbol1')]: true };
-for (let key in object1) console.log(key); // -> 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
-
-Symbol.useSetter();
-let object2 = { [Symbol('symbol2')]: true };
-for (let key in object2) console.log(key); // -> nothing
-```
-- Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
-- Some problems are possible with environment exotic objects (for example, IE `localStorage`).
+> [!WARNING]
+> - We can't add a new primitive type, `Symbol` returns an object.
+> - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
+> - `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
+> - `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
+> - Some problems are possible with environment exotic objects (for example, IE `localStorage`).

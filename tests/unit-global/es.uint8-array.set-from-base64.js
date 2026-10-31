@@ -1,6 +1,6 @@
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
+QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   const { setFromBase64 } = Uint8Array.prototype;
   assert.isFunction(setFromBase64);
   assert.arity(setFromBase64, 1);
@@ -302,13 +302,13 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   assert.throws(() => target.setFromBase64('a'), SyntaxError, 'throws error on incorrect length of base64 string');
 });
 
-if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64, trailing whitespace', assert => {
+QUnit.test('Uint8Array.prototype.setFromBase64, trailing whitespace', assert => {
   assert.deepEqual(new Uint8Array(4).setFromBase64('Zm9v\n'), { read: 5, written: 3 }, 'after a full chunk');
   assert.deepEqual(new Uint8Array(4).setFromBase64('\n'), { read: 1, written: 0 }, 'whitespace only');
   assert.deepEqual(new Uint8Array(8).setFromBase64('Zm9vYg==\n'), { read: 9, written: 4 }, 'after padding');
 });
 
-if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.setFromBase64, resizable buffers', assert => {
+if (typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.setFromBase64, resizable buffers', assert => {
   // https://issues.chromium.org/issues/454630441
   const rab = new ArrayBuffer(6, { maxByteLength: 12 });
   const tracking = new Uint8Array(rab);

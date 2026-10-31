@@ -1,0 +1,684 @@
+// Context queries must stop at the boundary that answers them. Count syntax-slot
+// and parent reads after parsing, outside the parser's own traversal and scope setup.
+import {
+  bindingWrittenBeyondItsFrame,
+  buildScopeReassignmentIndex,
+  collectFileCensus,
+  completeBranchWritesBefore,
+  isForXWriteTarget,
+  isGuardedAliasingWrite,
+  isTopLevelThisContext,
+  noteRenderRetiredWrites,
+  reassignmentDominatesUsage,
+  reassignmentValueEnumeration,
+  receiverSlotRead,
+  walkAstChildren,
+  walkAstNodes,
+  varInitDominatesUsage,
+  withCanonQuestion,
+  withPresenceReadQuestion,
+  withReentrantQuestion,
+  withTraversalCaches,
+  wrapScopeBindingLookup,
+  writeNeverRuns,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { adapters, createChecker, findNode } from './harness.mjs';
+
+const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
+
+for (const parser of adapters) {
+  // A declaration or a complete branch is never a logical-assignment target.
+  // Guard queries must not index writes in unrelated nested function bodies.
+  for (const size of [32, 128]) for (const [shape, source, hostType, guarded] of [
+    ['plain', 'var C = Map;', null, false],
+    ['guarded', 'if (flag) { var C = Map; }', null, true],
+    ['if', 'if (flag) { var C = Map; } else { var C = Set; }', 'IfStatement'],
+    ['switch', 'switch (flag) { case 0: var C = Map; break; default: var C = Set; }', 'SwitchStatement'],
+    ['try', 'try { var C = Map; } catch (error) { var C = Set; }', 'TryStatement'],
+  ]) {
+    const program = parser.parseAndScope(`function f(flag) {
+      ${ source } use(C); function nested() { ${ 'sink(0);'.repeat(size) } }
+    }`);
+    const owner = parser.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'f').node;
+    const nested = parser.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'nested').node;
+    const writes = parser.collectPaths(program, 'VariableDeclarator').map(path => path.node);
+    const read = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'use').node;
+    const host = hostType && parser.pickPath(program, hostType).node;
+    const label = `${ parser.name }/guard indexing/${ shape }/${ size }`;
+    let visits = 0;
+    for (const node of nested.body.body) Object.defineProperty(node, 'guardWalkProbe', {
+      configurable: true, enumerable: true, get() { visits++; return null; },
+    });
+    try {
+      walkAstNodes({ root: nested.body, visit() { return true; } });
+      check(`${ label }/counter control`, visits, size);
+      visits = 0;
+      if (host) check(`${ label }/complete branch`, completeBranchWritesBefore({
+        ownerNode: owner, name: 'C', writeNodes: writes, readNode: read,
+      }), host);
+      else check(`${ label }/declaration guard`, isGuardedAliasingWrite({
+        node: writes[0], kind: 'var', ownerNode: owner,
+      }), guarded);
+      check(`${ label }/no unrelated body walk`, visits, 0);
+    } finally {
+      for (const node of nested.body.body) delete node.guardWalkProbe;
+    }
+  }
+
+  // Both trackers' write identities retain the short-circuit guard, for names and members.
+  for (const operator of ['=', '&&=', '||=', '??=']) for (const target of ['C', 'box.C']) {
+    const program = parser.parseAndScope(`function f(C, box) { ${ target } ${ operator } Set; use(${ target }); }`);
+    const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+    const usagePath = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'use');
+    for (const write of [assignment, assignment.left]) check(`${ parser.name }/write guard/${ target }/${ operator }/${ write.type }`,
+      reassignmentDominatesUsage({ reassignmentNodes: [write], usagePath }), operator === '=');
+  }
+
+  // Width in ordinary expressions must not build empty write/shadow lists per node.
+  // Count empty array iteration only in the synchronous scan, after parsing and setup.
+  for (const size of [64, 256]) {
+    const program = parser.parseAndScope(`function f() { var value = 0; value = ${ '1 + '.repeat(size) }0; return value; }`);
+    const owner = parser.pickPath(program, 'FunctionDeclaration').node;
+    const declaration = parser.pickPath(program, 'VariableDeclarator').node;
+    const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+    const original = Array.prototype[Symbol.iterator];
+    let empty = 0;
+    let index;
+    try {
+      // eslint-disable-next-line no-extend-native -- Count only this synchronous scan; restore in finally.
+      Array.prototype[Symbol.iterator] = function () {
+        if (!this.length) empty++;
+        return original.call(this);
+      };
+      Array.from([]);
+      check(`${ parser.name }/write scan/${ size }/counter control`, empty, 1);
+      empty = 0;
+      index = buildScopeReassignmentIndex(owner);
+    } finally {
+      // eslint-disable-next-line no-extend-native -- Restore the exact original iterator.
+      Array.prototype[Symbol.iterator] = original;
+    }
+    check(`${ parser.name }/write scan/${ size }/names`, index.size, 1);
+    check(`${ parser.name }/write scan/${ size }/writes`, index.get('value')?.length, 2);
+    check(`${ parser.name }/write scan/${ size }/initializer`, index.get('value')?.[0], declaration);
+    check(`${ parser.name }/write scan/${ size }/assignment`, index.get('value')?.[1], assignment);
+    checkTruthy(`${ parser.name }/write scan/${ size }/bounded empty lists`, empty < 64, `${ empty } empty lists`);
+  }
+
+  // Different writes under one label share its structural break answer, even when
+  // a presence question cannot retain value answers. Count walks, not elapsed time.
+  for (const size of [16, 64]) {
+    for (const breaks of [false, true]) {
+      for (const scope of ['traversal', 'question', 'presence', 'lookup']) {
+        const names = Array.from({ length: size }, (unused, i) => `value${ i }`);
+        const program = parser.parseAndScope(`function f(flag) {
+          outer: { ${ breaks ? 'if (flag) break outer;' : '' }
+            ${ names.map(name => `var ${ name } = Map;`).join(' ') }
+          } return [${ names.join(', ') }];
+        }`);
+        const label = parser.pickPath(program, 'LabeledStatement').node;
+        const declarations = parser.collectPaths(program, 'VariableDeclarator');
+        const usagePath = parser.pickPath(program, 'ReturnStatement');
+        let walks = 0;
+        Object.defineProperty(label.body, 'labelWalkProbe', {
+          configurable: true,
+          enumerable: true,
+          get() { walks++; return null; },
+        });
+        const name = `${ parser.name }/label breaks/${ size }/${ breaks }/${ scope }`;
+        try {
+          walkAstNodes({ root: label.body, visit() { return true; } });
+          check(`${ name }/counter control`, walks, 1);
+          walks = 0;
+          function query() {
+            for (const declaration of declarations) check(`${ name }/${ declaration.node.id.name }`,
+              varInitDominatesUsage({ declaratorNode: declaration.node, usagePath }), !breaks);
+          }
+          // eslint-disable-next-line max-depth -- Preserve the parser, size, break and scope axes.
+          if (scope === 'traversal') withTraversalCaches(true, query);
+          else withCanonQuestion(() => scope === 'presence' ? withPresenceReadQuestion(query)
+            : scope === 'lookup' ? withReentrantQuestion(query, 'lookup') : query());
+          checkTruthy(`${ name }/bounded body walks`, walks > 0 && walks <= 4, `${ walks } body walks`);
+        } finally {
+          delete label.body.labelWalkProbe;
+        }
+      }
+    }
+  }
+
+  // A rewriting traversal may change the body between two queries in the same visit.
+  {
+    const program = parser.parseAndScope(`function f(flag) {
+      outer: { if (flag) break outer; var a = Map, b = Map; } return [a, b];
+    }`);
+    const branch = parser.pickPath(program, 'IfStatement').node;
+    const declarations = parser.collectPaths(program, 'VariableDeclarator');
+    const usagePath = parser.pickPath(program, 'ReturnStatement');
+    withTraversalCaches(false, () => {
+      check(`${ parser.name }/mutable label/has break`,
+        varInitDominatesUsage({ declaratorNode: declarations[0].node, usagePath }), false);
+      branch.consequent = { type: 'EmptyStatement' };
+      check(`${ parser.name }/mutable label/removed break`,
+        varInitDominatesUsage({ declaratorNode: declarations[1].node, usagePath }), true);
+    });
+  }
+
+  // The same AST can be queried after a sibling pass changes a break. Read-only
+  // answers must leave with their scope, including exceptional and mutable exits.
+  for (const scope of ['traversal', 'question', 'mutable', 'unscoped']) {
+    const program = parser.parseAndScope(`function f(flag) {
+      outer: { if (flag) break outer; var a = Map, b = Map, c = Map, d = Map; }
+      return [a, b, c, d];
+    }`);
+    const branch = parser.pickPath(program, 'IfStatement').node;
+    const jump = branch.consequent;
+    const declarations = parser.collectPaths(program, 'VariableDeclarator');
+    const usagePath = parser.pickPath(program, 'ReturnStatement');
+    function run(visit) {
+      return scope === 'question' ? withCanonQuestion(visit)
+        : scope === 'unscoped' ? visit() : withTraversalCaches(scope === 'traversal', visit);
+    }
+    function query(index) {
+      return varInitDominatesUsage({ declaratorNode: declarations[index].node, usagePath });
+    }
+    const name = `${ parser.name }/label scope/${ scope }`;
+    const failure = new Error('label query failed');
+    let caught;
+    try {
+      run(() => {
+        check(`${ name }/before edit`, query(0), false);
+        throw failure;
+      });
+    } catch (error) { caught = error; }
+    check(`${ name }/error propagated`, caught, failure);
+    branch.consequent = { type: 'EmptyStatement' };
+    run(() => {
+      check(`${ name }/after edit`, query(1), true);
+      check(`${ name }/second read`, query(2), true);
+    });
+    branch.consequent = jump;
+    run(() => check(`${ name }/restored break`, query(3), false));
+  }
+
+  // Equal label spellings in separate blocks do not share a structural answer.
+  {
+    const program = parser.parseAndScope(`function f(flag) {
+      same: { if (flag) break same; var a = Map; }
+      same: { var b = Map; }
+      return [a, b];
+    }`);
+    const declarations = parser.collectPaths(program, 'VariableDeclarator');
+    const usagePath = parser.pickPath(program, 'ReturnStatement');
+    withCanonQuestion(() => {
+      declarations.forEach((declaration, index) => check(`${ parser.name }/equal label names/${ index }`,
+        varInitDominatesUsage({ declaratorNode: declaration.node, usagePath }), index === 1));
+    });
+  }
+
+  // Redeclared initializers ask both the guard collector and the owner-level write
+  // channel about the same label. An unlabeled loop break does not end that label.
+  for (const [shape, before, complete] of [
+    ['plain', '', true],
+    ['own break', 'if (flag) break outer;', false],
+    ['loop break', 'for (;;) { break; }', true],
+  ]) {
+    const program = parser.parseAndScope(`function f(flag) {
+      var C = Map; outer: { ${ before } var C = Set; } return C.prototype;
+    }`);
+    const usagePath = parser.pickPath(program, 'MemberExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const binding = adapter.getBinding({ scope: usagePath.scope, path: usagePath, name: 'C' });
+    withCanonQuestion(() => {
+      const result = reassignmentValueEnumeration({ binding, usagePath, everyWrite: true });
+      check(`${ parser.name }/labeled redeclaration/${ shape }/complete`, result.complete, complete);
+      checkDeep(`${ parser.name }/labeled redeclaration/${ shape }/values`, result.nodes.map(node => node.name), complete ? ['Set'] : []);
+    });
+  }
+
+  // Raw child scheduling must retain receiver and exception boundaries independently.
+  // An arrow keeps its receiver but opens a deferred exception region.
+  {
+    const program = parser.parseAndScope(`
+      this.outer;
+      function f(value = this.parameter) {
+        try { this.direct; const later = () => this.deferred; }
+        catch (error) { this.caught; }
+        finally { this.finalized; }
+      }
+    `);
+    const owner = parser.pickPath(program, 'FunctionDeclaration').node;
+    const handler = parser.pickPath(program, 'CatchClause').node;
+    const seen = new Map();
+    collectFileCensus(program.node, [{
+      visit(node, frame) {
+        if (node.type === 'MemberExpression') seen.set(node.property.name, frame);
+      },
+      result() { return {}; },
+    }]);
+    check(`${ parser.name }/census frames/all slots`, seen.size, 6);
+    for (const name of ['outer', 'parameter', 'direct', 'deferred', 'caught', 'finalized']) {
+      const frame = seen.get(name);
+      check(`${ parser.name }/census frames/${ name }/receiver`, frame.thisOwner, name === 'outer' ? null : owner);
+      check(`${ parser.name }/census frames/${ name }/top this`, frame.atThisTopLevel, name === 'outer');
+      check(`${ parser.name }/census frames/${ name }/scope`, frame.scopes.includes(owner), name !== 'outer');
+      check(`${ parser.name }/census frames/${ name }/handler`, frame.throwHandler, name === 'direct' ? handler : null);
+    }
+  }
+
+  // A census visits every leaf without asking it for a scope or annotation context
+  // that no child can inherit. Empty child lists have the same bound as absent ones.
+  for (const size of [32, 128]) {
+    const program = parser.parseAndScope('var rows = []; rows.length;'.repeat(size));
+    const leaves = new Map();
+    walkAstNodes({ root: program.node, visit(node) {
+      let children = false;
+      walkAstChildren(node, () => { children = true; });
+      if (!children) leaves.set(node, Object.getOwnPropertyDescriptor(node, 'type'));
+    } });
+    const visited = new Set();
+    let reads = 0;
+    for (const [node, descriptor] of leaves) Object.defineProperty(node, 'type', {
+      configurable: descriptor.configurable,
+      enumerable: descriptor.enumerable,
+      get() { if (visited.has(node)) reads++; return descriptor.value; },
+    });
+    try {
+      for (const node of leaves.keys()) {
+        visited.add(node);
+        Reflect.get(node, 'type');
+      }
+      check(`${ parser.name }/census leaves/${ size }/counter control`, reads, leaves.size);
+      visited.clear();
+      reads = 0;
+      collectFileCensus(program.node, [{
+        visit(node) { if (leaves.has(node)) visited.add(node); },
+        result() { return {}; },
+      }]);
+      check(`${ parser.name }/census leaves/${ size }/all leaves visited`, visited.size, leaves.size);
+      checkTruthy(`${ parser.name }/census leaves/${ size }/bounded context reads`, reads <= leaves.size, `${ reads } reads for ${ leaves.size } leaves`);
+    } finally {
+      for (const [node, descriptor] of leaves) Object.defineProperty(node, 'type', descriptor);
+    }
+  }
+
+  // Re-emitting each write in a wide scope must not rebuild every sibling path per binding.
+  // Carry the source write under a fresh statement, preserving its source span and ancestry.
+  for (const size of [32, 128]) {
+    for (const deferred of [false, true]) {
+      const names = Array.from({ length: size }, (unused, i) => `rows${ i }`);
+      const source = names.map(name => `${ deferred ? `const holder${ name } = { get value() { ` : '' }
+        ${ name } = [2]; ${ deferred ? '} };' : '' } ${ name }.at(0);`).join('\n');
+      const program = parser.parseAndScope(`let ${ names.join(', ') }; ${ source }`);
+      const writes = parser.collectPaths(program, 'AssignmentExpression');
+      const reads = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'at');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const bindings = reads.map((read, i) => adapter.getBinding({ scope: read.scope, name: names[i], path: read }));
+      const descriptor = Object.getOwnPropertyDescriptor(program, 'get');
+      const originalGet = program.get;
+      let materialized = 0;
+      program.get = function (key, ...args) {
+        const result = originalGet.call(this, key, ...args);
+        if (key === 'body') materialized += result.length;
+        return result;
+      };
+      const label = `${ parser.name }/${ deferred ? 'getter' : 'same' } frame/${ size }`;
+      try {
+        program.get('body');
+        checkTruthy(`${ label }/path counter control`, materialized >= size, `${ materialized } paths`);
+        materialized = 0;
+        writes.forEach((write, i) => {
+          let statement = write;
+          while (statement.parentPath?.node !== program.node) statement = statement.parentPath;
+          statement.replaceWith({ ...statement.node });
+          check(`${ label }/writer ${ i }`, bindingWrittenBeyondItsFrame(bindings[i]), deferred);
+        });
+        checkTruthy(`${ label }/bounded sibling paths`, materialized <= 4 * program.node.body.length, `${ materialized } paths`);
+      } finally {
+        if (descriptor) Object.defineProperty(program, 'get', descriptor);
+        else delete program.get;
+      }
+    }
+  }
+
+  // A receiver's write-frame proof must find its writes without traversing unrelated bodies.
+  // Scope and the canonical write census are prepared before counting this placement query.
+  for (const size of [32, 128]) {
+    const padding = Array.from({ length: size }, (unused, i) => `function padding${ i }() { return [${ i }]; }`).join('\n');
+    for (const [name, source, deferred, cloned] of [
+      ['same frame', 'rows = [2];', false],
+      ['getter frame', 'const holder = { get at() { rows = [2]; } };', true],
+      ['cloned getter frame', 'const holder = { get at() { rows = [2]; } };', true, true],
+    ]) {
+      const program = parser.parseAndScope(`let rows = [1]; ${ padding } ${ source } rows.at(0);`);
+      const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+      const bodies = parser.collectPaths(program, 'FunctionDeclaration', p => p.node.id.name.startsWith('padding'));
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const binding = adapter.getBinding({ scope: path.scope, name: 'rows', path });
+      if (cloned) {
+        check(`${ parser.name }/${ name }/${ size }/original writer frame`, bindingWrittenBeyondItsFrame(binding), deferred);
+        const write = parser.pickPath(program, 'AssignmentExpression');
+        write.replaceWith({ ...write.node, left: { ...write.node.left }, right: { ...write.node.right } });
+      }
+      const descriptors = bodies.map(body => Object.getOwnPropertyDescriptor(body.node, 'body'));
+      let reads = 0;
+      bodies.forEach((body, index) => Object.defineProperty(body.node, 'body', {
+        configurable: descriptors[index].configurable,
+        enumerable: descriptors[index].enumerable,
+        get() { reads++; return descriptors[index].value; },
+      }));
+      try {
+        walkAstNodes({ root: program.node, visit() { return true; } });
+        checkTruthy(`${ parser.name }/${ name }/${ size }/body counter control`, reads >= size, `${ reads } body reads`);
+        reads = 0;
+        check(`${ parser.name }/${ name }/${ size }/writer frame`, bindingWrittenBeyondItsFrame(binding), deferred);
+        check(`${ parser.name }/${ name }/${ size }/no unrelated body scans`, reads, 0);
+      } finally {
+        bodies.forEach((body, index) => Object.defineProperty(body.node, 'body', descriptors[index]));
+      }
+    }
+  }
+
+  // Several binding views can retain the same source write after its callback is copied.
+  // One read-only question must not rebuild the whole file for every view of that write.
+  for (const size of [8, 32]) for (const context of ['question', 'traversal', 'plain', 'presence', 'reentrant']) {
+    const program = parser.parseAndScope('function run(rows) { rows = [...rows]; return rows.at(0); }');
+    const owner = parser.pickPath(program, 'FunctionDeclaration');
+    const use = parser.pickPath(program, 'MemberExpression');
+    const original = parser.pickPath(program, 'AssignmentExpression').node;
+    const native = use.scope.getBinding('rows');
+    const binding = { ...native, constantViolations: [original], constant: false };
+    buildScopeReassignmentIndex(owner.node);
+    owner.replaceWith({ ...owner.node, body: { ...owner.node.body, body: [...owner.node.body.body] } });
+    const write = parser.pickPath(program, 'AssignmentExpression');
+    noteRenderRetiredWrites(write.node);
+    write.replaceWith({ ...write.node, left: { ...write.node.left } });
+    const path = parser.pickPath(program, 'MemberExpression');
+    let root = path;
+    while (root.parentPath) root = root.parentPath;
+    const label = `${ parser.name }/copied write/${ context }/${ size }`;
+    const { traverse } = root;
+    let traversals = 0;
+    root.traverse = function (...args) {
+      traversals++;
+      return traverse.apply(this, args);
+    };
+    function lookup() {
+      // Trackers may return distinct views with the same declaration and source records.
+      return wrapScopeBindingLookup(() => ({ ...binding }), () => false)({ scope: path.scope, name: 'rows', path });
+    }
+    function visit() {
+      for (let i = 0; i < size; i++) {
+        const writes = lookup().constantViolations;
+        check(`${ label }/one live write/${ i }`, writes.length, 1);
+        check(`${ label }/copied write/${ i }`, (writes[0].node ?? writes[0]) === original, false);
+      }
+    }
+    try {
+      root.traverse({});
+      check(`${ label }/traversal counter control`, traversals, 1);
+      traversals = 0;
+      if (context === 'plain') visit();
+      else if (context === 'traversal') withTraversalCaches(true, visit);
+      else withCanonQuestion(() => context === 'presence' ? withPresenceReadQuestion(visit)
+        : context === 'reentrant' ? withReentrantQuestion(visit, 'lookup') : visit());
+      const reusable = context === 'question' || context === 'traversal';
+      check(`${ label }/bounded live index builds`, traversals, reusable ? 1 : size);
+      // A later question must observe a restored source write, then its replacement again.
+      parser.pickPath(program, 'AssignmentExpression').replaceWith(original);
+      check(`${ label }/restored write`, withCanonQuestion(() => lookup()).constantViolations.some(item => (item.node ?? item) === original), true);
+      parser.pickPath(program, 'AssignmentExpression').replaceWith({ ...original, left: { ...original.left } });
+      check(`${ label }/replacement after restore`, withCanonQuestion(() => lookup()).constantViolations.some(item => (item.node ?? item) === original), false);
+    } finally {
+      root.traverse = traverse;
+    }
+  }
+
+  // An outer binding cannot be shadowed by a function with no matching parameter property.
+  // Its declaration ancestry must not be walked at every node above every reference.
+  for (const size of [32, 128]) {
+    const program = parser.parseAndScope(`const rows = [1]; function read() { ${ 'rows.at(0);'.repeat(size) } }`);
+    const paths = parser.collectPaths(program, 'MemberExpression', p => p.node.property.name === 'at');
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    const native = paths[0].scope.getBinding('rows');
+    const declaration = native.path;
+    const descriptor = Object.getOwnPropertyDescriptor(declaration, 'parentPath');
+    const { parentPath } = declaration;
+    let reads = 0;
+    Object.defineProperty(declaration, 'parentPath', {
+      configurable: true,
+      get() { reads++; return parentPath; },
+    });
+    try {
+      for (const path of paths) check(`${ parser.name }/outer binding/${ size }/declaration`,
+        lookup({ scope: path.scope, name: 'rows', path })?.path?.node, declaration.node);
+      checkTruthy(`${ parser.name }/outer binding/${ size }/bounded declaration ancestry`, reads > 0 && reads <= 2 * (size + 1), `${ reads } parent reads`);
+    } finally {
+      if (descriptor) Object.defineProperty(declaration, 'parentPath', descriptor);
+      else delete declaration.parentPath;
+    }
+  }
+
+  // Repeated calls of one wide reader must inspect its parameter shape once, not per call.
+  for (const size of [32, 128]) {
+    const params = ['o', ...Array.from({ length: size }, (unused, i) => `p${ i }`)];
+    const calls = 'void pick(box);\n'.repeat(size);
+    const program = parser.parseAndScope(`function pick(${ params.join(', ') }) { return o.rows; }
+      const box = { rows: [8, 9] }; ${ calls } const result = box.rows;`);
+    const fn = parser.pickPath(program, 'FunctionDeclaration', p => p.node.id.name === 'pick').node;
+    const result = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result').get('init');
+    const box = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'box');
+    const census = collectFileCensus(program.node, [mutationShapesReducer(), escapedCtorReferencesReducer()]);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-pure',
+      getWrittenContainerSlots: () => census.writtenContainerSlots,
+      getContainerSlotIndex: () => census.containerSlotIndex,
+    });
+    const descriptors = fn.params.map(param => Object.getOwnPropertyDescriptor(param, 'type'));
+    let reads = 0;
+    fn.params.forEach((param, index) => Object.defineProperty(param, 'type', {
+      configurable: true,
+      enumerable: descriptors[index].enumerable,
+      get() { reads++; return descriptors[index].value; },
+    }));
+    try {
+      const resolver = parser.makeResolver();
+      check(`${ parser.name }/local reader/${ size }/field type`, resolver.resolveNodeType(result)?.constructor, 'Array');
+      checkTruthy(`${ parser.name }/local reader/${ size }/bounded parameter scans`, reads > 0 && reads <= 40 * (size + 1), `${ reads } parameter reads`);
+      reads = 0;
+      check(`${ parser.name }/local reader/${ size }/own slot remains unwritten`,
+        adapter.isWrittenContainerSlot('box', ['rows'], box.node, result, result.node), false);
+      checkTruthy(`${ parser.name }/local reader/${ size }/bounded escape scans`, reads > 0 && reads <= 40 * (size + 1), `${ reads } parameter reads`);
+    } finally {
+      fn.params.forEach((param, index) => Object.defineProperty(param, 'type', descriptors[index]));
+    }
+  }
+
+  for (const depth of [16, 64]) {
+    for (const [name, source] of [
+      ['function body', 'function local() { this.x; }'],
+      ['field value', 'class C { x = this.x; }'],
+      ['static block', 'class C { static { this.x; } }'],
+    ]) {
+      const program = parser.parseAndScope(`${ 'function outer() {'.repeat(depth) }${ source }${ '}'.repeat(depth) }`);
+      const path = parser.pickPath(program, 'ThisExpression');
+      const ancestors = [];
+      for (let current = path; current; current = current.parentPath) ancestors.push(current);
+      let reads = 0;
+      const descriptors = ancestors.map(current => Object.getOwnPropertyDescriptor(current, 'parentPath'));
+      for (const current of ancestors) {
+        const { parentPath } = current;
+        Object.defineProperty(current, 'parentPath', {
+          configurable: true,
+          get() { reads++; return parentPath; },
+        });
+      }
+      try {
+        check(`${ parser.name }/${ name }/${ depth }/own receiver`, isTopLevelThisContext(path), false);
+        checkTruthy(`${ parser.name }/${ name }/${ depth }/bounded ancestry`, reads > 0 && reads <= 12, `${ reads } parent reads`);
+      } finally {
+        ancestors.forEach((current, index) => {
+          if (descriptors[index]) Object.defineProperty(current, 'parentPath', descriptors[index]);
+          else delete current.parentPath;
+        });
+      }
+    }
+  }
+
+  // An ordinary expression cannot introduce a this owner, regardless of its width.
+  // Its absent decorator slot must not be queried once per structural child.
+  for (const size of [32, 128]) {
+    const source = Array.from({ length: size }, (_, i) => `const x${ i } = this.x + source.value;`).join('\n');
+    const program = parser.parseAndScope(source);
+    let reads = 0;
+    walkAstNodes({ root: program.node, visit(node) {
+      Object.defineProperty(node, 'decorators', { configurable: true, enumerable: false, get() { reads++; } });
+    } });
+    let receivers = 0;
+    collectFileCensus(program.node, [{
+      visit(node, frame) {
+        if (node.type !== 'ThisExpression') return;
+        check(`${ parser.name }/${ size }/census receiver ${ receivers++ }`, frame.thisOwner, null);
+      },
+      result() { return {}; },
+    }]);
+    check(`${ parser.name }/${ size }/all receivers visited`, receivers, size);
+    check(`${ parser.name }/${ size }/no irrelevant slot reads`, reads, 0);
+  }
+
+  // Before a member matches a loop head there is no receiver-identity question.
+  // Crossing a function must not trigger a full definition-time context census.
+  for (const [name, source] of [
+    ['no loop', 'function f() { this.at(0); }'],
+    ['different slot', 'for (this.other of items) { function f() { this.at(0); } }'],
+    ['declaration head', 'for (const item of items) { function f() { this.at(0); } }'],
+  ]) {
+    const program = parser.parseAndScope(source);
+    const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === 'at');
+    let reads = 0;
+    walkAstNodes({ root: program.node, visit(node) {
+      Object.defineProperty(node, 'decorators', { configurable: true, enumerable: false, get() { reads++; } });
+    } });
+    check(`${ parser.name }/${ name }/not a loop write`, isForXWriteTarget(path), false);
+    check(`${ parser.name }/${ name }/no irrelevant slot reads`, reads, 0);
+  }
+
+  // Descendant data paths and getter descriptors are shared by written refs in one closure.
+  // Count property-slot reads after parsing; scans per reference or distinct data key are quadratic.
+  // The extra-property writes are valid runtime JS, even though TS rejects the array's unknown key.
+  for (const size of [32, 128]) {
+    const fields = Array.from({ length: size }, (unused, i) => `p${ i }: 0`).join(', ');
+    const writes = Array.from({ length: size }, () => 'box.wrap.inner.value.extra = 0;').join('\n');
+    const branches = Array.from({ length: size }, (unused, i) => `p${ i }: { get value() { return [3, 4]; } }`).join(', ');
+    const computedBranches = Array.from({ length: size }, (unused, i) => `["p${ i }"]: { get value() { return [3, 4]; } }`).join(', ');
+    const branchWrites = Array.from({ length: size }, (unused, i) => `box.inner.p${ i }.value.extra = 0;`).join('\n');
+    const reverseWrites = Array.from({ length: size }, (unused, i) => `box.inner.p${ size - i - 1 }.value.extra = 0;`).join('\n');
+    for (const [shape, source, statements, resultSource] of [
+      ['getter', `const inner = { get value() { return [3, 4]; }, ${ fields } }; const box = { wrap: { inner } };`, writes, 'box.wrap.inner.value'],
+      ['carrier', `const inner = { get value() { return [3, 4]; } }; const box = { wrap: { inner, ${ fields } } };`, writes, 'box.wrap.inner.value'],
+      ['distinct keys', `const inner = { ${ branches }, marker: 0 }; const box = { inner };`, branchWrites, 'box.inner.p0.value'],
+      ['computed keys', `const inner = { rows: [3, 4], ${ computedBranches } }; const box = { inner };`, branchWrites, 'inner.rows'],
+      ['reverse keys', `const inner = { ${ branches }, marker: 0 }; const box = { inner };`, reverseWrites, 'box.inner.p0.value'],
+    ]) {
+      const program = parser.parseAndScope(`${ source } ${ statements } const result = ${ resultSource };`);
+      const literal = parser.pickPath(program, 'ObjectExpression', p => p.node.properties.length === size + 1).node;
+      const descriptors = literal.properties.map(prop => ['kind', 'key'].map(key => Object.getOwnPropertyDescriptor(prop, key)));
+      let reads = 0;
+      literal.properties.forEach((prop, index) => {
+        for (const [slot, key] of ['kind', 'key'].entries()) {
+          const value = prop[key];
+          Object.defineProperty(prop, key, {
+            configurable: true,
+            enumerable: descriptors[index][slot]?.enumerable ?? false,
+            get() { reads++; return value; },
+          });
+        }
+      });
+      try {
+        const result = parser.pickPath(program, 'VariableDeclarator', p => p.node.id?.name === 'result');
+        reads = 0;
+        check(`${ parser.name }/${ shape }/${ size }/getter result`, parser.makeResolver().resolveNodeType(result.get('init'))?.constructor, 'Array');
+        checkTruthy(`${ parser.name }/${ shape }/${ size }/bounded scans`, reads > 0 && reads <= 64 * (size + 1), `${ reads } property-slot reads`);
+      } finally {
+        literal.properties.forEach((prop, index) => {
+          for (const [slot, key] of ['kind', 'key'].entries()) {
+            if (descriptors[index][slot]) Object.defineProperty(prop, key, descriptors[index][slot]);
+            else delete prop[key];
+          }
+        });
+      }
+    }
+  }
+
+  // A value or write asked about from another function's read is held by no owner on the read's chain:
+  // an owner's index leaves its nested scopes out, and placing a node inside one rebuilds no index.
+  // A node attached to the frame after its index is built is still located, positioned or not
+  {
+    const program = parser.parseAndScope(`function a() { return null; }
+if (typeof Symbol == 'undefined') x = 1;
+function b() { x.at(0); }
+const table = { [k]() { return 1; } };
+x.at(0);`);
+    const [inB, top] = parser.collectPaths(program, 'Identifier', p => p.node.name === 'x' && p.parent.type.endsWith('MemberExpression'));
+    const [returned] = findNode(program.node, node => node.type === 'FunctionDeclaration' && node.id.name === 'a').body.body;
+    const write = findNode(program.node, node => node.type === 'AssignmentExpression');
+    const { argument } = returned;
+    // the build decides every selection here, and a consequent never runs
+    const adapter = {
+      decidedSelection() {
+        return null;
+      },
+      settledSelection() {
+        return { fold: 'alternate', skip: 'consequent' };
+      },
+    };
+    // every walk of the program's index reads this property once
+    let walks = 0;
+    Object.defineProperty(program.node, 'indexWalkProbe', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        walks++;
+        return null;
+      },
+    });
+    check(`${ parser.name }/nested value/held by no owner of the read`, writeNeverRuns({ write: argument, usagePath: inB, adapter }), false);
+    check(`${ parser.name }/nested value/the program indexed once`, walks, 1);
+    delete program.node.indexWalkProbe;
+    check(`${ parser.name }/own frame/dead arm`, writeNeverRuns({ write, usagePath: top, adapter }), true);
+    const attached = { type: 'AssignmentExpression', operator: '=', left: { type: 'Identifier', name: 'x' }, right: { type: 'Identifier', name: 'y' } };
+    const copied = { ...attached, start: write.start, end: write.end };
+    for (const expression of [attached, copied]) {
+      const test = { type: 'Identifier', name: 'c' };
+      program.node.body.push({ type: 'IfStatement', test, consequent: { type: 'ExpressionStatement', expression }, alternate: null });
+    }
+    check(`${ parser.name }/attached unpositioned/located`, writeNeverRuns({ write: attached, usagePath: top, adapter }), true);
+    check(`${ parser.name }/attached with a copied span/located`, writeNeverRuns({ write: copied, usagePath: top, adapter }), true);
+    // ... and so is one attached into a computed method key, a slot of the frame babel spells inside the method
+    const keyHost = findNode(program.node, node => node.computed === true && !!node.key);
+    const { key } = keyHost;
+    const inKey = { ...attached, start: key.start, end: key.end };
+    keyHost.key = { type: 'ConditionalExpression', test: { type: 'Identifier', name: 'c' }, consequent: inKey, alternate: key };
+    check(`${ parser.name }/attached into a method key/located`, writeNeverRuns({ write: inKey, usagePath: top, adapter }), true);
+    // ... while a read the analysis synthesizes off a receiver (`receiverSlotRead`) stands in no tree: it borrows the
+    // receiver's span, so it is located nowhere, and no ask walks the program again to miss it
+    walks = 0;
+    Object.defineProperty(program.node, 'indexWalkProbe', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        walks++;
+        return null;
+      },
+    });
+    const synthesized = [write.left, write.right, argument].map(receiver => receiverSlotRead(receiver, 'k'));
+    checkDeep(`${ parser.name }/synthesized reads/held by no owner`, synthesized.map(read => writeNeverRuns({ write: read, usagePath: top, adapter })),
+      [false, false, false]);
+    check(`${ parser.name }/synthesized reads/no walk of the program`, walks, 0);
+    delete program.node.indexWalkProbe;
+  }
+}
+
+finish();

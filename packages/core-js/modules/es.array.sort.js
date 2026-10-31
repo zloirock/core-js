@@ -14,17 +14,12 @@ var IE_OR_EDGE = require('../internals/environment-is-ie-or-edge');
 var V8 = require('../internals/environment-v8-version');
 var WEBKIT = require('../internals/environment-webkit-version');
 
-var test = [];
-var nativeSort = uncurryThis(test.sort);
-var push = uncurryThis(test.push);
+var nativeSort = uncurryThis([].sort);
+var push = uncurryThis([].push);
 
-// IE8-
-var FAILS_ON_UNDEFINED = fails(function () {
-  test.sort(undefined);
-});
 // V8 bug
 var FAILS_ON_NULL = fails(function () {
-  test.sort(null);
+  [].sort(null);
 });
 // Old WebKit
 var STRICT_METHOD = arrayMethodIsStrict('sort');
@@ -36,12 +31,13 @@ var STABLE_SORT = !fails(function () {
   if (IE_OR_EDGE) return true;
   if (WEBKIT) return WEBKIT < 603;
 
+  var test = [];
   var result = '';
-  var code, chr, value, index;
+  var code, char, value, index;
 
   // generate an array with more 512 elements (Chakra and old V8 fails only in this case)
   for (code = 65; code < 76; code++) {
-    chr = String.fromCharCode(code);
+    char = String.fromCharCode(code);
 
     switch (code) {
       case 66: case 69: case 70: case 72: value = 3; break;
@@ -50,21 +46,21 @@ var STABLE_SORT = !fails(function () {
     }
 
     for (index = 0; index < 47; index++) {
-      test.push({ k: chr + index, v: value });
+      test.push({ k: char + index, v: value });
     }
   }
 
   test.sort(function (a, b) { return b.v - a.v; });
 
   for (index = 0; index < test.length; index++) {
-    chr = test[index].k.charAt(0);
-    if (result.charAt(result.length - 1) !== chr) result += chr;
+    char = test[index].k[0];
+    if (result[result.length - 1] !== char) result += char;
   }
 
   return result !== 'DGBEFHACIJK';
 });
 
-var FORCED = FAILS_ON_UNDEFINED || !FAILS_ON_NULL || !STRICT_METHOD || !STABLE_SORT;
+var FORCED = !FAILS_ON_NULL || !STRICT_METHOD || !STABLE_SORT;
 
 var getSortCompare = function (comparefn) {
   return function (x, y) {
@@ -104,5 +100,5 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     while (index < arrayLength) deletePropertyOrThrow(array, index++);
 
     return array;
-  }
+  },
 });

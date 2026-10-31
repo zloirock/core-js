@@ -1,0 +1,9 @@
+// `asserts x is string` invoked with a TS-cast argument: `assertString(x as any)`.
+// TSAsExpression wraps the bare Identifier but at runtime the underlying binding `x`
+// is still passed, so the assertion narrows it the same as without the cast
+function assertString(x: unknown): asserts x is string {}
+function probe(x: unknown) {
+  assertString(x as any);
+  // @ts-expect-error a runtime guard narrows the receiver where tsc does not, and the read sees the runtime value
+  return x.at(0);
+}

@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "node_modules",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

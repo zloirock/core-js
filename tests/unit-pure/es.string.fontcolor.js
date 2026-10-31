@@ -1,4 +1,4 @@
-import fontcolor from 'core-js-pure/es/string/fontcolor';
+import fontcolor from '@core-js/pure/es/string/fontcolor';
 
 QUnit.test('String#fontcolor', assert => {
   assert.isFunction(fontcolor);
@@ -6,7 +6,7 @@ QUnit.test('String#fontcolor', assert => {
   assert.same(fontcolor('a', '"'), '<font color="&quot;">a</font>', 'escape quotes');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     const symbol = Symbol('fontcolor test');
     assert.throws(() => fontcolor(symbol, 'b'), 'throws on symbol context');
     assert.throws(() => fontcolor('a', symbol), 'throws on symbol argument');

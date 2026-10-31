@@ -1,16 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var apply = require('../internals/function-apply');
-var bind = require('../internals/function-bind');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var fails = require('../internals/fails');
 
-var nativeConstruct = getBuiltIn('Reflect', 'construct');
 var ObjectPrototype = Object.prototype;
+var create = Object.create;
+var nativeConstruct = getBuiltInStaticMethod('Reflect', 'construct');
+var bind = create.bind;
 var push = [].push;
 
 // `Reflect.construct` method
@@ -18,7 +18,7 @@ var push = [].push;
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
 var NEW_TARGET_BUG = fails(function () {
-  function F() { /* empty */ }
+  var F = function () { /* empty */ };
   return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F);
 });
 
@@ -53,5 +53,5 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
     var instance = create(isObject(proto) ? proto : ObjectPrototype);
     var result = apply(Target, instance, args);
     return isObject(result) ? result : instance;
-  }
+  },
 });

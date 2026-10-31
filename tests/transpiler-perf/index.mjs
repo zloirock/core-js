@@ -1,0 +1,823 @@
+// Transpiler performance gates: REAL large single-scope bundles (three.js builds, pinned in
+// THIS directory's package.json - zxi installs it) plus a synthetic reassignment-heavy
+// stress, through BOTH emitters in every mode a case's bounds name. The bounds are
+// complexity-CLASS discriminators with wide headroom - a quadratic scope / flow-analysis
+// regression overshoots them on any machine, ordinary machine variance does not. The
+// synthetic deliberately maximizes WRITTEN top-level names: real bundles rarely reassign at
+// that density, and quadratic roots in the reassignment / flow machinery are invisible on
+// three.js yet catastrophic on this shape. Each transform also asserts an injection
+// happened, so a detection-dead run cannot pass vacuously fast.
+//
+// A case's `source()` may also return an ARRAY of module sources, transformed one-by-one the way
+// a bundler feeds them. Those cases gate the PER-CALL axis: everything above pays setup once on a
+// huge input, so a regression in per-file work (a cache that stops being reused across calls, say)
+// is invisible there and shows up only when the same bytes arrive as hundreds of separate calls.
+import { fileURLToPath } from 'node:url';
+import { transformAsync } from '@babel/core';
+import { transform as lower } from 'esbuild';
+import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
+import unplugin from '../../packages/core-js-unplugin/index.js';
+import { censusWalkTruncations } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { APPLICATIONS, applicationSource } from './applications.mjs';
+
+const { cyan, green, red, yellow } = chalk;
+const { readdir, readFile } = fs;
+const { dirname, join } = path;
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SAMPLES = argv.samples ?? 3;
+if (!Number.isSafeInteger(SAMPLES) || SAMPLES < 1) {
+  throw new Error('--samples must be a positive integer');
+}
+const WARMUP = argv.warmup ?? true;
+if (typeof WARMUP !== 'boolean') {
+  throw new Error('--warmup must be a boolean; use --no-warmup to disable it');
+}
+
+function syntheticSingleScope(names) {
+  const pad = Array.from({ length: 100 }, (unused, k) => k).join(', ');
+  const parts = [];
+  for (let i = 0; i < names; i++) {
+    parts.push(`var v${ i } = [${ i }]; v${ i } = [${ i }, 1]; v${ i }.at(0);`,
+      `function pad${ i }(a) { return [${ pad }].length + a; }`);
+  }
+  return parts.join('\n');
+}
+
+// every use in the reassignment synthetic asks the preceding-sibling guard scan too, but a
+// guard-DENSE list additionally pays the guard extraction per statement - a quadratic in
+// either the scan or the extraction overshoots this shape first
+function syntheticGuardDense(names) {
+  const parts = [];
+  for (let i = 0; i < names; i++) {
+    parts.push(`var g${ i } = [${ i }]; if (typeof g${ i } !== 'object') throw new Error('x'); g${ i } = [${ i }, 1]; g${ i }.at(0);`);
+  }
+  return parts.join('\n');
+}
+
+// the guard-dense case spreads its writes over as many BINDINGS as there are statements, so every
+// use asks the preceding-sibling machinery about a single write. put the same density on ONE binding
+// and the write set grows with the statement list those scans walk: a per-write walk of the
+// preceding siblings, or a per-use re-derivation of the write set, is CUBIC in the statement count
+// on this shape while staying flat on every other case here. real bundles carry the shape as a
+// long-lived reassigned accumulator read throughout a module. the writes stop at the write ceiling
+// (`writesPastCeiling` in the provider), the most a read follows: past it the binding is not followed
+// at all, which the next case measures
+function syntheticWriteDenseBinding(uses, writes) {
+  const parts = ['let w = [0];', "if (typeof w !== 'object') throw new Error('x');"];
+  for (let i = 0; i < uses; i++) parts.push(`w.at(${ i });`);
+  for (let i = 0; i < writes; i++) parts.push(`w = [${ i }];`);
+  return parts.join('\n');
+}
+
+// ONE binding written past the write ceiling, each write behind a guard and destructuring a realm member, and
+// each followed by a static read through the binding: every analysis a read asks walked all the writes, quadratic
+// in them on every lane, until a binding written more often than a read follows was not followed at all
+function syntheticWrittenPastTheCeiling(writes) {
+  const parts = ['let M;'];
+  for (let i = 0; i < writes; i++) parts.push('c && ({ Map: M } = globalThis);', `export const r${ i } = M.groupBy([${ i }], pick);`);
+  return parts.join('\n');
+}
+
+// accumulators written under tests of one another in every block of a loop, each block's tests reading other
+// accumulators than its arms write and a claim inside every arm - a text wrapper's lines, words and widths. a
+// guard's settling resolves the names its test reads, and a reassigned one through the settlings of its own
+// writes: an answer that took a settling in flight as open is kept while it is, and settled anew under every
+// settling that reached it the work is a power of the writes. every accumulator stays under the write ceiling
+// (`writesPastCeiling`), past which none is followed at all and the shape measures nothing
+function syntheticGuardedAccumulators(accumulators, blocks) {
+  function a(index) {
+    return `a${ index % accumulators }`;
+  }
+  return `export function wrap(text) {
+  var lines = [];
+${ syntheticLines(accumulators, i => `  var ${ a(i) } = '';`) }
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+${ syntheticLines(blocks, k => `    if (!${ a(k) }) {
+      if (${ a(k + 1) }) { ${ a(k + 2) } = ${ a(k + 3) }; lines.push(${ a(k + 2) }); ${ a(k + 3) } = ''; }
+      else { ${ a(k + 2) } += ch; lines.push(${ a(k + 1) }); }
+    } else if (${ a(k + 1) } || ${ a(k + 2) }) {
+      ${ a(k + 1) } = ch; ${ a(k + 3) } = ${ a(k + 1) };
+    }`) }
+  }
+  return lines;
+}`;
+}
+
+// accumulators copied into one another around a ring in every block of a loop, an instance claim on each copy -
+// a text layout's line, word and measure. the claim's receiver candidates are the union of every value the
+// accumulator may hold, walked through the copies as a graph: a walk cut at a name on its own path enumerated
+// every simple path around the ring instead, a power of the copies
+function syntheticCopiedAccumulators(accumulators, blocks) {
+  function a(index) {
+    return `a${ index % accumulators }`;
+  }
+  return `export function layout(text) {
+  var out = [];
+${ syntheticLines(accumulators, i => `  var ${ a(i) } = '';`) }
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+${ syntheticLines(blocks, k => `    ${ a(k + 2) } = ${ a(k + 3) }; out.push(${ a(k + 2) }.at(0)); ${ a(k + 1) } = ch + ${ a(k) }; ${ a(k + 3) } = ${ a(k + 1) }; out.push(${ a(k + 3) }.at(-1));`) }
+  }
+  return out;
+}`;
+}
+
+// constructor aliases copied into one another around a ring in every block of a loop, a static claim on each
+// copy: every claim walks the union of the ring's sources, and each source's writes - claims x sources x writes
+// until the union ceiling (`MAX_UNION_SOURCES`) stops a union at its sources, which this ring reaches at about
+// half its blocks
+function syntheticConstructorRing(aliases, blocks) {
+  const ctors = ['Map', 'Object', 'Array', 'Set'];
+  function a(index) {
+    return `a${ index % aliases }`;
+  }
+  return `export function f(c, list, key) {
+${ syntheticLines(aliases, i => `  var ${ a(i) } = ${ ctors[i % ctors.length] };`) }
+  for (var i = 0; i < c.length; i++) {
+${ syntheticLines(blocks, k => `    ${ a(k + 2) } = ${ a(k + 3) }; ${ a(k + 2) }.groupBy(list, key); ${ a(k + 1) } = c[i] ? ${ a(k) } : ${ a(k + 2) }; ${ a(k + 3) } = ${ a(k + 1) }; ${ a(k + 3) }.from(list);`) }
+  }
+}`;
+}
+
+// discriminated-union receivers walk the discriminant sibling scan per member use - a
+// quadratic there needs union-annotated bindings, which no other synthetic carries
+function syntheticDiscriminantDense(names) {
+  const parts = ["type U = { kind: 'a', v: string } | { kind: 'b', v: string[] };"];
+  for (let i = 0; i < names; i++) {
+    parts.push(`declare const u${ i }: U;`, `if (u${ i }.kind !== 'a') throw new Error('x');`, `u${ i }.v.at(${ i });`);
+  }
+  return parts.join('\n');
+}
+
+// assignment-form ctor aliases make babel drop the binding from its scope registry, so every
+// member use walks the lagged-binding recovery - a quadratic there is invisible on the
+// reassignment synthetic above (its bindings never lag) yet catastrophic on this shape
+function syntheticLaggedAliases(names) {
+  const parts = [`let ${ Array.from({ length: names }, (unused, i) => `g${ i }`).join(', ') };`];
+  for (let i = 0; i < names; i++) {
+    parts.push(`({ Map: g${ i } } = globalThis);`, `g${ i } = [${ i }];`, `g${ i }.at(0);`);
+  }
+  return parts.join('\n');
+}
+
+// member resolution materializes the class-body member list per query unless it goes through the
+// container-path cache - a quadratic in (members x uses) that no other case carries: the shapes
+// above are flat scopes, and real bundles never put member density and use density on one class
+function syntheticMemberDenseClass(members) {
+  const methods = Array.from({ length: members }, (unused, k) => `  m${ k }() { return [${ k }]; }`).join('\n');
+  const parts = [`class C {\n${ methods }\n}`, 'const c = new C();'];
+  for (let i = 0; i < members; i++) parts.push(`c.m${ i }().at(0);`, `c.m${ i }().at(1);`);
+  return parts.join('\n');
+}
+
+// `var { Global: local } = globalThis` registers an alias entry that has to be keyed under every
+// same-name declarator of the var scope. resolving those per registration by walking the scope
+// subtree is quadratic in (pairs x scope size); no other case here destructures the global at
+// density, and real bundles never do, so the class stays invisible everywhere else
+function syntheticVarDestructuredGlobals(pairs) {
+  const pad = Array.from({ length: 100 }, (unused, k) => k).join(', ');
+  const parts = [];
+  for (let i = 0; i < pairs; i++) {
+    parts.push(`var { Map: M${ i } } = globalThis;`, `M${ i }.groupBy([${ i }], x => x);`,
+      `function pad${ i }(a) { return [${ pad }].length + a; }`);
+  }
+  return parts.join('\n');
+}
+
+// Depth is independent of the number of reads: re-walking every receiver prefix makes
+// doubling this chain quadratic even though the number of claimed leaves stays fixed.
+function syntheticDeepProxyReads(depth, reads) {
+  const receiver = `globalThis${ '.self'.repeat(depth) }.Array`;
+  return Array.from({ length: reads }, () => `${ receiver }.from([1]);`).join('\n');
+}
+
+// The body scan and the caller scan grow together. A memo must remain sensitive to the
+// parameter write; the runtime fixtures own that answer, this case owns the work budget.
+function syntheticParameterBodyCalls(size) {
+  return `function read(p) { ${ 'void p;'.repeat(size) } p = [1]; return p; }\n${
+    'read([0]).at(0);\n'.repeat(size) }`;
+}
+
+// Repeated positional reads share one binding's large reference set.
+function syntheticArraySlotReads(size) {
+  return `const rows = [[1]];\n${ 'rows[0].at(0);\n'.repeat(size) }`;
+}
+
+// Hold source length and use count steady while the number of distinct entries grows.
+// Repeating one method cannot expose a prune pass that scans the body once per entry. Each read is consumed:
+// a bare `Array.from;` renders to a minted import that performs nothing, and that statement leaves with it
+const STATIC_READS = [
+  'Array.from', 'Array.of', 'Object.assign', 'Object.entries', 'Object.values',
+  'Object.fromEntries', 'Object.hasOwn', 'Object.groupBy', 'Map.groupBy', 'String.raw',
+  'String.fromCodePoint', 'Number.isFinite', 'Number.isInteger', 'Number.isNaN',
+  'Number.isSafeInteger', 'Number.parseFloat', 'Number.parseInt', 'Math.acosh',
+  'Math.asinh', 'Math.atanh', 'Math.cbrt', 'Math.clz32', 'Math.cosh', 'Math.expm1',
+  'Math.fround', 'Math.hypot', 'Math.imul', 'Math.log10', 'Math.log1p', 'Math.log2',
+  'Math.sign', 'Math.sinh',
+];
+function syntheticImportWidth(width) {
+  return Array.from({ length: 4096 }, (unused, index) => `sink(${ STATIC_READS[index % width] });`).join('\n');
+}
+
+function syntheticUnionWidth(width) {
+  const variants = Array.from({ length: width }, (unused, index) => `{ kind: ${ index }, value: ${ index % 2 ? 'string' : 'string[]' } }`);
+  return `type U = ${ variants.join(' | ') };\n${ Array.from({ length: 200 }, (unused, index) => `declare const u${ index }: U; if (u${ index }.kind === ${ index % width }) u${ index }.value.at(0);`).join('\n') }`;
+}
+
+// a type name resolves against the statement list declaring it through a per-list name index, and a
+// lookup that walked the list instead pays (aliases x statements) - invisible on the TS synthetics
+// above, which read one alias over and over. here every alias is distinct and read once, the way a
+// generated API client spells its models
+function syntheticUniqueTypeAliases(names) {
+  const parts = [];
+  for (let i = 0; i < names; i++) parts.push(`type T${ i } = number[] | string[];`, `declare const x${ i }: T${ i };`, `x${ i }.at(${ i });`);
+  return parts.join('\n');
+}
+
+// bare-name callees on a LONG top level: pairing a call asks whether its callee's name is a minted
+// pure import - a fact of the whole program.
+// re-deriving it per call by scanning the top-level statements is quadratic in (calls x top-level
+// statements) and invisible on every other shape here: the guard and reassignment synthetics keep
+// their call density low, the real bundles keep their top levels short
+function syntheticCallDenseTopLevel(sites) {
+  const parts = ['function make(n) { return [n]; }'];
+  for (let i = 0; i < sites; i++) parts.push(`var c${ i } = make(${ i });`, `c${ i }.at(0);`);
+  return parts.join('\n');
+}
+
+// Both axes grow: repeated parameter reads must share the body and all-callers proof. Rechecking
+// the body or the supplied sources at every read makes this quadratic despite a tiny key set.
+function syntheticNamespaceParameterReads(sites) {
+  return `function read(ns) { ${ 'ns.ownKeys({});'.repeat(sites) } } ${ 'read(Reflect);'.repeat(sites) }`;
+}
+
+// A wide literal handed to a writer that returns it: no store through the parameter may rescan the
+// literal it lands in.
+function syntheticReturnedContainerWrites(slots) {
+  const keys = Array.from({ length: slots }, (_, index) => `k${ index }`);
+  return `function install(box) { ${ keys.map(key => `box.${ key } = Map;`).join('') } return box; }
+    install({ ${ keys.map(key => `${ key }: Object`).join(',') } }).k0.groupBy([1], x => x);`;
+}
+
+// an opt-out directive per statement on a long top level: the directive scan spans each `-next-line`
+// over the statement it covers, and a scan that re-reads the whole top level per directive is
+// quadratic in (directives x statements) - the esrap leg pays it again in the channel that re-anchors
+// every honoured directive on the pass's output. no other case here carries a directive at all
+function syntheticDirectiveDense(optOuts) {
+  const parts = [];
+  for (let i = 0; i < optOuts; i++) parts.push('// core-js-disable-next-line', `var g${ i } = [${ i }];`, `g${ i }.at(0);`);
+  return parts.join('\n');
+}
+
+// every writer here writes through a parameter spelled `t`, which the scope-blind gate names as one
+// alias: a parameter takes no value from the calls there, so its closure stays one name however many
+// writers share it - pairing each write with every caller's arguments would make this quadratic
+function syntheticSharedParamWrites(installers) {
+  const parts = [];
+  for (let i = 0; i < installers; i++) {
+    parts.push(`function install${ i }(t, v) { t.k${ i } = v; }`,
+      `install${ i }(box${ i }, ${ i });`, `Map.groupBy([${ i }], x => x);`);
+  }
+  return parts.join('\n');
+}
+
+// One wide reader called repeatedly: its parameter shape is a property of the callee,
+// not of each invocation. The field read keeps an injection floor in every lane.
+function syntheticLocalArgumentReader(size) {
+  const params = ['o', ...Array.from({ length: size }, (unused, i) => `p${ i }`)];
+  return `function pick(${ params.join(', ') }) { return o.rows; }
+    const box = { rows: [8, 9] }; ${ 'void pick(box);\n'.repeat(size) } box.rows.at(-1);`;
+}
+
+// Reassigning a local alias must not scan writes to every namesake in unrelated functions.
+function syntheticNamesakeWrites(functions) {
+  const parts = [];
+  for (let i = 0; i < functions; i++) {
+    parts.push(`function n${ i }(o) { var x = o.p, y = o.r, a = x; a = y; a.at(0); }`);
+  }
+  return parts.join('\n');
+}
+
+// Namesake methods share the key their calls are recorded under: an analysis that pairs every
+// namesake with every call under that key is quadratic in a bundle of classes, where one host per
+// key, or a resolved callee, stays linear
+function syntheticNamesakeMethods(classes) {
+  const parts = [];
+  for (let i = 0; i < classes; i++) {
+    parts.push(`class C${ i } { set(v) { this.v = v; return this; } put(t) { t.v = this.v; return t; } }`,
+      `new C${ i }().set(${ i }).put({ v: Map });`);
+  }
+  parts.push('Array.from([1]);');
+  return parts.join('\n');
+}
+
+// the synthetic lines `line(i)` spells for every i below `count`, one per line
+function syntheticLines(count, line) {
+  return Array.from({ length: count }, (_, i) => line(i)).join('\n');
+}
+
+// Selections that each tie the next one in only once their own class stores a constructor, plainly and
+// through member paths: drawing the alias classes again per tie, or checking every pending selection
+// again per round, is cubic in the chain on this shape and invisible on every other one here
+function syntheticSelectionChains(links) {
+  return [
+    'const box = {};',
+    syntheticLines(links, i => `var s${ i } = c ? a${ i } : s${ i + 1 };`),
+    syntheticLines(links, i => `var q${ i } = box.k${ i }; var t${ i } = c ? q${ i } : t${ i + 1 };`),
+    's0.C = Map;',
+    't0.C = Map;',
+    'Array.from([1]);',
+  ].join('\n');
+}
+
+// Minified namesakes: every function spells a cursor off its parameter, one stores a constructor through
+// it, and the escape census shares the writes of one spelling. copying the shared writes under every
+// cursor's path is quadratic in the functions, and a cursor tied back to the parameter makes every path
+// pass through every other one
+function syntheticNamesakePaths(functions) {
+  return [
+    syntheticLines(functions, i => `function f${ i }(e) { var t = e.x; t.y${ i } = ${ i }; return t; }`),
+    syntheticLines(functions, i => `function h${ i }(e) { var u = e.x; u = e; u.y${ i } = ${ i }; return u; }`),
+    'function g(e) { var t = e.x; t.P = Map; var u = e.x; u.P = Map; return [t, u]; }',
+    'Array.from([1]);',
+  ].join('\n');
+}
+
+// Member paths of one hub, each alias also tied back to the hub: one class holds every path's root, and
+// filing through every alias of that class from every other one is quadratic in the aliases
+function syntheticHubTies(aliases) {
+  return ['var hub = {};', syntheticLines(aliases, i => `var p${ i } = hub.k${ i }; p${ i } = hub;`), 'p0.C = Map;', 'Array.from([1]);'].join('\n');
+}
+
+// A pattern read of every slot a file wrote: each guard the reads render attaches a subtree, and the
+// positional proofs that meet it must not re-index the whole program per render
+function syntheticWrittenSlotReads(slots) {
+  return [
+    `const box = { ${ syntheticLines(slots, i => `a${ i }: Math,`) } };`,
+    syntheticLines(slots, i => `box.a${ i } = Array;`),
+    syntheticLines(slots, i => `const { a${ i }: X${ i } } = box; X${ i }.of(${ i });`),
+  ].join('\n');
+}
+
+// Decided user selections - a presence test over a served global, as a value, in a callee slot and as
+// the init of an alias: every one folds once the claims rendered, and the folds must not each search the
+// tree from its root
+function syntheticDecidedSelections(selections) {
+  return [
+    syntheticLines(selections, i => `export const v${ i } = typeof Promise !== 'undefined' ? Promise.resolve(${ i }) : Iterator.from(x${ i });`),
+    syntheticLines(selections, i => `export const c${ i } = (typeof Symbol === 'function' && o${ i }.m)(${ i });`),
+    syntheticLines(selections, i => `const m${ i } = typeof Map !== 'undefined' ? Map : Legacy${ i }; export const g${ i } = m${ i }.groupBy(list, key);`),
+  ].join('\n');
+}
+
+// Writes under unknown keys against patches pending on named slots: each chain fires once per value
+// a slot can hold, never once per write, and an unknown slot keeps each candidate once. the patched
+// static stays native in pure, so an unrelated static carries the injection floor
+function syntheticUnknownKeyWrites(writes) {
+  return [
+    'const box = {};',
+    syntheticLines(writes, i => `box[k${ i }] = Array;`),
+    syntheticLines(writes, i => `box.p${ i }.from = patch;`),
+    'Array.from([1]);',
+    'Object.groupBy([], x => x);',
+  ].join('\n');
+}
+
+// One slot written through many aliases and read many times: a write's definiteness and the name its
+// value hands on are the write's own facts, proved once however many reads ask. pure keeps the member
+// read of a written slot native, so an unrelated static carries the injection floor
+function syntheticAliasedSlotWrites(aliases) {
+  return [
+    'const box = { a: Math };',
+    syntheticLines(aliases, i => `const h${ i } = box; h${ i }.a = Array;`),
+    syntheticLines(aliases, i => `box.a.of(${ i });`),
+    'Object.groupBy([], x => x);',
+  ].join('\n');
+}
+
+// Many destructures of one factory's calls, in every call spelling: a slot the factory fills from a
+// parameter holds each call's own argument - paired against the parameter, every pattern read every
+// caller's argument, quadratic in the calls
+function syntheticFactoryPatterns(calls) {
+  const reads = [
+    i => `const { a: A${ i } } = pick(Array);`,
+    i => `const { a: A${ i } } = pick.call(null, Array);`,
+    i => `const { a: A${ i } } = tag\`\${ Array }\`;`,
+  ];
+  return [
+    'function pick(x) { return { a: x }; }',
+    'function tag(s, x) { return { a: x }; }',
+    syntheticLines(calls, i => `${ reads[i % reads.length](i) } A${ i }.of(${ i });`),
+  ].join('\n');
+}
+
+// Many handouts of a slot of one helper's calls where the helper returns something other than one
+// literal: what it returns to every call is read once, never once per call - pushed per call, the
+// values every caller's arguments hold are walked again for each of them
+function syntheticSharedReturnHandouts(calls) {
+  return ['const kept = []; function keep(value) { kept.push(value); }',
+    'function interop(object) { return object && object.__esModule ? object : { default: object }; }',
+    syntheticLines(calls, i => `const m${ i } = interop({ default: Map }); keep(m${ i }.default);`)].join('\n');
+}
+
+// Parameterless writers share one return fold; an opaque candidate rejects the whole call set.
+function syntheticWrittenFunctionReturns(count, opaque = false) {
+  return ['const box = {};', syntheticLines(count, i => `box.fn = () => [${ i }];`),
+    opaque ? 'box.fn = foreign;' : '',
+    syntheticLines(count, i => `box.fn().at(${ i });`)].join('\n');
+}
+
+// Every reference to one object-literal binding types through its single initializer: walking the
+// binding's references for a prototype install once per reference is quadratic in the references
+function syntheticLiteralStores(stores) {
+  const parts = ['const box = {};'];
+  for (let i = 0; i < stores; i++) parts.push(`Object.assign(box, { k${ i }: ${ i } });`);
+  return parts.join('\n');
+}
+
+// Repeated calls supply the same small source set: merging it must not rescan all prior calls.
+function syntheticSharedParamCalls(calls) {
+  const parts = ['var p = [0], q = [1], r = [2], s = [3];', 'function f(a) { return a.at(0); }'];
+  for (let i = 0; i < calls; i++) parts.push('f(p||q||r||s);');
+  return parts.join('\n');
+}
+
+// the census keys its container records by DECLARATION, and a name-only question about a slot
+// unions every declaration of that name in the file: asked per member read, over a file whose
+// functions all spell their locals alike (`r`, `a`, `t` - ordinary code), that union walks every
+// namesake per read and the pre-pass goes quadratic in (functions x reads). The extracted `values`
+// binding also repeats in every scope, gating the injector's same-name span index. No other case here
+// declares both container and extracted names in many scopes, and real bundles routinely reuse them
+function syntheticSharedContainerNames(functions) {
+  const parts = [];
+  for (let i = 0; i < functions; i++) {
+    parts.push(`function f${ i }(t) { const r = { w: Object }; const a = r.w; const { values } = a; return values(t); }`);
+  }
+  return parts.join('\n');
+}
+
+// Pairing each binding with all same-name container candidates must not resolve its siblings
+// against those candidates too. Width in both the pattern and literal exposes that extra factor.
+function syntheticWideContainerPatterns(width, functions) {
+  const keys = Array.from({ length: width }, (unused, i) => `p${ i }`);
+  const literal = keys.map(key => `${ key }: Map`).join(', ');
+  const names = keys.join(', ');
+  return Array.from({ length: functions }, (unused, i) => `export function wide${ i }() {
+    const data = { ${ literal } };
+    const { ${ names } } = data;
+    return [${ names }];
+  }`).join('\n');
+}
+
+function threeFile(file) {
+  return readFile(join(HERE, 'node_modules/three', file), 'utf8');
+}
+
+// a framework runtime whose factories return 30-to-50-slot object literals, and whose bundle then
+// reads those slots back through member chains everywhere: the shape that makes the container
+// census pay a PRODUCT - chains naming the container, times slots in it, times the alias fan-out
+// per slot - instead of a sum over size. The other real bundles here are dense in scope and flow
+// and stayed inside their bounds through a 25x blowup in exactly this axis
+function vueRuntimeCore() {
+  return readFile(join(HERE, 'node_modules/@vue/runtime-core/dist/runtime-core.esm-bundler.js'), 'utf8');
+}
+
+// a published package carries a long tail of re-export stubs and one-line constant modules; below
+// this size a module is pure call overhead with no work to measure, which would let a bloated tail
+// drown the signal the case is meant to carry
+const TRIVIAL_MODULE_BYTES = 200;
+
+// every `.js` under the given package directories, as separate module sources
+async function packageModules(...directories) {
+  const sources = [];
+  for (const directory of directories) {
+    const base = join(HERE, 'node_modules', directory);
+    for (const file of await readdir(base, { recursive: true })) {
+      if (!file.endsWith('.js')) continue;
+      const code = await readFile(join(base, file), 'utf8');
+      if (code.length > TRIVIAL_MODULE_BYTES) sources.push(code);
+    }
+  }
+  return sources;
+}
+
+// the view-independent CodeMirror stack: editor state plus the Lezer runtime and one grammar
+const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', '@lezer/lr/dist',
+  '@lezer/highlight/dist', '@lezer/javascript/dist'];
+
+// bounds are per (mode, emitter) - a case runs in exactly the modes they name - set at ~3x the measured wall
+// time of a healthy run on the reference machine, rounded UP to a whole second (re-derive the same way after
+// intentional perf work)
+// Slow synthetics target ~0.3s in their fastest lane; the same rule sets every other lane's bound.
+// usage-pure REWRITES every detected use, so its budgets run higher than the injection-only usage-global ones.
+// `injections` is the vacuous-run floor - how many modules must inject. Single-source cases need their one;
+// multi-module ones cannot demand every module (a package always holds files with nothing to polyfill) but
+// must not settle for one either, or detection could die everywhere but a single module and still pass - faster,
+// and so further inside the bound
+const CASES = [
+  ...['three.core.js', 'three.module.js'].map(file => ({
+    name: `entry-global ${ file }`, source: async () => `import 'core-js/actual';\n${ await threeFile(`build/${ file }`) }`,
+    bounds: { 'entry-global': { babel: 1, unplugin: 1 } },
+  })),
+  { name: 'rxjs pre+post, shared snapshot lifecycle', source: () => packageModules('rxjs/dist/esm'),
+    emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
+    bounds: { 'usage-global': { unplugin: 2 }, 'usage-pure': { unplugin: 2 } } },
+  { name: 'three.core.js', source: () => threeFile('build/three.core.js'), bounds: {
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
+  } },
+  { name: 'three.module.js', source: () => threeFile('build/three.module.js'), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  // generated decoder code stresses nested control flow, parameter reads and member analysis
+  { name: 'draco_decoder.js, generated decoder',
+    source: () => threeFile('examples/jsm/libs/draco/draco_decoder.js'),
+    bounds: { 'usage-global': { babel: 9, unplugin: 8 }, 'usage-pure': { babel: 10, unplugin: 9 } } },
+  { name: 'vue runtime-core, container-dense bundle', source: () => vueRuntimeCore(), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  ...APPLICATIONS.flatMap(application => [
+    { ...application, source: () => applicationSource(application), bounds: {
+      'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    } },
+    { ...application, name: `${ application.name }, pre+lowering+post`, source: () => applicationSource(application),
+      emitters: ['unplugin'], phase: 'pre+post', lowering: true,
+      bounds: { 'usage-global': { unplugin: 1 }, 'usage-pure': { unplugin: 1 } } },
+  ]),
+  // globalthis's Node entry only exports `global`; the other two sources must inject.
+  { name: 'browser realm libraries, global guards and aliases',
+    source: () => Promise.all(['whatwg-fetch/fetch.js', 'es6-promise/dist/es6-promise.js', 'globalthis/implementation.js']
+      .map(file => readFile(join(HERE, 'node_modules', file), 'utf8'))),
+    injections: 2, bounds: {
+      'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    } },
+  { name: 'synthetic wide container patterns, 256 slots in 8 scopes', source: () => syntheticWideContainerPatterns(256, 8), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  // keep both Babel codegen paths covered independently of the calibrated source size
+  { name: 'synthetic single-scope, 550 reassigned names, compact Babel', source: () => syntheticSingleScope(550), compact: true, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  { name: 'synthetic shared-param writes, 1200 installers', source: () => syntheticSharedParamWrites(1200), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic local reader, 1600 parameters and calls', source: () => syntheticLocalArgumentReader(1600), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic written function returns, 1000 writes and calls', source: () => syntheticWrittenFunctionReturns(1000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic opaque function returns, 1000 writes and calls', source: () => syntheticWrittenFunctionReturns(1000, true), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic returned container writes, 3000 slots', source: () => syntheticReturnedContainerWrites(3000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic namesake writes, 750 functions', source: () => syntheticNamesakeWrites(750), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic namesake methods, 1300 classes', source: () => syntheticNamesakeMethods(1300), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  { name: 'synthetic selection chains, 1000 links each', source: () => syntheticSelectionChains(1000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic namesake member paths, 500 functions of each spelling', source: () => syntheticNamesakePaths(500), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic hub ties, 1000 aliases', source: () => syntheticHubTies(1000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic written slot reads, 1000 slots', source: () => syntheticWrittenSlotReads(1000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic decided selections, 2000 of each spelling', source: () => syntheticDecidedSelections(2000), bounds: {
+    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  { name: 'synthetic unknown-key writes, 2000 pending chains', source: () => syntheticUnknownKeyWrites(2000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic aliased slot writes, 800 aliases', source: () => syntheticAliasedSlotWrites(800), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic factory patterns, 1900 calls', source: () => syntheticFactoryPatterns(1900), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  { name: 'synthetic shared return handouts, 4000 calls', source: () => syntheticSharedReturnHandouts(4000), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic literal stores, 4000 calls', source: () => syntheticLiteralStores(4000), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic shared-param calls, 6500 calls', source: () => syntheticSharedParamCalls(6500), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic shared container names, 1300 functions', source: () => syntheticSharedContainerNames(1300), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
+  } },
+  { name: 'synthetic namespace parameter, 1200 reads and callers', source: () => syntheticNamespaceParameterReads(1200), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic call-dense top level, 2700 sites', source: () => syntheticCallDenseTopLevel(2700), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic directive-dense, 3600 opt-outs', source: () => syntheticDirectiveDense(3600), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic lagged aliases, 700 names', source: () => syntheticLaggedAliases(700), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  { name: 'synthetic write-dense binding, 900 uses of 64 writes', source: () => syntheticWriteDenseBinding(900, 64), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic binding written past the write ceiling, 900 writes and reads', source: () => syntheticWrittenPastTheCeiling(900), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic guarded accumulators, 16 over 192 blocks', source: () => syntheticGuardedAccumulators(16, 192), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic copied accumulators, 8 over 32 blocks', source: () => syntheticCopiedAccumulators(8, 32), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic constructor ring, 8 over 40 blocks', source: () => syntheticConstructorRing(8, 40), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic member-dense class, 1200 members', source: () => syntheticMemberDenseClass(1200), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
+  { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  ...[64, 128].map(depth => ({ name: `synthetic proxy depth ${ depth }, 120 reads`, source: () => syntheticDeepProxyReads(depth, 120), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } })),
+  { name: 'synthetic parameter body and callers, 400 each', source: () => syntheticParameterBodyCalls(400), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  { name: 'synthetic positional array reads, 1200 references', source: () => syntheticArraySlotReads(1200), bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  ...[8, 32].map(width => ({
+    name: `synthetic import width ${ width }, 4096 reads`, source: () => syntheticImportWidth(width), entries: width - 1,
+    bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
+  })),
+  ...[32, 128].map(width => ({ name: `synthetic union width ${ width }, 200 reads`, source: () => syntheticUnionWidth(width), ts: true, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } })),
+  { name: 'synthetic unique type aliases, 2000 names', source: () => syntheticUniqueTypeAliases(2000), ts: true, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+  } },
+  // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
+  // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
+  { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: { 'usage-global': 65, 'usage-pure': 47 }, bounds: {
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 4, bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  // two opaque member arguments used to branch recursively through the same wildcard write
+  // these tiny inputs discriminate exponential work; push also proves detection stayed live
+  ...['namesake-container-member-arguments', 'block-local-container-member-arguments'].map(name => ({
+    name,
+    source: () => readFile(join(HERE, '../transpiler-fixtures/usage-global', name, 'input.mjs'), 'utf8'),
+    bounds: { 'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 } },
+  })),
+];
+
+// usage-pure rewrites sites to `@core-js/pure` imports; usage-global prepends `core-js/modules`
+const INJECTION_MARK = {
+  'entry-global': 'core-js/modules/',
+  'usage-global': 'core-js/modules/',
+  'usage-pure': '@core-js/pure',
+};
+
+function emittedSources(code) {
+  return Array.from(code.matchAll(/(?:from|import) ["'](?<source>[^"']+)["']/g), match => match.groups.source);
+}
+
+// One instance per lane, as in a bundler. Both emitters keep their option identity across
+// modules and samples, so the per-call cases exercise their cross-file caches too.
+function createTransform(emitter, mode, {
+  ts = false, jsx = false, decorators = false, tsconfigRaw,
+  filename = ts ? 'input.ts' : 'input.mjs', phase = 'pre', compact = 'auto', lowering = false,
+}) {
+  const options = { method: mode, version: '4.0', targets: { ie: 11 } };
+  if (lowering && (emitter !== 'unplugin' || phase !== 'pre+post')) {
+    throw new Error('Intermediate lowering requires unplugin pre+post');
+  }
+  if (emitter === 'babel') {
+    const config = {
+      plugins: [[babelPlugin, options]],
+      filename,
+      compact,
+      sourceType: 'module',
+      parserOpts: ts || jsx || decorators ? { plugins: [
+        ...decorators ? ['decorators-legacy'] : [], ...ts ? ['typescript'] : [], ...jsx ? ['jsx'] : [],
+      ] } : undefined,
+      configFile: false,
+      babelrc: false,
+    };
+    return async source => (await transformAsync(source, config)).code;
+  }
+  const stages = unplugin.raw({ ...options, phase }, { framework: 'vite' });
+  function transformStage(stage, code) {
+    if (!stage.transformInclude(filename)) throw new Error(`Public stage rejected ${ filename }`);
+    return stage.transform(code, filename)?.code ?? code;
+  }
+  if (lowering) return async source => {
+    const code = transformStage(stages[0], source);
+    const lowered = await lower(code, {
+      loader: ts ? jsx ? 'tsx' : 'ts' : jsx ? 'jsx' : 'js',
+      target: 'es2018', format: 'esm', sourcefile: filename, tsconfigRaw,
+    });
+    return transformStage(stages[1], lowered.code);
+  };
+  return source => {
+    let code = source;
+    for (const stage of stages) code = transformStage(stage, code);
+    return code;
+  };
+}
+
+// Color each measured time against its bound, independently of the row's verdict.
+function timeColor(seconds, bound) {
+  return seconds >= bound ? red : seconds > bound / 2 ? yellow : cyan;
+}
+
+let failed = 0;
+for (const {
+  name,
+  source,
+  ts, jsx, decorators, tsconfigRaw, filename, lowering,
+  injections = 1,
+  entries = 0,
+  bounds,
+  emitters = ['babel', 'unplugin'],
+  phase,
+  compact,
+} of CASES) {
+  const input = await source();
+  // single-source cases are just a one-module list; multi-module ones gate the per-call axis
+  const modules = Array.isArray(input) ? input : [input];
+  const bytes = modules.reduce((total, module) => total + Buffer.byteLength(module), 0);
+  const size = bytes < 1024 ? `${ cyan(bytes) } B` : `${ cyan((bytes / 1024).toFixed(1)) } KiB`;
+  for (const [mode, modeBounds] of Object.entries(bounds)) {
+    for (const emitter of emitters) {
+      const transform = createTransform(emitter, mode, { ts, jsx, decorators, tsconfigRaw, filename, phase, compact, lowering });
+      const samples = [];
+      let injected = Infinity;
+      let distinctEntries = Infinity;
+      // The optional first pass warms parsing, code generation and the instance caches. Every
+      // measured pass still checks detection: a fast empty sample cannot hide in the median.
+      for (let sample = WARMUP ? -1 : 0; sample < SAMPLES; sample++) {
+        const start = performance.now();
+        let detectedModules = 0;
+        const sources = new Set();
+        for (const module of modules) {
+          const code = await transform(module);
+          detectedModules += Number(!!code && code.includes(INJECTION_MARK[mode]));
+          (entries ? emittedSources(code) : []).forEach(entry => sources.add(entry));
+        }
+        if (sample >= 0) {
+          samples.push((performance.now() - start) / 1000);
+          injected = Math.min(injected, detectedModules);
+          distinctEntries = Math.min(distinctEntries, sources.size);
+        }
+      }
+      const sorted = samples.toSorted((a, b) => a - b);
+      const middle = Math.floor(SAMPLES / 2);
+      const seconds = SAMPLES % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+      const injectionFloor = typeof injections === 'number' ? injections : injections[mode];
+      const detected = injected >= injectionFloor && distinctEntries >= entries;
+      const bound = modeBounds[emitter] ?? modeBounds.unplugin;
+      const ok = detected && seconds < bound;
+      if (!ok) failed++;
+      // Highlight the failing datum: the verdict alone does not identify an over-bound time
+      // or a missed detection floor.
+      const status = ok ? green : red;
+      const time = timeColor(seconds, bound)(`${ seconds.toFixed(2) } s`);
+      const sampleTimes = samples.map(n => timeColor(n, bound)(n.toFixed(2))).join(', ');
+      const injectionCount = (injected >= injectionFloor ? cyan : red)(injected);
+      const entryCount = (distinctEntries >= entries ? cyan : red)(distinctEntries);
+      echo(status(`${ ok ? 'PASS' : 'FAIL' } ${ cyan(name) } (${ size }${ modules.length > 1 ? `, ${ cyan(modules.length) } modules` : '' }) | ${ cyan(mode) } ${ cyan(emitter) }: median ${ time } (limit ${ cyan(`${ bound.toFixed(2) } s`) }) | samples [${ sampleTimes }] s | injected ${ injectionCount } (min ${ cyan(injectionFloor) })${ entries ? ` | entries ${ entryCount } (min ${ cyan(entries) })` : '' }`));
+    }
+  }
+}
+// the deterministic half of the same gate: the escape census truncates a walk that stops converging
+// at its own step ceiling, and a truncated walk answers from less than it was given. no output diff
+// shows it and no wall clock has to be trusted for it - on this corpus the count is zero, so any
+// reading above zero names the complexity class directly
+const truncated = censusWalkTruncations();
+if (truncated) throw new Error(`the escape census truncated ${ truncated } walk(s) at its step ceiling`);
+if (failed) throw new Error('Some transpiler performance gates have failed');

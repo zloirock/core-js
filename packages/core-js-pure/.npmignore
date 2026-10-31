@@ -3,3 +3,5 @@ node_modules/
 .*
 
 /override/
+/package.tpl.json
+/AGENTS.md

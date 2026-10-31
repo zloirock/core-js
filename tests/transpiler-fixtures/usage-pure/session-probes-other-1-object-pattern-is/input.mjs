@@ -1,0 +1,3 @@
+{
+const { is } = Object; is;
+}

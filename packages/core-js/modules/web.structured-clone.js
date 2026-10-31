@@ -1,8 +1,10 @@
+// @types: web/structured-clone
 'use strict';
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var fails = require('../internals/fails');
@@ -24,39 +26,49 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
-var mapIterate = require('../internals/map-iterate');
-var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
 var isDetached = require('../internals/array-buffer-is-detached');
 var ENVIRONMENT = require('../internals/environment');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var Object = globalThis.Object;
-var Array = globalThis.Array;
-var Date = globalThis.Date;
-var Error = globalThis.Error;
-var TypeError = globalThis.TypeError;
+var $Object = Object;
+var $Array = Array;
+var $Date = Date;
+var $Error = Error;
+var $TypeError = TypeError;
+var $ArrayBuffer = ArrayBuffer;
+var $DataView = DataView;
+var DataViewPrototype = $DataView.prototype;
+var getUint8 = uncurryThis(DataViewPrototype.getUint8);
+var setUint8 = uncurryThis(DataViewPrototype.setUint8);
 var PerformanceMark = globalThis.PerformanceMark;
+// @dependency: web.dom-exception.constructor
+// @dependency: web.dom-exception.stack
+// @dependency: web.dom-exception.to-string-tag
 var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
 var mapGet = MapHelpers.get;
 var mapSet = MapHelpers.set;
 var mapRemove = MapHelpers.remove;
+var mapForEach = MapHelpers.forEach;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
 var setRemove = SetHelpers.remove;
-var objectKeys = getBuiltIn('Object', 'keys');
+var setForEach = SetHelpers.forEach;
+var objectKeys = $Object.keys;
 var push = uncurryThis([].push);
-var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
-var arrayBufferResize = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.resize);
-var dataViewByteLength = globalThis.DataView && uncurryThisAccessor(globalThis.DataView.prototype, 'byteLength', 'get');
+// eslint-disable-next-line es/no-arraybuffer-prototype-transfer -- safe
+var arrayBufferTransfer = uncurryThis($ArrayBuffer.prototype.transfer);
+// eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+var arrayBufferResize = uncurryThis($ArrayBuffer.prototype.resize);
+var dataViewByteLength = uncurryThisAccessor(DataViewPrototype, 'byteLength', 'get');
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
-var thisTimeValue = uncurryThis(Date.prototype.getTime);
+var thisTimeValue = uncurryThis($Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
@@ -64,30 +76,31 @@ var SHARED_OBJECTS = {};
 // Native validation finishes before serialization reaches this getter, without transferring anything.
 var transferCheck = PROPER_STRUCTURED_CLONE_TRANSFER && defineProperty({}, 'value', {
   enumerable: true,
-  get: function () { throw transferCheck; }
+  get: function () { throw transferCheck; },
 });
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var set1 = new globalThis.Set([7]);
     var set2 = structuredCloneImplementation(set1);
-    var number = structuredCloneImplementation(Object(7));
+    var number = structuredCloneImplementation($Object(7));
     return set2 === set1 || !set2.has(7) || !isObject(number) || +number !== 7;
   }) && structuredCloneImplementation;
 };
 
-var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
+var checkErrorsCloning = function (structuredCloneImplementation, $$Error) {
   return !fails(function () {
-    var error = new $Error();
+    var error = new $$Error();
     var test = structuredCloneImplementation({ a: error, b: error });
-    return !(test && test.a === test.b && test.a instanceof $Error && test.a.stack === error.stack);
+    return !(test && test.a === test.b && test.a instanceof $$Error && test.a.stack === error.stack);
   });
 };
 
 // https://github.com/whatwg/html/pull/5749
 var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var test = structuredCloneImplementation(new globalThis.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
+    // eslint-disable-next-line es/no-error-cause, es/no-promise-any -- testing
+    var test = structuredCloneImplementation(new AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
     return test.name !== 'AggregateError' || test.errors[0] !== 1 || test.message !== PERFORMANCE_MARK || test.cause !== 3;
   });
 };
@@ -127,7 +140,7 @@ var PROPER_TRANSFER_VALIDATION = PROPER_TRANSFER && !fails(function () {
 
 var FORCED_REPLACEMENT = IS_PURE
   || !nativeRestrictedStructuredClone
-  || !checkErrorsCloning(nativeStructuredClone, Error)
+  || !checkErrorsCloning(nativeStructuredClone, $Error)
   || !checkErrorsCloning(nativeStructuredClone, DOMException)
   || !checkNewErrorsCloningSemantic(nativeStructuredClone);
 
@@ -184,11 +197,6 @@ var cloneBuffer = function (value, map, $type) {
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
     if (!clone || classof(clone) !== 'SharedArrayBuffer') clone = value;
   } else {
-    var DataView = globalThis.DataView;
-
-    // `ArrayBuffer#slice` is not available in IE10
-    // `ArrayBuffer#slice` and `DataView` are not available in old FF
-    if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
     // detached buffers throw in `DataView` and `.slice`, but not in every engine
     if (isDetached(value)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     if (isCallable(value.slice) && !value.resizable) {
@@ -197,11 +205,11 @@ var cloneBuffer = function (value, map, $type) {
       length = value.byteLength;
       options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
       // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
-      clone = new ArrayBuffer(length, options);
-      source = new DataView(value);
-      target = new DataView(clone);
+      clone = new $ArrayBuffer(length, options);
+      source = new $DataView(value);
+      target = new $DataView(clone);
       for (i = 0; i < length; i++) {
-        target.setUint8(i, source.getUint8(i));
+        setUint8(target, i, getUint8(source, i));
       }
     }
   }
@@ -287,7 +295,7 @@ var structuredCloneInternal = function (value, map) {
       throwUncloneable(type);
       break;
     case 'Array':
-      cloned = Array(lengthOfArrayLike(value));
+      cloned = $Array(lengthOfArrayLike(value));
       break;
     case 'Object':
       cloned = {};
@@ -321,10 +329,10 @@ var structuredCloneInternal = function (value, map) {
         case 'CompileError':
         case 'LinkError':
         case 'RuntimeError':
-          cloned = new (getBuiltIn('WebAssembly', name))();
+          cloned = new (getBuiltInStaticMethod('WebAssembly', name))();
           break;
         default:
-          cloned = new Error();
+          cloned = new $Error();
       }
       break;
     case 'DOMException':
@@ -399,19 +407,19 @@ var structuredCloneInternal = function (value, map) {
       } else switch (type) {
         case 'BigInt':
           // can be a 3rd party polyfill
-          cloned = Object(value.valueOf());
+          cloned = $Object(value.valueOf());
           break;
         case 'Boolean':
-          cloned = Object(thisBooleanValue(value));
+          cloned = $Object(thisBooleanValue(value));
           break;
         case 'Number':
-          cloned = Object(thisNumberValue(value));
+          cloned = $Object(thisNumberValue(value));
           break;
         case 'String':
-          cloned = Object(thisStringValue(value));
+          cloned = $Object(thisStringValue(value));
           break;
         case 'Date':
-          cloned = new Date(thisTimeValue(value));
+          cloned = new $Date(thisTimeValue(value));
           break;
         case 'Blob':
           try {
@@ -527,20 +535,20 @@ var replaceReferences = function (map, replacements, clone) {
   var replace = function (value) {
     return mapHas(replacements, value) ? mapGet(replacements, value) : value;
   };
-  mapIterate(map, function (cloned, original) {
+  mapForEach(map, function (cloned, original) {
     if (original === SHARED_OBJECTS) return;
     var type = classof(cloned);
     var entries, keys, key, value, j;
     if (type === 'Map') {
       entries = [];
-      mapIterate(cloned, function (v, k) {
+      mapForEach(cloned, function (v, k) {
         push(entries, [replace(k), replace(v)]);
         mapRemove(cloned, k);
       });
       for (j = 0; j < entries.length; j++) mapSet(cloned, entries[j][0], entries[j][1]);
     } else if (type === 'Set') {
       entries = [];
-      setIterate(cloned, function (v) {
+      setForEach(cloned, function (v) {
         push(entries, replace(v));
         setRemove(cloned, v);
       });
@@ -568,10 +576,11 @@ var resolveSharedClones = function (map, replacements) {
 };
 
 var prepareTransfer = function (rawTransfer, map) {
-  if (!isObject(rawTransfer)) throw new TypeError('Transfer option cannot be converted to a sequence');
+  if (!isObject(rawTransfer)) throw new $TypeError('Transfer option cannot be converted to a sequence');
 
   var transfer = [];
 
+  // @dependency: es.array.iterator
   iterate(rawTransfer, function (value) {
     push(transfer, anObject(value));
   });
@@ -722,5 +731,5 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
     }
 
     return replacements ? replaceReferences(map, replacements, clone) : clone;
-  }
+  },
 });

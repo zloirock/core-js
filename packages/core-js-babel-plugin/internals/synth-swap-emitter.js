@@ -1,0 +1,496 @@
+// receiver-targeted synth-swap pipeline. covers two detection shapes:
+//   - param-default `function({p} = R) {}`: receiver = AssignmentPattern.right
+//   - arrow IIFE `(({p}) => body)(R)`: receiver = CallExpression.arguments[i]
+// receivers are accumulated as the visitor walks (`registerPolyfill` /
+// `tryRegisterPerBranchSynth`) and drained at programExit (`apply`) once the polyfill
+// set per receiver is final - swapping mid-traverse would route later sibling props to
+// the partial synth and miss their polyfill. metadata is keyed on receiver AST node
+// identity (WeakMap), so sibling plugins that move nodes (`transform-parameters`
+// extracts param defaults to body var declarations) keep them resolvable: `apply` walks
+// the program and looks up nodes by identity, finding receivers wherever they currently
+// live - independent of whether ancestor paths got orphaned. clones (`t.cloneNode`)
+// produce fresh identity and fragment the swap; coexistence with plugins that clone a
+// common ancestor remains unsupported
+import {
+  planSynthReceiverActivation, renderSynthLiteral, renderSynthReplacement,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import {
+  peelTransparentWrapperPath,
+  isMemberWriteHost,
+  findIifeArgPath,
+  unwrapSafeSequenceTailPath,
+  isSynthSimpleObjectPattern,
+  deleteHostAboveChain,
+  unwrapRuntimeExpr,
+  POSSIBLE_GLOBAL_OBJECTS,
+  runtimeChainRoot,
+  pathOfNode,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  markReplacedReceiverSkipped,
+  markSynthReceiverSkipped,
+} from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  synthPropDedupKey,
+  findSynthSwapReceiverPath,
+  buildPatternRenderPlan,
+  patternComputedKeysSynthSafe,
+  visitFallbackSynthBranches,
+  instanceSynthSpellsReceiver,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
+import estreeToBabel from './estree-to-babel.js';
+import {
+  chainExpression,
+  hostSlot,
+  renderMemoReadTarget,
+  renderProxyReceiverPlan,
+  renderClaimProbe,
+} from '@core-js/polyfill-provider/render';
+import {
+  collapseRootHoldsItsGlobal,
+  planMemoReadTarget,
+  planProxyReceiver,
+  shouldDropRescueReceiver,
+} from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  descendToChainRoot,
+  discardRescueNodes,
+  findProxyGlobal,
+  maximalProxyGlobalPrefix,
+  PROXY_HOP_VALUE_CARRIERS,
+  proxyGlobalMemberCtorPure,
+  resolveSynthKeys,
+  directClaimProbePlan,
+  directClaimProbeEffects,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
+import { proxyRootCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
+import { disableDirectiveKind } from '@core-js/polyfill-provider/helpers/source-scan';
+
+export default function createSynthSwapEmitter({
+  adapter,
+  injectPureImport,
+  injector,
+  resolvePure,
+  skippedNodes,
+  t,
+}) {
+  // receiver-node -> { entries: [{key, binding, ...}], applied: boolean }. one pending entry
+  // collects ALL polyfill props destructured from the SAME receiver across sibling visits,
+  // so `const { from, of } = Array; const { from: from2 } = Array;` builds ONE pending list
+  // per Array-receiver-node and flushes via single apply() walk. multi-receiver invariant:
+  // distinct AST receiver nodes (even semantically same global, like two `Array` Identifiers
+  // at different source positions) MUST get distinct WeakMap keys - the receiver is the
+  // node-identity key, not a string name. node-cloning sibling plugins MUST preserve receiver
+  // identity through their transform; replacing the receiver node breaks the lookup at flush
+  const synthSwapByReceiver = new WeakMap();
+  // registrations not yet applied: `apply` is a whole-program walk probing EVERY node
+  // against the WeakMap, so a file with nothing pending must skip it outright (the walk
+  // runs twice per file - end of pre-traverse and programExit)
+  let pendingSwapCount = 0;
+
+  // path-iteration with inline-spread expansion + `unwrapSafeSequenceTailPath`. accepts both
+  // ArrowFunctionExpression and FunctionExpression IIFE: arrow lacks `arguments`, function
+  // has its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
+  // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
+  // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
+  // locating the argument is the shared `findIifeArgPath` (call site + spread-expanding
+  // coordinates); the shared trailing peel retains every prefix outside the replaced slot
+  function detectIifeArgPath(wrapper, objectPattern) {
+    const argPath = findIifeArgPath(wrapper, objectPattern.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
+    return argPath ? unwrapSafeSequenceTailPath(argPath) : null;
+  }
+
+  // register a polyfill for a single key on a synth target. ensures the pending entry
+  // exists, marks the receiver in `skippedNodes` (identifier visitor would race on the
+  // same node and emit a parallel `_Receiver` import that gets dropped post-swap).
+  // metadata is keyed on the receiver NODE (not path) so apply() locates the receiver
+  // by walking the program - survives sibling-plugin moves that orphan the original path
+  function registerPolyfill({
+    targetPath, objectPatternPath, key, entry, hintName, callBranch = false, rescueSe = null, instance = false,
+  }) {
+    const receiver = targetPath.node;
+    let pending = synthSwapByReceiver.get(receiver);
+    const activation = pending ?? planSynthReceiverActivation({
+      receiver, scope: targetPath.scope, adapter, path: targetPath, resolvePure,
+    });
+    const { synthGuard } = activation;
+    // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
+    // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
+    // `_globalThis` etc. into the range that synth-swap will replace.
+    if (receiver.type === 'LogicalExpression') {
+      // a fallback-logical default collapses to the literal; skip the parts the literal supplants - the
+      // dead RIGHT operand (short-circuited away, its global would leak a dead import) and the resolved-
+      // left TAIL receiver chain. the tail is skipped WHOLE (a spine-only skip stops at a tail sequence
+      // and leaves its prefix's dropped globals - `(eff(), globalThis).Array` - to leak a dead import);
+      // its harvested SE is re-exposed so the live left PREFIX (`([1].at(0), Array)`, an IIFE body's
+      // globals) still polyfills in place, for apply() to harvest into the rescued leftSe sequence
+      if (!synthGuard) {
+        t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
+      }
+      const keepSe = discardRescueNodes({
+        node: receiver.left, scope: targetPath.scope, adapter, path: targetPath,
+      });
+      if (synthGuard) keepSe.push(synthGuard.probe);
+      markReplacedReceiverSkipped({ receiver: receiver.left, keepSe, skippedNodes, walkNode: t.traverseFast });
+    } else if ((receiver.type === 'MemberExpression' && !rescueSe && !synthGuard
+      && !POSSIBLE_GLOBAL_OBJECTS.has(runtimeChainRoot(receiver)?.name)
+      && !proxyGlobalMemberCtorPure({ receiver, aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure })
+      && !planProxyReceiver(receiver, { aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure }))
+      // ... and an INVOCATION or a literal an instance slot dispatches on: the literal spells it whole
+      || (instance && instanceSynthSpellsReceiver(receiver))) {
+      // a receiver over a literal or a name keeps its own inner claims live; one over the realm is
+      // rendered through the proxy collapse whole, as the unplugin twin renders it
+      skippedNodes.add(receiver);
+    } else if (!rescueSe || shouldDropRescueReceiver(receiver)) {
+      // case 3 (plain replace) + case 1 (rescue-drop): the synth literal supplants the receiver value
+      // (a drop re-emits only its harvested SE ahead). skip the WHOLE receiver - a spine-only skip stops
+      // at a sequence and leaves the prefix's dropped globals visible, injecting a dead `_globalThis`
+      // import. the harvested SE is re-exposed so its globals still polyfill in the live tree before
+      // apply clones them into the re-emitted prefix. keeps the import set identical to the unplugin emitter
+      const keepSe = rescueSe || synthGuard ? discardRescueNodes({
+        node: receiver, scope: targetPath.scope, adapter, path: targetPath,
+      }) : [];
+      if (synthGuard) keepSe.push(synthGuard.probe);
+      markReplacedReceiverSkipped({ receiver, keepSe, skippedNodes, walkNode: t.traverseFast });
+    } else markSynthReceiverSkipped(receiver, skippedNodes);
+    if (!pending) {
+      // Decide once on the source. Native slots keep child claims live until apply, while
+      // the source identities decide which effects the read owns before any rewrite.
+      const probeSource = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
+      const probePlan = directClaimProbePlan(probeSource, resolvePure,
+        { scope: targetPath.scope, adapter, path: targetPath });
+      const probeEffects = probePlan && directClaimProbeEffects({ decision: probePlan, node: null },
+        discardRescueNodes({ node: probeSource, scope: targetPath.scope, adapter, path: targetPath }));
+      const probeSlots = probePlan && new Map([
+        ...probePlan.retained, ...probePlan.prefix ?? [], ...probePlan.alternateEffects ?? [], ...probeEffects.filter(Boolean),
+      ].map(node => [node, pathOfNode(targetPath, node)]));
+      // Keep the source slot decisions when a sibling extraction removes its property.
+      // Their live key slots carry nested claims without reclassifying generated keys.
+      pending = {
+        entries: buildPatternRenderPlan(objectPatternPath.node, { scope: targetPath.scope, path: targetPath, adapter }) ?? [],
+        polyfills: new Map(),
+        callBranch,
+        rescueSe,
+        probePlan,
+        probeEffects,
+        probeSlots,
+        ...activation,
+        memoRead: callBranch ? planMemoReadTarget(probeSource, {
+          aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure,
+        }) : null,
+      };
+      synthSwapByReceiver.set(receiver, pending);
+      pendingSwapCount++;
+    }
+    pending.polyfills.set(key, { entry, hintName, instance });
+  }
+
+  // ConditionalExpression / LogicalExpression in destructure-receiver position
+  // (`= cond ? Array : Set` / `= Array || Set`). when `meta.fromFallback` flags the
+  // resolved meta as ambiguous (runtime picks per-call), try per-branch synth-swap so
+  // each viable branch becomes its own `{key: _Branch$key}` literal. branches without
+  // a viable polyfill stay raw - identifier visitor still emits `_Set` etc. via the
+  // standard global rewrite, so user gets correct constructor at runtime
+  function tryRegisterPerBranchSynth(rhsPath, prop, { undefinedArmFallback = null } = {}) {
+    const objectPattern = prop.parentPath;
+    // per-branch has no body-extract fallback, so it accepts static-literal computed keys (`['from']`)
+    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value).
+    // a SIDE-EFFECTING computed key (`[(eff(), 'from')]`) is accepted too: synthSwapPropKey folds it to
+    // its static `["from"]` slot (no effect in the synth literal) while the effect stays in the residual
+    // LHS pattern and runs exactly once - so the proxy branch polyfills instead of bailing to native
+    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
+    // Unknown keys can overwrite a polyfilled sibling. The shared proof also recognizes
+    // well-known symbols before and after the emitter replaces their spelling.
+    if (!patternComputedKeysSynthSafe({
+      objectPatternNode: objectPattern.node,
+      scope: objectPattern.scope,
+      adapter,
+      path: objectPattern,
+    })) return false;
+    // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
+    // viability lookup but registers under its synth SLOT key (`[k]`), so buildSynthLiteral emits
+    // `[k]: _polyfill` instead of dropping the polyfill. the resolved value also polyfills a sibling-
+    // aliasing computed key (`{ from, [k]: x }` with k='from' -> both get `_Array$from`), avoiding the
+    // overwrite that dropped the shorthand polyfill. a dynamic key (lookupKey null) bails
+    const { lookupKey } = resolveSynthKeys({ node: prop.node, scope: objectPattern.scope, adapter, path: prop });
+    // the SLOT this branch registers under is the shared dedup key - the same one the render
+    // plan looks the polyfill up by, and the same one the unplugin leg registers
+    const slotKey = synthPropDedupKey(prop.node, { scope: objectPattern.scope, path: prop, adapter });
+    if (!lookupKey || !slotKey) return false;
+    // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
+    // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
+    // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
+    // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
+    // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
+    return visitFallbackSynthBranches({
+      branch: peelTransparentWrapperPath(rhsPath), key: lookupKey, undefinedArmFallback, adapter, resolvePure,
+      readBranch(target) {
+        const path = unwrapSafeSequenceTailPath(target);
+        return path?.node ? { node: path.node, scope: path.scope, path } : null;
+      },
+      childBranch: ({ path }, slot) => path.get(slot),
+      contextFor(node, source) {
+        const path = node === source.node ? source.path : objectPattern.parentPath.get('right');
+        return { scope: path.scope, path };
+      },
+      register({ source, pure, callBranch, rescueSe }) {
+        registerPolyfill({
+          targetPath: source.path, objectPatternPath: objectPattern, key: slotKey,
+          entry: pure.entry, hintName: pure.hintName, callBranch, rescueSe,
+        });
+        return true;
+      },
+      ownsReceiver: ({ node }) => synthSwapByReceiver.has(node),
+      dropDeadRight({ node, path }) {
+        t.traverseFast(node.right, child => { skippedNodes.add(child); });
+        path.replaceWith(node.left);
+      },
+    });
+  }
+
+  // `hopsOnly`: take the collapse ONLY when it drops redundant hops off a root that is already
+  // spelled (a memo ref, an alias). a plan that resolves a PURE root injects an import, which is a
+  // claim decision - a caller asking merely to drop hops must not make one behind the resolver's back
+  // the canon spells the collapse in ESTree and this leg's own nodes ride host slots. an
+  // `optional` link is canonical only inside a `ChainExpression` - the converter refuses one
+  // outside a chain - so a guard-bearing plan is wrapped before conversion, and babel then
+  // types every link from the first `?.` upward as `Optional*`. the printed text and the
+  // downstream optional-chaining lowering are the same either way (both were measured): the
+  // wrapper is what makes the canonical render CONVERTIBLE, not a spelling choice
+  function renderCollapsePlan(plan, { carrySource = false } = {}) {
+    const rendered = renderProxyReceiverPlan(plan, {
+      injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+      embed: hostSlot,
+      carrySource,
+    });
+    if (!rendered) return null;
+    return estreeToBabel(plan.kind === 'member' || plan.optional ? chainExpression(rendered) : rendered);
+  }
+
+  function collapseProxyGlobalReceiver(receiver, {
+    aliasCtx = null,
+    isWriteTarget = false,
+    throughChainAssign = false,
+    hopsOnly = false,
+    carrySource = false,
+  } = {}) {
+    const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
+    if (!plan) return null;
+    if (hopsOnly && plan.rootBinding?.pure) return null;
+    return renderCollapsePlan(plan, { carrySource });
+  }
+
+  // A collapse can retain a store after subsuming its children. Fresh child nodes let
+  // their claims fire again. Keep the assignment itself: binding-write records still
+  // point at it, including when the retained value is read or deleted through.
+  function refreshKeptStore(runPath, store) {
+    let storePath = runPath.get('object');
+    while (storePath.node !== store) {
+      const { node } = storePath;
+      if (node?.type === 'SequenceExpression') storePath = storePath.get(`expressions.${ node.expressions.length - 1 }`);
+      else if (node && unwrapRuntimeExpr(node) !== node) storePath = storePath.get('expression');
+      else if (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') storePath = storePath.get('object');
+      else return;
+    }
+    const copy = t.cloneWithoutRetiring(store);
+    storePath.get('left').replaceWith(copy.left);
+    storePath.get('right').replaceWith(copy.right);
+  }
+
+  // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
+  // of a member chain carrying redundant proxy hops (`globalThis.self.Array`, where the leaf is NOT a
+  // pure-substituted global). rewriting only the identifier leaves `_globalThis.self.Array`, which
+  // reads an undefined `.self` off the global on hosts without it (ie:11 / Node). climb to the leaf
+  // member that consumes the maximal proxy-hop prefix and collapse it through the shared receiver
+  // collapse - `_globalThis.Array`. returns true when it rewrote (the caller skips the bare swap);
+  // false for a bare root (`globalThis.Array`, no hop) so the natural identifier swap handles it
+  function collapseProxyHopRoot(idPath, aliasCtx, { keptSeqHopFold = false } = {}) {
+    // Anchor by the source root, including when the cursor names a stored member or
+    // an assignment. Alias admission and trust are shared with the inward source plan.
+    const anchorRoot = findProxyGlobal(idPath.node, aliasCtx, true);
+    if (!anchorRoot || !collapseRootHoldsItsGlobal(anchorRoot, aliasCtx)) return false;
+    let recPath = idPath.parentPath;
+    // track the DEEPEST all-proxy member: a chain with a non-proxy leaf breaks AT that leaf (`.self.window
+    // .foo` -> collapse `.foo`), but an ALL-proxy chain with no non-proxy leaf (`globalThis.self.window` as a
+    // bare destructure SOURCE) has nothing to break at - the climb walks past it to a non-member parent. fall
+    // back to the deepest all-proxy member so the whole chain still collapses to the root (`_globalThis`)
+    let allProxyMember = null;
+    let allProxyEnd = false;
+    // climb to the leaf member consuming the maximal proxy-hop prefix (stop at the first member
+    // whose leaf is non-proxy), stepping THROUGH any construct the chain-walk canon peels on the
+    // way down - chain-assignments (`(a = globalThis).self.X`), sequence tails, TS casts,
+    // including MID-CHAIN wrappers (`((a = globalThis).self as any).Array`) - by alternating the
+    // wrapper step with the member step; mirroring the canonical descent (which must terminate at
+    // exactly this identifier) keeps the two walks in lockstep, and a non-peelable parent (call
+    // argument, unary operand, ...) self-limits the loop.
+    for (;;) {
+      if (recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression()) {
+        if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
+          { throughChainAssign: true }) !== recPath.node) break;
+        allProxyMember = recPath;
+      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== anchorRoot) {
+        if (allProxyMember) {
+          recPath = allProxyMember;
+          allProxyEnd = true;
+        }
+        break;
+      }
+      recPath = recPath.parentPath;
+    }
+    if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
+    // a destructure SOURCE is a receiver like any other: the hop collapse owns it here, and the
+    // pattern's own render - where one fires - replaces the whole source with its synth literal, so
+    // the two never spell the same node. a pattern-shaped target was once deferred to that render on
+    // the strength of a CLAIM census, which answered differently on the two legs and left a raw
+    // `_globalThis.self.X` standing on one of them - undefined off-engine, where the polyfilled
+    // product answers. a plain default VALUE (`{ x = chain }`, target Identifier) is not a source
+    let ctxPath = recPath.parentPath;
+    // a value-OBSERVING carrier (`??` / `||` / `&&` / ternary) between the receiver and the binding OBSERVES
+    // the receiver's undefined/falsy: `{x} = globalThis.window ?? {}` reads `undefined ?? {}` = `{}` off-engine.
+    // the all-proxy root-collapse below (`.window` -> `_globalThis`, DEFINED) would defeat that fallback
+    let valueObservingCarrier = false;
+    while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) {
+      if (ctxPath.node.type === 'LogicalExpression' || ctxPath.node.type === 'ConditionalExpression') valueObservingCarrier = true;
+      ctxPath = ctxPath.parentPath;
+    }
+    const ctx = ctxPath?.node;
+    const target = ctx?.type === 'VariableDeclarator' ? ctx.id
+      : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
+    const routes = proxyRootCollapseRoutes({
+      path: recPath, aliasCtx, resolvePure,
+      writeTarget: isMemberWriteHost(recPath),
+      deleteHosted: !!deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr),
+      valueConsumer: allProxyEnd ? { target, observed: valueObservingCarrier } : null,
+      keptSequence: keptSeqHopFold,
+    });
+    let collapsed;
+    for (const route of routes) {
+      if (route.kind === 'whole') {
+        recPath.replaceWith(injectPureImport(route.source.entry, route.source.hintName));
+        return true;
+      }
+      if (route.kind === 'refresh') {
+        refreshKeptStore(recPath, route.store);
+      } else if (route.kind === 'sequence') {
+        const { tail } = route;
+        recPath.get(tail.keys.join('.')).replaceWith(tail.pure
+          ? injectPureImport(tail.pure.entry, tail.pure.hintName) : t.cloneNode(tail.root));
+        return true;
+      } else {
+        collapsed = renderCollapsePlan(route.plan, { carrySource: true });
+        if (collapsed) break;
+      }
+    }
+    if (!collapsed) return false;
+    recPath.replaceWith(collapsed);
+    // the replacement is a FINISHED render of the outer member (root substituted, hops dropped) -
+    // this drive only fires when the member's own callback declined the nav (a write target, a
+    // for-x aliased read), so the re-visit of the synthetic member must not re-enter detection:
+    // the well-known-symbol strand would collapse the deliberately-deopted read (the for-x
+    // signature no longer matches the rebuilt shape). children stay live - the kept key still
+    // needs its own static swap (`Symbol.iterator` -> `_Symbol$iterator`)
+    const collapsedMember = collapsed.type === 'SequenceExpression' ? collapsed.expressions.at(-1) : collapsed;
+    if (collapsedMember.type === 'MemberExpression' || collapsedMember.type === 'OptionalMemberExpression') {
+      skippedNodes.add(collapsedMember);
+    }
+    return true;
+  }
+
+  // Native source clones retain directive anchors; the provider selects all literal values.
+  function buildSynthLiteral({ receiver, entries, memoParam = null, aliasCtx = null, guardedReceiverPlan = null }) {
+    const literal = renderSynthLiteral(
+      entries,
+      {
+        receiver,
+        memo: memoParam,
+        aliasCtx,
+        guardedReceiverPlan,
+        resolvePure,
+        injectImport: (entry, hint) => injectPureImport(entry, hint).name,
+        embed: hostSlot,
+        cloneHost: t.cloneNode,
+        cloneKey(source, entry) {
+          const key = t.cloneNode(source);
+          for (const field of t.COMMENT_KEYS) {
+            const directives = entry.optedOut ? key[field]?.filter(comment => disableDirectiveKind(comment.value)) : null;
+            if (directives?.length) key[field] = directives;
+            else delete key[field];
+          }
+          return key;
+        },
+      },
+    );
+    if (!literal) return null;
+    const result = estreeToBabel(literal);
+    entries.forEach(
+      (entry, index) => {
+        if (entry.optedOut) t.traverseFast(result.properties[index].value, node => { skippedNodes.add(node); });
+      },
+    );
+    return result;
+  }
+
+  // walk the program and swap each registered receiver with its synth literal. lookup
+  // is by node identity (WeakMap), so sibling plugins that MOVE the receiver
+  // (`transform-parameters` extracts `function f({from} = R)` defaults to
+  // `var _ref = ... : R; var {from} = _ref` - same R node, new path) keep it findable.
+  // receivers removed from the tree are simply not encountered. `applied` flag makes
+  // re-entry safe (called once at end of pre-traverse to outrun sibling-plugin clones,
+  // again at programExit to catch helper-injected registrations from `reTraverseHelperBodies`)
+  function apply(programPath) {
+    if (!programPath?.node || !pendingSwapCount) return;
+    programPath.traverse({
+      enter(path) {
+        const pending = synthSwapByReceiver.get(path.node);
+        if (!pending || pending.applied) return;
+        // Registration already admitted this source receiver. A native move changes
+        // its path, not that decision; removal leaves no node for this walk to find.
+        const entries = pending.entries.map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
+        const aliasCtx = { scope: path.scope, adapter, path, injectorState: injector };
+        function cloneProbeSource(source) {
+          const slot = pending.probeSlots?.get(source);
+          return t.cloneNode(slot?.container[slot.key] ?? source, true);
+        }
+        const renderCtx = {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          embed: hostSlot, cloneHost: node => t.cloneNode(node, true),
+        };
+        const rendered = renderSynthReplacement(entries, {
+          receiver: path.node, callBranch: pending.callBranch, rescueSe: pending.rescueSe,
+          dropRescueReceiver: pending.dropRescueReceiver,
+          guard: pending.synthGuard, aliasCtx, ...renderCtx,
+          renderLiteral: ({ receiver, memo }) => buildSynthLiteral({
+            receiver, entries, memoParam: memo, aliasCtx, guardedReceiverPlan: pending.guardedReceiverPlan,
+          }),
+          renderMemoArgument: () => {
+            const argument = renderMemoReadTarget(pending.memoRead, renderCtx);
+            return argument && estreeToBabel(argument);
+          },
+          renderProbe: () => {
+            if (!pending.probePlan) return null;
+            const node = estreeToBabel(renderClaimProbe(pending.probePlan, { ...renderCtx, cloneHost: cloneProbeSource }));
+            return { node, effects: pending.probeEffects.map(effect => effect ? cloneProbeSource(effect) : node) };
+          },
+          // An activation parameter shares injector numbering but must not enter its
+          // declared-ref set: arrow normalization would move it into the function body.
+          createMemo: () => t.identifier(injector.generateRefName(name => path.scope.hasBinding(name))),
+        });
+        if (!rendered) return;
+        const replacement = estreeToBabel(rendered);
+        // Commit ownership only after native replacement succeeds; a failed apply can retry.
+        path.replaceWith(replacement);
+        pending.applied = true;
+        pendingSwapCount--;
+        path.skip();
+      },
+    });
+  }
+
+  return {
+    apply, collapseProxyGlobalReceiver, collapseProxyHopRoot, refreshKeptStore,
+    findTargetPath: (wrapper, pattern) => findSynthSwapReceiverPath(wrapper, pattern.node, adapter, resolvePure),
+    detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
+    // a suppressed-hop drive must not detach a receiver this ledger will replace at apply().
+    ownsReceiver: node => !!synthSwapByReceiver.get(node) && !synthSwapByReceiver.get(node).applied,
+  };
+}

@@ -1,24 +1,25 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-/* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
-import { DESCRIPTORS, GLOBAL, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
+/* eslint-disable es/no-error-cause -- safe */
+import { GLOBAL, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
-import structuredClone from 'core-js-pure/stable/structured-clone';
-import from from 'core-js-pure/es/array/from';
-import assign from 'core-js-pure/es/object/assign';
-import objectCreate from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import keys from 'core-js-pure/es/object/keys';
-import Symbol from 'core-js-pure/es/symbol';
-import Map from 'core-js-pure/es/map';
-import Promise from 'core-js-pure/es/promise';
-import Set from 'core-js-pure/es/set';
-import WeakMap from 'core-js-pure/es/weak-map';
-import WeakSet from 'core-js-pure/es/weak-set';
-import AggregateError from 'core-js-pure/es/aggregate-error';
-import DOMException from 'core-js-pure/stable/dom-exception';
+import structuredClone from '@core-js/pure/stable/structured-clone';
+import from from '@core-js/pure/es/array/from';
+import assign from '@core-js/pure/es/object/assign';
+import objectCreate from '@core-js/pure/es/object/create';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import keys from '@core-js/pure/es/object/keys';
+import Symbol from '@core-js/pure/es/symbol';
+import Map from '@core-js/pure/es/map';
+import Promise from '@core-js/pure/es/promise';
+import Set from '@core-js/pure/es/set';
+import WeakMap from '@core-js/pure/es/weak-map';
+import WeakSet from '@core-js/pure/es/weak-set';
+import AggregateError from '@core-js/pure/es/aggregate-error';
+import DOMException from '@core-js/pure/stable/dom-exception';
+
+const { getPrototypeOf } = Object;
 
 QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {
@@ -454,81 +455,79 @@ QUnit.module('structuredClone', () => {
     });
   });
 
-  if (DESCRIPTORS) {
-    QUnit.test('Map entries changed during cloning', assert => {
-      for (const mutateKey of [false, true]) {
-        const map = new Map();
-        const shared = { value: 1 };
-        const order = [];
-        const mutator = defineProperty({}, 'value', {
-          enumerable: true,
-          get() {
-            order.push('mutator');
-            map.delete('deleted');
-            map.set('updated', 'new');
-            map.set('added', 'late');
-            shared.value = 2;
-            return map;
-          },
-        });
-        const other = defineProperty({}, 'value', {
-          enumerable: true,
-          get() {
-            order.push('other');
-            return shared;
-          },
-        });
-        map.set(mutateKey ? mutator : other, mutateKey ? other : mutator);
-        map.set('deleted', shared);
-        map.set('updated', shared);
-        map.set(map, shared);
+  QUnit.test('Map entries changed during cloning', assert => {
+    for (const mutateKey of [false, true]) {
+      const map = new Map();
+      const shared = { value: 1 };
+      const order = [];
+      const mutator = defineProperty({}, 'value', {
+        enumerable: true,
+        get() {
+          order.push('mutator');
+          map.delete('deleted');
+          map.set('updated', 'new');
+          map.set('added', 'late');
+          shared.value = 2;
+          return map;
+        },
+      });
+      const other = defineProperty({}, 'value', {
+        enumerable: true,
+        get() {
+          order.push('other');
+          return shared;
+        },
+      });
+      map.set(mutateKey ? mutator : other, mutateKey ? other : mutator);
+      map.set('deleted', shared);
+      map.set('updated', shared);
+      map.set(map, shared);
 
-        const copy = structuredClone(map);
-        const entries = from(copy);
-        const copiedMutator = entries[0][mutateKey ? 0 : 1];
-        const copiedOther = entries[0][mutateKey ? 1 : 0];
-        assert.arrayEqual(from(copy.keys()), [entries[0][0], 'deleted', 'updated', copy], 'entry snapshot and order');
-        assert.same(copiedMutator.value, copy, 'circular reference preserved');
-        assert.same(copy.get('deleted'), copiedOther.value, 'deleted value retains its reference');
-        assert.same(copy.get('updated'), copiedOther.value, 'replaced value retains its reference');
-        assert.same(copy.get(copy), copiedOther.value, 'self key retains its value');
-        assert.same(copiedOther.value.value, mutateKey ? 2 : 1, 'values are cloned when visited');
-        assert.arrayEqual(order, mutateKey ? ['mutator', 'other'] : ['other', 'mutator'], 'keys are cloned before values');
-      }
-    });
+      const copy = structuredClone(map);
+      const entries = from(copy);
+      const copiedMutator = entries[0][mutateKey ? 0 : 1];
+      const copiedOther = entries[0][mutateKey ? 1 : 0];
+      assert.arrayEqual(from(copy.keys()), [entries[0][0], 'deleted', 'updated', copy], 'entry snapshot and order');
+      assert.same(copiedMutator.value, copy, 'circular reference preserved');
+      assert.same(copy.get('deleted'), copiedOther.value, 'deleted value retains its reference');
+      assert.same(copy.get('updated'), copiedOther.value, 'replaced value retains its reference');
+      assert.same(copy.get(copy), copiedOther.value, 'self key retains its value');
+      assert.same(copiedOther.value.value, mutateKey ? 2 : 1, 'values are cloned when visited');
+      assert.arrayEqual(order, mutateKey ? ['mutator', 'other'] : ['other', 'mutator'], 'keys are cloned before values');
+    }
+  });
 
-    QUnit.test('Set entries changed during cloning', assert => {
-      for (const clear of [false, true]) {
-        const set = new Set();
-        const shared = { value: 1 };
-        let reads = 0;
-        const mutator = defineProperty({}, 'value', {
-          enumerable: true,
-          get() {
-            reads++;
-            if (clear) set.clear();
-            else set.delete(shared);
-            set.add('late');
-            shared.value = 2;
-            return set;
-          },
-        });
-        set.add(mutator);
-        set.add(shared);
-        set.add(set);
+  QUnit.test('Set entries changed during cloning', assert => {
+    for (const clear of [false, true]) {
+      const set = new Set();
+      const shared = { value: 1 };
+      let reads = 0;
+      const mutator = defineProperty({}, 'value', {
+        enumerable: true,
+        get() {
+          reads++;
+          if (clear) set.clear();
+          else set.delete(shared);
+          set.add('late');
+          shared.value = 2;
+          return set;
+        },
+      });
+      set.add(mutator);
+      set.add(shared);
+      set.add(set);
 
-        const copy = structuredClone(set);
-        const entries = from(copy);
-        assert.same(copy.size, 3, 'entry snapshot size');
-        assert.same(entries[0].value, copy, 'circular reference preserved');
-        assert.deepEqual(entries[1], { value: 2 }, 'deleted value is cloned when visited');
-        assert.notSame(entries[1], shared, 'deleted value is copied');
-        assert.same(entries[2], copy, 'self entry preserves its position');
-        assert.false(copy.has('late'), 'added entry is ignored');
-        assert.same(reads, 1, 'getter runs once');
-      }
-    });
-  }
+      const copy = structuredClone(set);
+      const entries = from(copy);
+      assert.same(copy.size, 3, 'entry snapshot size');
+      assert.same(entries[0].value, copy, 'circular reference preserved');
+      assert.deepEqual(entries[1], { value: 2 }, 'deleted value is cloned when visited');
+      assert.notSame(entries[1], shared, 'deleted value is copied');
+      assert.same(entries[2], copy, 'self entry preserves its position');
+      assert.false(copy.has('late'), 'added entry is ignored');
+      assert.same(reads, 1, 'getter runs once');
+    }
+  });
 
   // Error
   QUnit.test('Error', assert => {
@@ -606,66 +605,64 @@ QUnit.module('structuredClone', () => {
     });
   });
 
-  if (DESCRIPTORS) {
-    QUnit.test('Object properties changed during cloning', assert => {
-      // Firefox 4-6 report the inherited getter as own after deleting the shadowing property.
-      for (const inherited of [false, true]) {
-        const prototype = {};
-        let inheritedReads = 0;
-        let reads = 0;
-        if (inherited) defineProperty(prototype, 'deleted', {
-          get() {
-            inheritedReads++;
-            return 'inherited';
-          },
-        });
-        const object = objectCreate(prototype);
-        defineProperty(object, 'first', {
-          enumerable: true,
-          get() {
-            reads++;
-            delete object.deleted;
-            delete object.replaced;
-            object.replaced = 3;
-            object.added = 4;
-            defineProperty(object, 'hidden', { enumerable: false });
-            return 1;
-          },
-        });
-        defineProperty(object, 'deleted', { value: 2, enumerable: true, configurable: true });
-        object.replaced = 2;
-        object.hidden = 5;
-
-        const copy = structuredClone(object);
-        assert.deepEqual(copy, { first: 1, replaced: 3, hidden: 5 }, 'deleted and added properties are ignored');
-        assert.arrayEqual(keys(copy), ['first', 'replaced', 'hidden'], 'original key order and enumerability');
-        assert.same(inheritedReads, 0, 'inherited getter is not called');
-        assert.same(reads, 1, 'own getter runs once');
-      }
-    });
-
-    QUnit.test('Array properties changed during cloning', assert => {
-      const array = [0, 1];
+  QUnit.test('Object properties changed during cloning', assert => {
+    // Firefox 4-6 report the inherited getter as own after deleting the shadowing property.
+    for (const inherited of [false, true]) {
+      const prototype = {};
+      let inheritedReads = 0;
       let reads = 0;
-      // Old Firefox enumerates data indices before accessor indices, so keep both as accessors.
-      defineProperty(array, '0', {
+      if (inherited) defineProperty(prototype, 'deleted', {
+        get() {
+          inheritedReads++;
+          return 'inherited';
+        },
+      });
+      const object = objectCreate(prototype);
+      defineProperty(object, 'first', {
         enumerable: true,
         get() {
           reads++;
-          delete array[1];
-          array[2] = 2;
+          delete object.deleted;
+          delete object.replaced;
+          object.replaced = 3;
+          object.added = 4;
+          defineProperty(object, 'hidden', { enumerable: false });
           return 1;
         },
       });
-      defineProperty(array, '1', { get: () => assert.avoid('deleted index is not read') });
+      defineProperty(object, 'deleted', { value: 2, enumerable: true, configurable: true });
+      object.replaced = 2;
+      object.hidden = 5;
 
-      const copy = structuredClone(array);
-      assert.same(copy.length, 2, 'original length preserved');
-      assert.arrayEqual(keys(copy), ['0'], 'deleted index stays a hole and added index is ignored');
-      assert.same(copy[0], 1, 'getter result copied');
-      assert.same(reads, 1, 'getter runs once');
+      const copy = structuredClone(object);
+      assert.deepEqual(copy, { first: 1, replaced: 3, hidden: 5 }, 'deleted and added properties are ignored');
+      assert.arrayEqual(keys(copy), ['first', 'replaced', 'hidden'], 'original key order and enumerability');
+      assert.same(inheritedReads, 0, 'inherited getter is not called');
+      assert.same(reads, 1, 'own getter runs once');
+    }
+  });
+
+  QUnit.test('Array properties changed during cloning', assert => {
+    const array = [0, 1];
+    let reads = 0;
+    // Old Firefox enumerates data indices before accessor indices, so keep both as accessors.
+    defineProperty(array, '0', {
+      enumerable: true,
+      get() {
+        reads++;
+        delete array[1];
+        array[2] = 2;
+        return 1;
+      },
     });
-  }
+    defineProperty(array, '1', { get: () => assert.avoid('deleted index is not read') });
+
+    const copy = structuredClone(array);
+    assert.same(copy.length, 2, 'original length preserved');
+    assert.arrayEqual(keys(copy), ['0'], 'deleted index stays a hole and added index is ignored');
+    assert.same(copy[0], 1, 'getter result copied');
+    assert.same(reads, 1, 'getter runs once');
+  });
 
   // [Serializable] Platform objects
 
@@ -891,7 +888,6 @@ QUnit.module('structuredClone', () => {
     assert.throws(() => structuredClone(buffer), error => error.name === 'DataCloneError', 'a detached buffer is not cloneable');
     assert.throws(() => structuredClone(1, { transfer: [buffer] }), error => error.name === 'DataCloneError', 'detached transfer list entry');
     const other = new ArrayBuffer(4);
-    // eslint-disable-next-line es/no-object-defineproperty -- native buffers support descriptors
     Object.defineProperty(other, 'transfer', { get() { throw new Error('transfer must not be read'); } });
     assert.same(structuredClone(1, { transfer: [other] }), 1, 'does not call an own transfer method');
     assert.same(other.byteLength, 0, 'unreferenced buffer detached');
@@ -976,12 +972,27 @@ QUnit.module('structuredClone', () => {
           return scenario === 'shared' ? 1 : function () { /* uncloneable */ };
         } });
         const transfer = scenario === 'detached buffer' ? [buffer, port1] : [port1];
-        if (scenario === 'uncloneable' || scenario === 'getter') transfer.push(buffer);
-        if (scenario === 'invalid') transfer.push({});
-        if (scenario === 'duplicate') transfer.push(port1);
-        if (scenario === 'duplicate buffer') transfer.push(buffer, buffer);
-        if (scenario === 'view') transfer.push(new Uint8Array(1));
-        if (scenario === 'shared') transfer.push(shared);
+        switch (scenario) {
+          case 'uncloneable':
+          case 'getter':
+            transfer.push(buffer);
+            break;
+          case 'invalid':
+            transfer.push({});
+            break;
+          case 'duplicate':
+            transfer.push(port1);
+            break;
+          case 'duplicate buffer':
+            transfer.push(buffer, buffer);
+            break;
+          case 'view':
+            transfer.push(new Uint8Array(1));
+            break;
+          case 'shared':
+            transfer.push(shared);
+            break;
+        }
         let copy;
         try {
           assert.throws(() => structuredClone(value, { transfer }), error => scenario === 'getter'

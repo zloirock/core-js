@@ -1,26 +1,15 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
-var FUNCTION_NAME_EXISTS = require('../internals/function-name').EXISTS;
-var uncurryThis = require('../internals/function-uncurry-this');
+var FUNCTION_NAME = require('../internals/function-name');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
-
-var FunctionPrototype = Function.prototype;
-var functionToString = uncurryThis(FunctionPrototype.toString);
-var nameRE = /function\b(?:\s|\/\*[\S\s]*?\*\/|\/\/[^\n\r]*[\n\r]+)*([^\s(/]*)/;
-var regExpExec = uncurryThis(nameRE.exec);
-var NAME = 'name';
+var getName = require('../internals/function-get-name');
 
 // Function instances `.name` property
 // https://tc39.es/ecma262/#sec-function-instances-name
-if (DESCRIPTORS && !FUNCTION_NAME_EXISTS) {
-  defineBuiltInAccessor(FunctionPrototype, NAME, {
+if (!FUNCTION_NAME.EXISTS) {
+  defineBuiltInAccessor(Function.prototype, 'name', {
     configurable: true,
     get: function () {
-      try {
-        return regExpExec(nameRE, functionToString(this))[1];
-      } catch (error) {
-        return '';
-      }
-    }
+      return getName(this);
+    },
   });
 }

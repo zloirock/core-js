@@ -1,13 +1,10 @@
+// @no-types: because of a conflict with lib.dom.d.ts
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.array.iterator');
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
-var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
-var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var percentCoding = require('../internals/url-percent-coding');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -15,7 +12,8 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var defineBuiltIns = require('../internals/define-built-ins');
 var setToStringTag = require('../internals/set-to-string-tag');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has-own-property');
@@ -24,7 +22,6 @@ var classof = require('../internals/classof');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var $toString = require('../internals/to-string');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getIterator = require('../internals/get-iterator-internal');
 var getIteratorMethod = require('../internals/get-iterator-method-internal');
@@ -36,9 +33,8 @@ var arraySort = require('../internals/array-sort');
 var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
 var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
-var setInternalState = InternalStateModule.set;
-var getInternalParamsState = InternalStateModule.getterFor(URL_SEARCH_PARAMS);
-var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_ITERATOR);
+var getInternalParamsState = internalStateGetterFor(URL_SEARCH_PARAMS);
+var getInternalIteratorState = internalStateGetterFor(URL_SEARCH_PARAMS_ITERATOR);
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 
@@ -47,8 +43,8 @@ var NativeRequest = safeGetBuiltIn('Request');
 var Headers = safeGetBuiltIn('Headers');
 var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
-var TypeError = globalThis.TypeError;
-var charAt = uncurryThis(''.charAt);
+var $TypeError = TypeError;
+var create = Object.create;
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -72,7 +68,7 @@ var replacements = {
   '(': '%28',
   ')': '%29',
   '~': '%7E',
-  '%20': '+'
+  '%20': '+',
 };
 
 var replacer = function (match) {
@@ -88,7 +84,7 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
     type: URL_SEARCH_PARAMS_ITERATOR,
     target: getInternalParamsState(params).entries,
     index: 0,
-    kind: kind
+    kind: kind,
   });
 }, URL_SEARCH_PARAMS, function next() {
   var state = getInternalIteratorState(this);
@@ -111,7 +107,7 @@ var URLSearchParamsState = function (init) {
 
   if (init !== undefined) {
     if (isObject(init)) this.parseObject(init);
-    else this.parseQuery(typeof init == 'string' ? charAt(init, 0) === '?' ? stringSlice(init, 1) : init : $toString(init));
+    else this.parseQuery(typeof init == 'string' ? init && init[0] === '?' ? stringSlice(init, 1) : init : $toString(init));
   }
 };
 
@@ -123,6 +119,7 @@ URLSearchParamsState.prototype = {
   },
   parseObject: function (object) {
     var entries = this.entries;
+    // @dependency: es.array.iterator
     var iteratorMethod = getIteratorMethod(object);
     var iterator, next, step, entryIterator, entryNext, first, second;
 
@@ -136,7 +133,7 @@ URLSearchParamsState.prototype = {
           (first = call(entryNext, entryIterator)).done ||
           (second = call(entryNext, entryIterator)).done ||
           !call(entryNext, entryIterator).done
-        ) throw new TypeError('Expected sequence with length 2');
+        ) throw new $TypeError('Expected sequence with length 2');
         push(entries, { key: $toString(first.value), value: $toString(second.value) });
       }
     } else for (var key in object) if (hasOwn(object, key)) {
@@ -155,7 +152,7 @@ URLSearchParamsState.prototype = {
           entry = split(attribute, '=');
           push(entries, {
             key: decodeQueryComponent(shift(entry)),
-            value: decodeQueryComponent(join(entry, '='))
+            value: decodeQueryComponent(join(entry, '=')),
           });
         }
       }
@@ -177,7 +174,7 @@ URLSearchParamsState.prototype = {
   },
   updateURL: function () {
     if (this.url) this.url.update();
-  }
+  },
 };
 
 // `URLSearchParams` constructor
@@ -185,8 +182,7 @@ URLSearchParamsState.prototype = {
 var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   anInstance(this, URLSearchParamsPrototype);
   var init = arguments.length > 0 ? arguments[0] : undefined;
-  var state = setInternalState(this, new URLSearchParamsState(init));
-  if (!DESCRIPTORS) this.size = state.entries.length;
+  setInternalState(this, new URLSearchParamsState(init));
 };
 
 var URLSearchParamsPrototype = URLSearchParamsConstructor.prototype;
@@ -198,12 +194,11 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var state = getInternalParamsState(this);
     validateArgumentsLength(arguments.length, 2);
     push(state.entries, { key: $toString(name), value: $toString(value) });
-    if (!DESCRIPTORS) this.size++;
     state.updateURL();
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
-  'delete': function (name /* , value */) {
+  delete: function (name /* , value */) {
     var state = getInternalParamsState(this);
     var length = validateArgumentsLength(arguments.length, 1);
     var entries = state.entries;
@@ -217,7 +212,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
         splice(entries, index, 1);
       } else index++;
     }
-    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.get` method
@@ -282,7 +276,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
       }
     }
     if (!found) push(entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.sort` method
@@ -316,7 +309,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.entries` method
   entries: function entries() {
     return new URLSearchParamsIterator(this, 'entries');
-  }
+  },
 }, { enumerable: true });
 
 // `URLSearchParams.prototype[@@iterator]` method
@@ -330,18 +323,18 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 
 // `URLSearchParams.prototype.size` getter
 // https://url.spec.whatwg.org/#dom-urlsearchparams-size
-if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
+defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
   get: function size() {
     return getInternalParamsState(this).entries.length;
   },
   configurable: true,
-  enumerable: true
+  enumerable: true,
 });
 
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
 $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
-  URLSearchParams: URLSearchParamsConstructor
+  URLSearchParams: URLSearchParamsConstructor,
 });
 
 // Wrap `fetch` and `Request` for correct work with polyfilled `URLSearchParams`; not in the pure version: nothing there
@@ -361,7 +354,7 @@ if (!IS_PURE && !USE_NATIVE_URL && isCallable(Headers)) {
         }
         return create(init, {
           body: createPropertyDescriptor(0, $toString(body)),
-          headers: createPropertyDescriptor(0, headers)
+          headers: createPropertyDescriptor(0, headers),
         });
       }
     } return init;
@@ -371,7 +364,7 @@ if (!IS_PURE && !USE_NATIVE_URL && isCallable(Headers)) {
     $({ global: true, enumerable: true, dontCallGetSet: true, forced: true }, {
       fetch: function fetch(input /* , init */) {
         return nativeFetch(input, arguments.length > 1 ? wrapRequestOptions(arguments[1]) : {});
-      }
+      },
     });
   }
 
@@ -385,12 +378,12 @@ if (!IS_PURE && !USE_NATIVE_URL && isCallable(Headers)) {
     RequestConstructor.prototype = RequestPrototype;
 
     $({ global: true, constructor: true, dontCallGetSet: true, forced: true }, {
-      Request: RequestConstructor
+      Request: RequestConstructor,
     });
   }
 }
 
 module.exports = {
   URLSearchParams: URLSearchParamsConstructor,
-  getState: getInternalParamsState
+  getState: getInternalParamsState,
 };

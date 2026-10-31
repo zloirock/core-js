@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-regexp-dotall-flag)
 
 ## Modules
-[`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.exec`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.exec.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.flags.js).
+[`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.exec`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.exec.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.flags.js).
 
 ## Built-ins signatures
 ```ts
@@ -21,7 +21,7 @@ class RegExp {
 core-js/proposals/regexp-dotall-flag
 core-js/es|stable|actual|full/regexp/constructor
 core-js/es|stable|actual|full/regexp/dot-all
-core-js(-pure)/es|stable|actual|full/regexp/flags
+{ core-js, @core-js/pure }/es|stable|actual|full/regexp/flags
 ```
 
 ## Examples
@@ -29,3 +29,6 @@ core-js(-pure)/es|stable|actual|full/regexp/flags
 RegExp('.', 's').test('\n'); // => true
 RegExp('.', 's').dotAll;     // => true
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/regexp-dotall-flag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/regexp-dotall-flag.d.ts)

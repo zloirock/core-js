@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-pad-start-end)
 
 ## Modules
-[`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js) and [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js).
+[`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.pad-end.js) and [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.pad-start.js).
 
 ## Built-ins signatures
 ```ts
@@ -17,8 +17,8 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-padding
-core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-end
-core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-start
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/pad-end
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/pad-start
 ```
 
 ## Examples
@@ -28,3 +28,6 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-start
 'hello'.padEnd(10);           // => 'hello     '
 'hello'.padEnd(10, '1234');   // => 'hello12341'
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-padding`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/string-padding.d.ts)

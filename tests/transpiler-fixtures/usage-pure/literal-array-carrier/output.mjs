@@ -1,0 +1,8 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+// A local array slot keeps the held literal closed while its uses only read fields.
+const box = {
+  data: [1, 2]
+};
+const wrap = [box];
+wrap[0].data.length;
+export const at = _atMaybeArray(box.data);

@@ -1,6 +1,7 @@
 'use strict';
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var classof = require('../internals/classof-raw');
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 // The original prototype survives full constructor replacement and subclassing.
 module.exports = function (O, allowShared) {

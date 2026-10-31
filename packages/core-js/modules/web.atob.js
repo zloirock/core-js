@@ -1,3 +1,4 @@
+// @types: web/atob-btoa
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
@@ -13,10 +14,13 @@ var disallowed = /[^\d+/a-z]/i;
 var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
+// @dependency: web.dom-exception.constructor
+// @dependency: web.dom-exception.stack
+// @dependency: web.dom-exception.to-string-tag
+var DOMException = getBuiltIn('DOMException');
 var $atob = getBuiltIn('atob');
 var $Array = Array;
 var fromCharCode = String.fromCharCode;
-var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var join = uncurryThis([].join);
 var exec = uncurryThis(disallowed.exec);
@@ -51,14 +55,14 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var string = replace(toString(data), whitespaces, '');
     var position = 0;
     var bc = 0;
-    var length, chr, bs;
+    var length, char, bs;
     if (!(string.length & 3)) {
       string = replace(string, finalEq, '');
     }
     length = string.length;
     var lenmod = length & 3;
     if (lenmod === 1 || exec(disallowed, string)) {
-      throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
+      throw new DOMException('The string is not correctly encoded', 'InvalidCharacterError');
     }
     // (length >> 2) is equivalent for length / 4 floored; * 3 then multiplies the
     // number of bytes for full quanta
@@ -67,10 +71,10 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var output = new $Array((length >> 2) * 3 + (lenmod ? lenmod - 1 : 0));
     var outputIndex = 0;
     while (position < length) {
-      chr = charAt(string, position++);
-      bs = bc & 3 ? (bs << 6) + c2i[chr] : c2i[chr];
+      char = string[position++];
+      bs = bc & 3 ? (bs << 6) + c2i[char] : c2i[char];
       if (bc++ & 3) output[outputIndex++] = fromCharCode(255 & bs >> (-2 * bc & 6));
     }
     return join(output, '');
-  }
+  },
 });

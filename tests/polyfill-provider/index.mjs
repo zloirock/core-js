@@ -1,0 +1,160 @@
+// orchestrator: runs every polyfill-provider test file in this directory and reports
+// the cumulative pass/fail counts. each file is a self-running module - it executes
+// its tests on import and throws on failure, so failures surface as load-time errors.
+// the list is hand-maintained, so it is reconciled against the directory at the end: a suite
+// added here and left out of the list is run by nothing and reported by nothing
+import { fileURLToPath } from 'node:url';
+import './harness-contracts.mjs';
+import './resolve-node-type.mjs';
+import './receiver-type-precision.mjs';
+import './local-flow-values.mjs';
+import './positional-element-types.mjs';
+import './flow-class-members.mjs';
+import './class-flow-order.mjs';
+import './field-union-hints.mjs';
+import './prototype-install-receivers.mjs';
+import './written-function-calls.mjs';
+import './container-navigation-opaque-values.mjs';
+import './container-alias-alternatives.mjs';
+import './literal-carrier-closure.mjs';
+import './container-wrapper-captures.mjs';
+import './container-slot-owner-boundaries.mjs';
+import './census-alias-writes.mjs';
+import './reassigned-alias-lexical-scopes.mjs';
+import './kept-container-slot-values.mjs';
+import './guarded-container-receiver-candidates.mjs';
+import './guarded-alias-receiver-candidates.mjs';
+import './destructure-guarded-tdz.mjs';
+import './self-referential-bindings.mjs';
+import './guarded-destructure-receiver-patterns.mjs';
+import './retained-getter-locals.mjs';
+import './retained-return-paths.mjs';
+import './selected-realm-receivers.mjs';
+import './proxy-chain-complexity.mjs';
+import './alias-chain-depth.mjs';
+import './wrapper-chain-depth.mjs';
+import './destructure-chain-complexity.mjs';
+import './census-never-run-writes.mjs';
+import './census-settling-complexity.mjs';
+import './self-reading-writes-complexity.mjs';
+import './narrowed-settling-complexity.mjs';
+import './guard-settling-complexity.mjs';
+import './alias-union-complexity.mjs';
+import './write-ceiling.mjs';
+import './written-binding-complexity.mjs';
+import './assignment-scan-complexity.mjs';
+import './array-index-complexity.mjs';
+import './binding-reference-index.mjs';
+import './binding-query-cache.mjs';
+import './trusted-binding-hint.mjs';
+import './binding-node-type.mjs';
+import './owner-write-paths.mjs';
+import './for-x-head-lookups.mjs';
+import './served-reads.mjs';
+import './member-context-paths.mjs';
+import './ast-input-context.mjs';
+import './ast-context-complexity.mjs';
+import './destructure-host-shape.mjs';
+import './destructure-write-order.mjs';
+import './destructure-evaluation.mjs';
+import './destructure-emission-order.mjs';
+import './destructure-products.mjs';
+import './destructure-default-choice.mjs';
+import './destructure-receiver-capture.mjs';
+import './key-effects.mjs';
+import './method-call.mjs';
+import './logical-slot-patch.mjs';
+import './receiver-effects.mjs';
+import './nested-receiver-base.mjs';
+import './nested-extraction-receiver.mjs';
+import './assignment-overwrite.mjs';
+import './nested-declaration-receiver.mjs';
+import './nested-leaf-twin.mjs';
+import './initializer-carrier.mjs';
+import './prototype-hop-receiver.mjs';
+import './array-wrapper-drop.mjs';
+import './existing-imports.mjs';
+import './synth-wks-keys.mjs';
+import './synth-activation.mjs';
+import './nested-synth-admission.mjs';
+import './destructure-collapse.mjs';
+import './literal-spread-effects.mjs';
+import './mirror-decline-complexity.mjs';
+import './rest-boundary-complexity.mjs';
+import './mirror-ctor-passthrough.mjs';
+import './fallback-branches.mjs';
+import './fallback-synth.mjs';
+import './synth-receiver.mjs';
+import './parameter-call-sites.mjs';
+import './parameter-static-sources.mjs';
+import './guard-canon.mjs';
+import './optional-erasure.mjs';
+import './claim-probe.mjs';
+import './navigation-render.mjs';
+import './guarded-value.mjs';
+import './wrapper-peels.mjs';
+import './detect-syntax.mjs';
+import './syntax-set-measurement.mjs';
+import './module-format.mjs';
+import './detect-usage.mjs';
+import './helpers.mjs';
+import './plugin-options.mjs';
+import './resolver.mjs';
+import './injector-base.mjs';
+import './cross-parser-equivalence.mjs';
+// the one runtime-VALUE row here: a JSX tag hands the component to a renderer, and no other suite
+// carries a JSX dialect to run that through
+import './jsx-tag-reference-runtime.mjs';
+// the resolver's per-parse caches, checked by key COMPLETENESS: two hosts per file whose correct
+// answers differ, so a key that lost a dimension collapses both reads onto one helper
+import './resolver-cache-keys.mjs';
+// the escape-analysis suites: they lock PROVIDER semantics - which positions reach a value, which
+// bodies can run with a receiver - and read the verdict through both emitters, since the emitted
+// helper family is where that answer becomes observable
+import './holder-shape-equivalence.mjs';
+import './holder-position-domain.mjs';
+import './holder-call-slot-domain.mjs';
+import './holder-receiver-body-channels.mjs';
+import './mutation-return-channels.mjs';
+// ... and the mutation gate's alias closure cost, counted in global-object probes on namesake alias chains
+import './mutation-gate-complexity.mjs';
+// ... and the escape census' alias classes, counted in reads of the selections a chain of them spells
+import './alias-class-complexity.mjs';
+// the escape STAMP's node identity: the census writes a stamp and the pure claim reads one, and a
+// spelling only one half knows is a silently dropped widening, not a failure
+import './escaped-ctor-stamp.mjs';
+// ... and the walk's caching layer, whose contract is not the answer but TERMINATION and a key that
+// keeps two different reads apart - both of which become answers on a cyclic alias graph
+import './escape-walk-memo-domain.mjs';
+// ... and what the two flavors OWE once a stamp stands: the entry alphabets differ, so the answer
+// is read off compat rather than off each other - a static both flavors drop agrees with itself
+import './flavor-entry-coverage.mjs';
+
+// every scenario source the suites above ran, and every TypeScript input of the transpiler fixtures,
+// held to `tsc`. imported here rather than beside them: a suite's top-level await does not hold back
+// the imports after it, and only this body runs once every one of them has finished
+await import('./tsc-validity.mjs');
+
+// everything in this directory is either imported above or a shared helper
+const HELPERS = new Set(['index.mjs', 'harness.mjs', 'debug-report.mjs']);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const listed = await fs.readFile(path.join(here, 'index.mjs'), 'utf8');
+const orphans = (await fs.readdir(here))
+  .filter(file => file.endsWith('.mjs') && !HELPERS.has(file) && !listed.includes(`'./${ file }'`));
+if (orphans.length) throw new Error(`polyfill-provider: ${ orphans.join(', ') } imported by nothing`);
+
+const { green } = chalk;
+echo(`\n${ green('all polyfill-provider suites passed') }`);
+import './guard-preparation.mjs';
+import './static-fallback-receiver.mjs';
+import './guard-tail.mjs';
+import './kept-proxy-values.mjs';
+import './outer-collapse.mjs';
+import './inner-collapse.mjs';
+import './declined-navigation.mjs';
+import './resolved-static-claims.mjs';
+import './residual-anchors.mjs';
+import './proxy-navigation.mjs';
+import './root-delete-collapse.mjs';
+import './dispatch-receivers.mjs';
+import './discarded-init.mjs';

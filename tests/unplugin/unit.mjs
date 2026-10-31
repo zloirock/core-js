@@ -1,0 +1,8228 @@
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
+import { parseSync } from 'oxc-parser';
+import './per-file-teardown.mjs';
+import './probe-planning.mjs';
+import './destructure-products.mjs';
+import './fixture-output-normalization.mjs';
+import { builders, traverse } from 'estree-toolkit';
+import { Traverser } from 'estree-toolkit/dist-es/traverse';
+import { Scope } from 'estree-toolkit/dist-es/scope';
+import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
+import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
+import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
+import {
+  memberFromKeyName,
+  assignmentExpression as mintAssignment,
+  expressionStatement as mintStatement,
+  identifier as mintIdentifier,
+  literal as mintLiteral,
+  objectExpression as mintObject,
+  objectGetter as mintGetter,
+  renderMemoActivation,
+  sequenceExpression as mintSequence,
+  variableDeclaration as mintDeclaration,
+  variableDeclarator as mintDeclarator,
+} from '../../packages/core-js-polyfill-provider/render.js';
+import {
+  claimLive,
+  collectPrePassSites,
+  createEstreeAdapter,
+  createUsageVisitors,
+  rejectDetachedPaths,
+  withoutPhantomDeclarationViolations,
+} from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
+import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
+import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
+import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
+import applyEntryProgram, { injectImportStatements } from '../../packages/core-js-unplugin/internals/entry.js';
+import createOptionalDispatchChannel from '../../packages/core-js-unplugin/internals/optional-dispatch.js';
+import { climbToCallerPath } from '../../packages/core-js-unplugin/internals/nav-spine.js';
+import createPlugin, {
+  formatLabelLocation,
+  formatParseErrorForThrow,
+  formatParseErrorForWarn,
+  neutralizeUnwalkedParamPatterns,
+} from '../../packages/core-js-unplugin/internals/plugin.js';
+import { sealedLayerAbove } from '../../packages/core-js-unplugin/internals/claim-guards.js';
+import { drainSequenceAssignments, liveTailOf } from '../../packages/core-js-unplugin/internals/destructure-helpers.js';
+import { directClaimProbeEffects, keptWriteRidesValue } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { renderSynthTree } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import createDestructureDrains from '../../packages/core-js-unplugin/internals/destructure-drain.js';
+import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
+import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
+import { collapseWhitespace } from './collapse-whitespace.mjs';
+import { commentPlacements, commentSignature, strip } from './structural.mjs';
+import {
+  KNOWN_BUNDLERS,
+  hasCoreJSImport,
+  isCallee,
+  isChunkLoaderBundler,
+  skipDirectivePrologue,
+  stripLeadingBOMs,
+} from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
+import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
+import {
+  findNodeSlot,
+  ancestorChainDetached,
+  unwrapRuntimeExpr as unwrapNode,
+  isTopLevelImportLike,
+  walkAstNodes,
+  isReusableReceiver,
+  wrapScopeBindingLookup,
+  bindingNodeType,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+
+function programOf(src, sourceType = 'module') {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return parseSync('/x.mjs', src, { sourceType }).program;
+}
+
+const { cyan, green, red } = chalk;
+
+const counts = { passed: 0, failed: 0 };
+
+// Registration keeps source nodes, while rendering replaces claims. A nested
+// sequence must read its current receiver after those replacements.
+const [{ expression: sourceTail }] = programOf('raw;').body;
+const [{ declarations }] = programOf('var x = (first(), (second(), pure));').body;
+const [liveReceiver] = declarations;
+const recordedPrefix = [mintLiteral(1), mintLiteral(2)];
+check('live nested receiver/rewritten tail', liveTailOf(liveReceiver, { seqPrefix: recordedPrefix, initTail: sourceTail }).name, 'pure');
+check('live nested receiver/changed prefix shape', liveTailOf(liveReceiver, { seqPrefix: [mintLiteral(1)], initTail: sourceTail }), sourceTail);
+check('live nested receiver/non-sequence', liveTailOf({ init: sourceTail }, { seqPrefix: recordedPrefix, initTail: sourceTail }), sourceTail);
+
+// A structural AST comparison cannot see any of these changes; the separate comment
+// channel must reject them, including a duplicate lost without changing the set of texts.
+for (const [label, changed] of [
+  ['dropped', '// first\nx();'],
+  ['reordered', '// second\n// first\nx();'],
+  ['block instead of line', '/* first */\n// second\nx();'],
+  ['changed directive', '// first\n// core-js-disable-next-line\nx();'],
+]) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const original = commentSignature(parseSync('input.mjs', '// first\n// second\nx();').comments);
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const other = commentSignature(parseSync('input.mjs', changed).comments);
+  check(`comment comparator/${ label }`, JSON.stringify(original) === JSON.stringify(other), false);
+}
+check('comment comparator/duplicate is observable',
+  JSON.stringify(commentSignature([{ type: 'Line', value: ' x' }, { type: 'Line', value: ' x' }])),
+  '[["Line"," x"],["Line"," x"]]');
+check('comment comparator/block indentation is formatting',
+  JSON.stringify(commentSignature([{ type: 'Block', value: ' first\n\t  second ' }])),
+  JSON.stringify(commentSignature([{ type: 'Block', value: ' first\nsecond ' }])));
+
+function check(label, actual, expected) {
+  if (actual === expected) {
+    counts.passed++;
+    return;
+  }
+  counts.failed++;
+  echo`${ red('FAIL') } ${ cyan(label) } :: got ${ JSON.stringify(actual) }, want ${ JSON.stringify(expected) }`;
+}
+
+// structural equality for lists and plain records, through their JSON spelling
+function checkDeep(label, actual, expected) {
+  check(label, JSON.stringify(actual), JSON.stringify(expected));
+}
+
+// Independent analyses must see nodes pruned by earlier or enclosing walks, while
+// keeping each walk's own skip marks. The same paths still carry the same bindings.
+for (const throws of [false, true]) {
+  const outer = [];
+  const inner = [];
+  const later = [];
+  const marker = new Error('visitor');
+  let caught = false;
+  let binding;
+  traverse(programOf('function hidden(value) { use(value); } after();'), {
+    $: { scope: true },
+    Program(p) {
+      const [fn] = p.get('body');
+      binding = fn.scope.getBinding('value');
+      fn.skip();
+      try {
+        p.traverse({
+          FunctionDeclaration(q) {
+            q.skip();
+            q.traverse({ Identifier(r, names) { names.push(r.node.name); } }, inner);
+            if (throws) throw marker;
+          },
+        });
+      } catch (error) {
+        caught = error === marker;
+      }
+      p.traverse({
+        Identifier(q, names) {
+          names.push(q.node.name);
+          if (q.node.name === 'value') check(`traversal/${ throws }/binding identity`, q.scope.getBinding('value'), binding);
+        },
+      }, later);
+    },
+    Identifier(p) { outer.push(p.node.name); },
+  });
+  check(`traversal/${ throws }/exception`, caught, throws);
+  checkDeep(`traversal/${ throws }/nested skip isolation`, inner, ['hidden', 'value', 'use', 'value']);
+  checkDeep(`traversal/${ throws }/later skip isolation`, later, ['hidden', 'value', 'use', 'value', 'after']);
+  checkDeep(`traversal/${ throws }/outer skip restored`, outer, ['after']);
+}
+
+// A scoped pre-pass and detection share one scope tree only before any host edit.
+// Count actual root crawls, including the no-prepass and invalidation controls.
+for (const method of ['usage-global', 'usage-pure']) {
+  const options = { method, version: '4.0', targets: { ie: 11 }, additionalPackages: ['core-js'] };
+  const alias = 'const { Map: M } = globalThis; export const make = values => new M(values);';
+  const cases = [
+    ['no prepass', 'export const read = v => v.at(0);', 'mjs', 1],
+    ['alias', alias, 'mjs', 1],
+    ['mutation', 'Array.from = shim; export const read = v => Array.from(v);', 'mjs', 1],
+    ['import removal', `import 'core-js/modules/es.array.from'; ${ alias }`, 'mjs', 2],
+    // The prefix is read before surgery using the same scoped pre-pass root.
+    ['require prefix', `(values.at(0), require)('core-js/modules/es.array.from'); ${ alias }`, 'mjs', 2],
+    ['optional normalization', `${ alias } fn<number>?.(1);`, 'ts', 2],
+    ['decorator', `${ alias } class C { constructor(@dec(new M()) public value: any) {} }`, 'ts', 1],
+  ];
+  const plugin = createPlugin(options);
+  for (const [label, source, extension, expected] of cases) {
+    const roots = [];
+    const { crawl } = Scope.prototype;
+    const output = withTemporaryProperty(Scope.prototype, 'crawl', function (...args) {
+      if (this.path.node.type === 'Program') roots.push(this.path);
+      return crawl.apply(this, args);
+    }, () => plugin.transform(source, `/scope-${ label }.${ extension }`, 'single')?.code ?? source);
+    check(`scope reuse/${ method }/${ label }/root crawls`, roots.length, expected);
+    check(`scope reuse/${ method }/${ label }/independent roots`, new Set(roots).size, expected);
+    const fresh = createPlugin(options).transform(source, `/fresh.${ extension }`, 'single')?.code ?? source;
+    check(`scope reuse/${ method }/${ label }/file isolation`, output, fresh);
+  }
+  const phaseRoots = [];
+  const { crawl } = Scope.prototype;
+  withTemporaryProperty(Scope.prototype, 'crawl', function (...args) {
+    if (this.path.node.type === 'Program') phaseRoots.push(this.path);
+    return crawl.apply(this, args);
+  }, () => {
+    const pre = plugin.transform(alias, '/scope-phases.mjs', 'pre')?.code ?? alias;
+    plugin.transform(pre, '/scope-phases.mjs', 'post');
+  });
+  check(`scope reuse/${ method }/one crawl per phase`, phaseRoots.length, 2);
+  check(`scope reuse/${ method }/each phase parses its tree`, new Set(phaseRoots.map(path => path.node)).size, 2);
+  // Re-entry can happen inside provider queries, before the outer traversal finishes.
+  let nested;
+  let entered = false;
+  const reentrant = createPlugin({ ...options, shouldInjectPolyfill(name, needed) {
+    if (!entered) {
+      entered = true;
+      const source = 'Array.from = replacement; export const read = v => Array.from(v);';
+      nested = reentrant.transform(source, '/scope-inner.mjs', 'single')?.code ?? source;
+    }
+    return needed;
+  } });
+  const outer = reentrant.transform(alias, '/scope-outer.mjs', 'single')?.code ?? alias;
+  check(`scope reuse/${ method }/re-entry reached`, entered, true);
+  check(`scope reuse/${ method }/outer restored`, outer,
+    createPlugin(options).transform(alias, '/scope-outer.mjs', 'single')?.code ?? alias);
+  const innerSource = 'Array.from = replacement; export const read = v => Array.from(v);';
+  check(`scope reuse/${ method }/inner isolated`, nested,
+    createPlugin(options).transform(innerSource, '/scope-inner.mjs', 'single')?.code ?? innerSource);
+}
+
+// Optional-call normalization shares the raw census: ordinary optional syntax must not
+// add a separate whole-file traversal. The same bound holds for its actual TS edit.
+for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+  const plugin = createPlugin({ method, version: '4.0', targets: { ie: 11 } });
+  const { visitPath } = Traverser.prototype;
+  const results = [];
+  for (const [label, source] of [
+    ['ordinary', 'const value = user.unknown;'],
+    ['optional', 'const value = user?.unknown;'],
+    ['instantiation', 'const value = (user.unknown<number>)?.(1);'],
+    ['opted out', '// core-js-disable-next-line\nconst value = (user.unknown<number>)?.(1);'],
+  ]) {
+    let walks = 0;
+    const code = withTemporaryProperty(Traverser.prototype, 'visitPath', function (context, path, ...args) {
+      if (path.node?.type === 'Program') walks++;
+      return visitPath.call(this, context, path, ...args);
+    }, () => plugin.transform(source, '/optional-census.ts')?.code ?? source);
+    results.push({ walks, code });
+    check(`optional census/${ method }/${ label }/no extra program walk`, walks, results[0].walks);
+    // The edit dissolves only the instantiation, retaining its source parens and type arguments.
+    if (label === 'instantiation') check(`optional census/${ method }/normalized`, /\?\.\s*<number>/u.test(code), true);
+    else if (label === 'opted out') check(`optional census/${ method }/directive`, code.includes('<number>)?.'), true);
+  }
+  // The existing source gate remains shared by all dialects, while TypeScript
+  // retains its normalization in files that can carry an optional instantiation.
+  const { includes } = String.prototype;
+  for (const [id, typed] of [
+    ['/optional-census.js', false], ['/optional-census.jsx', false],
+    ['/optional-census.mjs', false], ['/optional-census.cjs', false],
+    ['/optional-census.ts', true], ['/optional-census.tsx', true],
+    ['/optional-census.mts', true], ['/optional-census.cts', true],
+    ['/App.vue?vue&type=script', false], ['/App.vue?vue&type=script&lang.ts', true],
+    ['/App.vue?vue&type=script&lang=tsx', true],
+  ]) {
+    for (const source of ['const value = user.unknown;', 'const value = user?.unknown;']) {
+      let scans = 0;
+      const output = withTemporaryProperty(String.prototype, 'includes', function (search, ...args) {
+        if (this === source && search === '?.') scans++;
+        return includes.call(this, search, ...args);
+      }, () => plugin.transform(source, id)?.code ?? source);
+      check(`optional census/${ method }/${ id }/${ source }/one source scan`, scans, 1);
+      check(`optional census/${ method }/${ id }/${ source }/uninstrumented output`, output,
+        plugin.transform(source, id)?.code ?? source);
+    }
+    if (typed) check(`optional census/${ method }/${ id }/normalization retained`,
+      /\?\.\s*<number>/u.test(plugin.transform('const value = (user.unknown<number>)?.(1);', id)?.code), true);
+  }
+}
+
+// --- shouldTransform ---
+const shouldTransformCases = [
+  // Vue / Astro / Svelte SFC sub-blocks: the real language lives in the `lang=` value or dotted `lang.`
+  // key. SFC sub-block with NO lang param: Svelte 5 / Vue / Astro default-JS scripts (no lang token)
+  ['/src/App.svelte?svelte&type=script', true, 'Svelte SFC default JS script'],
+  ['/src/App.svelte?svelte&type=module', true, 'Svelte SFC default JS module'],
+  ['/src/App.vue?vue&type=script', true, 'Vue SFC default JS script'],
+  ['/src/App.vue?vue&type=script&setup=true', true, 'Vue SFC default JS script with setup'],
+  ['/src/Page.astro?astro&type=script', true, 'Astro SFC default JS script'],
+  // SFC query param order is bundler-dependent (vite vs farm vs custom emitters); admission is
+  // order-independent - the framework marker may sit after `type=`
+  ['/src/App.vue?type=script&vue', true, 'framework marker after type= (order-independent)'],
+  ['/src/Page.astro?type=module&astro#L10', true, 'marker after type= with hash, order-independent'],
+  ['/src/App.vue?vue&type=style', false, 'Vue SFC style block (default-JS only matches script/module)'],
+  // explicit non-JS lang= blocks the default-JS fallback
+  ['/src/App.vue?vue&type=script&lang=scss', false, 'Vue SFC explicit lang=scss blocks default-JS fallback'],
+  // unknown framework marker without lang= still bails (no JS extension, no SFC marker)
+  ['/src/foo.unknown?type=script', false, 'unknown framework marker'],
+  ['/src/App.vue?vue&type=script&setup=true&lang=ts', true, 'Vue SFC lang=ts'],
+  ['/src/App.vue?vue&type=script&lang=mts', true, 'Vue SFC lang=mts'],
+  ['/src/App.vue?vue&type=script&lang=cts', true, 'Vue SFC lang=cts'],
+  ['/src/App.vue?vue&type=script&lang=jsx', true, 'Vue SFC lang=jsx'],
+  ['/src/App.vue?vue&type=script&setup=true&lang=tsx', true, 'Vue SFC lang=tsx'],
+  ['/src/App.vue?lang=ts&type=script', true, 'lang= before type='],
+  ['/src/App.vue?foo=bar&lang=ts&baz=qux', true, 'lang= sandwiched between query params'],
+  ['/src/App.svelte?lang=jsx', true, 'Svelte SFC lang=jsx'],
+  ['/src/Page.astro?astro&type=script&lang=tsx', true, 'Astro SFC lang=tsx'],
+  // dotted virtual-ext lang form: Vite's vue plugin appends the block lang as a trailing DOTTED suffix
+  // (`&lang.ts` -> URLSearchParams value-less key `lang.ts`), not a `lang=` value - admitted + lifted alike
+  ['/src/App.vue?vue&type=script&setup=true&lang.ts', true, 'Vue SFC dotted lang.ts'],
+  ['/src/App.vue?vue&type=script&lang.tsx', true, 'Vue SFC dotted lang.tsx'],
+  ['/src/Page.astro?astro&lang.jsx', true, 'Astro SFC dotted lang.jsx'],
+  // a dotted NON-JS lang is a hint (not markerless), so the default-JS arm must NOT admit it - else oxc
+  // would parse-as-JS like the dotted JS langs did; a dotted style block is excluded by type as well
+  ['/src/App.vue?vue&type=script&lang.coffee', false, 'Vue SFC dotted non-JS lang.coffee blocks default-JS'],
+  ['/src/App.vue?vue&type=style&lang.scss', false, 'Vue SFC dotted lang.scss style block'],
+  ['/src/App.vue?vue&type=script&lang.d.ts', false, 'Vue SFC dotted declaration lang.d.ts (not runnable JS)'],
+  ['/src/App.vue?vue&type=template&lang.ts', false, 'Vue SFC dotted lang.ts in template block, pre', true],
+  // any `lang.<x>` key is a hint (only an ABSENT lang param is markerless), so an empty `lang.` and a
+  // non-ext `lang.bar` both block the default-JS arm - symmetric with the empty `lang=` negative below
+  ['/src/App.vue?vue&type=script&lang.', false, 'Vue SFC empty dotted lang. blocks default-JS'],
+  ['/src/App.vue?vue&type=script&lang.bar', false, 'Vue SFC non-ext dotted lang.bar blocks default-JS'],
+  // `xlang.ts` does NOT start with `lang.`, so it is not a dotted hint - the block stays markerless JS
+  ['/src/App.vue?vue&type=script&xlang.ts', true, 'xlang.ts is not a dotted lang hint'],
+  // mixed / repeated lang forms - value form wins over a dotted sibling; first dotted wins among dotted
+  ['/src/App.vue?vue&type=script&lang=ts&lang.tsx', true, 'lang=ts value form admitted alongside dotted'],
+  ['/src/App.vue?vue&lang.ts&lang.tsx', true, 'first dotted lang wins'],
+  // percent-encoded uppercase lang value: URLSearchParams decodes `%53` to `S` AFTER the case-fold, so
+  // the lowercase must happen post-decode (`lang=t%53` -> `ts`) or the JS lang is missed
+  ['/src/App.vue?vue&type=script&lang=t%53', true, 'Vue SFC percent-encoded lang=t%53'],
+  // SFC non-JS sub-blocks / declaration / substring false-match / empty value
+  ['/src/App.vue?vue&type=style&lang=scss', false, 'Vue SFC lang=scss'],
+  ['/src/App.vue?vue&type=script&lang=d.ts', false, 'SFC declaration block (lang=d.ts)'],
+  ['/src/App.vue?xlang=ts', false, 'xlang= substring guard'],
+  ['/src/App.vue?lang=', false, 'empty lang='],
+  // a default-JS SFC block whose query carries a param merely ENDING in `lang` must still
+  // transform: the non-JS `lang=` negative gate is anchored to a param boundary, so `clang=`/
+  // `slang=` no longer match it as a substring and drop the block
+  ['/src/App.vue?vue&type=script&clang=gcc', true, 'clang= param does not block default-JS SFC'],
+  ['/src/App.vue?vue&type=script&slang=en', true, 'slang= param does not block default-JS SFC'],
+  // `.js`/`.ts` token appears only inside the query - strip query before extension-check
+  ['/virtual:foo?output=main.js', false, '.js inside query only'],
+  ['/virtual:foo?output=main.ts#bar', false, '.ts inside query only'],
+  // SFC with a `.js`-like token in the query: `stripQueryHash` leaves `.vue`, SFC path wins
+  ['/src/foo.vue?lang=ts&suffix=.js', true, 'SFC with .js token in query'],
+  // SFC + `#hash` suffix (sourcemap line markers, plugin-wrapper artifacts) - `lang=` token
+  // closes on `#` as well as `&`/EOL; without the `#` alternative the SFC dispatch silently
+  // falls through to extension-only detection
+  ['/src/App.vue?vue&type=script&lang=ts#L10', true, 'SFC lang=ts followed by #hash'],
+  ['/src/App.vue?vue&type=template&lang=ts#x', false, 'SFC template lang=ts with #hash, pre', true],
+  ['/src/App.vue?vue&type=script#L10', true, 'SFC default-JS script with #hash'],
+  // a `?` that lives INSIDE a URL fragment (`path#frag?key`) is fragment text, not a query: a real JS
+  // file with such a tail must still transform (the fragment `?url` is not an asset query that skips it),
+  // and an SFC whose marker lives in the fragment is NOT an admitted sub-block (its query is empty)
+  ['/src/foo.js#frag?url', true, 'fragment-embedded asset key does not skip real JS'],
+  ['/src/App.vue#x?vue&type=script', false, 'fragment-embedded SFC marker is not a query, not admitted'],
+  ['/src/foo.png?x.js', false, '.png base with .js token in query'],
+  // plain extensions
+  ['/src/foo.js', true, 'plain .js'],
+  ['/src/foo.tsx?v=1', true, '.tsx with bundler query'],
+  ['/src/foo.mts', true, '.mts extension'],
+  ['/src/foo.cts', true, '.cts extension'],
+  // declaration files
+  ['/src/types.d.ts', false, 'declaration file'],
+  ['/src/types.d.mts?v=1', false, 'd.mts with query'],
+  // Rollup internals
+  ['/src/foo.js?commonjs-proxy', false, 'rollup commonjs proxy'],
+  ['\0virtual:entry', false, 'rollup virtual module'],
+  // Vite asset-import queries: resolved body isn't user JS even though path looks like one
+  ['/src/img.js?url', false, 'Vite ?url'],
+  ['/src/data.js?raw', false, 'Vite ?raw'],
+  ['/src/worker.js?worker', false, 'Vite ?worker'],
+  ['/src/worklet.js?worklet', false, 'Vite ?worklet'],
+  ['/src/style.js?inline', false, 'Vite ?inline'],
+  ['/src/foo.js?url&v=1', false, 'Vite ?url with extra query'],
+  ['/src/foo.js?v=1&url', false, 'Vite ?url trailing'],
+  // `?worker-module` is still the CONSTRUCTOR factory Vite generates. `?worker_file` is the other
+  // half - the worker's own source - and only its `type=classic` spelling stays out, because that
+  // body is loaded as a script where neither import render can land
+  ['/src/worker.js?worker-module', false, 'Vite ?worker-module'],
+  ['/src/worker.js?worker_file&type=module', true, 'Vite worker source, module type'],
+  ['/src/worker.js?worker_file&type=classic', false, 'Vite worker source, classic type'],
+  ['/src/worker.js?worker_file', false, 'Vite ?worker_file with no type'],
+  // Vite `?sharedworker` resolves to a SharedWorker-constructor factory exactly like `?worker` - the
+  // worker body is bundled separately, so the import id itself is not user JS and must skip transform
+  ['/src/worker.js?sharedworker', false, 'Vite ?sharedworker'],
+  ['/src/worker.js?sharedworker-module', false, 'Vite ?sharedworker sub-form'],
+  // Vite internal queries: `?css` (CSS-as-JS), `?used` (tree-shake marker), `?direct`
+  // (post-processing escape), `?import` (wrap bypass). `?html-proxy` is NOT one of them - it lifts
+  // an inline block out of an .html file, and the `index=<n>.<ext>` tail says which kind: a `.js`
+  // one is the author's own `<script type="module">` body and is owed its polyfills
+  ['/index.html?html-proxy&index=0.js', true, 'Vite html-proxy inline script'],
+  ['/index.html?html-proxy&direct&index=0.css', false, 'Vite html-proxy inline style'],
+  ['/index.html?html-proxy&inline-css&index=0.css', false, 'Vite html-proxy style attribute'],
+  ['/src/style.css?css', false, 'Vite ?css'],
+  ['/src/foo.js?used', false, 'Vite ?used'],
+  ['/src/foo.css?direct', false, 'Vite ?direct'],
+  ['/src/foo.js?import', false, 'Vite ?import'],
+  // an SFC STYLE half is CSS at every phase. a TEMPLATE half is markup only until the framework
+  // plugin compiles it: on `post` it holds the render FUNCTION that compilation produced, which is
+  // ordinary JS. same for the SFC source file's own bare id
+  ['/src/App.vue?vue&type=style&lang=ts', false, 'Vue SFC style block with lang=ts'],
+  ['/src/App.vue?vue&type=template&lang=ts', false, 'Vue SFC template block, pre', true],
+  ['/src/App.vue', false, 'Vue SFC source file, pre', true],
+  // a bare trailing separator names no sub-part, so it is the same bare id; a fragment with text does
+  ['/src/App.vue?', false, 'Vue SFC source file with an empty query', true],
+  ['/src/App.vue#', false, 'Vue SFC source file with an empty fragment', true],
+  ['/src/App.vue#frag', false, 'Vue SFC source file with a fragment', false],
+  ['/src/App.svelte', false, 'Svelte SFC source file, pre', true],
+  ['/src/Page.astro', false, 'Astro SFC source file, pre', true],
+  // near-misses that should NOT match (substring or suffix only)
+  ['/src/curly.js?curl=x', true, 'query containing "url" as substring'],
+  ['/src/foo.js?v=unrelated', true, 'no asset-query key'],
+  // case-insensitive extension match: Windows FS / build tools may upper-case
+  ['/src/App.JS', true, 'uppercase .JS'],
+  ['/src/App.TSX', true, 'uppercase .TSX'],
+  ['/src/App.MJS', true, 'uppercase .MJS'],
+  ['/src/types.D.TS', false, 'uppercase .D.TS still excluded'],
+  // Vite SFC sub-block id with multiple non-marker query keys. Vue's SFC compiler
+  // appends `setup=true&t=<timestamp>&v=<hash>` for HMR / setup-block disambiguation;
+  // shouldTransform must still admit such ids when `lang=ts` is present
+  ['/src/App.vue?vue&type=script&setup=true&lang=ts&t=12345', true, 'SFC with HMR timestamp + setup query'],
+  ['/src/App.vue?vue&type=script&lang=tsx&v=abc123', true, 'SFC with version-hash query'],
+  // bare id (no extension) carrying a `lang=` query - virtual modules sometimes use
+  // bare paths; SFC dispatch matches on the query alone, so transform fires
+  ['/virtual:component?lang=ts', true, 'bare virtual id with lang=ts'],
+  // SFC sub-block with `.js` extension on the base path AND `lang=` token: extension
+  // takes precedence (the id's language family reads the post-strip base), still transforms
+  ['/src/foo.js?lang=tsx', true, '.js base with lang= override'],
+  // SFC sub-block + Vite asset query mixing: the asset-query gate wins, the body is
+  // bundler-synthetic output regardless of lang= hint
+  ['/src/App.vue?vue&type=script&lang=ts&inline', false, 'SFC lang=ts trumped by ?inline'],
+  ['/src/App.vue?vue&type=script&lang=ts&worker', false, 'SFC lang=ts trumped by ?worker'],
+  // worker sub-form must match exactly one [-_][a-z]+ segment - a second hyphen breaks
+  // the match (Vite never emits `?worker-foo-bar` so this stays a no-op gate)
+  ['/src/foo.js?worker-module-extra', true, 'worker- with second hyphen escapes asset gate'],
+  // SFC query case-insensitivity: tooling normally lowercases keys/values but some pipelines
+  // preserve author-cased `lang="TS"` / `type="SCRIPT"`. `/i` flag on SFC regexes catches them
+  ['/src/App.vue?vue&type=script&lang=TS', true, 'SFC mixed-case lang=TS'],
+  ['/src/App.vue?vue&type=SCRIPT&lang=ts', true, 'SFC mixed-case type=SCRIPT'],
+  ['/src/App.vue?vue&type=STYLE&lang=ts', false, 'SFC mixed-case type=STYLE excluded'],
+  ['/src/App.vue?vue&type=script&lang=Tsx', true, 'SFC mixed-case lang=Tsx'],
+  ['/src/App.vue?vue&type=script&lang=MJS', true, 'SFC mixed-case lang=MJS'],
+  // mixed-case framework marker - `/i` on default-JS regex admits author-cased `?VUE`
+  ['/src/App.vue?VUE&type=script', true, 'SFC mixed-case framework marker'],
+  ['/src/App.vue?Vue&type=module', true, 'SFC capitalised framework marker'],
+  // edge: multiple framework markers (custom loader artifact) admits via lang= path
+  ['/src/App.vue?vue&vue&type=script&lang=ts', true, 'SFC duplicate framework marker'],
+  // edge: whitespace around lang= bails (no real separator before, no valid ext)
+  ['/src/App.vue?vue&type=script&lang= ts', false, 'SFC whitespace around lang value'],
+  ['/src/App.vue? lang=ts', false, 'SFC whitespace before lang'],
+  // edge: empty lang= - the lang-path rejects (the lang value needs a `[jt]` char), and the
+  // default-JS fallback is blocked because a lang= param is present, so the id bails entirely.
+  // user authoring `lang=""` is a tool-error shape; pinning the deterministic resolution here
+  ['/src/App.vue?vue&type=script&lang=', false, 'SFC empty lang= bails (lang-path rejects, default-JS gate blocks)'],
+  // pseudo-extensions: `lang=mjsx` / `cjsx` / `mtsx` / `ctsx` are NOT real file extensions, so the
+  // lifted suffix can't drive oxc's parser - the split alternation rejects them (a single
+  // `[cm]?[jt]sx?` wrongly accepted them, then the `.mjsx`-named block failed to parse, no polyfill)
+  ['/src/App.vue?vue&type=script&lang=mjsx', false, 'SFC pseudo-ext lang=mjsx rejected'],
+  ['/src/App.vue?vue&type=script&lang=cjsx', false, 'SFC pseudo-ext lang=cjsx rejected'],
+  ['/src/App.vue?vue&type=script&lang=mtsx', false, 'SFC pseudo-ext lang=mtsx rejected'],
+  ['/src/App.vue?vue&type=script&lang=ctsx', false, 'SFC pseudo-ext lang=ctsx rejected'],
+  // the real `[cm]`-prefixed extensions still match (the alternation's first arm `[cm]?[jt]s`)
+  ['/src/App.vue?vue&type=script&lang=mjs', true, 'SFC real ext lang=mjs'],
+  ['/src/App.vue?vue&type=script&lang=cts', true, 'SFC real ext lang=cts'],
+  // a `lang=` inside a PATH segment must NOT suppress a legitimate default-JS SFC - the gate scopes
+  // the `lang=` check to the query/hash suffix, so this query-less-lang default-JS query still fires
+  ['/src/lang=weird/App.vue?vue&type=script', true, 'SFC default-JS not suppressed by lang= in path'],
+];
+
+// a fourth column is the `post` expectation, for the ids whose body its own plugin compiles into
+// JS between the two phases; without one the id answers the same on both
+for (const [id, want, label, wantPost = want] of shouldTransformCases) {
+  check(`shouldTransform/${ label }`, shouldTransform(id, 'pre'), want);
+  check(`shouldTransform/${ label } [post]`, shouldTransform(id, 'post'), wantPost);
+}
+
+// --- liftSfcLangSuffix ---
+// shouldTransform's lang arm and the lifter BOTH resolve the lang through the same `sfcJsLang` predicate
+// in internals/sfc-shapes.js (which reads either the `lang=` value or the dotted `lang.<ext>` key), so
+// every shape admitted via the lang path produces a matching extension here by construction; drift
+// between admit and lift can't happen now that both consumers share one predicate, not just one regex
+const liftSfcLangCases = [
+  // basic JS/TS extensions
+  ['/src/App.vue?vue&type=script&lang=ts', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=tsx', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=js', '/src/App.vue.js'],
+  ['/src/App.vue?vue&type=script&lang=jsx', '/src/App.vue.jsx'],
+  // module / commonjs extension prefixes (Vue 3 + Astro support these natively)
+  ['/src/App.vue?vue&type=script&lang=mts', '/src/App.vue.mts'],
+  ['/src/App.vue?vue&type=script&lang=cts', '/src/App.vue.cts'],
+  ['/src/App.vue?vue&type=script&lang=mjs', '/src/App.vue.mjs'],
+  ['/src/App.vue?vue&type=script&lang=cjs', '/src/App.vue.cjs'],
+  // hash terminator (sourcemap pipelines append `#L<line>` to the id)
+  ['/src/App.vue?vue&type=script&lang=ts#L10', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=tsx#hash', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=mts#L1', '/src/App.vue.mts'],
+  // hash-only terminator on the lang token without trailing `&` - the `(?:[#&]|$)` boundary
+  // accepts `#` so the named group still captures and `#L42` is excluded from `ext`
+  ['/src/App.vue?vue&lang=ts#L42', '/src/App.vue.ts'],
+  // lang= position variations
+  ['/src/App.vue?lang=ts', '/src/App.vue.ts'],
+  ['/src/App.vue?lang=ts&type=script', '/src/App.vue.ts'],
+  ['/src/App.vue?foo=bar&lang=ts&baz=qux', '/src/App.vue.ts'],
+  // lang= sandwiched in the middle of the query (between marker and trailing param) - the query
+  // is parsed into params, so a lang token matches the same regardless of its position
+  ['/src/App.vue?vue&lang=ts&type=script', '/src/App.vue.ts'],
+  // multiple lang= tokens - regex stops at the first match (RegExp.exec returns leftmost-
+  // first per spec), so `lang=ts&lang=tsx` lifts to `.ts`. authoring this shape is a user
+  // bug; the test pins the deterministic resolution
+  ['/src/App.vue?vue&lang=ts&lang=tsx', '/src/App.vue.ts'],
+  // dotted virtual-ext form (`&lang.ts`): Vite's vue plugin appends the block lang as a trailing DOTTED
+  // suffix (URLSearchParams reads it as a value-less key `lang.ts`), not a `lang=` value. without
+  // recognising it the suffix was dropped and oxc parsed the TS / TSX / JSX body as plain JS
+  ['/src/App.vue?vue&type=script&setup=true&lang.ts', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang.tsx', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang.cts', '/src/App.vue.cts'],
+  ['/src/Page.astro?astro&lang.jsx', '/src/Page.astro.jsx'],
+  // dotted lang + `#hash` terminator (sourcemap line marker) - hash is cut before parsing, lift still fires
+  ['/src/App.vue?vue&type=script&lang.ts#L10', '/src/App.vue.ts'],
+  // value form wins over a dotted sibling; among dotted siblings the first key wins (deterministic)
+  ['/src/App.vue?vue&type=script&lang=ts&lang.tsx', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&lang.ts&lang.tsx', '/src/App.vue.ts'],
+  // a dotted NON-JS lang (scss) is a lang hint but not a JS ext, so no lift (baseId unchanged)
+  ['/src/App.vue?vue&type=style&lang.scss', '/src/App.vue'],
+  // empty dotted `lang.`, non-ext `lang.bar`, dotted declaration `lang.d.ts` are hints but not JS exts - no lift
+  ['/src/App.vue?vue&type=script&lang.', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang.bar', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang.d.ts', '/src/App.vue'],
+  // percent-encoded uppercase lang value: URLSearchParams decodes `%53` to `S` AFTER the case-fold, so
+  // the lowercase must run post-decode (`lang=t%53` -> `ts`) or the JS lang is missed
+  ['/src/App.vue?vue&type=script&lang=t%53', '/src/App.vue.ts'],
+  // non-JS lang= or no lang= - return baseId unchanged (no synthesized extension)
+  ['/src/App.vue?vue&type=script&lang=scss', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=d.ts', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script', '/src/App.vue'],
+  ['/src/App.vue', '/src/App.vue'],
+  // empty SFC query (`?vue` framework marker only, no lang= at all) returns baseId as-is
+  ['/src/App.vue?vue', '/src/App.vue'],
+  // numeric-suffixed `lang=js2` must NOT match - `[cm]?[jt]sx?` rejects digits at the tail.
+  // the `(?:[#&]|$)` boundary further requires the lang value to end on `&`/`#`/EOL, so
+  // `js2` is rejected by both the alphabet and the boundary
+  ['/src/App.vue?vue&lang=js2', '/src/App.vue'],
+  // non-vue SFC framework (`.svelte`) with lang= - regex is framework-agnostic, only the
+  // `lang=<ext>` shape gates the match, so svelte gets the same lift behaviour as vue
+  ['/src/App.svelte?lang=ts', '/src/App.svelte.ts'],
+  ['/src/App.svelte?svelte&type=script&lang=tsx', '/src/App.svelte.tsx'],
+  // astro SFC with lang= - same framework-agnostic shape applies
+  ['/src/Page.astro?astro&type=script&lang=ts', '/src/Page.astro.ts'],
+  // substring guard: `xlang=` must not match - the `[&?]` prefix class demands a real
+  // separator before `lang=`, so `?xlang=ts` is rejected (no leading `&`/`?` to consume)
+  ['/src/App.vue?xlang=ts', '/src/App.vue'],
+  // author-cased `lang=TS` etc. - admission is case-insensitive (each query key + value is lowercased
+  // AFTER percent-decode) so mixed-case suffixes are accepted; the lifter emits the extension lowercased
+  // so oxc-parser's extension-based language inference resolves canonical `.ts` / `.tsx` parsers.
+  // case-sensitive matching would leave the bare `.vue` baseId and oxc would silently reject TS-only
+  // syntax in the SFC script body
+  ['/src/App.vue?vue&type=script&lang=TS', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=Tsx', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=MTS', '/src/App.vue.mts'],
+  ['/src/App.vue?vue&type=script&lang=JSX', '/src/App.vue.jsx'],
+  ['/src/App.vue?vue&type=script&lang=TS#L10', '/src/App.vue.ts'],
+  // a `lang=` that lives in the FRAGMENT (`#x?lang=ts`) is fragment text, not a query token - no lift
+  ['/src/App.vue#x?lang=ts', '/src/App.vue'],
+  // hash-only id (no query) - stripQueryHash drops `#L10`, no lang= match returns baseId
+  ['/src/App.vue#L10', '/src/App.vue'],
+  // repeated framework marker tokens - regex anchors on `lang=` so duplicate `vue&vue` doesn't
+  // affect the match; first `lang=` still wins
+  ['/src/App.vue?vue&vue&type=script&lang=ts', '/src/App.vue.ts'],
+  // whitespace around lang= or its value - regex demands a real separator before `lang=` and
+  // a `[jt]`-rooted alphabet at the value, so spaces always bail to baseId
+  ['/src/App.vue? lang=ts', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang= ts', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=ts ', '/src/App.vue'],
+  // empty extension `lang=` - alphabet requires at least one `[jt]` char, so bare equals sign
+  // falls through to baseId
+  ['/src/App.vue?vue&type=script&lang=', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=&type=script', '/src/App.vue'],
+  // multiple extension chars: `mjs` / `cjs` / `mts` already covered above; assert .mjs as the
+  // longest extension form lifts symmetrically
+  ['/src/App.vue?vue&type=script&lang=mjs#L1', '/src/App.vue.mjs'],
+  // Astro variants symmetric with Vue / Svelte coverage
+  ['/src/Page.astro?astro&type=script&lang=tsx', '/src/Page.astro.tsx'],
+  ['/src/Page.astro?astro&type=script&lang=mts', '/src/Page.astro.mts'],
+  ['/src/Page.astro?astro&type=script&lang=TS', '/src/Page.astro.ts'],
+  // Svelte symmetry
+  ['/src/Comp.svelte?svelte&type=script&lang=ts', '/src/Comp.svelte.ts'],
+  ['/src/Comp.svelte?svelte&type=script&lang=mts', '/src/Comp.svelte.mts'],
+  ['/src/Comp.svelte?svelte&type=script&lang=JSX', '/src/Comp.svelte.jsx'],
+];
+for (const [id, want] of liftSfcLangCases) {
+  check(`liftSfcLangSuffix/${ id }`, liftSfcLangSuffix(id), want);
+}
+
+// --- ref-block anchor vs a trailing comment separated by exotic whitespace ---
+
+// the anchor scan skips inter-token whitespace before a same-line trailing comment so the injected
+// `var _ref;` block lands AFTER that comment instead of splitting the import from it. the gap may be
+// any ES WhiteSpace - the two rows below feed one char per class boundary and assert the comment
+// still precedes the block; the line terminator row is the negative, where the scan MUST stop
+{
+  const GAPS = [
+    ['space', ' '],
+    ['tab', '\t'],
+    ['form feed', '\f'],
+    ['vertical tab', '\v'],
+    ['no-break space', '\u00A0'],
+    ['byte order mark', '\uFEFF'],
+    ['en quad', '\u2000'],
+  ];
+  // Static/global slots under a literal array wrapper keep their native reads.
+  // An ordinary global substitution still applies to the wrapper's source.
+  {
+    const source = 'let customZ, f; ([{ AggregateError: { customZ }, Iterator: { from: f } }] = [globalThis]);\n';
+    let out;
+    try {
+      out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+    } catch (error) {
+      out = `THROW ${ error.message }`;
+    }
+    check('destructure: array assignment retains both native constructor slots',
+      out.includes('AggregateError: { customZ }') && out.includes('Iterator: { from: f }') && out.includes('[_globalThis]'), true);
+    check('destructure: array assignment has no dedicated static extraction', out.includes('/iterator/from'), false);
+  }
+  for (const [label, gap] of GAPS) {
+    const source = `import x from "y";${ gap }// keep\nexport const r = [...x].at(0);\n`;
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+    const comment = out.indexOf('// keep');
+    const refBlock = out.indexOf('var _ref');
+    check(`import-injector: trailing comment keeps its import across a ${ label }`,
+      comment !== -1 && refBlock !== -1 && comment < refBlock, true);
+  }
+  // a LINE TERMINATOR is not inter-token whitespace here: the comment belongs to the next line, so
+  // the block anchors before it
+  for (const [label, gap] of [['newline', '\n'], ['line separator', '\u2028']]) {
+    const source = `import x from "y";${ gap }// next line\nexport const r = [...x].at(0);\n`;
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+    check(`import-injector: a ${ label } ends the anchor scan`,
+      out.indexOf('var _ref') < out.indexOf('// next line'), true);
+  }
+}
+
+// --- user ternary of the guard spelling is a source read, not our render ---
+// the emitter stands a call-rooted fold down inside the guard TEST it rendered - that nav is the
+// read the render performs. a USER ternary of the same spelling (`null == <nav> ? void 0 : ...`)
+// is not that render, so its test keeps the fold every other source read takes: the babel leg's
+// bytes, where standing down left the test reading a hop the alternate had already folded away
+function checkUserGuardTernaryKeepsItsFold() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const CASES = [
+    ['plain call root', 'null == f().self.window ? void 0 : f().self.window.customUserSlot',
+      'null == _self.window ? void 0 : _self.customUserSlot'],
+    ['optional call root', 'null == f()?.self.window ? void 0 : f().self.window.customUserSlot',
+      'null == _self.window ? void 0 : _self.customUserSlot'],
+    ['reversed operands over an optional hop', 'f().self?.window == null ? void 0 : f().self.window.customUserSlot',
+      '_self?.window == null ? void 0 : _self.customUserSlot'],
+  ];
+  for (const [label, expression, expected] of CASES) {
+    const source = `const f = () => globalThis;\nexport const a = ${ expression };\n`;
+    const out = plugin.transform(source, '/p.mjs')?.code ?? '';
+    check(`user guard ternary: ${ label } keeps the test's own fold`, out.includes(expected), true);
+  }
+}
+checkUserGuardTernaryKeepsItsFold();
+
+// --- isTopLevelImportLike: paren / sequence-wrapped require ---
+// a top-level `require('m')` counts as an import-like statement so `var _ref;` lands after it.
+// the callee is peeled of skippable wrappers first, so a parenthesized or comma-sequence
+// `require` (minifier / bundler output like `(0, require)('m')`) is still recognized
+function checkIsTopLevelImportLikeWrappedRequire() {
+  function stmtOf(src) {
+    return programOf(src, 'script').body[0];
+  }
+  check('isTopLevelImportLike/bare require', isTopLevelImportLike(stmtOf("require('m');")), true);
+  check('isTopLevelImportLike/paren-wrapped require', isTopLevelImportLike(stmtOf("(require)('m');")), true);
+  check('isTopLevelImportLike/sequence-wrapped require', isTopLevelImportLike(stmtOf("(0, require)('m');")), true);
+  check('isTopLevelImportLike/var require', isTopLevelImportLike(stmtOf("var m = require('m');")), true);
+  check('isTopLevelImportLike/var paren-wrapped require', isTopLevelImportLike(stmtOf("var m = (0, require)('m');")), true);
+  // a non-require call is not import-like
+  check('isTopLevelImportLike/plain call not import', isTopLevelImportLike(stmtOf('foo();')), false);
+}
+checkIsTopLevelImportLikeWrappedRequire();
+
+// --- transform parse-error path ---
+// fatal parse errors return null + emit a `this.warn(...)` describing the failure so the
+// user identifies the file. oxc-parser is forgiving and returns an `errors` array rather
+// than throwing, so the plugin filters severity:'Error' explicitly. message must carry
+// source location (codeframe baked-in `line:col` pointer) so the user can fix the source
+// from the warn alone - bare `Unexpected token` without coordinates is unactionable
+function checkTransformParseErrorReturnsNullAndWarns() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let warned = '';
+  const result = plugin.transform.call(
+    { warn: msg => { warned = msg; } },
+    'class { method( ',
+    '/syntax-error.mjs',
+  );
+  check('transform/parse-error returns null', result, null);
+  check('transform/parse-error emits warn with `[core-js]` prefix',
+    warned.startsWith('[core-js]') && warned.includes('/syntax-error.mjs'), true);
+  // codeframe carries `,-[<id>:<line>:<col>]` and an ASCII pointer to the failing
+  // token. presence of the bracketed id-line-col marker confirms location was surfaced
+  check('transform/parse-error warn includes source location',
+    /\/syntax-error\.mjs:\d+:\d+/.test(warned), true);
+  check('transform/parse-error warn includes codeframe pointer',
+    warned.includes('class { method('), true);
+}
+checkTransformParseErrorReturnsNullAndWarns();
+
+// bundler-less callers (esbuild post-resolve adapter, bun, direct callers without a `warn`
+// hook) must NOT silently drop the file with `return null` - that hides the broken source
+// downstream. plugin throws a tagged error so the breadcrumb propagates instead
+function checkTransformParseErrorThrowsWhenNoWarn() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let thrown = null;
+  try {
+    plugin.transform.call({}, 'class { method( ', '/no-warn.mjs');
+  } catch (error) {
+    thrown = error;
+  }
+  check('transform/parse-error throws when no warn callback', thrown instanceof Error, true);
+  // runTransform's outer catch stamps `[core-js] [<id>]` via tagError; inner message body
+  // says `could not parse: <oxc error>` so the two prefixes don't double up
+  check('transform/parse-error thrown msg carries core-js tag with file id',
+    thrown?.message?.startsWith('[core-js] [/no-warn.mjs]'), true);
+  check('transform/parse-error thrown msg includes source location',
+    /\/no-warn\.mjs:\d+:\d+/.test(thrown?.message ?? ''), true);
+  // `warn` field on `this` set to a non-function (object / null / number) must take the
+  // same throw path - the runtime guard is `typeof === 'function'`, not truthy/defined
+  let thrown2 = null;
+  try {
+    plugin.transform.call({ warn: 'not a function' }, 'class { method( ', '/bad-warn.mjs');
+  } catch (error) {
+    thrown2 = error;
+  }
+  check('transform/parse-error throws when warn is not a function',
+    thrown2 instanceof Error && thrown2.message.includes('/bad-warn.mjs'), true);
+}
+checkTransformParseErrorThrowsWhenNoWarn();
+
+// formatParseErrorForWarn labels-only fallback: oxc currently always emits codeframe, but
+// future versions might omit it for synthetic / degraded errors. helper must still build
+// an actionable message from labels + label.message + helpMessage. test with a
+// synthetic error shape (no codeframe) to lock the fallback path
+function checkFormatParseErrorLabelsFallback() {
+  const code = 'const x =\nfoo(';
+  const syntheticError = {
+    severity: 'Error',
+    message: 'Synthetic test error',
+    labels: [{ message: 'expected expression', start: 10, end: 11 }],
+    helpMessage: 'add a value after `=`',
+    codeframe: null,
+  };
+  const warnMsg = formatParseErrorForWarn({ id: '/synthetic.mjs', error: syntheticError, code });
+  check('formatParseErrorForWarn/labels-fallback prefix',
+    warnMsg.startsWith('[core-js] could not parse /synthetic.mjs:'), true);
+  // offset 10 lands on line 2 (after the `\n` at offset 9), column 1 (start of `foo`)
+  check('formatParseErrorForWarn/labels-fallback at line:col', warnMsg.includes('at 2:1'), true);
+  check('formatParseErrorForWarn/labels-fallback label.message',
+    warnMsg.includes('expected expression'), true);
+  check('formatParseErrorForWarn/labels-fallback helpMessage',
+    warnMsg.includes('add a value after `=`'), true);
+  // throw-path variant strips the explicit `[core-js]` prefix because runTransform's catch
+  // re-stamps `[core-js] [<id>]` via tagError - double-prefixing would be noisy
+  const throwMsg = formatParseErrorForThrow({ error: syntheticError, code });
+  check('formatParseErrorForThrow/no `[core-js]` prefix',
+    throwMsg.startsWith('could not parse:'), true);
+  // missing helpMessage and missing label.message both degrade gracefully - presence of
+  // line:col alone is enough for the user to find the broken span
+  const minimal = formatParseErrorForWarn({
+    id: '/min.mjs',
+    error: {
+      severity: 'Error',
+      message: 'Unexpected token',
+      labels: [{ message: null, start: 0, end: 1 }],
+      helpMessage: null,
+      codeframe: null,
+    },
+    code: 'x',
+  });
+  check('formatParseErrorForWarn/minimal labels has line:col',
+    /at \d+:\d+/.test(minimal), true);
+  check('formatParseErrorForWarn/minimal labels no null str',
+    !minimal.includes('null'), true);
+  // codeframe present -> labels path skipped entirely (codeframe already carries line:col)
+  const withFrame = formatParseErrorForWarn({
+    id: '/frame.mjs',
+    error: {
+      severity: 'Error',
+      message: 'Boom',
+      labels: [{ message: 'label noise', start: 0, end: 1 }],
+      helpMessage: null,
+      codeframe: '  x Boom\n   ,-[/frame.mjs:1:1]\n',
+    },
+    code: 'x',
+  });
+  check('formatParseErrorForWarn/codeframe wins over labels',
+    withFrame.includes('[/frame.mjs:1:1]') && !withFrame.includes('label noise'), true);
+}
+checkFormatParseErrorLabelsFallback();
+
+// --- parse-error message degradation paths ---
+// no codeframe AND no labels: helper must still emit a usable head from `error.message`;
+// silently swallowing the diagnostic would hide the broken file from the user
+function checkFormatParseErrorNoCodeframeNoLabels() {
+  const warnOut = formatParseErrorForWarn({
+    id: '/bare.mjs',
+    error: { severity: 'Error', message: 'Bare oxc failure', labels: null, helpMessage: null, codeframe: null },
+    code: 'x',
+  });
+  check('formatParseErrorForWarn/bare starts with prefix',
+    warnOut.startsWith('[core-js] could not parse /bare.mjs: Bare oxc failure'), true);
+  check('formatParseErrorForWarn/bare carries no location chunk',
+    !warnOut.includes('\nat ') && !warnOut.includes('null'), true);
+
+  const throwOut = formatParseErrorForThrow({
+    error: { severity: 'Error', message: 'Bare oxc failure', labels: undefined, codeframe: undefined },
+    code: 'x',
+  });
+  check('formatParseErrorForThrow/bare head only', throwOut, 'could not parse: Bare oxc failure');
+}
+checkFormatParseErrorNoCodeframeNoLabels();
+
+// helpMessage with neither codeframe nor labels: tail still attaches to head separated by `\n`
+// so the suggestion ("did you mean `function*`?") reaches the user even on degraded shapes
+function checkFormatParseErrorHelpMessageAttachesWithoutLocation() {
+  const msg = formatParseErrorForWarn({
+    id: '/help-only.mjs',
+    error: {
+      severity: 'Error',
+      message: 'Unexpected token',
+      labels: null,
+      helpMessage: 'try removing the trailing comma',
+      codeframe: null,
+    },
+    code: 'x,',
+  });
+  const [head, tail] = msg.split('\n', 2);
+  check('formatParseErrorForWarn/help-only head',
+    head.startsWith('[core-js] could not parse /help-only.mjs: Unexpected token'), true);
+  check('formatParseErrorForWarn/help-only tail equals helpMessage', tail, 'try removing the trailing comma');
+}
+checkFormatParseErrorHelpMessageAttachesWithoutLocation();
+
+// --- formatLabelLocation edge cases ---
+// guards: integer-only offset; null / negative / non-integer / past-EOF -> null so the caller
+// drops the `at line:col` chunk instead of emitting a junk `at NaN:NaN`
+function checkFormatLabelLocationEdgeCases() {
+  // start=0 -> first char, line 1 column 1
+  check('formatLabelLocation/start=0 first char',
+    formatLabelLocation({ start: 0 }, 'abc\ndef'), '1:1');
+  // start past LF terminator -> line 2 column 1
+  check('formatLabelLocation/past LF line 2 col 1',
+    formatLabelLocation({ start: 4 }, 'abc\ndef'), '2:1');
+  // start at EOF (offset === code.length) -> still valid, snaps to final line tail
+  check('formatLabelLocation/start at EOF valid', formatLabelLocation({ start: 7 }, 'abc\ndef'), '2:4');
+  // empty source + start=0 -> 1:1 (only-line entry covers offset 0)
+  check('formatLabelLocation/empty source start 0', formatLabelLocation({ start: 0 }, ''), '1:1');
+  // null / undefined / negative / non-integer / past-EOF -> null
+  check('formatLabelLocation/null start', formatLabelLocation({ start: null }, 'abc'), null);
+  check('formatLabelLocation/undefined start', formatLabelLocation({ start: undefined }, 'abc'), null);
+  check('formatLabelLocation/negative start', formatLabelLocation({ start: -1 }, 'abc'), null);
+  check('formatLabelLocation/past EOF start', formatLabelLocation({ start: 10 }, 'abc'), null);
+  check('formatLabelLocation/fractional start', formatLabelLocation({ start: 1.5 }, 'abc'), null);
+  // label without `start` (missing key) -> null
+  check('formatLabelLocation/missing start key', formatLabelLocation({}, 'abc'), null);
+  // CRLF line endings: column reflects post-newline reset on line 2
+  check('formatLabelLocation/CRLF line 2 col 1',
+    formatLabelLocation({ start: 5 }, 'abc\r\ndef'), '2:1');
+  // U+2028 ES line separator advances the line counter the same as LF. literal source
+  // escape sequences are forbidden by `es/no-json-superset`; build via `String.fromCharCode`
+  const ls2028 = String.fromCharCode(0x2028);
+  check('formatLabelLocation/U+2028 line 2',
+    formatLabelLocation({ start: 4 }, `abc${ ls2028 }def`), '2:1');
+}
+checkFormatLabelLocationEdgeCases();
+
+// --- parse-error path: SFC virtual id surfaces lifted suffix ---
+// Vue/Astro/Svelte SFC virtual ids embed the language in the query (`?vue&type=script&lang=ts`).
+// `liftSfcLangSuffix` recovers it onto a synthesized extension (`App.vue.ts`) before parsing.
+// the warn message MUST carry the lifted id so the user sees the real source file with its
+// extension, not the bare virtual path
+function checkTransformParseErrorSfcLiftedSuffix() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let warned = '';
+  const result = plugin.transform.call(
+    { warn: msg => { warned = msg; } },
+    'class { method( ',
+    '/src/App.vue?vue&type=script&lang=ts',
+  );
+  check('transform/sfc parse-error returns null', result, null);
+  // warn surfaces the ORIGINAL id (full query) so the user can map back to their source file
+  check('transform/sfc parse-error warn carries original SFC id',
+    warned.includes('/src/App.vue?vue&type=script&lang=ts'), true);
+  // codeframe references the LIFTED id (`App.vue.ts`) - oxc-parser sees the synthesized path
+  // and bakes it into the codeframe pointer, so the user can correlate the location chunk
+  // with the SFC sub-block's effective language
+  check('transform/sfc parse-error codeframe references lifted suffix',
+    /App\.vue\.ts:\d+:\d+/.test(warned), true);
+}
+checkTransformParseErrorSfcLiftedSuffix();
+
+// --- parse-error path: empty source ---
+// empty file with a `warn` hook returns null without emitting a warn (oxc accepts empty input).
+// no-warn variant likewise returns null - empty source has no fatal errors to throw on
+function checkTransformParseErrorEmptySource() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let warned = '';
+  const result = plugin.transform.call(
+    { warn: msg => { warned = msg; } },
+    '',
+    '/empty.mjs',
+  );
+  check('transform/empty source returns null', result, null);
+  check('transform/empty source emits no warn', warned, '');
+  // no-warn path: empty input is well-formed so the throw branch never fires
+  let thrown = null;
+  try {
+    plugin.transform.call({}, '', '/empty-nowarn.mjs');
+  } catch (error) {
+    thrown = error;
+  }
+  check('transform/empty source no-warn does not throw', thrown, null);
+}
+checkTransformParseErrorEmptySource();
+
+// --- pre+post: usage-global post map keeps sourcesContent ---
+// the post pass omits sourcesContent only when it CHAINS through a pre pass that already emitted
+// a content-bearing map. a usage-global pre is detection-only (no source rewrite -> no map), so
+// post must still emit sourcesContent itself - otherwise the map references the file with no
+// inline content and devtools can't show the original source
+function checkPrePostUsageGlobalSourcesContent() {
+  const source = 'Promise.resolve(1);\n';
+  const id = '/src/pre-post-content.js';
+  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+  plugin.transform(source, id, 'pre'); // detection-only pre: stores a no-rewrite snapshot
+  const post = plugin.transform(source, id, 'post');
+  if (!post?.map) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('prePost/post emitted map') } :: missing map`;
+    return;
+  }
+  check('prePost/usage-global post injected polyfill', /core-js\/modules\/es\.promise/.test(post.code), true);
+  check('prePost/usage-global post map includes sourcesContent', !!post.map.sourcesContent?.[0], true);
+  check('prePost/sourcesContent is the original source', post.map.sourcesContent?.[0], source);
+}
+checkPrePostUsageGlobalSourcesContent();
+
+// `absoluteImports` spells every injected import as a RESOLVED FILE PATH, and the post pass has to
+// recognise what pre wrote there - a scan that reads its own spelling as foreign redeclares the
+// same binding and the build dies on `Identifier has already been declared`
+function checkPrePostAbsoluteImportsNoDuplicate() {
+  const source = 'export const r = [1].at(0);\n';
+  const id = '/src/pre-post-absolute.js';
+  const plugin = createPlugin({
+    method: 'usage-pure', version: '4.0', targets: { ie: 11 }, absoluteImports: true,
+  });
+  const pre = plugin.transform(source, id, 'pre');
+  const post = plugin.transform(pre?.code ?? source, id, 'post');
+  const names = (post?.code ?? pre?.code ?? source).matchAll(/^import (?<local>\w+)/gm)
+    .map(m => m.groups.local).toArray();
+  check('prePost/absoluteImports declares each import once', names.length, new Set(names).size);
+  check('prePost/absoluteImports still injects', names.length > 0, true);
+}
+checkPrePostAbsoluteImportsNoDuplicate();
+
+// --- pre+post: ctor-alias member reads survive the snapshot handoff end-to-end ---
+// the injector-level round-trip is unit-locked above (blind entries carried, per-binding
+// entries intentionally dropped - stale spans); this locks the TRANSFORM-level outcome the
+// handoff exists for: a usage-global pre detects the alias, the post pass still resolves the
+// member read through the carried hint for BOTH the declaration and the assignment form.
+// the usage-pure twin completes in pre (the alias and its read rewrite in the same pass), so
+// post is an idempotent pass-through - locked as the discriminating other branch
+function checkPrePostAliasMemberHandoff() {
+  const globalCases = [
+    ['decl-form', 'const { Map: M } = globalThis;\nexport const r = M.groupBy([1], x => x);\n'],
+    ['assignment-form', 'let M;\n({ Map: M } = globalThis);\nexport const r = M.groupBy([1], x => x);\n'],
+  ];
+  for (const [label, source] of globalCases) {
+    const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+    const pre = plugin.transform(source, '/src/prepost-alias.js', 'pre');
+    const post = plugin.transform(pre?.code ?? source, '/src/prepost-alias.js', 'post');
+    const out = post?.code ?? pre?.code ?? source;
+    check(`prePost/global alias ${ label } injects the member polyfill`,
+      /core-js\/modules\/es\.map\.group-by/.test(out), true);
+  }
+  const pureSource = 'const { Map: M } = globalThis;\nexport const r = typeof M.groupBy;\n';
+  const purePlugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const purePre = purePlugin.transform(pureSource, '/src/prepost-alias-pure.js', 'pre');
+  check('prePost/pure alias read narrows already in pre', /_Map\$groupBy/.test(purePre?.code ?? ''), true);
+  const purePost = purePlugin.transform(purePre?.code ?? pureSource, '/src/prepost-alias-pure.js', 'post');
+  const purePostCode = purePost?.code ?? purePre?.code ?? pureSource;
+  check('prePost/pure post is idempotent over the rewritten alias', /_Map\$groupBy/.test(purePostCode)
+    && !/_Map\$groupBy\$/.test(purePostCode), true);
+}
+checkPrePostAliasMemberHandoff();
+
+// A second pass must keep the raw read inside a guarded scalar default exactly once.
+// Its user fallback remains live, including after an earlier instance extraction.
+for (const importStyle of ['import', 'require']) for (const [label, source] of [
+  ['single', 'export function read(source) { let M = source; if (!M) M = Array; const { of: value = [9].at(0) } = M; return value; }'],
+  ['computed', 'let M = pickConstructor(); if (!M) M = Array; const key = "of"; const { [key]: value = [9].at(0) } = M; use(value);'],
+  ['after instance', 'export function read(source) { let M = source; if (!M) M = Array; '
+    + 'const { name: first, of: value = (M = {}, [9].at(0)), from: tail } = M; return [first, value, tail]; }'],
+  ['before native', 'export function read(source) { let M = source; if (!M) M = Array; let value, extra; return ({ of: value = (M = {}, 9), extra } = M); }'],
+  ['after native', 'export function read(source) { let M = source; if (!M) M = Array; let value, extra; return ({ extra = (M = {}, 9), of: value = 7 } = M); }'],
+]) {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle });
+  const first = plugin.transform(source, 'input.mjs')?.code ?? source;
+  const second = plugin.transform(first, 'input.mjs')?.code ?? first;
+  check(`guarded scalar default re-transform: ${ label } (${ importStyle })`, second, first);
+}
+
+// --- pre+post: a poisoned body-extract alias stays poisoned in post ---
+// pre judges the reassigned alias on its own tree; a sibling between the passes reprints the file
+// (a leading statement moves every position) and exposes reads pre never saw. post finds the alias
+// again and dispatches its call result generically, as a single pass does, while the readonly
+// alias of the same name keeps its narrow and a same-named parameter keeps its own flow
+function checkPrePostPoisonedAliasHandoff() {
+  const id = '/src/prepost-poison.mjs';
+  const source = [
+    'let from, rest;',
+    '({ from, ...rest } = Array);',
+    'from = function () { return "hello"; };',
+    'export const own = expose0(from);',
+    'export function sibling() { const { from, ...rest } = Array; return expose1(from); }',
+    'export function param(from) { from = () => "xy"; return expose2(from); }',
+  ].join('\n');
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const pre = plugin.transform(source, id, 'pre')?.code ?? source;
+  const exposed = `const shift = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];\n${ pre.replace('expose0(from)', 'from([]).at(0)')
+    .replace('expose1(from)', 'from([7]).at(-1)').replace('expose2(from)', 'from("xy").at(0)') }`;
+  const out = plugin.transform(exposed, id, 'post')?.code ?? '';
+  check('prePost/poisoned alias keeps the generic dispatch', /own = _at\(_ref = from\(\[\]\)\)/.test(out), true);
+  check('prePost/readonly same-named alias keeps its narrow', /_atMaybeArray\(_ref\d* = from\(\[7\]\)\)/.test(out), true);
+  check('prePost/same-named parameter keeps its own flow', /_atMaybeString\(_ref\d* = from\("xy"\)\)/.test(out), true);
+}
+checkPrePostPoisonedAliasHandoff();
+
+// --- collapseWhitespace: the cross-plugin comparator's lexer ---
+// the comparator must DISCRIMINATE real divergences inside/after regex and template literals
+// (the old quote-toggle scanner fused a regex quote into a phantom string and mis-closed
+// nested templates - false PASS) while staying whitespace-insensitive outside literals
+function checkCollapseWhitespaceLexer() {
+  const cw = collapseWhitespace;
+  check('collapse/regex quote discriminates suffix',
+    cw('const r = /a"b/; f(1);') !== cw('const r = /a"b/; f(2);'), true);
+  check('collapse/regex literal keeps its inner space', cw('const r = /a b/;').includes('/a b/'), true);
+  /* eslint-disable no-template-curly-in-string -- template lexing is the case under test */
+  check('collapse/nested template discriminates code after it',
+    cw('tag`a${ inner`x` }b`; f(1);') !== cw('tag`a${ inner`x` }b`; f(2);'), true);
+  check('collapse/substitution collapses, literal chunks kept',
+    cw('`a  b${ x  +  1 }c  d`'), '`a  b${x+1}c  d`');
+  /* eslint-enable no-template-curly-in-string -- end of the lexed-template block */
+  check('collapse/whitespace-only difference equal', cw('const  a\n=\n1;'), cw('const a = 1;'));
+  check('collapse/division is not a regex', cw('const q = a / b / c;'), 'const q=a/b/c;');
+  check('collapse/word-boundary space preserved', cw('const from = 1;'), 'const from=1;');
+  check('collapse/comment apostrophe does not open a string',
+    cw("// don't\nf(1);"), cw('f(1);'));
+}
+checkCollapseWhitespaceLexer();
+
+// the discriminating other branch: a usage-pure pre REWRITES the source (`Array.from` -> pure
+// helper) and emits a content-bearing map, so post must CHAIN through it and OMIT its own
+// sourcesContent (re-emitting would duplicate the content the build composes from pre's map).
+// pins that the inheritedPreRewrote flag correctly separates the two pre kinds
+function checkPrePostUsagePureOmitsSourcesContent() {
+  const source = 'const r = Array.from([1]);\n';
+  const id = '/src/pure-prepost-content.js';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const pre = plugin.transform(source, id, 'pre'); // pure pre rewrites + emits a content-bearing map
+  check('prePost/usage-pure pre rewrote the source', pre?.code !== undefined && pre.code !== source, true);
+  const post = plugin.transform(source, id, 'post');
+  if (!post?.map) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('prePost/pure post emitted map') } :: missing map`;
+    return;
+  }
+  check('prePost/usage-pure post chains -> omits sourcesContent', !post.map.sourcesContent?.[0], true);
+}
+checkPrePostUsagePureOmitsSourcesContent();
+
+// --- ORPHAN_REF_PATTERN ---
+// matches plugin-emitted refs (`_ref`, `_ref2`, `_ref3`, ...) but rejects `_ref0`/`_ref1`
+// which user-code may use; the plugin never emits these (skip-1 babel UID convention)
+check('ORPHAN_REF/bare', ORPHAN_REF_PATTERN.test('_ref'), true);
+check('ORPHAN_REF/_ref2', ORPHAN_REF_PATTERN.test('_ref2'), true);
+check('ORPHAN_REF/_ref10', ORPHAN_REF_PATTERN.test('_ref10'), true);
+check('ORPHAN_REF/_ref0', ORPHAN_REF_PATTERN.test('_ref0'), false);
+check('ORPHAN_REF/_ref1', ORPHAN_REF_PATTERN.test('_ref1'), false);
+check('ORPHAN_REF/_ref01', ORPHAN_REF_PATTERN.test('_ref01'), false);
+check('ORPHAN_REF/_ref09', ORPHAN_REF_PATTERN.test('_ref09'), false);
+check('ORPHAN_REF/_refX', ORPHAN_REF_PATTERN.test('_refX'), false);
+check('ORPHAN_REF/empty', ORPHAN_REF_PATTERN.test(''), false);
+
+// --- adoptOrphanRefs respects flushedRefs across the snapshot round-trip ---
+
+// pre already printed `var _ref;` into its output; post re-discovers the name as an orphan
+// and must NOT redeclare it - the `#flushedRefs` skip in `adoptOrphanRefs` is the only
+// dedup between pre's printed decl and post's flush
+function checkAdoptOrphanRespectsFlushed() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', inherit: { flushedRefs: ['_ref'] } });
+  inj.adoptOrphanRefs(['_ref', '_ref2']);
+  const snap = inj.snapshot();
+  check('adoptOrphan/skips flushed', snap.refs.includes('_ref'), false);
+  check('adoptOrphan/adds new', snap.refs.includes('_ref2'), true);
+  check('adoptOrphan/flushed carried', snap.flushedRefs.includes('_ref'), true);
+}
+checkAdoptOrphanRespectsFlushed();
+
+// --- SnapshotCache key normalization ---
+// pre/post pair must round-trip across the SPELLING variants one pipeline emits for one module -
+// a Windows bundler switching between `\` and `/` between passes, a resolver adding or dropping a
+// scheme prefix. What it must NOT round-trip across is the query and the fragment: a dev server
+// runs its pipeline over `/dep.js` and `/dep.js?v=<hash>` as two modules and interleaves them, so
+// a key that folded them handed one module's snapshot to the other
+function checkSnapshotKeyNormalization() {
+  const cache = new SnapshotCache();
+  cache.store('/src/foo.js', { tag: 'A' });
+  check('SnapshotCache/query is identity', cache.take('/src/foo.js?v=1'), null);
+  cache.store('C:\\src\\bar.js', { tag: 'B' });
+  check('SnapshotCache/normalize backslash', cache.take('C:/src/bar.js')?.tag, 'B');
+  cache.store('/src/baz.js#anchor', { tag: 'C' });
+  check('SnapshotCache/hash is identity', cache.take('/src/baz.js'), null);
+  check('SnapshotCache/hash round-trips as itself', cache.take('/src/baz.js#anchor')?.tag, 'C');
+  check('SnapshotCache/take consumes', cache.take('/src/foo.js')?.tag, 'A');
+  check('SnapshotCache/take consumes for good', cache.take('/src/foo.js'), null);
+  // the HMR timestamp is the ONE noise parameter: it changes on every re-fire of the same logical
+  // module, so a pre whose post never ran must be overwritten by the next pre rather than accumulate
+  cache.store('/src/hmr.js?t=1000', { tag: 'hmr' });
+  check('SnapshotCache/HMR timestamp is noise', cache.take('/src/hmr.js?t=2000')?.tag, 'hmr');
+  cache.store('/src/hmr2.js?v=1&t=1000', { tag: 'hmr-v1' });
+  check('SnapshotCache/HMR timestamp beside an identity param', cache.take('/src/hmr2.js?v=1&t=2000')?.tag, 'hmr-v1');
+  check('SnapshotCache/a differing identity param still misses', cache.take('/src/hmr2.js?v=2&t=1000'), null);
+  // ... and only where its value is one: `?t=abc` is somebody's own parameter
+  cache.store('/src/own.js?t=abc', { tag: 'own-t' });
+  check('SnapshotCache/non-numeric t is identity', cache.take('/src/own.js?t=xyz'), null);
+  check('SnapshotCache/non-numeric t round-trips', cache.take('/src/own.js?t=abc')?.tag, 'own-t');
+  // one plugin instance serves several environments over the same id, each its own pipeline
+  cache.store('/src/env.js', { tag: 'client' }, '');
+  cache.store('/src/env.js', { tag: 'ssr' }, 'ssr');
+  check('SnapshotCache/environments do not collide', cache.take('/src/env.js', 'ssr')?.tag, 'ssr');
+  check('SnapshotCache/default environment kept its own', cache.take('/src/env.js')?.tag, 'client');
+  // Vite dev-server: pre may see `file:///abs/foo.js`, post may see `/@fs/abs/foo.js`
+  cache.store('file:///abs/foo.js', { tag: 'D' });
+  check('SnapshotCache/file:// <-> /@fs', cache.take('/@fs/abs/foo.js')?.tag, 'D');
+  cache.store('/@fs/abs/bar.js', { tag: 'E' });
+  check('SnapshotCache//@fs <-> file://', cache.take('file:///abs/bar.js')?.tag, 'E');
+  // multi-slash collapse: bundler path-join quirk produces `pkg//sub/foo`
+  cache.store('core-js-pure//full/foo.js', { tag: 'F' });
+  check('SnapshotCache/collapse repeated slashes', cache.take('core-js-pure/full/foo.js')?.tag, 'F');
+  // SFC sub-block queries are block selectors - distinct setup/type/lang combinations must
+  // resolve to different keys, otherwise the later write clobbers the former's snapshot
+  cache.store('/src/App.vue?vue&type=script', { tag: 'sfc-plain' });
+  cache.store('/src/App.vue?vue&type=script&setup=true', { tag: 'sfc-setup' });
+  check('SnapshotCache/sfc type=script', cache.take('/src/App.vue?vue&type=script')?.tag, 'sfc-plain');
+  check('SnapshotCache/sfc setup=true', cache.take('/src/App.vue?vue&type=script&setup=true')?.tag, 'sfc-setup');
+  cache.store('/src/Page.astro?astro&type=script', { tag: 'astro-plain' });
+  cache.store('/src/Page.astro?astro&type=script&lang=ts', { tag: 'astro-ts' });
+  check('SnapshotCache/astro plain', cache.take('/src/Page.astro?astro&type=script')?.tag, 'astro-plain');
+  check('SnapshotCache/astro lang=ts', cache.take('/src/Page.astro?astro&type=script&lang=ts')?.tag, 'astro-ts');
+  // framework marker at the very END of the query, followed by a `#L<n>` sourcemap suffix: the marker
+  // must still register so two such sub-blocks of one file keep DISTINCT keys instead of both collapsing
+  // to the stripped-path key (which would clobber the first snapshot). a raw scan whose marker boundary
+  // excluded `#` missed a marker pinned between `&` and `#`
+  cache.store('/src/App.vue?type=script&vue#L1', { tag: 'tail-marker-script' });
+  cache.store('/src/App.vue?type=template&vue#L2', { tag: 'tail-marker-template' });
+  check('SnapshotCache/tail marker + hash script distinct', cache.take('/src/App.vue?type=script&vue#L1')?.tag, 'tail-marker-script');
+  check('SnapshotCache/tail marker + hash template distinct', cache.take('/src/App.vue?type=template&vue#L2')?.tag, 'tail-marker-template');
+  // detection and key construction share ONE parse, so a sub-block whose query differs only in CASE or
+  // PERCENT-ENCODING between the pre and post passes still round-trips - the key inherits the lowercase +
+  // decode the detection predicate applies, instead of keeping raw bytes (`type=SCRIPT` <-> `type=script`,
+  // `%76%75%65` <-> `vue`). drive-letter case was already folded; the query is the dimension this closes
+  cache.store('/src/Case.vue?vue&type=SCRIPT&lang=TS', { tag: 'sfc-xcase' });
+  check('SnapshotCache/sfc query case canonical across passes',
+    cache.take('/src/Case.vue?vue&type=script&lang=ts')?.tag, 'sfc-xcase');
+  cache.store('/src/Enc.vue?%76%75%65&type=script', { tag: 'sfc-xenc' });
+  check('SnapshotCache/sfc query percent-encoding canonical across passes',
+    cache.take('/src/Enc.vue?vue&type=script')?.tag, 'sfc-xenc');
+  // percent-encoded UPPERCASE marker (`%56ue` -> `Vue`): the case-fold runs AFTER percent-decode, so the
+  // decoded `V` folds to `v` and the marker still registers - a pre-decode fold would leave `Vue`, miss
+  // the marker, and key on the bare path, breaking the round-trip with the plain `?vue` post-pass id
+  // Windows UNC prefixes embed `?` at index 2 - the HMR-timestamp strip must scan for the
+  // query past the prefix (shared offset with stripQueryHash). with a raw indexOf the strip
+  // consumed the REAL `?` together with a first-token `?t=N`, gluing the remaining query onto
+  // the path and diverging from the stored key
+  cache.store('//?/C:/src/App.vue?vue&type=script', { tag: 'unc-fwd' });
+  check('SnapshotCache/UNC forward + t= first token with tail',
+    cache.take('//?/C:/src/App.vue?t=123&vue&type=script')?.tag, 'unc-fwd');
+  cache.store('\\\\?\\C:\\src\\Bar.vue?vue&type=script', { tag: 'unc-bs' });
+  check('SnapshotCache/UNC backslash + t= appended',
+    cache.take('\\\\?\\C:\\src\\Bar.vue?vue&type=script&t=99')?.tag, 'unc-bs');
+  cache.store('//?/C:/src/plain.js', { tag: 'unc-bare' });
+  check('SnapshotCache/UNC + t= as the only query token',
+    cache.take('//?/C:/src/plain.js?t=5')?.tag, 'unc-bare');
+  cache.store('/src/NonUnc.vue?vue&type=script', { tag: 'nonunc' });
+  check('SnapshotCache/non-UNC t= first token control',
+    cache.take('/src/NonUnc.vue?t=123&vue&type=script')?.tag, 'nonunc');
+  cache.store('//?/C:/src/Frag.vue?vue&type=script#L5', { tag: 'unc-frag' });
+  check('SnapshotCache/UNC + fragment + t= first token',
+    cache.take('//?/C:/src/Frag.vue?t=7&vue&type=script#L5')?.tag, 'unc-frag');
+  cache.store('/src/Up.vue?%56ue&type=script', { tag: 'sfc-upenc' });
+  check('SnapshotCache/sfc percent-encoded uppercase marker canonical',
+    cache.take('/src/Up.vue?vue&type=script')?.tag, 'sfc-upenc');
+  // an in-HASH `?t=N` (after `#`) is opaque fragment text, NOT an HMR marker: stripping it (the old
+  // `indexOf('?')` matched the in-fragment `?`) collapsed two sub-blocks differing only in the fragment
+  cache.store('/src/Frag.vue?vue&type=script#L1?t=1', { tag: 'frag-a' });
+  cache.store('/src/Frag.vue?vue&type=script#L1?t=2', { tag: 'frag-b' });
+  check('SnapshotCache/in-hash query not HMR-stripped a', cache.take('/src/Frag.vue?vue&type=script#L1?t=1')?.tag, 'frag-a');
+  check('SnapshotCache/in-hash query not HMR-stripped b', cache.take('/src/Frag.vue?vue&type=script#L1?t=2')?.tag, 'frag-b');
+  // a decoded `&` in a param value must not merge with the `&` token join: the single param `a=b&c`
+  // (`a=b%26c`) and the two params `a=b` + `c` must key distinctly, not both re-serialize to `a=b&c&vue`
+  cache.store('/src/Amp.vue?vue&a=b%26c', { tag: 'enc-amp' });
+  cache.store('/src/Amp.vue?vue&a=b&c', { tag: 'two-param' });
+  check('SnapshotCache/decoded & no join collision a', cache.take('/src/Amp.vue?vue&a=b%26c')?.tag, 'enc-amp');
+  check('SnapshotCache/decoded & no join collision b', cache.take('/src/Amp.vue?vue&a=b&c')?.tag, 'two-param');
+  // dotted virtual-ext lang sub-blocks of one file (`&lang.ts` vs `&lang.tsx`) carry distinct queries, so
+  // their keys must differ - else the second snapshot clobbers the first as the framework marker alone
+  // would collapse both to the same key
+  cache.store('/src/Dot.vue?vue&type=script&lang.ts', { tag: 'dot-ts' });
+  cache.store('/src/Dot.vue?vue&type=script&lang.tsx', { tag: 'dot-tsx' });
+  check('SnapshotCache/dotted lang sub-block ts distinct', cache.take('/src/Dot.vue?vue&type=script&lang.ts')?.tag, 'dot-ts');
+  check('SnapshotCache/dotted lang sub-block tsx distinct', cache.take('/src/Dot.vue?vue&type=script&lang.tsx')?.tag, 'dot-tsx');
+  // a `?marker` that sits in a URL FRAGMENT (`#frag?vue&type=script`) is fragment text, not a query, so
+  // the id is NOT an SFC sub-block: it keys on its bare path like any non-sub-block id (detection and the
+  // key agree via the one parse, so no malformed `?#frag?...` sub-block key as the two-parser split emitted)
+  cache.store('/src/Frag.vue#frag?vue&type=script', { tag: 'frag-bare' });
+  check('SnapshotCache/fragment marker is not a sub-block query',
+    cache.take('/src/Frag.vue#frag?vue&type=script')?.tag, 'frag-bare');
+  check('SnapshotCache/fragment does not fold onto the bare path', cache.take('/src/Frag.vue'), null);
+  // Vite virtual module: `/@id/virtual:foo` must normalize to `virtual:foo` so pre/post
+  // pair round-trips when the resolver strips the prefix between passes
+  cache.store('/@id/virtual:mod', { tag: 'virt' });
+  check('SnapshotCache//@id/ prefix', cache.take('virtual:mod')?.tag, 'virt');
+  // case-insensitive prefix match - RFC 3986 allows upper-case URL schemes
+  cache.store('FILE:///abs/up.js', { tag: 'upper' });
+  check('SnapshotCache/uppercase FILE://', cache.take('/abs/up.js')?.tag, 'upper');
+  cache.store('/@FS/abs/up2.js', { tag: 'upper-fs' });
+  check('SnapshotCache/uppercase /@FS/', cache.take('/abs/up2.js')?.tag, 'upper-fs');
+  // composite scheme chain: `/@id/file:///abs/foo` carries two prefixes back-to-back. iterative
+  // strip collapses both, single-pass `replace` would leave residual `file:///abs/foo`
+  cache.store('/@id/file:///abs/composite.js', { tag: 'composite' });
+  check('SnapshotCache/composite /@id/+file://', cache.take('/abs/composite.js')?.tag, 'composite');
+  // HMR `?t=N` strip MUST NOT corrupt path-portion `&` chars. positional gate ensures
+  // leading-amp -> `?` swap fires only when the original first `?` was a `?t=` token.
+  // regression for greedy-amp-fix that previously rewrote any leading path `&` to `?`
+  cache.store('/dir&with/file.js', { tag: 'amp-path' });
+  check('SnapshotCache/HMR strip preserves path &', cache.take('/dir&with/file.js?t=1')?.tag, 'amp-path');
+  cache.store('/src&dir/App.vue?vue&type=script', { tag: 'amp-sfc' });
+  check('SnapshotCache/HMR + SFC preserves path &',
+    cache.take('/src&dir/App.vue?vue&type=script&t=1')?.tag, 'amp-sfc');
+  // legitimate HMR + extra query: `?t=1&Y=2` -> swap to `?Y=2`
+  cache.store('/foo.js?Y=2', { tag: 'hmr-tail' });
+  check('SnapshotCache/HMR strip first-token + & tail',
+    cache.take('/foo.js?t=1&Y=2')?.tag, 'hmr-tail');
+  // a path-portion `&t=N` with NO preceding `?` is literal text, not an HMR marker: it must NOT
+  // strip down to the bare path key (else a real `/proj/weird` snapshot is served for it)
+  cache.store('/proj/weird&t=123', { tag: 'amp-path-no-query' });
+  check('SnapshotCache/HMR path &t= without query != bare path key',
+    cache.take('/proj/weird')?.tag, undefined);
+  check('SnapshotCache/HMR keeps path &t= without query',
+    cache.take('/proj/weird&t=123')?.tag, 'amp-path-no-query');
+  // SFC sub-block query-parameter order normalization: `?vue&type=script&lang=ts` and
+  // `?vue&lang=ts&type=script` describe the same block; cache key must match regardless of
+  // bundler-emitted parameter order
+  cache.store('/src/Sort.vue?vue&type=script&lang=ts', { tag: 'sfc-sort' });
+  check('SnapshotCache/sfc tail param-order canonical',
+    cache.take('/src/Sort.vue?vue&lang=ts&type=script')?.tag, 'sfc-sort');
+  // invalidate fanout: changing an SFC source file drops the bare-path snapshot AND every
+  // sub-block entry (script / template / style) so a stale post-pass can't pick them up
+  cache.store('/src/Fan.vue', { tag: 'fan-bare' });
+  cache.store('/src/Fan.vue?vue&type=script', { tag: 'fan-script' });
+  cache.store('/src/Fan.vue?vue&type=template', { tag: 'fan-template' });
+  cache.invalidate('/src/Fan.vue');
+  check('SnapshotCache/invalidate fanout bare', cache.take('/src/Fan.vue'), null);
+  check('SnapshotCache/invalidate fanout script', cache.take('/src/Fan.vue?vue&type=script'), null);
+  check('SnapshotCache/invalidate fanout template', cache.take('/src/Fan.vue?vue&type=template'), null);
+  // Windows drive letter normalization through Vite scheme prefixes. after `/@fs/` strip
+  // the path becomes `/C:/src/foo.js`; drive-letter regex must match through the residual
+  // leading `/` so the lowercased canonical form aligns with bare `C:/src/foo.js` keys
+  cache.store('C:/win/proj.js', { tag: 'win-fs' });
+  check('SnapshotCache/win drive via /@fs/', cache.take('/@fs/C:/win/proj.js')?.tag, 'win-fs');
+  cache.store('C:/win/file.js', { tag: 'win-file' });
+  check('SnapshotCache/win drive via file:///', cache.take('file:///C:/win/file.js')?.tag, 'win-file');
+  // upper / lower drive letter must hash identically regardless of bundler-stage casing
+  cache.store('C:/win/case.js', { tag: 'win-case' });
+  check('SnapshotCache/win drive lower-case canonical', cache.take('c:/win/case.js')?.tag, 'win-case');
+  // drive-letter case mismatch BEHIND a scheme prefix: pre emits `/@fs/C:/...` (source case),
+  // post emits `/@fs/c:/...` (a stage that lowercased). the lowercase form must ALSO shed its
+  // residual leading `/` so both canonicalise to `c:/...` - else snapshot lost (dangling _ref)
+  cache.store('/@fs/C:/win/scheme-case.js', { tag: 'win-scheme-case' });
+  check('SnapshotCache/win drive scheme-prefixed case mismatch',
+    cache.take('/@fs/c:/win/scheme-case.js')?.tag, 'win-scheme-case');
+  // scheme-prefixed lowercase vs bare lowercase: one stage adds `/@fs/`, the other doesn't
+  cache.store('c:/win/scheme-bare.js', { tag: 'win-scheme-bare' });
+  check('SnapshotCache/win drive lowercase scheme vs bare',
+    cache.take('/@fs/c:/win/scheme-bare.js')?.tag, 'win-scheme-bare');
+  // composite scheme + Windows drive: `/@id/file:///C:/...` strips both prefixes and
+  // canonicalises drive case. UNC `\\?\C:\...` flows through the UNC stripper first
+  cache.store('C:/win/composite.js', { tag: 'win-composite' });
+  check('SnapshotCache/win drive via composite /@id/file://',
+    cache.take('/@id/file:///C:/win/composite.js')?.tag, 'win-composite');
+  cache.store('C:/win/unc.js', { tag: 'win-unc' });
+  check('SnapshotCache/win drive via UNC long-path', cache.take('\\\\?\\C:\\win\\unc.js')?.tag, 'win-unc');
+  // SFC sub-block on a Windows path: drive letter normalises in the path portion while the
+  // sorted SFC query tail is preserved so distinct sub-blocks keep distinct keys
+  cache.store('C:/win/View.vue?vue&type=script', { tag: 'win-sfc-script' });
+  check('SnapshotCache/win drive sfc sub-block',
+    cache.take('/@fs/C:/win/View.vue?vue&type=script')?.tag, 'win-sfc-script');
+  // marker-LESS SFC sub-blocks (admitted by shouldTransform via JS/TS `lang=` alone, no
+  // framework marker) of one file must keep DISTINCT keys - else the second pre's store
+  // overwrites the first at the shared stripped path key and post inherits the wrong imports
+  cache.store('/src/App.vue?type=script&lang=ts', { tag: 'sfc-markerless-a' });
+  check('SnapshotCache/marker-less SFC sub-block distinct key',
+    cache.take('/src/App.vue?type=script&setup=true&lang=ts'), null);
+  check('SnapshotCache/marker-less SFC same sub-block hits',
+    cache.take('/src/App.vue?type=script&lang=ts')?.tag, 'sfc-markerless-a');
+  // a generic `?lang=en` is no SFC sub-block, and it is identity all the same: an unrecognised
+  // parameter is a module the host distinguishes for reasons of its own
+  cache.store('/src/data.js?lang=en', { tag: 'generic-lang' });
+  check('SnapshotCache/an unrecognised param is identity', cache.take('/src/data.js?lang=fr'), null);
+  check('SnapshotCache/an unrecognised param round-trips', cache.take('/src/data.js?lang=en')?.tag, 'generic-lang');
+  // case-fold is scoped to the Windows DRIVE LETTER only - the rest of the path stays
+  // case-sensitive (on Linux `SRC` and `src` are different dirs). guards against an over-broad
+  // whole-path `.toLowerCase()` that would collide genuinely-distinct files on case-sensitive fs
+  cache.store('c:/src/keep-case.js', { tag: 'drive-only-fold' });
+  check('SnapshotCache/non-drive path segment stays case-sensitive',
+    cache.take('c:/SRC/keep-case.js'), null);
+  // recognized sub-block hash is preserved VERBATIM (sliced at the first `#`, never sorted): an
+  // in-hash query is NOT folded into the sortable pre-hash tokens. the `#z?b=1&a=2` vs `#z?a=2&b=1`
+  // pair would COLLIDE if the whole tail were sorted, so distinct keys here pin verbatim handling -
+  // guards against both hash-drop and whole-tail-sort regressions
+  cache.store('/src/Hash.vue?vue&type=script#z?b=1&a=2', { tag: 'hash-verbatim' });
+  check('SnapshotCache/in-hash query not sorted (verbatim, distinct)',
+    cache.take('/src/Hash.vue?vue&type=script#z?a=2&b=1'), null);
+  check('SnapshotCache/identical sub-block hash round-trips',
+    cache.take('/src/Hash.vue?vue&type=script#z?b=1&a=2')?.tag, 'hash-verbatim');
+  // `peek` leaves the entry intact: the post pass inspects the file for a disable-file directive
+  // before committing to `take()`, and a bail leaves the entry so a retry can still consume it
+  cache.store('/src/Peek.js', { snapshot: { tag: 'peeked' } });
+  check('SnapshotCache/peek returns snapshot', cache.peek('/src/Peek.js').snapshot?.tag, 'peeked');
+  check('SnapshotCache/peek non-destructive', cache.take('/src/Peek.js')?.snapshot?.tag, 'peeked');
+  check('SnapshotCache/peek then take consumes', cache.take('/src/Peek.js'), null);
+}
+checkSnapshotKeyNormalization();
+
+// --- patternToRegExp: alternation grouping ---
+// `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b).
+// wrapping pattern in `(?:...)` non-capturing group binds alternation to anchors uniformly:
+// `^(?:a|b)$` matches whole `a` OR whole `b`. without the group, user-supplied pattern
+// `'es.array.from|es.string.repeat'` matched `dummy.es.string.repeat` (ends-with) and
+// `es.array.from.dummy` (starts-with) - over-broad include/exclude
+function checkPatternAlternation() {
+  const re = patternToRegExp('es.array.from|es.string.repeat');
+  check('pattern/alternation matches first whole entry', re.test('es.array.from'), true);
+  check('pattern/alternation matches second whole entry', re.test('es.string.repeat'), true);
+  check('pattern/alternation rejects starts-with', re.test('es.array.from.dummy'), false);
+  check('pattern/alternation rejects ends-with', re.test('dummy.es.string.repeat'), false);
+}
+checkPatternAlternation();
+
+// --- SnapshotCache shared probe ---
+// per-test fresh cache: store under one id, query by another, report hit/miss. shared
+// helper across HMR / UNC / multi-timestamp / file-localhost suites so the normalization
+// pipeline is exercised through one consistent lookup pattern
+const sentinelEntry = { code: 'foo', map: null, ast: null, source: 'foo' };
+function probeSnapshotHit(storeId, takeId) {
+  const cache = new SnapshotCache();
+  cache.store(storeId, sentinelEntry);
+  return cache.take(takeId) !== null;
+}
+
+// --- SnapshotCache: Vite HMR `&t=<timestamp>` stripping ---
+// Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
+// timestamp, but the logical module is the same. snapshot lookup keyed by normalized id
+// (timestamp stripped) so pre->post lookup survives HMR. without the strip, post-pass
+// missed pre's snapshot and emitted duplicate `var _ref;` / re-allocated UIDs
+function checkSnapshotHMRTimestampStrip() {
+  check('snapshot/HMR &t= different timestamp finds same entry',
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=script&t=9999'), true);
+  check('snapshot/SFC sub-block query distinguishes',
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=template'), false);
+  check('snapshot/non-SFC ?t= strip',
+    probeSnapshotHit('/src/util.js?t=100', '/src/util.js?t=200'), true);
+  check('snapshot/bare ?t=N strips clean',
+    probeSnapshotHit('/src/x.js?t=1', '/src/x.js'), true);
+}
+checkSnapshotHMRTimestampStrip();
+
+// --- SnapshotCache: Windows UNC path normalization ---
+// `\\?\C:\src\App.vue` is Windows verbatim long-path prefix - same logical file as
+// `C:/src/App.vue` after path-mangling stages. without UNC strip, snapshot lookups
+// across pre->post (where mid-pipeline normalization may have run) miss
+function checkSnapshotWindowsUNC() {
+  // backslash UNC paired with forward-slash POSIX path (after normalize stage)
+  check('snapshot/UNC backslash matches forward-slash same path',
+    probeSnapshotHit('\\\\?\\C:\\src\\App.vue', 'C:/src/App.vue'), true);
+  // forward-slash UNC (Vite-normalized form) matches POSIX
+  check('snapshot/UNC forward-slash matches POSIX',
+    probeSnapshotHit('//?/C:/src/App.vue', 'C:/src/App.vue'), true);
+}
+checkSnapshotWindowsUNC();
+
+// --- SnapshotCache: per-file invalidation ---
+// `watchChange` hook on Vite/Rollup fires per-file edit. cache.invalidate(id) drops only
+// that file's entry (not the whole cache) so unrelated files keep their pre-snapshot state
+function checkSnapshotInvalidate() {
+  const cache = new SnapshotCache();
+  cache.store('/src/a.js', sentinelEntry);
+  cache.store('/src/b.js', sentinelEntry);
+  check('snapshot/invalidate returns true for existing entry', cache.invalidate('/src/a.js'), true);
+  check('snapshot/invalidate returns false for missing entry', cache.invalidate('/src/missing.js'), false);
+  check('snapshot/invalidate preserves siblings', cache.take('/src/b.js') !== null, true);
+  // path normalization carries through invalidate
+  cache.store('/src/c.js?vue&type=script&t=100', sentinelEntry);
+  cache.invalidate('/src/c.js?vue&type=script&t=999');
+  check('snapshot/invalidate normalizes HMR timestamp',
+    cache.take('/src/c.js?vue&type=script&t=1') !== null, false);
+}
+checkSnapshotInvalidate();
+
+// --- SnapshotCache: HMR multi-`?t=` re-fire chain ---
+// Vite HMR appending `?t=N` more than once (re-fire wrapping a previous wrapper) used to
+// leave a leftover `&t=N` in the key because the strip regex was non-global. with the
+// global flag plus post-strip cleanup the doubled marker collapses to a stable key
+function checkSnapshotHMRMultiTimestamp() {
+  check('snapshot/HMR ?t=1&t=2 multi-marker collapses',
+    probeSnapshotHit('/src/x.js?t=1&t=2', '/src/x.js'), true);
+  check('snapshot/HMR ?t=1&type=script preserves type',
+    probeSnapshotHit('/src/x.js?t=1&type=script', '/src/x.js?type=script'), true);
+  check('snapshot/HMR ?t=1&import preserves marker',
+    probeSnapshotHit('/src/x.js?t=1&import', '/src/x.js?import'), true);
+  check('snapshot/HMR ?type=script&t=1 strips trailing &t=',
+    probeSnapshotHit('/src/x.js?type=script&t=1', '/src/x.js?type=script'), true);
+  // triple `?t=N&t=N&t=N` chain - Vite re-fire wrapping multiple times leaves three
+  // markers; the global-flag strip plus post-strip cleanup chain must collapse all
+  check('snapshot/HMR triple ?t=1&t=2&t=3 collapses to bare',
+    probeSnapshotHit('/src/x.js?t=1&t=2&t=3', '/src/x.js'), true);
+  // hash component must be preserved across HMR strip - `?t=N#hash` keeps the hash
+  // intact (only the query token is stripped). hash-only re-fire (no `?` prefix) must
+  // also leave the key stable across the strip pipeline
+  check('snapshot/HMR ?t=1#hash preserves hash',
+    probeSnapshotHit('/src/x.js?t=1#L10', '/src/x.js#L10'), true);
+  // decimal timestamp `?t=N.M` - some bundlers emit fractional ms; integer-only `\d+`
+  // would leave the `.M` tail glued to the path, breaking lookup. boundary anchor
+  // `(?=[&#]|$)` prevents the regex from truncating path text when `?t=` is followed
+  // by something else (e.g. `?t=1.5/foo` should NOT match - real param value never
+  // contains `/`, but defensive)
+  check('snapshot/HMR ?t=1.5 decimal collapses to bare',
+    probeSnapshotHit('/src/x.js?t=1.5', '/src/x.js'), true);
+  check('snapshot/HMR ?t=1.5&import preserves marker',
+    probeSnapshotHit('/src/x.js?t=1.5&import', '/src/x.js?import'), true);
+  check('snapshot/HMR ?t=1.5#hash preserves hash',
+    probeSnapshotHit('/src/x.js?t=1.5#L10', '/src/x.js#L10'), true);
+  // the query is identity for every id (only a NUMERIC `t=` is dropped as HMR noise); these probe
+  // the regex shape directly. without SFC marker, `stripQueryHash` would strip the
+  // whole query downstream and mask any HMR-strip mistakes
+  check('snapshot/HMR SFC ?t=1.5 decimal in sub-block strips token',
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=1.5', '/src/App.vue?vue&type=script'), true);
+  check('snapshot/HMR SFC empty ?t= preserved (regex rejects)',
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=', '/src/App.vue?vue&type=script&t='), true);
+}
+checkSnapshotHMRMultiTimestamp();
+
+// --- SnapshotCache: file://localhost authority ---
+// some bundlers / Node URL helpers serialize file URLs with an explicit `localhost` host
+// per RFC 3986 instead of the canonical triple-slash form. without the optional host
+// segment in VITE_SCHEME_PREFIX_RE the prefix wouldn't strip and `file://localhost/...`
+// stayed distinct from `/...` -> snapshot lookup miss across pre+post pipelines that
+// normalize file URLs differently
+function checkSnapshotFileLocalhost() {
+  check('snapshot/file://localhost matches triple-slash form',
+    probeSnapshotHit('file://localhost/abs/foo.js', 'file:///abs/foo.js'), true);
+  check('snapshot/file://localhost matches bare path',
+    probeSnapshotHit('file://localhost/abs/foo.js', '/abs/foo.js'), true);
+  check('snapshot/FILE://LOCALHOST case-insensitive scheme',
+    probeSnapshotHit('FILE://LOCALHOST/abs/foo.js', '/abs/foo.js'), true);
+  // non-localhost authority MUST NOT strip - `file://otherhost/abs/foo.js` is a remote
+  // file URL whose authority is meaningful. stripping `file://` would collapse to
+  // `otherhost/abs/foo.js`, an entirely different path. regex `(?:localhost)?` is
+  // optional but must not match a stray hostname; the pattern is anchored after the
+  // `//` so non-`localhost` authorities pass through untouched
+  check('snapshot/file://otherhost authority rejected (different paths)',
+    probeSnapshotHit('file://otherhost/abs/foo.js', '/abs/foo.js'), false);
+  // four-slash file URL `file:////abs/path` (Windows-friendly absolute) - prefix strips
+  // the `file://`, leaves `//abs/path`, REPEATED_SLASHES_RE collapses to `/abs/path`
+  check('snapshot/file:/// quad-slash collapses via REPEATED_SLASHES_RE',
+    probeSnapshotHit('file:////abs/quad.js', '/abs/quad.js'), true);
+}
+checkSnapshotFileLocalhost();
+
+// --- skipDirectivePrologue: empty-string directive extends the prologue ---
+// an empty-string directive (`'';`) IS part of the prologue per the spec (any string-literal
+// statement extends it), so the scan advances past it - a following `'use strict'` stays an
+// active directive and the `var _ref;` / import insertion point lands AFTER the full prologue
+function checkSkipDirectivePrologueEmpty() {
+  const empty = { type: 'ExpressionStatement', directive: '', end: 5 };
+  const real = { type: 'ExpressionStatement', directive: 'use strict', end: 16 };
+  const laterEmpty = { type: 'ExpressionStatement', directive: '', end: 19 };
+  const expr = { type: 'ExpressionStatement', expression: { type: 'Identifier' }, end: 20 };
+  // empty `""` advances like any directive; non-directive breaks the scan and returns the
+  // last advanced end (or fallback if none seen yet)
+  check('skipDirectivePrologue/empty directive advances to its end',
+    skipDirectivePrologue([empty], 0), 5);
+  check('skipDirectivePrologue/use strict advances to its end',
+    skipDirectivePrologue([real], 0), 16);
+  check('skipDirectivePrologue/non-directive breaks scan',
+    skipDirectivePrologue([expr], 0), 0);
+  // mixed: real prologue first, then empty `""` keeps advancing through the full prologue
+  check('skipDirectivePrologue/real then empty advances past both',
+    skipDirectivePrologue([real, laterEmpty], 0), 19);
+  // mixed: real prologue first, then non-directive expression
+  check('skipDirectivePrologue/real then expression stops at real',
+    skipDirectivePrologue([real, expr], 0), 16);
+  // null/undefined statements list (defensive guard via `?? []`)
+  check('skipDirectivePrologue/missing statements list returns fallback',
+    skipDirectivePrologue(null, 7), 7);
+}
+checkSkipDirectivePrologueEmpty();
+
+// the DEFER (pre) pass must leave user core-js imports untouched: its emission is deferred
+// to post, so a destructive remove would strand the file import-less whenever the post pass
+// never lands (evicted snapshot / sibling bail / watch-mode re-run)
+function checkDeferPassKeepsUserImports() {
+  const src = 'import "core-js/modules/es.array.from.js";\nconst r = Array.from(x);\nuse(r);';
+  const opts = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  const twoPass = createPlugin(opts);
+  const preOut = twoPass.transform(src, '/defer-keep.mjs', 'pre')?.code ?? src;
+  check('defer/pre keeps the user global import', preOut.includes('es.array.from'), true);
+  const postOut = twoPass.transform(preOut, '/defer-keep.mjs', 'post')?.code ?? preOut;
+  check('defer/post converges to a single import', (postOut.match(/es\.array\.from/g) ?? []).length, 1);
+}
+checkDeferPassKeepsUserImports();
+
+// --- phase: pre+post pipeline pass-through ---
+// for `pass: 'pre'` the plugin processes and stores snapshot for the next pass. for
+// `pass: 'post'` (re-entered with same code), the plugin should converge to the same
+// result as single-pass because the state machine is idempotent given a stable input
+function checkPhasePipelinePassThrough() {
+  const code = 'export var v = arr?.at?.(0);\nexport var x = "test".at(-1);\nexport var m = new Map();';
+  {
+    const engine = 'ast';
+    const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+    const single = createPlugin(opts).transform(code, '/sm-phase.mjs');
+    // pre+post share one plugin instance. internal `runTransform` accepts pass: 'pre'/'post'/'single'
+    const twoPass = createPlugin(opts);
+    const preOut = twoPass.transform(code, '/sm-phase.mjs', 'pre');
+    // post receives pre's output as input, must produce stable result via snapshot lookup
+    const postOut = preOut?.code ? twoPass.transform(preOut.code, '/sm-phase.mjs', 'post') : preOut;
+    const final = postOut?.code ?? preOut?.code;
+    // imports must match (single source of truth for which polyfills are needed)
+    const singleImports = (single?.code ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+    const twoPassImports = (final ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+    check(`phase/pre+post imports match single (${ engine })`, twoPassImports, singleImports);
+  }
+}
+checkPhasePipelinePassThrough();
+
+// --- pre+post snapshot flow, engine axis ---
+// two cases only the SNAPSHOT can answer - post's own re-detection cannot: a sibling lowers
+// the usage into an undetectable spelling between passes (usage-global defers its imports to
+// post, so the pre-detected module arrives via the snapshot alone), and a sibling INJECTS new
+// polyfillable code between passes (post must rewrite it, dedup imports against pre's inline
+// ones, and mint refs that do not collide with pre's - the suffix state rides the snapshot)
+function checkPhaseSnapshotFlow() {
+  const engine = 'ast';
+  {
+    const globalOpts = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+    const lowered = createPlugin(globalOpts);
+    check(`phase/snapshot pre defers usage-global imports (${ engine })`,
+      lowered.transform('[1].flat();', '/sm-lowered.mjs', 'pre'), null);
+    const loweredOut = lowered.transform('lowFlat([1]);', '/sm-lowered.mjs', 'post')?.code ?? '';
+    check(`phase/snapshot carries pre-detected module past a lowering sibling (${ engine })`,
+      loweredOut.includes('es.array.flat'), true);
+
+    const pureOpts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+    const injected = createPlugin(pureOpts);
+    const pre = injected.transform('const v = getA().flat?.()?.at(0);\nuse(v);', '/sm-injected.mjs', 'pre');
+    const post = injected.transform(`${ pre.code }\nconst w = getB().flat?.()?.at(0);\nuse(w);`, '/sm-injected.mjs', 'post');
+    const out = post?.code ?? '';
+    const importLines = out.split('\n').filter(l => l.startsWith('import '));
+    check(`phase/sibling-injected usage rewritten in post (${ engine })`,
+      out.includes('use(w)') && !/getB\(\)\.flat\?\./.test(out), true);
+    check(`phase/post dedups imports against pre's inline ones (${ engine })`,
+      new Set(importLines).size === importLines.length && importLines.length > 0, true);
+    const declared = out.matchAll(/var (?<names>[\w ,]+);/g).flatMap(m => m.groups.names.split(', ')).toArray();
+    check(`phase/post refs do not collide with pre refs (${ engine })`,
+      declared.filter((name, i) => declared.indexOf(name) !== i).length, 0);
+
+    // an in-pattern opt-out must reach the post pass alive: the pre output re-anchors the
+    // directive to the rebuilt remainder statement (property-attached comments die in a
+    // sibling lowering between the passes; statement-leading ones survive)
+    const directive = createPlugin(pureOpts).transform(
+      'const {\n  Map: { groupBy },\n  // core-js-disable-next-line\n  Object: { groupBy: og },\n} = globalThis;\nuse(groupBy, og);',
+      '/sm-directive.mjs', 'pre');
+    check(`phase/pre keeps the opt-out statement-anchored (${ engine })`,
+      /\n\/\/ core-js-disable-next-line\nconst /.test(directive?.code ?? ''), true);
+    // ... and the statement anchor is the ONLY directive left: the hoisted statement is settled
+    // for the canon walk, so the in-pattern property owes no second one
+    function directiveCount(code) {
+      return (code?.match(/core-js-disable-next-line/g) ?? []).length;
+    }
+    check(`phase/pre hoists the in-pattern opt-out without a second anchor (${ engine })`, directiveCount(directive?.code), 1);
+    // ... and the trailing `-line` spelling re-anchors as the same leading form
+    const directiveLine = createPlugin(pureOpts).transform(
+      'const {\n  Map: { groupBy },\n  Object: { groupBy: og }, // core-js-disable-line\n} = globalThis;\nuse(groupBy, og);',
+      '/sm-directive-line.mjs', 'pre');
+    check(`phase/pre re-anchors a trailing -line opt-out too (${ engine })`,
+      /\n\/\/ core-js-disable-next-line\nconst /.test(directiveLine?.code ?? ''), true);
+    check(`phase/pre re-anchors a trailing -line opt-out once (${ engine })`, directiveCount(directiveLine?.code), 1);
+    // ... a `-line` in a block comment that closes LOWER covers the line it opens on - the same
+    // line the scan disables - so the hoist is anchored off that line, not off the closing one
+    const directiveBlock = createPlugin(pureOpts).transform(
+      'const {\n  Map: { groupBy },\n  Object: { groupBy: og }, /* note\n  core-js-disable-line */\n} = globalThis;\nuse(groupBy, og);',
+      '/sm-directive-block.mjs', 'pre');
+    check(`phase/pre re-anchors a block -line opt-out by the line it opens on (${ engine })`,
+      /\n\/\/ core-js-disable-next-line\nconst /.test(directiveBlock?.code ?? ''), true);
+    check(`phase/pre keeps the block -line opt-out off the claim (${ engine })`, /groupBy: og/.test(directiveBlock?.code ?? ''), true);
+    // a POSITIONED host - a statement no emission rebuilt - is adopted too: the in-pattern
+    // comment dies in the sibling lowering all the same, so pre re-anchors it even though
+    // the statement itself needed no rewrite (and, below, even when it is the file's ONLY
+    // core-js-relevant content - the directive alone is reason to transform)
+    const positionedSrc = 'const arr = [1];\nconst {\n  // core-js-disable-next-line\n  flat: f,\n} = arr;\nuse(f);\n';
+    for (const method of ['usage-pure', 'usage-global']) {
+      const positioned = createPlugin({ ...pureOpts, method }).transform(
+        `${ positionedSrc }[2].at(0);\n`, '/sm-directive-positioned.mjs', 'pre');
+      check(`phase/pre re-anchors a positioned-host opt-out (${ method }, ${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nconst \{/.test(positioned?.code ?? ''), true);
+      const soleDisabled = createPlugin({ ...pureOpts, method }).transform(
+        positionedSrc, '/sm-directive-sole.mjs', 'pre');
+      check(`phase/pre transforms for a sole disabled claim (${ method }, ${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nconst \{/.test(soleDisabled?.code ?? ''), true);
+      check(`phase/pre leads a positioned host once (${ method }, ${ engine })`, directiveCount(positioned?.code), 1);
+      check(`phase/pre leads a sole disabled claim once (${ method }, ${ engine })`, directiveCount(soleDisabled?.code), 1);
+    }
+
+    // the reprint lays the statements sharing a covered line one per line, so the pre output leads
+    // every one of them by its own directive - the author's moves into the deterministic channel
+    // verbatim, the rest take the canonical spelling - and post claims nothing more over it
+    for (const method of ['usage-pure', 'usage-global']) {
+      const siblingsSrc = 'use(x.at(1));\n// core-js-disable-next-line -- why\nuse(a.at(0)); use(b.flat());\n'
+        + 'use(c.includes(0)); use(d.fill(0)); // core-js-disable-line\n';
+      const siblings = createPlugin({ ...pureOpts, method });
+      const siblingsPre = siblings.transform(siblingsSrc, '/sm-directive-siblings.mjs', 'pre')?.code ?? siblingsSrc;
+      check(`phase/pre leads every covered statement (${ method }, ${ engine })`,
+        /\/\/ core-js-disable-next-line -- why\nuse\(a\.at\(0\)\);\n+\/\/ core-js-disable-next-line\nuse\(b\.flat\(\)\);\n/.test(siblingsPre)
+        && /\/\/ core-js-disable-next-line\nuse\(c\.includes\(0\)\);\n+\/\/ core-js-disable-next-line\nuse\(d\.fill\(0\)\); \/\/ core-js-disable-line/.test(siblingsPre),
+        true);
+      const siblingsPost = siblings.transform(siblingsPre, '/sm-directive-siblings.mjs', 'post')?.code ?? siblingsPre;
+      const postImports = siblingsPost.split('\n').filter(line => /^(?:import |var .*require\()/.test(line)).join('\n');
+      check(`phase/post keeps the live claim (${ method }, ${ engine })`, /\bat\b/.test(postImports), true);
+      check(`phase/post claims nothing the directives covered (${ method }, ${ engine })`, /fill|flat|includes/.test(postImports), false);
+    }
+    // a SOLE-prop chain hoists from any level: the opt-out on the inner leaf of `{ Object: {
+    // groupBy } }`, or on a multi-line sole outer prop, lands ahead of the statement as the only
+    // directive - inside the pattern babel's lowering between the passes would eat it
+    for (const [label, chainSrc] of [
+      ['inner leaf', 'const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: leafOptOut,\n  },\n} = globalThis;\nuse(leafOptOut, c.at(1));\n'],
+      ['multi-line outer prop', 'const {\n  // core-js-disable-next-line\n  Map: {\n    groupBy: hopOptOut,\n  },\n} = globalThis;\nuse(hopOptOut, c.at(1));\n'],
+    ]) {
+      const chainOut = createPlugin(pureOpts).transform(chainSrc, '/sm-directive-chain.mjs', 'pre')?.code ?? chainSrc;
+      check(`phase/pre hoists a sole-chain opt-out to the statement (${ label }, ${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nconst \{/.test(chainOut) && directiveCount(chainOut) === 1, true);
+    }
+    // the hoist lands where the print reaches: above `export` for an exported declaration, and
+    // not at all for a declaration a loop head hosts - there the directive stays inside the
+    // pattern (the canon's in-place anchor) instead of vanishing from an inline-printed head
+    {
+      const exportedSrc = 'export const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} = globalThis;\nuse(c.at(1));\n';
+      const exported = createPlugin(pureOpts).transform(exportedSrc, '/sm-directive-export.mjs', 'pre')?.code ?? '';
+      check(`phase/pre hoists an exported sole chain above the export (${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nexport const \{/.test(exported) && directiveCount(exported) === 1, true);
+      const forHeadSrc = 'for (const {\n  Object: {\n    // core-js-disable-next-line\n    groupBy: g,\n  },\n} of xs) use(g, c.at(1));\n';
+      const forHead = createPlugin(pureOpts).transform(forHeadSrc, '/sm-directive-for-head.mjs', 'pre')?.code ?? '';
+      check(`phase/pre keeps a loop-head opt-out inside the pattern (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*groupBy: g/.test(forHead) && directiveCount(forHead) === 1, true);
+    }
+    // the anchors are keyed by node and read off the RESTORED tree: a property of a PARAMETER
+    // pattern is blanked for the crawl and swapped back before the print, so an anchor computed
+    // against the blanked copy would never meet its node in the printer
+    {
+      const paramSrc = 'function f({\n  // core-js-disable-next-line\n  at, flat,\n  includes,\n}) { use(at, flat, includes); }\nuse(f, c.at(1));\n';
+      const paramOut = createPlugin(pureOpts).transform(paramSrc, '/sm-directive-param.mjs')?.code ?? paramSrc;
+      check(`single pass leads the second property of a parameter pattern (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*flat,/.test(paramOut), true);
+    }
+    // a single pass is a fixed point over its own output on the same shapes, members included
+    {
+      const membersSrc = '// core-js-disable-next-line\nuse(a.at(0)); use(b.flat());\nconst o = {\n  // core-js-disable-next-line\n'
+        + '  k: c.includes(0), j: d.fill(0),\n  m: e.with(0, 1),\n};\nuse(o, f.at(1));\n';
+      for (const method of ['usage-pure', 'usage-global']) {
+        const once = createPlugin({ ...pureOpts, method }).transform(membersSrc, '/sm-directive-fixed.mjs')?.code ?? membersSrc;
+        const twice = createPlugin({ ...pureOpts, method }).transform(once, '/sm-directive-fixed.mjs')?.code ?? once;
+        check(`single pass over its own output is a fixed point with directives (${ method }, ${ engine })`, twice, once);
+        check(`single pass leads the second object member (${ method }, ${ engine })`,
+          /\/\/ core-js-disable-next-line\n\s*j: d\.fill\(0\)/.test(once), true);
+      }
+    }
+
+    // a pass over our own output must not re-extract the SE-key sentinel (`{ [k]: _unusedN }`,
+    // no rest) as a live binding - the census adopts the computed-key form too, and the
+    // dispatchers' shared skip stands down (the file grew a fresh `_unusedN` per pass)
+    // the REQUIRE import style re-transforms to a fixpoint too: its pure bindings are
+    // `var _x = require(...)` declarators, recognized by the same censuses (an in-file
+    // `require` shadow keeps them opaque - the locked fixture's rule)
+    {
+      const reqOpts = { ...pureOpts, importStyle: 'require' };
+      const src = 'let w;\nconst v = (w = globalThis.window)?.self;\nuse(v, w);\nconst { flat: m } = arr;\nuse(m);';
+      const one = createPlugin(reqOpts).transform(src, '/sm-req.mjs')?.code ?? src;
+      const two = createPlugin(reqOpts).transform(one, '/sm-req.mjs')?.code ?? one;
+      check(`re-transform fixpoint: require import style (${ engine })`, two, one);
+    }
+    // the CommonJS wrapper that REBINDS `require`: the format owner keeps the `require` spelling
+    // there (a `var` only redeclares a name the host handed in as a parameter), so the existing-
+    // import scan has to read that call back as the load it is instead of injecting a second one
+    {
+      const cjsOpts = { ...pureOpts, method: 'usage-global' };
+      const cjsSrc = 'var require = wrap(require);\nmodule.exports = [1, 2, 3].at(0);';
+      const one = createPlugin(cjsOpts).transform(cjsSrc, '/sm-cjs-wrapper.cjs')?.code ?? cjsSrc;
+      const two = createPlugin(cjsOpts).transform(one, '/sm-cjs-wrapper.cjs')?.code ?? one;
+      check(`re-transform fixpoint: require injection under a rebound require (${ engine })`, two, one);
+    }
+    // require/import twins of the recognition arms the K2-tail matrix exposed: each shape
+    // discriminates one arm (resolve hint fallback / the bare-callee pair arms / the
+    // require-binding view and its detect-usage gate)
+    for (const [armLabel, styles, armSrc, extra = null] of [
+      ['mutated-static alias readback', ['require'],
+        'export const r = (() => { const F = (() => Map)(); const orig = F.of;'
+        + ' F.of = function () { return "fp"; }; const out = [Map.of === F.of]; F.of = orig; return out; })();\nuse(r);'],
+      ['reflect template-key deopt', ['import', 'require'],
+        'export const r = (() => { const _o = Array.from;'
+        + ' try { Reflect.defineProperty(Array, `from`, { value: () => "P", configurable: true, writable: true }); return Array.from([1, 2]); }'
+        + ' finally { Reflect.defineProperty(Array, `from`, { value: _o, configurable: true, writable: true }); } })();\nuse(r);'],
+      ['double-optional proxy hop chain', ['require'],
+        'export const r = (() => { const v = globalThis.window?.window?.self.Array.of(5).at(0); return typeof v; })();\nuse(r);'],
+      // an identity guard compared through the realm entry: the excluded constructor has no safe raw name
+      [
+        'realm-compared identity guard',
+        ['import', 'require'],
+        "const P = typeof Promise !== 'undefined' ? Promise : MyPromise;\nexport const r = P.withResolvers();",
+        { exclude: ['promise/constructor'] },
+      ],
+    ]) {
+      for (const style of styles) {
+        const armOpts = { ...pureOpts, importStyle: style, ...extra };
+        const one = createPlugin(armOpts).transform(armSrc, '/sm-arm.mjs')?.code ?? armSrc;
+        const two = createPlugin(armOpts).transform(one, '/sm-arm.mjs')?.code ?? one;
+        check(`re-transform fixpoint: ${ armLabel } (${ style }, ${ engine })`, two, one);
+      }
+    }
+    const seKeySrc = 'const log = [];\nexport const r = (() => {\n  const { from: f, [(log.push("k"), "from")]: g } = Array;\n  return typeof f;\n})();\nuse(r, log);';
+    const oncePlugin = createPlugin(pureOpts);
+    const once = oncePlugin.transform(seKeySrc, '/sm-sekey.mjs')?.code;
+    const twice = createPlugin(pureOpts).transform(once, '/sm-sekey.mjs')?.code ?? once;
+    check(`re-transform of the SE-key sentinel output is a fixpoint (${ engine })`, twice, once);
+    const sharedSentinelSource = 'let from, of, rest; const held = ({ from, of, ...rest } = Array); use(held, from, of, rest);';
+    const sharedSentinelOnce = createPlugin(pureOpts).transform(sharedSentinelSource, '/shared-sentinel.mjs')?.code;
+    const sharedSentinelTwice = createPlugin(pureOpts).transform(sharedSentinelOnce, '/shared-sentinel.mjs')?.code ?? sharedSentinelOnce;
+    check(`several extracted keys share an unread sentinel across passes (${ engine })`, sharedSentinelTwice, sharedSentinelOnce);
+    // ... and the OVERWRITE-REBIND / sentinel-census forms: a kept-raw destructure with its
+    // appended rebind, the assignment-form sentinel PAIR (`var _unusedN;` + pattern value),
+    // the nested-instance plain sentinel, and the defaulted guard spellings all re-transform
+    // to a fixpoint - each was a growth class (FC-86) before its census arm
+    for (const [label, fixSrc] of [
+      ['nullable parameter mirror stays lazy',
+        'const events = []; const receiver = JSON.parse("null");\n'
+          + 'try { (({ [(events.push("key"), "at")]: at }, other) => [at, other])(receiver, events.push("argument")); }'
+          + '\ncatch (error) {} export { events };'],
+      ['kept-raw overwrite rebind', 'let m;\n({ y: { flat: m } } = { y: arr });\nuse(m);'],
+      ['static overwrite rebind under a multi wrapper', 'let g, zn;\n[{ Map: { groupBy: g } }, zn] = [globalThis, 7];\nuse(g, zn);'],
+      ['defaulted rebind under a multi wrapper', 'let k, other;\n[{ findIndex: k = fb }, other] = [arr, 1];\nuse(k, other);'],
+      ['array-instance defaulted rebind', 'let m;\n[{ at: m = null }] = [[7, 8]];\nuse(m);'],
+      ['defaulted static guard', 'const log = [];\nconst { [(log.push("e"), "from")]: f = 9 } = Array;\nuse(f, log);'],
+      ['assignment-form sentinel pair', 'let from, rest;\n({ from, ...rest } = Array);\nuse(from, rest);'],
+      ['substituted assign-se-key default', 'const log = [];\nlet f;\n({ [(log.push("k"), "from")]: f = 9 } = Array);\nuse(f, log);'],
+      ['shadow-alias guard alternate', 'const B = Array;\nexport const r = (function () {\n  {\n    const B = {};\n    var h = B;\n  }'
+        + '\n  {\n    const { of } = h === Array ? Array : h;\n    return typeof of;\n  }\n})();\nuse(r);'],
+      ['param default minted root', 'export const v = (function ({ Promise: P } = globalThis) {\n  return typeof P;\n})({ Promise: Promise });\nuse(v);'],
+      ['guarded nav with spent se-key claims', 'const log = [];\nexport const r = (log.push("r"), globalThis)[(log.push("k"), "window")]?.self.Array === Array;\nuse(r, log);'],
+      ['symbol read through the minted key', 'export const t = String(typeof [1, 2][Symbol.iterator]);\nuse(t);'],
+      ['extracted defineProperty deopt', 'const dp = Object.defineProperty;\nexport const r = (() => { const o = Array.from;'
+        + ' try { dp(Array, "from", { value: () => "P", configurable: true }); return Array.from([1, 2]); }'
+        + ' finally { dp(Array, "from", { value: o, configurable: true }); } })();\nuse(r);'],
+      ['anchored symbol-key default', 'const { [Symbol.iterator]: it = "fb" } = WeakSet;\nuse(it);'],
+      ['two-prop overwrite rebinds', 'const a2 = [3, [4]];\nlet m, n;\n({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 });\nuse(m, n);'],
+      // the other leg's growth class, held on this one too: a sentinel standing in a proxy-key hop
+      // under a surviving spread wrapper stays exactly where the prior pass printed it
+      ['nested proxy-key sentinel under a spread wrapper', 'const { w: { Map: m } } = { ...extra, w: globalThis };\nuse(m);'],
+      ['two-level proxy-key sentinel under a spread wrapper', 'const { w: { Array: { from: f } } } = { ...extra, w: globalThis };\nuse(f);'],
+      ['guard-alternate deep read', 'const D = cond ? Array : other;\nexport const r = (D === Array ? Array.from : D.from.bind(D))([1]);\nuse(r);'],
+      ['sekey keyswap symbol pattern', 'const log = [];\nlet it;\n({ Set: { [(log.push(1), Symbol.iterator)]: it } } = globalThis);\nuse(it, log);'],
+      ['double-key literal alias mutation deopt', 'const ND = { M: Array, M: Iterator };\nconst Md = ND.M;'
+        + '\nMd.from = function () { return "dk"; };\nexport const out = [Iterator.from === Md.from, typeof Array.from];\nuse(out);'],
+      // the five sharpened shapes below each discriminate exactly one census's false-arm
+      // (the corpus idempotence sweep found them; the earlier locks routed through siblings)
+      ['assign-form se-key extraction', 'const log = [];\nlet f;\n({ [(log.push("e"), "from")]: f } = Array);\nuse(f, log);'],
+      ['iife-arg param default ownership', 'export const r = (() => {'
+        + '\n  const { Array: { of } } = globalThis, v = (function ({ Promise: P } = globalThis) { return typeof P; })(globalThis);'
+        + '\n  return [typeof of, String(typeof v)];\n})();\nuse(r);'],
+      ['block-shadowed alias var hoist', 'export const r = (() => { const B = Array; return (function () {'
+        + '\n  { const B = {}; var h = B; }\n  { const { of } = h; return typeof of; }\n})(); })();\nuse(r);'],
+      ['chained sequence nav receivers', 'const nr = () => globalThis;\nexport const r = ('
+        + '\n  (nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat()'
+        + '\n    .concat((nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat() ?? [])\n);\nuse(r);'],
+      ['optional-first string chain claims', 'export const r = "abcde"?.slice(1).padStart(8, "0");\nuse(r);'],
+      // the rendered guard a STORE hands on, read through the source's own `?.`: the census that
+      // recognises our collapse has to walk the store, or the next pass re-claims the read
+      ['stored rendered guard behind an optional claim',
+        'let probeStored;\nexport const r = (probeStored = globalThis.window?.self.Object)?.keys({});\nuse(r);'],
+      // the INVOKER spelling an optional dispatch renders (`_x(_ref = recv)?.call(_ref, ...)`): the
+      // trailing read over it stays native, and the census recognising it owes both dialects' hops
+      ['trailing read over an optional minted dispatch',
+        'const arr = [1, 2];\nexport const r = arr?.at?.(1).includes?.(2);\nuse(r);'],
+      // the receiver a prior pass narrowed onto its own ponyfill: the matching arm already carries
+      // the constructor's whole pure namespace, and mirroring it lays a literal over our own import
+      ['receiver narrowed onto its own ponyfill',
+        'export function read(enabled) {\n  if (enabled) { var realm = globalThis; }\n'
+          + '  const { allSettled } = realm.Promise;\n  return typeof allSettled;\n}'],
+      // ... and the same render's other spelling: the SELECTING receiver whose diverging arm a prior
+      // pass swapped for our own ponyfill; the pattern pairs a parameter DEFAULT, whose own value is
+      // the receiver the climb has to stop at
+      ['selecting receiver arm swapped for its ponyfill',
+        'const nul = null;\nexport const r = (function ({ map } = nul || Iterator.prototype) {\n'
+          + '  return typeof map;\n})();\nuse(r);'],
+      // the receiver CONSTRUCTED by a ponyfill this pass substituted: the next pass reads `new _Map()`
+      // as an ordinary import and loses the receiver's type, re-dispatching what the ponyfill carries
+      ['receiver constructed by a substituted ctor', 'const m = new Map();\nexport const r = typeof m.keys;\nuse(r);'],
+      // the sentinel our render leaves in a dropped REALM HOP's SE key: the key names the realm, the
+      // extraction beside it reads a member two levels down, and matching them by entry left the
+      // sentinel unrecognised for the next pass to re-extract
+      ['realm-hop se key beside its extraction',
+        "const eff = k => k;\nconst { [(eff('k'), 'self')]: { Array: { from: f } } } = globalThis;\nuse(f);"],
+      // the other leg's growth class again: the `extends Set` super rewritten in place to `_Set`
+      // reads back as an ordinary import on the next pass, and a super that stops naming its global
+      // leaves `this` untyped. unreferenced on purpose - any escape makes pass one dispatch as well
+      ['super rewritten to its polyfill import',
+        'const C = class extends Set {\n  first() { return this.values().next().value; }\n};'],
+      // a constructor the prior pass wrote as our own import (`picked.C = _Map`) is the global its entry
+      // names: a selection of a pattern binding written with it ties the arms as the global did, or the next
+      // pass folds the static read back through the container's path onto the literal's constructor
+      ['constructor written as its own pure import through a selection of a pattern binding',
+        'const holder = { inner: { C: Object } };\nconst spare = { C: Object };\nconst { inner: held } = holder;\n'
+          + 'const picked = flag ? held : spare;\npicked.C = Map;\nexport const grouped = holder.inner.C.groupBy([1], x => x);'],
+      // exotic-but-valid module forms flow through the whole pipeline and settle
+      ['import attributes on a sibling import', 'import data from "./d.json" with { type: "json" };\nexport const r = Array.from(data);\nuse(r);'],
+      ['astral-plane identifier', 'const \u{1D4B6}b = [1];\nexport const r = \u{1D4B6}b.flat();\nuse(r);'],
+      ['lone-surrogate string escape', 'export const r = "\\uD800".padStart(3, "x");\nuse(r);'],
+      ['top-level await receiver', 'export const r = (await Promise.resolve([1])).flat();\nuse(r);'],
+      ['crlf line endings', 'const a = [1, 2];\r\nexport const r = a.flat();\r\nuse(r);'],
+    ]) {
+      const one = createPlugin(pureOpts).transform(fixSrc, '/sm-fixpoint.mjs')?.code ?? fixSrc;
+      const two = createPlugin(pureOpts).transform(one, '/sm-fixpoint.mjs')?.code ?? one;
+      check(`re-transform fixpoint: ${ label } (${ engine })`, two, one);
+    }
+    // boundary contracts around whole-file reprint: a hashbang survives injection, a file
+    // with nothing to claim stays untouched byte-for-byte (CRLF included), JSX flows through
+    {
+      const hbRes = createPlugin(pureOpts).transform('#!/usr/bin/env node\nexport const r = Array.from("ab");\nuse(r);\n', '/sm-hashbang.mjs');
+      const hb = hbRes?.code ?? '';
+      check(`hashbang survives injection (${ engine })`, hb.startsWith('#!/usr/bin/env node'), true);
+      check(`hashbang file still injects (${ engine })`, /core-js/.test(hb), true);
+      // the re-emitted hashbang shifts the whole map one generated line down - a claim
+      // token must still trace to its ORIGINAL source line (2, under the hashbang)
+      {
+        const tracer = new TraceMap(hbRes.map);
+        const genLines = hb.split('\n');
+        const genLine = genLines.findIndex(line => line.includes('"ab"'));
+        const pos = originalPositionFor(tracer, { line: genLine + 1, column: genLines[genLine].indexOf('"ab"') });
+        check(`hashbang map traces below the shift (${ engine })`, pos.line, 2);
+      }
+      const noop = 'const a = 1;\r\nconst b = a + 1;\r\nexport { b };\r\n';
+      const kept = createPlugin(pureOpts).transform(noop, '/sm-noop-crlf.mjs');
+      check(`claimless CRLF file stays untouched (${ engine })`, kept === null || kept === undefined || kept.code === noop, true);
+      const jsxSrc = 'const El = () => <div a={[1].flat()} />;\nexport const r = El;\nuse(r);\n';
+      const jsxOne = createPlugin(pureOpts).transform(jsxSrc, '/sm-el.jsx')?.code ?? jsxSrc;
+      const jsxTwo = createPlugin(pureOpts).transform(jsxOne, '/sm-el.jsx')?.code ?? jsxOne;
+      check(`jsx injects and settles (${ engine })`, /core-js/.test(jsxOne) && jsxTwo === jsxOne, true);
+    }
+    // the bundler pattern: ONE plugin instance transforms many files - no state may leak
+    // between files, and instances with different targets may interleave freely
+    {
+      const srcA = 'export const r = [1, [2]].flat().at(-1);\nconst { from } = Array;\nuse(r, from);\n';
+      const srcB = 'let w;\nconst v = (w = globalThis.window)?.self;\nuse(v, w);\n';
+      const shared = createPlugin(pureOpts);
+      const a1 = shared.transform(srcA, '/sm-leak-a.mjs')?.code;
+      const b1 = shared.transform(srcB, '/sm-leak-b.mjs')?.code;
+      const a2 = shared.transform(srcA, '/sm-leak-a.mjs')?.code;
+      check(`shared instance leaks no state between files (${ engine })`, a1 === a2, true);
+      check(`shared instance matches a fresh one (${ engine })`,
+        b1 === createPlugin(pureOpts).transform(srcB, '/sm-leak-b.mjs')?.code, true);
+      const modern = createPlugin({ ...pureOpts, targets: { chrome: 130 } }).transform(srcA, '/sm-leak-a.mjs')?.code ?? srcA;
+      check(`interleaved modern targets stay separate (${ engine })`, /array\/flat|instance\/flat/.test(modern), false);
+      const a3 = createPlugin(pureOpts).transform(srcA, '/sm-leak-a.mjs')?.code;
+      check(`legacy targets unaffected by the interleave (${ engine })`, a3, a1);
+      // cross-config pass-2: output written under a SCOPED `package` must still read as our
+      // own under the default config - the census source test's /actual/ arm is exactly this
+      const xpkgSrc = 'let m;\n({ y: { flat: m } } = { y: [1, [2]] });\nconst { from } = Array;\nuse(m, from);\n';
+      for (const mode of ['actual', 'full']) {
+        const scopedOut = createPlugin({ ...pureOpts, package: '@my/scoped-pure', mode })
+          .transform(xpkgSrc, '/sm-xpkg.mjs')?.code ?? xpkgSrc;
+        check(`scoped ${ mode } package injects under its own name (${ engine })`,
+          scopedOut.includes(`@my/scoped-pure/${ mode }/`), true);
+        const rescan = createPlugin(pureOpts).transform(scopedOut, '/sm-xpkg.mjs')?.code ?? scopedOut;
+        check(`scoped ${ mode } output re-reads as own under the default config (${ engine })`, rescan, scopedOut);
+      }
+      // absoluteImports output (filesystem specifiers) re-reads as own the same way
+      const absoluteOut = createPlugin({ ...pureOpts, absoluteImports: true })
+        .transform(xpkgSrc, `${ process.cwd() }/sm-xpkg-abs.mjs`)?.code ?? xpkgSrc;
+      check(`absolute-import output re-reads as own (${ engine })`,
+        createPlugin(pureOpts).transform(absoluteOut, `${ process.cwd() }/sm-xpkg-abs.mjs`)?.code ?? absoluteOut, absoluteOut);
+      // a hand-written ALIASED pure import adopts by its flavor segment even without
+      // additionalPackages: the claim reuses it instead of re-importing
+      const aliasedSrc = 'import _flat from "my-alias/actual/array/instance/flat";\nlet m;'
+        + '\n({ y: { flat: m } } = { y: [1, [2]] });\nm = _flat([1, [2]]);\nuse(m);\n';
+      const aliasedOut = createPlugin(pureOpts).transform(aliasedSrc, '/sm-xpkg-alias.mjs');
+      check(`aliased pure import adopts, no re-import (${ engine })`,
+        aliasedOut === null || aliasedOut === undefined || (aliasedOut.code.match(/instance\/flat/g) ?? []).length === 1, true);
+      // the adoption stays SCOPED to pure-package sources: a FOREIGN default import in the
+      // same sandwich shape (and one ending exactly at a flavor segment) must still claim
+      for (const [foreignLabel, foreignSource] of [
+        ['foreign package', 'lodash/flat-tools'],
+        ['trailing flavor segment', 'locale-pkg/es'],
+        ['prefix-similar package', '@core-js/pure-fake/array/flat-like'],
+      ]) {
+        const foreignSrc = `import _flat from "${ foreignSource }";\nlet m;`
+          + '\n({ y: { flat: m } } = { y: [1, [2]] });\nm = _flat([1, [2]]);\nuse(m);\n';
+        const foreignOut = createPlugin(pureOpts).transform(foreignSrc, '/sm-xpkg-foreign.mjs')?.code ?? foreignSrc;
+        check(`${ foreignLabel } import is not adopted - the claim still fires (${ engine })`,
+          /@core-js\/pure\//.test(foreignOut), true);
+      }
+      // usage-global's cross-config twin: additionalPackages ADOPTS a prior config's bare
+      // imports (no second injection) and the merged block normalizes to the active package
+      {
+        const gSrc = 'export const r = [1, [2]].flat();\nuse(r);\n';
+        function gOpts(extra) {
+          return { method: 'usage-global', version: '4.0', targets: { ie: 11 }, ...extra };
+        }
+        const g1 = createPlugin(gOpts({ package: '@my/scoped-core' })).transform(gSrc, '/sm-xpkg-g.mjs')?.code ?? gSrc;
+        const g2 = createPlugin(gOpts({ additionalPackages: ['@my/scoped-core'] })).transform(g1, '/sm-xpkg-g.mjs')?.code ?? g1;
+        check(`usage-global adoption keeps the module count (${ engine })`,
+          (g2.match(/import "/g) ?? []).length, (g1.match(/import "/g) ?? []).length);
+        const g3 = createPlugin(gOpts({ additionalPackages: ['@my/scoped-core'] })).transform(g2, '/sm-xpkg-g.mjs')?.code ?? g2;
+        check(`usage-global adopted block is a fixpoint (${ engine })`, g3, g2);
+        const eSrc = 'import "@my/scoped-core/actual";\nexport const r = [1, [2]].flat();\nuse(r);\n';
+        const e1 = createPlugin({ ...gOpts({}), method: 'entry-global', package: '@my/scoped-core' }).transform(eSrc, '/sm-xpkg-e.mjs')?.code ?? eSrc;
+        check(`entry-global expands the scoped entry (${ engine })`, (e1.match(/import "/g) ?? []).length > 5, true);
+        const e2 = createPlugin({ ...gOpts({}), method: 'entry-global' }).transform(e1, '/sm-xpkg-e.mjs')?.code ?? e1;
+        check(`foreign modules paths stay untouched on rescan (${ engine })`, e2, e1);
+      }
+    }
+  }
+}
+checkPhaseSnapshotFlow();
+
+// Whole-value optional captures keep receiver effects inside their memo. An outer
+// key still owns its replay, and a staged receiver belongs to its existing consumer.
+function checkOptionalReceiverCaptureBoundaries() {
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  function execute(source) {
+    const module = { exports: null };
+    runInNewContext(source, { module, require, globalThis });
+    return module.exports;
+  }
+  withTemporaryProperty(globalThis, 'window', globalThis, () => {
+    withTemporaryProperty(globalThis, 'self', globalThis, () => {
+      for (const [label, source, expected, entry, injected] of [
+        [
+          'external key effects',
+          "let trace = '';\n"
+          + "const box = { get list() { trace += 'list;'; return [[1], [2]]; } };\n"
+          + "const r = (trace += 'receiver;', box?.list)?.[(trace += 'key;', 'flat')]((trace += 'argument;', 1));\n"
+          + 'module.exports = [r, trace];',
+          [[1, 2], 'receiver;list;key;argument;'],
+          'array/instance/flat',
+          false,
+        ],
+        // The realm key stays native; its independent name claim can now dispatch.
+        // Calling Object.name still throws after the key effect.
+        [
+          'staged dynamic receiver',
+          'let held, hop = 0, failed, r;\n'
+          + "const dynamic = 'Object';\n"
+          + "try { r = (held = globalThis.window)?.[(hop++, 'self')][dynamic]?.name(); }\n"
+          + 'catch { failed = true; }\nmodule.exports = [typeof r, hop, failed];',
+          ['undefined', 1, true],
+          'function/instance/name',
+          true,
+        ],
+      ]) {
+        const code = createPlugin(options).transform(source, '/optional-capture-boundary.cjs')?.code ?? source;
+        checkDeep(`optional receiver capture/${ label }/native`, execute(source), expected);
+        checkDeep(`optional receiver capture/${ label }/runtime`, execute(code), expected);
+        check(`optional receiver capture/${ label }/independent dispatch`, code.includes(`/actual/${ entry }`), injected);
+      }
+      for (const [label, source, expected, memos] of [
+        [
+          'sealed symbol key write',
+          "let arr = ['held'];\n"
+          + "const value = (arr?.[(arr = ['swapped'], Symbol.iterator)])().next().value;\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'optional symbol key write',
+          "let arr = ['held'];\n"
+          + "const value = arr?.[(arr = ['swapped'], Symbol.iterator)]().next().value;\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'optional symbol read before key write',
+          "let arr = ['held'];\n"
+          + "const method = arr?.[(arr = { [Symbol.iterator]() { return 'swapped'; } }, Symbol.iterator)];\n"
+          + "module.exports = [method.call(['check']).next().value, arr[Symbol.iterator]()];",
+          ['check', 'swapped'],
+          1,
+        ],
+        [
+          'aliased symbol key write',
+          "const key = Symbol.iterator; let arr = ['held'];\n"
+          + "const value = (arr?.[(arr = ['swapped'], key)])().next().value;\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'quiet mutable symbol receiver',
+          "let arr = ['discarded']; arr = ['held'];\n"
+          + 'module.exports = arr?.[Symbol.iterator]().next().value;',
+          'held',
+          0,
+        ],
+        [
+          'constant receiver across symbol key effects',
+          "const arr = ['held']; let keys = 0;\n"
+          + 'module.exports = [(arr?.[(keys++, Symbol.iterator)])().next().value, keys];',
+          ['held', 1],
+          0,
+        ],
+        [
+          'optional method key write',
+          "let arr = ['held'];\n"
+          + "const value = arr?.[(arr = ['swapped'], 'at')](0);\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'doubly optional method key write',
+          "let arr = ['held'];\n"
+          + "const value = arr?.[(arr = ['swapped'], 'at')]?.(0);\n"
+          + 'module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'quiet mutable doubly optional method',
+          "let arr = ['discarded']; arr = ['held'];\n"
+          + 'module.exports = arr?.at?.(0);',
+          'held',
+          0,
+        ],
+        [
+          'closed callback writer',
+          "let arr = ['discarded'];\n"
+          + "(fn => fn())(() => { arr = ['held']; });\n"
+          + 'module.exports = arr.at(0);',
+          'held',
+          0,
+        ],
+        [
+          'escaped callback writer in method getter',
+          "let arr = ['discarded']; let saved = null;\n"
+          + "(fn => (saved = fn, fn()))(() => { arr = ['swapped']; }); arr = ['held'];\n"
+          + "Object.defineProperty(arr, 'at', { get() { saved(); return function (index) { return this[index]; }; } });\n"
+          + 'const value = arr.at(0); module.exports = [value, arr[0]];',
+          ['held', 'swapped'],
+          1,
+        ],
+        [
+          'sealed null symbol skips key',
+          'let arr = null; let keys = 0; let threw = false;\n'
+          + 'try { (arr?.[(keys++, Symbol.iterator)])(); } catch { threw = true; }\n'
+          + 'module.exports = [keys, threw];',
+          [0, true],
+          0,
+        ],
+      ]) {
+        const code = createPlugin(options).transform(source, '/optional-symbol-key.cjs')?.code ?? source;
+        checkDeep(`optional receiver capture/${ label }/native`, execute(source), expected);
+        checkDeep(`optional receiver capture/${ label }/runtime`, execute(code), expected);
+        // Every source declaration is initialized; only allocated expression memos are initless.
+        const memoDeclarations = programOf(code).body.flatMap(statement => statement.type === 'VariableDeclaration'
+          ? statement.declarations : []);
+        check(`optional receiver capture/${ label }/memos`, memoDeclarations.filter(declarator => !declarator.init).length, memos);
+      }
+    });
+  });
+}
+checkOptionalReceiverCaptureBoundaries();
+
+// A var's name hoists, while its initializer still evaluates in the declaring block.
+// A native-shaped hoisted twin must expose that block to the detection alias walkers.
+for (const [label, source, name] of [
+  ['block initializer', 'const root = Promise; function read() { { const root = {}; var held = root; } return held.race([]); }', 'held'],
+  ['for initializer', 'const root = Map; function read() { { const root = {}; for (var held = root; once;) {} } return held.groupBy([]); }', 'held'],
+  ['arrow callee', 'const Object = globalThis.Object; function read() { { const Object = {}; var held = () => Object; } return held().keys([]); }', 'held'],
+]) {
+  const ast = programOf(source);
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  let use;
+  traverse(ast, { $: { scope: true }, ReturnStatement(path) { use = path.get('argument'); } });
+  const binding = adapter.getBinding({ scope: use.scope, name, path: use });
+  check(`hoisted declaration scope/${ label }/scope`, binding.scope, binding.declarationPath.scope);
+  const local = adapter.getBinding({ scope: binding.scope, name: label === 'arrow callee' ? 'Object' : 'root', path: use });
+  check(`hoisted declaration scope/${ label }/initializer shadow`, local.node.init.type, 'ObjectExpression');
+}
+
+{
+  const source = 'const root = Promise; function read() { { const root = {}; var held = root; }\n'
+    + 'let threw = false; try { const { race } = held; race([]); } catch { threw = true; } return threw; }\n'
+    + 'module.exports = read();';
+  const code = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/hoisted-init-shadow.cjs')?.code ?? source;
+  const module = { exports: null };
+  runInNewContext(code, { module, require: createRequire(import.meta.url), globalThis });
+  check('hoisted declaration scope/runtime keeps native TypeError', module.exports, true);
+  check('hoisted declaration scope/no foreign static claim', code.includes('/actual/promise/race'), false);
+}
+
+{
+  const ast = programOf("var rows = 'outer'; function read() { var rows = 'inner'; return rows.at(0); }");
+  let declarationProgram;
+  let use;
+  traverse(ast, { $: { scope: true }, Program(path) { declarationProgram = path; } });
+  traverse(ast, { $: { scope: true }, MemberExpression(path) { use = path; } });
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  const binding = adapter.getBinding({ scope: declarationProgram.scope, name: 'rows', path: use });
+  check('hoisted declaration scope/outer lookup across traversal views', binding.node.init.value, 'outer');
+  check('hoisted declaration scope/actual inner lookup', adapter.getBinding({ scope: use.scope, name: 'rows', path: use }).node.init.value, 'inner');
+}
+
+// Runtime constructor parameters must reach the receiver proof through the same
+// binding funnel as ordinary parameters, including their nearest native shadows.
+for (const [label, source, expectedKind, expectedType, writes] of [
+  ['bare', 'class C { constructor(private value: any) { value.at(0); } }', 'param', 'Identifier', 0],
+  ['defaulted', 'class C { constructor(private value: any = []) { value.at(0); } }', 'param', 'AssignmentPattern', 0],
+  ['written', 'class C { constructor(private value: any) { value = []; value.at(0); } }', 'param', 'Identifier', 1],
+  ['outer constant', 'const value = []; class C { constructor(private value: any) { value.at(0); } }', 'param', 'Identifier', 0],
+  ['outer live import', 'import value from "foreign"; class C { constructor(private value: any) { value.at(0); } }', 'param', 'Identifier', 0],
+  ['nearer lexical', 'class C { constructor(private value: any) { { const value = []; value.at(0); } } }', 'const', 'VariableDeclarator', 0],
+  ['nearer ordinary parameter', 'class C { constructor(private value: any) { function read(value) { value.at(0); } } }', 'param', 'Identifier', 0],
+  ['computed class key', 'const value = []; class C { [value.at(0)] = 0; constructor(private value: any) {} }', 'const', 'VariableDeclarator', 0],
+  ['parameter decorator', 'const value = []; class C { constructor(@decorate(value.at(0)) private value: any) {} }', 'const', 'VariableDeclarator', 0],
+]) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const ast = parseSync('/property-parameter.ts', source, { sourceType: 'module' }).program;
+  neutralizeUnwalkedParamPatterns(ast);
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  let use;
+  traverse(ast, { $: { scope: true }, MemberExpression(path) { if (path.node.property.name === 'at') use = path; } });
+  const binding = adapter.getBinding({ scope: use.scope, name: 'value', path: use });
+  check(`property parameter/${ label }/kind`, binding?.kind, expectedKind);
+  check(`property parameter/${ label }/declaration`, binding?.declarationPath?.node.type, expectedType);
+  check(`property parameter/${ label }/writes`, binding?.constantViolations?.length, writes);
+  check(`property parameter/${ label }/node type`, bindingNodeType(binding), expectedType);
+  check(`property parameter/${ label }/receiver reuse`, isReusableReceiver(use.node.object, { ctx: { scope: use.scope, adapter, path: use } }), true);
+}
+
+// --- AST-engine internals: builders and emit-shared contracts ---
+async function checkAstInternalsCore() {
+  const b = await import('../../packages/core-js-polyfill-provider/render.js');
+  check('builders identifier shape', JSON.stringify(b.identifier('x')), '{"type":"Identifier","name":"x"}');
+  check('builders string literal carries its raw quote', b.literal('a').raw, '"a"');
+  check('builders non-string literal has NO raw (printer derives NaN/bigint itself)',
+    Object.hasOwn(b.literal(1), 'raw'), false);
+  check('builders member defaults plain', JSON.stringify(b.memberExpression(b.identifier('a'), b.identifier('b'))),
+    '{"type":"MemberExpression","object":{"type":"Identifier","name":"a"},"property":{"type":"Identifier","name":"b"},"computed":false,"optional":false}');
+  check('builders call keeps optional flag', b.callExpression(b.identifier('f'), [], { optional: true }).optional, true);
+  check('builders voidZero is `void 0`',
+    (() => { const v = b.voidZero(); return v.type === 'UnaryExpression' && v.operator === 'void' && v.argument.value === 0; })(), true);
+  const seq = b.sequenceExpression([b.identifier('a'), b.identifier('b')]);
+  check('builders sequence holds its expressions', seq.expressions.length, 2);
+  const clone = b.cloneNode(seq);
+  check('builders cloneNode is deep and detached',
+    clone !== seq && clone.expressions[0] !== seq.expressions[0] && clone.expressions[0].name === 'a', true);
+  check('builders bareImport has no specifiers', b.bareImport('core-js/modules/es.array.flat').specifiers.length, 0);
+  check('builders defaultImport binds its local', b.defaultImport('_at', '@core-js/pure/actual/instance/at').specifiers[0].local.name, '_at');
+
+  const es = await import('../../packages/core-js-unplugin/internals/emit-shared.js');
+  const optionalDeep = b.memberExpression(b.callExpression(b.identifier('g'), [], { optional: true }), b.identifier('k'));
+  check('emit-shared receiverCarriesOptional sees a buried `?.()`', es.receiverCarriesOptional(optionalDeep), true);
+  check('emit-shared receiverCarriesOptional clean spine answers false',
+    es.receiverCarriesOptional(b.memberExpression(b.identifier('a'), b.identifier('b'))), false);
+  check('render memberFromKeyName spells a non-ident key computed',
+    memberFromKeyName(b.identifier('o'), 'has-dash').computed, true);
+  check('render memberFromKeyName spells an ident key plain',
+    memberFromKeyName(b.identifier('o'), 'flat').computed, false);
+  const host = b.expressionStatement(b.identifier('old'));
+  check('emit-shared replaceNodeInTree lands by identity',
+    es.replaceNodeInTree(host, host.expression, b.identifier('next')) && host.expression.name === 'next', true);
+  check('emit-shared replaceNodeInTree reports a missing target', es.replaceNodeInTree(host, b.identifier('ghost'), b.identifier('x')), false);
+  // both walks descend every OWN key, so a graph that cycles would recurse without end. they must not
+  // spell that as `false` / `null`: that is what an honest "not in this subtree" says, and most
+  // callers never read the answer - the tree would go unrewritten while the statements built around
+  // the swap go out anyway. the ceiling is an invariant, and an invariant is loud
+  const cyclic = b.expressionStatement(b.identifier('a'));
+  cyclic.expression.self = cyclic;
+  function threw(label) {
+    try {
+      if (label === 'replace') es.replaceNodeInTree(cyclic, b.identifier('ghost'), b.identifier('x'));
+      else findNodeSlot(cyclic, b.identifier('ghost'));
+      return 'no throw';
+    } catch (error) { return error instanceof TypeError && /deeper than the walk supports/.test(error.message) ? 'threw' : 'wrong error'; }
+  }
+  check('emit-shared replaceNodeInTree throws on a cyclic graph rather than reporting "not found"', threw('replace'), 'threw');
+  check('shared findNodeSlot throws on a cyclic graph rather than reporting "no slot"', threw('find'), 'threw');
+  const injectorState = { pureImports: new Map([['actual/self', '_self'], ['actual/array/of', '_Array$of']]) };
+  check('emit-shared mintedProxyGlobalName resolves a minted proxy root', es.mintedProxyGlobalName('_self', injectorState), 'self');
+  check('emit-shared mintedProxyGlobalName rejects a minted non-proxy', es.mintedProxyGlobalName('_Array$of', injectorState), null);
+  check('emit-shared mintedProxyGlobalName rejects an unknown name', es.mintedProxyGlobalName('_ref', injectorState), null);
+  const spellable = keptWriteRidesValue(b.assignmentExpression('=', b.identifier('held'),
+    b.memberExpression(b.identifier('globalThis'), b.identifier('self'))), {
+    resolvePure: ({ name }) => name === 'self' ? { entry: 'self' } : null,
+  });
+  check('shared kept write accepts a pure-leaf spine', spellable, true);
+  check('shared kept write rejects a window-terminated spine',
+    keptWriteRidesValue(b.assignmentExpression('=', b.identifier('held'),
+      b.memberExpression(b.identifier('globalThis'), b.identifier('window'))), { resolvePure: () => null }), false);
+}
+await checkAstInternalsCore();
+
+// --- AST-engine internals: printProgram contracts (the roundtrip gate holds the corpus;
+// these lock the specific promises the emitters lean on) ---
+async function checkAstPrintContracts() {
+  // Scalar AST fields cannot contain child nodes. Count accidental property lookups
+  // without changing their answers, and keep the printer's code and map observable.
+  const scalarSource = '// scalar fields\nconst result = ["x", 1, true, null];\nJSON.stringify(result);';
+  const scalarPrint = astPrint(scalarSource);
+  for (const [label, prototype, scalar] of [
+    ['string', String.prototype, 'x'],
+    ['number', Number.prototype, 1],
+    ['boolean', Boolean.prototype, true],
+  ]) {
+    let reads = 0;
+    const { printed, control: observedReads, answer: observedAnswer } = withTemporaryProperty(prototype, 'type', undefined, () => {
+      Object.defineProperty(prototype, 'type', {
+        configurable: true,
+        get() {
+          reads++;
+          return undefined;
+        },
+      });
+      const answer = scalar.type;
+      const control = reads;
+      reads = 0;
+      return { printed: astPrint(scalarSource), control, answer };
+    });
+    check(`print scalar fields/${ label }/counter observes a lookup`, observedReads, 1);
+    check(`print scalar fields/${ label }/counter preserves the answer`, observedAnswer, undefined);
+    check(`print scalar fields/${ label }/no child lookups`, reads, 0);
+    check(`print scalar fields/${ label }/code and map`, JSON.stringify(printed), JSON.stringify(scalarPrint));
+    check(`print scalar fields/${ label }/runtime`, runInNewContext(printed.code), runInNewContext(scalarSource));
+  }
+  function reprint(src, anchoredComments = null) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/p.mjs', src, { sourceType: 'module' });
+    return printProgram({
+      program: parsed.program, comments: parsed.comments, source: src, id: '/p.mjs', anchoredComments,
+    }).code;
+  }
+  check('print keeps an explicit longhand property (`x: x` never re-shorthands)',
+    reprint('const o = { x: x };\n').includes('{ x: x }'), true);
+  check('print keeps a source shorthand property',
+    reprint('const o = { x };\n').includes('{ x }'), true);
+  check('print normalizes redundant parens off a plain member',
+    reprint('use((a).b);\n').includes('use(a.b);'), true);
+  check('print keeps the paren a chain boundary needs',
+    reprint('use((a?.b).c);\n').includes('(a?.b).c'), true);
+  // a pattern default the emitters BUILD over a cast target carries no paren node of its own
+  for (const cast of ['o.f as any', 'o.f satisfies any', '<any>o.f']) {
+    const castSource = `({ a: (${ cast }) = d } = x);\n`;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const castParse = parseSync('/p.ts', castSource, { sourceType: 'module' });
+    const castPattern = castParse.program.body[0].expression.expression?.left ?? castParse.program.body[0].expression.left;
+    const castDefault = castPattern.properties[0].value;
+    if (castDefault.left.type === 'ParenthesizedExpression') castDefault.left = castDefault.left.expression;
+    check(`print parenthesizes a cast target of a built pattern default: ${ cast }`, printProgram({
+      program: castParse.program, comments: castParse.comments, source: castSource, id: '/p.ts',
+    }).code.includes(`(${ cast }) = d`), true);
+  }
+  check('print keeps a leading directive line association',
+    reprint('// core-js-disable-next-line\nuse(arr.flat);\n').startsWith('// core-js-disable-next-line\nuse('), true);
+  const anchoredSrc = 'const { flat } = arr;\nuse(flat);\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const anchoredParse = parseSync('/p.mjs', anchoredSrc, { sourceType: 'module' });
+  const anchoredOut = printProgram({
+    program: anchoredParse.program, comments: anchoredParse.comments, source: anchoredSrc, id: '/p.mjs',
+    anchoredComments: new Map([[anchoredParse.program.body[0], ['// core-js-disable-next-line']]]),
+  }).code;
+  check('print anchoredComments channel writes the text ahead of its statement',
+    /\/\/ core-js-disable-next-line\nconst \{ flat \}/.test(anchoredOut), true);
+  // the channel reaches every node type esrap dispatches - a statement, an object property, a
+  // class member - not only a declaration
+  const membersSrc = 'use(a);\nconst o = { k: 1, j: 2 };\nclass A { m() {} }\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const membersParse = parseSync('/p.mjs', membersSrc, { sourceType: 'module' });
+  const [useStatement, objectDecl, classDecl] = membersParse.program.body;
+  const anchoredMembers = printProgram({
+    program: membersParse.program,
+    comments: membersParse.comments,
+    source: membersSrc,
+    id: '/p.mjs',
+    anchoredComments: new Map([
+      [useStatement, ['// core-js-disable-next-line']],
+      [objectDecl.declarations[0].init.properties[1], ['// core-js-disable-next-line']],
+      [classDecl.body.body[0], ['// core-js-disable-next-line']],
+    ]),
+  }).code;
+  check('print anchoredComments channel leads a statement', anchoredMembers.startsWith('// core-js-disable-next-line\nuse(a);'), true);
+  check('print anchoredComments channel leads an object property', /\/\/ core-js-disable-next-line\n\s*j: 2/.test(anchoredMembers), true);
+  check('print anchoredComments channel leads a class member', /\/\/ core-js-disable-next-line\n\s*m\(\) \{/.test(anchoredMembers), true);
+  const annotatedMember = printProgram({
+    program: membersParse.program, comments: membersParse.comments, source: membersSrc, id: '/p.mjs',
+    anchoredComments: new Map([[objectDecl.declarations[0].init.properties[1], [{ type: 'Block', value: ' member ' }]]]),
+  }).code;
+  check('print keeps an explicitly anchored member annotation on its own line', /\/\* member \*\/\n\s*j: 2/.test(annotatedMember), true);
+  // ... and carries a source COMMENT in its own spelling: a block keeps its lines, each on a line of its
+  // own, and the node opens on the line after it
+  const carriedSrc = 'use(a);\nuse(b);\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const carriedParse = parseSync('/p.mjs', carriedSrc, { sourceType: 'module' });
+  const carried = printProgram({
+    program: carriedParse.program,
+    comments: carriedParse.comments,
+    source: carriedSrc,
+    id: '/p.mjs',
+    anchoredComments: new Map([[carriedParse.program.body[1], [{ type: 'Line', value: ' line' }, { type: 'Block', value: '*\n * @type {T}\n ' }]]]),
+  }).code;
+  check('print anchoredComments channel spells a carried comment', /use\(a\);\n+\/\/ line\n\/\*\*\n \* @type \{T\}\n \*\/\nuse\(b\);/.test(carried), true);
+  // a statement the emitter mints spans nothing, yet one spelling a source node opens where that node
+  // does: a comment ahead of the node prints ahead of the statement rather than inside it
+  const mintedSrc = '// note\nsrc.y;\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const mintedParse = parseSync('/p.mjs', mintedSrc, { sourceType: 'module' });
+  const [{ expression: mintedRead }] = mintedParse.program.body;
+  mintedParse.program.body = [mintDeclaration('const', [mintDeclarator(mintIdentifier('_ref'), mintedRead)])];
+  check('print opens a minted statement ahead of a comment its source node follows', printProgram({
+    program: mintedParse.program, comments: mintedParse.comments, source: mintedSrc, id: '/p.mjs',
+  }).code.startsWith('// note\nconst _ref = src.y;'), true);
+  // A synthetic return still belongs to its source activation. Its nested getter body
+  // must not reset the comment cursor past later comments, including repeated ones.
+  const memoSource = 'const out = receiver;\n// after getter\n// after getter\n/* next */\nuse(out);\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const memoParse = parseSync('/p.mjs', memoSource, { sourceType: 'module' });
+  const [memoHost] = memoParse.program.body[0].declarations;
+  const memoReceiver = memoHost.init;
+  const { stampReplacementSpan } = await import('../../packages/core-js-unplugin/internals/emit-shared.js');
+  const memoGetter = mintGetter(mintIdentifier('at'), memberFromKeyName(mintIdentifier('_memo'), 'at'));
+  const memoValue = mintSequence([
+    mintAssignment('=', mintIdentifier('_memo'), memoReceiver),
+    mintObject([memoGetter]),
+  ]);
+  memoHost.init = stampReplacementSpan(renderMemoActivation(memoValue, ['_memo']), memoReceiver);
+  const memoOutput = printProgram({
+    program: memoParse.program, comments: memoParse.comments, source: memoSource, id: '/p.mjs',
+  }).code;
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const memoPrinted = parseSync('/p.mjs', memoOutput, { sourceType: 'module' });
+  checkDeep('print keeps comment kind, order and multiplicity after a synthetic getter return',
+    commentSignature(memoPrinted.comments), commentSignature(memoParse.comments));
+  check('print of a synthetic getter return is a fixed point', reprint(memoOutput), memoOutput);
+  // a comment between `throw` / `yield` and the operand keeps the parens the peel drops elsewhere,
+  // and the operand opens on its own line: `throw // note` is a bare `throw;` by the grammar
+  const thrown = reprint('function f() {\n  throw (\n    // note\n    a.at(0)\n  );\n}\n');
+  check('print keeps the parens guarding a comment after throw', /throw \(\n\s*\/\/ note\n\s*a\.at\(0\)\n\s*\);/.test(thrown), true);
+  const yielded = reprint('function* g() {\n  yield (\n    // note\n    a\n  );\n}\n');
+  check('print keeps the parens guarding a comment after yield', /yield \(\n\s*\/\/ note\n\s*a\n\s*\);/.test(yielded), true);
+  check('print still peels the parens of a comment-free throw operand', reprint('function f() {\n  throw (a);\n}\n').includes('throw a;'), true);
+  // a comment that opens AFTER the operand does not guard anything: the parens peel as usual
+  check('print peels the parens when the comment follows the throw operand', /throw \(/.test(reprint('function f() {\n  throw (a /* after */);\n}\n')), false);
+  // a multi-line block comment with the next statement on its closing line: the print opens that
+  // statement clean on the next line, and the print of the print is the same bytes
+  const closingLine = reprint('/* note\n */ arr.includes(x);\narr.at(0);\n');
+  check('print puts a follower of a multi-line block comment on its own clean line', /\*\/\narr\.includes\(x\);/.test(closingLine), true);
+  check('print of a multi-line block comment with a follower is a fixed point', reprint(closingLine), closingLine);
+  // a multi-line block comment inside a block: esrap indents its interior by the current indent and
+  // keeps the author's, so the author's has to come off first or the print gained a level per pass
+  const nested = 'if (a) {\n  /* a\n   */ foo();\n}\n';
+  const nestedOnce = reprint(nested);
+  check('print indents a nested multi-line block comment once', /\{\n\t\/\* a\n\t \*\/\n\tfoo\(\);\n\}/.test(nestedOnce), true);
+  check('print of a nested multi-line block comment is a fixed point', reprint(nestedOnce), nestedOnce);
+  check('print keeps the interior of a top-level block comment', reprint('/* a\n   b\n */\nfoo();\n').includes('/* a\n   b\n */'), true);
+  // the line's indent comes off, not the comment's column: a comment deeper in its line keeps the
+  // alignment of its interior past the line's indent
+  const cast = 'const foo = /**\n * @type {number}\n */ (1);\n';
+  check('print keeps the alignment of a block comment deeper in its line', reprint(cast).includes('/**\n * @type {number}\n */'), true);
+  check('print of a block comment deeper in its line is a fixed point', reprint(reprint(cast)), reprint(cast));
+}
+await checkAstPrintContracts();
+
+// Both global insertion routes keep source statements intact around an ordered, unmapped
+// import block. Entry removal uses the original prologue; usage uses the current one.
+for (const apply of [applyEntryProgram, injectImportStatements]) {
+  for (const importStyle of ['import', 'require']) for (const [pkg, absoluteImports] of [
+    ['core-js', false],
+    ['@custom/core-js', false],
+    ['core-js', true],
+  ]) {
+    const program = programOf('""; "use strict"; require("core-js/es/array"); use();');
+    const original = [...program.body];
+    const modules = new Set(['es.array.flat', 'es.array.at']);
+    const plan = { toRemove: [original[2]], toReplaceWithNoop: [] };
+    apply({ program, plan, modules, importStyle, pkg, absoluteImports });
+    const label = `global import block/${ apply.name }/${ importStyle }/${ pkg }/${ absoluteImports }`;
+    const paths = ['es.array.at', 'es.array.flat'].map(name => absoluteImports
+      ? slashifyPath(createRequire(import.meta.url).resolve(`${ pkg }/modules/${ name }`)) : `${ pkg }/modules/${ name }`);
+    const expected = paths.map(path => importStyle === 'require' ? `require(${ JSON.stringify(path) });` : `import ${ JSON.stringify(path) };`);
+    const printed = printProgram({ program: { ...program, body: program.body.slice(2, 4) }, comments: [], source: '', id: '/imports.mjs' });
+    check(`${ label }/ordered statements`, collapseWhitespace(printed.code), collapseWhitespace(expected.join('\n')));
+    checkDeep(`${ label }/retained source identity`, program.body.filter(node => original.includes(node)),
+      apply === applyEntryProgram ? [original[0], original[1], original[3]] : original);
+    let mapped = false;
+    for (const node of program.body.slice(2, 4)) walkAstNodes({
+      root: node,
+      visit(item) {
+        if (item.start !== undefined || item.end !== undefined || item.loc || item.range) mapped = true;
+      },
+    });
+    check(`${ label }/no fabricated source positions`, mapped, false);
+  }
+  const program = programOf('"use strict"; require("core-js"); use();');
+  const original = [...program.body];
+  apply({ program, plan: { toRemove: [original[1]], toReplaceWithNoop: [] }, modules: new Set(), importStyle: 'import', pkg: 'core-js' });
+  checkDeep(`global import block/${ apply.name }/empty set preserves host surgery`,
+    program.body, apply === applyEntryProgram ? [original[0], original[2]] : original);
+}
+
+// --- AST-engine internals: flushIntoProgram placement contracts ---
+async function checkAstFlushContracts() {
+  const { flushIntoProgram } = await import('../../packages/core-js-unplugin/internals/import-injector.js');
+  function flushOver(src, injector, opts = {}) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/f.mjs', src, { sourceType: 'module' });
+    flushIntoProgram({ injector, program: parsed.program, ...opts });
+    return parsed.program.body.map(node => node.source?.value ? `${ node.type }:${ node.source.value }` : node.type).join('|');
+  }
+  const injector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+  injector.globalImports.add('es.array.flat');
+  injector.pureImports.set('actual/self', '_self');
+  const shape = flushOver("'use strict';\nuse(_self);\n", injector);
+  check('flush lands imports AFTER the directive prologue',
+    shape.startsWith('ExpressionStatement|ImportDeclaration'), true);
+  check('flush spells the global module path off the pkg',
+    shape.includes('@core-js/pure/modules/es.array.flat'), true);
+  const requireInjector = new ImportInjector({ importStyle: 'require', pkg: '@core-js/pure', absoluteImports: false });
+  requireInjector.globalImports.add('es.array.at');
+  requireInjector.pureImports.set('actual/self', '_self');
+  const requireShape = flushOver('use(_self);\n', requireInjector);
+  check('flush spells require() in the require style', requireShape.split('|', 1)[0], 'ExpressionStatement');
+
+  // Program declarations group families by numeric slot after the print-order renumber.
+  // Function declarations retain registration order, including after snapshot/orphan adoption.
+  for (const host of ['program', 'function']) for (const stateKind of ['fresh', 'snapshot', 'orphan']) {
+    const options = { importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false };
+    const reserved = ['_ref2', '_ref4', '_ref5', '_ref6', '_ref7', '_ref8', '_ref9', '_unused'];
+    const original = new ImportInjector(options);
+    original.seedReservedNames(reserved);
+    const refs = Array.from({ length: 3 }, () => original.generateDeclaredRef());
+    const unused = [original.generateUnusedName(), original.generateUnusedName()];
+    const dead = original.generateDeclaredRef();
+    const state = stateKind === 'fresh' ? original : new ImportInjector({ ...options, inherit: stateKind === 'snapshot' ? original.snapshot() : null });
+    state.seedReservedNames(reserved);
+    if (stateKind === 'orphan') {
+      state.adoptOrphanRefs([...refs, dead]);
+      state.adoptUnusedNames(unused);
+    }
+    const use = `use(${ [unused[1], ...refs.toReversed(), unused[0]].join(', ') });`;
+    const program = programOf(host === 'program' ? use : `function read() { 'use strict'; ${ use } }`);
+    const hostFunction = host === 'function' ? program.body[0] : null;
+    const refNames = [...refs, ...unused, dead].map(name => ({ name, hostFunction }));
+    flushIntoProgram({ injector: state, program, refNames });
+    const body = hostFunction ? hostFunction.body.body : program.body;
+    const declaration = body.find(node => node.type === 'VariableDeclaration');
+    const label = `ref order/${ host }/${ stateKind }`;
+    checkDeep(
+      `${ label }/declaration`,
+      declaration.declarations.map(item => item.id.name),
+      hostFunction ? ['_ref10', '_ref3', '_ref', '_unused3', '_unused2'] : ['_ref', '_ref3', '_ref10', '_unused2', '_unused3'],
+    );
+    checkDeep(`${ label }/reads`, body.at(-1).expression.arguments.map(node => node.name), ['_unused2', '_ref', '_ref3', '_ref10', '_unused3']);
+    check(`${ label }/declaration placement`, body.indexOf(declaration), hostFunction ? 1 : 0);
+    if (hostFunction) check(`${ label }/source prologue`, body[0].expression.value, 'use strict');
+  }
+
+  const memoInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+  for (const [source, expected] of [
+    ['_ref = Array;', ''],
+    ['((_ref = Array));', ''],
+    ['_ref = read();', 'VariableDeclaration|ExpressionStatement'],
+    ['_ref = object.value;', 'VariableDeclaration|ExpressionStatement'],
+    ['_ref = Array; use(_ref);', 'VariableDeclaration|ExpressionStatement|ExpressionStatement'],
+    ['if (yes) _ref = Array;', 'VariableDeclaration|IfStatement'],
+    ['foreign = Array;', 'ExpressionStatement'],
+  ]) check(`flush prunes only an unread inert memo: ${ source }`,
+    flushOver(source, memoInjector, { refNames: [{ name: '_ref', registrationIndex: 0 }] }), expected);
+
+  for (const [label, source, retained, expected] of [
+    ['inert', 'var MEMO = 1;', false, []],
+    ['effect', 'var MEMO = effect();', true, ['effect']],
+    ['getter', 'var MEMO = holder.value;', true, ['get']],
+    ['reader', 'var MEMO = 1; consume(MEMO);', true, ['read:1']],
+    ['pattern', 'var { value: MEMO } = holder;', true, ['get']],
+    ['for-of head', 'for (var MEMO of [1]) effect();', true, ['effect']],
+    ['for-in head', 'for (var MEMO in { x: 1 }) effect();', true, ['effect']],
+    ['sole for-init', 'for (var MEMO = 1; false;) effect();', true, []],
+    ['shared for-init', 'for (var MEMO = 1, user = effect(); false;) effect();', false, ['effect']],
+  ]) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+    const ref = state.generateLocalRef();
+    const input = `var untouched = 7; ${ source.replaceAll('MEMO', ref) }`;
+    const program = programOf(input);
+    flushIntoProgram({ injector: state, program, refOrder: [ref] });
+    let hasRef = false;
+    let hasSource = false;
+    walkAstNodes({ root: program, visit(node) {
+      if (node.type !== 'Identifier') return;
+      if (node.name === ref) hasRef = true;
+      if (node.name === 'untouched') hasSource = true;
+    } });
+    check(`terminal memo/${ label }/binding`, hasRef, retained);
+    check(`terminal memo/${ label }/source binding`, hasSource, true);
+    const effects = [];
+    runInNewContext(printProgram({ program, comments: [], source: input }).code, {
+      effect() { effects.push('effect'); return 1; },
+      consume(value) { effects.push(`read:${ value }`); },
+      holder: { get value() { effects.push('get'); return 1; } },
+    });
+    checkDeep(`terminal memo/${ label }/evaluation`, effects, expected);
+  }
+
+  for (const [label, expression, withRef, expectedActivation, expectedRefs, expected] of [
+    ['dead owned activation', 'null == (_ref = false) ? "skip" : (() => "held")()', true, false, 0, 'held'],
+    ['live owned activation', 'null == (_ref = false) ? "skip" : _ref', true, true, 1, false],
+    ['source activation', '(() => { return "held"; })()', false, true, 0, 'held'],
+  ]) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+    const ref = withRef && state.generateDeclaredRef();
+    const source = `function read(x = ${ expression }) { return x; } read();`;
+    const program = programOf(source);
+    flushIntoProgram({ injector: state, program, refNames: ref ? [{ name: ref, varless: true }] : [] });
+    const value = program.body[0].params[0].right;
+    check(`flush/${ label } keeps the expected lexical frame`, unwrapNode(value)?.type === 'CallExpression', expectedActivation);
+    let refs = 0;
+    walkAstNodes({ root: value, visit(node) { if (node.type === 'VariableDeclarator') refs++; } });
+    check(`flush/${ label } remaining memo declarations`, refs, expectedRefs);
+    check(`flush/${ label } return semantics`, runInNewContext(printProgram({ program, comments: [], source }).code), expected);
+    if (!expectedActivation) {
+      let sourceArrow = false;
+      walkAstNodes({ root: value, visit(node) { if (node.type === 'ArrowFunctionExpression') sourceArrow = true; } });
+      check(`flush/${ label } preserves the source arrow`, sourceArrow, true);
+    }
+  }
+
+  const aliasInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
+  const refs = Array.from({ length: 3 }, () => aliasInjector.generateLocalRef());
+  aliasInjector.registerGlobalAlias(refs[0], 'Iterator', { trusted: true, minted: true });
+  aliasInjector.registerGlobalAlias(refs[1], 'Map', { trusted: true, minted: true });
+  aliasInjector.registerGlobalAlias(refs[2], 'Set', { trusted: true, minted: true });
+  flushOver(`const ${ refs[1] } = Map; use(${ refs[1] }); const ${ refs[0] } = Iterator; use(${ refs[0] });`,
+    aliasInjector, { refOrder: refs });
+  const snapshot = aliasInjector.snapshot();
+  checkDeep('flush moves minted aliases through a swap of printed names',
+    [...snapshot.globalAliases].map(([name, alias]) => [name, alias.hint]).sort(),
+    [['_ref', 'Map'], ['_ref2', 'Iterator']]);
+  check('flush drops a minted alias whose receiver was omitted', snapshot.globalAliases.has(refs[2]), false);
+  const inherited = new ImportInjector({
+    importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false, inherit: snapshot,
+  });
+  checkDeep('post inherits the canonical minted alias names',
+    refs.map(name => inherited.getBindingInfo(name)?.hint ?? null), ['Map', 'Iterator', null]);
+}
+await checkAstFlushContracts();
+
+// --- AST-engine behavior locks the fixture corpus does not pin directly ---
+function checkAstEngineBehaviors() {
+  for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    const opts = { method, version: '4.0', targets: { ie: 11 } };
+    // a `core-js-disable-file` directive stands the whole engine down
+    check(`ast engine honors disable-file (${ method })`,
+      createPlugin(opts).transform('// core-js-disable-file\nimport "core-js";\n[1].flat();\n', '/df.mjs'), null);
+  }
+  const entryOpts = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
+  const entryOut = createPlugin(entryOpts).transform('import "core-js";\nuse();\n', '/e.mjs')?.code ?? '';
+  check('ast entry-global expands the root entry to modules',
+    entryOut.includes('core-js/modules/') && !entryOut.includes('import "core-js";'), true);
+  const entryMap = createPlugin(entryOpts).transform('import "core-js";\nuse();\n', '/e.mjs')?.map;
+  check('ast entry-global emits a sourcemap with content', !!entryMap && Array.isArray(entryMap.sources), true);
+  // pre+post map chaining: the post map of a pre-rewritten file omits sourcesContent (the
+  // chain reads content from pre's map), a standalone post emits it
+  const sandwich = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const preOut = sandwich.transform('const v = getA().flat?.();\nuse(v);\n', '/sw.mjs', 'pre');
+  const postOut = sandwich.transform(`${ preOut.code }\nconst w = getB().at?.(0);\nuse(w);`, '/sw.mjs', 'post');
+  check('ast pre emits a content-bearing map', Array.isArray(preOut?.map?.sourcesContent), true);
+  check('ast post map omits sourcesContent when chaining a pre rewrite',
+    postOut?.map ? !Array.isArray(postOut.map.sourcesContent) : false, true);
+  const standalonePost = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform('const v = getA().flat?.();\nuse(v);\n', '/sp.mjs', 'post');
+  check('ast standalone post map keeps sourcesContent',
+    Array.isArray(standalonePost?.map?.sourcesContent), true);
+  // the comments a destructuring host owns lead its rewrite below the effects lifted out of its
+  // initializer, while a section header set apart by a blank line stays above them - an order the
+  // structural comparison sees only through a comment inside the effect
+  const pure = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const lifted = pure.transform('use(0);\n// header\n\n// note\nconst { of } = (log(), Array);\nuse(of);\n', '/c.mjs')?.code ?? '';
+  check('ast lifted effect prints between a section header and the comment its host owns',
+    /\/\/ header\n+log\(\);\n+\/\/ note\nconst of = _Array\$of;/.test(lifted), true);
+  // A default moves behind its receiver's effects. Offset-based flushing must not give the
+  // default's annotation to that earlier receiver, including through source parentheses.
+  for (const root of ['this', 'globalThis']) for (const fallback of [
+    '/* default */ fallback()',
+    '/* default */ (fallback())',
+    '(/* default */ fallback())',
+    '/* outer */ (/* default */ fallback())',
+    '// default\n fallback()',
+    '/* default */ () => 1',
+    '/* default */ Array.from',
+    '(/* default */ [].flat)',
+    '/* default */ globalThis',
+    '/* default */ new Map()',
+  ]) {
+    const source = `const { Data: { at = ${ fallback } } } = (/*#__PURE__*/ touch(), ${ root });`;
+    const output = pure.transform(source, '/default.mjs')?.code ?? '';
+    const prefixAt = output.indexOf('touch()');
+    const commentAt = output.indexOf('default');
+    check(`default comment follows receiver/${ root }/${ fallback }`, prefixAt !== -1 && commentAt > prefixAt, true);
+    check(`default comment stays unique/${ root }/${ fallback }`, output.match(/default/g)?.length, 1);
+    check(`receiver annotation stays unique/${ root }/${ fallback }`, output.match(/#__PURE__/g)?.length, 1);
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/default.mjs', output, { sourceType: 'module' });
+    check(`default comment keeps valid syntax/${ root }/${ fallback }`, parsed.errors.length, 0);
+    const first = pure.transform(output, '/default-again.mjs')?.code ?? output;
+    check(`default comment survives another pass/${ root }/${ fallback }`, first.includes('default'), true);
+  }
+  for (const root of ['this', 'globalThis']) {
+    const source = `const { Data: { at = fallback(/*#__PURE__*/ make()) } } = (touch(), ${ root });`;
+    const output = pure.transform(source, '/comments.mjs');
+    check(`default argument keeps its own annotation/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*make\(\)\)/.test(output.code), true);
+    check(`default argument annotation stays unique/${ root }`, output.code.match(/#__PURE__/g)?.length, 1);
+    const runtimeSource = `${ source }\nmodule.exports = at;`;
+    const runtimeCode = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+      .transform(runtimeSource, '/default-order.cjs')?.code ?? runtimeSource;
+    for (const [leg, program] of [['native', runtimeSource], ['transformed', runtimeCode]]) {
+      const events = [];
+      const context = {
+        module: { exports: null },
+        touch() { events.push('prefix'); },
+        make() { events.push('make'); return 7; },
+        fallback(value) { events.push('fallback'); return value; },
+      };
+      Object.defineProperty(context, 'Data', {
+        get() {
+          events.push('Data');
+          return {
+            get at() {
+              events.push('at');
+              return undefined;
+            },
+          };
+        },
+      });
+      context.globalThis = context;
+      const loadPure = createRequire(import.meta.url);
+      context.require = path => path.endsWith('/actual/global-this') ? context : loadPure(path);
+      runInNewContext(program, context);
+      checkDeep(`defaulted receiver keeps its prefix and getter order/${ root }/${ leg }`,
+        [context.module.exports, events], [7, ['prefix', 'Data', 'at', 'make', 'fallback']]);
+    }
+    const map = new TraceMap(output.map);
+    for (const name of ['touch', 'make']) {
+      const offset = output.code.indexOf(`${ name }()`);
+      const before = output.code.slice(0, offset).split('\n');
+      const position = originalPositionFor(map, { line: before.length, column: before.at(-1).length });
+      check(`default comment frame preserves source map/${ root }/${ name }`,
+        JSON.stringify([position.line, position.column]), JSON.stringify([1, source.indexOf(`${ name }()`)]));
+    }
+    const rewrittenSource = `const { Data: { at = fallback(/*#__PURE__*/ getA().toSorted()) } } = (touch(), ${ root });`;
+    const rewritten = pure.transform(rewrittenSource, '/rewritten-comments.mjs');
+    check(`rewritten default call keeps its annotation/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*_toSorted/.test(rewritten.code), true);
+    check(`rewritten default does not annotate its receiver/${ root }`, /\/\*#__PURE__\*\/\s*getA\(/.test(rewritten.code), false);
+    const callAt = rewritten.code.indexOf('_toSorted', rewritten.code.indexOf('fallback('));
+    const callBefore = rewritten.code.slice(0, callAt).split('\n');
+    const callPosition = originalPositionFor(new TraceMap(rewritten.map), { line: callBefore.length, column: callBefore.at(-1).length });
+    check(`rewritten default maps to its original call/${ root }`, callPosition.column, rewrittenSource.indexOf('getA()'));
+    const optionalSource = `const { Data: { at = fallback(/*#__PURE__*/ getA()?.toSorted()) } } = (touch(), ${ root });`;
+    const optional = pure.transform(optionalSource, '/optional-comments.mjs')?.code ?? '';
+    check(`guarded default keeps annotation ahead of its probe/${ root }`, /fallback\(\/\*#__PURE__\*\/\s*null ==/.test(optional), true);
+    const nestedSource = `const { Data: { at = /* outer */ () => {
+      const { Data: { at: inner = /* inner */ fallback() } } = (step(), ${ root });
+      return inner;
+    } } } = (touch(), ${ root });`;
+    const nested = pure.transform(nestedSource, '/nested-comments.mjs')?.code ?? '';
+    check(`nested default keeps its outer annotation/${ root }`, nested.match(/outer/g)?.length, 1);
+    check(`nested default keeps its inner annotation/${ root }`, nested.match(/inner \*\//g)?.length, 1);
+    check(`nested default annotation follows its own prefix/${ root }`, nested.indexOf('/* inner */') > nested.indexOf('step()'), true);
+    const emptySource = `const { Data: { at = fallback(/* argument */) } } = (touch(), ${ root });`;
+    const empty = pure.transform(emptySource, '/empty-comments.mjs')?.code ?? '';
+    check(`empty default argument comment survives/${ root }`, empty.match(/argument/g)?.length, 1);
+    check(`empty default argument comment stays with its default/${ root }`, empty.indexOf('argument') > empty.indexOf('fallback()'), true);
+  }
+  // A static binding removes its unreachable default together with that default's comments.
+  for (const pattern of [
+    'const { Array: { from = DEFAULT } } = (touch(), this);',
+    'let from; ({ Array: { from = DEFAULT } } = (touch(), this));',
+    'const { from = DEFAULT } = (touch(), Array);',
+  ]) for (const fallback of [
+    '/* removed */ fallback(/*#__PURE__*/ make())',
+    '(/* removed */ fallback(/*#__PURE__*/ getA().toSorted()))',
+  ]) {
+    const source = pattern.replace('DEFAULT', fallback);
+    const output = pure.transform(source, '/removed-default.mjs');
+    check(`removed static default drops its annotation/${ source }`, output.code.match(/#__PURE__/g)?.length ?? 0, 0);
+    check(`removed static default drops its prose/${ source }`, output.code.includes('removed'), false);
+    check(`removed static default keeps its prefix/${ source }`, output.code.match(/touch\(\)/g)?.length, 1);
+    const before = output.code.slice(0, output.code.indexOf('touch()')).split('\n');
+    const position = originalPositionFor(new TraceMap(output.map),
+      { line: before.length, column: before.at(-1).length, bias: LEAST_UPPER_BOUND });
+    check(`removed static default keeps its prefix map/${ source }`, position.column, source.indexOf('touch()'));
+  }
+  const retained = pure.transform(
+    'const { Array: { from = fallback(/*#__PURE__*/ make()) } } = (touch(), globalThis);', '/retained-default.mjs',
+  )?.code ?? '';
+  check('surviving static default keeps its own annotation', retained.match(/#__PURE__/g)?.length, 1);
+  check('surviving static default keeps its expression', retained.includes('fallback('), true);
+  const annotatedPrefix = pure.transform(
+    'const { Array: { from = fallback(/*#__PURE__*/ make()) } } = (/*#__PURE__*/ touch(), this);', '/prefix.mjs',
+  )?.code ?? '';
+  check('removing a default keeps the live prefix annotation', annotatedPrefix.match(/#__PURE__/g)?.length, 1);
+  const prefixedAssignment = pure.transform(
+    'let map, sibling; ({ Array: { prototype: { map } }, sibling } = (step(), this));', '/prefixed-this.mjs',
+  )?.code ?? '';
+  check('top-level this assignment retains exactly one prefix', occurrencesOf(prefixedAssignment, 'step()'), 1);
+  const assignmentSource = 'let map, sibling; ({ Array: { prototype: { map } }, sibling } = (step(), this)); module.exports = [map, sibling];';
+  const assignmentCode = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+    .transform(assignmentSource, '/assignment-order.cjs')?.code ?? assignmentSource;
+  for (const [leg, program] of [['native', assignmentSource], ['transformed', assignmentCode]]) {
+    const events = [];
+    function selected() { return 7; }
+    const context = { module: { exports: null }, require: createRequire(import.meta.url), step() { events.push('prefix'); } };
+    Object.defineProperties(context, {
+      Array: {
+        get() {
+          events.push('Array');
+          return {
+            get prototype() {
+              events.push('prototype');
+              return {
+                get map() {
+                  events.push('map');
+                  return selected;
+                },
+              };
+            },
+          };
+        },
+      },
+      sibling: { configurable: true, get() { events.push('sibling'); return 9; } },
+    });
+    runInNewContext(program, context);
+    checkDeep(`top-level this assignment keeps prefix and getter order/${ leg }`,
+      [context.module.exports[0] === selected, context.module.exports[1], events],
+      [true, 9, ['prefix', 'Array', 'prototype', 'map', 'sibling']]);
+  }
+  // ... and a rewrite whose first statement the render mints opens at its host
+  const minted = pure.transform('use(0);\n// note\nconst [{ findLast, at }] = [src.y];\nuse(findLast, at);\n', '/m.mjs')?.code ?? '';
+  check('ast minted rewrite opens under the comment its host owns', /\/\/ note\nconst _ref = src\.y;/.test(minted), true);
+}
+checkAstEngineBehaviors();
+
+// `additionalPackages` items must be non-empty non-slash-only strings. validateOptions
+// catches this for plugin-options-layer users; direct createPolyfillContext callers also
+// get a defensive throw. without it, `''` / `'/'` cascades through `packages` and would
+// false-positive every absolute path in `getCoreJSEntry`'s `startsWith('/')` check
+function checkAdditionalPackagesShapeGuard() {
+  const cases = [
+    { additionalPackages: [''], label: 'empty string' },
+    { additionalPackages: ['/'], label: 'single slash' },
+    { additionalPackages: ['/'.repeat(5)], label: 'multi slash' },
+    { additionalPackages: [42], label: 'non-string' },
+  ];
+  for (const { additionalPackages, label } of cases) {
+    try {
+      createPolyfillContext({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, additionalPackages });
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(`additionalPackages/${ label }`) } :: expected throw`;
+    } catch (error) {
+      /additionalPackages\[\d+\].*non-empty.*non-slash|additionalPackages.*must be a string/.test(error.message)
+        ? counts.passed++
+        : counts.failed++;
+    }
+  }
+  // valid additionalPackages still works
+  createPolyfillContext({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, additionalPackages: ['my-core-js'] });
+  counts.passed++;
+}
+checkAdditionalPackagesShapeGuard();
+
+// --- single-post without pre-snapshot still emits pure imports ---
+// the flush census filters dead imports by liveness in the FINAL tree (e.g. a
+// destructure transform dropping all uses mid-pass); an isolated post pass must still
+// see its own emissions as live, or the filter strips every pure import and the emit
+// becomes empty
+function checkSinglePostPassEmitsPureImports() {
+  const code = 'export var x = "test".at(-1);\nexport var m = new Map();';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  // direct `pass: 'post'` without prior pre - simulates `phase: 'post'`-only build setup
+  const out = createPlugin(opts).transform(code, '/single-post.mjs', 'post');
+  const importLines = (out?.code ?? '').split('\n').filter(l => l.startsWith('import '));
+  check('single-post/emits pure imports', importLines.length > 0, true);
+}
+checkSinglePostPassEmitsPureImports();
+
+// --- post re-recognizes pre's RELOCATED catch pattern ---
+// pre moves a catch pattern off the clause into `let <pattern> = _ref;` at the head of the block,
+// and leaves a binding the body never reads as a native read - an `_ref`-bound rewrite there costs
+// an import and a dispatcher call nothing observes. on a post re-parse the CatchClause host is
+// gone, so without recognizing the relocated shape the phase re-extracts exactly what pre declined
+function checkPostKeepsRelocatedCatchLiveness() {
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const unread = 'let out;\ntry { risky(); } catch ({ [Symbol.iterator]: it, at }) { out = it; }\nexport { out };';
+  const pre = createPlugin(opts).transform(unread, '/x31.mjs', 'pre');
+  check('relocated-catch/pre leaves the unread prop native', pre?.code?.includes('let { at } = _ref'), true);
+  const post = createPlugin(opts).transform(pre.code, '/x31.mjs', 'post');
+  check('relocated-catch/post does not re-extract it', (post?.code ?? pre.code).includes('let { at } = _ref'), true);
+  check('relocated-catch/post adds no instance import', /instance\/at/u.test(post?.code ?? ''), false);
+  // the boundary: a body that DOES read the binding still extracts on the post pass, and a
+  // declaration off some other value is an ordinary declarator, not a relocated catch pattern
+  const read = 'let out;\ntry { risky(); } catch (_ref) { let { at } = _ref; out = at; }\nexport { out };';
+  check('relocated-catch/a read binding still extracts',
+    /instance\/at/u.test(createPlugin(opts).transform(read, '/x31r.mjs', 'post')?.code ?? ''), true);
+  const foreign = 'const src = [1];\nlet out;\ntry { risky(); } catch (_ref) { let { at } = src; out = 1; }\nexport { out };';
+  check('relocated-catch/a declaration off another value is an ordinary declarator',
+    /instance\/at/u.test(createPlugin(opts).transform(foreign, '/x31f.mjs', 'post')?.code ?? ''), true);
+}
+checkPostKeepsRelocatedCatchLiveness();
+
+// Static extraction keeps rest exclusions stable across pre and post. User bindings
+// named like sentinels still extract; only an owned, unread exclusion is adopted.
+function checkPostAdoptsUnusedSentinels() {
+  const code = 'const { from, ...rest } = Array;\nexport const r = [from, rest];';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const pre = createPlugin(opts).transform(code, '/x30.mjs', 'pre');
+  check('post-adopt-unused/pre retains the static exclusion', /from: _unused, \.\.\.rest/.test(pre?.code ?? code), true);
+  const post = createPlugin(opts).transform(pre?.code ?? code, '/x30.mjs', 'post');
+  check('post-adopt-unused/post-without-pre is idempotent', post?.code ?? null, null);
+  const nested = 'function f() {\n  const { from, ...rest } = Array;\n  return [from, rest];\n}\nexport default f;';
+  const nestedPre = createPlugin(opts).transform(nested, '/x30n.mjs', 'pre');
+  check('post-adopt-unused/nested pre retains the static exclusion', /from: _unused, \.\.\.rest/.test(nestedPre?.code ?? nested), true);
+  const nestedPost = createPlugin(opts).transform(nestedPre?.code ?? nested, '/x30n.mjs', 'post');
+  check('post-adopt-unused/nested post-without-pre is idempotent', nestedPost?.code ?? null, null);
+  const both = 'const { from, ...rest } = Array;\nexport const r = [from, rest, (arr ?? [1]).at(0)];';
+  const bothPre = createPlugin(opts).transform(both, '/x30b.mjs', 'pre');
+  check('post-adopt-unused/independent receiver memo remains beside native rest',
+    bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
+  const bothPost = createPlugin(opts).transform(bothPre.code, '/x30b.mjs', 'post');
+  check('post-adopt-unused/both channels post is idempotent', bothPost?.code ?? null, null);
+  const shadow = 'import "@core-js/pure/actual/array/from";\nconst { from: _unused, ...rest } = Array;\nexport const r = [_unused, rest];';
+  const shadowPost = createPlugin(opts).transform(shadow, '/x30s.mjs', 'post');
+  // ... over a PROVEN receiver (`Array` is never nullish), so the extraction owes no nullish probe
+  check('post-adopt-unused/a user sentinel name still extracts',
+    /_unused = _Array\$from,/.test(shadowPost?.code ?? ''), true);
+  check('post-adopt-unused/a user sentinel name keeps a distinct exclusion',
+    /from: _unused2, \.\.\.rest/.test(shadowPost?.code ?? ''), true);
+  const unread = 'import "@core-js/pure/actual/array/from";\nexport const { from: _unused, ...rest } = Array;';
+  const unreadPost = createPlugin(opts).transform(unread, '/x30u.mjs', 'post');
+  check('post-adopt-unused/an exported sentinel name still extracts',
+    /const _unused = _Array\$from,/.test(unreadPost?.code ?? ''), true);
+  check('post-adopt-unused/an exported sentinel name keeps a distinct exclusion',
+    /from: _unused2, \.\.\.rest/.test(unreadPost?.code ?? ''), true);
+  check('post-adopt-unused/the source leaf remains exported',
+    unreadPost?.code?.includes('export { _unused, rest };'), true);
+  const ours = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const from = _Array$from;\nexport const { from: _unused, ...rest } = Array;';
+  const oursPost = createPlugin(opts).transform(ours, '/x30o.mjs', 'post');
+  // A prior extraction does not own a different, externally read source binding.
+  check('post-adopt-unused/an exported source leaf beside an extraction still extracts',
+    /const _unused = _Array\$from,/.test(oursPost?.code ?? ''), true);
+  check('post-adopt-unused/only the private exclusion is omitted from exports',
+    oursPost?.code?.includes('export { _unused, rest };'), true);
+  check('post-adopt-unused/the private exclusion is adopted on the next pass',
+    createPlugin(opts).transform(oursPost?.code ?? ours, '/x30o.mjs', 'post')?.code ?? null, null);
+  const other = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const y = _Array$from([1]);\nexport const { at: _unused, ...rest } = [2];';
+  const otherPost = createPlugin(opts).transform(other, '/x30k.mjs', 'post');
+  check('post-adopt-unused/other native rest stays intact', otherPost?.code ?? other, other);
+  const readBeside = 'import _at from "@core-js/pure/actual/array/instance/at";\nconst arr = [1];\nconst at = _at(arr);\n'
+    + 'export const { at: _unused2, ...rest } = arr;\nexport const r = [_unused2, at];';
+  const readBesidePost = createPlugin(opts).transform(readBeside, '/x30r.mjs', 'post');
+  check('post-adopt-unused/readBeside native rest stays intact', readBesidePost?.code ?? readBeside, readBeside);
+  const plain = 'import "@core-js/pure/actual/array/from";\nvar _unused = 1;\nexport const { at: _unused2, ...rest } = [2];\nexport const r = [_unused, _unused2];';
+  const plainPost = createPlugin(opts).transform(plain, '/x30p.mjs', 'post');
+  check('post-adopt-unused/plain native rest stays intact', plainPost?.code ?? plain, plain);
+}
+checkPostAdoptsUnusedSentinels();
+
+// --- phase pre+post with require import style: post must dedup the pre-emitted `var X = require()` ---
+// the require import style emits `var _X = require('@core-js/pure/...')`; the post re-scan has to
+// recognise that VariableDeclaration+require as an existing pure import or it re-emits a duplicate
+// require for the same module (double module-eval)
+function checkPrePostRequireDedup() {
+  const code = 'export var r = Array.from([1, 2]);';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle: 'require' };
+  const twoPass = createPlugin(opts);
+  const preOut = twoPass.transform(code, '/req-dedup.mjs', 'pre');
+  const postOut = preOut?.code ? twoPass.transform(preOut.code, '/req-dedup.mjs', 'post') : preOut;
+  const final = postOut?.code ?? preOut?.code ?? '';
+  // exactly one require for the array/from pure module survives the post re-scan, not two
+  check('pre+post require/no duplicate module require', occurrencesOf(final, '@core-js/pure/actual/array/from'), 1);
+}
+checkPrePostRequireDedup();
+
+// count non-overlapping occurrences of a literal substring (no regex - avoids backtracking
+// lint and substring-in-name surprises). shared by the pre+post import-emission checks
+function occurrencesOf(haystack, needle) {
+  return haystack.split(needle).length - 1;
+}
+
+// default-import binding name for the line importing `sourceSubstr`, or null. line-scoped so the
+// pattern stays anchored (`import <name> from "...sourceSubstr..."`) with no cross-line backtracking
+function defaultImportNameFor(code, sourceSubstr) {
+  for (const line of code.split('\n')) {
+    if (!line.startsWith('import ') || !line.includes(sourceSubstr)) continue;
+    const name = /^import (?<name>\S+) from /.exec(line)?.groups?.name;
+    if (name) return name;
+  }
+  return null;
+}
+
+// every `name(` call site in `code` is backed by an `import name from ...` line. the usage-pure
+// rewrites emit `_flat(arr)` / `_flat(_ref)` call shapes, so a referenced-but-unimported binding
+// surfaces as a dangling reference (ReferenceError at runtime)
+function rewriteBindingsAreImported(code) {
+  const declared = new Set();
+  for (const line of code.split('\n')) {
+    const name = line.startsWith('import ') ? /^import (?<name>\S+) from /.exec(line)?.groups?.name : null;
+    if (name) declared.add(name);
+  }
+  // plugin UID call sites start `_` + identifier chars then `(` (`_flatMaybeArray(`, `_ref(`).
+  // bounded length keeps the scan linear (UIDs are short); `$` rarely appears mid-UID but is
+  // matched by `\w`-adjacent ids via the explicit alternation char class
+  for (const { groups } of code.matchAll(/(?<name>_[\w$]{1,60})\(/g)) {
+    if (!declared.has(groups.name)) return false;
+  }
+  return true;
+}
+
+// --- usage-pure pre output is self-contained (imports inline, not deferred) ---
+// usage-pure rewrites source text in `pre` (`arr.flat()` -> `_flat(arr).call(arr)`), so the pre
+// output references a polyfill binding. the import is emitted INLINE in pre rather than deferred,
+// so the pre output is valid standalone even if the matching post never lands anything
+function checkUsagePurePreEmitsInlineImports() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', '/inline-pre.js', 'pre');
+  const code = pre?.code ?? '';
+  const name = defaultImportNameFor(code, 'instance/flat');
+  check('usage-pure pre/emits inline import', !!name, true);
+  // the rewrite that references it is present and backed, so the output runs standalone
+  check('usage-pure pre/rewrite references the inline import', !!name && code.includes(`${ name }(a)`), true);
+}
+checkUsagePurePreEmitsInlineImports();
+
+// --- pre+post: disable-file injected between passes leaves no dangling reference ---
+// a sibling plugin (or other skip-eligibility) introduces `core-js-disable-file` AFTER pre ran.
+// post bails on the directive, but pre already rewrote `arr.flat()` -> `_flat(arr).call(arr)`.
+// because pre emits its import inline, the pre output (which is what gets bundled when post bails)
+// still carries the import - no `_flat` reference is left without a backing import
+function checkPrePostDisableFileBetweenPassesNoDangling() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const id = '/disable-between.js';
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', id, 'pre');
+  // sibling prepends the disable directive between passes; post sees it and bails (null)
+  const post = plugin.transform(`// core-js-disable-file\n${ pre?.code ?? '' }`, id, 'post');
+  check('pre+post disable-between/post bails on injected directive', post, null);
+  // the bundled output is pre's (post returned null) - every referenced binding stays backed
+  check('pre+post disable-between/referenced binding has a backing import',
+    rewriteBindingsAreImported(pre?.code ?? ''), true);
+}
+checkPrePostDisableFileBetweenPassesNoDangling();
+
+// --- pre+post: snapshot lost before post (fresh worker / cache eviction / --force) ---
+// post runs on a FRESH plugin instance whose SnapshotCache never saw pre's snapshot (webpack
+// persistent-cache pre-cached + post-fresh worker). pre's inline import makes the output
+// re-detectable + self-contained: post re-scans the import as existing and dedups, so the
+// optional-chain rewrite (`null == (_ref = foo()) ? ... : _flat(_ref)?.call(_ref)`) keeps its
+// backing import - no dangling reference
+function checkPrePostSnapshotLostNoDangling() {
+  const id = '/snapshot-lost.js';
+  const pre = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform('const r = foo()?.flat?.();\n', id, 'pre');
+  // fresh instance: no in-memory snapshot for this id
+  const post = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform(pre?.code ?? '', id, 'post');
+  const finalCode = post?.code ?? pre?.code ?? '';
+  check('pre+post snapshot-lost/rewrite present', !!defaultImportNameFor(finalCode, 'instance/flat'), true);
+  check('pre+post snapshot-lost/referenced binding has a backing import',
+    rewriteBindingsAreImported(finalCode), true);
+}
+checkPrePostSnapshotLostNoDangling();
+
+// --- pre+post: inline-then-inherit must not double-emit the same import ---
+// post inherits `pureImports` from pre's snapshot AND re-scans pre's inline import into
+// `existingPureImports`. without the pure-import difference against `existingPureImports` in
+// `#collectImportLines`, post would emit a second identical `import _flat ...` line on top of
+// pre's. assert exactly one occurrence survives the full pre->post round-trip
+function checkPrePostNoDoubleImport() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const id = '/no-double.js';
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', id, 'pre');
+  const post = plugin.transform(pre?.code ?? '', id, 'post');
+  const finalCode = post?.code ?? pre?.code ?? '';
+  check('pre+post no-double/exactly one flat import after round-trip', occurrencesOf(finalCode, 'instance/flat'), 1);
+}
+checkPrePostNoDoubleImport();
+
+// --- pre+post: post still adds polyfills for usages siblings injected between passes ---
+// the core pre+post purpose: post scans sibling-emitted output for polyfills pre couldn't see.
+// pre emits its own import inline; a sibling then adds a NEW usage; post must KEEP pre's import
+// AND emit the new one - both present, neither duplicated
+function checkPrePostPostAddsSiblingInjectedUsage() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const id = '/sibling-injected.js';
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', id, 'pre');
+  // sibling appends a usage (`Symbol.iterator`) that wasn't in pre's view
+  const post = plugin.transform(`${ pre?.code ?? '' }const s = Symbol.iterator;\n`, id, 'post');
+  const finalCode = post?.code ?? '';
+  check('pre+post sibling-injected/keeps pre flat import', occurrencesOf(finalCode, 'instance/flat'), 1);
+  check('pre+post sibling-injected/adds new symbol-iterator import', occurrencesOf(finalCode, 'symbol/iterator'), 1);
+}
+checkPrePostPostAddsSiblingInjectedUsage();
+
+// --- entry-global phase gate ---
+// `entry-global` always runs at pre, but the d.ts contract advertises `phase?: 'pre'`
+// as a legal explicit value. runtime must accept `'pre'` (no-op redundant with default)
+// and reject any other phase value. parallel checks: undefined / null are also accepted
+function checkEntryGlobalPhaseGate() {
+  function noop(ctx) {
+    return unplugin.raw({ method: 'entry-global', ...ctx, targets: 'chrome 50' }, { framework: 'vite' });
+  }
+  function tryFactory(ctx) {
+    try {
+      noop(ctx);
+      return null;
+    } catch (error) {
+      return error;
+    }
+  }
+  check('entry-global phase: pre accepted (regression lock)', tryFactory({ phase: 'pre' }), null);
+  check('entry-global phase: post rejects', tryFactory({ phase: 'post' })?.message?.includes('`phase`'), true);
+  check('entry-global phase: pre+post rejects', tryFactory({ phase: 'pre+post' })?.message?.includes('`phase`'), true);
+  check('entry-global phase: invalid rejects', tryFactory({ phase: 'lol' })?.message?.includes('`phase`'), true);
+  check('entry-global phase: undefined accepted (default)', tryFactory({ phase: undefined }), null);
+  check('entry-global phase: null accepted (conditional fallback)', tryFactory({ phase: null }), null);
+}
+checkEntryGlobalPhaseGate();
+
+// --- entry-global end-to-end transform with explicit phase: 'pre' ---
+// regression lock for UPL-16-1 reverify gap B: factory acceptance is locked by
+// checkEntryGlobalPhaseGate above, but end-to-end transform path through plugin's
+// `transform` hook wasn't covered. simulating the bundler-driven invocation via
+// `unplugin.raw` -> sub-plugin.transform asserts the phase doesn't break injection
+function checkEntryGlobalTransformWithPhasePre() {
+  const subs = unplugin.raw({ method: 'entry-global', phase: 'pre', targets: { ie: '11' } }, { framework: 'vite' });
+  // entry-global with phase:'pre' should produce a single sub-plugin (collapses to single stage)
+  check('entry-global phase: pre yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  // bind a stub bundler context (`this` carries `warn` / `error` for diagnostic routing)
+  // and call the transform hook; entry-global expands `import 'core-js/es/array/at';` to
+  // granular module imports filtered by IE 11 targets - the rewrite must produce a non-null
+  // result with a `.code` payload, no throw
+  const result = subs[0]?.transform?.call({ warn: msg => msg }, 'import "core-js/es/array/at";', '/probe.mjs');
+  check('entry-global phase: pre transform fires', !!result?.code, true);
+}
+checkEntryGlobalTransformWithPhasePre();
+
+// --- usage-pure standalone phase: 'post' wrapper dispatches `pass='post'` ---
+// regression lock: the wrapper at unplugin/index.js builds sub-plugins via
+// `stage(effective, ...)`; when phase=='post' the second-arg `pass` MUST be 'post' (not
+// 'single'), otherwise the post-only machinery (orphan adoption, post-snapshot pickup)
+// doesn't fire and an isolated post build emits an empty bundle. mirrors the
+// entry-global phase=='pre' end-to-end test above but goes through usage-pure to assert
+// pure imports survive the wrapper-driven pass dispatch
+function checkUsagePurePhasePostWrapperEmitsImports() {
+  const subs = unplugin.raw({ method: 'usage-pure', phase: 'post', targets: { ie: '11' } }, { framework: 'vite' });
+  check('usage-pure phase: post yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  const result = subs[0]?.transform?.call({ warn: msg => msg }, 'export var x = "test".at(-1);', '/post-probe.mjs');
+  const importLines = (result?.code ?? '').split('\n').filter(l => l.startsWith('import '));
+  check('usage-pure phase: post wrapper emits pure imports', importLines.length > 0, true);
+}
+checkUsagePurePhasePostWrapperEmitsImports();
+
+// --- usage-pure standalone phase: 'pre' wrapper dispatches `pass='single'` ---
+// regression lock for the 70-1 test gap: the wrapper at unplugin/index.js maps a standalone
+// `phase: 'pre'` to `pass='single'`, NOT `pass='pre'`. dispatching `'pre'` for a standalone
+// build sets `deferImports=true` (it expects a follow-up post pass that never comes) and
+// emits zero imports silently. mirrors the phase:'post' lock above on the pre side
+function checkUsagePurePhasePreWrapperEmitsImports() {
+  const subs = unplugin.raw({ method: 'usage-pure', phase: 'pre', targets: { ie: '11' } }, { framework: 'vite' });
+  check('usage-pure phase: pre yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  const result = subs[0]?.transform?.call({ warn: msg => msg }, 'export var x = "test".at(-1);', '/pre-probe.mjs');
+  const importLines = (result?.code ?? '').split('\n').filter(l => l.startsWith('import '));
+  check('usage-pure phase: pre wrapper emits pure imports (pass=single, not deferred)', importLines.length > 0, true);
+}
+checkUsagePurePhasePreWrapperEmitsImports();
+
+// --- buildEnd / watchChange lifecycle hook attachment ---
+// unplugin fires buildEnd / watchChange once per plugin instance to bound snapshot retention across
+// watch rebuilds / HMR. the factory attaches them to the LAST sub-plugin only (pre+post shares one drain
+// point), wired to plugin.reset() / invalidateSnapshot(). exercised so the wiring can't rot silently
+function checkLifecycleHookAttachment() {
+  const single = unplugin.raw({ method: 'usage-pure', targets: { ie: '11' } }, { framework: 'vite' });
+  check('lifecycle/single sub carries buildEnd', typeof single.at(-1).buildEnd, 'function');
+  check('lifecycle/single sub carries watchChange', typeof single.at(-1).watchChange, 'function');
+  const prePost = unplugin.raw({ method: 'usage-pure', phase: 'pre+post', targets: { ie: '11' } }, { framework: 'vite' });
+  check('lifecycle/pre+post yields two subs', prePost.length, 2);
+  check('lifecycle/hooks on the LAST sub only (pre sub has none)', typeof prePost[0].buildEnd, 'undefined');
+  check('lifecycle/last sub carries buildEnd', typeof prePost.at(-1).buildEnd, 'function');
+  // calling the hooks drives plugin.reset() / invalidateSnapshot() without throwing
+  let threw = false;
+  try {
+    prePost.at(-1).buildEnd();
+    prePost.at(-1).watchChange('/some-file.js');
+  } catch { threw = true; }
+  check('lifecycle/hooks drain snapshot state without throwing', threw, false);
+}
+checkLifecycleHookAttachment();
+
+// --- deeply-nested scoped refs emit correctly at every level ---
+// the input nests `depth` genuine function bodies each hosting its own instance claim - the
+// triply-nested flatten-sibling fixture shape scaled
+// up well past any handful. every level must emit exactly one `var _ref`; an emission that
+// truncated deep nesting (e.g. a depth cap below `depth`) would emit fewer.
+// `depth` is bounded by the RECURSIVE AST walk inside our parser dependency (estree-toolkit's
+// `Traverser.visitPath`), which overflows the call stack on far deeper nesting regardless of our
+// own iterative composition - that ceiling belongs to the traversal library, not the code under
+// test. 64 stays well clear of it on every CI runner while still scaling far past any handful
+function checkDeeplyNestedBodyWrapsCompose() {
+  const depth = 64;
+  let expr = `[${ depth }].at(0)`;
+  for (let k = depth - 1; k >= 1; k--) expr = `[${ k }].at(0) + ((() => ${ expr })())`;
+  const source = `const { Array: { from } } = globalThis, sibling = () => ${ expr };\nconsole.log(from, sibling());`;
+  const subs = unplugin.raw({ method: 'usage-pure', targets: { ie: '11' } }, { framework: 'vite' });
+  let result = null;
+  let threw = false;
+  try {
+    result = subs[0]?.transform?.call({ warn: msg => msg }, source, '/deep-nest-probe.mjs');
+  } catch {
+    threw = true;
+  }
+  check('deeply-nested body-wraps transform without throwing', threw, false);
+  // one `var _ref` per composed wrap; the substring also matches `var _ref2` etc.
+  const refCount = (result?.code ?? '').split('var _ref').length - 1;
+  check('deeply-nested body-wraps emit one var _ref per level (all composed)', refCount, depth);
+}
+checkDeeplyNestedBodyWrapsCompose();
+
+// --- bundler diagnostic captured by warn hijack ---
+// `unknown bundler` value triggers `console.warn` at plugin instantiation. unit test
+// asserts that the warn is observable via console.warn (test-runner's captureTransform
+// hijack relies on this). regression lock for XCT-16-1: the warn previously leaked to
+// stderr because runner only hijacked console.log
+function checkUnknownBundlerWarn() {
+  const captured = [];
+  const orig = console.warn;
+  console.warn = (...a) => captured.push(a.map(String).join(' '));
+  try {
+    createPlugin({ method: 'usage-global', bundler: 'turbopack', targets: { ie: '11' } });
+  } finally {
+    console.warn = orig;
+  }
+  check('unknown bundler emits one warn', captured.length, 1);
+  check('warn names the bundler', captured[0]?.includes('turbopack'), true);
+  check('warn lists known bundlers', captured[0]?.includes('vite'), true);
+}
+checkUnknownBundlerWarn();
+
+// --- snapshot-cache pre-pass-twice warn (gated `debug: true`) ---
+// regression lock for snapshot-cache's duplicate-store warn (`store()`). store() called
+// twice with the same id under `debug: true` must emit exactly one diagnostic. without
+// debug the warn is suppressed (legit dev-server pattern, no noise)
+function checkSnapshotPrePassTwiceWarn() {
+  const captured = [];
+  const orig = console.warn;
+  console.warn = (...a) => captured.push(a.map(String).join(' '));
+  try {
+    const cache = new SnapshotCache({ debug: true });
+    cache.store('/probe.mjs', { code: 'a' });
+    cache.store('/probe.mjs', { code: 'b' });
+    // unrelated id: no warn
+    cache.store('/other.mjs', { code: 'c' });
+    check('snapshot pre-pass twice: one warn', captured.length, 1);
+    check('warn names the id', captured[0]?.includes('/probe.mjs'), true);
+    // debug:false suppresses
+    captured.length = 0;
+    const silent = new SnapshotCache({ debug: false });
+    silent.store('/silent.mjs', { code: 'a' });
+    silent.store('/silent.mjs', { code: 'b' });
+    check('snapshot pre-pass twice without debug: no warn', captured.length, 0);
+  } finally {
+    console.warn = orig;
+  }
+}
+checkSnapshotPrePassTwiceWarn();
+
+// --- bundler support is one set, spelled in three places ---
+// `KNOWN_BUNDLERS` is the support policy, and the public surface has to be exactly it: a named
+// export, a `./<name>` sub-entry in the exports map and the `<name>.js` / `<name>.d.ts` pair for
+// every member, none of them for anything else. `unloader` is the bundler upstream unplugin names
+// and this package does not support: it belongs in no internal set and on no public surface, so
+// an attempt to quietly handle it as a neighbour again (a set entry without an entry point) fails
+// here rather than surviving as a warning that lies about what is supported
+async function checkBundlerSupportSurface() {
+  const exported = await import('../../packages/core-js-unplugin/index.js');
+  const subEntries = new Set(Object.keys(unpluginPackage.exports).filter(key => key !== '.').map(key => key.slice(2)));
+  const packageDir = path.resolve('../../packages/core-js-unplugin');
+  for (const name of KNOWN_BUNDLERS) {
+    check(`bundler support/'${ name }' has a named export`, typeof exported[name], 'function');
+    check(`bundler support/'${ name }' has a sub-entry`, subEntries.has(name), true);
+    check(`bundler support/'${ name }' ships its entry files`,
+      await fs.pathExists(path.join(packageDir, `${ name }.js`)) && await fs.pathExists(path.join(packageDir, `${ name }.d.ts`)), true);
+  }
+  checkDeep('bundler support/the sub-entries are exactly the known bundlers', [...subEntries].sort(), [...KNOWN_BUNDLERS].sort());
+  check('bundler support/unloader is not a known bundler', KNOWN_BUNDLERS.has('unloader'), false);
+  check('bundler support/unloader is no chunk loader', isChunkLoaderBundler('unloader'), false);
+  check('bundler support/unloader is not exported', exported.unloader, undefined);
+  check('bundler support/unloader has no sub-entry', subEntries.has('unloader'), false);
+  check('bundler support/unloader ships no entry file', await fs.pathExists(path.join(packageDir, 'unloader.js')), false);
+  // and the diagnostic is honest about it: an unknown host, not a supported one
+  const captured = [];
+  const orig = console.warn;
+  console.warn = (...a) => captured.push(a.map(String).join(' '));
+  try {
+    createPlugin({ method: 'usage-global', bundler: 'unloader', targets: { ie: '11' } });
+  } finally {
+    console.warn = orig;
+  }
+  check('bundler support/unloader is reported as unknown', captured.length === 1 && captured[0].includes('unknown bundler "unloader"'), true);
+  check('bundler support/the supported list does not advertise it', captured[0]?.split('supported:', 2)[1]?.includes('unloader'), false);
+}
+await checkBundlerSupportSurface();
+
+// --- estree-compat nodeType mapper (adapter divergence: babel vs oxc) ---
+// `nodeType()` translates oxc's narrower node taxonomy back to babel's discriminator
+// names so shared callsites (resolve-node-type / detect-usage / helpers) can pattern-match
+// against a single set of type strings. coverage gap: subtle Property kinds (init/method/
+// get/set), MethodDefinition vs PropertyDefinition (instance vs static via .static flag is
+// orthogonal), and Literal subtype dispatch (BigInt / RegExp / String / Number / Boolean / Null)
+async function checkEstreeNodeTypeMapper() {
+  const { nodeType } = await import('../../packages/core-js-unplugin/internals/estree-compat.js');
+  function parseTop(src) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    return parseSync('test.js', src).program;
+  }
+  // ChainExpression wraps optional `a?.b` / `a?.()` in oxc; unwrap to inner Member/Call
+  function unwrapChain(node) {
+    return node?.expression ?? node;
+  }
+
+  // Property kinds via parsed object literal: init / method / get / set
+  const props = parseTop('const o = { a: 1, b() {}, get c() {}, set c(v) {} };')
+    .body[0].declarations[0].init.properties;
+  const PROPERTY_CASES = [
+    ['init -> ObjectProperty', 0, 'ObjectProperty'],
+    ['method -> ObjectMethod', 1, 'ObjectMethod'],
+    ['get -> ObjectMethod', 2, 'ObjectMethod'],
+    ['set -> ObjectMethod', 3, 'ObjectMethod'],
+  ];
+  for (const [label, i, expected] of PROPERTY_CASES) check(`nodeType/Property ${ label }`, nodeType(props[i]), expected);
+
+  // MethodDefinition (instance/static) -> ClassMethod, PropertyDefinition -> ClassProperty
+  const members = parseTop('class C { m() {} static s() {} f = 1; static t = 2; }')
+    .body[0].body.body;
+  const CLASS_CASES = [
+    ['MethodDefinition -> ClassMethod', 0, 'ClassMethod'],
+    ['static MethodDefinition -> ClassMethod', 1, 'ClassMethod'],
+    ['PropertyDefinition -> ClassProperty', 2, 'ClassProperty'],
+    ['static PropertyDefinition -> ClassProperty', 3, 'ClassProperty'],
+  ];
+  for (const [label, i, expected] of CLASS_CASES) check(`nodeType/${ label }`, nodeType(members[i]), expected);
+
+  // Literal subtype dispatch: oxc emits one Literal type, mapper splits to babel-style names
+  const literals = parseTop('var s = "x"; var n = 1; var b = true; var nu = null; var bi = 42n; var re = /a/g;')
+    .body.map(d => d.declarations[0].init);
+  const LITERAL_CASES = [
+    ['string -> StringLiteral', 0, 'StringLiteral'],
+    ['number -> NumericLiteral', 1, 'NumericLiteral'],
+    ['boolean -> BooleanLiteral', 2, 'BooleanLiteral'],
+    ['null -> NullLiteral', 3, 'NullLiteral'],
+    ['bigint -> BigIntLiteral', 4, 'BigIntLiteral'],
+    ['regex -> RegExpLiteral', 5, 'RegExpLiteral'],
+  ];
+  for (const [label, i, expected] of LITERAL_CASES) check(`nodeType/Literal ${ label }`, nodeType(literals[i]), expected);
+
+  // Optional member/call: oxc wraps in ChainExpression with `optional: true` on inner;
+  // mapper emits babel's OptionalMemberExpression / OptionalCallExpression
+  const opts = parseTop('a?.b; a?.();').body.map(s => unwrapChain(s.expression));
+  check('nodeType/MemberExpression optional -> OptionalMemberExpression', nodeType(opts[0]), 'OptionalMemberExpression');
+  check('nodeType/CallExpression optional -> OptionalCallExpression', nodeType(opts[1]), 'OptionalCallExpression');
+
+  check('nodeType/null', nodeType(null), null);
+  check('nodeType/undefined', nodeType(undefined), null);
+}
+await checkEstreeNodeTypeMapper();
+
+// --- estree-compat class-member predicates recognise TS abstract members (parity with nodeType) ---
+// `abstract m()` / `abstract x` / `abstract accessor x` parse to TSAbstract* nodes on oxc; nodeType()
+// already maps them to the babel class-member kinds, so the `types.isClass*` predicates must agree -
+// else a consumer gating on the predicate (rather than nodeType) silently skips the abstract member
+async function checkAbstractMemberPredicates() {
+  const { types, nodeType } = await import('../../packages/core-js-unplugin/internals/estree-compat.js');
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const members = parseSync('test.ts', 'abstract class C { abstract m(): void; abstract x: number; abstract accessor y: number; }')
+    .program.body[0].body.body;
+  const [method, property, accessor] = members;
+  check('isClassMethod/abstract method', types.isClassMethod(method), true);
+  check('isClassProperty/abstract property', types.isClassProperty(property), true);
+  check('isClassAccessorProperty/abstract accessor', types.isClassAccessorProperty(accessor), true);
+  // the predicates stay in lockstep with nodeType's mapping of the same nodes
+  check('nodeType/abstract method -> ClassMethod', nodeType(method), 'ClassMethod');
+  check('nodeType/abstract property -> ClassProperty', nodeType(property), 'ClassProperty');
+  check('nodeType/abstract accessor -> ClassAccessorProperty', nodeType(accessor), 'ClassAccessorProperty');
+  // concrete shapes still match; an unrelated node still rejects
+  check('isClassMethod/concrete still matches', types.isClassMethod({ type: 'MethodDefinition' }), true);
+  check('isClassProperty/Identifier rejects', types.isClassProperty({ type: 'Identifier' }), false);
+}
+await checkAbstractMemberPredicates();
+
+// --- createPolyfillContext input validation (defensive checks for direct callers) ---
+
+function checkPolyfillContextRejects(label, opts) {
+  try {
+    createPolyfillContext(opts);
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: expected throw`;
+  } catch (error) {
+    if (/\[core-js\]/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(label) } :: unexpected error :: ${ error.message }`;
+    }
+  }
+}
+
+// initPluginOptions enforces these but third-party callers bypassing it (custom plugin
+// providers, programmatic invocations) need their own guard - else `pkg === ''` produces
+// false-positive entry detection downstream
+checkPolyfillContextRejects('createPolyfillContext/empty package',
+  { method: 'usage-pure', package: '' });
+checkPolyfillContextRejects('createPolyfillContext/slash-only package',
+  { method: 'usage-pure', package: '/' });
+checkPolyfillContextRejects('createPolyfillContext/multi-slash package',
+  { method: 'usage-pure', package: '///' });
+checkPolyfillContextRejects('createPolyfillContext/non-string package',
+  { method: 'usage-pure', package: 0 });
+
+// the diagnostic must NOT be masked by a secondary `JSON.stringify` throw when the bad
+// value can't serialize (BigInt, circular structure, hostile Proxy). `safeStringify` in
+// `createPolyfillContext` catches the failure and renders a sentinel instead so the user
+// sees the primary "wrong shape" message, not a confusing serialization TypeError
+function checkPolyfillContextRejectsCleanly(label, opts) {
+  try {
+    createPolyfillContext(opts);
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: expected throw`;
+  } catch (error) {
+    if (/Converting circular|Do not know how to serialize/.test(error.message)) {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(label) } :: JSON.stringify secondary throw leaked :: ${ error.message }`;
+    } else if (/\[core-js\]/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(label) } :: unexpected error :: ${ error.message }`;
+    }
+  }
+}
+
+const circular = {};
+circular.self = circular;
+checkPolyfillContextRejectsCleanly('createPolyfillContext/bigint package',
+  { method: 'usage-pure', package: 1n });
+checkPolyfillContextRejectsCleanly('createPolyfillContext/circular package',
+  { method: 'usage-pure', package: circular });
+checkPolyfillContextRejectsCleanly('createPolyfillContext/bigint in additionalPackages',
+  { method: 'usage-pure', package: 'foo', additionalPackages: [1n] });
+checkPolyfillContextRejectsCleanly('createPolyfillContext/circular in additionalPackages',
+  { method: 'usage-pure', package: 'foo', additionalPackages: [circular] });
+
+// --- hasCoreJSImport: fingerprint pre-pass against configured packages ---
+function checkHasPureImport(label, src, packages, expected) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const ast = parseSync('/x.mjs', src, { sourceType: 'module' }).program;
+  check(label, hasCoreJSImport(ast, packages), expected);
+}
+checkHasPureImport('hasCoreJSImport/match',
+  'import _ from "@core-js/pure/x";\nfoo();', ['@core-js/pure'], true);
+checkHasPureImport('hasCoreJSImport/exact-prefix not enough',
+  'import _ from "@core-js/pure";\nfoo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSImport/no imports', 'foo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSImport/non-matching package',
+  'import _ from "lodash";\nfoo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSImport/multiple packages',
+  'import _ from "vendor-pure/y";\nfoo();', ['@core-js/pure', 'vendor-pure'], true);
+checkHasPureImport('hasCoreJSImport/relative path mimicking pkg',
+  'import _ from "./vendor/@core-js/pure/x";\nfoo();', ['@core-js/pure'], false);
+// re-export with source is NOT detected: `pureImportSource` matches ImportDeclaration /
+// ExpressionStatement(require()) / VariableDeclaration(...=require()), not
+// ExportNamedDeclaration. fingerprint cares about INPUT module record fetches, not
+// re-exports - if user re-exports from `@core-js/pure`, the original importer chain
+// already had a direct import and would have been flagged there
+checkHasPureImport('hasCoreJSImport/re-export with source NOT detected',
+  'export { x } from "@core-js/pure/m";\nfoo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSImport/CJS require shape',
+  'const x = require("@core-js/pure/y");\nfoo();', ['@core-js/pure'], true);
+checkHasPureImport('hasCoreJSImport/lowercased package match',
+  'import _ from "@CORE-JS/PURE/x";\nfoo();', ['@core-js/pure'], true);
+// usage-global side-effect imports MUST be detected too - they're the pre-pass output for
+// global mode. without this, webpack persistent-cache + post-fresh in usage-global would
+// fail the orphan-adoption gate even though the source HAS pre's emitted imports
+checkHasPureImport('hasCoreJSImport/usage-global side-effect import',
+  'import "core-js/modules/es.array.from";\nfoo();', ['core-js'], true);
+checkHasPureImport('hasCoreJSImport/usage-global CJS require',
+  'require("core-js/modules/es.array.from");\nfoo();', ['core-js'], true);
+
+// --- walkAstNodes: visit-all-descendants walker used by injector subtree scans ---
+function exprOf(src, sourceType = 'module') {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return parseSync('/x.mjs', src, { sourceType }).program.body[0].expression;
+}
+function checkWalkVisitsAll() {
+  const node = exprOf('foo.bar.baz');
+  const types = [];
+  walkAstNodes({ root: node, visit: n => types.push(n.type) });
+  // depth-first: outer member -> inner member -> root identifier -> property identifiers
+  check('walkAstNodes/visits outer first', types[0], 'MemberExpression');
+  check('walkAstNodes/visits all member nodes', types.filter(t => t === 'MemberExpression').length, 2);
+  check('walkAstNodes/visits all identifier descendants', types.filter(t => t === 'Identifier').length, 3);
+}
+checkWalkVisitsAll();
+
+function checkWalkParentArg() {
+  const node = exprOf('a.b');
+  const seen = [];
+  walkAstNodes({ root: node, visit: (n, parent) => seen.push([n.type, parent?.type ?? null]) });
+  check('walkAstNodes/root has null parent', seen[0][1], null);
+  check('walkAstNodes/descendants have parent', seen[1][1], 'MemberExpression');
+}
+checkWalkParentArg();
+
+function checkWalkSkipsNonNodes() {
+  let count = 0;
+  walkAstNodes({ root: { type: 'X', noise: 42, str: 's', bool: true, nil: null },
+    visit: () => count++ });
+  check('walkAstNodes/visits leaf node only', count, 1);
+  walkAstNodes({ root: null, visit: () => count++ });
+  walkAstNodes({ root: 'string', visit: () => count++ });
+  walkAstNodes({ root: { /* no type */ }, visit: () => count++ });
+  check('walkAstNodes/no-op on null/non-object/typeless', count, 1);
+}
+checkWalkSkipsNonNodes();
+
+function checkWalkDepthCap() {
+  // build pathologically nested AST 1500 levels deep - walker bails at 1024 to bound CPU
+  let nested = { type: 'L', child: null };
+  for (let i = 0; i < 1500; i++) nested = { type: 'L', child: nested };
+  let count = 0;
+  walkAstNodes({ root: nested, visit: () => count++ });
+  check('walkAstNodes/depth cap at 1024', count, 1024);
+}
+checkWalkDepthCap();
+
+// --- unwrapNode: peel parens / chain / TS wrappers down to semantic core ---
+function checkUnwrapNode() {
+  // bare node passes through
+  const ident = { type: 'Identifier', name: 'x' };
+  check('unwrapNode/Identifier passes through', unwrapNode(ident), ident);
+
+  // ParenthesizedExpression peeled
+  const inner = { type: 'Identifier', name: 'y' };
+  check('unwrapNode/ParenthesizedExpression peeled',
+    unwrapNode({ type: 'ParenthesizedExpression', expression: inner }), inner);
+
+  // ChainExpression peeled
+  check('unwrapNode/ChainExpression peeled',
+    unwrapNode({ type: 'ChainExpression', expression: inner }), inner);
+
+  // TSAsExpression / TSNonNullExpression / TSSatisfiesExpression peeled
+  check('unwrapNode/TSAsExpression peeled',
+    unwrapNode({ type: 'TSAsExpression', expression: inner }), inner);
+  check('unwrapNode/TSNonNullExpression peeled',
+    unwrapNode({ type: 'TSNonNullExpression', expression: inner }), inner);
+  check('unwrapNode/TSSatisfiesExpression peeled',
+    unwrapNode({ type: 'TSSatisfiesExpression', expression: inner }), inner);
+
+  // stacked wrappers all peel
+  const stacked = { type: 'ParenthesizedExpression',
+    expression: { type: 'TSAsExpression',
+      expression: { type: 'ChainExpression', expression: inner } } };
+  check('unwrapNode/stacked Paren+TS+Chain peeled', unwrapNode(stacked), inner);
+
+  // null / undefined safe
+  check('unwrapNode/null', unwrapNode(null), null);
+  check('unwrapNode/undefined', unwrapNode(undefined), undefined);
+}
+checkUnwrapNode();
+
+// --- isCallee: parent is Call/New with `node` as callee (through wrappers) ---
+function checkIsCallee() {
+  const ident = { type: 'Identifier', name: 'fn' };
+  const callDirect = { type: 'CallExpression', callee: ident };
+  check('isCallee/CallExpression direct', isCallee(ident, callDirect), true);
+
+  const newDirect = { type: 'NewExpression', callee: ident };
+  check('isCallee/NewExpression direct', isCallee(ident, newDirect), true);
+
+  // through TS wrapper - unwrapNode peels
+  const callThroughTS = { type: 'CallExpression',
+    callee: { type: 'TSAsExpression', expression: ident } };
+  check('isCallee/through TSAsExpression', isCallee(ident, callThroughTS), true);
+
+  // not callee: parent is member access, not call
+  const memberParent = { type: 'MemberExpression', object: ident };
+  check('isCallee/MemberExpression NOT callee', isCallee(ident, memberParent), false);
+
+  // mismatched callee
+  const otherIdent = { type: 'Identifier', name: 'fn2' };
+  const callOther = { type: 'CallExpression', callee: otherIdent };
+  check('isCallee/different callee', isCallee(ident, callOther), false);
+
+  // null parent
+  check('isCallee/null parent', isCallee(ident, null), false);
+}
+checkIsCallee();
+
+// --- SnapshotCache lifecycle: store -> take chains, miss-after-take, invalidate cycles ---
+// take() consumes the entry (last-write-wins HMR semantic) and returns `entry ?? null`
+function checkSnapshotStoreTakeRoundTrip() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  check('SnapshotCache/store+take returns payload', cache.take('/a.js')?.v, 1);
+  // single-shot: after take, next take is null (entry consumed)
+  check('SnapshotCache/take consumes entry', cache.take('/a.js'), null);
+}
+checkSnapshotStoreTakeRoundTrip();
+
+function checkSnapshotMissBeforeStore() {
+  const cache = new SnapshotCache();
+  check('SnapshotCache/miss before store returns null', cache.take('/never-seen.js'), null);
+}
+checkSnapshotMissBeforeStore();
+
+function checkSnapshotMultipleFilesIsolation() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { tag: 'A' });
+  cache.store('/b.js', { tag: 'B' });
+  check('SnapshotCache/multi-file/size after 2 stores', cache.size(), 2);
+  check('SnapshotCache/multi-file/a take', cache.take('/a.js')?.tag, 'A');
+  check('SnapshotCache/multi-file/b take', cache.take('/b.js')?.tag, 'B');
+  check('SnapshotCache/multi-file/a re-take is null', cache.take('/a.js'), null);
+  check('SnapshotCache/multi-file/size after both taken', cache.size(), 0);
+}
+checkSnapshotMultipleFilesIsolation();
+
+function checkSnapshotOverwrite() {
+  // store followed by store at same id: second overwrites first (HMR semantic)
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  cache.store('/a.js', { v: 2 });
+  check('SnapshotCache/overwrite/second store wins', cache.take('/a.js')?.v, 2);
+}
+checkSnapshotOverwrite();
+
+function checkSnapshotInvalidateLifecycle() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  // invalidate returns true when entry existed
+  check('SnapshotCache/invalidate hit returns true', cache.invalidate('/a.js'), true);
+  check('SnapshotCache/post-invalidate take is null', cache.take('/a.js'), null);
+  // invalidate miss returns false
+  check('SnapshotCache/invalidate miss returns false', cache.invalidate('/never-seen.js'), false);
+}
+checkSnapshotInvalidateLifecycle();
+
+function checkSnapshotReset() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  cache.store('/b.js', { v: 2 });
+  cache.reset();
+  check('SnapshotCache/reset clears all', cache.size(), 0);
+  check('SnapshotCache/post-reset take is null', cache.take('/a.js'), null);
+}
+checkSnapshotReset();
+
+// soft cap evicts oldest insertion on overflow. critical for bun / esbuild --watch flows
+// where upstream unplugin doesn't dispatch watchChange and per-file invalidation falls
+// through. exact cap (1024) is internal; test the bump-on-re-store semantic that makes the
+// LRU policy correct - without it, repeated `store(sameKey, ...)` would keep stale keys
+// pinned to their original insertion slot and they'd always be evicted ahead of fresh stores.
+// the invariants: re-store keeps the LATEST value (not the original) AND both entries stay
+// retrievable - re-store doesn't drop the previous slot
+function checkSnapshotStoreBumpsRecency() {
+  const cache = new SnapshotCache();
+  cache.store('/oldest.js', { v: 'oldest' });
+  cache.store('/middle.js', { v: 'middle' });
+  cache.store('/oldest.js', { v: 'oldest-touched' });
+  check('SnapshotCache/size stays 2 on re-store', cache.size(), 2);
+  check('SnapshotCache/re-store preserves latest value',
+    cache.take('/oldest.js')?.v, 'oldest-touched');
+  check('SnapshotCache/re-store does not drop other entries',
+    cache.take('/middle.js')?.v, 'middle');
+}
+checkSnapshotStoreBumpsRecency();
+
+// `peek` is non-destructive and total: a hit hands back what pre stored, a miss the same shape
+// with nothing in it, and neither disturbs the entry - the post pass reads it before it knows
+// whether it will commit
+function checkSnapshotPeek() {
+  const cache = new SnapshotCache();
+  const snap = { signal: 'peeked' };
+  cache.store('/a.js', { snapshot: snap, preRewroteSource: true, mutatedStatics: new Set(['Object.assign']) });
+  const hit = cache.peek('/a.js');
+  check('peek/hit snapshot', hit.snapshot, snap);
+  check('peek/hit preRewroteSource', hit.preRewroteSource, true);
+  check('peek/hit mutatedStatics', hit.mutatedStatics?.has('Object.assign'), true);
+  // the entry survives, so a bail path can retry and the commit path still consumes it
+  check('peek/non-destructive', cache.take('/a.js')?.snapshot?.signal, 'peeked');
+  check('peek/then take consumes', cache.peek('/a.js').snapshot, null);
+
+  const miss = cache.peek('/missing.js');
+  check('peek/miss snapshot null', miss.snapshot, null);
+  check('peek/miss preRewroteSource false', miss.preRewroteSource, false);
+  check('peek/miss mutatedStatics null', miss.mutatedStatics, null);
+}
+checkSnapshotPeek();
+
+// --- the debug report prints the emission, once per file, across both passes ---
+// the report is read off the injector after the flush, so it lists what the output carries and
+// nothing else: for `pre+post` that is pre's imports (the injector union post inherits) together
+// with post's, printed once at post - a report of "did not add any polyfill" over a file pre
+// rewrote is the shape this locks out. an orphan post (no snapshot) and a single pass answer the
+// same. the readers are shared with the babel suite (`debug-report.mjs`), so one oracle serves both
+function transformWithReport(plugin, source, id, passes) {
+  let code = source;
+  const { logs } = captureLogs(() => {
+    for (const pass of passes) code = plugin.transform(code, id, pass)?.code ?? code;
+  });
+  return { code, logs };
+}
+const DEBUG_PASSES = [['single', ['single']], ['pre+post', ['pre', 'post']], ['orphan post', ['post']]];
+function checkDebugReportIsTheEmission() {
+  const pureSource = 'export const a = [1].at(0);\nexport const b = Array.from([]);\n';
+  for (const [label, passes] of DEBUG_PASSES) {
+    const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, debug: true });
+    const { code, logs } = transformWithReport(plugin, pureSource, `/src/debug-pure-${ label }.js`, passes);
+    check(`debug report/usage-pure ${ label }: one report`, reportCount(logs), 1);
+    checkDeep(`debug report/usage-pure ${ label }: lists exactly the emitted entries`, reportedPolyfills(logs), importedPolyfills(code));
+    check(`debug report/usage-pure ${ label }: the emission is non-empty`, importedPolyfills(code).length > 0, true);
+  }
+  // usage-global: the modules the usage pulled in; a core-js import the user wrote stays theirs -
+  // kept as written, it is no emission of ours and is not reported as one
+  const globalSource = "import 'core-js/actual/array/at';\nexport const p = Promise.resolve(1);\n";
+  for (const [label, passes] of DEBUG_PASSES) {
+    const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 }, debug: true });
+    const { code, logs } = transformWithReport(plugin, globalSource, `/src/debug-global-${ label }.js`, passes);
+    check(`debug report/usage-global ${ label }: one report`, reportCount(logs), 1);
+    checkDeep(`debug report/usage-global ${ label }: lists exactly the emitted modules`, reportedPolyfills(logs), importedPolyfills(code));
+    check(`debug report/usage-global ${ label }: the emission is non-empty`, importedPolyfills(code).length > 0, true);
+    check(`debug report/usage-global ${ label }: the user's own import is kept and not reported`,
+      code.includes("'core-js/actual/array/at'") && !reportedPolyfills(logs).includes('es.array.at'), true);
+  }
+  // entry-global: the report goes out after the entry surgery and lists the modules that replaced
+  // the entry; a file without an entry says so instead of listing an empty emission
+  {
+    const plugin = createPlugin({ method: 'entry-global', version: '4.0', targets: { ie: 11 }, debug: true });
+    const { code, logs } = transformWithReport(plugin, "import 'core-js/actual/array/at';\nexport const p = [1].at(0);\n", '/src/debug-entry.js', ['single']);
+    check('debug report/entry-global: one report', reportCount(logs), 1);
+    checkDeep('debug report/entry-global: lists exactly the modules the entry became', reportedPolyfills(logs), importedPolyfills(code));
+    check('debug report/entry-global: the entry became modules', importedPolyfills(code).includes('es.array.at'), true);
+    const absent = transformWithReport(plugin, 'export const p = [1].at(0);\n', '/src/debug-no-entry.js', ['single']);
+    check('debug report/entry-global without an entry: one report', reportCount(absent.logs), 1);
+    check('debug report/entry-global without an entry: says so', reportedPolyfills(absent.logs), 'The entry point for the core-js@4 polyfill has not been found.');
+  }
+  // the one report of a `pre+post` file carries the notes of the file (the slot-deopt warning here):
+  // post derives them again from its own parse of pre's output, the same notes a single pass makes
+  const notedSource = 'globalThis.Map = shim;\nexport const g = Map.groupBy([1], x => x);\n';
+  const noted = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, debug: true });
+  const single = transformWithReport(noted, notedSource, '/src/debug-note-single.js', ['single']);
+  const twoPass = transformWithReport(noted, notedSource, '/src/debug-note-two.js', ['pre', 'post']);
+  function noteOf(logs) {
+    return logs.find(line => line.includes('DEBUG'))?.split('Warnings:', 2)[1]?.trim() ?? null;
+  }
+  check('debug report/control - the single pass notes the deopted slot', noteOf(single.logs) !== null, true);
+  check('debug report/the post report of a pre+post file carries the same notes as a single pass', noteOf(twoPass.logs), noteOf(single.logs));
+}
+checkDebugReportIsTheEmission();
+
+// --- collectMutatedStaticMembers ---
+// pre-pass scan that backs the usage-pure substitution gate. detects every shape of
+// `Object.key` mutation - direct `=`, compound `+=`, update `++`, `delete`, and
+// destructure-LHS / pattern-target slots - so reads later in the file bail to preserve
+// the user's monkey-patch (polyfill import is `const`, can't see the mutation)
+function checkCollectMutatedStaticMembers() {
+  const mutationAdapter = createEstreeAdapter({ method: 'usage-pure' });
+  function collect(src) {
+    return collectPrePassSites({
+      // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+      ast: parseSync('unit.js', src).program,
+      adapter: mutationAdapter,
+      collectMutations: true,
+    }).mutated;
+  }
+  // direct `=` assignment
+  check('collectMutatedStaticMembers/direct assign',
+    collect('Array.from = () => [];').has('Array.from'), true);
+  // array-destructure LHS - `[Array.from] = X`
+  check('collectMutatedStaticMembers/array-destructure LHS',
+    collect('[Array.from] = [];').has('Array.from'), true);
+  // compound `+=`
+  check('collectMutatedStaticMembers/compound assign',
+    collect('Array.from += "x";').has('Array.from'), true);
+  // update `++`
+  check('collectMutatedStaticMembers/update postfix',
+    collect('Array.from++;').has('Array.from'), true);
+  // `delete`
+  check('collectMutatedStaticMembers/delete',
+    collect('delete Array.from;').has('Array.from'), true);
+  // pure read - NO mutation
+  check('collectMutatedStaticMembers/read only',
+    collect('Array.from([1, 2, 3]);').has('Array.from'), false);
+  // mutation of different member doesn't leak across keys
+  const mixed = collect('Array.of = X; Array.from([1, 2, 3]);');
+  check('collectMutatedStaticMembers/mixed - mutated key tracked',
+    mixed.has('Array.of'), true);
+  check('collectMutatedStaticMembers/mixed - read-only key not tracked',
+    mixed.has('Array.from'), false);
+  // proxy-global chain (`globalThis.Array.from`) IS tracked: the read side resolves the
+  // same chains, so an Identifier-only gate let the substitution bypass the user's patch
+  // (the node-only walk peels SE / parens per hop - no full receiver resolution needed)
+  check('collectMutatedStaticMembers/proxy-global chain tracked',
+    collect('globalThis.Array.from = X;').has('Array.from'), true);
+  // computed STRING-LITERAL key (`Array["from"] = X`) IS detected - dot and bracket access
+  // target the same property, so a bracket-key monkey-patch must suppress the polyfill too
+  // (staticMemberKey normalizes the literal bracket key to its dot form for write detection)
+  check('collectMutatedStaticMembers/computed string-literal key tracked',
+    collect('Array["from"] = X;').has('Array.from'), true);
+  // NON-literal computed key (`Array[k] = X`) could have hit ANY member - every member of the
+  // receiver deopts, under its OWN wildcard key; no exact pair is fabricated. NOT the slot key
+  // (`globalThis.Array`): that one says the binding holds the user's object, which would leave
+  // every read of the name verbatim and drop the polyfill with them
+  const dynamicKey = collect('Array[k] = X;');
+  check('collectMutatedStaticMembers/dynamic computed key deopts receiver members',
+    dynamicKey.has('Array.*'), true);
+  check('collectMutatedStaticMembers/dynamic computed key is not a slot write',
+    dynamicKey.has('globalThis.Array'), false);
+  check('collectMutatedStaticMembers/dynamic computed key fabricates no exact pair',
+    dynamicKey.has('Array.from'), false);
+  // `Object.assign(Builtin, { ...source })` copies each own key onto Builtin - method shorthand,
+  // getter, and data props across multiple object-literal sources all count as a static mutation
+  const assigned = collect('Object.assign(Array, { from() {}, get of() { return 1; } }, { isArray: 0 });');
+  check('collectMutatedStaticMembers/assign method shorthand', assigned.has('Array.from'), true);
+  check('collectMutatedStaticMembers/assign getter', assigned.has('Array.of'), true);
+  check('collectMutatedStaticMembers/assign second-source data', assigned.has('Array.isArray'), true);
+  // a dynamic source (Identifier) / a computed key in an object source can carry ANY key -
+  // the receiver deopts whole instead of guessing exact pairs
+  check('collectMutatedStaticMembers/assign dynamic + computed sources deopt receiver members',
+    [...collect('Object.assign(Map, src, { [k]: 1 });')].join(','), 'Map.*');
+  // Reflect call-forms monkey-patch a named static slot like the Object.* / assignment forms:
+  // defineProperty / deleteProperty / set (set is the call-form of `T.k = v` and the [[Set]] twin
+  // of Object.assign). setPrototypeOf is out of scope - it swaps [[Prototype]], not a named key
+  check('collectMutatedStaticMembers/Reflect.defineProperty',
+    collect("Reflect.defineProperty(Array, 'from', {});").has('Array.from'), true);
+  check('collectMutatedStaticMembers/Reflect.deleteProperty',
+    collect("Reflect.deleteProperty(Array, 'from');").has('Array.from'), true);
+  check('collectMutatedStaticMembers/Reflect.set',
+    collect("Reflect.set(Array, 'from', fn);").has('Array.from'), true);
+  check('collectMutatedStaticMembers/Reflect.setPrototypeOf not tracked',
+    [...collect('Reflect.setPrototypeOf(Array, proto);')].length, 0);
+  check('collectMutatedStaticMembers/Reflect.set dynamic key deopts receiver members',
+    [...collect('Reflect.set(Array, k, fn);')].join(','), 'Array.*');
+  // identity self-copies: a BARE proxy receiver is exempt, a bound same-named local is not
+  // (over-record - the safe direction), and a file that replaces the trusted receiver's own
+  // slot re-records the skipped copy in either textual order
+  check('collectMutatedStaticMembers/bare-proxy identity self-copy exempt',
+    [...collect('Promise = globalThis.Promise;')].length, 0);
+  check('collectMutatedStaticMembers/bound self alias not exempt',
+    collect('const self = { Promise: 1 }; Promise = self.Promise;').has('globalThis.Promise'), true);
+  check('collectMutatedStaticMembers/identity re-records when receiver slot replaced',
+    collect('Promise = self.Promise; self = fake;').has('globalThis.Promise'), true);
+}
+checkCollectMutatedStaticMembers();
+
+// --- isChunkLoaderBundler ---
+// dynamic-import chunk-loader semantics: webpack-family bundlers wrap `import()`
+// in `Promise.all([...])` of chunk fetches. detect-syntax adds `es.promise.all`
+// polyfill only when this predicate fires, so a regression here either loses the
+// polyfill on the chunk-loader bundlers or leaks it onto roll-family ones
+function checkChunkLoaderBundler() {
+  // chunk-loader bundlers: dynamic import wraps in Promise.all([chunks])
+  check('chunk-loader/webpack', isChunkLoaderBundler('webpack'), true);
+  check('chunk-loader/rspack', isChunkLoaderBundler('rspack'), true);
+  check('chunk-loader/rsbuild', isChunkLoaderBundler('rsbuild'), true);
+  check('chunk-loader/farm', isChunkLoaderBundler('farm'), true);
+  // unsupported host (see the support surface check): in no set, so no chunk-loader contract
+  check('chunk-loader/unloader', isChunkLoaderBundler('unloader'), false);
+  // roll-family / esbuild / native: dynamic import returns bare module Promise
+  check('chunk-loader/rollup', isChunkLoaderBundler('rollup'), false);
+  check('chunk-loader/rolldown', isChunkLoaderBundler('rolldown'), false);
+  check('chunk-loader/vite', isChunkLoaderBundler('vite'), false);
+  check('chunk-loader/esbuild', isChunkLoaderBundler('esbuild'), false);
+  check('chunk-loader/bun', isChunkLoaderBundler('bun'), false);
+  // unknown / missing bundler: dropped to false (warn already emitted at plugin construction)
+  check('chunk-loader/undefined', isChunkLoaderBundler(undefined), false);
+  check('chunk-loader/null', isChunkLoaderBundler(null), false);
+  check('chunk-loader/turbopack typo', isChunkLoaderBundler('turbopack'), false);
+}
+checkChunkLoaderBundler();
+
+// --- stripLeadingBOMs ---
+// oxc rejects BOM-prefixed shebangs; the plugin strips ALL leading U+FEFF before parsing and
+// the output carries none back (babel alignment) - only `sourcesContent` keeps the original
+// bytes. multi-BOM survives malformed source or a sibling plugin's per-pass prepend on top of ours
+function checkStripLeadingBOMs() {
+  // no BOM: returns same instance (cheap fast path)
+  const plain = 'export var x = 1;';
+  check('stripLeadingBOMs/no BOM returns same instance', stripLeadingBOMs(plain), plain);
+  // single BOM: stripped
+  check('stripLeadingBOMs/single BOM', stripLeadingBOMs('﻿foo'), 'foo');
+  // multi-BOM: ALL leading FEFFs stripped (single-strip would leave residual mid-prefix)
+  check('stripLeadingBOMs/double BOM', stripLeadingBOMs('﻿﻿foo'), 'foo');
+  check('stripLeadingBOMs/triple BOM', stripLeadingBOMs('﻿﻿﻿foo'), 'foo');
+  // BOM only mid-string is NOT stripped (only the leading run)
+  check('stripLeadingBOMs/inline BOM untouched', stripLeadingBOMs('foo﻿bar'), 'foo﻿bar');
+  // empty string: no crash
+  check('stripLeadingBOMs/empty string', stripLeadingBOMs(''), '');
+  // lone BOM: stripped to empty
+  check('stripLeadingBOMs/lone BOM', stripLeadingBOMs('﻿'), '');
+}
+checkStripLeadingBOMs();
+
+// --- file strictness: which id / body combination makes the Program a script ---
+// Annex-B block-function hoisting exists only in a script, so the strictness answer decides whether
+// a block-nested `function Promise(){}` shadows the global. the answer has to be the SAME one that
+// picks the import style, in BOTH directions: a CommonJS id can carry ESM, and every other id
+// parses as module yet may be a script by body or option
+function checkFileStrictness() {
+  const CJS_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\nmodule.exports = out;\n';
+  const ESM_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\nexport default out;\n';
+  const BARE_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\n';
+  // a script honours the shadow and keeps the native read; a module substitutes the pure import
+  function strictness(id, source, importStyle) {
+    const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+    if (importStyle) options.importStyle = importStyle;
+    const out = createPlugin(options).transform(source, id)?.code ?? source;
+    return /promise\/with-resolvers/.test(out) ? 'module' : 'script';
+  }
+  for (const [id, body, want] of [
+    ['/p.js', CJS_BODY, 'script'],
+    ['/p.cjs', CJS_BODY, 'script'],
+    ['/p.cts', CJS_BODY, 'script'],
+    ['/p.ts', CJS_BODY, 'script'],
+    ['/p.mjs', CJS_BODY, 'module'],
+    ['/p.mts', CJS_BODY, 'module'],
+    ['/p.mjs?vue&type=script', CJS_BODY, 'module'],
+    ['/p.js?import', CJS_BODY, 'script'],
+    ['/p.js', ESM_BODY, 'module'],
+    // source wins over extension in BOTH directions - the regression this pins
+    ['/p.cjs', ESM_BODY, 'module'],
+    ['/p.cts', ESM_BODY, 'module'],
+    // without body markers, a generic id stays Module and CommonJS extensions stay Script
+    ['/p.js', BARE_BODY, 'module'],
+    ['/p.cjs', BARE_BODY, 'script'],
+    ['/p.cts', BARE_BODY, 'script'],
+  ]) {
+    check(`strictness/${ id } ${ body === CJS_BODY ? 'cjs-body' : body === ESM_BODY ? 'esm-body' : 'bare' }`,
+      strictness(id, body), want);
+  }
+  // `importStyle` is EMISSION configuration and reaches the language fact nowhere: asking for
+  // `require` output must not turn a module into a sloppy script (and lose every polyfill under the
+  // Annex-B shadow), nor asking for `import` turn a CommonJS body into one (and substitute a
+  // ponyfill over a shadow that is real)
+  check('strictness/option require does not make a script', strictness('/p.js', BARE_BODY, 'require'), 'module');
+  check('strictness/option import does not make a module', strictness('/p.js', CJS_BODY, 'import'), 'script');
+  check('strictness/option require does not flip .mjs', strictness('/p.mjs', BARE_BODY, 'require'), 'module');
+}
+checkFileStrictness();
+
+// the parser dialect the module id names. A wrong answer here is not a narrower transform but a
+// FATAL parse - the whole file loses every polyfill - and the fixture harness cannot reach the
+// class at all: `inferTestId` only ever names `input.ts` / `input.tsx` / `input.jsx`, so a
+// js-family id carrying JSX is unspellable there
+function checkParserDialectFromId() {
+  const JSX = 'const el = <div a={[1].includes(1)} />;\nexport default el;\n';
+  const TS = 'const x: number[] = [1];\nexport const y = x.includes(1);\n';
+  const CAST = 'const x = (<number[]>y).includes(1);\nexport default x;\n';
+  const injected = /core-js\/modules\//g;
+  function modules(source, id) {
+    // a fatal parse warns and abstains, and the count is what says which happened
+    const out = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: () => undefined }, source, id);
+    return ((out?.code ?? '').match(injected) ?? []).length;
+  }
+  // JSX is a strict superset of JS - a `<` never starts a JS expression - so every js-family id
+  // admits it, which is the CRA / Next / React Native convention
+  for (const id of ['/a.jsx', '/a.js', '/a.mjs', '/a.cjs', '/a.JS', '/a.MJS', '/a.CJS', '/a.Jsx']) {
+    check(`dialect/JSX in ${ id }`, modules(JSX, id) > 0, true);
+  }
+  // ... and the ts family spends the same syntax on the legacy angle-bracket cast, so only `.tsx`
+  // admits JSX there - TypeScript's own rule, and the one this repository's own fixtures rely on
+  check('dialect/JSX in .tsx', modules(JSX, '/a.tsx') > 0, true);
+  check('dialect/JSX in .ts is not JSX', modules(JSX, '/a.ts'), 0);
+  check('dialect/angle-bracket cast in .ts', modules(CAST, '/a.ts') > 0, true);
+  check('dialect/angle-bracket cast in .tsx is not one', modules(CAST, '/a.tsx'), 0);
+  // the extension match is case-insensitive in ADMISSION, so it has to be here too, or an id the
+  // filter let through is parsed as the wrong language
+  for (const id of ['/a.ts', '/a.TS', '/a.tsx', '/a.TSX', '/a.mts', '/a.MTS', '/a.cts', '/a.CTS']) {
+    check(`dialect/TypeScript in ${ id }`, modules(TS, id) > 0, true);
+  }
+}
+checkParserDialectFromId();
+
+// a refused parse goal can retry the other, and the accepted tree reaches the strictness model.
+// Annex-B block-function hoisting is live in a Script, so a ponyfill must not go over its shadow;
+// ESM syntax in a CommonJS id proves Module instead. `.mjs` / `.mts` pin Module, so a refusal
+// there means a broken file rather than a Script. malformed source must fail in both goals
+function checkRefusedParseGoalIsEvidence() {
+  const SHADOW = '{ function Map() {} }\nuse(new Map());\n';
+  // an Annex-B HTML comment parses in the Script goal alone
+  const SCRIPT_ONLY = `<!-- legacy\n${ SHADOW }`;
+  function run(source, id) {
+    const warns = [];
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: message => warns.push(String(message)) }, source, id);
+    return { out, substituted: /_Map/.test(out?.code ?? ''), warned: warns.length > 0 };
+  }
+  check('refused-goal/script-only source keeps the shadow', run(SCRIPT_ONLY, '/a.js').substituted, false);
+  check('refused-goal/script-only source is not reported', run(SCRIPT_ONLY, '/a.js').warned, false);
+  // the control: the SAME shadow in a file the module goal accepts is block-scoped, so the global
+  // is what the source reads and the ponyfill is owed
+  check('refused-goal/a module substitutes over the same shadow',
+    run(`export const m = 1;\n${ SHADOW }`, '/a.js').substituted, true);
+  for (const id of ['/a.cjs', '/a.cts']) {
+    const script = run(SCRIPT_ONLY, id);
+    check(`refused-goal/${ id } keeps a valid script's shadow`, script.substituted, false);
+    check(`refused-goal/${ id } keeps a valid script without warning`, script.warned, false);
+    for (const marker of ["import 'example';", 'export const m = 1;', 'await Promise.resolve(1);']) {
+      const module = run(`${ marker }\n${ SHADOW }`, id);
+      check(`refused-goal/${ id } ${ marker } proves Module`, module.substituted, true);
+      check(`refused-goal/${ id } ${ marker } parses without warning`, module.warned, false);
+    }
+    // `await` is an ordinary callee in a successful Script parse, even beside dynamic import.
+    const call = run('module.exports = await([4, 5].at(-1));', id);
+    const module = { exports: null };
+    // Execute the emitted CommonJS body with an ordinary await binding.
+    Function('await', 'require', 'module', call.out.code)(value => value + 1, require, module);
+    check(`refused-goal/${ id } keeps await as a call`, module.exports, 6);
+    const dynamicCall = run('module.exports = await(import("example"), [4, 5].at(-1));', id);
+    check(`refused-goal/${ id } keeps a dynamic-import call as Script`, dynamicCall.warned, false);
+    // eslint-disable-next-line node/no-sync -- inspect the emitted Script synchronously without executing the dynamic import
+    const parsedCall = parseSync(id, dynamicCall.out.code, { sourceType: 'script' });
+    check(`refused-goal/${ id } dynamic-import output parses as Script`, parsedCall.errors.length, 0);
+    const exportedCall = parsedCall.program.body.find(node => node.type === 'ExpressionStatement'
+      && node.expression.type === 'AssignmentExpression' && node.expression.left.object?.name === 'module').expression.right;
+    check(`refused-goal/${ id } dynamic-import output keeps the call`, exportedCall.type, 'CallExpression');
+    check(`refused-goal/${ id } dynamic-import output keeps the callee`, exportedCall.callee?.name, 'await');
+    check(`refused-goal/${ id } dynamic import remains the first argument`, exportedCall.arguments?.[0]?.type, 'ImportExpression');
+    // Both goals reject these forms: retrying must never turn broken source into output.
+    for (const source of ['export const m = ;', 'import {']) {
+      const broken = run(source, id);
+      check(`refused-goal/${ id } ${ source } emits nothing`, broken.out, null);
+      check(`refused-goal/${ id } ${ source } is reported`, broken.warned, true);
+    }
+  }
+  // A nested JS export is a parse error. TypeScript checks modifier placement semantically instead.
+  const nested = run('function f() { export const m = 1; }', '/a.cjs');
+  check('refused-goal/a nested JS export emits nothing', nested.out, null);
+  check('refused-goal/a nested JS export is reported', nested.warned, true);
+  // Erased TypeScript declarations need the Module parser without imposing runtime strictness.
+  for (const marker of ["import type { T } from 'example';", 'export interface T { x: number; }']) {
+    const typed = run(`${ marker }\n${ SHADOW }`, '/a.cts');
+    check(`refused-goal/type-only ${ marker } keeps the script's shadow`, typed.substituted, false);
+    check(`refused-goal/type-only ${ marker } parses without warning`, typed.warned, false);
+  }
+  // A module extension pins the goal: broken module text is reported and skipped.
+  for (const id of ['/a.mjs', '/a.mts']) {
+    const pinned = run(SCRIPT_ONLY, id);
+    check(`refused-goal/${ id } is not re-read as a script`, pinned.substituted, false);
+    check(`refused-goal/${ id } is reported`, pinned.warned, true);
+  }
+}
+checkRefusedParseGoalIsEvidence();
+
+// ... and the script a refused module goal leaves may run bare, its top level the realm: a top-level `var` there is
+// the global object's own slot and a `let` / `class` its shared lexical scope, another script reading either by
+// name, so the constructor it holds takes the whole entry. A CommonJS id is the body of the wrapper its loader puts
+// around it, and the same `var` keeps the narrow entry there
+function checkRefusedModuleGoalTopLevelBindingsLeaveTheFile() {
+  function promiseEntry(declaration, id) {
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(`<!-- legacy\n${ declaration }\n`, id);
+    return /@core-js\/pure\/actual\/(?<entry>promise[^"]*)"/.exec(out?.code ?? '')?.groups.entry ?? null;
+  }
+  check('refused-goal/a top-level var holds the realm slot', promiseEntry('var P = Promise;', '/a.js'), 'promise');
+  check('refused-goal/a top-level let is read by name', promiseEntry('let P = Promise;', '/a.js'), 'promise');
+  check('refused-goal/a top-level class is read by name', promiseEntry('class P extends Promise {}', '/a.js'), 'promise');
+  check('refused-goal/a CommonJS id keeps the var its own', promiseEntry('var P = Promise;', '/a.cjs'), 'promise/constructor');
+}
+checkRefusedModuleGoalTopLevelBindingsLeaveTheFile();
+
+// The admission table is asked with an `enforce`, and the WIRING that hands each stage its own is
+// what makes the phase-dependent half real: with `phase: 'pre+post'` the two stages must disagree
+// about a compiled SFC id, and the single-phase default must never admit one at all
+function checkEnforceReachesAdmission() {
+  const IDS = ['/src/App.vue', '/src/App.vue?vue&type=template&lang.js', '/src/App.vue?vue&type=script&lang.ts'];
+  function stagesFor(phase) {
+    const options = { method: 'usage-global', version: '4.0', targets: { ie: 11 }, ...phase ? { phase } : {} };
+    const built = unplugin.rollup(options);
+    return (Array.isArray(built) ? built : [built])
+      .map(stage => [stage.enforce, IDS.filter(id => stage.transformInclude?.(id)).join(' ')]);
+  }
+  const compiledOnly = '/src/App.vue /src/App.vue?vue&type=template&lang.js /src/App.vue?vue&type=script&lang.ts';
+  const scriptOnly = '/src/App.vue?vue&type=script&lang.ts';
+  function flat(phase) {
+    return stagesFor(phase).map(([enforce, admits]) => `${ enforce }: ${ admits }`).join(' | ');
+  }
+  check('enforce/the default phase is pre and admits no compiled id', flat(), `pre: ${ scriptOnly }`);
+  check('enforce/an explicit post stage admits them', flat('post'), `post: ${ compiledOnly }`);
+  check('enforce/pre+post gives each stage its own answer',
+    flat('pre+post'), `pre: ${ scriptOnly } | post: ${ compiledOnly }`);
+}
+checkEnforceReachesAdmission();
+
+// Admitting a framework SFC id at `post` rests on an inference about what that framework's own
+// plugin hands back there, and this workspace carries no framework plugin to settle it. What makes
+// the inference SAFE is asserted instead: being wrong has to be cheap. An admitted id whose body is
+// still markup must warn and SKIP - never crash, never emit - while the compiled body it expects is
+// transformed. That asymmetry is the reason to admit rather than to refuse: a refusal loses
+// polyfills silently, a wrong admission costs one warning
+function checkSfcAdmissionIsSafeWhenWrong() {
+  const MARKUP = '<template>\n  <div>{{ items.at(0) }}</div>\n</template>\n';
+  const COMPILED = 'export function render(_ctx) { return _ctx.items.at(0); }\n';
+  const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  function run(code, id) {
+    const warnings = [];
+    const out = createPlugin(OPTIONS).transform.call({ warn: message => warnings.push(String(message)) }, code, id);
+    return { out, warned: warnings.length > 0 };
+  }
+  for (const [label, id] of [
+    ['bare SFC source', '/src/App.vue'],
+    ['template block', '/src/App.vue?vue&type=template&lang.js'],
+    ['script block', '/src/App.vue?vue&type=script&lang.ts'],
+    ['html proxy script', '/index.html?html-proxy&index=0.js'],
+    ['worker source', '/src/w.js?worker_file&type=module'],
+  ]) {
+    if (!shouldTransform(id, 'post')) {
+      check(`sfc-safety/${ label } is admitted at post`, shouldTransform(id, 'post'), true);
+      continue;
+    }
+    const markup = run(MARKUP, id);
+    check(`sfc-safety/${ label } skips a markup body`, markup.out, null);
+    check(`sfc-safety/${ label } says so`, markup.warned, true);
+    const compiled = run(COMPILED, id);
+    check(`sfc-safety/${ label } transforms the compiled body`,
+      (compiled.out?.code ?? '').includes('core-js/modules/es.array.at'), true);
+  }
+}
+checkSfcAdmissionIsSafeWhenWrong();
+
+// One file, many spellings. A bundler hands the same module id as a posix path, a Windows path,
+// a `file://` URL, a `/@fs/` or `/@id/` prefixed form, with a query, with a fragment - and none of
+// those may move the LANGUAGE fact, the admission verdict or the emitted code. A wrong answer on
+// the language half is a FATAL parse rather than a narrower transform, which is why the extension
+// is asked case-insensitively; the controls at the end are what make the sameness meaningful
+function checkIdSpellingInvariance() {
+  const SPELLINGS = [
+    ['posix', '/src/a.js'],
+    ['windows separators', '\\src\\a.js'],
+    ['drive letter', 'C:\\src\\a.js'],
+    ['drive letter lower', 'c:/src/a.js'],
+    ['unc long path', '\\\\?\\C:\\src\\a.js'],
+    ['file url', 'file:///src/a.js'],
+    ['file url with localhost', 'file://localhost/src/a.js'],
+    ['vite /@fs', '/@fs/src/a.js'],
+    ['vite /@id', '/@id/src/a.js'],
+    ['doubled slash', '//src//a.js'],
+    ['query', '/src/a.js?v=1'],
+    ['hmr stamp', '/src/a.js?t=1700000000'],
+    ['fragment', '/src/a.js#frag'],
+  ];
+  const SOURCE = 'module.exports = Array.from(x);';
+  function out(id) {
+    return createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: () => undefined }, SOURCE, id)?.code ?? null;
+  }
+  const baseline = out('/src/a.js');
+  check('id-spelling/control - the transform did something', baseline !== null && baseline !== SOURCE, true);
+  for (const [label, id] of SPELLINGS) {
+    check(`id-spelling/output ${ label }`, out(id), baseline);
+    for (const phase of ['pre', 'post']) {
+      check(`id-spelling/admission ${ phase } ${ label }`, shouldTransform(id, phase), shouldTransform('/src/a.js', phase));
+    }
+  }
+  // the extension's case is the half a wrong answer turns FATAL
+  for (const [lower, upper] of [['/a.js', '/A.JS'], ['/a.cjs', '/a.CJS'], ['/a.mjs', '/A.MJS'], ['/a.tsx', '/a.TSX']]) {
+    check(`id-spelling/case ${ lower } == ${ upper }`, out(upper), out(lower));
+  }
+  // ... and the control that keeps the rows above from being a comparison of two blind answers:
+  // an axis that DOES name another language must move the output
+  function bare(id) {
+    return createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform.call({ warn: () => undefined }, 'Array.from(x);', id)?.code ?? '';
+  }
+  check('id-spelling/control - a .cjs is a different file than a .js', bare('/a.cjs') !== bare('/a.js'), true);
+  check('id-spelling/control - the .cjs leg spells require', bare('/a.cjs').includes('require('), true);
+  check('id-spelling/control - the .js leg spells import', /^import /m.test(bare('/a.js')), true);
+}
+checkIdSpellingInvariance();
+
+// widening `mode` must never NARROW the injected set. The ladder is `es` < `stable` < `actual` <
+// `full` and the DATA is monotone by construction, so the only way to lose a module is a control
+// flow that reads how many the configured layer happened to yield - which is how `Symbol.metadata`
+// resolved at `full` and dropped the `es.symbol.*` that `actual` had injected.
+// The rows are the discriminating ones: a member no stable layer carries, a web static (no `es`
+// layer at all), and ordinary ES statics whose receiver must NOT be over-injected
+function checkModeMonotonicity() {
+  const MODES = ['es', 'stable', 'actual', 'full'];
+  const injected = /core-js\/modules\/[\w\-.]+/g;
+  function modules(source, mode) {
+    const out = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 }, mode })
+      .transform.call({ warn: () => undefined }, source, '/a.js');
+    return new Set((out?.code ?? '').match(injected));
+  }
+  for (const source of [
+    'Symbol.metadata;',
+    'Symbol.asyncIterator;',
+    'URL.canParse(x);',
+    'Number.isFinite(x);',
+    'Object.assign(a, b);',
+    'Array.from(x);',
+    'Map.groupBy(x, f);',
+    'Promise.allSettled(x);',
+    'RegExp.escape(x);',
+    'AggregateError.isError(x);',
+  ]) {
+    const sets = MODES.map(mode => modules(source, mode));
+    for (let i = 1; i < sets.length; i++) {
+      const lost = [...sets[i - 1]].filter(module => !sets[i].has(module));
+      check(`monotone/${ source } ${ MODES[i - 1] } -> ${ MODES[i] }`, lost.join(' '), '');
+    }
+  }
+  // ... and the receiver is owed exactly where nothing else guarantees it: a member no stable layer
+  // carries keeps its constructor at EVERY mode, while one that a layer does polyfill adds nothing
+  check('monotone/an out-of-layer member keeps its receiver',
+    modules('Symbol.metadata;', 'full').has('core-js/modules/es.symbol.constructor'), true);
+  check('monotone/an in-layer member does not over-inject its receiver',
+    [...modules('Number.isFinite(x);', 'actual')].join(' '), 'core-js/modules/es.number.is-finite');
+}
+checkModeMonotonicity();
+
+// --- the typed-outer inner default: the composed two-step extraction (a dead mirror
+// would polyfill only the branch the default fires on; the composition dispatches the
+// LIVE outer step and folds the default through the canonical guard) ---
+function checkTypedOuterInnerDefault() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  function transformed(form) {
+    const source = `const src = [1, [2]];\nconst fallback = { name: 1 };\n${ form }\nexport { src };\n`;
+    return createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+  }
+  function importCount(form) {
+    return (transformed(form).match(/@core-js\/pure/g) ?? []).length;
+  }
+  // the literal inner default COMPOSES: hop dispatch feeds the leaf dispatch through the
+  // canonical guard - the babel canon spelling, byte-for-byte
+  const composed = transformed('const { at: { name } = {} } = src;');
+  check('typed-outer inner default/composes the two-step extraction',
+    composed.includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? {} : _ref)'), true);
+  check('typed-outer inner default/both steps import', importCount('const { at: { name } = {} } = src;'), 2);
+  // A stable source binding keeps the sibling read without another copy of the receiver's identity,
+  // and owes the ordered native coercion only where it may be nullish: a literal binding never is
+  function siblingDeclarators(code) {
+    return programOf(code).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
+  }
+  const withSibling = transformed('const { at: { name } = {}, other } = src;');
+  const siblingDecls = siblingDeclarators(withSibling);
+  const captures = siblingDecls.filter(node => node.id.type === 'Identifier'
+    && node.init?.type === 'Identifier' && node.init.name === 'src');
+  const leaf = siblingDecls.find(node => node.id.name === 'name');
+  const coercion = siblingDecls.find(node => node.id.type === 'ObjectPattern' && !node.id.properties.length);
+  const residual = siblingDecls.find(node => node.id.type === 'ObjectPattern' && node.id.properties[0]?.key.name === 'other');
+  check('typed-outer inner default/multi-prop keeps the residual',
+    captures.length === 0 && !coercion && residual?.init.name === 'src'
+      && siblingDecls.indexOf(leaf) < siblingDecls.indexOf(residual), true);
+  const opaqueDecls = siblingDeclarators(createPlugin(OPTIONS)
+    .transform('const src = make();\nconst { at: { name } = {}, other } = src;\nexport { src };\n', '/p.mjs')?.code ?? '');
+  const opaqueLeaf = opaqueDecls.find(node => node.id.name === 'name');
+  const opaqueCoercion = opaqueDecls.find(node => node.id.type === 'ObjectPattern' && !node.id.properties.length);
+  check('typed-outer inner default/a source that may be nullish keeps its coercion',
+    opaqueCoercion?.init.name === 'src' && opaqueDecls.indexOf(opaqueCoercion) < opaqueDecls.indexOf(opaqueLeaf), true);
+  const guarded = unwrapNode(leaf.init.arguments[0]);
+  const dispatch = unwrapNode(guarded.test.left).right;
+  check('typed-outer inner default/reused source keeps its array type',
+    leaf.init.callee.name === '_nameMaybeFunction' && guarded.type === 'ConditionalExpression' && guarded.test.operator === '==='
+      && dispatch?.callee?.name === '_atMaybeArray' && dispatch.arguments[0].name === 'src', true);
+  const runtimeSource = 'const src = [1, [2]]; const { at: { name } = {}, other } = src; module.exports = [name, other];';
+  const runtimeCode = createPlugin({ ...OPTIONS, importStyle: 'require' })
+    .transform(runtimeSource, '/typed-outer-default.cjs')?.code ?? runtimeSource;
+  for (const [leg, program] of [['native', runtimeSource], ['transformed', runtimeCode]]) {
+    const module = { exports: null };
+    runInNewContext(`const trace = [];
+      Object.defineProperty(Array.prototype, 'at', { get() { trace.push('at'); return function held() {}; } });
+      Object.defineProperty(Array.prototype, 'other', { get() { trace.push('other'); return 'sibling'; } });
+      ${ program }\nmodule.exports.push(trace);`, { module, require: createRequire(import.meta.url) });
+    checkDeep(`typed-outer inner default/${ leg }/getter order`, module.exports, ['held', 'sibling', ['at', 'other']]);
+  }
+  // the receiver-bearing default folds through the SAME guard (the climb's carriesReceiver
+  // answers false on the typed outer, so the hop stays and the composition owns the claim)
+  check('typed-outer inner default/receiver default folds into the guard',
+    transformed('const { at: { name } = fallback } = src;')
+      .includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? fallback : _ref)'), true);
+  check('typed-outer inner default/receiver default imports both steps',
+    importCount('const { at: { name } = fallback } = src;'), 2);
+  // the ARRAY-pattern default binds the guard to its own pattern (form 2 of the same canon);
+  // the bare array value stays native (babel extracts only the defaulted spelling)
+  check('typed-outer inner default/array default composes',
+    transformed('const { at: [first] = [] } = src;')
+      .includes('const [first] = (_ref = _atMaybeArray(src)) === void 0 ? [] : _ref;'), true);
+  check('typed-outer inner default/bare array value stays native',
+    importCount('const { at: [bare] } = src;'), 0);
+  // the LIVE mirrors stay: an empty outer host leaves the default live; a param default is
+  // caller-correct
+  check('live inner default/empty outer host keeps the mirror', importCount('const { inner: { at } = [1, 2] } = {};'), 1);
+  check('live inner default/param default keeps the synth', importCount('export const p = (function ({ at } = [1]) { return at; })();'), 1);
+  // ... but an UNTYPED outer composes like a typed one: the surface is what the hop reads, and the
+  // key names it whatever the receiver turns out to be - the generic dispatcher is that answer, and
+  // the flat twin in the same host already gives it. keeping the mirror there spelled the hop RAW,
+  // so the source's default fired on the very path the ponyfill answers
+  check('untyped outer/composes through the generic dispatcher',
+    transformed('const { at: { name } = fallback } = opaque;')
+      .includes('_nameMaybeFunction((_ref = _at(opaque)) === void 0 ? fallback : _ref)'), true);
+  check('untyped outer/imports both steps', importCount('const { at: { name } = fallback } = opaque;'), 2);
+}
+checkTypedOuterInnerDefault();
+
+// --- synth-literal key edges: the shared namer and the `__proto__` canon rule ---
+function checkSynthKeyEdges() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  function out(form) {
+    return createPlugin(OPTIONS).transform(form, '/p.mjs')?.code ?? form;
+  }
+  // an unresolvable computed key names NO slot - the whole synth bails to native (the
+  // "[null]" sentinel used to admit it, and later-key-wins overwrote the polyfill)
+  const bailed = out('export const f = (function ({ at, [window.k]: alias } = [1, 2]) { return [at, alias]; })();');
+  check('synth keys/unresolvable computed key bails the synth', bailed.includes('@core-js/pure'), false);
+  check('synth keys/bailed pattern stays native', bailed.includes('{ at, [window.k]: alias } = [1, 2]'), true);
+  // A lazy getter may supply the value, but the mirror still owns a computed string key.
+  // It must never reinterpret `__proto__` as the object-literal prototype setter.
+  const nativeProto = out('export const g = (function ({ __proto__: p, at } = [1, 2]) { return [p, at]; })();');
+  const nativeProtoProperties = [];
+  walkAstNodes({ root: programOf(nativeProto), visit(node, parent) {
+    if (parent?.type === 'ObjectPattern' && node.type === 'Property'
+      && (node.key?.name ?? node.key?.value) === '__proto__') nativeProtoProperties.push(node);
+  } });
+  check('synth keys/__proto__ flat capture keeps its native pattern slot', nativeProtoProperties.length, 1);
+  const proto = out('export const g = (function ({ __proto__: p, at, missing = 0 } = [1, 2]) { return [p, at, missing]; })();');
+  const protoProperties = [];
+  walkAstNodes({
+    root: programOf(proto),
+    visit(node, parent) {
+      if (parent?.type === 'ObjectExpression' && node.type === 'Property'
+        && (node.key?.name ?? node.key?.value) === '__proto__') protoProperties.push(node);
+    },
+  });
+  checkDeep('synth keys/__proto__ spells computed-string',
+    protoProperties.map(({ key, computed }) => [key.type, key.value, computed]), [['Literal', '__proto__', true]]);
+  check('synth keys/__proto__ never spells the setter form', protoProperties.some(prop => !prop.computed && prop.kind === 'init'), false);
+}
+checkSynthKeyEdges();
+
+// --- source shape that moves offsets: CRLF, BOM, astral characters ---
+
+// every span the render computes is a PARSER offset into the source, so a byte-order mark, CRLF
+// line endings and astral characters each have to leave the emitted guard identical to the plain
+// ASCII baseline - a slice taken in the wrong unit would corrupt it silently rather than throw
+function checkOffsetShapes() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const BODY = ['globalThis.oBox = { list: [\'ab\'] };',
+    'export const plain = globalThis.window?.self.oBox.list?.at(0);',
+    'export const layered = (globalThis.window?.self.oBox).list?.at(0);'].join('\n');
+  function guardLines(code) {
+    const out = createPlugin(OPTIONS).transform(code, '/p.mjs')?.code ?? code;
+    // the output never carries a BOM, so no strip is needed for the compare
+    check('offsets/output is BOM-free', out.charCodeAt(0) === 0xFEFF, false);
+    return out.split(/\r?\n/u).filter(line => line.startsWith('export const')).join(' | ');
+  }
+  const baseline = guardLines(BODY);
+  check('offsets/baseline renders both guards', baseline.includes('_self.oBox.list') && baseline.includes('void 0'), true);
+  for (const [label, code] of [
+    ['crlf', BODY.replaceAll('\n', '\r\n')],
+    ['bom', `\uFEFF${ BODY }`],
+    ['astral before', `const e = '\u{1F600}\u{1F680}';\n${ BODY }\nexport { e };`],
+    ['astral in comment', `// \u{1F600}\n${ BODY }`],
+    ['astral identifier', `const \u{1D49C} = 1;\n${ BODY }\nexport { \u{1D49C} as script };`],
+  ]) {
+    check(`offsets/${ label } matches the ascii baseline`, guardLines(code), baseline);
+  }
+}
+checkOffsetShapes();
+
+// --- BOM output contract: the output drops the BOM, sourcesContent keeps the bytes ---
+
+// babel alignment: its generator never re-emits a BOM and bundlers strip it before the
+// final artifact; devtools compare `sourcesContent` to DISK, so the map keeps the user's
+// original bytes - BOM included
+function checkBomOutputContract() {
+  const source = '\uFEFFexport const r = [1].at(0);\n';
+  const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');
+  check('bom/output starts with the import, not a BOM', out.code.charCodeAt(0) === 0xFEFF, false);
+  check('bom/sourcesContent keeps the original bytes BOM included', out.map.sourcesContent[0], source);
+}
+checkBomOutputContract();
+
+// --- source map: every mapping the guard render emits stays inside the original ---
+
+// the render replaces spans wholesale, so a mapping that pointed past the source would break every
+// consumer downstream. assert the decoded positions land on real source lines, including the line
+// the nav sits on
+function checkGuardSourceMap() {
+  const code = ['globalThis.mBox = { list: [\'ab\'] };',
+    'export const r = (globalThis.window?.self.mBox).list?.at(0);', ''].join('\n');
+  const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(code, '/p.mjs');
+  check('sourcemap/emitted', !!out?.map?.mappings, true);
+  const tracer = new TraceMap({ ...out.map, sources: ['/p.mjs'], sourcesContent: [code] });
+  const lines = code.split('\n');
+  const emitted = out.code.split('\n');
+  let outside = 0;
+  let navLineHits = 0;
+  for (const [row, text] of emitted.entries()) {
+    for (let col = 0; col < text.length; col += 1) {
+      const pos = originalPositionFor(tracer, { line: row + 1, column: col });
+      if (pos.line === null || pos.line === undefined) continue;
+      if (pos.line > lines.length || pos.column > (lines[pos.line - 1]?.length ?? 0)) outside += 1;
+      if (pos.line === 2) navLineHits += 1;
+    }
+  }
+  check('sourcemap/no mapping points outside the source', outside, 0);
+  check('sourcemap/the nav line is mapped', navLineHits > 0, true);
+}
+checkGuardSourceMap();
+
+// --- source map: minifier-split products map to their own operands ---
+
+// the split replaces one statement by one statement per operand, and each product carries its
+// operand's span: a product's first mapped token lands inside the operand the author wrote - on the
+// statement's line for a one-line sequence, on the operand's OWN line for a multi-line one, inside
+// the braced slot for an un-braced body. the pre-port text splice joined the products on the
+// statement's first line, so the statement AFTER a multi-line sequence mapped one line short
+function checkMinifierSplitSourceMap() {
+  // each case: the source, and the operands (plus the statement after the sequence) whose products
+  // are looked up in the output by their rewritten spelling
+  const cases = [
+    ['one-line', 'const o = { x: 1 };\nconsole.log(Object.entries(o)), ({ x } = o);\nconsole.log(Object.assign({}, o));\n',
+      ['console.log(Object.entries(o))', '({ x } = o)', 'console.log(Object.assign({}, o))']],
+    ['multi-line', 'const o = { x: 1 };\nconsole.log(Object.entries(o)),\n  ({ x } = o);\nconsole.log(Object.assign({}, o));\n',
+      ['console.log(Object.entries(o))', '({ x } = o)', 'console.log(Object.assign({}, o))']],
+    ['braced if-body', 'const o = { x: 1 }, c = 1;\nif (c) (Object.entries(o), ({ x } = o)); Object.assign({}, o);\n',
+      ['Object.entries(o)', '({ x } = o)', 'Object.assign({}, o)']],
+    // a require slot splits the same way, and its product maps where the call was written
+    ['require slot', "const o = { x: 1 };\nconsole.log(Object.entries(o)), require('lib'), ({ x } = o);\n",
+      ['console.log(Object.entries(o))', "require('lib')", '({ x } = o)']],
+  ];
+  for (const [label, source, operands] of cases) {
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');
+    const tracer = new TraceMap({ ...out.map, sources: ['/p.mjs'], sourcesContent: [source] });
+    const locate = buildOffsetToLoc(source);
+    const outLines = out.code.split('\n');
+    for (const operand of operands) {
+      const start = locate(source.indexOf(operand));
+      const end = locate(source.indexOf(operand) + operand.length);
+      const spelled = `${ operand.replace('Object.entries', '_Object$entries').replace('Object.assign', '_Object$assign') };`;
+      const row = outLines.findIndex(text => text.trim() === spelled);
+      check(`sourcemap/split ${ label }: ${ operand } is printed`, row !== -1, true);
+      if (row === -1) continue;
+      const text = outLines[row];
+      let mapped = null;
+      for (let col = text.search(/\S/); col < text.length && !mapped; col++) {
+        const pos = originalPositionFor(tracer, { line: row + 1, column: col });
+        if (pos.line !== null && pos.line !== undefined) mapped = pos;
+      }
+      check(`sourcemap/split ${ label }: ${ operand } maps onto its own line`, mapped?.line, start.line);
+      check(`sourcemap/split ${ label }: ${ operand } maps inside its own span`,
+        mapped !== null && mapped.column >= start.column && mapped.column < end.column, true);
+    }
+  }
+}
+checkMinifierSplitSourceMap();
+
+// --- per-file isolation of the binding registry the composition consults ---
+
+// composition asks the file's injector which names it minted. a bundler reuses ONE plugin instance
+// across every module, so a registry that outlived a file would answer for names the next file
+// never had - and the next file's own bindings are deliberately different whenever it owns the
+// preferred name itself, which is exactly what makes a leak observable
+function checkPerFileBindingIsolation() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const NAV = 'globalThis.window?.self.mBox';
+  const FILES = [
+    ['/a.mjs', `globalThis.mBox = { arr: [3, [1, 2]] };\nexport const r = ('x', ${ NAV }.arr)?.flat();\n`],
+    ['/b.mjs', 'globalThis.mBox = { arr: [3, [1, 2]] };\nconst _globalThis = 1, _self = 2;\n'
+      + `export const r = (${ NAV }).arr?.flat();\nexport { _globalThis, _self };\n`],
+  ];
+  const shared = createPlugin(OPTIONS);
+  function bindingsOf(out) {
+    return out.matchAll(/^import (?<local>\w+) from ["']@core-js/gmu).map(m => m.groups.local).toArray().join(',');
+  }
+  for (const [id, code] of FILES) {
+    const viaShared = shared.transform(code, id)?.code ?? code;
+    const viaFresh = createPlugin(OPTIONS).transform(code, id)?.code ?? code;
+    check(`per-file isolation/${ id } shared instance matches a fresh one`, viaShared, viaFresh);
+  }
+  // the two files mint DIFFERENT names (the second owns the preferred ones), so a leaked registry
+  // would show up as the wrong set here rather than passing unnoticed
+  const first = shared.transform(FILES[0][1], FILES[0][0])?.code ?? '';
+  const second = shared.transform(FILES[1][1], FILES[1][0])?.code ?? '';
+  check('per-file isolation/first file keeps the preferred names',
+    bindingsOf(first), '_flatMaybeArray,_globalThis,_self');
+  check('per-file isolation/second file dedupes around the user names',
+    bindingsOf(second), '_flatMaybeArray,_globalThis2,_self2');
+}
+checkPerFileBindingIsolation();
+
+// --- re-transform stability of the guard renders ---
+
+// a second pass over the plugin's own output parses a shape the first pass never saw. every
+// family this canon emits must be a fixed point in content - a re-render would double the
+// guard or re-memoize
+function checkRetransformStability() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const PRELUDE = 'globalThis.iBox = { n: 4, arr: [3, [1, 2]] };\nlet h;\n';
+  const NAV = 'globalThis.window?.self.iBox';
+  const ASSIGN_ROOT = '(h = globalThis)?.window?.self.iBox';
+  for (const [label, expr] of [
+    ['plain dispatch', `${ NAV }.arr?.flat()`],
+    ['paren layer over nav', `(${ NAV }).arr?.flat()`],
+    ['sequence receiver', `('x', ${ NAV }.arr)?.flat()`],
+    ['sequence member dispatch', `('x', ${ NAV }).arr?.flat()`],
+    ['repeated nav chained consumer', `(${ NAV }.arr, ${ NAV }.arr)?.flat().concat([])`],
+    ['chained consumer over paren layer', `(${ NAV }).arr?.flat().concat([])`],
+    ['assign root in a sequence', `('x', ${ ASSIGN_ROOT }.arr)?.flat()`],
+    ['plain value read', `${ NAV }.n`],
+  ]) {
+    const source = `${ PRELUDE }export const r = ${ expr };\nexport { h };\n`;
+    const plugin = createPlugin(OPTIONS);
+    const first = plugin.transform(source, '/p.mjs')?.code ?? source;
+    const second = createPlugin(OPTIONS).transform(first, '/p.mjs')?.code ?? first;
+    check(`retransform/${ label }`, second, first);
+  }
+  // a rest-destructure leaves an `_unusedN` SENTINEL in the rewritten pattern. re-reading our own
+  // output has to recognise it as ours: adopting it only under `phase: 'pre+post'` left the ordinary
+  // (`single`) pass blind, so each re-run re-extracted the previous sentinel as a live exported
+  // binding and minted a fresh one - the file grew without bound. FOUR passes, because the first
+  // repeat alone would also pass under a scheme that merely alternates
+  for (const [label, source] of [
+    ['rest sentinel', 'export const { at, ...rest } = [1, 2];\nexport const r = [at, rest];\n'],
+    ['rest sentinel, two polyfilled keys',
+      'export const { at, flat, ...rest } = [1, [2]];\nexport const r = [at, flat, rest];\n'],
+    ['rest sentinel beside a plain sibling',
+      'export const { at, ...rest } = [1, 2];\nexport const { length } = [3];\nexport const r = [at, rest, length];\n'],
+    // every sentinel SHAPE the rebuild prints - the origin test reads our extraction beside the
+    // sentinel, so each shape has to be recognised: a nested proxy key (the extraction hangs off the
+    // NAMESPACE the key names), a symbol iterator key (read through get-iterator-method), a `for`
+    // head (the extraction is a sibling declarator), a catch param (relocated into the body), an
+    // assignment cascade (the extraction follows the pattern), an effectful computed key
+    ['nested proxy rest sentinel', 'export const { Array: { from }, ...rest } = globalThis;\nexport const r = [from, rest];\n'],
+    ['symbol iterator rest sentinel', 'const arr = [1];\nexport const { [Symbol.iterator]: it, ...rest } = arr;\nexport const r = [it, rest];\n'],
+    ['for-head rest sentinel', 'export let r;\nfor (const { from, ...rest } = Array; !r;) r = [from, rest];\n'],
+    ['catch rest sentinel', 'export let r;\ntry { throw [1]; } catch ({ at, ...rest }) { r = [at, rest]; }\n'],
+    ['assignment cascade rest sentinel', 'let fa;\nlet rest;\n({ Array: { fromAsync: fa }, ...rest } = globalThis);\nexport const r = [fa, rest];\n'],
+    ['effectful computed key rest sentinel', 'let n = 0;\nconst arr = [1];\nexport const { [(n++, "at")]: a, ...rest } = arr;\nexport const r = [a, rest, n];\n'],
+    ['for-await-head rest sentinel', 'export async function g(iter) {\n  for await (const { at, ...rest } of iter) return [at, rest];\n}\n'],
+  ]) {
+    let code = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+    const first = code;
+    for (let pass = 2; pass <= 4; pass++) code = createPlugin(OPTIONS).transform(code, '/p.mjs')?.code ?? code;
+    // the same over the PASS axis: the sentinel skip is about "did WE emit this", so a pre / post
+    // cadence must be as idempotent as the default single one - the gate that broke this read the
+    // pass, and only the single-pass shape would have caught it
+    for (const passes of [['pre'], ['post'], ['pre', 'post']]) {
+      let cadence = source;
+      for (let round = 0; round < 3; round++) {
+        for (const pass of passes) cadence = createPlugin(OPTIONS).transform(cadence, '/p.mjs', pass)?.code ?? cadence;
+      }
+      check(`retransform/${ label } is stable over the [${ passes.join('->') }] cadence`,
+        sentinels(cadence), sentinels(first));
+    }
+    function sentinels(text) {
+      return [...new Set(text.matchAll(/_unused\d*/g).map(m => m[0]))].sort().join(',');
+    }
+    check(`retransform/${ label } is stable over 4 passes`, code, first);
+    // stated separately from the text compare: the failure mode is GROWTH of the sentinel set, and
+    // naming it keeps a future regression legible instead of a wall-of-text diff
+    check(`retransform/${ label } mints no new sentinel`, sentinels(code), sentinels(first));
+  }
+}
+checkRetransformStability();
+
+// --- params no scope owner walks: the whole crawler-hostile domain, not a list of type names ---
+// estree-toolkit consumes a binding pattern only where a scope owner puts one; a params list
+// anywhere else reaches the generic identifier crawler, which throws on a `RestElement`,
+// `ArrayPattern` or `AssignmentPattern` leaf and aborts the file. The fixture corpus carries the
+// shapes a reader recognizes - this table carries the REACH: the type positions and pattern kinds
+// the corpus has no line for, crossed with each other. Every row must transform AND still inject
+// for the trailing probe, so a neutralization that ate the file is as visible as one that crashed
+function checkUnscopedParamPatterns() {
+  const patterns = [
+    '...a: any[]',
+    '[a, b]: any',
+    '{ a }: any',
+    '{ a, ...r }: any',
+    '{ a: [b] }: any',
+    '[{ a }]: any',
+    '{ a = 1 }: any',
+    'a = 1',
+  ];
+  // the type-level hosts, then the positions a host can sit in that the crawler still reaches:
+  // an annotation hanging off a known ESTree node is skipped with its owner, a TS node's is not
+  const hosts = {
+    'fn-type-alias': param => `type F = (${ param }) => void;`,
+    'ctor-type-alias': param => `type C = new (${ param }) => object;`,
+    'call-signature': param => `interface I { (${ param }): void }`,
+    'construct-signature': param => `interface I { new (${ param }): object }`,
+    'method-signature': param => `interface I { m(${ param }): void }`,
+    'ambient-function': param => `declare function f(${ param }): void;`,
+    'ambient-method': param => `declare class K { m(${ param }): void }`,
+    'ambient-constructor': param => `declare class K { constructor(${ param }) }`,
+    'abstract-method': param => `abstract class K { abstract m(${ param }): void }`,
+    'overload-head': param => `function f(${ param }): void;\nfunction f(...z: any[]): void {}`,
+    'method-overload-head': param => `class K { m(${ param }): void; m(...z: any[]): void {} }`,
+    'namespace-function': param => `declare namespace N { function f(${ param }): void }`,
+    'module-block-function': param => `declare module 'm' { function f(${ param }): void }`,
+    'global-block-function': param => `declare global { function f(${ param }): void }`,
+    'as-expression': param => `const v = (null as any) as (${ param }) => void;`,
+    'satisfies-expression': param => `const v = (null as any) satisfies (${ param }) => void;`,
+    'union-member': param => `type U = string | ((${ param }) => void);`,
+    'intersection-member': param => `type X = { z: 1 } & ((${ param }) => void);`,
+    'tuple-member': param => `type A = [(${ param }) => void];`,
+    'array-of': param => `type A = ((${ param }) => void)[];`,
+    'indexed-access': param => `type A = ((${ param }) => void)['name'];`,
+    'conditional-type': param => `type C<T> = T extends (${ param }) => void ? 1 : 2;`,
+    'mapped-type-value': param => `type M = { [K in 'a']: (${ param }) => void };`,
+    'type-param-default': param => `type G<T = (${ param }) => void> = T;`,
+    'type-param-constraint': param => `type G<T extends (${ param }) => void> = T;`,
+    'fn-type-param-default': param => `declare function g<T = (${ param }) => void>(): T;`,
+    'type-predicate-return': param => `declare function f(x: unknown): x is (${ param }) => void;`,
+    'exported-alias': param => `export type F = (${ param }) => void;`,
+    'nested-in-signature-return': param => `interface I { m(${ param }): (...b: any[]) => void }`,
+  };
+  const probe = '\nconst probe = [1, 2].at(0);\n';
+  for (const [hostName, host] of Object.entries(hosts)) {
+    for (const param of patterns) {
+      check(`unscoped-params/${ hostName }/${ param }`, injectsModule(`${ host(param) }${ probe }`, 'array.at'), true);
+    }
+  }
+}
+checkUnscopedParamPatterns();
+
+// --- the mirror obligation: a params list a scope owner DOES walk must come out untouched ---
+// The neutralization is keyed on the host, so the way it fails is silent, not loud: touch a runtime
+// function's params and its bindings simply stop existing, taking every polyfill inside a parameter
+// default with them. Each row therefore carries a polyfillable call in the default slot and asserts
+// it is still detected - the same probe answers "not neutralized" and "still walked as a pattern"
+function checkRuntimeParamPatternsUntouched() {
+  const forms = {
+    'function declaration': 'function f([a, b] = [1, 2].flat()) { return a; }\nf();',
+    'function expression': 'const f = function ([a, b] = [1, 2].flat()) { return a; };\nf();',
+    'named function expression': 'const f = function g([a, b] = [1, 2].flat()) { return a; };\nf();',
+    arrow: 'const f = ([a, b] = [1, 2].flat()) => a;\nf();',
+    'async function': 'async function f([a, b] = [1, 2].flat()) { return a; }\nf();',
+    generator: 'function* f([a, b] = [1, 2].flat()) { yield a; }\nf();',
+    'async generator': 'async function* f([a, b] = [1, 2].flat()) { yield a; }\nf();',
+    'object method': 'const o = { m([a, b] = [1, 2].flat()) { return a; } };\no.m();',
+    'object setter': 'const o = { set v([a, b]) { this.x = a; } };\no.v = [1, 2].flat();',
+    'object arrow property': 'const o = { m: ([a, b] = [1, 2].flat()) => a };\no.m();',
+    'class method': 'class C { m([a, b] = [1, 2].flat()) { return a; } }\nnew C().m();',
+    'class static method': 'class C { static m([a, b] = [1, 2].flat()) { return a; } }\nC.m();',
+    'class private method': 'class C { #m([a, b] = [1, 2].flat()) { return a; } run() { return this.#m(); } }\nnew C().run();',
+    'class constructor': 'class C { constructor([a, b] = [1, 2].flat()) { this.a = a; } }\nnew C();',
+    'class setter': 'class C { set v([a, b]) { this.x = a; } }\nnew C().v = [1, 2].flat();',
+    'class field arrow': 'class C { m = ([a, b] = [1, 2].flat()) => a; }\nnew C().m();',
+    IIFE: '(function ([a, b] = [1, 2].flat()) { return a; })();',
+    'parameter property default': 'class C { constructor(public a = [1, 2].flat()) {} }\nnew C();',
+    'annotated destructure with default': 'function f({ head }: { head: number } = { head: [1, 2].flat()[0] }) { return head; }\nf();',
+    // the other slots the crawler walks as patterns, none of which goes through a params list
+    'catch destructure with default': 'try { null; } catch ({ message = [1, 2].flat() }) { console.log(message); }',
+    'destructuring declaration': 'const [a, b] = [1, 2].flat();\nconsole.log(a, b);',
+    'destructuring assignment default': 'let a;\n({ a = [1, 2].flat() } = {});\nconsole.log(a);',
+    'for-of destructure with default': 'for (const [a = [1, 2].flat()] of [[]]) console.log(a);',
+  };
+  for (const [name, source] of Object.entries(forms)) {
+    check(`walked-params/${ name }`, injectsModule(source, 'array.flat'), true);
+  }
+}
+checkRuntimeParamPatternsUntouched();
+
+// --- a type-argument list is spelled `params` too, and must survive untouched ---
+// `ReturnType<typeof fn>` reaches the resolver as a `params` array holding a type query, so a
+// neutralizer keyed on "this node has params" instead of "this param is a binding pattern" erases
+// the very type the receiver came for. The hostile sibling in the same file is what makes the row
+// meaningful: the neutralizer has to run and still leave the type argument alone
+function checkTypeArgumentListSurvives() {
+  const source = [
+    'type Hostile = (...a: any[]) => void;',
+    'declare function fn(a: number, ...rest: string[]): number[];',
+    'declare const narrowed: ReturnType<typeof fn>;',
+    'declare const restElement: Parameters<typeof fn>[1];',
+    'narrowed.at(0);',
+    'restElement.includes("x");',
+  ].join('\n');
+  const { code } = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+    .transform(source, 'input.ts');
+  check('type-args/ReturnType narrows to the array family', /es\.array\.at/.test(code), true);
+  check('type-args/ReturnType does not widen to string', /es\.string\.at/.test(code), false);
+  check('type-args/rest element narrows to the string family', /es\.string\.includes/.test(code), true);
+  check('type-args/rest element is not the whole rest array', /es\.array\.includes/.test(code), false);
+}
+checkTypeArgumentListSurvives();
+
+// --- machine-path normalization (two escaping domains) ---
+
+// the runners' ROOT collapse broke on Windows once and regex escapes once - each time by
+// unifying the two domains; these lock them apart
+function checkMachinePathDomains() {
+  check('slashifyPath walks single-backslash filesystem separators',
+    slashifyPath('D:\\a\\core-js\\core-js'), 'D:/a/core-js/core-js');
+  check('normalizeMachinePaths rewrites the ESCAPED separator spelling',
+    normalizeMachinePaths('import "D:\\\\a\\\\x.js";'), 'import "D:/a/x.js";');
+  check('normalizeMachinePaths leaves regex and String.raw escapes alone',
+    normalizeMachinePaths('const re = /[\\v\\t]/;'), 'const re = /[\\v\\t]/;');
+}
+checkMachinePathDomains();
+
+// --- offset-to-loc canon (the AST printer rides it) ---
+
+function checkAstPrintLocator() {
+  const at = buildOffsetToLoc('a\nb\r\nc\rd\u2028e\u2029f');
+  check('locator: LF breaks a line', JSON.stringify(at(2)), '{"line":2,"column":0}');
+  check('locator: CRLF is one ending', JSON.stringify(at(5)), '{"line":3,"column":0}');
+  check('locator: lone CR breaks a line', JSON.stringify(at(7)), '{"line":4,"column":0}');
+  check('locator: LS breaks a line', JSON.stringify(at(9)), '{"line":5,"column":0}');
+  check('locator: PS breaks a line', JSON.stringify(at(11)), '{"line":6,"column":0}');
+  check('locator: column counts from the line start', JSON.stringify(at(1)), '{"line":1,"column":1}');
+}
+checkAstPrintLocator();
+
+// --- ast-print: printer quirks ---
+
+function astPrint(source, file = 'input.ts', options = {}) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync(file, source, { sourceType: 'module' });
+  return printProgram({ program: parsed.program, comments: parsed.comments, source, id: file, jsx: /\.[jt]sx$/.test(file), ...options });
+}
+
+function checkAstPrintQuirks() {
+  check('user parens survive the print', astPrint('(a + b) * c;').code, '(a + b) * c;');
+  check('type instantiation prints', astPrint('const g = f<number>;').code, 'const g = f<number>;');
+  // oxc admits the bare spelling, tsc/babel do not - the printed form must hold to the
+  // strict grammar (the differential's ast print-through leg executes through babel)
+  check('a cast assignment target keeps its parens', astPrint('(w as any) = [1];').code, '(w as any) = [1];');
+  // EOF comments keep their statement association even without a final line terminator
+  check('EOF trailing comment stays inline without a final newline',
+    astPrint('console.log(1); // keep me').code, 'console.log(1); // keep me');
+  check('CR-only line table keeps a trailing comment inline',
+    astPrint('let a = 1;\rlet b = 2; // tail\r').code, 'let a = 1;\nlet b = 2; // tail');
+  // padding must not become part of a line comment's value on each reprint
+  check('a comment-only file does not accrete the pad space', astPrint('// alone').code, '// alone');
+  check('the pad trim reaches a fixed point', astPrint(astPrint('// alone').code).code, '// alone');
+  // an object concise method keeps its type parameters in every spelling - plain, generator and
+  // computed alike; the printer writes them itself, so nothing here smuggles them past the key
+  check('an object concise method keeps its type parameters',
+    astPrint('const o = { m<T>(x: T): T { return x; } };').code, 'const o = {\n\tm<T>(x: T): T {\n\t\treturn x;\n\t}\n};');
+  check('an async generator concise method keeps its type parameters',
+    astPrint('const o = { async *g<T>(x: T) { yield x; } };').code, 'const o = {\n\tasync *g<T>(x: T) {\n\t\tyield x;\n\t}\n};');
+  check('a computed generic concise method keeps its own spelling',
+    astPrint('const o = { [k]<T>(x: T): T { return x; } };').code, 'const o = {\n\t[k]<T>(x: T): T {\n\t\treturn x;\n\t}\n};');
+  check('a postfix JSDoc-nullable annotation prints', astPrint('function f(a: string?) {}').code, 'function f(a: string?) {}');
+  check('hashbang is re-emitted', astPrint('#!/usr/bin/env node\nlet x = 1;').code, '#!/usr/bin/env node\nlet x = 1;');
+  check('jsx prints under the tsx language',
+    astPrint('const el = <div a={1}>hi</div>;', 'input.tsx').code, 'const el = <div a={1}>hi</div>;');
+  // Exercise upstream fixes and the remaining adapter gaps through both language visitors.
+  // Structure catches lost syntax; spelling also guards ES5 longhand and required grouping.
+  for (const [label, source, fragment, tsOnly = false] of [
+    ['empty type import', 'import type {} from "pkg";', 'import type {} from "pkg";'],
+    // eslint-disable-next-line no-template-curly-in-string -- TypeScript template literal source
+    ['template literal type', 'type T = `prefix_${string}_suffix`;', '`prefix_${string}_suffix`'],
+    ['import type source', 'type T = import("pkg").Foo<string>;', 'import("pkg").Foo<string>'],
+    ['generic method', 'class C { m<T>(x: T) { return x; } }', 'm<T'],
+    ['abstract generic method', 'abstract class C { abstract m<T>(x: T): T; }', 'abstract m<T'],
+    ['generic arrow', 'const f = <T,>(x: T) => x;', '(x: T) => x'],
+    ['continuous non-null chain', 'a?.b!.c;', 'a?.b!.c;'],
+    ['sealed non-null chain', '(a?.b)!.c;', '(a?.b)!.c;'],
+    ['sealed non-null call', '(a?.b)!();', '(a?.b)!();'],
+    ['instantiated cast', 'const f = (g as any)<string>;', '(g as any)<string>'],
+    ['instantiated satisfies', 'const f = (g satisfies any)<string>;', '(g satisfies any)<string>'],
+    ['instantiated assertion', 'const f = (<any>g)<string>;', '(<any>g)<string>', true],
+    ['nested instantiation', 'const f = (g<number>)<string>;', '(g<number>)<string>'],
+    ['cast update', '(x as number)++;', '(x as number)++;'],
+    ['satisfies assignment', '(x satisfies any) = y;', '(x satisfies any) = y;'],
+    ['array optional parameter', 'declare function f([x]?: number[]): void;', '[x]?: number[]'],
+    ['object optional parameter', 'declare function f({ x }?: { x: number }): void;', '{ x }?:'],
+    ['parameter decorator', 'class C { constructor(@dec x: any) {} }', 'constructor(@dec x: any)'],
+    ['default parameter decorator', 'class C { constructor(@dec x = 1) {} }', 'constructor(@dec x = 1)'],
+    ['rest parameter decorator', 'class C { constructor(@dec ...x: any[]) {} }', 'constructor(@dec ...x: any[])'],
+    ['array rest decorator', 'class C { constructor(@dec ...[x]: any[]) {} }', 'constructor(@dec ...[x]: any[])'],
+    ['object rest decorator', 'class C { constructor(@dec ...{ length }: any[]) {} }', 'constructor(@dec ...{ length }: any[])'],
+    ['rest method decorators', 'class C { m(@first @second ...x: any[]) {} }', 'm(@first @second ...x: any[])'],
+    ['static rest decorator', 'class C { static m<T>(@dec ...x: T[]) {} }', '(@dec ...x: T[])'],
+    ['parameter property decorator', 'class C { constructor(@dec private x: any) {} }', 'constructor(@dec private x: any)'],
+    ['default property decorator', 'class C { constructor(@first @second private x = 1) {} }', 'constructor(@first @second private x = 1)'],
+    ['compound decorator', '@(a || b) class C {}', '@(a || b)'],
+    ['sequence callee', '((0, f))();', '(0, f)();'],
+    ['nested object arrow', 'const f = () => ({} || a || b);', '() => ({} || a || b)'],
+    ['binary object arrow', 'const f = () => ({} + a);', '() => ({} + a)'],
+    ['longhand property', 'const o = { x: x };', '{ x: x }'],
+  ]) {
+    for (const file of tsOnly ? ['input.ts'] : ['input.ts', 'input.tsx']) {
+      const printed = astPrint(source, file).code;
+      const prefix = `print/${ label }/${ file }`;
+      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+      const original = parseSync(file, source);
+      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+      const reparsed = parseSync(file, printed);
+      check(`${ prefix }/source parses`, original.errors.length, 0);
+      check(`${ prefix }/output parses`, reparsed.errors.length, 0);
+      checkDeep(`${ prefix }/structure`, strip(reparsed.program), strip(original.program));
+      check(`${ prefix }/spelling`, printed.includes(fragment), true);
+      check(`${ prefix }/fixed point`, astPrint(printed, file).code, printed);
+    }
+  }
+  // The parameter-property shim only repairs an empty inner slot. A populated slot
+  // remains authoritative, and printing must preserve both source decorator arrays.
+  for (const file of ['input.ts', 'input.tsx']) {
+    const source = 'class C { constructor(@outer private x: any) {} }';
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const parsed = parseSync(file, source);
+    const [property] = parsed.program.body[0].body.body[0].value.params;
+    const outer = property.decorators;
+    const inner = [{ ...outer[0], expression: { ...outer[0].expression, name: 'inner' } }];
+    property.parameter.decorators = inner;
+    const printed = printProgram({ program: parsed.program, comments: parsed.comments, source, id: file, jsx: file.endsWith('.tsx') }).code;
+    check(`print/property-decorators/${ file }/inner wins`, printed.includes('constructor(@inner private x: any)'), true);
+    check(`print/property-decorators/${ file }/outer unchanged`, property.decorators, outer);
+    check(`print/property-decorators/${ file }/inner unchanged`, property.parameter.decorators, inner);
+  }
+}
+checkAstPrintQuirks();
+
+// --- ast-print: list tails ---
+
+// a comment after the last member of a list, or inside an empty one, is the list's own: the print
+// closes the list after it. one shape per host whose closing token the printer writes itself; the
+// placement is the roundtrip gate's identity, so a tail flushed past the closing token reads as a move
+function checkAstPrintListTails() {
+  for (const [label, source] of [
+    ['call, own line', 'f(\n  a,\n  // c\n);\nnext();'],
+    ['call, two own-line comments', 'f(\n  a,\n  // b\n  // c\n);\nnext();'],
+    ['call, same line then own line', 'f(a, // x\n  /* y */\n);\nnext();'],
+    ['empty call, own line', 'f(\n  // c\n);\nnext();'],
+    ['empty call, same line', 'f(/* c */);\nnext();'],
+    ['optional call', 'f?.(\n  a,\n  // c\n);\nnext();'],
+    ['new', 'new F(\n  a,\n  // c\n);\nnext();'],
+    ['empty new', 'new F(\n  // c\n);\nnext();'],
+    ['super call', 'class S extends B { constructor() { super(\n  a,\n  // c\n); } }\nnext();'],
+    ['decorator call', '@d(\n  a,\n  // c\n)\nclass D {}\nnext();'],
+    ['nested call', 'g(f(\n  a,\n  // c\n), b);\nnext();'],
+    ['import call', 'import(\n  a,\n  // c\n);\nnext();'],
+    ['switch, after the last case', 'switch (a) {\n  case 1:\n    b();\n    // c\n}\nnext();'],
+    ['switch, under an empty default', 'switch (a) {\n  default:\n    // c\n}\nnext();'],
+    ['empty switch', 'switch (a) {\n  // c\n}\nnext();'],
+    // eslint-disable-next-line no-template-curly-in-string -- template literal source
+    ['template substitution', 'x = `${\n  a\n  // c\n}`;\nnext();'],
+    ['type arguments', 'f<\n  A,\n  // c\n>(a);\nnext();'],
+  ]) {
+    const printed = astPrint(source).code;
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const original = parseSync('input.ts', source, { sourceType: 'module' });
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const reparsed = parseSync('input.ts', printed, { sourceType: 'module' });
+    check(`list tail/${ label }/output parses`, reparsed.errors.length, 0);
+    checkDeep(`list tail/${ label }/structure`, strip(reparsed.program), strip(original.program));
+    checkDeep(`list tail/${ label }/placement`, commentPlacements(reparsed.program, printed, reparsed.comments),
+      commentPlacements(original.program, source, original.comments));
+    check(`list tail/${ label }/fixed point`, astPrint(printed).code, printed);
+  }
+  // the transform prints the whole file, the untouched call included: a `-next-line` closing its
+  // argument list must not come to lead the statement below, whose claim a later pass would then skip
+  for (const method of ['usage-global', 'usage-pure']) {
+    const source = 'use(\n  z.flat(),\n  // core-js-disable-next-line\n);\nexport const k = q.at(1);\n';
+    const { code } = createPlugin({ method, version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const { program, comments } = parseSync('p.mjs', code, { sourceType: 'module' });
+    const directive = comments.find(({ value }) => value.includes('core-js-disable-next-line'));
+    const host = program.body.find(({ start, end }) => start <= directive.start && directive.end <= end);
+    check(`list tail/${ method }/the directive stays in its call`, host?.expression?.callee?.name, 'use');
+  }
+}
+checkAstPrintListTails();
+
+// --- ast-print: comments trailing a node ---
+
+// a comment opening on the line a node closes on, ahead of the next token, prints right after that
+// node, where the babel leg prints it too. the reparse places it between the same two nodes either
+// way, so the spelling is what holds the token the comment precedes
+function checkAstPrintTrailingComments() {
+  for (const [label, source, spelling] of [
+    ['call', 'f /* c */ (x);', 'f /* c */(x);'],
+    ['optional call', 'f /* c */ ?.(x);', 'f /* c */?.(x);'],
+    ['after the optional token', 'f?./* c */(x);', 'f?. /* c */(x);'],
+    ['type arguments', 'f<T> /* c */ (x);', 'f<T> /* c */(x);'],
+    ['new', 'new F /* c */ (x);', 'new F /* c */(x);'],
+    ['member', 'a /* c */ .b;', 'a /* c */.b;'],
+    ['optional member', 'a /* c */ ?.b;', 'a /* c */?.b;'],
+    ['computed member', 'a /* c */ [b];', 'a /* c */[b];'],
+    ['conditional', 'x = a ? b /* c */ : d;', 'x = a ? b /* c */ : d;'],
+    ['assignment', 'x /* c */ = 1;', 'x /* c */ = 1;'],
+    ['declarator', 'let y /* c */ = 1;', 'let y /* c */ = 1;'],
+    ['binary', 'x = a /* c */ + b;', 'x = a /* c */ + b;'],
+    ['two comments', 'x = a /* c1 */ /* c2 */ + b;', 'x = a /* c1 */ /* c2 */ + b;'],
+    ['line comment', 'x = a // c\n  + b;', 'x = a // c\n'],
+    ['paren group', 'x = (a || b) /* c */ + 1;', 'x = (a || b /* c */) + 1;'],
+    ['else', 'if (a) b(); /* c */ else d();', 'b(); /* c */ else'],
+    ['property key', 'x = { a /* c */ : 1 };', 'a /* c */: 1'],
+    ['heritage', 'class K /* c */ extends B {}', 'class K /* c */ extends B'],
+    ['cast', 'x = a /* c */ as any;', 'x = a /* c */ as any;'],
+    ['parameter default', 'function p(a /* c */ = 1) {}', 'p(a /* c */ = 1)'],
+    ['statement terminator', 'f(x) /* c */;', 'f(x) /* c */;'],
+    // esrap writes these names without visiting them
+    ['default import', 'import a /* c */ from "m";', 'import a /* c */ from "m";'],
+    ['namespace import', 'import * as n /* c */ from "m";', 'import * as n /* c */ from "m";'],
+    // ... and a template's quasi, whose span ends past the `${`: no visit writes the comment there, so
+    // it goes back to the cursor and the file prints again
+    // eslint-disable-next-line no-template-curly-in-string -- template literal source
+    ['after a template opener', 'x = `a${ /* c */ b }d`;', '${/* c */ b}'],
+  ]) {
+    const printed = astPrint(source).code;
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const original = parseSync('input.ts', source, { sourceType: 'module' });
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const reparsed = parseSync('input.ts', printed, { sourceType: 'module' });
+    check(`trailing comment/${ label }/spelling`, printed.includes(spelling), true);
+    checkDeep(`trailing comment/${ label }/structure`, strip(reparsed.program), strip(original.program));
+    checkDeep(`trailing comment/${ label }/comments`, commentSignature(reparsed.comments), commentSignature(original.comments));
+    check(`trailing comment/${ label }/fixed point`, astPrint(printed).code, printed);
+  }
+  // the fold that moves an optional call's type arguments behind its `?.` leaves the source parens in
+  // place, so a comment the author put between them and the `?.` still trails the callee
+  const { code } = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform('export const r = ((g || Promise.try)<any>) /* c */ ?.(g);\n', '/p.ts');
+  check('trailing comment/folded optional call keeps it ahead of the `?.`', code.includes('(g || _Promise$try /* c */)?.<any>(g)'), true);
+}
+checkAstPrintTrailingComments();
+
+// Babel rejects legacy decorators on rest parameters, so the shared fixture runner
+// cannot carry this syntax. Drive every unplugin phase directly and force a reprint.
+function checkRestParameterDecorators() {
+  for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    for (const phase of method === 'entry-global' ? ['pre'] : ['pre', 'post', 'pre+post']) {
+      for (const id of ['/rest.ts', '/rest.tsx']) {
+        const prefix = method === 'entry-global' ? 'import "core-js/es/array/flat";' : '[1, [2]].flat();';
+        const source = `${ prefix }\nclass C { constructor(@first @second ...args: any[]) {} }`;
+        const plugins = unplugin.raw({ method, phase, version: '4.0', targets: { ie: 11 } }, { framework: 'vite' });
+        let code = source;
+        let reprinted = false;
+        for (const plugin of plugins) {
+          const result = plugin.transform.call({ warn(message) { throw new Error(message); } }, code, id);
+          if (result) {
+            code = result.code;
+            reprinted = true;
+          }
+        }
+        check(`rest decorators/${ method }/${ phase }/${ id }/reprinted`, reprinted, true);
+        check(`rest decorators/${ method }/${ phase }/${ id }/preserved`,
+          code.includes('constructor(@first @second ...args: any[])'), true);
+      }
+    }
+  }
+}
+checkRestParameterDecorators();
+
+// A function in a parameter decorator's argument destructures as anywhere else: each leaf is extracted
+// once. The shared fixture compares only the import set under the decorator syntax plugin
+function checkParameterDecoratorDestructures() {
+  const source = [
+    'const list = [1, 2];',
+    'export class C {',
+    '  constructor(',
+    '    @Inject(() => { const { includes } = list; return includes; }) a: unknown,',
+    '    @Inject(() => { let from; ({ from } = Array); return from; }) b: unknown,',
+    '  ) {}',
+    '}',
+  ].join('\n');
+  for (const phase of ['pre', 'post', 'pre+post']) {
+    let code = source;
+    for (const plugin of unplugin.raw({ method: 'usage-pure', phase, version: '4.0', targets: { ie: 11 } }, { framework: 'vite' })) {
+      const result = plugin.transform.call({ warn(message) { throw new Error(message); } }, code, '/decorated.ts');
+      if (result) code = result.code;
+    }
+    checkDeep(`parameter decorator destructures/${ phase }/each leaf extracted once`,
+      [code.match(/const includes = _includesMaybeArray\(list\)/g)?.length, code.match(/from = _Array\$from/g)?.length], [1, 1]);
+  }
+}
+checkParameterDecoratorDestructures();
+
+// ... and hosts whatever its sibling scopes host: the traverse reaches it under its parameter with real paths and
+// scopes. One fixture per transform route that once threw there, in both usage methods
+async function checkParameterDecoratorHostsAnyCode() {
+  for (const name of [
+    'alias-proxy-destructuring-member',
+    'array-conditional-static-neighbour',
+    'array-pattern-captures-an-element-no-pairing-reaches',
+    'array-retained-rest-assignment',
+    'at-block-var-multiple',
+    'at-call-circular-const-function-binding',
+    'at-call-ts-class-this-member-access',
+    'audit-anon-escape-destructure-and-slots-arrow-chained',
+    'audit-anon-escape-destructure-and-slots-arrow-from-array-pattern',
+    'audit-anon-escape-destructure-and-slots-arrow-from-object-pattern',
+    'audit-anon-escape-destructure-and-slots-arrow-holder',
+    'audit-anon-escape-destructure-and-slots-arrow-holds-carrier',
+    'audit-anon-escape-destructure-and-slots-arrow-keyed',
+    'audit-anon-escape-destructure-and-slots-arrow-reassigned',
+    'audit-anon-escape-destructure-and-slots-arrow-rest',
+    'audit-anon-escape-destructure-and-slots-arrow-spread-copy',
+    'audit-anon-escape-destructure-and-slots-assignment-array-pattern-tags-includes',
+    'audit-anon-escape-destructure-and-slots-assignment-cells',
+    'audit-anon-escape-destructure-and-slots-assignment-codes',
+    'audit-anon-escape-destructure-and-slots-assignment-codes-includes',
+    'audit-anon-escape-destructure-and-slots-assignment-nums-at',
+    'audit-anon-escape-destructure-and-slots-check',
+    'audit-anon-escape-destructure-and-slots-computed-has',
+    'audit-anon-escape-destructure-and-slots-peek',
+    'audit-anon-escape-destructure-and-slots-pick',
+    'audit-anon-escape-destructure-and-slots-read',
+    'audit-anon-escape-destructure-and-slots-scan',
+    'audit-nested-static-container-trailing-spread-bail',
+    'inner-default-returned-static-source',
+    'keyed-capture-over-selection',
+    'nested-getter-exposes-this',
+  ]) {
+    const body = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ name }/input.mjs`, import.meta.url), 'utf8');
+    const source = `export class C {\n  m(@Inject(async () => {\n${ body }\n}) b: unknown) {}\n}\n`;
+    for (const method of ['usage-pure', 'usage-global']) {
+      let thrown = null;
+      try {
+        createPlugin({ method, version: '4.0', targets: { ie: 11 } }).transform(source, '/decorated.ts');
+      } catch (error) {
+        thrown = error.message;
+      }
+      check(`parameter decorator hosts any code/${ name }/${ method }`, thrown, null);
+    }
+  }
+}
+await checkParameterDecoratorHostsAnyCode();
+
+// --- ast-builders: the minted literal's spelling ---
+
+// what the PRINTER makes of a literal this engine minted. `raw` is its preferred spelling and
+// only a string needs one from us (esrap quotes with `'`, babel prints `"`); every other value
+// it derives itself, and correctly - which is why the builder must NOT hand it a `JSON.stringify`
+// answer: that throws on a bigint and returns `null` for NaN / Infinity, a different VALUE
+function checkMintedLiteralSpelling() {
+  function printed(value) {
+    const program = { type: 'Program', body: [mintStatement(mintLiteral(value))], sourceType: 'module' };
+    return printProgram({ program, comments: [], source: '', id: 'input.mjs' }).code.trim();
+  }
+  check('a minted string keeps babel\'s double quotes', printed('a\'b'), '"a\'b";');
+  check('a double quote inside it escapes', printed('a"b'), '"a\\"b";');
+  check('null prints null', printed(null), 'null;');
+  check('true prints true', printed(true), 'true;');
+  check('a number prints itself', printed(0), '0;');
+  // the three the stringified `raw` used to get wrong: a bigint THREW at mint time, and both
+  // non-finite numbers printed `null` - a literal spelling a value the node does not hold
+  check('a bigint prints its own suffix', printed(1n), '1n;');
+  check('NaN prints NaN, not null', printed(NaN), 'NaN;');
+  check('Infinity prints Infinity, not null', printed(Infinity), 'Infinity;');
+  // the mint gate: a parser never puts a negative in a `Literal`, and `-0` both printers
+  // would derive from the value as `0` - a wrong VALUE; minting one throws instead
+  function mintThrows(value) {
+    try {
+      mintLiteral(value);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+  check('a negative number is refused at mint', mintThrows(-5), true);
+  check('minus zero is refused at mint', mintThrows(-0), true);
+  check('negative Infinity is refused at mint', mintThrows(-Infinity), true);
+  check('a negative bigint is refused at mint', mintThrows(-1n), true);
+  check('undefined is refused at mint', mintThrows(undefined), true);
+  check('an object is refused at mint', mintThrows({}), true);
+  check('NaN stays mintable', mintThrows(NaN), false);
+  check('a fraction stays mintable', mintThrows(1.5), false);
+}
+checkMintedLiteralSpelling();
+
+// --- ast-print: sourcemap contract ---
+
+function checkAstPrintMapContract() {
+  const plain = astPrint('let x = 1;', 'dir/app.vue?vue&type=script');
+  check('map sources keep the full id (SFC sub-block identity)', JSON.stringify(plain.map.sources), '["dir/app.vue?vue&type=script"]');
+  check('map file is the query-stripped basename', plain.map.file, 'app.vue');
+  check('content rides by default', JSON.stringify(plain.map.sourcesContent), '["let x = 1;"]');
+  check('includeContent: false drops the content', JSON.stringify(astPrint('let x = 1;', 'input.ts', { includeContent: false }).map.sourcesContent), '[null]');
+  const banged = astPrint('#!/usr/bin/env node\nlet x = 1;');
+  check('hashbang shifts the mappings one generated line down', banged.map.mappings.startsWith(';'), true);
+  const traced = new TraceMap({ ...banged.map, version: 3 });
+  check('a mapped token resolves through the hashbang shift',
+    JSON.stringify(originalPositionFor(traced, { line: 2, column: 4 }).line), '2');
+}
+checkAstPrintMapContract();
+
+// --- the retired engine option ---
+
+// the flag died with the text layer (phase 5): the AST engine is the only engine, and a
+// leftover `engine` option in a user config surfaces as the ordinary unknown-option error
+// instead of silently selecting nothing
+function checkEngineOptionRetired() {
+  function creationError(options) {
+    try {
+      createPlugin(options);
+      return null;
+    } catch (error) {
+      return error.message;
+    }
+  }
+  check('a leftover engine option is rejected as unknown',
+    creationError({ method: 'usage-pure', engine: 'ast' }),
+    '[core-js] Unknown plugin option: engine');
+  const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
+  check('the engine-less default transforms usage-pure',
+    viaDefault?.includes('@core-js/pure/'), true);
+  // the checks the option section carried that are ENGINE behavior, not flag behavior
+  const entryOptions = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
+  const astEntry = createPlugin(entryOptions).transform("import 'core-js/actual/array/from';\nuse();", 'input.mjs');
+  check('entry-global transforms', astEntry !== null && astEntry.code.includes('import "core-js/modules/es.array.from";'), true);
+  check('the entry output drops the entry statement', astEntry.code.includes('core-js/actual'), false);
+  check('entry-global abstains on entry-less files',
+    createPlugin(entryOptions).transform('use();', 'input.mjs'), null);
+  // a module-import input re-expands to itself: babel reprints it, and this engine follows
+  check('a module-import re-transform re-emits the same imports (babel parity)',
+    createPlugin(entryOptions).transform(astEntry.code, 'input.mjs')?.code.includes('import "core-js/modules/es.array.from";'), true);
+  check('require-style entries render',
+    createPlugin({ ...entryOptions, importStyle: 'require' })
+      .transform("require('core-js/actual/array/from');", 'input.mjs').code.startsWith('require("core-js/modules/'), true);
+  const usageOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  const astUsage = createPlugin(usageOptions)
+    .transform('import "core-js/modules/es.array.at";\narr.at(0);', 'input.mjs');
+  check('usage-global transforms', astUsage?.code.startsWith('import "core-js/modules/es.array.at";'), true);
+  check('the swept user module import is not doubled', astUsage.code.match(/es\.array\.at/g).length, 1);
+  check('instantiation normalizes before an optional call',
+    createPlugin(usageOptions).transform('const r = ((f)<string>)?.(1);\narr.at(0);', 'input.ts')
+      .code.includes('f?.<string>(1)'), true);
+  // standalone post (no pre snapshot) transforms like the single pass at the plugin layer
+  check('phased usage-global transforms at the plugin layer',
+    createPlugin(usageOptions).transform('arr.at(0);', 'input.mjs', 'post')
+      ?.code.includes('import "core-js/modules/es.array.at";'), true);
+}
+checkEngineOptionRetired();
+
+// --- ast-engine: walker mutation contract ---
+
+// the emitters' port recipes lean on these traversal semantics; a dependency bump that
+// flips one must fail here, not deep inside an emitter
+function checkWalkerMutationContract() {
+  function names(source, visitors) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const ast = parseSync('t.mjs', source, { sourceType: 'module' }).program;
+    const visited = [];
+    traverse(ast, visitors(visited));
+    return visited.join(',');
+  }
+  check('replaceWith re-visits the replacement', names('a; b;', visited => ({
+    Identifier(path) {
+      visited.push(path.node.name);
+      if (path.node.name === 'a') path.replaceWith(builders.identifier('z'));
+    },
+  })), 'a,z,b');
+  check('replaceWith visits the replacement subtree', names('a;', visited => ({
+    Identifier(path) {
+      visited.push(path.node.name);
+      if (path.node.name === 'a') path.replaceWith(builders.callExpression(builders.identifier('f'), [builders.identifier('g')]));
+    },
+  })), 'a,f,g');
+  check('insertBefore / insertAfter products are visited', names('a; b;', visited => ({
+    ExpressionStatement(path) {
+      visited.push(path.node.expression.name);
+      if (path.node.expression.name === 'a') {
+        path.insertBefore([builders.expressionStatement(builders.identifier('pre'))]);
+        path.insertAfter([builders.expressionStatement(builders.identifier('post'))]);
+      }
+    },
+  })), 'a,pre,post,b');
+  check('remove keeps later siblings in the walk', names('a; b; c;', visited => ({
+    ExpressionStatement(path) {
+      visited.push(path.node.expression.name);
+      if (path.node.expression.name === 'a') path.remove();
+    },
+  })), 'a,b,c');
+  check('unshift/pushContainer products are visited', names('a;', visited => ({
+    Program(path) {
+      path.unshiftContainer('body', [builders.expressionStatement(builders.identifier('head'))]);
+      path.pushContainer('body', [builders.expressionStatement(builders.identifier('tail'))]);
+    },
+    ExpressionStatement(path) { visited.push(path.node.expression.name); },
+  })), 'head,a,tail');
+  check('skip prunes the subtree', names('f(g(h));', visited => ({
+    CallExpression(path) {
+      visited.push(path.node.callee.name);
+      if (path.node.callee.name === 'f') path.skip();
+    },
+  })), 'f');
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const scoped = parseSync('t.mjs', 'use(x);', { sourceType: 'module' }).program;
+  let bindingBeforeCrawl = null;
+  let bindingAfterCrawl = null;
+  traverse(scoped, {
+    $: { scope: true },
+    Program(path) {
+      path.unshiftContainer('body', [builders.variableDeclaration('const', [builders.variableDeclarator(builders.identifier('x'), builders.literal(1))])]);
+      bindingBeforeCrawl = !!path.scope.getBinding('x');
+      path.scope.crawl();
+      bindingAfterCrawl = !!path.scope.getBinding('x');
+    },
+  });
+  check('an inserted declaration binds only after scope.crawl', `${ bindingBeforeCrawl },${ bindingAfterCrawl }`, 'false,true');
+}
+checkWalkerMutationContract();
+
+// Replacing an outer read must not resolve every prefix of its discarded receiver.
+// Count scope queries, not elapsed time, so this also fails on a fast machine.
+for (const depth of [8, 64, 128]) {
+  const reads = 120;
+  const receiver = `globalThis${ '.self'.repeat(depth) }.Array`;
+  const ast = programOf(Array.from({ length: reads }, () => `${ receiver }.from([1]);`).join('\n'));
+  const adapter = createEstreeAdapter({ method: 'usage-pure' });
+  const { hasBinding } = adapter;
+  let liveQueries = 0;
+  let deadQueries = 0;
+  let replacements = 0;
+  adapter.hasBinding = ({ scope, name, path }) => {
+    let current = path;
+    while (current && !current.removed) current = current.parentPath;
+    if (current) deadQueries++;
+    else liveQueries++;
+    return hasBinding({ scope, name, path });
+  };
+  traverse(ast, {
+    $: { scope: true },
+    ...createUsageVisitors({
+      adapter,
+      method: 'usage-pure',
+      walkAnnotations: false,
+      isEntryAvailable: () => true,
+      onUsage(meta, path) {
+        if (meta.key === 'from') {
+          replacements++;
+          path.replaceWith(builders.identifier('replacement'));
+        }
+      },
+    }),
+  });
+  check(`discarded receiver/${ depth }/every outer read was replaced`, replacements, reads);
+  check(`discarded receiver/${ depth }/live reads were analyzed`, liveQueries > 0, true);
+  check(`discarded receiver/${ depth }/no scope queries in removed subtrees`, deadQueries, 0);
+}
+
+// A retained effect can sit BELOW a discarded intermediate member. Its claims fire on its live path before
+// the member is discarded (`claimLive`), and never through the detached one - once, whether or not the
+// traversal still descends into the removed children.
+for (const [effect, claim] of [
+  ['Array.of(1)', 'property/of'],
+  ['Promise', 'global/Promise'],
+  ['"all" in Promise', 'in/all'],
+  ['(() => { const { resolve } = Promise; return resolve; })()', 'property/resolve'],
+]) for (const retain of [false, true]) {
+  const ast = programOf(`(${ effect }, globalThis).self.Array.from([1]); Array.isArray([]);`);
+  const seen = [];
+  const completed = { nodes: null };
+  const visitors = createUsageVisitors({
+    adapter: createEstreeAdapter({ method: 'usage-pure' }),
+    method: 'usage-pure',
+    walkAnnotations: false,
+    completedClaims: completed,
+    isEntryAvailable: () => true,
+    onUsage(meta, path) {
+      seen.push(`${ meta.kind }/${ meta.key ?? meta.name }`);
+      if (meta.key === 'from') {
+        if (retain) claimLive(visitors, [unwrapNode(path.node.object.object.object).expressions[0]], path, completed);
+        path.replaceWith(builders.identifier('replacement'));
+      }
+    },
+  });
+  // Root setup belongs to the host traversal; early subtree claims share descendants only.
+  check(`discarded receiver/${ claim }/no root handler`, Object.hasOwn(visitors, 'Program'), false);
+  check(`discarded receiver/${ claim }/no traversal metadata`, Object.hasOwn(visitors, '$'), false);
+  traverse(ast, { $: { scope: true }, ...visitors });
+  check(`discarded receiver/${ claim }/retained ${ retain }`, seen.filter(item => item === claim).length, retain ? 1 : 0);
+  check(`discarded receiver/${ claim }/live sibling ${ retain }`, seen.includes('property/isArray'), true);
+}
+
+// A detached receiver is retired at its first rejected child, not revisited at every depth.
+for (const depth of [1, 32]) {
+  const ast = programOf(`globalThis${ '.self'.repeat(depth) }.Array.from;`);
+  let visits = 0;
+  let claims = 0;
+  const visitors = rejectDetachedPaths({
+    MemberExpression(site) {
+      claims++;
+      site.replaceWith(builders.identifier('replacement'));
+    },
+    Identifier() { claims++; },
+  });
+  const counted = Object.fromEntries(Object.entries(visitors).map(([type, visit]) => [type, site => {
+    visits++;
+    visit(site);
+  }]));
+  traverse(ast, counted);
+  check(`detached receiver/${ depth }/outer claim and replacement`, claims, 2);
+  check(`detached receiver/${ depth }/bounded traversal`, visits <= 4, true);
+}
+
+// Early claims finish their descendants before a render moves them. Reparenting processed
+// nodes must not repeat detection, while a fresh clone and a fresh walk still own their claims.
+for (const replaceRoot of [false, true]) for (const clone of [false, true]) {
+  const ast = programOf('host(retained(inner())); sibling();');
+  const completed = { nodes: null };
+  const seen = [];
+  const visitors = rejectDetachedPaths({
+    CallExpression(site) {
+      const { name } = site.node.callee;
+      seen.push(name);
+      if (name === 'host') {
+        const [child] = site.node.arguments;
+        claimLive(visitors, [child, child.arguments[0]], site, completed);
+        claimLive(visitors, [child.arguments[0]], site, completed);
+        const [live] = site.node.arguments;
+        site.replaceWith(builders.arrayExpression(clone ? [live, structuredClone(live)] : [live]));
+      } else if (name === 'retained' && replaceRoot) {
+        site.replaceWith(builders.callExpression(builders.identifier('settled'), site.node.arguments));
+      }
+    },
+  }, completed);
+  traverse(ast, { $: { scope: true }, ...visitors });
+  const label = `completed claims/replacement ${ replaceRoot }/clone ${ clone }`;
+  check(`${ label }/source root`, seen.filter(name => name === 'retained').length, !replaceRoot && clone ? 2 : 1);
+  check(`${ label }/replacement root`, seen.filter(name => name === 'settled').length, replaceRoot ? 1 + Number(clone) : 0);
+  check(`${ label }/descendant`, seen.filter(name => name === 'inner').length, 1 + Number(clone));
+  check(`${ label }/unrelated sibling`, seen.filter(name => name === 'sibling').length, 1);
+  const fresh = [];
+  traverse(ast, { $: { scope: true }, ...rejectDetachedPaths({
+    CallExpression(site) { fresh.push(site.node.callee.name); },
+  }, { nodes: null }) });
+  check(`${ label }/fresh walk`, fresh.length, clone ? 5 : 3);
+}
+
+// Reusing a removed root inside its replacement must finish the children at their live paths.
+{
+  const ast = programOf('host(retained(inner()));');
+  const completed = { nodes: null };
+  const seen = [];
+  let wrapped = false;
+  const visitors = rejectDetachedPaths({
+    CallExpression(site) {
+      const { name } = site.node.callee;
+      seen.push(name);
+      if (name === 'host') {
+        claimLive(visitors, site.node.arguments, site, completed);
+        site.replaceWith(builders.arrayExpression(site.node.arguments));
+      } else if (name === 'retained' && !wrapped) {
+        wrapped = true;
+        site.replaceWith(builders.arrayExpression([site.node]));
+      }
+    },
+  }, completed);
+  traverse(ast, { $: { scope: true }, ...visitors });
+  check('completed claims/reused removed root', seen.filter(name => name === 'retained').length, 2);
+  check('completed claims/reused removed root/descendant', seen.filter(name => name === 'inner').length, 1);
+}
+
+// whether estree-toolkit still walks the children a replace or remove detached is its own choice: a pure output
+// must not move once it stops. the model skips every path under a removed ancestor
+function withoutDetachedDescent(run) {
+  const { visitPath } = Traverser.prototype;
+  Traverser.prototype.visitPath = function (visitorCtx, path, ...rest) {
+    for (let up = path.parentPath; up; up = up.parentPath) if (up.removed) return;
+    return visitPath.call(this, visitorCtx, path, ...rest);
+  };
+  try {
+    return run();
+  } finally {
+    Traverser.prototype.visitPath = visitPath;
+  }
+}
+
+for (const [label, source] of [
+  // the drain harvests the sealed key's effect off the original the hop collapse detached
+  ['sealed key effect', 'const log = [];\nexport const r = (() => { const { of: o } = (globalThis.window?.[(log.push("k"), "self")]).Array; return typeof o; })();'],
+  // the flatten route registers its declarators off the live declaration the export unwrap left
+  ['exported flatten declarator', "const log = [];\nexport const x0 = 1, { w: [{ [(log.push('k'), 'at')]: a, flat: b }] } = { w: [[1, [2]]] }, y0 = 2;"],
+]) {
+  function transform() {
+    return createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+  }
+  check(`detached descent/${ label }`, withoutDetachedDescent(transform), transform());
+}
+
+// --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
+// bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
+// first-wins onLoad runs only one of two sibling instances), so an explicit `phase: 'pre+post'`
+// downgrades to a single 'post' stage with a one-time warn. vite / webpack / farm keep both
+// stages (their enforce-to-priority mapping interleaves siblings correctly)
+function checkPrePostBundlerDowngrade() {
+  const opts = { method: 'usage-global', version: '4.0', phase: 'pre+post' };
+  const origWarn = console.warn;
+  const warned = [];
+  console.warn = (...a) => warned.push(a.join(' '));
+  try {
+    for (const fw of ['esbuild', 'bun']) {
+      const subs = unplugin.raw({ ...opts }, { framework: fw });
+      check(`phase pre+post downgrades to one stage on ${ fw }`, subs.length, 1);
+      check(`phase pre+post downgraded stage runs at post on ${ fw }`, subs[0].enforce, 'post');
+    }
+    // membership = EVERY known adapter minus the unsafe pair - a newly added safe bundler
+    // must keep both stages by default, and the stages must run pre-THEN-post (the enforce
+    // pair is the ordering contract the downgrade exists to protect). read off the package's
+    // own set, so a member added there is covered here without a second list to update
+    const PRE_POST_UNSAFE = new Set(['bun', 'esbuild']);
+    const keepBothBundlers = [...KNOWN_BUNDLERS].filter(name => !PRE_POST_UNSAFE.has(name));
+    for (const fw of keepBothBundlers) {
+      const subs = unplugin.raw({ ...opts }, { framework: fw });
+      check(`phase pre+post keeps both stages on ${ fw }`, subs.length, 2);
+      check(`phase pre+post first stage enforces 'pre' on ${ fw }`, subs[0].enforce, 'pre');
+      check(`phase pre+post second stage enforces 'post' on ${ fw }`, subs[1].enforce, 'post');
+    }
+  } finally {
+    console.warn = origWarn;
+  }
+  check('phase pre+post downgrade warns once per unsafe bundler', warned.filter(w => /pre\+post/.test(w)).length, 2);
+}
+checkPrePostBundlerDowngrade();
+
+// single-stage enforce values: the default phase runs at 'pre'; an explicit standalone `phase: 'post'`
+// runs at 'post'; `phase: 'pre'` stays 'pre'. only the pre+post downgrade case (above) had coverage
+function checkSingleStageEnforce() {
+  for (const fw of ['vite', 'webpack']) {
+    const def = unplugin.raw({ method: 'usage-global', version: '4.0' }, { framework: fw });
+    check(`default phase is a single stage on ${ fw }`, def.length, 1);
+    check(`default phase enforce is 'pre' on ${ fw }`, def[0].enforce, 'pre');
+    const post = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'post' }, { framework: fw });
+    check(`phase post is a single stage on ${ fw }`, post.length, 1);
+    check(`phase post enforce is 'post' on ${ fw }`, post[0].enforce, 'post');
+    const pre = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'pre' }, { framework: fw });
+    check(`phase pre enforce is 'pre' on ${ fw }`, pre[0].enforce, 'pre');
+  }
+}
+checkSingleStageEnforce();
+
+// the GENERAL invalid-phase throw (non-entry-global): a bad string is quoted, a non-string
+// value reports its `typeof` (the formatter deliberately avoids JSON.stringify - BigInt /
+// Symbol / circular options would blow up the diagnostic itself). the entry-global-specific
+// gate has its own test; this covers the shared VALID_PHASES gate
+function checkGeneralInvalidPhaseThrow() {
+  function throwMessage(phase) {
+    try {
+      unplugin.raw({ method: 'usage-global', version: '4.0', phase }, { framework: 'vite' });
+    } catch (error) {
+      return error.message;
+    }
+    return null;
+  }
+  check('invalid phase string throws quoted', /invalid `phase` option: 'lol'/.test(throwMessage('lol')), true);
+  check('invalid phase number reports typeof', /invalid `phase` option: number/.test(throwMessage(42)), true);
+  check('invalid phase symbol reports typeof', /invalid `phase` option: symbol/.test(throwMessage(Symbol('x'))), true);
+  check('invalid phase bigint reports typeof', /invalid `phase` option: bigint/.test(throwMessage(1n)), true);
+  check('null phase falls back to default (no throw)', throwMessage(null), null);
+}
+checkGeneralInvalidPhaseThrow();
+
+// --- withoutPhantomDeclarationViolations ---
+// estree-toolkit FALSELY records a DECLARATION (over-hoisted `namespace N {}` twin, for-init self)
+// as a constant-violation; the filter drops exactly those while PRESERVING real reassignment paths
+// (the resolver's `findPrecedingBlockAssignment` consumes them) and the binding identity when there
+// is nothing to drop. broadening this to a wholesale recompute fed nodes to a path-consumer and
+// reordered every reassigned binding, so the narrow predicate + path-preservation are load-bearing
+function checkPhantomViolationFilter() {
+  function bindingFor(src, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      Program(path) { result = path.scope.getBinding(name); },
+    });
+    return result;
+  }
+  function bindingInFn(src, fnName, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      FunctionDeclaration(path) { if (path.node.id?.name === fnName) result = path.scope.getBinding(name); },
+    });
+    return result;
+  }
+  function filteredCount(src, name) {
+    return withoutPhantomDeclarationViolations(bindingFor(src, name)).constantViolations.length;
+  }
+
+  check('phantom namespace-twin declaration violation dropped',
+    filteredCount('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x'), 0);
+  check('real assignment violation preserved',
+    filteredCount('let x = 1; x = 2; x;', 'x'), 1);
+  check('var redeclaration records no violation (unchanged)',
+    filteredCount('var x = 1; { var x = 2; } x;', 'x'), 0);
+  // every over-hoisted namespace twin is phantom regardless of declaration kind (var/const/function/class)
+  check('const namespace-twin declaration violation dropped',
+    filteredCount('const K = 1; namespace N { const K = 2; } K;', 'K'), 0);
+  check('function namespace-twin declaration violation dropped',
+    filteredCount('function F() {} namespace N { function F() {} } F();', 'F'), 0);
+  check('class namespace-twin declaration violation dropped',
+    filteredCount('class C {} namespace N { class C {} } new C();', 'C'), 0);
+  // a same-scope function/class redeclaration is a REAL shadow (last wins), NOT phantom - must be KEPT
+  const redecl = bindingInFn('function outer() { function F() { return 1; } function F() { return 2; } F(); }', 'outer', 'F');
+  check('same-scope function redeclaration is recorded as a violation', redecl.constantViolations.length, 1);
+  check('same-scope function redeclaration violation kept (not phantom)',
+    withoutPhantomDeclarationViolations(redecl).constantViolations.length, 1);
+  // a loop body or a namespace block redeclaring the name binds it apart, while the tracker gives the
+  // block no scope of its own: the declaration and the writes there leave the outer binding's list - a
+  // `var` head's too - while a body `var` redeclaring a `var` head is the head's own write and stays
+  function firstBindingFilteredCount(src, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      Identifier(path) { if (!result && path.node.name === name) result = path.scope.getBinding(name); },
+    });
+    return withoutPhantomDeclarationViolations(result).constantViolations.length;
+  }
+  check('loop body namesake and its write leave a let head',
+    firstBindingFilteredCount('for (let s of xs) { let s = [1]; s = [2]; }', 's'), 0);
+  check('loop body namesake and its write leave a var head',
+    firstBindingFilteredCount('for (var s of xs) { let s = [1]; s = [2]; }', 's'), 0);
+  check('loop body var redeclaration stays on a var head', firstBindingFilteredCount('for (var s of xs) { var s = [1]; }', 's'), 1);
+  check('namespace namesake write leaves the outer binding',
+    firstBindingFilteredCount('let s = 1; namespace N { let s = 2; s = 3; }', 's'), 0);
+  // ... and a declaration is found through its pattern: a pattern for-init's own record is phantom too
+  check('object pattern for-init self record dropped', firstBindingFilteredCount('for (const { a } = x; c; ) { a.at(0); }', 'a'), 0);
+  check('array pattern for-init self record dropped', firstBindingFilteredCount('for (let [a] = x; c; ) { a.at(0); }', 'a'), 0);
+
+  // identity: nothing to drop returns the SAME binding object (no needless wrapping)
+  const realBinding = bindingFor('let x = 1; x = 2; x;', 'x');
+  check('no-phantom binding returned by identity', withoutPhantomDeclarationViolations(realBinding) === realBinding, true);
+  // path-preserving: the scrubbed wrapper keeps the original binding.path (findPrecedingBlockAssignment reads it)
+  const twinBinding = bindingFor('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x');
+  const scrubbed = withoutPhantomDeclarationViolations(twinBinding);
+  check('scrubbed wrapper preserves binding.path identity', scrubbed.path === twinBinding.path, true);
+  // a resolver consumer re-spreads the binding (`{ ...binding, constantViolations: combined }`),
+  // so own props (path/scope) must survive object-spread - not live on a prototype
+  check('scrubbed wrapper survives object-spread (path own-enumerable)', { ...scrubbed }.path === twinBinding.path, true);
+  // `constant` is a prototype getter on the estree Binding (not spread-copyable); the wrapper
+  // carries it explicitly, reflecting the filtered list (all-phantom -> effectively constant)
+  check('scrubbed wrapper exposes constant from filtered violations', scrubbed.constant, true);
+}
+checkPhantomViolationFilter();
+// a REFUSED alias's member reads stay RAW across passes: pre+post must not re-detect the
+// pre-transformed swap (`M = _Map`) into a narrow on the later pass
+async function checkRefusedAliasRawPassIdempotent() {
+  const src = 'function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+    + 'try { return typeof M.groupBy; } catch (e) { return "T"; } }\n'
+    + 'function u(c) { let P; if (c) ({ Promise: P } = globalThis); return P.try(() => 1); }\n'
+    // the DESTRUCTURE channel of the same guard, and the write-ENUMERATED hint that feeds it (`M2 =
+    // globalThis.Map` registers no alias, so the binding's own writes are the hint): both render the
+    // guard on the first pass, and the second must not guard the raw branch it left behind
+    + 'function d(c) { let M2; if (c) M2 = globalThis.Map; '
+    + 'try { const { groupBy: g } = M2; return typeof g; } catch (e) { return "T"; } }\n'
+    + 'export const r = [t(true), t(false), d(true), d(false)];\n';
+  const plugins = unplugin.rollup({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, phase: 'pre+post' });
+  let code = src;
+  for (const p of plugins) {
+    const transform = typeof p.transform === 'function' ? p.transform : p.transform?.handler;
+    const out = await transform.call({ error(e) { throw new Error(e); } }, code, '/x/probe.mjs');
+    if (out?.code) code = out.code;
+  }
+  // the refused reads get the RUNTIME ctor guard whose raw branch keeps the original member
+  // (a callee keeps `this` via `.bind`); the second pass must not re-guard the guard's own
+  // raw branch - exactly one guard per read survives pre+post
+  check('refused alias guard keeps the raw member branch', /M\.groupBy/.test(code), true);
+  check('refused alias callee guard binds the raw branch', /P\.try\.bind\(P\)/.test(code), true);
+  check('member guard emitted exactly once across pre+post', code.split('M === _Map ?').length - 1, 1);
+  check('callee guard emitted exactly once across pre+post', code.split('P === _Promise ?').length - 1, 1);
+  check('destructure guard emitted exactly once across pre+post', code.split('M2 === _Map ?').length - 1, 1);
+  check('destructure guard keeps the raw member branch', /M2\.groupBy/.test(code), true);
+}
+await checkRefusedAliasRawPassIdempotent();
+
+// usage-global indirect-require removal BODY: the fixture comparator for usage-global is
+// imports-only, so the extracted SE-prefix statements are never text-validated there - pin
+// them here. each removed `(se, require)('core-js/...')` leaves exactly its prefix as a
+// bare statement in source order (incl. the optional-call and outer-comma shapes), the
+// require call itself is gone, and a polyfillable usage INSIDE a kept prefix stays visited
+function checkUsageGlobalIndirectRequirePrefixBody() {
+  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+  const source = [
+    'let loads = 0;',
+    '(loads++, require)("core-js/modules/es.array.from");',
+    'let arr = [1];',
+    '(arr.includes(1), require)("core-js/modules/es.array.includes");',
+    'let opt = 0;',
+    '(opt++, require)?.("core-js/modules/es.array.from");',
+    'let outer = 0;',
+    '0, (outer++, require)("core-js/modules/es.array.of");',
+    'Array.from([1]);',
+  ].join('\n');
+  const code = plugin.transform(source, '/indirect-require-prefix.js')?.code ?? '';
+  // the injected block is dropped in EITHER spelling: a body that spells `require` is CommonJS, so
+  // the emission is `require` too, and the question here is only what became of the USER's calls
+  const injected = /^(?:import "|require\(")core-js\/modules\//;
+  const body = code.split('\n').filter(line => !injected.test(line)).join('\n');
+  check('indirect-require body/prefixes survive as statements in source order',
+    /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
+  check('indirect-require body/no require call survives', /require\s*\(/.test(body), false);
+  check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
+}
+checkUsageGlobalIndirectRequirePrefixBody();
+
+// the phantom-violation filter returns ONE stable stand-in per native binding: identity
+// consumers (per-binding lookup caches, closure Sets, classification Maps) key by object
+// identity, and a fresh copy per call silently dropped their recorded writes
+function checkPhantomFilterIdentity() {
+  const src = 'for (let o = { data: [1, 2] }; cond;) { o.data = "s"; o.data.at(0); break; }';
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync('/pfi.js', src, { sourceType: 'module' });
+  let binding = null;
+  traverse(parsed.program, {
+    $: { scope: true },
+    Identifier(path) {
+      if (!binding && path.node.name === 'o') binding = path.scope.getBinding('o');
+    },
+  });
+  check('phantom-filter/binding found with violations', !!binding && !!binding.constantViolations?.length, true);
+  const a = withoutPhantomDeclarationViolations(binding);
+  const b = withoutPhantomDeclarationViolations(binding);
+  check('phantom-filter/stable identity across calls', a === b, true);
+}
+checkPhantomFilterIdentity();
+
+// --- call arity comes from the AST, not from the sliced argument text ---
+
+// every renderer that joins arguments after a dispatch receiver asks ONE helper for the leading
+// `, ` separator, and it must read arity off the call node: a zero-arg list holding a comment or a
+// line break slices to a NON-EMPTY string, and a separator ahead of it emits `.call(recv, )` - a
+// trailing comma, ES2017, which takes the whole module out on the ES5 baseline `usage-pure` targets.
+// stated as an invariant rather than an expected spelling: whatever a renderer prints for `m()`, it
+// must print for `m(/* c */)` too, so a new renderer joining the text raw fails here without anyone
+// having to predict its output
+function checkCallArityFromAst() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const PRELUDE = 'const a = [[1]];\nconst o = { m: () => [[1]] };\nconst p = { m: () => ({ x: [[1]] }) };\n';
+  // `%s` is the argument list, and a row carries one per separator it renders. one row per renderer -
+  // the standalone dispatch and its paren-lookup / optional-call spellings, the guard body that
+  // invokes a memoized non-polyfilled callee (bare and with a hop tail), the threaded hops, the
+  // combined chain's inner and outer slots, the split emit of an inherited static - plus a second
+  // row wherever one renderer owns two spellings of the same primitive, as the split emit does
+  const SHAPES = [
+    ['standalone dispatch', 'export const r = a.flat(%s);'],
+    ['paren-lookup callee', 'export const r = (a?.at)(%s);'],
+    ['optional call', 'export const r = a.includes?.(%s);'],
+    ['guard body over a memoized callee', 'export const r = o.m?.(%s).flat();'],
+    ['guard body with a hop tail', 'export const r = p.m?.(%s).x.flat();'],
+    ['threaded hops', 'export const r = a.flat(%s).flat(%s);'],
+    ['combined chain, inner slot', 'export const r = a.flat?.(%s).at(0);'],
+    ['combined chain, outer slot', 'export const r = a.flat?.(%s)?.at(%s);'],
+    ['inherited static split', 'class A extends Array { static f() { return super.from(%s); } }\nexport const r = A.f();'],
+    // `this` in a static context resolves through the same inherited-static machinery, so the split
+    // emit owns both spellings of the primitive - the twin is what keeps the domain enumerated
+    ['inherited static via this', 'class A extends Array { static f() { return this.of(%s); } }\nexport const r = A.f();'],
+  ];
+  // trivia the parser drops but a source slice keeps
+  const TRIVIA = ['\n', ' ', '/* c */', '/* c */\n', '// c\n', '\t/* c */ '];
+  function emit(body) {
+    return createPlugin(OPTIONS).transform(`${ PRELUDE }${ body }\n`, '/p.mjs')?.code ?? body;
+  }
+  for (const [label, template] of SHAPES) {
+    const slots = template.split('%s').length - 1;
+    const zeroArg = emit(template.replaceAll('%s', ''));
+    for (const trivia of TRIVIA) {
+      // comments and layout may legitimately ride along in the emitted text; the token stream may
+      // not move. the comparator's own lexer decides what "token stream" means here - a hand-rolled
+      // comment stripper next to it drifted from that answer on the first comment holding a `*`
+      check(`arity/${ label } is unmoved by ${ JSON.stringify(trivia) }`,
+        collapseWhitespace(emit(template.replaceAll('%s', trivia))), collapseWhitespace(zeroArg));
+    }
+    // the same rows with a REAL argument, counted rather than matched: one separator per filled slot.
+    // this is both the negative (arguments still ride, and ride behind the separator) and the
+    // vacuity guard - a row the resolver declines to rewrite renders no separator and lands on 0
+    check(`arity/${ label } renders one separator per argument`,
+      collapseWhitespace(emit(template.replaceAll('%s', '/* n */ 7'))).split(',7').length - 1, slots);
+  }
+  // the slice is taken by OFFSET out of the original source, and the shapes below are the ones that
+  // move offsets away from a naive character count - a CRLF pair, a leading BOM, an astral character
+  // ahead of (and inside) the list. the arity gate has to hold there too, or the separator comes back
+  // on exactly the sources whose offsets are hardest to reason about
+  const OFFSET_SHAPES = [
+    ['CRLF', 'const a = [[1]];\r\nexport const r = a.flat(\r\n);\r\n'],
+    ['CRLF inside a comment argument', 'const a = [[1]];\r\nexport const r = a.flat(/* one\r\ntwo */);\r\n'],
+    ['BOM', '﻿const a = [[1]];\nexport const r = a.flat(/* c */);\n'],
+    ['astral ahead of the call', 'const s = "\u{1F600}\u{1F600}";\nconst a = [[1]];\nexport const r = s.length + a.flat(/* c */).length;'],
+    ['astral inside the trivia', 'const a = [[1]];\nexport const r = a.flat(/* \u{1F600} */);'],
+  ];
+  // both assertions read the emitted text, and a character class spanning the argument slot is the
+  // wrong tool for it - an argument may itself carry parens (`_ref = helper(a).call(a)`), so such a
+  // pattern answers about the SHAPE of the receiver rather than about the separator. ask the two
+  // questions directly instead: does a list end in a comma, and did a dispatch happen at all
+  function hasDanglingSeparator(out) {
+    return collapseWhitespace(out).includes(',)');
+  }
+  function dispatches(out, helper) {
+    return out.includes(`${ helper }(`) && out.includes('.call(');
+  }
+  // both predicates answer with a boolean, so a negative row of theirs is only worth as much as the
+  // proof that they light up at all - pin the fire condition on literals next to the rows using them
+  check('arity/the dangling-separator predicate fires', hasDanglingSeparator('_x(a).call(a, );'), true);
+  check('arity/the dispatch predicate fires', dispatches('_flatMaybeArray(a).call(a);', '_flatMaybeArray'), true);
+  check('arity/the dispatch predicate stays quiet on untransformed source', dispatches('a.flat();', '_flatMaybeArray'), false);
+  for (const [label, source] of OFFSET_SHAPES) {
+    const out = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+    check(`arity/no separator survives ${ label }`, hasDanglingSeparator(out), false);
+    check(`arity/${ label } still dispatches`, dispatches(out, '_flatMaybeArray'), true);
+  }
+  // the post pass re-reads the emitter's OWN output, where the trivia the arity gate ignored is gone;
+  // a cadence that re-derived arity from that text would drift from the single-pass result
+  const CADENCE_SRC = 'const a = [[1]];\nexport const r = a.flat(/* c */).at(/* d */);\n';
+  const single = createPlugin(OPTIONS).transform(CADENCE_SRC, '/p.mjs')?.code ?? CADENCE_SRC;
+  // the cadence rows below compare against `single`, so they would agree vacuously on a source
+  // nothing rewrote - pin that the reference emission is a real one first
+  check('arity/the cadence reference is a real emission', dispatches(single, '_atMaybeArray'), true);
+  for (const passes of [['pre'], ['post'], ['pre', 'post'], ['pre', 'post', 'pre', 'post']]) {
+    let code = CADENCE_SRC;
+    for (const pass of passes) code = createPlugin(OPTIONS).transform(code, '/p.mjs', pass)?.code ?? code;
+    check(`arity/[${ passes.join('->') }] matches the single-pass emission`, code, single);
+  }
+}
+checkCallArityFromAst();
+
+// the bare-slot reclaim proves the bare prefix free before handing the allocation on. it must not
+// be probed AGAIN by the allocator it hands to - in the babel emitter that probe is a whole
+// scope-chain lookup, so a duplicate is a real per-allocation cost. counted through
+// `isNameTaken`, the single funnel every probe passes through
+function checkSingleBareProbePerAllocation() {
+  function countingInjector() {
+    const inj = new ImportInjector({ mode: 'actual', pkg: 'x' });
+    const probes = [];
+    const original = inj.isNameTaken.bind(inj);
+    inj.isNameTaken = name => {
+      probes.push(name);
+      return original(name);
+    };
+    return { inj, probes };
+  }
+  // reclaim path: cache seeded past bare by an orphan, bare itself free -> exactly one bare probe
+  const reclaim = countingInjector();
+  reclaim.inj.adoptOrphanRefs(['_ref2']);
+  check('probe/reclaim returns bare', reclaim.inj.generateLocalRef(), '_ref');
+  check('probe/reclaim probes bare once', reclaim.probes.filter(name => name === '_ref').length, 1);
+  // bare taken as well: the reclaim probe fails and the allocator resumes from the cache, so bare
+  // is still asked exactly once and the answer skips past the orphan
+  const taken = countingInjector();
+  taken.inj.adoptOrphanRefs(['_ref', '_ref2']);
+  check('probe/bare-taken skips reclaim', taken.inj.generateLocalRef(), '_ref3');
+  check('probe/bare-taken probes bare once', taken.probes.filter(name => name === '_ref').length, 1);
+  // cold cache: no reclaim decision to make, the allocator's own try-bare-first is the only probe
+  const cold = countingInjector();
+  check('probe/cold cache returns bare', cold.inj.generateLocalRef(), '_ref');
+  check('probe/cold cache probes bare once', cold.probes.filter(name => name === '_ref').length, 1);
+}
+checkSingleBareProbePerAllocation();
+
+// `generateUnusedName` is a PROTOTYPE method; the cascade path patches it for the duration of one
+// plan walk and restores it in `finally`. the restored value has to be the method itself, not a
+// bound copy of it - a bound copy is an own property, so each walk would wrap the previous wrapper
+// and the chain would grow monotonically for the life of the file
+function checkUnusedNameRestoreIdentity() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x' });
+  const prototypeMethod = Object.getPrototypeOf(inj).generateUnusedName
+    ?? Object.getPrototypeOf(Object.getPrototypeOf(inj)).generateUnusedName;
+  // wrap `generateUnusedName` the way the emitter's own tracking wrapper does
+  function withTracked(target, fn) {
+    const orig = inj.generateUnusedName;
+    inj.generateUnusedName = () => {
+      const name = orig.call(inj);
+      target.push(name);
+      return name;
+    };
+    try {
+      return fn();
+    } finally {
+      inj.generateUnusedName = orig;
+    }
+  }
+  check('tracked-unused/prototype method exists', typeof prototypeMethod, 'function');
+  const names = [];
+  withTracked(names, () => inj.generateUnusedName());
+  check('tracked-unused/restores the prototype method', inj.generateUnusedName === prototypeMethod, true);
+  // a second walk must restore to the SAME function object - reference equality is what rules the
+  // chain out; a bound copy would differ here even though the names still come out right
+  const restoredAfterFirst = inj.generateUnusedName;
+  withTracked(names, () => inj.generateUnusedName());
+  check('tracked-unused/restore is idempotent across walks', inj.generateUnusedName === restoredAfterFirst, true);
+  // nesting still composes: the inner walk restores the OUTER wrapper, so the outer keeps tracking
+  const outer = [];
+  const inner = [];
+  withTracked(outer, () => {
+    withTracked(inner, () => inj.generateUnusedName());
+    inj.generateUnusedName();
+  });
+  check('tracked-unused/inner walk collects its own name', inner.length, 1);
+  check('tracked-unused/outer walk sees both names', outer.length, 2);
+  check('tracked-unused/prototype method restored after nesting', inj.generateUnusedName === prototypeMethod, true);
+  // and the names themselves stay unique and well-formed through all of it
+  check('tracked-unused/names are distinct', new Set([...names, ...outer]).size, names.length + outer.length);
+}
+checkUnusedNameRestoreIdentity();
+
+// shared probe for the two param-pattern tables below: transform, then report whether the module
+// the row is keyed on came out. A throw is reported as its message rather than as `false` so a
+// crawler abort is distinguishable from a silently dropped binding
+function injectsModule(source, module) {
+  try {
+    const result = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform(source, 'input.ts');
+    return new RegExp(`es\\.${ module }`).test(String(result?.code ?? ''));
+  } catch (error) {
+    return `threw: ${ error.message.split('\n', 1)[0] }`;
+  }
+}
+
+// --- sealedLayerAbove: what a chain hop reads THROUGH on its way to a seal ---
+
+// the verdict decides whether the read above the hop is OBSERVABLE, and today every consumer of it
+// happens to answer the same either way - so no fixture can hold this and the predicate is asserted
+// directly. what it must NOT do is stop on a TS assertion: the assertion erases, so `(x?.y as any).z`
+// seals exactly like its cast-less twin, and a climb that only steps over the chain marker is a
+// hand-rolled SUBSET of `CHAIN_HOP_WRAPPER_TYPES` reporting those as unsealed
+function checkSealedLayerAbove() {
+  function sealed(expr) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const { program } = parseSync('unit.ts', `const v = ${ expr };`, { lang: 'ts' });
+    let verdict = null;
+    traverse(program, {
+      MemberExpression(path) {
+        if (path.node.optional) verdict = sealedLayerAbove(path, path.node);
+      },
+    });
+    return verdict;
+  }
+  const rows = [
+    ['a source paren seals', '(g.window?.self).Array', true],
+    ['a cast under the paren is read THROUGH', '(g.window?.self as any).Array', true],
+    ['a non-null assertion under the paren is read THROUGH', '(g.window?.self!).Array', true],
+    ['a satisfies under the paren is read THROUGH', '(g.window?.self satisfies any).Array', true],
+    ['stacked assertions are read THROUGH', '(g.window?.self as any as any).Array', true],
+    ['an inner paren of its own still seals', '((g.window?.self) as any).Array', true],
+    ['a bare chain is unsealed', 'g.window?.self.Array', false],
+    ['a cast with NO paren seals nothing', 'g.window?.self!.Array', false],
+    ['an argument slot is not a seal', 'f(g.window?.self as any)', false],
+    ['an array element is not a seal', '[g.window?.self as any]', false],
+  ];
+  for (const [label, expr, expected] of rows) check(`sealedLayerAbove/${ label }`, sealed(expr), expected);
+}
+checkSealedLayerAbove();
+
+{
+  const source = 'const obj = globalThis; const { Array: { from }, [Symbol.iterator]: iter, ...rest } = obj; use(from, iter, rest);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a consumed nested sibling does not crash the remaining symbol and rest drain', typeof output, 'string');
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  check('the consumed sibling output remains parseable', parseSync('output.mjs', output).errors.length, 0);
+}
+
+{
+  const source = 'const { [Symbol.iterator]: it, from, ...rest } = globalThis.Array; use(it, from, rest);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a static beside an iterator and rest extracts', output.includes('@core-js/pure/actual/array/from'), true);
+  check('the iterator and static exclusion stay beside rest', /\[_Symbol\$iterator\]: it, from: _unused, \.\.\.rest/.test(output), true);
+}
+
+{
+  const source = 'export const { from } = Array, { includes, ...rest } = obj;';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const parsed = parseSync('output.mjs', output);
+  check('a captured export retires the old host without duplicate bindings', parsed.errors.length, 0);
+  check('a separate exported rest level stays native', output.includes('@core-js/pure/actual/instance/includes'), false);
+  check('a captured export retains the native rest declaration',
+    /export const \{ includes, \.\.\.rest \} = obj;/.test(output), true);
+}
+
+{
+  const source = "const [{ 'from': f, [Symbol.iterator]: it, ...rest }] = [Array]; use(f, it, rest);";
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('array-wrapped static slots beside rest stay native', output.includes('@core-js/pure/actual/array/from'), false);
+  check('array-wrapped native pattern preserves its rest exclusions', /'from': f, \[_Symbol\$iterator\]: it, \.\.\.rest/.test(output), true);
+  check('array-wrapped iterator slots beside rest stay native', output.includes('@core-js/pure/actual/get-iterator-method'), false);
+}
+
+{
+  const source = 'const { of: { name, ...rest }, junk } = Array; use(name, rest, junk);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a static hop into a rest-bearing level extracts', output.includes('@core-js/pure/actual/array/of'), true);
+  check('a static hop retains the nested rest operand', output.includes('of: { name, ...rest }'), true);
+}
+
+for (const pattern of ['{ y: { flat: method, ...rest } }', '[{ flat: method, ...rest }]']) {
+  const source = `const { Array: { from } } = globalThis, ${ pattern } = input; use(from, method, rest);`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check(`a capture preserves claims from its preceding declarator: ${ pattern }`, output.includes('@core-js/pure/actual/array/from'), true);
+}
+
+for (const [receiver, entry] of [['Object.assign([1], { extra: 2 })', 'array/instance/at'], ["'text'", 'string/instance/at']]) {
+  const source = `const box = { y: ${ receiver } }; const { y: { flat, at, ...rest } } = box; use(flat, at, rest);`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check(`a nested rest pattern stays native: ${ entry }`, output.includes(`@core-js/pure/actual/${ entry }`), false);
+}
+
+{
+  const source = 'const { [Symbol.iterator]: { name, ...rest } } = Array.prototype; use(name, rest);';
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a symbol hop into a rest-bearing level stays native', output.includes('@core-js/pure/actual/get-iterator-method'), false);
+}
+
+for (const declaration of ['const', 'let']) {
+  const source = `for (${ declaration } { at, ...rest } of [[1]]) use(at, rest.at(0));`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check(`a native ${ declaration } rest retains its Object type`, output.includes('@core-js/pure/actual/instance/at'), false);
+}
+
+{
+  const source = "for (let { at, ...rest } of [[1]]) { if (flag) rest = 'abc'; use(at, rest.includes('a')); }";
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.mjs')?.code ?? source;
+  check('a real write to native rest still invalidates its Object type', output.includes('@core-js/pure/actual/instance/includes'), true);
+}
+
+// The split must carry the call's type even when no earlier query primed that source
+// node. A generic at helper here means the uncached call was queried without a path.
+for (const receiver of ['arr', '(arr)', '(arr as number[][][])']) {
+  const source = `const arr = [[[1]]]; export const out = ${ receiver }.flat?.(0).at.name;`;
+  const output = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, 'input.ts')?.code ?? source;
+  check(`an optional call carries its cold result type: ${ receiver }`, output.includes('@core-js/pure/actual/array/instance/at'), true);
+  check(`an optional call avoids generic result dispatch: ${ receiver }`, output.includes('@core-js/pure/actual/instance/at'), false);
+}
+
+{
+  const program = programOf('before(), ({ x } = source), after();');
+  const [statement] = program.body;
+  const host = unwrapNode(statement.expression.expressions[1]);
+  const write = exprOf('held = capture();');
+  const sourceFacts = { consumed: [], retained: [write], navStart: 0 };
+  check('probe excludes a carried source write', directClaimProbeEffects({ decision: sourceFacts, node: host }, [write]).includes(write), false);
+  check('probe preserves an unrelated source write', directClaimProbeEffects({
+    decision: { ...sourceFacts, retained: [] }, node: host,
+  }, [write]).includes(write), true);
+  let rewrites = 0;
+  const jobs = [{ seqHostStatement: statement, host: 'assignment' }];
+  drainSequenceAssignments(new Map([[host, { hostPath: { node: host }, jobs }]]), {
+    program,
+    seqDrainedSlots: new WeakSet(),
+    markRewrite() { rewrites++; },
+    drainAssignment({ body }) {
+      body.splice(0, body.length, ...programOf('const held = capture(); use(held);').body);
+    },
+  });
+  check('sequence drain lifts the earlier effect before initialized declarations', program.body[0].expression.callee.name, 'before');
+  check('sequence drain keeps its initialized declaration after that effect', program.body[1].declarations[0].init.callee.name, 'capture');
+  check('sequence drain retains the later effect', program.body[2].expression.expressions.at(-1).callee.name, 'after');
+  check('sequence drain records its rewrite', rewrites, 1);
+}
+
+// A slot a claim consumes leaves its assignment host - pruned, or renamed to a sentinel beside a rest - and the
+// write estree-toolkit's record names there, the written identifier, leaves with it. the lookup's view then
+// reads the live overwrite in its place, never the identifier the drain took out of the tree
+for (const [label, source, sentinel, survives] of [
+  ['host survives', 'let m;\n({ map: m, other } = rows);\nuse(m);', false, true],
+  ['host dropped', 'let m;\n({ map: m } = rows);\nuse(m);', false, false],
+  ['sentinel beside a rest', 'let m;\n({ map: m, ...rest } = rows);\nuse(m);', true, true],
+]) {
+  const ast = programOf(source);
+  let host;
+  let use;
+  traverse(ast, {
+    $: { scope: true },
+    AssignmentExpression(path) { host ??= path; },
+    CallExpression(path) { [use] = path.get('arguments'); },
+  });
+  const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+  function writes() {
+    return lookup({ scope: use.scope, name: 'm', path: use })?.constantViolations ?? [];
+  }
+  check(`consumed assignment slot/${ label }: the record starts on the written identifier`, writes().map(write => write.node.type).join(','), 'Identifier');
+  const [prop] = host.node.left.properties;
+  createDestructureDrains({ skippedNodes: new WeakSet(), mintUnusedName: () => '_unused' })
+    .removeConsumedProps([{ prop, pattern: host.node.left, assignment: host.node, metaPath: host, sentinel }]);
+  const overwrite = mintStatement(mintAssignment('=', mintIdentifier('m'), mintIdentifier('_map')));
+  ast.body.splice(survives ? 2 : 1, survives ? 0 : 1, overwrite);
+  const live = writes();
+  check(`consumed assignment slot/${ label }: no detached write`, live.every(write => !ancestorChainDetached(write)), true);
+  check(`consumed assignment slot/${ label }: the overwrite stands for it`, live.some(write => write.node === overwrite.expression), true);
+}
+
+// A static descent renders each leaf as an own data slot and keeps dispatch on the
+// saved binding. The common renderer must finish it without a second claim visitor.
+{
+  const literal = renderSynthTree({
+    kind: 'descended-pattern',
+    entries: [
+      { key: 'bind', child: { kind: 'instance', entry: '_bind' } },
+      { key: 'length', child: { kind: 'passthrough' } },
+    ],
+  }, {
+    receiverName: '_keys',
+    receiverIsProxy: false,
+    injectImport: name => name,
+    resolveGlobalPolyfill: () => null,
+  });
+  const [bound, length] = literal.properties;
+  check('static descent: own data slots', literal.properties.every(slot => slot.kind === 'init'), true);
+  check('static descent: ordered keys', literal.properties.map(item => item.key.name).join(','), 'bind,length');
+  check('static descent: instance dispatcher', bound.value.callee?.name, '_bind');
+  check('static descent: dispatcher receiver', bound.value.arguments[0].name, '_keys');
+  check('static descent: native sibling', length.value.object.name, '_keys');
+  check('static descent: independent references', bound.value.arguments[0] === length.value.object, false);
+}
+
+// Call-result stamps are unnecessary at discarded-value positions. A retained call
+// and a bare method read still transfer the source type to their replacements.
+for (const [source, typed] of [
+  ['rows.at(0);', false],
+  ['void rows.at(0);', false],
+  ['if (rows.at(0)) {}', false],
+  ['rows.at?.(0);', false],
+  ['(rows?.at)(0);', false],
+  ['consume(rows.at(0));', true],
+  ['consume(rows.at?.(0));', true],
+  ['consume((rows?.at)(0));', true],
+  ['rows.at(0) + 0;', true],
+  ['rows.at;', true],
+]) {
+  const ast = programOf(`const rows = [[1]]; ${ source }`);
+  let use;
+  traverse(ast, { $: { scope: true }, MemberExpression(path) { if (path.node.property.name === 'at') use = path; } });
+  const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+  const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => injector });
+  const resolvedType = new WeakMap();
+  const resultType = { constructor: source === 'rows.at;' ? 'Function' : 'Array' };
+  const sourceValue = source === 'rows.at;' ? use.node : climbToCallerPath(use).node;
+  let queries = 0;
+  let rewrites = 0;
+  const channel = createOptionalDispatchChannel({
+    adapter, injector, injectorState: injector, resolvedType,
+    skippedNodes: new WeakSet(), memoValueClones: new WeakSet(), guardCommaMemos: new WeakSet(),
+    resolveGlobalPolyfill: () => null, resolvePure: () => null,
+    peelNonNullWraps: node => ({ splitSource: node, rewrapNonNull: value => value }),
+    markRewrite() { rewrites++; },
+    resolveNodeType(path) {
+      if (path.node !== sourceValue) return { constructor: 'Array' };
+      queries++;
+      return resultType;
+    },
+  });
+  check(`call-result stamp/${ source }/dispatch succeeds`, channel.replaceInstanceLike({ metaPath: use, id: '_at' }), true);
+  check(`call-result stamp/${ source }/type queried only when retained`, queries, Number(typed));
+  check(`call-result stamp/${ source }/one rewrite`, rewrites, 1);
+  let stamped = false;
+  walkAstNodes({ root: ast, visit(node) { if (resolvedType.get(node) === resultType) stamped = true; } });
+  check(`call-result stamp/${ source }/replacement carries the retained type`, stamped, typed);
+}
+
+// Rendered sequence receivers evaluate their prefix once and reuse a stable tail.
+// A free accessor, a prior import, a foreign live binding and a nearer written shadow still capture.
+{
+  for (const [label, declaration, expression, ownImport, priorImport, capture] of [
+    ['pending own import', '', '(before(), (middle(), _held))', true, false, false],
+    ['flushed own import', 'import _held from "@core-js/pure/actual/array";', '(before(), _held)', true, false, false],
+    ['prior pure import', 'import _held from "@core-js/pure/actual/array";', '(before(), _held)', true, true, true],
+    ['foreign live import', 'import _held from "foreign";', '(before(), _held)', true, false, true],
+    ['nearer written shadow', 'function read(_held) { const mutate = () => { _held = []; };', '(before(), _held)', true, false, true],
+    ['unbound tail', '', '(before(), unknown)', false, false, false],
+    ['getter tail', 'const box = { get held() { return []; } };', '(before(), box.held)', false, false, true],
+    ['completed local write', 'let held = []; held = [1];', '(before(), held)', false, false, false],
+  ]) {
+    const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+    if (ownImport) injector.addPureImport('array', 'held');
+    if (priorImport) injector.registerUserPureImport('array', '_held');
+    const ast = programOf(`${ declaration } const result = ${ expression };${ label.startsWith('nearer') ? ' }' : '' }`);
+    let use;
+    traverse(ast, { $: { scope: true }, VariableDeclarator(path) { if (path.node.id.name === 'result') use = path.get('init'); } });
+    const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => injector });
+    const channel = createOptionalDispatchChannel({
+      adapter,
+      injector,
+      injectorState: injector,
+      memoValueClones: new WeakSet(),
+      resolvedType: new WeakMap(),
+      resolveGlobalPolyfill: () => null,
+      resolvePure: () => null,
+      resolveNodeType: () => null,
+    });
+    const guard = channel.guardObject(use.node, use, { interveningEffects: true });
+    const [checkNode] = guard.disjuncts;
+    check(`rendered sequence guard/${ label }/captures`, checkNode.type === 'AssignmentExpression', capture);
+    const firstRead = capture ? checkNode.right : checkNode;
+    check(`rendered sequence guard/${ label }/prefix retained`, unwrapNode(firstRead).type, 'SequenceExpression');
+    check(`rendered sequence guard/${ label }/first prefix retained`, unwrapNode(firstRead).expressions?.[0]?.callee?.name, 'before');
+    check(`rendered sequence guard/${ label }/later read is bare`, guard.makeBase().type, 'Identifier');
+    check(`rendered sequence guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
+  }
+
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  {
+    const source = 'const dh = () => globalThis; const held = [1];\n'
+      + 'module.exports = dh().self?.Array.prototype.at.call(held, 0);';
+    const code = createPlugin(options).transform(source, '/rendered-bare-receiver.cjs')?.code ?? source;
+    withTemporaryProperty(globalThis, 'self', globalThis, () => {
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        runInNewContext(program, { module, require, globalThis });
+        check(`rendered bare guard/${ leg }/value`, module.exports, 1);
+      }
+    });
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check('rendered bare guard/actual realm import', code.includes('@core-js/pure/actual/self'), true);
+    check('rendered bare guard/actual method import', code.includes('/instance/at'), true);
+    check('rendered bare guard/no receiver capture', captures, 0);
+  }
+  // A lookup that consumes its receiver once needs no memo, even for a foreign accessor.
+  for (const [label, expression] of [
+    ['bare read', 'unknown.at'],
+    ['TS assertion', '(unknown as any).at'],
+    ['TS non-null', 'unknown!.at'],
+    ['sequence read', '(prefix(), unknown).at'],
+    ['descriptor getter', 'Object.defineProperty({}, "method", { get() { return unknown.at; } }).method'],
+  ]) {
+    const source = `module.exports = ${ expression };`;
+    const code = createPlugin(options).transform(source, '/single-receiver-read.ts')?.code ?? source;
+    const runtimeCode = code.replaceAll(' as any', '').replaceAll('unknown!', 'unknown');
+    let captures = 0;
+    walkAstNodes({ root: programOf(runtimeCode), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`single receiver read/${ label }/no receiver memo`, captures, 0);
+    check(`single receiver read/${ label }/polyfill retained`, code.includes('/instance/at'), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const events = [];
+      const module = { exports: null };
+      function selected() { /* method identity */ }
+      const context = { module, require, prefix() { events.push('prefix'); } };
+      Object.defineProperty(context, 'unknown', {
+        get() {
+          events.push('receiver');
+          return {
+            get at() {
+              events.push('method');
+              return selected;
+            },
+          };
+        },
+      });
+      runInNewContext(program.replaceAll(' as any', '').replaceAll('unknown!', 'unknown'), context);
+      check(`single receiver read/${ label }/${ leg }/method identity`, module.exports, selected);
+      checkDeep(`single receiver read/${ label }/${ leg }/one receiver and method read`, events,
+        label === 'sequence read' ? ['prefix', 'receiver', 'method'] : ['receiver', 'method']);
+    }
+  }
+  // The source type crosses the guarded receiver clone used by both symbol consume forms.
+  for (const [label, annotation, expression, expected, entry] of [
+    ['array non-null', 'string[] | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'array/instance/at'],
+    ['array plain', 'string[] | null', 'receiver?.at(-1)[Symbol.iterator]().next().value', 'c', 'array/instance/at'],
+    ['array method read', 'string[] | null', 'typeof receiver?.at(-1)![Symbol.iterator]', 'function', 'array/instance/at'],
+    ['string non-null', 'string | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'd', 'string/instance/at'],
+    ['unknown', 'any', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'instance/at'],
+    ['cross-family', 'string[] | string | null', 'receiver?.at(-1)![Symbol.iterator]().next().value', 'c', 'instance/at'],
+  ]) {
+    const source = `Object.defineProperty(globalThis, "receiver", receiverDescriptor);
+      declare const receiver: ${ annotation }; module.exports = ${ expression };`;
+    const code = createPlugin(options).transform(source, '/guarded-symbol-receiver.ts')?.code ?? source;
+    check(`guarded symbol receiver/${ label }/typed entry`, code.includes(`/actual/${ entry }`), true);
+    check(`guarded symbol receiver/${ label }/generic only for unknown families`,
+      code.includes('/actual/instance/at'), entry === 'instance/at');
+    for (const present of [false, true]) {
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        let reads = 0;
+        const module = { exports: null };
+        const receiverDescriptor = {
+          configurable: true,
+          get() {
+            reads++;
+            return present ? annotation === 'string | null' ? 'cd' : ['ab', 'cd'] : null;
+          },
+        };
+        const context = { module, receiverDescriptor };
+        // eslint-disable-next-line import/no-dynamic-require -- bind the injected realm entry to this VM
+        context.require = request => request.endsWith('/global-this') ? context : require(request);
+        runInNewContext(program.replaceAll(/declare const receiver: [^;]+;/g, '').replaceAll(')!', ')'), context);
+        check(`guarded symbol receiver/${ label }/${ present }/${ leg }/value`, module.exports,
+          present ? expected : expression.startsWith('typeof') ? 'undefined' : undefined);
+        check(`guarded symbol receiver/${ label }/${ present }/${ leg }/one source read`, reads, 1);
+      }
+    }
+  }
+  for (const [label, declaration, capture] of [['foreign live import', 'import held from "foreign";', true], ['completed local write', 'let held = []; held = [1];', false]]) {
+    const injector = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+    const ast = programOf(`${ declaration } const result = held;`);
+    let use;
+    traverse(ast, { $: { scope: true }, VariableDeclarator(path) { if (path.node.id.name === 'result') use = path.get('init'); } });
+    const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => injector });
+    const channel = createOptionalDispatchChannel({
+      adapter,
+      injector,
+      injectorState: injector,
+      memoValueClones: new WeakSet(),
+      resolvedType: new WeakMap(),
+      resolveGlobalPolyfill: () => null,
+      resolvePure: () => null,
+      resolveNodeType: () => null,
+    });
+    const guard = channel.guardObject(use.node, use, { interveningEffects: true });
+    check(`rendered bare guard/${ label }/captures`, guard.disjuncts[0].type, capture ? 'AssignmentExpression' : 'Identifier');
+    const first = capture ? guard.disjuncts[0].right : guard.disjuncts[0];
+    check(`rendered bare guard/${ label }/first read retained`, first.name, 'held');
+    check(`rendered bare guard/${ label }/later reads selected value`, guard.makeBase().name, capture ? guard.disjuncts[0].left.name : 'held');
+    check(`rendered bare guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
+  }
+  // Runtime wrappers and static object/key prefixes reach the same scoped handoff.
+  // A failed proof still snapshots the original value before the method reads it again.
+  {
+    let effects;
+    function flat() {
+      effects.push(this === globalThis ? 'realm' : 'wrong-this');
+      return [1];
+    }
+    withTemporaryProperty(globalThis, 'flat', flat, () => withTemporaryProperty(globalThis, 'window', globalThis,
+      () => withTemporaryProperty(globalThis, 'self', globalThis, () => {
+        for (const [label, source, expected, expectedEffects, expectedCaptures, entry, windowAbsent] of [
+          ['TS realm continuation', 'module.exports = (globalThis as any).flat?.().includes(1);', true, ['lookup', 'realm'], 2, '/instance/flat'],
+          ['TS realm threaded hop', 'module.exports = (globalThis as any).flat?.().map(x => x * 2).at?.(0);', 2, ['lookup', 'realm'], 3, '/instance/flat'],
+          [
+            'static leaf key',
+            'let u = null; module.exports = (u = globalThis.window)?.Number[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '9007199254740991.00',
+            ['probe', 'key'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'static object key',
+            'let u = null; module.exports = (u = globalThis.window)?.[(hop(), "Number")].MAX_SAFE_INTEGER.toFixed(2);',
+            '9007199254740991.00',
+            ['probe', 'hop'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'static object and leaf prefixes',
+            'module.exports = (objectPrefix(), Number)[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '9007199254740991.00',
+            ['object', 'key'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'static hop and leaf prefixes',
+            'let u = null;\n'
+            + 'module.exports = (u = globalThis.window)?.[(hop(), "Number")][(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '9007199254740991.00',
+            ['probe', 'hop', 'key'],
+            0,
+            '/instance/to-fixed',
+          ],
+          [
+            'TS getter continuation',
+            'const box = { get held() { objectPrefix(); return [1]; } };\n'
+            + 'module.exports = (box.held as any).flat?.().includes(1);',
+            true,
+            ['object'],
+            3,
+            '/instance/flat',
+          ],
+          [
+            'TS key rebinding continuation',
+            'let held = [1]; function key() { keyEffect(); held = [2]; return "flat"; }\n'
+            + 'module.exports = (held as any)[key()]?.().includes(1);',
+            true,
+            ['key'],
+            3,
+            '/instance/flat',
+          ],
+          ['TS live probe continuation', 'module.exports = (globalThis.window as any).flat?.().includes(1);', true, ['probe'], 3, '/instance/flat'],
+          [
+            'TS unbound getter continuation',
+            'Object.defineProperty(globalThis, "unknown", { configurable: true, get: unknownGetter });\n'
+            + 'module.exports = (unknown as any).flat?.().includes(1);',
+            true,
+            ['unbound'],
+            3,
+            '/instance/flat',
+          ],
+          [
+            'TS receiver TDZ',
+            'let threw = false; try { (held as any).flat?.().includes(1); }\n'
+            + 'catch (error) { threw = error instanceof ReferenceError; } const held = [1]; module.exports = threw;',
+            true,
+            [],
+            2,
+            '/instance/flat',
+          ],
+          [
+            'static getter object',
+            'const box = { get held() { objectPrefix(); return { MAX_SAFE_INTEGER: 1 }; } };\n'
+            + 'module.exports = box.held[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            '1.00',
+            ['object', 'key'],
+            1,
+            '/instance/to-fixed',
+          ],
+          [
+            'static key rebinding object',
+            'let held = { MAX_SAFE_INTEGER: 1 };\n'
+            + 'function key() { keyEffect(); held = { MAX_SAFE_INTEGER: 2 }; return "MAX_SAFE_INTEGER"; }\n'
+            + 'module.exports = held[key()].toFixed(2);',
+            '1.00',
+            ['key'],
+            1,
+            '/instance/to-fixed',
+          ],
+          [
+            'static object TDZ',
+            'let threw = false; try { (objectPrefix(), held)[(key(), "MAX_SAFE_INTEGER")].toFixed(2); }\n'
+            + 'catch (error) { threw = error instanceof ReferenceError; } const held = { MAX_SAFE_INTEGER: 1 }; module.exports = threw;',
+            true,
+            ['object'],
+            1,
+            '/instance/to-fixed',
+          ],
+          [
+            'sealed optional static object',
+            'let threw = false;\n'
+            + 'try { (globalThis.window?.[(hop(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+            + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            true,
+            ['probe'],
+            0,
+            '/instance/to-fixed',
+            true,
+          ],
+          [
+            'nullable optional static object',
+            'module.exports = globalThis.window?.[(hop(), "Number")][(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+            undefined,
+            ['probe'],
+            0,
+            '/instance/to-fixed',
+            true,
+          ],
+          [
+            'sealed static present',
+            'let threw = false;\n'
+            + 'try { (globalThis.window?.[(hop(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+            + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            false,
+            ['probe', 'hop'],
+            0,
+            '/instance/to-fixed',
+          ],
+          ...[false, true].map(absentValue => [
+            `sealed grouped keys/${ absentValue ? 'null' : 'present' }`,
+            'let threw = false;\n'
+              + 'try { ((objectPrefix(), globalThis).window?.[(hop(), keyEffect(), "self")][(ctorFirst(), ctorLast(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+              + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            absentValue,
+            absentValue ? ['object', 'probe'] : ['object', 'probe', 'hop', 'key', 'ctor-first', 'ctor-last'],
+            1,
+            '/instance/to-fixed',
+            absentValue,
+          ]),
+          ...[false, true].map(absentValue => [
+            `sealed test-owned key/${ absentValue ? 'null' : 'present' }`,
+            'let threw = false;\n'
+              + 'try { ((objectPrefix(), globalThis)[(testFirst(), testLast(), "window")]?.[(hop(), keyEffect(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+              + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw;',
+            absentValue,
+            absentValue ? ['object', 'test-first', 'test-last', 'probe'] : ['object', 'test-first', 'test-last', 'probe', 'hop', 'key'],
+            1,
+            '/instance/to-fixed',
+            absentValue,
+          ]),
+          ...[false, true].map(absentValue => [
+            `sealed independent prefix claim/${ absentValue ? 'null' : 'present' }`,
+            'let threw = false, value = null;\n'
+              + 'try { (globalThis.window?.[(value = Math.cbrt(8), keyEffect(), "Number")]).MAX_SAFE_INTEGER.toFixed(2); }\n'
+              + 'catch (error) { threw = error instanceof TypeError; } module.exports = threw + ":" + value;',
+            absentValue ? 'true:null' : 'false:2',
+            absentValue ? ['probe'] : ['probe', 'key'],
+            0,
+            '/instance/to-fixed',
+            absentValue,
+          ]),
+          ...['0', '?.', 'v_-1'].map(key => [
+            `static nonidentifier key ${ key }`,
+            `module.exports = (objectPrefix(), { '${ key }': 1 })[(key(), '${ key }')].toFixed(2);`,
+            '1.00',
+            ['object', 'key'],
+            1,
+            '/instance/to-fixed',
+          ]),
+        ]) {
+          const code = createPlugin(options).transform(source, '/rendered-receiver-handoff.cts')?.code ?? source;
+          for (const [leg, program] of [['native', source], ['transformed', code]]) {
+            effects = [];
+            let unknownReads = 0;
+            Object.defineProperties(globalThis, {
+              flat: {
+                configurable: true,
+                get() {
+                  effects.push('lookup');
+                  return flat;
+                },
+              },
+              window: {
+                configurable: true,
+                get() {
+                  effects.push('probe');
+                  return label === 'TS live probe continuation' ? [1] : windowAbsent ? null : globalThis;
+                },
+              },
+            });
+            const module = { exports: null };
+            const context = {
+              module,
+              require,
+              globalThis,
+              objectPrefix() { effects.push('object'); },
+              hop() { effects.push('hop'); },
+              key() { effects.push('key'); },
+              keyEffect() { effects.push('key'); },
+              ctorFirst() { effects.push('ctor-first'); },
+              ctorLast() { effects.push('ctor-last'); },
+              testFirst() { effects.push('test-first'); },
+              testLast() { effects.push('test-last'); },
+            };
+            function unknownGetter() {
+              effects.push('unbound');
+              return [++unknownReads];
+            }
+            Object.defineProperty(context, 'unknown', { configurable: true, get: unknownGetter });
+            if (label === 'TS unbound getter continuation') {
+              // The accessor belongs to the compiled source's global-slot census.
+              // Its globalThis ponyfill must address the same VM realm as the bare name.
+              context.unknownGetter = unknownGetter;
+              context.globalThis = context;
+              // eslint-disable-next-line import/no-dynamic-require -- delegate injected entries to the VM's realm
+              context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
+            }
+            runInNewContext(program.replaceAll(' as any', ''), context);
+            check(`actual receiver handoff/${ label }/${ leg }/value`, module.exports, expected);
+            checkDeep(`actual receiver handoff/${ label }/${ leg }/order`, effects, expectedEffects);
+          }
+          let captures = 0;
+
+          walkAstNodes({
+            // eslint-disable-next-line node/no-sync -- oxc-parser only exposes its synchronous parse API
+            root: parseSync('/rendered-receiver-handoff.ts', code, { sourceType: 'module' }).program,
+            visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; },
+          });
+          check(`actual receiver handoff/${ label }/required captures`, captures, expectedCaptures);
+          check(`actual receiver handoff/${ label }/actual helper`, code.includes(entry), true);
+          if (label.startsWith('sealed independent prefix claim/')) {
+            check(`actual receiver handoff/${ label }/independent helper`, code.includes('/math/cbrt'), true);
+          }
+        }
+      })));
+    for (const [label, source, expectedCaptures] of [
+      ['TS foreign live receiver', 'import held from "foreign"; export const r = (held as any).flat?.().includes(1);', 3],
+      [
+        'foreign static object',
+        'import held from "foreign";\n'
+        + 'export const r = (objectPrefix(), held)[(key(), "MAX_SAFE_INTEGER")].toFixed(2);',
+        1,
+      ],
+    ]) {
+      const code = createPlugin({ ...options, importStyle: 'import' }).transform(source, '/foreign-rendered-receiver.ts')?.code ?? source;
+      let captures = 0;
+
+      walkAstNodes({
+        // eslint-disable-next-line node/no-sync -- oxc-parser only exposes its synchronous parse API
+        root: parseSync('/foreign-rendered-receiver.ts', code, { sourceType: 'module' }).program,
+        visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; },
+      });
+      check(`actual receiver handoff/${ label }/required captures`, captures, expectedCaptures);
+      check(`actual receiver handoff/${ label }/foreign import retained`, code.includes('"foreign"'), true);
+    }
+  }
+  for (const [label, source, expectedCaptures] of [
+    ['bare realm method', 'export const r = globalThis.flat?.().includes(1);', 2],
+    ['parenthesized realm method', 'export const r = (globalThis).flat?.().includes(1);', 2],
+    ['constructor method', 'export const r = Promise.noSuchStatic?.().includes(0);', 2],
+    ['known static value', 'export const r = Number.MAX_SAFE_INTEGER.toFixed(2);', 0],
+    [
+      'guarded default value',
+      'function probe(value = (globalThis.window?.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(2)) { return value; }\n'
+      + 'export const r = probe();',
+      0,
+    ],
+    ['optional symbol method', 'export const r = Promise[Symbol.iterator]?.(1);', 0],
+    ['symbol receiver and key effects', 'export const r = (prefix(), Promise)[(key(), Symbol.iterator)](1);', 0],
+    ['sequence realm optional method', 'export const r = (prefix(), globalThis).flat?.().includes(1);', 2],
+    ['quiet sequence symbol constructor', 'export const r = (quiet, Promise)[Symbol.iterator](1);', 0],
+    ['sequence constructor direct optional call', 'export const r = (prefix(), Promise)?.().includes(1);', 1],
+  ]) {
+    const code = createPlugin({ ...options, importStyle: 'import' }).transform(source, '/rendered-receiver-value.mjs')?.code ?? source;
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`rendered receiver value/${ label }/only required captures`, captures, expectedCaptures);
+  }
+  for (const [label, expression, expectedTrace] of [
+    ['key effect', 'Number.MAX_SAFE_INTEGER[(key(), "toFixed")](2)', ['key']],
+    ['optional call key effect', 'Number.MAX_SAFE_INTEGER[(key(), "toFixed")]?.(2)', ['key']],
+    ['optional member key effect', 'Number.MAX_SAFE_INTEGER?.[(key(), "toFixed")](2)', ['key']],
+    ['receiver and key effects', '(prefix(), Number.MAX_SAFE_INTEGER)[(key(), "toFixed")](2)', ['prefix', 'key']],
+  ]) {
+    const source = `module.exports = ${ expression };`;
+    const code = createPlugin(options).transform(source, '/rendered-static-key.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const effects = [];
+      const module = { exports: null };
+      runInNewContext(program, {
+        module,
+        require,
+        globalThis,
+        key() { effects.push('key'); },
+        prefix() { effects.push('prefix'); },
+      });
+      check(`rendered static key/${ label }/${ leg }/value`, module.exports, '9007199254740991.00');
+      checkDeep(`rendered static key/${ label }/${ leg }/order`, effects, expectedTrace);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`rendered static key/${ label }/no receiver memo`, captures, 0);
+  }
+  let trace;
+  for (const [label, source, expected, expectedCaptures] of [
+    [
+      'symbol receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)[(events.push("key"), Symbol.iterator)](); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'instance receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)[(events.push("key"), "at")](0); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'optional call receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)[(events.push("key"), "at")]?.(0); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'optional member receiver TDZ',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), held)?.[(events.push("key"), "at")](0); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'const held = []; module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+    [
+      'initialized optional member receiver',
+      'const events = []; const held = ["held"];\n'
+      + 'module.exports = [(events.push("prefix"), held)?.[(events.push("key"), "at")](0), events];',
+      ['held', ['prefix', 'key']],
+      0,
+    ],
+    [
+      'primitive receiver prefix read',
+      'let reads = 0; const box = { get value() { reads++; return 0; } };\n'
+      + 'module.exports = [(box.value, "b").at(-1), reads];',
+      ['b', 1],
+      0,
+    ],
+    [
+      'unbound primitive receiver prefix',
+      'let threw = false;\n'
+      + 'try { (unknown, "b").at(-1); } catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'module.exports = threw;',
+      true,
+      0,
+    ],
+    [
+      'null optional member sequence',
+      'const events = []; const held = null;\n'
+      + 'module.exports = [(events.push("prefix"), held)?.[(events.push("key"), "at")](0), events];',
+      [undefined, ['prefix']],
+      0,
+    ],
+    [
+      'quiet sequence iterator method',
+      'let reads = 0; const box = { get value() { reads++; return 0; } };\n'
+      + 'module.exports = [(box.value, "b")[Symbol.iterator](1).next().value, reads];',
+      ['b', 1],
+      0,
+    ],
+    [
+      'quiet sequence optional iterator method',
+      'let reads = 0; const box = { get value() { reads++; return 0; } };\n'
+      + 'module.exports = [(box.value, "b")[Symbol.iterator]?.(1).next().value, reads];',
+      ['b', 1],
+      0,
+    ],
+    [
+      'derived receiver before super',
+      'const events = []; let threw = false;\n'
+      + 'class Child extends Array { constructor() {\n'
+      + 'try { (events.push("prefix"), this)[(events.push("key"), Symbol.iterator)](); }\n'
+      + 'catch (error) { threw = error instanceof ReferenceError; } super(); } }\n'
+      + 'new Child(); module.exports = [threw, events];',
+      [true, ['prefix']],
+      0,
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/receiver-before-key.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`first receiver evaluation/${ label }/${ leg }`, module.exports, expected);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`first receiver evaluation/${ label }/only required captures`, captures, expectedCaptures);
+  }
+  for (const [label, source, expected, expectedCaptures] of [
+    [
+      'stable direct optional continuation',
+      'const events = []; const held = () => [1];\n'
+      + 'module.exports = [(events.push("prefix"), held)?.().includes(1), events];',
+      [true, ['prefix']],
+      1,
+    ],
+    [
+      'null direct optional continuation',
+      'const events = []; const held = null;\n'
+      + 'module.exports = [(events.push("prefix"), held)?.().includes(1), events];',
+      [undefined, ['prefix']],
+      1,
+    ],
+    [
+      'primitive direct optional continuation',
+      'const events = []; let threw = false;\n'
+      + 'try { (events.push("prefix"), "b")?.().includes(1); } catch (error) { threw = error instanceof TypeError; }\n'
+      + 'module.exports = [threw, events];',
+      [true, ['prefix']],
+      1,
+    ],
+    [
+      'stable sequence continuation',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [(events.push("prefix"), held).flat?.().includes(1), events];',
+      [true, ['prefix']],
+      2,
+    ],
+    [
+      'stable nested sequence continuation',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [(events.push("prefix"), (events.push("middle"), held)).flat?.().includes(1), events];',
+      [true, ['prefix', 'middle']],
+      2,
+    ],
+    [
+      'getter sequence continuation',
+      'const events = []; const box = { get held() { events.push("get"); return [1]; } };\n'
+      + 'module.exports = [(events.push("prefix"), box.held).flat?.().includes(1), events];',
+      [true, ['prefix', 'get']],
+      3,
+    ],
+    [
+      'key rebind sequence continuation',
+      'const events = []; let held = [1];\n'
+      + 'function key() { events.push("key"); held = [2]; return "flat"; }\n'
+      + 'module.exports = [(events.push("prefix"), held)[key()]?.().includes(1), events];',
+      [true, ['prefix', 'key']],
+      3,
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/optional-sequence-continuation.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`sequence optional continuation/${ label }/${ leg }`, module.exports, expected);
+    }
+    let captures = 0;
+    const stores = [];
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'VariableDeclarator' && !node.init) captures++;
+        if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') stores.push(unwrapNode(node.right));
+      },
+    });
+    check(`sequence optional continuation/${ label }/required captures`, captures, expectedCaptures);
+    if (label.startsWith('stable') && expectedCaptures === 2) {
+      check(`sequence optional continuation/${ label }/method lookup captured`,
+        stores.filter(node => {
+          const value = unwrapNode(node.type === 'SequenceExpression' ? node.expressions.at(-1) : node);
+          return value.type === 'CallExpression' && value.callee.type === 'Identifier';
+        }).length, 1);
+      check(`sequence optional continuation/${ label }/call result captured`,
+        stores.filter(node => node.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+          && node.callee.property.name === 'call').length, 1);
+    }
+  }
+  for (const [label, source, expectedCaptures] of [
+    ['foreign live tail', 'import held from "foreign"; export const r = (prefix(), held).flat?.().includes(1);', 3],
+    ['unbound tail', 'export const r = (prefix(), unknown).flat?.().includes(1);', 2],
+    [
+      'written shadow tail',
+      'export function read(held) { function key() { held = [2]; return "flat"; }\n'
+      + 'return (prefix(), held)[key()]?.().includes(1); }',
+      3,
+    ],
+  ]) {
+    const code = createPlugin({ ...options, importStyle: 'import' }).transform(source, '/optional-sequence-boundary.mjs')?.code ?? source;
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`sequence optional continuation/${ label }/required captures`, captures, expectedCaptures);
+  }
+  {
+    const source = 'Object.defineProperty(globalThis, "unknown", receiverDescriptor);\n'
+      + 'module.exports = (prefix(), unknown).flat?.().includes(1);';
+    const code = createPlugin(options).transform(source, '/optional-free-sequence.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const effects = [];
+      let reads = 0;
+      const module = { exports: null };
+      const receiverDescriptor = {
+        configurable: true,
+        get() {
+          effects.push('receiver');
+          return [++reads];
+        },
+      };
+      const context = { module, receiverDescriptor, prefix() { effects.push('prefix'); } };
+      // eslint-disable-next-line import/no-dynamic-require -- bind the visibly installed accessor to this VM
+      context.require = request => request.endsWith('/global-this') ? context : require(request);
+      runInNewContext(program, context);
+      check(`sequence optional continuation/free accessor/${ leg }/first receiver`, module.exports, true);
+      check(`sequence optional continuation/free accessor/${ leg }/one receiver read`, reads, 1);
+      checkDeep(`sequence optional continuation/free accessor/${ leg }/prefix order`, effects, ['prefix', 'receiver']);
+    }
+  }
+  for (const [label, source, expected, expectedCaptures, entry, expectedImport = true] of [
+    [
+      'ordinary const read',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [typeof (events.push("prefix"), held)[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'optional const read',
+      'const events = []; const held = [1];\n'
+      + 'module.exports = [typeof (events.push("prefix"), held)?.[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'quiet primitive accessor read',
+      'const events = []; const box = { get value() { events.push("prefix"); return 0; } };\n'
+      + 'module.exports = [typeof (box.value, "b")[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'quiet primitive unbound read',
+      'const events = []; let threw = false;\n'
+      + 'try { (unknown, "b")[(events.push("key"), "at")]; } catch (error) { threw = error instanceof ReferenceError; }\n'
+      + 'module.exports = [threw, events];',
+      [true, []],
+      0,
+      '/instance/at',
+    ],
+    [
+      'own static read',
+      'const events = [];\n'
+      + 'module.exports = [typeof (events.push("prefix"), Number.MAX_SAFE_INTEGER)[(events.push("key"), "toFixed")], events];',
+      ['function', ['prefix', 'key']],
+      0,
+      '/instance/to-fixed',
+    ],
+    [
+      'null optional read',
+      'const events = []; const held = null;\n'
+      + 'module.exports = [typeof (events.push("prefix"), held)?.[(events.push("key"), "at")], events];',
+      ['undefined', ['prefix']],
+      0,
+      '/instance/at',
+      false,
+    ],
+    [
+      'nullable typed optional read',
+      'function probe(held = [1]) { const events = [];\n'
+      + 'return [typeof (events.push("prefix"), held)?.[(events.push("key"), "at")], events]; }\n'
+      + 'module.exports = probe(null);',
+      ['undefined', ['prefix']],
+      0,
+      '/instance/at',
+    ],
+    [
+      'allocation read',
+      'const events = [];\n'
+      + 'module.exports = [typeof (events.push("prefix"), [1])[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'key']],
+      1,
+      '/instance/at',
+    ],
+    [
+      'getter tail read',
+      'const events = []; const box = { get held() { events.push("get"); return [1]; } };\n'
+      + 'module.exports = [typeof (events.push("prefix"), box.held)[(events.push("key"), "at")], events];',
+      ['function', ['prefix', 'get', 'key']],
+      1,
+      '/instance/at',
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/sequence-receiver-read.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`sequence receiver read/${ label }/${ leg }`, module.exports, expected);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check(`sequence receiver read/${ label }/required captures`, captures, expectedCaptures);
+    check(`sequence receiver read/${ label }/actual helper import`, code.includes(entry), expectedImport);
+  }
+  {
+    const source = 'const events = []; const held = [1];\n'
+      + 'module.exports = [(events.push("prefix"), (events.push("middle"), held))[(events.push("key"), "at")]?.(0), events];';
+    const code = createPlugin(options).transform(source, '/nested-optional-receiver.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require, globalThis });
+      checkDeep(`nested sequence optional call/${ leg }`, module.exports, [1, ['prefix', 'middle', 'key']]);
+    }
+    let captures = 0;
+    walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init) captures++; } });
+    check('nested sequence optional call/required captures', captures, 0);
+  }
+  function iterator() {
+    trace.push(this === globalThis ? 'realm' : 'wrong-this');
+    return { next() { return { value: 'held' }; } };
+  }
+  withTemporaryProperty(globalThis, 'window', globalThis, () => withTemporaryProperty(globalThis, 'self', globalThis, () => {
+    withTemporaryProperty(globalThis, Symbol.iterator, iterator, () => {
+      Object.defineProperty(globalThis, Symbol.iterator, {
+        configurable: true,
+        get() {
+          trace.push('lookup');
+          return iterator;
+        },
+      });
+      for (const [label, expression] of [
+        ['sealed proxy prefix', '(globalThis?.[(hop(), "self")][(key(), Symbol.iterator)])()'],
+        ['middle proxy prefix', 'globalThis?.[(hop(), "self")].window[(key(), Symbol.iterator)]()'],
+        ['deep proxy prefix', 'globalThis?.[(hop(), "self")].window.self[(key(), Symbol.iterator)]()'],
+      ]) {
+        const source = `module.exports = ${ expression }.next().value;`;
+        const code = createPlugin(options).transform(source, '/rendered-sequence-receiver.cjs')?.code ?? source;
+        for (const [leg, program] of [['native', source], ['transformed', code]]) {
+          trace = [];
+          const module = { exports: null };
+          runInNewContext(program, {
+            module,
+            require,
+            globalThis,
+            hop() { trace.push('hop'); },
+            key() { trace.push('key'); },
+          });
+          check(`rendered sequence receiver/${ label }/${ leg }/value`, module.exports, 'held');
+          checkDeep(`rendered sequence receiver/${ label }/${ leg }/order`, trace, ['hop', 'key', 'lookup', 'realm']);
+        }
+        const receiverDeclarations = programOf(code).body.flatMap(statement => statement.type === 'VariableDeclaration' ? statement.declarations : []);
+        // The native R1 receiver is captured before the symbol key and consumed once.
+        check(`rendered sequence receiver/${ label }/native receiver memo`, receiverDeclarations.filter(declarator => !declarator.init).length, 1);
+        let guards = 0;
+        walkAstNodes({ root: programOf(code), visit(node) {
+          if (node.type === 'ConditionalExpression' || node.optional === true) guards++;
+        } });
+        check(`rendered sequence receiver/${ label }/defined realm needs no guard`, guards, 0);
+      }
+    });
+  }));
+
+  // The final tree owns late receiver captures. Whole first evaluations survive,
+  // while import tails and same-activation secondary copies need no extra storage.
+  {
+    const source = 'const { y: { at, includes }, k } = { y: [Promise], k: 1 };'
+      + ' module.exports = [at.call([7], 0), includes.call([7], 7), k];';
+    const code = createPlugin(options).transform(source, '/late-member-reuse.cjs')?.code ?? source;
+    const unresolved = [];
+    traverse(programOf(code), {
+      $: { scope: true },
+      Identifier(path) {
+        if (/^_ref\d*$/.test(path.node.name) && !path.scope.getBinding(path.node.name)) unresolved.push(path.node.name);
+      },
+    });
+    checkDeep('late member reuse/cloned roots retain their renamed binding', unresolved, []);
+    const module = { exports: null };
+    runInNewContext(code, { module, require });
+    checkDeep('late member reuse/both methods retain their selected receiver', module.exports, [7, true, 1]);
+  }
+  for (const flag of [false, true]) {
+    const source = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/guarded-static-between-instance-and-native/input.mjs',
+      import.meta.url), 'utf8');
+    const code = createPlugin(options).transform(source, '/pending-guard.cjs')?.code ?? source;
+    for (const [leg, body] of [['native', source], ['transformed', code]]) {
+      const results = [];
+      runInNewContext(body, { flag, require, use(name, method, other) { results.push(name, typeof method, other); } });
+      checkDeep(`pending destructure guard/${ flag }/${ leg }/source order and static branch`, results,
+        [flag ? 'user' : 'Map', flag ? 'number' : 'function', undefined]);
+    }
+  }
+  {
+    const { collectInjectorCensus, unwrapWriteOnlyGuardMemos } = await import('../../packages/core-js-polyfill-provider/injector-base.js');
+    for (const [label, body, declaration, prior, captures, expected] of [
+      ['whole first lookup', '_at(_ref = (first(), (second(), _held))).call(_ref, 0);', '', false, 0, ['first', 'second', 'lookup', 'held']],
+      ['first before key', '(_ref = (first(), _held), key(), _at(_ref).call(_ref, 0));', '', false, 0, ['first', 'key', 'lookup', 'held']],
+      [
+        'guarded defined tail',
+        'null == (_ref = (first(), null == probe() ? void 0 : _held)) ? void 0 : _at(_ref).call(_ref, 0);',
+        '',
+        false,
+        0,
+        ['first', 'probe', 'lookup', 'held'],
+      ],
+      ['guarded absent tail', 'null == (_ref = (first(), null == absent() ? void 0 : _held)) ? void 0 : _at(_ref).call(_ref, 0);', '', false, 0, ['first', 'probe']],
+      ['foreign live tail', '_at(_ref = (first(), _held)).call(_ref, 0);', 'import _held from "foreign";', false, 1, null],
+      ['prior pure tail', '_at(_ref = (first(), _held)).call(_ref, 0);', 'import _held from "@core-js/pure/actual/array";', true, 1, null],
+      ['nearer readonly shadow tail', 'function read(_held) { _at(_ref = (first(), _held)).call(_ref, 0); } read(other);', '', false, 0, ['first', 'lookup', 'other']],
+      ['local constant tail', '_at(_ref = (first(), _held)).call(_ref, 0);', 'const _held = other;', false, 0, ['first', 'lookup', 'other']],
+      [
+        'nearer written shadow tail',
+        'function read(_held) { function write() { _held = other; } expose(write); _at(_ref = (first(), _held)).call(_ref, 0); } read(other);',
+        '',
+        false,
+        1,
+        null,
+      ],
+      ['callback writer', '_at(_ref = (first(), _held)).call(_ref, 0); function mutate() { _ref = other; }', '', false, 1, ['first', 'lookup', 'held']],
+      ['skipped writer', 'if (false) _ref = _held; consume(_ref);', '', false, 1, ['undefined']],
+      ['read before writer', 'consume(_ref); _ref = _held;', '', false, 1, ['undefined']],
+      ['nullable value outside guard', '_ref = (first(), null == absent() ? void 0 : _held); consume(_ref);', '', false, 1, ['first', 'probe', 'undefined']],
+      ['read in null arm', 'null == (_ref = (first(), null == absent() ? void 0 : _held)) ? consume(_ref) : void 0;', '', false, 1, ['first', 'probe', 'undefined']],
+      ['observable getter tail', '_at(_ref = (first(), box.held)).call(_ref, 0);', '', false, 1, ['first', 'getter', 'lookup', 'held']],
+      ['allocation tail', '_at(_ref = (first(), [1])).call(_ref, 0);', '', false, 1, ['first', 'lookup', 'other']],
+    ]) {
+      const state = new ImportInjector({ pkg: '@core-js/pure', mode: 'actual', importStyle: 'esm' });
+      state.addPureImport('array', 'held');
+      if (prior) state.registerUserPureImport('array', '_held');
+      const ref = state.generateDeclaredRef();
+      const source = `${ declaration } var ${ ref }; ${ body }`;
+      const program = programOf(source);
+      let writerPath;
+      traverse(program, {
+        $: { scope: true },
+        AssignmentExpression(path) {
+          if (path.node.left.name === ref && !writerPath) writerPath = path;
+        },
+      });
+      const adapter = createEstreeAdapter({ method: 'usage-pure', getInjector: () => state });
+      const census = collectInjectorCensus(program, { mintedRefNames: new Set([ref]), pureNames: new Set(state.pureImports.values()), memoReuse: true });
+      unwrapWriteOnlyGuardMemos(census, { injectorState: state, contextForMemo: () => ({ adapter, scope: writerPath.scope, path: writerPath }) });
+      let writes = 0;
+      walkAstNodes({
+        root: program,
+        visit(node) {
+          if (node.type === 'AssignmentExpression' && node.left.name === ref) writes++;
+        },
+      });
+      check(`late receiver census/${ label }/capture`, writes > 0 ? 1 : 0, captures);
+      if (!expected) continue;
+      const output = printProgram({ program, comments: [], source }).code;
+      for (const [leg, code] of [['native', source], ['final', output]]) {
+        const lateTrace = [];
+        const held = [1];
+        const other = [2];
+        runInNewContext(code, {
+          _held: held,
+          other,
+          first() { lateTrace.push('first'); },
+          second() { lateTrace.push('second'); },
+          key() { lateTrace.push('key'); },
+          probe() { lateTrace.push('probe'); return held; },
+          absent() { lateTrace.push('probe'); return null; },
+          consume(value) { lateTrace.push(value === undefined ? 'undefined' : 'defined'); },
+          box: { get held() { lateTrace.push('getter'); return held; } },
+          _at() {
+            lateTrace.push('lookup');
+            return function () { lateTrace.push(this === held ? 'held' : 'other'); };
+          },
+        });
+        checkDeep(`late receiver census/${ label }/${ leg }/order and identity`, lateTrace, expected);
+      }
+    }
+    {
+      const source = 'class Box { value = (first(), (second(), globalThis))?.Array.prototype.at; }'
+        + ' module.exports = typeof new Box().value;';
+      const code = createPlugin(options).transform(source, '/late-empty-activation.cjs')?.code ?? source;
+      let refs = 0;
+      let arrows = 0;
+      walkAstNodes({
+        root: programOf(code),
+        visit(node) {
+          if (node.type === 'VariableDeclarator' && !node.init && /^_ref\d*$/.test(node.id.name)) refs++;
+          if (node.type === 'ArrowFunctionExpression') arrows++;
+        },
+      });
+      check('late receiver census/orphan activation/no receiver declaration', refs, 0);
+      check('late receiver census/orphan activation/no empty compiler arrow', arrows, 0);
+      check('late receiver census/orphan activation/actual import', code.includes('/actual/global-this'), true);
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        const lateEffects = [];
+        runInNewContext(program, {
+          module,
+          require,
+          globalThis,
+          first() { lateEffects.push('first'); },
+          second() { lateEffects.push('second'); },
+        });
+        check(`late receiver census/orphan activation/${ leg }/value`, module.exports, 'function');
+        checkDeep(`late receiver census/orphan activation/${ leg }/first effects once`, lateEffects, ['first', 'second']);
+      }
+    }
+    for (const [label, source, expectedRefs, expected] of [
+      [
+        'field primary call',
+        'let at, flat, calls = 0, keys = 0; function built() { calls++; return [1, [2]]; }\n'
+        + 'class Box { value = ({ [(keys++, "at")]: at, flat } = built()); } const box = new Box();\n'
+        + 'module.exports = [at.call(box.value, 0), flat.call(box.value), calls, keys];',
+        1,
+        [1, [1, 2], 1, 1],
+      ],
+      [
+        'parameter primary call',
+        'let at, flat, calls = 0, keys = 0; function built() { calls++; return [1, [2]]; }\n'
+        + 'function read(value = ({ [(keys++, "at")]: at, flat } = built())) { return [at.call(value, 0), flat.call(value), calls, keys]; }\n'
+        + 'module.exports = read();',
+        1,
+        [1, [1, 2], 1, 1],
+      ],
+      [
+        'mutable callback receiver',
+        'let held = [1]; const other = [2];\n'
+        + 'function key() { held = other; return "at"; } module.exports = [(first(), held)[key()](0), held[0]];',
+        1,
+        [1, 2],
+      ],
+    ]) {
+      const code = createPlugin(options).transform(source, '/late-capture.cjs')?.code ?? source;
+      let refs = 0;
+      walkAstNodes({ root: programOf(code), visit(node) { if (node.type === 'VariableDeclarator' && !node.init && /^_ref\d*$/.test(node.id.name)) refs++; } });
+      check(`late receiver census/${ label }/mandatory refs`, refs, expectedRefs);
+      check(`late receiver census/${ label }/actual helper`, code.includes('/instance/at'), true);
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        runInNewContext(program, { module, require, first() { return 0; } });
+        checkDeep(`late receiver census/${ label }/${ leg }/value and effects`, module.exports, expected);
+      }
+    }
+  }
+}
+
+// A captured literal's method is read by its dispatch once; an observable wrapper
+// still performs its native spread, outer keys and empty nested-pattern coercion.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, method, prefix] of [
+    ['positional spread', 'const { 0: { toSpliced: method } } = [...[[1]]]; module.exports = method;', 'toSpliced', ['iterate']],
+    ['object spread', 'const { w: { at: method } } = { ...spread, w: [1, 2] }; module.exports = method;', 'at', ['spread']],
+    ['outer computed key', "const { [(mark(), 'w')]: { includes: method } } = { ...spread, w: [1, 2] }; module.exports = method;", 'includes', ['spread', 'key']],
+    ['bodyless wrapper', 'if (ok) var { w: { findLast: method } } = { ...spread, w: [1, 2] }; module.exports = method;', 'findLast', ['spread']],
+  ]) {
+    const setup = `const trace = []; let reads = 0; const selected = function () {}; const ok = true;
+      Object.defineProperty(Array.prototype, ${ JSON.stringify(method) }, {
+        configurable: true,
+        get() { trace.push('lookup'); reads++; return reads === 1 ? selected : function () {}; }
+      });
+      const iterator = Array.prototype[Symbol.iterator];
+      Array.prototype[Symbol.iterator] = function () { trace.push('iterate'); return iterator.call(this); };
+      const spread = { get own() { trace.push('spread'); return 1; } };
+      function mark() { trace.push('key'); }
+      `;
+    const code = createPlugin(options).transform(source, '/captured-instance-leaf.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup }${ program }\nmodule.exports = [module.exports === selected, reads, trace];`, { module, require });
+      checkDeep(`captured instance leaf/${ label }/${ leg }`, module.exports, [true, 1, [...prefix, 'lookup']]);
+    }
+    check(`captured instance leaf/${ label }/actual helper`, code.includes(`/array/instance/${ method.replaceAll(/[A-Z]/g, char => `-${ char.toLowerCase() }`) }`), true);
+  }
+  for (const [label, pattern, siblingValue] of [['outer rest', '{ w: { at: method }, ...rest }', '1'], ['empty sibling', '{ w: { at: method }, z: {} }', '{}']]) {
+    const source = `const ${ pattern } = { ...spread, w: [1], get z() { mark(); return ${ siblingValue }; } };`;
+    const setup = `const trace = []; let reads = 0;
+      Object.defineProperty(Array.prototype, 'at', {
+        configurable: true,
+        get() { reads++; trace.push('lookup'); return function () {}; }
+      });
+      const spread = { get own() { trace.push('spread'); return 1; } };
+      function mark() { trace.push('sibling'); throw new RangeError('later sibling'); }
+      `;
+    const code = createPlugin(options).transform(source, '/captured-instance-negative.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup }try { ${ program } } catch (error) {
+        module.exports = [error.name, error.message, reads, trace];
+      }`, { module, require });
+      checkDeep(`captured instance leaf/${ label }/${ leg }/earlier read survives later throw`,
+        module.exports, ['RangeError', 'later sibling', 1, ['spread', 'lookup', 'sibling']]);
+    }
+  }
+}
+
+// Captured sibling grouping keeps each method Get beside the native properties
+// that precede or follow it, including a throwing native property.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, pattern, throws, expected] of [
+    ['method first', 'at: method, length', false, [true, 2, ['key', 'at', 'length']]],
+    ['native first', 'length, at: method', false, [true, 2, ['key', 'length', 'at']]],
+    ['later native throw', 'at: method, length', true, ['RangeError', ['key', 'at', 'length']]],
+    ['earlier native throw', 'length, at: method', true, ['RangeError', ['key', 'length']]],
+  ]) {
+    const source = `for (const e of [Array]) {
+      const [{ [(mark(), 'of')]: of, from }, { ${ pattern } }] = [e, unknown];
+      module.exports = [method === selected, length];
+    }`;
+    const setup = `const trace = []; const selected = function () {};
+      function mark() { trace.push('key'); }
+      const unknown = {
+        get at() { trace.push('at'); return selected; },
+        get length() { trace.push('length'); ${ throws ? "throw new RangeError('length');" : 'return 2;' } }
+      };`;
+    const code = createPlugin(options).transform(source, '/captured-sibling-order.cjs')?.code ?? source;
+    check(`captured sibling order/${ label }/actual helper`, code.includes('/instance/at'), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup }try { ${ program } module.exports.push(trace); }
+        catch (error) { module.exports = [error.name, trace]; }`, { module, require });
+      checkDeep(`captured sibling order/${ label }/${ leg }`, module.exports, expected);
+    }
+  }
+}
+
+// A reused pristine constructor does not need an extra native coercion. A source
+// empty pattern and the consumed assignment's result keep their original meaning.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, expected, emptyPatterns] of [
+    ['chained bindings', 'let a, b; ({ from: a } = { from: b } = Array); module.exports = [typeof a, a === b];', ['function', true], 0],
+    ['ordered keys', `const trace = []; let a, b;
+      ({ [(trace.push(typeof b), 'from')]: a } = { [(trace.push('inner'), 'from')]: b } = (trace.push('rhs'), Array));
+      module.exports = [a === b, trace];`, [true, ['rhs', 'inner', 'function']], 0],
+    ['consumed result', 'let b; const result = ({ from: b } = Array); module.exports = [result === Array, typeof b];', [true, 'function'], 0],
+    ['source empty pattern', 'let a, b; ({ from: a } = ({} = { from: b } = Array)); module.exports = [a === b];', [true], 1],
+    ['source empty throw', 'let a; ({ from: a } = ({} = null, Array));', ['TypeError'], 1],
+  ]) {
+    const code = createPlugin(options).transform(source, '/retained-pristine-constructor.cjs')?.code ?? source;
+    let empty = 0;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'AssignmentExpression' && node.left.type === 'ObjectPattern' && !node.left.properties.length) empty++;
+    } });
+    check(`retained pristine constructor/${ label }/native empty patterns`, empty, emptyPatterns);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`try { ${ program } } catch (error) { module.exports = [error.name]; }`, { module, require });
+      checkDeep(`retained pristine constructor/${ label }/${ leg }`, module.exports, expected);
+    }
+  }
+}
+
+// Sloppy callbacks can escape through Function.caller without an explicit self reference.
+// Memo cleanup must keep their receiver snapshot after the callback has already run.
+for (const [label, invocation, captured = true] of [
+  ['forEach function', '[0].forEach(function () { steal(); rows = ["changed"]; });'],
+  ['forEach arrow', '[0].forEach(() => { steal(); rows = ["changed"]; });'],
+  ['direct IIFE', '(function () { steal(); rows = ["changed"]; })();'],
+  ['closed named call', 'function write() { steal(); rows = ["changed"]; } write();'],
+  ['closed forwarder', '(fn => fn())(() => { steal(); rows = ["changed"]; });'],
+  ['generator resume', '(function* () { steal(); rows = ["changed"]; })().next();'],
+  ['discarded generator default', '(function* (value = steal()) { rows = ["changed"]; })();'],
+  ['discarded async generator default', '(async function* (value = steal()) { rows = ["changed"]; })();'],
+  ['strict callback', '[0].forEach(function () { "use strict"; steal(); rows = ["changed"]; });', false],
+]) {
+  const source = `let rows = ["held"], original = rows, saved;
+function steal() { saved = steal.caller; }
+${ invocation }
+rows = original;
+Object.defineProperty(original, "at", { get() {
+  if (saved) { const value = saved(); if (value?.next) value.next(); }
+  return function () { return this[0]; };
+} });
+module.exports = rows.at(0);`;
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const code = createPlugin(options).transform(source, '/caller-escape.cjs')?.code ?? source;
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require: createRequire(import.meta.url) });
+  check(`caller escape/${ label }/native held receiver`, original.exports, 'held');
+  check(`caller escape/${ label }/transformed held receiver`, transformed.exports, original.exports);
+  check(`caller escape/${ label }/receiver snapshot`, /_ref\w*\s*=\s*rows/u.test(code), captured);
+}
+
+// A source getter feeding nested own helpers has one immediate consumer.
+{
+  const source = `let reads = 0;
+class Source { static get A() { reads++; return [1]; } }
+const { [Symbol.iterator]: { name } } = Source.A;
+module.exports = [name, reads];`;
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const code = createPlugin(options).transform(source, '/nested-helper-consumer.cjs')?.code ?? source;
+  const original = { exports: null };
+  const transformed = { exports: null };
+  runInNewContext(source, { module: original });
+  runInNewContext(code, { module: transformed, require });
+  checkDeep('nested helper consumer/getter and method name', transformed.exports, original.exports);
+  check('nested helper consumer/no receiver declaration', /_ref\d*\s*=\s*Source\.A/u.test(code), false);
+}
+
+// Loop-header effects ride their first consumer without an unread receiver binding.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, memberSnapshot = false] of [
+    ['one claim', 'for (var { from } = (mark("init"), Array); once; once = false) trace.push(from([1])[0]);'],
+    ['adjacent claims', 'for (const { from, of } = (mark("init"), Array), tail = mark("tail"); once; once = false) trace.push(from(of(1))[0]);'],
+    ['two patterns', 'for (var { from } = (mark("first"), Array), { keys } = (mark("second"), Object); once; once = false) trace.push(from(keys({ x: 1 }))[0]);'],
+    ['carried getter', 'for (var { y: { includes } } = { y: holder.y }; once; once = false) trace.push(includes.call([1], 1));'],
+    ['source-known carried getter', `const local = { get y() { trace.push('local-getter'); return [1]; } };
+      for (var { y: { includes } } = { y: local.y }; once; once = false) trace.push(includes.call([1], 1));`],
+    ['source-known carried getter in a let group', `const local = { get y() { trace.push('local-getter'); return [1]; } };
+      for (let { y: { findLast } } = { y: local.y }, i = 0; once; once = false) trace.push(findLast.call([1], Boolean), i);`],
+    ['source-known carried getter beside a live slot', `const local = { get y() { trace.push('local-getter'); return [1]; } };
+      for (var { y: { includes }, z } = { y: local.y, z: mark('slot') }; once; once = false) trace.push(includes.call([1], 1), z);`],
+    ['single nested leaf', 'const [{ y: { includes } }] = [holder]; trace.push(includes.call([1], 1));'],
+    ['single object leaf', 'const { y: { includes } } = holder; trace.push(includes.call([1], 1));'],
+    ['private defaulted slot', 'const box = { y: [1], keep: 2 }; const { y: { includes } = [], keep } = box; trace.push(includes.call([1], 1), keep);', true],
+    ['private optional slot', 'const box = { y: [1] }; trace.push(box?.y.includes(1));', true],
+    ['own constructor import', 'let gb, it; ({ Map: { groupBy: gb }, Symbol: { [Symbol.iterator]: it } } = globalThis.window ?? globalThis); trace.push(typeof gb, it);'],
+    ['quiet optional call', 'trace.push(rows.flat?.().length);'],
+  ]) {
+    const code = createPlugin(options).transform(source, '/loop-header-effects.cjs')?.code ?? source;
+    const results = [];
+    for (const program of [source, code]) {
+      const trace = [];
+      const holder = {
+        get y() { trace.push('getter'); return [1]; },
+      };
+      runInNewContext(program, {
+        trace,
+        once: true,
+        rows: [1, [2]],
+        holder,
+        mark(value) { trace.push(value); return value; },
+        require,
+      });
+      results.push(JSON.stringify(trace));
+    }
+    check(`loop-header effects/${ label }/effects and values`, results[1], results[0]);
+    let memberCapture = false;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      const read = node.type === 'AssignmentExpression' ? node.right : null;
+      if (read?.type === 'MemberExpression' && read.object.name === 'box' && read.property.name === 'y') memberCapture = true;
+    } });
+    check(`loop-header effects/${ label }/member snapshot`, memberCapture, memberSnapshot);
+    if (memberSnapshot) {
+      let reads = 0;
+      walkAstNodes({ root: programOf(code), visit(node) {
+        if (node.type === 'MemberExpression' && node.object.name === 'box' && node.property.name === 'y') reads++;
+      } });
+      check(`loop-header effects/${ label }/one member read`, reads, 1);
+    }
+    check(`loop-header effects/${ label }/polyfill retained`, code.includes('@core-js/pure/actual/'), true);
+  }
+}
+
+// A binding pattern declares its own exclusion sentinel; assignment patterns need a hoisted one.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const kind of ['const', 'let', 'var', 'assignment']) {
+    const source = `${ kind === 'assignment' ? 'let of, rest;' : '' }
+function collect(observe) {
+  for (${ kind === 'assignment' ? '' : `${ kind } ` }[{ Array: { of }, ...rest }] = [(observe(() => of), globalThis)];;) {
+    return [of(3), 'Array' in rest];
+  }
+}
+const callbacks = [];
+module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(4)];`;
+    const code = createPlugin(options).transform(source, '/array-rest-sentinel.cjs')?.code ?? source;
+    let hoisted = 0;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) hoisted++;
+    } });
+    check(`array rest sentinel/${ kind }/declaration owner`, hoisted > 0, kind === 'assignment');
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`array rest sentinel/${ kind }/${ leg }`, module.exports, [[[3], false], [4]]);
+    }
+  }
+}
+
+// Quiet unbound receivers retain their instance/default claims and property order
+// on the first transformation and remain stable on the second pass.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, setup, expected, entry] of [
+    [
+      'quiet ordered assignment',
+      'const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); module.exports = [m.call([5]), n.call(a2)];',
+      'const trace = [];',
+      [[5], [3, 4], []],
+      'array/instance/flat',
+    ],
+    [
+      'ordered assignment',
+      'const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); module.exports = [m === selected, n.call(a2)];',
+      'const trace = []; const selected = function () {}; '
+        + "Object.defineProperty(globalThis, 'arr', { get() { trace.push('arr'); "
+        + "return { get flat() { trace.push('flat'); return selected; } }; } });",
+      [true, [3, 4], ['arr', 'flat']],
+      'array/instance/flat',
+    ],
+    [
+      'sole assignment',
+      'let m; ({ y: { flat: m } } = { y: arr }); module.exports = [m === selected];',
+      'const trace = []; const selected = function () {}; '
+        + "Object.defineProperty(globalThis, 'arr', { get() { trace.push('arr'); "
+        + "return { get flat() { trace.push('flat'); return selected; } }; } });",
+      [true, ['arr', 'flat']],
+      'array/instance/flat',
+    ],
+    [
+      'nested default',
+      "const [{ y: { at = fallback() } }] = [box]; module.exports = [at.call({ marker: 'call-this' }, 3)];",
+      "const trace = []; Object.defineProperty(globalThis, 'box', { get() { trace.push('box'); "
+        + "return { get y() { trace.push('y'); return { get at() { trace.push('at'); return undefined; } }; } }; } }); "
+        + "function fallback() { trace.push('default'); return function (index) { return [this.marker, index]; }; }",
+      [['call-this', 3], ['box', 'y', 'at', 'default']],
+      'instance/at',
+    ],
+  ]) {
+    // Keep the getter setup in the source so its global-slot writes are visible.
+    const fullSource = `${ setup }\n${ source }`;
+    const code = createPlugin(options).transform(fullSource, '/unbound-destructure-fallback.cjs')?.code ?? fullSource;
+    for (const [leg, program] of [['native', fullSource], ['transformed', code]]) {
+      const module = { exports: null };
+      const context = { module };
+      if (label === 'quiet ordered assignment') context.arr = [1];
+      context.globalThis = context;
+      // eslint-disable-next-line import/no-dynamic-require -- delegate injected entries to the VM's realm
+      context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
+      runInNewContext(`${ program }\nmodule.exports.push(trace);`, context);
+      checkDeep(`unbound destructure fallback/${ label }/${ leg }`, module.exports, expected);
+    }
+    check(`unbound destructure fallback/${ label }/first-pass helper`, code.includes(`/actual/${ entry }`), true);
+    if (label === 'ordered assignment') check('unbound destructure fallback/both claims survive', code.match(/_flatMaybeArray\(/gu)?.length, 2);
+    const twice = createPlugin(options).transform(code, '/unbound-destructure-fallback.cjs')?.code ?? code;
+    check(`unbound destructure fallback/${ label }/fixed point`, twice, code);
+    if (label === 'sole assignment' || label === 'quiet ordered assignment') {
+      const fallbackDeclarations = programOf(code).body.flatMap(node => node.type === 'VariableDeclaration' ? node.declarations : []);
+      check(`unbound destructure fallback/${ label } has no capture`,
+        fallbackDeclarations.filter(node => !node.init && ORPHAN_REF_PATTERN.test(node.id.name)).length, 0);
+    }
+  }
+}
+
+// A discarded sequence tail keeps earlier receiver captures and member-target assignments.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source] of [
+    ['mixed claims', 'const target = {}; let name; ({ from: target.method, name } = make()); module.exports = [target.method([2])[0], typeof name, trace];'],
+    ['source prefix', 'let from; (trace.push("prefix"), ({ from } = make())); module.exports = [from([2])[0], trace];'],
+  ]) {
+    const program = `const trace = []; function make() { trace.push('make'); return Array; } ${ source }`;
+    const code = createPlugin(options).transform(program, '/discarded-sequence-tail.cjs')?.code ?? program;
+    const original = { exports: null };
+    const transformed = { exports: null };
+    runInNewContext(program, { module: original });
+    runInNewContext(code, { module: transformed, require });
+    checkDeep(`discarded sequence tail/${ label }`, transformed.exports, original.exports);
+    check(`discarded sequence tail/${ label }/static claim retained`, code.includes('/actual/array/from'), true);
+    if (label === 'mixed claims') check('discarded sequence tail/instance claim retained', code.includes('/actual/function/instance/name'), true);
+  }
+}
+
+// Removing a discarded memo read must keep a shared surviving tail in the rename census.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const source = 'let from, rest; const source = { w: Array, extra: 1 }; '
+    + 'const held = ({ w: { from }, ...rest } = ({ w: { from }, ...rest } = source)); '
+    + 'use(held === source, from([1]), rest);';
+  const code = createPlugin(options).transform(source, '/nested-assignment-tail.cjs')?.code ?? source;
+  for (const [leg, program] of [['native', source], ['transformed', code]]) {
+    let result;
+    runInNewContext(program, {
+      require,
+      use(identity, value, rest) { result = [identity, value[0], rest.extra]; },
+    });
+    checkDeep(`nested assignment tail/${ leg }/identity and values`, result, [true, 1, 1]);
+  }
+}
+
+// A wrapper's native sibling is bound in the capture and has no separate declaration.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, pattern, neighbour] of [
+    ['mixed properties', 'at, [(log.push("key"), "flat")]: flat, length', 'log.push("rhs")'],
+    ['defaulted method', '[(log.push("key"), "flat")]: flat = (log.push("default"), 0)', '7'],
+    ['sole method', '[(log.push("key"), "at")]: at', '7'],
+  ]) {
+    const source = `const log = []; const [{ ${ pattern } }, neighbour] = [Array.prototype, ${ neighbour }]; `
+      + 'module.exports = [neighbour, log];';
+    const code = createPlugin(options).transform(source, '/native-captured-sibling.cjs')?.code ?? source;
+    const original = { exports: null };
+    const transformed = { exports: null };
+    runInNewContext(source, { module: original });
+    runInNewContext(code, { module: transformed, require });
+    checkDeep(`native captured sibling/${ label }/order and binding`, transformed.exports, original.exports);
+    check(`native captured sibling/${ label }/method polyfilled`, code.includes('/actual/array/instance/'), true);
+  }
+}
+
+// Adjacent optional results absorb the method guard without repeating its getter.
+// A plain continuation still distinguishes an absent method from an absent result.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, declaration, call] of [
+    ['stable method', 'const arr', 'arr.at?.(0)'],
+    ['stable quiet computed method', 'const arr', "arr['at']?.(0)"],
+    ['stable optional member', 'const arr', 'arr?.at?.(0)'],
+    ['first receiver prefix', 'const arr', '(mark(), arr).at?.(0)'],
+  ]) {
+    const source = `const events = []; ${ declaration } = [['outer']];
+      Object.defineProperty(arr, 'at', { get() { events.push('lookup'); return function () { return this[0]; }; } });
+      function mark() { events.push('prefix'); }
+      module.exports = [${ call }?.includes('outer'), events];`;
+    const code = createPlugin(options).transform(source, '/stable-optional-result.cjs')?.code ?? source;
+    let refs = 0;
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) refs++;
+      },
+    });
+    check(`adjacent optional result/${ label }/only result capture`, refs, 1);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`adjacent optional result/${ label }/${ leg }`, module.exports,
+        [true, [...label === 'first receiver prefix' ? ['prefix'] : [], 'lookup']]);
+    }
+  }
+  for (const [form, expression, optionalRoot, computedTail] of [
+    ['method call', "arr.at?.(argument())?.[(key(), 'includes')]('outer')", false, true],
+    ['optional member and call', "arr?.at?.(argument())?.[(key(), 'includes')]('outer')", true, true],
+    ['quiet computed member', "arr?.['at']?.(argument())?.includes('outer')", true, false],
+    ['quiet computed call', "arr['at']?.(argument())?.includes('outer')", false, false],
+  ]) {
+    for (const [label, method, returned, rootAbsent, keyThrows, expectedValue, expectedError, effects] of [
+      ['method null', 'null', 'this[0]', false, false, undefined, null, ['lookup']],
+      ['method undefined', 'void 0', 'this[0]', false, false, undefined, null, ['lookup']],
+      ['result null', 'selected', 'null', false, false, undefined, null, ['lookup', 'argument', 'before']],
+      ['result undefined', 'selected', 'void 0', false, false, undefined, null, ['lookup', 'argument', 'before']],
+      ['receiver getter writes', 'selected', 'this[0]', false, false, true, null, ['lookup', 'argument', 'before', ...computedTail ? ['key'] : []]],
+      [
+        'outer key throws',
+        'selected',
+        'this[0]',
+        false,
+        true,
+        computedTail ? undefined : true,
+        computedTail ? 'Error' : null,
+        ['lookup', 'argument', 'before', ...computedTail ? ['key'] : []],
+      ],
+      ['null root', 'selected', 'this[0]', true, false, undefined, optionalRoot ? null : 'TypeError', []],
+    ]) {
+      const source = `const events = []; let arr = [['outer']]; const before = arr; const after = [['inner']];
+        function selected() { events.push(this === before ? 'before' : 'after'); return ${ returned }; }
+        Object.defineProperty(arr, 'at', { get() { events.push('lookup'); arr = after; return ${ method }; } });
+        function argument() { events.push('argument'); return 0; }
+        function key() { events.push('key'); ${ keyThrows ? 'throw new Error("key");' : '' } return 'includes'; }
+        ${ rootAbsent ? 'arr = null;' : '' }
+        let value, error = null;
+        try { value = ${ expression }; } catch (caught) { error = caught.name; }
+        module.exports = [value, error, events];`;
+      const code = createPlugin(options).transform(source, '/adjacent-optional-result.cjs')?.code ?? source;
+      for (const [leg, program] of [['native', source], ['transformed', code]]) {
+        const module = { exports: null };
+        runInNewContext(program, { module, require });
+        checkDeep(`adjacent optional result/${ form }/${ label }/${ leg }`, module.exports,
+          [expectedValue, expectedError, effects]);
+      }
+      let refs = 0;
+      walkAstNodes({
+        root: programOf(code),
+        visit(node) {
+          if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) refs++;
+        },
+      });
+      check(`adjacent optional result/${ form }/${ label }/root and result captures`, refs, 2);
+      check(`adjacent optional result/${ form }/${ label }/actual lookup`, code.includes('/instance/at'), true);
+    }
+  }
+  for (const [label, expression, method, returned, expectedError, effects] of [
+    ['plain absent method', "arr.at?.(argument()).includes('outer')", 'null', 'this[0]', null, ['lookup']],
+    ['plain undefined result', "arr.at?.(argument()).includes('outer')", 'selected', 'void 0', 'TypeError', ['lookup', 'argument', 'before']],
+    ['intermediate absent method', "arr.at?.(argument()).map(x => x)?.includes('outer')", 'null', 'this[0]', null, ['lookup']],
+    ['intermediate undefined result', "arr.at?.(argument()).map(x => x)?.includes('outer')", 'selected', 'void 0', 'TypeError', ['lookup', 'argument', 'before']],
+    ['sealed absent method', "(arr.at?.(argument())).includes('outer')", 'null', 'this[0]', 'TypeError', ['lookup']],
+    ['sealed undefined result', "(arr.at?.(argument())).includes('outer')", 'selected', 'void 0', 'TypeError', ['lookup', 'argument', 'before']],
+  ]) {
+    const source = `const events = []; let arr = [['outer']]; const before = arr; const after = [['inner']];
+      function selected() { events.push(this === before ? 'before' : 'after'); return ${ returned }; }
+      Object.defineProperty(arr, 'at', { get() { events.push('lookup'); arr = after; return ${ method }; } });
+      function argument() { events.push('argument'); return 0; }
+      let value, error = null;
+      try { value = ${ expression }; } catch (caught) { error = caught.name; }
+      module.exports = [value, error, events];`;
+    const code = createPlugin(options).transform(source, '/optional-result-boundary.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`optional result boundary/${ label }/${ leg }`, module.exports, [undefined, expectedError, effects]);
+    }
+  }
+  {
+    const source = `const events = []; let arr = [['outer']]; const before = arr; const after = [['inner']];
+      Object.defineProperty(before, 'at', {
+        get() { events.push('outer lookup'); arr = after; return function () { events.push('outer call'); return this[0]; }; }
+      });
+      Object.defineProperty(after, 'at', {
+        get() { events.push('inner lookup'); return function () { events.push('inner call'); return this[0]; }; }
+      });
+      function read(depth) { return arr?.at?.(depth ? 0 : argument())?.includes(depth ? 'inner' : 'outer'); }
+      function argument() { events.push('argument'); events.push(read(1) ? 'nested true' : 'nested false'); return 0; }
+      module.exports = [read(0), events];`;
+    const code = createPlugin(options).transform(source, '/optional-result-reentry.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`adjacent optional result/argument reentry/${ leg }`, module.exports,
+        [true, ['outer lookup', 'argument', 'inner lookup', 'inner call', 'nested true', 'outer call']]);
+    }
+  }
+}
+
+// Receiver prefixes stay in the first rendered value, before the key and method lookup.
+// A quiet prefix can throw even when the effect harvest carries only its later call.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [label, source, expectedRefs, expected, entry] of [
+    [
+      'stable method prefix',
+      `const trace = []; const arr = [1, 2];
+      function prefix() { trace.push('prefix'); }
+      module.exports = [(prefix(), arr).at(0), trace];`,
+      0,
+      [1, ['prefix']],
+      '/instance/at',
+    ],
+    [
+      'stable method key',
+      `const trace = []; const arr = [1, 2];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), arr)[(key(), 'at')](0), trace];`,
+      0,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'completed local write before key',
+      `const trace = []; let arr = [1, 2]; arr = [3, 4];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), arr)[(key(), 'at')](0), trace];`,
+      0,
+      [3, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'nested quiet method prefix',
+      `const trace = []; const quiet = 1, arr = [1, 2];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), (quiet, arr))[(key(), 'at')](0), trace];`,
+      0,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'optional method key',
+      `const trace = []; const arr = [1, 2];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), arr)[(key(), 'at')]?.(0), trace];`,
+      0,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'method getter replaces receiver',
+      `const trace = []; let arr = [1, 2]; const before = arr, after = [3];
+      Object.defineProperty(before, 'at', { get() { trace.push('lookup'); arr = after;
+        return function (index) { trace.push(this === before ? 'held' : 'other'); return this[index]; }; } });
+      function prefix() { trace.push('prefix'); }
+      module.exports = [(prefix(), arr).at(0), arr[0], trace];`,
+      1,
+      [1, 3, ['prefix', 'lookup', 'held']],
+      '/instance/at',
+    ],
+    [
+      'computed key replaces receiver',
+      `const trace = []; let arr = [1, 2]; const before = arr, after = [3];
+      Object.defineProperty(before, 'at', { get() { trace.push('lookup');
+        return function (index) { trace.push(this === before ? 'held' : 'other'); return this[index]; }; } });
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); arr = after; }
+      module.exports = [(prefix(), arr)[(key(), 'at')](0), arr[0], trace];`,
+      1,
+      [1, 3, ['prefix', 'key', 'lookup', 'held']],
+      '/instance/at',
+    ],
+    [
+      'allocation method keeps one identity',
+      `const trace = [];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), [1, 2])[(key(), 'at')](0), trace];`,
+      1,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'guard owns receiver prefix',
+      `const trace = []; const obj = { list: [1, 2] };
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      module.exports = [(prefix(), obj)?.list[(key(), 'at')](0), trace];`,
+      1,
+      [1, ['prefix', 'key']],
+      '/instance/at',
+    ],
+    [
+      'iterator prefix',
+      `const trace = []; const arr = [1, 2]; const S = Symbol.iterator;
+      function prefix() { trace.push('prefix'); }
+      const it = (prefix(), arr)[S](); module.exports = [it.next().value, trace];`,
+      0,
+      [1, ['prefix']],
+      '/get-iterator',
+    ],
+    [
+      'literal iterator prefix',
+      `const trace = []; function prefix() { trace.push('prefix'); }
+      const it = (prefix(), [1, 2])[Symbol.iterator](); module.exports = [it.next().value, trace];`,
+      0,
+      [1, ['prefix']],
+      '/get-iterator',
+    ],
+    [
+      'iterator key replaces receiver',
+      `const trace = []; let arr = [1, 2]; const after = [3];
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); arr = after; }
+      const it = (prefix(), arr)[Symbol[(key(), 'iterator')]](); module.exports = [it.next().value, arr[0], trace];`,
+      1,
+      [1, 3, ['prefix', 'key']],
+      '/get-iterator',
+    ],
+    [
+      'sole constant iterator read',
+      `const trace = []; function key() { trace.push('key'); }
+      const it = [1, 2][Symbol[(key(), 'iterator')]](); module.exports = [it.next().value, trace];`,
+      0,
+      [1, ['key']],
+      '/get-iterator',
+    ],
+    [
+      'sole constant iterator method read',
+      `const trace = []; function key() { trace.push('key'); }
+      const method = [1, 2][(key(), Symbol.iterator)]; module.exports = [method.call([4]).next().value, trace];`,
+      0,
+      [4, ['key']],
+      '/get-iterator-method',
+    ],
+    [
+      'sole lookup with an effectful element',
+      `const trace = []; function value() { trace.push('value'); return 1; }
+      function key() { trace.push('key'); }
+      const it = [value()][Symbol[(key(), 'iterator')]](); module.exports = [it.next().value, trace];`,
+      1,
+      [1, ['value', 'key']],
+      '/get-iterator',
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/receiver-prefix.cjs')?.code ?? source;
+    let refs = 0;
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'VariableDeclarator' && !node.init && ORPHAN_REF_PATTERN.test(node.id.name)) refs++;
+      },
+    });
+    check(`receiver prefix/${ label }/required captures`, refs, expectedRefs);
+    check(`receiver prefix/${ label }/actual helper`, code.includes(entry), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`receiver prefix/${ label }/${ leg }`, module.exports, expected);
+    }
+  }
+  for (const [label, expression, expectedPrefix = []] of [
+    ['method prefix', '(quiet, prefix(), arr).at(0)'],
+    ['method key', "(quiet, prefix(), arr)[(key(), 'at')](0)"],
+    ['nested method key', "(prefix(), (quiet, arr))[(key(), 'at')](0)", ['prefix']],
+    ['optional call key', "(quiet, prefix(), arr)[(key(), 'at')]?.(0)"],
+    ['optional member key', "(quiet, prefix(), arr)?.[(key(), 'at')](0)"],
+    ['iterator prefix', '(quiet, prefix(), arr)[Symbol.iterator]()'],
+    ['iterator key', "(quiet, prefix(), arr)[Symbol[(key(), 'iterator')]]()"],
+    ['iterator method read', '(quiet, prefix(), arr)[(key(), Symbol.iterator)]'],
+  ]) {
+    const source = `const trace = []; const arr = [1, 2]; let error = null;
+      function prefix() { trace.push('prefix'); } function key() { trace.push('key'); }
+      try { ${ expression }; const quiet = 1; } catch (caught) { error = caught.name; }
+      module.exports = [error, trace];`;
+    const code = createPlugin(options).transform(source, '/receiver-prefix-tdz.cjs')?.code ?? source;
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(program, { module, require });
+      checkDeep(`receiver prefix TDZ/${ label }/${ leg }`, module.exports, ['ReferenceError', expectedPrefix]);
+    }
+  }
+  for (const [label, source, helper, expectedArgument, hasCapture] of [
+    ['method receiver only', 'const arr = [1, 2]; (first(), arr).at(0);', '_atMaybeArray', 'SequenceExpression', false],
+    ['iterator receiver only', 'const arr = [1, 2]; (first(), arr)[Symbol.iterator]();', '_getIterator', 'SequenceExpression', false],
+    ['literal iterator receiver only', '(first(), [1, 2])[Symbol.iterator]();', '_getIterator', 'SequenceExpression', false],
+    ['iterator receiver and key', "(first(), second(), arr)[Symbol[(third(), 'iterator')]]();", '_getIterator', 'Identifier', false],
+    ['method receiver and key', "(first(), box.list)[(third(), 'at')](0);", '_at', 'Identifier', true],
+    ['optional method receiver and key', "(first(), arr)[(third(), 'flat')]?.();", '_flatMaybeArray', 'Identifier', false],
+  ]) {
+    const code = createPlugin(options).transform(source, '/receiver-prefix-canon.cjs')?.code ?? source;
+    let lookupArgument = null,
+        wholeCapture = false;
+    walkAstNodes({
+      root: programOf(code),
+      visit(node) {
+        if (node.type === 'CallExpression' && node.callee?.name === helper) lookupArgument = unwrapNode(node.arguments[0])?.type;
+        if (node.type === 'AssignmentExpression' && ORPHAN_REF_PATTERN.test(node.left?.name ?? '')
+        && unwrapNode(node.right)?.type === 'SequenceExpression') wholeCapture = true;
+      },
+    });
+    check(`receiver prefix canon/${ label }/first lookup slot`, lookupArgument, expectedArgument);
+    check(`receiver prefix canon/${ label }/whole first capture`, wholeCapture, hasCapture);
+  }
+}
+
+// Deferred declarations keep every source job when sentinel, literal and opaque
+// receivers share one statement. The caller supplies the receivers outside the source census.
+{
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const cases = [];
+  const keyed = "{ y: { last: { t }, [(effect(), 'fill')]: fill } } = { y: [1] }";
+  for (const kind of ['const', 'let', 'var']) {
+    for (const reverse of [false, true]) {
+      cases.push([
+        `sentinel memo/${ kind }/${ reverse ? 'preceding' : 'following' } opaque sibling`,
+        `${ kind } ${ reverse ? `{ at } = arr, ${ keyed }` : `${ keyed }, { at } = arr` }; module.exports = { at, fill, t };`,
+        ['/array/instance/fill', '/instance/at'],
+        result => [result.t, result.at.call([4], 0), result.fill.call([1], 6)[0]],
+        [7, 4, 6],
+      ]);
+    }
+  }
+  for (const receiver of ['Map || Map', 'globalThis.Map || Map']) {
+    for (const reverse of [false, true]) {
+      cases.push([
+        `mixed memo/${ receiver }/${ reverse ? 'static first' : 'instance first' }`,
+        `const { ${ reverse ? 'groupBy, name' : 'name, groupBy' } } = ${ receiver }; module.exports = { groupBy };`,
+        ['/function/instance/name', '/map/group-by'],
+        result => result.groupBy([1], value => value).get(1)[0],
+        1,
+      ]);
+    }
+  }
+  for (const [label, leading, defaultValue, condition] of [
+    ['sole', '', '', 'true'],
+    ['false arm', '', '', 'false'],
+    ['preceding opaque job', '{ at } = getArr(), ', '', 'true'],
+    ['preceding key-read job', "{ [(effect(), 'at')]: at } = arr, ", '', 'true'],
+    ['preceding static job', '{ from } = Array, ', '', 'true'],
+    ['default', '', '= fallback', 'true'],
+  ]) {
+    cases.push([
+      `bodyless nested memo/${ label }`,
+      `if (${ condition }) var ${ leading }{ y: { other: { q }, [(effect(), 'includes')]: includes ${ defaultValue } } } = { y: src };
+      module.exports = { includes, q };`,
+      ['/instance/includes'],
+      result => [result.q, typeof result.includes === 'function' ? result.includes.call([1, 2], 2) : result.includes],
+      condition === 'false' ? [undefined, undefined] : [8, true],
+    ]);
+  }
+  for (const [label, source] of [
+    ['ordinary default refs', 'const { data: { at }, keys: key = fallback } = obj; module.exports = { at, key };'],
+    ['catch default refs', 'try { throw obj; } catch ({ data: { at }, keys: key = fallback }) { module.exports = { at, key }; }'],
+    ['catch leading default refs', 'try { throw obj; } catch ({ keys: key = fallback, data: { at } }) { module.exports = { at, key }; }'],
+  ]) {
+    cases.push([
+      `guard composition/${ label }`, source, ['/instance/at', '/instance/keys'],
+      result => [result.at.call([4], 0), result.key()], [4, 'fallback'],
+    ]);
+  }
+  cases.push([
+    'guard composition/ordered effectful key capture',
+    "const { data: { at }, [(effect(), 'keys')]: key } = obj; module.exports = { at, key };",
+    ['/instance/at', '/instance/keys'], result => [result.at.call([4], 0), result.key], [4, undefined],
+  ]);
+  for (const [label, source, entries, read, expected] of cases) {
+    const code = createPlugin(options).transform(source, '/deferred-declaration-jobs.cjs')?.code ?? source;
+    for (const entry of entries) check(`deferred declaration/${ label }/${ entry }`, code.includes(entry), true);
+    for (const stripped of [false, true]) {
+      const module = { exports: null };
+      const arr = [4, 5];
+      const src = Object.assign([1, 2], { other: { q: 8 } });
+      function run() {
+        Function('module', 'require', 'arr', 'src', 'obj', 'effect', 'getArr', 'fallback', code)(
+          module, require, arr, src, { data: [2], keys: undefined }, () => undefined, () => arr, () => 'fallback',
+        );
+      }
+      withTemporaryProperty(Array.prototype, 'last', { t: 7 }, () => {
+        if (stripped) {
+          withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+            withTemporaryProperty(Array.prototype, 'fill', undefined, () => {
+              withTemporaryProperty(Array.prototype, 'includes', undefined, run);
+            });
+          });
+        } else run();
+      });
+      checkDeep(`deferred declaration/${ label }/${ stripped ? 'stripped' : 'full' }`, read(module.exports), expected);
+    }
+  }
+}
+
+// A source declaration keeps its comma group when the renderer returns only its
+// consumed binding. Memos and independently owned source hosts still keep their boundaries.
+{
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  for (const [fixture, name, expected] of [
+    ['literal-hop-effect-keyed-claim-ahead-of-another-declarator', 'g', ['pattern', 'cc', 'g']],
+    ['sequence-and-bodyless-hosts-drain-in-place', 'm', ['m', 'zTail']],
+    ['se-init-defaulted-leaf-beside-sibling', 'm6', ['m6']],
+  ]) {
+    const source = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
+    const code = createPlugin(options).transform(source, '/source-declarator-group.mjs')?.code ?? source;
+    const ast = programOf(code);
+    let declaration;
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclaration' && node.declarations.some(item => item.id.name === name)) declaration = node;
+    } });
+    checkDeep(`source declarator groups/${ fixture }/one original group`,
+      declaration?.declarations.map(item => item.id.name ?? 'pattern'), expected);
+    // eslint-disable-next-line node/no-sync -- the printer's comment channel is independent of the AST comparison
+    const comments = [source, code].map(text => commentSignature(parseSync('/group.mjs', text, { sourceType: 'module' }).comments));
+    checkDeep(`source declarator groups/${ fixture }/source comments`, comments[1], comments[0]);
+  }
+  for (const [label, source, expected, grouped = true] of [
+    [
+      'independent source host',
+      'var { y: { flat: m = nul } } = (0, { y: arr }), zTail = 1; var after = 2; export { m, zTail, after };',
+      [['m', 'zTail'], ['after']],
+    ],
+    [
+      'another claim keeps its source order',
+      'var { y: { flat: m = nul } } = (0, { y: arr }), zTail = 1, { at: g } = arr; export { m, zTail, g };',
+      ['m', 'zTail', 'g'],
+      false,
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/source-declarator-boundary.mjs')?.code ?? source;
+    const groups = programOf(code).body.filter(node => node.type === 'VariableDeclaration'
+      && node.declarations.some(item => ['m', 'zTail', 'g', 'after'].includes(item.id.name)))
+      .map(node => node.declarations.map(item => item.id.name));
+    checkDeep(`source declarator groups/${ label }`, grouped ? groups : groups.flat(), expected);
+  }
+}
+
+// An emitted realm import is already stable across loop-header keys. Reusing it must
+// keep a method read before the next key, while source bindings still need their capture.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  const realmSources = [];
+  for (const fixture of [
+    'realm-selection-for-init-with-an-effect-keyed-iterator-claim',
+    'realm-selection-loop-head-with-effect-keyed-iterator-and-plain-slots',
+  ]) {
+    const source = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
+    realmSources.push(source);
+    const code = createPlugin(options).transform(source, '/own-realm-for-init.cjs')?.code ?? source;
+    const ast = programOf(code);
+    const realmImports = new Set();
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclarator' && node.init?.type === 'CallExpression'
+        && node.init.callee.name === 'require' && node.init.arguments[0]?.value === '@core-js/pure/actual/global-this') {
+        realmImports.add(node.id.name);
+      }
+    } });
+    let copies = 0;
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier'
+        && node.init?.type === 'Identifier' && realmImports.has(node.init.name)) copies++;
+    } });
+    check(`own realm for-init/${ fixture }/actual realm import`, realmImports.size, 1);
+    check(`own realm for-init/${ fixture }/no import copy`, copies, 0);
+  }
+  const realmSource = realmSources[1].replace('done = 1;', '{ module.exports = it5; done = 1; }');
+  const realmCode = createPlugin(options).transform(realmSource, '/own-realm-key-order.cjs')?.code ?? realmSource;
+  for (const [leg, program] of [['native', realmSource], ['transformed', realmCode]]) {
+    const module = { exports: null };
+    const trace = [];
+    function selected() { return 'old'; }
+    function replacement() { return 'new'; }
+    let current = selected;
+    const context = {
+      module,
+      c: true,
+      k() { trace.push('claim-key'); },
+      k2() { trace.push('next-key'); current = replacement; },
+    };
+    context.globalThis = context.self = context;
+    Object.defineProperty(context, Symbol.iterator, { get() {
+      trace.push(current === selected ? 'read:old' : 'read:new');
+      return current;
+    } });
+    // eslint-disable-next-line import/no-dynamic-require -- the realm entry must address this VM's realm
+    context.require = request => request === '@core-js/pure/actual/global-this' ? context : require(request);
+    runInNewContext(program, context);
+    check(`own realm for-init/${ leg }/method identity before next key`, module.exports === selected, true);
+    checkDeep(`own realm for-init/${ leg }/key order`, trace.filter(event => event.endsWith('-key')), ['claim-key', 'next-key']);
+    check(`own realm for-init/${ leg }/method read before next key`, trace.indexOf('read:old') > trace.indexOf('claim-key')
+      && trace.lastIndexOf('read:old') < trace.indexOf('next-key'), true);
+    check(`own realm for-init/${ leg }/no method read after next key`, trace.includes('read:new'), false);
+  }
+  for (const [label, source, setup, expected] of [
+    [
+      'unknown receiver',
+      `let source = first;
+      for (const { [(k(), Symbol.iterator)]: it, [(source = second, 'x')]: x, [(k3(), 'y')]: y } = source; ;) {
+        module.exports = [it === selected, x, y, source === second]; break;
+      }`,
+      `const first = { get [Symbol.iterator]() { trace.push('read:old'); return selected; }, x: 7, y: 8 };
+      const second = { get [Symbol.iterator]() { trace.push('read:new'); return replacement; }, x: 97, y: 98 };`,
+      [true, 7, 8, true],
+    ],
+    [
+      'array receiver',
+      `const second = [9, 10]; let source = [4];
+      for (const { [(k(), 'at')]: at, [(source = second, '0')]: x, [(k3(), 'length')]: length } = source; ;) {
+        module.exports = [at === selected, x, length, source === second]; break;
+      }`,
+      `Object.defineProperty(Array.prototype, 'at', { get() {
+        trace.push(this[0] === 4 ? 'read:old' : 'read:new');
+        return this[0] === 4 ? selected : replacement;
+      } });`,
+      [true, 4, 1, true],
+    ],
+  ]) {
+    const code = createPlugin(options).transform(source, '/source-receiver-key-write.cjs')?.code ?? source;
+    let captured = false;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && node.id.name !== 'source'
+        && node.init?.type === 'Identifier' && node.init.name === 'source') captured = true;
+    } });
+    check(`source receiver key write/${ label }/receiver capture`, captured, true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      const trace = [];
+      runInNewContext(`${ setup }\n${ program }`, {
+        module,
+        trace,
+        require,
+        selected() { return 'old'; },
+        replacement() { return 'new'; },
+        k() { trace.push('claim-key'); },
+        k3() { trace.push('third-key'); },
+      });
+      checkDeep(`source receiver key write/${ label }/${ leg }/original receiver`, module.exports, expected);
+      checkDeep(`source receiver key write/${ label }/${ leg }/key order`, trace.filter(event => event.endsWith('-key')),
+        ['claim-key', 'third-key']);
+      check(`source receiver key write/${ label }/${ leg }/no replacement method read`, trace.includes('read:new'), false);
+    }
+  }
+}
+
+// A body-entry capture must keep native array reads on their source side of the helper call.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const require = createRequire(import.meta.url);
+  for (const [name, pattern, expected] of [
+    ['native prefix', '__proto__: prototype, at', [2, true, false, true]],
+    ['native slots around', 'length, at, __proto__: prototype', [2, false, true, true]],
+    ['native slots reversed', '__proto__: prototype, at, length', [1, true, false, true]],
+  ]) {
+    const source = `function read({ ${ pattern } } = [1, 2]) {
+      return [${ pattern.includes('length') ? 'length' : '2' }, prototype === original, prototype === other, at === selected];
+    } module.exports = read();`;
+    const setup = `const original = Array.prototype; const other = {}; const selected = function () {};
+      Object.defineProperty(original, 'at', { configurable: true, get() {
+        this.length = 1; Object.setPrototypeOf(this, other); return selected;
+      } });`;
+    const code = createPlugin(options).transform(source, '/parameter-native-slot-order.cjs')?.code ?? source;
+    check(`parameter native slot/${ name }/actual Array helper`, code.includes('/array/instance/at'), true);
+    for (const [leg, program] of [['native', source], ['transformed', code]]) {
+      const module = { exports: null };
+      runInNewContext(`${ setup } ${ program }`, { module, require });
+      checkDeep(`parameter native slot/${ name }/${ leg }`, module.exports, expected);
+    }
+  }
+}
+
+// Static metadata stays static after mutation filtering; user-object instance metadata does not.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const source = `export function read({ at } = (globalThis.window?.self).self.box) { return at; }
+    export const removed = delete (globalThis.window?.self).self.box.at;`;
+  const code = createPlugin(options).transform(source, '/parameter-deleted-user-slot.mjs')?.code ?? source;
+  check('parameter deleted user slot/actual instance helper', code.includes('/instance/at'), true);
+  check('parameter deleted user slot/receiver capture', /function read\(_ref\s*=/u.test(code), true);
+  const staticSource = 'delete Array.from; module.exports = Array.from?.([1]);';
+  const staticCode = createPlugin(options).transform(staticSource, '/deleted-optional-static.cjs')?.code ?? staticSource;
+  check('deleted optional static/keeps native optional call', staticCode.includes('?.'), true);
+  check('deleted optional static/does not import from', staticCode.includes('/array/from'), false);
+}
+
+// A prior pass's static default keeps its native read while an unowned sibling still captures
+// the actual receiver. Exact imports keep sibling claims from masking another keys dispatcher.
+for (const importStyle of ['import', 'require']) for (const [name, source, entries] of [
+  ['sealed synth default', 'export function f({ keys } = (globalThis.window?.self).Object) { return keys; }',
+    ['global-this', 'object/keys', 'self']],
+  ['mixed owned default', "import Keys from '@core-js/pure/actual/object/keys'; export function f({keys,at}={keys:Keys}){return[keys,at];}",
+    ['instance/at', 'object/keys']],
+  ['body shadow', "import Keys from '@core-js/pure/actual/object/keys'; export function f({keys,at}={keys:Keys}){var Keys=99;return[keys,at,Keys];}",
+    ['instance/at', 'object/keys']],
+  ['unrelated import', "import Keys from '@core-js/pure/actual/object/keys'; export function f({at}){return[Keys,at];}",
+    ['instance/at', 'object/keys']],
+]) {
+  const options = { method: 'usage-pure', importStyle, version: '4.0', targets: { ie: 11 } };
+  const first = createPlugin(options).transform(source, '/retained-owned-default.mjs')?.code ?? source;
+  const second = createPlugin(options).transform(first, '/retained-owned-default.mjs')?.code ?? first;
+  const third = createPlugin(options).transform(second, '/retained-owned-default.mjs')?.code ?? second;
+  check(`owned parameter default/${ name }/${ importStyle } second pass`, second, first);
+  check(`owned parameter default/${ name }/${ importStyle } third pass`, third, first);
+  const imports = new Set();
+  for (const { groups } of first.matchAll(/["']@core-js\/pure\/actual\/(?<entry>[^"']+)["']/gu)) imports.add(groups.entry);
+  checkDeep(`owned parameter default/${ name }/${ importStyle } exact imports`, [...imports].sort(), entries);
+}
+
+// A closed selection may resolve a static directly. Its discarded running arm still
+// owns an accessor read, even though the conditional itself has no call expression.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  for (const [label, pattern, host, selected, expectedReads] of [
+    ['served declaration', '{ groupBy }', 'declaration', true, 1],
+    ['default declaration', '{ groupBy = null }', 'declaration', true, 1],
+    ['unselected declaration', '{ groupBy }', 'declaration', false, 0],
+    ['unselected default', '{ groupBy = null }', 'declaration', false, 0],
+    ['served assignment', '{ groupBy }', 'assignment', true, 1],
+    ['native sibling', '{ groupBy, prototype }', 'declaration', true, 1],
+  ]) {
+    const binding = host === 'assignment' ? `let groupBy; (${ pattern } = flag ? shelf.M : Object);`
+      : `const ${ pattern } = flag ? shelf.M : Object;`;
+    const source = `const events = []; module.exports = (flag => {
+      const shelf = { get M() { events.push('get'); return Map; } };
+      ${ binding }
+      return groupBy([3, 4], value => value % 2).size;
+    })(${ selected });`;
+    const code = createPlugin(options).transform(source, '/selection-getter-static.cjs')?.code ?? source;
+    let reads = 0;
+    walkAstNodes({ root: programOf(code), visit(node) {
+      if (node.type === 'MemberExpression' && node.object?.name === 'shelf' && node.property?.name === 'M') reads++;
+    } });
+    check(`selected static getter/${ label }/source read`, reads, expectedReads);
+    check(`selected static getter/${ label }/static import`,
+      code.includes(`/actual/${ selected ? 'map' : 'object' }/group-by`), true);
+  }
+}
+
+// A closed true guard exposes the same constructor pattern as the opaque guard's
+// retained arm. Its source leaf default still renders in that pattern and keeps its claims.
+{
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const original = await fs.readFile(new URL('../transpiler-fixtures/usage-pure/guarded-constructor-nested-default/input.mjs', import.meta.url), 'utf8');
+  for (const [label, source, guarded] of [
+    ['closed true', original, false],
+    ['export open', original.replace('function read', 'export function read'), true],
+    ['opaque caller', original.replace('read(true)', 'read(Boolean(1))'), true],
+  ]) {
+    const code = createPlugin(options).transform(source, '/guarded-constructor-default.mjs')?.code ?? source;
+    const ast = programOf(code);
+    const imports = ast.body.filter(node => node.type === 'ImportDeclaration');
+    checkDeep(`constructor pattern default/${ label }/exact imports`, imports.map(node => node.source.value).sort(), [
+      '@core-js/pure/actual/array/of', '@core-js/pure/actual/global-this', '@core-js/pure/actual/promise',
+    ]);
+    const promise = imports.find(node => node.source.value.endsWith('/actual/promise'))?.specifiers[0].local.name;
+    const of = imports.find(node => node.source.value.endsWith('/actual/array/of'))?.specifiers[0].local.name;
+    let pattern;
+    walkAstNodes({ root: ast, visit(node) {
+      if (node.type === 'VariableDeclarator' && node.id?.type === 'ObjectPattern'
+        && node.id.properties[0]?.key?.name === 'missing') pattern = node;
+    } });
+    check(`constructor pattern default/${ label }/original leaf`, pattern?.id.properties[0]?.value?.type, 'AssignmentPattern');
+    check(`constructor pattern default/${ label }/default claim`, pattern?.id.properties[0]?.value?.right?.callee?.name, of);
+    check(`constructor pattern default/${ label }/guard retained`, pattern?.init?.type === 'ConditionalExpression', guarded);
+    check(`constructor pattern default/${ label }/served constructor`,
+      guarded ? pattern?.init?.consequent?.name : pattern?.init?.name, promise ?? null);
+  }
+}
+
+// The nested render keeps its sequence alive until the earlier queued job drains.
+{
+  const source = `let source;
+    export function replace(value) { source = value; }
+    replace({ keys: undefined, data: [1] });
+    let keys, at; ({ keys, data: { at } } = source);
+    export const result = [keys, at.call([4], 0)];`;
+  const code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/queued-slot-capture.mjs')?.code ?? source;
+  const ast = programOf(code);
+  const imports = ast.body.filter(node => node.type === 'ImportDeclaration');
+  const keysImport = imports.find(node => node.source.value.endsWith('/actual/instance/keys'))?.specifiers[0].local.name;
+  const atImport = imports.find(node => node.source.value.endsWith('/actual/instance/at'))?.specifiers[0].local.name;
+  const captures = [];
+  const reads = [];
+  let hoisted = 0;
+  walkAstNodes({ root: ast, visit(node) {
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') hoisted += node.declarations.length;
+    if (node.type === 'VariableDeclarator' && node.init?.type === 'Identifier' && node.init.name === 'source') captures.push(node);
+    if (node.type === 'CallExpression' && [keysImport, atImport].includes(node.callee.name)) reads.push(node);
+  } });
+  check('queued nested capture/earlier claim remains imported', !!keysImport, true);
+  check('queued nested capture/later claim remains imported', !!atImport, true);
+  check('queued nested capture/one receiver declaration', captures.length, 1);
+  check('queued nested capture/no extra hoisted forwarding slots', hoisted, 0);
+  checkDeep('queued nested capture/claim order', reads.map(node => node.callee.name), [keysImport, atImport]);
+  check('queued nested capture/earlier job uses captured root', reads[0]?.arguments[0]?.name, captures[0]?.id.name);
+  check('queued nested capture/later job uses the same root', reads[1]?.arguments[0]?.object?.name, captures[0]?.id.name);
+  check('queued nested capture/direct nested slot read', reads[1]?.arguments[0]?.property?.name, 'data');
+}
+
+// A final-read hint must not change admission of distinct nested source hops.
+{
+  const source = `export function read(source) {
+    let values, at; ({ w: { values }, y: { at } } = source); return [values, at];
+  }`;
+  const code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/distinct-nested-slots.mjs')?.code ?? source;
+  const entries = programOf(code).body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value).sort();
+  checkDeep('queued nested capture/distinct hop claims stay served', entries,
+    ['@core-js/pure/actual/instance/at', '@core-js/pure/actual/instance/values']);
+}
+
+// A sole inner hop belongs to its final read, including quoted and numeric keys.
+for (const [label, nested] of [
+  ['quoted', "'wrapper' /* outer */: { 'data' /* inner */: { at } }"],
+  ['numeric', '0 /* outer */: { 1 /* inner */: { at } }'],
+  ['prototype spelling', "'__proto__' /* outer */: { 'data' /* inner */: { at } }"],
+]) {
+  const source = `let source; export function replace(value){source=value}
+    let at, tail; ({ ${ nested }, tail }=source); export const r=[at,tail];`;
+  // eslint-disable-next-line node/no-sync -- OXC exposes comments through its synchronous parser
+  const expected = commentSignature(parseSync('/quiet-hop.mjs', source).comments);
+  let code = source;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/quiet-hop.mjs')?.code ?? code;
+    // eslint-disable-next-line node/no-sync -- the emitted code is reparsed for spelling and comment assertions
+    const parsed = parseSync('/quiet-hop.mjs', code);
+    checkDeep(`quiet inner hop/${ label }/pass ${ pass }/valid syntax`, parsed.errors, []);
+    checkDeep(`quiet inner hop/${ label }/pass ${ pass }/one comment owner`, commentSignature(parsed.comments), expected);
+    const reads = [];
+    const stored = [];
+    walkAstNodes({ root: parsed.program, visit(node) {
+      if (node.type === 'VariableDeclaration' && node.kind === 'var') stored.push(...node.declarations);
+      if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.arguments[0]?.type === 'MemberExpression') reads.push(node);
+    } });
+    check(`quiet inner hop/${ label }/pass ${ pass }/only the shared root is stored`, stored.length, 1);
+    check(`quiet inner hop/${ label }/pass ${ pass }/one direct composed read`, reads.length, 1);
+    check(`quiet inner hop/${ label }/pass ${ pass }/both source hops stay in the final read`,
+      reads[0]?.arguments[0]?.object?.type, 'MemberExpression');
+  }
+}
+
+// The existing synth caller retains its source pattern key beside the native read.
+{
+  const source = "export function read({at,['length'] /* native key */:size}=[1]){return[at.call([4],0),size]} export const r=read();";
+  // eslint-disable-next-line node/no-sync -- OXC exposes comments through its synchronous parser
+  const expected = commentSignature(parseSync('/native-key.mjs', source).comments);
+  let code = source;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/native-key.mjs')?.code ?? code;
+    // eslint-disable-next-line node/no-sync -- the emitted code is reparsed for spelling and comment assertions
+    const parsed = parseSync('/native-key.mjs', code);
+    checkDeep(`retained native key/pass ${ pass }/valid syntax`, parsed.errors, []);
+    checkDeep(`retained native key/pass ${ pass }/one comment owner`, commentSignature(parsed.comments), expected);
+  }
+}
+
+// Parameter capture answers before a fallback hop mirrors it. A completed mirror retains its owner.
+{
+  const source = `const user = {};
+    export function b({ Array: { of: x, name: y } } = flag ? globalThis : user) { return [x, y]; }
+    export function e({ Array: { prototype: { flat: x }, isArray: y } } = flag ? globalThis : user) { return [x, y]; }`;
+  let prior = null;
+  let code = source;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/parameter-capture-owner.mjs')?.code ?? code;
+    const ast = programOf(code);
+    const methods = new Map(ast.body.filter(node => node.type === 'ImportDeclaration')
+      .map(node => [node.source.value, node.specifiers[0].local.name]));
+    const functions = new Map(ast.body.filter(node => node.type === 'ExportNamedDeclaration')
+      .map(node => [node.declaration.id.name, node.declaration]));
+    checkDeep(`parameter capture ownership/pass ${ pass }/exact imports`, methods.keys().toArray().sort(), [
+      '@core-js/pure/actual/array/instance/flat', '@core-js/pure/actual/array/of',
+      '@core-js/pure/actual/function/instance/name', '@core-js/pure/actual/global-this',
+    ]);
+    const b = functions.get('b');
+    const e = functions.get('e');
+    check(`parameter capture ownership/pass ${ pass }/static default stays mirrored`, b.params[0].left.type, 'ObjectPattern');
+    check(`parameter capture ownership/pass ${ pass }/instance default stays raw`, e.params[0].right.consequent.type, 'Identifier');
+    check(`parameter capture ownership/pass ${ pass }/static default needs no body capture`, b.body.body.length, 1);
+    for (const [key, fn] of [['function/instance/name', b], ['array/instance/flat', e]]) {
+      let calls = 0;
+      walkAstNodes({ root: fn, visit(node) {
+        if (node.type === 'CallExpression' && node.callee.name === methods.get(`@core-js/pure/actual/${ key }`)) calls++;
+      } });
+      check(`parameter capture ownership/pass ${ pass }/one ${ key } read`, calls, 1);
+    }
+    if (prior) checkDeep('parameter capture ownership/repass retains its structural verdict', strip(ast), prior);
+    prior = strip(ast);
+  }
+}
+
+// An early nested capture leaves flat proxy reads and completed mixed mirrors with their owners.
+{
+  const source = `export const named = (({ name }) => name)(Iterator);
+    export const raw = (({ name }) => name)(window);
+    export const mixed = (({ Promise, Array: { at } } = globalThis) => [Promise, at])();`;
+  let code = source;
+  let prior = null;
+  for (let pass = 1; pass <= 2; pass++) {
+    code = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+      .transform(code, '/parameter-capture-boundaries.mjs')?.code ?? code;
+    const ast = programOf(code);
+    const functions = new Map(ast.body.filter(node => node.type === 'ExportNamedDeclaration')
+      .map(node => [node.declaration.declarations[0].id.name, unwrapNode(node.declaration.declarations[0].init.callee)]));
+    check(`parameter capture boundaries/pass ${ pass }/flat proxy pattern stays raw`, functions.get('raw').params[0].type, 'ObjectPattern');
+    check(`parameter capture boundaries/pass ${ pass }/completed mirror keeps its pattern`, functions.get('mixed').params[0].left.type, 'ObjectPattern');
+    check(`parameter capture boundaries/pass ${ pass }/completed mirror needs no body capture`, functions.get('mixed').body.type, 'ArrayExpression');
+    check(`parameter capture boundaries/pass ${ pass }/static Array.at has no instance import`,
+      ast.body.some(node => node.type === 'ImportDeclaration' && node.source.value.endsWith('/instance/at')), false);
+    if (prior) checkDeep('parameter capture boundaries/repass retains its structural verdict', strip(ast), prior);
+    prior = strip(ast);
+  }
+}
+
+// the tally reads `counts` at the moment it runs, so it belongs AFTER the last section: standing
+// mid-file it snapshotted the count and left every check below it reporting FAIL to stdout while
+// the runner exited 0
+const { passed, failed } = counts;
+echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
+if (failed) throw new Error('Some tests have failed');

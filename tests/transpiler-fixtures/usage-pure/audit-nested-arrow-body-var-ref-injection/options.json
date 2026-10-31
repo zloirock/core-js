@@ -1,0 +1,19 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "chrome": 50
+        }
+      }
+    ]
+  ],
+  "parserOpts": {
+    "plugins": [
+      "typescript"
+    ]
+  }
+}

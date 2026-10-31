@@ -2,7 +2,7 @@
 [`URL` standard](https://url.spec.whatwg.org/) implementation.
 
 ## Modules
-[`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.can-parse.js), [`web.url.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.parse.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
+[`web.url.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.constructor.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.can-parse.js), [`web.url.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.parse.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.constructor.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.size.js).
 
 ## Built-ins signatures
 ```ts
@@ -47,13 +47,15 @@ class URLSearchParams {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/url
-core-js(-pure)/stable|actual|full/url
-core-js(-pure)/stable|actual|full/url/can-parse
-core-js(-pure)/stable|actual|full/url/parse
+{ core-js, @core-js/pure }/stable|actual|full/url
+{ core-js, @core-js/pure }/stable|actual|full/url/can-parse
+{ core-js, @core-js/pure }/stable|actual|full/url/parse
 core-js/stable|actual|full/url/to-json
-core-js(-pure)/stable|actual|full/url-search-params
+{ core-js, @core-js/pure }/stable|actual|full/url-search-params
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/url`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/web/url.d.ts)
 
 ## Examples
 ```js
@@ -114,4 +116,4 @@ params.toString();  // => 'a=3&a=2&b=2&c=4'
 > [!WARNING]
 > - IE8 does not support setters, so they do not work on `URL` instances. However, the `URL` constructor can be used for basic `URL` parsing.
 > - Legacy encodings in a search query are not supported. Also, the `core-js` implementation has some other encoding-related issues.
-> - `URL` implementations from all of the popular browsers have significantly more problems than `core-js`, however, replacing all of them does not look like a good idea. You can customize the aggressiveness of the polyfill [to your requirements]({docs-version}/docs/usage#h-configurable-level-of-aggressiveness).
+> - `URL` implementations from all of the popular browsers have significantly more problems than `core-js`, however, replacing all of them does not look like a good idea.

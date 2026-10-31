@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-async-iterator-helpers)
 
 ## Modules
-[`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.to-array.js), [`esnext.iterator.to-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-async.js).
+[`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.async-iterator.to-array.js), [`esnext.iterator.to-async`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.iterator.to-async.js).
 
 ## Built-ins signatures
 ```ts
@@ -31,21 +31,24 @@ class AsyncIterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/async-iterator-helpers
-core-js(-pure)/actual|full/async-iterator
-core-js(-pure)/actual|full/async-iterator/drop
-core-js(-pure)/actual|full/async-iterator/every
-core-js(-pure)/actual|full/async-iterator/filter
-core-js(-pure)/actual|full/async-iterator/find
-core-js(-pure)/actual|full/async-iterator/flat-map
-core-js(-pure)/actual|full/async-iterator/for-each
-core-js(-pure)/actual|full/async-iterator/from
-core-js(-pure)/actual|full/async-iterator/map
-core-js(-pure)/actual|full/async-iterator/reduce
-core-js(-pure)/actual|full/async-iterator/some
-core-js(-pure)/actual|full/async-iterator/take
-core-js(-pure)/actual|full/async-iterator/to-array
-core-js(-pure)/actual|full/iterator/to-async
+{ core-js, @core-js/pure }/full/async-iterator
+{ core-js, @core-js/pure }/full/async-iterator/drop
+{ core-js, @core-js/pure }/full/async-iterator/every
+{ core-js, @core-js/pure }/full/async-iterator/filter
+{ core-js, @core-js/pure }/full/async-iterator/find
+{ core-js, @core-js/pure }/full/async-iterator/flat-map
+{ core-js, @core-js/pure }/full/async-iterator/for-each
+{ core-js, @core-js/pure }/full/async-iterator/from
+{ core-js, @core-js/pure }/full/async-iterator/map
+{ core-js, @core-js/pure }/full/async-iterator/reduce
+{ core-js, @core-js/pure }/full/async-iterator/some
+{ core-js, @core-js/pure }/full/async-iterator/take
+{ core-js, @core-js/pure }/full/async-iterator/to-array
+{ core-js, @core-js/pure }/full/iterator/to-async
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/async-iterator-helpers`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/async-iterator-helpers.d.ts)
 
 ## Examples
 ```js
@@ -67,7 +70,7 @@ const configurator = require('core-js/configurator');
 
 configurator({ USE_FUNCTION_CONSTRUCTOR: true });
 
-require('core-js/actual/async-iterator');
+require('core-js/full/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
@@ -79,7 +82,7 @@ const { getPrototypeOf } = Object;
 
 configurator({ AsyncIteratorPrototype: getPrototypeOf(getPrototypeOf(getPrototypeOf(async function * () { /* empty */ }()))) });
 
-require('core-js/actual/async-iterator');
+require('core-js/full/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```

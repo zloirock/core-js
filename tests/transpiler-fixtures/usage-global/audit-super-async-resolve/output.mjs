@@ -1,0 +1,12 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+// async method using `super.resolve(...)` on an extended `Promise`: the super-call
+// rewrite emits the polyfilled static through the parent constructor.
+class C extends Promise {
+  static async m() {
+    return super.resolve(1);
+  }
+}
