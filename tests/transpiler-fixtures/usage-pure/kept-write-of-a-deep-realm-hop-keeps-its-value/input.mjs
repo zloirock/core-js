@@ -1,6 +1,6 @@
 // A kept write stores what it reads, so the realm hop it stores is an observable read even past
-// another realm hop: the guard stays on the stored value, and the write keeps that value rather
-// than the realm the run would fold to - for a static past more realm hops, a constructor, a
+// another realm hop: the write keeps that value, and the next optional window read keeps its
+// own probe - for a static past more realm hops, a constructor, a
 // `typeof` and an aliased or `self` root alike.
 let v;
 const g = globalThis;

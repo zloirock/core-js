@@ -156,6 +156,7 @@ import './declined-navigation.mjs';
 import './resolved-static-claims.mjs';
 import './residual-anchors.mjs';
 import './proxy-navigation.mjs';
+import './optional-split.mjs';
 import './root-delete-collapse.mjs';
 import './dispatch-receivers.mjs';
 import './discarded-init.mjs';

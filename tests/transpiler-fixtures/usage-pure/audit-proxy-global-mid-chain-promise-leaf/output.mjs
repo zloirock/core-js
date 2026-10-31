@@ -5,4 +5,4 @@ var _ref, _ref2;
 // is Promise. Promise is a polyfillable global (not one of the globals that ReferenceError
 // on a bare lookup), yet it is still substituted to its polyfill and `.includes` narrows -
 // substitution applies to any polyfillable global root.
-null == (_ref = _Promise?.foo) ? void 0 : _includes(_ref2 = _ref.bar).call(_ref2, 2);
+null == (_ref = _Promise.foo) ? void 0 : _includes(_ref2 = _ref.bar).call(_ref2, 2);
