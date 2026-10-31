@@ -25,6 +25,7 @@ import {
   unbackedTailRidesAbove,
   writtenRunKeptProbeStore,
   proxyCollapseConsumer,
+  proxyCollapseBase,
   maximalProxyGlobalHop,
   runSwallowsStoreProbe,
   findProxyGlobal,
@@ -34,11 +35,22 @@ import {
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
   directClaimProbePlan,
+  directClaimProbeEffects,
   aliasRootedReadMayThrow,
+  undefinableOptionalGuard,
+  prependChainAssignmentEffect,
+  probeRunIsTheSourceValue,
+  deleteHostAboveCarriedChain,
 } from './resolve.js';
 import {
-  dispatchConsumesRun, planInnerProxyCollapse, proxyRunLandingPure, planProxyReceiver, planKeptSequenceReceiver,
+  dispatchConsumesRun,
+  planInnerProxyCollapse,
+  proxyRunLandingPure,
+  planProxyReceiver,
+  planKeptSequenceReceiver,
+  planDeletedProxyClaim,
 } from './members.js';
+import { erasedReceiverRescueNodes } from './destructure.js';
 import { optionalMemberStaysGuarded } from './guard-preparation.js';
 
 // A root-driven fold has found its receiving slot, but has no claim owning that slot.
@@ -262,6 +274,74 @@ export function staticClaimNeedsGuard(node, resolvePure, aliasCtx) {
     && sealedClaimDisposition(node, resolvePure, aliasCtx)?.kind !== 'throw';
 }
 
+// The erased receiver owns its writes before the computed key. With no harvested
+// effects, rescue observable source evaluation rather than inventing a replay.
+function resolvedClaimEffects(node, meta, aliasCtx) {
+  if (!isMemberAccessNode(node)) return meta.sideEffects ?? [];
+  return meta.sideEffects?.length
+    ? prependChainAssignmentEffect(node.object, meta.sideEffects, meta.chainAssignInsertAt ?? meta.receiverEffectCount)
+    : erasedReceiverRescueNodes({ node: node.object, ...aliasCtx });
+}
+
+// A later key prevents landing on a store; its early read belongs to the base product.
+function resolvedClaimStore(node, meta, aliasCtx, resolvePure) {
+  const store = writtenRunKeptProbeStore(aliasCtx.path, { resolvePure, aliasCtx, unwrap: unwrapRuntimeExpr });
+  if (!store) return null;
+  const effects = resolvedClaimEffects(node, meta, aliasCtx);
+  const lands = effects.at(-1) === store && store.left.type === 'Identifier';
+  return { kind: 'written-store', store, effects: lands ? effects.slice(0, -1) : null,
+    base: proxyCollapseBase({ keptStore: store, writeReceiver: node }) };
+}
+
+// Finish a resolved claim before registering imports. A native guard can decline
+// an attachment; the sealed read then owns the throw. Settling a kept receiver can
+// change source slots, so effects and probes are queried only after that yield.
+// Every result is read-local: discarding this iterator must not prime later queries.
+export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, aliasCtx, resolvePure, deletion }) {
+  const { path } = aliasCtx;
+  const guard = undefinableOptionalGuard(path.node, resolvePure, aliasCtx);
+  if (guard?.kind === 'standdown') return;
+  const realm = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName);
+  if (realm && isMemberAccessNode(path.node)) {
+    const store = resolvedClaimStore(path.node, meta, aliasCtx, resolvePure);
+    if (store) {
+      yield store;
+      return;
+    }
+  }
+  if (staticClaimNeedsGuard(path.node, resolvePure, aliasCtx)) {
+    yield { kind: 'guard', object: guard.object, proxyRoot: realm };
+  }
+  const sealed = realm && !meta.sideEffects?.length && sealedClaimDisposition(path.node, resolvePure, aliasCtx);
+  if (sealed?.kind === 'collapse') {
+    yield sealed;
+    return;
+  }
+  if (path.node.object) yield { kind: 'settle', receiver: path.node.object };
+  const { node } = path;
+  const deleted = realm && planDeletedProxyClaim(node, {
+    aliasCtx, resolvePure, claimName: hintName, deleteFold: !!deletion(),
+  });
+  if (deleted?.keep) {
+    yield { kind: 'replace', base: deleted, effects: deleted.effects, live: [deleted.keep, ...deleted.effects] };
+    return;
+  }
+  const probe = isMemberAccessNode(node) ? directClaimProbePlan(node, resolvePure, aliasCtx) : null;
+  if (!probe && isMemberAccessNode(node) && !node.optional
+    && aliasRootedReadMayThrow(node.object, resolvePure, aliasCtx)) return;
+  const effects = resolvedClaimEffects(node, meta, aliasCtx);
+  const base = deleted || { pure: { entry, hintName } };
+  const proxyRoot = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName);
+  const deletedRun = proxyRoot && !isMemberAccessNode(node) && !!deleteHostAboveCarriedChain(path);
+  yield {
+    kind: 'replace', base, probe,
+    effects: probe ? directClaimProbeEffects({ decision: probe, node: probe }, effects) : effects,
+    proxyRoot, deletedRun,
+    foldAbove: proxyRoot && (deletedRun || isMemberAccessNode(node) && !probeRunIsTheSourceValue(path, { resolvePure })),
+    reread: !POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName),
+  };
+}
+
 // Source-claim priorities shared by the root and hop entry points. Native callbacks
 // expose current span facts after each attempt, since a failed attempt may settle
 // the AST. A kept write is a terminal decision even when its effects forbid erasure.
@@ -272,9 +352,9 @@ export function * staticClaimNavigationRoutes({ node, kind, hintName, meta, alia
       yield { kind: 'nested-guard' };
       yield { kind: 'hop' };
     }
-    const store = writtenRunKeptProbeStore(aliasCtx.path, { resolvePure, aliasCtx, unwrap: unwrapRuntimeExpr });
+    const store = resolvedClaimStore(node, meta, aliasCtx, resolvePure);
     if (store) {
-      yield { kind: 'written-store', store };
+      yield store;
       return;
     }
   }

@@ -4,7 +4,7 @@ import {
   guardProbeUndefinable as probeValueCanBeUndefined,
   planGuardedClaimTail,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
-import { directClaimProbePlan, createGuardTailPlanner, unbackedProxyHopKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { createGuardTailPlanner, unbackedProxyHopKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   CHAIN_HOP_WRAPPER_TYPES,
   claimDeleteOperand,
@@ -21,7 +21,6 @@ import {
   sequenceExpression,
   renderDeleteShortCircuitGuard,
   renderShortCircuitGuard,
-  renderClaimProbe,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import { markSubtreeSkipped, optionalHeirAbove } from './nav-spine.js';
@@ -378,13 +377,4 @@ export function guardProbeUndefinable(probe, { metaPath, adapter, resolvePure, .
   return probeValueCanBeUndefined(probe, {
     path: metaPath, adapter, resolvePure: meta => resolvePure(meta, metaPath), ...options,
   });
-}
-
-// Bind the shared erased-read decision to this source site and injector. Consumers retain
-// the decision alongside its rendered probe so effects are never recovered from emitted AST.
-export function sealedClaimThrowProbe(node, metaPath, ctx) {
-  const { adapter, resolveGlobalPolyfill, injectPureImport } = ctx;
-  const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-  const decision = directClaimProbePlan(node, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
-  return decision ? { node: renderClaimProbe(decision, { injectImport: injectPureImport }), decision } : null;
 }
