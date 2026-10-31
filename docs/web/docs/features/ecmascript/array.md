@@ -53,7 +53,6 @@ class Arguments {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 { core-js, @core-js/pure }/es|stable|actual|full/array
-{ core-js, @core-js/pure }/es|stable|actual|full/array/virtual
 { core-js, @core-js/pure }/es|stable|actual|full/array/from
 { core-js, @core-js/pure }/es|stable|actual|full/array/from-async
 { core-js, @core-js/pure }/es|stable|actual|full/array/of

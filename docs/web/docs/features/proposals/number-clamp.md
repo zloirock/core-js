@@ -15,7 +15,7 @@ class Number {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/number-clamp
-{ core-js, @core-js/pure }/full/number(/virtual)/clamp
+{ core-js, @core-js/pure }/full/number(/prototype)/clamp
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

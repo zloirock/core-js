@@ -16,8 +16,8 @@ class Array {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-flat-map
-{ core-js, @core-js/pure }/es|stable|actual|full/array(/virtual)/flat
-{ core-js, @core-js/pure }/es|stable|actual|full/array(/virtual)/flat-map
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/flat
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/flat-map
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
