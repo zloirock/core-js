@@ -34,6 +34,7 @@
 - Fixed defining unpolyfillable `Object.setPrototypeOf` as `undefined` in IE10-
 - Fixed property descriptors of `Symbol.prototype[@@toPrimitive]` and `Date.prototype[@@toPrimitive]` polyfills
 - Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
+- Fixed `Number.prototype.toExponential` polyfill accuracy with decimals close to a rounding half, values next to powers of ten and big fraction digits - it generates exact digits now, for some decimals it's a regression since 3.49.0
 - Entries fixes:
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0

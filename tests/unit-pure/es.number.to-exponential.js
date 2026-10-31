@@ -69,8 +69,8 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(123.456, 5), '1.23456e+2');
   assert.same(toExponential.call(123.456, 6), '1.234560e+2');
   assert.same(toExponential.call(123.456, 7), '1.2345600e+2');
-  // assert.same(toExponential.call(123.456, 17), '1.23456000000000003e+2');
-  // assert.same(toExponential.call(123.456, 20), '1.23456000000000003070e+2');
+  assert.same(toExponential.call(123.456, 17), '1.23456000000000003e+2');
+  assert.same(toExponential.call(123.456, 20), '1.23456000000000003070e+2');
 
   assert.same(toExponential.call(-123.456, 0), '-1e+2');
   assert.same(toExponential.call(-123.456, 1), '-1.2e+2');
@@ -80,33 +80,51 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(-123.456, 5), '-1.23456e+2');
   assert.same(toExponential.call(-123.456, 6), '-1.234560e+2');
   assert.same(toExponential.call(-123.456, 7), '-1.2345600e+2');
-  // assert.same(toExponential.call(-123.456, 17), '-1.23456000000000003e+2');
-  // assert.same(toExponential.call(-123.456, 20), '-1.23456000000000003070e+2');
+  assert.same(toExponential.call(-123.456, 17), '-1.23456000000000003e+2');
+  assert.same(toExponential.call(-123.456, 20), '-1.23456000000000003070e+2');
 
   assert.same(toExponential.call(0.0001, 0), '1e-4');
   assert.same(toExponential.call(0.0001, 1), '1.0e-4');
   assert.same(toExponential.call(0.0001, 2), '1.00e-4');
   assert.same(toExponential.call(0.0001, 3), '1.000e-4');
   assert.same(toExponential.call(0.0001, 4), '1.0000e-4');
-  // assert.same(toExponential.call(0.0001, 16), '1.0000000000000000e-4');
-  // assert.same(toExponential.call(0.0001, 17), '1.00000000000000005e-4');
-  // assert.same(toExponential.call(0.0001, 18), '1.000000000000000048e-4');
-  // assert.same(toExponential.call(0.0001, 19), '1.0000000000000000479e-4');
-  // assert.same(toExponential.call(0.0001, 20), '1.00000000000000004792e-4');
+  assert.same(toExponential.call(0.0001, 16), '1.0000000000000000e-4');
+  assert.same(toExponential.call(0.0001, 17), '1.00000000000000005e-4');
+  assert.same(toExponential.call(0.0001, 18), '1.000000000000000048e-4');
+  assert.same(toExponential.call(0.0001, 19), '1.0000000000000000479e-4');
+  assert.same(toExponential.call(0.0001, 20), '1.00000000000000004792e-4');
 
   assert.same(toExponential.call(0.9999, 0), '1e+0');
   assert.same(toExponential.call(0.9999, 1), '1.0e+0');
   assert.same(toExponential.call(0.9999, 2), '1.00e+0');
   assert.same(toExponential.call(0.9999, 3), '9.999e-1');
   assert.same(toExponential.call(0.9999, 4), '9.9990e-1');
-  // assert.same(toExponential.call(0.9999, 16), '9.9990000000000001e-1');
-  // assert.same(toExponential.call(0.9999, 17), '9.99900000000000011e-1');
-  // assert.same(toExponential.call(0.9999, 18), '9.999000000000000110e-1');
-  // assert.same(toExponential.call(0.9999, 19), '9.9990000000000001101e-1');
-  // assert.same(toExponential.call(0.9999, 20), '9.99900000000000011013e-1');
+  assert.same(toExponential.call(0.9999, 16), '9.9990000000000001e-1');
+  assert.same(toExponential.call(0.9999, 17), '9.99900000000000011e-1');
+  assert.same(toExponential.call(0.9999, 18), '9.999000000000000110e-1');
+  assert.same(toExponential.call(0.9999, 19), '9.9990000000000001101e-1');
+  assert.same(toExponential.call(0.9999, 20), '9.99900000000000011013e-1');
 
   assert.same(toExponential.call(25, 0), '3e+1'); // FF86- and Chrome 49-50 bugs
   assert.same(toExponential.call(12345, 3), '1.235e+4'); // FF86- and Chrome 49-50 bugs
+
+  // decimals close to a rounding half are rounded by their exact binary values
+  assert.same(toExponential.call(0.825, 1), '8.2e-1');
+  assert.same(toExponential.call(0.015, 0), '1e-2');
+  assert.same(toExponential.call(0.00095, 0), '9e-4');
+  assert.same(toExponential.call(1.5545, 3), '1.554e+0');
+  assert.same(toExponential.call(12.475, 3), '1.247e+1');
+  assert.same(toExponential.call(4.675345, 5), '4.67535e+0');
+  assert.same(toExponential.call(0.068565, 3), '6.857e-2');
+  // values next to a power of ten
+  assert.same(toExponential.call(9.999999999999901e+299, 14), '9.99999999999990e+299');
+  assert.same(toExponential.call(9.999999999999901e+299, 13), '9.9999999999999e+299');
+  assert.same(toExponential.call(9.999999999999965e-9, 14), '9.99999999999997e-9');
+  assert.same(toExponential.call(9.999999999999949e-20, 14), '9.99999999999995e-20');
+  assert.same(toExponential.call(1000000000000000.5, 14), '1.00000000000000e+15');
+  assert.same(toExponential.call(9.999999999999998, 0), '1e+1');
+  // an exact rounding half carries through all nines
+  assert.same(toExponential.call(9.5, 0), '1e+1');
 
   assert.same(toExponential.call(Number.prototype, 0), '0e+0', 'Number.prototype, 0');
   assert.same(toExponential.call(0, 0), '0e+0', '0, 0');
