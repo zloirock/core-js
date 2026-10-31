@@ -555,6 +555,7 @@ export function planProxyReceiver(receiver, {
     kind: 'collapse',
     rootBinding: proxyCollapseBase({
       keptStore: keptAssignRoot,
+      writeReceiver: isWriteTarget && !deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr) ? receiver.object : null,
       aliasRoot: source.aliasRoot,
       rootPure: source.entry && { entry: source.entry, hintName: source.hintName },
     }),

@@ -61,6 +61,10 @@ const CASES = [
   ['logical-assignment patch', 'Array.prototype.flatMap ||= shim;\nexport const r = typeof Array.prototype.flatMap;'],
   ['nullish-assignment patch', 'Array.prototype.flatMap ??= shim;\nexport const r = typeof Array.prototype.flatMap;'],
   ['kept assign with seal', 'let d;\nexport const r = (d = globalThis.window?.self).Array;'],
+  // A collapsed kept store must still throw before RHS when its plain receiver is absent.
+  ['kept store before a plain write', 'let held; (held = globalThis.window).self.slot = rhs(); use(held);'],
+  ['kept store with a leading effect before a plain write',
+    'let held; (before(), held = globalThis.window).self.slot = rhs(); use(held);'],
   // the BRANCH MIRROR's own literal: the render replaces one arm of the receiver and leaves the
   // pattern where it stood, so a second pass meets a leaf whose paired slot already holds our
   // import - and claiming it again turns the static into an INSTANCE dispatch on that slot and

@@ -21452,6 +21452,32 @@ function * generateDeclinedNavigation() {
   }
 }
 
+// Resolved claims keep the source's store/key/argument order across guards and seals.
+function * generateResolvedStaticClaims() {
+  for (const [shape, expression] of [
+    ['receiver-key', '(log.push("receiver"), kw = Array)[(log.push("key"), "from")]((log.push("arg"), "ab")).at(0)'],
+    ['live', 'globalThis.window?.Array.from((log.push("arg"), "ab")).at(0)'],
+    ['sealed', '(globalThis.window?.self).Array.from((log.push("arg"), "ab")).at(0)'],
+    ['alias', 'alias.Array.from((log.push("arg"), "ab")).at(0)'],
+    ['store', '(kw = globalThis.window).self.resolvedClaimSlot = (log.push("rhs"), 9)'],
+    ['before-store', '(log.push("before"), kw = globalThis.window).self.resolvedClaimSlot = (log.push("rhs"), 9)'],
+    ['after-store', '(kw = globalThis.window)[(log.push("after"), "self")].resolvedClaimSlot = (log.push("rhs"), 9)'],
+    ['delete', 'delete (kw = globalThis.window)?.self.resolvedClaimSlot'],
+    ['target-key', '(kw = globalThis.window).self[(log.push("key"), "resolvedClaimSlot")] = (log.push("rhs"), 9)'],
+    ['deep-store', '(kw = globalThis.window).self.self.resolvedClaimSlot = (log.push("rhs"), 9)'],
+    ['sealed-store', '((kw = globalThis.window)?.self).resolvedClaimSlot = (log.push("rhs"), 9)'],
+    ['compound-store', '(kw = globalThis.window).self.resolvedClaimSlot += (log.push("rhs"), 9)'],
+    ['update-store', '(kw = globalThis.window).self.resolvedClaimSlot++'],
+  ]) for (const rig of [false, true]) {
+    yield { ...snippet(`resolved-static-claims/${ shape }/${ rig ? 'present' : 'absent' }`, `(() => {
+      const alias = globalThis.window;
+      try { const value = ${ expression }; return [value, typeof kw]; }
+      catch (error) { return [error.name, typeof kw]; }
+      finally { delete globalThis.resolvedClaimSlot; }
+    })()`, { rig }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -21870,4 +21896,5 @@ export function * generate() {
   yield * generateConsumedInitializerPlacement();
   yield * generateStaticFallbackReceiver();
   yield * generateDeclinedNavigation();
+  yield * generateResolvedStaticClaims();
 }

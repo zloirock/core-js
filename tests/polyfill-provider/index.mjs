@@ -148,6 +148,7 @@ import './kept-proxy-values.mjs';
 import './outer-collapse.mjs';
 import './inner-collapse.mjs';
 import './declined-navigation.mjs';
+import './resolved-static-claims.mjs';
 import './proxy-navigation.mjs';
 import './root-delete-collapse.mjs';
 import './dispatch-receivers.mjs';

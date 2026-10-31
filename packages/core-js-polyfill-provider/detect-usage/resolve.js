@@ -5358,10 +5358,22 @@ export function proxyCollapseConsumer({
 // an alias stays in navigation or a memo, but a source value takes the claim's own pure.
 // Forced folds (a deleted slot or an unbacked prefix below a patch) use the run's root.
 export function proxyCollapseBase({
-  keptStore = null, aliasRoot = null, sourceValue = false, claimPure = null, rootPure,
+  keptStore = null,
+  aliasRoot = null,
+  sourceValue = false,
+  claimPure = null,
+  rootPure,
   keepClaim = false,
+  writeReceiver = null,
 }) {
-  if (keptStore) return { keep: keptStore };
+  if (keptStore) {
+    // A final write reference throws after its RHS; the erased hop read threw
+    // before it. Re-read only an identifier, never a user's assignment target.
+    const readKey = writeReceiver && !storeReadHopOptional(writeReceiver) && memberKeyName(unwrapRuntimeExpr(writeReceiver));
+    const read = keptStore.left.type === 'Identifier' && typeof readKey === 'string'
+      ? { object: keptStore.left, key: readKey, computed: false } : null;
+    return read ? { keep: keptStore, read } : { keep: keptStore };
+  }
   if (aliasRoot && !sourceValue) return { alias: aliasRoot };
   return { pure: keepClaim ? claimPure : rootPure };
 }
@@ -5410,7 +5422,8 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   }
   if (navigated && collapsed.keptWrite && !collapsed.writeStoreSpellable) {
     return {
-      kind: 'store', base: proxyCollapseBase({ keptStore: collapsed.keptWrite }),
+      kind: 'store', base: proxyCollapseBase({ keptStore: collapsed.keptWrite,
+        writeReceiver: navigation.writeThrough && !facts.deletedAbove ? target.node : null }),
       prefix: collapsed.effects.slice(0, collapsed.effects.indexOf(collapsed.keptWrite)),
       optional: storeReadHopOptional(target.node),
     };

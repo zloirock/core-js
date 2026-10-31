@@ -1,4 +1,4 @@
-import { sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
+import { resolvedStaticClaimRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import { planSymbolReceiverRoot, planStaticFallbackReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   collectFoldedReceiverSideEffects,
@@ -135,21 +135,13 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
-  aliasHeldClaimProbe,
-  aliasRootedReadMayThrow,
   isAliasProxyHopChain,
-  prependChainAssignmentEffect,
   canCollapseDeletedNavigation,
-  deleteHostAboveCarriedChain,
   receiverSequenceTailKeys,
-  probeRunIsTheSourceValue,
   storedUserAssignmentOf,
-  directClaimProbeEffects,
   unbackedRealmHopFoldAbove,
-  undefinableOptionalGuard,
   resolveKey as sharedResolveKey,
   realmSelectionCollapseOperand,
-  writtenRunKeptProbeStore,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   planGuardedDestructureNarrow,
@@ -161,7 +153,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
-import { NARROW_ENTRY, resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
+import { NARROW_ENTRY } from '@core-js/polyfill-provider';
 import createASTHelpers, {
   deoptionalizeAstNode,
   rangePreservingTypes,
@@ -446,7 +438,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     collapseShortCircuitNavInPlace,
     destructureProbeNode,
     renderWriteHostProbeGuard,
-    sealedClaimThrowProbeNode,
+    renderResolvedStaticClaimNode,
     flushKeptNavCollapseAt,
     keptNavHopClaimSuppressed,
     flushKeptNavCollapses,
@@ -1378,7 +1370,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         if (inheritedStatic && !result) return;
         const fallbackPlan = fallback && planStaticFallbackReceiver(path.node, meta, fallback,
           { scope: path.scope, adapter, path }, {
-            resolvePure: m => resolvePure(m, path), resolveGlobal: ({ name }) => resolvePure({ kind: 'global', name }, path),
+            resolvePure: m => resolvePure(m, path),
+            resolveGlobal: ({ name }) => resolvePure({ kind: 'global', name }, path),
             mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true,
           });
         if (fallbackPlan) {
@@ -1581,47 +1574,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         if (path.isObjectProperty()) {
           destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
         } else {
-          // the inherited-static-resolves-to-instance bail lives in the provider's `resolveUsage`,
-          // the entry BOTH flavors go through, so `result` is already null here for that shape and
-          // the `inheritedStatic && !result` bail above caught it
-          // a static claim whose receiver navigates 2+ undefinable optional hops STANDS DOWN (keeps the raw
-          // chain - no single test expresses the union). resolve it BEFORE the import so a kept-raw claim
-          // leaves no dead pure import: injectPureImport eagerly registers even when the id goes unused
-          const staticEraseGuard = kind !== 'instance' && !inheritedStatic
-            ? undefinableOptionalGuard(path.node, m => resolvePure(m, path), path.scope ? { scope: path.scope, adapter, path } : null)
-            : null;
-          if (staticEraseGuard?.kind === 'standdown') return;
-          // a swap that OWES a throw probe but cannot spell one (an SE computed key in the
-          // alias-rooted run - respelling would double its effect) stands down the same way,
-          // and before the import for the same reason - the unplugin leg's twin stand-down
-          if (kind !== 'instance' && !inheritedStatic && path.node.object && !path.node.optional && path.scope
-            && aliasRootedReadMayThrow(path.node.object, resolveBuiltIn, { scope: path.scope, adapter, path })
-            && !aliasHeldClaimProbe(path.node, resolveBuiltIn, { scope: path.scope, adapter, path })) return;
-          // a hop of a run WRITTEN through a kept store of the environment probe lands on that store
-          // instead of the ponyfill, the hops above it dropping: the swap would perform the write on
-          // the realm where the source throws. copies, as the swap's own effect slots take - this claim
-          // subsumed the receiver's own claims, which fire on the fresh nodes.
-          const writtenStore = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName) && isMemberAccessNode(path.node)
-            && path.scope ? writtenRunKeptProbeStore(path, {
-              resolvePure: m => resolvePure(m, path),
-              aliasCtx: { scope: path.scope, adapter, path },
-              unwrap: unwrapRuntimeExpr,
-            }) : null;
-          // ... and where an effect runs PAST the store (a hop key's), the hops stay as the source spells
-          // them - only the store's own claims are left to fire
-          if (writtenStore) {
-            const effects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
-              meta.chainAssignInsertAt ?? meta.receiverEffectCount) ?? [];
-            if (effects.at(-1) === writtenStore) {
-              const landed = effects.map(effect => t.cloneWithoutRetiring(effect));
-              proxyHopSwapSlotPath(path).replaceWith(landed.length > 1 ? t.sequenceExpression(landed) : landed[0]);
-            } else synthSwap.refreshKeptStore(path, writtenStore);
-            return;
-          }
-          const id = injectPureImport(entry, hintName);
-          // A static replacement consumes the member spine, including comments between
-          // its hops. The injected leaf carries those attachments into the guarded form.
-          if (kind === 'static') inheritConsumedMemberComments(id, path.node);
+          const id = kind === 'instance' || inheritedStatic ? injectPureImport(entry, hintName) : null;
+          if (kind === 'static' && id) inheritConsumedMemberComments(id, path.node);
           // a WRITE host is never a read: the member is being assigned, updated or DELETED, so swapping
           // it changes what the statement acts on - `delete X.flat.name` became `delete _nameMaybeFunction(...)`,
           // whose operand is a CALL, so the delete stopped deleting anything at all. the property-meta
@@ -1697,99 +1651,65 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // id.call(this, ...) so the receiver is preserved, else the result downgrades to base
             replaceInheritedStatic(path, id, meta.sideEffects);
           } else {
-            const wasOptional = (annotateCallReturnType(path), path.node.optional);
+            const wasOptional = path.node.optional;
             const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
               && isMemberAccessNode(path.node);
-            // a wrapper a user store holds stays over a swapped proxy hop (`proxyHopSwapSlotPath`)
             const replacePath = proxyHopClaim ? proxyHopSwapSlotPath(path) : peelParenAndTSSlotPath(path);
-            // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` - preserve fn() via
-            // SequenceExpression wrap since the MemberExpression replacement discards its
-            // receiver/computed-key subtree.
-            // chain-assignment receiver `(a = Array).from(x)` / `(a = b = Array).from(x)` -
-            // the outermost assignment is an observable side effect lost when receiver is
-            // dropped. emit becomes `(a = Array, _Array$from)(x)`. instance dispatch wouldn't
-            // reach here (routes through replaceInstanceLike above), so no risk of duplicating
-            // with memoize-captured assignment
-            // the substitution erases the receiver navigation - where that navigation is NOT erasable
-            // (a live `?.` over a value navigating an unresolvable proxy hop), the guard must survive,
-            // but a raw static there is exactly the missed polyfill the claim exists for (IE11 has no
-            // native `from`). emit the claim INSIDE the preserved guard: `null == (b = _globalThis
-            // .window) ? void 0 : _Array$from(x)` - the root evaluates once in the test (no memo: the
-            // alternate is receiver-independent), short-circuit intact. the refusal fires only on
-            // proxy-TIER unponyfilled hops (window-class forwarders), so the claim is sound there.
-            // SE channels keep the raw stand-down - no re-emit slot in this shape.
-            // reuse the pre-import decision. `standdown` already returned above and the verdict is
-            // non-null on this branch, so the only non-erase kind left is 'guard': exactly one
-            // undefinable `?.` - re-hang the claim inside its guard test
-            // the guard is the PREFERRED shape, not the only one: where no single test expresses
-            // the source (a seal above the guard object, a `delete` tail with a leading effect)
-            // the emit stands down and the plain arm below takes it - claim plus THROW PROBE,
-            // which reproduces the read the guard would have swallowed. returning here on a
-            // stand-down left the claim raw, unpolyfilled, where the unplugin emitter renders one
-            if (staticEraseGuard.kind === 'guard' && emitGuardedClaim({
-              path, replacePath, id, guardObject: staticEraseGuard.object,
-              sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-              proxyRootClaim: kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName),
-              substituteGlobal(name) {
-                const resolved = resolvePure({ kind: 'global', name }, path);
-                return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
-              },
-            })) return;
-            const sealed = proxyHopClaim && !meta.sideEffects?.length
-              && sealedClaimDisposition(path.node, m => resolvePure(m, path), { scope: path.scope, adapter, path });
-            if (sealed?.kind === 'collapse') {
-              replacePath.replaceWith(t.cloneNode(sealed.node));
+            for (const product of resolvedStaticClaimRoutes({
+              kind, hintName, entry, meta, aliasCtx: { scope: path.scope, adapter, path },
+              resolvePure: m => resolvePure(m, path),
+              deletion: () => canCollapseDeletedNavigation({
+                hosted: deleteHostAboveChain(path, path.node, unwrapRuntimeExpr), mutationPath: path,
+                guardNode: path.scope ? memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node : null,
+                aliasCtx: { scope: path.scope, adapter, path }, resolvePure: m => resolvePure(m, path),
+              }),
+            })) {
+              if (product.kind === 'written-store') {
+                if (product.effects) replacePath.replaceWith(renderResolvedStaticClaimNode(product));
+                else synthSwap.refreshKeptStore(path, product.store);
+                return;
+              }
+              if (product.kind === 'guard') {
+                if (!product.object) continue;
+                annotateCallReturnType(path);
+                const guardedId = injectPureImport(entry, hintName);
+                if (kind === 'static') inheritConsumedMemberComments(guardedId, path.node);
+                if (emitGuardedClaim({
+                  path, replacePath, id: guardedId, guardObject: product.object,
+                  sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+                  proxyRootClaim: product.proxyRoot,
+                  substituteGlobal(name) {
+                    const resolved = resolvePure({ kind: 'global', name }, path);
+                    return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
+                  },
+                })) return;
+                continue;
+              }
+              if (product.kind === 'collapse') {
+                annotateCallReturnType(path);
+                replacePath.replaceWith(t.cloneNode(product.node));
+                return;
+              }
+              if (product.kind === 'settle') {
+                collapseKeptNavValueNode(product.receiver, path, { immediate: true });
+                continue;
+              }
+              annotateCallReturnType(path);
+              const replacement = renderResolvedStaticClaimNode(product);
+              if (kind === 'static') inheritConsumedMemberComments(replacement.expressions?.at(-1) ?? replacement, path.node);
+              replacePath.replaceWith(replacement);
+              if (product.live) return;
+              if (product.foldAbove) {
+                const fold = unbackedRealmHopFoldAbove(replacePath, replacePath.node,
+                  { adapter, resolvePure: m => resolvePure(m, path) }, { deleted: product.deletedRun });
+                const dropped = fold && product.deletedRun && !fold.carriesOwnEffects
+                  ? collectFoldedReceiverSideEffects(fold.path.node, { ctx: { scope: fold.path.scope, adapter, path: fold.path } }) : [];
+                if (fold) fold.path.replaceWith(dropped.length ? t.sequenceExpression([...dropped, fold.node]) : fold.node);
+              }
+              normalizeOptionalChain(replacePath, !wasOptional);
+              if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
               return;
             }
-            // the KEPT chain-assign value beside the claim collapses through the same canon the
-            // guarded twin reads (`(q = globalThis.self.window).Map` stores `_self.window`, a
-            // nested unresolvable prefix keeps its guard) - a kept raw `.self` hop reads an
-            // engine `self` the web.self ponyfill exists to serve. IMMEDIATE: this channel owns
-            // the assignment's emission (an earlier instance claim may have rebuilt the receiver,
-            // so the deferred flush could never match the emitted node by identity). the plan
-            // owns only the chain-assign shapes; everything else is a no-op here (a global-kind
-            // claim's path is a bare Identifier with no object slot)
-            if (path.node.object) collapseKeptNavValueNode(path.node.object, path, { immediate: true });
-            const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
-              meta.chainAssignInsertAt ?? meta.receiverEffectCount);
-            // a SEALED probe receiver: re-emit the read the erase drops as a THROW probe ahead
-            // of the claim - an absent `window` throws exactly where the source does. the probe
-            // carries the nav's key SE, so those nodes leave the claim's own SE channel
-            const throwProbe = sealedClaimThrowProbeNode(path);
-            const orderedEffects = throwProbe ? directClaimProbeEffects(throwProbe, allEffects ?? []) : allEffects;
-            const claimEffects = throwProbe ? orderedEffects.filter(effect => effect !== throwProbe.node) : orderedEffects;
-            // is the probe run standing over this claim the value the SOURCE reads? asked HERE,
-            // while the spine is still standing - after the swap the path holds the ponyfill, and
-            // both halves of the verdict read the member this claim came in on
-            const probeRunIsTheValue = proxyHopClaim && probeRunIsTheSourceValue(path,
-              { resolvePure: m => resolvePure(m, path), effects: claimEffects });
-            replacePath.replaceWith(withSideEffects(id, orderedEffects));
-            // ... and where it is not, the realm hops left standing over the ponyfill this swap put
-            // in read the realm it already is and fold onto it - the unplugin leg's fold-above twin,
-            // the same core verdict. BEFORE the `?.` normalization below: that one reads the chain
-            // this fold reshapes
-            // ... and the ROOT claim drives the same fold under a `delete`: no hop claim can fire in a
-            // build without the hop's entry, and the run over the deleted slot reads no value either
-            // way. asked from the CARRIER the base stands in, not from the base itself - a store
-            // inside the deleted navigation is a consumer the plain walk stops at, while the fold
-            // below still lands the base the hop-claim twin lands
-            const deletedRun = !proxyHopClaim && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
-              && deleteHostAboveCarriedChain(path);
-            if ((proxyHopClaim && !probeRunIsTheValue) || deletedRun) {
-              const fold = unbackedRealmHopFoldAbove(replacePath, replacePath.node,
-                { adapter, resolvePure: m => resolvePure(m, path) }, { deleted: deletedRun });
-              // the dropped span re-emits what it DID ahead of the base, where the source ran it -
-              // the user's own chain-assign, an effect buried in a hop's computed key: the delete
-              // fold's own harvest canon, asked of the span this fold drops
-              const dropped = fold && deletedRun && !fold.carriesOwnEffects
-                ? collectFoldedReceiverSideEffects(fold.path.node, { ctx: { scope: fold.path.scope, adapter, path: fold.path } }) : [];
-              if (fold) {
-                fold.path.replaceWith(dropped.length
-                  ? t.sequenceExpression([...dropped, fold.node]) : fold.node);
-              }
-            }
-            normalizeOptionalChain(replacePath, !wasOptional);
-            if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
           }
         }
       }
