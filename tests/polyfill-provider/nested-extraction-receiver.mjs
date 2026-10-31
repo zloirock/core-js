@@ -1,5 +1,5 @@
 // Source lifetime, not parser dialect, determines which nested receiver can be saved.
-import { planNestedAssignmentReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { planAssignmentOverwrite } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { identifier, renderNestedExtractionReceiver } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -44,9 +44,9 @@ for (const [name, source, expected] of [
   for (const pending of [false, true]) {
     const tag = `${ label }/${ pending ? 'pending' : 'rendered' }`;
     const input = { path, assignment, entry, pending };
-    const plan = planNestedAssignmentReceiver(input, ctx);
+    const plan = planAssignmentOverwrite(input, ctx);
     check(`${ tag }/admission`, plan?.kind ?? null, expected[Number(pending)]);
-    checkDeep(`${ tag }/repeat`, planNestedAssignmentReceiver(input, ctx), plan);
+    checkDeep(`${ tag }/repeat`, planAssignmentOverwrite(input, ctx), plan);
     check(`${ tag }/source unchanged`, JSON.stringify(program.node), before);
     if (!plan) continue;
     check(`${ tag }/carries initializer`, !!plan.carriesInit,
@@ -87,10 +87,10 @@ for (const [name, pattern, init, inline] of [
     chain: [{ outerPattern: assignment.left, hopProp: assignment.left.properties[0] }],
   };
   const before = JSON.stringify(program.node);
-  const plan = planNestedAssignmentReceiver(input, ctx);
+  const plan = planAssignmentOverwrite(input, ctx);
   check(`${ label }/capture`, plan?.kind ?? null, inline === null ? null : 'capture');
   check(`${ label }/inline leaf`, plan?.capture?.inlineLeaf ?? null, inline);
-  const repeated = planNestedAssignmentReceiver(input, ctx);
+  const repeated = planAssignmentOverwrite(input, ctx);
   check(`${ label }/repeat capture`, repeated?.kind, plan?.kind);
   check(`${ label }/repeat source slot`, repeated?.capture?.leafPattern, plan?.capture?.leafPattern);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);

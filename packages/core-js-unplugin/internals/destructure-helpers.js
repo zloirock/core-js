@@ -7,7 +7,6 @@ import {
   conditionalDestructureLeftUntouchedWarning,
   descendReceiverPathByKeys,
   fallbackDestructureHasPolyfillableBranch,
-  isReReferenceableReceiver,
   planSynthReceiverGuard,
   patternHopKeysToHost,
   decidedRunningOperand,
@@ -56,7 +55,6 @@ import {
   patternLevelKeepsEffectfulHop,
   spelledWriteSlot,
   peelNestedSequenceExpressions,
-  peelParenAndTSParentPath,
   peelTransparentExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   proxySurfaceIdentifier,
@@ -88,7 +86,6 @@ import { cloneStamped, nodeSite } from './nav-spine.js';
 import { mintedProxyGlobalName, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression,
-  callExpression,
   cloneNode,
   expressionStatement,
   identifier,
@@ -644,47 +641,6 @@ export function buildInstanceDefaultGuard({ defaultValue, defaultPattern = null,
       ownedCommentsEnd: end,
     }, { start, end }),
   });
-}
-
-// the guard an overwrite owes: the pure entry answers `it.method` verbatim off a receiver that is not
-// the polyfilled surface, so the dispatch may be undefined and something must stand in that case.
-// while the RAW destructure SURVIVES that is the slot it already assigned - the read, or the source's
-// own default, run exactly once - and re-spelling the default node beside it would run it twice. once
-// the slot is PRUNED nothing ran it, and the default node itself is the one reader left
-export function overwriteDefaultGuard({ call, localName, ref, defaultNode = null, defaultPattern = null }) {
-  return buildInstanceDefaultGuard({
-    assignedRef: identifier(ref),
-    call,
-    defaultValue: defaultNode ?? identifier(localName),
-    defaultPattern,
-    defaultName: localName,
-    reread: identifier(ref),
-  });
-}
-
-// the SE-keyed DEFAULTED instance prop's overwrite: the destructure stays whole (the key
-// runs where the source runs it) and the ponyfill re-binds after. the overwrite re-reads
-// the receiver, so it must be safe to spell twice; the binding must be a plain name
-export function registerSeKeyDefaultOverwrite({ prop, chain, entry, hintName, hostParent },
-  { injectPureImport, markRewrite, recordJob, injector }) {
-  const overwriteId = prop.value.left?.type === 'Identifier' ? prop.value.left : null;
-  const receiver = peelTransparentExpr(hostParent.node.right);
-  const overwriteStmtPath = peelParenAndTSParentPath(hostParent);
-  if (!overwriteId || chain.length || overwriteStmtPath?.node?.type !== 'ExpressionStatement'
-    || !isReReferenceableReceiver(receiver)) return;
-  const id = injectPureImport(entry, hintName);
-  const overwriteRef = injector.generateDeclaredRef(hostParent);
-  markRewrite();
-  recordJob({ hostPath: overwriteStmtPath,
-    job: { host: 'assign-overwrite', local: overwriteId.name,
-      bodyless: !statementListOf(overwriteStmtPath.parentPath?.node),
-      // the receiver is read again at drain time: the walk has replaced a realm root by then, and the
-      // node captured above still spells it raw
-      value: () => overwriteDefaultGuard({
-        call: callExpression(identifier(id), [duplicateReceiver(peelTransparentExpr(hostParent.node.right), injector)]),
-        localName: overwriteId.name,
-        ref: overwriteRef,
-      }) } });
 }
 
 // a value-SELECTING init under a sentinel-kept prop: a LOGICAL over KNOWN library surfaces

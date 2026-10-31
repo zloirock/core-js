@@ -15,6 +15,7 @@ import {
   renderAliasHeldProbeRead,
   hostSlot,
   renderInstanceDefaultGuard,
+  renderAssignmentOverwrite,
   renderNestedExtractionReceiver,
   renderNestedDeclarationReceiver,
   renderParameterInstanceCapture,
@@ -102,7 +103,6 @@ import {
   conditionalDestructureLeftUntouchedWarning,
   consumedAssignmentSlotDropsHost,
   dispatchMayReadNav,
-  consumedAssignmentSlotPrunes,
   descendReceiverPathByKeys,
   destructureAssignmentValueIsCaptured,
   destructureKeyReadPlan,
@@ -119,7 +119,6 @@ import {
   isReReferenceableReceiver,
   provenRealmCallRoot,
   nestedAssignmentStatementOf,
-  overwriteMemberTarget,
   outerDestructureReceiver,
   patternComputedKeysSynthSafe,
   patternHopKeysToHost,
@@ -149,7 +148,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   discardedReceiverEffects,
-  planNestedAssignmentReceiver,
+  planAssignmentOverwrite,
   planNestedDeclarationReceiver,
   planNestedLeafTwin,
   liveDestructureDefault,
@@ -3906,7 +3905,7 @@ export default function createDestructureEmitter({
     if (!rawStatement && !seqElement) return false;
     const spanAnchor = rawStatement ?? seqElement;
     const propCtx = { scope: prop.scope, adapter, path: prop };
-    const receiverPlan = planNestedAssignmentReceiver({
+    const receiverPlan = planAssignmentOverwrite({
       path: prop,
       assignment: prop.findParent(item => item.isAssignmentExpression()).node,
       entry,
@@ -3921,31 +3920,18 @@ export default function createDestructureEmitter({
       embed: hostSlot,
       importPure: pure => hostSlot(t.cloneNode(injectPureImport(pure.entry, pure.hintName))),
     }));
-    const bindingId = propBindingIdentifier(prop.node.value);
-    // the overwrite re-spells the receiver nav the residual reads, so the raw slot has no reader
-    // left once the dispatch lands - unless its KEY still owes an in-place effect
-    const prunesSlot = consumedAssignmentSlotPrunes(prop, aliasCtxFromPath(prop));
-    const target = bindingId ?? overwriteMemberTarget(prop, propCtx);
+    const { target, prunesSlot } = receiverPlan ?? {};
     if (target && receiverNode && !skippedNodes.has(prop.node)) {
       // mark handled so a re-visit (babel re-crawls after the insertAfter mutation) doesn't append a
       // second identical overwrite
       skippedNodes.add(prop.node);
       const overwriteCall = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]));
-      // a DEFAULTED leaf keeps its guard: the pure entry answers `it.method` verbatim off a receiver
-      // that is not the polyfilled surface, so the dispatch may be undefined and burying what the
-      // destructure bound loses the source's default (`({ y: { flat: m = null } } = { y: navigator })`
-      // bound undefined where the source binds null). the RAW slot ran that default already, exactly
-      // once, so the BINDING is the fallback - re-spelling the default node would run it twice
-      // ... and once the slot is PRUNED nothing ran that default, so the guard spells the default
-      // NODE instead - the one reader left, evaluated exactly once
-      const overwriteValue = prop.node.value?.type === 'AssignmentPattern'
-        ? buildInstanceDefaultGuard(t, {
-          call: overwriteCall,
-          defaultNode: t.cloneNode(prunesSlot ? prop.node.value.right : bindingId),
-          defaultName: bindingId?.name ?? null,
-          ref: generateRef(prop.scope, prop.node),
-        })
-        : overwriteCall;
+      const overwriteRef = receiverPlan.fallback ? hostSlot(generateRef(prop.scope, prop.node)) : null;
+      const overwriteValue = estreeToBabel(renderAssignmentOverwrite(receiverPlan, {
+        call: hostSlot(overwriteCall),
+        ref: overwriteRef,
+        embed: node => hostSlot(t.cloneNode(node)),
+      }));
       const overwriteAssign = inheritSpan(
         t.assignmentExpression('=', cloneWriteTarget(t, target), overwriteValue), spanAnchor.node);
       if (seqElement) {

@@ -21620,6 +21620,36 @@ function * generateInitializerCarriers() {
   }
 }
 
+// Retained defaults have already run; pruned defaults remain live until the overwrite.
+function * generateAssignmentOverwriteDefaults() {
+  for (const host of ['statement', 'bodyless', 'sequence', 'rebuilt']) {
+    for (const source of ['retained', 'getter', 'present', 'throw', 'member', 'live-default']) {
+      const retained = source === 'retained';
+      const target = source === 'member' ? 'sink.method' : 'method';
+      const fallback = source === 'live-default' ? '() => Array.from([4, 9]).at(-1)' : '(log.push("default"), 17)';
+      const assignment = retained
+        ? `({ [(log.push("key"), Symbol.iterator)]: method = ${ fallback } } = globalThis)`
+        : `({ slot: { at: ${ target } = ${ fallback } } } = { slot: receiver })`;
+      const read = host === 'bodyless' ? `if (enabled) ${ assignment };`
+        : host === 'sequence' ? `const tail = (${ assignment }, log.push("after")); void tail;` : `${ assignment };`;
+      for (const enabled of host === 'bodyless' ? [false, true] : [true]) {
+        const body = `(() => {
+          function read(receiver) {
+            let method = "before", stored = "before";
+            const enabled = ${ enabled };
+            const sink = { set method(value) { log.push("setter"); stored = value; } };
+            try { ${ read } } catch (error) { return [error.message, method, stored]; }
+            return ${ source === 'live-default' ? '(enabled ? [method(), method.name] : method)' : source === 'member' ? 'stored' : 'method' };
+          }
+          return read({ get at() { log.push("getter"); ${ source === 'throw' ? 'throw new Error("stop");' : `return ${ source === 'present' ? '0' : 'undefined' };` } } });
+        })()`;
+        yield { ...snippet(`assignment-overwrite-default/${ host }/${ source }/${ enabled }`,
+          host === 'rebuilt' ? `[1].map(() => ${ body })[0]` : body), strip: true };
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22043,4 +22073,5 @@ export function * generate() {
   yield * generateNestedDeclarationReceivers();
   yield * generateNestedLeafTwins();
   yield * generateInitializerCarriers();
+  yield * generateAssignmentOverwriteDefaults();
 }
