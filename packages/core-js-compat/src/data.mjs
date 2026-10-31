@@ -2131,7 +2131,7 @@ export const data = {
   'es.typed-array.copy-within': {
     chrome: '45',
     edge: '13',
-    firefox: '34',
+    firefox: '35',
     hermes: '0.1',
     rhino: '1.8.0',
     safari: '10.0',

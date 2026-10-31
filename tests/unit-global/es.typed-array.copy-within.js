@@ -22,6 +22,7 @@ QUnit.test('%TypedArrayPrototype%.copyWithin', assert => {
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3), [1, 3, 4, 5, 5]);
+    assert.arrayEqual(Int8Array.prototype.copyWithin.call(new TypedArray([1, 2, 3, 4, 5]), 0, 3), [4, 5, 3, 4, 5], `${ name } works with the method of Int8Array`);
     assert.throws(() => copyWithin.call([0], 1), "isn't generic");
   }
 });

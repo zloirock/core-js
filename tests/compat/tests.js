@@ -1642,7 +1642,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Int8Array.prototype.at;
   },
   'es.typed-array.copy-within': function () {
-    return Int8Array.prototype.copyWithin;
+    // FF34 - each typed array class has its own `copyWithin`, which rejects the other classes
+    return Int8Array.prototype.copyWithin.call(new Float32Array([1, 2, 3]), 0, 1)[1] === 3;
   },
   'es.typed-array.entries': function () {
     try {
