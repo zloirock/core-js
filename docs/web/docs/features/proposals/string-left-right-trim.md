@@ -18,10 +18,10 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-left-right-trim
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/trim-end
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/trim-left
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/trim-right
-{ core-js, @core-js/pure }/es|stable|actual|full/string(/virtual)/trim-start
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-end
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-left
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-right
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-start
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
