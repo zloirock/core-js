@@ -186,6 +186,17 @@ function TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS() {
     && new Int8Array(new ArrayBuffer(2), 1, undefined).length === 1;
 }
 
+// core-js gives the method of `Int8Array` to every typed array class, which FF34 `copyWithin`
+// and own methods of each class in Rhino 1.7.13-1.8 reject
+function typedArrayMethodAcceptsOtherClasses(METHOD_NAME) {
+  return function () {
+    try {
+      Int8Array.prototype[METHOD_NAME].call(new Float32Array(1), function () { return 0; }, 0);
+      return true;
+    } catch (error) { /* empty */ }
+  };
+}
+
 function NCG_SUPPORT() {
   var re = RegExp('(?<a>b)');
   return re.exec('b').groups.a === 'b' &&
@@ -1709,80 +1720,45 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     try {
       Int8Array.prototype[Symbol.iterator].call([1]);
     } catch (error) {
-      return Int8Array.prototype[Symbol.iterator].name === 'values';
+      return Int8Array.prototype[Symbol.iterator].name === 'values' && typedArrayMethodAcceptsOtherClasses(Symbol.iterator)();
     }
   },
-  'es.typed-array.at': function () {
-    return Int8Array.prototype.at;
-  },
-  'es.typed-array.copy-within': function () {
-    // FF34 - each typed array class has its own `copyWithin`, which rejects the other classes
-    return Int8Array.prototype.copyWithin.call(new Float32Array([1, 2, 3]), 0, 1)[1] === 3;
-  },
-  'es.typed-array.entries': function () {
+  'es.typed-array.at': typedArrayMethodAcceptsOtherClasses('at'),
+  'es.typed-array.copy-within': typedArrayMethodAcceptsOtherClasses('copyWithin'),
+  'es.typed-array.entries': [typedArrayMethodAcceptsOtherClasses('entries'), function () {
     try {
       Int8Array.prototype.entries.call([1]);
     } catch (error) {
       return Int8Array.prototype.entries;
     }
-  },
-  'es.typed-array.every': function () {
-    return Int8Array.prototype.every;
-  },
-  'es.typed-array.fill': function () {
+  }],
+  'es.typed-array.every': typedArrayMethodAcceptsOtherClasses('every'),
+  'es.typed-array.fill': [typedArrayMethodAcceptsOtherClasses('fill'), function () {
     var count = 0;
     new Int8Array(2).fill({ valueOf: function () { return count++; } });
     return count === 1;
-  },
-  'es.typed-array.filter': function () {
-    return Int8Array.prototype.filter;
-  },
-  'es.typed-array.find': function () {
-    return Int8Array.prototype.find;
-  },
-  'es.typed-array.find-index': function () {
-    return Int8Array.prototype.findIndex;
-  },
-  'es.typed-array.find-last': function () {
-    return Int8Array.prototype.findLast;
-  },
-  'es.typed-array.find-last-index': function () {
-    return Int8Array.prototype.findLastIndex;
-  },
-  'es.typed-array.for-each': function () {
-    return Int8Array.prototype.forEach;
-  },
-  'es.typed-array.includes': function () {
-    return Int8Array.prototype.includes;
-  },
-  'es.typed-array.index-of': function () {
-    return Int8Array.prototype.indexOf;
-  },
-  'es.typed-array.join': function () {
-    return Int8Array.prototype.join;
-  },
-  'es.typed-array.keys': function () {
+  }],
+  'es.typed-array.filter': typedArrayMethodAcceptsOtherClasses('filter'),
+  'es.typed-array.find': typedArrayMethodAcceptsOtherClasses('find'),
+  'es.typed-array.find-index': typedArrayMethodAcceptsOtherClasses('findIndex'),
+  'es.typed-array.find-last': typedArrayMethodAcceptsOtherClasses('findLast'),
+  'es.typed-array.find-last-index': typedArrayMethodAcceptsOtherClasses('findLastIndex'),
+  'es.typed-array.for-each': typedArrayMethodAcceptsOtherClasses('forEach'),
+  'es.typed-array.includes': typedArrayMethodAcceptsOtherClasses('includes'),
+  'es.typed-array.index-of': typedArrayMethodAcceptsOtherClasses('indexOf'),
+  'es.typed-array.join': typedArrayMethodAcceptsOtherClasses('join'),
+  'es.typed-array.keys': [typedArrayMethodAcceptsOtherClasses('keys'), function () {
     try {
       Int8Array.prototype.keys.call([1]);
     } catch (error) {
       return Int8Array.prototype.keys;
     }
-  },
-  'es.typed-array.last-index-of': function () {
-    return Int8Array.prototype.lastIndexOf;
-  },
-  'es.typed-array.map': function () {
-    return Int8Array.prototype.map;
-  },
-  'es.typed-array.reduce': function () {
-    return Int8Array.prototype.reduce;
-  },
-  'es.typed-array.reduce-right': function () {
-    return Int8Array.prototype.reduceRight;
-  },
-  'es.typed-array.reverse': function () {
-    return Int8Array.prototype.reverse;
-  },
+  }],
+  'es.typed-array.last-index-of': typedArrayMethodAcceptsOtherClasses('lastIndexOf'),
+  'es.typed-array.map': typedArrayMethodAcceptsOtherClasses('map'),
+  'es.typed-array.reduce': typedArrayMethodAcceptsOtherClasses('reduce'),
+  'es.typed-array.reduce-right': typedArrayMethodAcceptsOtherClasses('reduceRight'),
+  'es.typed-array.reverse': typedArrayMethodAcceptsOtherClasses('reverse'),
   'es.typed-array.set': function () {
     var array = new Uint8ClampedArray(3);
     array.set(1);
@@ -1790,16 +1766,14 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     Int8Array.prototype.set.call(array, { length: 1, 0: 3 }, 2);
     return array[0] === 0 && array[1] === 2 && array[2] === 3;
   },
-  'es.typed-array.slice': function () {
+  'es.typed-array.slice': [typedArrayMethodAcceptsOtherClasses('slice'), function () {
     var array = new Int8Array(1);
     // Rhino 1.8 returns a view on the source buffer
     // https://github.com/mozilla/rhino/pull/1905
     return array.slice().buffer !== array.buffer;
-  },
-  'es.typed-array.some': function () {
-    return Int8Array.prototype.some;
-  },
-  'es.typed-array.sort': function () {
+  }],
+  'es.typed-array.some': typedArrayMethodAcceptsOtherClasses('some'),
+  'es.typed-array.sort': [typedArrayMethodAcceptsOtherClasses('sort'), function () {
     try {
       new Uint16Array(1).sort(null);
       new Uint16Array(1).sort({});
@@ -1823,7 +1797,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     for (index = 0; index < 516; index++) {
       if (array[index] !== expected[index]) return;
     } return true;
-  },
+  }],
   'es.typed-array.species': [TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS, function () {
     return Int8Array[Symbol.species] === Int8Array;
   }],
@@ -1843,39 +1817,40 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.typed-array.to-string-tag': function () {
     return new Int8Array(1)[Symbol.toStringTag] === 'Int8Array';
   },
-  'es.typed-array.to-reversed': function () {
-    return Int8Array.prototype.toReversed;
-  },
-  'es.typed-array.to-sorted': function () {
-    return Int8Array.prototype.toSorted;
-  },
-  'es.typed-array.values': function () {
+  'es.typed-array.to-reversed': typedArrayMethodAcceptsOtherClasses('toReversed'),
+  'es.typed-array.to-sorted': typedArrayMethodAcceptsOtherClasses('toSorted'),
+  'es.typed-array.values': [typedArrayMethodAcceptsOtherClasses('values'), function () {
     try {
       Int8Array.prototype.values.call([1]);
     } catch (error) {
       return Int8Array.prototype.values.name === 'values'
         && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values;
     }
-  },
-  'es.typed-array.with': [function () {
-    try {
-      new Int8Array(1).with(2, { valueOf: function () { throw 8; } });
-    } catch (error) {
-      return error === 8;
-    }
-  }, function () {
-    // WebKit doesn't handle this correctly. It should truncate a negative fractional index to zero, but instead throws an error
-    // Copyright (C) 2025 André Bargull. All rights reserved.
-    // This code is governed by the BSD license found in the LICENSE file.
-    // https://github.com/tc39/test262/pull/4477/commits/bd47071722d914036280cdd795a6ac6046d1c6f9
-    var result = new Int8Array(1).with(-0.5, 1);
-    return result[0] === 1;
-  }, function () {
-    // Rhino 1.9 converts the value with ToNumber instead of ToBigInt on BigInt arrays
-    // https://github.com/mozilla/rhino/pull/2467
-    // eslint-disable-next-line unicorn/prefer-bigint-literals -- ES5 syntax
-    return typeof BigInt64Array != 'function' || new BigInt64Array(1).with(0, BigInt(1))[0] === BigInt(1);
   }],
+  'es.typed-array.with': [
+    typedArrayMethodAcceptsOtherClasses('with'),
+    function () {
+      try {
+        new Int8Array(1).with(2, { valueOf: function () { throw 8; } });
+      } catch (error) {
+        return error === 8;
+      }
+    },
+    function () {
+      // WebKit doesn't handle this correctly. It should truncate a negative fractional index to zero, but instead throws an error
+      // Copyright (C) 2025 André Bargull. All rights reserved.
+      // This code is governed by the BSD license found in the LICENSE file.
+      // https://github.com/tc39/test262/pull/4477/commits/bd47071722d914036280cdd795a6ac6046d1c6f9
+      var result = new Int8Array(1).with(-0.5, 1);
+      return result[0] === 1;
+    },
+    function () {
+      // Rhino 1.9 converts the value with ToNumber instead of ToBigInt on BigInt arrays
+      // https://github.com/mozilla/rhino/pull/2467
+      // eslint-disable-next-line unicorn/prefer-bigint-literals -- ES5 syntax
+      return typeof BigInt64Array != 'function' || new BigInt64Array(1).with(0, BigInt(1))[0] === BigInt(1);
+    },
+  ],
   'es.uint8-array.from-base64': function () {
     try {
       Uint8Array.fromBase64('a');
