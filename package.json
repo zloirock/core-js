@@ -59,6 +59,8 @@
     "test-e2e-usage-pure-node": "npm run zxi time tests/unit-node/e2e-usage-pure.mjs",
     "test-unit-bun": "run-s bundle-tests-unit test-unit-bun-run",
     "test-unit-bun-run": "npm run zxi time cd tests/unit-bun/runner.mjs",
+    "test-saucelabs": "npm run zxi -- time tests/saucelabs/unit.mjs",
+    "test-saucelabs-matrix": "node --test tests/saucelabs/all-platforms.test.mjs",
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",
     "test-babel-plugin": "npm run zxi time cd tests/babel-plugin/index.mjs",
