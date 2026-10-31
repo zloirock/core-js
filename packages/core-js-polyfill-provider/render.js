@@ -778,6 +778,40 @@ export function nullGuardTest(check, { embed = node => node } = {}) {
     : binaryExpression('==', literal(null), embed(check));
 }
 
+// A live residual reads its decided constructor, or the member on its source surface. A
+// supplied guard is the rendered source value and must remain the member's receiver even
+// when the traversal temporarily used a defined constructor. Host conversion is external;
+// the `prefix` embed role lets a native drain retain its pending child edits.
+export function renderResidualAnchor({
+  anchor, anchorNode, computed = false, anchorPure, receiver, receiverPure, receiverNode, guarded, narrow, prefix = [],
+}, { injectImport, mintRef, embed = cloneNode }) {
+  if (narrow) {
+    const ref = mintRef();
+    const rendered = renderCtorIdentityNarrow(narrow, memberFromKeyName(identifier(ref), anchor), {
+      injectImport, spellRecv: () => identifier(ref), captureReceiver: embed(narrow.captureReceiver),
+    });
+    return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')), ...rendered.expressions]) : rendered;
+  }
+  if (guarded) return anchorNode ? memberExpression(embed(guarded), embed(anchorNode), { computed })
+    : memberFromKeyName(embed(guarded), anchor);
+  const value = anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
+    : memberFromKeyName(receiverNode ? embed(receiverNode)
+    : receiverPure ? identifier(injectImport(receiverPure.entry, receiverPure.hintName)) : identifier(receiver), anchor);
+  return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')), value]) : value;
+}
+
+// Keep an initializer's prefix/store ahead of its decided residual value. Query products
+// carry pure descriptors, never registered imports; source slots are cloned only on apply.
+export function renderResidualAnchorInit(init, surface, replacement, { injectImport, embed = cloneNode }) {
+  const value = replacement ?? (surface.pure ? identifier(injectImport(surface.pure.entry, surface.pure.hintName)) : embed(surface.tail));
+  if (surface.shape === 'guard') return value;
+  if (surface.shape === 'ident') return replacement ?? init;
+  if (surface.shape === 'seq') {
+    return sequenceExpression([...(surface.prefix ?? surface.init.expressions.slice(0, -1)).map(embed), value]);
+  }
+  return sequenceExpression([surface.init, value]);
+}
+
 // the LITERAL-FIRST spelling as a rule of its own, for a test that may be composed with others:
 // a chain is ONE test, and mixing the two forms inside it printed two spellings for one rule. the
 // nav-guard channels take this form for a single test too - their test is built to be joinable
