@@ -69,6 +69,7 @@ QUnit.test('Well-known Symbols', assert => {
 QUnit.test('Symbol#@@toPrimitive', assert => {
   const symbol = Symbol('Symbol#@@toPrimitive test');
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
+  assert.nonWritable(Symbol.prototype, Symbol.toPrimitive);
   assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
 });
 

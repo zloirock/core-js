@@ -16,6 +16,6 @@ module.exports = function () {
     // eslint-disable-next-line no-unused-vars -- required for .length
     defineBuiltIn(SymbolPrototype, TO_PRIMITIVE, function (hint) {
       return call(valueOf, this);
-    }, { arity: 1 });
+    }, { arity: 1, nonWritable: true });
   }
 };

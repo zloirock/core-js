@@ -5,6 +5,7 @@ QUnit.test('Date#@@toPrimitive', assert => {
   assert.isFunction(toPrimitive);
   assert.arity(toPrimitive, 1);
   assert.nonEnumerable(Date.prototype, Symbol.toPrimitive);
+  assert.nonWritable(Date.prototype, Symbol.toPrimitive);
   const date = new Date();
   assert.same(date[Symbol.toPrimitive]('string'), date.toString(), 'generic, hint "string"');
   assert.same(date[Symbol.toPrimitive]('number'), +date, 'generic, hint "number"');
