@@ -182,6 +182,8 @@ import {
   carriedInitReceiverNode,
   consumedAssignmentSlotDropsHost,
   consumedAssignmentSlotDropsNav,
+  consumedAssignmentSlotPrunes,
+  overwriteMemberTarget,
   dispatchMayReadNav,
   resolveNestedNavDispatch,
   resolveNestedReceiverBase,
@@ -351,13 +353,36 @@ export function planNestedDefaultHop({ chain, kind, entry, path, receiverPath },
   };
 }
 
+// An assignment overwrite shares the receiver proof with nested extraction. A retained
+// raw slot has already run its default, so only its binding can supply the fallback;
+// a pruned slot instead lends its live default pattern. A pending flat receiver follows
+// the assignment's right slot after child claims replace it, without resolving it again.
+export function planAssignmentOverwrite(input, ctx) {
+  const { path, assignment, pending = false } = input;
+  const prop = path.node;
+  const target = propBindingIdentifier(prop.value) ?? overwriteMemberTarget(path, ctx);
+  if (!target) return null;
+  const receiver = planNestedAssignmentReceiver(input, ctx);
+  if (!receiver) return null;
+  if (receiver.kind === 'capture') return { ...receiver, target };
+  const prunesSlot = consumedAssignmentSlotPrunes(path, ctx);
+  return {
+    ...receiver,
+    target,
+    prunesSlot,
+    liveReceiver: pending && assignment.left === path.parentPath.node ? assignment : null,
+    fallback: prop.value.type === 'AssignmentPattern'
+      ? { pattern: prunesSlot ? prop.value : null, binding: prunesSlot ? null : target.name } : null,
+  };
+}
+
 // Choose the receiver of a nested assignment extraction, without importing or editing nodes.
 // A pending host still has source children: it can capture them and anchor a kept surface,
 // but must not save navigation across a root that will be replaced before drain. A rendered
 // host instead reads its current navigation; its anchors/defaults have already had first refusal.
 // These are source lifetimes, independent of parser dialect. The result owns the read policy;
 // the binding only applies a capture or renders the selected root and keys at that lifetime.
-export function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pending = false }, ctx) {
+function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pending = false }, ctx) {
   const { adapter, isOwnAlias, resolvePure, resolveGlobalPolyfill, resolveStaticPolyfill, injectorState } = ctx;
   const prop = path.node;
   const resolveOptions = { allowSePeeledFragment: true, allowNavSegments: !pending };

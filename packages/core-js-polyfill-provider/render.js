@@ -90,8 +90,9 @@ export function renderLogicalSlotPatch({ host, operator, receiverMemo, pure, key
 
 // A selected extraction receiver has one root (source or pure binding) followed by named keys.
 // Source embedding and import allocation belong to the binding; neither chooses a different read.
-export function renderNestedExtractionReceiver({ node, pure, keys }, { embed, importPure }) {
-  return keys.reduce(memberFromKeyName, pure ? importPure(pure) : embed(node));
+// A borrowed flat assignment reads its live right slot after pending child replacements.
+export function renderNestedExtractionReceiver({ node, pure, keys, liveReceiver }, { embed, importPure }) {
+  return keys.reduce(memberFromKeyName, pure ? importPure(pure) : embed(liveReceiver ? unwrapRuntimeExpr(liveReceiver.right) : node));
 }
 
 // Render the decided declaration read and its live default before the method dispatch.
@@ -1216,6 +1217,24 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
     defaultValue,
     reread,
   );
+}
+
+// Render the overwrite's chosen fallback. The source pattern is borrowed until render,
+// so a child claim may replace its right side; a retained binding never replays that side.
+// Its fresh reference owns no source comments: those remain on the retained pattern.
+// The host's guard adapter only supplies source/comment ownership for the embedded default.
+export function renderAssignmentOverwrite({ fallback, target }, {
+  call, ref, embed, defaultGuard = renderInstanceDefaultGuard,
+}) {
+  if (!fallback) return call;
+  return defaultGuard({
+    assignedRef: cloneNode(ref),
+    call,
+    defaultValue: fallback.pattern ? embed(fallback.pattern.right) : identifier(fallback.binding),
+    defaultPattern: fallback.pattern,
+    defaultName: target.name ?? null,
+    reread: cloneNode(ref),
+  });
 }
 
 // A sole computed-key extraction evaluates the initializer before the key runs. The
