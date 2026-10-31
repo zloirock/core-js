@@ -45,7 +45,7 @@ import {
 import {
   dispatchConsumesRun,
   landRunOnDeepestBackedSpan,
-  planClaimlessCallRootedNav,
+  planDeclinedNavigation,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { decidedReusableReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -93,6 +93,7 @@ import {
   literal,
   nullFirstGuardTest,
   renderClaimProbe,
+  renderDeclinedNavigation,
   renderMethodCall,
   renderGuardedMethodCall,
   renderOptionalMethodCall,
@@ -470,7 +471,7 @@ function swapProbeRunBase(endPath, swapNode, basePureId, markRenderedPlanTail) {
 // the rest
 function collapseClaimlessCallRootedNav({
   endPath, adapter, resolvePureGlobalEntry, resolvePurePrototypeEntry, injectPureGlobal, collapseNav, withSideEffects,
-  collapseKeptValue, markRenderedPlanTail,
+  collapseKeptValue, markRenderedPlanTail, renderFold, meta: claimMeta,
 }) {
   if (!adapter || !endPath?.scope || !injectPureGlobal || !resolvePureGlobalEntry) return false;
   // a MEMBER consumer only - the same callback also fires for a destructure property, whose node
@@ -496,8 +497,9 @@ function collapseClaimlessCallRootedNav({
   // `delete` fold included: its base is the run's root binding either way, and walking to the chain
   // TOP instead handed the plan a run with plain members inside it, which the plan declines outright
   // - `delete f().self.window.a.k` then fell back to a hop claim and kept `.window` spelled off the root
-  const plan = planClaimlessCallRootedNav({
+  const plan = planDeclinedNavigation({
     deleteFold: !!deleteFold,
+    meta: claimMeta,
     scope: endPath.scope,
     adapter,
     path: endPath,
@@ -518,15 +520,10 @@ function collapseClaimlessCallRootedNav({
       return swapProbeRunBase(endPath, plan.swapNode,
         plan.droppedSe.length ? withSideEffects(base, plan.droppedSe) : base, markRenderedPlanTail);
     }
-    case 'fold-whole': {
-      if (!withSideEffects) return collapseNav(endPath);
-      // the sequence prefixes the fold's peel stepped over re-emit ahead of the base
-      const prefixes = collectFoldedReceiverSideEffects(endPath.node.object, { ctx: { scope: endPath.scope, adapter, path: endPath } });
-      const navPath = endPath.get('object');
-      navPath.replaceWith(withSideEffects(injectPureGlobal(plan.rootPure.entry, plan.rootPure.hintName), prefixes));
-      deoptionalizeDanglingOptionalParent(navPath);
+    case 'fold-whole':
+      plan.fold.path.replaceWith(renderFold(plan.fold));
+      deoptionalizeDanglingOptionalParent(plan.fold.path);
       return true;
-    }
     case 'leaf-fold': {
       const navPath = endPath.get('object');
       navPath.replaceWith(injectPureGlobal(plan.pure.entry, plan.pure.hintName));
@@ -2826,9 +2823,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     collapseKeptNavValueNode,
     keptNavHopClaimSuppressed,
     isRenderedPlanTail: node => renderedPlanTails.has(node),
-    collapseClaimlessCallRootedNav: endPath => collapseClaimlessCallRootedNav({ endPath, adapter: getAdapter?.(),
+    collapseClaimlessCallRootedNav: (endPath, meta) => collapseClaimlessCallRootedNav({ endPath, meta, adapter: getAdapter?.(),
       resolvePureGlobalEntry, resolvePurePrototypeEntry, injectPureGlobal,
       collapseNav: collapseShortCircuitNavInPlace, withSideEffects,
+      renderFold: plan => {
+        const rendered = estreeToBabel(renderDeclinedNavigation(plan, {
+          injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+          embed: hostSlot, cloneHost: node => t.cloneNode(node, true),
+          carryEffect: node => mintedEffectNodes.has(node) ? node : t.cloneWithoutRetiring(node),
+        }));
+        if (plan.effects.length) pluginSeqWraps.add(rendered);
+        return rendered;
+      },
       collapseKeptValue: (stored, path) => collapseKeptNavValueNode(stored, path, { immediate: true }),
       markRenderedPlanTail: node => renderedPlanTails.add(node) }),
     collapseShortCircuitNavInPlace,

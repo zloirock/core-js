@@ -44,6 +44,7 @@ import {
   rootProgramOf,
   SKIPPABLE_WRAPPER_TYPES,
   spineHasOptionalHop,
+  subtreeContainsNode,
   propertyKeyName,
   staticMemberKeyName,
   stepOverChainWrappers,
@@ -965,6 +966,35 @@ export function planClaimlessCallRootedNav({
   // spelling on; a run with nothing backed below the call keeps the raw read and its throw
   if (!pure && deleteFold) pure = deepestBackedProxySpan(endNode.object, ctx, resolvePure)?.pure ?? null;
   return pure ? { verdict: 'leaf-fold', pure, endPath } : declined;
+}
+
+// Complete a declined navigation before either binding imports or replaces anything.
+// `receiver` is an already queried inner collapse and its source/consumer facts. Its
+// alias wins over a call landing; a delete-only landing still needs a real reader.
+// Effects belong to the span actually replaced, which can end above the original claim.
+export function planDeclinedNavigation({ receiver = null, meta = null, ...options }) {
+  const plan = planClaimlessCallRootedNav(options);
+  const { path, scope, adapter } = options;
+  const inner = receiver?.collapse;
+  const callPure = plan.verdict === 'fold-whole' ? plan.rootPure : null;
+  const pure = callPure ?? (receiver?.deleteFold && inner?.entry ? inner : null);
+  if ((!inner?.aliasRoot && !pure) || (!callPure && !receiver?.navigated)) return plan;
+  const target = plan.endPath === path && receiver?.node === path.node ? path : plan.endPath.get('object');
+  const source = target.node;
+  const effects = callPure && !inner?.aliasRoot
+    ? source === receiver?.node && inner ? inner.effects
+      : collectFoldedReceiverSideEffects(source, { ctx: { scope, adapter, path } }) : [];
+  const seFree = !meta?.sideEffects?.length && !meta?.receiverEffectCount;
+  // Only the call fold has an effect replay channel. A retained alias/delete-only
+  // fold cannot discard setup, even when the claim itself carries no effects.
+  const covered = callPure && !inner?.aliasRoot
+    ? seFree || (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
+      .every(effect => effects.includes(effect) || effects.some(held => subtreeContainsNode(held, effect)))
+    : seFree && !inner.effects.length;
+  if (!covered) return { ...plan, verdict: null };
+  return { ...plan, fold: {
+    path: target, source, base: proxyCollapseBase({ aliasRoot: inner?.aliasRoot, rootPure: pure }), effects,
+  } };
 }
 
 // what a run of unbacked realm hops RIDES OFF: walking down from the terminal, the first span
