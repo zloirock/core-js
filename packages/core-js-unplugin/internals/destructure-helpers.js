@@ -75,6 +75,8 @@ import {
   partitionDestructureReads,
   planDestructureKeySegments,
   planDestructureInstanceSynth,
+  planDiscardedInit,
+  planDiscardedInitPlacement,
   sentinelMemoInitShape,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-host-shape';
@@ -97,6 +99,7 @@ import {
   renderStaticDefaultGuard,
   exportDeclaration,
   renderDestructureStatements,
+  renderDestructurePrefix,
   renderDestructureKeySegments,
 } from '@core-js/polyfill-provider/render';
 
@@ -273,6 +276,14 @@ export function liftedPrefixStatements(prefix, ctx = null) {
   return lifted ? [expressionStatement(lifted)] : [];
 }
 
+// the LIVE prefix behind a recorded one: a claim inside the prefix renders by REPLACING its
+// node, so the nodes captured at registration are pre-swap copies - lifting those spells the
+// source read again with its own polyfill lost (`(arr.flat(), globalThis)`)
+export function livePrefixOf(declarator, seqPrefix, frame) {
+  const { prefix } = liftedPrefixSplit(peelTransparentExpr(declarator.init), frame);
+  return prefix.length === seqPrefix.length ? prefix : seqPrefix;
+}
+
 // the LIVE tail, taken for the reason the prefix is: the registration-time node is a pre-swap
 // copy, so a residual bound off it ships the RAW receiver the collapse had already substituted
 export function liveTailOf(declarator, { seqPrefix, initTail, ctx }) {
@@ -446,17 +457,6 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       keyFirst: partition.keyFirst,
     }, residuals, { sourceProps, captured: !!memoRef }).map(part => part.statement);
   }
-}
-
-// a RE-ANCHORED residual is the declarator the discarded init belongs to: the sink's prefix rides
-// that declarator's own value instead of a slot of its own (`for (const { customFR: fr } = (<prefix>,
-// _Promise); ...)`), which is where the source wrote it. true when it took the prefix
-export function foldSinkPrefixIntoResidual(extracted, slot) {
-  const residual = extracted.length === 1 && extracted[0].id?.type === 'ObjectPattern' ? extracted[0] : null;
-  const prefix = residual && slot?.type === 'SequenceExpression' ? slot.expressions.slice(0, -1) : null;
-  if (!prefix?.length) return false;
-  residual.init = sequenceExpression([...prefix, residual.init]);
-  return true;
 }
 
 // the STATEMENT a path sits in - the slot a generated declaration plants beside
@@ -1693,38 +1693,17 @@ function joinBodylessSentinelMemo({ declaration, byDeclarator, adapter }, { mint
   markRewrite();
 }
 
-// the bodyless MULTI-declarator slot without a memo: the statement fits the slot as it is, each
-// jobbed declarator keeping its (renamed) residual beside its extractions. the ORDER is what the
-// residual OWES, the statement host's rule: an SE key runs before the dispatch that reads its
-// receiver, so that residual leads (`var first = init, { [SE]: _unused } = rows, fm = _flatMap(rows);`);
-// a claim reading nothing off it (a static, a ctor) binds ahead, where the split prints it
-export function joinBodylessSiblingExtractions({ declaration, jobs, adapter = null }, { removeConsumedProps, markRewrite }) {
-  const byDeclarator = Map.groupBy(jobs, job => job.declarator);
-  const declarators = [];
-  for (const declarator of declaration.declarations) {
-    const declJobs = byDeclarator.get(declarator) ?? [];
-    const extracted = declJobs.map(job => ({ job, item: variableDeclarator(jobBindingTarget(job), job.value()) }));
-    removeConsumedProps(declJobs);
-    const emptied = declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0;
-    declarators.push(...extracted.filter(({ job }) => !bodylessExtractionFollows(job, adapter)).map(({ item }) => item));
-    if (!emptied) declarators.push(declarator);
-    declarators.push(...extracted.filter(({ job }) => bodylessExtractionFollows(job, adapter)).map(({ item }) => item));
-  }
-  declaration.declarations = declarators;
-  markRewrite();
-}
-
-// ... the claims that follow their residual there (asked of the prop: a bodyless job carries no `seKey`)
+// Bodyless claims whose effectful key must precede the receiver read. Ask the source
+// prop: a bodyless job carries no `seKey` flag.
 function bodylessExtractionFollows(job, adapter) {
   return !!(job.sentinel && job.readsReceiver && job.prop?.computed
     && computedKeyHasSideEffects(job.prop, { ...nodeSite(job.prop, job.metaPath), adapter }));
 }
 
-// the bodyless MULTI-declarator slot whose jobs need a memo: SE-key sentinels over a `var` take the
-// sibling join above; a rest-kept residual takes the split shape (extraction ahead), and a lifted
-// prefix without a memo needs its statements - those slots become a block, each declarator its own
-// statement
-export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = null },
+// Bodyless siblings use the ordinary initializer obligations. A memo or a live residual
+// already reads its source; a fully consumed source keeps unowned effects before its reads.
+// The native slot joins var declarations or wraps the result only when statements need it.
+export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = null, resolvePure, sourceFacts },
   { program, mintRefName, removeConsumedProps, markRewrite }) {
   const byDeclarator = new Map();
   for (const job of jobs) {
@@ -1745,18 +1724,26 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
     const memoRef = declJobs.some(job => job.needsMemo) ? mintRefName() : null;
     // the lifted SE prefix runs FIRST, once, and the residual reads the quiet tail; a
     // MEMOIZED init keeps its sequence WHOLE - the memo is where it evaluates
-    const [{ seqPrefix, initTail }] = declJobs;
+    const [{ seqPrefix, initTail, metaPath }] = declJobs;
+    const frame = { scope: metaPath.scope, adapter, path: metaPath };
+    const product = declJobs.length === 1 && seqPrefix?.length && !memoRef ? {} : null;
+    const values = declJobs.map(job => job.value(memoRef, product));
     if (seqPrefix?.length && !memoRef) {
-      const { metaPath } = declJobs.at(0);
-      const lifted = adapter ? observablePrefixElements(seqPrefix, { scope: metaPath.scope, adapter, path: metaPath })
-        : observableSequenceElements(seqPrefix);
-      for (const expr of lifted) statements.push(expressionStatement(expr));
-      declarator.init = initTail;
+      const prefix = livePrefixOf(declarator, seqPrefix, frame);
+      const placed = planDiscardedInitPlacement(prefix, {
+        readCount: declJobs.length, carrier: product?.receiver === values[0] ? 'receiver' : null,
+      });
+      if (placed.placement === 'value') renderDestructurePrefix(values[0], prefix, product.receiver);
+      else statements.push(...observablePrefixElements(prefix, frame).map(expressionStatement));
+      declarator.init = liveTailOf(declarator, { seqPrefix, initTail, ctx: frame });
     }
-    const values = declJobs.map(job => job.value(memoRef));
     emitDeclaratorMemo({ refName: memoRef, declarator, statements, declJobs, kind: 'const' });
     removeConsumedProps(declJobs);
     const residualLives = declarator.id.type !== 'ObjectPattern' || declarator.id.properties.length !== 0;
+    if (!residualLives && !memoRef && !seqPrefix?.length) {
+      const { effects } = planDiscardedInit(declarator.init, { ...frame, resolvePure }, null, sourceFacts.get(declarator), declJobs);
+      statements.push(...effects.map(expressionStatement));
+    }
     // a REST-kept residual follows its extraction, each a statement of its own - the split shape
     // (`var s = _at(_ref); var { at: _unused, ...r } = _ref;`)
     if (residualLives && !seKeySentinelJobs(declJobs, adapter)) {
