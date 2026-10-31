@@ -2133,7 +2133,7 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   // TODO: recheck
