@@ -902,6 +902,12 @@ export function planConsumedInitializerCarrier(init, reads, ctx) {
   return { carrier: guarded ? 'guard' : carrier, receiver: stored || null, prefix: parts?.prefix, tail, pure, guarded };
 }
 
+// A sole pattern-valued static/global read becomes the residual's receiver. Its source
+// probe supplies the value, not just a throwing effect ahead of an unconditional pure.
+export function residualReadOwnsValue(reads) {
+  return reads.length === 1 && reads[0].kind !== 'instance' && reads[0].prop.value?.type === 'ObjectPattern';
+}
+
 // A whole-init capture whose residual has died may release its sequence prefix and let
 // every remaining extraction read the stable tail. Only this completed capture can also
 // release a pristine built-in navigation; a newly acquired receiver keeps its native memo.
@@ -2633,8 +2639,9 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
   };
 }
 
-// Read a live residual's surface without importing or rewriting it. Only a guard this pass
-// rendered carries the guarded-value role; an arbitrary source conditional is not that proof.
+// Read a live residual's surface without importing or rewriting it. A stored nullable
+// source or a guard this pass rendered carries the guarded-value role; an arbitrary
+// source conditional is not that proof.
 // A dead chain marker is transparent here, while a live optional chain retains its source.
 // Calls carry a pure descriptor and their ordered prefix until an anchor is actually applied.
 export function residualAnchorSurface(initNode, { adapter, injectorState, path = null, resolveGlobalPolyfill }) {
@@ -2654,6 +2661,10 @@ export function residualAnchorSurface(initNode, { adapter, injectorState, path =
     if (tail?.type === 'SequenceExpression') tail = peelTransparentExpr(tail.expressions.at(-1));
   }
   const ctx = { adapter, injectorState, scope: path?.scope, path };
+  // A source store retains the nullable value as well as its effects. Its whole value
+  // must feed the residual read; replaying the store before a constructor loses the throw.
+  if (shape === 'assign' && init.operator === '=' && proxyReceiverValueCanBeUndefined(tail,
+    ({ name }) => resolveGlobalPolyfill(name), ctx)) return { init, tail: init, shape: 'guard' };
   if ((tail?.type === 'ConditionalExpression' || tail?.type === 'LogicalExpression')
     && allProxySelectingInit(tail, ctx)) tail = firstProxyBranch(tail);
   if (shape && isRenderedStoredValue(tail) && tail?.type === 'ConditionalExpression'
@@ -3311,6 +3322,9 @@ export function buildNestedDestructurePlan({
       // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
       // realm, or the MIRROR can spell that leaf with the member's own ponyfill
       function planCtorKeyAnchor(hostPattern) {
+        const stored = isChainAssignment(unwrapRuntimeExpr(declarator.init))
+          && residualAnchorSurface(declarator.init, { adapter, path, resolveGlobalPolyfill });
+        const guarded = stored?.shape === 'guard' ? stored.tail : null;
         const anchor = planResidualAnchorHop({
           pattern: hostPattern,
           receiver,
@@ -3320,6 +3334,9 @@ export function buildNestedDestructurePlan({
           keyName: propKeyNameScoped,
           isDisabledProp: leafDisabled,
           phase: 'source',
+          guarded: !!guarded,
+          guardedValue: guarded,
+          resolvePure,
         });
         if (anchor?.kind !== 'ctor') return null;
         const { prop, key, pattern: inner, restPure, mutated: anchorSlotMutated, pure: anchorPure } = anchor;
@@ -3327,7 +3344,9 @@ export function buildNestedDestructurePlan({
         // so static leaves stay verbatim on the raw residual instead of extracting pure
         // statics. a `[Symbol.iterator]` leaf still extracts - the synth is receiver-based
         // and reads off the RAW anchor member, so the replacement stays visible through it
-        const outerProps = inner.properties.map(p => restPure ? { kind: 'verbatim', prop: p } : planSymbolIteratorProp(p)
+        // The guarded anchor evaluates its stored receiver once. Leave inner claims
+        // on that residual for ordinary traversal, rather than rendering another anchor per extraction.
+        const outerProps = inner.properties.map(p => restPure || guarded ? { kind: 'verbatim', prop: p } : planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
         // ... and a residual leaf the MIRROR can spell with the member's own ponyfill declines the anchor
         if (anchorPure && !restPure && outerProps.some(p => p.kind === 'verbatim'
@@ -3338,13 +3357,17 @@ export function buildNestedDestructurePlan({
           receiver,
           receiverPure: resolveGlobalPolyfill(receiver),
           anchor: key,
-          probedNav,
-          probedNavNode,
+          // A stored guard already owns the source value; no late probe may replace it.
+          probedNav: !guarded && probedNav,
+          probedNavNode: guarded ? null : probedNavNode,
           anchorPure,
+          guarded,
+          narrow: anchor.narrow,
+          prefix: anchor.prefix,
           outerProps,
           pattern: inner,
-          discardSe,
-          anchorSe,
+          discardSe: guarded ? null : discardSe,
+          anchorSe: guarded ? null : anchorSe,
         };
       }
       const { accounted: anchoredSeAccounted, anchorSe } = anchoredSeAccounting(declarator, declarator.init,

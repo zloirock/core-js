@@ -2489,6 +2489,7 @@ export default function createDestructureEmitter({
     // bails to the plain defined-nav render when the shared plan cannot guard this nav shape
     const emitted = estreeToBabel(renderResidualAnchor(plan, {
       injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+      mintRef: () => injector.generateDeclaredRef(anchorPath.scope).name,
       embed: node => hostSlot(t.cloneNode(node)),
     }));
     if (plan.probedNav && initNode && anchorPath) {

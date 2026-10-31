@@ -76,4 +76,18 @@ for (const [expression, sealed] of [
   check(`${ label }/terminal read`, conditional.alternate.type, sealed ? 'MemberExpression' : 'Identifier');
   check(`${ label }/source remains pristine`, JSON.stringify(path.node.init), before);
 });
+runBoth('excluded realm leaf', 'const value = globalThis.window?.self;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  function resolveExcluded(meta) {
+    return meta.name === 'self' ? null : resolvePure(meta);
+  }
+  const plan = probedNavGuardValuePlan(path.node.init, resolveExcluded, { scope: path.scope, adapter, path });
+  check(`${ label }/read stays on the realm`, plan.leafPlan.leafBasePure.entry, 'globalThis');
+  check(`${ label }/exclusion is not an unbacked hop`, plan.foldLeafOntoBase, false);
+  const built = renderClaimProbe(plan, { embed: hostSlot, injectImport: (entry, hint) => `_${ hint }` });
+  const conditional = findNode(built, node => node.type === 'ConditionalExpression');
+  check(`${ label }/missing property does not become a missing binding`, conditional.alternate.type, 'MemberExpression');
+  check(`${ label }/raw excluded property`, conditional.alternate.property.name, 'self');
+});
 finish();

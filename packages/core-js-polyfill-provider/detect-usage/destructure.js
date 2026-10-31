@@ -837,9 +837,10 @@ export function patternClaimOwesMirror(kind, propPath) {
 // does READING this receiver owe a throw? a top-reaching short-circuit hands the destructure
 // `undefined`, and a chain SEALING one throws above the seal - either way the read is observable, so
 // a route that REPLACES the receiver with a literal would erase it. Asked on the sequence TAIL: a
-// prefix effect settles nothing about the value
+// prefix effect settles nothing about the value. An outer store hands that same value
+// to the pattern; its write stays in the receiver prefix that the mirror coerces once.
 function destructureReceiverOwesAThrow(node, aliasCtx) {
-  const core = unwrapTransparentSeq(node);
+  const core = peelChainAssignment(node).value;
   return proxyReceiverValueCanBeUndefined(core, ({ name }) => resolveBuiltIn({ kind: 'global', name }), aliasCtx)
     || chainSealsAShortCircuit(core, ({ name }) => resolveBuiltIn({ kind: 'global', name }), aliasCtx);
 }

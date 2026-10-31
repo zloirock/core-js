@@ -5930,6 +5930,7 @@ function discardedInitProbeNavStart(initNode) {
 
 // A fully consumed pattern needs the value's own probe, or the alias read through its first seal.
 // A sequence contributes its tail; a one-element array's mirror already owns an inline store.
+// An outer store remains the value being probed: its RHS and write must run once, together.
 // As with sealedClaimProbePlan, this retains source facts without committing any host effects.
 export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
   const peeled = unwrapRuntimeExpr(peelReceiverSequenceTail(initNode));
@@ -5939,6 +5940,16 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
     nav = agreeingTernaryArm(nav, aliasCtx.path, aliasCtx.adapter) ?? nav;
   }
   if (!nav) return null;
+  const stored = peelChainAssignment(nav);
+  if (!arrayWrapped && stored.outer && proxyReceiverValueCanBeUndefined(stored.value, resolvePure, aliasCtx)) return {
+    kind: 'stored',
+    source: initNode,
+    test: { source: claimProbeSourceSlot(nav, resolvePure, aliasCtx) },
+    retained: [nav],
+    consumed: [],
+    readsSource: false,
+    navStart: discardedInitProbeNavStart(initNode),
+  };
   const leafPlan = sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx, { probeLeaf: true });
   if (leafPlan) {
     const keyEffects = navComputedKeyEffects(nav);
@@ -5969,6 +5980,10 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
 export function destructureProbePlan(source, resolvePure, ctx) {
   const sealed = directClaimProbePlan(source, resolvePure, ctx, { allowStoreHolder: true });
   if (sealed) return sealed;
+  if (peelChainAssignment(source).outer) {
+    const stored = discardedInitProbePlan(source, resolvePure, ctx);
+    if (stored) return stored;
+  }
   const value = probedDestructureInitValue(source, resolvePure, ctx);
   if (!value) return null;
   // A dead fallback still evaluates its left value before reading the pattern's first key.
@@ -6053,7 +6068,11 @@ function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf
   // written. ONE verdict for both renders: spelled per leg, one folded and the other spelled the
   // raw name, and the two import sets differed on the same source
   const leafBasePure = POSSIBLE_GLOBAL_OBJECTS.has(leafName)
-    ? proxyRunLeafPure(unwrapRuntimeExpr(nav.object), aliasCtx, resolvePure) : null;
+    ? proxyRunLeafPure(unwrapRuntimeExpr(nav.object), aliasCtx, resolvePure)
+      // An excluded realm entry is a property read, not a guaranteed global binding.
+      // The realm base preserves an absent slot and avoids re-reading the window probe.
+      ?? (!proxyHopLacksPureEntry(leafName, resolvePure) ? resolvePure({ kind: 'global', name: 'globalThis' }) : null)
+    : null;
   const foldLeafOntoBase = !!leafBasePure && foldableRealmHopKey(leafName, { adapter: aliasCtx?.adapter, resolvePure });
   return { guardObject: verdict.object, leafPure: null, leafName, leafBasePure, foldLeafOntoBase };
 }

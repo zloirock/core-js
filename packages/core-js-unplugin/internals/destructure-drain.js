@@ -20,6 +20,7 @@ import {
   renderSynthLiteral,
   renderSynthReplacement,
   planConsumedInitializerCarrier,
+  residualReadOwnsValue,
   planDiscardedInit,
   planDiscardedInitPlacement,
   liveDestructureDefault,
@@ -78,6 +79,7 @@ import {
   expressionStatement,
   identifier,
   memberExpression,
+  objectPattern,
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
@@ -722,12 +724,15 @@ export default function createDestructureDrains(ctx) {
     }
   }
 
-  // the ctor-pattern re-anchor arm of the memo declarator, extracted for its size
-  function emitCtorPatternReanchor({ hostNode, declarator, soleJob, rescues, statements, exported }) {
+  // Declaration and for-init residuals consume the same guarded constructor value.
+  // The source property remains available after for-init has pruned its host pattern.
+  function ctorPatternAnchorValue(declarator, soleJob, consumeProbe, rescues) {
+    // A rendered guard or stored source still permits the shared constructor narrow.
+    // Without that live surface, an accepted read already carries the residual value.
     const guardInfo = surfaceInitInfo(declarator, soleJob.metaPath);
     const guarded = guardInfo?.shape === 'guard' ? guardInfo.tail : null;
     const anchor = guarded && planResidualAnchorHop({
-      pattern: declarator.id,
+      pattern: objectPattern([soleJob.prop]),
       receiver: 'globalThis',
       adapter,
       path: soleJob.metaPath,
@@ -738,11 +743,12 @@ export default function createDestructureDrains(ctx) {
       guardedValue: guarded,
       wholeDeclarator: true,
     });
-    const init = renderResidualAnchor({
+    return renderResidualAnchor({
       anchor: anchor?.key,
       anchorNode: soleJob.prop.key,
       computed: soleJob.prop.computed,
       anchorPure: soleJob,
+      read: consumeProbe,
       narrow: anchor?.narrow,
       guarded,
       prefix: anchor?.narrow ? anchor.prefix : rescues,
@@ -752,6 +758,11 @@ export default function createDestructureDrains(ctx) {
       // A rescued prefix still owns queued nested hosts; their later drain must reach it.
       embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
     });
+  }
+
+  // the ctor-pattern re-anchor arm of the memo declarator, extracted for its size
+  function emitCtorPatternReanchor({ hostNode, declarator, soleJob, rescues, consumeProbe, statements, exported }) {
+    const init = ctorPatternAnchorValue(declarator, soleJob, consumeProbe, rescues);
     statements.push(exportDeclaration(variableDeclaration(hostNode.kind,
       [variableDeclarator(soleJob.prop.value, init)]), exported));
     markSubtreeSkipped(skippedNodes, soleJob.prop.key);
@@ -818,11 +829,11 @@ export default function createDestructureDrains(ctx) {
     const rescues = consumeProbe ? probeResidualEffects(consumeProbe) : planDiscardedInit(
       declarator.init, patternFrame(metaPath), null, pristineInitFacts.get(declarator),
     ).effects;
-    // the ctor-pattern re-anchor: a PATTERN-valued sole job reads the pure ctor whole,
-    // the harvested rescues riding the init seq (`{ customB } = (eff(), _Set)`)
+    // A pattern-valued sole read supplies the residual's receiver. Its source probe
+    // owns the guarded value; otherwise the pure constructor carries the rescued prefix.
     const [soleJob] = declJobs;
-    if (declJobs.length === 1 && soleJob.kind !== 'instance' && soleJob.prop.value?.type === 'ObjectPattern') {
-      return emitCtorPatternReanchor({ hostNode, declarator, soleJob, rescues, statements, exported });
+    if (residualReadOwnsValue(declJobs)) {
+      return emitCtorPatternReanchor({ hostNode, declarator, soleJob, rescues, consumeProbe, statements, exported });
     }
     // the discarded init READ that a kept write sits under: the whole member chain when the write
     // is its root, else null (a write that IS the init has no read of its own to keep)
@@ -1150,9 +1161,11 @@ export default function createDestructureDrains(ctx) {
       const probeRead = emptied && declJobs.every(job => !job.readsReceiver && !job.seCarried)
         ? renderDiscardedInitProbe(declJobs, probeRenderCtx) : null;
       const product = emptied && !probeRead && declJobs.length === 1 && declJobs[0].chain?.length ? {} : null;
+      const residualRead = probeRead && residualReadOwnsValue(declJobs)
+        && ctorPatternAnchorValue(declarator, declJobs[0], probeRead, []);
       const extracted = renderDestructureDeclarators(declJobs.map((job, at) => ({
         id: job.bindingTarget,
-        init: at === 0 && probeRead ? sequenceExpression([probeRead, job.value()]) : job.value(null, product),
+        init: residualRead || (at === 0 && probeRead ? sequenceExpression([probeRead, job.value()]) : job.value(null, product)),
       })));
       const soleValue = extracted.length === 1 ? extracted[0].init : null;
       if (!emptied) {

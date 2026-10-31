@@ -8,6 +8,7 @@ import {
   discardedInitProbePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { identifier, renderClaimProbe } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -184,4 +185,26 @@ for (const [source, children, root] of [
   check(`${ label }/root stays a source fact`, slot.root?.pure.hintName ?? null, root);
   check(`${ label }/query preserves the source`, JSON.stringify(path.node.init), before);
 });
+for (const init of [
+  'held = (effect(), globalThis.window?.Array)',
+  'held = other = (effect(), globalThis.window?.Array)',
+  'box.value = (effect(), globalThis.window?.Array)',
+]) runBoth(`stored discarded value/${ init }`, `let held, other; const value = ${ init };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  const before = JSON.stringify(path.node);
+  for (const query of [discardedInitProbePlan, destructureProbePlan]) {
+    const plan = query(path.node.init, resolvePure, ctx);
+    check(`${ label }/${ query.name }/whole stored value`, plan?.kind, 'stored');
+    check(`${ label }/${ query.name }/native key still required`, plan?.readsSource, false);
+    const rendered = renderClaimProbe(plan, { injectImport: name => name });
+    check(`${ label }/${ query.name }/store survives`, unwrapRuntimeExpr(rendered).type, 'AssignmentExpression');
+    check(`${ label }/${ query.name }/no repeated effect`, JSON.stringify(rendered).match(/"name":"effect"/g)?.length, 1);
+    check(`${ label }/${ query.name }/no separate store replay`,
+      directClaimProbeEffects({ decision: plan, node: identifier('probe') }, [path.node.init]).length, 1);
+  }
+  check(`${ label }/query preserves source`, JSON.stringify(path.node), before);
+});
+
 finish();
