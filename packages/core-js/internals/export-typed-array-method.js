@@ -6,6 +6,7 @@ var TypedArrayConstructors = require('../internals/typed-array-constructors');
 var TypedArrayPrototype = require('../internals/typed-array-core').TypedArrayPrototype;
 
 module.exports = function (key, property, forced, options) {
+  // the native of `Int8Array` replaces own methods of every class, so `forced` must cover natives rejecting other classes
   var exported = forced ? property : Int8Array.prototype[key] || property;
 
   Object.keys(TypedArrayConstructors).forEach(function (name) {
