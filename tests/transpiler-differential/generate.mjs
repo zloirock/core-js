@@ -21650,6 +21650,47 @@ function * generateAssignmentOverwriteDefaults() {
   }
 }
 
+// Selection extraction must preserve the opaque arm, capture identity and sentinel order.
+function * generateSelectingExtractions() {
+  for (const [selection, receiver] of [
+    ['ternary', 'choose(flag) ? globalThis : shim'],
+    ['or', '(choose(flag) ? null : shim) || globalThis'],
+    ['nullish', '(choose(flag) ? undefined : shim) ?? globalThis'],
+  ]) for (const host of ['declaration', 'assignment']) for (const captured of [false, true]) for (const rest of [false, true]) {
+    const pattern = `{ Array: { [(log.push('key'), 'from')]: from = (log.push('default'), 9)${ rest ? ', ...rest' : '' } } }`;
+    const init = `${ captured ? 'held = ' : '' }${ receiver }`;
+    const read = host === 'declaration' ? `const ${ pattern } = ${ init };`
+      : `let from${ rest ? ', rest' : '' }; (${ pattern } = ${ init });`;
+    const body = `const log = [];
+      function choose(flag) { log.push('select'); return flag; }
+      function read(flag, shim) {
+        let held;
+        ${ read }
+        return [typeof from === 'function' ? from([5])[0] : from,
+          ${ captured ? 'held === (flag ? globalThis : shim)' : 'true' }, ${ rest ? 'rest.extra' : 'null' }];
+      }
+      const shim = { get Array() {
+        log.push('hop');
+        return { get from() { log.push('get'); return undefined; }, extra: 7 };
+      } };
+      return [read(true, shim), read(false, shim), log];`;
+    // A captured receiver or a rest keeps the native pattern: a mirror would replace
+    // the stored value or change the rest's properties. These are full-realm negatives;
+    // the uncaptured sole leaf also owes its polyfill in the stripped realm.
+    yield { ...snippet(`selecting-extraction/${ selection }/${ host }/${ captured ? 'captured' : 'bare' }/${ rest ? 'rest' : 'sole' }`,
+      `(() => { ${ body } })()`), strip: !captured && !rest };
+  }
+  for (const partial of [false, true]) {
+    const body = `function read(flag) {
+      const { at${ partial ? ', length' : '' } } = (log.push('select'), flag) ? [4] : [7, 9];
+      return [at.call([1, 3], -1), ${ partial ? 'length' : 'null' }];
+    }
+    return [read(true), read(false)];`;
+    yield { ...snippet(`selecting-extraction/instance/${ partial ? 'partial' : 'sole' }`,
+      `(() => { ${ body } })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22074,4 +22115,5 @@ export function * generate() {
   yield * generateNestedLeafTwins();
   yield * generateInitializerCarriers();
   yield * generateAssignmentOverwriteDefaults();
+  yield * generateSelectingExtractions();
 }

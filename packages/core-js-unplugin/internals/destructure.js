@@ -60,6 +60,7 @@ import {
   shouldMirrorNestedDestructureDefault,
   planNestedDefaultHop,
   planAssignmentOverwrite,
+  planSelectingExtraction,
   planLiteralResidual,
   planLiteralRoute,
   planInitializerNavigation,
@@ -169,8 +170,6 @@ import {
   classifyDeclarationHost,
   climbPatternChain,
   defaultedSoleConsumes,
-  divergingSelection,
-  divergingSentinelSelectorDeclines,
   duplicateReceiver,
   eagerSentinelMemoName,
   emitAssignStaticDefaultOverwrite,
@@ -200,7 +199,6 @@ import {
   hopDefaultCarriesEffect,
   nestedLeafSelectingReceiver,
   nestedInstanceWithoutSelectingInit,
-  staticallySelectedLeft,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
 import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -1685,25 +1683,13 @@ export default function createAstDestructureEmitter({
     return { keepKey, memoRecv, siblingAppend, consumeResidualRead };
   }
 
-  // the extraction's own validity proof, asked THROUGH a chain assignment: a capture yields its RHS,
-  // so the SELECTION under it is what the pattern reads - and polyfill-always-wins holds only where
-  // every arm of that selection resolves, either by agreeing statically or by every value being the
-  // realm. an OPAQUE arm keeps the source's own read, and with a capture in the way the mirror is no
-  // escape either: a literal in the arm would hand the capture our object. measured, both halves -
-  // `const { Array: { from } } = (held = shim || globalThis)` with a TRUTHY shim bound the ponyfill
-  // where native and the other binding answer the user object's own member
-  function capturedSelectionDeclinesExtraction({ selecting, meta, metaPath, soleBinding, chain, kind }) {
-    let captured = selecting;
-    while (isChainAssignment(captured)) captured = peelTransparentExpr(captured.right);
-    if (captured === selecting) return false;
-    // ... a selection the build decides stores the operand of it that runs (`decidedRunningOperand`)
-    captured = decidedRunningOperand(captured, { ...nodeSite(captured, metaPath), adapter });
-    if (captured?.type !== 'LogicalExpression' && captured?.type !== 'ConditionalExpression') return false;
-    // the DIVERGING half is the canon's - a selection not every branch of which is one proxy surface -
-    // and the other half is this site's: arms that agree STATICALLY carry the same static, so the
-    // extraction is sound over them (`b = (Array || Set)`, both with `from`)
-    return divergingSelection(captured, { adapter, injectorState })
-      && !staticallySelectedLeft({ selecting: captured, meta, metaPath, soleBinding, chain, adapter, kind });
+  // Bind source read frames and this file's import registry to the shared selection decision.
+  // Borrowed receiver nodes keep their call/default frame through the native site registry.
+  function selectingExtractionPlan(input, metaPath) {
+    return planSelectingExtraction(input, {
+      scope: metaPath.scope, path: metaPath, adapter, injectorState, resolveGlobalPolyfill,
+      readSite: node => nodeSite(node, metaPath),
+    });
   }
 
   // an OPAQUE / effect-bearing init with no direct receiver: the defaulted sole-consume
@@ -1857,45 +1843,27 @@ export default function createAstDestructureEmitter({
       }
     }
     const selecting = peelTransparentExpr(declarator.init);
-    if (selecting?.type === 'ConditionalExpression' || selecting?.type === 'LogicalExpression') {
-      const left = staticallySelectedLeft({ selecting, meta, metaPath, soleBinding, chain, adapter, kind });
-      if (left) {
-        // the init dies with a SOLE binding, so its claims are consumed; a surviving
-        // residual keeps reading it and its own claims must still render
-        // ... but an init carrying OBSERVABLES keeps its claims live: the drain re-emits the
-        // whole selection as a discarded statement, and that spelling is the collapsed one
+    const selection = selectingExtractionPlan({
+      receiver: declarator.init, kind, object: meta?.object, soleBinding, nested: chain.length > 0,
+    }, metaPath);
+    if (selection && !selection.captured) {
+      if (selection.kind === 'operand') {
+        // Only a consumed, effect-free initializer retires its nested claims.
         if (soleBinding && !mayHaveSideEffects(declarator.init, { scope: metaPath.scope, adapter, path: metaPath })) {
           markSubtreeSkipped(skippedNodes, declarator.init);
         }
-        return { literalReceiver: left, forInitLiteral: false };
+        return { literalReceiver: selection.node, forInitLiteral: false };
       }
-      // an INSTANCE claim reads the selecting expression ONCE inside its dispatch, so the
-      // whole selection is the receiver and every branch stays live (`{ keys } = Stub ??
-      // Object` -> `_keys(Stub ?? Object)`, `{ at } = c ? [1] : [2]` -> `_atMaybeArray(c ?
-      // [1] : [2])`); resolution used the primary operand alone
-      if (kind === 'instance' && soleBinding && !chain.length) {
-        return { literalReceiver: declarator.init, forInitLiteral: false };
-      }
-      // a diverging LOGICAL guard under a NESTED static leaf no earlier route served keeps the destructure
-      // and its read native: the selected branch's own undefined is its answer (the ternary mirror declines
-      // outright - the locked diverging-only rule)
-      if (selecting.type === 'LogicalExpression' && selecting.operator === '&&'
-        && kind !== 'instance' && chain.length) return 'handled';
-      // ... and with a residual left over, the selection has TWO readers (the extraction and
-      // the residual) - the whole init memoizes so the branch is taken exactly once, which is
-      // the same whole-init memo the opaque route below records
-      if (kind !== 'instance' || chain.length) {
-        // a selection the routes above declined and the fromFallback dispatch cannot reach
-        // (a non-nullish PRIMARY resolves WITHOUT the flag): the per-branch mirror still
-        // owns the shape - `(d++, globalThis) || fb` mirrors the diverging tail exactly
-        // like its fromFallback twins, instead of leaving the claim unrendered
+      if (selection.kind === 'receiver') return { literalReceiver: selection.node, forInitLiteral: false };
+      if (selection.kind === 'native') return 'handled';
+      if (selection.kind === 'mirror') {
         routeSelectionMirror(metaPath, handlePerBranch, meta);
         return 'handled';
       }
     }
     if (prop.value.type === 'AssignmentPattern' && !defaultedIdent) return 'handled';
     if (chain.length > 0 && kind === 'instance') return 'handled';
-    if (capturedSelectionDeclinesExtraction({ selecting, meta, metaPath, soleBinding, chain, kind })) {
+    if (selection?.kind === 'native') {
       routeSelectionMirror(metaPath, handlePerBranch, meta);
       return 'handled';
     }
@@ -2417,13 +2385,10 @@ export default function createAstDestructureEmitter({
     // `at = _at(arr), { at: _unused, ...rest } = arr`)
     if (forInit && sentinel && !sentinelMemoEligible && kind === 'instance'
       && peelTransparentExpr(declarator.init)?.type !== 'Identifier') return;
-    // a value-SELECTING conditional init under a sentinel-kept prop: the per-branch mirror
-    // owns the claim - an unconditional extraction would corrupt the non-global branch.
-    // a fallback LOGICAL keeps extracting: its resolved left is the always-truthy receiver
-    if (sentinel && !sentinelMemoEligible && divergingSentinelSelectorDeclines(
-      { declarator, meta, metaPath, chain, kind },
-      { adapter, injectorState, resolveGlobalPolyfill },
-    )) return;
+    // A retained receiver keeps its selection; the common proof bars user-valued arms.
+    if (sentinel && !sentinelMemoEligible && selectingExtractionPlan({
+      receiver: declarator.init, kind, object: meta?.object, nested: chain.length > 0, keepsReceiver: true,
+    }, metaPath)?.kind === 'native') return;
     // a for-init FULL consume needs no statement slot: the drain keeps the init in a `_ref`
     // declarator beside the extractions (`for (const _ref = bump(), parse = _JSON$parse;`),
     // so the opaque-memo route - which hoists a STATEMENT - must not claim it
@@ -2881,15 +2846,15 @@ export default function createAstDestructureEmitter({
     // and a leaf the ordered capture declined keeps its read native.
     if (rhs?.type === 'LogicalExpression' && rhs.operator === '&&' && chain.length > 0
       && kind !== 'instance' && hasRestSibling(pattern, keyCtx)) return;
-    // the extraction's validity proof through a CAPTURE, the declarator host's own question asked
-    // where the pattern is an assignment target: a captured selection whose arms do not all resolve
-    // keeps the source's own read, or the ponyfill lands over whatever the opaque arm holds. the
-    // host does not change the answer, only which route asks it
-    if (capturedSelectionDeclinesExtraction({
-      selecting: peelTransparentExpr(rhs), meta, metaPath, soleBinding: false, chain, kind,
-    })) {
-      routeSelectionMirror(metaPath, handlePerBranch, meta);
-      return;
+    // This consumer asks only about a capture; other RHS routes decide their own receiver.
+    if (isChainAssignment(peelTransparentExpr(rhs))) {
+      const selection = selectingExtractionPlan({
+        receiver: rhs, kind, object: meta?.object, nested: chain.length > 0,
+      }, metaPath);
+      if (selection?.kind === 'native') {
+        routeSelectionMirror(metaPath, handlePerBranch, meta);
+        return;
+      }
     }
     // the hop-host note is taken AHEAD of every route: a claim this host CONSUMES never reaches the
     // stand-down below, and the residual it leaves behind re-anchors like an untouched one
