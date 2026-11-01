@@ -6,6 +6,7 @@ QUnit.test('URL.canParse', assert => {
   assert.isFunction(canParse);
   assert.arity(canParse, 1);
   assert.name(canParse, 'canParse');
+  assert.enumerable(URL, 'canParse');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(canParse);
 

@@ -8,6 +8,7 @@ QUnit.test('URL.parse', assert => {
   assert.isFunction(parse);
   assert.arity(parse, 1);
   assert.name(parse, 'parse');
+  assert.enumerable(URL, 'parse');
 
   // Deno 1.46.3 and 2.x require a URL receiver even for the exported static method.
   if (DENO) parse = parse.bind(URL);

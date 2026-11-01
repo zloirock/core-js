@@ -13,6 +13,9 @@ QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
   if (!NODE) assert.arity(URL, 1);
 
+  if (URL.createObjectURL) assert.enumerable(URL, 'createObjectURL');
+  if (URL.revokeObjectURL) assert.enumerable(URL, 'revokeObjectURL');
+
   assert.same(String(new URL('http://www.domain.com/a/b')), 'http://www.domain.com/a/b');
   assert.same(String(new URL('/c/d', 'http://www.domain.com/a/b')), 'http://www.domain.com/c/d');
   assert.same(String(new URL('b/c', 'http://www.domain.com/a/b')), 'http://www.domain.com/a/b/c');

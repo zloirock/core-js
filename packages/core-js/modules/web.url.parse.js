@@ -9,7 +9,7 @@ var URL = getBuiltIn('URL');
 
 // `URL.parse` method
 // https://url.spec.whatwg.org/#dom-url-parse
-$({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
+$({ target: 'URL', stat: true, enumerable: true, forced: !USE_NATIVE_URL }, {
   parse: function parse(url) {
     var length = validateArgumentsLength(arguments.length, 1);
     var urlString = toString(url);

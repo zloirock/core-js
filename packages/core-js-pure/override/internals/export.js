@@ -8,6 +8,7 @@ var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var defineBuiltIn = require('../internals/define-built-in');
 var hasOwn = require('../internals/has-own-property');
 // add debugging info
 require('../internals/shared-store');
@@ -91,7 +92,7 @@ module.exports = function (options, source) {
       createNonEnumerableProperty(resultProperty, 'sham', true);
     }
 
-    createNonEnumerableProperty(target, key, resultProperty);
+    defineBuiltIn(target, key, resultProperty, options);
 
     if (PROTO) {
       VIRTUAL_PROTOTYPE = TARGET + 'Prototype';

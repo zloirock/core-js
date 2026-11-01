@@ -22,7 +22,7 @@ var WRONG_ARITY = fails(function () {
 
 // `URL.canParse` method
 // https://url.spec.whatwg.org/#dom-url-canparse
-$({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS || WRONG_ARITY }, {
+$({ target: 'URL', stat: true, enumerable: true, forced: !THROWS_WITHOUT_ARGUMENTS || WRONG_ARITY }, {
   canParse: function canParse(url) {
     var length = validateArgumentsLength(arguments.length, 1);
     var urlString = toString(url);

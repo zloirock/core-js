@@ -1,9 +1,11 @@
+import URL from 'core-js-pure/stable/url';
 import canParse from 'core-js-pure/stable/url/can-parse';
 
 QUnit.test('URL.canParse', assert => {
   assert.isFunction(canParse);
   assert.arity(canParse, 1);
   assert.name(canParse, 'canParse');
+  assert.enumerable(URL, 'canParse');
 
   assert.false(canParse(undefined), 'undefined');
   assert.false(canParse(undefined, undefined), 'undefined, undefined');

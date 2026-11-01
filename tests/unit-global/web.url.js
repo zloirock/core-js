@@ -14,6 +14,9 @@ QUnit.test('URL constructor', assert => {
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(URL);
 
+  if (URL.createObjectURL) assert.enumerable(URL, 'createObjectURL');
+  if (URL.revokeObjectURL) assert.enumerable(URL, 'revokeObjectURL');
+
   assert.same(String(new URL('http://www.domain.com/a/b')), 'http://www.domain.com/a/b');
   assert.same(String(new URL('/c/d', 'http://www.domain.com/a/b')), 'http://www.domain.com/c/d');
   assert.same(String(new URL('b/c', 'http://www.domain.com/a/b')), 'http://www.domain.com/a/b/c');
