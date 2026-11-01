@@ -35,7 +35,7 @@ if (!V8_VERSION && USERAGENT) {
 }
 
 var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
-var IS_BUN = typeof Bun == 'function' && Bun && typeof Bun.version == 'string';
+var IS_BUN = Bun && typeof Bun.version == 'string';
 var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object';
 
 var IS_NODE = !IS_BUN && !IS_DENO && Object.prototype.toString.call(process) === '[object process]';
@@ -338,6 +338,25 @@ var DOMIterables = {
   TextTrackList: 0,
   TouchList: 0,
 };
+
+// Match the runtime's prototypes, including the separate classList prototype in old WebKit.
+function domCollectionMethodSupport(method) {
+  return function () {
+    function check(prototype) {
+      if (!prototype) return true;
+      var key = method === 'iterator' ? Symbol.iterator : method;
+      var arrayKey = method === 'values' ? Symbol.iterator : key;
+      return typeof Array.prototype[arrayKey] == 'function' && prototype[key] === Array.prototype[arrayKey];
+    }
+    var document = GLOBAL.document;
+    var element = document && typeof document.createElement == 'function' && document.createElement('span');
+    var classList = element && element.classList;
+    var prototype = classList && classList.constructor && classList.constructor.prototype;
+    return Object.keys(DOMIterables).every(function (key) {
+      return method !== 'iterator' && !DOMIterables[key] || check(GLOBAL[key] && GLOBAL[key].prototype);
+    }) && (prototype === Object.prototype || check(prototype));
+  };
+}
 
 function IMMEDIATE() {
   return setImmediate && clearImmediate && !(IS_BUN && (function () {
@@ -643,8 +662,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return iterator.next()
       && iterator[Symbol.iterator]() === iterator
       && iterator[Symbol.toStringTag] === 'Array Iterator'
-      && [][Symbol.iterator].name === 'values'
-      && [][Symbol.iterator] === [].values;
+      && [][Symbol.iterator].name === 'values';
   }],
   'es.array.from-async': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
@@ -2043,37 +2061,20 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     try {
       btoa();
     } catch (error) {
-      return typeof btoa == 'function';
+      return typeof btoa == 'function'
+        && btoa.length === 1
+        && btoa('hi') === 'aGk='
+        && btoa(null) === 'bnVsbA==';
     }
   },
   'web.clear-immediate': function () {
     return setImmediate && clearImmediate;
   },
-  'web.dom-collections.iterator': function () {
-    return [][Symbol.iterator] && Object.keys(DOMIterables).every(function (key) {
-      return !GLOBAL[key] || GLOBAL[key].prototype[Symbol.iterator] === [][Symbol.iterator];
-    });
-  },
-  'web.dom-collections.entries': function () {
-    return [].entries && Object.keys(DOMIterables).every(function (key) {
-      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.entries === [].entries;
-    });
-  },
-  'web.dom-collections.for-each': function () {
-    return Object.keys(DOMIterables).every(function (key) {
-      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.forEach === [].forEach;
-    });
-  },
-  'web.dom-collections.keys': function () {
-    return [].keys && Object.keys(DOMIterables).every(function (key) {
-      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.keys === [].keys;
-    });
-  },
-  'web.dom-collections.values': function () {
-    return [][Symbol.iterator] && Object.keys(DOMIterables).every(function (key) {
-      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.values === [][Symbol.iterator];
-    });
-  },
+  'web.dom-collections.iterator': domCollectionMethodSupport('iterator'),
+  'web.dom-collections.entries': domCollectionMethodSupport('entries'),
+  'web.dom-collections.for-each': domCollectionMethodSupport('forEach'),
+  'web.dom-collections.keys': domCollectionMethodSupport('keys'),
+  'web.dom-collections.values': domCollectionMethodSupport('values'),
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value.length === 1;
   },

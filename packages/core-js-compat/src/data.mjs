@@ -594,11 +594,11 @@ export const data = {
   },
   // TODO: recheck
   'es.array.iterator': {
-    chrome: '66',
+    chrome: '49',
     edge: '15',
     firefox: '60',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.array.from-async': { // <- `Array#values` and `Promise` dependencies should be loaded before
@@ -675,7 +675,7 @@ export const data = {
   },
   // TODO: recheck
   'es.array.entries': {
-    chrome: '66',
+    chrome: '49',
     edge: '15',
     firefox: '51',
     rhino: '1.8.0',
@@ -777,7 +777,7 @@ export const data = {
   },
   // TODO: recheck
   'es.array.keys': {
-    chrome: '66',
+    chrome: '49',
     edge: '15',
     firefox: '51',
     rhino: '1.8.0',
@@ -821,7 +821,7 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    node: '6.0', // ^^^
+    node: '0.11.0', // ^^^
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -830,7 +830,7 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    node: '6.0', // ^^^
+    node: '0.11.0', // ^^^
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -922,6 +922,7 @@ export const data = {
     chrome: '66',
     edge: '15',
     firefox: '60',
+    node: '10.9',
     rhino: '1.8.0',
     safari: '10.0',
   },
@@ -941,6 +942,7 @@ export const data = {
     edge: '14',
     firefox: '44',
     hermes: '0.1',
+    node: '0.11.4',
     rhino: '1.8.0',
     safari: '12.0',
   },
@@ -959,6 +961,7 @@ export const data = {
     firefox: '46',
     hermes: '0.1',
     ie: '11',
+    node: '0.11.4',
     rhino: '1.7.13',
     safari: '12.1',
   },
@@ -998,7 +1001,7 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
-    rhino: '1.7.13',
+    rhino: '1.9.0',
     safari: '10',
   },
   // TODO: recheck
@@ -1009,7 +1012,8 @@ export const data = {
     // https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/40#javascript
     firefox: '40',
     hermes: '0.1',
-    rhino: '1.7.13',
+    node: '0.11.4',
+    rhino: '1.8.0',
     safari: '7.1',
   },
   // TODO: recheck
@@ -1018,6 +1022,7 @@ export const data = {
     firefox: '15',
     hermes: '0.1',
     ie: '10',
+    node: '0.11.5', // broken in 0.11.4
     rhino: '1.7.13',
     safari: '8.0',
   },
@@ -1027,6 +1032,7 @@ export const data = {
     firefox: '15',
     hermes: '0.1',
     ie: '10',
+    node: '0.11.5', // broken in 0.11.4
     rhino: '1.7.13',
     safari: '8.0',
   },
@@ -1050,7 +1056,7 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
-    rhino: '1.7.13',
+    rhino: '1.9.0', // missing again in 1.8
     safari: '10',
   },
   'es.date.to-json': {
@@ -1078,7 +1084,7 @@ export const data = {
     firefox: '141',
   },
   'es.function.has-instance': {
-    chrome: '51',
+    chrome: '50',
     edge: '15',
     firefox: '50',
     hermes: '0.1',
@@ -1320,7 +1326,7 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '41',
-    rhino: '1.7.13',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.map.group-by': {
@@ -1433,6 +1439,7 @@ export const data = {
     edge: '13',
     firefox: '20',
     hermes: '0.1',
+    node: '0.11.2',
     rhino: '1.7.13',
     safari: '9.0',
   },
@@ -1606,6 +1613,7 @@ export const data = {
     edge: '18',
     firefox: '87',
     hermes: '0.1',
+    node: '0.11.0',
     rhino: '1.7.13',
     safari: '11',
   },
@@ -1658,7 +1666,7 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '49',
-    rhino: '1.7.13',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.regexp.sticky': {
@@ -1695,7 +1703,7 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '41',
-    rhino: '1.7.13',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.set.difference': {
@@ -1928,7 +1936,7 @@ export const data = {
     edge: '15',
     firefox: '52',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.7.13',
     safari: '12.1',
   },
   'es.string.trim-end': {
@@ -2325,6 +2333,7 @@ export const data = {
     edge: '13',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1165053
     firefox: '48',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.typed-array.subarray': {
@@ -2336,7 +2345,7 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.to-locale-string': {
-    chrome: '49',
+    chrome: '45',
     firefox: '51',
     hermes: '0.1',
     rhino: '1.9.0',
@@ -2573,7 +2582,7 @@ export const data = {
   'web.btoa': {
     bun: '0.1.1',
     chrome: '4',
-    deno: '1.0',
+    deno: '1.11',
     // older have wrong arity
     edge: '16', // ie: '10',
     // FF26- does not properly convert argument to string
@@ -2648,7 +2657,7 @@ export const data = {
     // wrong arity in Bun <= 1.3.14, https://github.com/oven-sh/bun/issues/9249
     bun: '1.4.0', // '0.1.1',
     chrome: '71',
-    deno: '1.0',
+    deno: '1.24.3',
     firefox: '69',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     node: '12.0', // '11.0',
@@ -2683,7 +2692,7 @@ export const data = {
   'web.url.constructor': {
     bun: '0.1.1',
     chrome: '67',
-    deno: '1.0',
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -2712,7 +2721,7 @@ export const data = {
   'web.url.to-json': {
     bun: '0.1.1',
     chrome: '71',
-    deno: '1.0',
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -2723,7 +2732,7 @@ export const data = {
   'web.url-search-params.constructor': {
     bun: '0.1.1',
     chrome: '67',
-    deno: '1.0',
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
