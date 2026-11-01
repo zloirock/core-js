@@ -246,26 +246,26 @@ You can import only the polyfills you need, like in the examples at the top of `
 
 ```ts
 // polyfill all `core-js` features, including early-stage proposals:
-import "core-js";
+import 'core-js';
 // or:
-import "core-js/full";
+import 'core-js/full';
 // polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
-import "core-js/actual";
+import 'core-js/actual';
 // polyfill only stable features - ES and web standards:
-import "core-js/stable";
+import 'core-js/stable';
 // polyfill only stable ES features:
-import "core-js/es";
+import 'core-js/es';
 
 // if you want to polyfill `Set`:
 // all `Set`-related features, with early-stage ES proposals:
-import "core-js/full/set";
+import 'core-js/full/set';
 // stable required for `Set` ES features, features from web standards and stage 3 ES proposals:
-import "core-js/actual/set";
+import 'core-js/actual/set';
 // stable required for `Set` ES features and features from web standards
 // (DOM collections iterator in this case):
-import "core-js/stable/set";
+import 'core-js/stable/set';
 // only stable ES features required for `Set`:
-import "core-js/es/set";
+import 'core-js/es/set';
 // the same without global namespace pollution:
 import Set from "core-js-pure/full/set";
 import Set from "core-js-pure/actual/set";
@@ -273,15 +273,15 @@ import Set from "core-js-pure/stable/set";
 import Set from "core-js-pure/es/set";
 
 // if you want to polyfill just the required methods:
-import "core-js/full/set/intersection";
-import "core-js/actual/array/find-last";
-import "core-js/stable/queue-microtask";
-import "core-js/es/array/from";
+import 'core-js/full/set/intersection';
+import 'core-js/actual/array/find-last';
+import 'core-js/stable/queue-microtask';
+import 'core-js/es/array/from';
 
 // polyfill async iterator helpers proposal:
-import "core-js/proposals/async-iterator-helpers";
+import 'core-js/proposals/async-iterator-helpers';
 // polyfill all stage 2+ proposals:
-import "core-js/stage/2";
+import 'core-js/stage/2';
 ```
 
 > [!TIP]
@@ -2684,8 +2684,7 @@ core-js/proposals/iterator-sequencing
 ```
 
 ##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
-Modules [`es.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.chunks.js)
-and [`es.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.windows.js).
+Modules [`es.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.chunks.js) and [`es.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.windows.js).
 ```ts
 class Iterator {
   chunks(chunkSize: number): Iterator<any>;
@@ -3098,8 +3097,7 @@ core-js(-pure)/stage/3
 ```
 
 ##### [Await dictionary](https://github.com/tc39/proposal-await-dictionary)[⬆](#index)
-Modules [`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-keyed.js)
-and [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled-keyed.js).
+Modules [`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-keyed.js) and [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled-keyed.js).
 ```ts
 class Promise {
   static allKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, any>>;
@@ -3623,7 +3621,7 @@ class String {
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```
-[*Examples*](https://core-js.io/playground#code=function+safePath%28strings%2C+...subs%29+%7B%0A++return+String.cooked%28strings%2C+...subs.map%28sub+%3D%3E+encodeURIComponent%28sub%29%29%29%3B%0A%7D%0A%0Alet+id+%3D+%27spottie%3F%27%3B%0A%0AsafePath%60%2Fcats%2F%24%7B+id+%7D%60%3B+%2F%2F+%3D%3E+%2Fcats%2Fspottie%253F):
+[*Examples*](https://core-js.io/playground#code=function+safePath%28strings%2C+...subs%29+%7B%0A++return+String.cooked%28strings%2C+...subs.map%28sub+%3D%3E+encodeURIComponent%28sub%29%29%29%3B%0A%7D%0A%0Alet+id+%3D+%27spottie%3F%27%3B%0A%0AsafePath%60%2Fcats%2F%24%7B+id+%7D%60%3B+%2F%2F+%3D%3E+%27%2Fcats%2Fspottie%253F%27):
 ```js
 function safePath(strings, ...subs) {
   return String.cooked(strings, ...subs.map(sub => encodeURIComponent(sub)));
@@ -3631,7 +3629,7 @@ function safePath(strings, ...subs) {
 
 let id = 'spottie?';
 
-safePath`/cats/${ id }`; // => /cats/spottie%3F
+safePath`/cats/${ id }`; // => '/cats/spottie%3F'
 ```
 ##### [`String.prototype.codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)[⬆](#index)
 Modules [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js).

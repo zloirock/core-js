@@ -26,5 +26,5 @@ function safePath(strings, ...subs) {
 
 let id = 'spottie?';
 
-safePath`/cats/${ id }`; // => /cats/spottie%3F
+safePath`/cats/${ id }`; // => '/cats/spottie%3F'
 ```
