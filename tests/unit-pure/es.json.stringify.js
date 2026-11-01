@@ -461,7 +461,7 @@ if (GLOBAL.JSON?.stringify) {
         str.valueOf = () => { throw new EvalError('t262'); };
         return str;
       } return value;
-    }), 'value-string-object-3');
+    }), EvalError, 'value-string-object-3');
 
     assert.throws(() => stringify({
       toJSON() { throw new EvalError('t262'); },

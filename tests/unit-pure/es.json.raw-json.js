@@ -1,6 +1,7 @@
-import { FREEZING } from '../helpers/constants.js';
+import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
 import rawJSON from 'core-js-pure/es/json/raw-json';
 import stringify from 'core-js-pure/es/json/stringify';
+import defineProperty from 'core-js-pure/es/object/define-property';
 import isFrozen from 'core-js-pure/es/object/is-frozen';
 import hasOwn from 'core-js-pure/es/object/has-own';
 
@@ -8,6 +9,46 @@ QUnit.test('JSON.rawJSON', assert => {
   assert.isFunction(rawJSON);
   assert.arity(rawJSON, 1);
   assert.name(rawJSON, 'rawJSON');
+
+  // Raw values can first appear during serialization; callbacks must not be replayed.
+  let calls = 0;
+  assert.same(stringify({
+    toJSON() {
+      calls += 1;
+      return rawJSON('1');
+    },
+  }), '1', 'created in toJSON');
+  assert.same(calls, 1, 'toJSON called once');
+
+  if (DESCRIPTORS) {
+    calls = 0;
+    assert.same(stringify(defineProperty({}, 'a', {
+      enumerable: true,
+      get() {
+        calls += 1;
+        return rawJSON('1');
+      },
+    })), '{"a":1}', 'created in getter');
+    assert.same(calls, 1, 'getter called once');
+  }
+
+  calls = 0;
+  assert.same(stringify({ a: 0 }, (key, value) => {
+    calls += 1;
+    return key === 'a' ? rawJSON('1') : value;
+  }), '{"a":1}', 'created in replacer');
+  assert.same(calls, 2, 'replacer called once per property');
+
+  const input = { a: 0 };
+  const space = new Number(2);
+  calls = 0;
+  space.valueOf = () => {
+    calls += 1;
+    input.a = rawJSON('1');
+    return 2;
+  };
+  assert.same(stringify(input, null, space), '{\n  "a": 1\n}', 'created during space conversion');
+  assert.same(calls, 1, 'space converted once');
 
   const raw = rawJSON(1);
   assert.true(hasOwn(raw, 'rawJSON'), 'own rawJSON');
