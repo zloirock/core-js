@@ -1035,6 +1035,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     // https://issues.chromium.org/issues/500536164
     try {
       Math.sumPrecise(setPrototypeOf([1], {}));
+      return false;
     } catch (error) {
       if (!(error instanceof TypeError)) return false;
     }
