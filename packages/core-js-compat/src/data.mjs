@@ -1067,7 +1067,7 @@ export const data = {
     // bun: '1.2.18',
     // https://issues.chromium.org/issues/500536164
     // https://issues.chromium.org/issues/572987948
-    // chrome: '149', '147',
+    chrome: '158', // '147',
     firefox: '137',
     // https://bugs.webkit.org/show_bug.cgi?id=315450
     // safari: '26.2',

@@ -64,6 +64,7 @@
   - `Math.log2` marked as properly supported from Chrome 41, FF48 and Rhino 1.9.2 because of imprecision on powers of two (see above)
   - `Math.log10` marked as properly supported from Chrome 41 because of imprecision on powers of ten (see above)
   - `Math.tanh` marked as properly supported from Chrome 48, `Math.atanh` - from Chrome 53 and Rhino 1.9.2, `Math.log1p` - from Chrome 39, `Math.{ acosh, asinh, atanh, expm1, log1p }` - from FF48 because of the bugs above
+  - `Math.sumPrecise` marked as supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
   - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 because of the resizable buffer and `read` count bugs (see above)
   - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0
