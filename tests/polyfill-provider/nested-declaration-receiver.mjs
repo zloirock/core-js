@@ -32,6 +32,8 @@ for (const [name, source, expected, keys, carries = false] of [
   ['prefix', 'const { data: { at: method } } = (effect(), source);', 'source', ['data'], true],
   ['static', 'const { Array: { from: { name: method } } } = globalThis;', 'array/from', []],
   ['constructor', 'const { Map: { name: method } } = globalThis;', 'Map', []],
+  ['loop function', 'for (const realm of [globalThis]) { const { Array: { name: method } } = realm; }', 'realm', ['Array']],
+  ['loop prototype', 'for (const realm of [globalThis]) { const { Array: { prototype: { at: method } } } = realm; }', 'realm', ['Array', 'prototype']],
   ['realm user key', 'const { data: { at: method } } = globalThis;', 'globalThis', ['data']],
   ['capitalized user key', 'const source = { Array: { prototype: rows } }; const { Array: { prototype: { at: method } } } = source;', 'source', ['Array', 'prototype']],
   ['shadowed realm', 'function read(globalThis) { const { data: { at: method } } = globalThis; }', 'globalThis', ['data']],
@@ -51,12 +53,15 @@ for (const [name, source, expected, keys, carries = false] of [
   checkDeep(`${ label }/repeat decision`, { keys: again.keys, pure: again.pure }, { keys: plan.keys, pure: plan.pure });
   check(`${ label }/discarded query preserves source`, JSON.stringify(program.node), before);
   let roots = 0;
+  const product = {};
   renderNestedDeclarationReceiver(plan, {
+    product,
     embed: node => { if (node === plan.node) roots++; return cloneNode(node); },
     importPure: () => { roots++; return identifier('pure'); },
     mintRef: () => identifier('memo'),
   });
   check(`${ label }/one selected root`, roots, 1);
+  check(`${ label }/source receiver role`, product.sourceReceiver, !plan.pure);
 });
 
 for (const [name, source, symbol, expected] of [
