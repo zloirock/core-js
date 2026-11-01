@@ -1,7 +1,7 @@
 // Decision tests for the nested-receiver extraction canon: `resolveNestedReceiverChain`
 // (the pattern walk that names a hop chain and its root) runs through both parsers, and
-// `resolveNestedReceiverBase` (the base reference the chain reads through) is exercised
-// over a stub adapter - it consumes names, not AST, so the parsers have nothing to add
+// `resolveNestedReceiverBase` chooses the base from names and the original source binding.
+// Name-only cases use a stub; loop identity and anchor consumers use both real adapters.
 import {
   classifyDestructureLeafHost,
   firstPatternProp,
@@ -11,6 +11,7 @@ import {
   resolveNestedReceiverChain,
   typedNavClaimShape,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { buildNestedDestructurePlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { proxyGlobalRootName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -220,6 +221,61 @@ function stubAdapter(mutatedStatics = []) {
 }
 function base(args) {
   return resolveNestedReceiverBase({ resolveGlobalPolyfill: name => PURE[name] ?? null, ...args });
+}
+
+// A resolved realm value is not permission to replace the loop's source binding.
+for (const [name, source, expected] of [
+  ['one value', 'for (const realm of [globalThis]) use(realm);', 'realm'],
+  ['same values', 'for (const realm of [globalThis, globalThis]) use(realm);', 'realm'],
+  ['lexical this', 'for (const realm of [this]) use(realm);', 'realm'],
+  ['closure', 'for (const realm of [globalThis]) { const read = () => use(realm); read(); }', 'realm'],
+  ['ordinary alias', 'const realm = globalThis; use(realm);', 'globalThis'],
+  ['shadowed loop name', 'for (const realm of [globalThis]) { const read = realm => use(realm); }', null],
+  ['different values', 'for (const realm of [globalThis, other]) use(realm);', null],
+  ['written', 'for (let realm of [globalThis]) { realm = other; use(realm); }', null],
+  ['shadowed global', 'function read(globalThis) { for (const realm of [globalThis]) use(realm); }', null],
+]) runBoth(`base/source/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'use');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const read = { node: path.node.arguments[0], scope: path.scope, path, adapter };
+  const alias = proxyGlobalRootName(read);
+  check(`${ label }/realm proof`, alias, expected === null ? null : 'globalThis');
+  if (!alias) return;
+  const before = JSON.stringify(program.node);
+  for (const keys of [[], ['Array', 'prototype'], ['self', 'Array', 'prototype']]) {
+    const options = { rootName: alias, keys, read, adapter };
+    const resolved = base(options);
+    check(`${ label }/${ keys }/selected root`, resolved.name ?? resolved.pure?.hintName, expected);
+    checkDeep(`${ label }/${ keys }/source navigation`, resolved.path, expected === 'realm' ? keys : keys.filter(key => key !== 'self'));
+    checkDeep(`${ label }/${ keys }/repeat query`, base(options), resolved);
+  }
+  for (const [keys, entry] of [[['Map'], 'map/constructor'], [['Array', 'from'], 'array/from']]) {
+    const resolved = base({ rootName: alias, keys, read, adapter,
+      resolveStaticPolyfill: (object, key) => object === 'Array' && key === 'from' ? { entry: 'array/from' } : null });
+    check(`${ label }/${ keys }/independent entry still wins`, resolved.pure?.entry, entry);
+    checkDeep(`${ label }/${ keys }/no navigation through a constructor entry`, resolved.path, []);
+  }
+  check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+});
+
+// The early constructor anchor consumes the same base choice before nested leaves run.
+for (const loop of [false, true]) for (const imported of [false, true]) {
+  const declaration = 'const { Array: { prototype: { at } } } = realm;';
+  runBoth(`base/anchor/loop=${ loop }/import=${ imported }`,
+    loop ? `for (const realm of [globalThis]) { ${ declaration } }` : `const realm = globalThis; ${ declaration }`,
+    (parser, program, label) => {
+      const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const options = { declarator: path.node, scope: path.scope, path, adapter, resolvePure: () => null,
+        resolveGlobalPolyfill: name => imported ? PURE[name] ?? null : null };
+      const before = JSON.stringify(path.node);
+      buildNestedDestructurePlan(options);
+      const plan = buildNestedDestructurePlan(options);
+      check(`${ label }/anchor`, plan?.anchor, 'Array');
+      check(`${ label }/selected source`, plan?.receiverNode?.name ?? plan?.receiverPure?.hintName ?? plan?.receiver,
+        loop ? 'realm' : 'globalThis');
+      check(`${ label }/source preserved`, JSON.stringify(path.node), before);
+    });
 }
 
 // a bound root reads raw whatever its name - even one shadowing a pure-resolvable global; the

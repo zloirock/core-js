@@ -349,6 +349,7 @@ export default function createDestructureDrains(ctx) {
         const id = injectPureImport(entry, hintName);
         const nestedValue = guarded((override, product) => renderDestructureDispatch(identifier(id),
           renderNestedDeclarationReceiver(receiverPlan, {
+            product,
             embed: node => node === receiver ? duplicateReceiver(liveReceiver?.() ?? receiverSpelling, injector) : cloneNode(node),
             importPure: pure => identifier(injectPureImport(pure.entry, pure.hintName)),
             mintRef: () => identifier(injector.generateDeclaredRef(metaPath)),
@@ -1709,23 +1710,26 @@ export default function createDestructureDrains(ctx) {
               ? renderDiscardedInitProbe(declJobsHere, probeRenderCtx) : null;
       const extractedHere = [];
       // the init's own prefix is placed ONCE per declarator: it rides the FIRST extraction's value
-      // where that claim spells a dispatch to hold it, and lifts to a statement ahead otherwise (a
-      // receiver-less static or symbol leaf binds its pure directly). deciding it per JOB ran the
+      // where that claim spells a dispatch to hold it, and lifts to a statement ahead otherwise.
+      // A nested source receiver also carries it for an iterator helper; a substituted
+      // pure constructor retains its separate prefix. Deciding per JOB ran the
       // prefix once per claim - measured as a doubled effect log on a mixed instance+static pattern
       const jobsHere = orderDeclaratorJobs(jobsByDeclarator.get(declarator) ?? []);
       const initPrefix = carriedInitPrefix(declarator, declJobsHere, patternFrame(declJobsHere[0]?.metaPath));
+      const firstProduct = initPrefix.length && jobsHere.length === 1 ? {} : null;
+      const firstValue = firstProduct && jobsHere[0].value(refName, firstProduct);
       // carried only into a SOLE extraction: several readers of one init cannot each hold the
       // prefix, so it lifts ahead of them all (the shape the babel leg prints there too)
       const initPlacement = planDiscardedInitPlacement(initPrefix, {
-        readCount: jobsHere.length, carrier: jobsHere[0]?.carriesPrefix ? 'receiver' : null,
+        readCount: jobsHere.length,
+        carrier: jobsHere[0]?.carriesPrefix || (firstProduct?.receiver && firstProduct.sourceReceiver) ? 'receiver' : null,
       });
       const carryIntoFirst = initPlacement.placement === 'value';
       for (const job of jobsHere) {
         const leading = extractedHere.length !== 0 ? []
           : [...containerPrefix.map(expr => cloneNode(expr)), ...probeRead ? [probeRead] : []];
         const carried = extractedHere.length !== 0 || !carryIntoFirst ? [] : initPrefix;
-        const product = carried.length ? {} : null;
-        const carriedValue = renderDestructurePrefix(job.value(refName, product), carried, product?.receiver);
+        const carriedValue = renderDestructurePrefix(firstValue || job.value(refName), carried, firstProduct?.receiver);
         const value = leading.length ? sequenceExpression([...leading, carriedValue]) : carriedValue;
         const declarators = [variableDeclarator(job.bindingTarget, value)];
         if (job.value.leadRef) declarators.unshift(variableDeclarator(identifier(job.value.leadRef)));
