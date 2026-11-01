@@ -110,14 +110,15 @@ var MISSED_CONSTANTS = INCORRECT_CONSTRUCTOR
   || NativeDOMExceptionPrototype[DATA_CLONE_ERR] !== 25;
 
 var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISSED_CONSTANTS : INCORRECT_CONSTRUCTOR;
+// not read back from the global after the export: Safari 26 can still return the replaced native there
+var PolyfilledDOMException = FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException;
 
 // `DOMException` constructor
 // https://webidl.spec.whatwg.org/#idl-DOMException
 $({ global: true, constructor: true, forced: FORCED_CONSTRUCTOR }, {
-  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
+  DOMException: PolyfilledDOMException
 });
 
-var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
 if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMException)) {

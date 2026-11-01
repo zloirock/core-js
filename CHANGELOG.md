@@ -17,6 +17,7 @@
 - Fixed native `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` crashing on allocation failure in NodeJS 21 and 22.0-22.3
 - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
 - Fixed `MessageChannel` and native `DOMException` detection in old NodeJS
+- Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
 - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Throw a `TypeError` when a running polyfilled iterator helper is re-entered
 - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfill

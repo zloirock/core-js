@@ -43,14 +43,15 @@ var descriptor = NativeDOMException && DESCRIPTORS && Object.getOwnPropertyDescr
 var BUGGY_DESCRIPTOR = !!descriptor && !(descriptor.writable && descriptor.configurable);
 
 var FORCED_CONSTRUCTOR = ERROR_HAS_STACK && !BUGGY_DESCRIPTOR && !DOM_EXCEPTION_HAS_STACK;
+// not read back from the global after the export: Safari 26 can still return the replaced native there
+var PolyfilledDOMException = FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException;
 
 // `DOMException` constructor patch for `.stack` where it's required
 // https://webidl.spec.whatwg.org/#es-DOMException-specialness
 $({ global: true, constructor: true, forced: IS_PURE || FORCED_CONSTRUCTOR }, { // TODO: fix export logic
-  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
+  DOMException: PolyfilledDOMException
 });
 
-var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
 if (PolyfilledDOMExceptionPrototype.constructor !== PolyfilledDOMException) {
