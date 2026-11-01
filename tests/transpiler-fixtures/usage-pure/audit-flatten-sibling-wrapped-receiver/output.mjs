@@ -78,9 +78,11 @@ function identity(value) {
   return value;
 }
 const {
-  isArray
-} = _globalThis.Array;
-const callArg = _Promise;
+    Array: {
+      isArray
+    }
+  } = _globalThis,
+  callArg = _Promise;
 const {
     Number: {
       isSafeInteger

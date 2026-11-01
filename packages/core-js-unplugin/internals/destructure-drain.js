@@ -683,7 +683,7 @@ export default function createDestructureDrains(ctx) {
     const jobHostSiblings = jobHostSiblingDeclarators(ledger);
     // the hop-host notes drain AFTER the jobs: a host an extraction entered leaves a RESIDUAL
     // behind (`{ Array: { junk } } = _globalThis` beside the claims it consumed), and that residual
-    // re-anchors the way an untouched host does (`{ junk } = _globalThis.Array`, the babel canon) -
+    // can use the source plan's accepted anchor (`{ junk } = _globalThis.Array`) -
     // asked first, the note would anchor a pattern the drain still has to prune, and asked only
     // of hosts no job owned, the leftover stayed on the proxy root where the other leg anchors.
     // a residual the drain anchored itself no longer reads as a surface hop, so the note is inert there
@@ -742,7 +742,7 @@ export default function createDestructureDrains(ctx) {
       isDisabledProp: isDisabled,
       guarded: true,
       guardedValue: guarded,
-      wholeDeclarator: true,
+      sourceAnchor: propertyKeyName(soleJob.prop),
     });
     return renderResidualAnchor({
       anchor: anchor?.key,
@@ -1822,16 +1822,16 @@ export default function createDestructureDrains(ctx) {
   // Apply common hop decisions to the live residual. The drain owns source nodes and
   // detached clones; constructor/member admission and effect spelling belong to the provider.
   function reanchorSoleCtorHopResidual(declarator,
-    { forceMutatedHop = false, wholeDeclarator = false, metaPath = null, hopKeyName = null } = {}) {
+    { sourceAnchor = null, metaPath = null } = {}) {
     const info = surfaceInitInfo(declarator, metaPath);
     if (!info) return false;
     let changed = false;
     for (;;) {
       const hop = planResidualAnchorHop({
         pattern: declarator.id, receiver: 'globalThis', adapter, path: metaPath, resolveGlobalPolyfill,
-        keyName: prop => propertyKeyName(prop) ?? hopKeyName, isDisabledProp: isDisabled,
+        isDisabledProp: isDisabled,
         guarded: info.shape === 'guard', guardedValue: info.shape === 'guard' ? info.tail : null,
-        resolvePure, forceMutatedHop, wholeDeclarator,
+        resolvePure, sourceAnchor,
         isConsumedProp: prop => prop.value?.type === 'Identifier' && (injectorState.isOwnPassUnusedName(prop.value.name)
           || metaPath && sentinelAlreadyProcessed(metaPath, { node: prop, injector: injectorState, adapter })),
       });

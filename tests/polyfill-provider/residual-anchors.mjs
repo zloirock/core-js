@@ -20,15 +20,16 @@ function makeAdapter(parser, mutations = []) {
 for (const [name, pattern, extra, expected] of [
   ['constructor', '{ Map: { name } }', {}, 'ctor:Map:pure'],
   ['pristine proxy', '{ self: { name } }', {}, 'proxy:self:member'],
-  ['guarded constructor', '{ Map: { name } }', { guarded: true, wholeDeclarator: true }, 'ctor:Map:member'],
+  ['guarded constructor', '{ Map: { name } }', { guarded: true, sourceAnchor: 'Map' }, 'ctor:Map:member'],
   ['guarded proxy', '{ self: { name } }', { guarded: true }, null],
-  ['member whole host', '{ Array: { name } }', { wholeDeclarator: true }, 'ctor:Array:member'],
+  ['member whole host', '{ Array: { name } }', { sourceAnchor: 'Array' }, 'ctor:Array:member'],
+  ['other source anchor', '{ Array: { name } }', { sourceAnchor: 'self' }, null],
   ['untouched member', '{ Array: { name } }', {}, null],
   ['user sentinel spelling', '{ Array: { name: _unused } }', {}, null],
   ['explicit consumed leaf', '{ Array: { name: consumed } }', { isConsumedProp: () => true }, 'ctor:Array:member'],
   ['live leaf default', '{ Array: { name = [].at(0) } }', {}, 'ctor:Array:member'],
   ['inert leaf default', '{ Array: { name = "x" } }', {}, null],
-  ['unknown hop default', '{ Unknown: { name } = Array }', { wholeDeclarator: true }, null],
+  ['unknown hop default', '{ Unknown: { name } = Array }', { sourceAnchor: 'Unknown' }, null],
   ['disabled hop', '{ Map: { name } }', { isDisabledProp: prop => prop.key.name === 'Map' }, null],
   ['disabled leaf', '{ Map: { name } }', { isDisabledProp: prop => prop.key.name === 'name' }, null],
   ['rest residual', '{ Map: { name, ...rest } }', {}, null],
@@ -51,7 +52,7 @@ runBoth('mutation phase', 'const { Map: { name } } = globalThis;', (parser, prog
   const adapter = makeAdapter(parser, ['globalThis.Map']);
   const options = { pattern: path.node.id, receiver: 'globalThis', adapter, path, resolveGlobalPolyfill };
   check(`${ label }/residual cannot invent mutation permission`, planResidualAnchorHop(options), null);
-  for (const extra of [{ phase: 'source' }, { forceMutatedHop: true }]) {
+  for (const extra of [{ phase: 'source' }, { sourceAnchor: 'Map' }]) {
     const product = planResidualAnchorHop({ ...options, ...extra });
     check(`${ label }/raw member`, product?.pure, null);
     check(`${ label }/mutation observed`, product?.mutated, true);
@@ -127,7 +128,7 @@ for (const [name, init, prefix] of [
   const before = JSON.stringify(path.node);
   const options = {
     pattern: path.node.id, receiver: 'globalThis', adapter, path,
-    resolveGlobalPolyfill, guarded: true, guardedValue: surface.tail, wholeDeclarator: true,
+    resolveGlobalPolyfill, guarded: true, guardedValue: surface.tail, sourceAnchor: 'Map',
     resolvePure: meta => {
       const pure = meta.kind === 'global' ? resolveGlobalPolyfill(meta.name)
         : meta.object === 'globalThis' && meta.key === 'Map' ? resolveGlobalPolyfill('Map') : null;
@@ -206,6 +207,23 @@ for (const [init, coerced] of [
   check(`${ label }/nullable value keeps coercion`, !!plan?.targets?.[0].coerceReceiver, coerced);
   check(`${ label }/whole store keeps its position`, plan?.targets?.[0].keepPrefix, true);
   checkDeep(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+});
+
+// Every residual hop resolves its own key; the outer key cannot name the next property.
+for (const [name, key, expected] of [
+  ['constructor alias', 'ctor', 'Map'],
+  ['proxy alias', 'proxy', 'self'],
+  ['unknown alias', 'user', null],
+  ['effectful constructor key', '(effect(), ctor)', null],
+]) runBoth(`scoped residual/${ name }`, `const ctor = 'Map', proxy = 'self', user = 'userSlotKey';
+const { [${ key }]: { name } } = globalThis;`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern');
+  const before = JSON.stringify(path.node);
+  const product = planResidualAnchorHop({
+    pattern: path.node.id, receiver: 'globalThis', path, adapter: makeAdapter(parser), resolveGlobalPolyfill,
+  });
+  check(`${ label }/current key`, product?.key ?? null, expected);
+  check(`${ label }/query retains the source`, JSON.stringify(path.node), before);
 });
 
 finish();

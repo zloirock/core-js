@@ -37,6 +37,8 @@ const wrap = {
 };
 export const memberIncludes = _includesMaybeString(wrap.Box.Text);
 export const {
-  keys: namespaceKeys
-} = _globalThis.Array;
+  Array: {
+    keys: namespaceKeys
+  }
+} = _globalThis;
 export { assignedAt };

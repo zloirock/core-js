@@ -21785,6 +21785,72 @@ function * generateLoopReceiverSources() {
   }
 }
 
+// A realm import alone never activates an untouched constructor hop. Its source slot
+// still owns defaults and effects; foreign setup keeps the mutation outside detection.
+function * generateUnclaimedRealmAnchors() {
+  const setup = `import { withTemporaryProperty } from ${ JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href) };`;
+  for (const shape of ['declaration', 'assignment', 'for-init', 'stored', 'prefix', 'proxy']) for (const missing of [false, true]) {
+    const inner = '{ Array: { unknown } = fallback() }';
+    const pattern = shape === 'proxy' ? `{ globalThis: ${ inner } }` : inner;
+    const init = shape === 'stored' ? '(held = globalThis)' : shape === 'prefix' ? '(log.push("prefix"), globalThis)' : 'globalThis';
+    const declaration = `const ${ pattern } = ${ init }`;
+    const body = shape === 'assignment' ? `let unknown; (${ pattern } = ${ init }); return unknown;`
+      : shape === 'for-init' ? `for (${ declaration }; true;) return unknown;` : `${ declaration }; return unknown;`;
+    const row = snippet(`unclaimed-realm-anchor/${ shape }/${ missing ? 'default' : 'present' }`, `(() => {
+      let held;
+      function fallback() { log.push("default"); return { get unknown() { log.push("fallback-read"); return 31; } }; }
+      const value = { get unknown() { log.push("read"); return 23; } };
+      return withTemporaryProperty(globalThis, "Array", ${ missing ? 'undefined' : 'value' }, () => { ${ body } });
+    })()`);
+    yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
+  }
+}
+
+// Computed proxy and constructor aliases need independent key resolution at each hop.
+function * generateComputedRealmAnchors() {
+  for (const shape of ['declaration', 'assignment', 'for-init']) for (const nested of [false, true]) {
+    const inner = '{ [proxy]: { [ctor]: { prototype } } }';
+    const pattern = nested ? `{ globalThis: ${ inner } }` : inner;
+    const declaration = `const ${ pattern } = globalThis`;
+    const body = shape === 'assignment' ? `let prototype; (${ pattern } = globalThis); return typeof prototype.then;`
+      : shape === 'for-init' ? `for (${ declaration }; true;) return typeof prototype.then;`
+      : `${ declaration }; return typeof prototype.then;`;
+    yield { ...snippet(`computed-realm-anchor/${ shape }/${ nested ? 'nested' : 'direct' }`, `(() => {
+      const proxy = 'globalThis', ctor = 'Promise';
+      ${ body }
+    })()`), strip: true };
+  }
+  for (const computed of [false, true]) {
+    const pattern = computed ? '{ [proxy]: { [ctor]: { prototype } } }' : '{ self: { Map: { prototype } } }';
+    yield { ...snippet(`computed-realm-anchor/used-assignment/${ computed ? 'computed' : 'plain' }`, `(() => {
+      const proxy = 'self', ctor = 'Map';
+      let prototype;
+      const result = (${ pattern } = globalThis);
+      return [result === globalThis, typeof prototype.get];
+    })()`, { rig: true }), strip: true };
+  }
+}
+
+// A used result keeps the RHS while nested claims and key effects are served in source order.
+function * generateCapturedRealmAnchors() {
+  for (const proxy of ['self', 'globalThis']) for (const keys of ['plain', 'computed', 'effects']) {
+    const pattern = keys === 'plain' ? `{ ${ proxy }: { Promise: { prototype } } }`
+      : keys === 'computed' ? '{ [proxy]: { [ctor]: { prototype } } }'
+      : '{ [(log.push("proxy"), proxy)]: { [(log.push("ctor"), ctor)]: { prototype } } }';
+    yield { ...snippet(`captured-realm-anchor/${ proxy }/${ keys }`, `(() => {
+      const proxy = '${ proxy }', ctor = 'Promise';
+      let prototype, saved;
+      const result = (${ pattern } = (log.push("init"), saved = globalThis));
+      return [result === saved, typeof prototype.then];
+    })()`, { rig: true }), strip: true };
+  }
+  yield { ...snippet('captured-realm-anchor/unused-result', `(() => {
+    let unknown;
+    const kept = ({ globalThis: { Array: { unknown } } } = globalThis);
+    return typeof unknown;
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22214,4 +22280,7 @@ export function * generate() {
   yield * generateKeptProbeCarriers();
   yield * generateConstructorResidualOrder();
   yield * generateLoopReceiverSources();
+  yield * generateUnclaimedRealmAnchors();
+  yield * generateComputedRealmAnchors();
+  yield * generateCapturedRealmAnchors();
 }

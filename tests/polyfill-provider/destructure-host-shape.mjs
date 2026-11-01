@@ -1457,6 +1457,46 @@ for (const [source, expected] of [
   }
 });
 
+// A used assignment and its discarded continuation share the same nested target capture.
+for (const [body, expected, preserveResult] of [
+  ['const held = ({ Map: { prototype } } = globalThis);', true, true],
+  ['const held = ({ [key]: { prototype } } = globalThis);', true, true],
+  ['({ [key]: { prototype } } = globalThis, 0);', false, false],
+  ['({ [key]: { prototype } } = realm, 0);', false, false],
+  ['({ [(effect(), key)]: { prototype } } = realm, 0);', true, false],
+  ['({ Map: { prototype } } = globalThis);', false, false],
+  ['if (flag) ({ Map: { prototype } } = (effect(), globalThis));', false, false],
+  ['while (flag) ({ Map: { prototype } } = globalThis);', false, false],
+]) runBoth('captured realm pattern target', `import realm from '@core-js/pure/actual/global-this'; const key = 'Map'; let prototype; ${ body }`, (parser, program, label) => {
+  const host = parser.pickPath(program, 'AssignmentExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const pure = { kind: 'global', entry: 'map/constructor', hintName: 'Map' };
+  const [prop] = host.node.left.properties;
+  function resolvePure(meta) {
+    return meta.object === 'globalThis' && meta.key === 'Map' ? pure : null;
+  }
+  const plan = planRetainedObjectCapture({
+    pattern: host.node.left, init: host.node.right, assignment: true, prop, hostPath: host,
+    adapter, kind: 'global', entry: pure.entry, resolvePure, resolveStaticProp: resolvePolyfillableStaticProp,
+    injectorState: { getPureImport: name => name === 'realm' ? { entry: 'global-this' } : null },
+  });
+  check(`${ label } admission`, !!plan, expected);
+  if (expected) {
+    check(`${ label } result ownership`, plan.preserveResult, preserveResult);
+    check(`${ label } target receives the pure value`, plan.primaryPure, pure);
+    check(`${ label } original RHS retained`, plan.init, host.node.right);
+  }
+  check(`${ label } ordinary extraction still declines the pattern`, resolvePolyfillableStaticProp({
+    prop, receiverName: 'globalThis', keyName: 'Map', resolvePure,
+  }), null);
+  check(`${ label } unavailable entry stays native`, resolvePolyfillableStaticProp({
+    prop, receiverName: 'globalThis', keyName: 'Map', allowPattern: true, resolvePure: () => null,
+  }), null);
+  check(`${ label } disabled property stays native`, resolvePolyfillableStaticProp({
+    prop, receiverName: 'globalThis', keyName: 'Map', allowPattern: true, resolvePure, isDisabled: () => true,
+  }), null);
+});
+
 for (const [source, kind, expected] of [
   ['const { [(effect(), "data")]: { at } } = source;', 'instance', true],
   ['const { data: { [(effect(), "at")]: at } } = source;', 'instance', true],

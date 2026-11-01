@@ -22,8 +22,10 @@ const deep = function () {
 }();
 const nameMatch = function () {
   const {
-    keys
-  } = _globalThis.Array;
+    Array: {
+      keys
+    }
+  } = _globalThis;
   return keys;
 }();
 export { sole, deep, nameMatch };
