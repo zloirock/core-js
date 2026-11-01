@@ -211,6 +211,8 @@ import {
   isBuiltInSurfaceNav,
   isInstanceSurfaceNav,
   residualInitRunsEffects,
+  destructureResidualFirst,
+  orderedClaimCapture,
   liftedInitElements,
   liftedRealmNavEffect,
   destructurePatternHostPath,
@@ -737,29 +739,6 @@ export function partitionDestructureReads(reads, frameOf, { grouped = false } = 
     (read.guardDetach === 'after' || (!grouped && nested) || keyed ? after : before).push(read);
   }
   return grouped && keyFirst ? { before: reads, after: [], keyFirst } : { before, after, keyFirst };
-}
-
-// Does this live residual have to run before the extraction group? A kept key or a capture
-// written IN the residual is a prerequisite. An uncaptured initializer runs before binding
-// writes. Re-anchored source slots keep their original order. `reads` are the still-pending
-// read records; already composed native groups carry only their surviving capture obligation.
-// `initRuns` may be a pristine proof retained across child rewrites; otherwise ask the live init.
-export function destructureResidualFirst(reads, {
-  init,
-  scope,
-  adapter,
-  path,
-  initRuns,
-  captured = false,
-  keyFirst = false,
-  anchored = false,
-  pattern = null,
-  sourceProps = null,
-} = {}) {
-  return keyFirst || reads.some(read => read.captureInResidual)
-    || (!captured && (initRuns ?? residualInitRunsEffects({ init, scope, adapter, path })))
-    || (anchored && residualPrecedesExtractions(pattern,
-      reads.map(read => read.source ?? read.chain?.at(-1)?.hopProp ?? read.prop), sourceProps));
 }
 
 // Order the live residual and its extractions. Anchored residuals are independent source
@@ -3348,6 +3327,15 @@ export function buildNestedDestructurePlan({
         // on that residual for ordinary traversal, rather than rendering another anchor per extraction.
         const outerProps = inner.properties.map(p => restPure || guarded ? { kind: 'verbatim', prop: p } : planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
+        // An ordered instance capture owns the raw hop's source slots. Ask it before
+        // an otherwise empty anchor hides those slots from the later leaf dispatch.
+        if (!anchorPure && !guarded && outerProps.every(p => p.kind === 'verbatim') && inner.properties.some(leaf => {
+          const pure = resolvePure({ kind: 'property', object: key, key: propKeyNameScoped(leaf, true), placement: 'static' });
+          return pure?.kind === 'instance' && orderedClaimCapture({
+            pattern: hostPattern, init: declarator.init, prop: leaf, kind: pure.kind, entry: pure.entry,
+            assignment: declarator.type !== 'VariableDeclarator', hostPath: path, adapter, injectorState,
+          });
+        })) return null;
         // ... and a residual leaf the MIRROR can spell with the member's own ponyfill declines the anchor
         if (anchorPure && !restPure && outerProps.some(p => p.kind === 'verbatim'
           && residualLeafBelongsToMirror(p.prop, key))) return null;
@@ -4021,23 +4009,6 @@ export function planDestructureKeySegments(pattern, claims) {
   }
   if (properties.length) segments.push({ properties, claim: null });
   return segments;
-}
-
-// does the surviving residual sit ahead of every extraction in SOURCE order? `sharedHop`
-// admits the extraction's own hop as "ahead": a DECLARATION splits the hop into its own
-// statement and the extraction leads it, while an ASSIGNMENT cascade keeps the nested
-// extraction behind the residual it came out of - babel's own asymmetry between the two
-export function residualPrecedesExtractions(pattern, claimedProps, sourceProps, { sharedHop = false } = {}) {
-  const props = pattern?.type === 'ObjectPattern' ? pattern.properties : null;
-  if (!props?.length || !sourceProps || !claimedProps.length) return false;
-  const consumedAt = Math.min(...claimedProps.map(outer => {
-    const index = sourceProps.indexOf(outer);
-    return index === -1 ? sourceProps.length : index;
-  }));
-  return props.every(item => {
-    const index = sourceProps.indexOf(item);
-    return index !== -1 && (sharedHop ? index <= consumedAt : index < consumedAt);
-  });
 }
 
 // the for-init memo verdict, per declarator. a SENTINEL residual re-reads the receiver:
