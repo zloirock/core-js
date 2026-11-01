@@ -165,10 +165,12 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm run prepare-monorepo
-      # the deploy reports an `http:` address, and an insecure context hides APIs that real sites have;
-      # the directory is named after the branch, and a branch name may hold `#` or `%`
+      # the pages are served over `http:`: Firefox before 27 speaks no TLS version the Pages CDN still
+      # accepts, and over `https:` it shows its own error page, which the runner reports as no reporter.
+      # The pages hold no API an insecure context hides, and all their resources are same-origin. The
+      # directory is named after the branch, and a branch name may hold `#` or `%`
       - run: |
-          url=${PAGE_URL/#http:/https:}
+          url=${PAGE_URL/#https:/http:}
           npm run test-saucelabs -- "${url%/}/$(jq -rn --arg branch "${GITHUB_REF_NAME//\//-}" '$branch | @uri')" "$GITHUB_SHA"
         env:
           PAGE_URL: ${{ needs.combine-pages-and-deploy.outputs.page-url }}
