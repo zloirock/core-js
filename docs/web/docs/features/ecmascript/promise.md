@@ -24,9 +24,15 @@ class Promise {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 { core-js, @core-js/pure }/es|stable|actual|full/promise
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/constructor
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/all
 { core-js, @core-js/pure }/es|stable|actual|full/promise/all-settled
 { core-js, @core-js/pure }/es|stable|actual|full/promise/any
-{ core-js, @core-js/pure }/es|stable|actual|full/promise/finally
+{ core-js, @core-js/pure }/es|stable|actual|full/promise(/prototype)/catch
+{ core-js, @core-js/pure }/es|stable|actual|full/promise(/prototype)/finally
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/race
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/reject
+{ core-js, @core-js/pure }/es|stable|actual|full/promise/resolve
 { core-js, @core-js/pure }/es|stable|actual|full/promise/try
 { core-js, @core-js/pure }/es|stable|actual|full/promise/with-resolvers
 ```

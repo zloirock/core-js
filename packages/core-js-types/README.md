@@ -1,8 +1,6 @@
 ![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
 
-This package contains types for the global and pure versions of `core-js`.
-Although `core-js` is a JavaScript standard library polyfill, the built-in TypeScript types are often not sufficient.
-Additional types are needed for:
+This package contains types for the global and pure versions of `core-js`. Although `core-js` is a JavaScript standard library polyfill, the built-in TypeScript types are often not sufficient. Additional types are needed for:
 - features that are already in JavaScript but not yet in TypeScript’s standard types;
 - proposals, including those already implemented in JavaScript engines;
 - explicit imports of features from the pure version.
@@ -13,10 +11,10 @@ It is shipped as a separate package because we cannot guarantee stable behavior 
 ```bash
 npm install --save @core-js/types@4.0.0-alpha.1
 ```
+TypeScript 5.6+ is required.
 
 # Usage
-You must include at least the ES6 types in your `tsconfig.json` because our types are built on top of the ES6 type definitions 
-and `DOM` lib for the global version if you use something related (see [DOM types](#dom-types) section):
+You must include at least the ES6 types in your `tsconfig.json` because our types are built on top of the ES6 type definitions and `DOM` lib for the global version if you use something related (see [DOM types](#dom-types) section):
 ```json
 {
   "compilerOptions": {
@@ -59,6 +57,7 @@ or import it directly in your files:
 ```ts
 import '@core-js/types/stable';
 ```
+The types of `core-js/configurator` are only in the main `@core-js/types` entry; with a subset, add `@core-js/types/configurator`.
 
 ## Usage of specific features
 If you need types only for specific features, you can import them like this:
@@ -112,8 +111,7 @@ $array.flatMap([1, 2, 3], x => [x, x * 2]);
 (note that this is not recommended since tree shaking does not properly work in this case)
 
 # DOM types
-Some of the global types for web standards work correctly only with the DOM lib.
-You need to add DOM types to the `lib` section of your `tsconfig.json` in addition to `@core-js/types`. For example:
+Some of the global types for web standards work correctly only with the DOM lib. You need to add DOM types to the `lib` section of your `tsconfig.json` in addition to `@core-js/types`. For example:
 ```json
 {
   "compilerOptions": {

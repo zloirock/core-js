@@ -288,7 +288,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 `core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
 
 > [!NOTE]
-> `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#babel-plugin-polyfill-corejs3). These options and `babel-plugin-polyfill-corejs3` are deprecated in favor of [`@core-js/babel-plugin`](/packages/core-js-babel-plugin).
+> `useBuiltIns` and `corejs` options described below are available only in Babel 7; in Babel 8, they were replaced with [`babel-plugin-polyfill-corejs3`](#babel-plugin-polyfill-corejs3). These options and `babel-plugin-polyfill-corejs3` are deprecated in favor of [`@core-js/babel-plugin`](/packages/core-js-babel-plugin) and do not accept `core-js@4` yet.
 
 #### `@babel/polyfill`[⬆](#index)
 
@@ -415,6 +415,9 @@ By default, `@babel/plugin-transform-runtime` only polyfills stable features, bu
 ```
 
 ### swc[⬆](#index)
+
+> [!NOTE]
+> `swc` does not accept `core-js@4` yet.
 
 Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so well as in `babel`. Example of configuration in `.swcrc`:
 ```json
@@ -590,7 +593,6 @@ class Function {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|actual|full/function
-{ core-js, @core-js/pure }/es|stable|actual|full/function/virtual
 core-js/es|stable|actual|full/function/name
 ```
 [*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27):
@@ -719,7 +721,6 @@ class Arguments {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 { core-js, @core-js/pure }/es|stable|actual|full/array
-{ core-js, @core-js/pure }/es|stable|actual|full/array/virtual
 { core-js, @core-js/pure }/es|stable|actual|full/array/from
 { core-js, @core-js/pure }/es|stable|actual|full/array/from-async
 { core-js, @core-js/pure }/es|stable|actual|full/array/of
@@ -1026,7 +1027,6 @@ class RegExp {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 { core-js, @core-js/pure }/es|stable|actual|full/string
-{ core-js, @core-js/pure }/es|stable|actual|full/string/virtual
 { core-js, @core-js/pure }/es|stable|actual|full/string/from-code-point
 { core-js, @core-js/pure }/es|stable|actual|full/string/raw
 core-js/es|stable|actual|full/string/match
@@ -1201,7 +1201,6 @@ function parseInt(string: string, radix?: number): number;
 [*CommonJS entry points:*](#commonjs-api)
 ```
 { core-js, @core-js/pure }/es|stable|actual|full/number
-{ core-js, @core-js/pure }/es|stable|actual|full/number/virtual
 { core-js, @core-js/pure }/es|stable|actual|full/number/constructor
 { core-js, @core-js/pure }/es|stable|actual|full/number/is-finite
 { core-js, @core-js/pure }/es|stable|actual|full/number/is-nan
@@ -1265,7 +1264,6 @@ namespace Math {
 { core-js, @core-js/pure }/es|stable|actual|full/math/sum-precise
 { core-js, @core-js/pure }/es|stable|actual|full/math/tanh
 { core-js, @core-js/pure }/es|stable|actual|full/math/trunc
-{ core-js, @core-js/pure }/es|stable|actual|full/math/to-string-tag
 ```
 [*Examples*](https://core-js.io/playground#code=1e20+%2B+0.1+%2B+-1e20%3B+%2F%2F+%3D%3E+0%0AMath.sumPrecise%28%5B1e20%2C+0.1%2C+-1e20%5D%29%3B+%2F%2F+%3D%3E+0.1):
 ```js
@@ -3171,7 +3169,7 @@ class Number {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/number-clamp
-{ core-js, @core-js/pure }/full/number(/virtual)/clamp
+{ core-js, @core-js/pure }/full/number(/prototype)/clamp
 ```
 [*Examples*](https://core-js.io/playground#code=5.0.clamp%280%2C+10%29%3B+%2F%2F+%3D%3E+5%0A%28-5%29.clamp%280%2C+10%29%3B+%2F%2F+%3D%3E+0%0A15.0.clamp%280%2C+10%29%3B+%2F%2F+%3D%3E+10):
 ```js

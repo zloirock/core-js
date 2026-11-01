@@ -307,9 +307,7 @@ Disables polyfill injection for the current line.
 // core-js-disable-next-line
 arr.includes(x);
 ```
-Disables polyfill injection for the next STATEMENT. For a one-line statement that is the next
-line; when the statement spans several lines - a function or class declaration, a multi-line
-call - the whole statement is covered, its body included.
+Disables polyfill injection for the next STATEMENT. For a one-line statement that is the next line; when the statement spans several lines - a function or class declaration, a multi-line call - the whole statement is covered, its body included.
 
 Both `//` and `/* */` comment styles are supported. You can add a reason after ` -- `:
 ```js

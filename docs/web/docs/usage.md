@@ -13,15 +13,15 @@ You can import only the polyfills you need. CommonJS entry points are available 
 
 ```ts
 // polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
-import "core-js";
+import 'core-js';
 // or:
-import "core-js/actual";
+import 'core-js/actual';
 // polyfill only stable ES features:
-import "core-js/es";
+import 'core-js/es';
 // polyfill only stable features - ES and web standards:
-import "core-js/stable";
+import 'core-js/stable';
 // polyfill all `core-js` features, including early-stage proposals:
-import "core-js/full";
+import 'core-js/full';
 
 // if you want to polyfill `Set`:
 // all `Set`-related features, with early-stage ES proposals:
@@ -187,9 +187,7 @@ Disables polyfill injection for the current line.
 // core-js-disable-next-line
 arr.includes(x);
 ```
-Disables polyfill injection for the next statement. For a one-line statement that is the next
-line; when the statement spans several lines - a function or class declaration, a multi-line
-call - the whole statement is covered, its body included.
+Disables polyfill injection for the next statement. For a one-line statement that is the next line; when the statement spans several lines - a function or class declaration, a multi-line call - the whole statement is covered, its body included.
 
 The transformed output keeps the opt-outs it honored: every statement or member a directive covered is led by its own `// core-js-disable-next-line` there, so a later pass over that output - another build step, a pre-built library, the `post` pass of `@core-js/unplugin` after Babel - decides the same opt-outs. The reprint lays nodes that shared a line, like `a(); b();`, one per line, where only the first would still sit under the directive.
 
@@ -481,6 +479,9 @@ import 'regenerator-runtime/runtime';
 ```
 
 ## swc
+
+> [!NOTE]
+> `swc` does not accept `core-js@4` yet.
 
 Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#h-babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so well as in `babel`. Example of configuration in `.swcrc`:
 ```json
