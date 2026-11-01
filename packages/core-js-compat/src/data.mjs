@@ -684,7 +684,7 @@ export const data = {
   'es.array.entries': {
     chrome: '66',
     edge: '15',
-    firefox: '60',
+    firefox: '51',
     rhino: '1.8.0',
     safari: '10.0',
   },
@@ -786,7 +786,7 @@ export const data = {
   'es.array.keys': {
     chrome: '66',
     edge: '15',
-    firefox: '60',
+    firefox: '51',
     rhino: '1.8.0',
     safari: '10.0',
   },
@@ -1011,9 +1011,11 @@ export const data = {
   // TODO: recheck
   'es.data-view.constructor': {
     chrome: '26',
-    firefox: '15',
+    // https://github.com/chakra-core/ChakraCore/commit/17b8f3aae80bcb3aa2d4297360191424879f4800
+    edge: '15',
+    // https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/40#javascript
+    firefox: '40',
     hermes: '0.1',
-    ie: '10',
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -2330,7 +2332,8 @@ export const data = {
   'es.typed-array.species': {
     chrome: '51',
     edge: '13',
-    firefox: '41',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1165053
+    firefox: '48',
     safari: '10.0',
   },
   'es.typed-array.subarray': {
@@ -2598,7 +2601,7 @@ export const data = {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
-    firefox: '60',
+    firefox: '44',
     hermes: '0.1',
     node: '0.0.1',
     rhino: '1.7.13',
@@ -2609,7 +2612,7 @@ export const data = {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
-    firefox: '60',
+    firefox: '50',
     hermes: '0.1',
     node: '0.0.1',
     rhino: '1.7.13',
@@ -2631,7 +2634,7 @@ export const data = {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
-    firefox: '60',
+    firefox: '50',
     hermes: '0.1',
     node: '0.0.1',
     rhino: '1.7.13',
@@ -2642,7 +2645,7 @@ export const data = {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
-    firefox: '60',
+    firefox: '50',
     hermes: '0.1',
     node: '0.0.1',
     rhino: '1.7.13',
