@@ -11,6 +11,8 @@ import {
   residualHuskIsDead,
   residualInitRunsEffects,
   noteRelocation,
+  destructureResidualFirst,
+  residualPrecedesExtractions,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   bodylessSlotReplacement,
@@ -31,8 +33,6 @@ import {
   assignmentNeedsReceiverMemo,
   orderDestructureParts,
   partitionDestructureReads,
-  destructureResidualFirst,
-  residualPrecedesExtractions,
   sentinelMemoInitShape,
   residualAnchorSurface,
   planResidualAnchorHop,

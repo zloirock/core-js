@@ -21737,6 +21737,29 @@ function * generateKeptProbeCarriers() {
   }
 }
 
+// A served function property writes its binding between native sibling getters.
+// Foreign installation keeps the source read eligible for an instance extraction.
+function * generateConstructorResidualOrder() {
+  for (const nested of [false, true]) for (const first of [false, true]) {
+    const keys = first ? 'name, includes, toString' : 'includes, name, toString';
+    const pattern = nested ? `{ Array: { ${ keys } } }` : `{ ${ keys } }`;
+    yield mutationSnippet(`constructor-residual-order/${ nested ? 'nested' : 'flat' }/${ first ? 'first' : 'middle' }`, `(() => {
+      var name;
+      const before = _nativeObject.getOwnPropertyDescriptor(Array, "includes");
+      const after = _nativeObject.getOwnPropertyDescriptor(Array, "toString");
+      restoreProperty(Array, "includes", { configurable: true, get() { log.push(typeof name); return 17; } });
+      restoreProperty(Array, "toString", { configurable: true, get() { log.push(typeof name); return 23; } });
+      try {
+        var ${ pattern } = ${ nested ? 'globalThis' : 'Array' };
+        return [includes, typeof name, toString];
+      } finally {
+        restoreProperty(Array, "includes", before);
+        restoreProperty(Array, "toString", after);
+      }
+    })()`);
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22164,4 +22187,5 @@ export function * generate() {
   yield * generateSelectingExtractions();
   yield * generateOptionalSplitLandings();
   yield * generateKeptProbeCarriers();
+  yield * generateConstructorResidualOrder();
 }

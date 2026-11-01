@@ -145,6 +145,7 @@ import {
   decidedRunningOperand,
   decidedRunningOperandPath,
   liftedPrefixSplit,
+  destructureResidualFirst,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   discardedReceiverEffects,
@@ -173,7 +174,6 @@ import {
   planLoopHeadExtraction,
   planLiteralRoute,
   orderDestructureParts,
-  destructureResidualFirst,
   releasedDestructureCaptureTail,
   probedNavProbeKey,
   resolvePolyfillableStaticProp,

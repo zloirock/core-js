@@ -12,10 +12,11 @@ import {
   planLiteralRoute,
   planLoopHeadExtraction,
   planSynthLiteralReceiver,
-  residualPrecedesExtractions,
   synthPlanFullyCovered,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { buildNestedParamSynthPlan, destructureKeyReadPlan, planStaticPatternInstances } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  buildNestedParamSynthPlan, destructureKeyReadPlan, planStaticPatternInstances, residualPrecedesExtractions,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker, findNode } from './harness.mjs';

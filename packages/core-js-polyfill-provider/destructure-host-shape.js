@@ -135,6 +135,7 @@ import {
   synthPropDedupKey,
   receiverValueNeverNullish,
   residualInitRunsEffects,
+  destructureResidualFirst,
   staticContainerReceiverName,
   wrapperElementNavPlacement,
 } from './detect-usage/destructure.js';
@@ -1859,7 +1860,7 @@ function planRetainedObjectCaptureShape({
       { scope: hostPath.scope, adapter, path: hostPath })));
   function extractionCrossesResidualKeys() {
     const index = pattern.properties.indexOf(prop);
-    const ahead = kind === 'instance' || !residualInitRunsEffects({ init, scope: hostPath.scope, adapter, path: hostPath });
+    const ahead = !destructureResidualFirst([], { init, ...ctx, captured: kind === 'instance' });
     const crossed = pattern.properties.filter(item => item !== prop && pattern.properties.indexOf(item) < index === ahead
       && !isClaimedProp?.(item) && !isConsumedProp?.(item));
     if (!crossed.length) return false;
@@ -1872,7 +1873,9 @@ function planRetainedObjectCaptureShape({
     });
   }
   function claimReadRunsCode() {
-    if (kind !== 'instance' || isStaticPlacement(initCtorName() ?? '')) return false;
+    if (kind !== 'instance') return false;
+    // A known constructor is still a function/object: an instance helper reads its own
+    // property, whose getter must stay between the surviving source keys.
     const type = resolveNodeType?.(hostPath.get?.(assignment ? 'right' : 'init'));
     return !type?.constructor || type.constructor === 'Function' || type.constructor === 'Object';
   }

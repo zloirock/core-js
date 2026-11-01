@@ -4718,6 +4718,46 @@ export function residualInitRunsEffects({ init, scope, adapter, path }) {
     && discardRescueNodes({ node: value, scope, adapter, path }).length > 0;
 }
 
+// Does this live residual have to run before the extraction group? A kept key or a capture
+// written IN the residual is a prerequisite. An uncaptured initializer runs before binding
+// writes. Re-anchored source slots keep their original order. `reads` are the still-pending
+// read records; already composed native groups carry only their surviving capture obligation.
+// `initRuns` may be a pristine proof retained across child rewrites; otherwise ask the live init.
+export function destructureResidualFirst(reads, {
+  init,
+  scope,
+  adapter,
+  path,
+  initRuns,
+  captured = false,
+  keyFirst = false,
+  anchored = false,
+  pattern = null,
+  sourceProps = null,
+} = {}) {
+  return keyFirst || reads.some(read => read.captureInResidual)
+    || (!captured && (initRuns ?? residualInitRunsEffects({ init, scope, adapter, path })))
+    || (anchored && residualPrecedesExtractions(pattern,
+      reads.map(read => read.source ?? read.chain?.at(-1)?.hopProp ?? read.prop), sourceProps));
+}
+
+// does the surviving residual sit ahead of every extraction in SOURCE order? `sharedHop`
+// admits the extraction's own hop as "ahead": a DECLARATION splits the hop into its own
+// statement and the extraction leads it, while an ASSIGNMENT cascade keeps the nested
+// extraction behind the residual it came out of - babel's own asymmetry between the two
+export function residualPrecedesExtractions(pattern, claimedProps, sourceProps, { sharedHop = false } = {}) {
+  const props = pattern?.type === 'ObjectPattern' ? pattern.properties : null;
+  if (!props?.length || !sourceProps || !claimedProps.length) return false;
+  const consumedAt = Math.min(...claimedProps.map(outer => {
+    const index = sourceProps.indexOf(outer);
+    return index === -1 ? sourceProps.length : index;
+  }));
+  return props.every(item => {
+    const index = sourceProps.indexOf(item);
+    return index !== -1 && (sharedHop ? index <= consumedAt : index < consumedAt);
+  });
+}
+
 // is a declaration RESIDUAL dead once its claims are served: every leaf a sentinel whose key runs
 // nothing, no level keeping one for itself (a rest), no default that runs code, and an init that runs
 // nothing either. Each quiet read the husk would still perform is one an extraction already
