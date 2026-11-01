@@ -21722,6 +21722,21 @@ function * generateOptionalSplitLandings() {
   }
 }
 
+// A carrier prefix does not authorize erasing a read above a saved environment probe.
+// The computed key observes whether the earlier member read threw before reaching it.
+function * generateKeptProbeCarriers() {
+  for (const rig of [false, true]) for (const prefix of [false, true]) {
+    const row = snippet(`kept-probe-carriers/${ prefix ? 'sequence' : 'plain' }/${ rig ? 'window' : 'off-window' }`, `(() => {
+      let held;
+      try {
+        const value = (${ prefix ? 'log.push("prefix"), ' : '' }held = globalThis.window).window[(log.push("key"), "keptProbeAbsentSlot")];
+        return [typeof value, held === globalThis];
+      } catch (error) { return [error.name, held === undefined]; }
+    })()`, { rig });
+    yield { ...row, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22148,4 +22163,5 @@ export function * generate() {
   yield * generateAssignmentOverwriteDefaults();
   yield * generateSelectingExtractions();
   yield * generateOptionalSplitLandings();
+  yield * generateKeptProbeCarriers();
 }

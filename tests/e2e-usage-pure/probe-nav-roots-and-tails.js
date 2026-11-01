@@ -2,6 +2,23 @@ import { withWindowPresence } from './unbacked-window-host.cjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
 /* eslint-disable no-sequences -- computed-key effects are the fallback boundary under test */
+// A sequence hands on the saved probe, including the throw of the next plain read.
+QUnit.test('probe navigation: a stored probe throws before an outer computed key', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let held;
+    let value;
+    try {
+      value = typeof (log.push('prefix'), held = globalThis.window).window[log.push('key'), 'keptProbeAbsentSlot'];
+    } catch (error) {
+      value = error instanceof TypeError ? 'TypeError' : 'other';
+    }
+    assert.same(value, live ? 'undefined' : 'TypeError', 'the stored probe supplies the receiver');
+    assert.same(held, live ? globalThis : undefined, 'the store retains the source value');
+    assert.deepEqual(log, live ? ['prefix', 'key'] : ['prefix'], 'the earlier throw precedes the key');
+  });
+});
+
 // The call-yield probe captures its sequence prefix once. The computed static key and
 // call argument belong to the live branch, including when the probe value is stored.
 QUnit.test('probe navigation: call-yield source partitions prefix and guarded effects', assert => {
