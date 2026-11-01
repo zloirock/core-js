@@ -116,6 +116,7 @@ require("core-js/modules/es.array-buffer.transfer");
 require("core-js/modules/es.array-buffer.transfer-to-fixed-length");
 require("core-js/modules/es.array-buffer.species");
 require("core-js/modules/es.array-buffer.to-string-tag");
+require("core-js/modules/es.data-view.constructor");
 require("core-js/modules/es.data-view.get-float16");
 require("core-js/modules/es.data-view.set-float16");
 require("core-js/modules/es.data-view.to-string-tag");
