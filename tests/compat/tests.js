@@ -1854,6 +1854,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var ta = new Int8Array(1);
     var result = ta['with'](-0.5, 1);
     return result[0] === 1;
+  }, function () {
+    // Rhino 1.9 converts the value with ToNumber instead of ToBigInt on BigInt arrays
+    // eslint-disable-next-line unicorn/prefer-bigint-literals -- ES5 syntax
+    return typeof BigInt64Array != 'function' || new BigInt64Array(1)['with'](0, BigInt(1))[0] === BigInt(1);
   }],
   'es.uint8-array.from-base64': function () {
     try {

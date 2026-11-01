@@ -29,6 +29,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
     assert.same(new TypedArray(5).with(2, checker)[2], $(10));
     assert.same(checker.$valueOf, 1, 'valueOf calls');
     assert.same(checker.$toString, 0, 'toString calls');
+    if ($ !== Number) assert.throws(() => new TypedArray(1).with(0, 1), TypeError, 'converts the value with ToBigInt');
 
     assert.true(!!function () {
       try {

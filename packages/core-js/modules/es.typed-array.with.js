@@ -1,4 +1,5 @@
 'use strict';
+var globalThis = require('../internals/global-this');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var isBigIntArray = require('../internals/is-big-int-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -10,6 +11,7 @@ var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 var $RangeError = RangeError;
+var BigInt64Array = globalThis.BigInt64Array;
 
 var PROPER_ORDER = function () {
   try {
@@ -22,11 +24,14 @@ var PROPER_ORDER = function () {
   }
 }();
 
-// Bug in WebKit. It should truncate a negative fractional index to zero, but instead throws an error
-var THROW_ON_NEGATIVE_FRACTIONAL_INDEX = PROPER_ORDER && function () {
+var THROW_ON_VALID_ARGUMENTS = PROPER_ORDER && function () {
   try {
+    // Bug in WebKit. It should truncate a negative fractional index to zero, but instead throws an error
     // eslint-disable-next-line es/no-typed-arrays, es/no-array-prototype-with -- required for testing
     new Int8Array(1)['with'](-0.5, 1);
+    // Bug in Rhino 1.9. It converts the value with ToNumber instead of ToBigInt on BigInt arrays
+    // eslint-disable-next-line es/no-bigint -- required for testing
+    if (BigInt64Array) new BigInt64Array(1)['with'](0, BigInt(1));
   } catch (error) {
     return true;
   }
@@ -45,4 +50,4 @@ exportTypedArrayMethod('with', { 'with': function (index, value) {
   var k = 0;
   for (; k < len; k++) A[k] = k === actualIndex ? numericValue : O[k];
   return A;
-} }['with'], !PROPER_ORDER || THROW_ON_NEGATIVE_FRACTIONAL_INDEX);
+} }['with'], !PROPER_ORDER || THROW_ON_VALID_ARGUMENTS);

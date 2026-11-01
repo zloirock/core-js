@@ -4,6 +4,7 @@
 - Fixed falsely detected `ArrayBuffer` transfer support in Deno 1.13, preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
 - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
 - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
+- Added missed detection of native `%TypedArray%.prototype.with` converting the value with `ToNumber` instead of `ToBigInt` on `BigInt` arrays in Rhino 1.9
 - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
 - Fixed `structuredClone` preserving length-tracking views of resizable and growable shared buffers and throwing `DataCloneError` for out-of-bounds views
 - Fixed `structuredClone` transferring platform objects before validating the transfer list and cloning the value, and processing mixed transfer lists out of order
@@ -68,7 +69,7 @@
   - `Math.sumPrecise` marked as properly supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
   - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 because of the resizable buffer and `read` count bugs (see above)
   - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
-  - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0
+  - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from 1.9.0, `Array.fromAsync` and `%TypedArray%.prototype.with` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, slice, some, sort, toLocaleString }` - from 1.8.0
   - Chromium-based Edge and Opera no longer inherit EdgeHTML and Presto data where Chrome needs a later version: `Array.prototype.{ reduce, reduceRight }` are no longer marked as supported in Edge 79-82, `Object.{ defineProperty, defineProperties }` - in Opera 15-23, `atob` - in Opera 15-20
   - Fixed Opera 120 compat data mapping: `RegExp.escape`, `SuppressedError`, `DisposableStack`, `AsyncDisposableStack` and `Iterator.prototype[@@dispose]` are no longer marked as supported
   - Fixed Electron 0.21, 0.30, 0.31 and 1.4 compat data mapping
