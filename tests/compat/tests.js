@@ -1745,9 +1745,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       if (array[index] !== expected[index]) return;
     } return true;
   }],
-  'es.typed-array.species': [TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS, function () {
+  'es.typed-array.species': function () {
+    // Constructor wrappers inherit this getter from %TypedArray%.
     return Int8Array[Symbol.species] === Int8Array;
-  }],
+  },
   'es.typed-array.subarray': function () {
     return Int8Array.prototype.subarray.call(new Float32Array([1, 2, 3]), 0, 1) instanceof Float32Array;
   },
