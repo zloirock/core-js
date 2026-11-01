@@ -955,15 +955,21 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
       // Tor Browser bug: Math.acosh(Infinity) -> NaN
       // eslint-disable-next-line math/no-static-infinity-calculations -- testing
-      && Math.acosh(Infinity) === Infinity;
+      && Math.acosh(Infinity) === Infinity
+      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+      && Math.acosh(1.000001) === 0.00141421344446382;
   },
   'es.math.asinh': function () {
     // eslint-disable-next-line math/no-static-infinity-calculations -- testing
-    return 1 / Math.asinh(0) > 0 && Math.abs(Math.asinh(1e-8) - 1e-8) < 1e-16;
+    return 1 / Math.asinh(0) > 0 && Math.abs(Math.asinh(1e-8) - 1e-8) < 1e-16
+      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+      && Math.asinh(0.001) === 0.0009999998333334083;
   },
   'es.math.atanh': function () {
     // eslint-disable-next-line math/no-static-infinity-calculations -- testing
-    return 1 / Math.atanh(-0) < 0;
+    return 1 / Math.atanh(-0) < 0 && Math.atanh(1e-20) === 1e-20
+      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+      && Math.atanh(0.001) === 0.0010000003333335333;
   },
   'es.math.cbrt': function () {
     return Math.cbrt(27) === 3 && Math.cbrt(64) === 4;
@@ -978,6 +984,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     // Old FF bug
     // eslint-disable-next-line no-loss-of-precision -- required for old engines
     return Math.expm1(10) <= 22025.465794806719 && Math.expm1(10) >= 22025.4657948067165168
+      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+      && Math.expm1(1e-5) === 0.000010000050000166668
       // Tor Browser bug
       && Math.expm1(-2e-17) === -2e-17;
   },
@@ -999,7 +1007,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Math.log10(1e15) === 15;
   },
   'es.math.log1p': function () {
-    return Math.log1p;
+    // V8 ~ Chrome < 39 bug: https://issues.chromium.org/issues/42206797
+    // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+    return Math.log1p(0.01) === 0.009950330853168083;
   },
   'es.math.log2': function () {
     // V8 ~ Chrome < 41 and Rhino < 1.9.2 bug: https://issues.chromium.org/issues/42206893
@@ -1038,7 +1048,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   'es.math.tanh': function () {
-    return Math.tanh;
+    // V8 ~ Chrome < 48 bug
+    return Math.tanh(710) === 1;
   },
   'es.math.to-string-tag': function () {
     return Math[Symbol.toStringTag];

@@ -18,6 +18,7 @@ QUnit.test('Math.acosh', assert => {
   assert.closeTo(acosh(1e+160), 369.10676205960726, 1e-11);
   assert.closeTo(acosh(Number.MAX_VALUE), 710.475860073944, 1e-11);
   assert.closeTo(acosh(1 + Number.EPSILON), 2.1073424255447017e-8, 1e-11);
+  assert.closeTo(acosh(1.000001), 0.00141421344446382, 1e-18);
 
   const checker = createConversionChecker(1234);
   assert.closeTo(acosh(checker), 7.811163220849231, 1e-11);

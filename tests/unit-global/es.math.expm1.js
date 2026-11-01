@@ -14,6 +14,9 @@ QUnit.test('Math.expm1', assert => {
   assert.same(expm1(-Infinity), -1);
   assert.closeTo(expm1(10), 22025.465794806718, 1e-11);
   assert.closeTo(expm1(-10), -0.9999546000702375, 1e-11);
+  assert.closeTo(expm1(1e-5), 0.000010000050000166668, 1e-20);
+  assert.closeTo(expm1(-1e-5), -0.000009999950000166666, 1e-20);
+  assert.closeTo(expm1(1e-3), 0.0010005001667083417, 1e-18);
 
   const checker = createConversionChecker(10);
   assert.closeTo(expm1(checker), 22025.465794806718, 1e-11);

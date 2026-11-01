@@ -16,7 +16,9 @@ QUnit.test('Math.log1p', assert => {
   assert.same(log1p(Infinity), Infinity);
   assert.closeTo(log1p(5), 1.791759469228055, 1e-11);
   assert.closeTo(log1p(50), 3.9318256327243257, 1e-11);
-  assert.closeTo(log1p(0.01), 0.00995033085317, 1e-14, 'small value 0.01');
+  assert.closeTo(log1p(0.01), 0.009950330853168083, 5e-18, 'small value 0.01');
+  assert.closeTo(log1p(0.001), 0.0009995003330835331, 1e-18, 'small value 0.001');
+  assert.closeTo(log1p(0.0001), 0.00009999500033330834, 1e-19, 'small value 0.0001');
   assert.closeTo(log1p(0.1), 0.0953101798043, 1e-13, 'small value 0.1');
 
   const checker = createConversionChecker(5);

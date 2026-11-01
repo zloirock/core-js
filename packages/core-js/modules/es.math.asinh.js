@@ -17,9 +17,13 @@ function asinh(x) {
     : n < 1e-8 ? n : log1p(n + n * n / (1 + sqrt(n * n + 1)));
 }
 
-// Tor Browser bug: Math.asinh(0) -> -0
-// imprecise in V8 < 5.4 and Rhino
-var FORCED = !($asinh && 1 / $asinh(0) > 0 && abs($asinh(1e-8) - 1e-8) < 1e-16);
+var FORCED = !($asinh
+  // Tor Browser bug: Math.asinh(0) -> -0
+  && 1 / $asinh(0) > 0
+  // imprecise in V8 < 5.4 and Rhino
+  && abs($asinh(1e-8) - 1e-8) < 1e-16
+  // FF < 48 bug, imprecise: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+  && $asinh(0.001) === 0.0009999998333334083);
 
 // `Math.asinh` method
 // https://tc39.es/ecma262/#sec-math.asinh

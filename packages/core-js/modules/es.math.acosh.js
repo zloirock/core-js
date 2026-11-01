@@ -12,7 +12,9 @@ var FORCED = !$acosh
   // V8 bug: https://issues.chromium.org/issues/42206824
   || Math.floor($acosh(Number.MAX_VALUE)) !== 710
   // Tor Browser bug: Math.acosh(Infinity) -> NaN
-  || $acosh(Infinity) !== Infinity;
+  || $acosh(Infinity) !== Infinity
+  // FF < 48 bug, imprecise: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+  || $acosh(1.000001) !== 0.00141421344446382;
 
 // `Math.acosh` method
 // https://tc39.es/ecma262/#sec-math.acosh

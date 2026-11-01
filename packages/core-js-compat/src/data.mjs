@@ -933,26 +933,26 @@ export const data = {
   'es.math.acosh': {
     chrome: '54',
     edge: '13',
-    firefox: '25',
+    firefox: '48',
     hermes: '0.1',
     rhino: '1.9.2',
     safari: '7.1',
   },
   'es.math.asinh': {
-    // imprecise before fdlibm `asinh` in V8 5.4
+    // imprecise before fdlibm `asinh` in V8 5.4 and FF48
     chrome: '54', // '38',
     edge: '13',
-    firefox: '25',
+    firefox: '48', // '25',
     hermes: '0.1',
     rhino: '1.9.2', // '1.7.13',
     safari: '7.1',
   },
   'es.math.atanh': {
-    chrome: '38',
+    chrome: '53',
     edge: '13',
-    firefox: '25',
+    firefox: '48',
     hermes: '0.1',
-    rhino: '1.7.13',
+    rhino: '1.9.2',
     safari: '7.1',
   },
   'es.math.cbrt': {
@@ -984,7 +984,7 @@ export const data = {
   'es.math.expm1': {
     chrome: '39',
     edge: '13',
-    firefox: '46',
+    firefox: '48',
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
@@ -1031,9 +1031,9 @@ export const data = {
     safari: '7.1',
   },
   'es.math.log1p': {
-    chrome: '38',
+    chrome: '39',
     edge: '12',
-    firefox: '25',
+    firefox: '48',
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
@@ -1073,7 +1073,7 @@ export const data = {
     // safari: '26.2',
   },
   'es.math.tanh': {
-    chrome: '38',
+    chrome: '48',
     edge: '12',
     firefox: '25',
     hermes: '0.1',
