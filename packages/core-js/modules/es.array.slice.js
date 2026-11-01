@@ -20,7 +20,6 @@ var max = Math.max;
 
 // `Array.prototype.slice` method
 // https://tc39.es/ecma262/#sec-array.prototype.slice
-// fallback for not array-like ES3 strings and DOM objects
 $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
   slice: function slice(start, end) {
     var O = toObject(this);

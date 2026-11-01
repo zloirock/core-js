@@ -196,7 +196,6 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
     var currentOrdered;
     var marked = false;
     var root = true;
-    var rootValue;
     var gap;
 
     // lone surrogates are fixed below in the whole result, so a gap with them is replaced by a control char,
@@ -226,8 +225,6 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
         if (!isRoot && this !== currentOrdered && !isArray(this) && !~indexOf(propertyList, key)) return;
       } else if (replacerFunction) value = call(replacerFunction, this, key, value);
 
-      if (isRoot) rootValue = value;
-
       if (isRawJSONValue(value)) {
         if (NATIVE_RAW_JSON) return value;
         marked = true;
@@ -247,9 +244,6 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
 
       return value;
     }, space);
-
-    // IE8 returns a string instead of `undefined` when the root, after `toJSON` and the replacer, is not serializable
-    if (rootValue === undefined || isSymbol(rootValue) || isCallable(rootValue)) return;
 
     if (typeof json != 'string') return json;
 

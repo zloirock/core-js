@@ -692,7 +692,7 @@ const base = {
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
   // disallow immediate mutation after variable assignment
-  // that cause problems with objects in ES3 syntax, but since unicorn team
+  // that cause problems with objects in ES5 syntax, but since unicorn team
   // don't wanna add an option to allow it, manually disable this rule in such problem cases
   // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/2796
   'unicorn/no-immediate-mutation': [ERROR, { checkConditionals: false }],

@@ -1,10 +1,10 @@
 import { NATIVE } from '../helpers/constants.js';
 
 QUnit.test('DataView', assert => {
-  assert.isFunction(DataView); // in Safari 5 typeof DataView is 'object'
+  assert.isFunction(DataView);
   // assert.arity(DataView, 1); // 3 in Chrome 67, Firefox 54 and iOS 14
-  assert.name(DataView, 'DataView'); // Safari 5 bug
-  assert.looksNative(DataView); // Safari 5 bug
+  assert.name(DataView, 'DataView');
+  assert.looksNative(DataView);
   let dataview = new DataView(new ArrayBuffer(8));
   assert.same(dataview.byteOffset, 0, '#byteOffset, passed buffer');
   assert.same(dataview.byteLength, 8, '#byteLength, passed buffer');
@@ -24,7 +24,6 @@ QUnit.test('DataView', assert => {
     dataview = new DataView(new ArrayBuffer(16), 8, undefined);
     assert.same(dataview.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined');
     assert.same(dataview.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined');
-    // fails in IE10
     dataview = new DataView(new ArrayBuffer(8), 8);
     assert.same(dataview.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
     assert.same(dataview.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');

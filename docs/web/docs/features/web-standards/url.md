@@ -114,6 +114,5 @@ params.toString();  // => 'a=3&a=2&b=2&c=4'
 ```
 
 > [!WARNING]
-> - IE8 does not support setters, so they do not work on `URL` instances. However, the `URL` constructor can be used for basic `URL` parsing.
 > - Legacy encodings in a search query are not supported. Also, the `core-js` implementation has some other encoding-related issues.
 > - `URL` implementations from all of the popular browsers have significantly more problems than `core-js`, however, replacing all of them does not look like a good idea.

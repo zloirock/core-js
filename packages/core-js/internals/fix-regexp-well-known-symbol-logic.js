@@ -15,7 +15,7 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
   var DELEGATES_TO_SYMBOL = !fails(function () {
     // String methods call symbol-named RegExp methods
     var O = {};
-    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
+    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES5 syntax limitation
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) !== 7;
   });
@@ -32,10 +32,10 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
       // RegExp[@@split] doesn't call the regex's exec method, but first creates
       // a new one. We need to return the patched regex when creating the new one.
       var constructor = {};
-      // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
+      // eslint-disable-next-line unicorn/no-immediate-mutation -- ES5 syntax limitation
       constructor[SPECIES] = function () { return re; };
       re = { constructor: constructor, flags: '' };
-      // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
+      // eslint-disable-next-line unicorn/no-immediate-mutation -- ES5 syntax limitation
       re[SYMBOL] = /./[SYMBOL];
     }
 

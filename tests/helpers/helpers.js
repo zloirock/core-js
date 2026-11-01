@@ -165,9 +165,6 @@ export function patchRegExp$exec(run) {
     };
     try {
       return run(assert);
-    // eslint-disable-next-line no-useless-catch -- in very old IE try / finally does not work without catch
-    } catch (error) {
-      throw error;
     } finally {
       // eslint-disable-next-line no-extend-native -- required for testing
       RegExp.prototype.exec = originalExec;

@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var anObject = require('../internals/an-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
@@ -9,7 +10,7 @@ var toLength = require('../internals/to-length');
 var $ArrayBuffer = ArrayBuffer;
 var $DataView = DataView;
 var DataViewPrototype = $DataView.prototype;
-var nativeArrayBufferSlice = uncurryThis($ArrayBuffer.prototype.slice);
+var nativeArrayBufferSlice = uncurryThisClause($ArrayBuffer.prototype.slice);
 var getUint8 = uncurryThis(DataViewPrototype.getUint8);
 var setUint8 = uncurryThis(DataViewPrototype.setUint8);
 
