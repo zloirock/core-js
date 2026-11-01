@@ -63,7 +63,7 @@ export function * proxyRootCollapseRoutes({
   const { node } = path;
   if (!maximalProxyGlobalHop(node, aliasCtx, { throughChainAssign: true })
     || (!deleteHosted && navValueCanShortCircuit(node, resolvePure, aliasCtx))
-    || runSwallowsStoreProbe(node, resolvePure)
+    || runSwallowsStoreProbe(node, resolvePure, aliasCtx)
     || sealedClaimDisposition(node, resolvePure, aliasCtx, node)?.kind === 'throw') return;
   if (valueConsumer) {
     const source = planInnerProxyCollapse(node, {

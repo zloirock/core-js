@@ -16,6 +16,7 @@ import './discarded-call-types.mjs';
 import './deferred-probe-sources.mjs';
 import './guarded-values.mjs';
 import './excluded-residual-runtime.mjs';
+import './excluded-kept-store-runtime.mjs';
 import './mutation-gate-superset.mjs';
 import './transform-idempotence.mjs';
 import './transform-idempotence-pure.mjs';

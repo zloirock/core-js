@@ -48,6 +48,26 @@ for (const [expression, writes, deleted, kinds] of [
   }
 });
 
+for (const key of ['self', '[key]']) for (const receiver of [
+  '(held = globalThis.window)', '(effect(), held = globalThis.window)', '(holder.value = globalThis.window)',
+]) runBoth(`excluded root landing/${ receiver }/${ key }`,
+  `let held; const key = 'self'; ${ receiver }${ key === 'self' ? '.self' : key }.custom = value;`,
+  (parser, program, label) => {
+    const path = member(parser, program, 'custom');
+    const aliasCtx = context(parser, path);
+    const before = JSON.stringify(program.node);
+    function excluded(meta) { return meta.name === 'self' ? null : resolvePure(meta); }
+    checkDeep(`${ label }/declines before refresh`, [...proxyRootCollapseRoutes({
+      path, aliasCtx, resolvePure: excluded, writeTarget: true, deleteHosted: false,
+    })], []);
+    check(`${ label }/query leaves source intact`, JSON.stringify(program.node), before);
+    const routes = [...proxyRootCollapseRoutes({ path, aliasCtx, resolvePure, writeTarget: true, deleteHosted: false })];
+    checkDeep(`${ label }/backed hop still folds`, routes.map(route => route.kind), ['refresh', 'receiver']);
+    const write = parser.pickPath(program, 'AssignmentExpression', item => item.node.right.property?.name === 'window').node;
+    check(`${ label }/refresh retains assignment`, routes[0]?.store, write);
+    check(`${ label }/landing retains assignment`, routes[1]?.plan.rootBinding.keep, write);
+  });
+
 runBoth('whole source consumer', 'const { custom } = globalThis.window.self;', (parser, program, label) => {
   const path = member(parser, program, 'self');
   const aliasCtx = context(parser, path);

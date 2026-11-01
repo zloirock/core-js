@@ -6794,14 +6794,15 @@ export function createOuterCollapsePlanner({ allowOptional = false, resolvePure 
   return { plan, step, canCrossWrite };
 }
 
-// An unbacked hop above a kept store may not replace the raw value that store observed.
-// Hops inside the write belong to its own value plan; a bare root or backed terminal value
-// lets the outer run fold. The caller has already proved the run's realm identity.
-export function runSwallowsStoreProbe(runNode, resolvePure) {
+// A hop this build leaves raw above a kept store cannot replace the value the store
+// observed. This is the same retained-tail admission as the outward claim plan: an
+// excluded backed hop needs its source read too. A sequence hands on the same store;
+// its prefix belongs to the carrier, not to the landing. The caller proves realm identity.
+export function runSwallowsStoreProbe(runNode, resolvePure, aliasCtx = null) {
   for (let hop = runNode; isMemberAccessNode(hop);) {
-    const inner = unwrapRuntimeExpr(hop.object);
+    const inner = peelReceiverSequenceTail(hop.object);
     if (inner?.type === 'AssignmentExpression') {
-      const tail = unbackedProxyHopKey(hop, resolvePure) ? [hop] : [];
+      const tail = resolvePure({ kind: 'global', name: realmHopKeyName(hop, aliasCtx) }) ? [] : [hop];
       return keptProxyTailPlan(inner, tail, resolvePure).decline;
     }
     hop = inner;
