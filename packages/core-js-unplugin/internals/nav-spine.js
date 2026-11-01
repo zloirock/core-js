@@ -634,20 +634,6 @@ export function cloneStamped(node, ctx = null) {
   return clone;
 }
 
-// a quiet COMPUTED key through the canonical resolver, in the folded shape the callers read (an
-// EFFECT-bearing one is `foldSeqKeyLiteralTail`'s job - it owns the prefix that must ride along)
-export function foldedResolvedKey(property, metaPath, adapter) {
-  const key = resolveKey({
-    node: property,
-    computed: true,
-    scope: metaPath.scope,
-    adapter,
-    path: metaPath,
-    bailOnSideEffectKey: true,
-  });
-  return typeof key === 'string' ? { key, effects: [] } : null;
-}
-
 // the RESULT type of a source METHOD CALL - the only receiver whose type the chain above needs
 // off a memo (`arr.at(0)?.at(0).at(0)` - the middle dispatch owes `_atMaybeArray`). every other
 // shape stands down: the resolver descends by PATH, and one the split rebuilt (or whose callee

@@ -25,8 +25,7 @@ for (const [expression, blocks] of [
   ['(held = globalThis.window).self.item', false],
   ['(held = globalThis[(effect(), "window")]).window.item', true],
   ['(held = globalThis.custom).window.item', false],
-  // The outer source-run question stops at an effectful carrier; its own plan keeps the write.
-  ['(effect(), held = globalThis.window).window.item', false],
+  ['(effect(), held = globalThis.window).window.item', true],
 ]) runBoth(`raw store/${ expression }`, `let held, other; const result = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
   const node = unwrapRuntimeExpr(path.node.init);
@@ -35,6 +34,22 @@ for (const [expression, blocks] of [
   check(`${ label }/repeated query`, runSwallowsStoreProbe(node, resolvePure), blocks);
   check(`${ label }/source unchanged`, JSON.stringify(node), before);
 });
+
+for (const expression of [
+  '(held = globalThis.window).self.item',
+  '(effect(), held = globalThis.window).self.item',
+  '(effect(), (otherEffect(), held = globalThis.window)).self.item',
+  '(holder.value = globalThis.window).self.item',
+  '(held = other = globalThis.window)["self"].item',
+]) runBoth(`excluded stored hop/${ expression }`, `let held, other; const result = ${ expression };`,
+  (parser, program, label) => {
+    const node = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result').node.init;
+    const before = JSON.stringify(node);
+    function excluded(meta) { return meta.name === 'self' ? null : resolvePure(meta); }
+    check(`${ label }/source read survives exclusion`, runSwallowsStoreProbe(node, excluded), true);
+    check(`${ label }/available hop still folds`, runSwallowsStoreProbe(node, resolvePure), false);
+    check(`${ label }/query leaves source intact`, JSON.stringify(node), before);
+  });
 
 for (const [expression, rides] of [
   ['held = globalThis', true],
