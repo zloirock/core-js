@@ -1791,7 +1791,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return array[0] === 0 && array[1] === 2 && array[2] === 3;
   }],
   'es.typed-array.slice': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return new Int8Array(1).slice();
+    var array = new Int8Array(1);
+    // Rhino 1.8 returns a view on the source buffer
+    return array.slice().buffer !== array.buffer;
   }],
   'es.typed-array.some': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.some;

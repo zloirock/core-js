@@ -2,24 +2,21 @@
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var fails = require('../internals/fails');
 var arraySlice = require('../internals/array-slice');
+var fromSameTypeAndList = require('../internals/typed-array-from-same-type-and-list');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 var FORCED = fails(function () {
   // eslint-disable-next-line es/no-typed-arrays -- required for testing
-  new Int8Array(1).slice();
+  var array = new Int8Array(1);
+  // Rhino 1.8 returns a view on the source buffer
+  return array.slice().buffer === array.buffer;
 });
 
 // `%TypedArray%.prototype.slice` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.slice
 exportTypedArrayMethod('slice', function slice(start, end) {
-  var list = arraySlice(aTypedArray(this), start, end);
-  var C = getTypedArrayConstructor(this);
-  var index = 0;
-  var length = list.length;
-  var result = new C(length);
-  while (length > index) result[index] = list[index++];
-  return result;
+  // the list goes straight to the helper: in Rhino 1.8, locals assigned after `arraySlice` can be lost once a JS function is called
+  return fromSameTypeAndList(this, arraySlice(aTypedArray(this), start, end));
 }, FORCED);
