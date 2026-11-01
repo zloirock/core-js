@@ -5,7 +5,9 @@ function eff() {
 }
 {
   const {
-      prototype: _ref
-    } = _globalThis.Array,
+      Array: {
+        prototype: _ref
+      }
+    } = _globalThis,
     a = null == _ref ? _ref[""] : (eff('k2'), _atMaybeArray(_ref));
 }

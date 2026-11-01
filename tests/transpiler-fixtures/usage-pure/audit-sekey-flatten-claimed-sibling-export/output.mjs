@@ -22,5 +22,7 @@ export const {
   fl = (_ref = holder.p, null == _ref ? _ref[""] : (k++, _flatMaybeArray(_ref)));
 console.log(from, fl, k);
 for (const {
-    of2
-  } = _globalThis.Array, _ref2 = holder.p, q = null == _ref2 ? _ref2[""] : (k++, _atMaybeArray(_ref2)); k < 0;) console.log(of2, q);
+    Array: {
+      of2
+    }
+  } = _globalThis, _ref2 = holder.p, q = null == _ref2 ? _ref2[""] : (k++, _atMaybeArray(_ref2)); k < 0;) console.log(of2, q);

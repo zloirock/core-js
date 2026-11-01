@@ -1,6 +1,5 @@
-// the proxy-hop normalization fires only where the host's VALUE is discarded and a
-// default cannot pick a caller argument; each line locks one host boundary.
-// an assignment-expression value is the proxy object itself - a used value bails
+// Proxy hops preserve the host's result; parameter defaults still read caller arguments.
+// An assignment yields the realm while its nested target reads the ponyfill.
 let customV;
 // @ts-expect-error a static the constructor lacks is the read under test
 const v = ({ Map: { customV } } = globalThis);
@@ -18,11 +17,11 @@ const { Set: { customT } } = (globalThis as any);
 let customS;
 // @ts-expect-error a static the constructor lacks is the read under test
 (eff(), { WeakMap: { customS } } = globalThis);
-// a for-init assignment slot is not a statement context - bails
+// A for-init assignment keeps its expression in the loop header.
 let customF;
 // @ts-expect-error a static the constructor lacks is the read under test
 for (({ WeakSet: { customF } } = globalThis); cond(); ) use(customF);
-// a concise arrow body returns the assignment value - bails
+// A concise arrow body returns the original assignment value.
 let customA;
 // @ts-expect-error a static the constructor lacks is the read under test
 const g = () => ({ Symbol: { customA } } = globalThis);

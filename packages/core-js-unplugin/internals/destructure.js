@@ -888,6 +888,13 @@ export default function createAstDestructureEmitter({
       isClaimedProp: item => propHasQueuedJob(restHost, item)
         || injectorState.hasGeneratedUnusedName(propBindingIdentifier(item.value)?.name),
     });
+    // A re-entered pattern need not visit a global identifier again. Its quiet hop asks
+    // the common source plan through the same native queue as a source realm read.
+    if (!restPlan && assignment && kind === 'global' && metaPath.parentPath?.node === restHost.node.left
+      && restHost.node.left.properties.length === 1 && patternSlotTarget(metaPath.node.value)?.type === 'ObjectPattern'
+      && assignmentValueDiscarded(restHost)) {
+      noteCtorHopHost(restHost, meta.key, metaPath);
+    }
     if (restPlan?.keepsNative) return true;
     if (restPlan) {
       primeDestructureReceiverTypes?.(metaPath);
@@ -2964,7 +2971,7 @@ export default function createAstDestructureEmitter({
       if (tail?.type === 'SequenceExpression') tail = peelTransparentExpr(tail.expressions.at(-1));
       if (!invocationNode(tail)
         || !provenRealmCallRoot(tail, metaPath, adapter, { allowEffects: true })) return;
-      hopHosts.set(host, { untouched: true, wholeDeclarator: true, assignHost: true, hopKeyName, metaPath });
+      noteCtorHopHost(hostParent, hopKeyName, metaPath);
     }
 
     // the targets a pattern level writes: its bindings and its MEMBER targets - a member target reads
@@ -3193,6 +3200,27 @@ export default function createAstDestructureEmitter({
     };
   }
 
+  // Queue only work accepted by the common source plan, including real extractions
+  // without an explicit anchor. A constructor name or realm import alone is not an obligation.
+  function noteCtorHopHost(hostPath, keyName, metaPath) {
+    const declarator = hostPath.node;
+    if (hopHosts.has(declarator)) return;
+    const assignHost = declarator.type === 'AssignmentExpression';
+    const plan = buildNestedDestructurePlan({
+      declarator: assignHost ? { id: declarator.left, init: declarator.right } : declarator,
+      scope: hostPath.scope,
+      path: hostPath,
+      adapter,
+      injectorState,
+      resolvePure: (meta, at) => resolvePure(meta, at ?? metaPath),
+      resolveGlobalPolyfill,
+      isDisabledProp: isDisabled,
+    });
+    if (plan) hopHosts.set(declarator, {
+      sourceAnchor: plan.anchor ?? keyName, assignHost, metaPath,
+    });
+  }
+
   return {
     captureParameterInstance,
     capturePatternForExtraction,
@@ -3245,26 +3273,7 @@ export default function createAstDestructureEmitter({
       }
       return effectful && value?.type === 'Identifier' && isPristineProxyGlobal(adapter, value.name);
     },
-    noteMutatedCtorHopHost: declarator => hopHosts.set(declarator, { forceMutatedHop: true }),
-    // a CTOR hop nothing extracted from re-anchors on its own member READ (`{ Proxy: { revocable } }
-    // = globalThis` -> `{ revocable } = _globalThis.Proxy`) - only where the key names a built-in
-    // the realm is known to carry (the shared ctor-key-anchor gate): a user global is an unknown
-    // slot (`{ Deno: { env } = {} }` keeps its default), and a lowercase `constructor` names none
-    noteUntouchedCtorHopHost(declarator, keyName, assignHost = false, metaPath = null) {
-      if (!hopHosts.has(declarator) && isKnownStaticGlobal(keyName, adapter)) {
-        // the key the WALK resolved travels with the note: a computed spelling bound to a
-        // constant (`{ [hopKey]: { viaKey } }`) names no literal the re-anchor could read
-        hopHosts.set(declarator, { untouched: true, wholeDeclarator: true, assignHost, hopKeyName: keyName, metaPath });
-      }
-    },
-    // a PRISTINE proxy hop navigates to the same surface, so a whole-host pattern flattens
-    // onto it (`{ window: { Array } }` -> `{ Array }`). at DRAIN like its siblings: the walk
-    // is still running, and a pattern rewritten under it is visited a second time
-    noteProxyCtorHopHost(host, metaPath, assignHost) {
-      // the note fires only for a SOLE hop prop, so the pattern IS the whole host: a ctor hop
-      // left below the peeled proxy one anchors on its own member read in the same pass
-      if (!hopHosts.has(host)) hopHosts.set(host, { metaPath, assignHost, wholeDeclarator: true });
-    },
+    noteCtorHopHost,
     isRealmSelectingInit: node => !!realmSelectionCollapseOperand(node, { adapter, injectorState }),
     // the host init of the pattern this leaf sits in, where that init puts a realm PROBE on the arm
     // its own test decides - null otherwise. the arm is decided by the RECEIVER, so the question is

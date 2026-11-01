@@ -34,8 +34,10 @@ for (const {
     plain
   } = arr; cond(); next()) use(of2, flat, plain);
 for (const {
-    isArray
-  } = _globalThis.Array, inc = _includes(arr); cond(); next()) use(isArray, inc);
+    Array: {
+      isArray
+    }
+  } = _globalThis, inc = _includes(arr); cond(); next()) use(isArray, inc);
 for (const {
     Array: {
       fromAsync

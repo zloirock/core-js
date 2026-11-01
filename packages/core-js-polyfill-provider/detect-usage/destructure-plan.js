@@ -127,7 +127,7 @@ import {
   planProxyReceiver,
   shouldDropRescueReceiver,
 } from './members.js';
-import { SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
+import { staticReceiverHint, SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
 import { mintedProxyGlobalName } from './guard-preparation.js';
 import {
   chainSealsAShortCircuit,
@@ -1518,14 +1518,15 @@ function hasExtractions(planNode) {
 }
 
 // resolve a destructure property to its polyfillable STATIC entry off `receiverName`, or null when it
-// is NOT a consumable static: a computed / non-Identifier-value / rest / default-only key, an
-// instance-kind member, an unresolved key, or a disabled leaf. shared by the flatten plan (which builds
+// is NOT a consumable static: an unsupported target, a rest property, an instance-kind member,
+// an unresolved key, or a disabled leaf. Pattern targets are opt-in for the ordered assignment
+// capture; ordinary extraction callers still require a binding or a member target. shared by the flatten plan (which builds
 // extractions from the entry) and the babel collapse gate (which needs only the yes/no to know whether a
 // surviving sibling will be EXTRACTED - emptying the pattern and dropping a SE init's receiver tail).
 // the bare `resolveBuiltIn` instance pre-filter is required: a pathless `resolvePure` crashes on
 // `enhanceMeta`'s member-like check for instance resolutions
 export function resolvePolyfillableStaticProp({
-  prop, receiverName, resolvePure, isDisabled = null, keyName = null,
+  prop, receiverName, resolvePure, isDisabled = null, keyName = null, allowPattern = false,
 }) {
   if (isDisabled?.(prop)) return null;
   // caller may pre-resolve a scope-aware key (an Identifier computed key `[K]` folds to its binding
@@ -1536,7 +1537,8 @@ export function resolvePolyfillableStaticProp({
   const valueNode = propBindingIdentifier(prop.value);
   // ... and a MEMBER target is a slot like any binding; every gate below still answers for it, which
   // is what keeps a PROTOTYPE member (`Set.union`) out of the slot
-  const targetNode = valueNode ? null : memberTargetTakesExtraction(prop.value);
+  const targetNode = valueNode ? null : memberTargetTakesExtraction(prop.value)
+    ?? (allowPattern && isDestructurePattern(patternSlotTarget(prop.value)) ? patternSlotTarget(prop.value) : null);
   if (!valueNode && !targetNode) return null;
   const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
   if (resolveBuiltIn(meta)?.kind === 'instance') return null;
@@ -2679,21 +2681,22 @@ function patternHasPolyfillableDefault(node) {
 
 // One live residual hop: both the source plan and the later drain use this admission and
 // constructor/member choice. The source phase can retain rest through a constructor index
-// and sees the whole original host; a residual must carry explicit consumption/mutation
-// permission. A user name resembling a sentinel supplies neither. Pristine proxy hops peel
-// only while their value remains defined; an already rendered guard must stay the receiver.
+// and sees the whole original host. A residual needs a served constructor, a live default claim,
+// a consumed leaf or the source plan's accepted anchor key. Permission for one hop never activates
+// the next; a user name resembling a sentinel supplies none. Pristine proxy hops peel only while
+// their value remains defined; an already rendered guard must stay the receiver. Computed keys
+// resolve at their own source property; consuming a hop must not discard key effects.
 export function planResidualAnchorHop({
   pattern,
   receiver,
   adapter,
   path = null,
   resolveGlobalPolyfill,
-  keyName = propertyKeyName,
+  keyName = null,
   isDisabledProp = null,
   phase = 'residual',
   guarded = false,
-  forceMutatedHop = false,
-  wholeDeclarator = false,
+  sourceAnchor = null,
   isConsumedProp = null,
   guardedValue = null,
   resolvePure = null,
@@ -2702,7 +2705,9 @@ export function planResidualAnchorHop({
     && isPropertyNode(pattern.properties[0]) ? pattern.properties[0] : null;
   const inner = prop && patternSlotTarget(prop.value);
   if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
-  const key = keyName(prop);
+  const key = keyName ? keyName(prop) : propertyKeyName(prop) ?? (prop.computed && path ? sharedResolveKey({
+    node: prop.key, computed: true, scope: path.scope, adapter, path, bailOnSideEffectKey: true,
+  }) : null);
   if (typeof key !== 'string') return null;
   const proxy = POSSIBLE_GLOBAL_OBJECTS.has(key);
   const restPure = phase === 'source' && !proxy
@@ -2716,9 +2721,9 @@ export function planResidualAnchorHop({
   }
   if (!realmLevelNamesCtor(key, prop.value, adapter)) return null;
   const mutated = !!adapter.isMutatedStatic?.(receiver, key, read);
-  if (mutated && phase !== 'source' && !forceMutatedHop) return null;
+  if (mutated && phase !== 'source' && sourceAnchor !== key) return null;
   const pure = mutated || guarded ? null : resolveGlobalPolyfill(key);
-  if (phase !== 'source' && !mutated && !pure && !wholeDeclarator
+  if (phase !== 'source' && !pure && sourceAnchor !== key
     && !patternHasPolyfillableDefault(inner) && inner.properties.every(item => !isConsumedProp?.(item))) return null;
   // A guarded surface's constructor is the same runtime-identity narrow as its flat
   // member read. Reuse its candidate, namespace and comparator proofs after extraction.
@@ -2737,7 +2742,8 @@ export function planResidualAnchorHop({
 }
 
 // Plan instance reads from an array host, or a direct declaration/assignment over a realm or constructor.
-// Return null when no supported extraction or anchor exists; an anchor may have zero extractions.
+// Return null when no supported extraction or anchor exists. A zero-extraction anchor needs
+// a served constructor (possibly guarded) or an action on its residual; a raw hop stays native.
 // Fallback selection must satisfy the shared collapse proof. `discardSe` and probe fields retain
 // receiver effects and throws. Literal wrappers retain their source containers; their independent
 // instance reads use the array/capture plans. Residual flags preserve reads, keys, rest and iteration.
@@ -3279,9 +3285,9 @@ export function buildNestedDestructurePlan({
       // missing-global targets). qualification mirrors the retired normalize pre-passes:
       // exactly one Property, a non-proxy key naming a known built-in, non-empty (default-peeled)
       // inner ObjectPattern, effect-free init, no array wrapper. the anchored plan exists
-      // even with ZERO extractions - the re-anchored residual is the point (a slot-mutated
-      // ctor's patch lands on the routed binding). an SE-bearing init keeps the nested
-      // handling: a member synthesized off a sequence would change the receiver shape the
+      // with zero extractions only when it replaces the constructor, guards that replacement or
+      // serves a residual action. A raw, untouched hop needs no reshaping. An SE-bearing init
+      // keeps the nested handling: a member synthesized off a sequence would change the receiver shape the
       // SE-lift machinery expects; a side-effecting computed key keeps its in-place run
       // a disabled host line opts out of the reshaping (cascade callers stamp loc/start
       // onto their synthetic host so the per-line check reaches the real statement)
@@ -3325,15 +3331,40 @@ export function buildNestedDestructurePlan({
         // on that residual for ordinary traversal, rather than rendering another anchor per extraction.
         const outerProps = inner.properties.map(p => restPure || guarded ? { kind: 'verbatim', prop: p } : planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
-        // An ordered instance capture owns the raw hop's source slots. Ask it before
-        // an otherwise empty anchor hides those slots from the later leaf dispatch.
-        if (!anchorPure && !guarded && outerProps.every(p => p.kind === 'verbatim') && inner.properties.some(leaf => {
-          const pure = resolvePure({ kind: 'property', object: key, key: propKeyNameScoped(leaf, true), placement: 'static' });
-          return pure?.kind === 'instance' && orderedClaimCapture({
-            pattern: hostPattern, init: declarator.init, prop: leaf, kind: pure.kind, entry: pure.entry,
-            assignment: declarator.type !== 'VariableDeclarator', hostPath: path, adapter, injectorState,
+        // Ask source metadata only: querying the leaf funnel here would cache decisions
+        // for a receiver a subsequent mirror can replace. A prototype's own leaves also
+        // carry claims, but a live inner default or rest keeps that level's source route.
+        function residualClaim(leaf, prototype = false) {
+          if (leafDisabled(leaf)) return false;
+          const leafKey = propKeyNameScoped(leaf, true);
+          const object = anchorSlotMutated ? undefined : key;
+          const placement = prototype || anchorSlotMutated ? 'prototype' : 'static';
+          const pure = resolvePure({
+            kind: 'property',
+            object,
+            key: leafKey,
+            placement,
+            receiverHint: staticReceiverHint(placement, object),
           });
-        })) return null;
+          if (pure) return pure.kind !== 'instance' || !orderedClaimCapture({
+            pattern: hostPattern,
+            init: declarator.init,
+            prop: leaf,
+            kind: pure.kind,
+            entry: pure.entry,
+            assignment: declarator.type !== 'VariableDeclarator',
+            hostPath: path,
+            adapter,
+            injectorState,
+          });
+          return !prototype && leafKey === 'prototype' && leaf.value.type === 'ObjectPattern'
+            && !leaf.value.properties.some(isRestProperty) && leaf.value.properties.some(item => residualClaim(item, true));
+        }
+        // A raw anchor exists only for an actual residual claim. Ordered capture owns
+        // its source slots instead; flattening them would hide its receiver/effect order.
+        const replacement = anchorPure || anchor.narrow || (guarded && !anchorSlotMutated && resolveGlobalPolyfill(key));
+        if (!replacement && outerProps.every(p => p.kind === 'verbatim')
+          && inner.properties.every(leaf => !residualClaim(leaf))) return null;
         // ... and a residual leaf the MIRROR can spell with the member's own ponyfill declines the anchor
         if (anchorPure && !restPure && outerProps.some(p => p.kind === 'verbatim'
           && residualLeafBelongsToMirror(p.prop, key))) return null;

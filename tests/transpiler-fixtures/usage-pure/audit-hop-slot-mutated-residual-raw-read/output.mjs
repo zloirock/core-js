@@ -9,6 +9,8 @@ const orig = _Map;
 _globalThis.Map = function FakeMap() {};
 Map.groupBy = function patched() {};
 const {
-  groupBy: rawRead
-} = _globalThis.Map;
+  Map: {
+    groupBy: rawRead
+  }
+} = _globalThis;
 console.log(orig, rawRead);

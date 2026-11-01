@@ -490,6 +490,8 @@ export function spineCarriesComputedHop(objectNode) {
   return false;
 }
 
+// Locate the native whole host of a realm claim. Consumed assignment values keep their
+// source result; eligible hosts ask the common plan whether any constructor anchor is needed.
 export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destructureEmit }) {
   // the claim may sit under the init's SE wrappers - the surface it names is the same one
   // (`(eff(), globalThis)`, `(q = globalThis)`), and so is the hop above it
@@ -532,24 +534,12 @@ export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destruc
     return;
   }
   if (hopValue?.type !== 'ObjectPattern') return;
-  // a PRISTINE proxy hop drops WHOLE, and at once: the flattened pattern is what registers
-  // the ctor alias a later static read resolves through. every other whole-declarator hop
-  // re-anchors on its own member read, at drain
-  if (POSSIBLE_GLOBAL_OBJECTS.has(hopKey) && isPristineProxyGlobal(adapter, hopKey)) {
-    destructureEmit.noteProxyCtorHopHost(host, metaPath, assignHost);
-    return;
-  }
-  // a MUTATED slot's drain route speaks for a declarator only - an assignment residual has its
-  // own channel and no slot for it; the UNTOUCHED re-anchor reads the drain's assignment view
-  if (adapter.isMutatedStatic?.('globalThis', hopKey, { node: hop, path: metaPath })) {
-    if (!assignHost) destructureEmit.noteMutatedCtorHopHost(host);
-    return;
-  }
-  // an assignment whose VALUE is consumed may not re-anchor: `({ Map: { k } } = globalThis)`
-  // yields the GLOBAL, while the anchored `({ k } = _Map)` yields the ctor - only a statement
-  // position discards that value and can take the rewrite
-  if (assignHost && !assignmentValueDiscarded(up)) return;
-  destructureEmit.noteUntouchedCtorHopHost(host, hopKey, assignHost, metaPath);
+  // A source assignment yields its whole receiver. Re-anchoring a constructor below a
+  // proxy would change that value too; only a discarded result permits a whole-host note.
+  // Mutated assignment residuals already have a separate native channel.
+  if (assignHost && (!assignmentValueDiscarded(up)
+    || adapter.isMutatedStatic?.('globalThis', hopKey, { node: hop, path: metaPath }))) return;
+  destructureEmit.noteCtorHopHost(up, hopKey, metaPath);
 }
 
 // mark a whole subtree consumed: a replacement detaches the ORIGINAL nodes, but the

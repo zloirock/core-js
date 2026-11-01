@@ -14,13 +14,17 @@ var e = 0;
 bag[e++, 'A'];
 const m1 = _Array$from;
 const {
-  of2
-} = _globalThis.Array;
+  Array: {
+    of2
+  }
+} = _globalThis;
 console.log(m1, of2, e);
 const {
-  isArray: m2
-} = bag['A'];
-const {
-  of3
-} = _globalThis.Array;
+    isArray: m2
+  } = bag['A'],
+  {
+    Array: {
+      of3
+    }
+  } = _globalThis;
 console.log(m2, of3);

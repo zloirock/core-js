@@ -1,13 +1,11 @@
-// a CHAIN wrapper the collapse emptied is a HUSK: the `?.` erased when the substitution landed, so
-// what it wraps is what every surface question is about. asking the husk instead answered "not a
-// surface", and the sole hop stayed in the pattern where the plain twin re-anchors it - the two legs
-// then printed the same read two ways
+// A dead chain wrapper and its plain twin expose the same realm. Neither reshapes an
+// unclaimed constructor hop; a property name shared with an instance method is not a claim.
 let fromMarked, fromPlain, named;
-// the residual re-anchors on the hop: the leaf is nobody's claim, so this is the collapse alone
+// Unknown leaves retain their nested source pattern.
 ({ Array: { unknownKey: fromMarked } } = globalThis?.globalThis);
 ({ Array: { unknownKey: fromPlain } } = globalThis.globalThis);
-// ... and a NAME MATCH re-anchors the same way, its leaf staying native on both legs
+// A name match on a different receiver also stays native.
 ({ Array: { keys: named } } = globalThis?.globalThis);
-// a declaration host takes it too
+// A declaration host makes the same choice.
 const { Array: { unknownDecl } } = globalThis?.globalThis;
 export { fromMarked, fromPlain, named, unknownDecl };

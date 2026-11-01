@@ -24,8 +24,10 @@ const {
   }
 });
 const {
-    prototype: _ref
-  } = (eff++, _globalThis.Array),
+    Array: {
+      prototype: _ref
+    }
+  } = (eff++, _globalThis),
   f2 = (_ref2 = _flatMaybeArray(_ref)) === void 0 ? {
     "f2": () => 1
   }["f2"] : _ref2,

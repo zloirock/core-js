@@ -15,8 +15,10 @@ let viaAssignment;
 viaAssignment = _nameMaybeFunction(_Promise);
 const viaRealmNav = _nameMaybeFunction(_globalThis.ArrayBuffer);
 const {
-  keys: nameMatchStaysNative
-} = _globalThis.Array;
+  Array: {
+    keys: nameMatchStaysNative
+  }
+} = _globalThis;
 const source = makeSource();
 const userKeyDispatches = _keys(source.Object);
 export { viaDeclaration, viaAssignment, viaRealmNav, nameMatchStaysNative, userKeyDispatches };

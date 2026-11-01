@@ -8,8 +8,10 @@ const {
   }
 } = (_globalThis.self = fake, _globalThis);
 const {
-  groupBy
-} = (_globalThis.Map = MyMap, _globalThis.Map);
+  Map: {
+    groupBy
+  }
+} = (_globalThis.Map = MyMap, _globalThis);
 const {
   a = _globalThis.Set = MySet,
   Set: S

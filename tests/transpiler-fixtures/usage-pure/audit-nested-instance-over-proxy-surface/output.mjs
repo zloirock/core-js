@@ -28,10 +28,14 @@ const {
 // NEGATIVE: a chain that STOPS at the object it reaches is a name match, not a surface - `keys` off
 // the Array constructor binds undefined natively. the ASSIGNMENT host asks the same question
 const {
-  keys: onCtor
-} = _globalThis.Array;
+  Array: {
+    keys: onCtor
+  }
+} = _globalThis;
 let onCtorAssign;
 ({
-  keys: onCtorAssign
-} = _globalThis.Array);
+  Array: {
+    keys: onCtorAssign
+  }
+} = _globalThis);
 export { fromGlobal, fromCtor, fromNav, inLoop, defaulted, symLeaf, offRoot, onCtor, onCtorAssign };

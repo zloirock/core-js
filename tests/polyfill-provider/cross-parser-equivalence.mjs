@@ -412,6 +412,10 @@ await runEquivalence('anchored SE-init: for-init symbol leaf + chain full consum
 // on both parsers, for the identifier and the pattern flavor alike
 await runEquivalence('anchored symbol leaf: identifier default keeps key-swap',
   'let itD;\nexport const { entries } = (({ WeakMap: { [Symbol.iterator]: itD = null } } = globalThis), Object);\nexport const r = [itD, entries];', USAGE_PURE);
+// An existing pure import is still a source receiver: quiet hops retain their symbol-default route.
+await runEquivalence('anchored symbol leaf: imported receiver keeps key-swap',
+  'import realm from "@core-js/pure/actual/global-this"; let itD;\n'
+  + 'export const { entries } = (({ WeakMap: { [Symbol.iterator]: itD = null } } = realm), Object);\nexport const r = [itD, entries];', USAGE_PURE);
 await runEquivalence('anchored symbol leaf: pattern default keeps key-swap',
   'const { Promise: { [Symbol.iterator]: { bind: bnd } = {} } } = globalThis;\nexport const r = bnd;', USAGE_PURE);
 // a scope-shadowed `Symbol` keeps the user's own key verbatim (no iterator-helper import)
