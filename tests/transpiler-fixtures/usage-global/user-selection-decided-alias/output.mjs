@@ -44,7 +44,6 @@ import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-exception.constructor";
-import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";

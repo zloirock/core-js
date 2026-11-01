@@ -300,7 +300,6 @@ import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-exception.constructor";
-import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.atob";
 import "core-js/modules/web.btoa";

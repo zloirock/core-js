@@ -53,7 +53,6 @@ import "core-js/modules/es.uint8-array.set-from-hex";
 import "core-js/modules/es.uint8-array.to-base64";
 import "core-js/modules/es.uint8-array.to-hex";
 import "core-js/modules/web.dom-exception.constructor";
-import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.dom-collections.iterator";
 // A spread BEFORE an array-wrap slot shifts every later runtime position, so the pattern slot no longer pairs EXACTLY with the

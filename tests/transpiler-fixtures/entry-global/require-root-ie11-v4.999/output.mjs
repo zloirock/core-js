@@ -296,7 +296,6 @@ require("core-js/modules/es.weak-set.constructor");
 require("core-js/modules/esnext.promise.all-keyed");
 require("core-js/modules/esnext.promise.all-settled-keyed");
 require("core-js/modules/web.dom-exception.constructor");
-require("core-js/modules/web.dom-exception.stack");
 require("core-js/modules/web.dom-exception.to-string-tag");
 require("core-js/modules/web.atob");
 require("core-js/modules/web.btoa");
