@@ -2,7 +2,6 @@
 // based on Shewchuk's algorithm for exactly floating point addition
 // adapted from https://github.com/tc39/proposal-math-sum/blob/3513d58323a1ae25560e8700aa5294500c6c9287/polyfill/polyfill.mjs
 var $ = require('../internals/export');
-var uncurryThis = require('../internals/function-uncurry-this');
 var iterate = require('../internals/iterate');
 var fails = require('../internals/fails');
 var getIterator = require('../internals/get-iterator-internal');
@@ -17,7 +16,6 @@ var $NaN = NaN;
 var $sumPrecise = Math.sumPrecise;
 var abs = Math.abs;
 var pow = Math.pow;
-var push = uncurryThis([].push);
 var ITERATOR = wellKnownSymbol('iterator');
 
 var POW_2_1023 = pow(2, 1023);
@@ -57,12 +55,51 @@ var twosum = function (x, y) {
   return { hi: hi, lo: lo };
 };
 
+// adds `x` to the non-overlapping partials of a sum in place, returns the change of the overflow count
+var addToPartials = function (partials, x) {
+  // the value may arrive boxed: converting it once lets engines keep the loop's `x` an unboxed double
+  x = +x;
+  var overflow = 0;
+  var y, sum, hi, lo, tmp;
+  var actuallyUsedPartials = 0;
+  for (var j = 0; j < partials.length; j++) {
+    y = partials[j];
+    if (abs(x) < abs(y)) {
+      tmp = x;
+      x = y;
+      y = tmp;
+    }
+    sum = twosum(x, y);
+    hi = sum.hi;
+    lo = sum.lo;
+    if (abs(hi) === $Infinity) {
+      var sign = hi === $Infinity ? 1 : -1;
+      overflow += sign;
+
+      x = (x - (sign * POW_2_1023)) - (sign * POW_2_1023);
+      if (abs(x) < abs(y)) {
+        tmp = x;
+        x = y;
+        y = tmp;
+      }
+      sum = twosum(x, y);
+      hi = sum.hi;
+      lo = sum.lo;
+    }
+    if (lo !== 0) partials[actuallyUsedPartials++] = lo;
+    x = hi;
+  }
+  if (x !== 0) partials[actuallyUsedPartials++] = x;
+  partials.length = actuallyUsedPartials;
+  return overflow;
+};
+
 // `Math.sumPrecise` method
 // https://tc39.es/ecma262/#sec-math.sumprecise
 $({ target: 'Math', stat: true, forced: FORCED }, {
-  // eslint-disable-next-line max-statements -- ok
   sumPrecise: function sumPrecise(items) {
-    var numbers = [];
+    var partials = [];
+    var overflow = 0; // conceptually 2 ** 1024 times this value; the final partial is biased by this amount
     var count = 0;
     var state = MINUS_ZERO;
 
@@ -76,7 +113,8 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
         else if (n === -$Infinity) state = state === PLUS_INFINITY ? NOT_A_NUMBER : MINUS_INFINITY;
         else if ((n !== 0 || (1 / n) === $Infinity) && (state === MINUS_ZERO || state === FINITE)) {
           state = FINITE;
-          push(numbers, n);
+          // added on the fly: buffering the values would take memory linear in their count
+          overflow += addToPartials(partials, n);
         }
       }
     });
@@ -88,43 +126,7 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
       case MINUS_ZERO: return -0;
     }
 
-    var partials = [];
-    var overflow = 0; // conceptually 2 ** 1024 times this value; the final partial is biased by this amount
-    var x, y, sum, hi, lo, tmp;
-
-    for (var i = 0; i < numbers.length; i++) {
-      x = numbers[i];
-      var actuallyUsedPartials = 0;
-      for (var j = 0; j < partials.length; j++) {
-        y = partials[j];
-        if (abs(x) < abs(y)) {
-          tmp = x;
-          x = y;
-          y = tmp;
-        }
-        sum = twosum(x, y);
-        hi = sum.hi;
-        lo = sum.lo;
-        if (abs(hi) === $Infinity) {
-          var sign = hi === $Infinity ? 1 : -1;
-          overflow += sign;
-
-          x = (x - (sign * POW_2_1023)) - (sign * POW_2_1023);
-          if (abs(x) < abs(y)) {
-            tmp = x;
-            x = y;
-            y = tmp;
-          }
-          sum = twosum(x, y);
-          hi = sum.hi;
-          lo = sum.lo;
-        }
-        if (lo !== 0) partials[actuallyUsedPartials++] = lo;
-        x = hi;
-      }
-      partials.length = actuallyUsedPartials;
-      if (x !== 0) push(partials, x);
-    }
+    var x, y, sum, hi, lo;
 
     // compute the exact sum of partials, stopping once we lose precision
     var n = partials.length - 1;

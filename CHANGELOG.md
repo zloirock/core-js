@@ -42,6 +42,7 @@
 - Added missed detection of imprecise native `Math.atanh` in V8 ~ Chrome < 53 and Rhino < 1.9.2 and `Math.log1p` in [V8 ~ Chrome < 39](https://issues.chromium.org/issues/42206797)
 - Added missed detection of imprecise native `Math.{ acosh, asinh, atanh, expm1, log1p }` in [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257)
 - Improved accuracy of `Math.{ expm1, sinh, tanh }` polyfills with small arguments and of `Math.atanh` polyfill near `-1`
+- `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
 - Entries fixes:
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
