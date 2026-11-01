@@ -56,7 +56,8 @@ export const data = {
   'es.symbol.has-instance': {
     chrome: '50',
     edge: '15',
-    firefox: '49',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1054906
+    firefox: '50',
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '10.0',
@@ -364,7 +365,8 @@ export const data = {
   'es.array.map': {
     chrome: '51',
     edge: '13',
-    firefox: '50',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1165052
+    firefox: '48',
     rhino: '1.9.0',
     safari: '10.0',
   },
@@ -445,7 +447,8 @@ export const data = {
   'es.array.splice': {
     chrome: '51',
     edge: '13',
-    firefox: '49',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1165052
+    firefox: '48',
     safari: '10.0',
   },
   'es.array.to-reversed': {
@@ -613,7 +616,8 @@ export const data = {
   },
   'es.date.to-iso-string': {
     chrome: '26',
-    firefox: '7',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=649575
+    firefox: '6',
     hermes: '0.1',
     ie: '9',
     rhino: '1.7.13',
@@ -729,7 +733,8 @@ export const data = {
     bun: '1.3.15', // '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '150', // '135', // '122',
     // deno: '2.2.5', // '1.38.1',
-    firefox: '158', // '141', // '131',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2062666
+    firefox: '157', // '141', // '131',
     safari: '27.0', // '26.0', // 18.4',
   },
   'es.iterator.every': {
@@ -836,7 +841,8 @@ export const data = {
     bun: '1.4.0', // '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '150', // '135', // '122',
     // deno: '2.2.5', // '1.38.1',
-    firefox: '158', // '141', // '131',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2062666
+    firefox: '157', // '141', // '131',
     safari: '27.0', // '26.0', // 18.4',
   },
   'es.iterator.to-array': {
@@ -1099,7 +1105,8 @@ export const data = {
   'es.number.constructor': {
     chrome: '41',
     edge: '13',
-    firefox: '46',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1079120
+    firefox: '36',
     hermes: '0.5',
     rhino: '1.7.13',
     safari: '9.0',
@@ -1294,7 +1301,7 @@ export const data = {
   'es.object.get-own-property-names': {
     chrome: '40',
     edge: '13',
-    firefox: '34',
+    firefox: '33',
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '9.0',
@@ -1831,7 +1838,9 @@ export const data = {
     bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://issues.chromium.org/issues/42204504
-    chrome: '123',
+    // v8 ~ Chrome < 133 does not get iterator record of a set-like object before cloning this
+    // https://issues.chromium.org/issues/352690887
+    chrome: '133', // '123',
     firefox: '127',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
@@ -2344,7 +2353,7 @@ export const data = {
     // edge: '13',  // proper in Chakra Edge 13, but buggy in Chromium < 95
     firefox: '54',  // '15',
     hermes: '0.1',
-    safari: '14.1', // '7.1',
+    safari: '14.0', // '7.1',
   },
   'es.typed-array.slice': {
     chrome: '45',
@@ -2375,6 +2384,7 @@ export const data = {
     edge: '13',
     firefox: '15',
     hermes: '0.1',
+    ie: '11',
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -2412,7 +2422,6 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    rhino: '1.8.0',
     // It should truncate a negative fractional index to zero, but instead throws an error
     safari: '26.0', // '16.4',
   },
@@ -3090,13 +3099,15 @@ export const data = {
   'web.dom-exception.stack': {
     deno: '1.15',
     firefox: '37',
+    ie: '10',
     node: '17.0',
   },
   'web.dom-exception.to-string-tag': {
     bun: '0.1.1',
     chrome: '49',
     deno: '1.7',
-    firefox: '51',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1277799
+    firefox: '78',
     node: '17.0',
     safari: '11.1',
   },
@@ -3126,7 +3137,7 @@ export const data = {
     // https://github.com/denoland/deno/issues/24683
     deno: '1.46.0', // '1.29.3',
     // fails in early Chrome-based Edge
-    // edge: '12',
+    edge: '87',
     firefox: '31',
     safari: '10',
   },
@@ -3194,8 +3205,11 @@ export const data = {
     chrome: '67',
     deno: '1.0',
     firefox: '57',
+    // `new URL(url, undefined)` throws in Safari 14.0
+    // https://bugs.webkit.org/show_bug.cgi?id=215734
+    ios: '14.3', // need to clarify the release, >14.0 && <= 14.3
     node: '10.0',
-    safari: '14.0',
+    safari: '14.0.1', // '14.0',
   },
   'web.url.can-parse': {
     // Bun < 1.1.0 bug
@@ -3220,8 +3234,11 @@ export const data = {
     chrome: '71',
     deno: '1.0',
     firefox: '57',
+    // `new URL(url, undefined)` throws in Safari 14.0
+    // https://bugs.webkit.org/show_bug.cgi?id=215734
+    ios: '14.3', // need to clarify the release, >14.0 && <= 14.3
     node: '10.0',
-    safari: '14.0',
+    safari: '14.0.1', // '14.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'web.url-search-params': null,
@@ -3230,8 +3247,11 @@ export const data = {
     chrome: '67',
     deno: '1.0',
     firefox: '57',
+    // `new URL(url, undefined)` throws in Safari 14.0
+    // https://bugs.webkit.org/show_bug.cgi?id=215734
+    ios: '14.3', // need to clarify the release, >14.0 && <= 14.3
     node: '10.0',
-    safari: '14.0',
+    safari: '14.0.1', // '14.0',
   },
   'web.url-search-params.delete': {
     bun: '1.0.31',
