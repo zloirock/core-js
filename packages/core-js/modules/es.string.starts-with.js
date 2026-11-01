@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThis = require('../internals/function-uncurry-this');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var notARegExp = require('../internals/not-a-regexp');

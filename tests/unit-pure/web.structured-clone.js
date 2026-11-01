@@ -21,11 +21,6 @@ import DOMException from '@core-js/pure/stable/dom-exception';
 import URL from '@core-js/pure/stable/url';
 import URLSearchParams from '@core-js/pure/stable/url-search-params';
 
-const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
-// Firefox 4-6 report an inherited non-configurable accessor as own after deleting the shadowing property; fixed in Firefox 7.
-// https://bugzilla.mozilla.org/show_bug.cgi?id=637994
-const FIREFOX_INHERITED_AS_OWN = FIREFOX_VERSION >= 4 && FIREFOX_VERSION < 7;
-
 const { getPrototypeOf } = Object;
 
 QUnit.module('structuredClone', () => {
@@ -613,7 +608,7 @@ QUnit.module('structuredClone', () => {
   });
 
   QUnit.test('Object properties changed during cloning', assert => {
-    for (const inherited of FIREFOX_INHERITED_AS_OWN ? [false] : [false, true]) {
+    for (const inherited of [false, true]) {
       const prototype = {};
       let inheritedReads = 0;
       let reads = 0;

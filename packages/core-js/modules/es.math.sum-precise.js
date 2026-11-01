@@ -42,7 +42,7 @@ var FORCED = fails(function () {
   // https://issues.chromium.org/issues/572987948
   try {
     var prototype = {};
-    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3-compatible computed property
+    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES5-compatible computed property
     prototype[ITERATOR] = function () { return this; };
     $sumPrecise(setPrototypeOf(getIterator([1]), prototype));
     return true;

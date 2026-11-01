@@ -114,7 +114,6 @@ params.toString();  // => 'a=3&a=2&b=2&c=4'
 ```
 
 > [!WARNING]
-> - IE8 does not support setters, so they do not work on `URL` instances. However, the `URL` constructor can be used for basic `URL` parsing.
 > - Legacy encodings in a search query are not supported.
 > - In engines without `String.prototype.normalize` (IE, Chrome 33-, Firefox 30-, Safari 9-), the `URL` polyfill does not normalize domains: a domain that is not in Unicode Normalization Form C is converted as it is written, so its host differs from the host of the normalized form, and compatibility characters that the polyfill does not map itself are rejected.
 > - The `URL` polyfill maps and normalizes domains with the Unicode data of the engine and validates the result against Unicode 18: a domain with a character that requires mapping or normalization and was added to Unicode after the version supported by the engine is rejected.

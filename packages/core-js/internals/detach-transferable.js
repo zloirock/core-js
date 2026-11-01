@@ -1,6 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 var isDetached = require('../internals/array-buffer-is-detached');
 var enforceInternalState = require('../internals/internal-state').enforce;
@@ -10,7 +10,7 @@ var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-pr
 var structuredClone = globalThis.structuredClone;
 // captured before the transfer polyfill of this copy can replace it
 // eslint-disable-next-line es/no-arraybuffer-prototype-transfer -- safe
-var arrayBufferTransfer = uncurryThis(ArrayBuffer.prototype.transfer);
+var arrayBufferTransfer = uncurryThisClause(ArrayBuffer.prototype.transfer);
 var detach = false;
 var buffer, $detach;
 

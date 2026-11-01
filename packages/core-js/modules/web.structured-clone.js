@@ -5,7 +5,8 @@ var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -61,9 +62,9 @@ var setForEach = SetHelpers.forEach;
 var objectKeys = $Object.keys;
 var push = uncurryThis([].push);
 // eslint-disable-next-line es/no-arraybuffer-prototype-transfer -- safe
-var arrayBufferTransfer = uncurryThis($ArrayBuffer.prototype.transfer);
+var arrayBufferTransfer = uncurryThisClause($ArrayBuffer.prototype.transfer);
 // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
-var arrayBufferResize = uncurryThis($ArrayBuffer.prototype.resize);
+var arrayBufferResize = uncurryThisClause($ArrayBuffer.prototype.resize);
 var dataViewByteLength = uncurryThisAccessor(DataViewPrototype, 'byteLength', 'get');
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);

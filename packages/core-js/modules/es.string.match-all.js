@@ -3,7 +3,8 @@
 /* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -33,7 +34,7 @@ var getInternalState = internalStateGetterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
 var $TypeError = TypeError;
 var stringIndexOf = uncurryThis(''.indexOf);
-var nativeMatchAll = uncurryThis(''.matchAll);
+var nativeMatchAll = uncurryThisClause(''.matchAll);
 
 var WORKS_WITH_NON_GLOBAL_REGEX = !!nativeMatchAll && !fails(function () {
   nativeMatchAll('a', /./);

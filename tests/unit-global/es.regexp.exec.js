@@ -22,10 +22,8 @@ QUnit.test('RegExp#exec lastIndex updating', assert => {
 QUnit.test('RegExp#exec capturing groups', assert => {
   assert.deepEqual(/(a?)/.exec('x'), ['', ''], '/(a?)/.exec("x") returns ["", ""]');
   assert.deepEqual(/(a)?/.exec('x'), ['', undefined], '/(a)?/.exec("x") returns ["", undefined]');
-
-  // @nicolo-ribaudo: I don't know how to fix this in IE8. For the `/(a)?/` case it is fixed using
-  // #replace, but here also #replace is buggy :(
-  // assert.deepEqual(/(a?)?/.exec('x'), ['', undefined], '/(a?)?/.exec("x") returns ["", undefined]');
+  // eslint-disable-next-line regexp/no-useless-quantifier -- required for testing
+  assert.deepEqual(/(a?)?/.exec('x'), ['', undefined], '/(a?)?/.exec("x") returns ["", undefined]');
 });
 
 QUnit.test('RegExp#exec regression', assert => {
