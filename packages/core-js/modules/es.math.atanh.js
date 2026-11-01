@@ -5,6 +5,7 @@ var log1p = require('../internals/math-log1p');
 // eslint-disable-next-line es/no-math-atanh -- required for testing
 var $atanh = Math.atanh;
 
+// eslint-disable-next-line unicorn/consistent-function-style -- name required
 function atanh(x) {
   var n = +x;
   return n === 0 ? n : n < 0 ? -atanh(-n) : log1p(2 * n / (1 - n)) / 2;

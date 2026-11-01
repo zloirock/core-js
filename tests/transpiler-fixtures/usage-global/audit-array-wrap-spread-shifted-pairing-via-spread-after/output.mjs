@@ -16,7 +16,6 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-exception.constructor";
-import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.dom-collections.iterator";
 // A spread BEFORE an array-wrap slot shifts every later runtime position, so the pattern slot no longer pairs EXACTLY with the

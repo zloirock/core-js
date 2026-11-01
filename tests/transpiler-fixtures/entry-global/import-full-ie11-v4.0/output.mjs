@@ -323,7 +323,6 @@ import "core-js/modules/esnext.symbol.is-registered-symbol";
 import "core-js/modules/esnext.symbol.is-well-known-symbol";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-exception.constructor";
-import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.atob";
 import "core-js/modules/web.btoa";

@@ -8,7 +8,6 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-exception.constructor";
-import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";

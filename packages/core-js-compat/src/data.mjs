@@ -2366,7 +2366,6 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    ie: '11',
     // Uint8ClampedArray is missing in NodeJS 0.11.0-0.11.3.
     node: '0.11.4',
     rhino: '1.9.0',
