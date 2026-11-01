@@ -582,7 +582,6 @@ QUnit.module('structuredClone', () => {
   });
 
   QUnit.test('Object properties changed during cloning', assert => {
-    // Firefox 4-6 report the inherited getter as own after deleting the shadowing property.
     for (const inherited of [false, true]) {
       const prototype = {};
       let inheritedReads = 0;

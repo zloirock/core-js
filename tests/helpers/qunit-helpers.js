@@ -50,7 +50,7 @@ assign(assert, {
     });
   },
   // TODO: Drop from future `core-js` versions
-  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
+  // unavailable in `qunit@1` that's required for testing in Chrome 38, etc.
   false(value, message = 'The value is `false`') {
     this.same(value, false, message);
   },
@@ -170,7 +170,7 @@ assign(assert, {
     });
   },
   // TODO: Drop from future `core-js` versions
-  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
+  // unavailable in `qunit@1` that's required for testing in Chrome 38, etc.
   true(value, message = 'The value is `true`') {
     this.same(value, true, message);
   },

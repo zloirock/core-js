@@ -1,5 +1,5 @@
 'use strict';
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
 var internalSort = require('../internals/array-sort');
@@ -11,7 +11,7 @@ var V8 = require('../internals/environment-v8-version');
 var WEBKIT = require('../internals/environment-webkit-version');
 
 var $Uint16Array = Uint16Array;
-var nativeSort = uncurryThis($Uint16Array.prototype.sort);
+var nativeSort = uncurryThisClause($Uint16Array.prototype.sort);
 
 // WebKit
 var ACCEPT_INCORRECT_ARGUMENTS = !!nativeSort && !(fails(function () {

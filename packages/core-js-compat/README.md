@@ -62,33 +62,33 @@ console.log(targets);
 'defaults, not IE 11, maintained node versions';
 // object (all these fields are optional):
 ({
-  android: '4.0',         // Android WebView version
-  bun: '0.1.2',           // Bun version
-  chrome: '38',           // Chrome version
-  'chrome-android': '18', // Chrome for Android version
-  deno: '1.12',           // Deno version
-  edge: '13',             // Edge version
-  electron: '5.0',        // Electron framework version
-  firefox: '15',          // Firefox version
-  'firefox-android': '4', // Firefox for Android version
-  hermes: '0.11',         // Hermes version
-  ie: '8',                // Internet Explorer version
-  ios: '13.0',            // iOS Safari version
-  node: 'current',        // NodeJS version, you can use 'current' to set it to the currently used one
-  opera: '12',            // Opera version
-  'opera-android': '7',   // Opera for Android version
-  quest: '5.0',           // Meta Quest Browser version
-  'react-native': '0.70', // React Native version (default Hermes engine)
-  rhino: '1.7.13',        // Rhino engine version
-  safari: '14.0',         // Safari version
-  samsung: '14.0',        // Samsung Internet version
+  android: '38',           // Android WebView version
+  bun: '0.1.2',            // Bun version
+  chrome: '38',            // Chrome version
+  'chrome-android': '38',  // Chrome for Android version
+  deno: '1.12',            // Deno version
+  edge: '13',              // Edge version
+  electron: '5.0',         // Electron framework version
+  firefox: '15',           // Firefox version
+  'firefox-android': '15', // Firefox for Android version
+  hermes: '0.11',          // Hermes version
+  ie: '11',                // Internet Explorer version
+  ios: '13.0',             // iOS Safari version
+  node: 'current',         // NodeJS version, you can use 'current' to set it to the currently used one
+  opera: '25',             // Opera version
+  'opera-android': '25',   // Opera for Android version
+  quest: '5.0',            // Meta Quest Browser version
+  'react-native': '0.70',  // React Native version (default Hermes engine)
+  rhino: '1.7.13',         // Rhino engine version
+  safari: '14.0',          // Safari version
+  samsung: '14.0',         // Samsung Internet version
   /**
    * `true` adds the minimal versions of all engines that support ES modules to the targets, ignoring the `browsers` target.
    * 'intersect' option keeps only engines that support ES modules in the targets (including the `browsers` target),
    * versions below the minimal ones with ES modules support are raised to them.
    */
   esmodules: true | 'intersect',
-  browsers: '> 0.25%',    // Browserslist query or object with target browsers
+  browsers: '> 0.25%',     // Browserslist query or object with target browsers
 });
 ```
 

@@ -8,7 +8,6 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     assert.isFunction(TypedArray);
     assert.arity(TypedArray, 3);
     assert.name(TypedArray, name);
-    // Safari 5 bug
     assert.looksNative(TypedArray);
     assert.same(TypedArray.BYTES_PER_ELEMENT, bytes, `${ name }.BYTES_PER_ELEMENT`);
     let array = new TypedArray(4);
@@ -162,7 +161,7 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
       assert.throws(() => new TypedArray(new ArrayBuffer(8), 3), 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
     }
     if (bytes !== 1) {
-      // fails in Opera 12, FF bug - TypeError instead of RangeError
+      // FF bug - TypeError instead of RangeError
       assert.throws(() => new TypedArray(new ArrayBuffer(9)), 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
     }
     // FF bug - TypeError instead of RangeError
