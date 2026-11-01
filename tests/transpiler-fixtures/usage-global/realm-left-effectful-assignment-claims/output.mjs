@@ -16,6 +16,7 @@ import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.keys";
 import "core-js/modules/es.array.of";
+import "core-js/modules/es.data-view.constructor";
 import "core-js/modules/es.data-view.get-float16";
 import "core-js/modules/es.data-view.set-float16";
 import "core-js/modules/es.data-view.to-string-tag";

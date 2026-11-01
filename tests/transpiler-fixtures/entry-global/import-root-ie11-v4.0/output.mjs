@@ -116,6 +116,7 @@ import "core-js/modules/es.array-buffer.transfer";
 import "core-js/modules/es.array-buffer.transfer-to-fixed-length";
 import "core-js/modules/es.array-buffer.species";
 import "core-js/modules/es.array-buffer.to-string-tag";
+import "core-js/modules/es.data-view.constructor";
 import "core-js/modules/es.data-view.get-float16";
 import "core-js/modules/es.data-view.set-float16";
 import "core-js/modules/es.data-view.to-string-tag";
