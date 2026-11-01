@@ -1,11 +1,11 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
-/* eslint-disable unicorn/escape-case -- testing */
-import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants.js';
+/* eslint-disable es/no-proxy, unicorn/escape-case -- testing */
+import { DESCRIPTORS, FREEZING, GLOBAL, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, REDEFINABLE_PROTO } from '../helpers/constants.js';
 
 QUnit.test('JSON.parse', assert => {
   const { parse } = JSON;
-  const { defineProperty, hasOwn, keys } = Object;
+  const { defineProperty, getOwnPropertyDescriptor, hasOwn, keys, preventExtensions } = Object;
   assert.isFunction(parse);
   assert.arity(parse, 2);
   assert.name(parse, 'parse');
@@ -138,6 +138,15 @@ QUnit.test('JSON.parse', assert => {
     assert.throws(() => parse('1.e5', reviver), SyntaxError, `number-fraction-no-digits-3 ${ note }`);
     assert.throws(() => parse('[1.,2]', reviver), SyntaxError, `number-fraction-no-digits-4 ${ note }`);
 
+    assert.throws(() => parse('{"a":1,}', reviver), SyntaxError, `trailing-object-comma ${ note }`);
+    assert.throws(() => parse('{"a":1,}x":2}', reviver), SyntaxError, `brace-instead-of-key-quote ${ note }`);
+    assert.throws(() => parse('{"a":1,}":2}', reviver), SyntaxError, `brace-instead-of-empty-key-quote ${ note }`);
+    assert.throws(() => parse('{"a":1, }}":2}', reviver), SyntaxError, `brace-key-after-whitespace ${ note }`);
+    assert.throws(() => parse('[{"a":1,}":2},3]', reviver), SyntaxError, `nested-brace-key ${ note }`);
+    assert.throws(() => parse('[1,]', reviver), SyntaxError, `trailing-array-comma ${ note }`);
+    assert.deepEqual(parse('{"a":1,"}":2}', reviver), { a: 1, '}': 2 }, `quoted-brace-key ${ note }`);
+    assert.deepEqual(parse('{"a":1,"":2}', reviver), { a: 1, '': 2 }, `empty-key-after-comma ${ note }`);
+
     assert.throws(() => parse('{', reviver), SyntaxError, `unterminated-object-1 ${ note }`);
     assert.throws(() => parse('{"a":1,', reviver), SyntaxError, `unterminated-object-2 ${ note }`);
     assert.throws(() => parse('[', reviver), SyntaxError, `unterminated-array-1 ${ note }`);
@@ -240,6 +249,117 @@ QUnit.test('JSON.parse', assert => {
     }), EvalError, 'reviver-get-name-err');
   }
 
+  if (FREEZING) {
+    for (const array of [false, true]) {
+      for (const change of ['keep', 'delete', 'shorten']) {
+        if (!array && change === 'shorten') continue;
+        const first = array ? '0' : 'a';
+        const second = array ? '1' : 'b';
+        const calls = [];
+        const result = parse(array ? '[1,2]' : '{"a":1,"b":2}', function (key, value) {
+          calls.push(key);
+          if (key === first) {
+            if (change === 'delete') delete this[second];
+            if (change === 'shorten') this.length = 1;
+            preventExtensions(this);
+          }
+          return key === second ? 22 : value;
+        });
+        assert.same(result[first], 1, `non-extensible first property ${ array } ${ change }`);
+        assert.same(hasOwn(result, second), change === 'keep', `non-extensible second property ${ array } ${ change }`);
+        if (change === 'keep') assert.same(result[second], 22, `non-extensible existing property ${ array }`);
+        if (array) assert.same(result.length, change === 'shorten' ? 1 : 2, `non-extensible array length ${ change }`);
+        assert.arrayEqual(calls, [first, second, ''], `non-extensible reviver order ${ array } ${ change }`);
+      }
+    }
+  }
+
+  if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
+    for (const length of [0, 1]) {
+      const calls = [];
+      const result = parse('[1,2]', function (key, value) {
+        calls.push(key);
+        if (key === '0') defineProperty(this, 'length', { value: length, writable: false });
+        return key === '0' ? 11 : key === '1' ? 22 : value;
+      });
+      assert.arrayEqual(result, length ? [11] : [], `non-writable array length ${ length }`);
+      assert.same(getOwnPropertyDescriptor(result, 'length').writable, false, `array length stays non-writable ${ length }`);
+      assert.arrayEqual(calls, ['0', '1', ''], `non-writable length reviver order ${ length }`);
+    }
+  }
+
+  if (typeof Proxy == 'function') {
+    for (const operation of ['defineProperty', 'deleteProperty']) {
+      const error = new TypeError('reviver proxy trap');
+      let properReflect = false;
+      // Proxy failure semantics require correct Reflect operations.
+      // Their absence is an accepted limitation, including Firefox 18-41.
+      try {
+        const method = GLOBAL.Reflect[operation];
+        const rejecting = new Proxy({}, { [operation]() { return false; } });
+        if (method(rejecting, 'x', { value: 1 }) === false) {
+          method(new Proxy({}, { [operation]() { throw error; } }), 'x', { value: 1 });
+        }
+      } catch (error_) {
+        properReflect = error_ === error;
+      }
+      if (!properReflect) continue;
+
+      const reflectMethod = GLOBAL.Reflect[operation];
+      try {
+        GLOBAL.Reflect[operation] = () => { throw error; };
+        const proxy = new Proxy({ x: 1 }, { [operation]() { return false; } });
+        assert.notThrows(() => parse('{"before":0,"target":0}', function (key, value) {
+          if (key === 'before') this.target = proxy;
+          return key === 'x' && operation === 'deleteProperty' ? undefined : value;
+        }), `captured Reflect ${ operation }`);
+      } finally {
+        GLOBAL.Reflect[operation] = reflectMethod;
+      }
+
+      for (const array of [false, true]) {
+        for (const abrupt of [false, true]) {
+          const target = array ? [1] : { x: 1 };
+          const name = array ? '0' : 'x';
+          const calls = [];
+          const proxy = new Proxy(target, {
+            ownKeys() {
+              calls.push('keys');
+              return array ? ['0', 'length'] : ['x'];
+            },
+            getOwnPropertyDescriptor(object, key) {
+              calls.push(`descriptor:${ key }`);
+              return getOwnPropertyDescriptor(object, key);
+            },
+            get(object, key) {
+              calls.push(`get:${ String(key) }`);
+              return object[key];
+            },
+            [operation](object, key) {
+              calls.push(`${ operation }:${ key }`);
+              if (abrupt) throw error;
+              return false;
+            },
+          });
+          const revive = function (key, value) {
+            if (key === 'before') this.target = proxy;
+            return key === name ? operation === 'deleteProperty' ? undefined : 2 : value;
+          };
+          if (abrupt) {
+            assert.throws(() => parse('{"before":0,"target":0}', revive), caught => caught === error, `proxy abrupt ${ operation } ${ array }`);
+          } else {
+            const result = parse('{"before":0,"target":0}', revive);
+            assert.same(result.target, proxy, `proxy preserved ${ operation } ${ array }`);
+            assert.same(target[name], 1, `proxy rejection ignored ${ operation } ${ array }`);
+          }
+          assert.arrayEqual(calls, array
+            ? ['get:length', 'get:0', `${ operation }:0`]
+            : ['keys', 'descriptor:x', 'get:x', `${ operation }:x`], `proxy trap order ${ operation } ${ array } ${ abrupt }`);
+        }
+      }
+    }
+  }
+
   assert.throws(() => parse('0', () => { throw new EvalError('t262'); }), EvalError, 'reviver-call-err');
 
   // FF20- enumeration order issue
@@ -258,6 +378,7 @@ QUnit.test('JSON.parse', assert => {
 
 QUnit.test('JSON.parse source access', assert => {
   const { parse } = JSON;
+  const { hasOwn } = Object;
   const spy = (k, v, { source: $source }) => source = $source;
   let source;
   parse('1234', spy);
@@ -276,4 +397,22 @@ QUnit.test('JSON.parse source access', assert => {
   assert.same(source, undefined, '[]');
   parse('9007199254740993', spy);
   assert.same(source, '9007199254740993', '9007199254740993');
+
+  for (const [text, zero] of [['0', 0], ['-0', -0]]) {
+    for (const array of [false, true]) {
+      for (const changed of [false, true]) {
+        const first = array ? '0' : 'a';
+        const second = array ? '1' : 'b';
+        let context;
+        const result = parse(array ? `[1,${ text }]` : `{"a":1,"b":${ text }}`, function (key, value, currentContext) {
+          if (key === first) this[second] = changed ? -zero : zero;
+          if (key === second) context = currentContext;
+          return value;
+        });
+        assert.same(result[second], changed ? -zero : zero, `reviver zero value ${ text } ${ array } ${ changed }`);
+        assert.same(hasOwn(context, 'source'), !changed, `reviver zero source presence ${ text } ${ array } ${ changed }`);
+        if (!changed) assert.same(context.source, text, `reviver unchanged zero source ${ text } ${ array }`);
+      }
+    }
+  }
 });

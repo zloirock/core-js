@@ -9,19 +9,26 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isArray = require('../internals/is-array');
 var hasOwn = require('../internals/has-own-property');
+var sameValue = require('../internals/same-value');
 var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
+var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var fails = require('../internals/fails');
 var parseJSONString = require('../internals/parse-json-string');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
 var JSON = globalThis.JSON;
+var Reflect = globalThis.Reflect;
 var Number = globalThis.Number;
 var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON && JSON.parse;
+var reflectDefineProperty = Reflect && Reflect.defineProperty;
+var reflectDeleteProperty = Reflect && Reflect.deleteProperty;
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+// eslint-disable-next-line es/no-object-isextensible -- safe
+var isExtensible = Object.isExtensible;
 var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
@@ -34,6 +41,11 @@ var IS_WHITESPACE = /^[\t\n\r ]$/;
 
 var PRIMITIVE = 0;
 var OBJECT = 1;
+
+// old Edge throws instead of returning false
+if (reflectDefineProperty && fails(function () {
+  reflectDefineProperty([], 'length', { configurable: true });
+})) reflectDefineProperty = undefined;
 
 var $parse = function (source, reviver) {
   source = toString(source);
@@ -49,7 +61,7 @@ var $parse = function (source, reviver) {
 
 var internalize = function (holder, name, reviver, node) {
   var val = holder[name];
-  var unmodified = node && val === node.value;
+  var unmodified = node && sameValue(val, node.value);
   var context = unmodified && typeof node.source == 'string' ? { source: node.source } : {};
   var elementRecordsLen, keys, len, i, P;
   if (isObject(val)) {
@@ -59,24 +71,36 @@ var internalize = function (holder, name, reviver, node) {
       elementRecordsLen = nodes.length;
       len = lengthOfArrayLike(val);
       for (i = 0; i < len; i++) {
-        internalizeProperty(val, i, internalize(val, '' + i, reviver, i < elementRecordsLen ? nodes[i] : undefined));
+        internalizeProperty(val, i, internalize(val, '' + i, reviver, i < elementRecordsLen ? nodes[i] : undefined), unmodified);
       }
     } else {
       keys = getBuiltIn('Object', 'keys')(val);
       len = lengthOfArrayLike(keys);
       for (i = 0; i < len; i++) {
         P = keys[i];
-        internalizeProperty(val, P, internalize(val, P, reviver, hasOwn(nodes, P) ? nodes[P] : undefined));
+        internalizeProperty(val, P, internalize(val, P, reviver, hasOwn(nodes, P) ? nodes[P] : undefined), unmodified);
       }
     }
   }
   return call(reviver, holder, name, val, context);
 };
 
-var internalizeProperty = function (object, key, value) {
+var internalizeProperty = function (object, key, value, original) {
+  // objects created by the parser cannot be proxies
+  var method = !original && (value === undefined ? reflectDeleteProperty : reflectDefineProperty);
+  if (method) {
+    if (value === undefined) method(object, key);
+    else method(object, key, createPropertyDescriptor(0, value));
+    return;
+  }
+  // exact Proxy semantics require correct Reflect operations
   if (DESCRIPTORS) {
     var descriptor = getOwnPropertyDescriptor(object, key);
     if (descriptor && !descriptor.configurable) return;
+    if (!descriptor && value !== undefined) {
+      if (isExtensible && !isExtensible(object)) return;
+      if (isArray(object) && key >= object.length && !getOwnPropertyDescriptor(object, 'length').writable) return;
+    }
   }
   if (value === undefined) delete object[key];
   else createProperty(object, key, value);
@@ -131,18 +155,18 @@ Context.prototype = {
     var nodes = {};
     var closed = false;
     while (i < source.length) {
-      i = this.until(['"', '}'], i);
-      if (at(source, i) === '}' && !expectKeypair) {
+      i = this.until(expectKeypair ? ['"'] : ['"', '}'], i);
+      if (at(source, i) === '}') {
         i++;
         closed = true;
         break;
       }
-      // Parsing the key
+      // parsing the key
       var result = this.fork(i).string();
       var key = result.value;
       i = result.end;
       i = this.until([':'], i) + 1;
-      // Parsing value
+      // parsing value
       i = this.skip(IS_WHITESPACE, i);
       result = this.fork(i).parse();
       createProperty(nodes, key, result);
@@ -260,8 +284,8 @@ var PROPER_BASE_PARSE = !fails(function () {
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
   parse: function parse(text, reviver) {
-    // Native parsers cannot recognize polyfilled symbols
-    // Conversion still uses native String; polyfilled @@toPrimitive is not supported
+    // native parsers cannot recognize polyfilled symbols
+    // conversion still uses native String; polyfilled @@toPrimitive is not supported
     return PROPER_BASE_PARSE && !isCallable(reviver)
       ? nativeParse(NATIVE_SYMBOL ? text : toString(text))
       : $parse(text, reviver);
