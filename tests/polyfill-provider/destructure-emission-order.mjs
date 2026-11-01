@@ -4,12 +4,12 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import {
   assignmentNeedsReceiverMemo,
   buildNestedDestructurePlan,
-  destructureResidualFirst,
   orderDestructureParts,
   partitionDestructureReads,
   releasedDestructureCaptureTail,
   symbolIteratorMemberTarget,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { destructureResidualFirst } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { peelTransparentExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
@@ -218,5 +218,33 @@ runBoth('fully consumed source groups', 'const { from, of } = Array, after = lat
   checkDeep(`${ label }/input not sorted in place`, reads.map(part => part.name), ['second', 'first']);
   check(`${ label }/native host untouched`, JSON.stringify(program.node), snapshot);
 });
+
+for (const [keys, servesName, servesFrom, ctor, anchored] of [
+  ['from, name', true, false, false, false],
+  ['name, from', true, false, false, false],
+  ['from, name, of', true, false, false, false],
+  ['from, name', false, false, false, true],
+  ['from, name', true, true, false, true],
+  ['from, name', true, false, true, true],
+  ['unknown', false, false, false, true],
+]) runBoth(`raw anchor/ordered capture/${ keys }/${ servesName }/${ servesFrom }/${ ctor }`,
+  `const { Array: { ${ keys } } } = globalThis;`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const ctx = context(parser, host);
+    const original = JSON.stringify(host.node);
+    const options = {
+      declarator: host.node, ...ctx,
+      resolvePure: meta => meta.key === 'name' && servesName
+        ? { kind: 'instance', entry: 'function/instance/name', hintName: 'name' }
+        : meta.key === 'from' && servesFrom ? { kind: 'static', entry: 'array/from', hintName: 'from' } : null,
+      resolveGlobalPolyfill: name => ctor && name === 'Array' ? { entry: 'array/constructor', hintName: 'Array' } : null,
+    };
+    // An ignored query cannot prune the source before the actual consumer gets its slots.
+    buildNestedDestructurePlan(options);
+    const plan = buildNestedDestructurePlan(options);
+    check(`${ label }/anchor admission`, !!plan?.anchor, anchored);
+    if (plan) check(`${ label }/original leaf pattern`, plan.pattern, host.node.id.properties[0].value);
+    check(`${ label }/source and order unchanged`, JSON.stringify(host.node), original);
+  });
 
 finish();
