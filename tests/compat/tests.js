@@ -124,6 +124,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     && new URL('https://тест').host === 'xn--e1aybc'
     && new URL('https://a#б').hash === '#%D0%B1'
     && result === 'a1c3'
+    // throws in Safari 14.0-: https://bugs.webkit.org/show_bug.cgi?id=215734
     && new URL('https://x', undefined).host === 'x';
 };
 
@@ -967,7 +968,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'es.math.atanh': function () {
     // eslint-disable-next-line math/no-static-infinity-calculations -- testing
-    return 1 / Math.atanh(-0) < 0 && Math.atanh(1e-20) === 1e-20
+    return 1 / Math.atanh(-0) < 0
+      // V8 ~ Chrome < 53 and Rhino < 1.9.2 bug: https://issues.chromium.org/issues/42206569
+      // https://github.com/mozilla/rhino/pull/2522
+      && Math.atanh(1e-20) === 1e-20
       // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
       && Math.atanh(0.001) === 0.0010000003333335333;
   },
@@ -1013,6 +1017,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'es.math.log2': function () {
     // V8 ~ Chrome < 41 and Rhino < 1.9.2 bug: https://issues.chromium.org/issues/42206893
+    // https://github.com/mozilla/rhino/pull/2522
     return Math.log2(8) === 3
       // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
       && Math.log2(536870912) === 29;
@@ -1049,7 +1054,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   'es.math.tanh': function () {
-    // V8 ~ Chrome < 48 bug
+    // V8 ~ Chrome < 48 bug: https://issues.chromium.org/issues/41480547
     return Math.tanh(710) === 1;
   },
   'es.math.to-string-tag': function () {
@@ -1793,6 +1798,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.typed-array.slice': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     var array = new Int8Array(1);
     // Rhino 1.8 returns a view on the source buffer
+    // https://github.com/mozilla/rhino/pull/1905
     return array.slice().buffer !== array.buffer;
   }],
   'es.typed-array.some': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
@@ -1858,6 +1864,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return result[0] === 1;
   }, function () {
     // Rhino 1.9 converts the value with ToNumber instead of ToBigInt on BigInt arrays
+    // https://github.com/mozilla/rhino/pull/2467
     // eslint-disable-next-line unicorn/prefer-bigint-literals -- ES5 syntax
     return typeof BigInt64Array != 'function' || new BigInt64Array(1)['with'](0, BigInt(1))[0] === BigInt(1);
   }],

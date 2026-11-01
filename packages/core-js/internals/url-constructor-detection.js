@@ -37,6 +37,6 @@ module.exports = !fails(function () {
     || new URL('https://a#б').hash !== '#%D0%B1'
     // fails in Chrome 66-
     || result !== 'a1c3'
-    // throws in Safari
+    // throws in Safari 14.0-: https://bugs.webkit.org/show_bug.cgi?id=215734
     || new URL('https://x', undefined).host !== 'x';
 });

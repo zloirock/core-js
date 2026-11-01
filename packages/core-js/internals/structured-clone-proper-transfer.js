@@ -10,6 +10,7 @@ module.exports = !!structuredClone && !fails(function () {
   // prevent V8 ArrayBufferDetaching protector cell invalidation and performance degradation
   // https://github.com/zloirock/core-js/issues/679
   // Deno 1.13 (V8 9.3) supports MessagePort transfer, but not ArrayBuffer transfer.
+  // https://github.com/denoland/deno/pull/11840
   if ((ENVIRONMENT === 'DENO' && V8 > 93) || (ENVIRONMENT === 'NODE' && V8 > 94) || V8 > 97) return false;
   var buffer = new ArrayBuffer(8);
   var clone = structuredClone(buffer, { transfer: [buffer] });

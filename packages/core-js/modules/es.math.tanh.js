@@ -6,7 +6,7 @@ var expm1 = require('../internals/math-expm1');
 var $tanh = Math.tanh;
 var exp = Math.exp;
 
-// V8 ~ Chrome < 48 bug: NaN on big arguments, 0 on tiny ones
+// V8 ~ Chrome < 48 bug, NaN on big arguments and 0 on tiny ones: https://issues.chromium.org/issues/41480547
 var FORCED = !$tanh || $tanh(710) !== 1;
 
 // `Math.tanh` method

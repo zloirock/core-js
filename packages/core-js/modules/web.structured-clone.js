@@ -109,6 +109,7 @@ var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone);
 // modern engines trust any `structuredClone` with transfers, but not one that fails basic cloning
 var PROPER_TRANSFER = PROPER_STRUCTURED_CLONE_TRANSFER && !!nativeRestrictedStructuredClone;
 // Deno 1.13 can transfer MessagePorts even though ArrayBuffer transfer is unavailable.
+// https://github.com/denoland/deno/pull/11840
 var NATIVE_TRANSFER = PROPER_TRANSFER || ENVIRONMENT === 'DENO' && !!nativeRestrictedStructuredClone;
 // Native preflight relies on transfer-list validation preceding serialization.
 // Deno validates non-buffer entries after serialization, so the sentinel getter

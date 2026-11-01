@@ -1,6 +1,7 @@
 'use strict';
 // Should get iterator record of a set-like object before cloning this
 // https://bugs.webkit.org/show_bug.cgi?id=289430
+// https://issues.chromium.org/issues/352690887
 module.exports = function (METHOD_NAME) {
   try {
     // eslint-disable-next-line es/no-set -- needed for test

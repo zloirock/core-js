@@ -23,6 +23,7 @@ var throwsOnDetached = function (O, slice) {
       new Uint8Array(O, 0, 0);
     }
     // Without MessageChannel, old V8 needs slice to recognize detached WebAssembly buffers.
+    // https://issues.chromium.org/issues/42209506
     if (slice && (!NATIVE_UINT8_ARRAY || !postMessage)) {
       // Stop slice before species lookup and allocation.
       call(slice, O, STOP);

@@ -10,6 +10,7 @@ var round = Math.round;
 // https://tc39.es/ecma262/#sec-math.log2
 module.exports = (!$log2
   // V8 ~ Chrome < 41 and Rhino < 1.9.2 bug, inexact on powers of two: https://issues.chromium.org/issues/42206893
+  // https://github.com/mozilla/rhino/pull/2522
   || $log2(8) !== 3
   // FF < 48 bug, the same on other powers: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
   || $log2(536870912) !== 29

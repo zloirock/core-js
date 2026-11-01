@@ -204,6 +204,9 @@ export default {
     [159, '47.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  // Opera 120 is Chromium 135 and Opera 121 is Chromium 137:
+  // https://blogs.opera.com/desktop/2025/07/opera-120/
+  // https://blogs.opera.com/desktop/2025/08/opera-121/
   ChromeToOpera(chrome) {
     return chrome <= 28 ? 15
          : chrome <= 82 ? chrome - 13
