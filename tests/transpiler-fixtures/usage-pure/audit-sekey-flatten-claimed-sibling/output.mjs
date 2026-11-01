@@ -45,8 +45,10 @@ export const r2 = [typeof fl2, typeof o2, k2];
 let k3 = 0,
   out3 = '';
 for (var {
-    isArray: ia3
-  } = _globalThis.Array, _ref3 = Array.prototype, inc3 = (k3++, _includesMaybeArray(_ref3)), {
+    Array: {
+      isArray: ia3
+    }
+  } = _globalThis, _ref3 = Array.prototype, inc3 = (k3++, _includesMaybeArray(_ref3)), {
     o3
   } = _ref3, i3 = 0; i3 < 1; i3++) {
   var _ref4;
@@ -74,8 +76,10 @@ export const r4 = [typeof f4, typeof of4, k4];
 let k5 = 0,
   j5 = 0;
 if (1) var {
-    keys: ks5
-  } = _globalThis.Array,
+    Array: {
+      keys: ks5
+    }
+  } = _globalThis,
   _ref5 = Array.prototype,
   a5 = (k5++, _atMaybeArray(_ref5)),
   b5 = null == _ref5 ? _ref5[""] : (j5++, _flatMaybeArray(_ref5)),

@@ -1,6 +1,5 @@
-// SLOT-mutated ctors keep the anchored SE-init residual on the RAW member read (the user's
-// replacement must win), while the SE still replays exactly once ahead of it. mutations
-// live in their own fixture - the pre-pass poisons the whole file.
+// Mutated constructors retain their source slots and the user's replacement.
+// Initializer effects run once before those reads; no raw hop needs a new anchor.
 globalThis.Map = Shim;
 const { Map: { customSM } } = (eff(), globalThis);
 // chain-assignment init against a second mutated ctor - the rescued assignment replays

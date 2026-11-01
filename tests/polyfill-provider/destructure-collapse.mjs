@@ -1763,6 +1763,52 @@ runBoth('sentinel/a param sentinel with no body extraction is not processed',
   });
 }
 
+// An anchor must serve a constructor or a pattern claim. A raw, unclaimed hop keeps
+// its source, including defaults and effects; importing only the realm is not a claim.
+for (const [name, source, supplied, staticEntry, expected, mutated = false] of [
+  ['native statics', 'const { Array: { from, name } } = globalThis;', {}, false, false],
+  ['realm import alone', 'const { Array: { from, name } } = globalThis;', { globalThis: 'global-this' }, false, false],
+  ['native constructor', 'const { Map: { unknown } } = globalThis;', {}, false, false],
+  ['static claim', 'const { Array: { from, name } } = globalThis;', { globalThis: 'global-this' }, true, true],
+  ['residual instance claim', 'const { Array: { name } } = globalThis;', { globalThis: 'global-this' }, 'instance', true],
+  ['ordered instance claim', 'const { Array: { from, name } } = globalThis;', { globalThis: 'global-this' }, 'instance', false],
+  ['replaced constructor instance', 'const { Array: { name } } = globalThis;', { globalThis: 'global-this' }, 'instance', true, true],
+  ['replaced constructor without a claim', 'const { Array: { unknown } } = globalThis;', { globalThis: 'global-this' }, false, false, true],
+  ['prototype claim', 'const { Array: { prototype: { at } } } = globalThis;', { globalThis: 'global-this' }, 'prototype', true],
+  ['prototype default owns its claim', 'const { Array: { prototype: { at } = fallback() } } = globalThis;', { globalThis: 'global-this' }, 'prototype', false],
+  ['prototype rest keeps its route', 'const { Array: { prototype: { at, ...rest } } } = globalThis;', { globalThis: 'global-this' }, 'prototype', false],
+  ['pattern-valued static claim', 'const { Array: { from: [value] = [] } } = globalThis;', { globalThis: 'global-this' }, true, true],
+  ['constructor replacement', 'const { Map: { unknown } } = globalThis;', { globalThis: 'global-this', Map: 'map/constructor' }, false, true],
+  ['constructor rest', 'const { Map: { ...rest } } = globalThis;', { globalThis: 'global-this', Map: 'map' }, false, true],
+  ['default without a claim', 'const { Array: { from } = fallback() } = globalThis;', {}, false, false],
+  ['prefix without a claim', 'const { Array: { name } } = (effect(), globalThis);', {}, false, false],
+  ['store without a claim', 'let held; const { Array: { name } } = (held = globalThis);', {}, false, false],
+  ['guard without a claim', 'let held; const { Array: { name } } = (held = globalThis.window?.self);', {}, false, false],
+  ['guarded constructor', 'let held; const { Map: { unknown } } = (held = globalThis.window?.self);', { globalThis: 'global-this', Map: 'map/constructor' }, false, true],
+  ['unknown slot', 'const { Other: { name } } = globalThis;', { globalThis: 'global-this' }, false, false],
+]) runBoth(`anchor activation/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(mutated ? ['globalThis.Array'] : []),
+  });
+  const options = {
+    declarator: path.node, scope: path.scope, path, adapter,
+    resolvePure: meta => staticEntry === 'prototype' && meta.object === 'Array' && meta.placement === 'prototype' && meta.key === 'at'
+      ? { kind: 'instance', entry: 'array/instance/at', hintName: 'at' }
+      : staticEntry === 'instance' && (mutated ? meta.object === undefined : meta.object === 'Array') && meta.key === 'name'
+      ? { kind: 'instance', entry: 'function/instance/name', hintName: 'name' }
+      : staticEntry === true && meta.object === 'Array' && meta.key === 'from'
+      ? { entry: 'array/from', hintName: 'Array$from' }
+      : meta.object === 'globalThis' && supplied[meta.key] ? { kind: 'global', entry: supplied[meta.key], hintName: meta.key } : null,
+    resolveGlobalPolyfill: value => supplied[value] ? { entry: supplied[value], hintName: value } : null,
+  };
+  const before = JSON.stringify(program.node);
+  const plan = buildNestedDestructurePlan(options);
+  check(`${ label }/activation`, !!plan, expected);
+  check(`${ label }/discarded query`, !!buildNestedDestructurePlan(options), expected);
+  check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+});
+
 // --- residualInitRunsEffects ---
 
 // a surviving residual whose init is an INVOCATION running an effect keeps the extraction behind it:

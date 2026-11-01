@@ -258,22 +258,24 @@ for (const [name, source, expected] of [
   check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
 });
 
-// The early constructor anchor consumes the same base choice before nested leaves run.
-for (const loop of [false, true]) for (const imported of [false, true]) {
-  const declaration = 'const { Array: { prototype: { at } } } = realm;';
-  runBoth(`base/anchor/loop=${ loop }/import=${ imported }`,
+// An anchor with a claim consumes the same base choice before nested leaves run.
+// Without a claim, the original nested pattern needs no early anchor, even with a realm import.
+for (const loop of [false, true]) for (const imported of [false, true]) for (const claim of [false, true]) {
+  const declaration = `const { Array: { ${ claim ? 'from' : 'prototype: { at }' } } } = realm;`;
+  runBoth(`base/anchor/loop=${ loop }/import=${ imported }/claim=${ claim }`,
     loop ? `for (const realm of [globalThis]) { ${ declaration } }` : `const realm = globalThis; ${ declaration }`,
     (parser, program, label) => {
       const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
       const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
-      const options = { declarator: path.node, scope: path.scope, path, adapter, resolvePure: () => null,
+      const options = { declarator: path.node, scope: path.scope, path, adapter,
+        resolvePure: meta => claim && meta.object === 'Array' && meta.key === 'from' ? { entry: 'array/from' } : null,
         resolveGlobalPolyfill: name => imported ? PURE[name] ?? null : null };
       const before = JSON.stringify(path.node);
       buildNestedDestructurePlan(options);
       const plan = buildNestedDestructurePlan(options);
-      check(`${ label }/anchor`, plan?.anchor, 'Array');
+      check(`${ label }/anchor`, plan?.anchor, claim ? 'Array' : undefined);
       check(`${ label }/selected source`, plan?.receiverNode?.name ?? plan?.receiverPure?.hintName ?? plan?.receiver,
-        loop ? 'realm' : 'globalThis');
+        claim ? loop ? 'realm' : 'globalThis' : undefined);
       check(`${ label }/source preserved`, JSON.stringify(path.node), before);
     });
 }

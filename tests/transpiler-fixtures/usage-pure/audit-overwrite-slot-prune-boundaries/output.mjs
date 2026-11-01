@@ -34,7 +34,9 @@ let rest;
 [,] = [_globalThis];
 wrapped = _flatMapMaybeArray(_globalThis.Array.prototype);
 ({
-  prototype: _ref
-} = _globalThis.Array);
+  Array: {
+    prototype: _ref
+  }
+} = _globalThis);
 null == _ref ? _ref[""] : (effect(), computed = _includesMaybeArray(_ref));
 export { dropped, kept, sibling, other, rest, wrapped, computed, z };

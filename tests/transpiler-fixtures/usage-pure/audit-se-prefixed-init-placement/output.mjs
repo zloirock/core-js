@@ -19,8 +19,10 @@ const {
   }
 });
 const {
-    prototype: _ref
-  } = (effect(), _globalThis.Array),
+    Array: {
+      prototype: _ref
+    }
+  } = (effect(), _globalThis),
   twoA = _withMaybeArray(_ref),
   twoB = _entriesMaybeArray(_ref);
 const {

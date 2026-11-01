@@ -1,6 +1,8 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// consecutive proxy hops peel to the ctor anchor with the prefix replayed once
+// Consecutive proxy hops peel with the prefix replayed once; an unclaimed ctor stays nested.
 const {
-  customML
-} = (eff(), _globalThis.RegExp);
+  RegExp: {
+    customML
+  }
+} = (eff(), _globalThis);
 export const r = [customML];

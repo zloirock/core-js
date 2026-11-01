@@ -223,10 +223,10 @@ for (const [keys, servesName, servesFrom, ctor, anchored] of [
   ['from, name', true, false, false, false],
   ['name, from', true, false, false, false],
   ['from, name, of', true, false, false, false],
-  ['from, name', false, false, false, true],
+  ['from, name', false, false, false, false],
   ['from, name', true, true, false, true],
   ['from, name', true, false, true, true],
-  ['unknown', false, false, false, true],
+  ['unknown', false, false, false, false],
 ]) runBoth(`raw anchor/ordered capture/${ keys }/${ servesName }/${ servesFrom }/${ ctor }`,
   `const { Array: { ${ keys } } } = globalThis;`, (parser, program, label) => {
     const host = parser.pickPath(program, 'VariableDeclarator');

@@ -2555,7 +2555,8 @@ export default function createDestructureEmitter({
     return true;
   }
 
-  // Trigger a proxy-hop plan even when no leaf resolves, so zero-extraction anchors still land.
+  // Ask the shared plan even without a resolved leaf: a constructor replacement, including
+  // its guarded form, can need an anchor. The plan leaves an untouched raw hop in its source form.
   // Before children, settle only anchors and symbol extractions that own the receiver read;
   // ordinary hosts wait for leaf dispatch. Skip detached, disabled and already mirrored hosts.
   function tryFlattenProxyHopHost(path, beforeChildren = false) {

@@ -14,8 +14,10 @@ export const a = all;
 // a cross-alias slot write owns the nested ctor destructure the same way
 _self.Map = function ShimMap() {};
 const {
-  groupBy
-} = _globalThis.Map;
+  Map: {
+    groupBy
+  }
+} = _globalThis;
 export const g = groupBy;
 // the optional-chain guard over the slot member SURVIVES - after a delete the native
 // chain short-circuits where a substituted always-defined static would not

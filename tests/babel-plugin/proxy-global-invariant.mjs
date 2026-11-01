@@ -32,6 +32,7 @@ const ALLOWED = new Map([
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
   ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
   ['realm-alias-window-probe-native-root', ['globalThis', 'self']],
+  ['unclaimed-realm-statics', ['globalThis']],
   ['user-selection-native-left', ['globalThis', 'globalThis']],
   // Slot writes deopt the original live binding, including compound writes and aliases - for the reads
   // after them: a read ahead of every write still takes the ponyfill.

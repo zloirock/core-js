@@ -9,6 +9,9 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { pathToFileURL } from 'node:url';
 import { buildStripScript } from './strip-manifest.mjs';
 import { runtimeKey } from './serialize.mjs';
+// Node's lazy CJS lexer can need the native Promise. Initialize it with a foreign,
+// side-effect-free helper before stripping; core-js must still load only afterwards.
+import '../helpers/restore-property.cjs';
 
 // old browsers ship `self` natively; Node does not. predefine the realm-global alias the
 // full-env native leg uses (non-enumerable, so rest/spread global probes count the same)

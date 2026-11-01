@@ -1715,8 +1715,12 @@ function planRetainedObjectCaptureShape({
   // before its parent's rest copy, and so does one under a guarded realm selection, whose capture
   // keeps the read its guard throws at. Ordinary object declarations retain their existing plan.
   const statement = assignment && hostPath ? peelToExpressionStatement(hostPath)?.exprStmt : null;
+  // An effectful key on an already-served value needs the ordered continuation.
+  // Quiet hops retain their existing anchor and symbol-default routes.
+  const servedGlobal = kind === 'global' && keyedElement && init?.type === 'Identifier' && !!injectorState?.getPureImport?.(init.name);
   const consumedHost = !!hostPath
-    && (assignment ? !!provenCtorName || !assignmentValueDiscarded(hostPath) || kind !== 'global' && discardedSequenceElement(hostPath)
+    && (assignment ? !!provenCtorName || !assignmentValueDiscarded(hostPath)
+      || (kind !== 'global' || servedGlobal) && discardedSequenceElement(hostPath)
       || !!statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node)
       : !!provenCtorName && (hostPath.node?.id?.type === 'ArrayPattern' || guardedRealmSelection(init, ctx)));
   // a consumed assignment yields its receiver, which the flat twin and the overwrite cannot keep
@@ -1742,9 +1746,11 @@ function planRetainedObjectCaptureShape({
   }
   // a source paren around the target is no part of it: the node dialect keeps one as a node
   const target = unwrapParens(patternSlotTarget(prop?.value));
-  // ... a slot the extraction canon writes as spelled (a member, an asserted binding) is consumed like a binding
+  // ... a slot the extraction canon writes as spelled (a member, an asserted binding) is consumed like a binding.
+  // A nested global target captures a used result or a served continuation, not a source bodyless statement.
   const consumed = (consumedHost || capturedElement) && pattern.properties.includes(prop)
-    && (target?.type === 'Identifier' || (assignment && !!memberTargetTakesExtraction(prop?.value)));
+    && (target?.type === 'Identifier' || (assignment && !!memberTargetTakesExtraction(prop?.value))
+      || assignment && kind === 'global' && (capturedResult || servedGlobal) && target?.type === 'ObjectPattern');
   const nestedDefault = !assignment && pattern.properties.length > 1
     && pattern.properties.some(item => item.value?.type === 'AssignmentPattern' && item.value.left?.type === 'ObjectPattern');
   const symbolPatternCandidate = !assignment && pattern.properties.length > 1
@@ -1928,6 +1934,7 @@ function planRetainedObjectCaptureShape({
       prop,
       receiverName: initCtorName(),
       resolvePure,
+      allowPattern: assignment,
       keyName: resolveKey({
         node: prop.key,
         computed: prop.computed,
@@ -1939,16 +1946,17 @@ function planRetainedObjectCaptureShape({
     }) : null;
   if ((consumed || rest) && kind !== 'instance' && !primaryStatic && !narrow) return null;
   const retainedStatic = (consumed || rest ? !!primaryStatic : kind === 'static' || kind === 'global')
-    && (!assignment || target?.type === 'Identifier' || ((keyOrderSplit || rest || consumed)
+    && (!assignment || target?.type === 'Identifier' || consumed && target?.type === 'ObjectPattern' || ((keyOrderSplit || rest || consumed)
       && !!memberTargetTakesExtraction(prop.value, { hostPattern: hostPath?.node?.left, prop })))
     && pattern.properties.includes(prop)
     && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop, ctx) || keyOrderSplit);
   if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling && !narrow) return null;
-  // A consumed global assignment must still yield the realm while its binding receives the
-  // polyfilled constructor. Discarded writes keep their existing direct extraction.
+  // A consumed global assignment must still yield the realm while its target receives the
+  // polyfilled value. A discarded continuation with a key effect uses that same capture;
+  // quiet hops and source discarded writes keep their existing direct extraction.
   // ... asked of the init as written (`writtenInit`): the realm route that owns it reads that spelling
   if (!provenCtorName && !symbolPattern && !nestedSibling && adapter
-    && (kind !== 'global' || !assignment || assignmentValueDiscarded(hostPath))
+    && (kind !== 'global' || !assignment || assignmentValueDiscarded(hostPath) && (!servedGlobal || target?.type !== 'ObjectPattern'))
     && allProxySelectingInit(writtenInit ?? init, { adapter, injectorState })) return null;
   const siblingStatics = siblingStaticEntries();
   const hostPattern = hostPath?.node?.type === 'VariableDeclarator' ? hostPath.node.id : hostPath?.node?.left;

@@ -11,7 +11,9 @@ class Source {
   }
 }
 const {
-    prototype: _ref
-  } = (Source.effect, _globalThis.Array),
+    Array: {
+      prototype: _ref
+    }
+  } = (Source.effect, _globalThis),
   at = _atMaybeArray(_ref),
   flat = _flatMaybeArray(_ref);

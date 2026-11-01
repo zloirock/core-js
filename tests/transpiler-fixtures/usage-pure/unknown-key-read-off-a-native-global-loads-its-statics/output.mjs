@@ -8,8 +8,10 @@ let assigned;
   [key]: assigned
 } = Array);
 const {
-  [key]: nested
-} = _globalThis.JSON;
+  JSON: {
+    [key]: nested
+  }
+} = _globalThis;
 function pick({
   [key]: got
 }) {
