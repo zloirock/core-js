@@ -13,7 +13,7 @@ QUnit.test('JSON.parse', assert => {
   assert.arity(parse, 2);
   assert.name(parse, 'parse');
 
-  for (const [reviver, note] of [[undefined, 'without reviver'], [(key, value) => value, 'with reviver']]) {
+  for (const [reviver, note] of [[undefined, 'without reviver'], [null, 'null reviver'], [(key, value) => value, 'with reviver']]) {
     assert.throws(() => parse('12\t\r\n 34', reviver), SyntaxError, `15.12.1.1-0-1 ${ note }`); // should produce a syntax error as whitespace results in two tokens
     assert.throws(() => parse('\u000b1234', reviver), SyntaxError, `15.12.1.1-0-2 ${ note }`); // should produce a syntax error
     assert.throws(() => parse('\u000c1234', reviver), SyntaxError, `15.12.1.1-0-3 ${ note }`); // should produce a syntax error
@@ -128,6 +128,13 @@ QUnit.test('JSON.parse', assert => {
     assert.same(parse('\n\t -0\n   ', reviver), -0, `negative-zero-4 ${ note }`);
     assert.same(parse(-0, reviver), 0, `negative-zero-5 ${ note }`);
 
+    assert.throws(() => parse('01', reviver), SyntaxError, `leading-zero-1 ${ note }`);
+    assert.throws(() => parse('-01', reviver), SyntaxError, `leading-zero-2 ${ note }`);
+    assert.throws(() => parse('00', reviver), SyntaxError, `leading-zero-3 ${ note }`);
+    assert.throws(() => parse('[01]', reviver), SyntaxError, `leading-zero-array ${ note }`);
+    assert.throws(() => parse('{"a":01}', reviver), SyntaxError, `leading-zero-object ${ note }`);
+    assert.same(parse('0.1', reviver), 0.1, `leading-zero-fraction ${ note }`);
+
     assert.throws(() => parse('1.', reviver), SyntaxError, `number-fraction-no-digits-1 ${ note }`);
     assert.throws(() => parse('-0.', reviver), SyntaxError, `number-fraction-no-digits-2 ${ note }`);
     assert.throws(() => parse('1.e5', reviver), SyntaxError, `number-fraction-no-digits-3 ${ note }`);
@@ -140,20 +147,24 @@ QUnit.test('JSON.parse', assert => {
 
     assert.throws(() => parse(undefined, reviver), SyntaxError, `undefined ${ note }`);
     assert.throws(() => parse(Symbol('JSON.parse test'), reviver), TypeError, `symbol ${ note }`);
+    assert.throws(() => parse(Object(Symbol('JSON.parse test')), reviver), TypeError, `boxed symbol ${ note }`);
     assert.same(parse(null, reviver), null, `null ${ note }`);
     assert.same(parse(false, reviver), false, `false ${ note }`);
     assert.same(parse(true, reviver), true, `true ${ note }`);
     assert.same(parse(0, reviver), 0, `0 ${ note }`);
     assert.same(parse(3.14, reviver), 3.14, `3.14 ${ note }`);
 
+    let stringCalls = 0;
     assert.same(parse({
       toString() {
+        stringCalls++;
         return '"string"';
       },
       valueOf() {
         return '"default_or_number"';
       },
     }, reviver), 'string', `text-object ${ note }`);
+    assert.same(stringCalls, 1, `text-object converted once ${ note }`);
 
     assert.throws(() => parse({
       toString: null,

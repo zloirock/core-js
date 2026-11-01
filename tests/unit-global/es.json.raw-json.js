@@ -31,4 +31,8 @@ QUnit[BUN && GLOBAL.Bun.version === '1.1.45' ? 'skip' : 'test']('JSON.rawJSON', 
   assert.throws(() => rawJSON('"qwe'), SyntaxError, 'invalid 1');
   assert.throws(() => rawJSON({}), SyntaxError, 'invalid 2');
   assert.throws(() => rawJSON(''), SyntaxError, 'invalid 3');
+  assert.throws(() => rawJSON('01'), SyntaxError, 'leading zero');
+  assert.throws(() => rawJSON('-01'), SyntaxError, 'negative leading zero');
+  assert.throws(() => rawJSON('00'), SyntaxError, 'multiple zeros');
+  assert.same(rawJSON('0.1').rawJSON, '0.1', 'fraction with a leading zero');
 });

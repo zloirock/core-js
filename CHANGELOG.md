@@ -27,6 +27,7 @@
 - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
 - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
 - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
+- Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
 - Fixed the pure version marking the native `Error.isError` as `.sham`
@@ -46,6 +47,7 @@
 - Improved accuracy of `Math.{ expm1, sinh, tanh }` polyfills with small arguments and of `Math.atanh` polyfill near `-1`
 - `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
 - Entries fixes:
+  - Added missed `JSON.parse` to `JSON.rawJSON` entries dependencies to validate input with the corrected parser
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
   - Added missed `Map` to `/actual/array/` namespace entries dependencies, a regression since 3.29.1

@@ -247,9 +247,12 @@ var NO_SOURCE_SUPPORT = fails(function () {
   return source !== unsafeInt;
 });
 
-var PROPER_BASE_PARSE = NATIVE_SYMBOL && !fails(function () {
-  // Safari 9 bug
+var PROPER_BASE_PARSE = !fails(function () {
+  // Safari 9 and old Rhino lose the sign of -0
   return 1 / nativeParse('-0 \t') !== -Infinity;
+}) && fails(function () {
+  // IE accepts numbers with leading zeros
+  nativeParse('01');
 });
 
 // `JSON.parse` method
@@ -257,6 +260,10 @@ var PROPER_BASE_PARSE = NATIVE_SYMBOL && !fails(function () {
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
   parse: function parse(text, reviver) {
-    return PROPER_BASE_PARSE && !isCallable(reviver) ? nativeParse(text) : $parse(text, reviver);
+    // Native parsers cannot recognize polyfilled symbols
+    // Conversion still uses native String; polyfilled @@toPrimitive is not supported
+    return PROPER_BASE_PARSE && !isCallable(reviver)
+      ? nativeParse(NATIVE_SYMBOL ? text : toString(text))
+      : $parse(text, reviver);
   }
 });
