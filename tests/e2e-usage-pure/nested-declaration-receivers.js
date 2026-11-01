@@ -50,3 +50,38 @@ QUnit.test('nested declaration iterator reads the source hop once', assert => {
   assert.same(iterator.call(rows).next().value, 3);
   assert.same(reads, 1);
 });
+
+QUnit.test('nested declaration preserves a loop receiver in a closure', assert => {
+  for (const realm of [globalThis, globalThis]) {
+    function read() {
+      const { Array: { prototype: { at } } } = realm;
+      return at.call([3, 7], -1);
+    }
+    assert.same(read(), 7);
+  }
+});
+
+QUnit.test('nested declaration uses each loop value and its own getters', assert => {
+  const effects = [];
+  const rows = [3, 7];
+  const other = { get Array() {
+    effects.push('Array');
+    return { get prototype() {
+      effects.push('prototype');
+      return { get at() {
+        effects.push('at');
+        return function () {
+          assert.same(this, rows);
+          return 11;
+        };
+      } };
+    } };
+  } };
+  const values = [];
+  for (const realm of [globalThis, other]) {
+    const { Array: { prototype: { at } } } = realm;
+    values.push(at.call(rows, -1));
+  }
+  assert.deepEqual(values, [7, 11]);
+  assert.deepEqual(effects, ['Array', 'prototype', 'at']);
+});

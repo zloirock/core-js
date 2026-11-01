@@ -33,7 +33,6 @@ import {
   followConstIdentifierInit,
   followConstLiteralAlias,
   forOfHeadIterableElements,
-  forOfHeadDeclarationOf,
   forEachPatternWriteMember,
   isChainAssignment,
   isDestructurePattern,
@@ -615,13 +614,12 @@ export function planNestedDeclarationReceiver({
     adapter,
     resolveGlobalPolyfill,
     resolveStaticPolyfill: symbolLeaf ? null : resolveStaticPolyfill,
-    read: { node: root, path: site.path },
+    read: { node: root, path: site.path, scope: site.scope },
   }) : { path: keys };
   if (!base) return null;
   const capture = captured || (named && injectorState?.isOwnPassGeneratedName?.(root.name));
-  const keepsRoot = (aliased && capture && !base.pure) || (POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName)
-    && ((aliased && typedChain && !isBuiltInSurfaceNav(nav, surfaceOptions))
-      || forOfHeadDeclarationOf(root.name, { ...site, adapter })));
+  const keepsRoot = (aliased && (base.name === root.name || capture && !base.pure)) || (POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName)
+    && aliased && typedChain && !isBuiltInSurfaceNav(nav, surfaceOptions));
   const host = aliased && !keepsRoot ? destructurePatternHostPath(path) : null;
   const realmAtRead = host && resolveObjectName({ objectNode: root, scope: host.scope, adapter, path: host }) === alias;
   const spelledNav = realmAtRead ? keys.reduce(memberFromKeyName, identifier(alias)) : nav;
@@ -3341,9 +3339,17 @@ export function buildNestedDestructurePlan({
           && residualLeafBelongsToMirror(p.prop, key))) return null;
         // the level's dead default leaves with the pattern the anchored render replaces, the writes in it too
         if (prop.value.type === 'AssignmentPattern') noteRenderRetiredWrites(prop.value.right);
+        const receiverBase = resolveNestedReceiverBase({
+          rootName: receiver,
+          keys: [],
+          adapter,
+          resolveGlobalPolyfill,
+          read: { node: unwrapExpressionChain(declarator.init), path, scope },
+        });
         return {
           receiver,
-          receiverPure: resolveGlobalPolyfill(receiver),
+          receiverPure: receiverBase?.pure,
+          receiverNode: receiverBase?.name ? identifier(receiverBase.name) : null,
           anchor: key,
           // A stored guard already owns the source value; no late probe may replace it.
           probedNav: !guarded && probedNav,

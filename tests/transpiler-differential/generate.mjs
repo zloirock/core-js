@@ -21760,6 +21760,31 @@ function * generateConstructorResidualOrder() {
   }
 }
 
+// Same-valued loop bindings retain their source identity; mixed values never become a realm.
+function * generateLoopReceiverSources() {
+  for (const shape of ['same', 'prefix', 'closure', 'mixed', 'written', 'shadowed', 'symbol', 'symbol-prefix', 'constructor']) {
+    const symbol = shape.startsWith('symbol') || shape === 'constructor';
+    const binding = symbol ? '[Symbol.iterator]: method' : 'at: method';
+    const pattern = shape === 'constructor' ? `{ WeakSet: { ${ binding } } }` : `{ Array: { prototype: { ${ binding } } } }`;
+    const result = shape === 'constructor' ? 'typeof method' : symbol ? 'method.call(rows).next().value' : 'method.call(rows, -1)';
+    const read = `const ${ pattern } = ${ shape.endsWith('prefix') || shape === 'constructor' ? '(log.push("prefix"), realm)' : 'realm' };
+      values.push(${ result });`;
+    const body = shape === 'closure' ? `const read = () => { ${ read } }; read();`
+      : shape === 'shadowed' ? `const read = realm => { ${ read } }; read(other);`
+      : `${ shape === 'written' ? 'realm = other;' : '' } ${ read }`;
+    yield { ...snippet(`loop-receiver-source/${ shape }`, `(() => {
+      const values = [], rows = [4, 9];
+      const other = { get Array() { log.push("Array"); return { get prototype() {
+        log.push("prototype"); return { at() { log.push(this === rows); return 23; } };
+      } }; } };
+      for (${ shape === 'written' ? 'let' : 'const' } realm of [globalThis${ shape === 'same' ? ', globalThis' : shape === 'mixed' ? ', other' : '' }]) {
+        ${ body }
+      }
+      return values;
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22188,4 +22213,5 @@ export function * generate() {
   yield * generateOptionalSplitLandings();
   yield * generateKeptProbeCarriers();
   yield * generateConstructorResidualOrder();
+  yield * generateLoopReceiverSources();
 }

@@ -97,12 +97,14 @@ export function renderNestedExtractionReceiver({ node, pure, keys, liveReceiver 
 
 // Render the decided declaration read and its live default before the method dispatch.
 // A pending root may have been replaced by its own claim; refreshing that slot preserves
-// the chosen pattern hops. Prefix source children remain live through host embedding;
+// the chosen pattern hops. The optional product records whether this reads a source
+// receiver or a substituted pure base. Prefix children remain live through host embedding;
 // the default guard's binding wrapper only attaches native source/comment ownership.
 export function renderNestedDeclarationReceiver(plan, {
-  embed, importPure, mintRef, liveReceiver = null, capturedReceiver = null, defaultGuard = renderInstanceDefaultGuard,
+  embed, importPure, mintRef, liveReceiver = null, capturedReceiver = null, defaultGuard = renderInstanceDefaultGuard, product = null,
 }) {
   const live = plan.refresh && (capturedReceiver ?? liveReceiver?.());
+  if (product) product.sourceReceiver = !!(live && live !== plan.refresh.source) || !plan.pure;
   let node = live && live !== plan.refresh.source
     ? plan.refresh.keys.reduce(memberFromKeyName, embed(live))
     : renderNestedExtractionReceiver(plan, { embed, importPure });

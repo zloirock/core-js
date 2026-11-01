@@ -9124,7 +9124,9 @@ export function proxyNavHead(receiver, { adapter, guardCtx = null }) {
 // another name, read after the swap or the rebuild already ran, and it resolves as the global does -
 // a static off a minted CTOR resolves by the ctor's NAME, which is what keeps the narrow constructor
 // entry (no statics of its own) from being read through. `binding` is the root's binding, or null, and
-// `read` the chain's read where the caller holds it (`resolvePassthroughRef`)
+// `read` the chain's original read where the caller holds it (`resolvePassthroughRef`). A
+// resolved realm name does not replace the loop binding that supplied it: both an early
+// anchor and a nested extraction keep that source root unless a constructor/static wins.
 export function resolveNestedReceiverBase({
   rootName,
   keys,
@@ -9151,12 +9153,9 @@ export function resolveNestedReceiverBase({
   if (rootIsProxy) {
     if (isMutatedGlobalSlot(adapter, rootName, read)) return mintedGlobal ? raw : null;
     while (hopKeys.length && isPristineProxyGlobal(adapter, hopKeys[0], read)) hopKeys = hopKeys.slice(1);
-    if (!hopKeys.length) {
-      const rootPure = resolveGlobalPolyfill(rootName);
-      return mintedGlobal ? raw : rootPure ? { pure: rootPure, path: [] } : null;
-    }
   }
-  const resolved = resolvePassthroughRef({
+  const rootPure = rootIsProxy && !hopKeys.length ? resolveGlobalPolyfill(rootName) : null;
+  const resolved = rootIsProxy && !hopKeys.length ? rootPure ? { pure: rootPure, path: [] } : null : resolvePassthroughRef({
     keyPath: hopKeys,
     receiverName: rootName,
     receiverIsProxy: rootIsProxy,
@@ -9166,6 +9165,12 @@ export function resolveNestedReceiverBase({
     read,
   });
   if (mintedGlobal) return resolved?.static ? resolved : raw;
+  const source = unwrapRuntimeExpr(read?.node);
+  if (rootIsProxy && source?.type === 'Identifier' && source.name !== rootName
+    && (!hopKeys.length || POSSIBLE_GLOBAL_OBJECTS.has(resolved?.pure?.hintName ?? resolved?.name))
+    && forOfHeadDeclarationOf(source.name, { scope: read.scope ?? read.path?.scope, path: read.path, adapter }, source)) {
+    return { name: source.name, path: keys };
+  }
   return resolved;
 }
 
