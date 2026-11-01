@@ -142,10 +142,12 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
-    # a newer push redeploys the pages of the branch under a running job, which then fails anyway
+    # `pages` again: the job reads the deployed site for minutes after the deploy, so the next deploy
+    # waits for it instead of replacing the pages under it. No cancel: another push to the same branch
+    # takes its own queued turn rather than canceling a run in the middle
     concurrency:
-      group: sauce-labs-${{ github.ref }}
-      cancel-in-progress: true
+      group: pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
