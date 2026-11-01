@@ -181,3 +181,30 @@ assert.skip = getOwnPropertyNames(assert).reduce((skip, method) => {
   skip[method] = () => { /* empty */ };
   return skip;
 }, {});
+
+// TODO: Drop from future `core-js` versions
+// unavailable in `qunit@1` that's required for testing in old browsers; QUnit 2+ has it natively.
+// A `todo` test locks a known defect: it must fail. An unexpected pass is the signal to convert it.
+if (!QUnit.todo) QUnit.todo = (name, callback) => QUnit.test(name, wrapped => {
+  let failed = false;
+  // the wrapped assertions only decide the outcome; QUnit 2+ `todo` reports no details either.
+  // QUnit 1 keeps the assert methods on the prototype and calls them through `this`, so a plain copy
+  // loses them - the only interception point is the object the callback receives
+  const { pushResult } = wrapped;
+  wrapped.pushResult = result => {
+    if (!result.result) failed = true;
+  };
+  try {
+    callback(wrapped);
+  } catch {
+    failed = true;
+  } finally {
+    wrapped.pushResult = pushResult;
+  }
+  wrapped.pushResult({
+    result: failed,
+    actual: failed,
+    expected: 'The known failure is still failing, as expected',
+    message: 'The known failure is still failing, as expected',
+  });
+});
