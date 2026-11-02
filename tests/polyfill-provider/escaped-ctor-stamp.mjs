@@ -1,5 +1,5 @@
 // Unit tests for the NODE IDENTITY of the escaped-constructor stamp - the single thing the census
-// that WRITES a stamp and the pure claim that READS one have to agree on. A bare reference carries
+// that WRITES a stamp and its name resolver have to agree on. A bare reference carries
 // its escape on its own Identifier. A constructor spelled off the proxy-global surface has no
 // identifier of its own, so the stamp names the MEMBER, which is the node the claim stands on; when
 // only one of the two halves knew that spelling, every proxy-global escape kept the bare
@@ -22,7 +22,7 @@ import {
   ESCAPE_STAMPED_NODE_TYPES,
   ESCAPED_CONTAINER_NAMES,
   ESCAPED_CTOR_REFS,
-  isEscapedCtorNode,
+  escapeStampedName,
   nodePositionKey,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
@@ -271,13 +271,12 @@ for (const adapter of adapters) {
       const owner = findNode(program, node => nodePositionKey(node) === key
         && ESCAPE_STAMPED_NODE_TYPES.has(node.type));
       checkTruthy(`${ label }: stamp ${ key } names a claimable node`, !!owner);
-      // ... which is what the reader's own type gate enforces: a wrapper sharing the span (an estree
-      // chain over the member it holds, a statement over its sole expression) reads nothing
-      const [start, end] = key.split(':').map(Number);
-      check(`${ label }: stamp ${ key } is unreadable off a wrapper type`,
-        isEscapedCtorNode(program, { type: 'ChainExpression', start, end }), false);
-      check(`${ label }: stamp ${ key } is readable off its own node`,
-        isEscapedCtorNode(program, { type: owner.type, start, end }), true);
+      // A wrapper borrowing a reference's fields and span must not name its constructor.
+      // The callback keeps unknown computed keys observable independently of key folding.
+      check(`${ label }: stamp ${ key } is unnamed off a wrapper type`,
+        escapeStampedName({ ...owner, type: 'ChainExpression' }, () => 'computed'), null);
+      check(`${ label }: stamp ${ key } is named off its own node`,
+        typeof escapeStampedName(owner, () => 'computed'), 'string');
     }
   }
 }

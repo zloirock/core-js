@@ -166,16 +166,6 @@ export function bodylessSlotReplacement(hostNode, statements, embed = node => no
   return blockStatement(statements.map(embed));
 }
 
-// peel a chain of stacked LabeledStatements (`a: b: c: <stmt>`) down to the innermost labeled
-// body. both parsers nest LabeledStatement.body, so this is parser-agnostic. used to decide
-// whether a labeled body slot ultimately hosts a loop: a single-level `isLoopStatement(prev)`
-// check misses `a: b: for(...)` because `prev` is the inner LabeledStatement, not the loop
-export function peelLabeledStatements(node) {
-  let cur = node;
-  while (cur?.type === 'LabeledStatement') cur = cur.body;
-  return cur;
-}
-
 export { isForInitDeclaration } from './helpers/ast-patterns.js';
 
 // classify a VariableDeclaration host's enclosing context. returns the parser-agnostic

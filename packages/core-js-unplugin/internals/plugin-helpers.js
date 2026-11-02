@@ -1,6 +1,5 @@
 import {
   blocksUidSlot,
-  prologueEndIndex,
   requireCallSource,
   tsRuntimeBindingName,
   unwrapRuntimeExpr,
@@ -33,16 +32,6 @@ export function sourceDialectOf(cleanId) {
     lang: language?.ts ? (jsx ? 'tsx' : 'ts') : 'jsx',
     parseGoal: language?.script ? 'script' : 'module',
   };
-}
-
-// generic walker: advance past directive prologue in `statements`, starting from `fallback`.
-// returns end-of-last-directive when present, else `fallback`. used by Program-level emit
-// (fallback=0), and
-// body-extract param insert (fallback=fn body open-brace+1) so an inserted statement
-// doesn't split the directive off the prologue and silently flip to sloppy mode
-export function skipDirectivePrologue(statements, fallback) {
-  const end = prologueEndIndex(statements);
-  return end ? statements[end - 1].end : fallback;
 }
 
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare

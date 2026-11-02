@@ -8,7 +8,6 @@ import {
   isForInitDeclaration,
   keyedReadReceiverProven,
   minifierSequenceReducer,
-  peelLabeledStatements,
   planArrayWrapperCapture,
   planMinifierSequenceSplit,
   planNestedKeyedPatternCapture,
@@ -26,6 +25,7 @@ import {
   hasObjectRestAncestor,
   isCapturedKeyedPattern,
   markCapturedKeyedPattern,
+  peelLabeledStatementPath,
   SINGLE_STATEMENT_SLOTS,
   unwrapRuntimeExpr,
   walkAstNodes,
@@ -870,21 +870,21 @@ runBoth('isLoopStatement/LabeledStatement wrapper negative', 'outer: for (;;) ca
   check(lbl, isLoopStatement(null), false);
 });
 
-// --- peelLabeledStatements ---
+// --- peelLabeledStatementPath ---
 
 // a stacked label chain peels to the innermost hosted statement - the loop three labels down
-runBoth('peelLabeledStatements/stacked labels reach the loop', 'a: b: c: for (;;) call();', (adapter, prog, lbl) => {
+runBoth('peelLabeledStatementPath/stacked labels reach the loop', 'a: b: c: for (;;) call();', (adapter, prog, lbl) => {
   const outer = adapter.pickPath(prog, 'LabeledStatement');
-  const peeled = peelLabeledStatements(outer.node);
-  check(lbl, isLoopStatement(peeled), true);
-  check(lbl, peeled.type === 'ForStatement', true);
+  const peeled = peelLabeledStatementPath(outer);
+  check(lbl, isLoopStatement(peeled.node), true);
+  check(lbl, peeled.node.type === 'ForStatement', true);
 });
 
 // a non-labeled node is identity; a single label peels one level
-runBoth('peelLabeledStatements/identity and single level', 'x: call();', (adapter, prog, lbl) => {
+runBoth('peelLabeledStatementPath/identity and single level', 'x: call();', (adapter, prog, lbl) => {
   const label = adapter.pickPath(prog, 'LabeledStatement');
-  check(lbl, peelLabeledStatements(label.node).type === 'ExpressionStatement', true);
-  check(lbl, peelLabeledStatements(label.node.body) === label.node.body, true);
+  check(lbl, peelLabeledStatementPath(label).node.type === 'ExpressionStatement', true);
+  check(lbl, peelLabeledStatementPath(label.get('body')) === label.get('body'), true);
 });
 
 // --- classifyVariableDeclarationHost: the three shapes are mutually exclusive ---
