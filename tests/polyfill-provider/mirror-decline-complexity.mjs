@@ -11,7 +11,38 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, finish, runBoth } = createChecker('mirror-decline-complexity');
+const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('mirror-decline-complexity');
+
+// Admission and dispatch completion are shared; native bookkeeping sees actual application,
+// while a caller mirror can remain unsettled after a successful replacement.
+for (const shape of ['missing', 'done', 'bail', 'empty', 'applied', 'failed', 'partial', 'local']) {
+  for (const callerMirror of [false, true]) for (const deferredOnly of [false, true]) for (const settled of [false, true]) {
+    const label = `mirror completion/${ shape }/${ callerMirror }/${ deferredOnly }/${ settled }`;
+    const node = { type: 'Identifier', name: 'source' };
+    const target = { node, tree: {}, localMemo: shape === 'local', memo: shape === 'local' };
+    const plan = shape === 'missing' ? null : {
+      done: shape === 'done', bail: shape === 'bail', settled,
+      targets: ['empty', 'done', 'bail'].includes(shape) ? [] : shape === 'partial' ? [target, target] : [target],
+    };
+    const events = [];
+    let replaced = 0;
+    const applied = applyNestedParamSynthPlan({
+      plan, callerMirror, deferredOnly,
+      mintMemoRef() { events.push('memo'); return 'memo'; },
+      renderTree() { events.push('render'); return node; },
+      replaceTarget() { events.push('replace'); return shape !== 'failed' && ++replaced === 1; },
+      skipSubtree() { events.push('skip'); },
+      onApplied() { events.push('applied'); },
+    });
+    const admitted = !deferredOnly || shape === 'local';
+    const success = ['done', 'bail', 'applied', 'partial', 'local'].includes(shape);
+    check(`${ label } result`, applied, admitted && (callerMirror ? !!plan?.settled : success));
+    const work = ['missing', 'done', 'bail', 'empty'].includes(shape) ? []
+      : [...shape === 'local' ? ['memo'] : [], 'render', 'replace', ...shape === 'failed' ? [] : ['skip'],
+        ...shape === 'partial' ? ['render', 'replace'] : []];
+    checkDeep(`${ label } application precedes native bookkeeping`, events, admitted ? [...work, ...success ? ['applied'] : []] : []);
+  }
+}
 
 // Count resolver work instead of timing a tiny plan. Every leaf asks about the same wide
 // pattern; an unreadable final key makes the expensive mirror decline after visiting its keys.
