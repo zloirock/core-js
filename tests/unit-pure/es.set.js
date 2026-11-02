@@ -332,6 +332,7 @@ QUnit.test('Set#keys', assert => {
 
 QUnit.test('Set#values', assert => {
   assert.isFunction(Set.prototype.values);
+  assert.false(Object.prototype.hasOwnProperty.call(Set.prototype, 'name'), 'Set prototype has no own name');
   const set = new Set();
   set.add('q');
   set.add('w');

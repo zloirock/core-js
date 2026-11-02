@@ -8,7 +8,7 @@ var createIteratorConstructor = require('../internals/iterator-create-constructo
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var setToStringTag = require('../internals/set-to-string-tag');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var defineProperty = require('../internals/object-define-property').f;
 var defineBuiltIn = require('../internals/define-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var Iterators = require('../internals/iterators');
@@ -71,8 +71,11 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
   // fix Array.prototype.{ values, @@iterator }.name in V8 / FF
   if (PROPER_FUNCTION_NAME && DEFAULT === VALUES && nativeIterator && nativeIterator.name !== VALUES) {
     if (!IS_PURE && CONFIGURABLE_FUNCTION_NAME) {
-      createNonEnumerableProperty(IterablePrototype, 'name', VALUES);
-    } else {
+      try {
+        defineProperty(nativeIterator, 'name', { value: VALUES });
+      } catch (error) { /* empty */ }
+    }
+    if (IS_PURE || nativeIterator.name !== VALUES) {
       INCORRECT_VALUES_NAME = true;
       defaultIterator = function values() { return call(nativeIterator, this); };
     }

@@ -46,6 +46,7 @@ QUnit.test('Array#values', assert => {
   assert.isFunction(values);
   assert.arity(values, 0);
   assert.name(values, 'values');
+  assert.false(Object.hasOwn(Array.prototype, 'name'), 'Array prototype has no own name');
   assert.looksNative(values);
   assert.nonEnumerable(Array.prototype, 'values');
   const iterator = ['q', 'w', 'e'].values();

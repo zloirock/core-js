@@ -352,6 +352,7 @@ QUnit.test('Set#keys', assert => {
 QUnit.test('Set#values', assert => {
   assert.isFunction(Set.prototype.values);
   assert.name(Set.prototype.values, 'values');
+  assert.false(Object.hasOwn(Set.prototype, 'name'), 'Set prototype has no own name');
   assert.arity(Set.prototype.values, 0);
   assert.looksNative(Set.prototype.values);
   assert.nonEnumerable(Set.prototype, 'values');

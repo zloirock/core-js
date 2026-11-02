@@ -36,6 +36,7 @@
 - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
 - Fixed the pure version marking the native `Error.isError` as `.sham`
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator ([Firefox < 46](https://bugzilla.mozilla.org/show_bug.cgi?id=1067049))
+- Fixed the iterator name correction adding a `name` property to collection prototypes in old engines, a regression since 3.18.0
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
 - Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
