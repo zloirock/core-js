@@ -1,5 +1,8 @@
 import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
-import { STRICT_THIS } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT_THIS } from '../helpers/constants.js';
+
+import ITERATOR from 'core-js-pure/es/symbol/iterator';
+import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 
 QUnit.test('Array.fromAsync', assert => {
   const { fromAsync } = Array;
@@ -117,3 +120,135 @@ QUnit.test('Array.fromAsync', assert => {
     assert.true(closableIterator.closed, 'closes sync iterator on promise rejection');
   }); */
 });
+
+QUnit.test('Array.fromAsync, array-like length and mapping', assert => {
+  const arrayLike = { 0: Promise.resolve(1), 1: 2, length: 2 };
+  const receiver = {};
+  function C(length) {
+    assert.same(arguments.length, 1, 'one constructor argument');
+    assert.same(length, 2, 'constructor receives the initial length');
+    arrayLike.length = 3;
+    arrayLike[2] = 3;
+  }
+  return Array.fromAsync.call(C, arrayLike, function (value, index) {
+    assert.same(this, receiver, 'mapper receiver');
+    assert.same(value, index + 1, 'element is awaited');
+    return Promise.resolve(value * 2);
+  }, receiver).then(result => {
+    assert.true(result instanceof C, 'custom constructor');
+    assert.same(result.length, 2, 'initial length is preserved');
+    assert.same(result[0], 2, 'mapped value is awaited');
+    assert.same(result[1], 4);
+    assert.false(2 in result, 'does not visit added elements');
+  });
+});
+
+if (DESCRIPTORS) QUnit.test('Array.fromAsync, array-like length is read once', assert => {
+  const log = [];
+  const arrayLike = Object.defineProperty({ 0: 1 }, 'length', {
+    get() {
+      log.push('length');
+      return 1;
+    },
+  });
+  function C() {
+    log.push('construct');
+  }
+  return Array.fromAsync.call(C, arrayLike).then(result => {
+    assert.arrayEqual(log, ['length', 'construct']);
+    assert.same(result[0], 1);
+    assert.same(result.length, 1);
+  });
+});
+
+for (const [name, symbol, create] of [
+  ['sync', ITERATOR, createIterable],
+  ['async', ASYNC_ITERATOR, createAsyncIterable],
+]) {
+  QUnit.test(`Array.fromAsync, ${ name } iterator awaits primitive mapper results`, assert => {
+    const values = [1, 2];
+    return Array.fromAsync(create(values), (value, index) => {
+      if (index === 0) Promise.resolve().then(() => { values[1] = 3; });
+      return value;
+    }).then(result => {
+      assert.arrayEqual(result, [1, 3], 'awaits the mapper result before reading the next element');
+    });
+  });
+
+  if (DESCRIPTORS) QUnit.test(`Array.fromAsync, ${ name } iterator initialization`, assert => {
+    const log = [];
+    const iterator = Object.defineProperty({}, 'next', {
+      get() {
+        log.push('next');
+        return () => ({ done: true });
+      },
+      configurable: true,
+    });
+    const iterable = {
+      [symbol]() {
+        log.push('iterator');
+        return iterator;
+      },
+    };
+    function C() {
+      log.push('construct');
+      assert.same(arguments.length, 0, 'no constructor arguments');
+      Object.defineProperty(iterator, 'next', {
+        value() { assert.avoid('next method was already captured'); },
+      });
+    }
+    return Array.fromAsync.call(C, iterable).then(result => {
+      assert.arrayEqual(log, ['iterator', 'next', 'construct']);
+      assert.same(result.length, 0);
+    });
+  });
+
+  QUnit.test(`Array.fromAsync, ${ name } iterator step errors`, assert => {
+    const phases = ['next', 'primitive'];
+    if (DESCRIPTORS) phases.push('done', 'value');
+    if (name === 'async') phases.push('rejection');
+    return Promise.all(phases.map(phase => {
+      let closed = 0;
+      const error = new Error(phase);
+      const iterable = create([], {
+        next() {
+          if (phase === 'next') throw error;
+          if (phase === 'primitive') return name === 'async' ? Promise.resolve(1) : 1;
+          if (phase === 'rejection') return Promise.reject(error);
+          return Object.defineProperty({ done: false }, phase, { get() { throw error; } });
+        },
+        return() {
+          closed++;
+          return { done: true };
+        },
+      });
+      return Array.fromAsync(iterable).then(() => {
+        assert.avoid(phase);
+      }, error_ => {
+        if (phase === 'primitive') assert.true(error_ instanceof TypeError, phase);
+        else assert.same(error_, error, phase);
+        assert.same(closed, 0, `${ phase }: source is not closed`);
+      });
+    }));
+  });
+
+  QUnit.test(`Array.fromAsync, ${ name } iterator cleanup error`, assert => {
+    let closed = 0;
+    const error = new Error('mapper');
+    const cleanupError = new Error('cleanup');
+    const iterable = create([1], {
+      return() {
+        // Keep the regression bounded in engines that retry failed cleanup.
+        if (++closed > 1) return { done: true };
+        if (name === 'async') return Promise.reject(cleanupError);
+        throw cleanupError;
+      },
+    });
+    return Array.fromAsync(iterable, () => { throw error; }).then(() => {
+      assert.avoid();
+    }, error_ => {
+      assert.same(error_, error, 'original error takes precedence');
+      assert.same(closed, 1, 'closed only once');
+    });
+  });
+}

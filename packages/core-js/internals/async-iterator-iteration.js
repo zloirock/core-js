@@ -17,11 +17,11 @@ var createMethod = function (TYPE) {
   var IS_FOR_EACH = TYPE === 1;
   var IS_EVERY = TYPE === 2;
   var IS_SOME = TYPE === 3;
-  return function (object, fn, target) {
+  return function (object, fn, target, IS_RECORD) {
     anObject(object);
     var MAPPING = fn !== undefined;
     if (MAPPING || !IS_TO_ARRAY) aCallable(fn);
-    var record = getIteratorDirect(object);
+    var record = IS_RECORD ? object : getIteratorDirect(object);
     var Promise = getBuiltIn('Promise');
     var iterator = record.iterator;
     var next = record.next;
@@ -68,7 +68,8 @@ var createMethod = function (TYPE) {
                       }
                     };
 
-                    if (isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
+                    // Array.fromAsync uses Await, while async iterator helpers use AwaitNonPrimitive.
+                    if (IS_TO_ARRAY || isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
                     else handler(result);
                   } else {
                     createProperty(target, counter++, value);

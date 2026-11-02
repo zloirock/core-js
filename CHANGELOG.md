@@ -25,6 +25,10 @@
 - Added detection of [native `Iterator.concat` closing the inner iterator on errors from `next` or getters of the iterator result in V8](https://issues.chromium.org/issues/580293064)
 - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
 - Fixed `Iterator.zip` closing the input iterator when reading an input result's `value` throws
+- Fixed `Iterator.prototype.flatMap` polyfill closing the source iterator when reading its result's `value` throws
+- Fixed `Array.fromAsync` polyfill constructing the result before opening the iterator, handling array-like inputs through an iterator instead of using their initial length, and skipping `await` for primitive mapper results
+- Added a workaround for [native `Array.fromAsync` in V8 incorrectly closing iterators](https://issues.chromium.org/issues/511947515) on step errors, masking the original error and retrying failed cleanup; also avoided duplicate reads of a sync iterator's `next`
+- Added missed detection of native `Array.fromAsync` reading the iterator's `next` after calling the result constructor in [Firefox](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [Safari / Bun < 1.4.4](https://bugs.webkit.org/show_bug.cgi?id=326074); this also avoids [Firefox masking the original error when iterator cleanup rejects](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778)
 - Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
 - Improved error messages for invalid iterator window sizes and different iterator lengths in strict `Iterator.{ zip, zipKeyed }` mode
 - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
@@ -71,6 +75,7 @@
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
+  - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari / Bun < 1.4.4 due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074); corrected Bun detection in compat tests
   - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
   - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
   - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above

@@ -48,6 +48,23 @@ if (DESCRIPTORS) {
       return TypedArray.fromAsync({ length: 1, 0: 1 });
     }).then(it => {
       assert.arrayEqual(it, [1], 'non-iterable');
+      const arrayLike = { 0: 1, 1: 2, length: 2 };
+      return TypedArray.fromAsync(arrayLike, (value, index) => {
+        if (index === 0) {
+          arrayLike.length = 3;
+          arrayLike[2] = 3;
+        }
+        return value;
+      });
+    }).then(it => {
+      assert.arrayEqual(it, [1, 2], 'initial array-like length is preserved');
+      const values = [1, 2];
+      return TypedArray.fromAsync(createIterable(values), (value, index) => {
+        if (index === 0) Promise.resolve().then(() => { values[1] = 3; });
+        return value;
+      });
+    }).then(it => {
+      assert.arrayEqual(it, [1, 3], 'awaits the mapper result before reading the next element');
       return TypedArray.fromAsync(createIterable([1]), () => { throw 42; });
     }).then(() => {
       assert.avoid();

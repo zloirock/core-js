@@ -36,7 +36,7 @@ if (!V8_VERSION && USERAGENT) {
 }
 
 var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
-var IS_BUN = typeof Bun == 'function' && Bun && typeof Bun.version == 'string';
+var IS_BUN = !!Bun && typeof Bun.version == 'string';
 var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object';
 
 var IS_NODE = !IS_BUN && !IS_DENO && Object.prototype.toString.call(process) === '[object process]';
@@ -1308,13 +1308,34 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Promise.withResolvers;
   }],
   'es.array.from-async': function () {
+    // V8 incorrectly closes iterators on step errors and retries failed cleanup.
+    // https://issues.chromium.org/issues/511947515
+    // This cannot be detected synchronously.
+    if (V8_VERSION && !IS_BUN) return;
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     var counter = 0;
     Array.fromAsync.call(function () {
       counter++;
       return [];
     }, { length: 0 });
-    return counter === 1;
+    if (counter !== 1) return false;
+    // Firefox and Safari do not capture `next` before calling the constructor.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2088041
+    // https://bugs.webkit.org/show_bug.cgi?id=326074
+    // This also avoids Firefox masking the original error when cleanup rejects.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2078778
+    var changedNextCalled = false;
+    var iterable = {};
+    var iterator = { next: function () { return { done: true }; } };
+    iterable[Symbol.asyncIterator] = function () { return iterator; };
+    Array.fromAsync.call(function () {
+      iterator.next = function () {
+        changedNextCalled = true;
+        return { done: true };
+      };
+      return [];
+    }, iterable);
+    return !changedNextCalled;
   },
   'es.async-disposable-stack.constructor': function () {
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256

@@ -1548,14 +1548,20 @@ export const data = {
     rhino: '1.9.0',
     safari: '17.4',
   },
-  'es.array.from-async': { // <- `Array#values` and `Promise` dependencies should be loaded before
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    bun: '1.1.2', // '0.3.0',
-    chrome: '121',
-    deno: '1.38',
-    firefox: '115',
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    safari: '18.0', // '16.4',
+  'es.array.from-async': { // `Promise` dependency should be loaded before
+    // https://bugs.webkit.org/show_bug.cgi?id=326074
+    bun: '1.4.4', // '1.1.2', '0.3.0',
+    // V8 incorrectly closes iterators on step errors and retries failed cleanup.
+    // https://issues.chromium.org/issues/511947515
+    // chrome: '121',
+    // deno: '1.38',
+    // Firefox and Safari do not capture `next` before calling the constructor.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2088041
+    // Firefox also masks the original error when cleanup rejects.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2078778
+    // firefox: '115',
+    // https://bugs.webkit.org/show_bug.cgi?id=326074
+    // safari: '18.0', // '16.4', https://bugs.webkit.org/show_bug.cgi?id=271703
   },
   'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
     bun: '1.3.0',

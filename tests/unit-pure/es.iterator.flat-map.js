@@ -1,9 +1,10 @@
 import { createIterator, createIterable } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import Iterator from 'core-js-pure/es/iterator';
 import Map from 'core-js-pure/es/map';
 import values from 'core-js-pure/es/array/values';
+import defineProperty from 'core-js-pure/es/object/define-property';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap, find } = Iterator.prototype;
@@ -74,4 +75,26 @@ QUnit.test('Iterator#flatMap', assert => {
   const errorIter = flatMap.call(closableSource, () => { throw 42; });
   assert.throws(() => errorIter.next(), 'mapper error propagates');
   assert.true(closableSource.closed, 'source iterator closed on mapper error during execution');
+});
+
+if (DESCRIPTORS) QUnit.test('Iterator#flatMap, throwing source value getter', assert => {
+  const { flatMap } = Iterator.prototype;
+  const error = new Error('value');
+  let returnCalls = 0;
+  const iterator = flatMap.call(createIterator([], {
+    next() {
+      return defineProperty({ done: false }, 'value', {
+        get() { throw error; },
+      });
+    },
+    return() {
+      returnCalls++;
+      return {};
+    },
+  }), () => assert.avoid('mapper should not be called'));
+  assert.throws(() => iterator.next(), thrown => thrown === error, 'original error propagates');
+  assert.same(returnCalls, 0, 'source is not closed on its own value error');
+  assert.deepEqual(iterator.next(), { value: undefined, done: true }, 'completed after the error');
+  iterator.return();
+  assert.same(returnCalls, 0, 'completed helper does not close the source');
 });
