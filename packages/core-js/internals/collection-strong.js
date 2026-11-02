@@ -180,7 +180,7 @@ module.exports = {
         kind: kind,
         last: null
       });
-    }, function () {
+    }, function next() {
       var state = getInternalIteratorState(this);
       var kind = state.kind;
       var entry = state.last;

@@ -321,6 +321,8 @@ QUnit.test('Map Iterator', assert => {
   map.set('d', 4);
   const results = [];
   const iterator = map.keys();
+  assert.name(iterator.next, 'next');
+  assert.looksNative(iterator.next);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.nonEnumerable(iterator, 'next');

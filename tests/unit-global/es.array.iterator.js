@@ -50,6 +50,8 @@ QUnit.test('Array#values', assert => {
   assert.looksNative(values);
   assert.nonEnumerable(Array.prototype, 'values');
   const iterator = ['q', 'w', 'e'].values();
+  assert.name(iterator.next, 'next');
+  assert.looksNative(iterator.next);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.same(iterator[Symbol.toStringTag], 'Array Iterator');

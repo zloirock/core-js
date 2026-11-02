@@ -55,6 +55,7 @@ QUnit.test('Array#values', assert => {
   assert.isFunction(values);
   assert.false(Object.prototype.hasOwnProperty.call(Array.prototype, 'name'), 'Array prototype has no own name');
   const iterator = values(['q', 'w', 'e']);
+  assert.name(iterator.next, 'next');
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.same(iterator[Symbol.toStringTag], 'Array Iterator');

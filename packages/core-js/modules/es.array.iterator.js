@@ -34,7 +34,7 @@ module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
   });
 // `%ArrayIteratorPrototype%.next` method
 // https://tc39.es/ecma262/#sec-%arrayiteratorprototype%.next
-}, function () {
+}, function next() {
   var state = getInternalState(this);
   var target = state.target;
   var index = state.index++;

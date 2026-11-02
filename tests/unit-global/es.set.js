@@ -304,6 +304,8 @@ QUnit.test('Set Iterator', assert => {
   set.add('d');
   const results = [];
   const iterator = set.keys();
+  assert.name(iterator.next, 'next');
+  assert.looksNative(iterator.next);
   results.push(iterator.next().value);
   assert.true(set.delete('a'));
   assert.true(set.delete('b'));
