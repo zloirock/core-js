@@ -3029,19 +3029,21 @@ export function instanceHopDispatch({ ctorName, key, resolvePure }) {
 // walk reads through it, so it is the root as written. a nav INTO the built-in namespace is one
 // more run of hops: it unfolds onto its own identifier root (`{ of: { name } } = globalThis.Array`
 // walks as `{ Array: { of: { name } } } = globalThis`), unless the whole nav still names a built-in
-// surface (`globalThis.Array.prototype`), which is the flatten's shape and stays with it. a literal
+// surface (`globalThis.Array.prototype`), which stays with the flatten unless the caller captures
+// the whole leaf's receiver. That twin owns one read before and after an anchor removes a level. A literal
 // is the pairing walk's, which reads through it to the element - null here. which chain enters the
 // namespace is asked of its ROOT too where the caller brings a `ctx`: a capitalised key off the
 // user's own object (`(log.push(1), src).Data`, `wrap.Box.Data`) is that object's key
-function unfoldNestedRoot(root, keys, ctx = null) {
+function unfoldNestedRoot(root, keys, ctx = null, captureReceiver = false) {
   const surfaceOptions = ctx ? { ctx } : undefined;
-  // A prefix or decided selection keeps its source spelling for one evaluation. Only user
-  // navigation belongs here; built-in surfaces keep their existing prefix channels.
+  // A prefix or decided selection keeps its source spelling for one evaluation. A whole-leaf
+  // capture owns that read too; other built-in reads keep their existing prefix channels.
   if (root.type === 'SequenceExpression') {
     const tail = ctx?.adapter ? decidedRunningValue(root, ctx) : unwrapRuntimeExpr(root.expressions.at(-1));
     const userValue = tail?.type === 'Identifier' || tail?.type === 'ThisExpression'
       || tail?.type === 'CallExpression' || tail?.type === 'NewExpression';
-    return userValue && !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail), surfaceOptions) ? { root, keys } : null;
+    return userValue && (captureReceiver || !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail), surfaceOptions))
+      ? { root, keys } : null;
   }
   // An opaque selection is read once too; known global hops retain their namespace routes.
   if (root.type === 'ConditionalExpression' || root.type === 'LogicalExpression') {
@@ -3052,7 +3054,7 @@ function unfoldNestedRoot(root, keys, ctx = null) {
   if (!isMemberAccessNode(root)) return null;
   if (!isBuiltInSurfaceNav(root, surfaceOptions)) return { root, keys };
   if (root.optional) return null;
-  if (isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, root), surfaceOptions)) return null;
+  if (!captureReceiver && isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, root), surfaceOptions)) return null;
   const navKeys = [];
   let cur = root;
   while (cur?.type === 'MemberExpression' && !cur.computed && !cur.optional && cur.property?.type === 'Identifier') {
@@ -3124,6 +3126,8 @@ export function provenRealmCallName(node, { scope, adapter, path },
 // `climbed`, leaf-first: every pattern level the walk climbed with the prop that holds the way down
 // `allowAssignmentHost` is for read-only ownership preflight: an assignment carries the same
 // receiver facts, but its extraction must still use its own binding/return-value machinery.
+// `captureReceiver` lets the whole-leaf twin keep a computed root or recover hops already
+// moved into the initializer by an anchor. Sole reads, placement, defaults and base still gate it.
 // eslint-disable-next-line max-statements -- the walk: one arm per pattern level it may stand in
 export function resolveNestedReceiverChain(leafPath, {
   soleSlots = false,
@@ -3134,6 +3138,7 @@ export function resolveNestedReceiverChain(leafPath, {
   siblingLevels = false,
   allowAssignmentHost = false,
   allowInlineSpread = false,
+  captureReceiver = false,
 } = {}) {
   const keys = [];
   const climbed = [];
@@ -3199,12 +3204,12 @@ export function resolveNestedReceiverChain(leafPath, {
         ? decidedRunningValue(init, { scope: leafPath.scope, adapter, path: leafPath }, prefixes)
         : unwrapCollectingSePrefixes(init, prefixes);
       if (!rawRoot) return null;
-      // ... a DECLARATOR's init only, and not a loop head's: an assignment and a head keep their own
-      // prefix channels (the lift, the header sink)
+      // ... a DECLARATOR's init only, and not a loop head's: an assignment keeps its lift unless
+      // the whole-leaf capture will place that prefix; a head keeps its header sink
       // ... nor under a DEFAULT, whose guard both legs place around a prefix differently; nor off a
       // call the realm canon owns
       const headOf = owner.parentPath?.parentPath?.node;
-      if (prefixes.length && (ownerType !== 'VariableDeclarator' || slotDefault
+      if (prefixes.length && ((ownerType !== 'VariableDeclarator' && !captureReceiver) || slotDefault
         || (headOf?.type === 'ForStatement' && headOf.init === owner.parentPath.node)
         || provenRealmCallRoot(rawRoot, leafPath, adapter, { allowEffects: true }))) return null;
       // a call the inline canon proves to yield a proxy global reads as that global (its spelling too)
@@ -3229,7 +3234,7 @@ export function resolveNestedReceiverChain(leafPath, {
         const builtInNav = isReReadableSurfaceNav(root, null, { ctx: { scope: leafPath.scope, adapter, path: leafPath } });
         if ((siblingLevelKept && !builtInNav) || !soleSlots
           || (pattern.node.properties.length !== 1 && !rootMemoized && !builtInNav)) return null;
-        unfolded = unfoldNestedRoot(root, keys, adapter ? { scope: leafPath.scope, adapter, path: leafPath } : null);
+        unfolded = unfoldNestedRoot(root, keys, adapter ? { scope: leafPath.scope, adapter, path: leafPath } : null, captureReceiver);
         if (!unfolded) return null;
       }
       // the RAW init travels too: a caller that SPELLS this receiver keeps whatever the source

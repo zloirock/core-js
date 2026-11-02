@@ -23,7 +23,19 @@ function findLeaf(parser, program) {
 for (const [name, source, kind, memo = false, placement = null] of [
   ['sole leaf', 'const { data: { at: method } } = source;', null],
   ['two leaves', 'const { data: { at: method, other } } = source;', 'declaration'],
+  ['realm source', 'const realm = globalThis; const { Array: { prototype: { at: method, other } } } = realm;', 'declaration'],
+  ['anchored realm source', 'const realm = globalThis; const { prototype: { at: method, other } } = realm.Array;', 'declaration'],
+  ['anchored loop assignment', 'for (const realm of [globalThis]) { let method, other; ({ prototype: { at: method, other } } = realm.Array); }', 'assignment'],
+  ['anchored typed source', 'const realm = globalThis; const { prototype: { at: method, length: other } } = (realm.Array as ArrayConstructor);', 'declaration'],
+  ['anchored default', 'const realm = globalThis; const { prototype: { at: method, other } = fallback() } = realm.Array;', 'declaration', true],
+  ['anchored rest', 'const realm = globalThis; const { prototype: { at: method, ...rest } } = realm.Array;', 'declaration'],
+  ['assignment prefix', 'let method, other; ({ Array: { prototype: { at: method, other } } } = (effect(), globalThis));', 'assignment'],
+  ['assignment prefix user root', 'let method, other; ({ data: { at: method, other } } = (effect(), source));', 'assignment'],
+  ['assignment prefix rest refuses', 'let method, rest; ({ data: { at: method, ...rest } } = (effect(), source));', null],
+  ['assignment member target refuses', 'let method; ({ data: { at: method, other: target.value } } = source);', null],
+  ['assignment prefix used result refuses', 'let method, other; use(({ data: { at: method, other } } = (effect(), source)));', null],
   ['typed root', 'const { data: { at: method, length: slotLength } } = source as { data: number[] };', 'declaration'],
+  ['typed assignment root', 'let method, slotLength; ({ data: { at: method, length: slotLength } } = source as { data: number[] });', 'assignment'],
   ['parenthesized typed root', 'const { data: { at: method, length: slotLength } } = (source as { data: number[] });', 'declaration'],
   ['rest stays on leaf', 'const { data: { at: method, ...rest } } = source;', 'declaration'],
   ['effectful sole key', "const { data: { [(effect(), 'at')]: method } } = source;", 'declaration'],
@@ -61,11 +73,17 @@ for (const [name, source, kind, memo = false, placement = null] of [
   if (plan) {
     check(`${ label }/memo`, plan.memo, memo);
     checkDeep(`${ label }/receiver keys`, plan.receiver.keys, plan.walk?.keys ?? []);
-    if (name === 'typed root') check(`${ label }/source type retained`, plan.receiver.node.type, 'TSAsExpression');
+    if (name === 'typed root' || name === 'typed assignment root') {
+      check(`${ label }/source type retained`, plan.receiver.node.type, 'TSAsExpression');
+    }
     const place = plan.split ? plan.split.placeBefore ? 'before' : 'after'
       : plan.host?.forInit ? 'forInit' : plan.host?.bodyless ? 'bodyless' : null;
     check(`${ label }/placement`, place, placement);
     check(`${ label }/source leaf borrowed`, plan.leafPattern.node, path.parentPath.node);
+    if (name.startsWith('assignment prefix')) {
+      check(`${ label }/prefix precedes capture`, plan.prefix?.[0]?.callee?.name, 'effect');
+      check(`${ label }/receiver drops only the lifted prefix`, plan.receiver.node.type, 'Identifier');
+    }
     const again = planNestedLeafTwin(input, options);
     checkDeep(`${ label }/repeat`, { kind: again.kind, receiver: again.receiver, memo: again.memo },
       { kind: plan.kind, receiver: plan.receiver, memo: plan.memo });

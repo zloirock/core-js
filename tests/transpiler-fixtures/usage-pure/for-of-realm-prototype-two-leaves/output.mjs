@@ -4,7 +4,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // A realm element retains each nested prototype receiver through an assignment head.
 let at, includes;
 for (const _ref of [_globalThis]) {
-  at = _atMaybeArray(_ref.Array.prototype);
-  includes = _includesMaybeArray(_ref.Array.prototype);
+  const _ref2 = _ref.Array.prototype;
+  at = _atMaybeArray(_ref2);
+  includes = _includesMaybeArray(_ref2);
   use(at, includes);
 }
