@@ -115,6 +115,7 @@ import {
   soleChainToProp,
   isChainAssignment,
   isBodylessStatementSlot,
+  isFunctionParamDestructureParent,
   peelFallbackBranchInner,
   peelTransparentExpr,
   peelParenAndTSParentPath,
@@ -476,7 +477,10 @@ export default function createAstDestructureEmitter({
     if (queuedJobsFor(host)?.jobs.some(job => host.node.type !== 'VariableDeclarator'
       || job.declarator === host.node)) return false;
     const pure = resolvePure(meta, metaPath);
-    if (!patternClaimOwesMirror(pure?.kind, metaPath)) return false;
+    if (!patternClaimOwesMirror(pure?.kind, metaPath, meta)) return false;
+    // A parameter's known callers still own their arguments before its default changes.
+    if (pure?.kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(metaPath.parentPath)
+      && renderNestedParamSynth({ metaPath, meta, argumentSites: parameterCallSites, fallbackOnBail: true })) return true;
     // Sibling instance claims describe the source receiver, before its mirrored branch moves.
     if (meta.fromFallback) primeDestructureReceiverTypes?.(metaPath);
     // The array plan records the mirror before moving its neighbouring reads.

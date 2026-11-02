@@ -1278,7 +1278,7 @@ function renderRetainedDefaultCapture(plan, {
         else declarations.push(variableDeclarator(capture, value));
         if (!consume(prop.value, inner, entry.child.entries, [...keyPath, entry.key])) return false;
         continue;
-      } else if (entry.child.kind === 'polyfill' || entry.child.injects || entry.readPure
+      } else if (entry.child.kind === 'polyfill' || entry.child.pure || entry.readPure
         || entry.child.kind === 'descended-pattern') {
         if (entry.readPure && prop.computed && computedKeyHasSideEffects(prop, plan.ctx)) {
           const { prefix, tail } = peelNestedSequenceExpressions(prop.key);

@@ -29,6 +29,7 @@ const ALLOWED = new Map([
   ['audit-realm-fold-drops-its-guard', Array(3).fill('globalThis')],
   ['audit-realm-run-under-an-excluded-root-bare-root', ['globalThis']],
   ['audit-realm-run-under-an-excluded-root-guarded-over-store', ['globalThis']],
+  ['declined-realm-excluded-root', ['globalThis']],
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
   ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
   ['realm-alias-window-probe-native-root', ['globalThis', 'self']],
@@ -44,6 +45,7 @@ const ALLOWED = new Map([
   ['audit-nested-proxy-destructure-binding-narrows-mut-iter', ['self']],
   ['audit-nested-proxy-destructure-binding-narrows-via-alias', ['self']],
   ['audit-nested-proxy-destructure-binding-narrows-via-param', ['self']],
+  ['declined-realm-mutated-hop', ['globalThis', 'globalThis']],
   ['realm-name-install-leaves-bare-globals-served', ['globalThis', 'globalThis', 'globalThis']],
   ['realm-root-replaced-keeps-the-generic-dispatch', ['self']],
   // Babel's scope tracker does not register these TS runtime bindings before lowering.

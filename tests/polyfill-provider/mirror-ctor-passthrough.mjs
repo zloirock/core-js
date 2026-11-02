@@ -13,6 +13,7 @@ import {
   buildNestedParamSynthPlan,
   buildParameterArgumentSynthPlan,
   classifyDestructureLeafHost,
+  patternClaimOwesMirror,
   planParameterInstanceExtraction,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -25,6 +26,35 @@ for (const meta of [null, undefined]) check('an absent claim does not ask the re
   meta,
   resolvePure() { throw new Error('an absent claim has no pure resolution'); },
 }), null);
+
+// A declined child keeps its native keys without stranding its known realm receiver.
+for (const host of ['parameter', 'declaration']) for (const boundary of ['served', 'excluded', 'mutated']) {
+  const pattern = '{ globalThis: { [key]: { prototype } }, Map: M, tail }';
+  const source = host === 'parameter' ? `export function read(${ pattern } = globalThis) {}` : `const ${ pattern } = globalThis;`;
+  runBoth(`declined realm/${ host }/${ boundary }`, source, (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+    const [prop] = leafPatternPath.get('properties');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    if (boundary === 'mutated') adapter.isMutatedStatic = () => true;
+    const meta = { kind: 'property', object: 'globalThis', key: 'globalThis', placement: 'static' };
+    check(`${ label } asks the realm mirror`, patternClaimOwesMirror('global', prop, meta), true);
+    check(`${ label } keeps instance routing`, patternClaimOwesMirror('instance', prop, meta), false);
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath, adapter, meta,
+      resolvePure: claim => boundary !== 'excluded' && claim.kind === 'global' && ['globalThis', 'Map'].includes(claim.name)
+        ? { kind: 'global', entry: claim.name === 'Map' ? 'map/constructor' : 'global-this', hintName: claim.name } : null,
+    });
+    check(`${ label } serves only an available pristine realm`, !!plan?.targets?.length, boundary === 'served');
+    if (boundary !== 'served') return;
+    const [target] = plan.targets;
+    check(`${ label } supplies the whole receiver`, target.tree.entries[0].child.kind, 'polyfill');
+    check(`${ label } keeps its sibling import after memoization`, target.tree.entries[1].child.pure?.entry, 'map/constructor');
+    check(`${ label } defers native siblings`, target.tree.entries[2].deferred, true);
+    check(`${ label } keeps one receiver per evaluation`, target.localMemo, true);
+    check(`${ label } leaves unknown child claims live`, plan.claimedProperties.includes(prop.node), false);
+    check(`${ label } keeps parameter defaults conditional`, plan.claimsAlwaysDefined === false, host === 'parameter');
+  });
+}
 
 // A valid subtree with no injectable leaves is different from a subtree the mirror cannot render.
 for (const [nested, expected] of [

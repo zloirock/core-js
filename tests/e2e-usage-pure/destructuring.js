@@ -9452,3 +9452,44 @@ QUnit.test('destructuring: for-init static rest keeps the prefix before its bind
   }
   assert.deepEqual(events, ['undefined']);
 });
+
+QUnit.test('destructuring: a declined child keeps the realm default and caller values', assert => {
+  const events = [];
+  let key = 'Promise';
+  function read({ globalThis: { [(events.push('key'), key)]: { prototype = (events.push('leaf'), [17]) } } }
+    = (events.push('rhs'), key = 'Array', globalThis)) {
+    return prototype;
+  }
+  assert.same(Array.isArray(read()), true);
+  assert.deepEqual(events, ['rhs', 'key']);
+  events.length = 0;
+  key = 'Promise';
+  assert.deepEqual(read({ globalThis: { Promise: {} } }), [17]);
+  assert.deepEqual(events, ['key', 'leaf']);
+});
+
+QUnit.test('destructuring: a declined child leaves sibling defaults live', assert => {
+  const events = [];
+  let key = 'Promise';
+  const { globalThis: { [(events.push('key'), key)]: { prototype } },
+    declinedMissing = (events.push('default'), 'abc'.at(-1)) } = (events.push('rhs'), key = 'Array', globalThis);
+  assert.same(Array.isArray(prototype), true);
+  assert.same(declinedMissing, 'c');
+  assert.deepEqual(events, ['rhs', 'key', 'default']);
+});
+
+QUnit.test('destructuring: a realm default leaves its known callers independently served', assert => {
+  function read({ globalThis: { Array: { from } } } = globalThis) {
+    return from([7]);
+  }
+  assert.deepEqual(read(), [7]);
+  assert.deepEqual(read(globalThis), [7]);
+  assert.deepEqual(read({ globalThis: { Array: { from: () => [17] } } }), [17]);
+});
+
+QUnit.test('destructuring: a retained default keeps its constructor sibling', assert => {
+  function read({ Array: { from }, Map: M, declinedMissing: a, declinedMissing: b } = globalThis) {
+    return [from([7])[0], new M().set('key', 17).get('key'), a, b];
+  }
+  assert.deepEqual(read(), [7, 17, undefined, undefined]);
+});
