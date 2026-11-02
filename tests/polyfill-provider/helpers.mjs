@@ -1645,6 +1645,11 @@ for (const [name, end] of [['prologueEndIndex', prologueEndIndex], ['programProl
   check(`${ name }/nullish body`, end(null), 0);
   check(`${ name }/no prologue`, end([realCode, markedDirective('use strict')]), 0);
   check(`${ name }/one marked directive`, end([markedDirective('use strict'), realCode]), 1);
+  check(`${ name }/empty directive extends the prologue`, end([markedDirective(''), realCode]), 1);
+  check(`${ name }/empty directive before strict`,
+    end([markedDirective(''), markedDirective('use strict'), realCode]), 2);
+  check(`${ name }/empty directive after strict`,
+    end([markedDirective('use strict'), markedDirective(''), realCode]), 2);
   check(`${ name }/consecutive marked directives`,
     end([markedDirective('use strict'), markedDirective('use asm'), realCode]), 2);
   check(`${ name }/a marked directive past code does not extend`,
