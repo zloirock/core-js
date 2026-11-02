@@ -82,6 +82,9 @@ module.exports = function (options, source) {
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
 
+    // An own property with an undefined value still needs the implementation.
+    USE_NATIVE = USE_NATIVE && nativeProperty !== undefined;
+
     // export native or implementation
     var baseResultProperty = USE_NATIVE ? nativeProperty : source[key];
 
