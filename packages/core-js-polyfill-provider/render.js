@@ -1,4 +1,5 @@
 import {
+  dropDeadSequenceElements,
   isValidIdentifierName,
   PRIMITIVE_LITERAL_TYPES,
   markGeneratedMemoDeclarator,
@@ -1177,6 +1178,23 @@ export function renderDestructureDispatch(callee, receiver, product = null) {
   const call = callExpression(callee, [receiver]);
   if (product) product.receiver = call;
   return call;
+}
+
+// One lifted initializer expression keeps only observable work, or no expression at all.
+// Without scope, the conservative trim can retain a quiet final value; drop that value
+// before embedding. Native source nodes are embedded only after the effect decision.
+export function renderLiftedPrefix(prefix, ctx = null, embed = null) {
+  const kept = ctx ? observableSequenceElements(prefix, ctx) : dropDeadSequenceElements(prefix);
+  if (!kept.length) return null;
+  const lifted = sequenceExpression(kept);
+  if (!ctx && !mayHaveSideEffects(lifted)) return null;
+  return embed ? sequenceExpression(kept.map(embed)) : lifted;
+}
+
+// A mirrored branch keeps the original probe and fallback around the completed value.
+// The binding supplies live native nodes, after recovering the target and its own probe.
+export function renderMirrorTarget(value, { nullTestOn, keepArm }, embed = node => node) {
+  return nullTestOn ? conditionalExpression(nullGuardTest(nullTestOn, { embed }), embed(keepArm), embed(value)) : embed(value);
 }
 
 // Apply an already-placed initializer prefix at the producer's receiver slot, including under a

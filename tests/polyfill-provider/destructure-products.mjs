@@ -4,6 +4,10 @@ import {
   callExpression,
   cloneNode,
   identifier,
+  hostSlot,
+  hostSlotNode,
+  renderLiftedPrefix,
+  renderMirrorTarget,
   renderDestructureDispatch,
   renderDestructurePrefix,
   renderForInitSink,
@@ -106,4 +110,59 @@ runBoth('consumed initializer landing', 'const source = (first(), second(), rece
   checkDeep(`${ label }/carry reads live slot`, dispatch.arguments[0].expressions, [first, liveReceiver]);
   check(`${ label }/source unchanged`, JSON.stringify(init), before);
 });
+// Effect decisions inspect raw source nodes before native embedding. A context can
+// expose a getter which the context-free trim cannot see; no quiet tail is evaluated.
+runBoth('lifted prefix product', 'const source = [0, first(), box.value, second(), 2];', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const nodes = path.node.init.elements;
+  const before = JSON.stringify(nodes);
+  const ctx = { scope: path.scope, path, adapter: { readRunsAccessor: ({ node }) => node === nodes[2] } };
+  for (const context of [null, ctx]) for (const embedded of [false, true]) {
+    const name = `${ label }/${ context ? 'scoped' : 'unscoped' }/${ embedded }`;
+    const seen = [];
+    const embed = embedded ? node => {
+      seen.push(node);
+      return hostSlot(node);
+    } : null;
+    check(`${ name }/empty`, renderLiftedPrefix([], context, embed), null);
+    check(`${ name }/quiet`, renderLiftedPrefix([nodes[0], nodes[4]], context, embed), null);
+    check(`${ name }/dead values never embedded`, seen.length, 0);
+    const one = renderLiftedPrefix([nodes[1]], context, embed);
+    check(`${ name }/single source identity`, hostSlotNode(one), nodes[1]);
+    seen.length = 0;
+    const many = renderLiftedPrefix(nodes, context, embed);
+    const expected = context ? [nodes[1], nodes[2], nodes[3]] : [nodes[1], nodes[3]];
+    checkDeep(`${ name }/ordered source identities`, many.expressions.map(hostSlotNode), expected);
+    checkDeep(`${ name }/embeds only surviving work`, seen, embedded ? expected : []);
+    check(`${ name }/getter-only prefix`, hostSlotNode(renderLiftedPrefix([nodes[2]], context, embed)), context ? nodes[2] : null);
+    check(`${ name }/source stays unchanged`, JSON.stringify(nodes), before);
+  }
+});
+
+// The completed mirror stays behind its source probe. Both the fallback and the
+// probe keep their own identity, including when a binding embeds non-canonical nodes.
+runBoth('mirror target product', 'const source = [receiver, (effect(), receiver), fallback(), value()];',
+  (parser, program, label) => {
+    const [plain, sequence, keepArm, value] = parser.pickPath(program, 'VariableDeclarator').node.init.elements;
+    for (const probe of [plain, sequence]) for (const embedded of [false, true]) {
+      const seen = [];
+      function embed(node) {
+        seen.push(node);
+        return embedded ? hostSlot(node) : node;
+      }
+      const before = JSON.stringify([probe, keepArm, value]);
+      const rendered = renderMirrorTarget(value, { nullTestOn: probe, keepArm }, embed);
+      check(`${ label }/conditional`, rendered.type, 'ConditionalExpression');
+      check(`${ label }/source null test`, rendered.test.operator, '==');
+      check(`${ label }/probe position`, hostSlotNode(probe === plain ? rendered.test.left : rendered.test.right), probe);
+      check(`${ label }/fallback identity`, hostSlotNode(rendered.consequent), keepArm);
+      check(`${ label }/completed value identity`, hostSlotNode(rendered.alternate), value);
+      checkDeep(`${ label }/embed order`, seen, [probe, keepArm, value]);
+      check(`${ label }/source unchanged`, JSON.stringify([probe, keepArm, value]), before);
+      seen.length = 0;
+      check(`${ label }/unguarded value identity`, hostSlotNode(renderMirrorTarget(value, {}, embed)), value);
+      checkDeep(`${ label }/unguarded embeds only its value`, seen, [value]);
+    }
+  });
+
 finish();

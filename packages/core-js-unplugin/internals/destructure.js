@@ -1,7 +1,6 @@
 import {
   applyNestedParamSynthPlan,
   buildNestedParamSynthPlan,
-  buildParameterArgumentSynthPlan,
   buildPatternRenderPlan,
   carriedInitReceiverNode,
   classifyCallBranchForSynth,
@@ -25,7 +24,8 @@ import {
   proxyNavHead,
   seKeyStaticOwesTheMirror,
   resolveNestedReceiverNode,
-  patternClaimOwesMirror,
+  applyPatternClaimMirror,
+  applyParameterClaimMirror,
   resolvePassthroughRef,
   staticHopPure as sharedStaticHopPure,
   synthPropDedupKey,
@@ -115,7 +115,6 @@ import {
   soleChainToProp,
   isChainAssignment,
   isBodylessStatementSlot,
-  isFunctionParamDestructureParent,
   peelFallbackBranchInner,
   peelTransparentExpr,
   peelParenAndTSParentPath,
@@ -145,10 +144,9 @@ import { replaceNodeInTree } from './emit-shared.js';
 import {
   assignmentExpression,
   blockStatement,
-  conditionalExpression,
   expressionStatement,
   memberFromKeyName,
-  nullGuardTest,
+  renderMirrorTarget,
   callExpression,
   renderDestructureDispatch,
   renderResidualAnchor,
@@ -393,7 +391,7 @@ export default function createAstDestructureEmitter({
   }) {
     const leafPattern = metaPath.parentPath;
     if (!argumentSites && synthDone.has(leafPattern.node)) return true;
-    const options = {
+    const plan = buildNestedParamSynthPlan({
       leafPatternPath: leafPattern,
       meta,
       resolvePure: (m, at = metaPath) => resolvePure(m, at),
@@ -401,12 +399,14 @@ export default function createAstDestructureEmitter({
       parameterCallSites: argumentSites,
       isDisabledProp: isDisabled,
       allowFlatInstanceDefault,
-    };
-    const plan = argumentSites ? buildParameterArgumentSynthPlan(options) : buildNestedParamSynthPlan(options);
-    if (deferredOnly && !plan?.targets?.some(target => target.localMemo)) return false;
-    const applied = applyNestedParamSynthPlan({
+    });
+    return applyNestedParamSynthPlan({
       plan,
       fallbackOnBail,
+      deferredOnly,
+      callerMirror: !!argumentSites,
+      // Only a rendered default closes this leaf; a bail or a caller mirror does not.
+      onApplied: () => { if (!argumentSites && !plan?.bail) synthDone.add(leafPattern.node); },
       // Caller-argument mirrors own their memo in the caller's evaluation frame.
       mintMemoRef: target => target.localMemo ? mintRefName()
         : injector.generateDeclaredRef(target.host ?? plan.host ?? metaPath),
@@ -428,15 +428,7 @@ export default function createAstDestructureEmitter({
         // binding belongs to that binding's own declaration, and swapping a literal in there
         // rewrites what every other reader sees (`const w3 = [globalThis]` stays)
         if (withinNode && !nodeHoldsSubtree(withinNode, targetNode)) return false;
-        // the PROBE arm's re-spelling: the selection becomes a null test on the probe's own read, so
-        // the fallback still runs where the source ran it while the realm arm carries the literal
-        // ... and a KEPT PREFIX stands ahead of the literal that takes its place, so the element runs
-        // where the source wrote it and only its value is dropped. a COPY, so the replacement does not
-        // contain the node it replaces, and so the walk still owes the reads inside it
-        const value = target?.nullTestOn
-          ? conditionalExpression(nullGuardTest(target.nullTestOn), target.keepArm, rendered)
-          : rendered;
-        if (!replaceNodeInTree(program, targetNode, value)) return false;
+        if (!replaceNodeInTree(program, targetNode, renderMirrorTarget(rendered, target))) return false;
         markRewrite();
         return true;
       },
@@ -456,36 +448,26 @@ export default function createAstDestructureEmitter({
         }
       },
     });
-    // ... a BAIL answered "stays native" for this claim alone: only a rendered mirror serves the
-    // leaf's other claims, so only that one closes the leaf to them
-    if (applied && !argumentSites && !plan?.bail) synthDone.add(leafPattern.node);
-    // the caller mirror answers a different question than the host's: not "did a mirror render" but
-    // "is the leaf's inner default arm closed for every caller" (the plan's `settled`) - a rendered
-    // argument beside an open default still leaves the parameter's own rewrite to run
-    // ... and otherwise the application verdict alone, as on the other leg: a caller telling a declined
-    // plan from a bail asks again without the fallback, where a bail answers true
-    if (argumentSites) return !!plan?.settled;
-    return applied;
   }
 
   // Ask the shared mirror obligation before competing extraction routes, provided this host
   // has no queued job already owning it. Declaration, assignment and loop receivers may qualify.
+  const patternMirrorBinding = {
+    resolvePure,
+    parameterCallSites,
+    renderMirror: (metaPath, meta, { parameterCallSites: argumentSites, ...options }) => renderNestedParamSynth({
+      metaPath, meta, argumentSites, ...options,
+    }),
+    primeReceiverTypes: primeDestructureReceiverTypes,
+    renderArrayFlatten: renderArrayFlattenPlan,
+  };
   function tryPatternMirror({ metaPath, meta }) {
     // A queued extraction still reads this receiver at drain time. Leave its host to
     // the ordinary flatten so a later mirror cannot change that earlier read.
     const host = destructurePatternHostPath(metaPath);
     if (queuedJobsFor(host)?.jobs.some(job => host.node.type !== 'VariableDeclarator'
       || job.declarator === host.node)) return false;
-    const pure = resolvePure(meta, metaPath);
-    if (!patternClaimOwesMirror(pure?.kind, metaPath, meta)) return false;
-    // A parameter's known callers still own their arguments before its default changes.
-    if (pure?.kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(metaPath.parentPath)
-      && renderNestedParamSynth({ metaPath, meta, argumentSites: parameterCallSites, fallbackOnBail: true })) return true;
-    // Sibling instance claims describe the source receiver, before its mirrored branch moves.
-    if (meta.fromFallback) primeDestructureReceiverTypes?.(metaPath);
-    // The array plan records the mirror before moving its neighbouring reads.
-    if (meta.fromFallback && renderArrayFlattenPlan(metaPath)) return true;
-    return renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true }) === true;
+    return applyPatternClaimMirror(metaPath, meta, patternMirrorBinding);
   }
 
   // one slot of the simple synth literal; the drain renders the whole pattern at once
@@ -1159,18 +1141,7 @@ export default function createAstDestructureEmitter({
     const sourceDefault = metaPath.node.value;
     if (sourceDefault?.type === 'AssignmentPattern') sourceDefault.defaultCommentsAt ??= unwrapParens(sourceDefault.right).start;
     const keyCtx = { scope: metaPath.scope, adapter, path: metaPath };
-    // the caller mirror first: where it settles the leaf's inner default arm for every caller
-    // (mirrored the default, or proved it dead at each call), the rewrites below would only add
-    // dead text beside it
-    if (parameterCallSites && renderNestedParamSynth({ metaPath, meta, argumentSites: parameterCallSites, fallbackOnBail: true })) return;
-    if (kind === 'instance' && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
-    // A flat open default normally uses the compact data-slot synth. If an earlier
-    // parameter/default step can observe its reads, use the shared lazy mirror instead.
-    if (kind === 'instance' && renderNestedParamSynth({
-      metaPath, meta, allowFlatInstanceDefault: true, deferredOnly: true,
-    })) return;
-    // A declined caller mirror must retain absent properties and the caller's own defaults.
-    if (meta?.parameterArgumentsOnly) return;
+    if (applyParameterClaimMirror(metaPath, meta, kind, patternMirrorBinding)) return;
     // every leaf of this pattern answers its receiver type before the routes below rewrite it
     primeDestructureReceiverTypes?.(metaPath);
     // Expand literal array spreads before choosing their capture, as on the Babel host.

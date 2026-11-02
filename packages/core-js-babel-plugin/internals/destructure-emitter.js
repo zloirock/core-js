@@ -20,7 +20,8 @@ import {
   renderNestedDeclarationReceiver,
   renderParameterInstanceCapture,
   renderKeyedDestructureRead,
-  nullGuardTest,
+  renderMirrorTarget,
+  renderLiftedPrefix,
   renderStaticDefaultGuard,
   exportDeclaration,
   renderDestructureStatements,
@@ -44,7 +45,6 @@ import {
   destructureReceiverNode,
   discardedSequenceElement,
   discardedSequenceElementPath,
-  dropDeadSequenceElements,
   exportedSentinelSplit,
   forOfHeadIterableElements,
   hasRestSiblingExcept,
@@ -96,7 +96,6 @@ import {
   applyNestedParamSynthPlan,
   assignmentLeafReadsPositionally,
   buildNestedParamSynthPlan,
-  buildParameterArgumentSynthPlan,
   canTransformDestructuring as sharedCanTransformDestructuring,
   classifyCallBranchForSynth,
   computedRootMemoChain,
@@ -134,7 +133,8 @@ import {
   resolveNestedReceiverChain,
   seKeyStaticOwesTheMirror,
   resolveNestedReceiverNode,
-  patternClaimOwesMirror,
+  applyPatternClaimMirror,
+  applyParameterClaimMirror,
   staticHopPure as sharedStaticHopPure,
   synthPropDedupKey,
   typedNavClaimChain,
@@ -343,16 +343,6 @@ function revisitNext(paths) {
   for (const path of paths) path.requeue();
 }
 
-// the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
-// gone, so a trailing effect-free element is a read nobody performs, and a prefix left with no
-// observable at all is not a statement the source ran (`({ Map: m } = (0, globalThis))`)
-function liftedPrefixExpression(t, prefix, ctx = null) {
-  const kept = ctx ? observableSequenceElements(prefix, ctx) : dropDeadSequenceElements(prefix);
-  if (!kept.length) return null;
-  const lifted = kept.length === 1 ? kept[0] : t.sequenceExpression(kept);
-  return ctx || mayHaveSideEffects(lifted) ? lifted : null;
-}
-
 // a SURVIVING residual keeps the receiver, so the extraction lands AHEAD of it - but the source
 // ran the receiver's sequence prefix before either. lift the prefix to where the source ran it,
 // or the effect observes the write the extraction has already made (`var { Map: m, other } =
@@ -441,7 +431,7 @@ function renderNestedParamSynth({
     mirroredHosts,
     generateRef,
   } = deps;
-  const options = {
+  const plan = buildNestedParamSynthPlan({
     leafPatternPath: prop.parentPath,
     meta,
     resolvePure: (value, at = prop) => resolvePure(value, at),
@@ -449,12 +439,11 @@ function renderNestedParamSynth({
     parameterCallSites,
     isDisabledProp: isDisabled,
     allowFlatInstanceDefault,
-  };
-  const plan = parameterCallSites ? buildParameterArgumentSynthPlan(options) : buildNestedParamSynthPlan(options);
-  if (deferredOnly && !plan?.targets?.some(target => target.localMemo)) return false;
-  const applied = applyNestedParamSynthPlan({
+  });
+  return applyNestedParamSynthPlan({
     plan,
-    fallbackOnBail,
+    fallbackOnBail, deferredOnly, callerMirror: !!parameterCallSites,
+    onApplied: () => { if (plan?.host?.node) mirroredHosts.add(plan.host.node); },
     embed: node => hostSlot(t.cloneNode(node, true)),
     // A caller mirror owns its memo where that caller evaluates the argument, rather than
     // where the callee's parameter leaf was detected.
@@ -517,13 +506,7 @@ function renderNestedParamSynth({
           probeKeyReadNode(guarded.node, { name: firstKey }), rendered,
         ]);
       }
-      // the PROBE arm's re-spelling, with this host's own factory at its own insertion boundary: the
-      // selection becomes a null test on the probe's own read, the fallback keeps the slot the source
-      // ran it in, and the realm arm takes the literal
-      if (source.nullTestOn) rendered = t.conditionalExpression(
-        estreeToBabel(nullGuardTest(hostSlot(source.nullTestOn))), source.keepArm, rendered,
-      );
-      target.replaceWith(rendered);
+      target.replaceWith(estreeToBabel(renderMirrorTarget(rendered, source, hostSlot)));
       return true;
     },
     skipSubtree: targetNode => t.traverseFast(targetNode, node => { skippedNodes.add(node); }),
@@ -544,11 +527,6 @@ function renderNestedParamSynth({
       }
     },
   });
-  // the caller mirror answers a different question than the host's: not "did a mirror render" but
-  // "is the leaf's inner default arm closed for every caller" (the plan's `settled`) - a rendered
-  // argument beside an open default still leaves the parameter's own rewrite to run
-  if (applied && plan?.host?.node) mirroredHosts.add(plan.host.node);
-  return parameterCallSites ? !!plan?.settled : applied;
 }
 
 // destructure-emit factory: orchestrates the flatten / cascade / param / catch pipelines,
@@ -1114,19 +1092,7 @@ export default function createDestructureEmitter({
   // Instance claims need a proven receiver. A parameter may use a proven body extraction;
   // otherwise it stays native, and so does a claim of another host no synth takes.
   function handleParameterDestructure({ prop, kind, entry, hintName, meta = null }) {
-    // the caller mirror first: where it settles the leaf's inner default arm for every caller
-    // (mirrored the default, or proved it dead at each call), the rewrites below would only add
-    // dead text beside it
-    if (parameterCallSites && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return;
-    if (kind === 'instance' && renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
-    // A flat open default normally uses the compact data-slot synth. If an earlier
-    // parameter/default step can observe its reads, use the shared lazy mirror instead.
-    if (kind === 'instance' && renderNestedParamSynth({
-      prop, meta, deps: synthPlanDeps, allowFlatInstanceDefault: true, deferredOnly: true,
-    })) return;
-    // A declined caller mirror cannot be replaced by a leaf default: an absent supplied
-    // property must stay undefined, and an existing user default must still execute.
-    if (meta?.parameterArgumentsOnly) return;
+    if (applyParameterClaimMirror(prop, meta, kind, patternMirrorBinding)) return;
     if (kind === 'instance') {
       // an instance method destructured off a typed param DEFAULT (`function f({ at } = Array.prototype)`)
       // synths the default itself - caller-correct (the synth only evaluates when the arg is omitted; a
@@ -1200,20 +1166,15 @@ export default function createDestructureEmitter({
 
   // Ask the shared mirror obligation before binding-only routes reject a pattern-valued
   // static. Its receiver may belong to a declaration, an assignment or a for-x head.
+  const patternMirrorBinding = {
+    resolvePure,
+    parameterCallSites,
+    renderMirror: (prop, meta, options) => renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, ...options }),
+    primeReceiverTypes: primeDestructureReceiverTypes,
+    renderArrayFlatten: renderArrayFlattenPlan,
+  };
   function tryPatternMirror({ prop, meta }) {
-    const pure = resolvePure(meta, prop);
-    if (!patternClaimOwesMirror(pure?.kind, prop, meta)) return false;
-    // A parameter's known callers still own their arguments before its default changes.
-    if (pure?.kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(prop.parentPath)
-      && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return true;
-    // Sibling instance claims describe the source receiver, before its mirrored
-    // branch becomes a synthetic object literal and Babel revisits the pattern.
-    if (meta.fromFallback) {
-      primeDestructureReceiverTypes(prop);
-      // The array plan records the mirror before moving its neighbouring reads.
-      if (renderArrayFlattenPlan(prop)) return true;
-    }
-    return renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true });
+    return applyPatternClaimMirror(prop, meta, patternMirrorBinding);
   }
 
   // ctor-alias registration off a kind-global destructure property: a binding-less name (writing
@@ -3462,11 +3423,11 @@ export default function createDestructureEmitter({
     if (pinnedBySibling && !isExport && !isForInitDeclaration(residualDecl.parentPath?.node, residualDecl.node)
       && statementListOf(residualDecl.parentPath?.node)) {
       const { prefix, tail } = peelNestedSequenceExpressions(declaratorNode.init);
-      const lifted = prefix.length ? liftedPrefixExpression(t, prefix, residualCtx) : null;
+      const lifted = prefix.length ? renderLiftedPrefix(prefix, residualCtx, hostSlot) : null;
       if (prefix.length) declaratorNode.init = tail;
       splitDeclarationAtSlot({
         declaration: residualDecl, idx, keepSlot: true,
-        sePrefix: lifted ? [lifted] : [],
+        sePrefix: lifted ? [estreeToBabel(lifted)] : [],
         extractedDeclarators,
       });
       return;
@@ -5862,9 +5823,9 @@ export default function createDestructureEmitter({
       const carryCtx = carryPath ? { scope: carryPath.scope, adapter, path: carryPath } : null;
       const { prefix, tail } = liftedPrefixSplit(residual.init, carryCtx);
       if (!prefix.length) continue;
-      const lifted = liftedPrefixExpression(t, prefix, carryCtx);
+      const lifted = renderLiftedPrefix(prefix, carryCtx, hostSlot);
       residual.init = tail;
-      carryPrefixIntoValue(lifted, extracted);
+      carryPrefixIntoValue(lifted && estreeToBabel(lifted), extracted);
     }
     forInitCarries.clear();
   }

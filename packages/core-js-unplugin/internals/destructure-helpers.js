@@ -35,7 +35,6 @@ import {
 import {
   allProxySelectingInit,
   computedKeyHasSideEffects,
-  dropDeadSequenceElements,
   hasRestSiblingExcept,
   isDestructurePattern,
   isForXStatement,
@@ -96,6 +95,7 @@ import {
   exportDeclaration,
   renderDestructureStatements,
   renderDestructurePrefix,
+  renderLiftedPrefix,
   renderDestructureKeySegments,
 } from '@core-js/polyfill-provider/render';
 
@@ -252,19 +252,8 @@ export function initRawKeyOnRoot(initNode) {
     && peelTransparentExpr(init.object)?.type === 'Identifier';
 }
 
-// the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
-// gone, so an element with nothing to observe is a comma the source wrote rather than work it did,
-// and a prefix left with no observable at all is not a statement the source ran
-function liftedPrefixExpression(prefix, ctx = null) {
-  if (!prefix.length) return null;
-  const kept = ctx ? observableSequenceElements(prefix, ctx) : dropDeadSequenceElements(prefix);
-  if (!kept.length) return null;
-  const lifted = kept.length === 1 ? kept[0] : sequenceExpression(kept);
-  return ctx || mayHaveSideEffects(lifted) ? lifted : null;
-}
-
 export function liftedPrefixStatements(prefix, ctx = null) {
-  const lifted = liftedPrefixExpression(prefix, ctx);
+  const lifted = renderLiftedPrefix(prefix, ctx);
   return lifted ? [expressionStatement(lifted)] : [];
 }
 
@@ -300,7 +289,7 @@ function takeSourceSequencePrefix(declarator, key, ctx) {
 export function takeForInitPrefix(declarator, declJobs, extracted, ctx) {
   if (!extracted.length || declJobs.some(job => job.readsReceiver)) return [];
   const prefix = takeSourceSequencePrefix(declarator, 'init', ctx);
-  const lifted = prefix.length ? liftedPrefixExpression(prefix, ctx) : null;
+  const lifted = prefix.length ? renderLiftedPrefix(prefix, ctx) : null;
   if (!lifted) return [];
   return lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
 }
