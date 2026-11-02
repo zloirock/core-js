@@ -1,5 +1,6 @@
 // Foreign slot values keep the source default observable without declaring a source mutation.
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+import { withChangingWindow, withWindowPresence } from './unbacked-window-host.cjs';
 
 QUnit.test('an unclaimed realm pattern keeps its default and receiver effects', assert => {
   const events = [];
@@ -75,4 +76,29 @@ QUnit.test('a consumed realm assignment serves nested constructors without nativ
   const kept = { globalThis: { Array: { unknown } } } = globalThis;
   assert.same(kept, globalThis);
   assert.same(unknown, undefined);
+});
+
+QUnit.test('a surviving claim reads the stored guarded receiver once', assert => {
+  withChangingWindow(() => {
+    let saved;
+    let name;
+    // eslint-disable-next-line prefer-const, @stylistic/no-extra-parens -- The assignment and stored source are the forms under test.
+    ({ Map: { name } } = (saved = globalThis.window?.self));
+    assert.same(saved, globalThis);
+    assert.same(typeof name, 'string');
+  });
+  for (const requested of [false, true]) withWindowPresence(requested, present => {
+    const effects = [];
+    let saved;
+    let result;
+    try {
+      const { Map: { name } } = (effects.push('prefix'), saved = globalThis.window?.self);
+      result = typeof name;
+    } catch (error) {
+      result = error.name;
+    }
+    assert.same(result, present ? 'string' : 'TypeError');
+    assert.same(saved, present ? globalThis : undefined);
+    assert.deepEqual(effects, ['prefix']);
+  });
 });

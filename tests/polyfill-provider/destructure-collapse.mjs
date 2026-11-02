@@ -1785,6 +1785,12 @@ for (const [name, source, supplied, staticEntry, expected, mutated = false] of [
   ['store without a claim', 'let held; const { Array: { name } } = (held = globalThis);', {}, false, false],
   ['guard without a claim', 'let held; const { Array: { name } } = (held = globalThis.window?.self);', {}, false, false],
   ['guarded constructor', 'let held; const { Map: { unknown } } = (held = globalThis.window?.self);', { globalThis: 'global-this', Map: 'map/constructor' }, false, true],
+  ['prefixed guarded constructor', 'let held; const { Map: { name } } = (effect(), held = globalThis.window?.self);',
+    { globalThis: 'global-this', Map: 'map/constructor' }, false, true],
+  ['nested prefix guarded constructor', 'let held; const { Map: { name } } = (effect(), (other(), held = globalThis.window?.self));',
+    { globalThis: 'global-this', Map: 'map/constructor' }, false, true],
+  ['defaulted guarded constructor', 'let held; const { Map: { name } = fallback() } = (held = globalThis.window?.self);',
+    { globalThis: 'global-this', Map: 'map/constructor' }, false, true],
   ['unknown slot', 'const { Other: { name } } = globalThis;', { globalThis: 'global-this' }, false, false],
 ]) runBoth(`anchor activation/${ name }`, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
@@ -1807,6 +1813,12 @@ for (const [name, source, supplied, staticEntry, expected, mutated = false] of [
   check(`${ label }/activation`, !!plan, expected);
   check(`${ label }/discarded query`, !!buildNestedDestructurePlan(options), expected);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  if (name.includes('guarded constructor')) {
+    check(`${ label }/stored guard`, !!plan.guarded, true);
+    check(`${ label }/claims stay live`, plan.outerProps.every(item => item.kind === 'verbatim'), true);
+    check(`${ label }/guard owns effects`, plan.discardSe, null);
+    check(`${ label }/default stays live`, plan.defaultValue?.type, name.startsWith('defaulted') ? 'CallExpression' : undefined);
+  }
 });
 
 // --- residualInitRunsEffects ---
