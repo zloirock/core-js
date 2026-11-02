@@ -68,7 +68,7 @@
     "test-babel-plugin-unit-v7": "npm run zxi time cd tests/babel-plugin-v7/unit.mjs",
     "test-babel-plugin-v7": "npm run zxi time cd tests/babel-plugin-v7/runner.mjs",
     "test-polyfill-provider": "npm run zxi time cd tests/polyfill-provider/index.mjs",
-    "test-unplugin": "npm run zxi time cd tests/unplugin/index.mjs",
+    "test-unplugin": "npm run zxi -- time cd tests/unplugin/index.mjs",
     "test-unplugin-unit": "npm run zxi time cd tests/unplugin/unit.mjs",
     "test-unplugin-roundtrip": "npm run zxi time cd tests/unplugin/roundtrip.mjs",
     "test-transpiler-differential": "npm run zxi time cd tests/transpiler-differential/index.mjs",

@@ -545,11 +545,11 @@ const CASES = [
       emitters: ['unplugin'], phase: 'pre+post', lowering: true,
       bounds: { 'usage-global': { unplugin: 1 }, 'usage-pure': { unplugin: 1 } } },
   ]),
-  // globalthis's Node entry only exports `global`; the other two sources must inject.
+  // Use the browser entry: the Node entry only exports `global` and exercises no realm guards.
   { name: 'browser realm libraries, global guards and aliases',
-    source: () => Promise.all(['whatwg-fetch/fetch.js', 'es6-promise/dist/es6-promise.js', 'globalthis/implementation.js']
+    source: () => Promise.all(['whatwg-fetch/fetch.js', 'es6-promise/dist/es6-promise.js', 'globalthis/implementation.browser.js']
       .map(file => readFile(join(HERE, 'node_modules', file), 'utf8'))),
-    injections: 2, bounds: {
+    injections: 3, bounds: {
       'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
     } },
   { name: 'synthetic wide container patterns, 256 slots in 8 scopes', source: () => syntheticWideContainerPatterns(256, 8), bounds: {

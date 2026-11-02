@@ -1,6 +1,64 @@
-import { equal, notEqual, ok } from 'node:assert/strict';
+import { deepEqual, equal, notEqual, ok, throws } from 'node:assert/strict';
 import { parseSync } from 'oxc-parser';
 import { commentSignature, strip } from './structural.mjs';
+import { phaseImportVerdict, importSources, transformPrePost } from './phase-imports.mjs';
+
+// Phase imports are syntax, not lines or arbitrary strings containing a package path.
+// Keep package names distinct: a global entry cannot stand in for its pure counterpart.
+const phaseImportsSource = `/* prefix */ import 'core-js/modules/es.array.at'; import 'core-js/modules/es.array.includes';
+import {
+  default as at
+} from '@core-js/pure/actual/array/instance/at';
+require('core-js/modules/es.array.at'); await import('core-js/modules/es.promise.constructor');
+export { default as from } from '@core-js/pure/actual/array/from';
+import old = require('@core-js/pure/actual/map');
+const text = 'import "core-js/modules/fake"'; // require('core-js/modules/comment')
+object.require('core-js/modules/member'); import 'another-package';
+import 'core-js/actual/map'; import '/vendor/core-js/modules/es.array.at.js';
+require('polyfill-alias/actual/array/at');
+`;
+// eslint-disable-next-line node/no-sync -- same parser as the fixture gate
+deepEqual(importSources(parseSync('input.ts', phaseImportsSource).program), [
+  '/vendor/core-js/modules/es.array.at.js',
+  '@core-js/pure/actual/array/from', '@core-js/pure/actual/array/instance/at', '@core-js/pure/actual/map',
+  'another-package', 'core-js/actual/map', 'core-js/modules/es.array.at', 'core-js/modules/es.array.includes', 'core-js/modules/es.promise.constructor',
+  'polyfill-alias/actual/array/at',
+]);
+
+const recordedPhaseDifference = new Map([['fixture', { added: ['extra'], missing: ['lost'] }]]);
+for (const [name, expected, actual, status] of [
+  ['plain', ['a', 'b'], ['b', 'a', 'a'], 'passed'],
+  ['plain', ['a'], [], 'failed'],
+  ['plain', [], ['extra'], 'failed'],
+  ['fixture', ['lost'], ['extra'], 'known'],
+  ['fixture', ['lost'], ['extra', 'new'], 'failed'],
+  ['fixture', ['lost'], [], 'failed'],
+  ['fixture', ['same'], ['same'], 'stale'],
+]) equal(phaseImportVerdict(name, expected, actual, recordedPhaseDifference).status, status);
+
+// These doubles test orchestration, not transformer semantics: post must receive the
+// exact pre result on the same object/id, including empty code and a null pre result.
+for (const pre of [null, { code: '' }, { code: 'changed' }]) {
+  for (const post of [null, { code: 'final' }]) {
+    const seen = [];
+    const plugin = { transform(code, id, pass) {
+      equal(this, plugin);
+      seen.push([code, id, pass]);
+      return pass === 'pre' ? pre : post;
+    } };
+    equal(transformPrePost(plugin, 'source', 'file.ts'), post ?? pre);
+    deepEqual(seen, [['source', 'file.ts', 'pre'], [pre?.code ?? 'source', 'file.ts', 'post']]);
+  }
+}
+for (const failurePass of ['pre', 'post']) {
+  const seen = [];
+  throws(() => transformPrePost({ transform(code, id, pass) {
+    seen.push(pass);
+    if (pass === failurePass) throw new Error('phase failure');
+    return null;
+  } }, 'source', 'file.ts'), /phase failure/);
+  deepEqual(seen, failurePass === 'pre' ? ['pre'] : ['pre', 'post']);
+}
 
 function identity(source) {
   // eslint-disable-next-line node/no-sync -- fixture comparisons use the synchronous parser

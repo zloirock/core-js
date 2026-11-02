@@ -42,6 +42,8 @@ For routine agent perf checks, including the final check of work unrelated to pe
 
 The denser suites carry their own `AGENTS.md` with the conventions of the area; the rows above are the map, not the whole story.
 
+The unplugin fixture runner also checks usage fixtures through `pre -> post` on one instance and filename, including error baselines. It compares exact import sets (including absolute paths and package aliases) with the single pass already held to the Babel baseline or its explicit sidecar. Entry-global has no pre+post mode. Phase comparisons have separate counters and a corpus floor; regeneration does not verify them. Existing exact import differences in `unplugin/phase-imports.mjs` are reported as open debt, never as passed parity: a changed or stale difference fails. `npm run test-unplugin -- --strict-pre-post` also fails on that remaining debt. Removing a fixture or skipping its phase check cannot silently retire its record. This import gate does not prove runtime equivalence or structural parity; those remain separate oracles.
+
 ## Rules
 
 - A test that exposes a bug is never deleted or retargeted
