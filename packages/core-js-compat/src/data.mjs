@@ -712,7 +712,9 @@ export const data = {
   },
   'es.iterator.concat': {
     bun: '1.3.7',
-    chrome: '146',
+    // V8 closes the inner iterator on errors from IteratorStepValue.
+    // https://issues.chromium.org/issues/580293064
+    // chrome: '146',
     firefox: '147',
     safari: '26.4',
   },

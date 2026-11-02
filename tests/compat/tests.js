@@ -817,7 +817,22 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Iterator.prototype.chunks;
   },
   'es.iterator.concat': function () {
-    return Iterator.concat;
+    // https://issues.chromium.org/issues/580293064
+    if (!Iterator.concat) return false;
+    var closed = false;
+    var iterable = {};
+    iterable[Symbol.iterator] = function () {
+      return {
+        next: function () { throw 1; },
+        'return': function () { closed = true; return {}; }
+      };
+    };
+    try {
+      Iterator.concat(iterable).next();
+    } catch (error) {
+      return error === 1 && !closed;
+    }
+    return false;
   },
   'es.iterator.dispose': function () {
     return [].keys()[Symbol.dispose];

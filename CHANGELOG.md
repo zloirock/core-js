@@ -22,6 +22,7 @@
 - Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
 - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Throw a `TypeError` when a running polyfilled iterator helper is re-entered
+- Added detection of [native `Iterator.concat` closing the inner iterator on errors from `next` or getters of the iterator result in V8](https://issues.chromium.org/issues/580293064)
 - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
 - Fixed `Iterator.zip` closing the input iterator when reading an input result's `value` throws
 - Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
@@ -70,6 +71,7 @@
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
+  - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
   - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
   - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
   - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments

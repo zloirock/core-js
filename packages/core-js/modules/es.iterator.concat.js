@@ -1,13 +1,31 @@
 'use strict';
 var $ = require('../internals/export');
+var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
 var $Array = Array;
+var nativeConcat = !IS_PURE && globalThis.Iterator && globalThis.Iterator.concat;
+var INCORRECT_ITERATOR_CLOSING = false;
+
+// V8 incorrectly closes the inner iterator on errors from IteratorStepValue.
+// https://issues.chromium.org/issues/580293064
+if (nativeConcat) try {
+  var iterable = {};
+  // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 compatibility
+  iterable[wellKnownSymbol('iterator')] = function () {
+    return {
+      next: function () { throw new Error('Iterator step'); },
+      'return': function () { INCORRECT_ITERATOR_CLOSING = true; return {}; }
+    };
+  };
+  nativeConcat(iterable).next();
+} catch (error) { /* empty */ }
 
 var IteratorProxy = createIteratorProxy(function () {
   while (true) {
@@ -36,7 +54,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.concat` method
 // https://tc39.es/ecma262/#sec-iterator.concat
-$({ target: 'Iterator', stat: true, forced: IS_PURE }, {
+$({ target: 'Iterator', stat: true, forced: IS_PURE || INCORRECT_ITERATOR_CLOSING }, {
   concat: function concat() {
     var length = arguments.length;
     var iterables = $Array(length);

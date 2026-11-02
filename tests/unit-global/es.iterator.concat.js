@@ -1,4 +1,5 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 const { from } = Array;
 
@@ -95,4 +96,35 @@ QUnit.test('Iterator.concat', assert => {
   assert.throws(() => concat([], null), TypeError, 'non-iterable-object argument #6');
   assert.throws(() => concat([], 1), TypeError, 'non-iterable-object argument #7');
   assert.throws(() => concat([], {}), TypeError, 'non-iterable-object argument #8');
+});
+
+// https://issues.chromium.org/issues/580293064
+QUnit.test('Iterator.concat, abrupt iterator steps', assert => {
+  const { concat } = Iterator;
+  const expectedError = new Error('iterator step');
+  const isExpectedError = error => error === expectedError;
+  const check = (next, expected, message) => {
+    let returnCalls = 0;
+    const iterator = concat(createIterable([], {
+      next,
+      return() {
+        returnCalls++;
+        return {};
+      },
+    }));
+    assert.throws(() => iterator.next(), expected, message);
+    assert.same(returnCalls, 0, 'does not close the source on its own error');
+    assert.deepEqual(iterator.next(), { done: true, value: undefined }, 'completed after the error');
+    iterator.return();
+    assert.same(returnCalls, 0, 'does not close the source after the error');
+  };
+  check(() => { throw expectedError; }, isExpectedError, 'next throws');
+  check(() => 42, TypeError, 'next returns a primitive');
+  if (DESCRIPTORS) {
+    for (const key of ['done', 'value']) {
+      check(() => Object.defineProperty({ done: false }, key, {
+        get() { throw expectedError; },
+      }), isExpectedError, `${ key } getter throws`);
+    }
+  }
 });
