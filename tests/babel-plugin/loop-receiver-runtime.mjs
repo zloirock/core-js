@@ -135,6 +135,47 @@ Object.defineProperty(__realm, "Array", { configurable: true, get() {
       }
     }
   }
+  // BigInt in moved patterns survives print/parse/lowering; a loop element remains the
+  // receiver when its declaration has no initializer. Observe defaults and source reads.
+  for (const shape of ['bigint-loop', 'bigint-catch', 'bigint-key', 'factory', 'null-receiver']) {
+    const bigint = shape.startsWith('bigint');
+    const pattern = `{ at: method, limit = (effects.push("default"), 10n)${ shape === 'bigint-key' ? ', [1n]: first' : '' } }`;
+    const read = `r.push(method.call(rows, -1), String(limit)${ shape === 'bigint-key' ? ', first' : '' });`;
+    const body = shape === 'bigint-catch' ? `try { throw rows; } catch (${ pattern }) { ${ read } }`
+      : bigint ? `for (const ${ pattern } of [rows]) { ${ read } }`
+        : `const make = () => { effects.push("source"); return { data: flag ? rows : null }; };
+          for (const { data: { at: method } } of [make()]) r.push(method.call(rows, -1));`;
+    const source = `export const effects = []; export const r = [];
+      const rows = [4, 9]; const flag = ${ shape !== 'null-receiver' };
+      try { ${ body } } catch (error) { r.push(error.name); }`;
+    scenarioSource(source);
+    const expected = shape === 'null-receiver' ? 'OK|["TypeError"]|["source"]'
+      : bigint ? `OK|[9,"10"${ shape === 'bigint-key' ? ',9' : '' }]|["default"]` : 'OK|[9]|["source"]';
+    for (const method of ['usage-pure', 'usage-global']) {
+      const options = { ...OPTIONS, method };
+      const { code: babel } = await transformAsync(source, {
+        configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, options]],
+      });
+      const plugin = createUnplugin(options);
+      const unplugin = plugin.transform(source, 'input.mjs').code;
+      const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+      const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+      const outputs = [['native', source], ['babel', babel], ['unplugin', unplugin], ['pre+post', post]];
+      for (const [host, output] of outputs.slice(1)) {
+        const { code } = await transformAsync(output, {
+          configFile: false, babelrc: false,
+          plugins: [requireBabel.resolve('@babel/plugin-transform-object-rest-spread'), requireBabel.resolve('@babel/plugin-transform-destructuring')],
+        });
+        outputs.push([`${ host }/lowered`, code]);
+      }
+      for (const [host, output] of outputs) {
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, output);
+        check(`literal/${ shape }/${ method }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+        if (host !== 'native') check(`literal/${ shape }/${ method }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }
