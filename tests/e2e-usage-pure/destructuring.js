@@ -7622,10 +7622,7 @@ export function readNestedRetainedDefault(factory, key, fallback) {
   return [method, after];
 }
 
-// an engine without `Function.prototype.name` (the karma floor) infers no names, so the
-// preservation claim has nothing to observe there
-const FUNCTION_NAMES = !!Object.getOwnPropertyDescriptor(() => { /* empty */ }, 'name');
-(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('destructuring retained defaults preserve inferred function names', assert => {
+testUnlessDetectLowered('destructuring retained defaults preserve inferred function names', assert => {
   const log = [];
   const source = {};
   recordGetter(source, 'at', log, undefined);
@@ -7800,7 +7797,7 @@ QUnit.test('destructuring assignment: an anonymous default under a user nav fire
   assert.same(fallback(), -1);
 });
 
-(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('destructuring assignment: an anonymous default under a user nav keeps its inferred name', assert => {
+testUnlessDetectLowered('destructuring assignment: an anonymous default under a user nav keeps its inferred name', assert => {
   let fallback;
   // a receiver the type channel cannot name: a TYPED plain object claims nothing here (the
   // declaration host's answer, and a lowering of the native statement names nothing), so only the
@@ -7853,7 +7850,7 @@ QUnit.test('catch parameter: a defaulted nav leaf beside a leaf-level sibling', 
   assert.deepEqual(live, [1, 'function']);
 });
 
-(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('catch parameter: an anonymous default beside a sibling keeps its inferred name', assert => {
+testUnlessDetectLowered('catch parameter: an anonymous default beside a sibling keeps its inferred name', assert => {
   const source = { codes: {}, other: { x: 1 } };
   const hop = (() => {
     try {
@@ -7904,7 +7901,7 @@ QUnit.test('a nested instance leaf off a call that provably yields the realm is 
   assert.same(eff, 2, 'each prefix runs once');
 });
 
-(FUNCTION_NAMES ? testUnlessDetectLowered : QUnit.skip)('a defaulted instance leaf beside a sibling off an effectful init keeps its inferred name', assert => {
+testUnlessDetectLowered('a defaulted instance leaf beside a sibling off an effectful init keeps its inferred name', assert => {
   let eff = 0;
   // a receiver of unknown type: the dispatch reads the leaf off the memo and the default fires
   function pick(user) {

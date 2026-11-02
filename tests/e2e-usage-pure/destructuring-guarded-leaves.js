@@ -137,8 +137,7 @@ QUnit.test('guarded destructuring: a default preserves the receiver for later sl
 
 // Post-only detection receives Babel's already-lowered anonymous defaults without inferred names.
 // The source-level differential and the other phases check our preservation of those names.
-const testNamedDefault = typeof E2E_DETECT_LOWERED === 'undefined'
-  && Object.getOwnPropertyDescriptor(() => { /* empty */ }, 'name') ? QUnit.test : QUnit.skip;
+const testNamedDefault = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
 testNamedDefault('guarded destructuring: anonymous defaults retain their binding names', assert => {
   function read(source) {
     let M = source;
