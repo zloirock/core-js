@@ -22019,6 +22019,26 @@ function * generateRelocatedLiteralHeads() {
   }
 }
 
+// Local constructor spellings and per-iteration references survive extraction.
+function * generateMovedPatternBindings() {
+  for (const name of ['Map', 'Set', 'Promise', 'Symbol']) for (const shape of ['plain', 'rest', 'default', 'for-init', 'multi']) {
+    const pattern = `{ at: ${ name }${ shape === 'default' ? ' = () => 31' : '' }, ${ shape === 'rest' ? '...rest' : 'flat' } }`;
+    const declaration = `const ${ shape === 'multi' ? 'before = 1, ' : '' }${ pattern } = row;`;
+    const read = `${ name }.call(row, -1)`;
+    const body = shape === 'for-init' ? `for (${ declaration };) return ${ read };` : `${ declaration } return ${ read };`;
+    yield { ...snippet(`moved-binding/${ name }/${ shape }`, `(() => {
+      function read(row) { ${ body } } return read([4, 9]);
+    })()`), strip: shape !== 'rest' }; // An opaque receiver with rest keeps its native read in pure.
+  }
+  for (const kind of ['const', 'let', 'var']) for (const pattern of ['{ name, find }', '{ find, at }', '{ find, ...rest }']) {
+    yield { ...snippet(`moved-binding/closure/${ kind }/${ pattern }`, `(() => {
+      const out = []; function make(rows) { for (const row of rows) {
+        ${ kind } ${ pattern } = row; out.push(() => find());
+      } } make([{ find: () => 1 }, { find: () => 2 }]); return out.map(fn => fn());
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22456,4 +22476,5 @@ export function * generate() {
   yield * generateDeclinedRealmPatterns();
   yield * generateLiveListPaths();
   yield * generateRelocatedLiteralHeads();
+  yield * generateMovedPatternBindings();
 }

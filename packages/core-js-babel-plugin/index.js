@@ -1138,10 +1138,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           for (const [index, element] of elements.entries()) {
             if (element.guarded) t.traverseFast(extracted[index], node => skippedNodes.add(node));
           }
-          const declarator = nested.host;
-          declarator.get('id').replaceWith(captured.id);
-          declarator.scope.registerBinding(declarator.parentPath.node.kind, declarator.get('id'), declarator);
-          declarator.insertAfter(extracted);
+          destructureEmit.installCaptureDeclarators(nested.host, [captured, ...extracted]);
           return true;
         }
         // a captured receiver (`const { groupBy } = box.C`) is read once into a ref the guard tests
