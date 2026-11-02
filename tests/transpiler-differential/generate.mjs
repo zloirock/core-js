@@ -21903,6 +21903,32 @@ function * generateSurvivingAnchorClaims() {
   yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
 }
 
+// A declined child keeps its key at the pattern site and still receives its realm root.
+function * generateDeclinedRealmPatterns() {
+  for (const host of ['declaration', 'parameter']) for (const supplied of [false, true]) {
+    if (host === 'declaration' && supplied) continue;
+    const pattern = '{ globalThis: { [(log.push("key"), key)]: { prototype = (log.push("leaf"), [17]) } } }';
+    const init = '(log.push("rhs"), key = "Array", globalThis)';
+    const body = host === 'parameter' ? `function read(${ pattern } = ${ init }) { return prototype; }
+      const result = read(${ supplied ? '{ globalThis: { Promise: {} } }' : '' });`
+      : `const ${ pattern } = ${ init }; const result = prototype;`;
+    yield { ...snippet(`declined-realm/${ host }/${ supplied }`, `(() => {
+      let key = 'Promise'; ${ body }
+      return ${ supplied ? 'result[0]' : 'Array.isArray(result)' };
+    })()`), strip: true };
+  }
+  yield { ...snippet('declined-realm/tdz-sibling', `(() => {
+    try { const { globalThis: { [key]: { prototype } }, key } = globalThis; return typeof prototype; }
+    catch (error) { return error.name; }
+  })()`), strip: true };
+  yield { ...snippet('declined-realm/retained-constructor-sibling', `(() => {
+    function read({ Array: { from }, Map: M, declinedMissing: a, declinedMissing: b } = globalThis) {
+      return [from([7])[0], typeof M, a, b];
+    }
+    return read();
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22337,4 +22363,5 @@ export function * generate() {
   yield * generateCapturedRealmAnchors();
   yield * generateNestedTwinCaptures();
   yield * generateSurvivingAnchorClaims();
+  yield * generateDeclinedRealmPatterns();
 }

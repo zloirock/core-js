@@ -110,6 +110,34 @@ for (const [name, parameter, argument, body, expected] of [
     });
 }
 
+runBoth('a retained default uses its resolved constructor sibling',
+  'function read({ Array: { from }, Map: M, extra: a, extra: b } = globalThis) { return [from, M, a, b]; } read();',
+  (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key.name === 'from');
+    const resolver = parser.makeResolver();
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+      method: 'usage-pure', collectBindingReferences: resolver.collectBindingReferences,
+    });
+    const plan = planRetainedObjectCapture({
+      propPath: prop, adapter, meta: { kind: 'property', object: 'Array', key: 'from', placement: 'static' },
+      parameterCallSites: resolver.parameterCallSites,
+      resolvePure: meta => meta.kind === 'global' && meta.name === 'Map'
+        ? { kind: 'global', entry: 'map/constructor', hintName: 'Map' }
+        : meta.object === 'Array' && meta.key === 'from' ? { kind: 'static', entry: 'array/from', hintName: 'from' } : null,
+    });
+    check(`${ label }/retained path is active`, !!plan?.defaultCapture, true);
+    if (!plan?.defaultCapture) return;
+    let refs = 0;
+    const imports = [];
+    renderRetainedObjectCapture(plan, {
+      adapter, mintRef: () => `memo${ ++refs }`,
+      resolveGlobalPolyfill: () => null,
+      injectImport: entry => { imports.push(entry); return entry.replace('/', '$'); },
+    });
+    check(`${ label }/constructor survives the split`, imports.includes('map/constructor'), true);
+    check(`${ label }/static sibling survives the split`, imports.includes('array/from'), true);
+  });
+
 for (const [source, closed] of [
   ['export const log = []; use(log);', false],
   ['const log = []; use(log); export { log };', false],

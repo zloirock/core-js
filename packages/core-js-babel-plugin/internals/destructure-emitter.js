@@ -1202,7 +1202,10 @@ export default function createDestructureEmitter({
   // static. Its receiver may belong to a declaration, an assignment or a for-x head.
   function tryPatternMirror({ prop, meta }) {
     const pure = resolvePure(meta, prop);
-    if (!patternClaimOwesMirror(pure?.kind, prop)) return false;
+    if (!patternClaimOwesMirror(pure?.kind, prop, meta)) return false;
+    // A parameter's known callers still own their arguments before its default changes.
+    if (pure?.kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(prop.parentPath)
+      && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return true;
     // Sibling instance claims describe the source receiver, before its mirrored
     // branch becomes a synthetic object literal and Babel revisits the pattern.
     if (meta.fromFallback) {

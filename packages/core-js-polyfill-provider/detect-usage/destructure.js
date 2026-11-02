@@ -58,7 +58,6 @@ import {
   inCallerCorrectFallbackSlot,
   identifierReferencedInSubtree,
   isDestructurePattern,
-  isEscapedCtorNode,
   forOfIterableElements,
   isForXStatement,
   isForInitDeclaration,
@@ -829,9 +828,12 @@ export function seKeyStaticOwesTheMirror({ propPath, meta, kind, adapter, resolv
 
 // A static/global claim asks for the receiver mirror before a competing extraction.
 // Parameters first need their caller census: mirroring only a default does not serve
-// supplied arguments. Instance claims retain their ordinary extraction.
-export function patternClaimOwesMirror(kind, propPath) {
-  return kind !== 'instance' && !isFunctionParamDestructureParent(propPath.parentPath);
+// supplied arguments. A nested realm slot can still mirror its own default: an unknown
+// key below it must not strand that realm read. Instance claims retain their ordinary extraction.
+export function patternClaimOwesMirror(kind, propPath, meta = null) {
+  return kind !== 'instance' && (!isFunctionParamDestructureParent(propPath.parentPath)
+    || kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(meta?.key)
+      && patternSlotTarget(propPath.node.value)?.type === 'ObjectPattern');
 }
 
 // does READING this receiver owe a throw? a top-reaching short-circuit hands the destructure
@@ -7065,6 +7067,8 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
 
 // Plan receiver/default mirrors through pattern wrappers, preserving each selected arm's effects.
 // A supplied callSite owns the argument route; otherwise locate the leaf's original host.
+// The ordinary route reserves a successful pattern for application; retainNativeReads
+// inspects it without consuming that ownership for a retained capture.
 // eslint-disable-next-line max-statements -- the receiver walks, the leaf census and the target build share one plan
 export function buildNestedParamSynthPlan({
   leafPatternPath,
@@ -7428,6 +7432,7 @@ export function buildNestedParamSynthPlan({
     const seenKeys = new Map();
     let defaultSeen = false;
     let effectfulKeySeen = false;
+    let declinedRealm = false;
     for (const prop of patternNode.properties) {
       // A computed-key effect runs before this slot's read. A default runs after its own
       // read. Both keep every following read at the pattern site.
@@ -7447,7 +7452,8 @@ export function buildNestedParamSynthPlan({
         const symbolName = prop.computed && !computedKeyHasSideEffects(prop, keyCtx)
           ? computedKeyWellKnownSymbolName({ keyNode: prop.key, ...keyCtx }) : null;
         const symbolKey = symbolName && resolvePure({ kind: 'property', object: 'Symbol', key: symbolName, placement: 'static' });
-        if (!symbolKey || symbolKey.kind !== 'static') return null;
+        if (!symbolKey || symbolKey.kind !== 'static') return isPropertyNode(prop)
+          ? { kind: 'passthrough', bailed: true, unknownKey: true } : null;
         if (entries.every(entry => entry.symbolKey?.entry !== symbolKey.entry)) {
           entries.push({ symbolKey, prop, ...ctx.kind === 'instance' ? { deferred: !eagerInstance } : {},
             readPure: symbolName === 'iterator' ? SYMBOL_ITERATOR_PURE_RESULT : null,
@@ -7485,7 +7491,8 @@ export function buildNestedParamSynthPlan({
         // the polyfill-needing key threw / mis-valued on ie:11
         if (inner?.type === 'ObjectPattern') {
           // the key is read where the pattern stands, ahead of a write of its slot or not
-          const child = mirrorPattern(inner, isPristineProxyGlobal(adapter, key, { node: prop, path: leafPatternPath })
+          const proxy = isPristineProxyGlobal(adapter, key, { node: prop, path: leafPatternPath });
+          const child = mirrorPattern(inner, proxy
             ? { ...ctx, eagerInstance: eagerNestedInstance }
             : { kind: 'ctor', name: key, eagerInstance: eagerNestedInstance });
           // Keep native subtree reads in the pattern, after preceding binding writes.
@@ -7493,28 +7500,32 @@ export function buildNestedParamSynthPlan({
           const metrics = child && treeInjectionMetrics(child);
           const spelled = metrics && (metrics.hasPolyfill || metrics.hasDescendedClaim);
           const bailed = !child || metrics.hasBailedSubtree;
+          // An unknown child key leaves its native pattern in place, but the known realm
+          // slot still reads its ponyfill. Do not make that fallback own the child's claims.
+          const realm = child?.unknownKey && proxy && resolvePure({ kind: 'global', name: key });
+          declinedRealm ||= !!realm;
           // a default on a level the literal fills stands over a defined slot (`levelDefault`): one it spells, or one
           // it hands through as the constructor's ponyfill
-          const filled = spelled || !bailed && !!resolvePure({ kind: 'global', name: key });
-          entries.push({ key, child: spelled ? child : { kind: 'passthrough', bailed, readProperties: metrics?.nativeReadProperties },
-            ...filled && prop.value.type === 'AssignmentPattern' ? { levelDefault: prop.value } : {} });
+          const filled = spelled || !!realm || !bailed && !!resolvePure({ kind: 'global', name: key });
+          entries.push({ key, child: spelled ? child : realm ? { ...realm, kind: 'polyfill' }
+            : { kind: 'passthrough', bailed, readProperties: metrics?.nativeReadProperties },
+          ...filled && prop.value.type === 'AssignmentPattern' ? { levelDefault: prop.value } : {} });
         } else {
           // a shorthand / renamed ctor key (`{ Set }`, `{ Set: S }`) renders as a passthrough, but a
           // MISSING-ABLE ctor passthrough INJECTS the pure constructor (`Set` -> `_Set`) - mark it so the
           // mirror owns the flat ctor rather than bailing to raw `_globalThis` and stranding it native.
-          // that injected ctor is what the slot's binding hands out, so it carries the slot's own escape
-          // verdict - which decides WHICH name the render resolves (the leaf's own, not the path's
-          // root), never how wide the entry is: that width is one file-wide answer per ctor name
-          const injects = !!resolvePure({ kind: 'global', name: key });
+          // Resolve the leaf's own name now; a later receiver memo has no proxy identity.
+          // Entry width, including an escaped constructor's namespace, is a per-file answer.
+          const pure = !isMutatedGlobalSlot(adapter, key, ctx.receiverRead)
+            && resolvePure({ kind: 'global', name: key }, null);
           entries.push({
             key,
             child: {
               kind: 'passthrough',
               prop,
-              injects,
-              escapedCtor: isEscapedCtorNode(rootProgramOf(leafPatternPath), prop),
+              pure,
             },
-            ...injects && prop.value.type === 'AssignmentPattern' ? { levelDefault: prop.value } : {},
+            ...pure && prop.value.type === 'AssignmentPattern' ? { levelDefault: prop.value } : {},
           });
         }
       } else if (ctx.kind === 'static') {
@@ -7608,8 +7619,13 @@ export function buildNestedParamSynthPlan({
         );
       }
     }
+    // Native siblings must not run ahead of the declined child's keys, defaults or TDZ.
+    // The existing getter mirror keeps those reads at their original pattern slots.
+    if (declinedRealm) for (const entry of entries) {
+      if (entry.child.kind !== 'polyfill' && !entry.child.pure) entry.deferred = true;
+    }
     if (!retainNativeReads) {
-      const native = entries.filter(({ child, deferred }) => child.kind === 'passthrough' && !child.injects && !deferred);
+      const native = entries.filter(({ child, deferred }) => child.kind === 'passthrough' && !child.pure && !deferred);
       if (native.length) {
         const nativeKeys = new Set(native.map(entry => entry.key));
         const nativeSymbols = new Set(native.filter(entry => entry.symbolKey).map(entry => entry.prop));
@@ -7923,6 +7939,7 @@ export function buildNestedParamSynthPlan({
       // Dispatch itself rejects a plain parameter's nullish receiver. A selection or
       // parameter default must first receive that original value to choose its own arm.
       const tree = mirrorPattern(targetPattern, context && { ...context,
+        receiverRead: { node: leaf, path: receiverContext(leaf).path },
         eagerInstance: !preserveFalsyReceiver && !(preserveNullishReceiver && valueSelectingLeaves.has(leaf))
           && instanceReadsCanBeEager(leaf, targetPattern) });
       // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
@@ -8205,6 +8222,9 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
     return callExpression(identifier(ctx.injectImport(tree.entry, tree.hintName)), [receiver]);
   }
   if (tree.kind === 'passthrough') {
+    // Keep a served global's import when a deferred sibling makes the receiver a private memo.
+    // Its entry is a per-file answer; the source slot already supplied the mutation proof.
+    if (tree.pure) return identifier(ctx.injectImport(tree.pure.entry, tree.pure.hintName));
     if (ctx.receiverNode) {
       const read = keyPath.reduce(memberFromKeyName, ctx.receiverNode);
       return ctx.renderPassthrough?.(read, tree) ?? read;
@@ -8215,7 +8235,6 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
       receiverIsProxy: ctx.receiverIsProxy,
       resolveGlobalPolyfill: ctx.resolveGlobalPolyfill,
       adapter: ctx.adapter,
-      escapedCtor: tree.escapedCtor === true,
       raw: tree.bailed === true,
       read: ctx.receiverRead ?? null,
     });
@@ -8275,7 +8294,7 @@ function collectTreeInjectionFlags(tree, m) {
     case 'passthrough':
       m.passthrough = true;
       m.passthroughCount += 1;
-      if (tree.injects) m.injecting = true;
+      if (tree.pure) m.injecting = true;
       if (tree.bailed) m.bailed = true;
       if (!tree.bailed && tree.readProperties) {
         m.readProperties.push(...tree.readProperties);
@@ -8284,8 +8303,8 @@ function collectTreeInjectionFlags(tree, m) {
       // This slot already reads the original receiver. Reclassifying the synthetic
       // object as an instance receiver would claim a read the mirror has settled.
       if (tree.prop && !tree.bailed) {
-        (tree.injects ? m.claimedProperties : m.readProperties).push(tree.prop);
-        if (!tree.injects) m.nativeReadProperties.push(tree.prop);
+        (tree.pure ? m.claimedProperties : m.readProperties).push(tree.prop);
+        if (!tree.pure) m.nativeReadProperties.push(tree.prop);
       }
       break;
     case 'object':
@@ -8978,7 +8997,6 @@ export function resolvePassthroughRef({
   resolveGlobalPolyfill,
   adapter = null,
   resolveStaticPolyfill = null,
-  escapedCtor = false,
   raw = false,
   read = null,
 }) {
@@ -9020,12 +9038,6 @@ export function resolvePassthroughRef({
     const staticPure = resolveStaticPolyfill(path[0], path[1]);
     if (staticPure) return { pure: staticPure, path: path.slice(2), static: true };
   }
-  // an ESCAPING leaf resolves its OWN key, not the path's root: the verdict was taken for that leaf,
-  // and a proxy HOP above it (`{ self: { Map } }`) would otherwise render `_self.Map` for a later
-  // member pass to collapse - a member this render synthesizes, which no position names, so the
-  // entry is lost there. a mutated key keeps the user's replacement on the raw read
-  const leafEscaped = escapedCtor && !ctorMutated && !raw ? resolveGlobalPolyfill(keys.at(-1)) : null;
-  if (leafEscaped) return { pure: leafEscaped, path: [] };
   // `raw` keeps a polyfillable STATIC on the receiver the source read it off, which is a claim about
   // the leaf and about the key BELOW the constructor - never about the constructor itself. where the
   // path IS that constructor the missing-able rule stands: the pure import is the value, and reading
