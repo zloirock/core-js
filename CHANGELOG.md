@@ -46,6 +46,8 @@
 - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
 - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
 - Fixed the pure version marking the native `Error.isError` as `.sham`
+- Fixed ignored `nonWritable` / `nonConfigurable` property attributes in the pure version, including `DisposableStack` / `AsyncDisposableStack` tags and numeric constants
+- Fixed writable `.prototype` properties of polyfilled constructors and constructor wrappers in the pure version without modifying native constructors
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator ([Firefox < 46](https://bugzilla.mozilla.org/show_bug.cgi?id=1067049))
 - Fixed the iterator name correction adding a `name` property to collection prototypes in old engines, a regression since 3.18.0
 - Fixed restoring `Iterator.prototype.constructor` when keeping the native `Iterator`

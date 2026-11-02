@@ -15,6 +15,7 @@ import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
+  assert.nonWritable(Symbol, 'prototype');
   const symbol1 = Symbol('symbol');
   const symbol2 = Symbol('symbol');
   assert.notSame(symbol1, symbol2, 'Symbol("symbol") !== Symbol("symbol")');
@@ -62,6 +63,8 @@ QUnit.test('Well-known Symbols', assert => {
 QUnit.test('Symbol#@@toPrimitive', assert => {
   const symbol = Symbol('Symbol#@@toPrimitive test');
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
+  assert.nonEnumerable(Symbol.prototype, Symbol.toPrimitive);
+  assert.nonWritable(Symbol.prototype, Symbol.toPrimitive);
   assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
 });
 

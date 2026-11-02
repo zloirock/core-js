@@ -13,6 +13,7 @@ import WeakMap from 'core-js-pure/es/weak-map';
 
 QUnit.test('WeakMap', assert => {
   assert.isFunction(WeakMap);
+  assert.nonWritable(WeakMap, 'prototype');
   assert.true('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
   assert.true('get' in WeakMap.prototype, 'get in WeakMap.prototype');
   assert.true('has' in WeakMap.prototype, 'has in WeakMap.prototype');

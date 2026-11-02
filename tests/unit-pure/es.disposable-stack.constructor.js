@@ -8,6 +8,7 @@ QUnit.test('DisposableStack constructor', assert => {
   assert.isFunction(DisposableStack);
   assert.arity(DisposableStack, 0);
   assert.name(DisposableStack, 'DisposableStack');
+  assert.nonWritable(DisposableStack, 'prototype');
 
   assert.true(new DisposableStack() instanceof DisposableStack);
 
@@ -112,6 +113,8 @@ QUnit.test('DisposableStack#@@dispose', assert => {
 
 QUnit.test('DisposableStack#@@toStringTag', assert => {
   assert.same(DisposableStack.prototype[Symbol.toStringTag], 'DisposableStack', '@@toStringTag');
+  assert.nonEnumerable(DisposableStack.prototype, Symbol.toStringTag);
+  assert.nonWritable(DisposableStack.prototype, Symbol.toStringTag);
 });
 
 QUnit.test('DisposableStack', assert => {

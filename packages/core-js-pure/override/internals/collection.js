@@ -73,7 +73,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   setToStringTag(Constructor, CONSTRUCTOR_NAME, false, true);
 
   exported[CONSTRUCTOR_NAME] = Constructor;
-  $({ global: true, forced: true }, exported);
+  $({ global: true, constructor: true, forced: true }, exported);
 
   if (!IS_WEAK) common.setStrong(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 

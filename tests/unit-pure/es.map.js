@@ -17,6 +17,7 @@ import Map from 'core-js-pure/es/map';
 
 QUnit.test('Map', assert => {
   assert.isFunction(Map);
+  assert.nonWritable(Map, 'prototype');
   assert.true('clear' in Map.prototype, 'clear in Map.prototype');
   assert.true('delete' in Map.prototype, 'delete in Map.prototype');
   assert.true('forEach' in Map.prototype, 'forEach in Map.prototype');

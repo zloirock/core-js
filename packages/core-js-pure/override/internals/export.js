@@ -36,7 +36,7 @@ var wrapConstructor = function (NativeConstructor) {
   options.forced          - export even if the native feature is available
   options.bind            - bind methods to the target, required for the `pure` version
   options.wrap            - wrap constructors to preventing global pollution, required for the `pure` version
-  options.constructor     - the export is a constructor with a non-writable .prototype, otherwise .prototype is set to undefined
+  options.constructor     - the export is a constructor with a non-writable .prototype
   options.unsafe          - use the simple assignment of property instead of delete + defineProperty
   options.sham            - add a flag to not completely full polyfills
   options.enumerable      - export as enumerable property
@@ -67,7 +67,8 @@ module.exports = function (options, source) {
 
     targetProperty = target[key];
 
-    if (USE_NATIVE) if (options.dontCallGetSet) {
+    // Forced constructor exports can still reuse a native.
+    if (nativeSource && (USE_NATIVE || options.constructor === true)) if (options.dontCallGetSet) {
       descriptor = getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
@@ -85,6 +86,10 @@ module.exports = function (options, source) {
     else if (PROTO && isCallable(sourceProperty)) resultProperty = uncurryThis(sourceProperty);
     // default case
     else resultProperty = sourceProperty;
+
+    if (options.constructor === true && isCallable(resultProperty) && resultProperty !== nativeProperty) {
+      defineBuiltIn(resultProperty, 'prototype', resultProperty.prototype, { nonWritable: true, nonConfigurable: true });
+    }
 
     // add a flag to not completely full polyfills without modifying natives used as is
     if ((!USE_NATIVE || resultProperty !== nativeProperty)

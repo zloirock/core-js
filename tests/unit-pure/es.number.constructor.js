@@ -20,6 +20,7 @@ function getCheck(assert) {
 QUnit.test('Number constructor: regression', assert => {
   const check = getCheck(assert);
   assert.isFunction(Number);
+  assert.nonWritable(Number, 'prototype');
   assert.same(Number.prototype.constructor, NativeNumber);
   assert.same(1.0.constructor, NativeNumber);
   const constants = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY'];

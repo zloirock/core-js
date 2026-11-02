@@ -7,6 +7,7 @@ import create from 'core-js-pure/es/object/create';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);
+  assert.nonWritable(Promise, 'prototype');
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');

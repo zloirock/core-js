@@ -12,6 +12,7 @@ import WeakSet from 'core-js-pure/es/weak-set';
 
 QUnit.test('WeakSet', assert => {
   assert.isFunction(WeakSet);
+  assert.nonWritable(WeakSet, 'prototype');
   assert.true('add' in WeakSet.prototype, 'add in WeakSet.prototype');
   assert.true('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
   assert.true('has' in WeakSet.prototype, 'has in WeakSet.prototype');

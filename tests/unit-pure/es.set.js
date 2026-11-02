@@ -18,6 +18,7 @@ import Set from 'core-js-pure/es/set';
 
 QUnit.test('Set', assert => {
   assert.isFunction(Set);
+  assert.nonWritable(Set, 'prototype');
   assert.true('add' in Set.prototype, 'add in Set.prototype');
   assert.true('clear' in Set.prototype, 'clear in Set.prototype');
   assert.true('delete' in Set.prototype, 'delete in Set.prototype');
