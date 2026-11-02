@@ -2592,12 +2592,6 @@ export const data = {
     opera: '10.5',
     safari: '3.0',
   },
-  'web.clear-immediate': {
-    bun: '0.1.7',
-    deno: '2.4',
-    ie: '10',
-    node: '0.9.1',
-  },
   // TODO: recheck
   'web.dom-collections.iterator': {
     bun: '0.1.1',

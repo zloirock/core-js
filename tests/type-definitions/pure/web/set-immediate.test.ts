@@ -3,6 +3,7 @@ import clearImmediate from '@core-js/pure/full/clear-immediate';
 
 const res: number | object = setImmediate(() => 42);
 clearImmediate(res);
+const cleared: void = clearImmediate(undefined);
 
 // @ts-expect-error
 setImmediate();
