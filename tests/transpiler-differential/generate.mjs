@@ -21851,6 +21851,34 @@ function * generateCapturedRealmAnchors() {
   })()`), strip: true };
 }
 
+// The same whole-leaf capture survives both an early realm anchor and a prefixed
+// assignment. A foreign getter observes the output reads without changing source facts.
+function * generateNestedTwinCaptures() {
+  const setup = `import { restoreProperty } from ${ JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href) };`;
+  for (const shape of ['assignment-loop', 'declaration-loop', 'assignment', 'declaration', 'prefix-assignment', 'anchored']) {
+    for (const throwing of [false, true]) {
+      const pattern = '{ Array: { prototype: { at, includes } } }';
+      const read = 'values.push(at.call([4, 9], -1), includes.call([4, 9], 9));';
+      const body = shape === 'assignment-loop' ? `let at, includes; for (${ pattern } of [globalThis]) { ${ read } }`
+        : shape === 'declaration-loop' ? `for (const ${ pattern } of [globalThis]) { ${ read } }`
+          : shape.endsWith('assignment') ? `let at, includes; (${ pattern } = ${ shape.startsWith('prefix') ? '(log.push("prefix"), realm)' : 'realm' }); ${ read }`
+            : `const ${ shape === 'anchored' ? '{ prototype: { at, includes } }' : pattern } = ${ shape === 'anchored' ? 'realm.Array' : 'realm' }; ${ read }`;
+      const row = snippet(`nested-twin-capture/${ shape }/${ throwing ? 'throw' : 'value' }`, `(() => {
+        const realm = globalThis, values = [];
+        const descriptor = Object.getOwnPropertyDescriptor(realm, "Array");
+        const NativeArray = descriptor.value;
+        restoreProperty(realm, "Array", { configurable: true, get() {
+          log.push("Array"); ${ throwing ? 'throw new RangeError("receiver");' : 'return NativeArray;' }
+        } });
+        try { ${ body } } catch (error) { values.push(error.name); }
+        finally { restoreProperty(realm, "Array", descriptor); }
+        return values;
+      })()`);
+      yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22283,4 +22311,5 @@ export function * generate() {
   yield * generateUnclaimedRealmAnchors();
   yield * generateComputedRealmAnchors();
   yield * generateCapturedRealmAnchors();
+  yield * generateNestedTwinCaptures();
 }

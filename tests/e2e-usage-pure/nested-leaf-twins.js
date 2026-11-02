@@ -1,4 +1,27 @@
 /* eslint-disable es/no-nonstandard-array-prototype-properties -- Own array slots are deliberate residual-binding probes. */
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
+QUnit.test('nested realm twins read the prototype receiver once per loop element', assert => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Array');
+  const NativeArray = descriptor.value;
+  let reads = 0;
+  let result;
+  // Foreign setup observes the emitted read count without declaring a source mutation.
+  restoreProperty(globalThis, 'Array', { configurable: true, get() {
+    reads++;
+    return NativeArray;
+  } });
+  try {
+    let at, includes;
+    for ({ Array: { prototype: { at, includes } } } of [globalThis]) {
+      result = [at.call([4, 9], -1), includes.call([4, 9], 9)];
+    }
+  } finally {
+    restoreProperty(globalThis, 'Array', descriptor);
+  }
+  assert.deepEqual(result, [9, true]);
+  assert.same(reads, 1);
+});
 
 QUnit.test('nested leaf twins share the hop with a surviving leaf and rest', assert => {
   const effects = [];

@@ -1979,6 +1979,9 @@ export default function createAstDestructureEmitter({
     if (type) resolvedType?.set(twinInit, type);
     const leafTwin = plan.walk ? twinLeafPattern(declaratorPath, plan.leafPattern.node) : cloneNode(plan.leafPattern.node);
     if (plan.kind === 'assignment') {
+      if (plan.prefix?.length) plan.host.declaration.insertBefore(renderDestructureStatements([], {
+        prefix: plan.prefix, embed: cloneNode,
+      }));
       declaratorPath.get('right').replaceWith(twinInit);
       declaratorPath.get('left').replaceWith(leafTwin);
       return true;
