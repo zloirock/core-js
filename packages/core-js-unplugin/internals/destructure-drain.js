@@ -2307,8 +2307,8 @@ export default function createDestructureDrains(ctx) {
       binding: identifier(refName), receiver: slot, kind: left.kind, assignment,
     });
     const bodyless = body.type === 'BlockStatement' ? null : body;
-    if (bodyless) path.node.body = { type: 'BlockStatement', body: [bodyless] };
-    path.node.body.body.unshift(relocated);
+    if (bodyless) path.get('body').replaceWith({ type: 'BlockStatement', body: [relocated, bodyless] });
+    else path.get('body').unshiftContainer('body', [relocated]);
     const pattern = declarator.id;
     if (assignment) leftPath.replaceWith(head);
     else declarator.id = head;

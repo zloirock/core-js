@@ -529,6 +529,23 @@ function renderNestedParamSynth({
   });
 }
 
+// Native insertion APIs refresh cached sibling paths when a spread changes list length.
+function replaceSpread(path, nodes) {
+  // Insertion validation rejects holes. Keep their prototype reads and refresh cached
+  // sibling paths through Babel's container lookup; a hole has no visitor.
+  if (nodes.includes(null)) {
+    for (const node of nodes) {
+      if (node) path.insertBefore([node]);
+      else {
+        path.container.splice(path.key, 0, null);
+        path.parentPath.get(path.listKey);
+      }
+    }
+    return path.remove();
+  }
+  return nodes.length ? path.replaceWithMultiple(nodes) : path.remove();
+}
+
 // destructure-emit factory: orchestrates the flatten / cascade / param / catch pipelines,
 // each with dedicated closure state (`skippedNodes` / `synthSwap` / bookkeeping WeakMaps).
 // extracting sub-factories would split those shared accumulators across module boundaries,
@@ -4580,7 +4597,7 @@ export default function createDestructureEmitter({
       if (renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
     }
     // an inline-array spread in a wrapper literal flattens first: every route below edits by slot
-    flattenArrayWrapperInits(prop);
+    flattenArrayWrapperInits(prop, replaceSpread);
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
     // it is the provider's `seKeyStaticOwesTheMirror`, so neither leg carries a gate of its own, and
