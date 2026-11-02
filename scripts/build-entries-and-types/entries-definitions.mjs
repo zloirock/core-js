@@ -3323,6 +3323,7 @@ export const features = {
     modules: ['es.symbol.description'],
     template: $helper,
     helper: 'symbol-get-description',
+    type: '{ <T>(value: { readonly description: T }): T; (value: symbol | Symbol): string | undefined }',
   },
   'symbol/dispose': {
     modules: ['es.symbol.dispose', 'es.iterator.dispose'],
