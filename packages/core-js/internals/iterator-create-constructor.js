@@ -8,8 +8,8 @@ var Iterators = require('../internals/iterators');
 
 var returnThis = function () { return this; };
 
-module.exports = function (IteratorConstructor, NAME, next, ENUMERABLE_NEXT) {
-  var TO_STRING_TAG = NAME + ' Iterator';
+module.exports = function (IteratorConstructor, NAME, next, ENUMERABLE_NEXT, TO_STRING_TAG) {
+  TO_STRING_TAG = TO_STRING_TAG || NAME + ' Iterator';
   IteratorConstructor.prototype = create(IteratorPrototype, {
     next: createPropertyDescriptor(+!ENUMERABLE_NEXT, makeBuiltIn(next, 'next'))
   });

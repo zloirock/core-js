@@ -1,4 +1,4 @@
-import { MAX_SAFE_INTEGER } from '../helpers/constants.js';
+import { DESCRIPTORS, MAX_SAFE_INTEGER, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Number.range', assert => {
   const { range } = Number;
@@ -13,6 +13,8 @@ QUnit.test('Number.range', assert => {
 
   assert.isIterator(iterator);
   assert.isIterable(iterator);
+  assert.same(iterator[Symbol.toStringTag], 'NumericRangeIterator');
+  assert.same(String(iterator), '[object NumericRangeIterator]');
   assert.deepEqual(iterator.next(), {
     value: 1,
     done: false,
@@ -34,6 +36,28 @@ QUnit.test('Number.range', assert => {
   );
   assert.deepEqual(from(range(0, 0)), []);
   assert.deepEqual(from(range(0, -5, 1)), []);
+
+  for (const start of [2, -2]) for (const step of [-1, 0, 1]) for (const inclusive of [false, true]) {
+    const equalIterator = range(start, start, { step, inclusive });
+    assert.deepEqual(equalIterator.next(), { value: inclusive ? start : undefined, done: !inclusive }, 'equal bounds');
+    assert.deepEqual(equalIterator.next(), { value: undefined, done: true }, 'equal bounds terminate');
+  }
+  for (const start of [0, -0]) for (const step of [-1, -0, 0, 1]) {
+    const zeroIterator = range(start, start, { step, inclusive: true });
+    const result = zeroIterator.next();
+    assert.false(result.done, 'inclusive zero range yields once');
+    assert.same(1 / result.value, 1 / start, 'preserves the sign of the initial zero');
+    assert.true(zeroIterator.next().done, 'zero range terminates');
+  }
+  assert.throws(() => range(2, 1, -0), RangeError, 'negative zero step with different bounds');
+
+  for (const direction of [1, -1]) for (const inclusive of [false, true]) {
+    const unboundedIterator = range(0, direction * Infinity, { step: direction * Number.MAX_VALUE, inclusive });
+    assert.deepEqual(unboundedIterator.next(), { value: 0, done: false });
+    assert.deepEqual(unboundedIterator.next(), { value: direction * Number.MAX_VALUE, done: false });
+    assert.deepEqual(unboundedIterator.next(), { value: direction * Infinity, done: false }, 'yields the infinite endpoint');
+    assert.deepEqual(unboundedIterator.next(), { value: undefined, done: true });
+  }
 
   assert.throws(() => range(NaN, 0), RangeError, 'NaN as start');
   assert.throws(() => range(0, NaN), RangeError, 'NaN as end');
@@ -60,7 +84,21 @@ QUnit.test('Number.range', assert => {
   assert.true(iterator.inclusive);
 
   iterator = range(0, 5);
-  assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').get.call({}), TypeError);
+  if (DESCRIPTORS) for (const key of ['start', 'end', 'step', 'inclusive']) {
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(iterator), key);
+    assert.isFunction(descriptor.get, key);
+    assert.same(descriptor.set, undefined, `${ key } has no setter`);
+    assert.false(descriptor.enumerable, key);
+    assert.true(descriptor.configurable, key);
+    assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
+  }
+  // IE11 does not throw on computed-key assignment to getter-only properties.
+  if (DESCRIPTORS && STRICT) {
+    assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
+    assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
+    assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
+    assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
+  }
 
   assert.throws(() => range(Infinity, 10, 0), RangeError);
   assert.throws(() => range(-Infinity, 10, 0), RangeError);
@@ -68,5 +106,6 @@ QUnit.test('Number.range', assert => {
   assert.throws(() => range(0, 10, { step: Infinity }), RangeError);
 
   assert.throws(() => range({}, 1), TypeError);
-  assert.throws(() => range(1, {}), TypeError);
+  assert.throws(() => range(1, {}), error => error instanceof TypeError && error.message === 'Incorrect range arguments');
+  assert.throws(() => range(1, 2, 0), error => error instanceof RangeError && error.message === 'Incorrect range arguments');
 });

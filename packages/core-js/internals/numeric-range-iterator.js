@@ -8,7 +8,7 @@ var isObject = require('../internals/is-object');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var DESCRIPTORS = require('../internals/descriptors');
 
-var INCORRECT_RANGE = 'Incorrect Iterator.range arguments';
+var INCORRECT_RANGE = 'Incorrect range arguments';
 var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
 
 var setInternalState = InternalStateModule.set;
@@ -45,14 +45,18 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   if (isNullOrUndefined(step)) {
     step = ifIncrease ? one : -one;
   }
+  // eslint-disable-next-line no-self-compare -- NaN check
+  if (step !== step) {
+    throw new $RangeError(INCORRECT_RANGE);
+  }
   if (typeof step != type) {
     throw new $TypeError(INCORRECT_RANGE);
   }
-  // eslint-disable-next-line no-self-compare -- NaN check
-  if (step !== step || step === Infinity || step === -Infinity || (step === zero && start !== end)) {
+  if (step === Infinity || step === -Infinity || (step === zero && start !== end)) {
     throw new $RangeError(INCORRECT_RANGE);
   }
-  var hitsEnd = end > start !== step > zero;
+  // https://github.com/tc39/proposal-iterator.range/issues/83
+  var hitsEnd = start !== end && ifIncrease !== step > zero;
   setInternalState(this, {
     type: NUMERIC_RANGE_ITERATOR,
     start: start,
@@ -60,8 +64,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     step: step,
     inclusive: inclusiveEnd,
     hitsEnd: hitsEnd,
-    currentCount: zero,
-    zero: zero
+    currentCount: zero
   });
   if (!DESCRIPTORS) {
     this.start = start;
@@ -75,27 +78,28 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   var start = state.start;
   var end = state.end;
   var step = state.step;
-  var currentYieldingValue = start + (step * state.currentCount++);
+  var currentCount = state.currentCount++;
+  // Preserve -0 on the first iteration.
+  var currentYieldingValue = currentCount ? start + (step * currentCount) : start;
   if (currentYieldingValue === end) state.hitsEnd = true;
   var inclusiveEnd = state.inclusive;
   var endCondition;
   if (end > start) {
-    endCondition = inclusiveEnd ? currentYieldingValue > end : currentYieldingValue >= end;
+    endCondition = end !== Infinity && (inclusiveEnd ? currentYieldingValue > end : currentYieldingValue >= end);
   } else {
-    endCondition = inclusiveEnd ? end > currentYieldingValue : end >= currentYieldingValue;
+    endCondition = end !== -Infinity && (inclusiveEnd ? end > currentYieldingValue : end >= currentYieldingValue);
   }
   if (endCondition) {
     state.hitsEnd = true;
     return createIterResultObject(undefined, true);
   } return createIterResultObject(currentYieldingValue, false);
-});
+}, false, NUMERIC_RANGE_ITERATOR);
 
 var addGetter = function (key) {
   defineBuiltInAccessor($RangeIterator.prototype, key, {
     get: function () {
       return getInternalState(this)[key];
     },
-    set: function () { /* empty */ },
     configurable: true,
     enumerable: false
   });
