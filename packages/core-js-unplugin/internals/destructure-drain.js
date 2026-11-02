@@ -1159,8 +1159,7 @@ export default function createDestructureDrains(ctx) {
       const emptied = patternDead(declarator.id) || residualDies(declarator, declJobs);
       // an init only the PROBE proved absent-able keeps its own read: the consume discards it,
       // and off-env that read is what throws (the block-hosted rule, same shape here)
-      const probeRead = emptied && declJobs.every(job => !job.readsReceiver && !job.seCarried)
-        ? renderDiscardedInitProbe(declJobs, probeRenderCtx) : null;
+      const probeRead = emptied ? renderDiscardedInitProbe(declJobs, probeRenderCtx) : null;
       const product = emptied && !probeRead && declJobs.length === 1 && declJobs[0].chain?.length ? {} : null;
       const residualRead = probeRead && residualReadOwnsValue(declJobs)
         && ctorPatternAnchorValue(declarator, declJobs[0], probeRead, []);
@@ -1705,9 +1704,7 @@ export default function createDestructureDrains(ctx) {
       // discards it, and off-env that read is what throws
       // (`{ Array: { of } } = globalThis.window` leads with `(null == _globalThis.window
       // ? void 0 : _globalThis.window).Array`)
-      const probeRead = emptied && !containerPrefix.length
-              && declJobsHere.every(job => !job.readsReceiver && !job.seCarried)
-              ? renderDiscardedInitProbe(declJobsHere, probeRenderCtx) : null;
+      const probeRead = emptied && !containerPrefix.length ? renderDiscardedInitProbe(declJobsHere, probeRenderCtx) : null;
       const extractedHere = [];
       // the init's own prefix is placed ONCE per declarator: it rides the FIRST extraction's value
       // where that claim spells a dispatch to hold it, and lifts to a statement ahead otherwise.
@@ -1854,6 +1851,7 @@ export default function createDestructureDrains(ctx) {
         receiverNode: info.pure ? null : info.tail,
         receiverPure: info.pure,
         narrow: hop.narrow,
+        defaultValue: hop.defaultValue,
         prefix: hop.prefix,
       }, {
         injectImport: injectPureImport,

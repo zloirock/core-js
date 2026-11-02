@@ -812,22 +812,27 @@ export function nullGuardTest(check, { embed = node => node } = {}) {
 // the `prefix` embed role lets a native drain retain its pending child edits.
 // An accepted source read already includes its guard and member; reuse it without
 // re-deriving either from the live initializer or registering an unconditional import.
+// A guarded native branch may be undefined: its pattern default stays live and reads once.
 export function renderResidualAnchor({
-  anchor, anchorNode, computed = false, anchorPure, receiver, receiverPure, receiverNode, guarded, narrow, read, prefix = [],
+  anchor, anchorNode, computed = false, anchorPure, receiver, receiverPure, receiverNode, guarded, narrow, read, prefix = [], defaultValue,
 }, { injectImport, mintRef, embed = cloneNode }) {
+  let value;
   if (narrow) {
     const ref = mintRef();
-    const rendered = renderCtorIdentityNarrow(narrow, memberFromKeyName(identifier(ref), anchor), {
+    value = renderCtorIdentityNarrow(narrow, memberFromKeyName(identifier(ref), anchor), {
       injectImport, spellRecv: () => identifier(ref), captureReceiver: embed(narrow.captureReceiver),
     });
-    return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')), ...rendered.expressions]) : rendered;
-  }
-  if (guarded) return anchorNode ? memberExpression(embed(guarded), embed(anchorNode), { computed })
+  } else if (guarded) value = anchorNode ? memberExpression(embed(guarded), embed(anchorNode), { computed })
     : memberFromKeyName(embed(guarded), anchor);
-  const value = read ? embed(read) : anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
+  else value = read ? embed(read) : anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
     : memberFromKeyName(receiverNode ? embed(receiverNode)
     : receiverPure ? identifier(injectImport(receiverPure.entry, receiverPure.hintName)) : identifier(receiver), anchor);
-  return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')), value]) : value;
+  if (defaultValue) {
+    const ref = identifier(mintRef());
+    value = renderInstanceDefaultGuard({ assignedRef: ref, call: value, reread: cloneNode(ref), defaultValue: embed(defaultValue) });
+  }
+  return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')),
+    ...value.type === 'SequenceExpression' ? value.expressions : [value]]) : value;
 }
 
 // Keep an initializer's prefix/store ahead of its decided residual value. Query products

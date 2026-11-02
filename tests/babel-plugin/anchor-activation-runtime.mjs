@@ -1,6 +1,8 @@
 // An unclaimed hop retains its source default, getters and throws. Foreign setup runs
 // after imports; transformed source cannot mistake these runtime values for mutation facts.
 import { createRequire } from 'node:module';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
@@ -12,6 +14,7 @@ const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
+const runChild = promisify(execFile);
 const { check, finish } = createChecker('anchor-activation-runtime');
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, exclude: ['self'] };
 const TMP = path.join(import.meta.dirname, '../transpiler-differential/tmp');
@@ -125,6 +128,72 @@ Object.defineProperty(realm, 'self', { configurable: true, get() { ${ used ? '' 
           constructor ? { stripGlobals: ['Promise', 'globalThis', 'Iterator'] } : {}), expected);
       }
     }
+  }
+  // A guarded anchor keeps its stored value through the surviving claim and its siblings.
+  // Foreign getters distinguish a receiver replacement from an import-only mismatch.
+  for (const shape of [
+    'declaration', 'assignment', 'prefix', 'deep-prefix', 'for-init', 'sibling',
+    'default', 'computed', 'used', 'outer-default', 'used-default', 'chained-store', 'excluded-assignment',
+  ]) {
+    const pattern = `{ Map: { ${ shape === 'computed' ? '[key]: name' : 'name' }${ shape === 'default'
+      ? ' = (effects.push("default"), "fallback")' : shape === 'sibling' ? ', prototype' : '' } }${ shape.endsWith('-default') ? ' = ([1].at(0), fallback())' : '' } }`;
+    const init = shape === 'deep-prefix' ? '(effects.push("prefix"), (effects.push("inner"), saved = globalThis.window?.self))'
+      : shape === 'chained-store' ? '(other = saved = globalThis.window?.self)'
+      : `(${ shape === 'prefix' ? 'effects.push("prefix"), ' : '' }saved = globalThis.window?.self)`;
+    const used = shape.startsWith('used');
+    const value = `[name, saved === foreign${ shape === 'sibling' ? ', prototype === foreign.Map.prototype' : '' }${ used
+      ? ', result === foreign' : shape === 'chained-store' ? ', other === saved' : '' }]`;
+    const body = shape.endsWith('assignment') ? `let name; (${ pattern } = ${ init }); r = ${ value };`
+      : used ? `let name; const result = (${ pattern } = ${ init }); r = ${ value };`
+      : shape === 'for-init' ? `for (const ${ pattern } = ${ init };;) { r = ${ value }; break; }`
+      : `const ${ pattern } = ${ init }; r = ${ value };`;
+    const source = `export const effects = [];
+export let r;
+let saved, other;
+const key = 'name';
+try { ${ body } } catch (error) { r = error.name; } finally { restore(); }`;
+    scenarioSource(source);
+    const outputs = await transformOutputs(source, shape === 'excluded-assignment' ? { ...OPTIONS, exclude: ['self', 'map/constructor'] } : OPTIONS,
+      { createParenthesizedExpressions: true });
+    check(`surviving/${ shape }/imports`, [...importSet(outputs[1][1])].sort().join(','), [...importSet(outputs[2][1])].sort().join(','));
+    for (const state of ['declaration', 'prefix', 'deep-prefix', 'assignment', 'used', 'outer-default', 'used-default', 'chained-store', 'excluded-assignment'].includes(shape)
+      ? ['value', 'null', 'throw'] : ['value']) {
+      const setup = `const realm = Function('return this')();
+const descriptor = Object.getOwnPropertyDescriptor(realm, 'window');
+function restore() { if (descriptor) Object.defineProperty(realm, 'window', descriptor); else delete realm.window; }
+const ctor = { prototype: {}, get name() { effects.push('name'); ${ state === 'throw' ? 'throw new RangeError("name");' : `return ${ shape === 'default' ? 'undefined' : '"own-name"' };` } } };
+function fallback() { effects.push('default'); return ctor; }
+const foreign = { get Map() { effects.push('Map'); return ${ shape.endsWith('-default') ? 'undefined' : 'ctor' }; } };
+Object.defineProperty(realm, 'window', { configurable: true, get() {
+  effects.push('window'); return ${ state === 'null' ? 'null' : '{ get self() { effects.push("self"); return foreign; } }' };
+} });`;
+      const expectedValue = state === 'null' ? 'TypeError' : state === 'throw' ? 'RangeError'
+        : [shape === 'default' ? 'fallback' : 'own-name', true, ...shape === 'sibling' || shape === 'chained-store' || used ? [true] : []];
+      const expectedEffects = [...shape === 'deep-prefix' ? ['prefix', 'inner'] : shape === 'prefix' ? ['prefix'] : [], 'window', ...state === 'null' ? [] : [
+        'self', 'Map', ...shape.endsWith('-default') ? ['default'] : [], 'name',
+        ...shape === 'default' ? ['default'] : [], ...shape === 'sibling' ? ['Map'] : [],
+      ]];
+      const expected = `OK|${ JSON.stringify(expectedValue) }|${ JSON.stringify(expectedEffects) }`;
+      for (const [host, output] of outputs) {
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, output.replace('export const effects = [];', `export const effects = [];\n${ setup }`));
+        check(`surviving/${ shape }/${ state }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+        if (host !== 'native') check(`surviving/${ shape }/${ state }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
+  // Cold imports must see an engine without Function#name. A raw surviving read returns
+  // undefined here; the instance helper recovers the source function's actual name.
+  const namedSource = 'let saved; const { Map: { name } } = (saved = globalThis.window?.self); export const r = [name, saved === foreign];';
+  for (const [host, output] of await transformOutputs(namedSource)) {
+    const file = path.join(DIR, `name-${ count++ }.mjs`);
+    await fs.outputFile(file, `const ctor = function OldMap() {}; ${ host === 'native' ? '' : 'delete ctor.name;' }
+const foreign = { Map: ctor }; globalThis.window = { self: foreign };
+${ output }`);
+    const script = `${ host === 'native' ? '' : 'delete Function.prototype.name;' }
+const result = await import(${ JSON.stringify(pathToFileURL(file).href) }); process.stdout.write(JSON.stringify(result.r));`;
+    const { stdout } = await runChild(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+    check(`surviving/${ host }/missing native name`, stdout, '["OldMap",true]');
   }
   // No self alias is installed for either transformed leg. Promise is stripped too, so
   // a native constructor cannot hide a missed claim after the result-preserving split.

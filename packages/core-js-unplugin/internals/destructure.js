@@ -150,6 +150,7 @@ import {
   nullGuardTest,
   callExpression,
   renderDestructureDispatch,
+  renderResidualAnchor,
   cloneNode,
   identifier,
   sequenceExpression,
@@ -334,7 +335,8 @@ export default function createAstDestructureEmitter({
 
   // the drain half rides the same per-transform state; `resolveProxyNavReceiver` is hoisted,
   // so handing it across at creation time is safe
-  const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg, recordJob: recordPristineJob } = createDestructureDrains({
+  const { buildValue, drain, extractCatchClause, extractLoopLeft, planMemoArg,
+    recordJob: recordPristineJob } = createDestructureDrains({
     adapter,
     capturedSiblingHosts,
     hopHosts,
@@ -866,7 +868,28 @@ export default function createAstDestructureEmitter({
     if (renderArrayFlattenPlan(metaPath)) return true;
     const restHost = destructurePatternHostPath(metaPath);
     const assignment = restHost?.node?.type === 'AssignmentExpression';
-
+    // Land the common stored-value anchor before a surviving leaf captures its receiver.
+    // Native requeue lets ordinary claims see that receiver, including retained siblings.
+    if ((restHost?.node?.type === 'VariableDeclarator' || assignment && assignmentValueDiscarded(restHost))
+      && metaPath.parentPath.node !== (assignment ? restHost.node.left : restHost.node.id)) {
+      const declarator = assignment ? { id: restHost.node.left, init: restHost.node.right, loc: restHost.node.loc } : restHost.node;
+      const plan = buildNestedDestructurePlan({
+        declarator, scope: restHost.scope, path: restHost, adapter, injectorState,
+        resolvePure: (value, at) => resolvePure(value, at ?? metaPath), resolveGlobalPolyfill,
+        isDisabledProp: isDisabled,
+      });
+      if (plan?.guarded && plan.outerProps.every(row => row.kind === 'verbatim')) {
+        const init = renderResidualAnchor(plan, {
+          injectImport: injectPureImport, mintRef: () => injector.generateDeclaredRef(metaPath),
+        });
+        retireDeclaratorJobs(restHost);
+        restHost.replaceWith(assignment
+          ? { ...restHost.node, left: plan.pattern, right: init }
+          : { ...restHost.node, id: plan.pattern, init });
+        markRewrite();
+        return true;
+      }
+    }
     const restPlan = (restHost?.node?.type === 'VariableDeclarator' || assignment) && planRetainedObjectCapture({
       pattern: assignment ? restHost.node.left : restHost.node.id,
       init: assignment ? restHost.node.right : restHost.node.init,

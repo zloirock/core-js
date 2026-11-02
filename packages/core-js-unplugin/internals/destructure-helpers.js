@@ -789,6 +789,7 @@ export function probeResidualEffects(probe) {
 }
 
 // Render a captured discarded-initializer read, or accept its late sealed fallback.
+// An extraction carrying the receiver already performs that read, including after reanchoring.
 export function renderDiscardedInitProbe(jobs, ctx) {
   const rendered = renderDiscardedInitProbeRead(jobs, ctx);
   if (rendered?.plan?.residual) probeFacts.set(rendered.node, rendered.plan.residual);
@@ -799,7 +800,7 @@ function renderDiscardedInitProbeRead(jobs, ctx) {
   const [job] = jobs;
   const plan = job?.initProbePlan;
   const metaPath = job?.metaPath;
-  if (!metaPath || jobs.some(item => item.seKey)) return null;
+  if (!metaPath || jobs.some(item => item.seKey || item.readsReceiver || item.seCarried)) return null;
   // a SEALED init reads through its own boundary member, and THAT read is the one native
   // performs (`(globalThis.window?.[(c++, 'self')]).Object` - the pattern key never reaches it)
   const sealed = renderSealedNavProbe(job.sealedProbePlan, metaPath, ctx)

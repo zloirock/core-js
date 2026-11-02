@@ -1869,7 +1869,8 @@ export default function createDestructureEmitter({
     // up in a block of their own, nested inside the slot's
     const exprStmt = blockWrappedHostStatement(assignPath);
     flattenSEWrappersToBareAE(exprStmt, assignPath, peeled);
-    liftSEPrefixSwap(t, assignPath.node, 'right', exprStmt, adapter);
+    // A stored guard owns its whole source, including prefixes, inside the rebuilt receiver.
+    if (!plan.guarded) liftSEPrefixSwap(t, assignPath.node, 'right', exprStmt, adapter);
     // within-call chaining only: the `cascadedAssignments` gate above makes this the sole pass
     // over this assignment node, so there is nothing for a cross-call memo to hand back
     const bk = { lastSibling: null, unusedVarDecl: null };
@@ -1969,12 +1970,13 @@ export default function createDestructureEmitter({
   // assignment - the prefix lift has already peeled plain sequence effects) replays WHOLE
   // ahead of the anchor read, exactly once; rebuilding from the dropped NODE itself keeps
   // the replay alive for deferred-drain clones, whose re-planned harvest is empty (clones
-  // are traversed on insertion, earning their own substitutions)
+  // are traversed on insertion, earning their own substitutions). A stored guard already
+  // reads that whole value in its identity narrow and must not replay it separately.
   function applyAnchoredAssignmentRebuild(plan, assignPath) {
     anchoredRebuiltAssignments.add(assignPath.node);
     const oldRight = assignPath.node.right;
     assignPath.node.left = plan.pattern;
-    assignPath.node.right = mayHaveSideEffects(oldRight)
+    assignPath.node.right = !plan.guarded && mayHaveSideEffects(oldRight)
       ? t.sequenceExpression([t.cloneNode(oldRight, true), anchorInitNode(plan, assignPath, oldRight)])
       : anchorInitNode(plan, assignPath, oldRight);
     t.traverseFast(oldRight, node => { skippedNodes.add(node); });

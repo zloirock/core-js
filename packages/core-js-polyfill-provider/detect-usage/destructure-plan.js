@@ -65,6 +65,7 @@ import {
   stmtRebindNames,
   peelNestedSequenceExpressions,
   peelChainAssignmentDeep,
+  installedWriteValue,
   peelTransparentExpr,
   peelZeroArgIifeReturn,
   peelToExpressionStatement,
@@ -2633,21 +2634,18 @@ export function residualAnchorSurface(initNode, { adapter, injectorState, path =
   if (init?.type === 'ChainExpression' && !receiverCarriesLiveOptional(init.expression)) {
     init = peelTransparentExpr(init.expression);
   }
-  let tail = init;
-  let shape = 'ident';
-  if (tail?.type === 'SequenceExpression') {
-    shape = 'seq';
-    tail = peelTransparentExpr(tail.expressions.at(-1));
-  }
-  if (tail?.type === 'AssignmentExpression') {
+  const sequence = peelNestedSequenceExpressions(init);
+  let { tail } = sequence;
+  let shape = sequence.prefix.length ? 'seq' : 'ident';
+  const stored = tail?.type === 'AssignmentExpression' ? tail : null;
+  if (stored) {
     shape = shape === 'seq' ? null : 'assign';
-    tail = peelTransparentExpr(tail.right);
-    if (tail?.type === 'SequenceExpression') tail = peelTransparentExpr(tail.expressions.at(-1));
+    tail = installedWriteValue(stored.right);
   }
   const ctx = { adapter, injectorState, scope: path?.scope, path };
   // A source store retains the nullable value as well as its effects. Its whole value
   // must feed the residual read; replaying the store before a constructor loses the throw.
-  if (shape === 'assign' && init.operator === '=' && proxyReceiverValueCanBeUndefined(tail,
+  if (stored?.operator === '=' && proxyReceiverValueCanBeUndefined(tail,
     ({ name }) => resolveGlobalPolyfill(name), ctx)) return { init, tail: init, shape: 'guard' };
   if ((tail?.type === 'ConditionalExpression' || tail?.type === 'LogicalExpression')
     && allProxySelectingInit(tail, ctx)) tail = firstProxyBranch(tail);
@@ -2658,11 +2656,11 @@ export function residualAnchorSurface(initNode, { adapter, injectorState, path =
     const proven = dropped ?? provenRealmCallRoot(tail, path, adapter, { allowEffects: true });
     const pure = proven && proxySurfaceIdentifier(proven, ctx) && resolveGlobalPolyfill(proven.name);
     if (pure) {
-      const prefix = [...shape === 'seq' ? init.expressions.slice(0, -1) : [], ...dropped ? [] : [tail]];
+      const prefix = [...sequence.prefix, ...dropped ? [] : [tail]];
       return { init, tail: proven, pure, prefix, shape: shape === 'assign' ? shape : prefix.length ? 'seq' : 'ident' };
     }
   }
-  return shape && proxySurfaceIdentifier(tail, ctx) ? { init, tail, shape } : null;
+  return shape && proxySurfaceIdentifier(tail, ctx) ? { init, tail, shape, prefix: sequence.prefix } : null;
 }
 
 // A default whose own claims remain live can authorize a residual member anchor. This is
@@ -2743,6 +2741,7 @@ export function planResidualAnchorHop({
     meta: { key, guardedAliasHint: receiver, captureGuardReceiver: true, guardOnly: true },
   }) : null;
   return { kind: 'ctor', prop, key, pattern: inner, pure, mutated, restPure,
+    defaultValue: guarded && prop.value.type === 'AssignmentPattern' ? prop.value.right : null,
     narrow: narrow?.bail ? null : narrow, prefix: narrow && !narrow.bail ? guardedSource.prefix : [] };
 }
 
@@ -3310,8 +3309,7 @@ export function buildNestedDestructurePlan({
       // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
       // realm, or the MIRROR can spell that leaf with the member's own ponyfill
       function planCtorKeyAnchor(hostPattern) {
-        const stored = isChainAssignment(unwrapRuntimeExpr(declarator.init))
-          && residualAnchorSurface(declarator.init, { adapter, path, resolveGlobalPolyfill });
+        const stored = residualAnchorSurface(declarator.init, { adapter, path, resolveGlobalPolyfill });
         const guarded = stored?.shape === 'guard' ? stored.tail : null;
         const anchor = planResidualAnchorHop({
           pattern: hostPattern,
@@ -3374,7 +3372,7 @@ export function buildNestedDestructurePlan({
         if (anchorPure && !restPure && outerProps.some(p => p.kind === 'verbatim'
           && residualLeafBelongsToMirror(p.prop, key))) return null;
         // the level's dead default leaves with the pattern the anchored render replaces, the writes in it too
-        if (prop.value.type === 'AssignmentPattern') noteRenderRetiredWrites(prop.value.right);
+        if (prop.value.type === 'AssignmentPattern' && !anchor.defaultValue) noteRenderRetiredWrites(prop.value.right);
         const receiverBase = resolveNestedReceiverBase({
           rootName: receiver,
           keys: [],
@@ -3392,6 +3390,7 @@ export function buildNestedDestructurePlan({
           probedNavNode: guarded ? null : probedNavNode,
           anchorPure,
           guarded,
+          defaultValue: anchor.defaultValue,
           narrow: anchor.narrow,
           prefix: anchor.prefix,
           outerProps,

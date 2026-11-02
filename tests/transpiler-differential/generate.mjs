@@ -21879,6 +21879,30 @@ function * generateNestedTwinCaptures() {
   }
 }
 
+// Stored guarded receivers keep surviving claims live, without replaying their source.
+function * generateSurvivingAnchorClaims() {
+  const setup = `import { withWindowPresence, withChangingWindow } from ${ JSON.stringify(new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href) };`;
+  for (const shape of ['declaration', 'assignment', 'prefix', 'sibling']) for (const present of [false, true]) {
+    const pattern = `{ Map: { name${ shape === 'sibling' ? ', prototype' : '' } } }`;
+    const init = `(${ shape === 'prefix' ? 'log.push("prefix"), ' : '' }saved = globalThis.window?.self)`;
+    const body = shape === 'assignment' ? `let name; (${ pattern } = ${ init });` : `const ${ pattern } = ${ init };`;
+    const row = snippet(`surviving-anchor/${ shape }/${ present }`, `withWindowPresence(${ present }, () => {
+      let saved;
+      try {
+        ${ body }
+        return [typeof name, saved === globalThis${ shape === 'sibling' ? ', typeof prototype.get' : '' }];
+      } catch (error) { return error.name; }
+    })`);
+    yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
+  }
+  const row = snippet('surviving-anchor/changing-window', `withChangingWindow(() => {
+    let saved, name;
+    ({ Map: { name } } = (saved = globalThis.window?.self));
+    return [typeof name, saved === globalThis];
+  })`);
+  yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22312,4 +22336,5 @@ export function * generate() {
   yield * generateComputedRealmAnchors();
   yield * generateCapturedRealmAnchors();
   yield * generateNestedTwinCaptures();
+  yield * generateSurvivingAnchorClaims();
 }
