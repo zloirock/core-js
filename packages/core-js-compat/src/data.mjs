@@ -3136,12 +3136,15 @@ export const data = {
     safari: '12.1',
   },
   'web.self': {
-    bun: '1.0.22',
+    // Bun and Deno getters accept invalid receivers
+    // https://github.com/oven-sh/bun/issues/47793
+    // https://github.com/denoland/deno/issues/37119
+    // bun: '1.0.22',
     chrome: '86',
     // https://github.com/denoland/deno/issues/15765
     // broken in Deno 1.45.3 again:
     // https://github.com/denoland/deno/issues/24683
-    deno: '1.46.0', // '1.29.3',
+    // deno: '1.46.0', // '1.29.3',
     // fails in early Chrome-based Edge
     edge: '87',
     firefox: '31',

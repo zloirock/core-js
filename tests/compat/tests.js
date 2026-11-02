@@ -2387,7 +2387,16 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     if (self !== GLOBAL) return false;
     if (!DESCRIPTORS) return true;
     var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, 'self');
-    return descriptor.get && descriptor.enumerable;
+    if (!descriptor.get || !descriptor.enumerable) return false;
+    try {
+      // Bun and Deno getters accept invalid receivers
+      // https://github.com/oven-sh/bun/issues/47793
+      // https://github.com/denoland/deno/issues/37119
+      descriptor.get.call({});
+    } catch (error) {
+      return error instanceof TypeError;
+    }
+    return false;
   },
   'web.set-immediate': IMMEDIATE,
   'web.set-interval': TIMERS,

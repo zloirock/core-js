@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object
 - Stopped replacing the native `Promise` in [Deno < 1.24](https://github.com/denoland/deno/pull/15211) solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
 - Fixed falsely detected `ArrayBuffer` transfer support in [Deno 1.13](https://github.com/denoland/deno/pull/11840), preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
 - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
@@ -81,6 +82,7 @@
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
+  - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
   - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari / Bun < 1.4.4 due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074); corrected Bun detection in compat tests
   - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
   - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
