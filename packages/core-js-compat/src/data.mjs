@@ -1875,7 +1875,7 @@ export const data = {
   'es.string.from-code-point': {
     chrome: '41',
     edge: '13',
-    firefox: '29',
+    firefox: '35',
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '9.0',

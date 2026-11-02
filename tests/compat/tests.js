@@ -1527,7 +1527,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'es.string.ends-with': createIsRegExpLogicTest('endsWith'),
   'es.string.from-code-point': function () {
-    return String.fromCodePoint;
+    return String.fromCodePoint && String.fromCodePoint.length === 1;
   },
   'es.string.includes': createIsRegExpLogicTest('includes'),
   'es.string.is-well-formed': function () {
