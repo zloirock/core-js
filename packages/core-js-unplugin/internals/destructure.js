@@ -2255,7 +2255,8 @@ export default function createAstDestructureEmitter({
     // the walk proved re-referenceable - re-reads inline
     // ... and so does a SOLE consume (above): with the whole pattern gone there is no second
     // reader for the memo to serve, and the dispatch spells the init itself
-    const dispatchReceiver = nestedReceiver ?? initValue;
+    const dispatchReceiver = literalRoute.navigation
+      ? renderNestedExtractionReceiver(literalRoute.navigation, { embed: cloneNode }) : nestedReceiver ?? initValue;
     // ... and it is read LIVE where it IS the init: a claim INSIDE the receiver renders by REPLACING
     // its node, so a copy captured here ships the source read with its own polyfill lost. a resolved
     // hop, a lifted prefix or an array-wrapped element each name a slot of their own and keep theirs
@@ -2570,6 +2571,7 @@ export default function createAstDestructureEmitter({
         ? (literalRoute.slotMemo?.navKeys ?? []).reduce(memberFromKeyName, memoRecv.ident ?? identifier(memoRecv.refName))
         : navSurface ? navSurface.root
           : literalReceiver ?? (allProxyInit ? proxyInitSurface : carriedInitValue), prop,
+      receiverNavigation: !memoRecv && literalReceiver === literalRoute.literalReceiver ? literalRoute.navigation : null,
       typedHop: typedHopPure ? { pure: typedHopPure, defaultHost: typedHopDefaultHost } : null,
       typedNavChain,
       nested: (!literalReceiver || !!typedHopPure) && chain.length > 0, chainKeys, metaPath,

@@ -1,8 +1,11 @@
 // Source lifetime, not parser dialect, determines which nested receiver can be saved.
-import { planAssignmentOverwrite } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { identifier, renderNestedExtractionReceiver } from '../../packages/core-js-polyfill-provider/render.js';
+import { planAssignmentOverwrite, planLiteralRoute } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { identifier, hostSlot, renderNestedExtractionReceiver } from '../../packages/core-js-polyfill-provider/render.js';
+import { resolveNestedReceiverPlan, resolveDestructureReceiverPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('nested-extraction-receiver');
@@ -95,5 +98,41 @@ for (const [name, pattern, init, inline] of [
   check(`${ label }/repeat source slot`, repeated?.capture?.leafPattern, plan?.capture?.leafPattern);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
+
+// Navigation carries its native source root separately from canonical computed members.
+for (const key of ['"m-q"', '0', '["m-q"]', '[`m-q`]']) for (const root of ['box', 'box.inner', 'box?.inner']) {
+  const source = `const { s: { ${ key }: { flat: method } } } = { s: ${ root } };`;
+  runBoth(`native navigation/${ key }/${ root }`, source, (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value?.name === 'method');
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const sourceRoot = host.node.init.properties[0].value;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(program.node);
+    const plan = resolveNestedReceiverPlan(prop, { allowNavSegments: true, allowSeFreeSingleRead: true, adapter });
+    check(`${ label }/source root identity`, unwrapRuntimeExpr(plan?.node), unwrapRuntimeExpr(sourceRoot));
+    checkDeep(`${ label }/canonical keys`, plan?.keys, [key === '0' ? '0' : 'm-q']);
+    const receiver = resolveDestructureReceiverPlan(prop, { allowSeFreeSingleRead: true, adapter });
+    check(`${ label }/resolved channel`, receiver.channel, 'resolved');
+    check(`${ label }/receiver carries source root`, unwrapRuntimeExpr(receiver.navigation?.node), unwrapRuntimeExpr(sourceRoot));
+    check(`${ label }/analysis retains its source projection`, receiver.node.object, unwrapRuntimeExpr(sourceRoot));
+    const literal = planLiteralRoute({
+      metaPath: prop, prop: prop.node, kind: 'instance', entry: 'instance/flat',
+      declarator: host.node, declaration: host.parentPath.node, adapter,
+    });
+    check(`${ label }/literal route carries source root`, unwrapRuntimeExpr(literal.navigation?.node), unwrapRuntimeExpr(sourceRoot));
+    const embedded = [];
+    const rendered = renderNestedExtractionReceiver(plan, {
+      embed(node) { embedded.push(node); return parser.name === 'babel' ? hostSlot(node) : node; },
+    });
+    checkDeep(`${ label }/only source embedded`, embedded.map(unwrapRuntimeExpr), [unwrapRuntimeExpr(sourceRoot)]);
+    const native = parser.name === 'babel' ? estreeToBabel(rendered) : rendered;
+    check(`${ label }/computed key`, native.computed, true);
+    check(`${ label }/key value`, native.property.value, key === '0' ? 0 : 'm-q');
+    check(`${ label }/native root survives conversion`, unwrapRuntimeExpr(native.object), unwrapRuntimeExpr(sourceRoot));
+    if (root.includes('?.')) check(`${ label }/optional chain ends before the new key`,
+      native.object.type, parser.name === 'babel' ? 'OptionalMemberExpression' : 'ChainExpression');
+    check(`${ label }/read-only planning`, JSON.stringify(program.node), before);
+  });
+}
 
 finish();

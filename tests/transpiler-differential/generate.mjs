@@ -22114,6 +22114,24 @@ function * generateCaptureJobOwnership() {
   }
 }
 
+// Provider navigation separates a native root from canonical computed members.
+// Empty positional residuals use data hops: their independent memo policy is tested elsewhere.
+function * generateCanonicalReceiverBoundaries() {
+  for (const key of ['"m-q"', '0', '["m-q"]', '[`m-q`]']) for (const host of ['array', 'navigation', 'optional', 'for-init', 'multi']) {
+    const array = host === 'array';
+    const pattern = array ? `[{ ${ key }: { at: method, kept: {} } }]` : `{ slot: { ${ key }: { flat: method } } }`;
+    const init = array ? 'input' : `{ slot: ${ host === 'optional' ? 'input?.value' : 'input' }${ host === 'for-init' ? ', other: input' : '' } }`;
+    const declaration = `const ${ host === 'multi' ? 'lead = log.push("lead"), ' : '' }${ pattern } = ${ init }`;
+    const read = array ? 'method.call(rows, -1)' : 'method.call(rows)';
+    const body = host === 'for-init' ? `for (${ declaration };;) return ${ read };` : `${ declaration }; return ${ read };`;
+    const row = snippet(`canonical-receiver/${ host }/${ key }`, `read(${ array ? '[box]' : host === 'optional' ? '{ value: box }' : 'box' })`);
+    yield { ...row, code: `const rows = ${ array ? '[4, 9]' : '[4, [9]]' }; rows.kept = {};
+const box = { ${ array ? '"m-q": rows, 0: rows' : 'get "m-q"() { log.push("hop"); return rows; }, get 0() { log.push("hop"); return rows; }' } };
+function read(input) { ${ body } }
+${ row.code }`, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22555,4 +22573,5 @@ export function * generate() {
   yield * generateDeferredJobBindings();
   yield * generateAliasResidualConstructors();
   yield * generateCaptureJobOwnership();
+  yield * generateCanonicalReceiverBoundaries();
 }

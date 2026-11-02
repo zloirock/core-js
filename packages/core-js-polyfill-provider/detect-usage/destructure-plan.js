@@ -3927,6 +3927,8 @@ export function chainThroughNamedDefaults(chain) {
 // capture now; deferred insertion uses slotMemo only when the slot must be rewritten,
 // and otherwise allocates the same capture through the residual plan.
 // sourceBindingCount preserves the original readers when earlier edits shrank the pattern.
+// navigation keeps the source root and generated keys of a literalReceiver projection
+// separate until the binding renders them; replacing the receiver clears that plan.
 export function planLiteralRoute({
   metaPath, prop, kind, sentinel, chain, declarator, declaration, pureNav, forInit = false, adapter = null,
   entry = null, typedNavChain, allProxyInit = false, sourceBindingCount = patternBindingCount(declarator.id),
@@ -3940,12 +3942,14 @@ export function planLiteralRoute({
   let literalReceiver = null;
   let relaxedReceiver = false;
   let carriedLive = null;
+  let navigation = null;
   const throughNamedDefaults = chainThroughNamedDefaults(chain);
   if (kind === 'instance' && !pureNav && chain.length > 0) {
     const receiverPlan = declaratorConsumedWhole && !sentinel && !throughNamedDefaults
       && resolveDestructureReceiverPlan(metaPath, {
         allowSeFreeSingleRead: true, adapter,
       });
+    navigation = receiverPlan?.navigation ?? null;
     literalReceiver = receiverPlan?.channel === 'resolved' ? receiverPlan.node
       : resolveNestedReceiverNode(metaPath, { adapter, throughNamedDefaults }) ?? null;
     if (!literalReceiver) {
@@ -3998,6 +4002,7 @@ export function planLiteralRoute({
   const slotMemo = memoCandidate && (!literalReceiver || !memoCandidate.hoist) ? memoCandidate : null;
   if (slotMemo) {
     literalReceiver = slotMemo.node;
+    navigation = null;
     relaxedReceiver = true;
   }
   const receiverCarriesInit = declaratorConsumedWhole && !sentinel && !!literalReceiver
@@ -4033,6 +4038,7 @@ export function planLiteralRoute({
     soleBinding,
     declaratorConsumedWhole,
     literalReceiver,
+    navigation,
     relaxedReceiver,
     carriedLive,
     receiverCarriesInit,

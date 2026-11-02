@@ -506,9 +506,14 @@ export function renderArrayDestructurePlan(plan, {
           return children.flatMap(child => {
             // a kept leaf MOVES off the replaced source: it re-dispatches against a minted ref, and
             // only its own node still holds the receiver type the source answered
-            if (child.kind === 'verbatim') return [plan.array.assignment
-              ? expressionStatement(assignmentExpression('=', objectPattern((child.props ?? [child.prop]).map(retain)), embed(receiver)))
-              : variableDeclaration(kind, [variableDeclarator(objectPattern((child.props ?? [child.prop]).map(retain)), embed(receiver))])];
+            // Each residual owns a fresh canonical receiver, not a host embedding or a shared node.
+            if (child.kind === 'verbatim') {
+              const pattern = objectPattern((child.props ?? [child.prop]).map(retain));
+              const value = cloneNode(receiver);
+              return [plan.array.assignment
+                ? expressionStatement(assignmentExpression('=', pattern, value))
+                : variableDeclaration(kind, [variableDeclarator(pattern, value)])];
+            }
             if (child.keyedCapture) {
               // An identifier here is this render's element capture or immutable import.
               // A nested navigation still needs one GetValue before the computed key.
