@@ -571,7 +571,7 @@ function buildDestructuringInitMetaCore({
         path,
         unionSink,
         selectionSink: selectionArms,
-        rescuesReceiverRead: path?.node.type === 'VariableDeclarator' || path?.node.type === 'AssignmentExpression',
+        rescuesReceiverRead: path?.node?.type === 'VariableDeclarator' || path?.node?.type === 'AssignmentExpression',
       });
     // ... and a member reading a slot through a selection of containers names one constructor per arm:
     // the member channel's identity guard over those arms whose static core-js does not swap in (`c ? {
@@ -6138,7 +6138,8 @@ export function restoreUnclaimedFlattens(programNode) {
 const relocationRecords = new WeakMap();
 const SHAPE_SKIP_KEYS = new Set(['start', 'end', 'loc', 'range', 'extra', 'leadingComments', 'trailingComments', 'innerComments']);
 function patternShape(node) {
-  return JSON.stringify(node, (key, value) => SHAPE_SKIP_KEYS.has(key) ? undefined : value);
+  // ESTree literals carry a bigint value; the node type and bigint field retain its literal kind.
+  return JSON.stringify(node, (key, value) => SHAPE_SKIP_KEYS.has(key) ? undefined : typeof value === 'bigint' ? String(value) : value);
 }
 
 // a loop head or catch param the legs moved into the body for a claim: `slotOwner[field]` is the
@@ -9777,7 +9778,9 @@ function computeNestedDestructureReceiver(outerProp, adapter, {
       // Anchor the read in the actual receiver slot: its value is captured before any pattern
       // defaults can reassign that binding. The host alone loses this evaluation-order proof.
       // The path also carries the TS-runtime lookup fallback for declare-bindings.
-      const readPath = destructureReceiverSlot(hostPath?.node) ? hostPath.get(destructureReceiverSlot(hostPath.node)) : hostPath;
+      // A for-of declaration has no init: slotNode already names its iterable element.
+      const slot = destructureReceiverSlot(hostPath?.node);
+      const readPath = slot && hostPath.node[slot] ? hostPath.get(slot) : hostPath;
       const walkScope = descended?.ctx.scope ?? hostScope;
       const usageNode = descended?.readNode ?? null;
       // ... and an index among the keys walked reads an array LITERAL at its level, or nothing: the
