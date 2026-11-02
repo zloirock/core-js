@@ -33,12 +33,13 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       try {
         next = anObject(call(inputIter.next, inputIter.iterator));
         done = next.done;
+        if (!done) next = next.value;
       } catch (error) {
         return iteratorCloseAll(iters, THROW, error);
       }
       if (!done) {
         try {
-          iter = getIteratorFlattenable(next.value, false);
+          iter = getIteratorFlattenable(next, false);
         } catch (error) {
           return iteratorCloseAll(concat([inputIter], iters), THROW, error);
         }

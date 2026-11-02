@@ -157,6 +157,37 @@ QUnit.test('Iterator.zip', assert => {
     assert.same(caught, expectedError, 'propagates the original error from inner return()');
   }
 
+  if (DESCRIPTORS) {
+    const expectedError = new Error('input value');
+    const closed = [];
+    const inner = createIterator([], {
+      return() {
+        closed.push('inner');
+        return {};
+      },
+    });
+    let step = 0;
+    const input = {
+      [Symbol.iterator]() {
+        return this;
+      },
+      next() {
+        if (!step++) return { done: false, value: inner };
+        return defineProperty({ done: false }, 'value', {
+          get() {
+            throw expectedError;
+          },
+        });
+      },
+      return() {
+        closed.push('input');
+        return {};
+      },
+    };
+    assert.throws(() => zip(input), error => error === expectedError, 'preserves the input value error');
+    assert.deepEqual(closed, ['inner'], 'closes collected iterators without closing the input on a value error');
+  }
+
   assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
   assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
   if (DESCRIPTORS) {
