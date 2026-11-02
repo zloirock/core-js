@@ -319,7 +319,7 @@ export const $helper = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      const helper: (arg: NonNullable<any>) => any;
+      const helper: ${ p.type ?? '(arg: NonNullable<any>) => any' };
       export = helper;
     }
   `,
