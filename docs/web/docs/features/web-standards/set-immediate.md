@@ -1,7 +1,7 @@
 # setImmediate
 
 ## Modules
-[`web.set-immediate`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.set-immediate.js) and [`web.clear-immediate`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.clear-immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
+[`web.set-immediate`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.set-immediate.js). [`setImmediate` and `clearImmediate`](https://w3c.github.io/setImmediate/) polyfills.
 
 ## Built-ins signatures
 ```ts

@@ -28,6 +28,5 @@ require("core-js/modules/es.weak-map.get-or-insert-computed");
 require("core-js/modules/esnext.promise.all-keyed");
 require("core-js/modules/esnext.promise.all-settled-keyed");
 require("core-js/modules/web.dom-exception.stack");
-require("core-js/modules/web.clear-immediate");
 require("core-js/modules/web.set-immediate");
 require("core-js/modules/web.structured-clone");

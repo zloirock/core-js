@@ -26,6 +26,5 @@ import "core-js/modules/es.uint8-array.to-hex";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-exception.stack";
-import "core-js/modules/web.clear-immediate";
 import "core-js/modules/web.set-immediate";
 import "core-js/modules/web.structured-clone";

@@ -55,6 +55,5 @@ require("core-js/modules/esnext.symbol.is-registered-symbol");
 require("core-js/modules/esnext.symbol.is-well-known-symbol");
 require("core-js/modules/esnext.symbol.metadata");
 require("core-js/modules/web.dom-exception.stack");
-require("core-js/modules/web.clear-immediate");
 require("core-js/modules/web.set-immediate");
 require("core-js/modules/web.structured-clone");

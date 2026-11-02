@@ -55,6 +55,5 @@ import "core-js/modules/esnext.symbol.is-registered-symbol";
 import "core-js/modules/esnext.symbol.is-well-known-symbol";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-exception.stack";
-import "core-js/modules/web.clear-immediate";
 import "core-js/modules/web.set-immediate";
 import "core-js/modules/web.structured-clone";

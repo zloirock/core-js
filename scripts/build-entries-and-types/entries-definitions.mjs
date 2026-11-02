@@ -3564,7 +3564,7 @@ export const features = {
     name: 'btoa',
   },
   'clear-immediate': {
-    modules: ['web.clear-immediate'],
+    modules: ['web.set-immediate'],
     template: $namespace,
     name: 'clearImmediate',
   },

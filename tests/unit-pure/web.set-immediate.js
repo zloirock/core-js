@@ -41,3 +41,16 @@ QUnit.test('setImmediate / clearImmediate', assert => {
 
   return promise;
 });
+
+QUnit.test('clearImmediate does not cancel other callbacks', assert => {
+  return timeLimitedPromise(1e3, resolve => {
+    const id = setImmediate(() => assert.avoid('cancelled callback'));
+    clearImmediate(id);
+    clearImmediate(id);
+    clearImmediate(undefined);
+    setImmediate(() => {
+      assert.required('other callback runs');
+      resolve();
+    });
+  });
+});
