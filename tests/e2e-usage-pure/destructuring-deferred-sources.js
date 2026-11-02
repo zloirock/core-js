@@ -35,3 +35,27 @@ QUnit.test('deferred assignment claims retain a throwing residual after both wri
   assert.deepEqual([method(), contains(), tail], [7, true, undefined]);
   assert.deepEqual(effects, ['first', 'second', 'tail']);
 });
+
+QUnit.test('deferred catch defaults declare their guard before joined extractions', assert => {
+  const events = [];
+  try {
+    throw {
+      get name() { events.push('name'); return undefined; },
+      get options() { events.push('options'); return [2, 7]; },
+    };
+  } catch ({ name = (events.push('default'), 'fallback'), options: { filter } }) {
+    assert.same(name, 'fallback');
+    assert.deepEqual(filter.call([2, 7], value => value > 3), [7]);
+  }
+  assert.deepEqual(events, ['name', 'default', 'options']);
+});
+
+QUnit.test('deferred memo and rest retain the source constructor binding', assert => {
+  const events = [];
+  const { Math: { trunc }, Map: Local, ...rest } = (events.push('init'), globalThis);
+  assert.same(trunc(2.9), 2);
+  assert.same(new Local([[1, 7]]).get(1), 7);
+  assert.false(Object.hasOwn(rest, 'Map'));
+  assert.false(Object.hasOwn(rest, 'Math'));
+  assert.deepEqual(events, ['init']);
+});

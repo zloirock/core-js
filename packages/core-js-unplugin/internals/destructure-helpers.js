@@ -1084,11 +1084,13 @@ export function jobHostSiblingDeclarators(ledger) {
   return hostSiblings;
 }
 
+// A queued extraction keeps its source target after the residual renames a retained key.
+// A collapsed leaf still owns the narrower binding selected for its product.
 export function memoJobBindingTarget(job) {
   if (job.collapseLeafName ?? job.collapseLeaf?.localName) {
     return identifier(job.collapseLeafName ?? job.collapseLeaf.localName);
   }
-  return propBindingTarget(job.prop);
+  return job.bindingTarget ?? propBindingTarget(job.prop);
 }
 
 // the prop a job's claim occupies on its declarator's own level: a chained claim sits under its

@@ -2614,6 +2614,7 @@ export default function createAstDestructureEmitter({
     recordJob({
       hostPath: exported ? declarationPath.parentPath : declarationPath,
       job: {
+        kind,
         prop,
         pattern,
         chain,
