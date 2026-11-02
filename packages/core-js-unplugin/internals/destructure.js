@@ -926,14 +926,19 @@ export default function createAstDestructureEmitter({
       primeDestructureReceiverTypes?.(metaPath);
       if (unwrapExportedHost(restHost.parentPath)) return true;
       const declaration = restHost.parentPath;
-      const pendingJobs = queuedJobsFor(restHost)?.jobs ?? [];
+      const pending = queuedJobsFor(restHost);
+      const pendingJobs = pending?.jobs ?? [];
       // Earlier queued reads can declare this same receiver in their original statement slot.
       // A split capture shares that declaration; only its inner refs need hoisted slots.
       const deferredReceiver = restPlan.claimedProps?.size
         && (!restPlan.capture || restPlan.capture.splitCapture && assignmentInStatementPosition(restHost))
         && assignmentValueDiscarded(restHost)
         && pendingJobs.some(job => job.readsReceiver) && pendingJobs.every(job => !job.bodyless);
-      const rendered = renderRetainedObjectCapture(restPlan, {
+      // The drain owns earlier reads. Give it a real holder even when the source name
+      // was reusable: its declaration will evaluate the initializer for this capture too.
+      const rendered = renderRetainedObjectCapture(deferredReceiver ? {
+        ...restPlan, receiverRef: null, receiverNode: null, reuseReceiver: false, inlineReceiver: false, preserveResult: true,
+      } : restPlan, {
         mintRef: mintRefName,
         mintDeclaredRef: () => injector.generateDeclaredRef(metaPath),
         mintReceiverRef: deferredReceiver ? mintRefName : undefined,
@@ -957,7 +962,9 @@ export default function createAstDestructureEmitter({
       if (rendered.expression) {
         retireHostPrefixLift(restHost);
         const holder = rendered.expression.expressions?.[0];
-        if (restPlan.claimedProps?.size && holder?.type === 'AssignmentExpression' && holder.right === restPlan.init) {
+        const holdsReceiver = holder?.type === 'AssignmentExpression' && holder.right === restPlan.init;
+        if (deferredReceiver && !holdsReceiver) throw new Error('Missing retained capture receiver');
+        if (restPlan.claimedProps?.size && holdsReceiver) {
           for (const job of pendingJobs) {
             job.receiverHolder = holder;
             if (deferredReceiver) job.receiverExpression = rendered.expression;
@@ -986,18 +993,19 @@ export default function createAstDestructureEmitter({
           && (node.id.type === 'ArrayPattern' || node.id.type === 'ObjectPattern'))) {
           for (const node of rendered.declarations.slice(captured ? 0 : 1)) capturedSiblingHosts.add(node);
         }
-        // the host a queued job was recorded against leaves the tree. its prop takes a declarator of its own,
-        // where the walk claims it again - save one the walk skips (a twin's sentinel), whose job follows it
-        // there, and one a twin left out (`twinDroppedJobs`), whose job binds off the first
-        for (const job of pendingJobs) {
-          if (job.declarator !== restHost.node) continue;
+        // The replacement capture owns every re-rendered binding. Only claims it explicitly
+        // leaves to the drain keep a job, on the new declarator that actually hosts them.
+        // A twin's omitted leaf still drains beside the capture's first declarator.
+        if (pending) pending.jobs = pendingJobs.filter(job => {
+          if (job.declarator !== restHost.node) return true;
           const holder = rendered.declarations.find(node => nodeHoldsSubtree(node, job.prop));
           if (!holder && twinDroppedJobs.has(job)) job.declarator = rendered.declarations.at(0);
           else if (holder && skippedNodes.has(job.prop) && holder.id.properties?.includes(job.prop)) {
             job.declarator = holder;
             job.pattern = holder.id;
-          }
-        }
+          } else return false;
+          return true;
+        });
         // The re-detected siblings resolve statics through the newly inserted bindings - every
         // declarator's, as the other leg registers them.
         for (const capture of restHost.replaceWithMultiple(rendered.declarations)) registerDeclaratorBindings(capture);

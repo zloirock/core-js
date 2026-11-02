@@ -1,3 +1,5 @@
+import { withWindowPresence } from './unbacked-window-host.cjs';
+
 // Public readers keep their supplied receivers outside the closed caller census.
 export function readEffectfulSlots(source, effect) {
   const { y: { at } } = { y: source.y, z: effect() };
@@ -192,4 +194,41 @@ QUnit.test('destructuring: bound defaults and reassignable realm names keep inst
   assert.same(effects, 2);
   assert.true(readGuardedRealmPrototype(undefined).call('ab', 'b'), 'an undecided guard keeps the string alternative');
   assert.throws(() => readGuardedRealmPrototype(Array), TypeError, 'the other guard arm leaves a missing intermediate slot');
+});
+
+// The exported parameter prevents the closed caller census from replacing the receiver.
+export function assignCapturedClaims(box, effect) {
+  let at, flat;
+  // eslint-disable-next-line prefer-const -- the assignment capture is under test
+  ({ at, M: { flat } } = (effect(), box));
+  return [at, flat];
+}
+
+QUnit.test('destructuring: retained captures own earlier claims and their initializer once', assert => {
+  const effects = [];
+  const source = {
+    get at() {
+      effects.push('at');
+      return function () { return this.value; };
+    },
+    get M() { effects.push('M'); return [1, [2]]; },
+  };
+  const [at, flat] = assignCapturedClaims(source, () => effects.push('init'));
+  assert.same(at.call({ value: 17 }), 17);
+  assert.deepEqual(flat.call([1, [2]]), [1, 2]);
+  assert.deepEqual(effects, ['init', 'at', 'M']);
+  const { Array: { from, [(effects.push('key'), 'of')]: of }, z } = globalThis;
+  assert.deepEqual(from([4]), [4]);
+  assert.deepEqual(of(5), [5]);
+  assert.same(z, undefined);
+  assert.deepEqual(effects, ['init', 'at', 'M', 'key']);
+  withWindowPresence(true, () => {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the optional source host is under test
+    const { Promise: { resolve }, Promise: { withResolvers } } = globalThis?.self;
+    assert.isFunction(resolve);
+    const pending = withResolvers.call(Promise);
+    assert.isFunction(pending.resolve);
+    assert.isFunction(pending.reject);
+    assert.same(typeof pending.promise.then, 'function');
+  });
 });

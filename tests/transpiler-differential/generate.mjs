@@ -22080,6 +22080,40 @@ function * generateAliasResidualConstructors() {
   }
 }
 
+// A retained capture transfers queued claims to its rendered declarations without replaying
+// the shared initializer or leaving earlier bindings on a detached host.
+function * generateCaptureJobOwnership() {
+  for (const bodyless of [false, true]) for (const throws of [false, true]) {
+    const write = '({ at, M: { flat } } = (log.push("init"), box));';
+    const row = snippet(`capture-job/assignment/${ bodyless }/${ throws }`, `(() => {
+      const box = { get at() { log.push("at"); return 17; },
+        get M() { log.push("M"); ${ throws ? 'throw new RangeError("capture");' : 'return [1, [2]];' } } };
+      return readCaptured(box);
+    })()`);
+    yield { ...row, code: `export function readCaptured(box) {
+      let at, flat;
+      try { ${ bodyless ? `if (box) ${ write }` : write } return [at, flat.call([1, [2]])]; }
+      catch (error) { return error.name; }
+    }\n${ row.code }`, strip: true };
+  }
+  for (const host of ['const', 'let', 'var', 'for']) {
+    const declaration = `${ host === 'for' ? 'const' : host } { Array: { from, [(log.push("key"), "of")]: of }, z } = globalThis`;
+    const read = 'return [from([4]), of(5), z];';
+    yield { ...snippet(`capture-job/keyed/${ host }`, `(() => {
+      ${ host === 'for' ? `for (${ declaration };;) { ${ read } }` : `${ declaration }; ${ read }` }
+    })()`), strip: true };
+  }
+  const setup = `import { withWindowPresence } from ${ JSON.stringify(new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href) };`;
+  for (const optional of [false, true]) for (const loop of [false, true]) {
+    const declaration = `const { Promise: { resolve }, Promise: { withResolvers } } = globalThis${ optional ? '?.' : '.' }self`;
+    const read = 'return [typeof resolve, typeof withResolvers];';
+    const row = snippet(`capture-job/repeated/${ optional }/${ loop }`, `withWindowPresence(true, () => {
+      ${ loop ? `for (${ declaration };;) { ${ read } }` : `${ declaration }; ${ read }` }
+    })`);
+    yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22520,4 +22554,5 @@ export function * generate() {
   yield * generateMovedPatternBindings();
   yield * generateDeferredJobBindings();
   yield * generateAliasResidualConstructors();
+  yield * generateCaptureJobOwnership();
 }

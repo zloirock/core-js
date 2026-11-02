@@ -2560,6 +2560,28 @@ async function checkAstFlushContracts() {
     }
   }
 
+  // A removed capture retires its import read too; other readers and observable values
+  // keep that same import live. Declaration and standalone-write cleanup share the census.
+  for (const [label, source, retained] of [
+    ['declaration', 'const MEMO = PURE;', false],
+    ['write', 'var MEMO; MEMO = PURE;', false],
+    ['reader', 'const MEMO = PURE; use(PURE);', true],
+    ['type-reader', 'const MEMO = () => { let ignored: typeof PURE; }; use(PURE);', true],
+    ['type-only', 'const MEMO = () => { let ignored: typeof PURE; };', false],
+    ['nested-declaration', 'const MEMO = () => { const INNER = PURE; }; use(PURE);', true],
+    ['nested-write', 'const MEMO = () => { var INNER; INNER = PURE; }; use(PURE);', true],
+    ['effect', 'const MEMO = effect(PURE);', true],
+  ]) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', mode: 'actual', absoluteImports: false });
+    const pure = state.addPureImport('self', 'self');
+    const ref = state.generateLocalRef();
+    const inner = state.generateLocalRef();
+    // eslint-disable-next-line node/no-sync -- include type-only names skipped by the shared census
+    const { program } = parseSync('/capture.ts', source.replaceAll('MEMO', ref).replaceAll('INNER', inner).replaceAll('PURE', pure), { sourceType: 'module' });
+    flushIntoProgram({ injector: state, program, refOrder: [ref, inner] });
+    check(`retired capture import/${ label }`, program.body.some(node => node.type === 'ImportDeclaration'), retained);
+  }
+
   const aliasInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
   const refs = Array.from({ length: 3 }, () => aliasInjector.generateLocalRef());
   aliasInjector.registerGlobalAlias(refs[0], 'Iterator', { trusted: true, minted: true });
