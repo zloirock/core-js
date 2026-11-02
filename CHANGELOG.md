@@ -32,7 +32,8 @@
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
 - Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
-- Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053); corrected the related compat data
+- Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
+- Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
 - Fixed the pure version marking the native `Error.isError` as `.sham`
 - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator ([Firefox < 46](https://bugzilla.mozilla.org/show_bug.cgi?id=1067049))
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
@@ -61,6 +62,8 @@
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
+  - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
+  - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments
   - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
   - Fixed [Deno 1.1.1](https://github.com/denoland/deno/releases/tag/v1.1.1) compat data mapping: `AggregateError`, `Promise.any` and `String.prototype.replaceAll` are available from this version
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:

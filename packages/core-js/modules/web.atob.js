@@ -39,8 +39,13 @@ var INCORRECT_ENCODING = BASIC && fails(function () {
   return true;
 });
 
-var NO_ARG_RECEIVING_CHECK = BASIC && !fails(function () {
-  $atob();
+var NO_ARG_RECEIVING_CHECK = BASIC && fails(function () {
+  try {
+    $atob();
+  } catch (error) {
+    return !(error instanceof TypeError);
+  }
+  return true;
 });
 
 var WRONG_ARITY = BASIC && $atob.length !== 1;

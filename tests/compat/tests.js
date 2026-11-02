@@ -2249,7 +2249,11 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       try {
         atob('a');
       } catch (error2) {
-        return error2.name === 'InvalidCharacterError' && atob(' ') === '';
+        return error1 instanceof TypeError
+          && error2.name === 'InvalidCharacterError'
+          && atob.length === 1
+          && atob('aGk=') === 'hi'
+          && atob(' ') === '';
       }
     }
   },
@@ -2260,7 +2264,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       try {
         btoa('\u0100');
       } catch (error2) {
-        return error2.name === 'InvalidCharacterError';
+        return error2.name === 'InvalidCharacterError'
+          && btoa.length === 1
+          && btoa('hi') === 'aGk='
+          && btoa(null) === 'bnVsbA==';
       }
     }
   },

@@ -3035,7 +3035,7 @@ export const data = {
   'web.atob': {
     bun: '0.1.1',
     chrome: '34',
-    deno: '1.7',
+    deno: '1.17.3',
     // older have wrong arity
     edge: '16', // '13',
     firefox: '27',
