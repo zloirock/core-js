@@ -1,5 +1,5 @@
 import { DESCRIPTORS } from '../helpers/constants.js';
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createIterable, createIterator, createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#union', assert => {
   const { union } = Set.prototype;
@@ -49,5 +49,25 @@ QUnit.test('Set#union', assert => {
       },
     };
     assert.deepEqual(from(baseSet.union(setLike)), [4]);
+  }
+});
+
+QUnit.test('Set#union rejects non-object iterator results', assert => {
+  for (const primitive of [undefined, null, false, 1, 'foo']) {
+    let nextCalls = 0;
+    let returnCalls = 0;
+    const setLike = createSetLike([]);
+    setLike.keys = () => createIterator([], {
+      next() {
+        return ++nextCalls === 1 ? primitive : { done: true };
+      },
+      return() {
+        returnCalls++;
+        return {};
+      },
+    });
+    assert.throws(() => new Set().union(setLike), TypeError, 'rejects a non-object iterator result');
+    assert.same(nextCalls, 1, 'does not advance after an invalid result');
+    assert.same(returnCalls, 0, 'does not close the iterator');
   }
 });

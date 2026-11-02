@@ -129,13 +129,13 @@ URLSearchParamsState.prototype = {
     if (iteratorMethod) {
       iterator = getIterator(object, iteratorMethod);
       next = iterator.next;
-      while (!(step = call(next, iterator)).done) {
+      while (!(step = anObject(call(next, iterator))).done) {
         entryIterator = getIterator(anObject(step.value));
         entryNext = entryIterator.next;
         if (
-          (first = call(entryNext, entryIterator)).done ||
-          (second = call(entryNext, entryIterator)).done ||
-          !call(entryNext, entryIterator).done
+          (first = anObject(call(entryNext, entryIterator))).done ||
+          (second = anObject(call(entryNext, entryIterator))).done ||
+          !anObject(call(entryNext, entryIterator)).done
         ) throw new TypeError('Expected sequence with length 2');
         push(entries, { key: $toString(first.value), value: $toString(second.value) });
       }

@@ -45,3 +45,29 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
     }
   }
 });
+
+if (DESCRIPTORS) QUnit.test('%TypedArray%.from rejects non-object iterator results', assert => {
+  for (const { name, TypedArray, $ } of TYPED_ARRAYS_WITH_BIG_INT) {
+    for (const primitive of [undefined, null, false, 1, 'foo']) {
+      let nextCalls = 0;
+      let returnCalls = 0;
+      let mapCalls = 0;
+      const iterable = createIterable([], {
+        next() {
+          return ++nextCalls === 1 ? primitive : { done: true };
+        },
+        return() {
+          returnCalls++;
+          return {};
+        },
+      });
+      assert.throws(() => TypedArray.from(iterable, () => {
+        mapCalls++;
+        return $(1);
+      }), TypeError, `${ name }.from rejects a non-object iterator result`);
+      assert.same(nextCalls, 1, 'does not advance after an invalid result');
+      assert.same(returnCalls, 0, 'does not close the iterator');
+      assert.same(mapCalls, 0, 'does not call the mapper');
+    }
+  }
+});

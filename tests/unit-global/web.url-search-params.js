@@ -182,6 +182,29 @@ QUnit.test('URLSearchParams', assert => {
   }, 'sequence elements must be pairs #4');
 });
 
+QUnit.test('URLSearchParams rejects non-object iterator results', assert => {
+  for (const position of [-1, 0, 1, 2]) {
+    for (const primitive of [undefined, null, false, 1, 'foo']) {
+      let nextCalls = 0;
+      let returnCalls = 0;
+      const invalidIndex = Math.max(0, position);
+      const iterable = createIterable([], {
+        next() {
+          const index = nextCalls++;
+          return index === invalidIndex ? primitive : { value: 'a', done: index > 1 };
+        },
+        return() {
+          returnCalls++;
+          return {};
+        },
+      });
+      assert.throws(() => new URLSearchParams(position < 0 ? iterable : [iterable]), TypeError, 'rejects a non-object iterator result');
+      assert.same(nextCalls, invalidIndex + 1, 'does not advance after an invalid result');
+      assert.same(returnCalls, 0, 'does not close the iterator');
+    }
+  }
+});
+
 QUnit.test('URLSearchParams#append', assert => {
   const { append } = URLSearchParams.prototype;
   assert.isFunction(append);

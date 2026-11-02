@@ -89,6 +89,25 @@ QUnit.test('Set', assert => {
   }
 });
 
+QUnit.test('Set rejects non-object iterator results', assert => {
+  for (const primitive of [undefined, null, false, 1, 'foo']) {
+    let nextCalls = 0;
+    let returnCalls = 0;
+    const iterable = createIterable([], {
+      next() {
+        return ++nextCalls === 1 ? primitive : { done: true };
+      },
+      return() {
+        returnCalls++;
+        return {};
+      },
+    });
+    assert.throws(() => new Set(iterable), TypeError, 'rejects a non-object iterator result');
+    assert.same(nextCalls, 1, 'does not advance after an invalid result');
+    assert.same(returnCalls, 0, 'does not close the iterator');
+  }
+});
+
 QUnit.test('Set#add', assert => {
   assert.isFunction(Set.prototype.add);
   const array = [];

@@ -60,7 +60,7 @@ module.exports = function (iterable, unboundFunction, options) {
   }
 
   next = IS_RECORD ? iterable.next : iterator.next;
-  while (!(step = call(next, iterator)).done) {
+  while (!(step = anObject(call(next, iterator))).done) {
     // `IteratorValue` errors should propagate without closing the iterator
     var value = step.value;
     try {

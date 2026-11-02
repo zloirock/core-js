@@ -1,5 +1,5 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
@@ -142,4 +142,31 @@ QUnit.test('Array.from', assert => {
   }
   // mapfn callable check should happen before ToObject(items)
   assert.throws(() => from(null, 42), TypeError, 'non-callable mapfn with null items throws for mapfn');
+});
+
+QUnit.test('Array.from rejects non-object iterator results', assert => {
+  const primitives = [undefined, null, false, true, 0, 1, NaN, '', 'foo'];
+  if (typeof Symbol.iterator === 'symbol') primitives.push(Symbol());
+  if (typeof GLOBAL.BigInt === 'function') primitives.push(GLOBAL.BigInt(0));
+  for (const primitive of primitives) {
+    for (const mapping of [false, true]) {
+      let nextCalls = 0;
+      let returnCalls = 0;
+      let mapCalls = 0;
+      const iterable = createIterable([], {
+        next() {
+          return ++nextCalls === 1 ? primitive : { done: true };
+        },
+        return() {
+          returnCalls++;
+          return {};
+        },
+      });
+      const mapper = mapping ? () => { mapCalls++; } : undefined;
+      assert.throws(() => from(iterable, mapper), TypeError, 'rejects a non-object iterator result');
+      assert.same(nextCalls, 1, 'does not advance after an invalid result');
+      assert.same(returnCalls, 0, 'does not close the iterator');
+      assert.same(mapCalls, 0, 'does not call the mapper');
+    }
+  }
 });

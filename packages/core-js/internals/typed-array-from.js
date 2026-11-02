@@ -1,6 +1,7 @@
 'use strict';
 var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
+var anObject = require('../internals/an-object');
 var aCallable = require('../internals/a-callable');
 var aConstructor = require('../internals/a-constructor');
 var toObject = require('../internals/to-object');
@@ -25,7 +26,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     O = [];
-    while (!(step = call(next, iterator)).done) {
+    while (!(step = anObject(call(next, iterator))).done) {
       O.push(step.value);
     }
   }

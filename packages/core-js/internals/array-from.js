@@ -1,6 +1,7 @@
 'use strict';
 var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
+var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
@@ -32,7 +33,7 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
     result = IS_CONSTRUCTOR ? new this() : [];
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
-    for (;!(step = call(next, iterator)).done; index++) {
+    for (;!(step = anObject(call(next, iterator))).done; index++) {
       try {
         doesNotExceedSafeInteger(index);
       } catch (error) {
