@@ -4,9 +4,11 @@ import $clearImmediate from 'core-js/stable/clear-immediate';
 
 const resNS: number | object = $setImmediate(() => 42);
 $clearImmediate(resNS);
+const clearedNS: void = $clearImmediate(undefined);
 
 const res: number | object = setImmediate(() => 42);
 clearImmediate(res);
+const cleared: void = clearImmediate(undefined);
 
 // @ts-expect-error
 $setImmediate();

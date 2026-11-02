@@ -372,13 +372,6 @@ function domCollectionMethodSupport(method) {
   };
 }
 
-function IMMEDIATE() {
-  return setImmediate && clearImmediate && !(IS_BUN && (function () {
-    var version = Bun.version.split('.');
-    return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
-  })());
-}
-
 // https://github.com/tc39/ecma262/pull/3467
 function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
   return function () {
@@ -2128,9 +2121,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       }
     }
   },
-  'web.clear-immediate': function () {
-    return setImmediate && clearImmediate;
-  },
   'web.dom-collections.iterator': domCollectionMethodSupport('iterator'),
   'web.dom-collections.entries': domCollectionMethodSupport('entries'),
   'web.dom-collections.for-each': domCollectionMethodSupport('forEach'),
@@ -2154,7 +2144,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
     return false;
   },
-  'web.set-immediate': IMMEDIATE,
+  'web.set-immediate': function () {
+    return setImmediate && clearImmediate && !(IS_BUN && (function () {
+      var version = Bun.version.split('.');
+      return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
+    })());
+  },
   'web.structured-clone': function () {
     function checkErrorsCloning(structuredCloneImplementation, $Error) {
       var error = new $Error();
