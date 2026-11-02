@@ -67,6 +67,7 @@ import "core-js/modules/es.uint8-array.set-from-base64";
 import "core-js/modules/es.uint8-array.set-from-hex";
 import "core-js/modules/es.uint8-array.to-base64";
 import "core-js/modules/es.uint8-array.to-hex";
+import "core-js/modules/web.dom-collections.iterator";
 // A destructuring ASSIGNMENT whose init runs code over a `||` / `??` left read off the realm: a left the
 // build serves (`Array`, `Object`, and `Number`, which core-js extends in place) leaves its right dead, which
 // injects nothing; one it does not (`Int8Array`, whose statics live under the shared typed-array entries;

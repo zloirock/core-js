@@ -15,7 +15,9 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
   throw?(e?: any): Promise<IteratorResult<T, TReturn>>;
 }
 
-interface AsyncIteratorConstructor {}
+interface AsyncIteratorConstructor {
+  readonly prototype: AsyncIteratorObject<any, any, any>;
+}
 
 declare var AsyncIterator: AsyncIteratorConstructor;
 

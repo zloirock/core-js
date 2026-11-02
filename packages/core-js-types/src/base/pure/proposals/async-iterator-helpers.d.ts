@@ -8,6 +8,8 @@
 
 declare namespace CoreJS {
   export interface CoreJSAsyncIteratorConstructor {
+    readonly prototype: CoreJSAsyncIteratorObject<any, any, any>;
+
     /**
      * Creates an `AsyncIterator` from an iterable object
      * @param iterable - An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`

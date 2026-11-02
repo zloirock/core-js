@@ -1,4 +1,4 @@
-// @types: proposals/async-iterator-helpers
+// @types: core-js-types/async-iterator
 'use strict';
 var $ = require('../internals/export');
 var anInstance = require('../internals/an-instance');
