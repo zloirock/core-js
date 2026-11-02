@@ -21,3 +21,23 @@ QUnit.test('shadowed global name: a local of the name leaves the mirrored reads 
     assert.same(Object.prototype, 'shadow');
   }
 });
+
+QUnit.test('shadowed global name: an extracted instance method stays local', assert => {
+  function read(row) {
+    const { at: Map, flat } = row;
+    return [Map.call(row, -1), typeof flat];
+  }
+  assert.deepEqual(read([3, 7]), [7, 'function']);
+});
+
+QUnit.test('destructuring: extracted and residual bindings keep loop captures', assert => {
+  const handlers = [];
+  function register(rows) {
+    for (const row of rows) {
+      const { name, find } = row;
+      handlers.push(() => [name, find()]);
+    }
+  }
+  register([{ name: 'a', find: () => 1 }, { name: 'b', find: () => 2 }]);
+  assert.deepEqual(handlers.map(handler => handler()), [['a', 1], ['b', 2]]);
+});
