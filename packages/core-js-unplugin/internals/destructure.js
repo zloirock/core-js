@@ -2013,7 +2013,7 @@ export default function createAstDestructureEmitter({
     const memoDeclaration = memo && variableDeclaration('const', [variableDeclarator(identifier(memo), fold)]);
     if (split) {
       const twin = variableDeclaration(declarationPath.node.kind, [variableDeclarator(leafTwin, twinInit)]);
-      splitHopOutOfHost({ declarationPath, split, pair: memoDeclaration ? [memoDeclaration, twin] : [twin] });
+      splitHopOutOfHost({ declaratorPath, declarationPath, split, pair: memoDeclaration ? [memoDeclaration, twin] : [twin] });
       return true;
     }
     if (memoDeclaration && bodyless && declarationPath.node.declarations.length === 1) {
@@ -2079,14 +2079,16 @@ export default function createAstDestructureEmitter({
 
   // the twin of a hop whose level keeps SIBLINGS (`hopSplitPlan`): the hop's prop leaves its level and
   // the leaf binds off the twin in a declaration of its own - the pair (memo, twin) ahead of the host
-  // where the hop led it, behind it otherwise. the host pattern is edited in place: the traversal stands
-  // inside the hop, whose subtree is skipped, and a fresh copy of the host would walk its earlier props
-  // again, each queueing the claim it already queued
-  function splitHopOutOfHost({ declarationPath, split, pair }) {
+  // where the hop led it, behind it otherwise. Keep the host nodes that queued jobs reference;
+  // pruning can admit an earlier declined sibling, so revisit the residual without requeueing
+  // committed claims. The removed hop stays skipped while its twin is detected independently.
+  function splitHopOutOfHost({ declaratorPath, declarationPath, split, pair }) {
     markSubtreeSkipped(skippedNodes, split.hopProp);
     pruneHopFromLevels(split);
     if (split.placeBefore) declarationPath.insertBefore(pair);
     else declarationPath.insertAfter(pair);
+    for (const job of queuedJobsFor(declaratorPath)?.jobs ?? []) if (job.prop) skippedNodes.add(job.prop);
+    claimLive([declaratorPath.node.id], declaratorPath);
   }
 
   // every name a pattern binds, in source order - what an exported host has to keep exporting once

@@ -176,6 +176,82 @@ Object.defineProperty(__realm, "Array", { configurable: true, get() {
       }
     }
   }
+
+  // Run core-js and lexical lowering on the SAME AST. A print/parse boundary alone
+  // repairs missing scope metadata and would let a lost per-iteration capture pass.
+  const lowerings = ['block-scoping', 'arrow-functions'].map(name => requireBabel.resolve(`@babel/plugin-transform-${ name }`));
+  for (const shape of ['residual', 'last', 'sole', 'rest', 'default', 'written', 'multi', 'for-init', 'var', 'guarded-capture']) {
+    const pattern = shape === 'residual' ? '{ name, find }' : shape === 'sole' ? '{ find }'
+      : shape === 'rest' ? '{ find, ...rest }' : shape === 'default' ? '{ find = () => 31, name }' : '{ find, at }';
+    const read = shape === 'residual' ? '[name, find()]' : shape === 'rest' ? '[rest.name, find()]' : 'find()';
+    const declaration = `${ shape === 'var' ? 'var' : 'let' } ${ shape === 'multi' ? 'before = 0, ' : '' }${ pattern } = row${ shape === 'multi' ? ', after = 1' : '' };`;
+    const body = shape === 'guarded-capture'
+      ? 'const C = row.name ? row : Array; const { x: { from: find } } = { x: C }; closures.push(() => find());'
+      : shape === 'for-init' ? `for (${ declaration };) { closures.push(() => ${ read }); break; }`
+      : `${ declaration } ${ shape === 'written' ? 'find = () => row.name;' : '' } closures.push(() => ${ read });`;
+    const source = `export const effects = [];
+      export const r = []; const closures = [];
+      function make(rows) { for (const row of rows) { ${ body } } }
+      make([{ name: 1, find: () => 11${ shape === 'guarded-capture' ? ', from: () => 11' : '' } },
+        { name: 2, find: ${ shape === 'default' ? 'undefined' : '() => 22' }${ shape === 'guarded-capture' ? ', from: () => 22' : '' } }]);
+      for (const closure of closures) r.push(closure());`;
+    scenarioSource(source);
+    const expected = `OK|${ JSON.stringify(shape === 'residual' || shape === 'rest' ? [[1, 11], [2, 22]]
+      : shape === 'default' ? [11, 31] : shape === 'written' ? [1, 2] : shape === 'var' ? [22, 22] : [11, 22]) }|[]`;
+    for (const method of ['usage-pure', 'usage-global']) {
+      const options = { ...OPTIONS, method };
+      const config = { configFile: false, babelrc: false, filename: 'input.mjs' };
+      const { code: together } = await transformAsync(source, { ...config, plugins: [[babelPlugin, options], ...lowerings] });
+      const { code: printed } = await transformAsync(source, { ...config, plugins: [[babelPlugin, options]] });
+      const { code: reparsed } = await transformAsync(printed, { ...config, plugins: lowerings });
+      const plugin = createUnplugin(options);
+      const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+      const { code: lowered } = await transformAsync(pre, { ...config, plugins: lowerings });
+      const post = plugin.transform(lowered, 'input.mjs', 'post')?.code ?? lowered;
+      for (const [host, output] of [['native', source], ['same-ast', together], ['reparsed', reparsed], ['pre+post', post]]) {
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, output);
+        check(`binding/${ shape }/${ method }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+        if (host !== 'native') check(`binding/${ shape }/${ method }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
+  // A split admits earlier declined siblings without replaying already queued claims.
+  // Set the opaque source after transformation so both hosts must render the same reads.
+  for (const shape of ['declined', 'queued', 'two-twins']) {
+    const pattern = shape === 'queued' ? '{ name, config: { filters: { keys, values } = {} } }'
+      : `{ config: { name, filters: { keys, values } = {}${ shape === 'two-twins' ? ', other: { at, flat } = {}' : '' } } }`;
+    const source = `export const effects = []; export const r = [];
+      const ${ pattern } = APP_STATE;
+      r.push(name, keys, values${ shape === 'two-twins' ? ', at, flat' : '' });`;
+    const setup = `const __realm = Function("return this")(); __realm.APP_STATE = {
+      get name() { effects.push("name"); return 31; },
+      config: {
+        get name() { effects.push("name"); return 31; },
+        filters: { get keys() { effects.push("keys"); return 17; }, get values() { effects.push("values"); return 23; } },
+        other: { get at() { effects.push("at"); return 41; }, get flat() { effects.push("flat"); return 43; } }
+      }
+    };`;
+    const expected = shape === 'two-twins'
+      ? 'OK|[31,17,23,41,43]|["name","keys","values","at","flat"]'
+      : 'OK|[31,17,23]|["name","keys","values"]';
+    const { code: babel } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
+    });
+    const plugin = createUnplugin(OPTIONS);
+    const single = plugin.transform(source, 'input.mjs').code;
+    const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+    for (const [host, output] of [['native', source], ['babel', babel], ['unplugin', single], ['pre+post', post]]) {
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, `${ setup }\n${ output }\ndelete __realm.APP_STATE;`);
+      check(`residual/${ shape }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+      if (host !== 'native') {
+        check(`residual/${ shape }/${ host }/stripped`, await runInWorker(file), expected);
+        check(`residual/${ shape }/${ host }/serves the earlier sibling`, output.includes('/function/instance/name'), true);
+      }
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }
