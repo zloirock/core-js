@@ -8,7 +8,7 @@ var iteratorCloseAll = require('../internals/iterator-close-all');
 var $TypeError = TypeError;
 var slice = uncurryThis([].slice);
 var push = uncurryThis([].push);
-var ITERATOR_IS_EXHAUSTED = 'Iterator is exhausted';
+var ITERATORS_LENGTH_MISMATCH = 'Iterators have different lengths';
 var THROW = 'throw';
 
 var IteratorProxy = createIteratorProxy(function () {
@@ -47,7 +47,7 @@ var IteratorProxy = createIteratorProxy(function () {
         }
         if (mode === 'strict') {
           if (i) {
-            return iteratorCloseAll(openIters, THROW, new $TypeError(ITERATOR_IS_EXHAUSTED));
+            return iteratorCloseAll(openIters, THROW, new $TypeError(ITERATORS_LENGTH_MISMATCH));
           }
 
           var open, openDone;
@@ -65,7 +65,7 @@ var IteratorProxy = createIteratorProxy(function () {
               openIters[k] = undefined;
               this.openItersCount--;
             } else {
-              return iteratorCloseAll(openIters, THROW, new $TypeError(ITERATOR_IS_EXHAUSTED));
+              return iteratorCloseAll(openIters, THROW, new $TypeError(ITERATORS_LENGTH_MISMATCH));
             }
           }
           this.done = true;

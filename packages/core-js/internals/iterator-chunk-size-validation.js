@@ -5,7 +5,7 @@ var iteratorClose = require('../internals/iterator-close');
 var $RangeError = RangeError;
 var $TypeError = TypeError;
 
-var CHUNK_SIZE_VALIDATION_ERROR = 'Chunk size must be an integer in [1, 2^32-1]';
+var CHUNK_SIZE_VALIDATION_ERROR = 'Size must be an integer in [1, 2^32-1]';
 
 module.exports = function (chunkSize, iterator) {
   if (typeof chunkSize != 'number' || !isIntegralNumber(chunkSize)) {
