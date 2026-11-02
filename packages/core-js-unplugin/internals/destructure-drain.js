@@ -423,6 +423,7 @@ export default function createDestructureDrains(ctx) {
   // the shared discard plan retains that entire value, including an observable getter read.
   // `dropReceiver` retains the opposite proof across a child's proxy-root replacement.
   const pristineInitFacts = new WeakMap();
+  const claimOwners = new WeakMap();
 
   function residualRuns(host) {
     return pristineInitFacts.get(host)?.runs ?? false;
@@ -437,7 +438,15 @@ export default function createDestructureDrains(ctx) {
   function recordJob({ hostPath, job }) {
     const key = hostPath.node;
     if (!ledger.has(key)) ledger.set(key, { hostPath, jobs: [] });
-    ledger.get(key).jobs.push(job);
+    const owner = ledger.get(key);
+    // Native re-entry can move the same source claim to a replacement declaration.
+    // Only its latest host owns the extraction; the old queue must not drain it too.
+    if (job.prop) {
+      const previous = claimOwners.get(job.prop);
+      if (previous) previous.jobs = previous.jobs.filter(queued => queued.prop !== job.prop);
+      claimOwners.set(job.prop, owner);
+    }
+    owner.jobs.push(job);
     const residualHost = job.declarator ?? job.assignment;
     if (residualHost && !pristineInitFacts.has(residualHost)) {
       const init = residualHost.init ?? residualHost.right;
@@ -655,7 +664,7 @@ export default function createDestructureDrains(ctx) {
         // the statement this kind was recorded against may be GONE - another kind's drain rewrote
         // the declaration around its own declarator - so the jobs land on whatever now holds theirs
         const live = liveHostStatement(body, hostNode, kindJobs[0]?.declarator);
-        if (!live) continue;
+        if (!live) throw new Error('Missing destructuring job host');
         const { at } = live;
         switch (kind) {
           case 'assign-overwrite':
@@ -1620,6 +1629,7 @@ export default function createDestructureDrains(ctx) {
 
   // eslint-disable-next-line max-statements -- per-form drain dispatch sequence
   function drainDeclaration({ hostNode, body, at, jobs }) {
+    if (jobs.some(job => !hostNode.declarations.includes(job.declarator))) throw new Error('Missing destructuring job declarator');
     jobs = withoutCtorHopJobsWithLiveSiblings(jobs);
     if (!jobs.length) return;
     const { memoByDeclarator, jobsByDeclarator, memoDeclJobs } = partitionDeclarationJobs(jobs);

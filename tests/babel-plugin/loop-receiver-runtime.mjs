@@ -353,6 +353,65 @@ Object.defineProperty(realm, "window", { configurable: true, get() { effects.pus
       }
     }
   }
+  // An eager capture takes ownership of earlier queued claims and evaluates their shared
+  // initializer once. The printed module must keep every binding through lowering too.
+  for (const shape of ['assignment', 'assignment-bodyless', 'assignment-default', 'assignment-throw',
+    'keyed', 'keyed-object', 'keyed-for', 'repeated', 'repeated-export', 'repeated-for']) {
+    const assigned = shape.startsWith('assignment');
+    const repeated = shape.startsWith('repeated');
+    const pattern = shape === 'assignment-default' ? '{ at = (effects.push("default"), 17), M: { flat } }' : '{ at, M: { flat } }';
+    const assign = `(${ pattern } = (effects.push("init"), box));`;
+    const read = 'r.push(typeof at, flat.call([1, [2]]));';
+    const declaration = repeated ? '{ Promise: { resolve }, Promise: { withResolvers } } = globalThis?.self'
+      : shape === 'keyed-object' ? '{ Object: { fromEntries, [(effects.push("key"), "keys")]: keys }, z } = globalThis'
+        : '{ Array: { from, [(effects.push("key"), "of")]: of }, z } = globalThis';
+    const declarationRead = repeated ? 'r.push(typeof resolve, typeof withResolvers);'
+      : shape === 'keyed-object' ? 'r.push(fromEntries([["x", 4]]), keys({ y: 5 }), z);' : 'r.push(from([4]), of(5), z);';
+    const body = assigned ? `export function run(box) { let at, flat;
+      try { ${ shape === 'assignment-bodyless' ? `if (box) ${ assign }` : assign } ${ read } }
+      catch (error) { r.push(error.name); }
+    }
+    run({ get at() { effects.push("at"); return ${ shape === 'assignment-default' ? 'undefined' : 'function () {}' }; },
+      get M() { effects.push("M"); ${ shape === 'assignment-throw' ? 'throw new RangeError("capture");' : 'return [1, [2]];' } } });`
+      : shape.endsWith('-for') ? `for (const ${ declaration };;) { ${ declarationRead } break; }`
+        : `${ shape.endsWith('-export') ? 'export ' : '' }const ${ declaration }; ${ declarationRead }`;
+    const source = `export const effects = []; export const r = []; ${ body }`;
+    scenarioSource(source);
+    const { code: babel } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
+    });
+    const plugin = createUnplugin(OPTIONS);
+    const unplugin = plugin.transform(source, 'input.mjs').code;
+    const phases = createUnplugin(OPTIONS);
+    const pre = phases.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    const post = phases.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+    const outputs = [['native', source], ['babel', babel], ['unplugin', unplugin], ['pre+post', post]];
+    function importSet(code) {
+      return code.matchAll(/from "(?<source>@core-js[^"]+)"/g).map(match => match.groups.source).toArray().sort().join(';');
+    }
+    check(`capture handoff/${ shape }/unplugin imports`, importSet(unplugin), importSet(babel));
+    check(`capture handoff/${ shape }/pre+post imports`, importSet(post), importSet(babel));
+    for (const [host, output] of outputs.slice(1)) {
+      const { code } = await transformAsync(output, {
+        configFile: false, babelrc: false,
+        plugins: [requireBabel.resolve('@babel/plugin-transform-optional-chaining'),
+          requireBabel.resolve('@babel/plugin-transform-object-rest-spread'), requireBabel.resolve('@babel/plugin-transform-destructuring')],
+      });
+      outputs.push([`${ host }/lowered`, code]);
+    }
+    const values = shape === 'assignment-throw' ? ['RangeError'] : assigned
+      ? [shape === 'assignment-default' ? 'number' : 'function', [1, 2]] : repeated ? ['function', 'function']
+        : shape === 'keyed-object' ? [{ x: 4 }, ['y'], '__undefined__'] : [[4], [5], '__undefined__'];
+    const events = assigned ? ['init', 'at', ...shape === 'assignment-default' ? ['default'] : [], 'M'] : repeated ? [] : ['key'];
+    const expected = `OK|${ JSON.stringify(values) }|${ JSON.stringify(events) }`;
+    for (const [host, output] of outputs) {
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      // Install the proxy outside the compiled unit so it does not deoptimize the source read.
+      await fs.outputFile(file, `Function("return this")().self = Function("return this")();\n${ output }`);
+      check(`capture handoff/${ shape }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+      if (host !== 'native') check(`capture handoff/${ shape }/${ host }/stripped`, await runInWorker(file), expected);
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }
