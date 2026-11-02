@@ -60,7 +60,6 @@ import {
   hasCoreJSImport,
   isCallee,
   isChunkLoaderBundler,
-  skipDirectivePrologue,
   stripLeadingBOMs,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
@@ -1492,34 +1491,27 @@ function checkSnapshotFileLocalhost() {
 }
 checkSnapshotFileLocalhost();
 
-// --- skipDirectivePrologue: empty-string directive extends the prologue ---
-// an empty-string directive (`'';`) IS part of the prologue per the spec (any string-literal
-// statement extends it), so the scan advances past it - a following `'use strict'` stays an
-// active directive and the `var _ref;` / import insertion point lands AFTER the full prologue
-function checkSkipDirectivePrologueEmpty() {
-  const empty = { type: 'ExpressionStatement', directive: '', end: 5 };
-  const real = { type: 'ExpressionStatement', directive: 'use strict', end: 16 };
-  const laterEmpty = { type: 'ExpressionStatement', directive: '', end: 19 };
-  const expr = { type: 'ExpressionStatement', expression: { type: 'Identifier' }, end: 20 };
-  // empty `""` advances like any directive; non-directive breaks the scan and returns the
-  // last advanced end (or fallback if none seen yet)
-  check('skipDirectivePrologue/empty directive advances to its end',
-    skipDirectivePrologue([empty], 0), 5);
-  check('skipDirectivePrologue/use strict advances to its end',
-    skipDirectivePrologue([real], 0), 16);
-  check('skipDirectivePrologue/non-directive breaks scan',
-    skipDirectivePrologue([expr], 0), 0);
-  // mixed: real prologue first, then empty `""` keeps advancing through the full prologue
-  check('skipDirectivePrologue/real then empty advances past both',
-    skipDirectivePrologue([real, laterEmpty], 0), 19);
-  // mixed: real prologue first, then non-directive expression
-  check('skipDirectivePrologue/real then expression stops at real',
-    skipDirectivePrologue([real, expr], 0), 16);
-  // null/undefined statements list (defensive guard via `?? []`)
-  check('skipDirectivePrologue/missing statements list returns fallback',
-    skipDirectivePrologue(null, 7), 7);
+// An empty directive extends the prologue. Actual import and memo insertion must keep the
+// following strict directive active, at both Program and function-body level.
+for (const prologue of ["''; 'use strict';", "'use strict'; ''; "]) {
+  for (const inFunction of [false, true]) {
+    const body = `${ prologue } make().at(0);`;
+    const source = inFunction ? `function strictReceiver() { ${ body } return this; }` : body;
+    const output = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+      .transform(source, '/prologue.cjs')?.code ?? source;
+    const program = programOf(output, 'script');
+    const statements = inFunction
+      ? program.body.find(node => node.type === 'FunctionDeclaration').body.body
+      : program.body;
+    const label = `directive insertion/${ inFunction ? 'function' : 'program' }/${ prologue }`;
+    check(`${ label }/empty directive preserved`, statements.slice(0, 2).some(node => node.directive === ''), true);
+    check(`${ label }/strict directive preserved`, statements.slice(0, 2).some(node => node.directive === 'use strict'), true);
+    check(`${ label }/memo follows both directives`, statements.findIndex(node => node.type === 'VariableDeclaration') >= 2, true);
+    check(`${ label }/read was transformed`, output !== source, true);
+    if (inFunction) check(`${ label }/strict receiver at runtime`,
+      runInNewContext(`${ output }; strictReceiver();`, { require: createRequire(import.meta.url), make: () => [23] }), undefined);
+  }
 }
-checkSkipDirectivePrologueEmpty();
 
 // the DEFER (pre) pass must leave user core-js imports untouched: its emission is deferred
 // to post, so a destructive remove would strand the file import-less whenever the post pass

@@ -101,15 +101,6 @@ export function nodePositionKey(node) {
   return typeof start === 'number' && typeof end === 'number' ? `${ start }:${ end }` : null;
 }
 
-// does an escape stamp NAME this node? the ONE reader of that census - the claim that reaches its
-// node through a path asks it, and so do the destructure plans, which hold the node alone
-export function isEscapedCtorNode(program, node) {
-  if (!ESCAPE_STAMPED_NODE_TYPES.has(node?.type)) return false;
-  const key = nodePositionKey(node);
-  // eslint-disable-next-line sonarjs/no-empty-collection -- filled by the usage pass, not here
-  return key !== null && ESCAPED_CTOR_REFS.get(program)?.has(key) === true;
-}
-
 // ... and the NAME half of the same census, keyed by PROGRAM node -> the constructor NAMES its
 // stamped references spell. WHICH entry a constructor resolves to is a file-wide fact, not a
 // per-reference one: the two entries name ONE runtime value, so two references answering
