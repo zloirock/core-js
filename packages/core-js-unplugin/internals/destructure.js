@@ -224,6 +224,23 @@ function attachAssignmentSentinelMinter(job, { seqHostStatement, metaPath, injec
   };
 }
 
+// Native insertion APIs refresh cached sibling paths when a spread changes list length.
+function replaceSpread(path, nodes) {
+  // Insertion validation rejects holes. Keep their prototype reads and shift cached paths
+  // with the same sibling-index operation the native insertion uses; a hole has no visitor.
+  if (nodes.includes(null)) {
+    for (const node of nodes) {
+      if (node) path.insertBefore([node]);
+      else {
+        path.container.splice(path.key, 0, null);
+        path.updateSiblingIndex(path.key, 1);
+      }
+    }
+    return path.remove();
+  }
+  return nodes.length ? path.replaceWithMultiple(nodes) : path.remove();
+}
+
 // eslint-disable-next-line max-statements -- per-transform ledgers and the binding channels sharing them
 export default function createAstDestructureEmitter({
   adapter,
@@ -255,7 +272,7 @@ export default function createAstDestructureEmitter({
   const ledger = new Map();
   const pendingSplits = new Map();
   // the per-function insertion cursor keeping consecutive body-extracts in SOURCE order
-  const bodyExtractInsertAt = new Map();
+  const bodyExtractLastInsert = new Map();
   // literal-route receiver memo names, shared per receiver NODE across that receiver's leaves
   const literalMemoNames = new Map();
 
@@ -634,7 +651,7 @@ export default function createAstDestructureEmitter({
     // host climb, so a wrapped pattern (`host = ([{ p }] = [sel])`) answers like the flat one
     if (destructureAssignmentValueIsCaptured(metaPath)) return;
     // an inline-array spread in the wrapper flattens first, the way the per-prop dispatch does
-    flattenArrayWrapperInits(metaPath);
+    flattenArrayWrapperInits(metaPath, replaceSpread);
     // the receiver the pattern reads: its host's slot, the IIFE argument, or - under an ARRAY
     // WRAPPER - the element the host's literal pairs it with, the shared resolver's own climb
     const desc = resolveFallbackReceiver(patternPath.parentPath, pattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
@@ -834,12 +851,11 @@ export default function createAstDestructureEmitter({
           defaultPlan.site.get('body').replaceWith({
             type: 'BlockStatement',
             body: [
-              variableDeclaration(defaultPlan.kind,
-                rendered.declarations),
+              ...rendered.mutable.length ? [variableDeclaration('let', rendered.mutable)] : [],
+              variableDeclaration(defaultPlan.kind, rendered.declarations),
               ...statements,
             ],
           });
-          if (rendered.mutable.length) defaultPlan.site.node.body.body.unshift(variableDeclaration('let', rendered.mutable));
         } else {
           if (rendered.mutable.length) defaultPlan.host.parentPath.insertBefore([variableDeclaration('let', rendered.mutable)]);
           for (const declaration of defaultPlan.host.replaceWithMultiple(rendered.declarations)) registerDeclaratorBindings(declaration);
@@ -1108,6 +1124,17 @@ export default function createAstDestructureEmitter({
     return true;
   }
 
+  // Insert through live paths so queued siblings keep their indices. Static parameter
+  // extractions chain in source order; the first insertion follows the directive prologue.
+  function insertBodyExtractDecl(fnPath, declaration) {
+    const previous = bodyExtractLastInsert.get(fnPath.node);
+    if (previous) return previous.insertAfter([declaration])[0];
+    const body = fnPath.get('body');
+    const at = prologueEndIndex(body.node.body);
+    return at === 0 ? body.unshiftContainer('body', [declaration])[0]
+      : body.get('body')[at - 1].insertAfter([declaration])[0];
+  }
+
   function captureParameterInstance(metaPath) {
     const plan = planParameterInstanceExtraction({
       propPath: metaPath, adapter, resolvePure, isDisabledProp: isDisabled, parameterCallSites,
@@ -1122,11 +1149,11 @@ export default function createAstDestructureEmitter({
       unusedName: plan.paddingRequired ? mintUnusedName() : null,
     });
     plan.rootPath.replaceWith(rendered.head);
-    if (rendered.padding) plan.fnPath.node.params.push(rendered.padding);
+    if (rendered.padding) plan.fnPath.pushContainer('params', [rendered.padding]);
     const { body } = plan.fnPath.node;
-    if (body.type === 'BlockStatement') body.body.splice(prologueEndIndex(body.body), 0, rendered.declaration);
+    if (body.type === 'BlockStatement') insertBodyExtractDecl(plan.fnPath, rendered.declaration);
     else {
-      plan.fnPath.node.body = blockStatement([rendered.declaration, { type: 'ReturnStatement', argument: body }]);
+      plan.fnPath.get('body').replaceWith(blockStatement([rendered.declaration, { type: 'ReturnStatement', argument: body }]));
       plan.fnPath.node.expression = false;
     }
     plan.fnPath.scope.crawl();
@@ -1145,7 +1172,7 @@ export default function createAstDestructureEmitter({
     // every leaf of this pattern answers its receiver type before the routes below rewrite it
     primeDestructureReceiverTypes?.(metaPath);
     // Expand literal array spreads before choosing their capture, as on the Babel host.
-    flattenArrayWrapperInits(metaPath);
+    flattenArrayWrapperInits(metaPath, replaceSpread);
 
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
@@ -1614,17 +1641,15 @@ export default function createAstDestructureEmitter({
     injectorState.registerBodyExtractAlias(localId.name, entry, metaPath.scope?.getBinding?.(localId.name));
     // `let` (the original was a reassignable parameter binding), past the directive prologue;
     // later extracts chain AFTER earlier ones (babel's insertAfter chain, source order)
-    let at = bodyExtractInsertAt.get(fnPath.node);
-    if (at === undefined) at = prologueEndIndex(body);
-    body.splice(at, 0, ...renderDestructureStatements([{ id: identifier(localId.name), init: identifier(id) }], { kind: 'let' }));
-    bodyExtractInsertAt.set(fnPath.node, at + 1);
+    const [declaration] = renderDestructureStatements([{ id: identifier(localId.name), init: identifier(id) }], { kind: 'let' });
+    bodyExtractLastInsert.set(fnPath.node, insertBodyExtractDecl(fnPath, declaration));
     if (hasRestSiblingExcept(pattern.properties, prop)) {
       markSubtreeSkipped(skippedNodes, prop.value);
       prop.value = identifier(mintUnusedName());
       prop.shorthand = false;
     } else {
-      pattern.properties = pattern.properties.filter(item => item !== prop);
       markSubtreeSkipped(skippedNodes, prop);
+      metaPath.remove();
     }
     return true;
   }

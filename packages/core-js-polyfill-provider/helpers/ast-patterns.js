@@ -6325,14 +6325,17 @@ export function pairedArrayWrapInitElement(initElements, index) {
 
 // the same expansion written INTO the literal: the rewriting flavor splices an inline-array spread
 // in place before any route edits the literal by slot, so a positional answer and a positional edit
-// name one element. A spread with an opaque nested spread keeps its original shape.
-export function flattenInlineArraySpreads(elements) {
+// name one element. Live trees supply the binding's path-aware replacement; raw splices are
+// only for detached lists. A spread with an opaque nested spread keeps its original shape.
+export function flattenInlineArraySpreads(elements, replaceSpread = null) {
   if (!Array.isArray(elements)) return;
   for (let i = 0; i < elements.length; i++) {
     const item = elements[i];
     const spread = item?.type === 'SpreadElement' ? inlineArrayElements(item.argument) : null;
     if (!spread) continue;
-    elements.splice(i, 1, ...spread);
+    if (replaceSpread) {
+      if (!replaceSpread(item, spread)) continue;
+    } else elements.splice(i, 1, ...spread);
     i -= 1;
   }
 }

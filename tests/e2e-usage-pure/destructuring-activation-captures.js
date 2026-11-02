@@ -144,3 +144,40 @@ QUnit.test('a positional parameter keeps closure reads at parameter initializati
   }
   assert.deepEqual(later(undefined, undefined, 9), [undefined, 9]);
 });
+
+// Exported callers keep parameter capture independent of local call-site inference.
+export function readInsertedParameter({ values }, state) {
+  let entries, status;
+  // eslint-disable-next-line prefer-const -- assignment destructuring after the parameter insertion is the tested route
+  ({ data: { entries }, status } = state);
+  return [values, entries, status];
+}
+
+QUnit.test('live path insertion keeps the declarations and assignments in a loop body', assert => {
+  function collect(forms) {
+    const seen = [];
+    for (const { values, meta } of forms) {
+      let entries, status;
+      // eslint-disable-next-line prefer-const -- the assignment must keep its preceding declaration
+      ({ data: { entries }, status } = meta);
+      seen.push(values, entries, status);
+    }
+    return seen;
+  }
+  assert.deepEqual(collect([{ values: 1, meta: { data: { entries: 2 }, status: 3 } }]), [1, 2, 3]);
+});
+
+QUnit.test('live path insertion keeps the parameter body assignment targets', assert => {
+  assert.deepEqual(readInsertedParameter({ values: 1 }, { data: { entries: 2 }, status: 3 }), [1, 2, 3]);
+});
+
+QUnit.test('live path insertion keeps statements after a default parameter extraction', assert => {
+  const log = [];
+  const result = (function read({ from, ...rest } = Array, list = [1]) {
+    log.push(1);
+    const [, { includes }] = [0, list];
+    return [from('ab').join(''), includes.call(list, 1), typeof rest];
+  })();
+  assert.deepEqual(result, ['ab', true, 'object']);
+  assert.deepEqual(log, [1]);
+});

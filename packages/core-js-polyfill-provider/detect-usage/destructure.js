@@ -6096,10 +6096,10 @@ function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
 // once per host from whichever leaf is handled first, and only along the host's own literals: an
 // alias keeps the literal where it is declared. a level whose bound slot pairs with a hole stays as
 // written, on both legs, and so does every level of a file the routes then claim nothing in
-// (`restoreUnclaimedFlattens`)
+// (`restoreUnclaimedFlattens`). The binding replaces each spread through its live path.
 const flattenedHosts = new WeakSet();
 const flattenRecords = new WeakMap();
-export function flattenArrayWrapperInits(leafPath) {
+export function flattenArrayWrapperInits(leafPath, replaceSpread) {
   let root = leafPath;
   for (let up = root.parentPath; up?.node; up = root.parentPath) {
     const { type } = up.node;
@@ -6114,7 +6114,13 @@ export function flattenArrayWrapperInits(leafPath) {
   let program = host;
   while (program.parentPath?.node) program = program.parentPath;
   if (!flattenRecords.has(program.node)) flattenRecords.set(program.node, []);
-  flattenPatternLevels(root.node, destructureReceiverNode(host, root.node), flattenRecords.get(program.node), host.node);
+  flattenPatternLevels(root.node, destructureReceiverNode(host, root.node), flattenRecords.get(program.node), host.node,
+    (spread, elements) => {
+      const path = pathOfNode(host, spread);
+      if (!path) return false;
+      replaceSpread(path, elements);
+      return true;
+    });
 }
 
 // the splices a file's routes then left unclaimed, undone: a file that injects nothing prints as
@@ -6166,25 +6172,28 @@ export function restoreIdleRelocations(programNode) {
   relocationRecords.delete(programNode);
 }
 
-// one paired level down: an array level splices its inline spreads, then each bound slot descends
-// into its element; an object level descends by key into the property it pairs with
-function flattenPatternLevels(pattern, init, records, host) {
+// Visit paired children before expanding their containing spread: moving that spread first
+// detaches the children's paths and changes the spans an indexed descent would search.
+function flattenPatternLevels(pattern, init, records, host, replaceSpread) {
   const literal = unwrapRuntimeExpr(init);
   if (pattern?.type === 'ArrayPattern' && literal?.type === 'ArrayExpression') {
     const slots = pattern.elements.flatMap((element, index) => element && element.type !== 'RestElement' ? [index] : []);
-    if (slots.some(index => !resolveCallArgument(literal.elements, index))) return;
+    const paired = slots.map(index => resolveCallArgument(literal.elements, index));
+    if (paired.some(element => !element)) return;
+    for (const [at, index] of slots.entries()) {
+      flattenPatternLevels(patternSlotTarget(pattern.elements[index]), paired[at], records, host, replaceSpread);
+    }
     const original = [...literal.elements];
-    flattenInlineArraySpreads(literal.elements);
+    flattenInlineArraySpreads(literal.elements, replaceSpread);
     if (original.some((element, index) => element !== literal.elements[index])) {
       records.push({ host, elements: literal.elements, original });
     }
-    for (const index of slots) flattenPatternLevels(patternSlotTarget(pattern.elements[index]), literal.elements[index], records, host);
   } else if (pattern?.type === 'ObjectPattern' && literal?.type === 'ObjectExpression') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
       const key = spelledSlotName(prop);
       const paired = key === null ? null : objectLevelPairedProperty(literal, key);
-      if (paired) flattenPatternLevels(patternSlotTarget(prop.value), paired.read, records, host);
+      if (paired) flattenPatternLevels(patternSlotTarget(prop.value), paired.read, records, host, replaceSpread);
     }
   }
 }
