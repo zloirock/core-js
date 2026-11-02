@@ -22039,6 +22039,30 @@ function * generateMovedPatternBindings() {
   }
 }
 
+// Deferred joins must declare their default guards, and a retained key still owns its
+// source binding even when a nested claim takes the memo route.
+function * generateDeferredJobBindings() {
+  for (const host of ['catch', 'let', 'const', 'var']) for (const supplied of [false, true]) {
+    const pattern = '{ name = (log.push("default"), "fallback"), options: { filter } }';
+    const read = 'return [name, filter.call([2, 7], value => value > 3)];';
+    const body = host === 'catch' ? `try { throw row; } catch (${ pattern }) { ${ read } }`
+      : `for (${ host } ${ pattern } of [row]) { ${ read } }`;
+    yield { ...snippet(`deferred-job/guard/${ host }/${ supplied }`, `(() => {
+      const row = { get name() { log.push("name"); return ${ supplied ? '"supplied"' : 'undefined' }; },
+        get options() { log.push("options"); return [2, 7]; } };
+      ${ body }
+    })()`), strip: true };
+  }
+  for (const host of ['const', 'let', 'var', 'for']) for (const leading of [false, true]) {
+    const pattern = leading ? '{ Map: Local, Math: { trunc }, ...rest }' : '{ Math: { trunc }, Map: Local, ...rest }';
+    const declaration = `${ host === 'for' ? 'const' : host } ${ pattern } = (log.push("init"), globalThis)`;
+    const result = '[trunc(2.9), new Local([[1, 7]]).get(1), "Map" in rest, "Math" in rest]';
+    yield { ...snippet(`deferred-job/sentinel/${ host }/${ leading }`, `(() => {
+      ${ host === 'for' ? `for (${ declaration };;) { return ${ result }; }` : `${ declaration }; return ${ result };` }
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22477,4 +22501,5 @@ export function * generate() {
   yield * generateLiveListPaths();
   yield * generateRelocatedLiteralHeads();
   yield * generateMovedPatternBindings();
+  yield * generateDeferredJobBindings();
 }

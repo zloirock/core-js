@@ -252,6 +252,56 @@ Object.defineProperty(__realm, "Array", { configurable: true, get() {
       }
     }
   }
+  // Deferred jobs own their guard declarations and original targets, even when rest
+  // keeps a sentinel key or another job shares the declaration through a memo.
+  for (const shape of ['catch', 'nested-catch', 'nested-leaf-catch', 'loop-let', 'loop-var', 'memo', 'memo-leading', 'memo-for', 'memo-rebuilt']) {
+    const nested = shape === 'nested-catch';
+    const leafDefault = shape === 'nested-leaf-catch';
+    const memo = shape.startsWith('memo');
+    const pattern = leafDefault ? '{ child: { name = (effects.push("default"), "fallback") }, options: { filter } }'
+      : nested ? '{ at: { name } = (effects.push("default"), { name: "fallback" }), meta: { includes } }'
+      : '{ name = (effects.push("default"), "fallback"), options: { filter } }';
+    const read = nested ? 'r.push(name, includes.call("abc", "b"));' : 'r.push(name, filter.call([2, 7], value => value > 3));';
+    const realmPattern = shape === 'memo-leading' ? '{ Map: Local, Math: { trunc }, ...rest }'
+      : '{ Math: { trunc }, Map: Local, ...rest }';
+    const declaration = `const ${ realmPattern } = (effects.push("init"), globalThis)`;
+    const realmRead = 'r.push(trunc(2.9), new Local([[1, 7]]).get(1), "Map" in rest, "Math" in rest);';
+    const body = shape === 'memo-for' ? `for (${ declaration };;) { ${ realmRead } break; }`
+      : shape === 'memo-rebuilt' ? `const out = []; out.push((() => { ${ declaration }; ${ realmRead } })());`
+        : memo ? `${ declaration }; ${ realmRead }`
+          : shape.startsWith('loop-') ? `for (${ shape.slice(5) } ${ pattern } of [row]) { ${ read } }`
+            : `try { throw row; } catch (${ pattern }) { ${ read } }`;
+    const source = `export const effects = []; export const r = [];
+const row = ${ leafDefault ? '{ get child() { effects.push("child"); return { get name() { effects.push("name"); return undefined; } }; }, get options() { effects.push("options"); return [2, 7]; } }'
+      : nested ? '{ get at() { effects.push("at"); return undefined; }, get meta() { effects.push("meta"); return "abc"; } }'
+      : '{ get name() { effects.push("name"); return undefined; }, get options() { effects.push("options"); return [2, 7]; } }' };
+${ body }`;
+    scenarioSource(source);
+    const expected = memo ? 'OK|[2,7,false,false]|["init"]'
+      : leafDefault ? 'OK|["fallback",[7]]|["child","name","default","options"]'
+        : nested ? 'OK|["fallback",true]|["at","default","meta"]' : 'OK|["fallback",[7]]|["name","default","options"]';
+    const { code: babel } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
+    });
+    const plugin = createUnplugin(OPTIONS);
+    const single = createUnplugin(OPTIONS).transform(source, 'input.mjs')?.code ?? source;
+    const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+    const outputs = [['native', source], ['babel', babel], ['unplugin', single], ['pre+post', post]];
+    for (const [host, output] of outputs.slice(1)) {
+      const { code } = await transformAsync(output, {
+        configFile: false, babelrc: false,
+        plugins: [requireBabel.resolve('@babel/plugin-transform-object-rest-spread'), requireBabel.resolve('@babel/plugin-transform-destructuring')],
+      });
+      outputs.push([`${ host }/lowered`, code]);
+    }
+    for (const [host, output] of outputs) {
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, output);
+      check(`deferred/${ shape }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+      if (host !== 'native') check(`deferred/${ shape }/${ host }/stripped`, await runInWorker(file), expected);
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }
