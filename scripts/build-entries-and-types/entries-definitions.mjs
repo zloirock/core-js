@@ -907,6 +907,7 @@ export const features = {
   },
   'async-iterator/index': {
     modules: [/^(?:es|esnext)\.async-iterator\./],
+    dependencies: ['esnext.async-iterator.constructor'],
     template: $namespace,
     name: 'AsyncIterator',
   },
@@ -1174,13 +1175,13 @@ export const features = {
     template: $justImport,
   },
   'dom-collections/prototype/values': {
-    modules: ['web.dom-collections.values'],
+    modules: ['web.dom-collections.values', 'es.array.values'],
     template: $prototype,
     namespace: 'Array',
     name: 'values',
   },
   'dom-collections/instance/values': {
-    modules: ['web.dom-collections.values'],
+    modules: ['web.dom-collections.values', 'es.array.values'],
     template: $instanceDOMIterable,
     name: 'values',
   },

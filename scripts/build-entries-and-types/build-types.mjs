@@ -68,6 +68,7 @@ async function buildType(entry, options) {
     templateFull = templateActual,
     filter,
     modules,
+    dependencies: entryDependencies = [],
     enforceEntryCreation,
     customType,
     tsVersion,
@@ -105,7 +106,7 @@ async function buildType(entry, options) {
     types = [];
     if (!customType) {
       if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
-      modules = expandModules(modules, filter, AllModules);
+      modules = [...expandModules(modules, filter, AllModules), ...entryDependencies];
       const { types: typePaths } = await getModulesMetadata(modules);
       types = typePaths;
     }

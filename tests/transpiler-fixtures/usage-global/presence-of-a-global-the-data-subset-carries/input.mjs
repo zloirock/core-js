@@ -1,7 +1,7 @@
-// usage-global counts a global present wherever the data subset it is configured for carries it: whether the
-// build injects it (`WeakSet`) or the user's filter drops its constructor (`WeakMap`), the right of a `||` over it
-// never runs and loads nothing. A global the subset lacks at the mode (`AsyncIterator` below `full`) decides
-// nothing: the right keeps its module (`Math.sumPrecise`).
+// usage-global counts a global present when its constructor entry exists at the selected mode, even when
+// the user's filter excludes it (`WeakMap`). These fallbacks load nothing, as for an injected `WeakSet`.
+// The separate AsyncIterator constructor entry is unavailable below full, so its fallback keeps Math.sumPrecise.
+// Loading its namespace family can still bring the constructor as a dependency; it does not decide this fallback.
 export const excluded = globalThis.WeakMap || Object.fromEntries(pairs);
 export const injected = globalThis.WeakSet || Array.of(item);
 export const uncarried = globalThis.AsyncIterator || Math.sumPrecise(list);

@@ -46,6 +46,7 @@ async function buildEntry(entry, options) {
     templateFull = templateActual,
     filter,
     modules,
+    dependencies: entryDependencies = [],
     enforceEntryCreation,
   } = options;
 
@@ -76,10 +77,12 @@ async function buildEntry(entry, options) {
 
   const level = entry.split('/').length - 1;
 
-  const { dependencies, types } = await getModulesMetadata(modules);
+  // Explicit entry dependencies must survive the layer filter.
+  const required = new Set((await getModulesMetadata(entryDependencies)).dependencies);
+  const { dependencies, types } = await getModulesMetadata([...modules, ...entryDependencies]);
   modules = dependencies;
 
-  if (filter) modules = modules.filter(it => filter.has(it));
+  if (filter) modules = modules.filter(it => filter.has(it) || required.has(it));
 
   const tpl = template({ ...options, modules, rawModules, level, entry, types });
 
