@@ -23,6 +23,7 @@
 - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Throw a `TypeError` when a running polyfilled iterator helper is re-entered
 - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfill
+- Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
 - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
 - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
 - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0

@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
+var createIterResultObject = require('../internals/create-iter-result-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var chunkSizeValidation = require('../internals/iterator-chunk-size-validation');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -18,16 +19,14 @@ var IteratorProxy = createIteratorProxy(function () {
   var result, done;
   while (true) {
     result = anObject(call(next, iterator));
-    done = !!result.done;
+    done = this.done = !!result.done;
     if (done) {
-      if (buffer.length) return buffer;
-      this.done = true;
-      return;
+      return buffer.length ? createIterResultObject(buffer, false) : createIterResultObject(undefined, true);
     }
     push(buffer, result.value);
-    if (buffer.length === chunkSize) return buffer;
+    if (buffer.length === chunkSize) return createIterResultObject(buffer, false);
   }
-});
+}, false, true);
 
 // `Iterator.prototype.chunks` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.chunks
