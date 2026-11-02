@@ -21989,6 +21989,36 @@ function * generateLiveListPaths() {
   })()`), strip: true };
 }
 
+// Relocated heads retain BigInt values and keys; nested loop receivers have no init slot.
+function * generateRelocatedLiteralHeads() {
+  for (const host of ['const', 'let', 'var', 'assignment', 'catch', 'for-in']) for (const supplied of host === 'for-in' ? [false] : [false, true]) {
+    const pattern = '{ at: method, limit = (log.push("default"), 10n), [1n]: first }';
+    const read = 'out.push(method.call(row, -1), String(limit), first);';
+    const body = host === 'catch' ? `try { throw row; } catch (${ pattern }) { ${ read } }`
+      : host === 'for-in' ? `for (const ${ pattern } in { key: 1 }) { ${ read } }`
+        : `for (${ host === 'assignment' ? '' : `${ host } ` }${ pattern } of [row]) { ${ read } }`;
+    yield { ...snippet(`literal-head/bigint/${ host }/${ supplied }`, `(() => {
+      const out = []; const row = ${ host === 'for-in' ? '"key"' : '[4, 9]' };
+      ${ supplied && host !== 'for-in' ? 'row.limit = 20n;' : '' }
+      ${ host === 'assignment' ? 'let method, limit, first;' : '' }
+      ${ body } return out;
+    })()`), strip: true };
+  }
+  for (const select of ['conditional', 'or', 'nullish']) for (const host of ['const', 'let', 'computed', 'array']) {
+    const value = select === 'conditional' ? 'flag ? first : second' : select === 'or' ? 'first || second' : 'first ?? second';
+    const pattern = host === 'computed' ? '{ [(log.push("key"), "data")]: { includes } }'
+      : host === 'array' ? '[{ data: { includes } }]' : '{ data: { includes } }';
+    const element = host === 'array' ? '[make()]' : 'make()';
+    yield { ...snippet(`literal-head/receiver/${ select }/${ host }`, `(() => {
+      const out = []; const first = [5]; const second = "other"; const flag = true;
+      const make = () => { log.push("source"); return { data: ${ value } }; };
+      for (${ host === 'let' ? 'let' : 'const' } ${ pattern } of [${ element }]) {
+        out.push(includes.call(first, 5));
+      } return out;
+    })()`), strip: false };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22425,4 +22455,5 @@ export function * generate() {
   yield * generateSurvivingAnchorClaims();
   yield * generateDeclinedRealmPatterns();
   yield * generateLiveListPaths();
+  yield * generateRelocatedLiteralHeads();
 }

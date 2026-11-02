@@ -34,8 +34,11 @@ import {
   buildDestructuringInitMeta,
   destructureKeyReadPlan,
   destructurePatternHostPath,
+  noteRelocation,
   orderedClaimCapture,
+  resolveNestedDestructureReceiver,
   resolveNestedReceiverChain,
+  restoreIdleRelocations,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
@@ -53,6 +56,72 @@ import { hasConstructorEntry, resolve } from '../../packages/core-js-polyfill-pr
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
+
+for (const host of ['for-of', 'for-in', 'catch']) for (const change of ['none', 'location', 'value', 'kind', 'reference']) {
+  const body = 'const { at, limit = 1n } = moved; use(at, limit);';
+  const source = host === 'catch' ? `try {} catch (moved) { ${ body } }`
+    : `for (const moved ${ host === 'for-of' ? 'of' : 'in' } rows) { ${ body } }`;
+  runBoth(`relocated bigint pattern/${ host }/${ change }`, source, (parser, program, label) => {
+    const path = parser.pickPath(program, host === 'catch' ? 'CatchClause' : host === 'for-of' ? 'ForOfStatement' : 'ForInStatement');
+    const slotOwner = host === 'catch' ? path.node : path.node.left.declarations[0];
+    const field = host === 'catch' ? 'param' : 'id';
+    const [statement] = path.node.body.body;
+    const pattern = statement.declarations[0].id;
+    noteRelocation(path, { slotOwner, field, pattern, statement, name: 'moved' });
+    const literal = pattern.properties[1].value.right;
+    const originalValue = literal.value;
+    switch (change) {
+      case 'location': literal.start++; break;
+      case 'value': literal.value = typeof literal.value === 'bigint' ? 2n : '2'; break;
+      case 'kind':
+        pattern.properties[1].value.right = parser.name === 'babel'
+          ? { type: 'StringLiteral', value: '1' } : { type: 'Literal', value: '1', raw: '"1"' };
+        break;
+      case 'reference': path.node.body.body[1].expression.arguments[0].name = 'moved'; break;
+    }
+    restoreIdleRelocations(program.node);
+    const restored = change === 'none' || change === 'location';
+    check(`${ label }/restores only the untouched pattern`, slotOwner[field] === pattern, restored);
+    check(`${ label }/removes only an idle relocation`, path.node.body.body.includes(statement), !restored);
+    literal.value = originalValue;
+    pattern.properties[1].value.right = literal;
+    if (change === 'reference') path.node.body.body[1].expression.arguments[0].name = 'at';
+    restoreIdleRelocations(program.node);
+    check(`${ label }/record consumed`, slotOwner[field] === pattern, restored);
+  });
+}
+
+for (const method of ['usage-global', 'usage-pure']) runBoth(`empty receiver path/${ method }`,
+  'const receiver = unknown;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+    const meta = buildDestructuringInitMeta({
+      initNode: host.node.init, key: 'at', scope: host.scope, path: { node: null, scope: host.scope }, adapter,
+    });
+    checkDeep(label, { kind: meta.kind, object: meta.object, key: meta.key, placement: meta.placement },
+      { kind: 'property', object: null, key: 'at', placement: null });
+  });
+
+runBoth('nested loop receiver keeps a live lookup anchor',
+  'const make = () => ({ data: opts || defaults }); for (const { data: { includes } } of [make()]) use(includes);',
+  (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+      path => path.node.value.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-global' });
+    const { getBinding } = adapter;
+    let anchored = 0;
+    let empty = 0;
+    adapter.getBinding = options => {
+      if (options.path) {
+        anchored++;
+        if (!options.path.node) empty++;
+      }
+      return getBinding(options);
+    };
+    check(`${ label }/opaque element stays unknown`, resolveNestedDestructureReceiver(prop, adapter, null, { innerDefault: false }), null);
+    check(`${ label }/lookup observed`, anchored > 0, true);
+    check(`${ label }/no missing initializer path`, empty, 0);
+  });
 
 const orderedStaticParameter = "{ of: a, [(log.push('key'), 'from')]: b, length: c }";
 for (const [name, parameter, argument, body, expected] of [
