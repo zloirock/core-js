@@ -50,6 +50,7 @@ class Object {
 { core-js, @core-js/pure }/es|stable|actual|full/symbol/async-dispose
 { core-js, @core-js/pure }/es|stable|actual|full/symbol/async-iterator
 core-js/es|stable|actual|full/symbol/description
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/instance/description
 { core-js, @core-js/pure }/es|stable|actual|full/symbol/dispose
 { core-js, @core-js/pure }/es|stable|actual|full/symbol/has-instance
 { core-js, @core-js/pure }/es|stable|actual|full/symbol/is-concat-spreadable
@@ -113,9 +114,20 @@ Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
 ```
 
+The pure getter preserves native symbols in engines without `Symbol.prototype.description`:
+```js
+import Symbol from '@core-js/pure/es/symbol';
+import getDescription from '@core-js/pure/es/symbol/instance/description';
+
+getDescription(Symbol('foo')); // => 'foo'
+getDescription(Symbol(''));    // => ''
+getDescription(Symbol());      // => undefined
+```
+
 > [!WARNING]
 > - We can't add a new primitive type, `Symbol` returns an object.
 > - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
+> - Without a native `description` getter, empty descriptions of non-registry symbols can only be recovered for symbols created through the patched or pure constructor.
 > - `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
 > - `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
 > - Some problems are possible with environment exotic objects (for example, IE `localStorage`).

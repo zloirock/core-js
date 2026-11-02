@@ -1,4 +1,5 @@
 // Globals: constructors and functions replaced with pure imports
+import { restoreProperty } from '../helpers/restore-property.cjs';
 
 // constructors
 QUnit.test('globals: Promise', assert => {
@@ -121,6 +122,34 @@ QUnit.test('globals: Symbol', assert => {
   const s = Symbol('test');
   assert.notSame(s, undefined);
   assert.same(s.description, 'test');
+  assert.same(Symbol('').description, '', 'empty description');
+  // eslint-disable-next-line symbol-description -- distinguish omitted and empty descriptions
+  assert.same(Symbol().description, undefined, 'omitted description');
+  assert.same(Object(s).description, 'test', 'boxed symbol');
+  assert.same(Symbol.for('').description, '', 'empty registry key');
+});
+
+QUnit.test('globals: Symbol description keeps a replacement getter', assert => {
+  const { prototype } = Symbol;
+  const previous = Object.getOwnPropertyDescriptor(prototype, 'description');
+  try {
+    for (const value of [undefined, '', 'custom']) {
+      let reads = 0;
+      restoreProperty(prototype, 'description', {
+        configurable: true,
+        get() {
+          if (++reads === 2) restoreProperty(prototype, 'description', undefined);
+          return value;
+        },
+      });
+      assert.same(Symbol('original').description, value);
+      assert.same(reads, 1, 'one property read');
+      assert.same(Symbol('original').description, value, 'a getter can delete itself');
+      assert.same(reads, 2, 'one read of the getter that deletes itself');
+    }
+  } finally {
+    restoreProperty(prototype, 'description', previous);
+  }
 });
 
 QUnit.test('globals: setImmediate / clearImmediate', assert => {

@@ -3319,6 +3319,11 @@ export const features = {
     template: $justImport,
     name: 'description',
   },
+  'symbol/instance/description': {
+    modules: ['es.symbol.description'],
+    template: $helper,
+    helper: 'symbol-get-description',
+  },
   'symbol/dispose': {
     modules: ['es.symbol.dispose', 'es.iterator.dispose'],
     template: $static,
