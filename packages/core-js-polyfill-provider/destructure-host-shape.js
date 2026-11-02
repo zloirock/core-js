@@ -128,7 +128,6 @@ import {
   patternComputedKeysSynthSafe,
   PATTERN_CHAIN_TYPES,
   pairedDefaultArm,
-  buildParameterArgumentSynthPlan,
   buildNestedParamSynthPlan,
   constructorRestIndex,
   destructurePatternHostPath,
@@ -956,16 +955,15 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
     });
     if (bodyBindings) return null;
   }
-  const mirrorOptions = {
+  const mirror = buildNestedParamSynthPlan({
     leafPatternPath: propPath.parentPath,
     meta,
     adapter,
     resolvePure,
-    parameterCallSites,
+    parameterCallSites: supplied ? parameterCallSites : null,
     isDisabledProp,
     retainNativeReads: true,
-  };
-  const mirror = supplied ? buildParameterArgumentSynthPlan(mirrorOptions) : buildNestedParamSynthPlan(mirrorOptions);
+  });
   const defaultNodes = new Set();
   for (const source of supplied ? receiverSources : [wrapper.node.right]) {
     walkAstNodes({ root: source, visit: node => { defaultNodes.add(node); } });

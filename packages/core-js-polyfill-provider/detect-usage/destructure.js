@@ -836,6 +836,35 @@ export function patternClaimOwesMirror(kind, propPath, meta = null) {
       && patternSlotTarget(propPath.node.value)?.type === 'ObjectPattern');
 }
 
+// Apply the admitted mirror before a competing extraction. Known callers own their
+// arguments before the parameter default changes. Source receiver types are primed
+// before an array fallback moves its reads; only a declined array route reaches the mirror.
+export function applyPatternClaimMirror(propPath, meta, {
+  resolvePure, parameterCallSites, renderMirror, primeReceiverTypes, renderArrayFlatten,
+}) {
+  const kind = resolvePure(meta, propPath)?.kind;
+  if (!patternClaimOwesMirror(kind, propPath, meta)) return false;
+  if (kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(propPath.parentPath)
+    && renderMirror(propPath, meta, { parameterCallSites, fallbackOnBail: true })) return true;
+  if (meta.fromFallback) {
+    primeReceiverTypes?.(propPath);
+    if (renderArrayFlatten(propPath)) return true;
+  }
+  return renderMirror(propPath, meta, { fallbackOnBail: true }) === true;
+}
+
+// Callers settle inner defaults before a leaf can use its own receiver. An instance
+// may then mirror the ordinary or deferred flat default. A declined caller-only claim
+// stays native: replacing only its default would lose absent supplied properties.
+export function applyParameterClaimMirror(propPath, meta, kind, { parameterCallSites, renderMirror }) {
+  if (parameterCallSites && renderMirror(propPath, meta, { parameterCallSites, fallbackOnBail: true })) return true;
+  if (kind === 'instance') {
+    if (renderMirror(propPath, meta, { fallbackOnBail: true })) return true;
+    if (renderMirror(propPath, meta, { allowFlatInstanceDefault: true, deferredOnly: true })) return true;
+  }
+  return !!meta?.parameterArgumentsOnly;
+}
+
 // does READING this receiver owe a throw? a top-reaching short-circuit hands the destructure
 // `undefined`, and a chain SEALING one throws above the seal - either way the read is observable, so
 // a route that REPLACES the receiver with a literal would erase it. Asked on the sequence TAIL: a
@@ -7066,20 +7095,23 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
 }
 
 // Plan receiver/default mirrors through pattern wrappers, preserving each selected arm's effects.
-// A supplied callSite owns the argument route; otherwise locate the leaf's original host.
+// A caller census selects the supplied-argument plan; each of its callSites then owns
+// one argument route. Without either, locate the leaf's original host.
 // The ordinary route reserves a successful pattern for application; retainNativeReads
 // inspects it without consuming that ownership for a retained capture.
 // eslint-disable-next-line max-statements -- the receiver walks, the leaf census and the target build share one plan
-export function buildNestedParamSynthPlan({
-  leafPatternPath,
-  meta,
-  resolvePure,
-  adapter,
-  callSite = null,
-  isDisabledProp = null,
-  retainNativeReads = false,
-  allowFlatInstanceDefault = false,
-}) {
+export function buildNestedParamSynthPlan(options) {
+  if (options.parameterCallSites) return buildParameterArgumentSynthPlan(options);
+  const {
+    leafPatternPath,
+    meta,
+    resolvePure,
+    adapter,
+    callSite = null,
+    isDisabledProp = null,
+    retainNativeReads = false,
+    allowFlatInstanceDefault = false,
+  } = options;
   if (!resolvePure || !meta) return null;
   const staticClaim = (meta.object || meta.guardedAliasHint) && meta.placement === 'static';
   const instanceClaim = !staticClaim && resolvePure(meta)?.kind === 'instance';
@@ -9194,6 +9226,9 @@ export function resolveNestedReceiverBase({
 // Apply each mirror target and skip its discarded subtree only after replacement succeeds.
 // Probe, prefix and sole-expression targets keep their source live. Publish shared claims and static aliases
 // only after every target lands; `fallbackOnBail` controls whether a bailed plan ends dispatch.
+// Deferred-only application needs a local activation. Native bookkeeping observes the
+// application verdict; a caller mirror separately reports whether its inner default is
+// settled for every caller, even when a successful rewrite leaves that default open.
 // `mintMemoRef`: the emitter allocates a ref in the MEMOIZED target's evaluation frame.
 // The receiver runs into it ahead of the literal and passthroughs read off it. A parameter
 // or field keeps the ref in a lexical expression activation; an absent allocator declines.
@@ -9205,28 +9240,34 @@ export function applyNestedParamSynthPlan({
   claimProperties = null,
   claimStaticBindings = null,
   fallbackOnBail = false,
+  deferredOnly = false,
+  callerMirror = false,
+  onApplied = null,
   embed = cloneNode,
   mintMemoRef = null,
 }) {
-  if (!plan) return false;
-  if (plan.done) return true;
+  if (deferredOnly && !plan?.targets?.some(target => target.localMemo)) return false;
+  function finishMirrorApplication(applied) {
+    if (applied) onApplied?.();
+    return callerMirror ? !!plan?.settled : applied;
+  }
+  if (!plan) return finishMirrorApplication(false);
+  if (plan.done) return finishMirrorApplication(true);
   // un-mirrorable pattern with a non-proxy value branch: handled by leaving the destructure native
   // (no inline default that would corrupt the branch's legitimate undefined). nothing to render
   // A validated receiver capture can take over without assuming which branch supplied the value.
   // Retained native reads must not fall through to an inline default that assumes a realm source.
   // A DEAD default arm needs no fallback either: the slot it defends already holds a value.
-  if (plan.bail) return !fallbackOnBail || plan.nativeReads || plan.defaultArm === 'dead';
+  if (plan.bail) return finishMirrorApplication(!fallbackOnBail || plan.nativeReads || plan.defaultArm === 'dead');
   let replaced = 0;
   const collapsedSelections = new Set();
   for (const target of plan.targets) {
     const { node, tree, receiverName, receiverIsProxy } = target;
     const memoRef = target.memo ? mintMemoRef?.(target) ?? null : null;
     if (target.memo && !memoRef) continue;
-    // a PROBE arm keeps the branch it decides, so the target carries `nullTestOn` / `keepArm` and the
-    // BINDING re-spells the selection as a null test on the probe's own read - its own node factory,
-    // at its own insertion boundary. swapped in place the arm would make an always-defined literal the
-    // left operand and kill the fallback; left raw it reads the realm natively on every host that
-    // spells the probe's name, which is the arm a browser takes
+    // A probe arm carries its original selection into renderMirrorTarget at the insertion
+    // boundary, after native target recovery. Replacing only the arm with an always-defined
+    // literal would kill its fallback; dropping the probe would lose the source branch.
     if (!replaceTarget(node, renderTree(tree, {
       receiverName: memoRef ?? receiverName,
       receiverIsProxy: memoRef ? false : receiverIsProxy,
@@ -9275,7 +9316,7 @@ export function applyNestedParamSynthPlan({
   // A copied symbol read can still yield undefined. Its extraction is served, but its user's
   // default remains live and must receive its own rewrites.
   if (replaced === plan.targets.length && plan.readProperties?.length) claimProperties?.(plan.readProperties, false);
-  return replaced > 0;
+  return finishMirrorApplication(replaced > 0);
 }
 
 // per-outerProp memoization: sibling inner-Property visits under the same outer Property

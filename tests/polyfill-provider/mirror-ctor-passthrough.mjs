@@ -9,6 +9,8 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { renderParameterInstanceCapture } from '../../packages/core-js-polyfill-provider/render.js';
 import {
+  applyPatternClaimMirror,
+  applyParameterClaimMirror,
   buildDestructureLeafMeta,
   buildNestedParamSynthPlan,
   buildParameterArgumentSynthPlan,
@@ -26,6 +28,92 @@ for (const meta of [null, undefined]) check('an absent claim does not ask the re
   meta,
   resolvePure() { throw new Error('an absent claim has no pure resolution'); },
 }), null);
+
+// Caller arguments are settled before a default changes; receiver facts are captured
+// before an array rewrite. A refusal must not invoke any later application callback.
+for (const host of ['parameter', 'declaration']) {
+  const pattern = '{ globalThis: { [key]: { prototype } } }';
+  const source = host === 'parameter' ? `function read(${ pattern } = globalThis) {}` : `const ${ pattern } = globalThis;`;
+  runBoth(`mirror route order/${ host }`, source, (parser, program, label) => {
+    const [prop] = parser.pickPath(program, 'ObjectPattern').get('properties');
+    for (const [name, kind, callers, callerDone, fromFallback, arrayDone, mirrorDone, expected] of [
+      ['instance refuses', 'instance', true, true, true, true, true, []],
+      ['callers settle', 'global', true, true, true, false, true,
+        host === 'parameter' ? ['callers'] : ['prime', 'array', 'mirror']],
+      ['default follows callers', 'global', true, false, true, false, true,
+        host === 'parameter' ? ['callers', 'prime', 'array', 'mirror'] : ['prime', 'array', 'mirror']],
+      ['array owns fallback', 'global', true, false, true, true, true,
+        host === 'parameter' ? ['callers', 'prime', 'array'] : ['prime', 'array']],
+      ['no caller census', 'global', false, false, true, false, true, ['prime', 'array', 'mirror']],
+      ['direct mirror', 'global', false, false, false, true, true, ['mirror']],
+      ['all routes decline', 'global', false, false, true, false, false, ['prime', 'array', 'mirror']],
+      ['static parameter refuses', 'static', true, false, false, false, true,
+        host === 'parameter' ? [] : ['mirror']],
+    ]) {
+      const meta = { key: 'globalThis', fromFallback };
+      const parameterCallSites = callers ? () => [] : null;
+      const events = [];
+      const before = JSON.stringify(prop.node);
+      let resolutions = 0;
+      const applied = applyPatternClaimMirror(prop, meta, {
+        parameterCallSites,
+        resolvePure(value, path) {
+          check(`${ label }/${ name } resolves the source claim`, value === meta && path === prop, true);
+          resolutions++;
+          return { kind };
+        },
+        renderMirror(path, value, options) {
+          const census = options.parameterCallSites;
+          check(`${ label }/${ name } falls through a declined plan`, options.fallbackOnBail, true);
+          check(`${ label }/${ name } renders the same source`, path === prop && value === meta, true);
+          check(`${ label }/${ name } forwards the census`, !census || census === parameterCallSites, true);
+          events.push(census ? 'callers' : 'mirror');
+          return census ? callerDone : mirrorDone;
+        },
+        primeReceiverTypes(path) {
+          check(`${ label }/${ name } primes the same receiver`, path, prop);
+          events.push('prime');
+        },
+        renderArrayFlatten(path) {
+          check(`${ label }/${ name } flattens the same receiver`, path, prop);
+          events.push('array');
+          return arrayDone;
+        },
+      });
+      checkDeep(`${ label }/${ name } callback order`, events, expected);
+      check(`${ label }/${ name } result`, applied, expected.length > 0 && name !== 'all routes decline');
+      check(`${ label }/${ name } resolves once`, resolutions, 1);
+      check(`${ label }/${ name } does not mutate source`, JSON.stringify(prop.node), before);
+    }
+  });
+}
+
+// The ordinary dispatch shares caller/default/deferred priority with both bindings.
+for (const kind of ['instance', 'static', 'global']) for (const callers of [false, true]) {
+  for (const argumentsOnly of [false, true]) for (const settles of ['none', 'callers', 'default', 'deferred']) {
+    const prop = {};
+    const meta = { parameterArgumentsOnly: argumentsOnly };
+    const parameterCallSites = callers ? () => [] : null;
+    const label = `parameter mirror/${ kind }/${ callers }/${ argumentsOnly }/${ settles }`;
+    const events = [];
+    const applied = applyParameterClaimMirror(prop, meta, kind, {
+      parameterCallSites,
+      renderMirror(path, value, options) {
+        check(`${ label } forwards source`, path === prop && value === meta, true);
+        const route = options.parameterCallSites ? 'callers' : options.deferredOnly ? 'deferred' : 'default';
+        check(`${ label } flat default is deferred only`, !!options.allowFlatInstanceDefault, route === 'deferred');
+        check(`${ label } caller and ordinary refusals fall through`, !!options.fallbackOnBail, route !== 'deferred');
+        if (route === 'callers') check(`${ label } uses the same census`, options.parameterCallSites, parameterCallSites);
+        events.push(route);
+        return route === settles;
+      },
+    });
+    const attempts = [...callers ? ['callers'] : [], ...kind === 'instance' ? ['default', 'deferred'] : []];
+    const settledAt = attempts.indexOf(settles);
+    checkDeep(`${ label } priority`, events, settledAt === -1 ? attempts : attempts.slice(0, settledAt + 1));
+    check(`${ label } ends dispatch`, applied, settledAt !== -1 || argumentsOnly);
+  }
+}
 
 // A declined child keeps its native keys without stranding its known realm receiver.
 for (const host of ['parameter', 'declaration']) for (const boundary of ['served', 'excluded', 'mutated']) {
