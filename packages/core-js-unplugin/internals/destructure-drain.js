@@ -773,14 +773,15 @@ export default function createDestructureDrains(ctx) {
   // the default-guard test ref of a memo job: a CATCH-BORN host cannot hoist a `var` past its own
   // binding, so its ref is block-scoped - minted in the other leg's order (the first claim's ahead
   // of the memo, the rest at their turn) and declared as its own `let` ahead of the extraction
-  // (`memoJobStatements`), the shape that leg prints; a hoistable host takes the declared ref
+  // (`jobStatements`), the shape that leg prints; a hoistable host takes the declared ref
   function mintMemoGuardRef(job) {
     return job.catchBorn ? mintRefName() : injector.generateDeclaredRef(job.metaPath);
   }
 
-  // the extraction a memo job binds, led by its block-`let` guard ref where the host is catch-born
-  function memoJobStatements({ job, value, guardRefs, kind, exported }) {
-    const scopedRef = job.value?.leadDecl ?? (job.catchBorn && guardRefs.get(job));
+  // Every extraction owns its guard declarations, including when a sibling join or an
+  // emptied host emits it. A catch-born memo keeps its mutable ref in a separate statement.
+  function jobStatements({ job, value, guardRefs, kind, exported }) {
+    const scopedRef = job.value?.leadDecl ?? (job.catchBorn && guardRefs?.get(job));
     const lead = scopedRef ? [variableDeclaration('let', [variableDeclarator(identifier(scopedRef))])] : [];
     const declarators = [
       ...job.value?.leadRef ? [variableDeclarator(identifier(job.value.leadRef))] : [],
@@ -953,7 +954,7 @@ export default function createDestructureDrains(ctx) {
       const [job] = declJobs;
       const guardRefs = new Map();
       const value = memoJobValue({ job, guardRefs, receiver: carrier.receiver ?? duplicateReceiver(declarator.init, injector) });
-      statements.push(...memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }));
+      statements.push(...jobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }));
       markSubtreeSkipped(skippedNodes, job.prop);
       return 'consumed';
     }
@@ -1003,7 +1004,7 @@ export default function createDestructureDrains(ctx) {
         value = sequenceExpression([...seqRescues.map(expr => cloneNode(expr)), ...probeParts, value]);
         seqRescues.length = 0;
       }
-      extracted.push({ job, list: memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }) });
+      extracted.push({ job, list: jobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }) });
       markSubtreeSkipped(skippedNodes, job.prop);
     }
     statements.push(...groupMemoExtractions(extracted, exported));
@@ -1020,9 +1021,8 @@ export default function createDestructureDrains(ctx) {
       const surface = surfaceInitInfo(declarator);
       const extracted = [];
       for (const job of declJobs) {
-        const extractedId = identifier(injectPureImport(job.entry, job.hintName));
-        extracted.push(exportDeclaration(variableDeclaration(hostNode.kind,
-          [variableDeclarator(propBindingTarget(job.prop), extractedId)]), exported));
+        const extractedId = job.value ? job.value() : identifier(injectPureImport(job.entry, job.hintName));
+        extracted.push(...jobStatements({ job, value: extractedId, kind: hostNode.kind, exported }));
         markSubtreeSkipped(skippedNodes, job.prop);
       }
       removeConsumedProps(declJobs);
@@ -1077,7 +1077,7 @@ export default function createDestructureDrains(ctx) {
         const guardRefs = new Map();
         const value = memoJobValue({ job, refName, guardRefs });
         extracted.push({
-          job, list: memoJobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }),
+          job, list: jobStatements({ job, value, guardRefs, kind: hostNode.kind, exported }),
         });
         markSubtreeSkipped(skippedNodes, job.prop);
       }
@@ -1580,13 +1580,20 @@ export default function createDestructureDrains(ctx) {
         flushGroup();
         appendStatements.push(...memoStatements);
       }
-      const extractions = declJobsHere.map(job => variableDeclarator(job.bindingTarget, job.value()));
+      const extractions = declJobsHere.map(job => {
+        const rendered = jobStatements({ job, value: job.value(), kind: hostNode.kind });
+        if (rendered.length > 1) {
+          flushGroup();
+          appendStatements.push(...rendered.slice(0, -1));
+        }
+        return rendered.at(-1).declarations;
+      });
       // a declarator the extraction consumed WHOLE splits off as its own statement, its
       // emptied residual dropped (`const { Array: { from } } = globalThis, <rest>` ->
       // `const from = _Array$from;` ahead of the rest) - babel's shape
       if (declarator.id.type === 'ObjectPattern' && !declarator.id.properties.length) {
         if (capturedGroup && declJobsHere.some(job => job.capturedSibling)) {
-          group.push(...extractions);
+          group.push(...extractions.flat());
           continue;
         }
         flushGroup();
@@ -1601,8 +1608,8 @@ export default function createDestructureDrains(ctx) {
         || declJobsHere[index].capturedSibling && !residualFirst);
       // ... and a residual left reading only what the claims read leaves the join
       group.push(...renderDestructureDeclarators(
-        [...leading, ...extractions.filter(item => !leading.includes(item))],
-        { residual: residualDies(declarator, declJobsHere) ? null : declarator, residualAt: leading.length },
+        [...leading, ...extractions.filter(item => !leading.includes(item))].flat(),
+        { residual: residualDies(declarator, declJobsHere) ? null : declarator, residualAt: leading.flat().length },
       ));
     }
     flushGroup();
@@ -1647,12 +1654,11 @@ export default function createDestructureDrains(ctx) {
         // Ordinary claims share the memo route in source order. Dispatches read its receiver;
         // receiverless statics still need their own binding beside those reads.
         const otherJobs = orderDeclaratorJobs(jobsByDeclarator.get(declarator) ?? []);
-        const readers = otherJobs.filter(job => !job.sentinel);
-        const routeJobs = orderDestructureParts({ before: [...declMemoJobs, ...readers], after: [] }, [], { sourceProps: sourceOrder });
+        const routeJobs = orderDestructureParts({ before: [...declMemoJobs, ...otherJobs], after: [] }, [], { sourceProps: sourceOrder });
         const emitted = emitMemoDeclarator({ hostNode, declarator, declJobs: routeJobs, statements, exported });
         touched ||= emitted;
-        // the route's readers are every other claim the declarator carries: an SE-key or rest sentinel
-        // over the same opaque init takes the retained capture instead, so the residual alone remains
+        // A queued sentinel still owns its binding. Only an accepted capture can replace
+        // that job's host; keeping the key for rest does not transfer its extraction.
         if (emitted !== 'consumed') statements.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported));
         continue;
       }
@@ -1728,15 +1734,7 @@ export default function createDestructureDrains(ctx) {
         const carried = extractedHere.length !== 0 || !carryIntoFirst ? [] : initPrefix;
         const carriedValue = renderDestructurePrefix(firstValue || job.value(refName), carried, firstProduct?.receiver);
         const value = leading.length ? sequenceExpression([...leading, carriedValue]) : carriedValue;
-        const declarators = [variableDeclarator(job.bindingTarget, value)];
-        if (job.value.leadRef) declarators.unshift(variableDeclarator(identifier(job.value.leadRef)));
-        // ... and a lead DECLARATION is its own statement ahead of the extraction: a block-scoped
-        // ref the born host cannot hoist a `var` for, and which the extraction does not carry as a
-        // declarator of its own - the shape the other leg prints for this composition
-        if (job.value.leadDecl) {
-          extractedHere.push(variableDeclaration('let', [variableDeclarator(identifier(job.value.leadDecl))]));
-        }
-        extractedHere.push(...renderDestructureStatements([declarators], { kind: hostNode.kind, exported }));
+        extractedHere.push(...jobStatements({ job, value, kind: hostNode.kind, exported }));
       }
       if (!emptied) {
         // the re-anchor serves a residual the extraction LEFT BEHIND; an untouched
