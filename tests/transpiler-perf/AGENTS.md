@@ -26,7 +26,7 @@ The synthetic cases exist because real code is never dense enough in any single 
 
 `applications.mjs` pins Excalidraw (MIT), NodeBB (GPL-3.0) and Squoosh (Apache-2.0) by commit/SHA-256. Sources are downloaded to `node_modules/.cache/applications`; fetched and cached bytes are verified outside timing. Source text is only transformed, never executed.
 
-Applications cover both emitters/modes and unplugin `pre -> esbuild -> post` (same instance/filename; lowering timed). Preserve Squoosh's `h`, legacy decorators and assignment-style fields. RxJS `pre+post` has no lowering. Realm sources are `whatwg-fetch`, `es6-promise` and `globalthis`; the first two must inject.
+Applications cover both emitters/modes and unplugin `pre -> esbuild -> post` (same instance/filename; lowering timed). Preserve Squoosh's `h`, legacy decorators and assignment-style fields. RxJS `pre+post` has no lowering. Realm sources are `whatwg-fetch`, `es6-promise` and the browser implementation of `globalthis`; all three must inject.
 
 ## Rules
 

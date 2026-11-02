@@ -13,6 +13,7 @@ import {
   shardSlice,
 } from '../babel-plugin/fixture-shards.mjs';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
+import { KNOWN_PHASE_IMPORT_DIFFERENCES, phaseImportVerdict, importSources, transformPrePost } from './phase-imports.mjs';
 
 const { pathExists, readFile, rm, writeFile } = fs;
 const { basename, join } = path;
@@ -20,10 +21,15 @@ const { cyan, green, red, yellow } = chalk;
 
 const { OVERWRITE } = process.env;
 const { _: args } = argv;
+const strictPrePost = argv['strict-pre-post'] ?? false;
+if (typeof strictPrePost !== 'boolean') throw new Error('--strict-pre-post must be a boolean');
 const UTF8 = { encoding: 'utf8' };
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
-const counts = { passed: 0, failed: 0, skipped: 0, rewritten: 0, regenerated: 0 };
+const counts = {
+  passed: 0, failed: 0, skipped: 0, rewritten: 0, regenerated: 0,
+  phasePassed: 0, phaseKnown: 0, phaseFailed: 0, phaseSkipped: 0, phaseRecorded: 0,
+};
 
 // OVERWRITE sweeps run over thousands of untouched fixtures - write (and report) only what
 // actually changes so the regen deltas are the whole output. returns whether it changed
@@ -239,18 +245,65 @@ function captureConsole() {
   return { logs, warns, restore: () => Object.assign(console, orig) };
 }
 
-function captureTransform(source, pluginOptions, testId) {
+function captureTransform(source, pluginOptions, testId, prePost = false) {
   // plugin instantiation is INSIDE the hijack window because constructor-time warns
   // (e.g. `unknown bundler` from plugin.js:106) fire there - moving `createPlugin` out
   // would leak that diagnostic past the runner before `restore()` runs
   const { logs, warns, restore } = captureConsole();
   try {
     const plugin = createPlugin(pluginOptions);
-    const result = plugin.transform(source, testId);
+    const result = prePost ? transformPrePost(plugin, source, testId) : plugin.transform(source, testId);
     return { code: result?.code ?? source, map: result?.map ?? null, abstained: result === null, logs, warns };
   } finally {
     restore();
   }
+}
+
+// Keep the phase verdict separate from the single-pass fixture counter. An exception in
+// either pass is a phase failure, even if the single pass still matches its baseline.
+function checkPrePost(directory, source, pluginOptions, testId, single, expectedError = null) {
+  if (OVERWRITE || pluginOptions.method === 'entry-global') return;
+  const name = label(directory).replaceAll('\\', '/');
+  if (KNOWN_PHASE_IMPORT_DIFFERENCES.has(name)) counts.phaseRecorded++;
+  let result;
+  try {
+    result = captureTransform(source, pluginOptions, testId, true);
+  } catch (error) {
+    if (expectedError !== null && normalizeFixtureError(error) === expectedError) {
+      counts.phasePassed++;
+      return;
+    }
+    counts.phaseFailed++;
+    echo(red(`${ cyan(name) } pre+post failed: ${ error.message }`));
+    return;
+  }
+  if (expectedError !== null) {
+    counts.phaseFailed++;
+    echo(red(`${ cyan(name) } pre+post failed: expected error but none thrown`));
+    return;
+  }
+  const parseId = liftSfcLangSuffix(testId);
+  const before = parseOrNull(parseId, single);
+  const after = parseOrNull(parseId, result.code);
+  if (!before || !after) {
+    counts.phaseFailed++;
+    echo(red(`${ cyan(name) } pre+post failed: output does not parse for the import comparison`));
+    return;
+  }
+  const verdict = phaseImportVerdict(name, importSources(before.program), importSources(after.program));
+  if (verdict.status === 'passed') counts.phasePassed++;
+  else if (verdict.status === 'known') {
+    counts.phaseKnown++;
+    echo(yellow(`${ cyan(name) } pre+post known import difference (open): ${ JSON.stringify(verdict) }`));
+  } else {
+    counts.phaseFailed++;
+    echo(red(`${ cyan(name) } pre+post ${ verdict.status }: ${ JSON.stringify(verdict) }`));
+  }
+}
+
+// The internal transformer adds the fixture id to the shared error brand in both phases.
+function normalizeFixtureError(error) {
+  return error.message.trim().replace(/^\[core-js\] \[input\.ts\] /, '[core-js] ');
 }
 
 async function runErrorFixture(directory, pluginOptions, errorFile) {
@@ -275,6 +328,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
   }
   if (await pathExists(unpluginOutputFile)) {
     const { code } = captureTransform(source, pluginOptions, 'input.ts');
+    checkPrePost(directory, source, pluginOptions, 'input.ts', code);
     return compareStrict(directory, normalize(code), unpluginOutputFile);
   }
   const expected = (await readFile(errorFile, UTF8)).trim()
@@ -285,6 +339,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
     .replace(/^[^\n:]+: /, '')
     .replace(/\n? ?\(While processing:.*\)$/s, '')
     .trim();
+  checkPrePost(directory, source, pluginOptions, 'input.ts', null, expected);
   try {
     createPlugin(pluginOptions).transform(source, 'input.ts');
     fail(directory, 'expected error but none thrown');
@@ -293,7 +348,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
     // the file as one unit; the babel leg carries the brand alone and lets babel name the file
     // (stripped with the `<filename>: ` layer above). strip the unplugin file marker, keeping the
     // brand, so a single canonical `error.txt` (regenerated by babel-plugin runner) works for both
-    const actual = error.message.trim().replace(/^\[core-js\] \[input\.ts\] /, '[core-js] ');
+    const actual = normalizeFixtureError(error);
     if (actual === expected) pass();
     else fail(directory, `expected: ${ expected }`, `actual:   ${ actual }`);
   }
@@ -440,7 +495,7 @@ function skip(directory, reason) {
   counts[key] = (counts[key] ?? 0) + 1;
 }
 
-async function runFixture(directory) {
+async function checkFixture(directory) {
   const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
   const hasUnpluginOutput = await pathExists(unpluginOutputFile);
   const babelOptions = await loadBabelOptions(directory);
@@ -487,6 +542,7 @@ async function runFixture(directory) {
     if (!sideChannels) return;
     if (!checkSourceMapContent(directory, map, testId, source, pluginOptions.method)) return;
     if (!checkOutputParses(directory, code, testId)) return;
+    checkPrePost(directory, source, pluginOptions, testId, code);
     await compareMainOutput({
       directory, actual, babelOutput, babelOptions, parseId: liftSfcLangSuffix(testId), abstained,
       hasUnpluginOutput, unpluginOutputFile,
@@ -497,6 +553,14 @@ async function runFixture(directory) {
   }
 }
 
+// Account for every collected fixture on both axes, including skips, error baselines,
+// entry-global (which has no pre+post mode) and regeneration (which is not verification).
+async function runFixture(directory) {
+  const before = counts.phasePassed + counts.phaseKnown + counts.phaseFailed;
+  await checkFixture(directory);
+  if (counts.phasePassed + counts.phaseKnown + counts.phaseFailed === before) counts.phaseSkipped++;
+}
+
 // a shard child receives the subtree filter via env (the zx CLI keeps the script name in
 // argv._, so a positional arg would land off-by-one against the zxi-invoked parent)
 const subtree = FIXTURE_SHARD ? process.env.FIXTURE_SUBTREE : args[0];
@@ -504,6 +568,12 @@ const subtree = FIXTURE_SHARD ? process.env.FIXTURE_SUBTREE : args[0];
 // `input.mjs`, at whatever depth. a walk of its own, fixed at mode/fixture, silently dropped anything
 // one level deeper - the babel leg compared it, this one skipped its parent, and no counter said so
 const fixtures = await collectFixtures(subtree ? join(fixturesDir, subtree) : fixturesDir);
+if (!subtree) {
+  const names = new Set(fixtures.map(directory => label(directory).replaceAll('\\', '/')));
+  for (const name of KNOWN_PHASE_IMPORT_DIFFERENCES.keys()) {
+    if (!names.has(name)) throw new Error(`stale pre+post fixture record: ${ name }`);
+  }
+}
 
 // a child reports through the marker only; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
@@ -537,6 +607,11 @@ if (FIXTURE_SHARD) {
   if (accounted !== fixtures.length) {
     throw new Error(`corpus not accounted for: ${ accounted } of ${ fixtures.length } fixtures reached a counter`);
   }
+  const { phasePassed, phaseKnown, phaseFailed, phaseSkipped } = counts;
+  echo(`Pre+post imports/errors - Passed: ${ green(phasePassed) }, Known differences (open): ${ yellow(phaseKnown) }, Failed: ${ red(phaseFailed) }, Skipped: ${ yellow(phaseSkipped) }`);
+  if (phasePassed + phaseKnown + phaseFailed + phaseSkipped !== fixtures.length) {
+    throw new Error('pre+post corpus not accounted for');
+  }
   // the comparison itself, bounded from below. The equality above is scale-free: it holds just as
   // well when every collected fixture left through a SKIP counter, which is what a comparator that
   // stopped comparing produces (measured: forcing one declined lane takes the whole corpus with it).
@@ -547,5 +622,11 @@ if (FIXTURE_SHARD) {
   if (!OVERWRITE && !subtree && compared < COMPARED_FLOOR) {
     throw new Error(`fixture corpus collapsed: ${ compared } fixtures compared, under the floor of ${ COMPARED_FLOOR }`);
   }
-  if (failed) throw new Error('Some tests have failed');
+  if (!OVERWRITE && !subtree && phasePassed < COMPARED_FLOOR) {
+    throw new Error(`pre+post corpus collapsed: ${ phasePassed } fixtures passed, under the floor of ${ COMPARED_FLOOR }`);
+  }
+  if (!OVERWRITE && !subtree && counts.phaseRecorded !== KNOWN_PHASE_IMPORT_DIFFERENCES.size) {
+    throw new Error('pre+post known differences were not all checked');
+  }
+  if (failed || phaseFailed || strictPrePost && phaseKnown) throw new Error('Some tests have failed');
 }
