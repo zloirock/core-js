@@ -314,6 +314,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'symbol/unscopables'));
     ok(load(NS, 'symbol/async-iterator'));
     load(NS, 'symbol/description');
+    ok(load(NS, 'symbol/instance/description')(Symbol('instance')) === 'instance');
     ok(typeof load(NS, 'symbol') == 'function');
     const Map = load(NS, 'map/constructor');
     ok(new Map([[1, 2], [3, 4]]).size === 2);

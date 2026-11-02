@@ -278,7 +278,10 @@ export const instance = {
   concat: { array: 'array/instance/concat' },
   copyWithin: { array: 'array/instance/copy-within' },
   demethodize: { function: 'instance/demethodize' },
-  description: { global: { symbol: 'symbol/description' } },
+  description: {
+    global: { symbol: 'symbol/description' },
+    pure: { symbol: 'symbol/instance/description' },
+  },
   dotAll: { global: { regexp: 'regexp/dot-all' } },
   drop: {
     global: {
