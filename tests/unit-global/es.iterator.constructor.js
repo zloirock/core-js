@@ -39,6 +39,7 @@ QUnit.test('Iterator', assert => {
 
 QUnit.test('Iterator#constructor', assert => {
   assert.same(Iterator.prototype.constructor, Iterator, 'Iterator#constructor is Iterator');
+  assert.same(Iterator.from(createIterator([])).constructor, Iterator, 'Iterator instance inherits constructor');
 });
 
 QUnit.test('Iterator#@@toStringTag', assert => {

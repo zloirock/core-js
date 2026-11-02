@@ -53,7 +53,7 @@ var defineIteratorPrototypeAccessor = function (key, value) {
 if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) defineIteratorPrototypeAccessor(TO_STRING_TAG, ITERATOR);
 
 if (FORCED || !hasOwn(IteratorPrototype, CONSTRUCTOR) || IteratorPrototype[CONSTRUCTOR] === Object) {
-  defineIteratorPrototypeAccessor(CONSTRUCTOR, IteratorConstructor);
+  defineIteratorPrototypeAccessor(CONSTRUCTOR, FORCED ? IteratorConstructor : NativeIterator);
 }
 
 IteratorConstructor.prototype = IteratorPrototype;
