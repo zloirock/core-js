@@ -40,11 +40,11 @@ QUnit.test('destructuring: a nested instance beside rest preserves collection an
   };
   const { before, [(events.push('key'), 'data')]: { includes, ...rest }, after } = source;
   const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'includes');
-  // The pre transform retains the native rest boundary; post can serve the lowered read.
-  if (descriptor) assert.same(includes, descriptor.value);
+  // The pre transform retains the native rest boundary; post can serve a ponyfill after lowering.
+  if (includes === undefined) assert.same(descriptor, undefined);
   else {
-    const servedAfterLowering = includes === undefined || typeof includes === 'function';
-    assert.true(servedAfterLowering);
+    assert.true(includes.call(values, 5));
+    assert.false(includes.call(values, 6));
   }
   assert.false('includes' in rest);
   assert.same(rest[0], 4);
