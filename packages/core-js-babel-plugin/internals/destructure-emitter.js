@@ -1397,6 +1397,9 @@ export default function createDestructureEmitter({
     }) : nav;
     const { twinInit, memoDeclaration } = twinInitNode({ prop, init, memo: plan.memo });
     if (plan.kind === 'assignment') {
+      if (plan.prefix?.length) plan.host.declaration.insertBefore(renderDestructureStatements([], {
+        prefix: plan.prefix, embed: node => hostSlot(t.cloneNode(node)),
+      }).map(node => estreeToBabel(node)));
       declarator.get('right').replaceWith(twinInit);
       declarator.get('left').replaceWith(t.cloneNode(leafPattern.node));
       return true;

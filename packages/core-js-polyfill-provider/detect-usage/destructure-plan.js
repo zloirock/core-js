@@ -653,7 +653,7 @@ export function planNestedLeafTwin({ path, sourceLeafCount, queuedReceiverRead =
   if (patternSlotTarget(path.node.value)?.type !== 'Identifier') return null;
   const ctx = { scope: path.scope, path, adapter };
   const options = { soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true,
-    siblingLevels: true, adapter, allowAssignmentHost: true };
+    siblingLevels: true, adapter, allowAssignmentHost: true, captureReceiver: true };
   function owed(walk) {
     const leaves = walk.leafPattern?.node?.properties ?? [];
     return (leaves.length > 1 || sourceLeafCount > 1
@@ -697,8 +697,13 @@ export function planNestedLeafTwin({ path, sourceLeafCount, queuedReceiverRead =
   const nav = base.path.reduce(memberFromKeyName, node);
   const memo = !!walk.slotDefault || (!assignment && sourceLeafCount > leafPattern.node.properties.length
     && !isReReadableSurfaceNav(nav, isOwnAlias, { ctx }));
+  // A discarded assignment lifts its prefix before the flat receiver capture, as an
+  // early anchor already does. Keep that order independent of which host asks first;
+  // a typed root without that sequence keeps its assertion for re-detection.
+  const { prefix, tail } = assignment && node.type === 'SequenceExpression'
+    ? peelNestedSequenceExpressions(node) : { prefix: [], tail: node };
   return { kind: assignment ? 'assignment' : 'declaration', declarator, leafPattern, walk, host, split,
-    receiver: { node, keys: base.path }, slotDefault: walk.slotDefault, memo };
+    receiver: { node: tail, keys: base.path }, prefix, slotDefault: walk.slotDefault, memo };
 }
 
 // A discarded literal assignment can hand its paired slot to the same flat channel.
