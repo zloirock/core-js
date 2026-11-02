@@ -757,7 +757,7 @@ export default function createDestructureDrains(ctx) {
       injectImport: injectPureImport,
       mintRef: () => injector.generateDeclaredRef(soleJob.metaPath),
       // A rescued prefix still owns queued nested hosts; their later drain must reach it.
-      embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
+      cloneHost: (node, role) => role === 'prefix' ? node : cloneNode(node),
     });
   }
 

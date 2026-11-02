@@ -2484,7 +2484,7 @@ export default function createDestructureEmitter({
     const emitted = estreeToBabel(renderResidualAnchor(plan, {
       injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
       mintRef: () => injector.generateDeclaredRef(anchorPath.scope).name,
-      embed: node => hostSlot(t.cloneNode(node)),
+      cloneHost: node => t.cloneNode(node), embed: hostSlot,
     }));
     if (plan.probedNav && initNode && anchorPath) {
       const navNode = peelNestedSequenceExpressions(initNode).tail ?? initNode;
@@ -2504,7 +2504,7 @@ export default function createDestructureEmitter({
       const swap = pendingProbedAnchorSwaps[i];
       if (hostNode && swap.hostNode !== hostNode) continue;
       const swapped = estreeToBabel(renderResidualAnchor({ anchor: swap.anchor, guarded: swap.guarded }, {
-        embed: hostSlot,
+        cloneHost: node => node, embed: hostSlot,
       }));
       for (const key of Object.keys(swap.emitted)) delete swap.emitted[key];
       Object.assign(swap.emitted, swapped);
