@@ -58,6 +58,7 @@
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
   - Added missed `Map` to `/actual/array/` namespace entries dependencies, a regression since 3.29.1
+  - Added missing `Iterator.prototype[Symbol.dispose]` dependencies to iterator factory entries, and `Iterator.prototype.toAsync` dependencies to `full/iterator/{ concat, zip, zip-keyed, range }`
   - Fixed `ArrayBuffer` and `DataView` dependencies of some entries, for `/array-buffer/constructor` entries it's a regression since 3.36.0
   - Fixed order of dependencies loading in some entries, for `/array/from-async` and `/array/` namespace entries it's a regression since 3.43.0
   - Added missed `Array[@@species]`, `Object.prototype.toString`, iterators and other dependencies to some entries

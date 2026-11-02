@@ -4,6 +4,7 @@ require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
 require('../../modules/es.iterator.constructor');
 require('../../modules/es.iterator.chunks');
+require('../../modules/es.iterator.dispose');
 require('../../modules/es.iterator.drop');
 require('../../modules/es.iterator.every');
 require('../../modules/es.iterator.filter');
