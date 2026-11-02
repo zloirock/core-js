@@ -166,6 +166,7 @@ QUnit.test('Iterator.zip', assert => {
         return defineProperty({ done: true }, 'value', {
           get() {
             valueRead = true;
+            throw new Error('The value of a done result must not be read');
           },
         });
       },
@@ -173,6 +174,10 @@ QUnit.test('Iterator.zip', assert => {
     assert.deepEqual(from(zip([exhausted(), [1, 2]])), [], 'shortest');
     assert.deepEqual(from(zip([[1], exhausted()], { mode: 'longest' })), [[1, undefined]], 'longest');
     assert.deepEqual(from(zip([exhausted(), exhausted()], { mode: 'strict' })), [], 'strict');
+    assert.deepEqual(from(zip([[1], [2, 3]], {
+      mode: 'longest',
+      padding: { [Symbol.iterator]: exhausted },
+    })), [[1, 2], [undefined, 3]], 'exhausted padding');
     assert.false(valueRead, 'the value of a done result is not read');
   }
   {

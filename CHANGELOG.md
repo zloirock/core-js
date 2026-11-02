@@ -22,7 +22,7 @@
 - Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
 - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Throw a `TypeError` when a running polyfilled iterator helper is re-entered
-- Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfill
+- Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
 - Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
 - Improved error messages for invalid iterator window sizes and different iterator lengths in strict `Iterator.{ zip, zipKeyed }` mode
 - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer

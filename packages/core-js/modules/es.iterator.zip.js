@@ -63,7 +63,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
             try {
               next = anObject(call(paddingIter.next, paddingIter.iterator));
               paddingDone = next.done;
-              next = next.value;
+              next = paddingDone ? undefined : next.value;
             } catch (error) {
               return iteratorCloseAll(iters, THROW, error);
             }
