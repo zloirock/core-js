@@ -108,6 +108,7 @@ import {
   memberTargetTakesExtraction,
   resolveKey,
   proxyGlobalRootName,
+  proxyReceiverValueCanBeUndefined,
   resolveObjectName,
 } from './detect-usage/resolve.js';
 import {
@@ -1404,10 +1405,11 @@ function planRetainedObjectCaptureShape({
 }) {
   const ctx = { scope: hostPath?.scope, adapter, path: hostPath };
   if (prop && isClaimedProp?.(prop)) return null;
+  const capturedResult = assignment && !!hostPath && !assignmentValueDiscarded(hostPath);
   // The existing identity guard also serves a selecting receiver whose unknown key
   // prevents a mirror. Its original pattern reads each unclaimed property separately.
   const guardedFallback = hostPath && resolvedMeta?.fromFallback && pattern?.properties?.includes(prop)
-    && (assignment && !assignmentValueDiscarded(hostPath)
+    && (capturedResult
       || kind === 'static' && !patternComputedKeysSynthSafe({
         objectPatternNode: pattern,
         scope: hostPath.scope,
@@ -1421,14 +1423,20 @@ function planRetainedObjectCaptureShape({
     adapter,
     path: hostPath,
   }).map(meta => meta.object) : [];
-  const guardMeta = fallbackObjects.length ? {
+  // A captured result retains the source realm value, including a nullable stored proxy.
+  // Its constructor claim uses the same identity guard as a discarded anchor's residual.
+  const guardedRealm = capturedResult && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(resolvedMeta?.object)
+    && proxyReceiverValueCanBeUndefined(installedWriteValue(init), resolvePure, ctx);
+  const guardMeta = guardedRealm ? {
+    ...resolvedMeta, guardedAliasHint: resolvedMeta.object, guardOnly: true,
+  } : fallbackObjects.length ? {
     ...resolvedMeta,
     object: null,
     guardedAliasHint: fallbackObjects[0],
     guardedWriteObjects: fallbackObjects,
     guardOnly: true,
   } : resolvedMeta;
-  const guarded = !!guardMeta?.guardedAliasHint && (kind === 'instance' || guardedFallback);
+  const guarded = !!guardMeta?.guardedAliasHint && (kind === 'instance' || guardedFallback || guardedRealm);
   if (guarded && pattern?.type === 'ObjectPattern' && !pattern.properties.includes(prop)) {
     const capture = planNestedKeyedPatternCapture({ pattern, init, allowArray: true, ctx })
       ?? planNestedKeyedPatternCapture({ pattern, init, force: true, allowArray: true, ctx });
@@ -1449,7 +1457,6 @@ function planRetainedObjectCaptureShape({
     && !adapter?.isMutatedStatic?.('Array.prototype', 'Symbol.iterator');
   // Instance leaves keep their receiver at its native iterated position, through every array
   // level. Statics retain their guard, effectful-key and consumed-result admission.
-  const capturedResult = assignment && !!hostPath && !assignmentValueDiscarded(hostPath);
   const claimElement = guarded || keyedElement || capturedResult || kind === 'instance';
   if (pattern?.type === 'ArrayPattern' && (claimElement || pattern.elements.length === 1)
     && (guarded || arraySource?.type === 'ArrayExpression' && arraySource.elements.length >= 1)) {
@@ -1592,13 +1599,14 @@ function planRetainedObjectCaptureShape({
   const guardedPlan = guarded && pattern.properties.includes(prop) && resolvePure ? planGuardedNarrow?.({
     memberNode: memberExpression(identifier(''), identifier(resolvedMeta.key)),
     parent: null,
+    pattern: patternSlotTarget(prop.value),
     meta: guardMeta,
     path: hostPath,
     resolvePure,
     adapter,
   }) : null;
   const narrow = guardedPlan && !guardedPlan.bail
-    && (guardedFallback || guardedPlan.instanceFallback?.kind === 'instance') ? guardedPlan : null;
+    && (guardedRealm || guardedFallback || guardedPlan.instanceFallback?.kind === 'instance') ? guardedPlan : null;
   const rest = pattern.properties.find(isRestProperty);
   if (rest && kind === 'instance') return null;
   // the capture keeps each nested write in its slot: always under rest, and on a discarded
@@ -2319,7 +2327,7 @@ export function renderRetainedObjectCapture(plan, {
       }).at(-1) : variableDeclarator(embed(target), read));
     } else if (plan.assignment && prop === plan.prop) {
       const defaulted = prop.value.type === 'AssignmentPattern';
-      const target = plan.retainedStatic ? droppedDefaultTarget(prop) : patternSlotTarget(prop.value);
+      const target = plan.retainedStatic && !plan.narrow ? droppedDefaultTarget(prop) : patternSlotTarget(prop.value);
       if (plan.retainedStatic && plan.primaryPure?.kind !== 'global' && target.type === 'Identifier') {
         noteStaticAlias?.(target.name, entry);
       }
@@ -2331,7 +2339,7 @@ export function renderRetainedObjectCapture(plan, {
         { injectImport, spellRecv: ref },
       )
         : plan.retainedStatic ? pure : callExpression(pure, [ref()]);
-      if (defaulted && !plan.retainedStatic) {
+      if (defaulted && (!plan.retainedStatic || plan.narrow)) {
         const memo = identifier(mintDeclaredRef());
         read = renderDefaultGuard({ assignedRef: memo, call: read, reread: memo,
           defaultValue: embed(prop.value.right), defaultPattern: prop.value, defaultName: target.name });
