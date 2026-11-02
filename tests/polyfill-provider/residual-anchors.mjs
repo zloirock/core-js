@@ -101,6 +101,41 @@ runBoth('guard provenance', 'const { Map: { name } } = test() ? void 0 : globalT
   check(`${ label }/member key`, rendered.property.name, 'Map');
 });
 
+for (const [name, setup, init, expected] of [
+  ['alias', 'const realm = globalThis.window;', 'realm.self', true],
+  ['stored alias', 'let held;', '(held = globalThis.window).self', true],
+  ['prefix', 'const realm = globalThis.window;', '(effect(), realm.self)', true],
+  ['computed', 'const realm = globalThis.window;', 'realm["self"]', true],
+  ['shadowed', 'const globalThis = foreign; const realm = globalThis.window;', 'realm.self', false],
+  ['written holder stays guarded', 'let realm = globalThis.window; realm = foreign;', 'realm.self', true],
+  ['foreign source', 'const realm = foreign;', 'realm.self', false],
+  ['guarded alias', 'const realm = globalThis.window;', 'realm?.self', false],
+  ['plain value', '', 'globalThis', false],
+]) runBoth(`alias receiver/${ name }`, `export {}; ${ setup } const { Map: { prototype: proto } } = ${ init };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern');
+  const adapter = makeAdapter(parser);
+  const before = JSON.stringify(path.node);
+  const surface = residualAnchorSurface(path.node.init, { adapter, path, resolveGlobalPolyfill });
+  check(`${ label }/initializer role`, surface?.probe?.kind === 'alias', expected);
+  check(`${ label }/query preserves the source host`, JSON.stringify(path.node), before);
+  if (!expected) return;
+  check(`${ label }/whole receiver stays guarded`, surface.tail, peelTransparentExpr(path.node.init));
+  const product = planResidualAnchorHop({
+    pattern: path.node.id, receiver: 'globalThis', adapter, path, resolveGlobalPolyfill,
+    guarded: true, guardedValue: surface.tail, probe: surface.probe, phase: 'source',
+    resolvePure: meta => {
+      const key = meta.kind === 'global' ? meta.name : meta.placement === 'static' ? meta.key : null;
+      const pure = key === 'self' ? { entry: 'actual/self', hintName: 'self' } : resolveGlobalPolyfill(key);
+      return pure ? { ...pure, kind: 'global' } : null;
+    },
+  });
+  check(`${ label }/anchor reads the constructor`, product.key, 'Map');
+  check(`${ label }/constructor identity entry`, product.narrow?.branches[0].staticPure.entry, 'actual/map/constructor');
+  check(`${ label }/probe identity entry`, product.probe.narrow?.branches[0].staticPure.entry, 'actual/self');
+  check(`${ label }/probe capture is a source value`, !!product.probe.capture?.source, true);
+  check(`${ label }/planning remains speculative`, JSON.stringify(path.node), before);
+});
+
 for (const body of ['return globalThis;', 'effect(); return globalThis;']) {
   runBoth('stored proven call', `function realm() { ${ body } } let held; const { Map: { missing } } = (held = realm());`, (parser, program, label) => {
     const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern');
@@ -143,7 +178,7 @@ for (const [name, init, prefix] of [
   let captures = 0;
   const rendered = renderResidualAnchor({ anchor: product.key, narrow: product.narrow, prefix: product.prefix }, {
     injectImport: (_entry, hint) => `_${ hint }`, mintRef: () => { captures++; return 'captured'; },
-    embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
+    cloneHost: (node, role) => role === 'prefix' ? node : cloneNode(node),
   });
   check(`${ label }/one receiver capture`, captures, 1);
   check(`${ label }/capture follows source prefix`, rendered.expressions[prefix].left.name, 'captured');
@@ -161,7 +196,7 @@ runBoth('live rescued prefix', 'const { Map: { missing } } = (effect(), globalTh
   const surface = residualAnchorSurface(path.node.init, { adapter: makeAdapter(parser), path, resolveGlobalPolyfill });
   const [prefix] = surface.init.expressions;
   const rendered = renderResidualAnchor({ anchor: 'Map', anchorPure: resolveGlobalPolyfill('Map'), prefix: [prefix] }, {
-    injectImport: () => 'Map', embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
+    injectImport: () => 'Map', cloneHost: (node, role) => role === 'prefix' ? node : cloneNode(node),
   });
   check(`${ label }/late native edit reaches the emitted prefix`, rendered.expressions[0], prefix);
 });
@@ -172,7 +207,7 @@ runBoth('captured source read', 'const value = (effect(), (guard() ? void 0 : se
   let imports = 0;
   const rendered = renderResidualAnchor({ read, anchorPure: resolveGlobalPolyfill('Map'), prefix: [prefix] }, {
     injectImport: () => { imports++; return 'Map'; },
-    embed: (node, role) => role === 'prefix' ? node : cloneNode(node),
+    cloneHost: (node, role) => role === 'prefix' ? node : cloneNode(node),
   });
   check(`${ label }/no unconditional constructor import`, imports, 0);
   check(`${ label }/prefix keeps its queued children`, rendered.expressions[0], prefix);

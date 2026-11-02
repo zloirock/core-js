@@ -814,25 +814,57 @@ export function nullGuardTest(check, { embed = node => node } = {}) {
 // An accepted source read already includes its guard and member; reuse it without
 // re-deriving either from the live initializer or registering an unconditional import.
 // A guarded native branch may be undefined: its pattern default stays live and reads once.
+// An alias probe supplies the receiver, not the anchor value. Its own identity narrow
+// and the constructor narrow share the member canon; source slots are cloned before host embedding.
 export function renderResidualAnchor({
-  anchor, anchorNode, computed = false, anchorPure, receiver, receiverPure, receiverNode, guarded, narrow, read, prefix = [], defaultValue,
-}, { injectImport, mintRef, embed = cloneNode }) {
+  anchor,
+  anchorNode,
+  computed = false,
+  anchorPure,
+  receiver,
+  receiverPure,
+  receiverNode,
+  guarded,
+  narrow,
+  probe,
+  read,
+  prefix = [],
+  defaultValue,
+}, {
+  injectImport,
+  mintRef,
+  cloneHost = cloneNode,
+  embed = node => node,
+}) {
+  function source(node, role) {
+    return embed(cloneHost(node, role), role);
+  }
   let value;
   if (narrow) {
     const ref = mintRef();
+    // Keep the probe on a captured holder. A later parsed pass must still see the
+    // throwing read, including when the holder was an inline store in the source.
+    const holder = probe?.narrow ? identifier(mintRef()) : null;
+    const capture = holder ? renderCtorIdentityNarrow(probe.narrow,
+      renderAliasHeldProbeRead({ ...probe.aliasProbe, innerKeys: [] }, cloneNode(holder)), {
+        injectImport,
+        spellRecv: () => cloneNode(holder),
+        captureReceiver: renderProbeSource(probe.capture, { injectImport, cloneHost, embed }),
+      }) : probe ? renderClaimProbe(probe, { injectImport, cloneHost, embed }) : source(narrow.captureReceiver);
     value = renderCtorIdentityNarrow(narrow, memberFromKeyName(identifier(ref), anchor), {
-      injectImport, spellRecv: () => identifier(ref), captureReceiver: embed(narrow.captureReceiver),
+      injectImport, spellRecv: () => identifier(ref), captureReceiver: capture,
     });
-  } else if (guarded) value = anchorNode ? memberExpression(embed(guarded), embed(anchorNode), { computed })
-    : memberFromKeyName(embed(guarded), anchor);
-  else value = read ? embed(read) : anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
-    : memberFromKeyName(receiverNode ? embed(receiverNode)
+  } else if (guarded) {
+    const base = probe ? renderClaimProbe(probe, { injectImport, cloneHost, embed }) : source(guarded);
+    value = anchorNode ? memberExpression(base, source(anchorNode), { computed }) : memberFromKeyName(base, anchor);
+  } else value = read ? source(read) : anchorPure ? identifier(injectImport(anchorPure.entry, anchorPure.hintName))
+    : memberFromKeyName(receiverNode ? source(receiverNode)
     : receiverPure ? identifier(injectImport(receiverPure.entry, receiverPure.hintName)) : identifier(receiver), anchor);
   if (defaultValue) {
     const ref = identifier(mintRef());
-    value = renderInstanceDefaultGuard({ assignedRef: ref, call: value, reread: cloneNode(ref), defaultValue: embed(defaultValue) });
+    value = renderInstanceDefaultGuard({ assignedRef: ref, call: value, reread: cloneNode(ref), defaultValue: source(defaultValue) });
   }
-  return prefix.length ? sequenceExpression([...prefix.map(node => embed(node, 'prefix')),
+  return prefix.length ? sequenceExpression([...prefix.map(node => source(node, 'prefix')),
     ...value.type === 'SequenceExpression' ? value.expressions : [value]]) : value;
 }
 

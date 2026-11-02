@@ -22063,6 +22063,23 @@ function * generateDeferredJobBindings() {
   }
 }
 
+// An initializer probe supplies a realm; a nested residual must still read its constructor.
+function * generateAliasResidualConstructors() {
+  const setup = `import { withWindowPresence } from ${ JSON.stringify(new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href) };`;
+  for (const host of ['declaration', 'for']) for (const stored of [false, true]) for (const present of [false, true]) {
+    const receiver = stored ? '(held = globalThis.window).self' : 'held.self';
+    const init = `(log.push("prefix"), ${ receiver })`;
+    const declaration = `const { Map: { prototype: proto = (log.push("default"), {}) } } = ${ init }`;
+    const read = 'return [typeof proto, typeof proto.get];';
+    const row = snippet(`alias-residual/${ host }/${ stored }/${ present }`, `withWindowPresence(${ present }, () => {
+      ${ stored ? 'let held;' : 'const held = globalThis.window;' }
+      try { ${ host === 'for' ? `for (${ declaration };;) { ${ read } }` : `${ declaration }; ${ read }` } }
+      catch (error) { return error.name; }
+    })`);
+    yield { ...row, code: `${ setup }\n${ row.code }`, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22502,4 +22519,5 @@ export function * generate() {
   yield * generateRelocatedLiteralHeads();
   yield * generateMovedPatternBindings();
   yield * generateDeferredJobBindings();
+  yield * generateAliasResidualConstructors();
 }

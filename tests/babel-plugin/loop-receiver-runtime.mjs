@@ -302,6 +302,57 @@ ${ body }`;
       if (host !== 'native') check(`deferred/${ shape }/${ host }/stripped`, await runInWorker(file), expected);
     }
   }
+  for (const shape of ['alias', 'alias-for', 'stored', 'stored-for']) {
+    const stored = shape.startsWith('stored');
+    const receiver = stored ? '(held = globalThis.window).self' : 'held.self';
+    const head = `const { Map: { prototype: proto = (effects.push("default"), {}) } } = (effects.push("prefix"), ${ receiver })`;
+    const read = 'r.push(typeof proto.get, proto.marker || 0);';
+    const source = `export const effects = []; export const r = [];
+${ stored ? 'let held;' : 'const held = globalThis.window;' }
+try { ${ shape.endsWith('-for') ? `for (${ head };;) { ${ read } break; }` : `${ head }; ${ read }` } }
+catch (error) { r.push(error.name); }`;
+    scenarioSource(source);
+    const { code: babel } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
+    });
+    const plugin = createUnplugin(OPTIONS);
+    const single = createUnplugin(OPTIONS).transform(source, 'input.mjs')?.code ?? source;
+    const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+    const outputs = [['native', source], ['babel', babel], ['unplugin', single], ['pre+post', post]];
+    function imports(output) {
+      return Array.from(output.matchAll(/from "(?<entry>@core-js\/pure\/[^"]+)"/g), match => match.groups.entry).sort().join(',');
+    }
+    check(`alias residual/${ shape }/import parity`, imports(single), imports(babel));
+    check(`alias residual/${ shape }/phase parity`, imports(post), imports(single));
+    for (const [host, output] of outputs.slice(1)) {
+      const { code } = await transformAsync(output, {
+        configFile: false, babelrc: false,
+        plugins: [requireBabel.resolve('@babel/plugin-transform-object-rest-spread'), requireBabel.resolve('@babel/plugin-transform-destructuring')],
+      });
+      outputs.push([`${ host }/lowered`, code]);
+    }
+    for (const state of ['absent', 'present', 'foreign', 'throw']) {
+      // Set the host outside the compiled source so its write cannot deoptimize the read.
+      const setup = `const realm = Function("return this")(); realm.self = realm;
+Object.defineProperty(realm, "window", { configurable: true, get() { effects.push("window"); return ${ state === 'present' ? 'realm' : state === 'absent' ? 'undefined'
+        : state === 'throw' ? '{ get self() { effects.push("self"); throw new RangeError("probe"); } }'
+          : '{ self: { get Map() { effects.push("Map"); return { get prototype() { effects.push("prototype"); return { get() {}, marker: 73 }; } }; } } }' }; } });`;
+      const events = stored ? ['prefix', 'window'] : ['window', 'prefix'];
+      if (state === 'foreign') events.push('Map', 'prototype');
+      else if (state === 'throw') events.push('self');
+      const trace = JSON.stringify(events);
+      const expected = state === 'absent' ? `OK|["TypeError"]|${ trace }`
+        : state === 'throw' ? `OK|["RangeError"]|${ trace }`
+          : `OK|["function",${ state === 'foreign' ? 73 : 0 }]|${ trace }`;
+      for (const [host, output] of outputs) {
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, `${ setup }\n${ output }`);
+        check(`alias residual/${ shape }/${ state }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+        if (host !== 'native') check(`alias residual/${ shape }/${ state }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }

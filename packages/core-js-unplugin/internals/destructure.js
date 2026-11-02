@@ -870,10 +870,11 @@ export default function createAstDestructureEmitter({
     if (renderArrayFlattenPlan(metaPath)) return true;
     const restHost = destructurePatternHostPath(metaPath);
     const assignment = restHost?.node?.type === 'AssignmentExpression';
-    // Land the common stored-value anchor before a surviving leaf captures its receiver.
+    // Land the common guarded anchor before its constructor property or a surviving leaf is consumed.
     // Native requeue lets ordinary claims see that receiver, including retained siblings.
     if ((restHost?.node?.type === 'VariableDeclarator' || assignment && assignmentValueDiscarded(restHost))
-      && metaPath.parentPath.node !== (assignment ? restHost.node.left : restHost.node.id)) {
+      && (metaPath.parentPath.node !== (assignment ? restHost.node.left : restHost.node.id)
+        || patternSlotTarget(metaPath.node.value)?.type === 'ObjectPattern')) {
       const declarator = assignment ? { id: restHost.node.left, init: restHost.node.right, loc: restHost.node.loc } : restHost.node;
       const plan = buildNestedDestructurePlan({
         declarator, scope: restHost.scope, path: restHost, adapter, injectorState,

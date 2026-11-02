@@ -100,6 +100,7 @@ import {
   memberFromKeyName,
   objectExpression,
   objectPattern,
+  renderAliasHeldProbeRead,
   renderClaimProbe,
   renderProxyReceiverPlan,
   renderSynthEntryKey,
@@ -132,7 +133,9 @@ import { staticReceiverHint, SYMBOL_ITERATOR_PURE_RESULT } from './globals.js';
 import { mintedProxyGlobalName } from './guard-preparation.js';
 import {
   chainSealsAShortCircuit,
+  claimProbeSourceSlot,
   computedKeyIsWellKnownSymbol,
+  discardedInitProbePlan,
   decidedRunningPart,
   directClaimProbeEffects,
   discardRescueNodes,
@@ -2625,7 +2628,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
 }
 
 // Read a live residual's surface without importing or rewriting it. A stored nullable
-// source or a guard this pass rendered carries the guarded-value role; an arbitrary
+// source, an alias probe or a guard this pass rendered carries the guarded-value role; an arbitrary
 // source conditional is not that proof.
 // A dead chain marker is transparent here, while a live optional chain retains its source.
 // Calls carry a pure descriptor and their ordered prefix until an anchor is actually applied.
@@ -2647,6 +2650,12 @@ export function residualAnchorSurface(initNode, { adapter, injectorState, path =
   // must feed the residual read; replaying the store before a constructor loses the throw.
   if (stored?.operator === '=' && proxyReceiverValueCanBeUndefined(tail,
     ({ name }) => resolveGlobalPolyfill(name), ctx)) return { init, tail: init, shape: 'guard' };
+  // An alias probe reads the initializer, not the constructor below it. Keep that
+  // receiver live until the anchor adds its member and chooses the pure constructor.
+  const probe = discardedInitProbePlan(tail, ({ name }) => resolveGlobalPolyfill(name), ctx);
+  if (probe?.kind === 'alias') {
+    return { init, tail: init, shape: 'guard', probe };
+  }
   if ((tail?.type === 'ConditionalExpression' || tail?.type === 'LogicalExpression')
     && allProxySelectingInit(tail, ctx)) tail = firstProxyBranch(tail);
   if (shape && isRenderedStoredValue(tail) && tail?.type === 'ConditionalExpression'
@@ -2702,6 +2711,7 @@ export function planResidualAnchorHop({
   sourceAnchor = null,
   isConsumedProp = null,
   guardedValue = null,
+  probe = null,
   resolvePure = null,
 }) {
   const prop = pattern?.type === 'ObjectPattern' && pattern.properties.length === 1
@@ -2740,7 +2750,18 @@ export function planResidualAnchorHop({
     path, adapter, resolvePure,
     meta: { key, guardedAliasHint: receiver, captureGuardReceiver: true, guardOnly: true },
   }) : null;
+  const probeNarrow = probe && resolvePure && planGuardedStaticNarrow({
+    memberNode: renderAliasHeldProbeRead(probe.aliasProbe, probe.aliasProbe.object, node => node),
+    parent: null, path, adapter, resolvePure,
+    meta: { key: probe.aliasProbe.key, guardedAliasHint: receiver, captureGuardReceiver: true, guardOnly: true },
+  });
+  // The alias read is itself a realm member. Apply the same identity choice now,
+  // so reparsing the anchor does not discover another claim or erase a stored holder's throw.
+  const probeRead = probeNarrow && !probeNarrow.bail ? { ...probe, narrow: probeNarrow,
+    capture: claimProbeSourceSlot(probeNarrow.captureReceiver ?? probeNarrow.recvIdent,
+      resolvePure, { path, scope: path?.scope, adapter }) } : probe;
   return { kind: 'ctor', prop, key, pattern: inner, pure, mutated, restPure,
+    probe: probeRead,
     defaultValue: guarded && prop.value.type === 'AssignmentPattern' ? prop.value.right : null,
     narrow: narrow?.bail ? null : narrow, prefix: narrow && !narrow.bail ? guardedSource.prefix : [] };
 }
@@ -3281,6 +3302,10 @@ export function buildNestedDestructurePlan({
     // nav from the raw declarator slot, whose logical shape no guard render owns
     const probedNavNode = probedNav ? init : null;
     if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
+      const singleHopHost = !isDisabledProp?.(declarator) && pattern.properties.length === 1
+        && isPropertyNode(pattern.properties[0]);
+      const surface = singleHopHost ? residualAnchorSurface(declarator.init, { adapter, path, resolveGlobalPolyfill }) : null;
+      const guarded = surface?.shape === 'guard' ? surface.tail : null;
       // single-key proxy-hop ANCHOR: `{ K: <pattern> } = <proxy>` on a value-discarded host
       // (the callers' contract - declarator inits are never read, the cascade gates on
       // statement context) plans like its flat twin `<pattern> = <proxy>.K`: inner props are
@@ -3288,9 +3313,9 @@ export function buildNestedDestructurePlan({
       // the native key off the proxy root (patch-visible for mutated statics, defined on
       // missing-global targets). qualification mirrors the retired normalize pre-passes:
       // exactly one Property, a non-proxy key naming a known built-in, non-empty (default-peeled)
-      // inner ObjectPattern, effect-free init, no array wrapper. the anchored plan exists
+      // inner ObjectPattern, accounted init effects, no array wrapper. the anchored plan exists
       // with zero extractions only when it replaces the constructor, guards that replacement or
-      // serves a residual action. A raw, untouched hop needs no reshaping. An SE-bearing init
+      // serves a residual action. A raw, untouched hop needs no reshaping. An unaccounted SE-bearing init
       // keeps the nested handling: a member synthesized off a sequence would change the receiver shape the
       // SE-lift machinery expects; a side-effecting computed key keeps its in-place run
       // a disabled host line opts out of the reshaping (cascade callers stamp loc/start
@@ -3309,8 +3334,6 @@ export function buildNestedDestructurePlan({
       // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
       // realm, or the MIRROR can spell that leaf with the member's own ponyfill
       function planCtorKeyAnchor(hostPattern) {
-        const stored = residualAnchorSurface(declarator.init, { adapter, path, resolveGlobalPolyfill });
-        const guarded = stored?.shape === 'guard' ? stored.tail : null;
         const anchor = planResidualAnchorHop({
           pattern: hostPattern,
           receiver,
@@ -3322,6 +3345,7 @@ export function buildNestedDestructurePlan({
           phase: 'source',
           guarded: !!guarded,
           guardedValue: guarded,
+          probe: surface?.probe,
           resolvePure,
         });
         if (anchor?.kind !== 'ctor') return null;
@@ -3390,6 +3414,7 @@ export function buildNestedDestructurePlan({
           probedNavNode: guarded ? null : probedNavNode,
           anchorPure,
           guarded,
+          probe: anchor.probe,
           defaultValue: anchor.defaultValue,
           narrow: anchor.narrow,
           prefix: anchor.prefix,
@@ -3401,9 +3426,7 @@ export function buildNestedDestructurePlan({
       }
       const { accounted: anchoredSeAccounted, anchorSe } = anchoredSeAccounting(declarator, declarator.init,
         { scope, adapter, path });
-      const hopHostEligible = anchoredSeAccounted
-        && !isDisabledProp?.(declarator) && pattern.properties.length === 1
-        && isPropertyNode(pattern.properties[0]);
+      const hopHostEligible = singleHopHost && (guarded || anchoredSeAccounted);
       if (hopHostEligible) plan = planCtorKeyAnchor(pattern);
       if (!plan) {
         const planned = pattern.properties.map(planOuterProp);
