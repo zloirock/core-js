@@ -21929,6 +21929,66 @@ function * generateDeclinedRealmPatterns() {
   })()`), strip: true };
 }
 
+// Live list insertions must leave cached sibling paths attached to their actual slots.
+// Cross each insertion host with the later rewrite that consumes those paths.
+function * generateLiveListPaths() {
+  for (const head of ['const', 'var', 'assignment', 'for-in']) for (const victim of ['assignment', 'array']) {
+    const loop = head === 'for-in' ? 'for (const { at } in { key: 1 })'
+      : `for (${ head === 'assignment' ? '' : `${ head } ` }{ at } of [[1]])`;
+    const body = victim === 'assignment'
+      ? 'let includes, keep; ({ data: { includes }, keep } = state); out.push(typeof at, includes, keep);'
+      : 'const [{ includes }] = [[2]]; out.push(typeof at, typeof includes);';
+    yield { ...snippet(`live-list/loop/${ head }/${ victim }`, `(() => {
+      const out = []; const state = { data: { includes: 2 }, keep: 3 }; ${ head === 'assignment' ? 'let at;' : '' }
+      ${ loop } { ${ body } } return out;
+    })()`), strip: true };
+  }
+  for (const victim of ['assignment', 'array']) {
+    const body = victim === 'assignment'
+      ? 'let entries, status; ({ data: { entries }, status } = state); return [values, entries, status];'
+      : 'const [{ includes }] = [[2]]; return [values, typeof includes];';
+    yield { name: `live-list/parameter/${ victim }`, strip: true,
+      code: `export function read({ values }, state) { ${ body } }
+        export const r = read({ values: 1 }, { data: { entries: 2 }, status: 3 }); export const effects = [];` };
+  }
+  for (const directive of [false, true]) {
+    yield { ...snippet(`live-list/default/${ directive }`, `(() => {
+      const out = []; const result = (function read({ from, ...rest } = Array, list = [1]) {
+        ${ directive ? '"custom directive";' : '' }
+        out.push(1); const [, { includes }] = [0, list];
+        return [from('ab').join(''), includes.call(list, 1), typeof rest];
+      })(); return [result, out];
+    })()`), strip: true };
+  }
+  for (const prefix of ['empty', 'grow', 'nested', 'hole', 'unbound-hole', 'opaque']) {
+    const value = prefix === 'empty' ? '...[]' : prefix === 'grow' ? '...[1, 2]'
+      : prefix === 'nested' ? '...[...[(log.push("item"), 1), 2]]'
+        : prefix === 'hole' || prefix === 'unbound-hole' ? '...[...[, 2]]' : '...items';
+    const slots = prefix === 'empty' ? '' : prefix === 'unbound-hole' ? ', second, ' : 'first, second, ';
+    const observed = prefix === 'empty' ? '' : prefix === 'unbound-hole' ? 'second, ' : 'first, second, ';
+    yield { ...snippet(`live-list/spread/${ prefix }`, `(() => {
+      void Map.groupBy;
+      const items = [1, 2]; const [${ slots }{ groupBy }, ...rest] = [${ value }, Map, Set];
+      return [${ observed }typeof groupBy, rest.length, rest[0] === Set];
+    })()`), strip: true };
+  }
+  yield { ...snippet('live-list/spread/inherited-hole', `(() => {
+    let reads = 0; let result;
+    const prior = Object.getOwnPropertyDescriptor(Array.prototype, '0');
+    try {
+      Object.defineProperty(Array.prototype, '0', {
+        configurable: true, get() { reads++; return 7; },
+        set(value) { Object.defineProperty(this, '0', { value, writable: true, enumerable: true, configurable: true }); }
+      });
+      const [, { from }, ...rest] = [...[, Array], 9];
+      result = rest.length;
+    } finally {
+      if (prior) Object.defineProperty(Array.prototype, '0', prior); else delete Array.prototype[0];
+    }
+    return [result, reads];
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22364,4 +22424,5 @@ export function * generate() {
   yield * generateNestedTwinCaptures();
   yield * generateSurvivingAnchorClaims();
   yield * generateDeclinedRealmPatterns();
+  yield * generateLiveListPaths();
 }

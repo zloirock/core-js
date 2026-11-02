@@ -25,6 +25,7 @@ Keep the emitter dependency graph acyclic. `proxy-spine`, `optional-dispatch` an
 
 ## Host contracts
 
+- During a scoped traversal, change AST lists through NodePath insertion/removal APIs so cached sibling indices stay current. Assemble new lists before attaching them; raw post-walk edits must locate later targets by node identity. The insertion API rejects array holes: inserting a hole must also shift cached sibling indices, and replacing it with `void 0` would erase inherited reads.
 - Each phase parses its own tree. `pre+post` transfers injector state, never the AST; post re-scans imports inserted by siblings.
 - Snapshot identity includes the environment, query and fragment. Only numeric HMR timestamps are noise. Do not add eviction that can discard a pending pre-to-post handoff; build-end reset and watch invalidation own its lifetime. See `snapshot-cache.js` for path normalization.
 - Undo detection-only mutations such as `neutralizeUnwalkedParamPatterns` before printing.

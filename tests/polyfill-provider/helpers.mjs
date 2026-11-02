@@ -2451,6 +2451,30 @@ runBoth('call argument coordinates: cast spread, nested spread, later positional
   flattenInlineArraySpreads(elements);
   check('flattenInlineArraySpreads/inline spread spliced in place', elements.map(e => e.name ?? e.type).join(','), 'x,y,c,SpreadElement');
 }
+// Retaining a sibling path before a splice exposes stale indices independently of printing.
+for (const [spread, count] of [['...[]', 1], ['...[a, b]', 3], ['...[...[a, b]]', 3], ['...unknown', 2]]) {
+  runBoth(`flattenInlineArraySpreads/live siblings ${ spread }`, `const values = [${ spread }, Map];`, (parser, program, label) => {
+    const array = program.get('body')[0].get('declarations')[0].get('init');
+    const tail = array.get('elements').at(-1);
+    flattenInlineArraySpreads(array.node.elements, (node, elements) => {
+      const target = array.get('elements').find(item => item.node === node);
+      if (elements.length) target.replaceWithMultiple(elements);
+      else target.remove();
+      return true;
+    });
+    check(`${ label } length`, array.node.elements.length, count);
+    check(`${ label } tail index`, tail.key, count - 1);
+    check(`${ label } physical slot`, tail.container[tail.key] === tail.node, true);
+    tail.replaceWith({ type: 'Identifier', name: 'replacement' });
+    check(`${ label } later replacement`, array.node.elements.at(-1).name, 'replacement');
+  });
+}
+{
+  const elements = [INLINE, EL('c')];
+  flattenInlineArraySpreads(elements, () => false);
+  check('flattenInlineArraySpreads/unavailable insertion path keeps the spread', elements[0], INLINE);
+  check('flattenInlineArraySpreads/unavailable insertion path keeps length', elements.length, 2);
+}
 // findObjectKeyBeforeSpread: last matching data property, or null if a spread sits AFTER the match
 function prop(key, tag) { return { type: 'Property', key, tag }; }
 function matchA(p) { return p.key === 'a'; }

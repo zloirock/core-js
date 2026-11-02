@@ -411,7 +411,7 @@ export default function createProxySpineChannel(ctx) {
       markRewrite();
       markSubtreeSkipped(skippedNodes, prop);
       markSubtreeSkipped(skippedNodes, chain, live);
-      pattern.properties.splice(pattern.properties.indexOf(prop), 1);
+      metaPath.remove();
       if (hostKind === 'assignment-value') {
         hostPath.replaceWith(renderDestructureAssignments([{ name: bindingName, value: chain }], {
           residual: cloneNode(host), detach, receiver: identifier(plan.recvIdent.name),

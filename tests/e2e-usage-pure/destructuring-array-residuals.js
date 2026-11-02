@@ -58,3 +58,12 @@ QUnit.test('destructuring: array assignments retain static rest sources and stor
   assert.deepEqual(of(tail), [7]);
   assert.false(Object.hasOwn(remaining, 'of'));
 });
+
+QUnit.test('live spread expansion keeps neighbouring values and the rest position', assert => {
+  // eslint-disable-next-line unicorn/no-useless-spread -- the growing literal spread must shift the constructor's cached path
+  const [first, second, { groupBy }] = [...[1, 2], Map];
+  assert.deepEqual([first, second, typeof groupBy], [1, 2, 'function']);
+  // eslint-disable-next-line unicorn/no-useless-spread -- the empty spread must shift the constructor and rest back
+  const [{ groupBy: grouped }, ...rest] = [...[], Map, Set];
+  assert.deepEqual([typeof grouped, rest.length, rest[0] === Set], ['function', 1, true]);
+});
