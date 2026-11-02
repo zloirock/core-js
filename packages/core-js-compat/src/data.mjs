@@ -3035,23 +3035,21 @@ export const data = {
   'web.atob': {
     bun: '0.1.1',
     chrome: '34',
-    deno: '1.0',
+    deno: '1.7',
     // older have wrong arity
     edge: '16', // '13',
     firefox: '27',
-    hermes: '0.13',
     // https://github.com/nodejs/node/issues/41450
     // https://github.com/nodejs/node/issues/42530
     // https://github.com/nodejs/node/issues/42646
     node: '18.0', // '17.9', '17.5', '16.0',
     opera: '10.5',
-    'react-native': '0.74',
     safari: '10.1',
   },
   'web.btoa': {
     bun: '0.1.1',
     chrome: '4',
-    deno: '1.0',
+    deno: '1.11',
     // older have wrong arity
     edge: '16', // ie: '10',
     // FF26- does not properly convert argument to string

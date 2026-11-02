@@ -19,6 +19,16 @@ var BASIC = !!$btoa && !fails(function () {
   return $btoa('hi') !== 'aGk=';
 });
 
+// Deno < 1.7.5 throws an incorrect error
+var INCORRECT_ENCODING = BASIC && fails(function () {
+  try {
+    $btoa('\u0100');
+  } catch (error) {
+    return error.name !== 'InvalidCharacterError';
+  }
+  return true;
+});
+
 var NO_ARG_RECEIVING_CHECK = BASIC && !fails(function () {
   $btoa();
 });
@@ -29,13 +39,15 @@ var WRONG_ARG_CONVERSION = BASIC && fails(function () {
 
 var WRONG_ARITY = BASIC && $btoa.length !== 1;
 
+var FORCED = !BASIC || INCORRECT_ENCODING || NO_ARG_RECEIVING_CHECK || WRONG_ARG_CONVERSION || WRONG_ARITY;
+
 // `btoa` method
 // https://html.spec.whatwg.org/multipage/webappapis.html#dom-btoa
-$({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVING_CHECK || WRONG_ARG_CONVERSION || WRONG_ARITY }, {
+$({ global: true, bind: true, enumerable: true, forced: FORCED }, {
   btoa: function btoa(data) {
     validateArgumentsLength(arguments.length, 1);
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
-    if (BASIC) return call($btoa, globalThis, toString(data));
+    if (BASIC && !INCORRECT_ENCODING) return call($btoa, globalThis, toString(data));
     var string = toString(data);
     // (string.length + 2) / 3) and then truncating to integer
     // does the ceil automatically.  << 2 will truncate the integer

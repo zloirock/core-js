@@ -2249,15 +2249,19 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       try {
         atob('a');
       } catch (error2) {
-        return atob(' ') === '';
+        return error2.name === 'InvalidCharacterError' && atob(' ') === '';
       }
     }
   },
   'web.btoa': function () {
     try {
       btoa();
-    } catch (error) {
-      return typeof btoa == 'function';
+    } catch (error1) {
+      try {
+        btoa('\u0100');
+      } catch (error2) {
+        return error2.name === 'InvalidCharacterError';
+      }
     }
   },
   'web.clear-immediate': function () {

@@ -29,8 +29,14 @@ var NO_SPACES_IGNORE = BASIC && fails(function () {
   return $atob(' ') !== '';
 });
 
-var NO_ENCODING_CHECK = BASIC && !fails(function () {
-  $atob('a');
+// Incorrect error in Deno < 1.7 / Hermes
+var INCORRECT_ENCODING = BASIC && fails(function () {
+  try {
+    $atob('a');
+  } catch (error) {
+    return error.name !== 'InvalidCharacterError';
+  }
+  return true;
 });
 
 var NO_ARG_RECEIVING_CHECK = BASIC && !fails(function () {
@@ -39,7 +45,7 @@ var NO_ARG_RECEIVING_CHECK = BASIC && !fails(function () {
 
 var WRONG_ARITY = BASIC && $atob.length !== 1;
 
-var FORCED = !BASIC || NO_SPACES_IGNORE || NO_ENCODING_CHECK || NO_ARG_RECEIVING_CHECK || WRONG_ARITY;
+var FORCED = !BASIC || NO_SPACES_IGNORE || INCORRECT_ENCODING || NO_ARG_RECEIVING_CHECK || WRONG_ARITY;
 
 // `atob` method
 // https://html.spec.whatwg.org/multipage/webappapis.html#dom-atob
@@ -47,7 +53,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
   atob: function atob(data) {
     validateArgumentsLength(arguments.length, 1);
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
-    if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
+    if (BASIC && !NO_SPACES_IGNORE && !INCORRECT_ENCODING) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
     var position = 0;
     var bc = 0;

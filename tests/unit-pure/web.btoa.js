@@ -20,11 +20,12 @@ QUnit.test('btoa', assert => {
   assert.same(btoa('YZ[\\]^_`abc'), 'WVpbXF1eX2BhYmM=');
   assert.same(btoa('defghijklmnop'), 'ZGVmZ2hpamtsbW5vcA==');
   assert.same(btoa('qrstuvwxyz{|}~'), 'cXJzdHV2d3h5ent8fX4=');
+  assert.same(btoa('\xFF'), '/w==', 'Latin1');
 
   assert.same(btoa(42), btoa('42'));
   assert.same(btoa(null), btoa('null'));
   assert.same(btoa({ x: 1 }), btoa('[object Object]'));
 
   assert.throws(() => btoa(), TypeError, 'no args');
-  assert.throws(() => btoa('✈'), 'non-ASCII');
+  assert.throws(() => btoa('✈'), error => error.name === 'InvalidCharacterError', 'outside Latin1');
 });

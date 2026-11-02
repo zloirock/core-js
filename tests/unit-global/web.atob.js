@@ -24,14 +24,18 @@ QUnit.test('atob', assert => {
   assert.same(atob('ZGVmZ2hpamtsbW5vcA=='), 'defghijklmnop');
   assert.same(atob('cXJzdHV2d3h5ent8fX4='), 'qrstuvwxyz{|}~');
   assert.same(atob(' '), '');
+  assert.same(atob(' Z\tm\n9\fv\r '), 'foo', 'ASCII whitespace');
 
   assert.same(atob(42), atob('42'));
   assert.same(atob(null), atob('null'));
 
   // Deno 1.0-1.14 throws InvalidCharacterError instead of TypeError without arguments.
   if (!DENO || DENO_VERSION >= 115) assert.throws(() => atob(), TypeError, 'no args');
-  assert.throws(() => atob('a'), 'invalid #1');
-  assert.throws(() => atob('a '), 'invalid #2');
-  assert.throws(() => atob('aaaaa'), 'invalid #3');
-  assert.throws(() => atob('[object Object]'), 'invalid #4');
+  assert.throws(() => atob('a'), error => error.name === 'InvalidCharacterError', 'invalid #1');
+  assert.throws(() => atob('a '), error => error.name === 'InvalidCharacterError', 'invalid #2');
+  assert.throws(() => atob('aaaaa'), error => error.name === 'InvalidCharacterError', 'invalid #3');
+  assert.throws(() => atob('[object Object]'), error => error.name === 'InvalidCharacterError', 'invalid #4');
+  assert.throws(() => atob('ab=c'), error => error.name === 'InvalidCharacterError', 'padding in the middle');
+  assert.throws(() => atob('YQ='), error => error.name === 'InvalidCharacterError', 'incomplete padding');
+  assert.throws(() => atob('Zm9v\u00A0'), error => error.name === 'InvalidCharacterError', 'non-ASCII whitespace');
 });
