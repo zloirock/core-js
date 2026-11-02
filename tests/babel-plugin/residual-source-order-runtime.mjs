@@ -83,6 +83,58 @@ for (const [key, value] of [['from', ${ shape === 'default' ? 'undefined' : '23'
       }
     }
   }
+  // Canonical computed members keep native optional roots intact across print and lowering.
+  for (const shape of ['array', 'array-number', 'navigation', 'optional', 'for-init', 'multi']) {
+    const positional = shape.startsWith('array');
+    const key = shape === 'array-number' ? '0' : '"m-q"';
+    const pattern = positional ? `[{ ${ key }: { at: method, kept: {} } }]` : `{ slot: { ${ key }: { flat: method } } }`;
+    const init = positional ? 'input' : `{ slot: ${ shape === 'optional' ? 'input?.value' : 'input' }${ shape === 'for-init' ? ', other: input' : '' } }`;
+    const declaration = `const ${ shape === 'multi' ? 'lead = effects.push("lead"), ' : '' }${ pattern } = ${ init }`;
+    const result = positional ? 'method.call(rows, -1)' : 'method.call(rows)';
+    const body = shape === 'for-init' ? `for (${ declaration };;) return ${ result };` : `${ declaration }; return ${ result };`;
+    for (const throws of [false, true]) {
+      const source = `export const effects = [];
+export let r;
+const rows = ${ positional ? '[4, 9]' : '[4, [9]]' };
+rows.kept = {};
+const box = ${ positional ? `{ ${ key }: rows }` : `{ get [${ key }]() {
+  effects.push("hop"); ${ throws ? 'throw new RangeError("hop");' : 'return rows;' }
+} }` };
+function read(input) { ${ body } }
+try { r = read(${ positional ? throws ? 'null' : '[box]' : shape === 'optional' ? '{ value: box }' : 'box' }); }
+catch (error) { r = error.name; }`;
+      scenarioSource(source);
+      const options = { ...OPTIONS, exclude: [] };
+      const { code: babel } = await transformAsync(source, {
+        configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, options]],
+      });
+      const plugin = createUnplugin(options);
+      const unplugin = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+      const post = plugin.transform(unplugin, 'input.mjs', 'post')?.code ?? unplugin;
+      const outputs = [['native', source], ['babel', babel], ['unplugin', unplugin], ['pre+post', post]];
+      for (const [host, output] of outputs.slice(1)) {
+        const { code } = await transformAsync(output, {
+          configFile: false,
+          babelrc: false,
+          plugins: [
+            requireBabel.resolve('@babel/plugin-transform-optional-chaining'),
+            requireBabel.resolve('@babel/plugin-transform-object-rest-spread'),
+            requireBabel.resolve('@babel/plugin-transform-destructuring'),
+          ],
+        });
+        outputs.push([`${ host }/lowered`, code]);
+      }
+      const resultValue = throws ? positional ? 'TypeError' : 'RangeError' : positional ? 9 : [4, 9];
+      const effects = [...shape === 'multi' ? ['lead'] : [], ...positional ? [] : ['hop']];
+      const expected = `OK|${ JSON.stringify(resultValue) }|${ JSON.stringify(effects) }`;
+      for (const [host, output] of outputs) {
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, output);
+        check(`canonical/${ shape }/${ throws }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+        if (host !== 'native') check(`canonical/${ shape }/${ throws }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }

@@ -67,3 +67,18 @@ QUnit.test('live spread expansion keeps neighbouring values and the rest positio
   const [{ groupBy: grouped }, ...rest] = [...[], Map, Set];
   assert.deepEqual([typeof grouped, rest.length, rest[0] === Set], ['function', 1, true]);
 });
+
+QUnit.test('destructuring: canonical array receiver keeps an empty residual', assert => {
+  const rows = [4, 9];
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- an own slot for the retained pattern
+  rows.kept = {};
+  function read(list) {
+    // eslint-disable-next-line no-empty-pattern -- the non-binding residual still reads its receiver
+    const [{ 'a-b': { at, kept: {} } }] = list;
+    return at.call(rows, -1);
+  }
+  assert.same(read([{ 'a-b': rows }]), 9);
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the retained empty pattern must reject null
+  rows.kept = null;
+  assert.throws(() => read([{ 'a-b': rows }]), TypeError);
+});

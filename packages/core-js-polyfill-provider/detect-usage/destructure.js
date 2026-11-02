@@ -250,6 +250,7 @@ import {
   memberExpression,
   memberFromKeyName,
   nullGuardTest,
+  chainExpression,
   arrayExpression,
   objectExpression,
   objectGetter,
@@ -3750,11 +3751,14 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
 // the init in place (the assignment overwrite) - an extract-before-residual consumer would read
 // the receiver ahead of the prefix effect, reordering it, so the default BAILS when an elided
 // prefix carries a side effect (the top-level whole-init memo retry then captures order instead)
+// `navigation` records the source root and decided keys separately when the walk adds
+// members. Analysis keeps the node projection; a binding must render the recorded plan
+// instead of cloning that projection as though it were a source subtree.
 // eslint-disable-next-line max-statements -- the walk: one arm per slot shape and per caller promise
 export function resolveNestedReceiverNode(leafPath,
   { allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
     allowSePeeledFragment = false, allowNavSegments = false, adapter = null, injectorState = null, slot = null,
-    throughNamedDefaults = false } = {}) {
+    throughNamedDefaults = false, navigation = null } = {}) {
   const elidedPrefixes = [];
   // how many of them stand ABOVE the deepest paired slot (the rest are that slot's own)
   let outerPrefixes = 0;
@@ -3923,11 +3927,14 @@ export function resolveNestedReceiverNode(leafPath,
         if (!allowSePeeledFragment && elidedObservable()) return null;
         // a nav proves no value: a live default below it may fire
         if (segs.slice(segs.indexOf(seg)).some(rest => rest.liveDefault)) return null;
-        let spelled = node;
-        for (const rest of segs.slice(segs.indexOf(seg))) {
-          spelled = memberFromKeyName(spelled, rest.index === undefined ? rest.key : String(rest.index));
+        const keys = segs.slice(segs.indexOf(seg)).map(rest => rest.index === undefined ? rest.key : String(rest.index));
+        if (navigation) {
+          // Only the rendered value ends the source chain before reading the pattern keys.
+          // Analysis keeps its peeled projection so proven surface hops can still collapse.
+          const root = node.type === 'MemberExpression' && receiverCarriesLiveOptional(node) ? chainExpression(node) : node;
+          Object.assign(navigation, { node: root, keys });
         }
-        return spelled;
+        return keys.reduce(memberFromKeyName, node);
       }
       return null;
     }
@@ -3959,6 +3966,14 @@ export function resolveNestedReceiverNode(leafPath,
     return null;
   }
   return null;
+}
+
+// Keep the native root separate from added members for rendering at a binding boundary.
+// The node query still serves analysis callers, without allocating a plan on their path.
+export function resolveNestedReceiverPlan(leafPath, options) {
+  const navigation = {};
+  const node = resolveNestedReceiverNode(leafPath, { ...options, navigation });
+  return node ? navigation.node ? navigation : { node, keys: [] } : null;
 }
 
 // does the host pattern bind something OUTSIDE the leaf's own hop chain - a sibling prop at any level
@@ -4105,7 +4120,8 @@ function literalHoldsClass(node) {
 // decision lived twice (babel: inline pre-memo in its emitter; unplugin: resolver + whole-init
 // retry), and the two procedures drifted. channels:
 //   - 'resolved':        nested / param / no-init host - `resolveNestedReceiverNode` outcome
-//                        (node null = bail), including its single-read and SE-peel gates
+//                        (node null = bail), including its single-read and SE-peel gates;
+//                        navigation, when present, owns the source root and generated keys
 //   - 'raw':             top-level init that peels (SE-free) to an Identifier, or a sole-prop
 //                        pattern - the slot is reused / inlined verbatim
 //   - 'raw-ctor':        SE-free whole-chain pure-ctor init (`globalThis.Promise`) - left in
@@ -4143,13 +4159,14 @@ export function resolveDestructureReceiverPlan(leafPath, {
     // A sole nested claim can consume a plain user navigation once only when replacing the host
     // drops no initializer work. A surviving sibling keeps the source read and takes the memo below.
     const hostInit = destructureHostInitNode(leafPath);
+    const navigation = {};
     const soleNav = allowSeFreeSingleRead && !hostKeepsSiblingBinding(leafPath)
       && hostInit?.type === 'ObjectExpression' && !objectLiteralHoldsObservable(hostInit, null, {
         scope: leafPath.scope, adapter, path: leafPath,
       }) ? resolveNestedReceiverNode(leafPath, {
-        allowSeFreeSingleRead: true, allowNavSegments: true, adapter, injectorState,
+        allowSeFreeSingleRead: true, allowNavSegments: true, adapter, injectorState, navigation,
       }) : null;
-    if (soleNav) return { channel: 'resolved', node: soleNav };
+    if (soleNav) return { channel: 'resolved', node: soleNav, navigation: navigation.node ? navigation : null };
     // ... and an object slot the plain walk cannot spell twice - an effectful value, or a RELAXED
     // single read (a member, a selection) beside a residual that would read it a second time -
     // takes the slot memo where its level stays whole

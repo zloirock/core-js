@@ -96,6 +96,7 @@ import {
   renderResidualAnchor,
   renderResidualAnchorInit,
   renderNestedDeclarationReceiver,
+  renderNestedExtractionReceiver,
 } from '@core-js/polyfill-provider/render';
 import {
   anchorAssignmentResidual,
@@ -199,6 +200,7 @@ export default function createDestructureDrains(ctx) {
     entry,
     hintName,
     receiverNode,
+    receiverNavigation = null,
     prop,
     nested,
     chainKeys,
@@ -264,7 +266,11 @@ export default function createDestructureDrains(ctx) {
         const pure = bareProxyGlobalPure(peeled, metaPath, { adapter, resolveGlobalPolyfill });
         if (pure) return identifier(injectPureImport(pure.entry, pure.hintName));
         const nav = resolveProxyNavReceiver(peeled, guardCtx);
-        return nav ? nav() : duplicateReceiver(node, injector);
+        // The analysis projection may collapse a proven surface. Otherwise its native
+        // source root must finish any optional chain before the pattern's new keys.
+        return nav ? nav() : receiverNavigation && node === receiverSpelling
+          ? renderNestedExtractionReceiver(receiverNavigation, { embed: root => duplicateReceiver(root, injector) })
+          : duplicateReceiver(node, injector);
       }
 
       // the SPELLED receiver keeps its TS cast (`_atMaybeArray(arr as number[])` - babel's

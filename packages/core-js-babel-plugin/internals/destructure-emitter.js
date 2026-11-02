@@ -133,6 +133,7 @@ import {
   resolveNestedReceiverChain,
   seKeyStaticOwesTheMirror,
   resolveNestedReceiverNode,
+  resolveNestedReceiverPlan,
   applyPatternClaimMirror,
   applyParameterClaimMirror,
   staticHopPure as sharedStaticHopPure,
@@ -586,6 +587,18 @@ export default function createDestructureEmitter({
   function aliasCtxFromPath(path) {
     return path?.scope ? { scope: path.scope, adapter, path } : null;
   }
+
+  // Only the source root is host-owned; navigation keys belong to the canonical render.
+  function renderNestedReceiver(plan) {
+    return estreeToBabel(renderNestedExtractionReceiver(plan, { embed: node => hostSlot(t.cloneNode(node)) }));
+  }
+
+  // Resolve navigation as a source root and keys, then bind the shared render to Babel.
+  function resolveNestedReceiver(path, options) {
+    const plan = resolveNestedReceiverPlan(path, options);
+    return plan && renderNestedReceiver(plan);
+  }
+
   // a discarded-init effect replayed as a clone: a kept chain-assignment among them stores the
   // VALUE canon exactly like its in-place twin (the original was skip-seeded before its own
   // root visit could collapse it, and the clone's insertion traversal re-derives nothing) -
@@ -1373,7 +1386,7 @@ export default function createDestructureEmitter({
     });
     if (!plan) return false;
     const { declarator, leafPattern, split } = plan;
-    const nav = estreeToBabel(renderNestedExtractionReceiver(plan.receiver, { embed: node => hostSlot(t.cloneNode(node)) }));
+    const nav = renderNestedReceiver(plan.receiver);
     const init = plan.slotDefault ? buildInstanceDefaultGuard(t, {
       call: nav,
       defaultNode: t.cloneNode(plan.slotDefault),
@@ -4169,7 +4182,7 @@ export default function createDestructureEmitter({
     }) : null;
     const literalReceiverPlan = literalRoute && (literalRoute.capture
       ? { channel: 'object-slot-memo', ...literalRoute.capture }
-      : { channel: 'resolved', node: literalRoute.literalReceiver });
+      : { channel: 'resolved', node: literalRoute.literalReceiver, navigation: literalRoute.navigation });
     let objectNode = kind === 'instance'
       ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true, null, literalReceiverPlan) : null;
     // a memo hoisted ahead of a BODYLESS host braced its slot, and the held path now names the block
@@ -4280,7 +4293,7 @@ export default function createDestructureEmitter({
           ? null : initializerEffectParts(seqInit);
         const prefixExprs = parts?.prefix;
         const overPrefix = parts
-          ? resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter }) : null;
+          ? resolveNestedReceiver(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter }) : null;
         // Hoisting this initializer must not cross an earlier declarator's effects.
         function precedingDeclaratorsPure() {
           const decls = declaration.node.declarations;
@@ -4340,7 +4353,7 @@ export default function createDestructureEmitter({
               flatTouchedMultiDecls.add(hostDeclarator.parentPath);
               noteWholeInitMemoHost(hostDeclarator);
               declarator = hostDeclarator.node;
-              objectNode = resolveNestedReceiverNode(prop, { allowNavSegments: true, adapter }) ?? overPrefix;
+              objectNode = resolveNestedReceiver(prop, { allowNavSegments: true, adapter }) ?? overPrefix;
               break;
             }
             case 'split': {
@@ -5135,8 +5148,9 @@ export default function createDestructureEmitter({
       // answered the type is rebuilt by then - the leaf asking again gets a fresh node the cache
       // cannot know. so the answer rides the node that takes its place, the way the memo channels
       // above already carry it
-      if (typeOfReceiver && plan.node) resolvedType.set(plan.node, typeOfReceiver);
-      return plan.node;
+      const node = plan.navigation ? renderNestedReceiver(plan.navigation) : plan.node;
+      if (typeOfReceiver && node) resolvedType.set(node, typeOfReceiver);
+      return node;
     }
     return memoizeWholeInit(path.parentPath.parentPath, path.scope, typeOfReceiver, plan.staticMemo ? null : plan.proxyCtor ?? ctorName,
       { atHop: !!plan.staticMemo });

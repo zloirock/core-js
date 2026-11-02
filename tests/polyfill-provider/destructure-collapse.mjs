@@ -2234,4 +2234,40 @@ runBoth(
   },
 );
 
+// Verbatim leaves read the canonical positional receiver, never a host-embedded copy.
+for (const assignment of [false, true]) for (const key of ['"a-b"', '0']) {
+  const pattern = `[{ ${ key }: { at: method, kept: {} } }]`;
+  const source = `const ${ pattern } = rows;`;
+  runBoth(`array plan/canonical verbatim/${ assignment }/${ key }`, source, (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = buildNestedDestructurePlan({
+      arrayPath, adapter,
+      resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null,
+    });
+    check(`${ label }/positional plan`, !!plan?.array.positional, true);
+    let minted = 0;
+    const readers = [];
+    // The same canonical receiver feeds either statement form at the render boundary.
+    const output = renderArrayDestructurePlan({ ...plan, array: { ...plan.array, assignment } }, {
+      kind: 'const', retain: hostSlot, init: arrayPath.node.init,
+      embed(node) {
+        check(`${ label }/generated receiver bypasses embedding`, node.type === 'MemberExpression' && node.property.type === 'Literal', false);
+        return hostSlot(node);
+      },
+      read(extraction, receiver) {
+        readers.push(receiver);
+        return callExpression(identifier('readAt'), [receiver]);
+      },
+      mintRef: () => `held${ ++minted }`,
+    });
+    const last = output.at(-1);
+    const receiver = assignment ? last.expression.right : last.declarations[0].init;
+    check(`${ label }/independent residual identity`, readers.includes(receiver), false);
+    check(`${ label }/canonical member`, receiver.type, 'MemberExpression');
+    check(`${ label }/canonical key`, receiver.property.type, 'Literal');
+    check(`${ label }/key value`, receiver.property.value, key === '0' ? 0 : 'a-b');
+  });
+}
+
 finish();

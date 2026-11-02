@@ -85,3 +85,23 @@ QUnit.test('nested declaration uses each loop value and its own getters', assert
   assert.deepEqual(values, [7, 11]);
   assert.deepEqual(effects, ['Array', 'prototype', 'at']);
 });
+
+QUnit.test('nested declaration keeps a canonical key above a native optional receiver', assert => {
+  const effects = [];
+  const rows = [4, [9]];
+  const box = { get value() {
+    effects.push('root');
+    return { get 'm-q'() {
+      effects.push('hop');
+      return rows;
+    } };
+  } };
+  function read(input) {
+    const { slot: { 'm-q': { flat } } } = { slot: input?.value };
+    return flat.call(rows);
+  }
+  assert.deepEqual(read(box), [4, 9]);
+  assert.deepEqual(effects, ['root', 'hop']);
+  assert.throws(() => read(null), TypeError);
+  assert.deepEqual(effects, ['root', 'hop']);
+});
