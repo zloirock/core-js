@@ -54,6 +54,7 @@ var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
+var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
 
 var AllSymbols = shared('symbols');
@@ -110,7 +111,7 @@ var $defineProperty = function defineProperty(O, P, Attributes) {
 var $defineProperties = function defineProperties(O, Properties) {
   anObject(O);
   var properties = toIndexedObject(Properties);
-  var keys = objectKeys(properties).concat($getOwnPropertySymbols(properties));
+  var keys = concat(objectKeys(properties), $getOwnPropertySymbols(properties));
   $forEach(keys, function (key) {
     if (!DESCRIPTORS || call($propertyIsEnumerable, properties, key)) $defineProperty(O, key, properties[key]);
   });

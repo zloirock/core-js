@@ -15,6 +15,7 @@ var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 var find = ArrayIterationModule.find;
 var findIndex = ArrayIterationModule.findIndex;
+var push = uncurryThis([].push);
 var splice = uncurryThis([].splice);
 var id = 0;
 
@@ -44,7 +45,7 @@ UncaughtFrozenStore.prototype = {
   set: function (key, value) {
     var entry = findUncaughtFrozen(this, key);
     if (entry) entry[1] = value;
-    else this.entries.push([key, value]);
+    else push(this.entries, [key, value]);
   },
   'delete': function (key) {
     var index = findIndex(this.entries, function (it) {

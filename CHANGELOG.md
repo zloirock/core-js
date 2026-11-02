@@ -67,6 +67,7 @@
 - Added missed detection of imprecise native `Math.{ acosh, asinh, atanh, expm1, log1p }` in [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257)
 - Improved accuracy of `Math.{ expm1, sinh, tanh }` polyfills with small arguments and of `Math.atanh` polyfill near `-1`
 - `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
+- Fixed `Symbol`, typed array and weak collection polyfills depending on `Array.prototype.concat` or `Array.prototype.push` replaced after loading core-js
 - Entries fixes:
   - Added missed `JSON.parse` to `JSON.rawJSON` entries dependencies to validate input with the corrected parser
   - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0

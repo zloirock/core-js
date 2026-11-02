@@ -1,6 +1,7 @@
 'use strict';
 var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
+var uncurryThis = require('../internals/function-uncurry-this');
 var anObject = require('../internals/an-object');
 var aCallable = require('../internals/a-callable');
 var aConstructor = require('../internals/a-constructor');
@@ -12,6 +13,8 @@ var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var isBigIntArray = require('../internals/is-big-int-array');
 var aTypedArrayConstructor = require('../internals/array-buffer-view-core').aTypedArrayConstructor;
 var toBigInt = require('../internals/to-big-int');
+
+var push = uncurryThis([].push);
 
 module.exports = function from(source /* , mapfn, thisArg */) {
   var C = aConstructor(this);
@@ -27,7 +30,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
     next = iterator.next;
     O = [];
     while (!(step = anObject(call(next, iterator))).done) {
-      O.push(step.value);
+      push(O, step.value);
     }
   }
   if (mapping && argumentsLength > 2) {
