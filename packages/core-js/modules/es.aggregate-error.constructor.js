@@ -23,6 +23,8 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
   if (arguments.length > 2) installErrorCause(that, arguments[2]);
   var errorsArray = [];
   // @dependency: es.array.iterator
+  // @dependency: es.string.iterator
+  // @dependency: web.dom-collections.iterator
   iterate(errors, push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
   return that;
