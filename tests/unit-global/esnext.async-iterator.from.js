@@ -1,3 +1,5 @@
+import { createIterable } from '../helpers/helpers.js';
+
 const { assign, create } = Object;
 
 QUnit.test('AsyncIterator.from', assert => {
@@ -141,4 +143,23 @@ QUnit.test('AsyncIterator.from, return(value) without iterator return method', a
     assert.avoid();
     async();
   });
+});
+
+QUnit.test('AsyncIterator.from, boolean done for sync iterators', assert => {
+  const promises = [];
+  for (const method of ['next', 'return', 'throw']) {
+    for (const [done, expected] of [
+      [undefined, false], [null, false], [false, false], [0, false], [NaN, false], ['', false],
+      [true, true], [1, true], ['done', true], [{}, true],
+    ]) {
+      const methods = {
+        [method]() { return { value: Promise.resolve(42), done }; },
+      };
+      const iterator = AsyncIterator.from(createIterable([], methods));
+      promises.push(iterator[method]().then(result => {
+        assert.deepEqual(result, { value: 42, done: expected }, method);
+      }));
+    }
+  }
+  return Promise.all(promises);
 });

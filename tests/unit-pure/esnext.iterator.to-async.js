@@ -1,3 +1,4 @@
+import { createIterator } from '../helpers/helpers.js';
 import { STRICT } from '../helpers/constants.js';
 
 import Promise from 'core-js-pure/es/promise';
@@ -43,4 +44,23 @@ QUnit.test('Iterator#toAsync', assert => {
     assert.same(error, 42, 'rejection on a `.next()` promise rejection');
     assert.true(closableIterator.closed, 'closes sync iterator on promise rejection');
   });
+});
+
+QUnit.test('Iterator#toAsync, boolean done', assert => {
+  const promises = [];
+  for (const method of ['next', 'return']) {
+    for (const [done, expected] of [
+      [undefined, false], [null, false], [false, false], [0, false], [NaN, false], ['', false],
+      [true, true], [1, true], ['done', true], [{}, true],
+    ]) {
+      const methods = {
+        [method]() { return { value: Promise.resolve(42), done }; },
+      };
+      const iterator = Iterator.prototype.toAsync.call(createIterator([], methods));
+      promises.push(iterator[method]().then(result => {
+        assert.deepEqual(result, { value: 42, done: expected }, method);
+      }));
+    }
+  }
+  return Promise.all(promises);
 });

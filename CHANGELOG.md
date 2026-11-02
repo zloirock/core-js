@@ -26,6 +26,7 @@
 - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
 - Fixed `Iterator.zip` closing the input iterator when reading an input result's `value` throws
 - Fixed `Iterator.prototype.flatMap` polyfill closing the source iterator when reading its result's `value` throws
+- Fixed non-boolean `done` values in results of `AsyncIterator.from` and `Iterator.prototype.toAsync` when adapting sync iterators
 - Fixed `Array.fromAsync` polyfill constructing the result before opening the iterator, handling array-like inputs through an iterator instead of using their initial length, and skipping `await` for primitive mapper results
 - Added a workaround for [native `Array.fromAsync` in V8 incorrectly closing iterators](https://issues.chromium.org/issues/511947515) on step errors, masking the original error and retrying failed cleanup; also avoided duplicate reads of a sync iterator's `next`
 - Added missed detection of native `Array.fromAsync` reading the iterator's `next` after calling the result constructor in [Firefox](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [Safari / Bun < 1.4.4](https://bugs.webkit.org/show_bug.cgi?id=326074); this also avoids [Firefox masking the original error when iterator cleanup rejects](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778)

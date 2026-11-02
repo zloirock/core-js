@@ -17,7 +17,7 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
 
 var asyncFromSyncIteratorContinuation = function (result, resolve, reject, syncIterator, closeOnRejection) {
-  var done = result.done;
+  var done = !!result.done;
   Promise.resolve(result.value).then(function (value) {
     resolve(createIterResultObject(value, done));
   }, function (error) {
