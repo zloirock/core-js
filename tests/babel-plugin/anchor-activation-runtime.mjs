@@ -264,6 +264,72 @@ QUnit.test('a consumed realm assignment serves nested constructors without nativ
     if (host !== 'native') check(`captured-e2e-source/${ host }/stripped`,
       await runInWorker(file, { nativeAlias: false, stripGlobals: ['Promise', 'globalThis', 'Iterator'] }), 'OK|"passed"|[]');
   }
+  // A declined child still receives the realm ponyfill. Native siblings read at their
+  // pattern slots, after preceding keys (including a TDZ), rather than during the mirror.
+  for (const shape of ['parameter', 'supplied', 'level-default', 'tdz', 'ordered', 'throwing-key', 'key-claim']) {
+    const parameter = ['parameter', 'supplied', 'level-default', 'key-claim'].includes(shape);
+    const supplied = shape === 'supplied';
+    const levelDefault = shape === 'level-default';
+    const key = shape === 'key-claim' ? '(effects.push("abc".at(-1)), key)' : 'key';
+    const body = parameter ? `let key = 'Promise';
+function read({ globalThis: { [${ key }]: { prototype = (effects.push('leaf'), [17]) } }${ levelDefault
+  ? ' = (effects.push("level"), { Promise: { prototype: [31] } })' : '' } } = (effects.push('rhs'), key = 'Array', globalThis)) {
+  return ${ supplied || levelDefault ? 'prototype[0]' : 'Array.isArray(prototype)' };
+}
+r = read(${ supplied ? '{ globalThis: { Promise: {} } }' : levelDefault ? '{}' : '' });`
+      : shape === 'tdz' ? 'const { globalThis: { [key]: { prototype } }, key, declinedAfter: after } = globalThis; r = prototype;'
+        : `const { declinedBefore: before, globalThis: { [unknownKey()]: { prototype } }, declinedAfter: after }
+  = (effects.push('rhs'), globalThis); r = [before, Array.isArray(prototype), after];`;
+    const source = `export const effects = []; export let r;
+try { ${ body } } catch (error) { r = error.name; } finally { restore(); }`;
+    scenarioSource(source);
+    const setup = `const realm = Function('return this')();
+const saved = ['declinedBefore', 'declinedAfter'].map(key => [key, Object.getOwnPropertyDescriptor(realm, key)]);
+function restore() { for (const [key, descriptor] of saved) {
+  if (descriptor) Object.defineProperty(realm, key, descriptor); else delete realm[key];
+} }
+Object.defineProperty(realm, 'declinedBefore', { configurable: true, get() { effects.push('before'); return 11; } });
+Object.defineProperty(realm, 'declinedAfter', { configurable: true, get() { effects.push('after'); return 23; } });
+function unknownKey() { effects.push('key'); ${ shape === 'throwing-key' ? 'throw new RangeError("key");' : 'return "Array";' } }`;
+    const value = shape === 'tdz' ? 'ReferenceError' : shape === 'throwing-key' ? 'RangeError'
+      : supplied ? 17 : levelDefault ? 31 : parameter ? true : [11, true, 23];
+    const events = shape === 'tdz' ? [] : supplied ? ['leaf'] : levelDefault ? ['level']
+      : shape === 'key-claim' ? ['rhs', 'c'] : parameter ? ['rhs']
+        : shape === 'throwing-key' ? ['rhs', 'before', 'key'] : ['rhs', 'before', 'key', 'after'];
+    const expected = `OK|${ JSON.stringify(value) }|${ JSON.stringify(events) }`;
+    const outputs = await transformOutputs(source, { ...OPTIONS, exclude: [] }, { createParenthesizedExpressions: true });
+    check(`declined/${ shape }/imports`, [...importSet(outputs[1][1])].sort().join(','), [...importSet(outputs[2][1])].sort().join(','));
+    for (const [host, output] of outputs) {
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, `${ setup }\n${ output }`);
+      check(`declined/${ shape }/${ host }/full`,
+        await runInWorker(file, { strip: false, nativeAlias: false }), expected);
+      if (host !== 'native') check(`declined/${ shape }/${ host }/stripped`,
+        await runInWorker(file, { nativeAlias: false, stripGlobals: ['globalThis'] }), expected);
+    }
+  }
+  // Pure serves the constructor itself, even while a native sibling requires a receiver memo.
+  // The foreign import is the identity oracle and does not influence source analysis.
+  for (const [name, constructorSibling, expected] of [
+    ['memo', `export const effects = [];
+let key = 'Promise';
+const { globalThis: { [key]: { prototype } }, Map: M, missing } = (key = 'Array', globalThis);
+export const r = [Array.isArray(prototype), M === expectedMap, missing];`, 'OK|[true,true,"__undefined__"]|[]'],
+    ['retained-default', `export const effects = [];
+function read({ Array: { from }, Map: M, missing: a, missing: b } = globalThis) {
+  return [from([7])[0], M === expectedMap, a, b];
+}
+export const r = read();`, 'OK|[7,true,"__undefined__","__undefined__"]|[]'],
+  ]) {
+    scenarioSource(constructorSibling);
+    for (const [host, output] of (await transformOutputs(constructorSibling, { ...OPTIONS, exclude: [] })).slice(1)) {
+      check(`declined/constructor/${ name }/${ host }/import`, importSet(output).has('core-js/actual/map/constructor'), true);
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, `import expectedMap from '@core-js/pure/actual/map/constructor';\n${ output }`);
+      for (const strip of [false, true]) check(`declined/constructor/${ name }/${ host }/${ strip ? 'stripped' : 'full' }`,
+        await runInWorker(file, { strip, nativeAlias: false, stripGlobals: ['globalThis'] }), expected);
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }
