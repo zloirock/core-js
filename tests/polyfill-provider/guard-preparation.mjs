@@ -199,8 +199,10 @@ for (const [expression, root, storeProven] of [
   ['globalThis.self', null, false],
   ['held = globalThis.self', null, true],
   ['held = globalThis.window', null, false],
+  ['(held = globalThis.host).self', null, false],
+  ['held = (other = globalThis.host).self', null, false],
   ['held = unknown', null, false],
-]) runBoth(`memo source/${ expression }`, `let held; const result = ${ expression };`, (parser, program, label) => {
+]) runBoth(`memo source/${ expression }`, `let held, other; const result = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
   const source = unwrapRuntimeExpr(path.node.init);
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
@@ -208,7 +210,7 @@ for (const [expression, root, storeProven] of [
   const before = JSON.stringify(program.node);
   const plan = planGuardRootMemo(source, ctx);
   const selected = plan && unwrapRuntimeExpr(plan.source);
-  const code = `let held; const result = ${ expression };`;
+  const code = `let held, other; const result = ${ expression };`;
   check(`${ label }/root`, selected ? code.slice(selected.start, selected.end) : null, root);
   if (plan) {
     check(`${ label }/live slot`, plan.source, plan.holder.object);

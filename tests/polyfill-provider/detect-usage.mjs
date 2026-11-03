@@ -2458,6 +2458,8 @@ for (const [variant, code, expected] of [
   // NEGATIVE: a hop naming no realm holds the user's own object - no environment probe here
   ['a non-realm hop below the probe is no realm span',
     'function w(v) { (globalThis.foo.window?.self).Box = v; }', false],
+  ['a stored user value below the probe is no realm span',
+    'function w(v) { let held; ((held = globalThis.foo).self.window?.self).Box = v; }', false],
 ]) {
   runBoth(`mutationGuardKeepingHop/${ variant }`, code, (adapter, prog, lbl) => {
     // the `?.` hop is the claim's own path, which is what both emitters hand in; the two parsers

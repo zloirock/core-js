@@ -5535,6 +5535,15 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null, { allowSideEffec
     chain.push(cur);
     cur = peelReceiverSequenceTail(cur.object);
   }
+  // A store is transparent only when its VALUE is a complete realm prefix. A realm
+  // root somewhere below a user property does not make `(held = globalThis.host).self`
+  // a realm navigation. Check every stored hop with the same key rule, in one walk
+  // across nested stores rather than recursively rescanning each inner prefix.
+  if (throughChainAssign && cur !== root) {
+    for (let value = peelChainRootValue(cur); isMemberAccessNode(value); value = peelChainRootValue(value.object)) {
+      if (!pristineRealmHopKey(value, aliasCtx, { allowSideEffectKeys })) return root;
+    }
+  }
   let prefix = root;
   for (let i = chain.length - 1; i >= 0; i--) {
     const member = chain[i];
