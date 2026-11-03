@@ -4,6 +4,7 @@ var sign = require('../internals/math-sign');
 
 // eslint-disable-next-line es/no-math-cbrt -- required for testing
 var $cbrt = Math.cbrt;
+var $isFinite = isFinite;
 var abs = Math.abs;
 var pow = Math.pow;
 
@@ -17,6 +18,6 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
     var n = +x;
     var y = sign(n) * pow(abs(n), 1 / 3);
     // Newton-Raphson refinement for better precision
-    return n !== 0 && isFinite(n) ? (2 * y + n / (y * y)) / 3 : y;
+    return n !== 0 && $isFinite(n) ? (2 * y + n / (y * y)) / 3 : y;
   }
 });

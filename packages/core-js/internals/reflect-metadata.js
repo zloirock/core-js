@@ -8,6 +8,7 @@ var shared = require('../internals/shared');
 
 var Map = getBuiltIn('Map');
 var WeakMap = getBuiltIn('WeakMap');
+var $String = String;
 var push = uncurryThis([].push);
 
 var metadata = shared('metadata');
@@ -48,7 +49,7 @@ var ordinaryOwnMetadataKeys = function (target, targetKey) {
 };
 
 var toMetadataKey = function (it) {
-  return it === undefined || typeof it == 'symbol' ? it : String(it);
+  return it === undefined || typeof it == 'symbol' ? it : $String(it);
 };
 
 module.exports = {

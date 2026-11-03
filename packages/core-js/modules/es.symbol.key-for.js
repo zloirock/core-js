@@ -7,12 +7,13 @@ var shared = require('../internals/shared');
 var NATIVE_SYMBOL_REGISTRY = require('../internals/symbol-registry-detection');
 
 var SymbolToStringRegistry = shared('symbol-to-string-registry');
+var $TypeError = TypeError;
 
 // `Symbol.keyFor` method
 // https://tc39.es/ecma262/#sec-symbol.keyfor
 $({ target: 'Symbol', stat: true, forced: !NATIVE_SYMBOL_REGISTRY }, {
   keyFor: function keyFor(sym) {
-    if (!isSymbol(sym)) throw new TypeError(tryToString(sym) + ' is not a symbol');
+    if (!isSymbol(sym)) throw new $TypeError(tryToString(sym) + ' is not a symbol');
     if (hasOwn(SymbolToStringRegistry, sym)) return SymbolToStringRegistry[sym];
   }
 });

@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 
+var $parseInt = parseInt;
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(/./.exec);
@@ -26,14 +27,14 @@ $({ global: true }, {
         if (charAt(str, index) === 'u') {
           part = stringSlice(str, index + 1, index + 5);
           if (exec(hex4, part)) {
-            result += fromCharCode(parseInt(part, 16));
+            result += fromCharCode($parseInt(part, 16));
             index += 5;
             continue;
           }
         } else {
           part = stringSlice(str, index, index + 2);
           if (exec(hex2, part)) {
-            result += fromCharCode(parseInt(part, 16));
+            result += fromCharCode($parseInt(part, 16));
             index += 2;
             continue;
           }

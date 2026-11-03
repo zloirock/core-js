@@ -11,6 +11,7 @@ var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
 var Promise = getBuiltIn('Promise');
+var $TypeError = TypeError;
 
 var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';
 var setInternalState = InternalStateModule.set;
@@ -73,7 +74,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
         } catch (error) {
           return reject(error);
         }
-        return reject(new TypeError('The iterator does not provide a throw method'));
+        return reject(new $TypeError('The iterator does not provide a throw method'));
       }
       var result = anObject(hasValue ? call($throw, iterator, value) : call($throw, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator, true);

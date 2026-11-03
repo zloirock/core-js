@@ -19,6 +19,7 @@ var regExpExec = require('../internals/regexp-exec-abstract');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var REPLACE = wellKnownSymbol('replace');
+var $String = String;
 var max = Math.max;
 var min = Math.min;
 var concat = uncurryThis([].concat);
@@ -27,7 +28,7 @@ var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
 
 var maybeToString = function (it) {
-  return it === undefined ? it : String(it);
+  return it === undefined ? it : $String(it);
 };
 
 // IE <= 11 replaces $0 with the whole match, as if it was $&
