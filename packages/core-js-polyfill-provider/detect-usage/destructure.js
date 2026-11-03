@@ -3998,7 +3998,9 @@ function hostKeepsSiblingBinding(leafPath) {
 // a leaf sibling keeps a residual that would re-read the static raw. `isOwnAlias` is the caller's
 // lookup of the names it minted for the namespace, a rewritten tree's root. the nav itself comes back
 // whatever the verdict: a caller that finds no dispatch here still asks what it navigated
-export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allowTrailingStatic = false, isOwnAlias = null }) {
+export function resolveNestedNavDispatch(leafPath, {
+  adapter, resolvePure, allowTrailingStatic = false, isOwnAlias = null, carriedInit = false,
+}) {
   // the dispatch READS the nav instead of the host's own init, so what that init spells stops being
   // read at all. an ARRAY wrapper survives that: its own machinery lifts the elements the pattern
   // does not bind. an OBJECT literal has no such channel here, so a property VALUE carrying an
@@ -4014,9 +4016,17 @@ export function resolveNestedNavDispatch(leafPath, { adapter, resolvePure, allow
   }
   // ... and with that residual alive, a prefix a LITERAL's slot wears (`w: (hit(), globalThis)`) runs
   // where the source wrote it - the residual evaluates the literal - so the nav peels past it. a
-  // prefixed bare init (`(effect(), globalThis)`) keeps its own channel: the lift, then the surface memo
+  // prefixed bare init (`(effect(), globalThis)`) keeps its own channel: the lift, then the surface memo.
+  // A caller that already owns that prefix can ask for the remaining navigation directly.
+  // A realm-valued tail keeps its existing route: projecting globalThis.self here would
+  // replace the carried self receiver with globalThis and choose a different pure entry.
   const literalSlotPrefix = keepsSibling && hostInit?.type === 'ObjectExpression';
-  const nav = resolveNestedReceiverNode(leafPath, { allowNavSegments: true, allowSePeeledFragment: literalSlotPrefix, adapter });
+  const carriedSurface = carriedInit && !POSSIBLE_GLOBAL_OBJECTS.has(resolveObjectName({
+    objectNode: peelChainRootValue(hostInit), ...ctx,
+  }));
+  const nav = resolveNestedReceiverNode(leafPath, {
+    allowNavSegments: true, allowSePeeledFragment: literalSlotPrefix || carriedSurface, adapter,
+  });
   // the surface answer travels as its ROOT and keys as well: a caller that renders through
   // `resolveNestedReceiverBase` needs them to fold the realm root onto its ponyfill, and spelling
   // the nav node verbatim would print the raw name the source wrote

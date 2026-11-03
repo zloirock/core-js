@@ -22233,6 +22233,29 @@ function * generateGuardPrefixStores() {
   }
 }
 
+// The this-root of a CommonJS navigation is not the whole initializer. The pattern adds
+// only its own hops, including when defaults or surviving siblings keep that initializer live.
+function * generateThisNavigationInitializers() {
+  for (const [ctor, value] of [['Array', '[1, 2]'], ['String', '"xy"']]) {
+    for (const host of ['plain', 'prefix', 'for-init']) for (const sibling of [false, true]) {
+      for (const defaulted of [false, true]) {
+        const pattern = `{ prototype: { at: method${ defaulted ? ' = (effects.push("default"), null)' : '' } }${ sibling ? ', name: ctorName' : '' } }`;
+        const init = host === 'prefix' ? `(effects.push("prefix"), (this.${ ctor }))` : `this.${ ctor }`;
+        const read = `r = [method.call(${ value }, -1)${ sibling ? ', ctorName' : '' }];`;
+        yield {
+          name: `this-navigation-initializer/${ ctor }/${ host }/${ sibling ? 'sibling' : 'sole' }/${ defaulted ? 'default' : 'plain' }`,
+          code: `exports.${ ctor } = ${ ctor }; const effects = []; let r;
+            ${ host === 'for-init' ? `for (const ${ pattern } = ${ init }; !r;) { ${ read } }`
+    : `{ const ${ pattern } = ${ init }; ${ read } }` }
+            module.exports = { r, effects };`,
+          sourceType: 'script',
+          strip: true,
+        };
+      }
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22680,4 +22703,5 @@ export function * generate() {
   yield * generateEmittedReceiverClones();
   yield * generateRetainedRenderOwnership();
   yield * generateGuardPrefixStores();
+  yield * generateThisNavigationInitializers();
 }

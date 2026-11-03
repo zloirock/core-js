@@ -2385,7 +2385,8 @@ export default function createAstDestructureEmitter({
     // walks through the literal and hands back the nav those hops name, which is what dispatches
     // (`{ w: { Array: { prototype: { at } } } } = { w: globalThis }` reads `_globalThis.Array
     // .prototype`, exactly as its identifier-init twin does)
-    const navDispatch = kind === 'instance' && chain.length > 0 ? resolveNestedNavDispatch(metaPath, { adapter }) : null;
+    const navDispatch = kind === 'instance' && chain.length > 0
+      ? resolveNestedNavDispatch(metaPath, { adapter, carriedInit: seCarried }) : null;
     const pureNav = ((forInit || seCarried
       ? isPureNavAfterSePrefix(carriedInitValue, guardCtx)
       : isPureNavReceiver(declarator.init, guardCtx)) && navRootReReadable(declarator.init, metaPath))
@@ -2580,8 +2581,10 @@ export default function createAstDestructureEmitter({
       // route reads it too, since a claim inside that init renders by replacing its node and the
       // captured copy would ship the source read. an ELEMENT or a memo names a slot of its own, and a
       // CARRIED prefix leaves the tail it yields: the drain carries that prefix, so a dispatch reading
-      // the whole init would run it twice (`(o.k = _self, _self.Array.prototype)`)
+      // the whole init would run it twice (`(o.k = _self, _self.Array.prototype)`). A navigation
+      // root also differs from the init: reading this.Array for this would duplicate the Array hop.
       liveReceiver: carriedLive ?? (seCarried || memoRecv || allProxyInit
+        || (navSurface && navSurface.root !== declarator.init)
         || (literalReceiver && literalReceiver !== declarator.init) ? null : () => declarator.init),
       reusedReceiver: !!keepKey,
       // a catch-born host cannot hoist a `var` memo past its own binding: the default-guard

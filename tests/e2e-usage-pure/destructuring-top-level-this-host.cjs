@@ -76,3 +76,19 @@ exports.readUserLoop = () => {
   for (const { Data: { at } } of [this]) method = at;
   return method;
 };
+
+// Navigation starts at the this root, even when the initializer already names a constructor.
+exports.readNavigatedArray = () => {
+  const { prototype: { includes } } = this.Array;
+  return includes;
+};
+
+exports.readNavigatedString = before => {
+  const { prototype: { at } } = (before(), this.String);
+  return at;
+};
+
+exports.readNavigatedDefault = fallback => {
+  const { prototype: { at = fallback() }, isArray } = this.Array;
+  return { at, isArray };
+};

@@ -388,7 +388,7 @@ export default function createAstUsagePureCallback({
   }
 
   // Bind native guard preparation and ref allocation to the shared effect order.
-  // The query retains source identity; only the receiver moved into a memo is cloned.
+  // Effects retain source identity; captures and repeated receiver reads own their nodes.
   function routeSymbolReceiverEffects(metaPath, state) {
     const caller = climbToCallerPath(metaPath)?.node;
     const input = {
@@ -412,7 +412,8 @@ export default function createAstUsagePureCallback({
     if (!plan) return false;
     const result = renderReceiverEffects(plan, {
       mintRef: () => injector.generateDeclaredRef(metaPath),
-      embed: (node, role) => role === 'capture' ? cloneNode(node) : node,
+      embed: (node, role) => role === 'receiver' ? cloneStamped(node, typeStampCtx)
+        : role === 'capture' ? cloneNode(node) : node,
     });
     state.object = result.receiver;
     state.effects = result.effects;
