@@ -7,13 +7,6 @@ QUnit.test('esnext: Number#clamp', assert => {
   assert.same((10).clamp(2, 8), 8);
 });
 
-QUnit.test('esnext: Function#demethodize', assert => {
-  const push = [].push.demethodize();
-  const arr = [1, 2];
-  push(arr, 3);
-  assert.deepEqual(arr, [1, 2, 3]);
-});
-
 QUnit.test('esnext: String.cooked', assert => {
   assert.same(String.cooked(['Hi\\n', '!'], 'Bob'), 'Hi\\nBob!');
 });

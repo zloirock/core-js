@@ -277,7 +277,6 @@ export const instance = {
   codePointAt: { string: 'string/instance/code-point-at' },
   concat: { array: 'array/instance/concat' },
   copyWithin: { array: 'array/instance/copy-within' },
-  demethodize: { function: 'instance/demethodize' },
   description: {
     global: { symbol: 'symbol/description' },
     pure: { symbol: 'symbol/instance/description' },

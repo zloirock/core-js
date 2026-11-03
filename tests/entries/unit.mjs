@@ -1119,8 +1119,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/prototype/to-array') == 'function');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
-    ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(load(NS, 'function/prototype/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
@@ -1142,12 +1140,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceClamp({}) === undefined);
     ok(typeof instanceClamp(6) == 'function');
     ok(instanceClamp(6).call(6, 2, 4) === 4);
-
-    const instanceDemethodize = load(NS, 'instance/demethodize');
-    ok(typeof instanceDemethodize == 'function');
-    ok(instanceDemethodize({}) === undefined);
-    ok(typeof instanceDemethodize([].slice) == 'function');
-    ok(instanceDemethodize([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
 
     const numberInstanceClamp = load(NS, 'number/instance/clamp');
     ok(typeof numberInstanceClamp == 'function');
@@ -1172,7 +1164,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/explicit-resource-management');
   load('proposals/extractors');
   load('proposals/float16');
-  load('proposals/function-demethodize');
   load('proposals/global-this');
   load('proposals/is-error');
   load('proposals/iterator-helpers');

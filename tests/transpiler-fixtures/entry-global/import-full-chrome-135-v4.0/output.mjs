@@ -41,7 +41,6 @@ import "core-js/modules/esnext.async-iterator.take";
 import "core-js/modules/esnext.async-iterator.to-array";
 import "core-js/modules/esnext.data-view.get-uint8-clamped";
 import "core-js/modules/esnext.data-view.set-uint8-clamped";
-import "core-js/modules/esnext.function.demethodize";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.iterator.range";
 import "core-js/modules/esnext.iterator.to-async";

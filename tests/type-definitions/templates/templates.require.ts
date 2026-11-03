@@ -37,9 +37,6 @@ require('@core-js/pure/full/instance/concat')(1);
 // $instanceString
 require('@core-js/pure/full/instance/code-point-at')('');
 
-// $instanceFunction
-require('@core-js/pure/full/instance/demethodize')({});
-
 // $instanceDOMIterables
 require('@core-js/pure/full/instance/for-each')({});
 

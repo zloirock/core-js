@@ -190,8 +190,6 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
       - [`DataView` get/set `Uint8Clamped` methods](#dataview-getset-uint8clamped-methods)
       - [`String.cooked`](#stringcooked)
       - [Pattern matching](#pattern-matching)
-    - [Stage 0 proposals](#stage-0-proposals)
-      - [Demethodize function](#demethodize-function)
   - [Web standards](#web-standards)
     - [`self`](#self)
     - [`structuredClone`](#structuredclone)
@@ -3318,31 +3316,6 @@ class Symbol {
 ```
 core-js/proposals/pattern-matching
 { core-js, @core-js/pure }/full/symbol/custom-matcher
-```
-
-#### Stage 0 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-{ core-js, @core-js/pure }/stage/0
-```
-##### [Demethodize function](https://github.com/js-choi/proposal-function-demethodize)[⬆](#index)
-Modules [`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js).
-```ts
-class Function {
-  demethodize(): Function;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/function-demethodize
-{ core-js, @core-js/pure }/full/function/demethodize
-{ core-js, @core-js/pure }/full/function/prototype/demethodize
-```
-[*Examples*](https://core-js.io/playground#code=const+slice+%3D+Array.prototype.slice.demethodize%28%29%3B%0A%0Aslice%28%5B1%2C+2%2C+3%5D%2C+1%29%3B+%2F%2F+%3D%3E+%5B2%2C+3%5D):
-```js
-const slice = Array.prototype.slice.demethodize();
-
-slice([1, 2, 3], 1); // => [2, 3]
 ```
 
 ### Web standards[⬆](#index)

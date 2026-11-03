@@ -5,13 +5,11 @@ import genericMethod from '@core-js/pure/es/instance/at';
 import entriesMethod from '@core-js/pure/actual/instance/entries';
 import numberMethod from '@core-js/pure/es/number/instance/to-fixed';
 import stringMethod from '@core-js/pure/es/string/instance/repeat';
-import functionMethod from '@core-js/pure/full/instance/demethodize';
 import arrayAt from '@core-js/pure/es/array/prototype/at';
 import stringAt from '@core-js/pure/es/string/prototype/at';
 import arrayEntries from '@core-js/pure/actual/array/prototype/entries';
 import numberToFixed from '@core-js/pure/es/number/prototype/to-fixed';
 import stringRepeat from '@core-js/pure/es/string/prototype/repeat';
-import functionDemethodize from '@core-js/pure/full/function/prototype/demethodize';
 import { restoreProperty } from '../helpers/restore-property.cjs';
 
 for (const [lookup, entry, key] of [
@@ -65,10 +63,7 @@ for (const [lookup, entry, key, prototype] of nativeCases) {
   }
 }
 
-for (const [lookup, entry, key, prototype] of [
-  ...nativeCases,
-  [functionMethod, 'full/instance/demethodize', 'demethodize', Function.prototype],
-]) {
+for (const [lookup, entry, key, prototype] of nativeCases) {
   const previous = Object.getOwnPropertyDescriptor(prototype, key);
   const inheritedReceiver = Object.create(prototype);
   let receiverReads = 0;
@@ -121,7 +116,6 @@ for (const [lookup, polyfill, entry, key, prototype] of [
   [entriesMethod, arrayEntries, 'actual/instance/entries', 'entries', Array.prototype],
   [numberMethod, numberToFixed, 'es/number/instance/to-fixed', 'toFixed', Number.prototype],
   [stringMethod, stringRepeat, 'es/string/instance/repeat', 'repeat', String.prototype],
-  [functionMethod, functionDemethodize, 'full/instance/demethodize', 'demethodize', Function.prototype],
 ]) {
   const previous = Object.getOwnPropertyDescriptor(prototype, key);
   if (previous) checkDefinedKeys({ lookup, entry, key, prototype, state: 'beside a defined method' });
