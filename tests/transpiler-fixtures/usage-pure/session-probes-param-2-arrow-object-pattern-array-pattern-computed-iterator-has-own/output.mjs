@@ -8,9 +8,9 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
       hasOwn
     }]
   }) => [it, hasOwn])({
-    w: [{
+    w: [(Object, {
       [_Symbol$iterator]: _getIteratorMethod(Object),
       hasOwn: _Object$hasOwn
-    }]
+    })]
   });
 }

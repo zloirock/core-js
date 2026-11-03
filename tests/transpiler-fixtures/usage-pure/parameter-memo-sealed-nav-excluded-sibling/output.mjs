@@ -9,7 +9,9 @@ function read({
   from
 } = function (_ref) {
   return {
-    of: _ref.of,
+    get of() {
+      return _ref.of;
+    },
     from: _Array$from
   };
 }((null == (() => {

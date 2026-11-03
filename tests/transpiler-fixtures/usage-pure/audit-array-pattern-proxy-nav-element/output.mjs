@@ -1,5 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
+import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$seal from "@core-js/pure/actual/object/seal";
 import _self from "@core-js/pure/actual/self";
 // Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
@@ -18,7 +19,9 @@ export const [{
 }] = [_self.Array];
 export const [{
   keys
-}] = [null == _globalThis.window ? void 0 : _self.Object];
+}] = [null == _globalThis.window ? void 0 : {
+  keys: _Object$keys
+}];
 export const [{
   entries
 }] = [(n++, _self).Object];

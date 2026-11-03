@@ -6,10 +6,12 @@ const R = Array;
 function g({
   from,
   custom
-} = {
+} = (R, {
   from: _Array$from,
-  custom: R.custom
-}) {
+  get custom() {
+    return R.custom;
+  }
+})) {
   return [from([1]), custom];
 }
 _globalThis.__call = () => g({

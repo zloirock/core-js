@@ -40,6 +40,18 @@ export function isCapturedKeyedPattern(pattern) {
   return capturedKeyedPatterns.has(pattern);
 }
 
+const capturedPatternSources = new WeakMap();
+// Retain the source of a residual over a capture before the host can register its new binding.
+export function markCapturedPatternSource(pattern, source) {
+  capturedPatternSources.set(pattern, source);
+}
+
+// A residual over an emitted capture still reads the original source at its captured level.
+// Keep that provenance on the actual pattern, never on a generated identifier's spelling.
+export function capturedPatternSource(pattern) {
+  return capturedPatternSources.get(pattern) ?? null;
+}
+
 const generatedMemoDeclarators = new WeakSet();
 // Record the actual declarator an allocator placed, independently of its printed name.
 export function markGeneratedMemoDeclarator(declarator) {

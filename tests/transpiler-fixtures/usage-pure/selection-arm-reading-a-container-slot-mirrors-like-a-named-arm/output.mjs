@@ -14,13 +14,19 @@ const shelf = {
 const {
   groupBy,
   extra
-} = flag ? {
-  groupBy: _Map$groupBy,
-  extra: shelf.M.extra
-} : {
+} = flag ? function (_ref) {
+  return {
+    groupBy: _Map$groupBy,
+    get extra() {
+      return _ref.extra;
+    }
+  };
+}(shelf.M) : (Object, {
   groupBy: _Object$groupBy,
-  extra: Object.extra
-};
+  get extra() {
+    return Object.extra;
+  }
+});
 const nest = {
   inner: {
     P: _Promise

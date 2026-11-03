@@ -10,10 +10,14 @@ const g = _globalThis;
 function aliasKeep({
   fromEntries,
   missing
-} = {
-  fromEntries: _Object$fromEntries,
-  missing: g.Object.missing
-}) {
+} = function (_ref) {
+  return {
+    fromEntries: _Object$fromEntries,
+    get missing() {
+      return _ref.missing;
+    }
+  };
+}(g.Object)) {
   return [fromEntries, missing];
 }
 aliasKeep();
@@ -26,10 +30,14 @@ function mk() {
 function seRescue({
   hasOwn,
   absent
-} = (mk(), {
-  hasOwn: _Object$hasOwn,
-  absent: g.Object.absent
-})) {
+} = (mk(), function (_ref2) {
+  return {
+    hasOwn: _Object$hasOwn,
+    get absent() {
+      return _ref2.absent;
+    }
+  };
+}(g.Object))) {
   return [hasOwn, absent];
 }
 seRescue();
@@ -40,10 +48,14 @@ let tick = 0;
 function directRoot({
   groupBy,
   [(tick++, 'extra')]: x
-} = {
-  groupBy: _Object$groupBy,
-  "extra": _globalThis.Object["extra"]
-}) {
+} = function (_ref3) {
+  return {
+    groupBy: _Object$groupBy,
+    get "extra"() {
+      return _ref3["extra"];
+    }
+  };
+}(_globalThis.Object)) {
   return [groupBy, x];
 }
 directRoot();

@@ -8,7 +8,9 @@ function f({
   custom
 } = {
   resolve: _Promise$resolve,
-  custom: _Promise.custom
+  get custom() {
+    return _Promise.custom;
+  }
 }) {
   return [resolve(1), custom];
 }

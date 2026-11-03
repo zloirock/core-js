@@ -1,3 +1,4 @@
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 {
   const {
@@ -5,6 +6,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
       of: v
     }
   } = {
-    a: _globalThis.window?.Array
+    a: null == _globalThis.window ? void 0 : {
+      of: _Array$of
+    }
   };
 }

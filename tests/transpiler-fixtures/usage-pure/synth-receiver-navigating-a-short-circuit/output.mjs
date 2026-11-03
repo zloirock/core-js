@@ -21,37 +21,51 @@ export function overAHop({
 export function unpolyfilledSibling({
   groupBy,
   other
-} = {
+} = null == _Map ? _Map : {
   groupBy: _Map$groupBy,
-  other: _Map.other
+  get other() {
+    return _Map.other;
+  }
 }) {
   return [groupBy, other];
 }
 export const viaIifeArgument = (({
   entries,
   other
-}) => [entries, other])(null == _globalThis.window ? void 0 : {
-  entries: _Object$entries,
-  other: _self.Object.other
-});
+}) => [entries, other])(function (_ref) {
+  return null == _ref ? void 0 : {
+    entries: _Object$entries,
+    get other() {
+      return _ref.other;
+    }
+  };
+}(null == _globalThis.window ? void 0 : _self.Object));
 // The guard can sit directly below the constructor. The supplied argument retains its nullish branch,
 // while the parameter default still reads its unresolved sibling through the optional receiver.
 export function directlyUnderTheGuard({
   of,
   other
-} = {
-  of: _Array$of,
-  other: (_globalThis.window?.Array).other
-}) {
+} = function (_ref2) {
+  return null == _ref2 ? _ref2 : {
+    of: _Array$of,
+    get other() {
+      return _ref2.other;
+    }
+  };
+}(_globalThis.window?.Array)) {
   return [of, other];
 }
 export const viaIifeUnderTheGuard = (({
   of,
   other
-}) => [of, other])(null == _globalThis.window ? void 0 : {
-  of: _Array$of,
-  other: _globalThis.Array.other
-});
+}) => [of, other])(function (_ref3) {
+  return null == _ref3 ? void 0 : {
+    of: _Array$of,
+    get other() {
+      return _ref3.other;
+    }
+  };
+}(_globalThis.window?.Array));
 export function foreignRoot({
   of,
   other

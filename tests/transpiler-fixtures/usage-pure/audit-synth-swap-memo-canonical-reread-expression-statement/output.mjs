@@ -13,7 +13,9 @@ function aliasPureCtor({
   other
 } = (eff(), {
   groupBy: _Map$groupBy,
-  other: _Map.other
+  get other() {
+    return _Map.other;
+  }
 })) {
   return [groupBy, other];
 }

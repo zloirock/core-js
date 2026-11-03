@@ -8,7 +8,9 @@ function innerGlobal({
   none
 } = (_globalThis.tick(), {
   groupBy: _Map$groupBy,
-  none: _Map.none
+  get none() {
+    return _Map.none;
+  }
 })) {
   return [g4, none];
 }

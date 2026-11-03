@@ -9,16 +9,20 @@ export function read(choose) {
   } = choose ? function (_ref) {
     return {
       "from": _Array$from,
-      missing: _ref.missing
+      get missing() {
+        return _ref.missing;
+      }
     };
   }((() => {
     var _ref2;
     (_pushMaybeArray(effects) || 0).call(effects, _atMaybeArray(_ref2 = [1]).call(_ref2, 0));
     return Array;
-  })()) : {
+  })()) : (Array, {
     "from": _Array$from,
-    missing: Array.missing
-  };
+    get missing() {
+      return Array.missing;
+    }
+  });
   _pushMaybeArray(effects).call(effects, 'body');
   return [from([3]), missing];
 }

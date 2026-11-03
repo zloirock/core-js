@@ -8,12 +8,16 @@ export function read(flag) {
   const {
     from,
     custom
-  } = flag ? {
+  } = flag ? (Array, {
     from: _Array$from,
-    custom: Array.custom
-  } : {
+    get custom() {
+      return Array.custom;
+    }
+  }) : {
     from: _Iterator$from,
-    custom: _Iterator.custom
+    get custom() {
+      return _Iterator.custom;
+    }
   };
   return [from, custom];
 }

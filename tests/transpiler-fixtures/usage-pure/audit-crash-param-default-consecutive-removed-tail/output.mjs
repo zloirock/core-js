@@ -12,11 +12,13 @@ function f({
   "z": z,
   from,
   of
-} = {
-  "z": Array["z"],
+} = (Array, {
+  get "z"() {
+    return Array["z"];
+  },
   from: _Array$from,
   of: _Array$of
-}) {
+})) {
   return [from, of, z];
 }
 f();

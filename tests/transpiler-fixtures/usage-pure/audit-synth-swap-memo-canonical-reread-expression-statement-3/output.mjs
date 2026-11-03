@@ -7,7 +7,9 @@ function leafKeySe({
   absent
 } = (e++, {
   try: _Promise$try,
-  absent: _Promise.absent
+  get absent() {
+    return _Promise.absent;
+  }
 })) {
   return [t, absent];
 }

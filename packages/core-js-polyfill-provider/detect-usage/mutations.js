@@ -59,7 +59,6 @@ import {
   ESCAPED_CTOR_REFS,
   escapeStampedName,
   findNearestVarScopeOwner,
-  arrayWrapSlotValueCandidates,
   findObjectKeyBeforeSpread,
   objectPropertyReadValue,
   flattenBranchKeys,
@@ -3067,6 +3066,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
   const ctorNames = new Set();
   const globalOnly = new Set();
   const heldInSlot = new Set();
+  const retainedPatterns = [];
   // ... and the constructors a static read the claim side does not name may land on, apart from those
   // handed out: where the build defines no module for one, only such a read owes its statics. the values
   // read so: a receiver read by a key no canon names, and a value a function of this file takes, whose
@@ -3851,47 +3851,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
     if (!values) aliasInit.set(name, values = []);
     values.push({ at, value, target, aliases: target ? aliasInit : null, paired: walked });
   }
-  // the constructor a container LITERAL puts in `key`, if any: `{ Map }`, `{ M: Map }` and `[Map]`
-  // all hold one - a NUMERIC key names an array slot the same way - while a getter handing back the
-  // realm holds nothing
-  function ctorInContainerLiteralSlot(value, key) {
-    let paired = null;
-    if (value.type === 'ObjectExpression') {
-      paired = objectPropertyReadValue(
-        findObjectKeyBeforeSpread(value.properties, prop => plainSynthKeyName(prop.key) === key), {});
-    } else if (value.type === 'ArrayExpression' && /^\d+$/u.test(key)) {
-      [paired = null] = arrayWrapSlotValueCandidates(value.elements, Number(key));
-    }
-    const held = unwrapRuntimeExpr(paired);
-    return held?.type === 'Identifier' && isKnownGlobalName(held.name) ? held.name : null;
-  }
-
-  // the constructor the file puts in this container's `key`, through either half of the answer
-  function ctorHeldByContainerSlot(containerName, key, seen = new Set()) {
-    if (typeof key !== 'string' || seen.has(containerName)) return null;
-    seen.add(containerName);
-    const values = flattenBranchingValueNodes((aliasInit.get(containerName) ?? []).map(record => record?.value));
-    // the file's OWN literal answers on its own: this index is keyed by NAME, so a declaration
-    // SHADOWING this one from another scope shares the bucket and does not speak for this read
-    for (const value of values) {
-      const named = ctorInContainerLiteralSlot(value, key);
-      if (named !== null) return named;
-    }
-    // a NAME standing where the literal would is an alias hop - what the pattern ends up reading is
-    // the container that name holds. here EVERY value the name can take has to answer alike, because
-    // a name that also takes something opaque carries no proof that OUR binding is what the slot
-    // holds. the obligation is not lost by declining: wherever pure does rewrite the slot, the
-    // substitution route answers for it on its own, and this half only covers the spellings it
-    // cannot see - a clean hop, a selection of literals, an effect spelled ahead of one
-    let held = null;
-    for (const value of values) {
-      const named = value.type === 'Identifier' ? ctorHeldByContainerSlot(value.name, key, new Set(seen)) : null;
-      if (named === null || (held !== null && named !== held)) return null;
-      held = named;
-    }
-    return held;
-  }
-
   // a read that comes BACK off a container slot this file stored a constructor in: pure substitutes
   // its own binding into that slot and never reads the slot back, so the static the pattern names
   // under it has to be ON that binding - and the narrow `*/constructor` module installs none of the
@@ -3901,9 +3860,10 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
   // literal: a selection reaches every arm, and each arm is read by the same pattern - the arm a run
   // takes is not this census's to decide. an effect spelled ahead of the value belongs to the SOURCE and
   // not to the value, so the union's flattener peels it first - `const box = (n++, { Map })` holds the
-  // literal exactly as the bare spelling does
+  // literal exactly as the bare spelling does. The completed value census follows aliases and
+  // selection arms in their own scopes; all native wrappers share that answer.
   function stampCtorStaticReadThroughSlot(pattern, source) {
-    const values = flattenBranchingValueNodes([source]).map(value => unwrapRuntimeExpr(value));
+    let values;
     // an ARRAY pattern names its slots by INDEX, an object pattern by key - one walk over the pairs
     const slots = pattern?.type === 'ArrayPattern'
       ? pattern.elements.map((element, at) => [String(at), patternSlotTarget(element)])
@@ -3915,18 +3875,15 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
     if (!slots) return;
     for (const [key, inner] of slots) {
       if (!isDestructurePattern(inner)) continue;
-      for (const value of values) {
-        const literal = value?.type === 'ObjectExpression' || value?.type === 'ArrayExpression';
-        const ctorName = value?.type === 'Identifier' ? ctorHeldByContainerSlot(value.name, key)
-          : literal ? ctorInContainerLiteralSlot(value, key) : null;
-        if (ctorName !== null) {
-          if (inner.type === 'ObjectPattern') stampLeavesReadBack({ inner, ctorName });
-          continue;
-        }
-        // ... and a slot the literal fills with another level - a container, or a selection of them - is
-        // read by the pattern under it the same way, one level down (`{ W: c ? { C: Map } : Wrapper }`)
-        if (literal) for (const level of containerSlotValues(value, key, true)) {
-          if (level !== value) stampCtorStaticReadThroughSlot(inner, level);
+      for (const value of values ??= readValues(aliasInit, source, new Set())) {
+        if (value.type !== 'ObjectExpression' && value.type !== 'ArrayExpression') continue;
+        for (const slot of containerSlotValues(value, key, true)) {
+          if (slot === value) continue;
+          for (const held of readValues(aliasInit, slot, new Set())) {
+            const ctorName = realmGlobalName(programNode, held) ?? entryToGlobalHint(pureEntryOf(held));
+            if (ctorName && inner.type === 'ObjectPattern') stampLeavesReadBack({ inner, ctorName });
+            else stampCtorStaticReadThroughSlot(inner, held);
+          }
         }
       }
     }
@@ -3935,6 +3892,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
   // A static retained under a literal wrapper reads the substituted constructor itself.
   // Its namespace supplies that static; an intrinsic property needs only the narrow entry.
   function stampLeavesReadBack({ inner, ctorName }) {
+    if (!hasNarrowEntry(ctorName)) return;
     for (const leaf of inner.properties) {
       if (leaf.type !== 'Property' && leaf.type !== 'ObjectProperty') continue;
       const staticName = leaf.computed ? null : plainSynthKeyName(leaf.key);
@@ -3951,7 +3909,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
     source = installedWriteValue(source);
     if (isDestructurePattern(pattern) && source) {
       patternReceiverSlotNodes(pattern, source, null, { preservesBody: true, restSources, restValues });
-      stampCtorStaticReadThroughSlot(pattern, source);
+      retainedPatterns.push([pattern, source]);
     }
     if (source) walkPatternIdentifiers(pattern, id => {
       recordAliasInit(id.name, pattern.type === 'Identifier' ? source : { pattern, source }, at, assignment ? id : null);
@@ -4538,12 +4496,13 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
       // is every parameter (the caller decides whether the default is ever taken) and kept where the
       // file's own binding is only ever read THROUGH a member. a DESTRUCTURE default (`{ x } = Ctor`)
       // stays unstamped - the mirror / guarded-narrow channels own it and resolve their own entries
-      // (stamping it double-resolved the same source position to two entries)
+      // (stamping it double-resolved the same source position to two entries). Its literal-wrapper
+      // slots still owe native statics; collect every default here once, independently of its host.
       case 'AssignmentPattern':
         if (node.left?.type === 'Identifier') {
           slotWrites.push({ name: node.left.name, value: node.right, scopes: frame?.scopes ?? [], defaultValue: true,
             host: frame?.scopes?.findLast(scope => FUNCTION_LIKE_NODE_TYPES.has(scope.type)), parameter: node });
-        }
+        } else if (isDestructurePattern(node.left)) retainedPatterns.push([node.left, node.right]);
         break;
     }
   }
@@ -4964,6 +4923,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
       // the graph is whole from here - the parameter pairings joined it above - so a realm question keeps
       // the root expansions it reads (`readsOffRealm`)
       ALIAS_SCOPE_FACTS.get(aliasInit).realmRoots = new Map();
+      // Alias and scope facts are complete now; declaration order cannot change the family.
+      for (const [pattern, source] of retainedPatterns) stampCtorStaticReadThroughSlot(pattern, source);
     }
     return calleeRecords;
   }
@@ -5581,7 +5542,7 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
   return finish(CLASS_NODE_TYPES.has(cur?.type) ? classConstructorFunction(cur) : null);
 }
 
-// every [destructure pattern, default value] pair a parameter spells, at any depth: the parameter's
+// every [destructure pattern, default value] pair a pattern spells, at any depth: its
 // own default, and one on a slot of the pattern below it. a pair whose left is not a pattern binds
 // one name and is the alias recorder's other arm, which the pairing loop already reaches - and with
 // `names` it is listed too, for the container census, whose alias values a binding's default joins

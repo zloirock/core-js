@@ -12,7 +12,9 @@ viaCtorLeafCascade = ((null == _globalThis.window ? void 0 : Array).of, _Array$o
 export { viaCtorLeafCascade };
 export const [{
   of: viaCtorLeafWrapped
-}] = [_globalThis.window?.Array];
+}] = [null == _globalThis.window ? void 0 : {
+  of: _Array$of
+}];
 const heldCtorNav = _globalThis.window;
 export const viaCtorLeafAlias = ((null == heldCtorNav ? void 0 : Array).of, _Array$of);
 export const viaCtorLeafSealed = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
@@ -21,5 +23,7 @@ export const {
     of: viaCtorLeafLiteral
   }
 } = {
-  a: _globalThis.window?.Array
+  a: null == _globalThis.window ? void 0 : {
+    of: _Array$of
+  }
 };

@@ -23,10 +23,12 @@ const {
 const {
   0: zero,
   'entries': e
-} = cond ? {
-  "0": Object["0"],
+} = cond ? (Object, {
+  get "0"() {
+    return Object["0"];
+  },
   'entries': _Object$entries
-} : _Map;
+}) : _Map;
 const {
   ['ke' + 'ys']: k
 } = cond ? {

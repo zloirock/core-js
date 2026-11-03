@@ -7,10 +7,14 @@ import _globalThis from "@core-js/pure/actual/global-this";
 function f({
   from,
   other
-} = {
-  from: _Array$from,
-  other: _globalThis.Array.other
-}) {
+} = function (_ref) {
+  return {
+    from: _Array$from,
+    get other() {
+      return _ref.other;
+    }
+  };
+}(_globalThis.Array)) {
   return [from, other];
 }
 f();

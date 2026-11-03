@@ -423,10 +423,10 @@ for (const ctor of ['Array', 'Date']) runBoth(`late synth memo/${ ctor }`,
       && node.name === (ctor === 'Array' ? '_Array' : '_self')));
   });
 
-for (const receiver of ['unknown', 'getUnknown()']) runBoth(`late memo decline/${ receiver }`,
-  `const { from } = ${ receiver };`, (parser, program, label) => {
-    const host = hostOf(parser, program);
-    check(label, planMemoReadTarget(host.node.init, { aliasCtx: context(parser, host), resolvePure: () => null }), null);
+for (const [prefix, receiver] of [['', 'unknown'], ['', 'getUnknown()'], ['const Map = {};', 'Map']]) runBoth(`late memo decline/${ receiver }`,
+  `${ prefix } const { from } = ${ receiver };`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    check(label, planMemoReadTarget(host.node.init, { aliasCtx: context(parser, host), resolvePure }), null);
   });
 
 // Both dialects use the same activation: the argument is outside the function,

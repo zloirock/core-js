@@ -13,10 +13,12 @@ export function read({
   [_Symbol$iterator]: iter,
   '[@@iterator]': tag,
   at
-} = {
+} = (row, {
   [_Symbol$iterator]: _getIteratorMethod(row),
-  '[@@iterator]': row['[@@iterator]'],
+  get '[@@iterator]'() {
+    return row['[@@iterator]'];
+  },
   at: _atMaybeArray(row)
-}) {
+})) {
   return [tag, at.call(row, -1), iter.call(row).next().value];
 }

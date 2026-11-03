@@ -8,8 +8,12 @@ import _Set from "@core-js/pure/actual/set/constructor";
 const {
   from,
   other
-} = cond ? {
-  from: _Array$from,
-  other: _globalThis.Array.other
-} : _Set;
+} = cond ? function (_ref) {
+  return {
+    from: _Array$from,
+    get other() {
+      return _ref.other;
+    }
+  };
+}(_globalThis.Array) : _Set;
 from([1]);

@@ -287,6 +287,25 @@ for (const adapter of adapters) {
 // escape spells while handing out a binding of the file's own. `plugins` extends the babel parser
 // where a spelling needs it; oxc keys the same grammar off the `.ts` name the harness parses under
 const NAME_ROWS = [
+  ...[
+    ['selected slot', 'const { C: { groupBy } } = { C: flag ? Object : Map };', 'Map'],
+    ['unaccounted constructor parameter', 'function read(Map) { const { C: { groupBy } } = { C: Map }; }', 'Map'],
+    ['logical slot', 'const [{ allSettled }] = [flag || Promise];', 'Promise'],
+    ['constructor alias', 'const Held = Map; const box = { C: Held }; const { C: { groupBy } } = box;', 'Map'],
+    ['realm slot', 'const { C: { groupBy } } = { C: globalThis.Map };', 'Map'],
+    ['inner declaration default', 'const { W: { C: { groupBy } } = flag ? { C: Object } : { C: Map } } = source;', 'Map'],
+    ['inner assignment default', 'let groupBy; ({ W: { C: { groupBy } } = { C: Map } } = source);', 'Map'],
+    ['inner catch default', 'try { throw {}; } catch ({ W: { C: { groupBy } } = { C: Map } }) {}', 'Map'],
+    ['inner loop default', 'for (const { W: { C: { groupBy } } = { C: Map } } of source) {}', 'Map'],
+    ['closed parameter default', 'function read({ W: { C: { groupBy } } = { C: Map } } = {}) {} read();', 'Map'],
+    ['open parameter default', 'export function read({ W: { C: { groupBy } } = { C: Map } } = {}) {}', 'Map'],
+  ].map(([name, code, ctor]) => ({ name: `literal native static: ${ name }`, code, heldInSlot: [ctor], withContainerCensus: true })),
+  ...[
+    ['local constructor namesake', 'const Map = {}; const { C: { groupBy } } = { C: Map };'],
+    ['shadowed realm', 'function read(globalThis) { const { C: { groupBy } } = { C: globalThis.Map }; }'],
+    ['shadowed alias', 'const Held = Map; function read(Held) { const { C: { groupBy } } = { C: Held }; }'],
+    ['foreign selected slot', 'const { C: { groupBy } } = { C: flag ? Object : local };'],
+  ].map(([name, code]) => ({ name: `literal native static negative: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
   {
     name: 'positional wrapper renders no identity guard',
     code: 'function read(flag) { let M = Map; if (flag) M = Set; const [{ groupBy }] = [M]; use(groupBy); }',

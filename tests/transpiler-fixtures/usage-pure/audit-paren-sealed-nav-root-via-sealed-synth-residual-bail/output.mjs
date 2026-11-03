@@ -6,9 +6,13 @@ import _self from "@core-js/pure/actual/self";
 export function viaSealedSynthResidualBail({
   groupBy: sn1,
   customK: sn2
-} = ((null == _globalThis.window ? void 0 : _self.window).Object, {
-  groupBy: _Object$groupBy,
-  customK: (null == _globalThis.window ? void 0 : _self.window).Object.customK
-})) {
+} = function (_ref) {
+  return null == _ref ? _ref : {
+    groupBy: _Object$groupBy,
+    get customK() {
+      return _ref.customK;
+    }
+  };
+}((null == _globalThis.window ? void 0 : _self.window).Object)) {
   return [sn1, sn2];
 }

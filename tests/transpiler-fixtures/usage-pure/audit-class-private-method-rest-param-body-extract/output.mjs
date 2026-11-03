@@ -9,10 +9,12 @@ class C {
   #foo(arg, {
     from = [],
     [TAG]: tag
-  } = {
+  } = (Array, {
     from: _Array$from,
-    [TAG]: Array[TAG]
-  }, ...rest) {
+    get [TAG]() {
+      return Array[TAG];
+    }
+  }), ...rest) {
     return [arg, from, tag, rest];
   }
   call() {

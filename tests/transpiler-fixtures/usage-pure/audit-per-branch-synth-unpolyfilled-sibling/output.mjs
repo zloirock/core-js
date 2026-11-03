@@ -7,7 +7,9 @@ let cond = true;
 const r = (({
   from,
   custom
-} = cond ? {
+} = cond ? (Array, {
   from: _Array$from,
-  custom: Array.custom
-} : _Iterator) => [from([1]), custom])();
+  get custom() {
+    return Array.custom;
+  }
+}) : _Iterator) => [from([1]), custom])();

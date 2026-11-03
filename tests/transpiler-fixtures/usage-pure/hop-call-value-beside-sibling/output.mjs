@@ -1,4 +1,5 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 // Shared capture and receiver-default routes preserve independently supported claims.
@@ -106,6 +107,8 @@ const {
     of: viaProbe
   }
 } = {
-  a: _globalThis.window?.Array
+  a: null == _globalThis.window ? void 0 : {
+    of: _Array$of
+  }
 };
 export { viaCall, q1, viaTwoLeaves, viaTwoLeavesStatic, q2, viaNullish, q3, viaNullishOther, q4, viaOr, q5, viaTernary, q7, viaTernaryUser, q8, viaUserLeft, q9, viaSequence, q10, viaSole, viaProbe };

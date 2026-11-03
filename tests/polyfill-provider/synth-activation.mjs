@@ -3,7 +3,7 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planSynthReceiverActivation, renderSynthReplacement } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { findNodeSlot } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { identifier, memberFromKeyName, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
+import { identifier, memberFromKeyName, renderMemoReadTarget, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('synth-activation');
@@ -43,7 +43,8 @@ for (const [name, expression, prelude, reusable] of [
   ['member', 'box.value', '', false],
   ['stable binding', '(effect(), stable)', 'const stable = Array;', true],
   ['written binding', '(effect(), stable)', 'let stable = Array; function effect() { stable = Object; }', false],
-  ['this', 'this', '', true],
+  ['this', 'this', '', false],
+  ['arguments', 'arguments', '', false],
   ['primitive', '1', '', true],
   ['regexp', '/x/', '', false],
   ['typed stable binding', '(effect(), stable as typeof Array)', 'const stable = Array;', true],
@@ -57,7 +58,7 @@ for (const [name, expression, prelude, reusable] of [
     let names = 0;
     let probes = 0;
     const result = renderSynthReplacement([served, unresolved], {
-      receiver, callBranch: true, aliasCtx: { path, scope: path.scope, adapter },
+      receiver, aliasCtx: { path, scope: path.scope, adapter },
       renderMemoArgument: () => receiver,
       renderLiteral: activation => { captured = activation; return identifier('synth'); },
       createMemo: () => { names++; return identifier('memo'); },
@@ -85,7 +86,7 @@ for (const partial of [false, true]) for (const guarded of [false, true]) {
     let argumentsRead = 0;
     let names = 0;
     const rendered = renderSynthReplacement(partial ? [served, unresolved] : [served], {
-      receiver, callBranch: true, guard, aliasCtx: { path, scope: path.scope, adapter },
+      receiver, guard, aliasCtx: { path, scope: path.scope, adapter },
       renderLiteral: () => identifier('synth'),
       renderMemoArgument: () => { argumentsRead++; return null; },
       renderProbe: () => { probes++; return { node: probe, effects }; },
@@ -93,7 +94,7 @@ for (const partial of [false, true]) for (const guarded of [false, true]) {
       cloneHost: node => node,
     });
     check(`${ label }/probe ownership`, probes, +!guarded);
-    check(`${ label }/read ownership`, argumentsRead, +(partial && !guarded));
+    check(`${ label }/read ownership`, argumentsRead, +partial);
     check(`${ label }/guarded memo`, names, +(partial && guarded));
     if (guarded) {
       check(`${ label }/fallback stays outside`, rendered.type, 'LogicalExpression');
@@ -104,14 +105,18 @@ for (const partial of [false, true]) for (const guarded of [false, true]) {
         check(`${ label }/single source argument`, rendered.left.arguments[0], receiver.left);
         check(`${ label }/parameter guard`, rendered.left.callee.body.body[0].argument.type, 'ConditionalExpression');
       }
-    } else checkDeep(`${ label }/ordered effects`, rendered.expressions.map(node => node.name),
-      partial ? ['probe', 'synth'] : ['before', 'probe', 'after', 'synth']);
+    } else if (partial) {
+      const [first, value] = rendered.expressions;
+      check(`${ label }/source first`, first.name, 'probe');
+      check(`${ label }/nullish receiver reaches the pattern`, value.consequent.name, 'probe');
+      check(`${ label }/defined receiver reaches the synth`, value.alternate.name, 'synth');
+    } else checkDeep(`${ label }/ordered effects`, rendered.expressions.map(node => node.name), ['before', 'probe', 'after', 'synth']);
   });
 }
 
 for (const [name, expression, entries, rescue, effects] of [
   ['complete call', 'make()', [served], true, ['make()']],
-  ['partial quiet receiver', 'Array', [served, unresolved], false, []],
+  ['partial quiet receiver', 'Array', [served, unresolved], false, ['Array']],
   ['instance owns its receiver', 'make()', [instance], false, []],
   ['fallback owns only its left', '(effect(), Array) || dead()', [served], false, ['effect()']],
   ['nested navigation keeps effects', 'globalThis[(effect(), "self")].Array', [served], true, ['effect()']],
@@ -155,6 +160,74 @@ for (const nested of [false, true]) runBoth(`source rescue ownership/${ nested }
     check(`${ label }/source ownership survives child rewrite`, rendered.expressions[0], nested ? effect : receiver);
     check(`${ label }/one effect before the literal`, rendered.expressions.length, 2);
     check(`${ label }/live effect rewrite`, effect.callee.name, 'visitedEffect');
+  });
+
+for (const receiver of ['Map', 'globalThis.self.Map']) for (const coverage of ['full', 'partial', 'opted-out']) {
+  runBoth(`canonical retained receiver/${ receiver }/${ coverage }`, `consume(${ receiver });`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression');
+    const [node] = path.node.arguments;
+    function resolvePure(meta) {
+      return meta.kind === 'global' && meta.name === 'Map'
+        ? { kind: 'global', entry: 'map/constructor', hintName: 'Map' }
+        : meta.kind === 'property' && meta.object === 'Map' && meta.key === 'groupBy'
+          ? { kind: 'static', entry: 'map/group-by', hintName: 'Map$groupBy' } : null;
+    }
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const entries = [{ lookupKey: 'groupBy', optedOut: coverage === 'opted-out' }];
+    if (coverage === 'partial') entries.push({ lookupKey: 'missing' });
+    const before = JSON.stringify(program.node);
+    const options = { receiver: node, entries, scope: path.scope, path, adapter, resolvePure };
+    planSynthReceiverActivation(options);
+    const plan = planSynthReceiverActivation(options);
+    check(`${ label }/coverage`, plan.fullyCovered, coverage === 'full');
+    check(`${ label }/canonical landing`, plan.memoRead?.pure?.entry ?? null, coverage === 'full' ? null : 'map/constructor');
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+}
+
+runBoth('a partial optional receiver keeps its canonical landing', 'consume(globalThis.window?.self.Array);',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression');
+    const [receiver] = path.node.arguments;
+    function resolvePure(meta) {
+      return ['globalThis', 'self'].includes(meta.name) ? { kind: 'global', entry: meta.name, hintName: meta.name } : null;
+    }
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const before = JSON.stringify(program.node);
+    const plan = planSynthReceiverActivation({
+      receiver, entries: [{ lookupKey: 'other' }], path, scope: path.scope, adapter, resolvePure,
+    });
+    const rendered = renderMemoReadTarget(plan.memoRead, { injectImport: entry => `_${ entry }` });
+    check(`${ label }/guard`, rendered.type, 'ConditionalExpression');
+    check(`${ label }/landing root`, rendered.alternate.object.name, '_self');
+    check(`${ label }/landing tail`, rendered.alternate.property.name, 'Array');
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+    const landing = identifier('canonicalLanding');
+    const activation = renderSynthReplacement([served, unresolved], {
+      receiver, guard: plan.synthGuard, checkNullish: plan.checkNullish,
+      aliasCtx: { path, scope: path.scope, adapter },
+      renderMemoArgument: () => landing,
+      renderLiteral: () => identifier('synth'),
+      createMemo: () => identifier('memo'),
+      cloneHost: node => node,
+    });
+    check(`${ label }/guard uses the saved canonical landing`, activation.arguments[0], landing);
+  });
+
+for (const [receiver, prelude, checkNullish] of [
+  ['Array', '', false],
+  ['(effect(), Array)', '', false],
+  ['Array', 'const Array = unknown;', true],
+  ['unknown', '', true],
+]) runBoth(`partial receiver null arm/${ receiver }/${ prelude }`, `${ prelude } consume(${ receiver });`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'consume');
+    const [node] = path.node.arguments;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planSynthReceiverActivation({
+      receiver: node, entries: [{ lookupKey: 'missing' }], path, scope: path.scope, adapter, resolvePure: () => null,
+    });
+    check(`${ label }/source proof`, plan.checkNullish, checkNullish);
   });
 
 finish();

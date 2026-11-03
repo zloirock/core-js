@@ -3,7 +3,9 @@ import {
   bindingDeclarationPath,
   isTSTypeOnlyIdentifierPath,
   SINGLE_STATEMENT_SLOTS,
+  capturedPatternSource,
   markCapturedKeyedPattern,
+  markCapturedPatternSource,
   isCapturedKeyedPattern,
   allProxySelectingInit,
   aliasEscaped,
@@ -771,6 +773,8 @@ export function renderNestedKeyedPatternCapture(plan, {
           ordered.push({ expression: renderLeaf(leafReceiver) });
         } else if (!pairedRoot || prop !== level.prop || receiver !== null) {
           const pattern = pairedRoot ? source.value : { ...level.pattern, properties: [source] };
+          // Only a root residual reads the capture source; an inner level has its own receiver.
+          if (!pairedRoot && index === 0) markCapturedPatternSource(pattern, { node: plan.init, ctx: plan.ctx });
           ordered.push({ declarator: variableDeclarator(embed(pattern), init) });
         }
         receiverCoerced = true;
@@ -2399,6 +2403,8 @@ export function renderRetainedObjectCapture(plan, {
     } else {
       const residual = { ...plan.pattern, properties: [prop] };
       if (isCapturedKeyedPattern(plan.pattern)) markCapturedKeyedPattern(residual);
+      const source = capturedPatternSource(plan.pattern);
+      if (source) markCapturedPatternSource(residual, source);
       const pattern = embed(residual);
       if (plan.assignment) assignments.push(assignmentExpression('=', pattern, ref()));
       else declarations.push(variableDeclarator(pattern, ref()));

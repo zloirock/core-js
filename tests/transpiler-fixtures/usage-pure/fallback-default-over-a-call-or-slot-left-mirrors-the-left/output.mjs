@@ -13,55 +13,79 @@ class K {
 export function viaCall({
   groupBy,
   prototype
-} = {
-  groupBy: _Map$groupBy,
-  prototype: mkM().prototype
-}) {
+} = function (_ref) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref.prototype;
+    }
+  };
+}(mkM())) {
   return [groupBy, prototype];
 }
 export function viaIife({
   groupBy,
   prototype
-} = {
-  groupBy: _Map$groupBy,
-  prototype: (() => _Map)().prototype
-}) {
+} = function (_ref2) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref2.prototype;
+    }
+  };
+}((() => _Map)())) {
   return [groupBy, prototype];
 }
 export function viaSlot({
   groupBy,
   prototype
-} = {
-  groupBy: _Map$groupBy,
-  prototype: box.U.prototype
-}) {
+} = function (_ref3) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref3.prototype;
+    }
+  };
+}(box.U)) {
   return [groupBy, prototype];
 }
 export function viaStatic({
   groupBy,
   prototype
-} = {
-  groupBy: _Map$groupBy,
-  prototype: K.U.prototype
-}) {
+} = function (_ref4) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref4.prototype;
+    }
+  };
+}(K.U)) {
   return [groupBy, prototype];
 }
 export function viaSequence({
   groupBy,
   prototype
-} = {
-  groupBy: _Map$groupBy,
-  prototype: mkM().prototype
-}) {
+} = function (_ref5) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref5.prototype;
+    }
+  };
+}((0, mkM()))) {
   return [groupBy, prototype];
 }
 function local({
   groupBy,
   prototype
-} = {
-  groupBy: _Map$groupBy,
-  prototype: mkM().prototype
-}) {
+} = function (_ref6) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref6.prototype;
+    }
+  };
+}(mkM())) {
   return [groupBy, prototype];
 }
 export const viaLocal = local();

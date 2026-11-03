@@ -9,7 +9,9 @@ import _self from "@core-js/pure/actual/self";
   from
 }) => [of(3), from([4])])(function (_ref) {
   return {
-    of: _ref.of,
+    get of() {
+      return _ref.of;
+    },
     from: _Array$from
   };
 }((null == (() => {

@@ -64,7 +64,6 @@ import {
   planLiteralResidual,
   planLiteralRoute,
   planInitializerNavigation,
-  synthPlanFullyCovered,
   planSynthReceiverActivation,
   buildNestedDestructurePlan,
   destructureReadKeepsKey,
@@ -547,12 +546,7 @@ export default function createAstDestructureEmitter({
     // routes it through the function-IIFE memo channel - the receiver runs ONCE as the
     // argument, unresolved keys read the memo param, resolved ones their polyfill
     const { callBranch } = sePolicy;
-    let memoArgPlan = null;
-    if (callBranch) {
-      // the canonical re-read target resolves on the PRISTINE tree - at drain time the
-      // in-place claims would already have reshaped the spine
-      memoArgPlan = planMemoArg(receiver.type === 'LogicalExpression' ? receiver.left : receiver, metaPath);
-    } else if (baseIdent?.type !== 'Identifier' && baseIdent?.type !== 'ThisExpression'
+    if (!callBranch && baseIdent?.type !== 'Identifier' && baseIdent?.type !== 'ThisExpression'
       && !(baseIdent === receiver && receiver?.type === 'MemberExpression')
       // ... save a collapsed fallback's LEFT the receiver canon admitted (`findSynthSwapReceiver`: a member or
       // a quiet call), which the passthrough re-spells as the other leg's swap does (`passthroughBase`)
@@ -564,7 +558,8 @@ export default function createAstDestructureEmitter({
       const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter });
       if (!plan) return false;
       const activation = planSynthReceiverActivation({
-        receiver, ...nodeSite(receiver, metaPath), adapter, resolvePure: meta => resolvePure(meta, metaPath),
+        receiver, entries: plan, callBranch, ...nodeSite(receiver, metaPath), adapter,
+        resolvePure: meta => resolvePure(meta, metaPath),
       });
       pending = {
         plan, receiver, baseName: callBranch || baseIdent.type !== 'Identifier' ? null : baseIdent.name,
@@ -572,7 +567,6 @@ export default function createAstDestructureEmitter({
           && baseIdent.type !== 'Identifier' && baseIdent.type !== 'ThisExpression' ? baseIdent : null,
         baseIsProxy,
         passthroughPrefix,
-        callBranch,
         // the provider's own verdict on whether the receiver's READ has to run: the same
         // `classifyCallBranchForSynth` answer babel's swap consumes
         rescueSe: sePolicy.rescueSe ?? null,
@@ -580,12 +574,7 @@ export default function createAstDestructureEmitter({
         // pattern is visited before its own init and babel numbers by that order
         // ... and only where the pattern will NOT be fully covered: a covered one renders the flat
         // rescue and never reads the param, and the idle mint costs the LIVE one its slot
-        memoName: callBranch
-          && !synthPlanFullyCovered(plan, receiver, {
-            contextFor: node => ({ ...nodeSite(node, metaPath), adapter }),
-            resolvePure: meta => resolvePure(meta, metaPath),
-          }) ? mintRefName() : null,
-        memoArgPlan,
+        memoName: callBranch && !activation.fullyCovered ? mintRefName() : null,
         ...activation,
         // ... and the SHAPE of the sealed read the swap erases, planned on the PRISTINE tree:
         // by drain time the walk has rendered that nav into its guard and the seal is gone
@@ -595,7 +584,7 @@ export default function createAstDestructureEmitter({
       };
       synthLedger.set(pattern, pending);
     }
-    const { synthGuard } = pending;
+    const { synthGuard, memoRead: memoArgPlan } = pending;
     // the replace target must not be swapped out from under the registration by the
     // ordinary arms (the drain would miss the detached node); a collapsed logical keeps its
     // SE prefix LIVE and kills only the tail ident and the dropped branch
@@ -641,7 +630,7 @@ export default function createAstDestructureEmitter({
   function handlePerBranch({ metaPath, meta = null, sourcePath = metaPath }) {
     const prop = metaPath.node;
     if (prop.type !== 'Property') return;
-    if (destructureRetainsLiteralWrapper({ propPath: metaPath, kind: 'static', adapter })) return;
+    if (destructureRetainsLiteralWrapper({ propPath: metaPath, kind: 'static', adapter, meta })) return;
     const patternPath = metaPath.parentPath;
     const pattern = patternPath?.node;
     if (pattern?.type !== 'ObjectPattern') return;
@@ -709,12 +698,12 @@ export default function createAstDestructureEmitter({
         plan,
         receiver,
         slots: new Map(),
-        callBranch,
         rescueSe,
         metaPath,
         // Capture the source guard and sealed read before child claims rewrite either.
         ...planSynthReceiverActivation({
-          receiver, ...nodeSite(receiver, metaPath), adapter, resolvePure: meta => resolvePure(meta, metaPath),
+          receiver, entries: plan, callBranch, ...nodeSite(receiver, metaPath), adapter,
+          resolvePure: meta => resolvePure(meta, metaPath),
         }),
         sealedProbePlan: captureSealedNavProbe(receiver, metaPath, probeRenderCtx),
       };
@@ -1181,7 +1170,7 @@ export default function createAstDestructureEmitter({
     // every leaf of this pattern answers its receiver type before the routes below rewrite it
     primeDestructureReceiverTypes?.(metaPath);
     // A native wrapper keeps its written iteration even when another host injects.
-    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: metaPath, kind, adapter });
+    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: metaPath, kind, adapter, meta });
     if (!retainsLiteralWrapper) flattenArrayWrapperInits(metaPath, replaceSpread);
 
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that

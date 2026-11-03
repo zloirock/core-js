@@ -6,10 +6,14 @@ import _self from "@core-js/pure/actual/self";
 function read({
   of,
   length
-} = {
-  of: _Array$of,
-  length: (null == _globalThis.window ? void 0 : _self.Array).length
-}) {
+} = function (_ref) {
+  return null == _ref ? _ref : {
+    of: _Array$of,
+    get length() {
+      return _ref.length;
+    }
+  };
+}(null == _globalThis.window ? void 0 : _self.Array)) {
   return [of(effect()), length];
 }
 read();

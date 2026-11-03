@@ -1,15 +1,28 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
+import _Math$sign from "@core-js/pure/actual/math/sign";
+import _Math$trunc from "@core-js/pure/actual/math/trunc";
+import _Object$assign from "@core-js/pure/actual/object/assign";
+import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 // Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
 // Receiver evaluation, residual reads and independent claims remain live.
 const [{
   of: viaElementDefault
-} = {}] = [c ? Array : userObj];
+} = {}] = [c ? {
+  of: _Array$of
+} : userObj];
 const [{
   from: viaAnd
-}] = [c && Array];
+}] = [c && {
+  from: _Array$from
+}];
 const [{
   trunc: viaPrefix
-}] = [(mark++, c ? Math : userObj)];
+}] = [(mark++, c ? {
+  trunc: _Math$trunc
+} : userObj)];
 const viaIife = (([{
   fromEntries: fe
 }]) => fe)([c ? {
@@ -17,26 +30,34 @@ const viaIife = (([{
 } : userObj]);
 const [[{
   groupBy: viaDouble
-}]] = [[c ? Object : userObj]];
+}]] = [[c ? {
+  groupBy: _Object$groupBy
+} : userObj]];
 const [{
   w: {
     sign: viaArrayKeyed
   }
 }] = [{
-  w: c ? Math : userObj
+  w: c ? {
+    sign: _Math$sign
+  } : userObj
 }];
 const {
   w: {
     assign: viaHopDefault
   } = {}
 } = {
-  w: c ? Object : userObj
+  w: c ? {
+    assign: _Object$assign
+  } : userObj
 };
 const {
   0: {
     defineProperties: viaIndexKey
   }
-} = [c ? Object : userObj];
+} = [c ? {
+  defineProperties: _Object$defineProperties
+} : userObj];
 const {
   ['w']: {
     create: viaComputedHop

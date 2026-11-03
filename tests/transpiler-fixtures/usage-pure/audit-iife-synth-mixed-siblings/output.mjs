@@ -8,8 +8,10 @@ import _Array$of from "@core-js/pure/actual/array/of";
   from,
   isArray,
   of
-}) => isArray(from([1])) && of(1))({
+}) => isArray(from([1])) && of(1))((Array, {
   from: _Array$from,
-  isArray: Array.isArray,
+  get isArray() {
+    return Array.isArray;
+  },
   of: _Array$of
-});
+}));

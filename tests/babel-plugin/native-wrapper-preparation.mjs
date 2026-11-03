@@ -157,4 +157,72 @@ for (const [name, source, expected] of [
     ]));
   }
 }
+// Nullish binding coercion precedes computed keys. ES5 destructuring lowering itself
+// violates this order, so compare the source with our printed, unlowered programs here.
+for (const [name, source, expected] of [
+  ['partial default', `
+    function read({ [(effect(), 'of')]: of, length } = globalThis.window?.self.Array) { return [of, length]; }
+    try { read(); } catch (error) { publish(error.name); }
+  `, ['TypeError']],
+  ['selected argument', `
+    function read(flag, value) {
+      return (([{ [(effect(), 'from')]: from, missing = (effect('default'), 7) }], extra) => {
+        effect('body'); return [from, missing, extra];
+      })([(effect('source'), flag ? Array : value)], (effect('argument'), 11));
+    }
+    try { read(false, null); } catch (error) { publish(error.name); }
+  `, ['source', 'argument', 'TypeError']],
+]) for (const leg of ['native', 'babel', 'unplugin', 'pre+post']) {
+  const pluginOptions = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const plugin = createUnplugin(pluginOptions);
+  let code = leg === 'native' ? source : leg === 'babel'
+    ? (await transformAsync(source, { ...options, plugins: [[babelPlugin, pluginOptions]] })).code
+    : plugin.transform(source, '/input.mjs', leg === 'pre+post' ? 'pre' : 'single')?.code ?? source;
+  if (leg === 'pre+post') code = plugin.transform(code, '/input.mjs', 'post')?.code ?? code;
+  code = (await transformAsync(code, {
+    ...options, plugins: [requireBabel('@babel/plugin-transform-modules-commonjs')],
+  })).code;
+  const events = [];
+  runInNewContext(code, {
+    require: requireBabel,
+    window: null,
+    effect(kind = 'key') { events.push(kind); },
+    publish(value) { events.push(value); },
+  });
+  check(`${ name }/${ leg }/coercion precedes the key`, JSON.stringify(events), JSON.stringify(expected));
+}
+
+// Sibling transforms clone the getter inserted for an opted-out native slot. Its
+// source opt-out must survive those clones, not only a later print/parse boundary.
+const optedOutSource = `
+  function read({ from,
+    // core-js-disable-next-line
+    of,
+  } = Array) { publish(from([3]), of()); }
+  read();
+`;
+for (const leg of ['babel', 'babel/reparsed', 'unplugin', 'pre+post']) {
+  const pluginOptions = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const plugins = ['parameters', 'destructuring', 'block-scoping', 'computed-properties', 'modules-commonjs']
+    .map(transform => requireBabel(`@babel/plugin-transform-${ transform }`));
+  let code;
+  if (leg.startsWith('babel')) {
+    code = (await transformAsync(optedOutSource, {
+      ...options, plugins: [[babelPlugin, pluginOptions], ...plugins],
+    })).code;
+    if (leg === 'babel/reparsed') code = (await transformAsync(code, {
+      ...options, plugins: [[babelPlugin, pluginOptions]],
+    })).code;
+  } else {
+    const plugin = createUnplugin(pluginOptions);
+    const printed = plugin.transform(optedOutSource, '/input.mjs', leg === 'pre+post' ? 'pre' : 'single')?.code ?? optedOutSource;
+    code = (await transformAsync(printed, { ...options, plugins })).code;
+    if (leg === 'pre+post') code = plugin.transform(code, '/input.cjs', 'post')?.code ?? code;
+  }
+  let result;
+  const context = createContext({ require: requireBabel, publish(...values) { result = JSON.stringify(values); } });
+  runInContext('delete Array.from; Array.of = function () { return 41; };', context);
+  runInContext(code, context);
+  check(`${ leg }/co-transform preserves the opted-out slot`, result, '[[3],41]');
+}
 finish();

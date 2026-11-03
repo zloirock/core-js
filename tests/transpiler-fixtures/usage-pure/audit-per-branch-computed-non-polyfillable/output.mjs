@@ -8,8 +8,10 @@ const cond = Math.random() > 0.5;
 const {
   [k]: x,
   from
-} = cond ? {
-  [k]: Array[k],
+} = cond ? (Array, {
+  get [k]() {
+    return Array[k];
+  },
   from: _Array$from
-} : _Set;
+}) : _Set;
 [x, from];

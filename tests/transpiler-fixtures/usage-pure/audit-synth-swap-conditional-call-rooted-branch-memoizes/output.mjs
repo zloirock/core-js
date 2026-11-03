@@ -11,7 +11,9 @@ function f(cond, {
 } = cond ? function (_ref) {
   return {
     from: _Array$from,
-    isArray: _ref.isArray
+    get isArray() {
+      return _ref.isArray;
+    }
   };
 }((() => {
   _globalThis.c++;

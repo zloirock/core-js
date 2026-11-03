@@ -5,8 +5,10 @@ import _Array$from from "@core-js/pure/actual/array/from";
 const r = (({
   from,
   myExtension
-}) => [from, myExtension])({
+}) => [from, myExtension])((Array, {
   from: _Array$from,
-  myExtension: Array.myExtension
-});
+  get myExtension() {
+    return Array.myExtension;
+  }
+}));
 export { r };

@@ -10,15 +10,19 @@ export function read(pick, nested) {
     missing = (_pushMaybeArray(log).call(log, 'default'), 9)
   } = (_pushMaybeArray(log).call(log, 'before'), pick
   // The selected leaf registers before its dead right is removed.
-  ? nested ? (_pushMaybeArray(log).call(log, 'array'), {
+  ? nested ? (_pushMaybeArray(log).call(log, 'array'), Array, {
     from: _Array$from,
     of: _Array$of,
-    missing: Array.missing
+    get missing() {
+      return Array.missing;
+    }
   }) : function (_ref) {
     return {
       from: _Array$from,
       of: _Array$of,
-      missing: _ref.missing
+      get missing() {
+        return _ref.missing;
+      }
     };
   }((() => {
     _pushMaybeArray(log).call(log, 'call');

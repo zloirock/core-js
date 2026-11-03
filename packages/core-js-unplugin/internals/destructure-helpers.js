@@ -7,7 +7,6 @@ import {
   conditionalDestructureLeftUntouchedWarning,
   descendReceiverPathByKeys,
   fallbackDestructureHasPolyfillableBranch,
-  planSynthReceiverGuard,
   patternHopKeysToHost,
   decidedRunningOperand,
   liftedRealmNavEffect,
@@ -68,6 +67,7 @@ import {
   partitionDestructureReads,
   planDestructureKeySegments,
   planDestructureInstanceSynth,
+  planSynthReceiverActivation,
   initializerEffectParts,
   chainAssignOverPureNav,
   planDiscardedInit,
@@ -1264,7 +1264,7 @@ export function registerInstanceSynthSlot({
     const plan = buildPatternRenderPlan(pattern, { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter });
     if (!plan) return false;
     pending = { plan, receiver, slots: new Map(), metaPath, instanceReceiver: receiver,
-      synthGuard: planSynthReceiverGuard({ receiver, ...nodeSite(receiver, metaPath), adapter: ctx.adapter,
+      ...planSynthReceiverActivation({ receiver, entries: plan, ...nodeSite(receiver, metaPath), adapter: ctx.adapter,
         resolvePure: meta => ctx.resolvePure(meta, metaPath) }),
       sealedProbePlan: captureSealedNavProbe(receiver, metaPath, ctx) };
     synthLedger.set(pattern, pending);

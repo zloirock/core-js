@@ -8,11 +8,13 @@ function f({
   from,
   isArray,
   of
-} = {
+} = (Array, {
   from: _Array$from,
-  isArray: Array.isArray,
+  get isArray() {
+    return Array.isArray;
+  },
   of: _Array$of
-}) {
+})) {
   return isArray(from([1, 2])) && of(1);
 }
 f;

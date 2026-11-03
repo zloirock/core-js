@@ -5,10 +5,12 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // Shared capture and receiver-default routes preserve independently supported claims.
 // Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
 export function flat(flag, user) {
-  const _ref = flag ? {
+  const _ref = flag ? (Array, {
       from: _Array$from,
-      at: Array.at
-    } : user,
+      get at() {
+        return Array.at;
+      }
+    }) : user,
     from = _ref === Array ? _Array$from : _ref.from,
     at = _at(_ref);
   return [from, at];
@@ -17,17 +19,24 @@ export function nested(flag, user) {
   const {
       w: _ref2
     } = {
-      w: flag ? Array : user
+      w: flag ? (Array, {
+        from: _Array$from,
+        get includes() {
+          return Array.includes;
+        }
+      }) : user
     },
     from = _ref2 === Array ? _Array$from : _ref2.from,
     includes = _includes(_ref2);
   return [from, includes];
 }
 export function loop(flag, user) {
-  for (const _ref3 of [flag ? {
+  for (const _ref3 of [flag ? (Array, {
     from: _Array$from,
-    map: Array.map
-  } : user]) {
+    get map() {
+      return Array.map;
+    }
+  }) : user]) {
     const {
         from
       } = _ref3,

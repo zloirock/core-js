@@ -1,7 +1,8 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // A selection whose LEFT holds a mirrored leaf gives way to that left: the literal is always defined,
@@ -25,7 +26,11 @@ const {
     groupBy
   }
 } = {
-  B: c ? Object : _Map
+  B: c ? {
+    groupBy: _Object$groupBy
+  } : {
+    groupBy: _Map$groupBy
+  }
 };
 function effectInRight(o) {
   const {

@@ -11,7 +11,9 @@ function g({
   var _ref;
   return _atMaybeArray(_ref = [1]).call(_ref, 0), Array, {
     from: _Array$from,
-    isArray: Array.isArray
+    get isArray() {
+      return Array.isArray;
+    }
   };
 })()) {
   return [from([1]), isArray([])];

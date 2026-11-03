@@ -7,10 +7,13 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { buildNestedDestructurePlan, planCatchClauseExtraction, resolvePolyfillableStaticProp } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
+  buildDestructureLeafMeta,
+  classifyDestructureLeafHost,
   computedRootMemoChain,
   decidedSelection,
   destructurePropLeafMeta,
   destructureRetainsLiteralWrapper,
+  destructureSourceIsLiteralWrapper,
   isReReferenceableAcrossReads,
   residualInitRunsEffects,
   resolveNestedReceiverChain,
@@ -23,7 +26,10 @@ import {
   planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderArrayDestructurePlan,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { collectFileCensus, isPropertyNode, patternFullyConsumed, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  capturedPatternSource, collectFileCensus, isCapturedKeyedPattern, isPropertyNode,
+  markCapturedKeyedPattern, markCapturedPatternSource, patternFullyConsumed, walkAstNodes,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('destructure-collapse');
@@ -49,6 +55,18 @@ for (const [name, source, expected, kind = 'static'] of [
   ['IIFE loop element', 'for (const { w: { from } } of [(() => ({ w: Array }))()]) {}', true],
   ['IIFE realm return', 'const { Array: { from } } = (() => globalThis)();', false],
   ['call fallback', 'const { 0: { from } = {} } = make();', false],
+  ['loop body after an effect', 'for (const row of [{ C: Array }]) { effect(); const { C: { from } } = row; }', true],
+  ['loop body nested block', 'for (const row of [{ C: Array }]) { if (flag) { const { C: { from } } = row; } }', true],
+  ['loop body closure', 'for (const row of [{ C: Array }]) { const read = () => { const { C: { from } } = row; }; }', true],
+  ['loop body assignment', 'let from; for (const row of [{ C: Array }]) { effect(); ({ C: { from } } = (row)); }', true],
+  ['loop body alias', 'for (const row of [{ C: Array }]) { const held = row; const { C: { from } } = held; }', true],
+  ['loop source prefix', 'for (const row of [(effect(), { C: Array })]) { const { C: { from } } = row; }', true],
+  ['loop mixed sources', 'for (const row of [{ C: Array }, source]) { const { C: { from } } = row; }', false],
+  ['loop source reassigned', 'for (let row of [{ C: Array }]) { row = source; const { C: { from } } = row; }', false],
+  ['loop shadow', 'for (const row of [{ C: Array }]) { function read(row) { const { C: { from } } = row; } }', false],
+  ['IIFE parameter', '(({ C: { from } }) => from)({ C: Array });', true],
+  ['IIFE array parameter', '(([{ from }]) => from)([Array]);', true],
+  ['IIFE unknown argument', '(({ C: { from } }) => from)(source);', false],
   ['instance sibling', 'const [{ from }] = [Array.prototype];', false, 'instance'],
 ]) runBoth(`retained literal wrapper/${ name }`, source, (parser, program, label) => {
   const propPath = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
@@ -57,6 +75,67 @@ for (const [name, source, expected, kind = 'static'] of [
   const before = JSON.stringify(propPath.node);
   check(label, destructureRetainsLiteralWrapper({ propPath, kind, adapter }), expected);
   check(`${ label }/query keeps source`, JSON.stringify(propPath.node), before);
+});
+
+for (const [name, source] of [
+  ['declaration', 'const [{ from }] = [flag ? Array : foreign];'],
+  ['assignment', 'let from; ([{ from }] = [flag ? Array : foreign]);'],
+  ['array parameter', '(([{ from }]) => from)([flag ? Array : foreign]);'],
+  ['object parameter', '(({ w: [{ from }] }) => from)({ w: [flag ? Array : foreign] });'],
+  ['spread parameter', '(([{ from }]) => from)(...[[flag ? Array : foreign]]);'],
+  ['wrapped selection', '(([{ from }]) => from)([(effect(), flag ? Array : foreign)]);'],
+  ['logical selection', '(([{ from }]) => from)([foreign || Array]);'],
+]) runBoth(`literal wrapper branch admission/${ name }`, source, (parser, program, label) => {
+  const propPath = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    item => item.parentPath.node.type === 'ObjectPattern' && item.node.key.name === 'from');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const meta = buildDestructureLeafMeta({
+    descriptor: classifyDestructureLeafHost({ objectPattern: propPath.parentPath }), key: 'from', adapter,
+  });
+  check(`${ label }/existing branch proof`, meta?.fromFallback, true);
+  check(`${ label }/source remains a literal`, destructureRetainsLiteralWrapper({ propPath, kind: 'static', adapter }), true);
+  check(`${ label }/generic route is not forbidden`, destructureRetainsLiteralWrapper({
+    propPath, kind: 'static', adapter, meta,
+  }), false);
+});
+
+runBoth('captured pattern source identity', 'const source = { C: Array }; const { C: { from } } = unknown;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const source = parser.pickPath(program, 'ObjectExpression').node;
+  const pattern = path.node.id;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  const record = { node: source, ctx };
+  check(`${ label }/unmarked source`, destructureSourceIsLiteralWrapper(path.node.init, ctx, pattern), false);
+  markCapturedPatternSource(pattern, record);
+  check(`${ label }/source identity`, capturedPatternSource(pattern), record);
+  check(`${ label }/capture preserves source`, destructureSourceIsLiteralWrapper(path.node.init, ctx, pattern), true);
+  check(`${ label }/source provenance is not a moved leaf`, isCapturedKeyedPattern(pattern), false);
+  check(`${ label }/unregistered clone`, destructureSourceIsLiteralWrapper(path.node.init, ctx, { ...pattern }), false);
+  markCapturedKeyedPattern(pattern);
+  check(`${ label }/marking a moved leaf keeps source`, capturedPatternSource(pattern), record);
+});
+
+for (const [name, source, object, placement] of [
+  ['literal default', 'function read([{ entries }] = [Object]) {}', null, null],
+  ['selected default', 'function read([{ entries }] = [flag ? Object : {}]) {}', null, null],
+  ['inner default', 'function read({ a: { b: { entries } = Map } = { b: undefined } } = { a: undefined }) {}', 'Map', 'static'],
+  [
+    'imported inner default',
+    'import M from "@core-js/pure/actual/map/constructor"; function read({ a: { b: { entries } = M } = { b: undefined } } = { a: undefined }) {}',
+    null, 'prototype',
+  ],
+]) runBoth(`parameter default receiver/${ name }`, source, (parser, program, label) => {
+  const objectPattern = parser.pickPath(program, 'ObjectPattern', path => path.node.properties.some(prop => prop.key?.name === 'entries'));
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const meta = buildDestructureLeafMeta({
+    descriptor: classifyDestructureLeafHost({ objectPattern }), key: 'entries', adapter,
+    resolvePure: candidate => candidate.object
+      ? candidate.object === 'Object' ? { kind: 'static', entry: 'object/entries' } : null
+      : { kind: 'instance', entry: 'instance/entries' },
+  });
+  check(`${ label }/object`, meta?.object, object);
+  check(`${ label }/placement`, meta?.placement, placement);
 });
 
 // Plain deep proxy navigation uses the receiver's throw proof; live guards and a

@@ -4,10 +4,12 @@ export function read(pick) {
   return (({
     from,
     missing = 9
-  } = {
+  } = (Array, {
     from: _Array$from,
-    missing: Array.missing
-  }) => [from([7])[0], missing])(pick ? void 0 : {
+    get missing() {
+      return Array.missing;
+    }
+  })) => [from([7])[0], missing])(pick ? void 0 : {
     from: _Array$from,
     missing: Array.missing
   });

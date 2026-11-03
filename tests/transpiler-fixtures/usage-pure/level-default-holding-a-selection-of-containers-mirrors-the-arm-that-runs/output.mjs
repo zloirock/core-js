@@ -1,6 +1,6 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
 // Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
 // Supplied values and defaults keep their source branches and independent claims.
 const {

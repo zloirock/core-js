@@ -12,10 +12,12 @@ import _Array$of from "@core-js/pure/actual/array/of";
   from,
   of,
   "z": z
-} = {
+} = (Array, {
   from: _Array$from,
   of: _Array$of,
-  "z": Array["z"]
-}) {
+  get "z"() {
+    return Array["z"];
+  }
+})) {
   return [from, of, z];
 })();

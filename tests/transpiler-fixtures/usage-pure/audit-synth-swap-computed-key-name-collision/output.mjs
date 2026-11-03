@@ -7,10 +7,12 @@ const k = "of";
 function f({
   k: v,
   [k]: w
-} = {
-  k: Array.k,
+} = (Array, {
+  get k() {
+    return Array.k;
+  },
   [k]: _Array$of
-}) {
+})) {
   return [v, w];
 }
 f();

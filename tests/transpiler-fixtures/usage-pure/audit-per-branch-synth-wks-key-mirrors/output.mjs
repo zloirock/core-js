@@ -10,11 +10,15 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 function f({
   [_Symbol$iterator]: it,
   from
-} = cond ? {
-  [_Symbol$iterator]: _getIteratorMethod(Array),
+} = cond ? (Array, {
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(Array);
+  },
   from: _Array$from
-} : {
-  [_Symbol$iterator]: _getIteratorMethod(_Iterator),
+}) : {
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_Iterator);
+  },
   from: _Iterator$from
 }) {
   return [it, from];

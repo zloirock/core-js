@@ -13,7 +13,9 @@ function deepHop({
   other
 } = {
   groupBy: _Map$groupBy,
-  other: _Map.other
+  get other() {
+    return _Map.other;
+  }
 }) {
   return [groupBy, other];
 }
@@ -25,7 +27,9 @@ const viaIife = (({
   missing
 } = {
   try: _Promise$try,
-  missing: _Promise.missing
+  get missing() {
+    return _Promise.missing;
+  }
 }) => [t, missing])();
 
 // alias root: the pure-ctor whole-swap wins over the alias-keep branch - the alias only
@@ -36,7 +40,9 @@ function aliasRoot({
   more
 } = {
   groupBy: _Map$groupBy,
-  more: _Map.more
+  get more() {
+    return _Map.more;
+  }
 }) {
   return [gb, more];
 }

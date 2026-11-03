@@ -8,11 +8,13 @@ function f({
   from,
   [k]: z,
   of
-} = {
+} = (Array, {
   from: _Array$from,
-  [k]: Array[k],
+  get [k]() {
+    return Array[k];
+  },
   of: _Array$of
-}) {
+})) {
   return [from, of, z];
 }
 f();
