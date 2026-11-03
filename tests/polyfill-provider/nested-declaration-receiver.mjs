@@ -154,6 +154,21 @@ for (const [expression, keys] of [
   checkDeep(label, proxyNavHead(receiver, { adapter }), keys ? { rootName: 'globalThis', keys } : null);
 });
 
+// Realm-looking names must pass the same scoped proof as ordinary member reads.
+for (const name of ['self', 'window', 'globalThis', 'global']) {
+  for (const source of [
+    `function read(${ name }) { const value = ${ name }.list; }`,
+    `function read() { const ${ name } = this; const value = ${ name }.list; }`,
+    `const ${ name } = { list: [] }; const value = ${ name }.list;`,
+  ]) runBoth(`scoped proxy head/${ name }`, source, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+    const { adapter } = context(parser);
+    const ctx = { adapter, scope: path.scope, path };
+    check(`${ label }/source context`, proxyNavHead(path.node.init, ctx), null);
+    check(`${ label }/guard context`, proxyNavHead(path.node.init, { adapter, guardCtx: { aliasCtx: ctx } }), null);
+  });
+}
+
 for (const ownThis of [false, true]) {
   const source = 'const { Array: { prototype: { at: method } }, kept } = this;';
   runBoth(`surface this/own=${ ownThis }`, ownThis ? `function read() { ${ source } }` : source, (parser, program, label) => {

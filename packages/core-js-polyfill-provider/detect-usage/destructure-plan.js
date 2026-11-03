@@ -574,7 +574,7 @@ export function planNestedDeclarationReceiver({
   const surfaceOptions = { ctx, isOwnAlias };
   const defaultHost = typedChain?.leafPattern?.parentPath?.node;
   const defaultSlot = defaultHost?.type === 'AssignmentPattern' ? defaultHost : null;
-  const proxyNav = proxyNavHead(root, { adapter, guardCtx });
+  const proxyNav = proxyNavHead(root, { ...ctx, guardCtx });
   if (proxyNav) {
     const { rootName, keys: headKeys } = proxyNav;
     const ref = resolvePassthroughRef({
@@ -857,11 +857,12 @@ export function chainAssignOverPureNav(node, guardCtx = null) {
   return stored && isPureNavReceiver(stored, guardCtx, { throughSequenceTails: true }) ? assign : null;
 }
 
-// The consumed read can reuse the pure binding on a guard's live branch. The discarded
-// guard still owes its probe, so the product must retain that obligation beside the name.
+// The consumed read can reuse the pure binding on a guard rendered by this pass.
+// A user conditional needs its capture, even with the same shape and realm-looking name.
+// The discarded own guard still owes its probe beside the reused live binding.
 function guardedInitializerBinding(initNode, injectorState) {
   const init = peelTransparentExpr(initNode);
-  if (init?.type !== 'ConditionalExpression' || init.consequent?.type !== 'UnaryExpression'
+  if (!isRenderedStoredValue(init) || init?.type !== 'ConditionalExpression' || init.consequent?.type !== 'UnaryExpression'
     || init.consequent.operator !== 'void') return null;
   const live = peelTransparentExpr(init.alternate);
   return live?.type === 'Identifier' && (POSSIBLE_GLOBAL_OBJECTS.has(live.name)

@@ -22293,6 +22293,52 @@ function * generateStoredUserReceivers() {
   }
 }
 
+// Scope, not a realm-looking spelling, owns receiver identity and default liveness.
+// User conditionals have no provenance from our guard render. Effectful realm keys
+// retain their native reads in pure; only their full-environment leg promises equality.
+function * generateRealmSourceIdentity() {
+  for (const name of ['self', 'window', 'globalThis', 'global']) {
+    for (const kind of ['flat', 'nested', 'default', 'guard']) {
+      const body = kind === 'flat' ? `const { at } = ${ name }.rows; return at.call(${ name }.rows, -1);`
+        : kind === 'nested' ? `const { inner: { includes } } = ${ name }.box; return includes.call(${ name }.box.inner, 7);`
+          : kind === 'default' ? `const { row: { at } = [11] } = { row: ${ name }.self }; return at.call([11], 0);`
+            : `const { at, includes } = test() ? void 0 : ${ name }; return [at.call(${ name }, 0), includes.call(${ name }, 7)];`;
+      const argument = kind === 'guard' ? '[7]' : '{ rows: [3, 7], box: { inner: [7] } }';
+      yield {
+        name: `realm-source-identity/${ name }/${ kind }`, strip: true,
+        code: `export const effects = [];
+          export function read(${ name }, test) { ${ body } }
+          export const r = read(${ argument }, () => { effects.push("test"); return effects.length > 1; });`,
+      };
+    }
+  }
+  const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+  for (const name of ['globalThis', 'self']) for (const kind of ['const', 'var']) {
+    yield {
+      name: `realm-source-identity/ambient/${ name }/${ kind }`, strip: true, ts: true,
+      code: `import { withTemporaryProperty } from ${ helper };
+        declare ${ kind } ${ name }: any;
+        export const effects = [];
+        export const r = withTemporaryProperty(globalThis, "self", globalThis, () => ${ name }.Array.of(13));`,
+    };
+  }
+  for (const base of ['globalThis', 'realm', '(realm = globalThis, realm)']) for (const assignment of [false, true]) {
+    const statement = assignment ? `({ Array: { from } } = (effects.push("prefix"), ${ base })[(effects.push("key"), "window")]);`
+      : `const { Array: { from } } = (effects.push("prefix"), ${ base })[(effects.push("key"), "window")];`;
+    yield {
+      name: `realm-source-identity/effectful-key/${ base }/${ assignment }`, strip: false,
+      code: `import { withTemporaryProperty } from ${ helper };
+        export const effects = []; export let r;
+        ${ base.startsWith('(') ? 'let realm;' : 'const realm = globalThis;' }
+        withTemporaryProperty(globalThis, "window", globalThis, () => {
+          ${ assignment ? 'let from;' : '' }
+          ${ statement }
+          r = typeof from;
+        });`,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22742,4 +22788,5 @@ export function * generate() {
   yield * generateGuardPrefixStores();
   yield * generateThisNavigationInitializers();
   yield * generateStoredUserReceivers();
+  yield * generateRealmSourceIdentity();
 }

@@ -6,6 +6,7 @@ import {
   planInitializerNavigation,
   planConsumedInitializerCarrier,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { renderShortCircuitGuard } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('initializer-carrier');
@@ -102,7 +103,9 @@ for (const [name, init, pattern, collapseLeaf, expected] of [
   ['two reads with a stable tail', '(effect(), globalThis)', '{ at: method, includes: another }', false, 'lift'],
   ['a stored stable tail', '(held = (effect(), globalThis))', '{ at: method, includes: another }', false, 'lift'],
   ['a getter cannot be read twice', '(effect(), user.value)', '{ at: method, includes: another }', false, 'memo'],
-  ['a guarded live binding keeps its probe', 'value == null ? void 0 : globalThis', '{ at: method, includes: another }', false, 'guard'],
+  ['a user realm conditional needs its capture', 'value == null ? void 0 : globalThis', '{ at: method, includes: another }', false, 'memo'],
+  ['a user condition runs once', '(effect(), false) ? void 0 : self', '{ at: method, includes: another }', false, 'memo'],
+  ['a generated guard keeps its probe', 'value == null ? void 0 : globalThis', '{ at: method, includes: another }', false, 'guard'],
   ['a user conditional needs its capture', 'value == null ? void 0 : user', '{ at: method, includes: another }', false, 'memo'],
   ['a collapsed store is still its own value', '(held = globalThis)', '{ at: method }', true, 'dispatch'],
 ]) runBoth(name, `let held; const ${ pattern } = ${ init };`, (parser, program, label) => {
@@ -111,9 +114,11 @@ for (const [name, init, pattern, collapseLeaf, expected] of [
   const ctx = { adapter, path, scope: path.scope, resolveGlobalPolyfill: () => null };
   const reads = path.node.id.properties.map(prop => ({ kind: 'instance', prop, collapseLeaf }));
   const before = JSON.stringify(program.node);
-  const plan = planConsumedInitializerCarrier(path.node.init, reads, ctx);
+  const initNode = name === 'a generated guard keeps its probe'
+    ? renderShortCircuitGuard(path.node.init.test, path.node.init.alternate) : path.node.init;
+  const plan = planConsumedInitializerCarrier(initNode, reads, ctx);
   check(`${ label }/carrier`, plan.carrier, expected);
-  checkDeep(`${ label }/repeat`, planConsumedInitializerCarrier(path.node.init, reads, ctx), plan);
+  checkDeep(`${ label }/repeat`, planConsumedInitializerCarrier(initNode, reads, ctx), plan);
   check(`${ label }/source untouched`, JSON.stringify(program.node), before);
 });
 
