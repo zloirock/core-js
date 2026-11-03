@@ -763,8 +763,6 @@ const base = {
   // sonarjs
   // alternatives in regular expressions should be grouped when used with anchors
   'sonarjs/anchor-precedence': ERROR,
-  // arguments to built-in functions should match documented types
-  'sonarjs/argument-type': OFF, // it seems does not work
   // bitwise operators should not be used in boolean contexts
   'sonarjs/bitwise-operators': ERROR,
   // function call arguments should not start on new lines
@@ -777,18 +775,8 @@ const base = {
   'sonarjs/cyclomatic-complexity': [OFF, { threshold: 16 }],
   // expressions should not be too complex
   'sonarjs/expression-complexity': [OFF, { max: 3 }],
-  // `in` should not be used with primitive types
-  'sonarjs/in-operator-type-error': ERROR,
   // functions should be called consistently with or without `new`
   'sonarjs/inconsistent-function-call': ERROR,
-  // `new` should only be used with functions and classes
-  'sonarjs/new-operator-misuse': [ERROR, { considerJSDoc: false }],
-  // `Array#{ sort, toSorted }` should use a compare function
-  'sonarjs/no-alphabetical-sort': ERROR,
-  // `delete` should not be used on arrays
-  'sonarjs/no-array-delete': ERROR,
-  // array indexes should be numeric
-  'sonarjs/no-associative-arrays': ERROR,
   // `switch` statements should not contain non-case labels
   'sonarjs/no-case-label-in-switch': ERROR,
   // collection sizes and array length comparisons should make sense
@@ -801,22 +789,14 @@ const base = {
   'sonarjs/no-empty-collection': ERROR,
   // function calls should not pass extra arguments
   'sonarjs/no-extra-arguments': ERROR,
-  // `for-in` should not be used with iterables
-  'sonarjs/no-for-in-iterable': ERROR,
   // global `this` object should not be used
   'sonarjs/no-global-this': ERROR,
   // boolean expressions should not be gratuitous
   'sonarjs/no-gratuitous-expressions': ERROR,
-  // `in` should not be used on arrays
-  'sonarjs/no-in-misuse': ERROR,
-  // strings and non-strings should not be added
-  'sonarjs/no-incorrect-string-concat': ERROR,
   // function returns should not be invariant
   'sonarjs/no-invariant-returns': ERROR,
   // literals should not be used as functions
   'sonarjs/no-literal-call': ERROR,
-  // array-mutating methods should not be used misleadingly
-  'sonarjs/no-misleading-array-reverse': ERROR,
   // assignments should not be redundant
   'sonarjs/no-redundant-assignments': ERROR,
   // boolean literals should not be redundant
@@ -831,10 +811,6 @@ const base = {
   'sonarjs/no-same-line-conditional': ERROR,
   // `switch` statements should have at least 3 `case` clauses
   'sonarjs/no-small-switch': ERROR,
-  // promise rejections should not be caught by `try` blocks
-  'sonarjs/no-try-promise': ERROR,
-  // `undefined` should not be passed as the value of optional parameters
-  'sonarjs/no-undefined-argument': ERROR,
   // errors should not be created without being thrown
   'sonarjs/no-unthrown-error': ERROR,
   // collection and array contents should be used
@@ -845,10 +821,6 @@ const base = {
   'sonarjs/no-useless-increment': ERROR,
   // non-existent operators `=+`, `=-` and `=!` should not be used
   'sonarjs/non-existent-operator': ERROR,
-  // properties of variables with `null` or `undefined` values should not be accessed
-  'sonarjs/null-dereference': ERROR, // it seems does not work
-  // arithmetic operations should not result in `NaN`
-  'sonarjs/operation-returning-nan': ERROR,
   // local variables should not be declared and then immediately returned or thrown
   'sonarjs/prefer-immediate-return': ERROR,
   // object literal syntax should be used
@@ -863,12 +835,6 @@ const base = {
   'sonarjs/slow-regex': ERROR,
   // regular expressions with the global flag should be used with caution
   'sonarjs/stateful-regex': ERROR,
-  // comparison operators should not be used with strings
-  'sonarjs/strings-comparison': ERROR,
-  // results of operations on strings should not be ignored
-  'sonarjs/useless-string-operation': ERROR,
-  // values not convertible to numbers should not be used in numeric comparisons
-  'sonarjs/values-not-convertible-to-numbers': ERROR,
 
   // math
   // enforce the conversion to absolute values to be the method you prefer
