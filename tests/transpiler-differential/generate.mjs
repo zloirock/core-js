@@ -22157,6 +22157,18 @@ try { let from, at, rest, result;
   }
 }
 
+// A consumed realm assignment returns its RHS independently of the supplied static leaf.
+function * generateConsumedRealmStatics() {
+  for (const host of ['init', 'return', 'argument', 'condition']) {
+    const assignment = '({ Symbol: { iterator } } = globalThis)';
+    const result = host === 'return' ? `(() => ${ assignment })()`
+      : host === 'argument' ? `(value => value)(${ assignment })`
+        : host === 'condition' ? `true && ${ assignment }` : assignment;
+    yield { ...snippet(`consumed-realm-static/${ host }`,
+      `(() => { let iterator; const result = ${ result }; return [result === globalThis, iterator === Symbol.iterator]; })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22600,4 +22612,5 @@ export function * generate() {
   yield * generateCaptureJobOwnership();
   yield * generateCanonicalReceiverBoundaries();
   yield * generateLivePatternPlans();
+  yield * generateConsumedRealmStatics();
 }

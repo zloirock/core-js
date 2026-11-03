@@ -458,6 +458,51 @@ for (const [name, entry, anchored] of [
     });
 }
 
+for (const [coerceLeaf, rest] of [[true, false], [false, false], [false, true]]) {
+  for (const anchored of [false, true]) for (const hostKind of ['declaration', 'statement', 'value']) {
+    const assignment = hostKind !== 'declaration';
+    const pattern = `{ Symbol: { iterator${ rest ? ', ...rest' : '' } } }`;
+    const source = assignment ? `let iterator, rest; ${ hostKind === 'value' ? 'const result = ' : '' }(${ pattern } = realm);`
+      : `const ${ pattern } = realm;`;
+    runBoth(`anchored capture/${ coerceLeaf }/${ rest }/${ anchored }/${ hostKind }`, source, (parser, program, label) => {
+      const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator',
+        path => (assignment ? path.node.left : path.node.id)?.type === 'ObjectPattern');
+      const init = assignment ? host.node.right : host.node.init;
+      const capture = planNestedKeyedPatternCapture({
+        pattern: assignment ? host.node.left : host.node.id, init, force: !rest,
+      });
+      check(`${ label }/plan admitted`, !!capture, true);
+      let refs = 0;
+      let leafReceiver;
+      const rendered = renderNestedKeyedPatternCapture(capture, {
+        assignment, preserveResult: hostKind === 'value', coerceLeaf,
+        mintRef: () => `memo${ ++refs }`,
+        anchorPure: anchored ? { entry: 'symbol', hintName: 'Symbol' } : null,
+        injectImport: () => 'SymbolImport',
+        renderLeaf: receiver => {
+          leafReceiver = receiver;
+          return callExpression(identifier('serveLeaf'), receiver ? [receiver] : []);
+        },
+      });
+      const invalidNames = [];
+      walkAstNodes({ root: rendered.expression ?? rendered.capture, visit(node) {
+        if (node.type === 'Identifier' && typeof node.name !== 'string') invalidNames.push(node.name);
+      } });
+      checkDeep(`${ label }/all generated identifiers are named`, invalidNames, []);
+      if (assignment && anchored && hostKind === 'value') {
+        const [save] = rendered.expression.expressions;
+        check(`${ label }/the result captures the original RHS`, save.right === init, true);
+        check(`${ label }/the result yields that capture`, rendered.expression.expressions.at(-1).name, save.left.name);
+        check(`${ label }/the leaf receives the constructor`, leafReceiver?.name, 'SymbolImport');
+        check(`${ label }/one result holder`, refs, 1);
+      } else if (!assignment && anchored) {
+        check(`${ label }/constructor initializes the capture`, rendered.capture.init.name, 'SymbolImport');
+        check(`${ label }/coercion needs no binding`, rendered.capture.id.type, coerceLeaf ? 'ObjectPattern' : 'Identifier');
+      }
+    });
+  }
+}
+
 for (const [source, expected, mutated = false] of [
   ['const { from, of, ...rest } = Array;', true],
   ['const { "from": from, "of": of, ...rest } = Array;', true],
