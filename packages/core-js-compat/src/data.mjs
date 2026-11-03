@@ -2544,8 +2544,6 @@ export const data = {
   },
   'esnext.data-view.set-uint8-clamped': {
   },
-  'esnext.function.demethodize': {
-  },
   'esnext.function.metadata': {
   },
   'esnext.iterator.range': {

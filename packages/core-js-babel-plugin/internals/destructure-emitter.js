@@ -1923,7 +1923,7 @@ export default function createDestructureEmitter({
   }
 
   // a leaf resolved as an INSTANCE member of the extracted iterator method: the synth call becomes
-  // the dispatcher's receiver (`_demethodize(_getIteratorMethod(x))`) instead of being destructured,
+  // the dispatcher's receiver (`_name(_getIteratorMethod(x))`) instead of being destructured,
   // the same shape a flat instance extraction emits. the call appears ONCE - the shared helper admits
   // a single leaf precisely so no memo is owed here. takes the LEAF (a plan extraction record and the
   // emitter's own resolution carry the same two fields), so both producers spell this once

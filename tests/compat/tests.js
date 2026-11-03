@@ -2085,9 +2085,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.data-view.set-uint8-clamped': function () {
     return DataView.prototype.setUint8Clamped;
   },
-  'esnext.function.demethodize': function () {
-    return Function.prototype.demethodize;
-  },
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },

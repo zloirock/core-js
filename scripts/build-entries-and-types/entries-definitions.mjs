@@ -13,7 +13,6 @@ import {
   $instanceArray,
   $instanceNumber,
   $instanceString,
-  $instanceFunction,
   $instanceDOMIterable,
   $instanceDOMIterableFromNative,
   $instanceArrayString,
@@ -1232,18 +1231,6 @@ export const features = {
     template: $namespace,
     name: 'Function',
   },
-  'function/demethodize': {
-    modules: ['esnext.function.demethodize'],
-    template: $uncurried,
-    namespace: 'Function',
-    name: 'demethodize',
-  },
-  'function/prototype/demethodize': {
-    modules: ['esnext.function.demethodize'],
-    template: $prototype,
-    namespace: 'Function',
-    name: 'demethodize',
-  },
   'function/name': {
     modules: ['es.function.name'],
     template: $helper,
@@ -1278,11 +1265,6 @@ export const features = {
     modules: ['es.array.copy-within'],
     template: $instanceArray,
     name: 'copyWithin',
-  },
-  'instance/demethodize': {
-    modules: ['esnext.function.demethodize'],
-    template: $instanceFunction,
-    name: 'demethodize',
   },
   'instance/ends-with': {
     modules: ['es.string.ends-with'],
@@ -3792,13 +3774,6 @@ export const proposals = {
       'es.data-view.get-float16',
       'es.data-view.set-float16',
       'es.math.f16round',
-    ],
-  },
-  'function-demethodize': {
-    link: 'https://github.com/js-choi/proposal-function-demethodize',
-    stage: 0,
-    modules: [
-      'esnext.function.demethodize',
     ],
   },
   'global-this': {

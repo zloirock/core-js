@@ -108,12 +108,6 @@ iCodePointAt('').call('a', 0);
 // @ts-expect-error
 iCodePointAt();
 
-// $instanceFunction
-import iDemethodize from '@core-js/pure/full/instance/demethodize';
-iDemethodize([].slice)([1, 2, 3], 1);
-// @ts-expect-error
-iDemethodize();
-
 // $instanceDOMIterables
 import iForEach from '@core-js/pure/full/instance/for-each';
 iForEach({});

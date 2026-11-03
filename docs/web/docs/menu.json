@@ -338,15 +338,6 @@
                 "url": "{docs-version}/docs/features/proposals/pattern-matching"
               }
             ]
-          },
-          {
-            "title": "Stage 0 proposals",
-            "children": [
-              {
-                "title": "Demethodize function",
-                "url": "{docs-version}/docs/features/proposals/function-demethodize"
-              }
-            ]
           }
         ]
       },

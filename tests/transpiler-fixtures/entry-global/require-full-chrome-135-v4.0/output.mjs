@@ -41,7 +41,6 @@ require("core-js/modules/esnext.async-iterator.take");
 require("core-js/modules/esnext.async-iterator.to-array");
 require("core-js/modules/esnext.data-view.get-uint8-clamped");
 require("core-js/modules/esnext.data-view.set-uint8-clamped");
-require("core-js/modules/esnext.function.demethodize");
 require("core-js/modules/esnext.function.metadata");
 require("core-js/modules/esnext.iterator.range");
 require("core-js/modules/esnext.iterator.to-async");

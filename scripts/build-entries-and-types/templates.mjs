@@ -416,26 +416,6 @@ export const $instanceString = p => ({
   types: instanceTypes(p),
 });
 
-export const $instanceFunction = p => ({
-  entry: dedent`
-    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
-    var functionMethod = require('${ '../'.repeat(p.level - 1) }function/prototype/${ basename(p.entry) }');
-
-    var FunctionPrototype = Function.prototype;
-    var nativeFunctionMethod = FunctionPrototype.${ p.name };
-
-    module.exports = function (it) {
-      var ownProperty = it.${ p.name };
-      if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it) && (ownProperty === undefined
-        ? ${ buildMissingMethodCheck(p.name, 'FunctionPrototype') }
-        : ownProperty === nativeFunctionMethod))) {
-        return functionMethod;
-      } return ownProperty;
-    };
-  `,
-  types: instanceTypes(p),
-});
-
 // A DOM collection always gets the array method - an own value on a collection instance, `undefined`
 // or a function, is deliberately not consulted, unlike the dispatchers that check the prototype
 function instanceDOMIterableEntry(p, arrayMethodExpr) {

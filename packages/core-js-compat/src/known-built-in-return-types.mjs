@@ -505,7 +505,6 @@ export const instanceMethods = {
   },
   Function: {
     bind: 'Function',
-    demethodize: 'Function',
     toString: 'string',
   },
   Iterator: {
