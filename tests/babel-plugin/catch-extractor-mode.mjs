@@ -14,9 +14,9 @@ const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
-const { transformAsync, template } = requireBabel('@babel/core');
+const { transformAsync, template, types: t } = requireBabel('@babel/core');
 
-const { checkTruthy, finish } = createChecker('catch-extractor-mode');
+const { check, checkTruthy, finish } = createChecker('catch-extractor-mode');
 
 // sibling plugin: injects a helper function whose body holds a `catch ({ at, ...rest })` during
 // the main traversal - AFTER core-js's pre() snapshot - so the node lands OUTSIDE the snapshotted
@@ -62,6 +62,24 @@ async function transform(method) {
   const code = await transform('usage-pure');
   checkTruthy('usage-pure/sibling rest catch param left intact',
     /catch\s*\(\s*\{/.test(code) && !/catch\s*\(\s*_ref/.test(code));
+}
+
+// A relocated catch binding and its later reads occupy distinct AST positions. A
+// shared identifier makes a subsequent Babel traversal reuse the wrong NodePath.
+for (const [pattern, body] of [
+  ['{ at }', 'at;'],
+  ['{ at, message }', 'at; message;'],
+  ['{ at: read, message = "fallback" }', 'read; message;'],
+]) {
+  const { ast } = await transformAsync(`try { read(); } catch (${ pattern }) { ${ body } }`, {
+    configFile: false, babelrc: false, ast: true,
+    plugins: [['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const clause = ast.program.body.find(node => node.type === 'TryStatement').handler;
+  check(`relocated catch/${ pattern }/head extracted`, clause.param.type, 'Identifier');
+  let shared = 0;
+  t.traverseFast(clause.body, node => { if (node === clause.param) shared++; });
+  check(`relocated catch/${ pattern }/no shared head identity`, shared, 0);
 }
 
 finish();

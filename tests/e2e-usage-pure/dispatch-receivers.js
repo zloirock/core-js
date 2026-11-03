@@ -65,3 +65,17 @@ QUnit.test('dispatch receiver: a sealed optional read still throws', assert => {
   assert.throws(() => (user?.self).list.includes((effects.push('argument'), 2)), TypeError);
   assert.deepEqual(effects, []);
 });
+
+QUnit.test('dispatch receiver: a parenthesized store target keeps key and setter order', assert => {
+  withWindowWithoutSelf(() => withRealmSelf(() => withRealmSlot('dispatchReceiverList', [7], () => {
+    const effects = [];
+    let held;
+    const box = { set value(value) {
+      effects.push('store');
+      held = value;
+    } };
+    assert.same(((box[(effects.push('key'), 'value')]) = globalThis.window)?.self.dispatchReceiverList.at(0), 7);
+    assert.same(held, globalThis.window);
+    assert.deepEqual(effects, ['key', 'store']);
+  })));
+});

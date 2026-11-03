@@ -141,6 +141,10 @@ export function planMethodCall({
   const memo = !prepared && planReceiverMemo(receiver, { interveningEffects: keyEffects.length > 0, ctx });
   const tail = memo ? memo.receiver : receiver;
   const reusable = !memo?.capture;
+  let firstReadEffects = reusable && keyEffects.length
+    ? observableSequenceElements([receiver], ctx, { preserveSourceReads: true }) : [];
+  // A wrapped first read owns its prefix and type comments as one source expression.
+  if (firstReadEffects.length && unwrapRuntimeExpr(receiver) !== receiver) firstReadEffects = [receiver];
   return {
     firstReceiver: receiver,
     receiver: tail,
@@ -148,8 +152,7 @@ export function planMethodCall({
     capture: reusable ? null : keyEffects.length ? 'before-key' : 'lookup',
     prefixEffects: classifyReceiverSE(sourceReceiver, false, effects) === 'peel' ? []
       : effects.slice(0, receiverEffectCount).filter(effect => !subtreeContainsNode(sourceReceiver, effect)),
-    firstReadEffects: reusable && keyEffects.length
-      ? observableSequenceElements([receiver], ctx, { preserveSourceReads: true }) : [],
+    firstReadEffects,
     keyEffects,
     args,
     optional,
@@ -225,7 +228,9 @@ export function renderMethodCall(plan, {
         lookupArg = identifier(ref);
       }
     } else {
-      lookupArg = embed(plan.lookupReceiver, 'lookup');
+      const repeated = firstReadEffects.length
+        && (firstReadEffects.includes(plan.lookupReceiver) || firstReadEffects.includes(plan.firstReceiver));
+      lookupArg = embed(plan.lookupReceiver, repeated ? 'receiver' : 'lookup');
       receiver = embed(plan.receiver, 'receiver');
     }
     lookup = callExpression(helper, [lookupArg]);
@@ -494,7 +499,7 @@ export function renderParameterInstanceCapture(plan, { receiverName, unusedName,
 // source binding kind, or writes the original assignment targets; only the fresh head is const.
 // Bindings allocate the refs and pass distinct read/write nodes where their trackers require it.
 export function renderDestructureHeadCapture(pattern, {
-  binding, receiver = binding, kind = 'let', assignment = false, embed = node => node,
+  binding, receiver, kind = 'let', assignment = false, embed = node => node,
 }) {
   return {
     head: assignment ? variableDeclaration('const', [variableDeclarator(embed(binding))]) : embed(binding),

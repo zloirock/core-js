@@ -22169,6 +22169,31 @@ function * generateConsumedRealmStatics() {
   }
 }
 
+// Host clones keep store targets writable and repeated method receivers observationally unchanged.
+// The explicit-parenthesis parser and comment/identity oracles live in the Babel unit suites.
+function * generateEmittedReceiverClones() {
+  for (const target of ['(held)', '(box.value)', '(box[(log.push("key"), "value")])']) {
+    yield { ...snippet(`emitted-receiver-clone/store/${ target }`, `(() => {
+      let held;
+      const box = { set value(value) { log.push('store'); held = value; } };
+      const value = (${ target } = globalThis.window)?.self.Array.from([4]).at(0);
+      return [value, held === globalThis];
+    })()`, { rig: true }), strip: true };
+  }
+  for (const expression of ['rows.flat?.().at(0)', 'rows?.flat?.().at(0)', 'rows[(log.push("key"), "at")](0)']) {
+    yield { ...snippet(`emitted-receiver-clone/call/${ expression }`,
+      `(() => { const rows = [7]; return ${ expression }; })()`), strip: true };
+  }
+  yield { ...snippet('emitted-receiver-clone/catch', `(() => {
+    const rows = [4, 9]; rows.message = 'kept';
+    try { throw rows; } catch ({ at, message }) { return [at.call(rows, -1), message]; }
+  })()`), strip: true };
+  yield { ...snippet('emitted-receiver-clone/typed-prefix', `(() => {
+    const rows = [7];
+    return ((log.push('receiver'), rows) as any)[(log.push('key'), 'at')](0);
+  })()`), ts: true, strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22613,4 +22638,5 @@ export function * generate() {
   yield * generateCanonicalReceiverBoundaries();
   yield * generateLivePatternPlans();
   yield * generateConsumedRealmStatics();
+  yield * generateEmittedReceiverClones();
 }

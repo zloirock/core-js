@@ -569,12 +569,22 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return prepared === node ? node : estreeToBabel(prepared);
   }
 
+  // The first read owns source comments; captures retain identity and later reads only copy the value.
+  function embedReceiver(node, role) {
+    if (role === 'capture') return hostSlot(node);
+    const clone = t.cloneNode(node);
+    if (role === 'receiver') {
+      if (SKIPPABLE_WRAPPER_TYPES.has(clone.type)) t.traverseFast(clone, t.removeComments);
+      else t.removeComments(clone);
+    }
+    return hostSlot(clone);
+  }
+
   // Bind a prepared memo decision to native scope placement and write tracking.
   function bindReceiverMemo(plan, scope, anchorNode) {
     return renderReceiverMemo(plan, {
       mintRef: () => generateRef(scope, anchorNode).name,
-      embed: (source, role) => hostSlot(role === 'capture' ? source
-        : role === 'receiver' ? t.removeComments(t.cloneNode(source)) : t.cloneNode(source)),
+      embed: embedReceiver,
       recordCapture(write) {
         const assign = estreeToBabel(write);
         getInjector?.()?.recordMemoWrite?.(assign.left.name, assign);
@@ -1086,10 +1096,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       leadingEffects,
       mintRef: () => generateRef(scope, anchorNode ?? decision.ctx?.path?.node ?? object).name,
       embed(node, role) {
-        if (role === 'capture') return hostSlot(node);
         if (role === 'effect') return hostSlot(mintedEffectNodes.has(node) ? node : t.cloneWithoutRetiring(node));
-        const clone = t.cloneNode(node);
-        return hostSlot(role === 'receiver' ? t.removeComments(clone) : clone);
+        return embedReceiver(node, role);
       },
       recordCapture(node) {
         const assign = estreeToBabel(node);
@@ -1175,8 +1183,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         return ref.name;
       },
       embed(node, role) {
-        return hostSlot(role === 'method' ? seededRefClone(node, memoType)
-          : role === 'capture' ? node : t.cloneNode(node));
+        return role === 'method' ? hostSlot(seededRefClone(node, memoType)) : embedReceiver(node, role);
       },
       recordCapture(node) {
         const assign = estreeToBabel(node);
@@ -2654,7 +2661,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       helper: hostSlot(innerId),
       checks: linkChecks.map(hostSlot),
       mintRef: () => generateRef(scope, outerPath.node).name,
-      embed: (node, role) => hostSlot(role === 'capture' ? node : t.cloneNode(node)),
+      embed: embedReceiver,
       recordCapture(node) {
         const assign = estreeToBabel(node);
         getInjector().recordMemoWrite?.(assign.left.name, assign);

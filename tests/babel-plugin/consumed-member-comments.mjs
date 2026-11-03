@@ -11,7 +11,7 @@ const { parseAsync, transformAsync } = requireBabel('@babel/core');
 const { checkDeep, check, finish } = createChecker('consumed-member-comments');
 const config = { filename: 'input.mjs', configFile: false, babelrc: false };
 async function signature(source) {
-  return (await parseAsync(source, config)).comments.map(({ type, value }) => [type, value]);
+  return (await parseAsync(source, { ...config, parserOpts: { plugins: ['typescript'] } })).comments.map(({ type, value }) => [type, value]);
 }
 check('missing comment detector', (await signature('Array /* a */.from([])')).length === (await signature('Array.from([])')).length, false);
 check('reordered comment detector', JSON.stringify(await signature('x /* a */ /* b */')) === JSON.stringify(await signature('x /* b */ /* a */')), false);
@@ -22,6 +22,19 @@ for (const source of [
   '[1] /* a */ . /* b */ at /* c */ (/* arg */ 0);',
   '[1] /* a */ . /* b */ slice(0) /* c */ . /* d */ at /* e */ (0);',
   'list /* a */ ?. /* b */ at /* c */ (/* arg */ 0);',
+  'obj /* a */.m?.().at(0);',
+  'arr /* a */.flat?.().at(0);',
+  'arr /* a */?.flat?.().at(0);',
+  'arr /* a */?.at?.(0);',
+  'arr /* a */[(effect(), "at")](0);',
+  '(effect(), arr /* a */)[(effect(), "at")](0);',
+  '(arr /* a */).m?.().at(0);',
+  '((arr /* a */))?.flat?.().at(0);',
+  '(arr /* a */ as /* type */ any).flat?.().at(0);',
+  '(arr /* a */!)[(effect(), "at")](0);',
+  '(arr /* a */ as /* type */ any)[(effect(), "at")](0);',
+  '((effect(), arr /* a */) as /* type */ any)[(effect(), "at")](0);',
+  '((0, arr /* a */) as /* type */ any)[(effect(), "at")](0);',
   'Array /* a */ [/* b */ "from" /* c */](/* arg */ [1]);',
   '[1] /* a */ [/* b */ "at" /* c */](/* arg */ 0);',
   '[1][Symbol.iterator](/* inner */);',
@@ -37,7 +50,7 @@ for (const source of [
   const expected = await signature(output);
   for (let pass = 1; pass <= 2; pass++) {
     output = (await transformAsync(output, {
-      ...config, parserOpts: { createParenthesizedExpressions: parens },
+      ...config, parserOpts: { plugins: ['typescript'], createParenthesizedExpressions: parens },
       plugins: [[plugin, { method, version: '4.0', targets: { ie: 11 } }]],
     })).code;
     checkDeep(`${ method }: parens ${ parens }: pass ${ pass }: ${ source }`, await signature(output), expected);
