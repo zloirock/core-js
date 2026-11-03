@@ -1552,6 +1552,23 @@ function checkPhasePipelinePassThrough() {
 }
 checkPhasePipelinePassThrough();
 
+// An unused relocation restores the original head even when post compacts names minted
+// after pre. Compare the whole tree: import parity cannot see an idle moved declaration.
+for (const fixture of [
+  'for-of-head-call-elements', 'for-of-head-wrapped-literal', 'for-of-assignment-head-unknown-key-relocates-and-extracts',
+]) for (const method of ['usage-pure', 'usage-global']) {
+  const source = await fs.readFile(new URL(`../transpiler-fixtures/usage-pure/${ fixture }/input.mjs`, import.meta.url), 'utf8');
+  const id = '/idle-relocation.ts';
+  const options = { method, version: '4.0', targets: { ie: 11 } };
+  const single = createPlugin(options).transform(source, id)?.code ?? source;
+  const phases = createPlugin(options);
+  const pre = phases.transform(source, id, 'pre')?.code ?? source;
+  const post = phases.transform(pre, id, 'post')?.code ?? pre;
+  // eslint-disable-next-line node/no-sync -- compare actual printed trees in the fixture's TS dialect
+  const trees = [single, post].map(code => strip(parseSync(id, code, { sourceType: 'module' }).program));
+  checkDeep(`idle relocation/${ fixture }/${ method }/phase structure`, trees[1], trees[0]);
+}
+
 // --- pre+post snapshot flow, engine axis ---
 // two cases only the SNAPSHOT can answer - post's own re-detection cannot: a sibling lowers
 // the usage into an undetectable spelling between passes (usage-global defers its imports to

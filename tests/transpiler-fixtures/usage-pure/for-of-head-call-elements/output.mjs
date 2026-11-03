@@ -13,13 +13,13 @@ const g = t => {
   return Array;
 };
 const out = [];
-for (const {
+for (const /* head binding */{
   w: {
     entries: viaSole
   }
 } of [{
   w: e('a')
-}]) _pushMaybeArray(out).call(out, viaSole);
+}]) /* body statement */_pushMaybeArray(out).call(out, viaSole);
 for (const {
   w: {
     entries: viaSibling

@@ -58,17 +58,26 @@ import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packa
 
 const { check, checkDeep, finish, runBoth } = createChecker('destructure-host-shape');
 
-for (const host of ['for-of', 'for-in', 'catch']) for (const change of ['none', 'location', 'value', 'kind', 'reference']) {
-  const body = 'const { at, limit = 1n } = moved; use(at, limit);';
+for (const host of ['for-of', 'for-in', 'for-await', 'assignment', 'catch']) for (const change of [
+  'none', 'location', 'value', 'kind', 'reference', 'renamed', 'renamed-reference',
+  'receiver', 'replaced-head', 'replaced-binding', 'cloned-receiver',
+]) {
+  const body = `${ host === 'assignment' ? '({ at, limit = 1n } = moved)' : 'const { at, limit = 1n } = moved' }; use(at, limit);`;
   const source = host === 'catch' ? `try {} catch (moved) { ${ body } }`
-    : `for (const moved ${ host === 'for-of' ? 'of' : 'in' } rows) { ${ body } }`;
+    : `for ${ host === 'for-await' ? 'await ' : '' }(const moved ${ host === 'for-in' ? 'in' : 'of' } rows) { ${ body } }`;
   runBoth(`relocated bigint pattern/${ host }/${ change }`, source, (parser, program, label) => {
-    const path = parser.pickPath(program, host === 'catch' ? 'CatchClause' : host === 'for-of' ? 'ForOfStatement' : 'ForInStatement');
-    const slotOwner = host === 'catch' ? path.node : path.node.left.declarations[0];
-    const field = host === 'catch' ? 'param' : 'id';
+    const path = parser.pickPath(program, host === 'catch' ? 'CatchClause' : host === 'for-in' ? 'ForInStatement' : 'ForOfStatement');
+    const slotOwner = host === 'catch' || host === 'assignment' ? path.node : path.node.left.declarations[0];
+    const field = host === 'catch' ? 'param' : host === 'assignment' ? 'left' : 'id';
     const [statement] = path.node.body.body;
-    const pattern = statement.declarations[0].id;
-    noteRelocation(path, { slotOwner, field, pattern, statement, name: 'moved' });
+    // The generated assignment statement has no parser-only paren wrapper.
+    if (host === 'assignment') statement.expression = unwrapRuntimeExpr(statement.expression);
+    const moved = host === 'assignment' ? statement.expression : statement.declarations[0];
+    const pattern = moved.id ?? moved.left;
+    const receiver = moved.init ?? moved.right;
+    const head = slotOwner[field];
+    const binding = host === 'assignment' ? head.declarations[0].id : head;
+    noteRelocation(path, { slotOwner, field, pattern, statement });
     const literal = pattern.properties[1].value.right;
     const originalValue = literal.value;
     switch (change) {
@@ -79,9 +88,20 @@ for (const host of ['for-of', 'for-in', 'catch']) for (const change of ['none', 
           ? { type: 'StringLiteral', value: '1' } : { type: 'Literal', value: '1', raw: '"1"' };
         break;
       case 'reference': path.node.body.body[1].expression.arguments[0].name = 'moved'; break;
+      case 'renamed': binding.name = receiver.name = 'compact'; break;
+      case 'renamed-reference':
+        binding.name = receiver.name = path.node.body.body[1].expression.arguments[0].name = 'compact';
+        break;
+      case 'receiver': receiver.name = 'foreign'; break;
+      case 'replaced-head': slotOwner[field] = { ...head }; break;
+      case 'replaced-binding':
+        if (host === 'assignment') head.declarations[0].id = { ...binding };
+        else slotOwner[field] = { ...binding };
+        break;
+      case 'cloned-receiver': moved[host === 'assignment' ? 'right' : 'init'] = { ...receiver }; break;
     }
     restoreIdleRelocations(program.node);
-    const restored = change === 'none' || change === 'location';
+    const restored = ['none', 'location', 'renamed', 'cloned-receiver'].includes(change);
     check(`${ label }/restores only the untouched pattern`, slotOwner[field] === pattern, restored);
     check(`${ label }/removes only an idle relocation`, path.node.body.body.includes(statement), !restored);
     literal.value = originalValue;

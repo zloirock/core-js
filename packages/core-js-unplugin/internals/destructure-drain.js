@@ -2288,7 +2288,7 @@ export default function createDestructureDrains(ctx) {
     path.get('param').replaceWith(head);
     path.get('body').unshiftContainer('body', [relocated]);
     path.scope.crawl();
-    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated, name: refName });
+    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated });
   }
 
   // Relocate a loop-head pattern when the shared catch/head plan needs a body extraction slot.
@@ -2345,7 +2345,6 @@ export default function createDestructureDrains(ctx) {
       field: assignment ? 'left' : 'id',
       pattern,
       statement: relocated,
-      name: refName,
       body: bodyless,
     });
   }
