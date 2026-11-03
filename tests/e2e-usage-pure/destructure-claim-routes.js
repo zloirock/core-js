@@ -1,3 +1,5 @@
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
 // An exported parameter remains open to user receivers with accessor-backed slots.
 export function readSelectedDestructure(useConstructor, user) {
   const { from, at } = useConstructor ? Array : user;
@@ -296,4 +298,47 @@ QUnit.test('destructuring: an assignment guard stays after the native sibling', 
   ({ name: nm, at: other, groupBy: method } = M);
   assert.deepEqual([nm, other, method], ['user', 8, 7]);
   assert.deepEqual(events, ['name', 'at', 'groupBy']);
+});
+
+QUnit.test('destructuring: a capture revisits live declarators after moving earlier statics', assert => {
+  const events = [];
+  // eslint-disable-next-line unicorn/no-useless-coercion -- Keep the computed key opaque to static evaluation.
+  const key = String('length');
+  // eslint-disable-next-line no-empty-pattern -- Keep the preceding native pattern under test.
+  const { NaN: {}, Array: { from, [(events.push('key'), 'of')]: of, [key]: value } } = globalThis;
+  assert.deepEqual(from([4, 9]), [4, 9]);
+  assert.deepEqual(of(17), [17]);
+  assert.same(value, 1);
+  assert.deepEqual(events, ['key']);
+});
+
+QUnit.test('destructuring: per-property emission retires a declined plan before a nested claim', assert => {
+  const { Map, Array: { from }, ...rest } = globalThis;
+  assert.same(new Map([[1, 4]]).get(1), 4);
+  assert.deepEqual(from([9]), [9]);
+  assert.false('Map' in rest);
+  assert.false('Array' in rest);
+});
+
+QUnit.test('destructuring: a split assignment stops visiting its detached pattern', assert => {
+  const events = [];
+  const saved = Object.getOwnPropertyDescriptor(Array, 'fc666Slot');
+  restoreProperty(Array, 'fc666Slot', { configurable: true, get() {
+    events.push('get');
+    return { at() {
+      events.push('call');
+      return 17;
+    } };
+  } });
+  try {
+    let from, at, rest;
+    for ({ Array: { from, fc666Slot: { at }, ...rest } } of [globalThis]) {
+      assert.same(from([4, 9])[1], 9);
+      assert.same(at(), 17);
+      assert.false('fc666Slot' in rest);
+    }
+    assert.deepEqual(events, ['get', 'call']);
+  } finally {
+    restoreProperty(Array, 'fc666Slot', saved);
+  }
 });

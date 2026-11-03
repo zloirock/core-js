@@ -29,7 +29,8 @@ let O = Object;
 const named = function O() {
   O = Math;
 };
-const c = _Object$keys; // control: a write with no shadow between it and the binding IS a real reassignment
+const c = _Object$keys;
+// control: a write with no shadow between it and the binding IS a real reassignment
 let M = _Map;
 class Writes {
   static {

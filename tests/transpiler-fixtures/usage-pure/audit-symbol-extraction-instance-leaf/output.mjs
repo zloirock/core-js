@@ -18,11 +18,13 @@ const viaSibling = _nameMaybeFunction(_getIteratorMethod(_globalThis)); // NEGAT
 const {
   name: twoA,
   bind: twoB
-} = _getIteratorMethod(_globalThis); // a leaf needing no polyfill stays a plain read, and a non-pattern value keeps the plain synth
+} = _getIteratorMethod(_globalThis);
+// a leaf needing no polyfill stays a plain read, and a non-pattern value keeps the plain synth
 const {
   bind
 } = _getIteratorMethod(_globalThis);
-const plain = _getIteratorMethod(_globalThis); // a non-proxy receiver reaches the synth through the emitters' own symbol route rather than the
+const plain = _getIteratorMethod(_globalThis);
+// a non-proxy receiver reaches the synth through the emitters' own symbol route rather than the
 // plan - it asks the SAME shared helper, so the leaf resolves there too, with or without a sibling
 const arrayIteratorKey = _Symbol$iterator;
 const previousArrayIterator = _Object$getOwnPropertyDescriptor(Array, arrayIteratorKey);

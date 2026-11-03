@@ -22132,6 +22132,31 @@ ${ row.code }`, strip: true };
   }
 }
 
+// Captures may move the currently visited host; later claims need live paths and a fresh plan.
+function * generateLivePatternPlans() {
+  for (const host of ['split', 'split-twice', 'const', 'let', 'bodyless', 'for-init', 'rest', 'rest-loop']) {
+    const split = host.startsWith('split');
+    const rest = host.startsWith('rest');
+    const pattern = '{ NaN: {}, Array: { from, [(log.push("key"), "of")]: of, [key]: value } }';
+    const result = 'return [from([4])[0], of(9)[0], value];';
+    const declaration = `${ host === 'bodyless' ? 'var' : host === 'let' ? 'let' : 'const' } ${ pattern } = globalThis`;
+    const restResult = 'return [new Map([[1, 4]]).get(1), from([9])[0], "Map" in rest, "Array" in rest];';
+    const body = split ? `const saved = Object.getOwnPropertyDescriptor(Array, "k");
+Object.defineProperty(Array, "k", { configurable: true, value: { at() { log.push("call"); return 17; } } });
+try { let from, at, rest, result;
+  for ({ Array: { from, k: { at }, ...rest } } of [globalThis${ host === 'split-twice' ? ', globalThis' : '' }]) {
+    result = [from([4, 9])[1], at(), "k" in rest];
+  }
+  return result;
+} finally { if (saved) Object.defineProperty(Array, "k", saved); else delete Array.k; }`
+      : rest ? host === 'rest-loop' ? `for (const { Map, Array: { from }, ...rest } of [globalThis]) { ${ restResult } }`
+        : `const { Map, Array: { from }, ...rest } = globalThis; ${ restResult }`
+        : host === 'for-init' ? `for (${ declaration };;) { ${ result } }`
+          : `${ host === 'bodyless' ? 'if (true) ' : '' }${ declaration }; ${ result }`;
+    yield { ...snippet(`live-pattern-plan/${ host }`, `(() => { const key = String("length"); ${ body } })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22574,4 +22599,5 @@ export function * generate() {
   yield * generateAliasResidualConstructors();
   yield * generateCaptureJobOwnership();
   yield * generateCanonicalReceiverBoundaries();
+  yield * generateLivePatternPlans();
 }
