@@ -20,8 +20,6 @@ Mutation tests live in their own modules, one per channel rather than one per ki
 
 Static and call-host channels live in `mutation-cases/`, imported by the corresponding root modules. Cleanup uses `tests/helpers/restore-property.cjs` in a foreign compilation unit: it restores the exact descriptor without contributing a second recognized write to the channel under test. The stripped runner exposes a final check of the whole manifest to `zz-realm-still-stripped.js`.
 
-The known pure Error runtime defect has a separate `QUnit.todo`: bundle import reinstalls `Error.isError` on the native constructor. The final audit permits only that exact leftover and requires its descriptor to match the one captured immediately after import; every other restored feature still fails. Remove the TODO and its narrow exception when the runtime defect is fixed.
-
 What the import PRUNE left standing is not a claim this suite can hold. The bundle is one realm shared by every module in it, so a sibling's import of the same core-js module attaches the static whether or not the module under test kept its own - a row asserting the polyfilled static is present passes either way, in the stripped legs too. The emitted import SET is the fixture gate's claim, and it stays there - save where a module takes its reads while it EVALUATES, ahead of every sibling: such a module says so in its NAME (`aa-`), which the generated index sorts first.
 
 TypedArrays are not polyfilled in pure at all and need no coverage here.

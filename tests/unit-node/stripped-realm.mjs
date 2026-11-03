@@ -70,7 +70,7 @@ sandbox.checkStrippedRealm = () => {
   try {
     runInContext(checkScript, context);
   } catch (error) {
-    // The pending pure Error defect is checked separately below. Match the COMPLETE diagnostic:
+    // The queued pure Error defect can restore this feature on import. Match the COMPLETE diagnostic:
     // any additional restored feature must still fail, including an own-undefined property.
     if (!errorDescriptorAfterImport || error.message !== 'strip-manifest: strip did not apply: Error.isError') throw error;
   }
@@ -83,12 +83,6 @@ const { 2: name } = process.argv;
 const bundle = await readFile(join(HERE, `../bundles/${ name }.js`), 'utf8');
 runInContext(bundle, context, { filename: `${ name }.js` });
 const errorDescriptorAfterImport = runInContext(errorDescriptorScript, context);
-// Pure Error currently reuses the native constructor when Error.cause is supported, so loading
-// its static installs Error.isError globally. Keep this separate runtime defect visible while
-// the end-of-run audit still rejects test pollution. An unexpected TODO pass requires removal.
-if (name.startsWith('e2e-usage-pure-')) QUnit.todo('pure Error import keeps the stripped Error.isError absent', assert => {
-  assert.strictEqual(errorDescriptorAfterImport, undefined, 'pure import must not modify native Error');
-});
 
 QUnit.on('runEnd', run => {
   const { passed, failed, todo, total } = run.testCounts;

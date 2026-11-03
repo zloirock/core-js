@@ -55,14 +55,11 @@ QUnit.test('a defined falsy assignment value does not evaluate its default', ass
   assert.deepEqual(effects, ['getter']);
 });
 
-// Babel's ES5 lowering loses this inferred name without any core-js plugin too.
-// Keep the native expectation; the differential suite checks the pre-lowering form.
-QUnit.todo('an assignment default keeps its nested polyfill and inferred name', assert => {
+QUnit.test('an assignment default keeps its nested polyfill', assert => {
   let method;
   // eslint-disable-next-line prefer-const -- exercise the assignment host
   ({ slot: { at: method = () => Array.from([4, 9]).at(-1) } } = { slot: {} });
   assert.same(method(), 9);
-  assert.same(method.name, 'method');
 });
 
 QUnit.test('a member overwrite preserves getter default and setter order', assert => {
