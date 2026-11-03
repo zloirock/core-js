@@ -287,6 +287,66 @@ for (const adapter of adapters) {
 // escape spells while handing out a binding of the file's own. `plugins` extends the babel parser
 // where a spelling needs it; oxc keys the same grammar off the `.ts` name the harness parses under
 const NAME_ROWS = [
+  {
+    name: 'positional wrapper renders no identity guard',
+    code: 'function read(flag) { let M = Map; if (flag) M = Set; const [{ groupBy }] = [M]; use(groupBy); }',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'nested positional wrapper renders no identity guard',
+    code: 'function read(flag) { let M = Map; if (flag) M = Set; const [[{ groupBy }]] = [[M]]; use(groupBy); }',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'opaque-key default declaration',
+    code: 'const { [key()]: { groupBy } = Map } = {}; use(groupBy);',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'opaque-key default assignment',
+    code: 'let groupBy; ({ [key()]: { groupBy } = Map } = {}); use(groupBy);',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'opaque-key parameter default',
+    code: 'function read({ [key()]: { groupBy } = Map }) { use(groupBy); }',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'literal IIFE declaration',
+    code: 'const { C: { groupBy } } = (() => ({ C: Map }))(); use(groupBy);',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'literal function IIFE declaration',
+    code: 'const { C: { groupBy } } = (function () { return { C: Map }; })(); use(groupBy);',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'literal IIFE default',
+    code: 'function read({ C: { groupBy } } = (() => ({ C: Map }))()) { use(groupBy); }',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'literal IIFE loop element',
+    code: 'for (const { C: { groupBy } } of [(() => ({ C: Map }))()]) use(groupBy);',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'literal IIFE getter keeps the supported capture narrow',
+    code: 'const { C: { groupBy } } = (() => ({ get C() { effect(); return Map; } }))(); use(groupBy);',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'bound constant key keeps a served default narrow',
+    code: "const key = 'C'; const { [key]: { groupBy } = Map } = {}; use(groupBy);",
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'branching key keeps its constructor default native',
+    code: "const key = choose ? 'C' : 'D'; const { [key]: { groupBy } = Map } = {}; use(groupBy);",
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
   ...[
     ['getter rest source', 'const source = { get p() { effect(); return Promise; } }; const { p: { all, ...rest } } = source;'],
     ['default rest source', 'function f({ all, ...rest } = Promise) {} f();'],

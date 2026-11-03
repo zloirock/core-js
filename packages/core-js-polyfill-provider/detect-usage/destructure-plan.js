@@ -34,6 +34,7 @@ import {
   followConstLiteralAlias,
   forOfHeadIterableElements,
   forEachPatternWriteMember,
+  literalDestructureSource,
   isChainAssignment,
   isDestructurePattern,
   isEffectfulKeyHop,
@@ -3499,10 +3500,10 @@ export function buildNestedDestructurePlan({
       }
     } else if (init) {
       // Indirect heap/class/call roots keep the existing common fallback. Literal
-      // wrappers, including fixed aliases, no longer pay for static synthesis.
-      const source = followConstIdentifierInit({ node: init, ctx: { scope, adapter, path } });
-      const value = unwrapRuntimeExpr(decidedRunningOperand(source.node, source.ctx));
-      if (value?.type !== 'ObjectExpression' && value?.type !== 'ArrayExpression') {
+      // wrappers, including fixed aliases and transparent IIFE returns, stay native.
+      const ctx = { scope, adapter, path };
+      const source = followConstIdentifierInit({ node: init, ctx });
+      if (!literalDestructureSource(decidedRunningOperand(source.node, source.ctx))) {
         const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
         if (outerProps.some(hasExtractions)) {
           plan = { receiver: null, probedNav, probedNavNode, outerProps, pattern, discardSe };

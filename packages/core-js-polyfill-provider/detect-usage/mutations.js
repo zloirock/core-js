@@ -79,6 +79,7 @@ import {
   calleeYieldedContainer,
   callPairing,
   installedWriteValue,
+  isPropertyNode,
   isASTNode,
   isBindingPosition,
   isCanonicalGlobalObject,
@@ -1567,6 +1568,7 @@ function inheritedClassStatic(value, key) {
 // holds that family only in pure; an unknown key needs the whole family in both flavors, and files
 // the name in `unnamedReadNames` too. Constructor rest requires the whole family in each flavor that
 // has a constructor entry.
+// eslint-disable-next-line max-statements -- resolve receiver and key facts together after the completed census
 function collectHeldReceivers({
   programNode,
   memberReceivers,
@@ -1734,7 +1736,7 @@ function collectHeldReceivers({
     // ... and a reassigned NAME is served by the identity guard its host renders, over values that guard
     // can name: none where the host renders no guard (`in`, a slot default, a for-of head), and none for a
     // name holding something beside such a name (`const held = X ?? Object`), which the guard misses
-    const guarded = keyNamed && guardsIdentity && reassigned && unwrapRuntimeExpr(target)?.type === 'Identifier'
+    const guarded = !rawRead && keyNamed && guardsIdentity && reassigned && unwrapRuntimeExpr(target)?.type === 'Identifier'
       && standsForGuardedName(aliasInit, guardedAliases, unwrapRuntimeExpr(target).name) && !someReadsAccessor(known);
     if (!known.length || served || guarded) return;
     let answered = ambiguousReads.get(values);
@@ -1885,12 +1887,15 @@ function collectHeldReceivers({
     return keyNames(member.property) ?? [null];
   }
   for (const [
-    receiver, slot, spelledKey, opaqueOnly, guardable, guardsIdentity, member, keepsCallRead, rawRead, read, positional,
+    receiver, slot, spelledKey, opaqueOnly, guardable, guardsIdentity, member, keepsCallRead, rawRead, read, positional, defaultKey,
   ] of memberReceivers) {
     // A disabled receiver still reading the native realm does not consume our constructor.
     // A retained pattern property can read a receiver substituted outside that property instead.
     const optedOut = !!isOptedOut?.(read ?? member ?? slot)
       && !(isOptedOut(receiver) && realmGlobalName(programNode, receiver));
+    // A default behind an opaque key stays native. Fold the key after all bindings
+    // are known, so a constant-key alias does not needlessly widen its constructor.
+    const rawDefault = defaultKey && censusKey({ node: defaultKey }) === null;
     const readKeys = readKeysOf(spelledKey, member);
     const readKey = readKeys.length === 1 ? readKeys.at(0) : null;
     // the alias question asks what the root's VALUE names: for a sequence that is its tail
@@ -1900,7 +1905,7 @@ function collectHeldReceivers({
     for (const key of readKeys) {
       holdUnresolvedReadFamilies({
         receiver, root, readKey: key, guardable, guardsIdentity: guardsIdentity && !optedOut,
-        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut || positional, heldNames: heldInSlot,
+        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut || positional || rawDefault, heldNames: heldInSlot,
       });
     }
     if (opaqueOnly && !hasOpaqueIteration) continue;
@@ -4200,6 +4205,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
     // none: the pattern pairs against that heritage, as a member read of `this` does
     const thisClass = source?.type === 'ThisExpression' ? heritageStaticMembers.get(frame?.thisOwner) : null;
     const paired = thisClass ? heritageStaticReceiver(source, null, frame) : source;
+    // The independent default channel remembers its outer key for the completed census.
+    const defaultKey = belowSource && isPropertyNode(frame?.parentNode) && frame.parentNode.computed ? frame.parentNode.key : null;
     patternReceiverSlotNodes(pattern, paired, null, {
       includeNestedReceivers: true,
       includeBindings: true,
@@ -4228,6 +4235,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
         rawReads.has(slot),
         slot,
         positionalReads.has(slot),
+        defaultKey,
       ]);
     }
     // ... and a SELECTION the host does not keep whole hands the pattern one arm per run: pure mirrors an
@@ -8512,6 +8520,8 @@ export function createDetectionAdapter({
     // otherwise only fresh containers without held built-ins can exclude the initial candidate.
     // eslint-disable-next-line max-statements -- direct, call and alias writes share one dominance proof
     containerSlotWriteDominatesUsage(keyPath, ownerNode, usagePath, usageNode, nameValue = null) {
+      // A source-only census query has no read scope or position to prove dominance in.
+      if (!usagePath) return false;
       const index = getContainerSlotIndex?.();
       const key = index?.owners.get(nodePositionKey(ownerNode) ?? ownerNode);
       if (!key) return false;

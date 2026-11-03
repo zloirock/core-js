@@ -135,6 +135,25 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     check(`${ label }: ${ name }`,
       reader.containerSlotWriteDominatesUsage(['C'], declaration, read, read.node, nameValue), expected && (named ? 'Map' : true));
   }
+  // A census can ask a source-only question before a host read path exists. No
+  // dominating write can be proven there, and the query must never ask an absent scope.
+  const noPathTree = parser.parseAndScope('const box = []; box.push(Map); box[0].groupBy;');
+  const noPathData = collectFileCensus(noPathTree.node, [mutationShapesReducer()]);
+  const noPathAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method,
+    getWrittenContainerSlots: () => noPathData.writtenContainerSlots,
+    getContainerSlotIndex: () => noPathData.containerSlotIndex,
+  });
+  const noPathOwner = parser.pickPath(noPathTree, 'VariableDeclarator').node;
+  const { getBinding } = noPathAdapter;
+  noPathAdapter.getBinding = input => {
+    check(`${ label }: source-only query has no missing scope lookup`, !!input.scope, true);
+    return getBinding(input);
+  };
+  for (const readPath of [null, undefined]) for (const nameValue of [null, value => value.name]) {
+    check(`${ label }: no read path keeps the initializer`,
+      noPathAdapter.containerSlotWriteDominatesUsage(['0'], noPathOwner, readPath, null, nameValue), false);
+  }
   // Synthesized declarations have no source span: only that exact node owns their records.
   const synthetic = parser.parseAndScope('const box = []; box.push(Map);');
   const syntheticOwner = parser.pickPath(synthetic, 'VariableDeclarator').node;
