@@ -17,9 +17,12 @@ var push = [].push;
 // https://tc39.es/ecma262/#sec-reflect.construct
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
+// Firefox < 45 ignores `newTarget` for built-in constructors
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1055472
 var NEW_TARGET_BUG = fails(function () {
   function F() { /* empty */ }
-  return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F);
+  return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F)
+    || !(nativeConstruct(Boolean, [], F) instanceof F);
 });
 
 var ARGS_BUG = !fails(function () {

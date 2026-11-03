@@ -45,8 +45,9 @@ QUnit.test('Function.isConstructor', assert => {
   // The legacy sham cannot inspect proxy constructors reliably.
   const { Proxy } = GLOBAL;
   if (typeof Proxy == 'function' && !isConstructor.sham) {
-    // Chakra reads newTarget.prototype even when the target has a construct trap.
-    const proxyAssert = /Edge\//.test(GLOBAL.navigator?.userAgent) || GLOBAL.process?.versions?.chakracore ? assert.skip : assert;
+    // Chakra and a preloaded Reflect.construct sham can read newTarget.prototype.
+    const proxyAssert = GLOBAL.Reflect?.construct?.sham || /Edge\//.test(GLOBAL.navigator?.userAgent) || GLOBAL.process?.versions?.chakracore
+      ? assert.skip : assert;
     const calls = [];
     const constructor = function () { assert.avoid('constructor must not be called'); };
     const logging = new Proxy(constructor, {
@@ -57,6 +58,10 @@ QUnit.test('Function.isConstructor', assert => {
     });
     assert.true(isConstructor(logging), 'proxy constructor');
     proxyAssert.arrayEqual(calls, [], 'does not read properties of the constructor');
+    calls.length = 0;
+    const nonConstructor = new Proxy(Function.prototype.call, { get() { calls.push('get'); } });
+    assert.false(isConstructor(nonConstructor), 'proxy non-constructor');
+    proxyAssert.arrayEqual(calls, [], 'does not read properties of a non-constructor');
 
     const fail = () => { throw new Error('proxy trap'); };
     proxyAssert.true(isConstructor(new Proxy(constructor, { get: fail, apply: fail, construct: fail })), 'does not invoke proxy traps');

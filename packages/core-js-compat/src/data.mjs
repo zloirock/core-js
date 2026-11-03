@@ -1583,7 +1583,8 @@ export const data = {
   'es.reflect.construct': {
     chrome: '49',
     edge: '15',
-    firefox: '44',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1055472
+    firefox: '45', // '44',
     hermes: '0.7',
     safari: '10.0',
   },

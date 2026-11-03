@@ -1,5 +1,6 @@
 import { GLOBAL } from '../helpers/constants.js';
 import { fromSource } from '../helpers/helpers.js';
+import pureIsConstructor from 'core-js-pure/full/function/is-constructor';
 
 QUnit.test('Function.isConstructor', assert => {
   const { isConstructor } = Function;
@@ -49,6 +50,8 @@ QUnit.test('Function.isConstructor', assert => {
   if (typeof Proxy == 'function' && !isConstructor.sham) {
     // Chakra reads newTarget.prototype even when the target has a construct trap.
     const proxyAssert = /Edge\//.test(GLOBAL.navigator?.userAgent) || GLOBAL.process?.versions?.chakracore ? assert.skip : assert;
+    // A preloaded Reflect.construct sham can read proxy properties in old Firefox.
+    const pureProxyAssert = GLOBAL.Reflect?.construct?.sham ? assert.skip : proxyAssert;
     const calls = [];
     const constructor = function () { assert.avoid('constructor must not be called'); };
     const logging = new Proxy(constructor, {
@@ -59,16 +62,27 @@ QUnit.test('Function.isConstructor', assert => {
     });
     assert.true(isConstructor(logging), 'proxy constructor');
     proxyAssert.arrayEqual(calls, [], 'does not read properties of the constructor');
+    assert.true(pureIsConstructor(logging), 'pure after global: proxy constructor');
+    pureProxyAssert.arrayEqual(calls, [], 'pure after global: does not read properties of the constructor');
+    calls.length = 0;
+    const nonConstructor = new Proxy(Function.prototype.call, { get() { calls.push('get'); } });
+    assert.false(isConstructor(nonConstructor), 'proxy non-constructor');
+    assert.arrayEqual(calls, [], 'does not read properties of a non-constructor');
+    assert.false(pureIsConstructor(nonConstructor), 'pure after global: proxy non-constructor');
+    pureProxyAssert.arrayEqual(calls, [], 'pure after global: does not read properties of a non-constructor');
 
     const fail = () => { throw new Error('proxy trap'); };
     proxyAssert.true(isConstructor(new Proxy(constructor, { get: fail, apply: fail, construct: fail })), 'does not invoke proxy traps');
+    pureProxyAssert.true(pureIsConstructor(new Proxy(constructor, { get: fail, apply: fail, construct: fail })), 'pure after global: does not invoke proxy traps');
     assert.false(isConstructor(new Proxy(Function.prototype.call, { get: fail, construct: fail })), 'construct trap does not make a non-constructor constructible');
+    assert.false(pureIsConstructor(new Proxy(Function.prototype.call, { get: fail, construct: fail })), 'pure after global: non-constructor with a construct trap');
 
     if (typeof Proxy.revocable == 'function') {
       for (const [target, expected] of [[constructor, true], [Function.prototype.call, false], [{}, false]]) {
         const { proxy, revoke } = Proxy.revocable(target, {});
         revoke();
         (expected ? proxyAssert : assert).same(isConstructor(proxy), expected, 'revocation preserves constructibility');
+        (expected ? pureProxyAssert : assert).same(pureIsConstructor(proxy), expected, 'pure after global: revocation preserves constructibility');
       }
     }
   }

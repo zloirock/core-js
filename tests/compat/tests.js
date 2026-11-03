@@ -1358,11 +1358,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   'es.reflect.construct': function () {
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1055472
     try {
       return !Reflect.construct(function () { /* empty */ });
     } catch (error) { /* empty */ }
     function F() { /* empty */ }
-    return Reflect.construct(function () { /* empty */ }, [], F) instanceof F;
+    return Reflect.construct(function () { /* empty */ }, [], F) instanceof F
+      && Reflect.construct(Boolean, [], F) instanceof F;
   },
   'es.reflect.define-property': function () {
     return !Reflect.defineProperty(Object.defineProperty({}, 1, { value: 1 }), 1, { value: 2 });
