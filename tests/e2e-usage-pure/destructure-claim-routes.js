@@ -342,3 +342,22 @@ QUnit.test('destructuring: a split assignment stops visiting its detached patter
     restoreProperty(Array, 'fc666Slot', saved);
   }
 });
+
+QUnit.test('destructuring: a consumed realm assignment yields the realm beside a pure static', assert => {
+  let iterator;
+  const result = { Symbol: { iterator } } = globalThis;
+  assert.same(result, globalThis);
+  assert.same(iterator, Symbol.iterator);
+});
+
+QUnit.test('destructuring: a returned realm assignment keeps the static callable', assert => {
+  let withResolvers;
+  function capture() {
+    return { Promise: { withResolvers } } = globalThis;
+  }
+  assert.same(capture(), globalThis);
+  const record = withResolvers();
+  assert.isFunction(record.promise.then);
+  assert.isFunction(record.resolve);
+  assert.isFunction(record.reject);
+});

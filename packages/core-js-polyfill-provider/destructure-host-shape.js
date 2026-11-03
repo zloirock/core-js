@@ -646,6 +646,7 @@ export function capturedRealmCtorPure({ capture, scope, adapter, path, resolveGl
 // Capture the innermost pattern while retaining native outer keys and defaults.
 // `anchorPure` supplies a proven pristine realm constructor, including its whole index for rest.
 // Assignment renders can delegate the moved leaf to `renderLeaf` and preserve the RHS value.
+// An anchored leaf reads the constructor, but a consumed assignment still yields its original RHS.
 // A declaration has no such delegation: a leaf served by name leaves the ref of the hop it captured
 // unread (`const { w: { [(k(), 'from')]: from }, other } = ns.box` keeps `{ w: _ref } = _ref2`) - the
 // slot is the source's own read of the hop, so only the binding is dead.
@@ -765,13 +766,13 @@ export function renderNestedKeyedPatternCapture(plan, {
     }
     captured = typeof receiver === 'string' ? identifier(receiver) : receiver;
   }
-  // the ctor binding replaces BOTH halves: the pattern collapses to the ref and the init to the import
+  // The constructor replaces the captured hop; a coercion-only leaf needs no bound ref.
   const anchorNode = anchorPure && !splitCapture && plan.ancestors.length === 1 && injectImport
     ? identifier(injectImport(anchorPure.entry, anchorPure.hintName)) : null;
-  if (anchorNode) captured = identifier(ref);
+  if (anchorNode) captured = ref ? identifier(ref) : objectPattern([]);
   if (assignment) {
-    if (plan.rest && anchorNode && preserveResult) {
-      const result = identifier(ref);
+    if (anchorNode && preserveResult) {
+      const result = identifier(ref ?? mintRef());
       return { elements, expression: sequenceExpression([
         assignmentExpression('=', result, embed(plan.init)),
         renderLeaf ? renderLeaf(anchorNode) : assignmentExpression('=', embed(plan.leafPattern), anchorNode),

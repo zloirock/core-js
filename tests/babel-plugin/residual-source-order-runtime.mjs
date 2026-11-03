@@ -4,13 +4,16 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { planNestedKeyedPatternCapture, renderNestedKeyedPatternCapture } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { assignmentExpression, hostSlot, identifier } from '../../packages/core-js-polyfill-provider/render.js';
+import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 import { createChecker, scenarioSource } from '../polyfill-provider/harness.mjs';
 
 const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
-const { transformAsync } = requireBabel('@babel/core');
+const { parseAsync, transformAsync, transformFromAstAsync, types: t } = requireBabel('@babel/core');
 const { check, finish } = createChecker('residual-source-order-runtime');
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, exclude: ['array/from', 'array/of'] };
 const TMP = path.join(import.meta.dirname, '../transpiler-differential/tmp');
@@ -19,6 +22,56 @@ const DIR = await fs.mkdtemp(path.join(TMP, 'residual-source-order-'));
 let count = 0;
 
 try {
+  // This renderer contract can outlive the routing that currently avoids its anchored branch.
+  // The constructor supplies the leaf, while the assignment still returns the source realm.
+  for (const [coerceLeaf, rest] of [[true, false], [false, false], [false, true]]) {
+    for (const preserveResult of [false, true]) {
+      const label = `anchored capture/${ coerceLeaf }/${ rest }/${ preserveResult }`;
+      const source = `let iterator, rest; const result = ({ Symbol: { iterator${ rest ? ', ...rest' : '' } } } = receiver);`;
+      const ast = await parseAsync(source, { configFile: false, babelrc: false });
+      const host = ast.program.body[1].declarations[0].init;
+      const plan = planNestedKeyedPatternCapture({ pattern: host.left, init: host.right, force: !rest });
+      const refs = [];
+      const rendered = renderNestedKeyedPatternCapture(plan, {
+        assignment: true, preserveResult, coerceLeaf, embed: hostSlot,
+        mintRef: () => {
+          const name = `memo${ refs.length }`;
+          refs.push(name);
+          return name;
+        },
+        anchorPure: { entry: 'symbol', hintName: 'Symbol' }, injectImport: () => 'SymbolImport',
+        renderLeaf: coerceLeaf ? () => assignmentExpression('=', identifier('iterator'), identifier('iteratorImport')) : null,
+      });
+      let code;
+      try {
+        const declaration = t.variableDeclaration('const', [
+          t.variableDeclarator(t.identifier('result'), estreeToBabel(rendered.expression)),
+        ]);
+        ({ code } = await transformFromAstAsync(t.file(t.program([declaration])), null, { configFile: false, babelrc: false }));
+      } catch (error) {
+        check(`${ label }/valid rendered tree`, error.message, null);
+        continue;
+      }
+      const prepared = `import receiver from '@core-js/pure/actual/global-this';
+import SymbolImport from '@core-js/pure/actual/symbol';
+import iteratorImport from '@core-js/pure/actual/symbol/iterator';
+export const effects = [];
+let iterator, rest;
+${ refs.length ? `var ${ refs.join(', ') };` : '' }
+${ code }
+export const r = [${ preserveResult ? 'result === receiver' : 'true' }, iterator === iteratorImport, ${ rest ? '!("iterator" in rest)' : 'true' }];`;
+      const { code: lowered } = await transformAsync(prepared, {
+        configFile: false, babelrc: false,
+        plugins: [requireBabel.resolve('@babel/plugin-transform-object-rest-spread'), requireBabel.resolve('@babel/plugin-transform-destructuring')],
+      });
+      for (const [mode, output] of [['printed', prepared], ['lowered', lowered]]) {
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, output);
+        for (const strip of [false, true]) check(`${ label }/${ mode }/${ strip }`,
+          await runInWorker(file, { strip }), 'OK|[true,true,true]|[]');
+      }
+    }
+  }
   for (const shape of ['nested', 'flat', 'member', 'swapped', 'middle', 'default', 'rest', 'multi', 'export', 'for-init', 'bodyless', 'rebuilt']) {
     const keys = shape === 'swapped' ? 'name, from' : shape === 'middle' ? 'from, name, of'
       : shape === 'default' ? 'from = mark("default"), name' : shape === 'rest' ? 'from, name, ...rest' : 'from, name';
