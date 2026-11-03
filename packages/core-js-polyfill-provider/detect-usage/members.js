@@ -2630,9 +2630,9 @@ function peelChainWrappers(node) {
 
 // mark a proxy-global leaf identifier as handled so the inner visitor doesn't queue a parallel
 // `globalThis -> _globalThis` rewrite overlapping the outer subsumption. shadow detection via
-// `adapter.hasBinding({ scope, name, path })` (not raw `scope.getBinding`) catches TS-runtime bindings
-// (`declare const globalThis` / `namespace X`) that estree-toolkit's scope tracker misses but the
-// polyfill shadow rule must honor - a binding that shadows the global keeps its own polyfill
+// `adapter.hasBinding({ scope, name, path })` (not raw `scope.getBinding`) honors runtime
+// bindings, including TS enums/namespaces, but ignores erased ambient declarations such as
+// `declare const globalThis`: those describe the external global rather than shadowing it
 function markProxyGlobalLeaf({ node, handledObjects, scope, adapter, path }) {
   if (node?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
     && !(adapter ? adapter.hasBinding({ scope, name: node.name, path }) : scope?.getBinding?.(node.name))) {

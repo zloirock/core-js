@@ -5028,10 +5028,11 @@ function containerKeyName(member, { scope, adapter, path }) {
     ?? (member.computed ? sharedResolveKey({ node: member.property, computed: true, scope, adapter, path })
       : privateReadKeyName(member, path, adapter));
   if (adapter.method === 'usage-pure' && member.computed && POSSIBLE_GLOBAL_OBJECTS.has(key)
-    && !sharedResolveKey({ node: member.property, computed: true, scope, adapter, path, bailOnSideEffectKey: true })
-    && isPristineProxyGlobal(adapter, resolveObjectName({
-      objectNode: member.object, scope, adapter, path, readNode: member.object,
-    }))) return null;
+    && !sharedResolveKey({ node: member.property, computed: true, scope, adapter, path, bailOnSideEffectKey: true })) {
+    // The tail is read after the prefix, which may assign the realm alias it returns.
+    const objectNode = peelReceiverSequenceTail(member.object);
+    if (isPristineProxyGlobal(adapter, resolveObjectName({ objectNode, scope, adapter, path, readNode: objectNode }))) return null;
+  }
   return typeof key === 'string' && !key.startsWith('Symbol.') && (!key.startsWith('#') || !member.computed) ? key : null;
 }
 function privateReadKeyName(member, path, adapter) {
@@ -6441,7 +6442,7 @@ function slotValueProvablyDefined(node, ctx, depth = 0) {
     if (!varInitDominatesUsage({ declaratorNode, usagePath: ctx.path, usageNode: core, kind: binding.kind })) return false;
     return !!declaratorNode?.init && slotValueProvablyDefined(declaratorNode.init, ctx, depth + 1);
   }
-  return isProxyGlobalLeaf(core) && !fallbackValueCanBeNullish(core, ctx);
+  return isProxyGlobalLeaf(core, ctx) && !fallbackValueCanBeNullish(core, ctx);
 }
 
 // the arm a level's DEFAULT takes off the value its slot pairs: `born` where the slot provably holds
@@ -8152,7 +8153,7 @@ export function buildNestedParamSynthPlan(options) {
     // declined there, so the fallback that fires on an absent native is sound
     const declined = mirrored.foreign || receiverNodes.every(node => destructureValueBranchesAllProxy(
       node,
-      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
+      receiverCtx,
     )
       || allDestructureValueBranches(node, leaf => {
         const context = rootContext(leaf);
@@ -9203,11 +9204,14 @@ export function buildPatternRenderPlan(patternNode, { scope, path, adapter }) {
 
 // The proxy root and named hops of a receiver navigation. Leading pristine realm hops
 // are redundant; the final hop remains available to the passthrough's entry selection.
-// Flat and nested declaration reads use the same source/guard shape proof.
-export function proxyNavHead(receiver, { adapter, guardCtx = null }) {
+// Flat and nested declaration reads use the same scoped root and source/guard shape proof.
+export function proxyNavHead(receiver, {
+  adapter, guardCtx = null, scope = guardCtx?.aliasCtx?.scope, path = guardCtx?.aliasCtx?.path,
+}) {
   const { root, keys: navKeys } = navHopChain(receiver, guardCtx);
   let keys = navKeys;
-  if (!keys.length || keys.some(key => !key) || root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return null;
+  if (!keys.length || keys.some(key => !key) || root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)
+    || !proxyGlobalRootName({ node: root, scope, adapter, path })) return null;
   while (keys.length > 1 && isPristineProxyGlobal(adapter, keys[0])) keys = keys.slice(1);
   return { rootName: root.name, keys };
 }
@@ -9576,19 +9580,19 @@ function allDestructureValueBranches(node, isLeaf, staticIsMutated = null) {
   }
 }
 
-// a leaf is a PROXY when it is a bare global-object name or a proxy-hop member chain ending in one
-// (name-based, mirroring the flatten plan's rootContext)
-function isProxyGlobalLeaf(tail) {
+// A proxy-only leaf needs a scoped realm root; same-named user slots can be undefined.
+function isProxyGlobalLeaf(tail, ctx) {
   let n = tail;
   while ((n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') && !n.computed
     && n.property?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.property.name)) n = n.object;
-  return n?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name);
+  return n?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name) && !!proxyGlobalRootName({ node: n, ...ctx });
 }
 
 // do ALL reachable value branches resolve to a global proxy? a non-proxy branch means a `= _polyfill`
 // default could fire on its legitimate `undefined`, so an un-mirrorable pattern must bail there
-function destructureValueBranchesAllProxy(node, staticIsMutated = null) {
-  return allDestructureValueBranches(node, isProxyGlobalLeaf, staticIsMutated);
+function destructureValueBranchesAllProxy(node, ctx) {
+  return allDestructureValueBranches(node, leaf => isProxyGlobalLeaf(leaf, ctx),
+    ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic);
 }
 
 // is a destructure init a selection of the realm that no single realm operand stands for
@@ -9599,7 +9603,7 @@ export function guardedRealmSelection(init, ctx) {
   const value = unwrapExpressionChain(peelChainAssignment(init).value);
   return !!getFallbackBranchSlots(value) && destructureValueBranchesAllProxy(
     value,
-    ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic,
+    ctx,
   )
     && !realmSelectionCollapseOperand(value, ctx);
 }

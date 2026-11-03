@@ -5,7 +5,7 @@ import {
   planNestedDefaultHop,
   shouldMirrorNestedDestructureDefault,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { decidedRunningOperandPath, typedNavClaimShape } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { decidedRunningOperandPath, pairedDefaultArm, typedNavClaimShape } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { toHint } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 import { identifier } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -156,5 +156,23 @@ for (const source of [
     path, defaultPath: path.parentPath.parentPath, kind: 'instance', getReceiverPath: () => null,
   }, ctx), true);
 });
+
+// A same-named member of a local object can be undefined and must retain its default.
+for (const name of ['self', 'window', 'globalThis', 'global']) {
+  for (const key of ['self', 'window', 'globalThis']) {
+    runBoth(`local realm slot/${ name }/${ key }`,
+      `function read(${ name }) { const value = ${ name }.${ key }; }`, (parser, program, label) => {
+        const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+        const ctx = { ...context(parser), path, scope: path.scope };
+        check(label, pairedDefaultArm(path.node.init, ctx), 'open');
+      });
+  }
+}
+for (const [source, expected] of [['globalThis', 'dead'], ['globalThis.globalThis', 'dead'], ['globalThis.window', 'open']]) {
+  runBoth(`realm slot/${ source }`, `const value = ${ source };`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    check(label, pairedDefaultArm(path.node.init, { ...context(parser), path, scope: path.scope }), expected);
+  });
+}
 
 finish();

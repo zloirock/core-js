@@ -9,11 +9,12 @@ import {
   resolveNestedDestructureReceiver,
   resolveNestedReceiverBase,
   resolveNestedReceiverChain,
+  staticContainerReceiverName,
   typedNavClaimShape,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { buildNestedDestructurePlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
-import { proxyGlobalRootName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { proxyGlobalRootName, resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -82,6 +83,32 @@ for (const [name, source, realm] of [
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   check(label, proxyGlobalRootName({ node: path.node.arguments[0], scope: path.scope, adapter, path }), realm);
 });
+
+// Erased declarations describe the external realm; runtime locals still shadow it.
+for (const name of ['self', 'window', 'globalThis', 'global']) {
+  for (const [declaration, expected] of [
+    [`declare const ${ name }: any;`, name],
+    [`declare var ${ name }: any;`, name],
+    [`declare class ${ name } {}`, name],
+    [`interface ${ name } { value: number }`, name],
+    [`const ${ name } = {};`, null],
+    [`let ${ name };`, null],
+    [`namespace ${ name } { export const value = 1; }`, null],
+    [`declare class ${ name } {} namespace ${ name } { export const value = 1; }`, null],
+  ]) {
+    const annotation = name === 'global' && declaration.startsWith('interface ')
+      ? '// @ts-expect-error The DOM-only check does not declare the Node global value.\n' : '';
+    runBoth(`realm declaration/${ declaration }`, `export {}; ${ declaration }\n${ annotation }const observed = ${ name };`,
+      (parser, program, label) => {
+        const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'observed');
+        const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+        const ctx = { node: path.node.init, scope: path.scope, adapter, path };
+        const binding = adapter.getBinding({ scope: path.scope, name, path });
+        check(`${ label }/lookup`, proxyGlobalRootName(ctx), expected);
+        check(`${ label }/supplied binding`, proxyGlobalRootName({ ...ctx, binding }), expected);
+      });
+  }
+}
 
 function pickSymbolLeaf(adapter, prog) {
   const type = adapter.name === 'babel' ? 'ObjectProperty' : 'Property';
@@ -552,5 +579,31 @@ for (const [name, source, expected] of [
   const receiver = resolveNestedDestructureReceiver(descriptor.outerProp, adapter, union, { leafPattern: descriptor.objectPattern });
   checkDeep(`${ lbl } receiver and union`, [receiver, union], expected);
 });
+
+// Container fallback must refuse the same effectful realm hop as the name walk.
+for (const method of ['usage-global', 'usage-pure']) {
+  for (const receiver of [
+    'globalThis', '(prefix(), globalThis)', 'realm', '(prefix(), realm)',
+    '(realm = globalThis, realm)', '(prefix(), realm = globalThis, realm)',
+  ]) {
+    const declaration = receiver.includes('realm =') ? 'let realm;' : 'const realm = globalThis;';
+    for (const key of ['"self"', '(key(), "self")']) {
+      runBoth(`realm container key/${ method }/${ receiver }/${ key }`,
+        `${ declaration } use(${ receiver }[${ key }].Array);`, (parser, program, label) => {
+          const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'use');
+          const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+          const result = resolveObjectName({ objectNode: path.node.arguments[0], scope: path.scope, path, adapter });
+          check(label, result, method === 'usage-pure' && key.startsWith('(') ? null : 'Array');
+        });
+      runBoth(`realm container alias/${ method }/${ receiver }/${ key }`,
+        `${ declaration } const selected = ${ receiver }[${ key }].Array; use(selected);`, (parser, program, label) => {
+          const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'use');
+          const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+          const result = staticContainerReceiverName({ node: path.node.arguments[0], scope: path.scope, path, adapter });
+          check(label, result, method === 'usage-pure' && key.startsWith('(') ? null : 'Array');
+        });
+    }
+  }
+}
 
 finish();
