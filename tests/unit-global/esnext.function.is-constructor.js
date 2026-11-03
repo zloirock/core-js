@@ -1,3 +1,4 @@
+import { GLOBAL } from '../helpers/constants.js';
 import { fromSource } from '../helpers/helpers.js';
 
 QUnit.test('Function.isConstructor', assert => {
@@ -42,4 +43,33 @@ QUnit.test('Function.isConstructor', assert => {
   const method = fromSource('({f(){}}).f');
   // Safari 9 bug
   if (method && !/function/.test(method)) assert.false(isConstructor(method), 'method');
+
+  // The legacy sham cannot inspect proxy constructors reliably.
+  const { Proxy } = GLOBAL;
+  if (typeof Proxy == 'function' && !isConstructor.sham) {
+    // Chakra reads newTarget.prototype even when the target has a construct trap.
+    const proxyAssert = /Edge\//.test(GLOBAL.navigator?.userAgent) || GLOBAL.process?.versions?.chakracore ? assert.skip : assert;
+    const calls = [];
+    const constructor = function () { assert.avoid('constructor must not be called'); };
+    const logging = new Proxy(constructor, {
+      get(target, key) {
+        calls.push(key);
+        return target[key];
+      },
+    });
+    assert.true(isConstructor(logging), 'proxy constructor');
+    proxyAssert.arrayEqual(calls, [], 'does not read properties of the constructor');
+
+    const fail = () => { throw new Error('proxy trap'); };
+    proxyAssert.true(isConstructor(new Proxy(constructor, { get: fail, apply: fail, construct: fail })), 'does not invoke proxy traps');
+    assert.false(isConstructor(new Proxy(Function.prototype.call, { get: fail, construct: fail })), 'construct trap does not make a non-constructor constructible');
+
+    if (typeof Proxy.revocable == 'function') {
+      for (const [target, expected] of [[constructor, true], [Function.prototype.call, false], [{}, false]]) {
+        const { proxy, revoke } = Proxy.revocable(target, {});
+        revoke();
+        (expected ? proxyAssert : assert).same(isConstructor(proxy), expected, 'revocation preserves constructibility');
+      }
+    }
+  }
 });

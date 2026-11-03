@@ -7,6 +7,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var inspectSource = require('../internals/inspect-source');
 
 var noop = function () { /* empty */ };
+var constructTarget = noop;
 var construct = getBuiltIn('Reflect', 'construct');
 var constructorRegExp = /^\s*(?:class|function)\b/;
 var exec = uncurryThis(constructorRegExp.exec);
@@ -15,7 +16,7 @@ var INCORRECT_TO_STRING = !constructorRegExp.test(noop);
 var isConstructorModern = function isConstructor(argument) {
   if (!isCallable(argument)) return false;
   try {
-    construct(noop, [], argument);
+    construct(constructTarget, [], argument);
     return true;
   } catch (error) {
     return false;
@@ -45,6 +46,9 @@ isConstructorLegacy.sham = true;
 // https://tc39.es/ecma262/#sec-isconstructor
 module.exports = !construct || fails(function () {
   var called;
+  var Proxy = getBuiltIn('Proxy');
+  // a construct trap avoids reading the new target's .prototype
+  if (Proxy) constructTarget = new Proxy(noop, { construct: function () { return {}; } });
   return isConstructorModern(isConstructorModern.call)
     || !isConstructorModern(Object)
     || !isConstructorModern(function () { called = true; })

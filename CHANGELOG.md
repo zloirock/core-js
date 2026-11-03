@@ -71,6 +71,7 @@
 - `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
 - Fixed `Symbol`, typed array and weak collection polyfills depending on `Array.prototype.concat` or `Array.prototype.push` replaced after loading `core-js`
 - Fixed some polyfills depending on global `TypeError`, `isFinite`, `parseInt`, `String` or `Object` replaced after loading `core-js`
+- Improve `IsConstructor` checks on proxies, including revoked proxies, without reading their properties
 - Improve some more [`document.all` (falsy callable)](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot) cases handling
 - Entries fixes:
   - Added missed `JSON.parse` to `JSON.rawJSON` entries dependencies to validate input with the corrected parser
