@@ -5,7 +5,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { guardProbeUndefinable } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import {
-  claimProbeSourceSlot, proxyRunValueIsProven, undefinableOptionalGuard,
+  claimProbeSourceSlot, maximalProxyGlobalPrefix, proxyRunValueIsProven, undefinableOptionalGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -13,6 +13,59 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, runBoth, finish } = createChecker('inner-collapse');
+
+for (const [expression, accepted] of [
+  ['(held = globalThis).self', true],
+  ['(held = globalThis.self).window', true],
+  ['(held = (inner = globalThis).self).window', true],
+  ['(held = (effect(), globalThis.self)).window', true],
+  ['(held = globalThis["self"]).window', true],
+  ['(held = realm.self).window', true],
+  ['(held = globalThis.host).self', false],
+  ['(held = globalThis.host.links).window', false],
+  ['(held = (inner = globalThis.host).self).window', false],
+  ['(held = (effect(), globalThis.host)).self', false],
+  ['(held = (inner = (effect(), globalThis.host)).self).window', false],
+  ['(box.value = globalThis.host).self', false],
+  ['(held = realm.host).self', false],
+  ['(held = globalThis[key]).self', false],
+  ['((held = (globalThis.host as any))!).self', false],
+  ['(held ||= globalThis).self', false],
+]) runBoth(`stored prefix/${ expression }`, `let held, inner; const box = {}; const realm = globalThis; const result = ${ expression };`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const ctx = context(parser, path);
+    const before = JSON.stringify(program.node);
+    for (const allowSideEffectKeys of [false, true]) {
+      check(`${ label }/${ allowSideEffectKeys }/prefix`, maximalProxyGlobalPrefix(node, ctx,
+        { throughChainAssign: true, allowSideEffectKeys }) === node, accepted);
+    }
+    check(`${ label }/default keeps assignment opaque`, maximalProxyGlobalPrefix(node, ctx), null);
+    check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+  });
+
+runBoth('stored prefix uses the same computed-key and mutation rules',
+  'let held; const result = (held = globalThis[(effect(), "self")]).window;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const ctx = context(parser, path);
+    for (const allowSideEffectKeys of [false, true]) {
+      check(`${ label }/${ allowSideEffectKeys }`, maximalProxyGlobalPrefix(node, ctx,
+        { throughChainAssign: true, allowSideEffectKeys }) === node, allowSideEffectKeys);
+      const patched = { ...ctx, adapter: { ...ctx.adapter, isMutatedStatic(name, key) {
+        return name === 'globalThis' && key === 'self';
+      } } };
+      check(`${ label }/${ allowSideEffectKeys }/patched value`, maximalProxyGlobalPrefix(node, patched,
+        { throughChainAssign: true, allowSideEffectKeys }) === node, false);
+    }
+  });
+
+runBoth('stored prefix cannot borrow a shadowed realm root',
+  'function read(globalThis) { let held; const result = (held = globalThis.self).window; }', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    check(label, maximalProxyGlobalPrefix(path.node.init, context(parser, path), { throughChainAssign: true }), null);
+  });
 
 function resolvePure({ name }) {
   return ['globalThis', 'self', 'Array'].includes(name) ? { entry: name, hintName: name } : null;

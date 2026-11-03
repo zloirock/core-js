@@ -22256,6 +22256,43 @@ function * generateThisNavigationInitializers() {
   }
 }
 
+// A realm-rooted user value remains user-owned after a store. Cross the consumers
+// that can collapse its receiver with direct and effect-bearing nested assignments.
+function * generateStoredUserReceivers() {
+  const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+  for (const kind of ['read', 'write', 'delete', 'destructure', 'iterator', 'guard', 'memo']) {
+    for (const nested of [false, true]) for (const absent of kind === 'guard' || kind === 'memo' ? [false, true] : [false]) {
+      const base = nested ? '(held = (effects.push("prefix"), inner = globalThis.diffStoredHost))'
+        : '(held = globalThis.diffStoredHost)';
+      const body = kind === 'read' ? `r = ${ base }.self.value;`
+        : kind === 'write' ? `${ base }.window.diffStoredSlot = (effects.push("rhs"), 23); r = own.diffStoredSlot;`
+          : kind === 'delete' ? `r = [delete ${ base }.window.diffStoredSlot, Object.hasOwn(own, "diffStoredSlot")];`
+            : kind === 'destructure' ? `const { at, length } = ${ base }.self.list; r = [at.call(own.list, -1), length];`
+              : kind === 'iterator' ? `r = ${ base }.self[Symbol.iterator]().next().value;`
+                : kind === 'guard' ? `r = ${ base }.self?.list.at(-1);`
+                  : `r = (saved = ${ base }.self)?.list.includes(9);`;
+      yield {
+        name: `stored-user-receiver/${ kind }/${ nested }/${ absent }`, strip: true,
+        code: `import { withTemporaryProperty } from ${ helper };
+          export const effects = []; export let r;
+          const own = { value: 17, diffStoredSlot: 11, list: [4, 9], [Symbol.iterator]() {
+            effects.push(this === own ? "this" : "wrong");
+            return { next() { return { value: 31, done: false }; } };
+          } };
+          const host = { get self() { effects.push("self"); return ${ absent ? 'null' : 'own' }; },
+            get window() { effects.push("window"); return own; } };
+          let held, inner, saved;
+          withTemporaryProperty(globalThis, "diffStoredHost", host, () => {
+            withTemporaryProperty(globalThis, "diffStoredSlot", 13, () => {
+              ${ body }
+              r = [r, held === host${ nested ? ', inner === host' : '' }${ kind === 'memo' ? `, saved === ${ absent ? 'null' : 'own' }` : '' }, globalThis.diffStoredSlot];
+            });
+          });`,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22704,4 +22741,5 @@ export function * generate() {
   yield * generateRetainedRenderOwnership();
   yield * generateGuardPrefixStores();
   yield * generateThisNavigationInitializers();
+  yield * generateStoredUserReceivers();
 }
