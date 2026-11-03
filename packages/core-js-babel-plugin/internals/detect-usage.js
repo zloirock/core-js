@@ -866,6 +866,9 @@ export function createUsageVisitors({
   function handleDestructuring(path) {
     const objectPattern = path.parentPath;
     if (!objectPattern.isObjectPattern()) return;
+    // A capture can replace an ancestor while Babel still has this subtree queued.
+    // Its replacement owns the remaining claims; do not analyze the detached copy.
+    if (method === 'usage-pure' && ancestorChainDetached(path)) return path.skip();
     // the funnel choke, shared with the unplugin leg: `host: 'none'` (a non-destructure parent)
     // emits nothing at all. the key is read at its own path, where it EVALUATES
     const containerUnion = [];

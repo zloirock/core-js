@@ -3007,12 +3007,13 @@ export default function createDestructureEmitter({
     const declIsExport = !isForInit && declaration.parentPath?.isExportNamedDeclaration();
     if (patternEmpties && declCount === 1 && !isForInit) {
       // single-declarator full consume: replace the declaration with the extraction
-      // statements (replaceWith preserves leading comments on the single-statement shape)
+      // statements. Keep a single replacement's span as well as its leading comments:
+      // the source end places own-line trailing comments before the following statement.
       const stmts = renderDestructureStatements(extracted, {
         kind: declaration.node.kind, exported: declIsExport, embed: hostSlot,
       }).map(node => estreeToBabel(node));
       const target = declIsExport ? declaration.parentPath : declaration;
-      bound(stmts.length === 1 ? target.replaceWith(stmts[0]) : target.replaceWithMultiple(stmts));
+      bound(stmts.length === 1 ? target.replaceWith(inheritSpan(stmts[0], target.node)) : target.replaceWithMultiple(stmts));
       return !!prop && planConsumedProp(prop);
     }
     // multi-decl / for-init: declarator-level insert keeps the extractions AT THEIR SOURCE
@@ -3203,11 +3204,13 @@ export default function createDestructureEmitter({
   // A flatten that ran on the captured declarator itself left them as declarators ahead of it in
   // this same declaration, and statements before it otherwise
   function joinHopStaticsIntoCapture(declaration, first) {
-    const captured = declaration.get('declarations');
     function ownElement(extracted) {
       const owner = extractionPropOf.get(extracted);
-      return owner && captured.find(item => item.node.id?.type === 'ObjectPattern'
-        && item.node.id.properties.includes(owner));
+      // Earlier moves remove paths from this same list. Locate the live node first,
+      // then materialize only its path instead of retaining a snapshot of all siblings.
+      const index = owner ? declaration.node.declarations.findIndex(item => item.id?.type === 'ObjectPattern'
+        && item.id.properties.includes(owner)) : -1;
+      return index < 0 ? null : declaration.get(`declarations.${ index }`);
     }
     for (let prev = first.getPrevSibling(); prev.node?.type === 'VariableDeclarator';) {
       const element = ownElement(prev.node);
@@ -5355,8 +5358,6 @@ export default function createDestructureEmitter({
   //     `(se(), Array)`, `Array || Promise`): needs the per-prop intermediate-hop collapse
   //     (`globalThis['self'].Array` -> `_globalThis.Array`) and SE-discard the flat-residual
   //     plan path doesn't reproduce
-  //   - a leading comment on the declaration: the per-prop path leaves it between the split
-  //     statements, the plan render lifts it to the first - byte-divergent on multi-statement output
   // those canon merges are separate increments. an AssignmentExpression host has no plan-render here
   function tryRouteFlatStaticToPlan(prop) {
     const objectPattern = prop.parentPath;
@@ -5378,7 +5379,11 @@ export default function createDestructureEmitter({
     // the constructor (`{ of, name } = Array`) has its ponyfill built and then discarded. hand any
     // unconsumed prop back to the per-prop path, which emits the two kinds side by side
     const plan = buildFlattenPlan({ declaratorNode: declarator.node, scope: declarator.scope, path: declarator });
-    if (plan?.outerProps?.some(outer => outer.kind === 'verbatim')) return false;
+    if (plan?.outerProps?.some(outer => outer.kind === 'verbatim')) {
+      // Per-property emission will change the pattern this speculative plan described.
+      forgetDestructurePlan(adapter, declarator.node);
+      return false;
+    }
     return renderDeclaratorFlattenPlan(declarator, prop);
   }
 
