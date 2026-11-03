@@ -1848,6 +1848,8 @@ const transpiledAndPolyfilled = {
 const nodePackages = {
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
+  // disallow unsupported ECMAScript syntax on the specified version
+  'node/no-unsupported-features/es-syntax': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
   // prefer `node:` protocol
@@ -1902,6 +1904,8 @@ const nodePackages = {
 };
 
 const nodeDev = {
+  // disallow unsupported ECMAScript syntax on the specified version
+  'node/no-unsupported-features/es-syntax': [ERROR, { version: DEV_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
   ...disable(forbidModernBuiltIns),
@@ -2301,6 +2305,8 @@ const markdown = {
   'es/no-top-level-await': OFF,
   // ensure imports point to files / modules that can be resolved
   'import/no-unresolved': OFF,
+  // allow modern syntax in code examples
+  'node/no-unsupported-features/es-syntax': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': OFF,
   // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided

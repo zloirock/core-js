@@ -1,5 +1,5 @@
 'use strict';
-// eslint-disable-next-line es/no-object-hasown -- safe
+// eslint-disable-next-line es/no-object-hasown, node/no-unsupported-features/es-syntax -- safe
 const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
 const VERSION_PATTERN = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/;
