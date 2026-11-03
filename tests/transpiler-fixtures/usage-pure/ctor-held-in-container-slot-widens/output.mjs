@@ -22,7 +22,7 @@ const {
   ...renamedRest
 } = renamed;
 const indexed = [_Map];
-const [_ref] = indexed,
+const [{}] = indexed,
   {
     groupBy: viaIndex,
     ...indexRest

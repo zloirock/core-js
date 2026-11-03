@@ -21,8 +21,11 @@ QUnit.test('destructuring probe 5: const box = [[1]]; const [a] = [...[box]]; a.
 
 QUnit.test('destructuring probe 6: const log = []; const [{ from: f }] = [...([Array]', assert => {
   const { out, console } = collect();
-  const log = []; const [{ from: f }] = [...([Array])]; log.push(f === Array.from); console.log(log.join(' '));
+  // Literal-wrapper statics stay native; an unrelated served read must not splice this host.
+  const nativeFrom = Object.getOwnPropertyDescriptor(Array, 'from')?.value;
+  const log = []; const [{ from: f }] = [...([Array])]; log.push(f === nativeFrom); console.log(log.join(' '));
   assert.deepEqual(out, ["true"]);
+  assert.deepEqual(Array.from([7]), [7]);
 });
 
 QUnit.test('destructuring probe 7: const log = []; const known = { w: Object, y: [1] ', assert => {

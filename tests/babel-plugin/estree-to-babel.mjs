@@ -78,6 +78,16 @@ function caught(node) {
   }
 }
 
+// Only an explicitly marked object capture may later become a coercion-only pattern.
+{
+  const source = identifier('_ref');
+  source.extra = { corejsObjectCapture: true };
+  const converted = estreeToBabel(source);
+  check('object capture survives conversion', converted.extra?.corejsObjectCapture, true);
+  check('ordinary memo has no capture provenance', estreeToBabel(identifier('_ref')).extra?.corejsObjectCapture, undefined);
+  checkTruthy('object capture metadata is detached', converted.extra !== source.extra);
+}
+
 // Conversion transfers served-read ownership, without claiming any source child slot.
 {
   const key = callExpression(identifier('key'), []);

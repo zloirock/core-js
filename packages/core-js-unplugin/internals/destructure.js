@@ -1180,8 +1180,9 @@ export default function createAstDestructureEmitter({
     if (applyParameterClaimMirror(metaPath, meta, kind, patternMirrorBinding)) return;
     // every leaf of this pattern answers its receiver type before the routes below rewrite it
     primeDestructureReceiverTypes?.(metaPath);
-    // Expand literal array spreads before choosing their capture, as on the Babel host.
-    flattenArrayWrapperInits(metaPath, replaceSpread);
+    // A native wrapper keeps its written iteration even when another host injects.
+    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: metaPath, kind, adapter });
+    if (!retainsLiteralWrapper) flattenArrayWrapperInits(metaPath, replaceSpread);
 
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
@@ -1252,7 +1253,7 @@ export default function createAstDestructureEmitter({
     }
     // Common captures above may expose a flat read. Remaining literal-wrapper
     // static/global slots retain their source patterns on every host.
-    if (destructureRetainsLiteralWrapper({ propPath: metaPath, kind, adapter })) {
+    if (retainsLiteralWrapper) {
       // A retained plain static binding still has its known return type. A native
       // default may supply another function, so only the unguarded binding is an alias.
       if (kind === 'static' && metaPath.node.value.type === 'Identifier') registerExtractAliases({

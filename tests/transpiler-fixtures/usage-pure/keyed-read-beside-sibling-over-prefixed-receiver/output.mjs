@@ -7,7 +7,7 @@ const box = {
   other: 1
 };
 const {
-    w: _ref
+    w: {}
   } = (log('box'), box),
   from = (log('from'), _Array$from),
   {
@@ -19,7 +19,7 @@ const holder = {
 };
 let n = 0;
 let {
-    v: _ref2
+    v: {}
   } = (n++, holder),
   keys = (log('keys'), _Object$keys),
   {

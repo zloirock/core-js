@@ -12,6 +12,7 @@ import {
   foldedPropertyKeyName,
   installedWriteValue,
   isBindingDeclarationPath,
+  isForInitDeclaration,
   isGeneratedMemoDeclarator,
   isAssignOrForXWriteTargetPath,
   isCleanDestructureAliasBinding,
@@ -32,6 +33,7 @@ import {
   nodeSpan,
   observableSequenceElements,
   plainSynthKeyName,
+  patternSlotHost,
   peelNestedSequenceExpressions,
   peelSequenceTail,
   performsNothing,
@@ -1063,7 +1065,7 @@ function collectWriteOnlyGuardMemoCandidate(node, mintedRefNames, out) {
 // pure-import names occur beyond their own import statement (`pureCounts` minus
 // `pureImportBoundCounts`), which `obj.key` member reads exist (the pure-static ctor
 // exception), which foreign slot-shaped spellings force the taken-aware renumber
-// (`foreignSlotName` / `referenceNames`), and the nested guard-memo candidates. one walk,
+// (`foreignSlotName` / `referenceNames`), and the capture / guard-memo candidates. one walk,
 // either dialect - the node-shape questions go through the canon predicates
 export function collectInjectorCensus(program, {
   mintedRefNames = EMPTY_NAME_SET,
@@ -1090,6 +1092,8 @@ export function collectInjectorCensus(program, {
   const ancestorListKeys = [];
   const memoDeclarations = [];
   const memoSequences = [];
+  const objectCaptures = [];
+  let exportedRefNames = null;
   const memberKeys = memberKeyNamesReducer();
   // eslint-disable-next-line max-statements -- one final-tree census keeps liveness and positional memo facts together
   walkAstNodes({ root: program, visit(node, parent, key, listKey) {
@@ -1154,6 +1158,9 @@ export function collectInjectorCensus(program, {
           }
         }
       } else if (blocksUidSlot(parent, node)) referenceNames.add(name);
+      else if (memoReuse && parent?.type === 'ExportSpecifier' && parent.local === node && mintedRefNames.has(name)) {
+        (exportedRefNames ??= new Set()).add(name);
+      }
     }
     // Keep final positional facts in the same census: inner claim renders may have
     // turned a captured receiver into a stable import since the memo was allocated.
@@ -1166,6 +1173,19 @@ export function collectInjectorCensus(program, {
       const occurrence = { node, parent, ancestors: spine, frame, keys: ancestorKeys.slice(), listKeys: ancestorListKeys.slice() };
       let path = null;
       for (const ancestor of spine) path = { node: ancestor, parentPath: path, parent: path?.node };
+      if (node.extra?.corejsObjectCapture && (isBindingDeclarationPath(path) || isAssignOrForXWriteTargetPath(path))) {
+        const slot = patternSlotHost(node, path);
+        const declarationHost = slot?.host.type === 'VariableDeclarator' ? spine[spine.indexOf(slot.host) - 2] : null;
+        // A sibling lowering may have moved this annotated name into a plain declarator.
+        // Its coercion is no longer a pattern slot; never reintroduce syntax after lowering.
+        // Keep for-init captures: downstream destructuring lowering puts declarations
+        // containing an empty pattern in an IIFE, hiding their live bindings from the loop.
+        if (slot && slot.node !== node
+          && declarationHost?.type !== 'ExportNamedDeclaration'
+          && !isForInitDeclaration(declarationHost, spine[spine.indexOf(slot.host) - 1])) {
+          objectCaptures.push({ node, parent, key, listKey });
+        }
+      }
       if (parent?.type === 'VariableDeclarator' && parent.id === node) {
         binding.declarations.push(occurrence);
         if (parent.init) {
@@ -1253,14 +1273,28 @@ export function collectInjectorCensus(program, {
     pureNames,
     memoDeclarations,
     memoSequences,
+    objectCaptures,
+    exportedRefNames,
   };
 }
 
-// unwrap the write-only candidates in place: a ref with exactly ONE occurrence beyond its
-// declarators (the write itself) serves no read - the write collapses to its RHS and the
-// ref falls to declarator-only, which each emitter's own prune then drops
+// Settle candidates in place using final liveness. An unread object capture retains its
+// coercion. A ref with only its guard write beyond its declarators collapses to that write's
+// RHS, leaving the orphan declaration for the emitter's own prune.
 // eslint-disable-next-line max-statements -- consume the one census without another AST pass
 export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contextForMemo = null } = {}) {
+  // Retire only our object-pattern captures after every claim has finished using them.
+  // Keep the native read, default and coercion; a plain memo never acquires a new throw.
+  for (const { node, parent, key, listKey } of census.objectCaptures) {
+    const { name, extra, ...pattern } = node;
+    if (!injectorState?.isOwnPassGeneratedName(name) || census.exportedRefNames?.has(name)
+      || census.refCounts.get(name) - (census.refDeclIdCounts.get(name) ?? 0) !== 1) continue;
+    const container = listKey ? parent[listKey] : parent;
+    container[key] = { ...pattern, type: 'ObjectPattern', properties: [] };
+    census.refNodes.delete(node);
+    census.memoBindings.delete(name);
+    census.refCounts.set(name, census.refCounts.get(name) - 1);
+  }
   for (const candidate of census.nestedGuardMemoCandidates) {
     const { name } = candidate;
     if ((census.refCounts.get(name) ?? 0) - (census.refDeclIdCounts.get(name) ?? 0) !== 1) continue;

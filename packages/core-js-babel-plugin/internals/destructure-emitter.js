@@ -4686,8 +4686,9 @@ export default function createDestructureEmitter({
         && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return;
       if (renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
     }
-    // an inline-array spread in a wrapper literal flattens first: every route below edits by slot
-    flattenArrayWrapperInits(prop, replaceSpread);
+    // A native wrapper keeps its written iteration even when another host injects.
+    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter });
+    if (!retainsLiteralWrapper) flattenArrayWrapperInits(prop, replaceSpread);
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
     // it is the provider's `seKeyStaticOwesTheMirror`, so neither leg carries a gate of its own, and
@@ -4697,7 +4698,7 @@ export default function createDestructureEmitter({
       && renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
     if (sekeySymbolKeepsKeySwap(prop, meta, entry)) return;
     if (renderArrayFlattenPlan(prop)) return;
-    if (destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter })) {
+    if (retainsLiteralWrapper) {
       if (kind === 'static' && prop.node.value.type === 'Identifier') {
         injector.registerBodyExtractAlias(prop.node.value.name, entry, prop.scope.getBinding(prop.node.value.name));
       }

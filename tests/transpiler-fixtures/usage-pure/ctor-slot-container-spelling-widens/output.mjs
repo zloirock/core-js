@@ -46,7 +46,7 @@ const {
 } = armed;
 const indexedSource = [_Map];
 const indexedHop = indexedSource;
-const [_ref] = indexedHop,
+const [{}] = indexedHop,
   {
     groupBy: viaIndexHop,
     ...indexHopRest

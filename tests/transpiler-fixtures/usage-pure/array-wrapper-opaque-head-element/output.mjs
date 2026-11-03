@@ -7,7 +7,7 @@ import _at from "@core-js/pure/actual/instance/at";
 export function read(unknown) {
   const log = [];
   for (const e of [Array]) {
-    const [_ref,,] = [e, unknown];
+    const [{},,] = [e, unknown];
     const of = (_pushMaybeArray(log).call(log, 'k'), _Array$of);
     const from = _Array$fromAsync;
     const at = _at(unknown);

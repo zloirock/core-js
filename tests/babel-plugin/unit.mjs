@@ -29,6 +29,7 @@ import './post-sweep-introduced-global.mjs';
 import './late-paren-compensation-gate.mjs';
 import './parser-dialect-equivalence.mjs';
 import './bodyless-array-capture.mjs';
+import './native-wrapper-preparation.mjs';
 import './flow-class-members.mjs';
 import './statement-order-independence.mjs';
 import './prepass-collection.mjs';
