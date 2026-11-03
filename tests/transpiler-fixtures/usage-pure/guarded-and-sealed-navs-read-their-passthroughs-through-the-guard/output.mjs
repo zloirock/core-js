@@ -16,28 +16,40 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 export function f({
   of,
   other
-} = {
-  of: _Array$of,
-  other: (null == _globalThis.window ? void 0 : _self.Array).other
-}) {
+} = function (_ref) {
+  return null == _ref ? _ref : {
+    of: _Array$of,
+    get other() {
+      return _ref.other;
+    }
+  };
+}(null == _globalThis.window ? void 0 : _self.Array)) {
   return [of, other];
 }
 export function g({
   from,
   other
-} = {
-  from: _Array$from,
-  other: (_globalThis.window?.['Array']).other
-}) {
+} = function (_ref2) {
+  return null == _ref2 ? _ref2 : {
+    from: _Array$from,
+    get other() {
+      return _ref2.other;
+    }
+  };
+}(_globalThis.window?.['Array'])) {
   return [from, other];
 }
 export function h({
   trunc,
   other
-} = {
-  trunc: _Math$trunc,
-  other: (_globalThis.window?.[0, 'Math']).other
-}) {
+} = function (_ref3) {
+  return null == _ref3 ? _ref3 : {
+    trunc: _Math$trunc,
+    get other() {
+      return _ref3.other;
+    }
+  };
+}(_globalThis.window?.[0, 'Math'])) {
   return [trunc, other];
 }
 const fromAsync = _Array$fromAsync;

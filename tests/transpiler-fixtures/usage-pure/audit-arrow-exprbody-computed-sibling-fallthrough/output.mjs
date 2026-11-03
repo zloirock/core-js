@@ -8,15 +8,19 @@ const k = 'foo';
 const f = ({
   from,
   [k]: any
-} = {
+} = (Array, {
   from: _Array$from,
-  [k]: Array[k]
-}) => from([1]);
+  get [k]() {
+    return Array[k];
+  }
+})) => from([1]);
 const g = ({
   of,
   [k]: any2
-} = {
+} = (Array, {
   of: _Array$of,
-  [k]: Array[k]
-}) => of(7, 8);
+  get [k]() {
+    return Array[k];
+  }
+})) => of(7, 8);
 export { f, g };

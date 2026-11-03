@@ -4687,7 +4687,7 @@ export default function createDestructureEmitter({
       if (renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
     }
     // A native wrapper keeps its written iteration even when another host injects.
-    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter });
+    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter, meta });
     if (!retainsLiteralWrapper) flattenArrayWrapperInits(prop, replaceSpread);
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of

@@ -7,10 +7,12 @@ const TAG = 't';
 function run({
   from = [],
   [TAG]: tag
-} = {
+} = (Array, {
   from: _Array$from,
-  [TAG]: Array[TAG]
-}) {
+  get [TAG]() {
+    return Array[TAG];
+  }
+})) {
   return [from, tag];
 }
 run();

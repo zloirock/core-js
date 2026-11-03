@@ -15,7 +15,9 @@ function f({
 } = function (_ref) {
   return {
     from: _Array$from,
-    length: _ref.length
+    get length() {
+      return _ref.length;
+    }
   };
 }(((() => {
   eff();

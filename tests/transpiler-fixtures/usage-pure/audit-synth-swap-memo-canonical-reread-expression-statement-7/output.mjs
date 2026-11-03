@@ -9,7 +9,9 @@ function seCallRoot({
   gone
 } = ((() => (n++, _globalThis))(), {
   groupBy: _Map$groupBy,
-  gone: _Map.gone
+  get gone() {
+    return _Map.gone;
+  }
 })) {
   return [g3, gone];
 }

@@ -1,4 +1,4 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";

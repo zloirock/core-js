@@ -4,9 +4,13 @@ const key = 'length';
 export function read({
   at,
   [key]: other
-} = {
-  at: _atMaybeArray([7]),
-  [key]: [7][key]
-}) {
+} = function (_ref) {
+  return null == _ref ? _ref : {
+    at: _atMaybeArray(_ref),
+    get [key]() {
+      return _ref[key];
+    }
+  };
+}([7])) {
   return [at, other];
 }

@@ -19,7 +19,9 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 // claim reads that slot back, and a raw `_Map.name` is undefined where the engine lacks `name`
 let nm, s;
 const _ref = _globalThis.zz || {
-  name: _nameMaybeFunction(_Map),
+  get name() {
+    return _Map.name;
+  },
   groupBy: _Map$groupBy
 };
 nm = _nameMaybeFunction(_ref);
@@ -27,7 +29,9 @@ nm = _nameMaybeFunction(_ref);
   groupBy: s
 } = _ref);
 const _ref2 = null ?? {
-  name: _nameMaybeFunction(_Promise),
+  get name() {
+    return _Promise.name;
+  },
   try: _Promise$try
 };
 const nm2 = _nameMaybeFunction(_ref2);
@@ -36,18 +40,22 @@ const {
 } = _ref2;
 const _ref3 = _globalThis.yy || {
     from: _Iterator$from,
-    name: _nameMaybeFunction(_Iterator)
+    get name() {
+      return _Iterator.name;
+    }
   },
   f = _ref3 === _Iterator ? _Iterator$from : _ref3.from,
   nm3 = _nameMaybeFunction(_ref3);
 const _ref4 = _globalThis.xx || Object;
 const nm4 = _nameMaybeFunction(_ref4);
 const e4 = _ref4 === Object ? _Object$entries : _entries(_ref4);
-const _ref5 = _globalThis.ww || {
+const _ref5 = _globalThis.ww || (Array, {
     from: _Array$from,
-    name: _nameMaybeFunction(Array),
+    get name() {
+      return _nameMaybeFunction(Array);
+    },
     of: _Array$of
-  },
+  }),
   a5 = _ref5 === Array ? _Array$from : _ref5.from,
   nm5 = _nameMaybeFunction(_ref5),
   b5 = _ref5 === Array ? _Array$of : _ref5.of;

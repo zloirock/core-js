@@ -1,6 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Map from "@core-js/pure/actual/map";
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol from "@core-js/pure/actual/symbol";
@@ -12,7 +13,9 @@ import _Symbol from "@core-js/pure/actual/symbol";
 for (const M of [_Map, _Set]) {
   const [{
     groupBy
-  }] = [c ? M : Object];
+  }] = [c ? M : {
+    groupBy: _Object$groupBy
+  }];
   use(groupBy);
 }
 for (const P of [_Promise, _Set, null]) {

@@ -22425,6 +22425,161 @@ export const r = [${ expression }, typeof canonical];`,
   };
 }
 
+// Literal-wrapper policy follows bindings and captured sources, while a parameter default
+// governs only its own branch. Native static residuals opt out of pure stripping alone.
+function * generateLiteralWrapperSources() {
+  for (const host of ['first', 'later', 'block', 'closure', 'assignment']) for (const parens of [false, true]) {
+    const source = parens ? '(row)' : 'row';
+    const read = `const { C: { from } } = ${ source }; answer = from([3])[0];`;
+    const body = host === 'first' ? read : host === 'later' ? `effects.push("before"); ${ read }`
+      : host === 'block' ? `{ ${ read } }` : host === 'closure' ? `(() => { ${ read } })();`
+        : `let from; effects.push("before"); ({ C: { from } } = ${ source }); answer = from([3])[0];`;
+    yield { name: `literal-wrapper-source/loop/${ host }/${ parens }`, strip: false,
+      code: `export const effects = []; let answer; for (const row of [{ C: Array }]) { ${ body } } export const r = answer;` };
+  }
+  for (const host of ['assignment', 'head', 'iife']) {
+    const body = host === 'assignment'
+      ? 'let from, at; ({ C: { from }, values: { at } } = (effects.push("source"), { C: Array, values: [5] })); return [from([3])[0], at.call([5], 0)];'
+      : host === 'head'
+        ? 'let from, at; for ({ C: { from }, values: { at } } of [{ C: Array, values: [5] }]) return [from([3])[0], at.call([5], 0)];'
+        : 'return (({ C: { from } }) => from([3])[0])((effects.push("argument"), { C: Array }));';
+    yield { name: `literal-wrapper-source/capture/${ host }`, strip: false,
+      code: `export const effects = []; export const r = (() => { ${ body } })();` };
+  }
+  for (const host of ['declaration', 'assignment', 'catch', 'for-of', 'parameter']) for (const source of ['Map', 'globalThis.Map', 'Held', 'flag ? Object : Map']) {
+    const pattern = `{ W: { C: { groupBy } } = { C: ${ source } } }`;
+    const body = host === 'declaration' ? `const ${ pattern } = {}; return groupBy;`
+      : host === 'assignment' ? `let groupBy; (${ pattern } = {}); return groupBy;`
+        : host === 'catch' ? `try { throw {}; } catch (${ pattern }) { return groupBy; }`
+          : host === 'for-of' ? `for (const ${ pattern } of [{}]) return groupBy;`
+            : `function read(${ pattern } = {}) { return groupBy; } return read();`;
+    yield { name: `literal-wrapper-source/default/${ host }/${ source }`, strip: true,
+      // Pin the shared ponyfill's static independently of the preceding corpus snippets.
+      code: `export const effects = []; const canonical = Map.groupBy; const Held = Map; const flag = false;
+        function read() { ${ body } } export const r = read()([7], value => value).get(7)[0];` };
+  }
+  for (const nested of [false, true]) for (const supplied of ['[11, 13]', '{ entries() { effects.push("custom"); return [[0, 17]]; } }']) {
+    const pattern = nested ? '{ C: { entries } } = { C: Object }' : '[{ entries }] = [Object]';
+    const argument = nested ? '{ C: value }' : '[value]';
+    yield { name: `literal-wrapper-source/parameter/${ nested }/${ supplied[0] === '[' ? 'array' : 'custom' }`, strip: true,
+      code: `export const effects = []; function read(${ pattern }) { return entries; } const value = ${ supplied };
+        export const r = Array.from(read(${ argument }).call(value));` };
+  }
+}
+
+// The existing branch mirror can serve a selected slot without owning its literal wrapper.
+function * generateLiteralWrapperBranches() {
+  for (const host of ['declaration', 'assignment', 'array', 'object', 'spread', 'ts-spread', 'loop']) {
+    for (const decided of [false, true]) for (const flag of [true, false]) {
+      const source = '[(effects.push("source"), flag ? Array : value)]';
+      const pattern = '[{ from, missing = (effects.push("default"), 7) }]';
+      const result = '[from.call(value, [3])[0], missing]';
+      const body = host === 'declaration' ? `const ${ pattern } = ${ source }; return ${ result };`
+        : host === 'assignment' ? `let from, missing; (${ pattern } = ${ source }); return ${ result };`
+          : host === 'loop' ? `for (const { w: ${ pattern } } of [{ w: ${ source } }]) return ${ result };`
+            : host === 'object' ? `return (({ a: ${ pattern } }) => ${ result })({ a: ${ source } });`
+              : `return ((${ pattern }) => ${ result })(${ host.endsWith('spread')
+                ? `...([${ source }]${ host === 'ts-spread' ? ' as any' : '' })` : source });`;
+      // A sole caller can settle the receiver before admission; that native wrapper has no fallback claim.
+      yield { name: `literal-wrapper-branch/${ host }/${ decided }/${ flag }`, strip: !decided, ts: host === 'ts-spread',
+        code: `export const effects = []; function read(flag, value) {
+          ${ body }
+        } const foreign = { get from() { effects.push("get"); return function (value) {
+          effects.push(this === foreign ? "this" : "lost-this"); return value;
+        }; } };
+        export const r = ${ decided ? `read(${ flag }, foreign)` : `[read(${ flag }, foreign), read(${ !flag }, foreign)]` };` };
+    }
+  }
+}
+
+// Native slots in a mirror are read at their pattern position, once per occurrence.
+function * generateMirrorRetainedReads() {
+  for (const host of ['flat', 'object', 'array', 'assignment', 'loop']) for (const duplicate of [false, true]) {
+    const leaf = `{ from, includes${ duplicate ? ', includes: again' : '' } }`;
+    const pattern = host === 'flat' ? leaf : host === 'array' ? `[${ leaf }]` : `{ w: ${ leaf } }`;
+    const choice = 'flag ? Array : other';
+    const source = host === 'flat' ? choice : host === 'array' ? `[${ choice }]` : `{ w: ${ choice } }`;
+    const result = `[typeof from, typeof includes${ duplicate ? ', typeof again' : '' }]`;
+    const body = host === 'assignment' ? `let from, includes${ duplicate ? ', again' : '' };
+      (${ pattern } = ${ source }); return ${ result };`
+      : host === 'loop' ? `let from, includes${ duplicate ? ', again' : '' };
+        for (${ pattern } of [${ source }]) return ${ result };`
+        : `const ${ pattern } = ${ source }; return ${ result };`;
+    yield { name: `mirror-retained-read/${ host }/${ duplicate }`, strip: true,
+      code: `export const effects = [];
+        function read(flag) {
+          const previous = Object.getOwnPropertyDescriptor(Array, 'includes');
+          try {
+            Object.defineProperty(Array, 'includes', { configurable: true, get() {
+              effects.push('get'); return from;
+            } });
+            const other = { from() {}, includes() {} };
+            ${ body }
+          } finally {
+            if (previous) Object.defineProperty(Array, 'includes', previous); else delete Array.includes;
+          }
+        } export const r = [read(true), read(false)];` };
+  }
+  for (const host of ['object', 'array']) {
+    const pattern = host === 'object' ? '{ a: { of } }' : '[{ of }]';
+    const source = host === 'object' ? '{ a: realm?.Array }' : '[realm?.Array]';
+    // The unresolved nullable alias has no static claim; its wrapper remains native.
+    yield { name: `mirror-retained-read/optional-alias/${ host }`, strip: false,
+      code: `export const effects = []; function read(missing) {
+        const realm = missing ? null : globalThis;
+        try { const ${ pattern } = ${ source }; return of(3); } catch (error) { return error.name; }
+      } export const r = [read(false), read(true)];` };
+    for (const missing of [false, true]) {
+      const direct = host === 'object' ? '{ a: globalThis.window?.self.Array }' : '[globalThis.window?.self.Array]';
+      const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+      yield { name: `mirror-retained-read/optional/${ host }/${ missing }`, strip: true,
+        code: `import { withTemporaryProperty } from ${ helper };
+          export const effects = []; function read() {
+            try { const ${ pattern } = ${ direct }; return of(3); } catch (error) { return error.name; }
+          } export const r = withTemporaryProperty(globalThis, 'window', ${ missing ? 'null' : 'globalThis' }, () =>
+            withTemporaryProperty(globalThis, 'self', globalThis, read));` };
+    }
+  }
+  const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+  for (const missing of [false, true]) {
+    yield { name: `mirror-retained-read/partial-optional/${ missing }`, strip: true,
+      code: `import { withTemporaryProperty } from ${ helper };
+        export const effects = [];
+        function read({ [(effects.push('key'), 'of')]: of, length } = globalThis.window?.self.Array) {
+          return [of(7), length];
+        }
+        export const r = withTemporaryProperty(globalThis, 'window', ${ missing ? 'null' : 'globalThis' }, () =>
+          withTemporaryProperty(globalThis, 'self', globalThis, () => {
+            try { return read(); } catch (error) { return error.name; }
+          }));` };
+  }
+  yield { name: 'mirror-retained-read/opted-out', strip: true,
+    code: `import { withTemporaryProperty } from ${ helper };
+      export const effects = [];
+      function read({ from,
+        // core-js-disable-next-line
+        of
+      } = Array) { return [from([3]), of()]; }
+      export const r = withTemporaryProperty(Array, 'of', () => 41, read);` };
+  yield { name: 'mirror-retained-read/instance-capture', strip: true,
+    code: `import { restoreProperty } from ${ helper };
+      export const effects = []; const key = 'mirrorPeer'; let held;
+      const atDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'at');
+      const peerDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, key);
+      let result;
+      try {
+        Object.defineProperty(Array.prototype, 'at', { configurable: true, get() {
+          held = this; return function () { return 11; };
+        } });
+        Object.defineProperty(Array.prototype, key, { configurable: true, get() { return held === this; } });
+        function read({ at, [key]: same } = [7]) { return [at(), same]; }
+        result = read();
+      } finally {
+        restoreProperty(Array.prototype, 'at', atDescriptor);
+        restoreProperty(Array.prototype, key, peerDescriptor);
+      } export const r = result;` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22877,4 +23032,7 @@ export function * generate() {
   yield * generateRealmSourceIdentity();
   yield * generateNativePatternStatics();
   yield * generateOptionalConstructorCarriers();
+  yield * generateLiteralWrapperSources();
+  yield * generateLiteralWrapperBranches();
+  yield * generateMirrorRetainedReads();
 }

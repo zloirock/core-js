@@ -13,7 +13,9 @@ function aliasNonPureLeaf({
 } = function (_ref) {
   return {
     fromEntries: _Object$fromEntries,
-    missing: _ref.missing
+    get missing() {
+      return _ref.missing;
+    }
   };
 }((eff(), g.Object))) {
   return [fromEntries, missing];

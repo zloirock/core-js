@@ -10,7 +10,9 @@ function directNonPure({
 } = function (_ref) {
   return {
     hasOwn: _Object$hasOwn,
-    extra: _ref.extra
+    get extra() {
+      return _ref.extra;
+    }
   };
 }((eff(), _self.Object))) {
   return [hasOwn, extra];

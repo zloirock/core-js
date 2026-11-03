@@ -15,30 +15,48 @@ const bb = {
 export const {
   groupBy,
   prototype
-} = _globalThis.c ? {
-  groupBy: _Map$groupBy,
-  prototype: (box?.U).prototype
-} : {
+} = _globalThis.c ? function (_ref) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref.prototype;
+    }
+  };
+}(box?.U) : (Object, {
   groupBy: _Object$groupBy,
-  prototype: Object.prototype
-};
+  get prototype() {
+    return Object.prototype;
+  }
+});
 export const {
   groupBy: deepGroupBy,
   prototype: deepPrototype
-} = _globalThis.c ? {
-  groupBy: _Map$groupBy,
-  prototype: (bb?.W.U).prototype
-} : {
+} = _globalThis.c ? function (_ref2) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref2.prototype;
+    }
+  };
+}(bb?.W.U) : (Object, {
   groupBy: _Object$groupBy,
-  prototype: Object.prototype
-};
+  get prototype() {
+    return Object.prototype;
+  }
+});
 export const {
   groupBy: innerGroupBy,
   prototype: innerPrototype
-} = _globalThis.c ? {
-  groupBy: _Map$groupBy,
-  prototype: (bb.W?.U).prototype
-} : {
+} = _globalThis.c ? function (_ref3) {
+  return {
+    groupBy: _Map$groupBy,
+    get prototype() {
+      return _ref3.prototype;
+    }
+  };
+}(bb.W?.U) : (Object, {
   groupBy: _Object$groupBy,
-  prototype: Object.prototype
-};
+  get prototype() {
+    return Object.prototype;
+  }
+});

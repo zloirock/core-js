@@ -10,13 +10,17 @@ function shared(flag) {
   const {
     of,
     length
-  } = flag ? {
+  } = flag ? (Array, {
     of: _Array$of,
-    length: Array.length
-  } : {
+    get length() {
+      return Array.length;
+    }
+  }) : (Array, {
     of: _Array$of,
-    length: Array.length
-  };
+    get length() {
+      return Array.length;
+    }
+  });
   return [of, length];
 }
 function user(flag, shim) {

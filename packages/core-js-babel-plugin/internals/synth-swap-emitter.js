@@ -49,7 +49,6 @@ import {
 } from '@core-js/polyfill-provider/render';
 import {
   collapseRootHoldsItsGlobal,
-  planMemoReadTarget,
   planProxyReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
@@ -111,14 +110,24 @@ export default function createSynthSwapEmitter({
   }) {
     const receiver = targetPath.node;
     let pending = synthSwapByReceiver.get(receiver);
+    const entries = pending?.entries ?? buildPatternRenderPlan(objectPatternPath.node, {
+      scope: targetPath.scope, path: targetPath, adapter,
+    }) ?? [];
     const activation = pending ?? planSynthReceiverActivation({
-      receiver, scope: targetPath.scope, adapter, path: targetPath, resolvePure,
+      receiver, entries, callBranch, scope: targetPath.scope, adapter, path: targetPath, resolvePure,
     });
     const { synthGuard } = activation;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
     // `_globalThis` etc. into the range that synth-swap will replace.
-    if (receiver.type === 'LogicalExpression') {
+    if (!activation.fullyCovered && !activation.memoRead && !synthGuard) {
+      // The partial activation carries this source verbatim. Its child claims must
+      // settle before cloning, rather than appear as new globals in the late sweep.
+      if (receiver.type === 'LogicalExpression') {
+        t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
+        markSynthReceiverSkipped(receiver.left, skippedNodes);
+      } else markSynthReceiverSkipped(receiver, skippedNodes);
+    } else if (receiver.type === 'LogicalExpression') {
       // a fallback-logical default collapses to the literal; skip the parts the literal supplants - the
       // dead RIGHT operand (short-circuited away, its global would leak a dead import) and the resolved-
       // left TAIL receiver chain. the tail is skipped WHOLE (a spine-only skip stops at a tail sequence
@@ -168,17 +177,13 @@ export default function createSynthSwapEmitter({
       // Keep the source slot decisions when a sibling extraction removes its property.
       // Their live key slots carry nested claims without reclassifying generated keys.
       pending = {
-        entries: buildPatternRenderPlan(objectPatternPath.node, { scope: targetPath.scope, path: targetPath, adapter }) ?? [],
+        entries,
         polyfills: new Map(),
-        callBranch,
         rescueSe,
         probePlan,
         probeEffects,
         probeSlots,
         ...activation,
-        memoRead: callBranch ? planMemoReadTarget(probeSource, {
-          aliasCtx: { scope: targetPath.scope, adapter, path: targetPath }, resolvePure,
-        }) : null,
       };
       synthSwapByReceiver.set(receiver, pending);
       pendingSwapCount++;
@@ -425,7 +430,14 @@ export default function createSynthSwapEmitter({
     const result = estreeToBabel(literal);
     entries.forEach(
       (entry, index) => {
-        if (entry.optedOut) t.traverseFast(result.properties[index].value, node => { skippedNodes.add(node); });
+        const property = result.properties[index];
+        if (entry.optedOut || entry.raw) t.traverseFast(property, node => { skippedNodes.add(node); });
+        if (entry.optedOut) {
+          // Sibling lowering clones these reads; the source line keeps an explicit
+          // opt-out effective after their identity-keyed skip marks are lost. Keep
+          // the getter frame synthetic so printing anchors the native read inside it.
+          t.traverseFast(property.body.body[0].argument, node => { node.loc = entry.prop.loc; });
+        }
       },
     );
     return result;
@@ -454,12 +466,17 @@ export default function createSynthSwapEmitter({
         }
         const renderCtx = {
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
-          embed: hostSlot, cloneHost: node => t.cloneNode(node, true),
+          embed: hostSlot,
+          cloneHost: node => t.cloneNode(node, true),
         };
         const rendered = renderSynthReplacement(entries, {
-          receiver: path.node, callBranch: pending.callBranch, rescueSe: pending.rescueSe,
+          receiver: path.node,
+          rescueSe: pending.rescueSe,
           dropRescueReceiver: pending.dropRescueReceiver,
-          guard: pending.synthGuard, aliasCtx, ...renderCtx,
+          checkNullish: pending.checkNullish,
+          guard: pending.synthGuard,
+          aliasCtx,
+          ...renderCtx,
           renderLiteral: ({ receiver, memo }) => buildSynthLiteral({
             receiver, entries, memoParam: memo, aliasCtx, guardedReceiverPlan: pending.guardedReceiverPlan,
           }),

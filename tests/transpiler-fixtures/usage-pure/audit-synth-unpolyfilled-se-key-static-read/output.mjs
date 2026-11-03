@@ -7,7 +7,9 @@ let c = 0;
 const r = (({
   from,
   [(c++, 'custom')]: x
-} = {
+} = (Array, {
   from: _Array$from,
-  "custom": Array["custom"]
-}) => [from([1]), x, c])();
+  get "custom"() {
+    return Array["custom"];
+  }
+})) => [from([1]), x, c])();

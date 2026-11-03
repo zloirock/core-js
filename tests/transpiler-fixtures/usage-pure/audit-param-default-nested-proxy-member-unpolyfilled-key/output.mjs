@@ -7,10 +7,14 @@ import _self from "@core-js/pure/actual/self";
 function f({
   from,
   other
-} = {
-  from: _Array$from,
-  other: _self.Array.other
-}) {
+} = function (_ref) {
+  return {
+    from: _Array$from,
+    get other() {
+      return _ref.other;
+    }
+  };
+}(_self.Array)) {
   return [from, other];
 }
 f();

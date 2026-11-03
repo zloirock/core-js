@@ -4,9 +4,13 @@ import _globalThis from "@core-js/pure/actual/global-this";
 export function viaParamMixed({
   of,
   customZ
-} = {
-  of: _Array$of,
-  customZ: (_globalThis.window?.Array).customZ
-}) {
+} = function (_ref) {
+  return null == _ref ? _ref : {
+    of: _Array$of,
+    get customZ() {
+      return _ref.customZ;
+    }
+  };
+}(_globalThis.window?.Array)) {
   return [of, customZ];
 }

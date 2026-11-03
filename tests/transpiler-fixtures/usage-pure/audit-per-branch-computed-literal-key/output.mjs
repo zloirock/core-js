@@ -11,9 +11,11 @@ const {
   ['from']: a,
   [`of`]: b,
   ['zzz']: c
-} = cond ? {
+} = cond ? (Array, {
   ['from']: _Array$from,
   [`of`]: _Array$of,
-  ['zzz']: Array['zzz']
-} : _Set;
+  get ['zzz']() {
+    return Array['zzz'];
+  }
+}) : _Set;
 [a, b, c];

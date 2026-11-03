@@ -9,5 +9,7 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
   custom
 }) => [resolve, custom])({
   resolve: _Promise$resolve,
-  custom: _Promise.custom
+  get custom() {
+    return _Promise.custom;
+  }
 });

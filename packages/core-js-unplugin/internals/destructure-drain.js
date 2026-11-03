@@ -549,8 +549,9 @@ export default function createDestructureDrains(ctx) {
         { adapter, resolveGlobalPolyfill, injectPureImport });
     }
     const rendered = renderSynthReplacement(plan, {
-      receiver, callBranch: pending.callBranch, rescueSe: pending.rescueSe, guard: pending.synthGuard,
+      receiver, rescueSe: pending.rescueSe, guard: pending.synthGuard,
       dropRescueReceiver: pending.dropRescueReceiver,
+      checkNullish: pending.checkNullish,
       aliasCtx: { ...nodeSite(receiver, metaPath), adapter, injectorState },
       slotFor: entry => synthSlot(slots, entry),
       cloneHost: cloneSource,
@@ -558,7 +559,7 @@ export default function createDestructureDrains(ctx) {
         ...pending, ...activation, requireFullCoverage: pending.nestedOnly,
       }),
       renderMemoArgument: () => {
-        const argument = renderMemoArg(pending.memoArgPlan, metaPath);
+        const argument = renderMemoArg(pending.memoRead, metaPath);
         return argument && duplicateReceiver(argument, injector);
       },
       renderProbe: () => {

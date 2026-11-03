@@ -9,7 +9,9 @@ function read({
 } = function (_ref) {
   return {
     of: _Array$of,
-    length: _ref.length
+    get length() {
+      return _ref.length;
+    }
   };
 }((() => {
   var _ref2;

@@ -24,12 +24,18 @@ export function read(choose) {
 export function fallback({
   from,
   missing = 7
-} = (null == _globalThis.window ? void 0 : {
+} = function (_ref2) {
+  return null == _ref2 ? void 0 : {
+    from: _Array$from,
+    get missing() {
+      return _ref2.missing;
+    }
+  };
+}(_globalThis.window?.Array) || (_pushMaybeArray(effects).call(effects, 'fallback'), Array, {
   from: _Array$from,
-  missing: _globalThis.Array.missing
-}) || (_pushMaybeArray(effects).call(effects, 'fallback'), {
-  from: _Array$from,
-  missing: Array.missing
+  get missing() {
+    return Array.missing;
+  }
 })) {
   return [from([3]), missing];
 }

@@ -8,10 +8,14 @@ import _self from "@core-js/pure/actual/self";
 function f({
   of,
   extra
-} = {
-  of: _Array$of,
-  extra: _self.Array.extra
-}) {
+} = function (_ref) {
+  return {
+    of: _Array$of,
+    get extra() {
+      return _ref.extra;
+    }
+  };
+}(_self.Array)) {
   return [of, extra];
 }
 f();

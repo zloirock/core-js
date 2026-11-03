@@ -6,10 +6,14 @@ class ParamDefault extends Array {
   static m({
     from,
     custom
-  } = {
-    from: _Array$from,
-    custom: this.custom
-  }) {
+  } = function (_ref) {
+    return null == _ref ? _ref : {
+      from: _Array$from,
+      get custom() {
+        return _ref.custom;
+      }
+    };
+  }(this)) {
     return [from, custom];
   }
 }

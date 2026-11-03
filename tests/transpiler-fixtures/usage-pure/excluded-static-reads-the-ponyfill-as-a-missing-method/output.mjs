@@ -39,7 +39,9 @@ export function keyed({
   allKeyed,
   resolve
 } = {
-  allKeyed: _Promise.allKeyed,
+  get allKeyed() {
+    return _Promise.allKeyed;
+  },
   resolve: _Promise$resolve
 }) {
   return [allKeyed, resolve];

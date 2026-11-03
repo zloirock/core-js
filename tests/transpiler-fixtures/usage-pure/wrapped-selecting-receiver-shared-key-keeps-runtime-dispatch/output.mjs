@@ -5,24 +5,22 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 // Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
 // Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
-function viaParamDefault([{
-  entries: e
-}] = [{
-  entries: _entries(c ? Object : userObj)
-}]) {
+function viaParamDefault(_ref = [c ? Object : userObj]) {
+  let [_ref2] = _ref;
+  let e = _entries(_ref2);
   return e;
 }
 const {
-    w: _ref
+    w: _ref3
   } = {
     w: c ? Object : userObj
   },
-  viaKeyed = _ref === Object ? _Object$keys : _keys(_ref);
+  viaKeyed = _ref3 === Object ? _Object$keys : _keys(_ref3);
 const {
-    w: _ref2
+    w: _ref4
   } = {
     w: [c ? Object : userObj]
   },
-  [_ref3] = _ref2,
-  viaKeyedArray = _ref3 === Object ? _Object$values : _values(_ref3);
+  [_ref5] = _ref4,
+  viaKeyedArray = _ref5 === Object ? _Object$values : _values(_ref5);
 export { viaParamDefault, viaKeyed, viaKeyedArray };

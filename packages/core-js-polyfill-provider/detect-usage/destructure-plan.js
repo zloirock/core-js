@@ -34,7 +34,6 @@ import {
   followConstLiteralAlias,
   forOfHeadIterableElements,
   forEachPatternWriteMember,
-  literalDestructureSource,
   isChainAssignment,
   isDestructurePattern,
   isEffectfulKeyHop,
@@ -100,6 +99,7 @@ import {
   identifier,
   memberFromKeyName,
   objectExpression,
+  objectGetter,
   objectPattern,
   renderAliasHeldProbeRead,
   renderClaimProbe,
@@ -184,6 +184,7 @@ import {
   destructureAssignmentValueIsCaptured,
   planSideEffectKeyStrategy,
   planSynthReceiverGuard,
+  selectionLeftAlwaysTruthy,
   nestedSlotMemoPlan,
   receiverPerformsEveryInitEffect,
   carriedInitReceiverNode,
@@ -201,6 +202,7 @@ import {
   typedNavClaimChain,
   resolveDestructureReceiverPlan,
   destructureHostThroughWrappers,
+  destructureSourceIsLiteralWrapper,
   STATIC_WALK_DEPTH,
   claimUnderSharedHopSlot,
   mirrorAcceptedKey,
@@ -3498,16 +3500,12 @@ export function buildNestedDestructurePlan({
       if (outerProps.some(hasExtractions)) {
         plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe };
       }
-    } else if (init) {
+    } else if (init && !destructureSourceIsLiteralWrapper(init, { scope, adapter, path }, pattern)) {
       // Indirect heap/class/call roots keep the existing common fallback. Literal
       // wrappers, including fixed aliases and transparent IIFE returns, stay native.
-      const ctx = { scope, adapter, path };
-      const source = followConstIdentifierInit({ node: init, ctx });
-      if (!literalDestructureSource(decidedRunningOperand(source.node, source.ctx))) {
-        const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
-        if (outerProps.some(hasExtractions)) {
-          plan = { receiver: null, probedNav, probedNavNode, outerProps, pattern, discardSe };
-        }
+      const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
+      if (outerProps.some(hasExtractions)) {
+        plan = { receiver: null, probedNav, probedNavNode, outerProps, pattern, discardSe };
       }
     }
   }
@@ -4188,12 +4186,12 @@ export function planLiteralResidual({
 
 // A covered synth needs no receiver reader: each key resolves to a static value.
 // Instance dispatch still needs that reader. A fallback resolves only its live left;
-// the binding asks this before allocating any memo name.
+// activation planning asks this before saving a read or allocating any memo name.
 export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure }) {
   const value = unwrapRuntimeExpr(receiver);
   const named = value?.type === 'LogicalExpression' ? value.left : receiver;
   const objectName = named ? resolveObjectName({ objectNode: named, ...contextFor(named) }) : null;
-  return !!objectName && plan.every(entry => typeof entry.lookupKey === 'string' && resolvePure({
+  return !!objectName && plan.every(entry => !entry.optedOut && !entry.raw && typeof entry.lookupKey === 'string' && resolvePure({
     kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
   })?.kind === 'static');
 }
@@ -4202,26 +4200,39 @@ export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure 
 // synth, including a selection arm, must read unresolved slots through that same proof.
 // Rescue ownership is a source fact too: child rewrites can collapse the navigation
 // before the queued render reads its live effects.
-export function planSynthReceiverActivation({ receiver, scope, adapter, path, resolvePure }) {
+export function planSynthReceiverActivation({ receiver, entries = null, callBranch = false, scope, adapter, path, resolvePure }) {
   const synthGuard = planSynthReceiverGuard({ receiver, scope, adapter, path, resolvePure });
+  const aliasCtx = { scope, adapter, path };
+  const fullyCovered = entries && synthPlanFullyCovered(entries, receiver, {
+    contextFor: () => aliasCtx, resolvePure,
+  });
   return {
     synthGuard,
+    fullyCovered,
+    // Do not put a proven constructor back into an impossible null arm. A later
+    // pass would see a new receiver choice rather than the completed mirror.
+    checkNullish: !fullyCovered && !synthGuard && !selectionLeftAlwaysTruthy({ node: receiver, ...aliasCtx, resolvePure }),
+    // A partial mirror reads the same canonical receiver as its retained properties.
+    // Save that landing before child claims rewrite the navigation.
+    memoRead: callBranch || entries && !fullyCovered ? planMemoReadTarget(
+      receiver.type === 'LogicalExpression' ? receiver.left : receiver, { aliasCtx, resolvePure },
+    ) : null,
     dropRescueReceiver: shouldDropRescueReceiver(receiver.type === 'LogicalExpression' ? receiver.left : receiver),
     guardedReceiverPlan: synthGuard ? planProxyReceiver(unwrapRuntimeExpr(synthGuard.fallback?.left ?? receiver), {
-      aliasCtx: { scope, adapter, path }, guardedProbe: synthGuard.probe, resolvePure,
+      aliasCtx, guardedProbe: synthGuard.probe, resolvePure,
     }) : null,
   };
 }
 
-// A synth consumes its receiver once. Partial call receivers use a stable tail or an
+// A synth consumes its receiver once. Partial receivers use a stable tail or an
 // activation parameter; full coverage keeps only the source probe or discarded effects.
 // Guards own their effects and leave fallback evaluation outside the activation. Native
 // bindings render saved read/probe plans and bind live slots, but do not select this order.
 export function renderSynthReplacement(entries, {
   receiver,
-  callBranch = false,
   rescueSe = null,
   guard = null,
+  checkNullish = true,
   aliasCtx,
   dropRescueReceiver = shouldDropRescueReceiver(receiver.type === 'LogicalExpression' ? receiver.left : receiver),
   slotFor = entry => entry.polyfill,
@@ -4233,18 +4244,23 @@ export function renderSynthReplacement(entries, {
   embed = node => node,
 }) {
   const source = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
-  const partial = callBranch && entries.some(entry => !slotFor(entry));
+  const partial = entries.some(entry => !slotFor(entry));
   let probe;
   function readProbe() { return probe ??= renderProbe?.() ?? false; }
-  const argument = partial ? guard ? cloneHost(guard.fallback?.left ?? receiver)
-    : renderMemoArgument?.() ?? readProbe()?.node ?? cloneHost(source) : null;
+  const argument = partial ? renderMemoArgument?.()
+    ?? (guard ? cloneHost(guard.fallback?.left ?? receiver) : readProbe()?.node ?? cloneHost(source)) : null;
   const tail = argument && !guard ? peelNestedSequenceExpressions(argument).tail : null;
-  const reusable = !!tail && isReusableReceiver(tail, { interveningEffects: true, ctx: aliasCtx });
+  const reference = unwrapRuntimeExpr(tail);
+  // A getter opens its own this/arguments frame. Even otherwise stable references
+  // to that frame must stay in the activation's parameter.
+  const reusable = !!reference && reference.type !== 'ThisExpression'
+    && !(reference.type === 'Identifier' && reference.name === 'arguments')
+    && isReusableReceiver(tail, { interveningEffects: true, ctx: aliasCtx });
   const memo = partial && !reusable ? createMemo() : null;
   const value = renderLiteral({ receiver: reusable ? tail : receiver, memo });
   if (!value) return null;
   if (guard || partial) return renderSynthActivation(embed(value), {
-    guard, memo: memo ?? (reusable ? tail : null), argument, reusable,
+    guard, memo: memo ?? (reusable ? tail : null), argument, reusable, checkNullish,
   }, { embed });
   const savedProbe = readProbe();
   if (savedProbe) return sequenceExpression([...savedProbe.effects.map(embed), embed(value)]);
@@ -4376,8 +4392,10 @@ export function renderSynthLiteral(entries, {
     let value;
     if (slot?.instance) {
       const source = slot.receiver;
-      const sourcePure = source && aliasCtx && instanceSynthReceiverPure(source, { ...aliasCtx, resolvePure });
-      const argument = source ? sourcePure ? imported(sourcePure) : embed(cloneHost(source))
+      const captured = memo && source === receiver;
+      const sourcePure = source && !captured && aliasCtx && instanceSynthReceiverPure(source, { ...aliasCtx, resolvePure });
+      const argument = source ? captured ? embed(cloneHost(memo))
+        : sourcePure ? imported(sourcePure) : embed(cloneHost(source))
         : planReceiver().selectsInstance ? embed(cloneHost(memo ?? receiver)) : receiverRef();
       value = callExpression(imported(slot), [argument]);
     } else if (slot) value = imported(slot);
@@ -4390,7 +4408,9 @@ export function renderSynthLiteral(entries, {
       }
     }
     if (entry.optedOut || entry.raw) markSkipped?.(value);
-    properties.push(renderSynthProperty(key, value, { computed }));
+    // A retained getter observes the pattern's preceding bindings and defaults. Read
+    // it at that slot, using the receiver already kept stable by the activation plan.
+    properties.push(slot ? renderSynthProperty(key, value, { computed }) : objectGetter(key, value, { computed }));
   }
   return objectExpression(properties);
 }

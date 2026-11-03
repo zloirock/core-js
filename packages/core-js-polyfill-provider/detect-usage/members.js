@@ -128,6 +128,7 @@ import {
   requireBoundProxyGlobalName,
   resolveKey,
   globalProxyMemberName,
+  guardedNavPassthroughPlan,
   resolveObjectName,
   storedUserAssignmentOf,
   storedValueConsumedAbove,
@@ -596,21 +597,29 @@ export function planKeptSequenceReceiver(path, { aliasCtx, resolvePure }) {
   return { keys: ['object', ...receiverSequenceTailKeys(receiver.object)], root, pure };
 }
 
-// the canonical RE-READ target of a memoized receiver, peeled to its SE tail: a pure-ctor leaf
-// whole-swaps (the erased navigation's harvested effects re-run ahead of the binding), an alias
-// or proxy chain collapses through `planProxyReceiver`. null where neither resolves - the caller
+// the canonical RE-READ target of a memoized receiver, peeled to its SE tail: a bare unbound global
+// or pure-ctor leaf whole-swaps (the erased navigation's harvested effects re-run ahead of the binding),
+// an alias or proxy chain collapses through `planProxyReceiver`, and a live optional keeps its guarded
+// landing. null where none resolves - the caller
 // re-reads the receiver verbatim, and only that remainder does, because a re-traversed verbatim
 // clone picks a per-shape collapse (`_self.Map` vs `_Map` vs a kept dead hop) and desyncs the legs
 export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
   const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
-  const ctorSwap = proxyGlobalMemberCtorPureSwap({ receiver: tail, aliasCtx, resolvePure });
+  const value = unwrapRuntimeExpr(tail);
+  const globalPure = value?.type === 'Identifier' && aliasCtx
+    && !aliasCtx.adapter?.hasBinding?.({ ...aliasCtx, name: value.name, read: value })
+    && resolvePure({ kind: 'global', name: value.name });
+  const ctorSwap = globalPure && globalPure.kind !== 'instance' ? { pure: globalPure, se: [] }
+    : proxyGlobalMemberCtorPureSwap({ receiver: tail, aliasCtx, resolvePure });
   const plan = ctorSwap ? null : planProxyReceiver(tail, { aliasCtx, throughChainAssign: false, resolvePure });
-  if (!ctorSwap && !plan) return null;
+  const probe = !ctorSwap && !plan && aliasCtx ? guardedNavPassthroughPlan(tail, resolvePure, aliasCtx) : null;
+  if (!ctorSwap && !plan && !probe) return null;
   // The landing decision belongs to the source. Children can be replaced before a
   // deferred synth or sink renders it; retain their slots instead of proving the
   // generated receiver again or freezing the effects in registration-time clones.
   const se = ctorSwap?.se ?? [];
   const carried = new Set([...prefix, ...se]);
+  if (probe) carried.add(probe.test.source.source);
   for (let step = plan; step; step = step.inner) {
     carried.add(step.property);
     if (step.kind === 'member') continue;
@@ -622,7 +631,7 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
     const path = aliasCtx?.path && pathOfNode(aliasCtx.path, node);
     return [node, path ? { owner: path.container, key: path.key } : findNodeSlot(memoReceiver, node)];
   }));
-  return { prefix, se, pure: ctorSwap?.pure ?? null, plan, tail,
+  return { prefix, se, pure: ctorSwap?.pure ?? null, plan, probe, tail,
     readSource(node) {
       const slot = slots.get(node);
       return slot?.owner[slot.key] ?? node;

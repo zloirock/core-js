@@ -15,6 +15,7 @@ import {
   PARAMETER_STATIC_SOURCES,
   parameterStaticSource,
   isCapturedKeyedPattern,
+  capturedPatternSource,
   aliasDeclScope,
   aliasSlotWritten,
   arrayLiteralSlotValue,
@@ -5906,21 +5907,37 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
   return { pattern: objectPattern?.node, indices, hops, host: cursor?.parentPath, hostPatternPath: cursor };
 }
 
-// Common captures may expose a supported flat read. A remaining static/global claim
-// below a literal container keeps its native pattern on both emitters. An independent
+// The native-wrapper policy follows a stable source through the same binding and value
+// canons in both claim and fallback planning. A for-of binding holds its literal elements
+// wherever the read stands in the body; statement position and parentheses prove nothing.
+export function destructureSourceIsLiteralWrapper(node, ctx, pattern = null) {
+  const source = followConstIdentifierInit({ node: peelChainRootValue(decidedRunningOperand(node, ctx)), ctx });
+  const value = unwrapRuntimeExpr(decidedRunningOperand(source.node, source.ctx));
+  if (literalDestructureSource(value)) return true;
+  const values = value?.type === 'Identifier' && forOfHeadValues(value, source.ctx);
+  if (values?.length && values.every(entry => !!literalDestructureSource(
+    peelChainRootValue(decidedRunningOperand(entry.node, entry.ctx)),
+  ))) return true;
+  const captured = capturedPatternSource(pattern);
+  return !!captured && destructureSourceIsLiteralWrapper(captured.node, captured.ctx ?? ctx);
+}
+
+// Common captures may expose a supported flat read, and an existing fallback claim may
+// use the shared per-branch mirror; its own safety gates still decide whether to serve it.
+// Other static/global claims below a literal keep their native pattern. An independent
 // live receiver default owns its branch; dead or empty defaults read the outer source.
 // A transparent IIFE returning a literal keeps the same native pattern as that literal.
-export function destructureRetainsLiteralWrapper({ propPath, kind, adapter }) {
-  if (kind === 'instance') return false;
+export function destructureRetainsLiteralWrapper({ propPath, kind, adapter, meta = null }) {
+  if (kind === 'instance' || meta?.fromFallback) return false;
   const walked = destructureHostThroughWrappers(propPath.parentPath, adapter, true);
   if (!walked?.host || walked.hostPatternPath === propPath.parentPath) return false;
   const { host, hops } = walked;
-  const root = ownRelocatedHeadElement(host) ?? relocatedHeadElement(host) ?? destructureReceiverNode(host);
+  const root = ownRelocatedHeadElement(host) ?? destructureReceiverNode(host, walked.hostPatternPath.node);
   const defaultNode = hops?.findLast(hop => hop.defaultNode)?.defaultNode;
-  const init = defaultNode && !nearestInnerDefaultDead(propPath.parentPath, adapter) ? defaultNode : root;
-  const ctx = { scope: propPath.scope, adapter, path: propPath };
-  const source = followConstIdentifierInit({ node: peelChainRootValue(decidedRunningOperand(init, ctx)), ctx });
-  return !!literalDestructureSource(decidedRunningOperand(source.node, source.ctx));
+  const liveDefault = defaultNode && !nearestInnerDefaultDead(propPath.parentPath, adapter);
+  const init = liveDefault ? defaultNode : root;
+  return destructureSourceIsLiteralWrapper(init, { scope: propPath.scope, adapter, path: propPath },
+    liveDefault ? null : walked.hostPatternPath.node);
 }
 
 // the value an OUTER destructure reads from, for the SE-key gate's "diverging conditional?" check.
@@ -10041,13 +10058,15 @@ export function classifyDestructureLeafHost({ objectPattern }) {
   }
 }
 
-// the pair the per-branch mirror reads for a wrapped leaf, kept only while it SELECTS: the mirror
+// the pair the per-branch mirror reads for a wrapped leaf, kept while it SELECTS (including
+// an optional's implicit undefined arm): the mirror
 // swaps an arm in place and leaves the level whole, so a spread or a key nothing names standing
 // beside the slot cannot mislead it - where every other consumer of the pair would drop that level
 function selectingMirrorPair(objectPattern) {
   const pair = resolveFallbackReceiver(objectPattern.parentPath, objectPattern.node)?.rhsNode;
   const value = unwrapTransparentSeq(pair);
-  return value?.type === 'ConditionalExpression' || value?.type === 'LogicalExpression' ? pair : null;
+  return value?.type === 'ConditionalExpression' || value?.type === 'LogicalExpression'
+    || receiverCarriesLiveOptional(value) ? pair : null;
 }
 
 // no constructor NAMED for a nested / array-wrapped leaf: the leaf reads the paired VALUE, and that
@@ -10183,6 +10202,20 @@ function liveSlotStaticMeta({ outerProp, objectPattern }, { key, read, adapter, 
   return null;
 }
 
+// A literal parameter default governs only its own branch. A shared instance key still
+// dispatches on supplied values; its helper reads a constructor's native static unchanged.
+// An unclaimed constructor slot stays native, including an independent inner default.
+function literalParameterDefaultInstanceMeta(objectPattern, { key, adapter, resolvePure }) {
+  const { host, hops } = destructureHostThroughWrappers(objectPattern, adapter, true) ?? {};
+  if (host?.node.type !== 'AssignmentPattern' || !FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type)
+    || !destructureSourceIsLiteralWrapper(host.node.right, { scope: host.scope, adapter, path: host })) return null;
+  if (!hops || (hops.some(hop => hop.defaultNode) && !nearestInnerDefaultDead(objectPattern, adapter))) return null;
+  const meta = pairedBindingLeafMeta(objectPattern, { key, adapter, resolvePure });
+  if (!meta || !resolvePure(meta)) return null;
+  const instance = { kind: 'property', object: null, key, placement: null };
+  return resolvePure(instance)?.kind === 'instance' ? instance : null;
+}
+
 // ONE meta rule over the classified host - the same answer on either leg. the canonical
 // fallbacks live here once: an unresolvable receiver yields a TYPELESS meta (`object:
 // null`, the instance dispatcher's degrade - dropping the leaf instead lost the polyfill
@@ -10201,6 +10234,10 @@ export function buildDestructureLeafMeta({
     && destructureHostThroughWrappers(objectPattern, adapter, true)?.indices.length) {
     return adapter.method === 'usage-global' && key ? { kind: 'property', object: null, key, placement: null } : null;
   }
+  const defaultInstance = adapter.method === 'usage-pure' && resolvePure
+    && (descriptor.host === 'nested' || descriptor.host === 'array')
+    && literalParameterDefaultInstanceMeta(objectPattern, { key, adapter, resolvePure });
+  if (defaultInstance) return defaultInstance;
   // A selected constructor is only one possible receiver; retain the other arm's instance claims.
   if ((descriptor.host === 'nested' || descriptor.host === 'array') && selectingMirrorPair(objectPattern)) {
     return pairedBindingLeafMeta(objectPattern, { key, adapter, unionSink, resolveStaticKey, parameterCallSites, resolvePure });

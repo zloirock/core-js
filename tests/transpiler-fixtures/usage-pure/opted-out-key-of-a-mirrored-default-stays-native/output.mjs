@@ -7,21 +7,27 @@ export function f({
   [_Symbol$iterator]: it,
   // core-js-disable-next-line
   hasOwn // core-js-disable-line
-} = {
+} = (Object, {
   [_Symbol$iterator]: _getIteratorMethod(Object),
   // core-js-disable-next-line
-  hasOwn: Object.hasOwn
-}) {
+  get hasOwn() {
+    // core-js-disable-next-line
+    return Object.hasOwn;
+  }
+})) {
   return [it, hasOwn];
 }
 export function g({
   from,
   // core-js-disable-next-line
   of
-} = {
+} = (Array, {
   from: _Array$from,
   // core-js-disable-next-line
-  of: Array.of
-}) {
+  get of() {
+    // core-js-disable-next-line
+    return Array.of;
+  }
+})) {
   return [from, of];
 }

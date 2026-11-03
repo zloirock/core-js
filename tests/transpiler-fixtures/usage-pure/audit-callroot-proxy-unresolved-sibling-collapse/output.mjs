@@ -13,19 +13,27 @@ import _self from "@core-js/pure/actual/self";
 function f({
   from,
   length
-} = {
-  from: _Array$from,
-  length: _self.Array.length
-}) {
+} = function (_ref) {
+  return {
+    from: _Array$from,
+    get length() {
+      return _ref.length;
+    }
+  };
+}(_self.Array)) {
   return [from([1]), length];
 }
 function g({
   of,
   prototype
-} = {
-  of: _Array$of,
-  prototype: _globalThis.Array.prototype
-}) {
+} = function (_ref2) {
+  return {
+    of: _Array$of,
+    get prototype() {
+      return _ref2.prototype;
+    }
+  };
+}(_globalThis.Array)) {
   return [of(1), prototype];
 }
 // an OPTIONAL hop on the leaf (`.self?.Array`): the collapsed root is always-defined, so the redundant
@@ -33,10 +41,14 @@ function g({
 function opt({
   fromAsync,
   name
-} = {
-  fromAsync: _Array$fromAsync,
-  name: _self.Array.name
-}) {
+} = function (_ref3) {
+  return {
+    fromAsync: _Array$fromAsync,
+    get name() {
+      return _ref3.name;
+    }
+  };
+}(_self.Array)) {
   return [fromAsync([1]), name];
 }
 export { f, g, opt };

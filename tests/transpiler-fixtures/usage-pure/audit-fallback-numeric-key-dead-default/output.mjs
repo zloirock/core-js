@@ -12,10 +12,14 @@ const withNumericKey = function ({
   entries: e
 } = Math) {
   return [z, e];
-}({
-  "0": _globalThis.Object["0"],
-  entries: _Object$entries
-});
+}(function (_ref) {
+  return {
+    get "0"() {
+      return _ref["0"];
+    },
+    entries: _Object$entries
+  };
+}(_globalThis.Object));
 // the same shape with only string-named keys, which never depended on the parser
 const withNamesOnly = function ({
   values: v
@@ -30,8 +34,12 @@ const withNumericAndString = function ({
   'keys': k
 } = Math) {
   return [n, k];
-}({
-  "1": _globalThis.Object["1"],
-  'keys': _Object$keys
-});
+}(function (_ref2) {
+  return {
+    get "1"() {
+      return _ref2["1"];
+    },
+    'keys': _Object$keys
+  };
+}(_globalThis.Object));
 export { withNumericKey, withNamesOnly, withNumericAndString };

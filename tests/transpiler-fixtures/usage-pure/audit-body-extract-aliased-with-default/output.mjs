@@ -7,10 +7,12 @@ const KEY = 'k';
 function run({
   from: alias = [],
   [KEY]: tag
-} = {
+} = (Array, {
   from: _Array$from,
-  [KEY]: Array[KEY]
-}) {
+  get [KEY]() {
+    return Array[KEY];
+  }
+})) {
   return [alias, tag];
 }
 run();

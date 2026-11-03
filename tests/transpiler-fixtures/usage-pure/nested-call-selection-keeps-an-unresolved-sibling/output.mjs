@@ -12,7 +12,9 @@ export function select(first, second) {
   } = first ? function (_ref) {
     return {
       from: _Array$from,
-      custom: _ref.custom
+      get custom() {
+        return _ref.custom;
+      }
     };
   }((() => {
     calls++;
@@ -20,14 +22,18 @@ export function select(first, second) {
   })()) : second ? function (_ref2) {
     return {
       from: _Iterator$from,
-      custom: _ref2.custom
+      get custom() {
+        return _ref2.custom;
+      }
     };
   }((() => {
     calls++;
     return _Iterator;
-  })()) : {
+  })()) : (Array, {
     from: _Array$from,
-    custom: Array.custom
-  };
+    get custom() {
+      return Array.custom;
+    }
+  });
   return [from, custom, calls];
 }

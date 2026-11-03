@@ -12,10 +12,12 @@ import _Promise from "@core-js/pure/actual/promise";
 (function make({
   of: of_,
   x: a
-} = {
+} = (Array, {
   of: _Array$of,
-  x: Array.x
-}) {
+  get x() {
+    return Array.x;
+  }
+})) {
   function of_() {}
   return [of_, a];
 })();

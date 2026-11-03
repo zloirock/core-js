@@ -417,7 +417,7 @@ const synthActivation = renderSynthActivation(identifier('value'), {
   memo: identifier('_ref'), argument: callExpression(identifier('source'), []),
 });
 check('synth activation/ordinary function binds its receiver', print(expressionStatement(synthActivation)),
-  '(function (_ref) {\n  return value;\n})(source());');
+  '(function (_ref) {\n  return null == _ref ? _ref : value;\n})(source());');
 check('synth property/prototype name is an own data slot', print(renderSynthProperty(identifier('__proto__'), identifier('value'))),
   '["__proto__"]: value');
 checkTruthy('totality/function declarations stay outside the vocabulary',

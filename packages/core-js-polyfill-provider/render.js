@@ -760,6 +760,7 @@ export function renderMemoReadTarget(plan, { injectImport, embed = node => node,
     return cloneHost(plan.readSource(node));
   }
   let target = plan.pure ? identifier(injectImport(plan.pure.entry, plan.pure.hintName))
+    : plan.probe ? renderClaimProbe(plan.probe, { injectImport, embed, cloneHost: clone })
     : renderProxyReceiverPlan(plan.plan, { injectImport, embed, cloneHost: clone });
   if (!target) return null;
   if (plan.plan?.kind === 'member' || plan.plan?.optional) target = chainExpression(target);
@@ -932,14 +933,17 @@ function renderSynthReceiverGuard({ probe = null, ahead = [], after = [], fallba
 }
 
 // A partial synth evaluates its receiver once, then reads unresolved slots through
-// a stable tail or an activation parameter. The parameter's null rejection stays
-// inside that activation; the source fallback stays outside it. A fully served
-// synth has no memo and uses the original guard directly.
-export function renderSynthActivation(value, { guard = null, memo = null, argument = null, reusable = false } = {},
+// a stable tail or an activation parameter. The parameter's null test stays
+// inside that activation; the source fallback stays outside it. An unguarded nullish
+// receiver stays nullish so the native pattern rejects it before any binding or key.
+// A proven defined source needs no null arm. A fully served synth has no memo and
+// uses the original guard directly.
+export function renderSynthActivation(value, { guard = null, memo = null, argument = null, reusable = false, checkNullish = true } = {},
   { embed = node => node } = {}) {
   if (!memo) return guard ? renderSynthReceiverGuard(guard, value, { embed }) : value;
-  if (reusable) return sequenceExpression([embed(argument), value]);
-  const body = guard ? renderSynthReceiverGuard({ probe: memo }, value, { embed }) : value;
+  const body = guard ? renderSynthReceiverGuard({ probe: memo }, value, { embed })
+    : checkNullish ? conditionalExpression(nullFirstGuardTest(memo, { embed }), embed(cloneNode(memo)), value) : value;
+  if (reusable) return sequenceExpression([embed(argument), body]);
   const call = callExpression({
     type: 'FunctionExpression', id: null, params: [embed(cloneNode(memo))], generator: false, async: false,
     body: blockStatement([{ type: 'ReturnStatement', argument: body }]),

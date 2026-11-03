@@ -4,10 +4,12 @@ const numericAndStringSpelling = function ({
   0: a,
   '0': b,
   entries
-} = {
-  "0": Object["0"],
+} = (Object, {
+  get "0"() {
+    return Object["0"];
+  },
   entries: _Object$entries
-}) {
+})) {
   return [a, b, entries];
 }();
 export { numericAndStringSpelling };

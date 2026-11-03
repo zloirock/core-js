@@ -6,11 +6,13 @@ const duplicateUnresolvedSlot = function ({
   'z': z2,
   from,
   of
-} = {
-  'z': Array['z'],
+} = (Array, {
+  get 'z'() {
+    return Array['z'];
+  },
   from: _Array$from,
   of: _Array$of
-}) {
+})) {
   return [from, of, z1, z2];
 }();
 export { duplicateUnresolvedSlot };
