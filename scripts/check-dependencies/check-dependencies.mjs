@@ -1,5 +1,7 @@
 import config from './config.mjs';
 
+const packageNames = await Promise.all((await glob('packages/*/package.json')).map(async path => (await fs.readJson(path)).name));
+
 const pkgs = await glob([
   'package.json',
   'website/package.json',
@@ -26,9 +28,9 @@ async function checkPackage(path) {
     });
   }
 
-  const exclude = getExceptionsKind('exclude');
+  const exclude = [...packageNames, ...getExceptionsKind('exclude')];
   for (const [key, version] of allDependencies) {
-    if (key.startsWith('@core-js/') || version.startsWith('file:')) exclude.push(key);
+    if (version.startsWith('file:')) exclude.push(key);
   }
 
   const minor = getExceptionsKind('minor');
