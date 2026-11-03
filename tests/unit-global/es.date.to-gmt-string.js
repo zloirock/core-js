@@ -3,6 +3,7 @@ QUnit.test('Date#toGMTString', assert => {
   assert.isFunction(toGMTString);
   assert.arity(toGMTString, 0);
   // assert.name(toGMTString, 'toUTCString'); // at least old WebKit
+  assert.name(Date.prototype.toUTCString, 'toUTCString');
   assert.looksNative(toGMTString);
   assert.nonEnumerable(Date.prototype, 'toGMTString');
   // assert.same(toGMTString, Date.prototype.toUTCString); // at least old WebKit

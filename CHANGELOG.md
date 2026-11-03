@@ -55,6 +55,7 @@
 - Fixed the iterator name correction adding a `name` property to collection prototypes in old engines, a regression since 3.18.0
 - Fixed restoring `Iterator.prototype.constructor` when keeping the native `Iterator`
 - Fixed names and built-in metadata of polyfilled iterator `next` methods
+- Fixed the name of `Date.prototype.toUTCString` when polyfilling `Date.prototype.toGMTString`
 - Fixed missing iterator result validation in `Array.from`, typed arrays, collection and iterator consumers, and `URLSearchParams` polyfills
 - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
 - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
