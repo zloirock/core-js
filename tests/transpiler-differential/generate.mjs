@@ -22392,6 +22392,39 @@ function * generateNativePatternStatics() {
   };
 }
 
+// Constructor-valued memos must retain statics through optional members and calls.
+// The carrier and optional-call axes exercise separate decisions; the tail consumes the result.
+function * generateOptionalConstructorCarriers() {
+  for (const [name, receiver] of [
+    ['selection', 'globalThis.Array || Array'],
+    ['nullish', 'globalThis.Array ?? Array'],
+    ['store', 'held = Array'],
+    ['prefix-store', '(effects.push("prefix"), held = Array)'],
+    ['nested-store', 'held = other = (effects.push("value"), Array)'],
+    ['stored-realm', 'held = (other = globalThis).Array'],
+  ]) for (const [shape, call] of [
+    ['member', '?.from([1, 2])'],
+    ['call', '.from?.([1, 2])'],
+    ['both', '?.from?.([1, 2])'],
+  ]) yield {
+    name: `optional-constructor-carrier/${ name }/${ shape }`,
+    code: `export const effects = []; let held, other;
+export const r = (${ receiver })${ call }.at(-1);`,
+    strip: true,
+  };
+  for (const [name, expression] of [
+    ['object', '(globalThis.Object || Object)?.entries({ a: 1 }).at(0)[0]'],
+    ['map', '(held = Map).groupBy?.([1], value => value).get(1).at(0)'],
+    ['wrapped-callee', '((held = Array).from)?.([1, 2]).at(-1)'],
+  ]) yield {
+    name: `optional-constructor-carrier/${ name }`,
+    // Stabilize the shared ponyfill namespace; isolated e2e/fixtures prove its own import.
+    code: `export const effects = []; let held; const canonical = Map.groupBy;
+export const r = [${ expression }, typeof canonical];`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22843,4 +22876,5 @@ export function * generate() {
   yield * generateStoredUserReceivers();
   yield * generateRealmSourceIdentity();
   yield * generateNativePatternStatics();
+  yield * generateOptionalConstructorCarriers();
 }

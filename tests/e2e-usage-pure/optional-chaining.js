@@ -1,5 +1,77 @@
 // Optional chaining: various patterns with polyfilled methods
 
+QUnit.test('optional static: a decided constructor receiver retains its static', assert => {
+  assert.same((globalThis.Array || Array)?.from([1, 2]).at(-1), 2);
+  assert.true((globalThis.Array ?? Array)?.of(7).includes(7));
+});
+
+QUnit.test('optional static: a decided constructor call retains its static', assert => {
+  assert.same((globalThis.Array || Array)?.from?.([3, 4]).at(-1), 4);
+});
+
+QUnit.test('optional static: an object namespace stays a static receiver', assert => {
+  assert.same((globalThis.Object || Object)?.entries({ a: 1 }).at(0)[0], 'a');
+});
+
+QUnit.test('optional static: stored constructors retain their methods', assert => {
+  let held;
+  assert.same((held = Array)?.from([5, 6]).at(-1), 6);
+  assert.same(held, Array);
+  assert.same((held = Map).groupBy?.([9], value => value).get(9).at(0), 9);
+  assert.same(held, Map);
+});
+
+QUnit.test('optional static: nested stores precede arguments once', assert => {
+  const events = [];
+  let held;
+  let other;
+  // The stores carry effects before the optional call.
+  const result = (events.push('prefix'), held = other = (events.push('value'), Array)).from?.(
+    // Observe both writes before evaluating the argument.
+    (events.push(held === Array && other === Array ? 'argument' : 'early'), [1, 2]),
+  ).at(-1);
+  assert.same(result, 2);
+  assert.deepEqual(events, ['prefix', 'value', 'argument']);
+});
+
+QUnit.test('optional static: a prefixed store keeps the receiver guard', assert => {
+  const events = [];
+  let held;
+  // The prefix and argument must each run once.
+  const result = (events.push('prefix'), held = Array)?.from?.((events.push('argument'), [1, 2])).at(-1);
+  assert.same(result, 2);
+  assert.same(held, Array);
+  assert.deepEqual(events, ['prefix', 'argument']);
+});
+
+QUnit.test('optional static: a shadowed constructor retains the supplied method and receiver', assert => {
+  const events = [];
+  let held;
+  const custom = {
+    from(values) {
+      events.push(this === custom ? 'receiver' : 'wrong');
+      return values;
+    },
+  };
+  // This parameter must not denote the global constructor.
+  function read(Array) {
+    // An absent method must not evaluate the argument.
+    return (held = Array).from?.((events.push('argument'), [3])).at(0);
+  }
+  assert.same(read(custom), 3);
+  assert.same(held, custom);
+  assert.same(read({}), undefined);
+  assert.deepEqual(events, ['argument', 'receiver']);
+});
+
+QUnit.test('optional static: a stored constructor read through a stored realm', assert => {
+  let held;
+  let realm;
+  assert.same((held = (realm = globalThis).Array).from?.([1, 2]).at(-1), 2);
+  assert.same(held, Array);
+  assert.same(realm, globalThis);
+});
+
 // basic
 QUnit.test('optional: obj?.includes(x)', assert => {
   const arr = [1, 2, 3];

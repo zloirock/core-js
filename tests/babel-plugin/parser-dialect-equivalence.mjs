@@ -72,6 +72,10 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['stored optional constructor static', 'let held; export const r = (held = Array)?.from?.([1, 2]).at(-1);'],
+  ['stored optional constructor callee wrapper', 'let held; export const r = ((held = Array).from)?.([1, 2]).at(-1);'],
+  ['typed optional constructor store',
+    'let held: ArrayConstructor; export const r = ((held = Array) as ArrayConstructor)?.from?.([1, 2]).at(-1);', ['typescript']],
   ['parenthesized target in a kept optional store', 'let held; export const r = ((held) = globalThis.window)?.self.foo;'],
   ['parenthesized member target in a kept optional store', 'const box = {}; export const r = ((box.held) = globalThis.window)?.self.foo;'],
   ['nested parenthesized target and source prefix', 'let held; export const r = (effect(), (((held)) = globalThis.window))?.self.Array;'],
