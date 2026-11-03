@@ -1,4 +1,4 @@
-// a zero-module entry (`array/from`, empty under esmodules:true) sits adjacent to the directive
+// a zero-module entry (`array/from`, empty under Safari 15.0) sits adjacent to the directive
 // prologue, and a module-injecting entry (`array/at`) follows a trailing string-literal. the file's
 // TOTAL injected import block lands after the prologue and already breaks it, so NO `0;` placeholder
 // is emitted for the removed zero-module entry. the directive-promotion is decided as a batch over the

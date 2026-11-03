@@ -1,5 +1,6 @@
 require("core-js/modules/es.suppressed-error.constructor");
 require("core-js/modules/es.promise.try");
+require("core-js/modules/es.array.from-async");
 require("core-js/modules/es.async-disposable-stack.constructor");
 require("core-js/modules/es.async-iterator.async-dispose");
 require("core-js/modules/es.disposable-stack.constructor");

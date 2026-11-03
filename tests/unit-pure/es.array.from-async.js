@@ -7,7 +7,7 @@ import fromAsync from '@core-js/pure/es/array/from-async';
 import ITERATOR from '@core-js/pure/es/symbol/iterator';
 import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
 import defineProperty from '@core-js/pure/es/object/define-property';
-import map from '@core-js/pure/es/array/virtual/map';
+import map from '@core-js/pure/es/array/map';
 
 QUnit.test('Array.fromAsync', assert => {
   assert.isFunction(fromAsync);
@@ -208,7 +208,7 @@ for (const [name, symbol, create] of [
     const phases = ['next', 'primitive'];
     phases.push('done', 'value');
     if (name === 'async') phases.push('rejection');
-    return Promise.all(map.call(phases, phase => {
+    return Promise.all(map(phases, phase => {
       let closed = 0;
       const error = new Error(phase);
       const iterable = create([], {
