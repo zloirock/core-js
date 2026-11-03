@@ -43,9 +43,16 @@ var hexToInt = function (c) {
 module.exports = function (raw) {
   var out = '';
   var start = 0;
+  var i, n;
+  // Normalize literal CR / CRLF before cooking, preserving escaped `\r`.
+  while ((i = stringIndexOf(raw, '\r', start)) > -1) {
+    out += stringSlice(raw, start, i) + '\n';
+    start = i + (charAt(raw, i + 1) === '\n' ? 2 : 1);
+  }
+  if (start) raw = out + stringSlice(raw, start);
+  out = '';
+  start = i = 0;
   // We need to find every backslash escape sequence, and cook the escape into a real char.
-  var i = 0;
-  var n;
   while ((i = stringIndexOf(raw, '\\', i)) > -1) {
     out += stringSlice(raw, start, i);
     // If the backslash is the last char of the string, then it was an invalid sequence.
@@ -65,7 +72,7 @@ module.exports = function (raw) {
         out += '\n';
         break;
       case 'v':
-        out += '\v';
+        out += '\u000B';
         break;
       case 'f':
         out += '\f';
@@ -74,10 +81,6 @@ module.exports = function (raw) {
         out += '\r';
         break;
       // Escaped line terminators just skip the char.
-      case '\r':
-        // Treat `\r\n` as a single terminator.
-        if (i < raw.length && charAt(raw, i) === '\n') ++i;
-      // break omitted
       case '\n':
       case '\u2028':
       case '\u2029':

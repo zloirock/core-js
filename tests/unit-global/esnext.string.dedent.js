@@ -1,3 +1,5 @@
+import { DESCRIPTORS, FREEZING, GLOBAL } from '../helpers/constants.js';
+
 const freeze = Object.freeze || Object;
 
 QUnit.test('String.dedent', assert => {
@@ -39,7 +41,8 @@ QUnit.test('String.dedent', assert => {
     abc
   `;
 
-  assert.same(dedent(tag), dedent(tag), '#7');
+  const wrapped = dedent(template => template);
+  assert.same(wrapped(tag), wrapped(tag), '#7');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => dedent({ raw: freeze(['\n', Symbol('dedent test'), '\n']) }), TypeError, 'throws on symbol');
@@ -61,4 +64,122 @@ QUnit.test('String.dedent', assert => {
   // hex/unicode escapes at end of string segment
   assert.same(dedent({ raw: freeze(['\n  \\x41\n  ']) }), 'A', 'hex escape at end of raw string');
   assert.same(dedent({ raw: freeze(['\n  \\u0041\n  ']) }), 'A', 'unicode escape at end of raw string');
+});
+
+QUnit.test('String.dedent, template identity', assert => {
+  const { dedent } = String;
+  const tag = dedent(template => template);
+  const raw = freeze(['\n  a\n']);
+  const result = tag({ raw });
+  assert.same(tag({ raw }), result, 'same raw object shares the cached template');
+  assert.same(dedent(template => template)({ raw }), result, 'different wrappers share the cache');
+  assert.notSame(tag({ raw: freeze(['\n  a\n']) }), result, 'equal raw strings with a different identity');
+  assert.arrayEqual(result, ['a']);
+  assert.arrayEqual(result.raw, ['a']);
+  if (FREEZING) {
+    assert.true(Object.isFrozen(result), 'cooked array is frozen');
+    assert.true(Object.isFrozen(result.raw), 'raw array is frozen');
+  }
+  if (DESCRIPTORS) {
+    assert.nonEnumerable(result, 'raw');
+    assert.nonWritable(result, 'raw');
+    assert.nonConfigurable(result, 'raw');
+  }
+});
+
+QUnit.test('String.dedent, captured RegExp methods', assert => {
+  const { dedent } = String;
+  const { prototype } = GLOBAL.RegExp;
+  for (const key of ['exec', (GLOBAL.Symbol || {}).split]) {
+    if (key === undefined || !(key in prototype)) continue;
+    const original = prototype[key];
+    const raw = freeze(['\n  a\r\n  b\n']);
+    let result;
+    try {
+      prototype[key] = () => { throw new Error('Replaced RegExp method'); };
+      result = dedent({ raw });
+    } finally {
+      prototype[key] = original;
+    }
+    assert.same(result, 'a\nb');
+  }
+});
+
+QUnit.test('String.dedent, line terminators', assert => {
+  const { dedent } = String;
+  const tag = dedent(template => template);
+  for (const newline of ['\n', '\r', '\r\n', '\u2028', '\u2029']) {
+    const raw = freeze([`${ newline }  a${ newline }  b${ newline }  `]);
+    const result = tag({ raw });
+    const cookedNewline = newline === '\r' || newline === '\r\n' ? '\n' : newline;
+    assert.same(result[0], `a${ cookedNewline }b`, 'cooked line terminator');
+    assert.same(result.raw[0], `a${ newline }b`, 'raw line terminator is preserved');
+    assert.same(dedent({ raw }), `a${ cookedNewline }b`, 'direct call');
+  }
+  const raw = freeze(['\r\n  a\r\n   \r\n  b\r\n  ']);
+  assert.same(dedent({ raw }), 'a\n\nb', 'whitespace-only line');
+  assert.same(tag({ raw }).raw[0], 'a\r\n\r\nb', 'raw whitespace-only line');
+  assert.same(dedent({ raw: freeze(['\n']) }), '', 'opening and closing line without content');
+});
+
+QUnit.test('String.dedent, cooking escapes', assert => {
+  const { dedent } = String;
+  const tag = dedent(template => template);
+  const cases = [
+    ['a\\rb', 'a\rb'],
+    ['a\\vb', 'a\u000Bb'],
+    ['a\\\rb', 'ab'],
+    ['a\\\r\nb', 'ab'],
+    ['a\\\nb', 'ab'],
+    ['a\\\u2028b', 'ab'],
+    ['a\\\u2029b', 'ab'],
+    ['a\\\\\rb', 'a\\\nb'],
+    ['\\x41\\u0042\\u{43}', 'ABC'],
+    ['` ${', '` ${'],
+  ];
+  for (const [source, expected] of cases) {
+    const raw = freeze([`\n${ source }\n`]);
+    const result = tag({ raw });
+    assert.same(result[0], expected, 'cooked escape');
+    assert.same(result.raw[0], source, 'raw escape is preserved');
+    assert.same(dedent({ raw }), expected, 'direct call');
+  }
+  for (const source of ['\\', '\\01', '\\8', '\\x4', '\\u004', '\\u{}', '\\u{110000}']) {
+    const raw = freeze([`\n${ source }\n`]);
+    assert.same(tag({ raw })[0], undefined, 'invalid escape cooks to undefined');
+    assert.throws(() => dedent({ raw }), TypeError, 'direct call rejects an invalid escape');
+  }
+});
+
+QUnit.test('String.dedent, raw validation', assert => {
+  const { dedent } = String;
+  const tag = dedent(template => template);
+  for (const raw of [undefined, null, false, true, 0, 1, '', '\n']) {
+    assert.throws(() => dedent({ raw }), TypeError, 'raw must be an object');
+    assert.throws(() => tag({ raw }), TypeError, 'wrapped tag validates raw');
+  }
+  assert.same(dedent({ raw: freeze({ 0: '\n  a\n', length: 1 }) }), 'a', 'frozen array-like object');
+});
+
+QUnit.test('String.dedent, large raw length', assert => {
+  const { dedent } = String;
+  // eslint-disable-next-line math/prefer-number-max-safe-integer -- test the boundary without extra dependencies
+  for (const length of [0x100000000, 0x1FFFFFFFFFFFFF, Infinity]) {
+    assert.throws(() => dedent({ raw: freeze({ length }) }), TypeError, 'invalid first element');
+  }
+  if (DESCRIPTORS) {
+    const error = new Error('first element');
+    let lengthCalls = 0;
+    const raw = freeze(Object.defineProperties({}, {
+      length: {
+        get() {
+          lengthCalls++;
+          return 0x100000000;
+        },
+      },
+      0: { get() { throw error; } },
+    }));
+    assert.throws(() => dedent({ raw }), exception => exception === error, 'read first element before allocating the output');
+    assert.same(lengthCalls, 1, 'length is read once');
+  }
 });

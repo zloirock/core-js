@@ -29,10 +29,9 @@ var isFrozen = Object.isFrozen;
 var min = Math.min;
 var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
-var split = uncurryThis(''.split);
 var exec = uncurryThis(/./.exec);
 
-var NEW_LINE = /([\n\u2028\u2029]|\r\n?)/g;
+var NEW_LINE = /[\n\u2028\u2029]|\r\n?/g;
 var LEADING_WHITESPACE = RegExp('^[' + whitespaces + ']*');
 var NON_WHITESPACE = RegExp('[^' + whitespaces + ']');
 var INVALID_TAG = 'Invalid tag';
@@ -40,7 +39,7 @@ var INVALID_OPENING_LINE = 'Invalid opening line';
 var INVALID_CLOSING_LINE = 'Invalid closing line';
 
 var dedentTemplateStringsArray = function (template) {
-  var rawInput = template.raw;
+  var rawInput = anObject(template.raw);
   // https://github.com/tc39/proposal-string-dedent/issues/75
   if (FREEZING && !isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
   if (weakMapHas(DedentMap, rawInput)) return weakMapGet(DedentMap, rawInput);
@@ -57,17 +56,25 @@ var dedentTemplateStringsArray = function (template) {
 var dedentStringsArray = function (template) {
   var t = toObject(template);
   var length = lengthOfArrayLike(t);
-  var blocks = $Array(length);
-  var dedented = $Array(length);
+  var blocks = [];
+  var dedented = [];
   var i = 0;
-  var lines, common, quasi, k;
+  var lines, common, quasi, k, match, start;
 
   if (!length) throw new $TypeError(INVALID_TAG);
 
   for (; i < length; i++) {
     var element = t[i];
-    if (typeof element == 'string') blocks[i] = split(element, NEW_LINE);
-    else throw new $TypeError(INVALID_TAG);
+    if (typeof element != 'string') throw new $TypeError(INVALID_TAG);
+    lines = [];
+    start = NEW_LINE.lastIndex = 0;
+    while (match = exec(NEW_LINE, element)) {
+      lines[lines.length] = stringSlice(element, start, match.index);
+      lines[lines.length] = match[0];
+      start = NEW_LINE.lastIndex;
+    }
+    lines[lines.length] = stringSlice(element, start);
+    blocks[i] = lines;
   }
 
   for (i = 0; i < length; i++) {

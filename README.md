@@ -3279,7 +3279,7 @@ core-js(-pure)/full/number(/virtual)/clamp
 Modules [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js).
 ```ts
 class String {
-  static dedent(templateOrTag: { raw: Array<string> } | function, ...substitutions: Array<string>): string | function;
+  static dedent(templateOrTag: { raw: ReadonlyArray<string> } | function, ...substitutions: Array<string>): string | function;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3287,6 +3287,8 @@ class String {
 core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent
 ```
+`core-js` requires `raw` to be an object and, where freezing is supported, frozen. This is an intentional restriction while the proposal's [caching semantics remain under discussion](https://github.com/tc39/proposal-string-dedent/issues/75). A TypeScript `readonly` type alone does not freeze an array; use `Object.freeze` when constructing `raw` manually. Transpiled tagged templates must preserve freezing too: TypeScript's `__makeTemplateObject` helper and Babel's `loose` / `mutableTemplateObject` output can produce unfrozen arrays that this polyfill rejects.
+
 [*Examples*](https://core-js.io/playground#code=const+message+%3D+42%3B%0A%0Aconsole.log%28String.dedent%60%0A++print%28%27%24%7B+message+%7D%27%29%0A%60%29%3B+%2F%2F+-%3E+print%28%2742%27%29%0A%0AString.dedent%28console.log%29%60%0A++print%28%27%24%7B+message+%7D%27%29%0A%60%3B+%2F%2F+-%3E+%5B%22print%28%27%22%2C+%22%27%29%22%2C+raw%3A+Array%282%29%5D%2C+42):
 ```js
 const message = 42;

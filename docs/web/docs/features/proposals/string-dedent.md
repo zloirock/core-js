@@ -8,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class String {
-  static dedent(templateOrTag: { raw: Array<string> } | function, ...substitutions: Array<string>): string | function;
+  static dedent(templateOrTag: { raw: ReadonlyArray<string> } | function, ...substitutions: Array<string>): string | function;
 }
 ```
 
@@ -17,6 +17,8 @@ class String {
 core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent
 ```
+
+`core-js` requires `raw` to be an object and, where freezing is supported, frozen. This is an intentional restriction while the proposal's [caching semantics remain under discussion](https://github.com/tc39/proposal-string-dedent/issues/75). A TypeScript `readonly` type alone does not freeze an array; use `Object.freeze` when constructing `raw` manually. Transpiled tagged templates must preserve freezing too: TypeScript's `__makeTemplateObject` helper and Babel's `loose` / `mutableTemplateObject` output can produce unfrozen arrays that this polyfill rejects.
 
 ## Examples
 ```js
