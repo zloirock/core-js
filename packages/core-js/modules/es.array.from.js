@@ -2,8 +2,9 @@
 var $ = require('../internals/export');
 var from = require('../internals/array-from');
 var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
+var ITERATOR_RESULT_WEBKIT_BUG = require('../internals/iterator-result-webkit-bug');
 
-var INCORRECT_ITERATION = !checkCorrectnessOfIteration(function (iterable) {
+var INCORRECT_ITERATION = ITERATOR_RESULT_WEBKIT_BUG || !checkCorrectnessOfIteration(function (iterable) {
   // eslint-disable-next-line es/no-array-from -- required for testing
   Array.from(iterable);
 });

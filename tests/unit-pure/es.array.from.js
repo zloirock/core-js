@@ -145,6 +145,8 @@ QUnit.test('Array.from', assert => {
 });
 
 QUnit.test('Array.from rejects non-object iterator results', assert => {
+  // Safari 14 only fails after successful calls warm up the native method.
+  for (let i = 0; i < 1000; i++) from(createIterable([1]));
   const primitives = [undefined, null, false, true, 0, 1, NaN, '', 'foo'];
   if (typeof Symbol.iterator === 'symbol') primitives.push(Symbol());
   if (typeof GLOBAL.BigInt === 'function') primitives.push(GLOBAL.BigInt(0));

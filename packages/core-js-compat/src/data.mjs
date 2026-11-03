@@ -307,7 +307,7 @@ export const data = {
     hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
-    safari: '9.0',
+    safari: '15.0',
   },
   'es.array.includes': {
     // WebKit < Bun 1.3.12 broken on sparse arrays with fromIndex
@@ -2278,7 +2278,7 @@ export const data = {
     chrome: '54',
     edge: '15',
     firefox: '55',
-    safari: '14.0',
+    safari: '15.0',
   },
   'es.typed-array.includes': {
     chrome: '49',

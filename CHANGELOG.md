@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
 - Added missed detection of native `Reflect.construct` ignoring `newTarget.prototype` for built-in constructors in [FF44](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472), fixing transpiled subclassing of constructors like `Array`
+- Added missed detection of native `Array.from` and `%TypedArray%.from` accepting primitive iterator results after warmup in Safari 14
 - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
 - Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object
 - Stopped replacing the native `Promise` in [Deno < 1.24](https://github.com/denoland/deno/pull/15211) solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
@@ -89,6 +90,7 @@
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
+  - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
   - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
   - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari / Bun < 1.4.4 due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074); corrected Bun detection in compat tests
   - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above

@@ -48,6 +48,8 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
 
 if (DESCRIPTORS) QUnit.test('%TypedArray%.from rejects non-object iterator results', assert => {
   for (const { name, TypedArray, $ } of TYPED_ARRAYS_WITH_BIG_INT) {
+    // Safari 14 only fails after successful calls warm up the native method.
+    for (let i = 0; i < 1000; i++) TypedArray.from(createIterable([$(1)]));
     for (const primitive of [undefined, null, false, 1, 'foo']) {
       let nextCalls = 0;
       let returnCalls = 0;

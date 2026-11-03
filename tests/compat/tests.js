@@ -46,6 +46,20 @@ var ARRAY_BUFFER_TRANSFER_BUG = IS_NODE && /^(?:21\.|22\.[0-3]\.)/.test(versions
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
+var ITERATOR_RESULT_CHECK_SUPPORT = function () {
+  // Same WebKit and pre-Safari 15 JSC detection as iterator-result-webkit-bug.
+  var webkit = USERAGENT.match(/AppleWebKit\/(\d+)\./);
+  if (!webkit || +webkit[1] <= 537) return true;
+  try {
+    var prototype = Function.prototype;
+    var caller = Object.getOwnPropertyDescriptor(prototype, 'caller');
+    var args = Object.getOwnPropertyDescriptor(prototype, 'arguments');
+    return !caller || !args || typeof caller.get != 'function' || caller.get !== args.get;
+  } catch (error) {
+    return true;
+  }
+};
+
 var DESCRIPTORS_SUPPORT = function () {
   return Object.defineProperty({}, 'a', {
     get: function () { return 7; }
@@ -538,7 +552,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     } catch (error) { /* empty */ }
     return Array.prototype.forEach;
   },
-  'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
+  'es.array.from': [SAFE_ITERATION_CLOSING_SUPPORT, ITERATOR_RESULT_CHECK_SUPPORT],
   'es.array.includes': function () {
     return Array(1).includes()
       && Array.prototype[Symbol.unscopables].includes
@@ -1781,6 +1795,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.typed-array.from': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    ITERATOR_RESULT_CHECK_SUPPORT,
     function () {
       return Int8Array.from;
     }
