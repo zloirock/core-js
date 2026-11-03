@@ -112,7 +112,10 @@ for (const [source, tail, folds] of [
     check(`${ label }/read before write target`, base.expressions.at(-1).consequent.type, 'MemberExpression');
     check(`${ label }/throw survives another transform`, base.expressions.at(-1).consequent.object.value, null);
     check(`${ label }/nullish branch only`, base.expressions.at(-1).test.operator, '==');
-    check(`${ label }/stored value re-read`, base.expressions.at(-1).alternate.node, store.left);
+    const reread = base.expressions.at(-1).alternate;
+    check(`${ label }/stored value re-read`, reread.name, store.left.name);
+    check(`${ label }/reread is a canonical identifier`, reread.type, 'Identifier');
+    check(`${ label }/reread owns a separate node`, reread === store.left, false);
   }
   check(`${ label }/actual member`, isMemberAccessNode(path.node), true);
 });

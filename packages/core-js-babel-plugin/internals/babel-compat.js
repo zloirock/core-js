@@ -2453,7 +2453,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // Keep consumed trivia after a surviving receiver, or on the replacement of a dropped one.
   // Folded keys can contain comments below their root; collect the consumed subtrees once.
   // Shared comment identity lets Babel suppress attachments also carried by surviving effects.
-  function inheritConsumedMemberComments(id, member, keepsReceiver = false) {
+  function inheritConsumedMemberComments(id, member, keepsReceiver = false, keptEffects = null) {
     t.inheritLeadingComments(id, member);
     t.inheritInnerComments(id, member);
     const target = keepsReceiver && member.object || id;
@@ -2464,6 +2464,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       });
     }
     trailingComments.push(...member.trailingComments || []);
+    // Native clones keep each comment's loc but copy the comment object. Restore its source
+    // identity in surviving effects so the printer does not repeat it on the replacement.
+    if (keptEffects && trailingComments.length) {
+      const originals = new Map(trailingComments.filter(comment => comment.loc).map(comment => [comment.loc, comment]));
+      t.traverseFast(keptEffects, node => {
+        for (const key of t.COMMENT_KEYS) {
+          if (node[key]) node[key] = node[key].map(comment => originals.get(comment.loc) ?? comment);
+        }
+      });
+    }
     t.inheritTrailingComments(target, { trailingComments });
     target.trailingComments?.sort((a, b) => a.start - b.start);
   }

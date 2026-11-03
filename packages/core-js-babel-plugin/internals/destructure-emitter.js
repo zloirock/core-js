@@ -457,6 +457,12 @@ function renderNestedParamSynth({
       ...recv,
       resolveGlobalPolyfill,
       adapter,
+      // The first passthrough owns source comments; later reads own only fresh Babel nodes.
+      repeatReceiver(slot) {
+        const copy = t.cloneNode(slot.node);
+        t.traverseFast(copy, t.removeComments);
+        return hostSlot(copy);
+      },
       renderPassthrough(node, passthrough) {
         if (!passthrough.bailed) return node;
         const rendered = estreeToBabel(node);
@@ -2944,10 +2950,14 @@ export default function createDestructureEmitter({
     function bound(paths) {
       rebindMovedBindings([declarator, ...paths], bindingKind, bindings);
     }
-    // Consumed properties lose their own comment attachments with the pattern.
+    // Consumed properties and their keys lose their attachments with the pattern.
+    // A key's comments stay by the extracted binding, before its initializer.
     for (const item of extracted) {
       const sourceProp = extractionPropOf.get(item);
-      if (sourceProp) t.inheritsComments(item, sourceProp);
+      if (sourceProp) {
+        t.inheritsComments(item, sourceProp);
+        t.inheritsComments(item.id, sourceProp.key);
+      }
     }
     prunePatternByPlanAndRest(plan, declarator.node.id, { keepSentinels: !!plan.wrapperSurvives, ctx: aliasCtxFromPath(declarator) });
     // a wrapper a spread keeps alive never EMPTIES: what leaves it (an anchored prop reading its
@@ -5442,6 +5452,8 @@ export default function createDestructureEmitter({
     // rest element present: keep property in pattern with renamed value to preserve rest semantics
     // const { from, ...rest } = Array -> const from = _from; const { from: _, ...rest } = Array
     const hasRest = objectPattern.node.properties.some(p => isRestProperty(p));
+    // A surviving rest exclusion owns its key; a consumed key hands its trivia to the binding.
+    if (!hasRest) t.inheritsComments(localBinding, prop.node.key);
     // rest: rename property value to preserve rest semantics; otherwise remove property
     const isEmpty = hasRest ? false : (removePatternSlot(prop), objectPattern.node.properties.length === 0);
     // the static's departure can leave a NESTED leaf as the pattern's sole prop (`{ of: { name, foo },

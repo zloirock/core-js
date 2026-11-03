@@ -8269,14 +8269,17 @@ export function planStaticPatternInstances(pattern, { resolvePure, receiverObjec
 // consume a receiver expression without a capture. Bailed reads let the
 // emitter suppress later rewrites. A root `receiverPrefix` preserves the discarded receiver's
 // effects, with an empty-pattern coercion when `coerceReceiver` requires its native throw.
-export function renderSynthTree(tree, ctx, keyPath = []) {
+export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
+  // Recursive reads share allocation state, never an output node. The first read consumes
+  // the supplied receiver; later reads need independent nodes even through a host slot.
+  if (ctx.receiverNode) receiverState ??= { used: false };
   if (!keyPath.length && ctx.memoActivation) {
     const { memoActivation, memoArguments, ...inner } = ctx;
-    return renderMemoActivation(renderSynthTree(tree, inner), memoActivation, memoArguments);
+    return renderMemoActivation(renderSynthTree(tree, inner, [], receiverState), memoActivation, memoArguments);
   }
   if (!keyPath.length && ctx.receiverPrefix) {
     const { receiverPrefix, coerceReceiver, preserveNullishReceiver, preserveFalsyReceiver, ...inner } = ctx;
-    const value = renderSynthTree(tree, inner);
+    const value = renderSynthTree(tree, inner, [], receiverState);
     // Empty destructuring performs precisely the discarded receiver's nullish check,
     // before any key or binding in the surviving source pattern is evaluated.
     return sequenceExpression([
@@ -8287,7 +8290,7 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
   }
   if (tree.kind === 'polyfill') return identifier(ctx.injectImport(tree.entry, tree.hintName));
   if (tree.kind === 'instance') {
-    const receiver = renderSynthTree({ kind: 'passthrough' }, ctx, keyPath.slice(0, -1));
+    const receiver = renderSynthTree({ kind: 'passthrough' }, ctx, keyPath.slice(0, -1), receiverState);
     return callExpression(identifier(ctx.injectImport(tree.entry, tree.hintName)), [receiver]);
   }
   if (tree.kind === 'passthrough') {
@@ -8295,7 +8298,9 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
     // Its entry is a per-file answer; the source slot already supplied the mutation proof.
     if (tree.pure) return identifier(ctx.injectImport(tree.pure.entry, tree.pure.hintName));
     if (ctx.receiverNode) {
-      const read = keyPath.reduce(memberFromKeyName, ctx.receiverNode);
+      const receiver = receiverState.used ? (ctx.repeatReceiver ?? cloneNode)(ctx.receiverNode) : ctx.receiverNode;
+      receiverState.used = true;
+      const read = keyPath.reduce(memberFromKeyName, receiver);
       return ctx.renderPassthrough?.(read, tree) ?? read;
     }
     const ref = resolvePassthroughRef({
@@ -8312,17 +8317,18 @@ export function renderSynthTree(tree, ctx, keyPath = []) {
     return ctx.renderPassthrough?.(base, tree) ?? base;
   }
   if (tree.kind === 'array') {
-    return arrayExpression(tree.elements.map((child, index) => child ? renderSynthTree(child, ctx, [...keyPath, String(index)]) : null));
+    return arrayExpression(tree.elements.map((child, index) => child
+      ? renderSynthTree(child, ctx, [...keyPath, String(index)], receiverState) : null));
   }
   // Quoted names change only the key spelling; every mirror level uses the same data slots.
   return objectExpression(tree.entries.map(({ key, child, symbolKey, readPure, deferred }) => {
     if (!symbolKey) {
       const spelled = synthEntryKey({ lookupKey: key }, { resolvedSpelling: true });
       return (deferred ? objectGetter : objectProperty)(spelled.key,
-        renderSynthTree(child, ctx, [...keyPath, key]), { computed: spelled.computed });
+        renderSynthTree(child, ctx, [...keyPath, key], receiverState), { computed: spelled.computed });
     }
     const keyName = ctx.injectImport(symbolKey.entry, symbolKey.hintName);
-    const receiver = renderSynthTree(child, ctx, keyPath);
+    const receiver = renderSynthTree(child, ctx, keyPath, receiverState);
     const value = readPure ? callExpression(identifier(ctx.injectImport(readPure.entry, readPure.hintName)), [receiver])
       : memberExpression(receiver, identifier(keyName), { computed: true });
     return (deferred ? objectGetter : objectProperty)(identifier(keyName), value, { computed: true });

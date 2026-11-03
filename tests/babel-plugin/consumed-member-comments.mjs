@@ -57,6 +57,37 @@ for (const source of [
   }
 }
 
+// Copies of a receiver own separate AST nodes, but each source comment prints once.
+for (const [label, source] of [
+  ['kept store', 'let held; (held /* store */ = globalThis).self.Array.from([1]);'],
+  ['stored hop write', 'let held; (held /* store */ = globalThis.window).self.Map = 2; export { held };'],
+  ['harvested alias', 'const realm = globalThis; let held; (held = realm /* store */, realm).self.Array.from([1]);'],
+  ['synth receiver', 'export function read({ at, flat, length } = Array /* receiver */.prototype) { return [at, flat, length]; }'],
+  ['synth parameter siblings', `function read(first = 0, { at, flat } = Array /* receiver */.prototype, last = 0) {
+    return [at, flat];
+  } export const result = read(effect(), undefined, effect());`],
+  ['equal comment texts', `const realm = globalThis; let held;
+    (held = realm /* repeated */, realm).self.Array.from([1]);
+    (held = realm /* repeated */, realm).self.Array.of(2);`],
+  ['iterator key', `const events = []; const row = [[], 0];
+    Object.defineProperty(row, 1, { get() { events.push(typeof method); return 9; } });
+    const { w: [{ at /* key */: method }, tail] } = { w: row }; use(method, tail, events);`],
+  ['static key', 'const { from /* key */: method } = Array; export { method };'],
+  ['instance key', 'const { at /* key */: method } = source; export { method };'],
+  ['assignment key', 'let method; ({ at /* key */: method } = source); export { method };'],
+  ['rest key', 'const { at /* key */: method, ...rest } = source; export { method, rest };'],
+]) for (const parens of [false, true]) for (const method of ['usage-pure', 'usage-global']) {
+  let output = source;
+  const expected = await signature(source);
+  for (let pass = 1; pass <= 2; pass++) {
+    output = (await transformAsync(output, {
+      ...config, parserOpts: { createParenthesizedExpressions: parens },
+      plugins: [[plugin, { method, version: '4.0', targets: { ie: 11 } }]],
+    })).code;
+    checkDeep(`receiver copies/${ label }/${ method }/parens ${ parens }/pass ${ pass }`, await signature(output), expected);
+  }
+}
+
 // Babel prints a retained shorthand default through its value. The main visitor
 // keeps its key comments there after usage walks, including on later passes.
 for (const [label, source] of [

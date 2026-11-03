@@ -1946,9 +1946,11 @@ for (const [name, source, accepted] of [
   check(`${ label }/one mapped source`, iterator.init.callee.name, 'iterator$map');
   check(`${ label }/mapper materializes the claimed read`,
     iterator.init.arguments[1].body.consequent.properties[0].kind, 'init');
-  check(`${ label }/first step precedes claim binding`, first.init.callee.object, iterator.id);
+  check(`${ label }/first step precedes claim binding`, first.init.callee.object.name, iterator.id.name);
+  check(`${ label }/first step owns its reference node`, first.init.callee.object === iterator.id, false);
   check(`${ label }/original claim pattern owns binding`, claim.id, arrayPath.node.id.properties[0].value.elements[0]);
-  check(`${ label }/tail continues the same iterator`, tail.init, iterator.id);
+  check(`${ label }/tail continues the same iterator`, tail.init.name, iterator.id.name);
+  check(`${ label }/tail owns its reference node`, tail.init === iterator.id || tail.init === first.init.callee.object, false);
 });
 
 // Host planners run before property metadata exists. Recover iterator provenance

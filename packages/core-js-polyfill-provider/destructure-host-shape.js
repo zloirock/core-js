@@ -43,6 +43,7 @@ import {
   patternKeepsEffectfulKey,
   patternSlotTarget,
   patternSlotCertainDefault,
+  propertyKeyName,
   prototypeChainMayLend,
   provablyPrecedes,
   pureImportSourceEntry,
@@ -97,6 +98,7 @@ import {
   renderPositionalDestructurePlan,
   renderSynthSlotRead,
   sequenceExpression,
+  synthEntryKey,
   variableDeclaration,
   variableDeclarator,
   voidZero,
@@ -432,11 +434,11 @@ export function renderArrayDestructurePlan(plan, {
   function extract(extraction, receiver) {
     let value = read(extraction, receiver);
     if (extraction.defaultNode) {
-      const memo = identifier(mintDeclaredRef());
+      const memo = mintDeclaredRef();
       value = renderInstanceDefaultGuard({
-        assignedRef: memo,
+        assignedRef: identifier(memo),
         call: value,
-        reread: memo,
+        reread: identifier(memo),
         defaultValue: embed(extraction.defaultNode),
         defaultName: extraction.localName,
       });
@@ -452,27 +454,30 @@ export function renderArrayDestructurePlan(plan, {
   }
   if (plan.array.interleavedIterator) {
     const { receiver, extraction, claimPattern, tailPattern, tail, claimIndex } = plan.array.interleavedIterator;
-    const value = identifier(mintRef());
-    const index = identifier(mintRef());
-    const iteratorRef = identifier(mintRef());
-    const resultRef = identifier(mintRef());
+    const value = mintRef();
+    const index = mintRef();
+    const iteratorRef = mintRef();
+    const resultRef = mintRef();
+    // This route admits only plain keys. The retained pattern owns their source comments.
+    const mappedKey = synthEntryKey({ lookupKey: propertyKeyName(extraction.prop) }, { resolvedSpelling: true });
     const mappedValue = objectExpression([
-      objectProperty(embed(extraction.prop.key), read(extraction, value), { computed: extraction.prop.computed }),
+      objectProperty(mappedKey.key, read(extraction, identifier(value)), { computed: mappedKey.computed }),
     ]);
-    const mapper = arrowFunctionExpression([value, index], conditionalExpression(
-      binaryExpression('===', index, valueLiteral(claimIndex)),
+    const mapper = arrowFunctionExpression([identifier(value), identifier(index)], conditionalExpression(
+      binaryExpression('===', identifier(index), valueLiteral(claimIndex)),
       mappedValue,
-      value,
+      identifier(value),
     ));
     const iterator = callExpression(identifier(injectImport('get-iterator', 'getIterator')), [embed(receiver)]);
     const mapped = callExpression(identifier(injectImport('iterator/map', 'map')), [iterator, mapper]);
-    const result = callExpression(memberFromKeyName(iteratorRef, 'next'), []);
-    const yielded = conditionalExpression(memberFromKeyName(resultRef, 'done'), voidZero(), memberFromKeyName(resultRef, 'value'));
+    const result = callExpression(memberFromKeyName(identifier(iteratorRef), 'next'), []);
+    const yielded = conditionalExpression(memberFromKeyName(identifier(resultRef), 'done'),
+      voidZero(), memberFromKeyName(identifier(resultRef), 'value'));
     return [
-      variableDeclaration(kind, [variableDeclarator(iteratorRef, mapped)]),
-      variableDeclaration(kind, [variableDeclarator(resultRef, result)]),
+      variableDeclaration(kind, [variableDeclarator(identifier(iteratorRef), mapped)]),
+      variableDeclaration(kind, [variableDeclarator(identifier(resultRef), result)]),
       variableDeclaration(kind, [variableDeclarator(retain(claimPattern), yielded)]),
-      variableDeclaration(kind, [variableDeclarator(retain({ ...tailPattern, elements: [tail] }), iteratorRef)]),
+      variableDeclaration(kind, [variableDeclarator(retain({ ...tailPattern, elements: [tail] }), identifier(iteratorRef))]),
     ];
   }
   if (plan.array.capture) {
@@ -532,10 +537,10 @@ export function renderArrayDestructurePlan(plan, {
               });
             }
             const reads = child.extractions.map(extraction => extract(extraction, child.nested
-              ? child.nestedKeys.reduce(memberFromKeyName, receiver) : receiver));
+              ? child.nestedKeys.reduce(memberFromKeyName, cloneNode(receiver)) : cloneNode(receiver)));
             if (plan.array.capturedKey && child.sentinel) {
               const sentinel = objectProperty(embed(child.prop.key), identifier(mintUnused()), { computed: child.prop.computed });
-              reads.unshift(variableDeclaration(kind, [variableDeclarator(objectPattern([sentinel]), receiver)]));
+              reads.unshift(variableDeclaration(kind, [variableDeclarator(objectPattern([sentinel]), cloneNode(receiver))]));
             }
             return reads;
           });
@@ -559,13 +564,13 @@ export function renderArrayDestructurePlan(plan, {
   }
   const refs = new Map();
   const memos = plan.array.memos.map(receiver => {
-    const ref = identifier(mintRef());
+    const ref = mintRef();
     refs.set(receiver, ref);
-    return variableDeclaration(plan.array.inDeclaration ? kind : 'const', [variableDeclarator(ref, embed(receiver))]);
+    return variableDeclaration(plan.array.inDeclaration ? kind : 'const', [variableDeclarator(identifier(ref), embed(receiver))]);
   });
   const extracted = plan.extractions.map(extraction => extract(
     extraction,
-    refs.get(extraction.receiver) ?? embed(extraction.receiver),
+    refs.has(extraction.receiver) ? identifier(refs.get(extraction.receiver)) : embed(extraction.receiver),
   ));
   const leading = plan.array.leading.map(node => expressionStatement(embed(node)));
   if (plan.array.dropsResidual) return [
@@ -575,7 +580,8 @@ export function renderArrayDestructurePlan(plan, {
     ...extracted,
   ];
   const residualInit = cloneNode(init);
-  unwrapRuntimeExpr(residualInit).elements = plan.array.initElements.map(node => refs.get(node) ?? cloneNode(node));
+  unwrapRuntimeExpr(residualInit).elements = plan.array.initElements.map(node => refs.has(node)
+    ? identifier(refs.get(node)) : cloneNode(node));
   const residualPattern = { ...plan.array.residualPattern, elements: [...plan.array.residualPattern.elements] };
   for (const element of plan.array.elements) {
     const sentinels = element.children?.filter(child => child.sentinel).map(child => child.prop);
@@ -773,11 +779,11 @@ export function renderNestedKeyedPatternCapture(plan, {
   if (anchorNode) captured = ref ? identifier(ref) : objectPattern([]);
   if (assignment) {
     if (anchorNode && preserveResult) {
-      const result = identifier(ref ?? mintRef());
+      const result = ref ?? mintRef();
       return { elements, expression: sequenceExpression([
-        assignmentExpression('=', result, embed(plan.init)),
+        assignmentExpression('=', identifier(result), embed(plan.init)),
         renderLeaf ? renderLeaf(anchorNode) : assignmentExpression('=', embed(plan.leafPattern), anchorNode),
-        result,
+        identifier(result),
       ]) };
     }
     const capture = captured && !(splitCapture && (receiverRef || receiverNode))
@@ -792,7 +798,7 @@ export function renderNestedKeyedPatternCapture(plan, {
         ...elements.map(({ declarator, expression, pattern: elementPattern }) => expression
         ?? (renderLeaf && elementPattern === plan.leafPattern ? renderLeaf(ref ? identifier(ref) : null)
           : assignmentExpression('=', declarator.id, declarator.init))),
-        ...result ? [result] : [],
+        ...result ? [cloneNode(result)] : [],
       ]),
     };
   }
@@ -2257,11 +2263,11 @@ export function renderRetainedObjectCapture(plan, {
     if (plan.claimedProps?.has(prop) || plan.restRiders?.has(prop)) continue;
     const assignmentStart = assignments.length;
     if (prop === plan.rest) {
-      const sentinel = plan.assignment ? identifier(mintUnused(true)) : null;
+      const sentinel = plan.assignment ? mintUnused(true) : null;
       const residual = sourceNode(objectPattern(plan.pattern.properties.map(item => item === prop || plan.restRiders?.has(item)
         ? embed(item) : objectProperty(item.computed
           ? valueLiteral(item === plan.prop ? plan.primaryKey : plan.siblingStatics.get(item).key)
-          : embed(cloneNode(item.key)), sentinel ?? identifier(mintUnused(false))))));
+          : embed(cloneNode(item.key)), identifier(sentinel ?? mintUnused(false))))));
       // Mark the inserted host properties; rest and its live child claims remain visitable.
       claimProperties?.(residual.properties.filter(item => hostSlotNode(item).type !== 'RestElement'));
       if (plan.assignment) assignments.push(assignmentExpression('=', embed(residual), ref()));
@@ -2303,11 +2309,11 @@ export function renderRetainedObjectCapture(plan, {
         ? renderCtorIdentityNarrow(plan.narrow, memberFromKeyName(ref(), plan.primaryKey), { injectImport, spellRecv: ref })
         : callExpression(identifier(injectImport(entry, hintName)), [ref()]);
       if (defaulted) {
-        const memo = identifier(mintDeclaredRef());
+        const memo = mintDeclaredRef();
         read = renderDefaultGuard({
-          assignedRef: memo,
+          assignedRef: identifier(memo),
           call: read,
-          reread: memo,
+          reread: identifier(memo),
           defaultValue: embed(prop.value.right),
           defaultPattern: prop.value,
           defaultName: target.name,
@@ -2341,8 +2347,8 @@ export function renderRetainedObjectCapture(plan, {
       )
         : plan.retainedStatic ? pure : callExpression(pure, [ref()]);
       if (defaulted && (!plan.retainedStatic || plan.narrow)) {
-        const memo = identifier(mintDeclaredRef());
-        read = renderDefaultGuard({ assignedRef: memo, call: read, reread: memo,
+        const memo = mintDeclaredRef();
+        read = renderDefaultGuard({ assignedRef: identifier(memo), call: read, reread: identifier(memo),
           defaultValue: embed(prop.value.right), defaultPattern: prop.value, defaultName: target.name });
       }
       const write = assignmentExpression('=', embed(target), read);
@@ -2359,11 +2365,11 @@ export function renderRetainedObjectCapture(plan, {
       let read = narrow ? renderCtorIdentityNarrow(narrow, raw, { injectImport, spellRecv: ref })
         : native ? raw : identifier(injectImport(siblingEntry, hint));
       if (narrow && prop.value.type === 'AssignmentPattern') {
-        const memo = identifier(mintDeclaredRef());
+        const memo = mintDeclaredRef();
         read = renderDefaultGuard({
-          assignedRef: memo,
+          assignedRef: identifier(memo),
           call: read,
-          reread: memo,
+          reread: identifier(memo),
           defaultValue: embed(prop.value.right),
           defaultPattern: prop.value,
           defaultName: target.name,
