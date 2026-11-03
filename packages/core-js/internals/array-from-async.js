@@ -29,9 +29,9 @@ module.exports = function fromAsync(items /* , mapfn = undefined, thisArg = unde
   return new Promise(function (resolve, reject) {
     if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
     var usingAsyncIterator = getMethod(items, ASYNC_ITERATOR);
-    var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(items);
-    if (usingAsyncIterator || usingSyncIterator) {
-      var iterator = usingAsyncIterator
+    var usingSyncIterator = usingAsyncIterator === undefined ? getIteratorMethod(items) : undefined;
+    if (usingAsyncIterator !== undefined || usingSyncIterator !== undefined) {
+      var iterator = usingAsyncIterator !== undefined
         ? getAsyncIterator(items, usingAsyncIterator)
         : new AsyncFromSyncIterator(getIteratorDirect(getIterator(items, usingSyncIterator)));
       var record = getIteratorDirect(iterator);

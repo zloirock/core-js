@@ -18,7 +18,7 @@ fixRegExpWellKnownSymbolLogic('search', function (SEARCH, nativeSearch, maybeCal
     function search(regexp) {
       var O = requireObjectCoercible(this);
       var searcher = isObject(regexp) ? getMethod(regexp, SEARCH) : undefined;
-      if (searcher) return call(searcher, regexp, O);
+      if (searcher !== undefined) return call(searcher, regexp, O);
       var S = toString(O);
       return new RegExp(normalizeStringArgument(regexp))[SEARCH](S);
     },

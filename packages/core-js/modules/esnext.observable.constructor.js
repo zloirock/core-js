@@ -65,7 +65,7 @@ var Subscription = function (observer, subscriber) {
   var start;
   if (!DESCRIPTORS) this.closed = false;
   try {
-    if (start = getMethod(observer, 'start')) call(start, observer, this);
+    if ((start = getMethod(observer, 'start')) !== undefined) call(start, observer, this);
   } catch (error) {
     hostReportErrors(error);
   }
@@ -115,7 +115,7 @@ SubscriptionObserver.prototype = defineBuiltIns({}, {
       var observer = subscriptionState.observer;
       try {
         var nextMethod = getMethod(observer, 'next');
-        if (nextMethod) call(nextMethod, observer, value);
+        if (nextMethod !== undefined) call(nextMethod, observer, value);
       } catch (error) {
         hostReportErrors(error);
       }
@@ -128,7 +128,7 @@ SubscriptionObserver.prototype = defineBuiltIns({}, {
       subscriptionState.close();
       try {
         var errorMethod = getMethod(observer, 'error');
-        if (errorMethod) call(errorMethod, observer, value);
+        if (errorMethod !== undefined) call(errorMethod, observer, value);
         else hostReportErrors(value);
       } catch (err) {
         hostReportErrors(err);
@@ -142,7 +142,7 @@ SubscriptionObserver.prototype = defineBuiltIns({}, {
       subscriptionState.close();
       try {
         var completeMethod = getMethod(observer, 'complete');
-        if (completeMethod) call(completeMethod, observer);
+        if (completeMethod !== undefined) call(completeMethod, observer);
       } catch (error) {
         hostReportErrors(error);
       } subscriptionState.clean();

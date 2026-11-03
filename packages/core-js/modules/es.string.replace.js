@@ -66,7 +66,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
     function replace(searchValue, replaceValue) {
       var O = requireObjectCoercible(this);
       var replacer = isObject(searchValue) ? getMethod(searchValue, REPLACE) : undefined;
-      return replacer
+      return replacer !== undefined
         ? call(replacer, searchValue, O, replaceValue)
         : call(nativeReplace, toString(O), searchValue, replaceValue);
     },

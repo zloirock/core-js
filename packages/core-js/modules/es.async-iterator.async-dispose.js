@@ -16,7 +16,7 @@ if (!hasOwn(AsyncIteratorPrototype, ASYNC_DISPOSE)) {
     var O = this;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(O, 'return');
-      if ($return) {
+      if ($return !== undefined) {
         Promise.resolve(call($return, O)).then(function () {
           resolve(undefined);
         }, reject);

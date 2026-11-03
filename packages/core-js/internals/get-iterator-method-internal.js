@@ -8,7 +8,10 @@ var ITERATOR = wellKnownSymbol('iterator');
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {
-  if (!isNullOrUndefined(it)) return getMethod(it, ITERATOR)
-    || getMethod(it, '@@iterator')
-    || (classof(it) === 'Arguments' ? ArrayPrototype[ITERATOR] : undefined);
+  if (!isNullOrUndefined(it)) {
+    var method = getMethod(it, ITERATOR);
+    if (method !== undefined) return method;
+    method = getMethod(it, '@@iterator');
+    return method !== undefined ? method : (classof(it) === 'Arguments' ? ArrayPrototype[ITERATOR] : undefined);
+  }
 };

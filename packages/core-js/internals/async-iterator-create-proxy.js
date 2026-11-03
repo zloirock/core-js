@@ -100,10 +100,10 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         var innerReturn;
         var completion = perform(function () {
           innerReturn = getMethod(innerIterator, 'return');
-          if (innerReturn) return call(innerReturn, innerIterator);
+          if (innerReturn !== undefined) return call(innerReturn, innerIterator);
         });
         if (completion.error) return closeAndReject(completion.value);
-        if (innerReturn) {
+        if (innerReturn !== undefined) {
           return Promise.resolve(completion.value).then(function (innerResult) {
             try {
               anObject(innerResult);

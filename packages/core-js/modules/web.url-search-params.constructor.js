@@ -126,7 +126,7 @@ URLSearchParamsState.prototype = {
     var iteratorMethod = getIteratorMethod(object);
     var iterator, next, step, entryIterator, entryNext, first, second;
 
-    if (iteratorMethod) {
+    if (iteratorMethod !== undefined) {
       iterator = getIterator(object, iteratorMethod);
       next = iterator.next;
       while (!(step = anObject(call(next, iterator))).done) {

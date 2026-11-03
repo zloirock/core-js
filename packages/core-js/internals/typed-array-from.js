@@ -25,7 +25,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var O = toObject(source);
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, thisIsBigIntArray, value, step, iterator, next;
-  if (iteratorMethod && !isArrayIteratorMethod(iteratorMethod)) {
+  if (iteratorMethod !== undefined && !isArrayIteratorMethod(iteratorMethod)) {
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     O = [];

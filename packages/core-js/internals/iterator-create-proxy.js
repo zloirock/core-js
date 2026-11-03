@@ -56,7 +56,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       state.done = true;
       if (IS_ITERATOR) {
         var returnMethod = getMethod(iterator, 'return');
-        return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
+        return returnMethod !== undefined ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
       cleanupState(state);
       if (done) return createIterResultObject(undefined, true);

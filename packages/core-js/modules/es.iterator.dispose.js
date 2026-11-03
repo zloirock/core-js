@@ -12,6 +12,6 @@ var DISPOSE = wellKnownSymbol('dispose');
 if (!hasOwn(IteratorPrototype, DISPOSE)) {
   defineBuiltIn(IteratorPrototype, DISPOSE, function () {
     var $return = getMethod(this, 'return');
-    if ($return) call($return, this);
+    if ($return !== undefined) call($return, this);
   });
 }

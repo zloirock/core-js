@@ -18,7 +18,7 @@ $({ target: 'Observable', stat: true, forced: true }, {
   from: function from(x) {
     var C = isConstructor(this) ? this : getBuiltIn('Observable');
     var observableMethod = getMethod(anObject(x), $$OBSERVABLE);
-    if (observableMethod) {
+    if (observableMethod !== undefined) {
       var observable = anObject(call(observableMethod, x));
       return observable.constructor === C ? observable : new C(function (observer) {
         return observable.subscribe(observer);
@@ -26,7 +26,7 @@ $({ target: 'Observable', stat: true, forced: true }, {
     }
     var iteratorMethod = getIteratorMethod(x);
     // validate that x is iterable synchronously during `from()` call
-    if (!iteratorMethod) getIterator(x);
+    if (iteratorMethod === undefined) getIterator(x);
     return new C(function (observer) {
       iterate(getIterator(x, iteratorMethod), function (it, stop) {
         observer.next(it);

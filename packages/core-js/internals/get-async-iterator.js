@@ -11,5 +11,5 @@ var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
 module.exports = function (it, usingIterator) {
   var method = arguments.length < 2 ? getMethod(it, ASYNC_ITERATOR) : usingIterator;
-  return method ? anObject(call(method, it)) : new AsyncFromSyncIterator(getIteratorDirect(getIterator(it)));
+  return method !== undefined ? anObject(call(method, it)) : new AsyncFromSyncIterator(getIteratorDirect(getIterator(it)));
 };

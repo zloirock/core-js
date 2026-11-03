@@ -7,7 +7,7 @@ var getMethod = require('../internals/get-method');
 module.exports = function (iterator, method, argument, reject) {
   try {
     var returnMethod = getMethod(iterator, 'return');
-    if (returnMethod) {
+    if (returnMethod !== undefined) {
       return getBuiltIn('Promise').resolve(call(returnMethod, iterator)).then(function (result) {
         try {
           if (method !== reject) anObject(result);

@@ -15,7 +15,7 @@ module.exports = function (input, pref) {
   if (!isObject(input) || isSymbol(input)) return input;
   var exoticToPrim = getMethod(input, TO_PRIMITIVE);
   var result;
-  if (exoticToPrim) {
+  if (exoticToPrim !== undefined) {
     if (pref === undefined) pref = 'default';
     result = call(exoticToPrim, input, pref);
     if (!isObject(result) || isSymbol(result)) return result;

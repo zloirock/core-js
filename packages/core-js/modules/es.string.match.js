@@ -23,7 +23,7 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
     function match(regexp) {
       var O = requireObjectCoercible(this);
       var matcher = isObject(regexp) ? getMethod(regexp, MATCH) : undefined;
-      if (matcher) return call(matcher, regexp, O);
+      if (matcher !== undefined) return call(matcher, regexp, O);
       var S = toString(O);
       return new RegExp(normalizeStringArgument(regexp))[MATCH](S);
     },
