@@ -26,13 +26,16 @@ function resolvePure({ kind, name }) {
 
 // A guard and a memo share the selected source, but capture different evaluation slots:
 // a memo retains a call's sequence prefix, while a guard can run it before its test.
-for (const [expression, source, prefix = [], memo = null, keepSequence = false, prelude = ''] of [
+for (const [expression, source, prefix = [], memo = null, keepSequence = false, prelude = '', hintName = null] of [
   ['globalThis?.Array.from', null],
   ['globalThis.window?.Array.from', 'globalThis.window'],
   ['globalThis.window?.self.Array', 'globalThis.window'],
   ['(effect(), globalThis.window)?.Array.from', 'globalThis.window', ['effect()']],
   ['(held = globalThis.window)?.Array.from', 'held = globalThis.window'],
   ['(effect(), held = globalThis.window)?.Array.from', 'effect(), held = globalThis.window', [], null, true],
+  ['(effect(), globalThis.window)?.self', 'effect(), globalThis.window', [], null, true, '', 'self'],
+  ['(effect(), globalThis.window)?.Array', 'globalThis.window', ['effect()'], null, false, '', 'Array'],
+  ['(effect(), realm)?.self', 'realm', ['effect()'], null, false, 'const realm = globalThis.window;', 'self'],
   ['(globalThis.window?.self)?.Array.from', 'globalThis.window'],
   ['read()?.self', 'read()', [], 'read()', false, 'const read = () => globalThis.window;'],
   ['(effect(), read())?.self', 'read()', ['effect()'], 'effect(), read()', false,
@@ -56,7 +59,7 @@ for (const [expression, source, prefix = [], memo = null, keepSequence = false, 
       const inner = unwrapRuntimeExpr(value);
       return inner ? code.slice(inner.start, inner.end) : null;
     }
-    const plan = planOptionalProbe(node, ctx);
+    const plan = planOptionalProbe(node, ctx, { hintName });
     const capture = planOptionalProbe(node, ctx, { memoize: true });
     check(`${ label }/source`, spelling(plan?.source), source);
     check(`${ label }/memo request`, spelling(capture?.source), memo);
@@ -64,7 +67,7 @@ for (const [expression, source, prefix = [], memo = null, keepSequence = false, 
     if (source !== null) {
       checkDeep(`${ label }/prefix`, plan?.prefix.map(spelling), prefix);
       check(`${ label }/kept sequence`, plan?.keepSequence, keepSequence);
-      check(`${ label }/repeat identity`, planOptionalProbe(node, ctx)?.source, plan?.source);
+      check(`${ label }/repeat identity`, planOptionalProbe(node, ctx, { hintName })?.source, plan?.source);
     }
     check(`${ label }/read only`, JSON.stringify(program.node), before);
   });

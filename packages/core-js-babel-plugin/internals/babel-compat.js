@@ -1257,7 +1257,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const test = navGuardSourcePlan(guardObject, resolvePure, ctx);
       if (!test.source) return markGuardTestRendered(estreeToBabel(renderNavGuardTest(test, {
         injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
-        cloneHost: source => t.cloneNode(source), embed: hostSlot, own: source => source,
+        cloneHost: source => t.cloneWithoutRetiring(source), embed: hostSlot, own: source => source,
       })));
     }
     // `detached`: the caller's own render lifts this test out of the tree, so no visitor reaches
@@ -1319,7 +1319,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     }
     const test = renderNavGuardTest(testPlan, {
       injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
-      cloneHost: source => t.cloneNode(source), embed: hostSlot, own: source => source,
+      cloneHost: source => t.cloneWithoutRetiring(source), embed: hostSlot, own: source => source,
     });
     return estreeToBabel(renderShortCircuitGuard(nullFirstGuardTest(test), hostSlot(value)));
   }
@@ -1669,7 +1669,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   // Apply shared navigation routes to live Babel slots, retaining native requeue and tail bookkeeping.
-  // eslint-disable-next-line max-statements -- native slot applications of shared navigation routes
   function collapseShortCircuitNavInPlace(memberPath) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return false;
@@ -1922,14 +1921,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       rendered = estreeToBabel(renderShortCircuitGuard(
         nullFirstGuardTest(t.cloneNode(plan.rootAssign ?? plan.rootId), { embed: hostSlot }), hostSlot(rendered)));
     }
-    // the render replaces the span that held the root's SEQUENCE prefix, so every landing below hangs
-    // that prefix outermost, ahead of the test - where the source runs it. a prefix the test's OWN
-    // source node encloses (`(c++, globalThis).window` - the sequence sits under the hop) is already
-    // re-emitted inside the rendered test, and a second copy would run it twice
-    const testSource = plan.hops[plan.lastUnresolvableIdx]?.node ?? null;
-    const prefix = (plan.seqRoot ? navRootPrefixNodes(plan, node => node) : [])
-      .filter(expr => !testSource || !subtreeContainsNode(testSource, expr))
-      .map(expr => navGuardTestNode(expr, null, plan));
+    // Nested guards own their source prefixes. Only the separate root guard above still
+    // needs the sequence prefix outside its value render, ahead of every landing below.
+    const prefix = plan.kind !== 'nested' && plan.seqRoot
+      ? navRootPrefixNodes(plan, expr => navGuardTestNode(expr, null, plan)) : [];
     // a SEQUENCE stands between the render's landing slot and the steps above it, so the tail pull
     // has no contiguous chain to walk there - the prefix keeps the tail outside, as the source spells it
     if (!peelSkippableWrapperPath(target.get('object')).isSequenceExpression()
@@ -1966,10 +1961,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   // Bind a decided probe to imports and Babel nodes. Consumers own insertion and
   // effect bookkeeping; the source decision and canonical render own its semantics.
+  // Re-emitted stores retain their source write records for later alias queries.
   function renderClaimProbeNode(decision) {
     return estreeToBabel(renderClaimProbe(decision, {
       injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
-      cloneHost: source => t.cloneNode(source), embed: hostSlot,
+      cloneHost: source => t.cloneWithoutRetiring(source), embed: hostSlot,
     }));
   }
 

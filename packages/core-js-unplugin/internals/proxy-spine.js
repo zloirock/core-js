@@ -709,6 +709,7 @@ export default function createProxySpineChannel(ctx) {
     const { source } = test;
     if (skippedNodes.keepLive && source) {
       for (const child of source.children) skippedNodes.keepLive.add(child);
+      for (const slot of test.prefix) skippedNodes.keepLive.add(slot.source);
     }
     const probe = renderNavGuardTest(test, {
       injectImport: injectPureImport,

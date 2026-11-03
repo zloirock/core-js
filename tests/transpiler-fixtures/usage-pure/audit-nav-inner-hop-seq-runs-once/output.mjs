@@ -20,8 +20,8 @@ export const innerHopSeqOptionalTail = (n++, _Array$of)(5);
 // asking for a short-circuit instead of any sealed read is what lets the claim be polyfilled here
 export const innerHopSeqBelowTest = (n++, _Promise$resolve)(1);
 // NEGATIVE: the sequence on the ROOT hop, outside every rendered span - spelled ahead as before
-export const rootHopSeq = (n++, (null == _globalThis.window ? void 0 : _self).Array, _Array$of)(5);
+export const rootHopSeq = ((null == (n++, _globalThis.window) ? void 0 : _self).Array, _Array$of)(5);
 // NEGATIVE: a kept write on the root hop rides the test itself, and its prefix rides ahead of it
-export const rootHopSeqWrite = (n++, (null == (w = _globalThis.window) ? void 0 : _self).Array, _Array$of)(5);
+export const rootHopSeqWrite = ((null == (n++, w = _globalThis.window) ? void 0 : _self).Array, _Array$of)(5);
 // NEGATIVE: no sequence at all - nothing to spell on either side
 export const noSeq = _Array$of(5);

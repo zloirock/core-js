@@ -1,0 +1,1 @@
+Unknown option: .method. Check out https://babeljs.io/docs/en/babel-core/#options for more information about options.

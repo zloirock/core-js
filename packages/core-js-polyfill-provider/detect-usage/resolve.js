@@ -5816,17 +5816,21 @@ export function terminalNavCollapsePlan(plan, { node, consumer }) {
 
 // The test of a decided navigation: either the backed base or the retained source read.
 // A call's nullable yield is the probe itself; its own optional invocation still keeps the hop.
+// A kept store observes its complete source value, including every inner write. Prefixes
+// outside that source run once in the test; consumers must not replay them around the guard.
 export function navGuardTestPlan(plan) {
   const { resolvePure, ctx } = plan;
-  const base = navGuardTestBase(plan);
+  const base = !plan.assignWrap && navGuardTestBase(plan);
   let probe = plan.hops[plan.lastUnresolvableIdx].node;
   const below = unwrapRuntimeExpr(probe.object);
   if (isCallShape(below) && !below.optional
     && proxyReceiverValueCanBeUndefined(below, resolvePure, ctx, { throughChainAssign: true })) probe = below;
-  const test = base ? { base, prefix: plan.rootAssign ? [claimProbeSourceSlot(plan.rootAssign, resolvePure, ctx)] : [] }
-    : { source: claimProbeSourceSlot(probe, resolvePure, ctx) };
-  if (plan.assignWrap) test.assign = plan.assignWrap;
-  return test;
+  const source = !base && claimProbeSourceSlot(plan.assignWrap ?? probe, resolvePure, ctx);
+  const retained = source ? [source.source] : plan.rootAssign ? [plan.rootAssign] : [];
+  const prefix = plan.seqRoot ? navRootPrefixNodes(plan, node => node)
+    .filter(effect => retained.every(node => !subtreeContainsNode(node, effect))) : [];
+  if (base && plan.rootAssign) prefix.push(plan.rootAssign);
+  return { ...source ? { source } : { base }, prefix: prefix.map(node => claimProbeSourceSlot(node, resolvePure, ctx)) };
 }
 
 // A guard may read through collapsed navigation, but never through a load-bearing seal.
@@ -5897,7 +5901,7 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
   } else {
     test = decision.kind === 'nav' ? navGuardTestPlan(navPlan) : navGuardSourcePlan(leafPlan.guardObject, resolvePure, ctx);
     if (test.source) retained.push(test.source.source);
-    else retained.push(...test.prefix.map(item => item.source));
+    if (test.prefix) retained.push(...test.prefix.map(item => item.source));
   }
   const navPrefix = navHopSequencePrefixes(boundary.inner, ctx);
   const prefix = navPrefix.filter(effect => retained.every(node => !subtreeContainsNode(node, effect)));

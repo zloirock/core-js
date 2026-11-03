@@ -10,8 +10,8 @@ var _ref;
 // polyfilled it - one source, two answers, decided by a paren.
 const log = [];
 let n = 0;
-export const sealedPrefixClaim = _atMaybeArray(_ref = (_pushMaybeArray(log).call(log, 'x'), (null == _globalThis.window ? void 0 : _self).Array, _Array$of)(1)).call(_ref, 0);
+export const sealedPrefixClaim = _atMaybeArray(_ref = ((null == (_pushMaybeArray(log).call(log, 'x'), _globalThis.window) ? void 0 : _self).Array, _Array$of)(1)).call(_ref, 0);
 export const unsealedPrefixClaim = (_pushMaybeArray(log).call(log, 'y'), null == _globalThis.window ? void 0 : _Array$of(1));
-export const sealedPrefixTwoClaims = (_pushMaybeArray(log).call(log, 'z'), _atMaybeArray(log).call(log, 0), (null == _globalThis.window ? void 0 : _self).Array, _Array$of)(2);
+export const sealedPrefixTwoClaims = ((null == (_pushMaybeArray(log).call(log, 'z'), _atMaybeArray(log).call(log, 0), _globalThis.window) ? void 0 : _self).Array, _Array$of)(2);
 // NEGATIVE: a prefix effect that claims nothing re-emits verbatim either way
-export const nonClaimPrefix = (n++, (null == _globalThis.window ? void 0 : _self).Array, _Array$of)(3);
+export const nonClaimPrefix = ((null == (n++, _globalThis.window) ? void 0 : _self).Array, _Array$of)(3);

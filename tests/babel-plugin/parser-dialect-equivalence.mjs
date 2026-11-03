@@ -269,6 +269,12 @@ try {
     '(effects.push("prefix"), ((held as any) = globalThis.window))?.self.probeValue',
     'delete ((box.value) = globalThis.window)?.self.probeValue',
     '((held) = globalThis)?.self.probeValue',
+    '(effects.push("prefix"), ((held) = box.value = globalThis.window))?.self.Array.from([7])',
+    '((box[(effects.push("key"), "value")]) = (held) = globalThis.window)?.self.Array.from([7])',
+    '(effects.push("prefix"), globalThis.window)?.self?.Array.of(8).at(0)',
+    'new ((effects.push("prefix"), held = globalThis.window)?.self.Map)([[1, 2]]).size',
+    '(effects.push([2].at(0)), held = globalThis.window)?.self.Array.from([7])',
+    '(box.value = held = globalThis.self.window)?.self.Array.from([7])',
   ]) {
     const source = `export const effects = []; export let r;
 let held;
