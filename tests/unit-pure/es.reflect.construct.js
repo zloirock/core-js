@@ -1,6 +1,6 @@
 import construct from '@core-js/pure/es/reflect/construct';
-import isArray from '@core-js/pure/es/array/is-array';
 
+const { isArray } = Array;
 const { getPrototypeOf } = Object;
 
 QUnit.test('Reflect.construct', assert => {

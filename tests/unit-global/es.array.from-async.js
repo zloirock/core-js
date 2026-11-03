@@ -1,7 +1,7 @@
 import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
 
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
+import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
 
 QUnit.test('Array.fromAsync', assert => {
   const { fromAsync } = Array;
