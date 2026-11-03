@@ -672,12 +672,15 @@ export function renderSynthEntryKey(entry, {
 
 // Bind a decided surface once: preserved source values keep their host dialect, while
 // an imported surface uses the canonical identifier builder.
-function renderProxyCollapseBase(base, { injectImport, embed, carry }) {
+function renderProxyCollapseBase(base, { injectImport, embed, carry, effects = [] }) {
   const source = base.alias ?? base.keep;
-  const value = source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
+  // An alias already carried by an effect is a new read, not another copy of that source slot.
+  const value = base.alias && effects.some(effect => subtreeContainsNode(effect, base.alias)) ? identifier(base.alias.name)
+    : source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
+  // The plan permits rereading only an identifier. Its source comments belong to the kept write.
   return base.read ? sequenceExpression([value, conditionalExpression(
-    nullFirstGuardTest(embed(carry(base.read.object))),
-    renderAliasHeldProbeRead(base.read, literal(null)), embed(carry(base.read.object)),
+    nullFirstGuardTest(identifier(base.read.object.name)),
+    renderAliasHeldProbeRead(base.read, literal(null)), identifier(base.read.object.name),
   )]) : value;
 }
 
@@ -686,7 +689,7 @@ function renderProxyCollapseBase(base, { injectImport, embed, carry }) {
 export function renderDeclinedNavigation(plan, {
   injectImport, embed = node => node, cloneHost = cloneNode, carryEffect = cloneHost,
 }) {
-  const base = renderProxyCollapseBase(plan.base, { injectImport, embed, carry: cloneHost });
+  const base = renderProxyCollapseBase(plan.base, { injectImport, embed, carry: cloneHost, effects: plan.effects });
   return plan.effects.length
     ? sequenceExpression([...plan.effects.map(effect => embed(carryEffect(effect))), base]) : base;
 }
@@ -711,7 +714,7 @@ export function renderProxyReceiverPlan(plan, { injectImport, embed = node => no
   }
   // a `keep` root is carried like an alias - the substrate re-visits it, so its own
   // proxy root still earns the pure rewrite there
-  const rootBinding = renderProxyCollapseBase(plan.rootBinding, { injectImport, embed, carry });
+  const rootBinding = renderProxyCollapseBase(plan.rootBinding, { injectImport, embed, carry, effects: plan.harvestedSE });
   const rootNode = plan.harvestedSE.length
     ? sequenceExpression([...plan.harvestedSE.map(expr => embed(carry(expr))), rootBinding])
     : rootBinding;
@@ -724,7 +727,7 @@ export function renderProxyReceiverPlan(plan, { injectImport, embed = node => no
 // records must still point at the retained writes. Other source occurrences are cloned.
 export function renderOuterCollapseValue(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
   function bind(base) {
-    return renderProxyCollapseBase(base, { injectImport, embed, carry: cloneHost });
+    return renderProxyCollapseBase(base, { injectImport, embed, carry: cloneHost, effects: plan.prefix });
   }
   function clone(node) {
     return embed(cloneHost(node));
@@ -1082,7 +1085,7 @@ export function renderStaticFallbackReceiver(plan, { injectImport, cloneHost = c
 export function renderResolvedStaticClaim(plan, { injectImport, cloneHost = cloneNode, embed = node => node }) {
   const effects = plan.effects.map(effect => effect === plan.probe
     ? renderClaimProbe(plan.probe, { injectImport, cloneHost, embed }) : embed(cloneHost(effect)));
-  effects.push(renderProxyCollapseBase(plan.base, { injectImport, embed, carry: cloneHost }));
+  effects.push(renderProxyCollapseBase(plan.base, { injectImport, embed, carry: cloneHost, effects: plan.effects }));
   return effects.length === 1 ? effects[0] : sequenceExpression(effects);
 }
 

@@ -5,6 +5,7 @@
 // added here and left out of the list is run by nothing and reported by nothing
 import { fileURLToPath } from 'node:url';
 import './harness-contracts.mjs';
+import './render-node-ownership.mjs';
 import './resolve-node-type.mjs';
 import './receiver-type-precision.mjs';
 import './local-flow-values.mjs';

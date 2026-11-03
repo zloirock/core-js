@@ -293,8 +293,9 @@ export default function createSynthSwapEmitter({
       else if (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') storePath = storePath.get('object');
       else return;
     }
-    storePath.get('left').replaceWith(cloneWriteTarget(t, store.left));
-    storePath.get('right').replaceWith(t.cloneWithoutRetiring(store.right));
+    // replaceWith inherits the old slot's comments; the clone must not supply a second copy.
+    storePath.get('left').replaceWith(t.removeComments(cloneWriteTarget(t, store.left)));
+    storePath.get('right').replaceWith(t.removeComments(t.cloneWithoutRetiring(store.right)));
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base

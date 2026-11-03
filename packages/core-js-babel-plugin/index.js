@@ -1694,7 +1694,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               }
               annotateCallReturnType(path);
               const replacement = renderResolvedStaticClaimNode(product);
-              if (kind === 'static') inheritConsumedMemberComments(replacement.expressions?.at(-1) ?? replacement, path.node);
+              if (kind === 'static') inheritConsumedMemberComments(replacement.expressions?.at(-1) ?? replacement,
+                path.node, false, replacement.expressions ? replacement : null);
               replacePath.replaceWith(replacement);
               if (product.live) return;
               if (product.foldAbove) {
