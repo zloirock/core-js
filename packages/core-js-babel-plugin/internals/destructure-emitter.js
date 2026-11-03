@@ -4924,7 +4924,7 @@ export default function createDestructureEmitter({
     path.get('body').unshiftContainer('body', [relocated]);
     path.node.param = estreeToBabel(rendered.head);
     path.scope.registerBinding('let', path.get('param'), path);
-    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated, name: ref.name });
+    noteRelocation(path, { slotOwner: path.node, field: 'param', pattern: param, statement: relocated });
   }
 
   // Relocate a loop-head pattern when the shared catch/head plan needs a body extraction slot.
@@ -4954,17 +4954,24 @@ export default function createDestructureEmitter({
     const relocated = estreeToBabel(rendered.statement);
     if (!assignment && left.node.kind !== 'const') catchBornDeclarations.add(relocated);
     const bodyless = path.get('body').isBlockStatement() ? null : path.node.body;
-    if (bodyless) path.get('body').replaceWith(t.inherits(t.blockStatement([bodyless]), bodyless));
+    if (bodyless) {
+      path.get('body').replaceWith(t.inherits(t.blockStatement([bodyless]), bodyless));
+      // replaceWith moves the source comments to the block. Keep their identities on the
+      // original statement too, so idle relocation can unwrap it without losing them.
+      t.inheritsComments(bodyless, path.node.body);
+    }
     path.get('body').unshiftContainer('body', [relocated]);
     const pattern = declarator.id;
-    if (assignment) left.replaceWith(estreeToBabel(rendered.head));
-    else declarator.id = estreeToBabel(rendered.head);
+    if (assignment) {
+      left.replaceWith(estreeToBabel(rendered.head));
+      // The temporary declaration takes the head's comments through replaceWith too.
+      t.inheritsComments(pattern, left.node);
+    } else declarator.id = estreeToBabel(rendered.head);
     noteRelocation(path, {
       slotOwner: assignment ? path.node : declarator,
       field: assignment ? 'left' : 'id',
       pattern,
       statement: relocated,
-      name: ref.name,
       body: bodyless,
     });
     // the receiver canon reads the element back through this name; registering it is what tells

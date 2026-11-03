@@ -9,7 +9,7 @@ import { createChecker, scenarioSource } from '../polyfill-provider/harness.mjs'
 const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
-const { transformAsync } = requireBabel('@babel/core');
+const { transformAsync, parseSync } = requireBabel('@babel/core');
 const { check, finish } = createChecker('loop-receiver-runtime');
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
 const TMP = path.join(import.meta.dirname, '../transpiler-differential/tmp');
@@ -411,6 +411,58 @@ Object.defineProperty(realm, "window", { configurable: true, get() { effects.pus
       check(`capture handoff/${ shape }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
       if (host !== 'native') check(`capture handoff/${ shape }/${ host }/stripped`, await runInWorker(file), expected);
     }
+  }
+  // Restoring an idle loop head after ref compaction preserves source evaluation order,
+  // assignment targets and body scope, including when a later pass lowers the printed head.
+  for (const shape of ['const', 'var', 'assignment', 'bodyless', 'throw', 'async']) {
+    const assignment = shape === 'assignment';
+    const head = `${ assignment ? '' : shape === 'var' ? 'var ' : 'const ' }{ w: { entries }, tag }`;
+    const body = 'effects.push("body"); r.push(entries === Object.entries, tag);';
+    const loop = `for ${ shape === 'async' ? 'await ' : '' }(${ head } of [
+      { w: e("a"), tag: 1 }, { w: e("b"), tag: 2 }
+    ]) ${ shape === 'bodyless' ? '(effects.push("body"), r.push(entries === Object.entries, tag));' : `{ ${ body } }` }`;
+    const source = `export const effects = []; export const r = [];
+      const e = name => { effects.push(name); ${ shape === 'throw' ? 'if (name === "b") throw new RangeError("element");' : '' } return Object; };
+      ${ assignment ? 'let entries, tag;' : '' }
+      try { ${ loop } } catch (error) { r.push(error.name); }`;
+    scenarioSource(source);
+    const { code: babel } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
+    });
+    const single = createUnplugin(OPTIONS).transform(source, 'input.mjs')?.code ?? source;
+    const phases = createUnplugin(OPTIONS);
+    const pre = phases.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    const post = phases.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+    const outputs = [['native', source], ['babel', babel], ['unplugin', single], ['pre+post', post]];
+    for (const [host, output] of outputs.slice(1)) {
+      const { code } = await transformAsync(output, {
+        configFile: false, babelrc: false,
+        plugins: ['destructuring', 'for-of', 'block-scoping'].map(name => requireBabel.resolve(`@babel/plugin-transform-${ name }`)),
+      });
+      outputs.push([`${ host }/lowered`, code]);
+    }
+    const expected = shape === 'throw' ? 'OK|["RangeError"]|["a","b"]' : 'OK|[true,1,true,2]|["a","b","body","body"]';
+    for (const [host, output] of outputs) {
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, output);
+      check(`idle head/${ shape }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+      if (host !== 'native') check(`idle head/${ shape }/${ host }/stripped`, await runInWorker(file), expected);
+    }
+  }
+  // Babel transfers a replaced statement's comments to its temporary block. Undoing
+  // an idle relocation must put them back; a live relocation must still print each once.
+  for (const [name, source] of [
+    ['idle', 'const e = () => Object; for (const /* head */ {w:{entries}} of [{w:e()}]) /* body */ use(entries); [1].at(0);'],
+    ['assigned', 'const e = () => Object; let entries; for (/* head */ {w:{entries}} of [{w:e()}]) /* body */ use(entries); [1].at(0);'],
+    ['live', 'for (const /* head */ {at} of rows) /* body */ use(at);'],
+    ['live-assigned', 'let at; for (/* head */ {at} of rows) /* body */ use(at);'],
+  ]) {
+    const { code } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
+    });
+    // eslint-disable-next-line node/no-sync -- inspect the completed printer output, not an AST comment side table
+    const comments = parseSync(code, { configFile: false, babelrc: false }).comments.map(comment => comment.value.trim());
+    check(`relocated body/${ name }/comments survive once in source order`, JSON.stringify(comments), '["head","body"]');
   }
 } finally {
   await fs.remove(DIR);

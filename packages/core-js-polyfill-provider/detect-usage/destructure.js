@@ -6170,13 +6170,17 @@ function patternShape(node) {
 }
 
 // a loop head or catch param the legs moved into the body for a claim: `slotOwner[field]` is the
-// head slot the minted name took, `body` the source's own statement a bodyless host had
-export function noteRelocation(hostPath, { slotOwner, field, pattern, statement, name, body = null }) {
+// head slot the minted name took, `body` the source's own statement a bodyless host had.
+// Retain the head and its binding: assignment heads wrap the ref in a fresh const declaration,
+// and import placement can compact its name before restoration.
+export function noteRelocation(hostPath, { slotOwner, field, pattern, statement, body = null }) {
   let program = hostPath;
   while (program.parentPath?.node) program = program.parentPath;
   if (!relocationRecords.has(program.node)) relocationRecords.set(program.node, []);
+  const head = slotOwner[field];
+  const reference = head.type === 'VariableDeclaration' ? head.declarations[0].id : head;
   relocationRecords.get(program.node).push({
-    host: hostPath.node, slotOwner, field, pattern, shape: patternShape(pattern), statement, name, body,
+    host: hostPath.node, slotOwner, field, head, reference, pattern, shape: patternShape(pattern), statement, body,
   });
 }
 
@@ -6185,12 +6189,14 @@ export function noteRelocation(hostPath, { slotOwner, field, pattern, statement,
 // a head no claim needed prints as written on both, and a ref hoisted into its braces keeps them
 export function restoreIdleRelocations(programNode) {
   for (const record of (relocationRecords.get(programNode) ?? []).toReversed()) {
-    const { host, slotOwner, field, pattern, statement, name, body } = record;
+    const { host, slotOwner, field, head, reference, pattern, statement, body } = record;
+    const { name } = reference;
     const block = host.body.body;
     const moved = statement.type === 'VariableDeclaration'
       ? statement.declarations.length === 1 && statement.declarations[0] : statement.expression;
     const source = moved?.init ?? moved?.right;
-    if (!block?.includes(statement) || (moved?.id ?? moved?.left) !== pattern || source?.type !== 'Identifier'
+    if (slotOwner[field] !== head || (head.type === 'VariableDeclaration' ? head.declarations[0]?.id : head) !== reference
+      || !block?.includes(statement) || (moved?.id ?? moved?.left) !== pattern || source?.type !== 'Identifier'
       || source.name !== name || patternShape(pattern) !== record.shape
       || block.some(item => item !== statement && identifierReferencedInSubtree(item, name))) continue;
     block.splice(block.indexOf(statement), 1);
