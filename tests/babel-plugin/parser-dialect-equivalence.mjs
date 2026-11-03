@@ -11,6 +11,8 @@ import { pathToFileURL } from 'node:url';
 import { bindingLoopAnchor, lookupReadPath, pathOfNode } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
+import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
@@ -70,6 +72,12 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['parenthesized target in a kept optional store', 'let held; export const r = ((held) = globalThis.window)?.self.foo;'],
+  ['parenthesized member target in a kept optional store', 'const box = {}; export const r = ((box.held) = globalThis.window)?.self.foo;'],
+  ['nested parenthesized target and source prefix', 'let held; export const r = (effect(), (((held)) = globalThis.window))?.self.Array;'],
+  ['cast target in a kept optional store', 'let held: any; export const r = ((held as any) = globalThis.window)?.self.foo;', ['typescript']],
+  ['delete over a parenthesized store target', 'let held; export const r = delete ((held) = globalThis.window)?.self.foo;'],
+  ['uncollapsed root with a parenthesized store target', 'let held; export const r = ((held) = globalThis)?.self.foo;'],
   ['local reader through parenthesized callee and argument',
     'function pick<T extends { rows: unknown }>(o: T): T["rows"] { return o.rows; } const box = { rows: [8, 9] }; use(((pick))(((box))).at(-1));', ['typescript']],
   ['local reader after a wrapped argument write',
@@ -245,6 +253,63 @@ for (const method of ['usage-pure', 'usage-global']) {
       check('source path apart lookup uses the new File binding', bindingLoopAnchor(apart.scope.getBinding('globalThis')).decl, fn.node.params[0]);
     } } })],
   });
+}
+
+// Explicit target parentheses must survive a refreshed store through print, parse and
+// lowering. Foreign realm setup avoids declaring a source mutation of window/self.
+const TMP = path.join(import.meta.dirname, '../transpiler-differential/tmp');
+await fs.ensureDir(TMP);
+const DIR = await fs.mkdtemp(path.join(TMP, 'kept-store-target-'));
+let count = 0;
+try {
+  for (const expression of [
+    '((held) = globalThis.window)?.self.probeValue',
+    '(((box.value)) = globalThis.window)?.self.probeValue',
+    '((box[(effects.push("key"), "value")]) = globalThis.window)?.self.probeValue',
+    '(effects.push("prefix"), ((held as any) = globalThis.window))?.self.probeValue',
+    'delete ((box.value) = globalThis.window)?.self.probeValue',
+    '((held) = globalThis)?.self.probeValue',
+  ]) {
+    const source = `export const effects = []; export let r;
+let held;
+const box = { set value(value) { effects.push('store'); held = value; }, get value() { effects.push('read-store'); return held; } };
+try { r = ${ expression }; } catch (error) { r = error.name; }
+r = [r, held === globalThis];`;
+    const setup = `const realm = Function('return this')();
+Object.defineProperty(realm, 'window', { configurable: true, value: realm });
+Object.defineProperty(realm, 'self', { configurable: true, value: realm });
+Object.defineProperty(realm, 'probeValue', { configurable: true, get() { effects.push('slot'); return 17; } });`;
+    const outputs = [['native', source]];
+    for (const method of ['usage-global', 'usage-pure']) {
+      const options = { method, version: '4.0', targets: { ie: 11 } };
+      for (const parens of [false, true]) outputs.push([`${ method }/babel/${ parens }`, (await transformAsync(source, {
+        configFile: false, babelrc: false, filename: 'input.ts',
+        parserOpts: { plugins: ['typescript'], createParenthesizedExpressions: parens }, plugins: [[babelPlugin, options]],
+      })).code]);
+      outputs.push([`${ method }/unplugin`, createUnplugin(options).transform(source, '/input.ts').code]);
+    }
+    let expected;
+    for (const [host, output] of outputs) {
+      const { code } = await transformAsync(output, {
+        configFile: false, babelrc: false, filename: 'input.ts',
+        plugins: [requireBabel.resolve('@babel/plugin-transform-typescript'), requireBabel.resolve('@babel/plugin-transform-optional-chaining')],
+      });
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      const prepared = code.replace('export const effects = [];', `export const effects = [];\n${ setup }`);
+      check(`${ expression }/${ host }/foreign setup inserted`, prepared.includes(setup), true);
+      await fs.outputFile(file, prepared);
+      const result = await runInWorker(file, { strip: false });
+      if (host === 'native') {
+        check(`${ expression }/native ran`, result.startsWith('OK|'), true);
+        expected = result;
+      } else {
+        check(`${ expression }/${ host }/full`, result, expected);
+        check(`${ expression }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
+} finally {
+  await fs.remove(DIR);
 }
 
 finish();

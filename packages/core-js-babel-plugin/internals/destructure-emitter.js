@@ -4895,7 +4895,7 @@ export default function createDestructureEmitter({
     // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
     // - keeps one naming scheme across the plugin and matches unplugin's output shape
     const ref = injector.generateLocalRef(path.scope);
-    const rendered = renderDestructureHeadCapture(param, { binding: ref, embed: hostSlot });
+    const rendered = renderDestructureHeadCapture(param, { binding: ref, receiver: t.cloneNode(ref), embed: hostSlot });
     const relocated = estreeToBabel(rendered.statement);
     catchBornDeclarations.add(relocated);
     path.get('body').unshiftContainer('body', [relocated]);

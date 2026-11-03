@@ -1,7 +1,7 @@
 // Ordinary invocation decisions retain source slots and never allocate or mutate on a query.
 import {
   cloneNode, hostSlot, identifier, planMethodCall, planOptionalMethodCall, renderOptionalMethodCall, renderReceiverMemo,
-  renderGuardedMethodCall,
+  renderGuardedMethodCall, renderMethodCall,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -29,6 +29,7 @@ for (const [source, continues] of [
 
 for (const [name, source, capture, keyed = false] of [
   ['constant receiver', 'const rows = []; rows.at(argument());', null],
+  ['wrapped constant receiver', 'const rows = []; (rows as any).at(argument());', null],
   ['adjacent parameter reads', 'function read(rows) { return rows.at(argument()); }', null],
   ['member receiver', 'box.rows.at(argument());', 'lookup'],
   ['allocation identity', '[1].at(argument());', 'lookup'],
@@ -37,10 +38,13 @@ for (const [name, source, capture, keyed = false] of [
   ['live module binding', "import { rows } from './rows.js'; rows.at(argument());", 'lookup'],
   ['reentrant binding write', 'let rows = []; const writer = () => { rows = []; }; rows.at(argument());', 'lookup'],
   ['key follows constant read', 'const rows = []; rows[(key(), "at")](argument());', null, true],
+  ['key follows wrapped constant read', 'const rows = []; (rows as any)[(key(), "at")](argument());', null, true],
   ['key follows member capture', 'box.rows[(key(), "at")](argument());', 'before-key', true],
+  ['key follows wrapped capture', '(getRows() as any)[(key(), "at")](argument());', 'before-key', true],
   ['key follows allocation capture', '[1][(key(), "at")](argument());', 'before-key', true],
   ['key can replace receiver', 'let rows = []; rows[(rows = other, "at")](argument());', 'before-key', true],
   ['key after full prefix', 'const rows = []; (before(), rows)[(key(), "at")](argument());', null, true],
+  ['key after wrapped full prefix', 'const rows = []; ((before(), rows) as any)[(key(), "at")](argument());', null, true],
   ['parameter frame', 'function read(value = getRows().at(argument())) { return value; }', 'lookup'],
   ['field frame', 'class Box { value = getRows().at(argument()); }', 'lookup'],
   ['deferred generator reader', 'function* read(rows) { yield () => rows.at(argument()); rows = other; }', 'lookup'],
@@ -72,6 +76,17 @@ for (const [name, source, capture, keyed = false] of [
   checkDeep(`${ label } key identities`, first.keyEffects, keyEffects);
   check(`${ label } repeated receiver identity`, repeated.receiver === first.receiver, true);
   check(`${ label } first read before key`, first.firstReadEffects.length > 0, keyed && !capture);
+  const roles = [];
+  renderMethodCall(first, {
+    helper: identifier('_method'), mintRef: () => '_receiver',
+    embed(node, role) { roles.push([node, role]); return hostSlot(node); },
+  });
+  if (!capture) {
+    check(`${ label } lookup owns comments only on first evaluation`,
+      roles.filter(([node, role]) => node === first.lookupReceiver && role === 'lookup').length, keyed ? 0 : 1);
+    check(`${ label } repeated receiver role`,
+      roles.filter(([node, role]) => node === first.receiver && role === 'receiver').length, keyed ? 2 : 1);
+  }
 });
 
 // Pending imports and memos have no inserted declaration yet. Only the injector's current

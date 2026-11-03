@@ -293,9 +293,9 @@ runBoth('activation capture identity', 'let { [key()]: value = fallback(), ...re
     if (assignment) check(`${ label }/private head kind`, head.kind, 'const');
   }
   check(`${ label }/source unchanged`, JSON.stringify(source), original);
-  const capture = renderDestructureHeadCapture(source.id, { binding, embed: hostSlot });
+  const capture = renderDestructureHeadCapture(source.id, { binding, receiver, embed: hostSlot });
   check(`${ label }/catch binding is mutable`, capture.statement.kind, 'let');
-  check(`${ label }/catch may reuse its binding identity`, estreeToBabel(capture.statement).declarations[0].init, binding);
+  check(`${ label }/catch has a distinct receiver read`, estreeToBabel(capture.statement).declarations[0].init, receiver);
 });
 
 // For-init slots stay in source order without cloning native residuals or declarators.

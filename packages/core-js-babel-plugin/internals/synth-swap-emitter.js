@@ -39,6 +39,7 @@ import {
   instanceSynthSpellsReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import estreeToBabel from './estree-to-babel.js';
+import { cloneWriteTarget } from './babel-compat.js';
 import {
   chainExpression,
   hostSlot,
@@ -292,9 +293,8 @@ export default function createSynthSwapEmitter({
       else if (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') storePath = storePath.get('object');
       else return;
     }
-    const copy = t.cloneWithoutRetiring(store);
-    storePath.get('left').replaceWith(copy.left);
-    storePath.get('right').replaceWith(copy.right);
+    storePath.get('left').replaceWith(cloneWriteTarget(t, store.left));
+    storePath.get('right').replaceWith(t.cloneWithoutRetiring(store.right));
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
