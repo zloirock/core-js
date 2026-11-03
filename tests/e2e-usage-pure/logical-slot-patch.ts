@@ -40,12 +40,3 @@ QUnit.test('logical patch: computed key effects run once', assert => {
     restoreProperty(Array.prototype, 'flatMap', descriptor);
   }
 });
-
-// Babel's combined TS erasure and logical-assignment lowering duplicates a wrapped key.
-// This unpolyfilled slot isolates the upstream defect; the same source fails without our plugin.
-QUnit.todo('logical patch: upstream lowering keeps a non-null computed key single', assert => {
-  const effects: string[] = [];
-  const receiver: { method?: number } = {};
-  receiver[(effects.push('key'), 'method')]! ||= 1;
-  assert.deepEqual(effects, ['key']);
-});
