@@ -1164,6 +1164,8 @@ const forbidNonStandardBuiltIns = {
   'es/no-nonstandard-intl-datetimeformat-prototype-properties': ERROR,
   'es/no-nonstandard-intl-displaynames-properties': ERROR,
   'es/no-nonstandard-intl-displaynames-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-durationformat-properties': ERROR,
+  'es/no-nonstandard-intl-durationformat-prototype-properties': ERROR,
   'es/no-nonstandard-intl-listformat-properties': ERROR,
   'es/no-nonstandard-intl-listformat-prototype-properties': ERROR,
   'es/no-nonstandard-intl-locale-properties': ERROR,
@@ -1656,6 +1658,7 @@ const forbidES2025BuiltIns = {
   'es/no-iterator-prototype-toarray': ERROR,
   'es/no-math-f16round': ERROR,
   'es/no-promise-try': ERROR,
+  'es/no-regexp-escape': ERROR,
   'es/no-set-prototype-difference': ERROR,
   'es/no-set-prototype-intersection': ERROR,
   'es/no-set-prototype-isdisjointfrom': ERROR,
@@ -1694,6 +1697,8 @@ const forbidES2026BuiltIns = {
 };
 
 const forbidES2027BuiltIns = {
+  'es/no-atomics-pause': ERROR,
+  'es/no-disposablestack': ERROR,
   'es/no-iterator-prototype-chunks': ERROR,
   'es/no-iterator-prototype-includes': ERROR,
   'es/no-iterator-prototype-join': ERROR,
@@ -1892,6 +1897,8 @@ const nodePackages = {
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
   ...forbidSomeES2025Syntax,
+  // disallow explicit resource management syntax
+  'es/no-using-declarations': ERROR,
 };
 
 const nodeDev = {
@@ -1912,6 +1919,8 @@ const nodeDev = {
   // prefer top-level await
   'unicorn/prefer-top-level-await': ERROR,
   ...forbidSomeES2025Syntax,
+  // disallow explicit resource management syntax
+  'es/no-using-declarations': ERROR,
 };
 
 const tests = {
