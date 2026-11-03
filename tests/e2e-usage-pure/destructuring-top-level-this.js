@@ -1,4 +1,7 @@
 import {
+  readNavigatedArray,
+  readNavigatedString,
+  readNavigatedDefault,
   readArray,
   readString,
   readDefault,
@@ -25,6 +28,31 @@ QUnit.test('destructuring: top-level this prototype assignment retains a sibling
     assert.same(string.at.call('xy', -1), 'y');
     assert.same(string.sibling, 'kept');
   });
+});
+
+QUnit.test('destructuring: a nested default reads its method before an outer sibling', assert => {
+  const log = [];
+  function method() { return 23; }
+  function isArray() { return true; }
+  let result;
+  withTemporaryProperty(Array.prototype, 'at', method, () => {
+    withTemporaryProperty(Array, 'isArray', isArray, () => {
+      // eslint-disable-next-line no-extend-native -- Observe the prototype read in the foreign CJS module.
+      Object.defineProperty(Array.prototype, 'at', { configurable: true, get() {
+        log.push('at');
+        return method;
+      } });
+      Object.defineProperty(Array, 'isArray', { configurable: true, get() {
+        log.push('isArray');
+        return isArray;
+      } });
+      result = readNavigatedDefault(() => log.push('default'));
+    });
+  });
+  // A builtin prototype uses the ponyfill, while its original slot is still read once.
+  assert.same(result.at.call([1, 2], -1), 2);
+  assert.same(result.isArray, isArray);
+  assert.deepEqual(log, ['at', 'isArray']);
 });
 
 QUnit.test('destructuring: top-level this prototype ponyfill precedes the leaf default', assert => {
@@ -132,5 +160,27 @@ QUnit.test('destructuring: a user global can hold an instance, an own method or 
       assert.same(direct.call([5, 6], -1), 6);
       assert.same(defaults, 2);
     });
+  });
+});
+
+QUnit.test('destructuring: navigated top-level this reads each receiver path once', assert => {
+  const includes = withTemporaryProperty(Array.prototype, 'includes', undefined,
+    () => [readNavigatedArray().call([3], 3), readNavigatedArray().call([3], 7)]);
+  // QUnit itself uses native includes; restore it before reporting the observations.
+  assert.same(includes[0], true);
+  assert.same(includes[1], false);
+  withTemporaryProperty(String.prototype, 'at', undefined, () => {
+    let prefixes = 0;
+    const at = readNavigatedString(() => prefixes++);
+    assert.same(at.call('xy', -1), 'y');
+    assert.same(prefixes, 1);
+  });
+  withTemporaryProperty(Array.prototype, 'at', undefined, () => {
+    let defaults = 0;
+    const result = readNavigatedDefault(() => defaults++);
+    assert.same(result.at.call([1, 2], -1), 2);
+    assert.same(result.isArray([]), true);
+    assert.same(result.isArray({}), false);
+    assert.same(defaults, 0);
   });
 });

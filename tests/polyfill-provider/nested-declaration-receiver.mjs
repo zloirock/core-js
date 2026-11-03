@@ -168,6 +168,34 @@ for (const ownThis of [false, true]) {
   });
 }
 
+// A separately carried prefix allows navigation to expose its root and keys. Without that
+// ownership fact, resolving the same fragment would silently lose the initializer's effects.
+for (const root of ['this', 'globalThis']) for (const carriedInit of [false, true]) {
+  runBoth(`carried surface/${ root }/${ carriedInit }`,
+    `const { prototype: { at: method } } = (effect(), ${ root }.Array);`, (parser, program, label) => {
+      const path = leafPath(parser, program);
+      const ctx = context(parser);
+      const before = JSON.stringify(program.node);
+      const { dispatch } = resolveNestedNavDispatch(path, { adapter: ctx.adapter, carriedInit });
+      check(`${ label }/admission`, !!dispatch, carriedInit);
+      if (dispatch) {
+        check(`${ label }/only the root is the receiver`, dispatch.root.type, root === 'this' ? 'ThisExpression' : 'Identifier');
+        checkDeep(`${ label }/initializer and pattern keys`, dispatch.keys, ['Array', 'prototype']);
+      }
+      check(`${ label }/query preserves source effects`, JSON.stringify(program.node), before);
+    });
+}
+
+// A carried realm value already selects the pure proxy entry; do not project it to another root.
+for (const init of ['(effect(), globalThis.self)', 'target.value = globalThis.self', 'held = target.value = globalThis.self']) {
+  runBoth(`carried realm/${ init }`, `const { Array: { prototype: { at: method } } } = ${ init };`,
+    (parser, program, label) => {
+      const path = leafPath(parser, program);
+      const { adapter } = context(parser);
+      check(`${ label }/keeps the carried realm route`, resolveNestedNavDispatch(path, { adapter, carriedInit: true }).dispatch, null);
+    });
+}
+
 // Type adapters can read loop declarations without exposing trusted assignment writes.
 for (const [name, source, expected] of [
   ['realm', 'for (const root of [globalThis]) use(root);', 'globalThis'],

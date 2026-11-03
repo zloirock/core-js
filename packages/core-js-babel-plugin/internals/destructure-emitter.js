@@ -110,6 +110,7 @@ import {
   destructurePatternHostPath,
   destructureRetainsLiteralWrapper,
   fallbackDestructureHasPolyfillableBranch,
+  firstPatternProp,
   flattenArrayWrapperInits,
   noteRelocation,
   initRunsCode,
@@ -3756,7 +3757,12 @@ export default function createDestructureEmitter({
     // catch-born host keeps the catch canon (its guard ref folds into the relocated `let`)
     const segmented = kind === 'instance' && !foldedTestRef && !catchBornDeclarations.has(residualDecl.node)
       && severalSeKeyProps(prop);
-    if (plan.siblingDeclarator || (instanceDefaultLive && !foldedTestRef) || segmented) {
+    // A direct default can split its following properties behind the guard. The first
+    // nested leaf without retained keys follows the ordinary extraction order, ahead
+    // of its outer siblings; a later leaf cannot move past preceding residual reads.
+    const defaultAfterKey = instanceDefaultLive && (keyReadPlan || prop.parentPath.parentPath.isVariableDeclarator()
+      || firstPatternProp(destructurePatternHostPath(prop)?.get('id'))?.node !== prop.node);
+    if (plan.siblingDeclarator || (defaultAfterKey && !foldedTestRef) || segmented) {
       // a preceding statement is impossible (loop header) or unsafe (a multi-declarator instance receiver
       // bound earlier in the same declaration would TDZ-fault) - bind the polyfill as a trailing sibling
       // IMMEDIATELY AFTER the consumed declarator: a later declarator of the same declaration may read
@@ -3786,7 +3792,7 @@ export default function createDestructureEmitter({
       bound(inserted);
       seKeyTrailingAnchors.set(hostDeclarator.node, inserted);
       if (instanceDefaultLive || segmented) splitResidualAfterDefaultProp({ prop, guardPath: inserted });
-    } else if (instanceDefaultLive) {
+    } else if (defaultAfterKey) {
       // catch-born host: the separate `let _ref2, i = ...` line lands AFTER the relocated
       // residual (the kept key's effect runs first) - the catch-canon shape the unplugin emitter emits
       const extracted = t.variableDeclaration(residualDecl.node.kind, [
