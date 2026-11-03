@@ -9,6 +9,7 @@ import { matchEntrySubpath } from './entries.js';
 import {
   CENSUS_CONTAINER_TYPES,
   argumentOverridesSlot,
+  literalDestructureSource,
   isMemberAccessNode,
   runtimeChainRoot,
   PARAMETER_STATIC_SOURCES,
@@ -5908,6 +5909,7 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
 // Common captures may expose a supported flat read. A remaining static/global claim
 // below a literal container keeps its native pattern on both emitters. An independent
 // live receiver default owns its branch; dead or empty defaults read the outer source.
+// A transparent IIFE returning a literal keeps the same native pattern as that literal.
 export function destructureRetainsLiteralWrapper({ propPath, kind, adapter }) {
   if (kind === 'instance') return false;
   const walked = destructureHostThroughWrappers(propPath.parentPath, adapter, true);
@@ -5918,8 +5920,7 @@ export function destructureRetainsLiteralWrapper({ propPath, kind, adapter }) {
   const init = defaultNode && !nearestInnerDefaultDead(propPath.parentPath, adapter) ? defaultNode : root;
   const ctx = { scope: propPath.scope, adapter, path: propPath };
   const source = followConstIdentifierInit({ node: peelChainRootValue(decidedRunningOperand(init, ctx)), ctx });
-  const value = unwrapRuntimeExpr(peelChainRootValue(decidedRunningOperand(source.node, source.ctx)));
-  return value?.type === 'ObjectExpression' || value?.type === 'ArrayExpression';
+  return !!literalDestructureSource(decidedRunningOperand(source.node, source.ctx));
 }
 
 // the value an OUTER destructure reads from, for the SE-key gate's "diverging conditional?" check.

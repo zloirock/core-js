@@ -22339,6 +22339,59 @@ function * generateRealmSourceIdentity() {
   }
 }
 
+function * generateNativePatternStatics() {
+  const sources = [
+    ['literal', '{ C: Map }'],
+    ['iife', '(() => ({ C: Map }))()'],
+    ['iife-prefix', '(() => (effects.push("return"), { C: Map }))()'],
+  ];
+  for (const [sourceName, source] of sources) for (const host of ['declaration', 'assignment', 'parameter', 'for-of']) {
+    const body = host === 'declaration' ? `const { C: { groupBy } } = ${ source }; return groupBy;`
+      : host === 'assignment' ? `let groupBy; ({ C: { groupBy } } = ${ source }); return groupBy;`
+        : host === 'parameter' ? `function read({ C: { groupBy } } = ${ source }) { return groupBy; } return read();`
+          : `let answer; for (const { C: { groupBy } } of [${ source }]) answer = groupBy; return answer;`;
+    yield {
+      name: `native-pattern-statics/${ sourceName }/${ host }`, strip: true,
+      // The shared pure realm must not borrow a namespace static from an earlier snippet.
+      // Missing namespace imports are locked by isolated runtime probes and fixtures.
+      code: `export const effects = []; const canonical = Map.groupBy;
+        function pick() { ${ body } }
+        export const r = pick()([3], value => value).get(3)[0];`,
+    };
+  }
+  for (const host of ['declaration', 'assignment', 'parameter']) {
+    const pattern = '{ [key()]: { groupBy } = Map }';
+    const body = host === 'declaration' ? `const ${ pattern } = {}; return groupBy;`
+      : host === 'assignment' ? `let groupBy; (${ pattern } = {}); return groupBy;`
+        : `function read(${ pattern }) { return groupBy; } return read({});`;
+    yield {
+      name: `native-pattern-statics/opaque-default/${ host }`, strip: true,
+      code: `export const effects = []; const canonical = Map.groupBy;
+        function key() { effects.push("key"); return String(Math.random()); }
+        function pick() { ${ body } }
+        export const r = pick()([5], value => value).get(5)[0];`,
+    };
+  }
+  for (const host of ['declaration', 'assignment', 'parameter']) {
+    const pattern = '{ [key]: { groupBy } = Map }';
+    const body = host === 'declaration' ? `const ${ pattern } = {}; rows.push(groupBy);`
+      : host === 'assignment' ? `let groupBy; (${ pattern } = {}); rows.push(groupBy);`
+        : `function read(${ pattern }) { rows.push(groupBy); } read({});`;
+    yield {
+      name: `native-pattern-statics/container-key/${ host }`, strip: true,
+      code: `export const effects = []; const canonical = Map.groupBy;
+        const rows = []; const key = String(rows.length); ${ body }
+        export const r = rows[0]([7], value => value).get(7)[0];`,
+    };
+  }
+  for (const flag of [false, true]) yield {
+    name: `native-pattern-statics/positional/${ flag }`, strip: true,
+    code: `export const effects = []; const canonical = Map.groupBy;
+      function pick(flag) { let C = Map; if (flag) C = Set; const [{ groupBy }] = [C]; return groupBy; }
+      export const r = [typeof pick(${ flag }), typeof canonical];`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22789,4 +22842,5 @@ export function * generate() {
   yield * generateThisNavigationInitializers();
   yield * generateStoredUserReceivers();
   yield * generateRealmSourceIdentity();
+  yield * generateNativePatternStatics();
 }

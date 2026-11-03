@@ -6689,6 +6689,13 @@ function patternSourceSlotRead(rhs, key, ctx, nested = false) {
     && (!nested || ctx?.readsThrough) ? receiverSlotRead(rhs, key) : null;
 }
 
+// The literal source governed by native-wrapper destructuring, including a transparent IIFE return.
+// Return null for other sources; scoped callers resolve bindings and decided selections first.
+export function literalDestructureSource(node) {
+  const value = unwrapReceiverLeaf(node);
+  return value?.type === 'ObjectExpression' || value?.type === 'ArrayExpression' ? value : null;
+}
+
 // the pattern SLOTS the binding `name` is spelled at whose value is a receiver read - the pairing of
 // `patternSlotValues` walked for its node rather than its value. a census that anchors on positions
 // has nothing else to name here: the read itself is synthesized over the receiver's span, and the
@@ -6735,6 +6742,7 @@ export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
 function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
   const out = [];
   rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
+  rhs = literalDestructureSource(rhs) ?? rhs;
   // the same sources and reads `patternSlotValues` takes under `pairedSources` / `readsThrough`
   const sources = pairerSources(rhs, ctx);
   if (sources) return sources.flatMap(({ source }) => patternReceiverSlotNodes(pattern, source, name, ctx));
