@@ -150,6 +150,35 @@ for (const [name, expression, undefinable, surface, globalName, prelude = '', op
   check(`${ label }/read only`, JSON.stringify(program.node), before);
 });
 
+// A memo names the value it captured, without treating a constructor as a realm surface.
+for (const [name, expression, expected, setup = '', mutated = false] of [
+  ['bare constructor', 'Array', 'Array'],
+  ['stored constructor', 'held = Array', 'Array'],
+  ['nested stored constructor', 'held = other = (effect(), Array)', 'Array'],
+  ['prefixed stored constructor', '(effect(), held = Array)', 'Array'],
+  ['decided or constructor', 'globalThis.Array || Array', 'Array'],
+  ['decided nullish constructor', 'globalThis.Array ?? Array', 'Array'],
+  ['object namespace', 'globalThis.Object || Object', 'Object'],
+  ['constructor alias', 'Alias', 'Array', 'const Alias = Array;'],
+  ['unknown selection', 'flag ? Array : other', null],
+  ['different constructors', 'flag ? Array : Map', null],
+  ['shadowed constructor', 'held = Array', null, 'const Array = {};'],
+  ['shadowed realm constructor', 'globalThis.Array', null, 'const globalThis = { Array: {} };'],
+  ['mutated global slot', 'held = Array', null, '', true],
+  ['ordinary property', 'globalThis.custom', null],
+]) runBoth(`constructor memo/${ name }`, `${ setup } let held, other; const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(mutated ? ['globalThis.Array'] : []),
+  });
+  const ctx = { scope: path.scope, path, adapter, resolvePure };
+  const source = path.node.init;
+  const before = JSON.stringify(program.node);
+  check(`${ label }/no constructor alias requested`, memoReceiverGlobalName(source, ctx), null);
+  check(`${ label }/constructor alias`, memoReceiverGlobalName(source, ctx, { constructors: true }), expected);
+  check(`${ label }/read only`, JSON.stringify(program.node), before);
+});
+
 for (const method of ['usage-pure', 'usage-global']) runBoth(`later write/${ method }`,
   'let realm; realm = globalThis.window; const result = realm;', (parser, program, label) => {
     const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');

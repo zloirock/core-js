@@ -664,19 +664,24 @@ export function holdsProxySurface(objectNode, ctx) {
   return !!resolvedRealmValueName(value, ctx);
 }
 
-// The value a memo holds: a pristine realm surface, or a constructor read from one.
+// The value a memo holds: a pristine realm surface, or a resolved constructor value.
+// Decided selections and kept stores name the same constructor as their carried value.
 // User properties, shadowed roots and mutated slots never acquire generated aliases.
 export function memoReceiverGlobalName(objectNode, ctx, { constructors = false } = {}) {
   const value = peelChainRootValue(objectNode);
-  if (isMemberAccessNode(value)) {
+  const member = isMemberAccessNode(value);
+  if (member) {
     const key = staticMemberKeyName(value);
     if (key && POSSIBLE_GLOBAL_OBJECTS.has(key) && holdsProxySurface(objectNode, ctx)) return key;
-    if (!constructors || !ctx.scope) return null;
+  }
+  if (constructors && ctx.scope) {
     const name = resolveObjectName({ objectNode: value, ...ctx });
-    if (!name || !/^[A-Z]/u.test(name) || POSSIBLE_GLOBAL_OBJECTS.has(name)
-      || ctx.adapter.isMutatedStatic?.('globalThis', name)) return null;
-    const host = resolveObjectName({ objectNode: peelChainRootValue(value.object), ...ctx });
-    return host && POSSIBLE_GLOBAL_OBJECTS.has(host) && isPristineProxyGlobal(ctx.adapter, host) ? name : null;
+    if (name && /^[A-Z]/u.test(name) && !POSSIBLE_GLOBAL_OBJECTS.has(name)
+      && !ctx.adapter.isMutatedStatic?.('globalThis', name)) {
+      if (!member) return name;
+      const host = resolveObjectName({ objectNode: peelChainRootValue(value.object), ...ctx });
+      return host && POSSIBLE_GLOBAL_OBJECTS.has(host) && isPristineProxyGlobal(ctx.adapter, host) ? name : null;
+    }
   }
   if (value?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
     const minted = mintedProxyGlobalName(value.name, ctx.injectorState);

@@ -3654,6 +3654,19 @@ for (const [name, expression, mutated, expected] of [
   ['missing method', '(held = globalThis.window)?.self.Array.custom?.([1])', [], false],
   ['mutated method', '(held = globalThis.window)?.self.Array.from?.([1])', ['Array.from'], false],
   ['receiver guard', '(held = globalThis.window)?.Array', [], false],
+  ['stored bare constructor', '(held = Array).from?.([1])', [], true],
+  ['stored constructor and receiver guard', '(held = Array)?.from?.([1])', [], true],
+  ['prefixed stored constructor', '(effect(), held = Array).from?.([1])', [], true],
+  ['nested stored constructor', '(held = other = (effect(), Array)).from?.([1])', [], true],
+  ['stored constructor over stored realm', '(held = (other = globalThis).Array).from?.([1])', [], true],
+  ['stored computed call', '(held = Array)["from"]?.([1])', [], true],
+  ['wrapped callee', '((held = Array).from)?.([1])', [], true],
+  ['decided or constructor', '(globalThis.Array || Array)?.from?.([1])', [], true],
+  ['decided nullish constructor', '(globalThis.Array ?? Array)?.of?.(1)', [], true],
+  ['stored mutated static', '(held = Array).from?.([1])', ['Array.from'], false],
+  ['stored missing method', '(held = Array).custom?.([1])', [], false],
+  ['stored unknown receiver', '(held = other).from?.([1])', [], false],
+  ['stored undecided receiver', '(held = flag ? Array : other).from?.([1])', [], false],
 ]) runBoth(`optional static callee/${ name }`, `let held; const result = ${ expression };`, (parser, program, label) => {
   const value = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'result').get('init');
   // the adapter answers the mutated static as the census-backed build does (`isDeoptedStaticRead`)

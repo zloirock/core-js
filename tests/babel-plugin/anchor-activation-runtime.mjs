@@ -330,6 +330,28 @@ export const r = read();`, 'OK|[7,true,"__undefined__","__undefined__"]|[]'],
         await runInWorker(file, { strip, nativeAlias: false, stripGlobals: ['globalThis'] }), expected);
     }
   }
+  // A late residual anchor must not replace this native static with a narrow constructor.
+  // The in-module write is intentional; the external rig keeps the realm aliases alive in every leg.
+  for (const present of [false, true]) {
+    const source = `import { withRiggedAliases } from ${ JSON.stringify(new URL('../transpiler-differential/rig-aliases.mjs', import.meta.url).href) };
+export const effects = [];
+export const r = withRiggedAliases(() => {
+  globalThis.window = ${ present ? 'globalThis' : 'undefined' };
+  let held;
+  try {
+    const { Promise: { resolve } } = held = globalThis.window?.self;
+    return [typeof resolve, held === globalThis];
+  } catch (error) { return error.name; }
+});`;
+    scenarioSource(source);
+    for (const [host, output] of await transformOutputs(source, { ...OPTIONS, exclude: [] })) {
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, output);
+      check(`stored/guarded native static/${ present }/${ host }`,
+        await runInWorker(file, { strip: false, nativeAlias: false }),
+        present ? 'OK|["function",true]|[]' : 'OK|"TypeError"|[]');
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }

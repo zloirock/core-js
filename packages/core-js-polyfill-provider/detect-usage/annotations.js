@@ -378,7 +378,7 @@ export function isPolyfillableOptional({
   // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
   // a non-member callee (`foo?.()`) leaves `.object` undefined and falls through to false
-  const member = node.type === 'OptionalCallExpression' || node.type === 'CallExpression' ? node.callee : node;
+  const member = isCallShape(node) ? unwrapRuntimeExpr(node.callee) : node;
   const obj = unwrapRuntimeExpr(unwrapTransparentSeq(member.object));
   // static key of the optional callee: Identifier (`Array.from`), static-string computed key
   // (`Array["from"]`, single-quasi `Array[`from`]`), or - through the canonical fold - an
@@ -468,12 +468,14 @@ export function isPolyfillableOptional({
   // callee the swap makes always-defined, while the other leg folded that receiver away entirely
   const objCoreNamed = navWithoutRootStore(objCore,
     value => !proxyReceiverValueCanBeUndefined(value, resolve, { scope, adapter, path }));
-  // ... and a selection the build decides is named by the value it folds to (`decidedSelectionValue`):
-  // the ctor there is the static host the claim substitutes, its `?.` going with that substitution
-  const objValue = adapter ? unwrapRuntimeExpr(decidedSelectionValue(objCore, { scope, adapter, path })) : objCore;
+  // A call tests the static binding held through its carriers. A member still tests
+  // the receiver itself, so its existing guard boundaries must remain intact.
+  const callValue = member !== node ? peelChainRootValue(objCoreNamed) : objCore;
+  const objValue = adapter ? unwrapRuntimeExpr(decidedSelectionValue(callValue, { scope, adapter, path })) : callValue;
+  const namedValue = member !== node ? objValue : objCoreNamed;
   const objName = objValue?.type === 'Identifier'
     ? resolveObjectName({ objectNode: objValue, scope, adapter, path })
-    : objCoreNamed && globalProxyMemberName({ node: objCoreNamed, scope, adapter, path });
+    : namedValue && globalProxyMemberName({ node: namedValue, scope, adapter, path });
   // a CTOR read off proxy navigation names the STATIC HOST below: `globalProxyMemberName` answers for
   // a proxy HOP only, so `(v = globalThis.self).Number?.MAX_SAFE_INTEGER.name` found no name at all,
   // kept the guard live, and the claim under it died into a raw read off the ponyfill. asked of the
@@ -481,14 +483,15 @@ export function isPolyfillableOptional({
   // the realm. An optional call asks about the static binding too; its earlier receiver guard
   // remains the emitter's responsibility. It feeds the STATIC arm only: the global early-return reasons about the receiver being
   // the always-defined realm, which a constructor read is not
+  const ctorValue = member !== node ? objValue : objCore;
   const ctorRead = !objName
-    && (objCore?.type === 'MemberExpression' || objCore?.type === 'OptionalMemberExpression')
+    && isMemberAccessNode(ctorValue)
     // the host is read through its CARRIERS - a store, a sequence tail, the wrappers around either,
     // nested in any order - which is the chain-root peel's own fixpoint
     && POSSIBLE_GLOBAL_OBJECTS.has(resolveObjectName({
-      objectNode: peelChainRootValue(objCore.object), scope, adapter, path,
+      objectNode: peelChainRootValue(ctorValue.object), scope, adapter, path,
     }) ?? '')
-    ? resolveObjectName({ objectNode: objCore, scope, adapter, path }) : null;
+    ? resolveObjectName({ objectNode: ctorValue, scope, adapter, path }) : null;
   // a PROXY hop is not a constructor read: it names the realm again, and the arms that reason about
   // the realm are the ones above - answering here would deopt a probe's own guard
   const ctorHost = ctorRead && !POSSIBLE_GLOBAL_OBJECTS.has(ctorRead) ? ctorRead : null;

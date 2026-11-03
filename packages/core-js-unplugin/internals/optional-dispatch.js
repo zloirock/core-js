@@ -9,15 +9,13 @@ import {
   navRootPrefixNodes,
   peelReceiverSequenceTail,
   proxyGlobalMemberCtorPureSwap,
-  proxyReceiverValueCanBeUndefined,
   resolveKey,
-  resolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
-import { vestigialReceiverOptionals } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { isPolyfillableOptional, vestigialReceiverOptionals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
 import {
@@ -95,7 +93,6 @@ export default function createOptionalDispatchChannel(ctx) {
     injectPureImport,
     injector,
     injectorState,
-    isMutatedStatics,
     isShadowedByClassOwnMember,
     markRewrite,
     memoValueClones,
@@ -186,19 +183,6 @@ export default function createOptionalDispatchChannel(ctx) {
   // the DOUBLY-optional arm (`X?.m?.()` / `X.m?.()` with an optional method hop): the
   // probe decides between the guarded-disjunct shape and the kept-`?.` memo
   function splitDoublyOptionalCall({ node, metaPath, callee, decision }) {
-    // the stand-down mirrors the single-`?.` arm: a resolvable STATIC claim over a
-    // provably DEFINED object erases BOTH `?.` once substituted (`Array?.from?.(x)` ->
-    // `_Array$from(x)`; the result's own `?.` still guards above)
-    if (!callee.computed && callee.property?.type === 'Identifier') {
-      const dCalleeObject = unwrapRuntimeExpr(callee.object);
-      const dObjName = resolveObjectName({ objectNode: callee.object, scope: metaPath.scope, adapter, path: metaPath });
-      if (dObjName && !proxyReceiverValueCanBeUndefined(dCalleeObject, m => resolvePure(m, metaPath),
-        { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true })) {
-        const dClaim = resolvePure(
-          { kind: 'property', object: dObjName, key: callee.property.name, placement: 'static' }, metaPath);
-        if (dClaim && dClaim.kind !== 'instance') return null;
-      }
-    }
     const calleePath = nodePathInScope(callee, metaPath.scope, ['MemberExpression']) ?? metaPath;
     const { result: optionalCalleeProbe } = resolvePureOrGlobalFallback({
       kind: 'property',
@@ -232,70 +216,6 @@ export default function createOptionalDispatchChannel(ctx) {
     const value = unwrapRuntimeExpr(receiverNode);
     if (!value) return null;
     return toHint(nodeTypeRefinement(value, metaPath.scope, resolveNodeType)) ?? null;
-  }
-
-  // a callee that spells a resolvable STATIC claim is always defined once substituted -
-  // the `?.()` erases with it (extracted from the split for its size)
-  function staticCalleeStandsDown({ callee, calleeObject, metaPath }) {
-    // a `this` / `super` STATIC lookup resolves through the class's INHERITED chain, not
-    // through an object name: its own emitter owns the call, so the split stands down
-    // (`this[(k++, 'from')]?.([1, 2])` inside `class C extends Array`)
-    if (calleeObject?.type === 'ThisExpression' || calleeObject?.type === 'Super') {
-      // the key answers through the same canon the object-named arm uses; the class context is
-      // asked off THIS path (a sibling read in the same static member sees the same class)
-      const inheritedKey = callee.computed
-        ? foldSeqKeyLiteralTail(callee.property)?.key
-          ?? resolveKey({
-            node: callee.property,
-            computed: true,
-            scope: metaPath.scope,
-            adapter,
-            path: metaPath,
-            bailOnSideEffectKey: true,
-          })
-        : callee.property?.name;
-      const shadowed = calleeObject.type === 'ThisExpression'
-        && isShadowedByClassOwnMember(metaPath, inheritedKey);
-      const inherited = typeof inheritedKey === 'string' && !shadowed
-        ? remapInheritedStaticMeta(injectorState, null, resolveStaticInheritedMember(metaPath, inheritedKey)) : null;
-      // a MUTATED slot keeps the live read, and an inherited INSTANCE member is no static claim
-      const inheritedClaim = inherited && !isMutatedStatics(inherited) ? resolvePure(inherited, metaPath) : null;
-      if (inheritedClaim && inheritedClaim.kind !== 'instance') return true;
-    }
-    // the `?.()` erases with it and babel keeps NO guard (`Array.from?.([1]).at(-1)` ->
-    // `_atMaybeArray(_ref = _Array$from([1])).call(_ref, -1)`) - stand down, the memo
-    // clone's descent claim owns the call
-    // the receiver name comes from the canon, never from the raw spelling: a bound ALIAS of a
-    // global (`const A = Array; A.from?.([1]).at(-1)`) is the same always-defined static as the
-    // direct form, and reading "bound means not a global" kept a guard here that babel's own
-    // skip-check erased
-    const calleeObjectName = resolveObjectName({
-      objectNode: calleeObject, scope: metaPath.scope, adapter, path: metaPath,
-    });
-    if (calleeObjectName) {
-      // a SEQ-prefixed key folds to its literal tail - the claim's own render carries
-      // the effects (`?.[(c++, 'from')]` stands down like `.from`)
-      // ... and every other computed spelling answers through the canonical key resolver (a
-      // const alias, a folded concatenation): only the KEY decides the stand-down. an
-      // EFFECT-bearing key bails - it owns a slot the erased spelling would drop
-      const staticKey = callee.computed
-        ? foldSeqKeyLiteralTail(callee.property)?.key
-          ?? resolveKey({
-            node: callee.property,
-            computed: true,
-            scope: metaPath.scope,
-            adapter,
-            path: metaPath,
-            bailOnSideEffectKey: true,
-          })
-        : callee.property?.name;
-      if (typeof staticKey === 'string') {
-        const staticClaim = resolvePure(
-          { kind: 'property', object: calleeObjectName, key: staticKey, placement: 'static' }, metaPath);
-        if (staticClaim && staticClaim.kind !== 'instance') return true;
-      }
-    }
-    return false;
   }
 
   // the OPTIONAL-CALL arm of the split (`X.m?.(...)`), extracted for its size: the
@@ -360,7 +280,13 @@ export default function createOptionalDispatchChannel(ctx) {
     // Only the callee's own optional call is redundant. A guard below the static
     // receiver still owns the outer instance dispatch, so thread that split through.
     // Undefined means no static claim; null is a static claim needing no receiver split.
-    const staticSplit = staticCalleeStandsDown({ callee, calleeObject, metaPath })
+    const claimContext = {
+      scope: metaPath.scope, path: metaPath, adapter,
+      resolve: meta => resolvePure(meta, metaPath),
+      resolveSuperStatic: (path, key) => remapInheritedStaticMeta(injectorState, null, resolveStaticInheritedMember(path, key)),
+      isShadowedByClassOwnMember,
+    };
+    const staticSplit = isPolyfillableOptional({ node: { ...node, callee }, ...claimContext })
       ? splitOptionalReceiver(callee.object, metaPath) : undefined;
     if (staticSplit && staticSplit !== STAGED_SPLIT) return {
       ...staticSplit,
@@ -369,7 +295,19 @@ export default function createOptionalDispatchChannel(ctx) {
         { ...cloneNode(callee), object: staticSplit.receiver, optional: false },
         node.arguments.map(argument => cloneNode(argument))), node, metaPath, typeStampCtx),
     };
-    if (staticSplit !== undefined && (!callee.optional || staticSplit === STAGED_SPLIT)) return staticSplit;
+    // The method's claim removes its call guard. The shared member proof separately
+    // decides whether its receiver guard survives; kept stores retain that first read.
+    if (staticSplit !== undefined && (!callee.optional || staticSplit === STAGED_SPLIT
+      || isPolyfillableOptional({ node: callee, ...claimContext }))) return staticSplit;
+    if (staticSplit === null) {
+      const memberSplit = splitOptionalMemberHop(callee, metaPath);
+      return {
+        ...memberSplit,
+        hopKind: 'call',
+        receiver: stampSourceCallType(callExpression(memberSplit.receiver,
+          node.arguments.map(argument => cloneNode(argument))), node, metaPath, typeStampCtx),
+      };
+    }
     if (callee.optional) {
       return splitDoublyOptionalCall({ node, metaPath, callee, decision });
     }
