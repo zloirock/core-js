@@ -1874,6 +1874,7 @@ for (const [source, unused, positions, reused] of [
   ['const [{ [(effect(), "of")]: of, from }] = [Array];', true, 1, 0],
   ['const [{ [(effect(), "of")]: of, from }, { at, length }] = [Array, unknown];', true, 2, 1],
   ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, from }] = [e]; }', true, 1, 0],
+  ['for (const e of [Array]) { for (const [{ [(effect(), "of")]: of, from }] = [e]; yes;) use(of); }', false, 1, 1],
   ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, fromAsync: from }, { at, length }] = [e, unknown]; }', true, 2, 1],
   ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, isArray }] = [e]; }', false, 1, 1],
   ['for (const e of [Array]) { const [{ [(effect(), "of")]: of, from, ...rest }] = [e]; }', false, 1, 1],

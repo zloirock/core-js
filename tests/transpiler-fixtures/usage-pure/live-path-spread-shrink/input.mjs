@@ -1,2 +1,2 @@
-// Removing an empty spread keeps the constructor and the rest at their original positions.
+// An empty spread stays written while later constructor slots are rewritten.
 export const [{ groupBy }, ...rest] = [...[], Map, Set];

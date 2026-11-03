@@ -19,10 +19,10 @@ _ref = ns.box, {
   }
 } = _ref;
 use(from, isInteger);
-const _ref3 = ns.box;
+const _ref2 = ns.box;
 const {
-  w: _ref2
-} = _ref3;
+  w: {}
+} = _ref2;
 const declaredFrom = (e(), _Array$from);
 const declaredIsInteger = _Number$isInteger;
 use(declaredFrom, declaredIsInteger);

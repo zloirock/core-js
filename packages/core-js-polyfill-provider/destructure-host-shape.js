@@ -366,6 +366,15 @@ export function reusableArrayCaptureReceiver(capture, element, ctx) {
   return tail?.type === 'Identifier' && isReReferenceableAcrossReads(tail, ctx) ? tail : null;
 }
 
+// A later claim can consume every read of an object capture. The final memo census
+// then keeps its original coercion as an empty pattern, without an unused binding,
+// while that target still belongs to a native pattern rather than lowered code.
+function capturedPatternRef(name, pattern) {
+  const ref = identifier(name);
+  if (pattern.type === 'ObjectPattern') ref.extra = { corejsObjectCapture: true };
+  return ref;
+}
+
 // The capture and the per-element declarations share each required snapshot. A reused receiver
 // keeps its RHS evaluation at the original slot, without a binding there. `embed`
 // is the binding's source-node boundary; the patterns move rather than being interpreted here, and
@@ -402,7 +411,7 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node,
     if (source && refs.get(source) === null) return objectPattern([]);
     const ref = source ? refs.get(source) : undefined;
     if (ref) return pattern.type === 'RestElement' ? { ...pattern, argument: identifier(ref) }
-      : defaulted.has(source) ? { ...pattern, left: identifier(ref) } : identifier(ref);
+      : defaulted.has(source) ? { ...pattern, left: capturedPatternRef(ref, source) } : capturedPatternRef(ref, source);
     if (pattern.type === 'ArrayPattern') return { ...pattern, elements: pattern.elements.map(capturePattern) };
     // a keyed level above the positions: only its last property leads down, the rest stay as written
     if (!plan.keyed?.has(pattern)) return pattern;
@@ -654,9 +663,8 @@ export function capturedRealmCtorPure({ capture, scope, adapter, path, resolveGl
 // `anchorPure` supplies a proven pristine realm constructor, including its whole index for rest.
 // Assignment renders can delegate the moved leaf to `renderLeaf` and preserve the RHS value.
 // An anchored leaf reads the constructor, but a consumed assignment still yields its original RHS.
-// A declaration has no such delegation: a leaf served by name leaves the ref of the hop it captured
-// unread (`const { w: { [(k(), 'from')]: from }, other } = ns.box` keeps `{ w: _ref } = _ref2`) - the
-// slot is the source's own read of the hop, so only the binding is dead.
+// A declaration may consume its leaf later. Its marked capture then keeps the hop's
+// read and coercion as an empty object pattern when the final memo census finds no reader.
 // An earlier queued claim keeps its own write. Its source property leaves this capture,
 // and the host ties that claim's receiver to the same captured root.
 // eslint-disable-next-line max-statements -- one ordered render composes hops without splitting native read windows
@@ -679,7 +687,7 @@ export function renderNestedKeyedPatternCapture(plan, {
   markCapturedKeyedPattern(plan.leafPattern);
   const inlineLeaf = plan.inlineLeaf && assignment && renderLeaf && !narrow && !anchorPure;
   const ref = coerceLeaf || inlineLeaf ? null : mintRef();
-  let captured = coerceLeaf || inlineLeaf ? objectPattern([]) : identifier(ref);
+  let captured = coerceLeaf || inlineLeaf ? objectPattern([]) : capturedPatternRef(ref, plan.leafPattern);
   // a `hostRest` capture keeps the host level whole, so its rest still excludes the hop it reads once
   for (const level of plan.ancestors.toReversed()) {
     const hop = { ...level.prop, value: level.defaultValue ? { ...level.defaultValue, left: captured } : captured };
@@ -701,7 +709,7 @@ export function renderNestedKeyedPatternCapture(plan, {
   });
   const { splitCapture } = plan;
   if (splitCapture) {
-    let receiver = ref ?? objectPattern([]);
+    let receiver = ref ? capturedPatternRef(ref, plan.leafPattern) : objectPattern([]);
     let inlineAt = plan.ancestors.length - 1;
     for (const [index, level] of plan.ancestors.entries().toArray().toReversed()) {
       const pairedRoot = assignment && !preserveResult && inlineLeaf && plan.pairedRoot?.has(level.prop)
@@ -776,7 +784,7 @@ export function renderNestedKeyedPatternCapture(plan, {
   // The constructor replaces the captured hop; a coercion-only leaf needs no bound ref.
   const anchorNode = anchorPure && !splitCapture && plan.ancestors.length === 1 && injectImport
     ? identifier(injectImport(anchorPure.entry, anchorPure.hintName)) : null;
-  if (anchorNode) captured = ref ? identifier(ref) : objectPattern([]);
+  if (anchorNode) captured = ref ? capturedPatternRef(ref, plan.leafPattern) : objectPattern([]);
   if (assignment) {
     if (anchorNode && preserveResult) {
       const result = ref ?? mintRef();
@@ -1524,8 +1532,11 @@ function planRetainedObjectCaptureShape({
         capturedElement: kind === 'instance',
       });
     if (elementPlan && (claimElement || elementPlan.rest || elementPlan.capture?.rest || elementPlan.nestedRest)) {
+      // An empty for-init pattern makes downstream lowering hide the other loop bindings.
+      // Keep the existing capture or proven source-name reuse in that declaration slot.
       const receiverUnused = elementPlan.readsReceiver === false && !elementPlan.capture && !elementPlan.arrayCapture
-        && !elementPlan.defaultCapture && !elementPlan.nestedRest && !elementPlan.rest;
+        && !elementPlan.defaultCapture && !elementPlan.nestedRest && !elementPlan.rest
+        && !isForInitDeclaration(hostPath?.parentPath?.parentPath?.node, hostPath?.parentPath?.node);
       // Both claimed and native sibling patterns may read a stable source name directly.
       // The shared capture renderer still binds every native leaf in its ordered slot.
       for (const item of capture.elements) {

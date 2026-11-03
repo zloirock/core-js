@@ -14,7 +14,7 @@ var {
   }
 };
 var {
-    [(_pushMaybeArray(events).call(events, 'literal'), 'w')]: _ref
+    [(_pushMaybeArray(events).call(events, 'literal'), 'w')]: {}
   } = {
     w: Array
   },

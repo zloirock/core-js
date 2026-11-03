@@ -402,3 +402,39 @@ QUnit.test('destructuring capture: a queued assignment read shares its local rec
   read('outer');
   assert.deepEqual(events, ['outer:receiver', 'outer:name', 'inner:receiver', 'inner:name', 'inner:values', 'outer:values']);
 });
+
+QUnit.test('destructuring capture: a consumed static receiver keeps its keyed effects', assert => {
+  const events = [];
+  function effect() { events.push('key'); }
+  const { row: { [(effect(), 'from')]: from } } = (events.push('source'), { row: Array });
+  assert.deepEqual(from([3, 5]), [3, 5], 'the consumed static remains callable');
+  assert.deepEqual(events, ['source', 'key'], 'the initializer and computed key run once in order');
+});
+
+QUnit.test('destructuring capture: a consumed for-init receiver keeps loop bindings visible', assert => {
+  const events = [];
+  let iterations = 0;
+  function step() {
+    events.push('test');
+    return iterations++ === 0;
+  }
+  for (const { x: { [(events.push('key'), 'from')]: from } } = (events.push('source'), { x: Array }); step();) {
+    assert.deepEqual(from([3, 5]), [3, 5], 'the extracted binding is visible in the body');
+    events.push('body');
+  }
+  assert.deepEqual(events, ['source', 'key', 'test', 'body', 'test'], 'each initializer runs once before the loop');
+});
+
+QUnit.test('destructuring capture: a consumed array element keeps the following getter', assert => {
+  const events = [];
+  const sibling = { get length() {
+    events.push('length');
+    return 7;
+  } };
+  for (const constructor of [Array]) {
+    const [{ [(events.push('key'), 'of')]: of }, { length }] = [constructor, sibling];
+    assert.deepEqual(of(3, 5), [3, 5], 'the consumed element keeps its static');
+    assert.same(length, 7, 'the following element remains live');
+  }
+  assert.deepEqual(events, ['key', 'length'], 'the following read stays after the computed key');
+});

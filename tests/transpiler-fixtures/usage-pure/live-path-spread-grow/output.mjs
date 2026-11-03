@@ -1,5 +1,5 @@
 import _Map from "@core-js/pure/actual/map";
-// Expanding a spread keeps the following constructor after both values.
+// A written spread keeps both values before the substituted constructor.
 export const [first, second, {
   groupBy
-}] = [1, 2, _Map];
+}] = [...[1, 2], _Map];

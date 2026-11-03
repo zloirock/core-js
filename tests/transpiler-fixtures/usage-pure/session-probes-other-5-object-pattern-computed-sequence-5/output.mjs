@@ -6,7 +6,7 @@ function eff() {
 }
 {
   const {
-      [(eff('k'), 'w')]: _ref
+      [(eff('k'), 'w')]: {}
     } = {
       w: Array
     },

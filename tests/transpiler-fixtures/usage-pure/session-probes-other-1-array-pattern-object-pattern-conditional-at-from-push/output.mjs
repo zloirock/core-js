@@ -8,7 +8,7 @@ const userObj = {};
 const arr = [1, 2];
 const log = [];
 {
-  const [, _ref] = [arr, pick ? Array : userObj];
+  const [, {}] = [arr, pick ? Array : userObj];
   const a = _atMaybeArray(arr);
   const f = _Array$from;
   _pushMaybeArray(log).call(log, f === _Array$from, typeof a);

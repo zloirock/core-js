@@ -11,7 +11,7 @@ import ImportInjectorState, {
   refDeclarationOrder,
   unwrapWriteOnlyGuardMemos,
 } from '../../packages/core-js-polyfill-provider/injector-base.js';
-import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -22,6 +22,54 @@ const { check, checkTruthy, finish, runBoth } = createChecker('injector-base');
 // that differs between dialects is a regression, whichever side is wrong
 
 // --- collectInjectorCensus: counts, rank, positions ---
+
+// Only an owned object capture may turn back into its original coercion when its readers leave.
+for (const [shape, source, retire] of [
+  ['lowered declarator', 'const _ref = source;', false],
+  ['live declarator', 'const _ref = source; use(_ref);', false],
+  ['object', 'const { value: _ref } = source;', true],
+  ['array', 'const [_ref] = source;', true],
+  ['default', 'const [_ref = fallback()] = source;', true],
+  ['nested', 'const { value: [_ref] } = source;', true],
+  ['assignment', 'let _ref; ({ value: _ref } = source);', true],
+  ['loop declaration', 'for (const { value: _ref } = source; yes;) break;', false],
+  ['loop array declaration', 'for (const [_ref, value] = source; yes;) use(value);', false],
+  ['loop adjacent declaration', 'for (const { value: _ref } = source, other = effect(); yes;) use(other);', false],
+  ['loop assignment', 'let _ref; for (({ value: _ref } = source); yes;) break;', true],
+  ['loop body', 'for (; yes;) { const { value: _ref } = source; }', true],
+  ['bodyless loop', 'for (; yes;) var { value: _ref } = source;', true],
+  ['for-of', 'for (const { value: _ref } of source) effect();', true],
+  ['live read', 'const { value: _ref } = source; use(_ref);', false],
+  ['live write', 'let { value: _ref } = source; _ref = other;', false],
+  ['export', 'const { value: _ref } = source; export { _ref };', false],
+  ['direct export', 'export const { value: _ref } = source;', false],
+  ['exported function', 'export function read() { const { value: _ref } = source; }', true],
+  ['exported arrow', 'export const read = () => { const { value: _ref } = source; };', true],
+  ['read only', 'use(_ref);', false],
+  ['default read', 'const { value = _ref } = source;', false],
+  ['key read', 'const { [_ref]: value } = source;', false],
+]) for (const marked of [false, true]) for (const owned of [false, true]) {
+  runBoth(`census/object capture/${ shape }/${ marked }/${ owned }`, source, (parser, program, label) => {
+    if (marked) for (const path of parser.collectPaths(program, 'Identifier', item => item.node.name === '_ref')) {
+      path.node.extra = { ...path.node.extra, corejsObjectCapture: true };
+    }
+    function emptyPatterns() {
+      let count = 0;
+      walkAstNodes({ root: program.node, visit(node) {
+        if (node.type === 'ObjectPattern' && !node.properties.length) count++;
+      } });
+      return count;
+    }
+    const before = emptyPatterns();
+    const census = collectInjectorCensus(program.node, { mintedRefNames: new Set(['_ref']), memoReuse: true });
+    unwrapWriteOnlyGuardMemos(census, { injectorState: { isOwnPassGeneratedName: () => owned } });
+    check(`${ label }/only unread owned capture retires`, emptyPatterns() - before, +(retire && marked && owned));
+    if (retire && marked && owned) {
+      check(`${ label }/no remaining read`, census.refCounts.get('_ref'), census.refDeclIdCounts.get('_ref') ?? 0);
+      check(`${ label }/retired capture leaves no relocation candidate`, census.memoBindings.has('_ref'), false);
+    }
+  });
+}
 
 runBoth('census/standalone owned memo writes',
   'var _ref; _ref = Array; if (yes) _ref = Object; user = Array; use(_ref = Array);',

@@ -10,19 +10,19 @@ import _Object$seal from "@core-js/pure/actual/object/seal";
 // Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
 const [{
   from: viaSole
-}] = [Array];
+}] = [...[Array]];
 const [, {
   of: viaShifted
-}] = [0, Array];
+}] = [...[0, Array]];
 const [[{
   fromEntries: viaNested
-}]] = [[Object]];
+}]] = [...[[...[Object]]]];
 const viaInstance = _atMaybeArray([1]);
 const [_ref] = [...[c ? Object : userObj]],
   viaSelecting = _ref === Object ? _Object$entries : _entries(_ref);
 const [{
   groupBy: viaParens
-}] = [Object];
+}] = [...[Object]];
 const viaIifeParens = (([{
   freeze: fr
 }]) => fr)(...[[c ? {
@@ -40,7 +40,7 @@ const [_ref2] = [...wrapped];
 const viaAlias = _keys(_ref2);
 const [{
   values: viaDoubleSpread
-}] = [Object];
+}] = [...[...[Object]]];
 const [{
   assign: viaHole
 }] = [...[, Object]];

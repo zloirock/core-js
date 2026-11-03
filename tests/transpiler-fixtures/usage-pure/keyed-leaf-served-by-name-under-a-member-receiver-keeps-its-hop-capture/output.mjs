@@ -1,19 +1,18 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// a declaration's keyed leaf the build serves by name, under a member receiver no mirror proves, takes the
-// capture of its hop and leaves the ref it binds unread: the slot is the source's own read of `w`, so only
-// the binding is dead
+// A keyed leaf served by name under a member receiver keeps the native read and coercion
+// of its hop. With no remaining reader, its capture becomes a binding-free object pattern.
 const ns = {
   box: {
     w: Array,
     other: 1
   }
 };
-const _ref2 = ns.box,
+const _ref = ns.box,
   {
-    w: _ref
-  } = _ref2,
+    w: {}
+  } = _ref,
   from = (log('k'), _Array$from),
   {
     other
-  } = _ref2;
+  } = _ref;
 use(from, other);
