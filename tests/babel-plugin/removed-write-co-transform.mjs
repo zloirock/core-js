@@ -88,4 +88,29 @@ for (const [name, source, names] of [
   });
 }
 
+// A guard copies its kept store in the same evaluation slot. Later reads still trust
+// that source write, but an intervening user assignment must invalidate that proof.
+for (const createParenthesizedExpressions of [false, true]) for (const prefix of ['', 'before(), ']) {
+  for (const sealed of [false, true]) for (const overwritten of [false, true]) {
+    const receiver = `(${ prefix }(held = globalThis.window)?.self)`;
+    const read = sealed ? `${ receiver }.Array.from([1])` : `(${ prefix }(held = globalThis.window)?.self.Array.from([1]))`;
+    const source = `let held; const first = ${ read };
+${ overwritten ? 'held = other;' : '' }
+const second = held?.Map;`;
+    const { ast } = await transformAsync(source, {
+      filename: 'input.mjs', configFile: false, babelrc: false, ast: true,
+      parserOpts: { createParenthesizedExpressions },
+      plugins: [[plugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+    });
+    let second;
+    traverse(ast, { VariableDeclarator(path) { if (path.node.id.name === 'second') second = path.node.init; } });
+    let native = 0;
+    t.traverseFast(second, node => {
+      if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') && node.property.name === 'Map') native++;
+    });
+    check(`guarded store/parens=${ createParenthesizedExpressions }/prefix=${ !!prefix }/sealed=${ sealed }/overwritten=${ overwritten }`,
+      native, overwritten ? 1 : 0);
+  }
+}
+
 finish();

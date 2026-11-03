@@ -22194,6 +22194,45 @@ function * generateEmittedReceiverClones() {
   })()`), ts: true, strip: true };
 }
 
+// Re-emitted stores retain alias facts; residual marks leave rest targets and their reads live.
+function * generateRetainedRenderOwnership() {
+  for (const prefix of ['', 'log.push("prefix"), ']) for (const sealed of [false, true]) {
+    const read = sealed ? `((${ prefix }held = globalThis.window)?.self).Array.from([3])`
+      : `(${ prefix }held = globalThis.window)?.self.Array.from([3])`;
+    yield { ...snippet(`retained-render-ownership/store/${ !!prefix }/${ sealed }`, `(() => {
+      let held;
+      const result = ${ read };
+      const size = new (held?.Map)([[1, 2]]).size;
+      held = { Map: 'user' };
+      return [result, size, held?.Map];
+    })()`, { rig: true }), strip: true };
+  }
+  for (const nested of [false, true]) for (const assigned of [false, true]) {
+    const pattern = nested ? '{ Array: { from, ...rest } }' : '{ from, ...rest }';
+    const init = nested ? 'globalThis' : 'Array';
+    yield { ...snippet(`retained-render-ownership/rest/${ nested }/${ assigned }`, `(() => {
+      ${ assigned ? `let from, rest; (${ pattern } = ${ init });` : `const ${ pattern } = ${ init };` }
+      return [from([4, 9]), 'from' in rest];
+    })()`), strip: true };
+  }
+}
+// Navigation guards retain the complete kept store and the independently served prefix.
+function * generateGuardPrefixStores() {
+  for (const prefix of ['', 'log.push("prefix"), ']) for (const member of [false, true]) {
+    const write = member ? 'a = holder[(log.push("key"), "value")] = globalThis.window' : 'a = b = globalThis.window';
+    yield { ...snippet(`guard-prefix-stores/${ !!prefix }/${ member }`, `(() => {
+      let a, b;
+      const holder = { set value(value) { log.push('store'); b = value; } };
+      const value = (${ prefix }${ write })?.self.Array.from([7]);
+      return [value, a === globalThis, b === globalThis];
+    })()`, { rig: true }), strip: true };
+  }
+  for (const prefix of ['log.push("prefix")', 'log.push([2].at(0))']) {
+    yield { ...snippet(`guard-prefix-stores/instance/${ prefix }`,
+      `(${ prefix }, globalThis.window)?.self?.Array.of(8).at(0)`, { rig: true }), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -22639,4 +22678,6 @@ export function * generate() {
   yield * generateLivePatternPlans();
   yield * generateConsumedRealmStatics();
   yield * generateEmittedReceiverClones();
+  yield * generateRetainedRenderOwnership();
+  yield * generateGuardPrefixStores();
 }

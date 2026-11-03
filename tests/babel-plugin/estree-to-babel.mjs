@@ -13,6 +13,7 @@ const requireBabel = BABEL_REQUIRE_FROM
   : createRequire(import.meta.url);
 const generateModule = requireBabel('@babel/generator');
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
+import { renderRetainedObjectCapture } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import {
   arrowFunctionExpression,
   assignmentExpression,
@@ -501,5 +502,33 @@ const hostRequire = await transformAsync('user();', { configFile: false, sourceT
   programPath.unshiftContainer('body', [estreeToBabel(varRequire('_flat', 'core-js-pure/actual/array/flat')), estreeToBabel(hostDispatch)]);
 } } }] });
 check('host/require and chain insert traversably', hostRequire.code.includes('_flat?.call(x);'), true);
+
+// Claimed residual properties must be the nodes inserted after host conversion. The
+// native rest target stays visitable, including its independent child claims.
+for (const assignment of [false, true]) for (const key of ['from', '"from": from', '["from"]: from']) {
+  const { parse } = requireBabel('@babel/parser');
+  const { types: t } = requireBabel('@babel/core');
+  const pattern = parse(`let { ${ key }, ...rest } = Array;`).program.body[0].declarations[0].id;
+  const claimed = [];
+  let refs = 0;
+  const rendered = renderRetainedObjectCapture({
+    pattern, init: t.identifier('Array'), prop: pattern.properties[0], rest: pattern.properties[1],
+    assignment, primaryKey: 'from', retainedStatic: true,
+    primaryPure: { kind: 'static', entry: 'array/from', hintName: 'from' }, siblingStatics: new Map(),
+  }, {
+    embed: hostSlot, sourceNode: estreeToBabel, injectImport: () => '_from',
+    mintRef: () => `_ref${ ++refs }`, mintDeclaredRef: () => `_ref${ ++refs }`, mintUnused: () => `_unused${ ++refs }`,
+    claimProperties: properties => claimed.push(...properties),
+  });
+  const nodes = assignment ? [estreeToBabel(rendered.expression)] : rendered.declarations.map(node => estreeToBabel(node));
+  const inserted = new Set();
+  for (const node of nodes) t.traverseFast(node, item => inserted.add(item));
+  const label = `retained property ownership/${ assignment }/${ key }`;
+  check(`${ label }/one claimed exclusion`, claimed.length, 1);
+  check(`${ label }/host property`, claimed.every(node => node.type === 'ObjectProperty'), true);
+  check(`${ label }/claimed nodes are inserted`, claimed.every(node => inserted.has(node)), true);
+  check(`${ label }/rest retains source identity`, inserted.has(pattern.properties[1]), true);
+  check(`${ label }/rest is unclaimed`, claimed.includes(pattern.properties[1]), false);
+}
 
 finish();

@@ -56,6 +56,28 @@ for (const [expression, kind, tail] of [
   check(`${ label }/queries and renders preserve source`, JSON.stringify(source), before);
 });
 
+// The guard owns prefixes omitted by its probe slice, and retains a whole store chain.
+for (const [expression, prefixCount, stored] of [
+  ['(effect(), held = globalThis.window)?.self', 1, true],
+  ['(effect(), (other(), held = next = globalThis.window))?.self', 2, true],
+  ['(held = next = globalThis.window)?.self', 0, true],
+  ['(effect(), globalThis.window)?.self', 1, false],
+  ['(effect(), globalThis).window?.self', 0, false],
+]) runBoth(`guard ownership/${ expression }`, `let held, next; const value = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(path.node.init);
+  const plan = planProvenNavGuardCollapse({ rootNode: path.node.init, scope: path.scope, adapter, path,
+    resolvePure, allowSequenceRoot: true, throughKeptAssign: true, descendSequenceTail: true });
+  check(`${ label }/nested`, plan?.kind, 'nested');
+  const test = navGuardTestPlan(plan);
+  check(`${ label }/external prefix`, test.prefix.length, prefixCount);
+  if (stored) check(`${ label }/complete store is retained`, test.source.source === plan.assignWrap, true);
+  const rendered = renderNavGuardTest(test, { injectImport, embed: hostSlot });
+  check(`${ label }/prefix lands in test`, rendered.type, prefixCount ? 'SequenceExpression' : 'CoreJsHostSlot');
+  check(`${ label }/source unchanged`, JSON.stringify(path.node.init), before);
+});
+
 for (const [expression, supported, tail] of [
   ['globalThis.window?.self.Array', true, 1],
   ['globalThis.window?.self', true, 0],

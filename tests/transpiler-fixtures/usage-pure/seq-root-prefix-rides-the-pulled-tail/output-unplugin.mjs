@@ -19,14 +19,14 @@ let c = 0;
 function a() {}
 
 export const instanceTail = null == (_ref = (c++, _globalThis.window)) ? void 0 : _nameMaybeFunction(_ref.Array);
-export const plainTail = (c++, null == _globalThis.window ? void 0 : _self.foo);
+export const plainTail = null == (c++, _globalThis.window) ? void 0 : _self.foo;
 export const nestedSequence = null == (_ref2 = (a(), (c++, _globalThis.window))) ? void 0 : _nameMaybeFunction(_ref2.Array);
 
 // ... and the prefix already standing INSIDE the probe hop, which must not be re-emitted beside it
 export const prefixUnderTheProbe = null == (_ref3 = (c++, _globalThis).window) ? void 0 : _nameMaybeFunction(_ref3.Array);
 
 // controls
-export const terminalNav = (c++, null == _globalThis.window ? void 0 : _self);
+export const terminalNav = null == (c++, _globalThis.window) ? void 0 : _self;
 
 export const deadPrefix = null == (_ref4 = (0, _globalThis.window)) ? void 0 : _nameMaybeFunction(_ref4.Array);
 export const noSequence = null == (_ref5 = _globalThis.window) ? void 0 : _nameMaybeFunction(_ref5.Array);

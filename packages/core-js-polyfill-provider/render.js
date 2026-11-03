@@ -1016,18 +1016,16 @@ function renderProbeSource(slot, { injectImport, cloneHost = cloneNode, embed = 
 // base selection, prefix order, the retained tail and a kept write are already decided facts.
 export function renderNavGuardTest(test, { injectImport, cloneHost = cloneNode, embed = node => node, own = markRenderedProbeRead }) {
   const context = { injectImport, cloneHost, embed, own };
-  let probe = test.source ? renderProbeSource(test.source, context)
-    : test.base ? own(renderNavGuardTestBase(test.base, {
-      prefix: test.prefix.map(slot => renderProbeSource(slot, context)), injectImport,
-    })) : renderNavCollapseValue({ hops: test.tail, collapseIdx: -1 },
-      identifier(injectImport(test.pure.entry, test.pure.hintName)), {
-        prefix: test.prefix.map(slot => renderProbeSource(slot, context)), cloneHost: node => embed(cloneHost(node)), own,
-      });
-  if (test.assign) {
-    noteRenderRetiredWrites(test.assign);
-    probe = assignmentExpression(test.assign.operator, embed(cloneHost(test.assign.left)), probe);
+  const prefix = test.prefix?.map(slot => renderProbeSource(slot, context)) ?? [];
+  if (test.source) {
+    const probe = renderProbeSource(test.source, context);
+    return prefix.length ? sequenceExpression([...prefix, probe]) : probe;
   }
-  return probe;
+  return test.base ? own(renderNavGuardTestBase(test.base, { prefix, injectImport }))
+    : renderNavCollapseValue({ hops: test.tail, collapseIdx: -1 },
+      identifier(injectImport(test.pure.entry, test.pure.hintName)), {
+        prefix, cloneHost: node => embed(cloneHost(node)), own,
+      });
 }
 
 // Compose the retained navigation tail over its leaf, with effects inside the receiver slot.

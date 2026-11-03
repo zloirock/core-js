@@ -13,6 +13,6 @@ export const direct = null == _globalThis.window ? void 0 : _self.box;
 export const viaSelf = null == _self.window ? void 0 : _self.cfg;
 export const viaAlias = null == g.window ? void 0 : _self.api;
 export const viaCall = null == f().window ? void 0 : _self.list;
-export const viaSequence = (e++, null == _globalThis.window ? void 0 : _self.mode);
+export const viaSequence = null == (e++, _globalThis.window) ? void 0 : _self.mode;
 export const stored = null == (held = _globalThis.window?.window) ? void 0 : _Array$of(1);
 export const removed = null == _self.window ? true : delete _self.slot;

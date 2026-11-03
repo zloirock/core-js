@@ -45,6 +45,7 @@ import {
   assignmentExpression,
   callExpression,
   hostSlot,
+  hostSlotNode,
   identifier,
   renderInstanceDefaultGuard,
   renderSynthSlotRead,
@@ -528,6 +529,14 @@ for (const [source, expected, mutated = false] of [
   const rendered = renderRetainedObjectCapture(plan, {
     mintRef: () => 'memo', injectImport: entry => entry.replace('/', '$'),
   });
+  // Host-slot wrappers do not change which properties are exclusions: rest stays live.
+  const claimed = [];
+  renderRetainedObjectCapture(plan, {
+    mintRef: () => 'memo', injectImport: entry => entry.replace('/', '$'), embed: hostSlot,
+    claimProperties: properties => claimed.push(...properties),
+  });
+  check(`${ label }/only exclusions are claimed`, claimed.length, plan.pattern.properties.length - 1);
+  check(`${ label }/rest is unclaimed`, claimed.some(item => hostSlotNode(item).type === 'RestElement'), false);
   const exclusions = rendered.declarations.at(-1).id.properties.slice(0, -1);
   for (const [index, exclusion] of exclusions.entries()) {
     const sourceProp = host.node.id.properties[index];

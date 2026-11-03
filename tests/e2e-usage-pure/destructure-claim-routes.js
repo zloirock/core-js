@@ -361,3 +361,12 @@ QUnit.test('destructuring: a returned realm assignment keeps the static callable
   assert.isFunction(record.resolve);
   assert.isFunction(record.reject);
 });
+
+QUnit.test('a captured static rest keeps an independent claim in its write target', assert => {
+  let from;
+  const holder = {};
+  ({ Array: { from, ...holder['rest'.at(-1)] } } = globalThis);
+  assert.arrayEqual(from([4, 9]), [4, 9]);
+  assert.same(typeof holder.t, 'object');
+  assert.false('from' in holder.t, 'the served property is excluded from rest');
+});

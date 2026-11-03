@@ -49,3 +49,46 @@ QUnit.test('a sealed static claim keeps throws, keys and arguments on their sour
     else assert.throws(sealedDelete, TypeError);
   });
 });
+
+QUnit.test('a retained guard store remains live for a later alias read', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    let held;
+    let result;
+    try {
+      result = ((held = globalThis.window)?.self).Array.from([7]);
+    } catch (error) {
+      result = error.name;
+    }
+    if (live) assert.arrayEqual(result, [7]);
+    else assert.same(result, 'TypeError');
+    assert.same(held, globalThis.window, 'the store runs even when the sealed reader throws');
+    assert.same(typeof held?.Map, live ? 'function' : 'undefined');
+    held = { Map: 'user' };
+    assert.same(held?.Map, 'user', 'a later write invalidates the source alias');
+  });
+});
+
+QUnit.test('guard prefixes and every kept store run once before the branch', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    let held;
+    let next;
+    const holder = { set value(value) {
+      events.push('store');
+      next = value;
+    } };
+    const result = (events.push('prefix'), held = holder[(events.push('key'), 'value')] = globalThis.window)?.self.Array.from([7]);
+    if (live) assert.arrayEqual(result, [7]);
+    else assert.same(result, undefined);
+    assert.same(held, globalThis.window);
+    assert.same(next, held, 'the intermediate write retains the same receiver');
+    assert.arrayEqual(events, ['prefix', 'key', 'store']);
+    events.length = 0;
+    const value = (events.push([2].at(0)), globalThis.window)?.self?.Array.of(8).at(0);
+    assert.same(value, live ? 8 : undefined);
+    assert.arrayEqual(events, [2], 'the moved prefix keeps its independent polyfill claim');
+    events.length = 0;
+    assert.same(delete (events.push('delete-prefix'), globalThis.window)?.self.guardBoundaryAbsent, true);
+    assert.arrayEqual(events, ['delete-prefix'], 'delete keeps the same prefix owner');
+  });
+});

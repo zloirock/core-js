@@ -1,7 +1,7 @@
 // A sequence the probe navigation is rooted in runs its prefix first and exactly once, whatever
-// renders the guard: ahead of the test for a `delete` and a sealed read, never a second time inside
-// the branch when the root itself is the probe (an alias of its value, a bare name), and never after
-// the test, where a short-circuit would skip it.
+// renders the guard: inside the probe for a direct navigation, ahead of the guard when the root
+// itself is the probe (an alias of its value, a bare name), and never in the branch, where a
+// short-circuit would skip it. A delete keeps the same order as an ordinary read.
 let e = 0;
 const A = globalThis.window;
 export const removed = delete (e++, globalThis.window)?.self.box.k;

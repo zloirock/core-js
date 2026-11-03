@@ -82,6 +82,7 @@ import {
   cloneNode,
   conditionalExpression,
   expressionStatement,
+  hostSlotNode,
   identifier,
   literal as valueLiteral,
   memberFromKeyName,
@@ -1187,7 +1188,7 @@ function renderRetainedDefaultCapture(plan, {
   resolveGlobalPolyfill,
   adapter,
   embed = node => node,
-  sourceExpression = node => node,
+  sourceNode = node => node,
   claimProperties = null,
 }) {
   if (plan.retainedHead) {
@@ -1217,7 +1218,7 @@ function renderRetainedDefaultCapture(plan, {
     if (node === plan.wrapper) return {
       ...node,
       left: capturePattern(node.left),
-      right: sourceExpression(sequenceExpression([assignmentExpression('=', flag(), valueLiteral(true)), embed(node.right)])),
+      right: sourceNode(sequenceExpression([assignmentExpression('=', flag(), valueLiteral(true)), embed(node.right)])),
     };
     if (node.type === 'ArrayPattern') return { ...node, elements: node.elements.map(capturePattern) };
     if (node.type === 'ObjectPattern') return {
@@ -1252,7 +1253,7 @@ function renderRetainedDefaultCapture(plan, {
         if (prop.computed && computedKeyHasSideEffects(prop, plan.ctx)) {
           const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
           keyEffects = observableSequenceElements([...prefix, tail], plan.ctx).map(embed);
-          targetProp = { ...prop, key: sourceExpression(stableKey) };
+          targetProp = { ...prop, key: sourceNode(stableKey) };
         }
         const pureObject = instance.entry === 'get-iterator-method'
           ? objectExpression([objectProperty(stableKey, read, { computed: true })])
@@ -1277,7 +1278,7 @@ function renderRetainedDefaultCapture(plan, {
         if (entry.readPure && prop.computed && computedKeyHasSideEffects(prop, plan.ctx)) {
           const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
           keyEffects = observableSequenceElements([...prefix, tail], plan.ctx).map(embed);
-          targetProp = { ...prop, key: sourceExpression(identifier(injectImport(entry.symbolKey.entry, entry.symbolKey.hintName))) };
+          targetProp = { ...prop, key: sourceNode(identifier(injectImport(entry.symbolKey.entry, entry.symbolKey.hintName))) };
         }
         const tree = { kind: 'object', entries: [entry] };
         const mirrored = renderSynthTree(tree, synthContext, keyPath);
@@ -1315,7 +1316,7 @@ function renderRetainedDefaultCapture(plan, {
     mutable,
     headName,
     head: plan.body ? plan.root.type === 'AssignmentPattern'
-    ? embed({ ...plan.root, left: identifier(headName), right: sourceExpression(voidZero()) }) : identifier(headName) : null,
+    ? embed({ ...plan.root, left: identifier(headName), right: sourceNode(voidZero()) }) : identifier(headName) : null,
   };
 }
 
@@ -2085,6 +2086,8 @@ function droppedDefaultTarget(prop) {
 
 // Keep native property patterns around the claimed read so keys, defaults and sibling
 // effects retain their positions. A static-only rest uses one native exclusion pattern.
+// Convert owned nodes with sourceNode before claiming their host identities; embed keeps
+// those identities through final conversion, while borrowed rest targets stay visitable.
 // eslint-disable-next-line max-statements -- one ordered render for every retained property role
 export function renderRetainedObjectCapture(plan, {
   mintRef,
@@ -2101,7 +2104,7 @@ export function renderRetainedObjectCapture(plan, {
   ctx = null,
   noteRefAlias = null,
   resolveGlobalPolyfill = null,
-  sourceExpression = node => node,
+  sourceNode = node => node,
   renderDefaultGuard = renderInstanceDefaultGuard,
 }) {
   if (plan.defaultCapture) return renderRetainedDefaultCapture(plan.defaultCapture, {
@@ -2111,11 +2114,11 @@ export function renderRetainedObjectCapture(plan, {
     resolveGlobalPolyfill,
     adapter: ctx?.adapter,
     embed,
-    sourceExpression,
+    sourceNode,
     claimProperties,
   });
   if (plan.restPure) {
-    claimProperties?.(plan.pattern.properties.filter(item => item.type !== 'RestElement'));
+    claimProperties?.(plan.pattern.properties.filter(item => hostSlotNode(item).type !== 'RestElement'));
     const pattern = embed(plan.pattern);
     const init = plan.restSource ? embed(plan.restSource) : sequenceExpression([...plan.restEffects.map(embed),
       identifier(injectImport(plan.restPure.entry, plan.restPure.hintName))]);
@@ -2155,6 +2158,7 @@ export function renderRetainedObjectCapture(plan, {
       noteStaticAlias,
       mintUnused,
       claimProperties,
+      sourceNode,
       renderDefaultGuard,
     }) : null;
     if (!plan.assignment) return {
@@ -2206,6 +2210,7 @@ export function renderRetainedObjectCapture(plan, {
       noteStaticAlias,
       mintUnused,
       claimProperties,
+      sourceNode,
       renderDefaultGuard,
     }).expression : plan.capture.inlineLeaf ? receiver => assignmentExpression('=', embed(plan.capture.leaf.value),
       callExpression(identifier(injectImport(entry, hintName)), [receiver])) : null,
@@ -2253,13 +2258,14 @@ export function renderRetainedObjectCapture(plan, {
     const assignmentStart = assignments.length;
     if (prop === plan.rest) {
       const sentinel = plan.assignment ? identifier(mintUnused(true)) : null;
-      const residual = objectPattern(plan.pattern.properties.map(item => item === prop || plan.restRiders?.has(item)
+      const residual = sourceNode(objectPattern(plan.pattern.properties.map(item => item === prop || plan.restRiders?.has(item)
         ? embed(item) : objectProperty(item.computed
           ? valueLiteral(item === plan.prop ? plan.primaryKey : plan.siblingStatics.get(item).key)
-          : embed(cloneNode(item.key)), sentinel ?? identifier(mintUnused(false)))));
-      claimProperties?.(residual.properties.filter(item => item.type !== 'RestElement'));
-      if (plan.assignment) assignments.push(assignmentExpression('=', residual, ref()));
-      else declarations.push(variableDeclarator(residual, ref()));
+          : embed(cloneNode(item.key)), sentinel ?? identifier(mintUnused(false))))));
+      // Mark the inserted host properties; rest and its live child claims remain visitable.
+      claimProperties?.(residual.properties.filter(item => hostSlotNode(item).type !== 'RestElement'));
+      if (plan.assignment) assignments.push(assignmentExpression('=', embed(residual), ref()));
+      else declarations.push(variableDeclarator(embed(residual), ref()));
     } else if (prop === plan.nestedRest?.prop) {
       const nestedInit = memberFromKeyName(ref(), plan.nestedRest.key);
       // the nested plan carries the host's result flag, but only the host's own render yields a result
@@ -2274,6 +2280,7 @@ export function renderRetainedObjectCapture(plan, {
         noteStaticAlias,
         mintUnused,
         claimProperties,
+        sourceNode,
         renderDefaultGuard,
       });
       if (plan.assignment) assignments.push(inner.expression);

@@ -15,9 +15,9 @@ var _ref;
 // runs the prefix exactly once. the sidecar holds that second spelling
 let c = 0;
 function a() {}
-export const instanceTail = (c++, null == _globalThis.window ? void 0 : _nameMaybeFunction(_self.Array));
-export const plainTail = (c++, null == _globalThis.window ? void 0 : _self.foo);
-export const nestedSequence = (a(), c++, null == _globalThis.window ? void 0 : _nameMaybeFunction(_self.Array));
+export const instanceTail = null == (c++, _globalThis.window) ? void 0 : _nameMaybeFunction(_self.Array);
+export const plainTail = null == (c++, _globalThis.window) ? void 0 : _self.foo;
+export const nestedSequence = null == (a(), c++, _globalThis.window) ? void 0 : _nameMaybeFunction(_self.Array);
 // ... and the prefix already standing INSIDE the probe hop, which must not be re-emitted beside it
 export const prefixUnderTheProbe = null == (c++, _globalThis).window ? void 0 : _nameMaybeFunction(_self.Array);
 // controls

@@ -524,7 +524,10 @@ export function planOptionalProbe(node, ctx, {
   const navSe = migration ? migration.leading : effects;
   let source = unwrapRuntimeExpr(probe);
   const tail = source?.type === 'SequenceExpression' ? unwrapRuntimeExpr(source.expressions.at(-1)) : null;
-  const keepSequence = !descended && (tail?.type === 'AssignmentExpression' || nestedSequenceValueSpelling(source));
+  // A realm navigation keeps the source read and its prefix in the test, as the
+  // navigation renderer does. Bare/alias roots still carry their effects outside.
+  const keepSequence = !descended && (tail?.type === 'AssignmentExpression' || nestedSequenceValueSpelling(source)
+    || isMemberAccessNode(tail) && POSSIBLE_GLOBAL_OBJECTS.has(hintName));
   const dropped = [];
   for (;;) {
     if (source?.type === 'SequenceExpression' && !keepSequence) {

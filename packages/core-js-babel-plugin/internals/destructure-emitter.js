@@ -3322,7 +3322,7 @@ export default function createDestructureEmitter({
         adapter,
         embed: hostSlot,
         ctx: { scope: prop.scope, adapter, path: prop },
-        sourceExpression: estreeToBabel,
+        sourceNode: estreeToBabel,
         claimProperties: properties => { for (const item of properties) skippedNodes.add(item); },
       });
       if (rendered?.expression) defaultPlan.host.replaceWith(estreeToBabel(rendered.expression));
@@ -3409,12 +3409,18 @@ export default function createDestructureEmitter({
       const rendered = renderRetainedObjectCapture(restPlan, {
         anchorPure: capturedRealmCtorPure({
           capture: restPlan.capture ?? restPlan.elementPlan?.capture,
-          scope: prop.scope, adapter, path: prop, resolveGlobalPolyfill: resolveGlobalPure,
+          scope: prop.scope,
+          adapter,
+          path: prop,
+          resolveGlobalPolyfill: resolveGlobalPure,
         }),
         mintRef: () => generateLocalRef(prop.scope).name,
         mintDeclaredRef: () => generateRef(prop.scope, prop.node).name,
         injectImport: (pureEntry, hint) => injectPureImport(pureEntry, hint).name,
-        embed: hostSlot, entry, hintName,
+        embed: hostSlot,
+        entry,
+        hintName,
+        sourceNode: estreeToBabel,
         mintUnused: declared => {
           const id = generateUnusedId();
           if (declared) injector.generateDeclaredRef(prop.scope, prop.node, t.cloneNode(id));
