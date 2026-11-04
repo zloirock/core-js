@@ -1,13 +1,15 @@
 // @types: proposals/json-parse-with-source
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 var toString = require('../internals/to-string');
 var createProperty = require('../internals/create-property');
 var setInternalState = require('../internals/internal-state').set;
 
 var $SyntaxError = SyntaxError;
-var parse = JSON.parse;
+// @dependency: es.json.parse
+var parse = getBuiltInStaticMethod('JSON', 'parse');
 var create = Object.create;
 var freeze = Object.freeze;
 
