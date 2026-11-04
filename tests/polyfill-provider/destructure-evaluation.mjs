@@ -297,6 +297,20 @@ for (const [receiver, ctor, selecting] of [
   check(`${ label }/query keeps source`, JSON.stringify(host.node), before);
 });
 
+runBoth('synth receiver after constructor substitution', 'const { name } = held;', (parser, program, label) => {
+  const host = hostOf(parser, program);
+  const ctx = context(parser, host);
+  const options = { aliasCtx: { ...ctx, adapter: {
+    ...ctx.adapter,
+    getBinding: ({ name }) => name === 'held' ? { polyfillHint: 'Map' } : null,
+  } }, resolvePure };
+  const emitted = { type: 'Identifier', name: 'held' };
+  check(`${ label }/emitted constructor`, planSynthLiteralReceiver(emitted, options).receiverCtorName, 'Map');
+  check(`${ label }/written receiver`, planSynthLiteralReceiver(host.node.init, options).receiverCtorName, null);
+  check(`${ label }/unregistered reference`,
+    planSynthLiteralReceiver({ type: 'Identifier', name: '_Map' }, options).receiverCtorName, null);
+});
+
 for (const [pattern, expected] of [
   ['{ from }', [true, true, true]],
   ['{ from, length }', [false, false, false]],

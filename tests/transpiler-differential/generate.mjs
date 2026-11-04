@@ -20575,8 +20575,9 @@ function * generateFallbackSynthBranches() {
       return read(${ pick }, ${ nested });
     })()`), strip: true,
   };
-  yield {
-    ...snippet('fallback-synth-branches/default-getter-after-arguments', `(() => {
+  yield mutationSnippet('fallback-synth-branches/default-getter-after-arguments', `(() => {
+    const previous = _nativeObject.getOwnPropertyDescriptor(Array, 'missing');
+    try {
       Object.defineProperty(Array, 'missing', { configurable: true, get() { log.push("read"); return 9; } });
       function read(pick) {
         return (({ from, missing } = Array, other) => [from([7])[0], missing])(
@@ -20584,8 +20585,8 @@ function * generateFallbackSynthBranches() {
         );
       }
       return read(true);
-    })()`), strip: true,
-  };
+    } finally { restoreProperty(Array, 'missing', previous); }
+  })()`);
   for (const operator of ['||', '??', '&&']) yield {
     ...snippet(`fallback-synth-branches/default-selector/${ operator }`, `
       (({ from } = Iterator) => typeof from([7]).next)(undefined ${ operator } Array)
@@ -22578,6 +22579,21 @@ function * generateMirrorRetainedReads() {
         restoreProperty(Array.prototype, 'at', atDescriptor);
         restoreProperty(Array.prototype, key, peerDescriptor);
       } export const r = result;` };
+  for (const host of ['declaration', 'assignment', 'for-init']) for (const throws of [false, true]) {
+    const pattern = '{ name: first, groupBy, name: last }';
+    const result = 'return [first, typeof groupBy, last];';
+    const body = host === 'assignment' ? `let first, groupBy, last; (${ pattern } = source || Map); ${ result }`
+      : host === 'for-init' ? `for (const ${ pattern } = source || Map;;) ${ result }`
+        : `const ${ pattern } = source || Map; ${ result }`;
+    yield { name: `mirror-retained-read/constructor-slot/${ host }/${ throws }`, strip: true,
+      code: `export const effects = [];
+        const foreign = {
+          get name() { effects.push(this === foreign ? 'name' : 'wrong receiver'); return effects.length; },
+          get groupBy() { effects.push('groupBy'); ${ throws ? 'throw new RangeError();' : 'return 17;' } }
+        };
+        function read(source) { try { ${ body } } catch (error) { return error.name; } }
+        export const r = [read(foreign), read(null)];` };
+  }
 }
 
 // Local value arms retain their own dispatch families, while a positional capture cycle
