@@ -2,6 +2,7 @@
 // Babel can interleave pre/traversal/post for files using the same cached plugin instance.
 // Each file must keep its own late helper imports, directives and teardown state.
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -55,10 +56,23 @@ for (const method of ['usage-pure', 'usage-global', 'entry-global']) {
       inner = transformSync(sourceAt(1), { ...nestedSettings, filename: 'inner.mjs' }).code;
     } };
   }
-  const nestedSettings = { ...settings, plugins: [...settings.plugins, reentrant] };
-  const outer = transformSync(sourceAt(0), { ...nestedSettings, filename: 'outer.mjs' }).code;
-  check(`${ method }/nested outer`, outer, expected[0]);
-  check(`${ method }/nested inner`, inner, expected[1]);
+  // Each native binding context reads the Babel version to select its path semantics.
+  // Two synchronous bursts also keep the spare alive across the second checkout.
+  let contexts = 0;
+  function countedPlugin(api, options) {
+    return corejsPlugin(Object.create(api, { version: { get() {
+      contexts++;
+      return api.version;
+    } } }), options);
+  }
+  const nestedSettings = { ...settings, plugins: [[countedPlugin, pluginOptions], ...lowerings, reentrant] };
+  for (const wave of ['cold', 'warm']) {
+    entered = false;
+    const outer = transformSync(sourceAt(0), { ...nestedSettings, filename: 'outer.mjs' }).code;
+    check(`${ method }/${ wave } nested outer`, outer, expected[0]);
+    check(`${ method }/${ wave } nested inner`, inner, expected[1]);
+    check(`${ method }/${ wave } contexts`, contexts, 2);
+  }
 
   function afterPost(api, options) {
     const state = corejsPlugin(api, options);
@@ -97,5 +111,31 @@ async function inheritedOutput(index) {
 const expectedInherited = [await inheritedOutput(0), await inheritedOutput(1)];
 checkDeep('concurrent contexts inherit targets', await Promise.all([inheritedOutput(0), inheritedOutput(1)]), expectedInherited);
 check('inherited targets need the late helper', expectedInherited[0].includes('get-iterator-method'), true);
+
+// The source census asks which calls can reach this hoisted declaration. Observe
+// Babel's source reference list on the same input before and after a file is released.
+const refFixture = new URL('../transpiler-fixtures/usage-pure/hoisted-function-called-before-a-write-reads-the-old-value/', import.meta.url);
+const [refSource, refExpected] = await Promise.all(['input.mjs', 'output.mjs'].map(name => readFile(new URL(name, refFixture), 'utf8')));
+let reads = 0;
+function observeSourceReferences() {
+  return { pre() {
+    const refs = this.file.path.scope.getBinding('readKey').referencePaths;
+    const { some } = refs;
+    refs.some = function (...args) {
+      reads++;
+      return some.apply(this, args);
+    };
+  } };
+}
+const refSettings = { configFile: false, babelrc: false, filename: 'references.mjs',
+  plugins: [observeSourceReferences, [corejsPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]] };
+const refCounts = [];
+for (const wave of ['fresh', 'reused']) {
+  reads = 0;
+  check(`${ wave } source output`, transformSync(refSource, refSettings).code, refExpected.trim());
+  refCounts.push(reads);
+}
+check('the source reference list was consulted', refCounts[0] > 0, true);
+check('reused context consults the same source references', refCounts[1], refCounts[0]);
 
 finish();

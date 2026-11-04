@@ -18,6 +18,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 ## Host contracts
 
 - Detect and apply together in `pre()`, while source types and patterns remain intact. `Program:exit` backstops later sibling output; do not defer the main apply across phases onto a changed tree.
+- Each overlapping file owns its binding context through a successful `post()`. Release its source paths and finalization-mode type answers before reuse. Keep one idle context warm; surplus contexts must be collectable after a burst.
 - Emitted nodes must survive subsequent Babel lowerings. Restructure unnecessary grouping during emission; restore necessary `ParenthesizedExpression` nodes in `post()`, after sibling `Program:exit` hooks. Earlier insertion can break regenerator on `await` / `yield`.
 - Clone through `rangePreservingTypes`. Babel cloning drops `start` / `end`; the wrapper restores them from `loc` for the provider's positional proofs.
 - Use the injector's scope bags for Babel 7 object maps and Babel 8 `referencesSet` / `uidsSet`.
