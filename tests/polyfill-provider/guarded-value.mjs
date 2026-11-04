@@ -5,7 +5,7 @@ import {
   discardedInitProbePlan,
   probedNavGuardValuePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { hostSlot, renderClaimProbe } from '../../packages/core-js-polyfill-provider/render.js';
+import { hostSlot, hostSlotNode, renderClaimProbe } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker, findNode } from './harness.mjs';
@@ -45,12 +45,18 @@ for (const [expression, kind, leaf, boundary = false] of [
     },
   });
   const conditional = findNode(built, node => node.type === 'ConditionalExpression');
-  checkTruthy(`${ label }/short circuit`, conditional);
-  check(`${ label }/absent value`, conditional.consequent.operator, 'void');
-  if (leaf) checkTruthy(`${ label }/present leaf`, findNode(conditional.alternate,
-    node => node.type === 'Identifier' && node.name === leaf));
-  else checkTruthy(`${ label }/probe value read again`, findNode(conditional.alternate,
-    node => node.type === 'MemberExpression'));
+  if (leaf) {
+    checkTruthy(`${ label }/short circuit`, conditional);
+    check(`${ label }/absent value`, conditional.consequent.operator, 'void');
+    checkTruthy(`${ label }/present leaf`, findNode(conditional.alternate,
+      node => node.type === 'Identifier' && node.name === leaf));
+  } else {
+    const read = hostSlotNode(built);
+    check(`${ label }/plain source has no optional test`, conditional, null);
+    check(`${ label }/one direct read`, read.type, 'MemberExpression');
+    check(`${ label }/original property`, read.property?.name, 'window');
+    check(`${ label }/served root`, read.object?.name, '_globalThis');
+  }
   checkTruthy(`${ label }/root substituted`, imports.includes('globalThis'));
   check(`${ label }/render purity`, JSON.stringify(source), before);
   if (expression.includes('effect')) {

@@ -35,6 +35,7 @@ import {
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
   directClaimProbePlan,
+  effectfulClaimReadProbe,
   directClaimProbeEffects,
   aliasRootedReadMayThrow,
   undefinableOptionalGuard,
@@ -51,7 +52,7 @@ import {
   planDeletedProxyClaim,
 } from './members.js';
 import { erasedReceiverRescueNodes } from './destructure.js';
-import { optionalMemberStaysGuarded } from './guard-preparation.js';
+import { optionalMemberStaysGuarded, planOptionalProbe } from './guard-preparation.js';
 
 // A root-driven fold has found its receiving slot, but has no claim owning that slot.
 // Source consumers decide whether it folds whole or reads through a retained store.
@@ -101,7 +102,7 @@ export function spineHoldsKeptWrite(objectNode, { throughHops = true } = {}) {
   // (`(c++, e = globalThis.window)?.[k]` anchors on the same kept write as the bare twin)
   let value = unwrapRuntimeExpr(objectNode);
   for (;;) {
-    if (throughHops && value?.type === 'MemberExpression') {
+    if (throughHops && isMemberAccessNode(value)) {
       value = unwrapRuntimeExpr(value.object);
       continue;
     }
@@ -310,7 +311,18 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
     }
   }
   if (staticClaimNeedsGuard(path.node, resolvePure, aliasCtx)) {
-    yield { kind: 'guard', object: guard.object, proxyRoot: realm };
+    const probe = planOptionalProbe(path.node, { ...aliasCtx, resolvePure }, {
+      hintName,
+      reader: path.parentPath?.node,
+      effects: meta.sideEffects,
+      receiverEffectCount: meta.receiverEffectCount,
+      guardObject: guard.object,
+    });
+    // The fold of an optional computed key still owes its effects to the live
+    // arm, including under delete. The probe carries their original source slot.
+    if ((probe || guard.object) && (probe?.keySe?.length || !deletion?.())) {
+      yield { kind: 'guard', object: guard.object ?? probe.probe, proxyRoot: realm, probe };
+    }
   }
   const sealed = realm && !meta.sideEffects?.length && sealedClaimDisposition(path.node, resolvePure, aliasCtx);
   if (sealed?.kind === 'collapse') {
@@ -326,10 +338,11 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
     yield { kind: 'replace', base: deleted, effects: deleted.effects, live: [deleted.keep, ...deleted.effects] };
     return;
   }
-  const probe = isMemberAccessNode(node) ? directClaimProbePlan(node, resolvePure, aliasCtx) : null;
+  const effects = resolvedClaimEffects(node, meta, aliasCtx);
+  const probe = isMemberAccessNode(node) && (directClaimProbePlan(node, resolvePure, aliasCtx)
+    ?? (!realm && effects.length ? effectfulClaimReadProbe(node, effects, resolvePure, aliasCtx) : null));
   if (!probe && isMemberAccessNode(node) && !node.optional
     && aliasRootedReadMayThrow(node.object, resolvePure, aliasCtx)) return;
-  const effects = resolvedClaimEffects(node, meta, aliasCtx);
   const base = deleted || { pure: { entry, hintName } };
   const proxyRoot = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName);
   const deletedRun = proxyRoot && !isMemberAccessNode(node) && !!deleteHostAboveCarriedChain(path);

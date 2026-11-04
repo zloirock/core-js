@@ -30,6 +30,9 @@ for (const [expression, source, prefix = [], memo = null, keepSequence = false, 
   ['globalThis?.Array.from', null],
   ['globalThis.window?.Array.from', 'globalThis.window'],
   ['globalThis.window?.self.Array', 'globalThis.window'],
+  ['globalThis.window?.self[ctor].of', 'globalThis.window', [], null, false, 'const ctor = "Array";'],
+  ['globalThis.window?.self[`Array`].of', 'globalThis.window'],
+  ['globalThis.window?.self["Arr" + "ay"].of', 'globalThis.window'],
   ['(effect(), globalThis.window)?.Array.from', 'globalThis.window', ['effect()']],
   ['(held = globalThis.window)?.Array.from', 'held = globalThis.window'],
   ['(effect(), held = globalThis.window)?.Array.from', 'effect(), held = globalThis.window', [], null, true],
@@ -101,12 +104,15 @@ for (const located of [false, true]) runBoth(`optional probe/effect slots/${ loc
     }
     const before = JSON.stringify(program.node);
     const plan = planOptionalProbe(node, ctx, { effects: [head, tail], receiverEffectCount: 1 });
-    if (located) {
-      check(`${ label }/prefix identity`, plan?.prefix[0], head);
-      check(`${ label }/one prefix`, plan?.prefix.length, 1);
-      check(`${ label }/key identity`, plan?.keySe?.[0], tail);
-      check(`${ label }/one key`, plan?.keySe?.length, 1);
-    } else check(`${ label }/unknown position declines`, plan, null);
+    check(`${ label }/prefix identity`, plan?.prefix[0], head);
+    check(`${ label }/one prefix`, plan?.prefix.length, 1);
+    check(`${ label }/key identity`, plan?.keySe?.[0], tail);
+    check(`${ label }/one guarded key`, plan?.keySe?.length, 1);
+    if (!located) {
+      const foreign = { ...tail };
+      check(`${ label }/unknown position and no source slot decline`,
+        planOptionalProbe(node, ctx, { effects: [head, foreign], receiverEffectCount: 1 }), null);
+    }
     check(`${ label }/read only`, JSON.stringify(program.node), before);
   });
 

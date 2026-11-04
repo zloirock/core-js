@@ -1060,14 +1060,16 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
   if (plan.kind === 'alias') {
     return renderAliasHeldProbeRead(plan.aliasProbe, renderProbeSource(plan.object, context), own);
   }
-  if (plan.kind === 'stored') return renderProbeSource(plan.test.source, context);
+  if (plan.kind === 'stored' || plan.kind === 'read' || plan.leafPlan?.leafIsProbe) {
+    return renderProbeSource(plan.test.source, context);
+  }
   const { test, navPlan, leafPlan } = plan;
   const probe = renderNavGuardTest(test, context);
   let alternate = plan.kind === 'nav' ? renderNavCollapseValue(navPlan, pure(navPlan.leafPure), { cloneHost: clone, own })
     : leafPlan.leafPure ? pure(leafPlan.leafPure)
     : leafPlan.leafBasePure ? (plan.foldLeafOntoBase ? pure(leafPlan.leafBasePure)
       : own(memberFromKeyName(pure(leafPlan.leafBasePure), leafPlan.leafName)))
-    : leafPlan.leafIsProbe ? renderProbeSource(test.source, context) : identifier(leafPlan.leafName);
+    : identifier(leafPlan.leafName);
   if (plan.alternateEffects?.length) alternate = sequence(plan.alternateEffects.map(clone), alternate);
   const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
   const read = plan.boundary.member ? own(plan.boundary.member.computed

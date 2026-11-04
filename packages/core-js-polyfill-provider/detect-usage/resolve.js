@@ -34,6 +34,7 @@ import {
   canonAnswerTable,
   canonContextPath,
   chainValueCarrier,
+  climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   collectParamBindingNames,
   definedBranchOfGuardConditional,
@@ -5734,10 +5735,8 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
       if (preserveRead) return { ...facts, kind: 'passthrough' };
       continue;
     }
-    const keyEffects = navComputedKeyEffects(boundary.inner);
-    const alternateEffects = keyEffects.filter(expr => !subtreeContainsNode(leafPlan.guardObject, expr));
     return {
-      ...facts, kind: 'leaf', navPlan: navPlan || null, leafPlan, keyEffects, alternateEffects,
+      ...facts, kind: 'leaf', navPlan: navPlan || null, leafPlan,
       guardEffects: discardRescueNodes({ node: leafPlan.guardObject, ...aliasCtx }),
       foldLeafOntoBase: !preserveRead && !!leafPlan.foldLeafOntoBase,
     };
@@ -5883,6 +5882,39 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
   return decision && claimProbeRenderPlan(decision, resolvePure, ctx, options);
 }
 
+// A lowered pattern can reach detection as an ordinary read. If its observable
+// receiver is an unbacked realm hop, the first property above it still runs: the
+// root effects do not stand in for that read or its exception. Bare realm folds
+// with no such effects continue to use the ordinary navigation contract.
+export function effectfulClaimReadProbe(node, effects, resolvePure, ctx) {
+  // A larger member claim (including its rendered helper call) owns its
+  // receiver. A lowered binding read, or the callee itself, owns the probe.
+  const end = climbTransparentWrapperPath(ctx.path);
+  const parent = end.parentPath?.node;
+  if (isMemberAccessNode(parent) && parent.object === end.node || parent?.arguments && parent.callee !== end.node) return null;
+  for (let read = node; isMemberAccessNode(read) && !read.optional; read = unwrapRuntimeExpr(read.object)) {
+    const receiver = unwrapRuntimeExpr(read.object);
+    if (receiver?.optional || !unbackedProxyHopKey(receiver, resolvePure)
+      || effects.every(effect => !subtreeContainsNode(receiver, effect))) continue;
+    if (!realmHopKeyName(read, ctx) || !proxyReceiverValueCanBeUndefined(receiver, resolvePure, ctx)) return null;
+    return retainedSourceProbe('read', node, read, resolvePure, ctx);
+  }
+  return null;
+}
+
+// A whole source slot carries its own effects. Retaining the original identities
+// lets the residual planner remove them without scanning a rendered clone.
+function retainedSourceProbe(kind, source, read, resolvePure, ctx) {
+  return {
+    kind, source,
+    test: { source: claimProbeSourceSlot(read, resolvePure, ctx) },
+    retained: [read],
+    consumed: [],
+    readsSource: kind === 'read',
+    navStart: discardedInitProbeNavStart(read),
+  };
+}
+
 // Enrich a decided read or guarded value with source slots shared by both render channels.
 // A value probe preserves its terminal read; only a direct claim can fold the test navigation.
 function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
@@ -5913,7 +5945,7 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
   }
   const { navPlan, leafPlan, boundary } = decision;
   let test;
-  if (decision.kind === 'value' || decision.preserveRead) {
+  if (decision.kind === 'value' || decision.preserveRead || leafPlan?.leafIsProbe) {
     test = { source: slot(leafPlan.guardObject) };
   } else {
     test = decision.kind === 'nav' ? navGuardTestPlan(navPlan) : navGuardSourcePlan(leafPlan.guardObject, resolvePure, ctx);
@@ -5922,10 +5954,19 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
   }
   const navPrefix = navHopSequencePrefixes(boundary.inner, ctx);
   const prefix = navPrefix.filter(effect => retained.every(node => !subtreeContainsNode(node, effect)));
-  const consumed = [...navPrefix, ...decision.keyEffects ?? [], ...decision.guardEffects ?? [],
+  // navComputedKeyEffects also includes the root sequence. That sequence runs
+  // before the test, while keys of the guarded hops run inside its live branch.
+  const keyEffects = leafPlan ? navComputedKeyEffects(boundary.inner).filter(effect => !navPrefix.includes(effect)) : [];
+  const alternateEffects = keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect));
+  const consumed = [
+    ...navPrefix,
+    ...keyEffects,
+    ...decision.guardEffects ?? [],
     ...navPlan?.rootEffectCall ? [navPlan.rootEffectCall] : [],
-    ...navPlan?.rootAssign ? [navPlan.rootAssign] : [], ...navPlan?.assignWrap ? [navPlan.assignWrap] : []];
-  return { ...decision, test, prefix, retained, consumed, readsSource: !!boundary.member };
+    ...navPlan?.rootAssign ? [navPlan.rootAssign] : [],
+    ...navPlan?.assignWrap ? [navPlan.assignWrap] : [],
+  ];
+  return { ...decision, test, prefix, keyEffects, alternateEffects, retained, consumed, readsSource: !!boundary.member };
 }
 
 // Residual effects use source ownership, never a scan of the emitted probe. A retained source
@@ -5962,26 +6003,17 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
   }
   if (!nav) return null;
   const stored = peelChainAssignment(nav);
-  if (!arrayWrapped && stored.outer && proxyReceiverValueCanBeUndefined(stored.value, resolvePure, aliasCtx)) return {
-    kind: 'stored',
-    source: initNode,
-    test: { source: claimProbeSourceSlot(nav, resolvePure, aliasCtx) },
-    retained: [nav],
-    consumed: [],
-    readsSource: false,
-    navStart: discardedInitProbeNavStart(initNode),
-  };
+  if (!arrayWrapped && stored.outer && proxyReceiverValueCanBeUndefined(stored.value, resolvePure, aliasCtx)) {
+    return retainedSourceProbe('stored', initNode, nav, resolvePure, aliasCtx);
+  }
   const leafPlan = sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx, { probeLeaf: true });
   if (leafPlan) {
-    const keyEffects = navComputedKeyEffects(nav);
     return claimProbeRenderPlan(
       {
         kind: 'value',
         source: initNode,
         boundary: { inner: nav },
         leafPlan,
-        keyEffects,
-        alternateEffects: keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect)),
         navStart: discardedInitProbeNavStart(initNode),
         foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
       },
@@ -6037,14 +6069,11 @@ export function probedNavGuardValuePlan(source, resolvePure, ctx) {
   const leafPlan = sealedClaimLeafGuardPlan(unwrapRuntimeExpr(source), resolvePure, ctx, { probeLeaf: true });
   if (!leafPlan || (!leafPlan.leafPure && !leafPlan.leafIsProbe && !leafPlan.leafBasePure
     && !isValidIdentifierName(leafPlan.leafName))) return null;
-  const keyEffects = navComputedKeyEffects(source);
   return claimProbeRenderPlan({
     kind: 'leaf',
     source,
     boundary: { inner: source },
     leafPlan,
-    keyEffects,
-    alternateEffects: keyEffects.filter(effect => !subtreeContainsNode(leafPlan.guardObject, effect)),
     foldLeafOntoBase: !!leafPlan.foldLeafOntoBase,
   }, resolvePure, ctx);
 }
@@ -6062,8 +6091,7 @@ function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf
     // a value that IS the environment probe carries no `?.` for the verdict to key on - the
     // bare one-hop read (`globalThis.window`) and an alias HOLDING an absent-able value are
     // undefinable by the value canon alone. the leaf to read off the guard is the probe
-    // itself (`null == _globalThis.window ? void 0 : _globalThis.window` - the test operand
-    // doubles as the alternate), which `leafIsProbe` tells the renders to spell. OPT-IN
+    // itself. It has no optional link: a consuming read uses that source value once. OPT-IN
     // (`probeLeaf`): only the direct guard-value consumers (a full consume of the probe
     // itself) ask this - a SEALED path's inner probe keeps the accepted plain-seal collapse
     // (`(globalThis.window).self` reads off the realm global like its unsealed twin)

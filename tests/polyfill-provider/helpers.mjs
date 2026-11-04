@@ -2893,6 +2893,21 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
 
   const root = { start: 10, end: 20 };
   function se(start, end) { return { start, end }; }
+  const leading = { type: 'CallExpression', callee: { type: 'Identifier', name: 'lead' }, arguments: [] };
+  const key = { type: 'Identifier', name: 'key' };
+  const rootNode = { type: 'MemberExpression', object: { type: 'Identifier', name: 'realm' }, property: { type: 'Identifier', name: 'window' } };
+  const receiver = { type: 'SequenceExpression', expressions: [leading, rootNode] };
+  const read = { type: 'OptionalMemberExpression', optional: true, computed: true, object: receiver, property: key };
+  const argument = { type: 'Identifier', name: 'arg' };
+  const invocation = { type: 'CallExpression', callee: read, arguments: [argument] };
+  const effects = [leading, rootNode, key, argument];
+  const unpositioned = migratableClaimSe({ sideEffects: effects, rootNode, node: invocation });
+  check('migratableClaimSe/unpositioned prefix', unpositioned?.leading[0], leading);
+  check('migratableClaimSe/unpositioned key and argument', shape(unpositioned?.migrated), shape([key, argument]));
+  check('migratableClaimSe/an unrelated unpositioned effect declines',
+    migratableClaimSe({ sideEffects: [{ ...key }], rootNode, node: invocation }), null);
+  check('migratableClaimSe/a guard off the receiver spine declines',
+    migratableClaimSe({ sideEffects: effects, rootNode: key, node: invocation }), null);
   check('migratableClaimSe/no SE channel at all', shape(migratableClaimSe({ sideEffects: [], rootNode: root, end: 30 })), shape({ leading: [], migrated: [] }));
   const inside = se(12, 15);
   const after = se(21, 25);

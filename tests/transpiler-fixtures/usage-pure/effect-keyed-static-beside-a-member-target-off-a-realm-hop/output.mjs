@@ -7,7 +7,7 @@ var _ref, _ref2;
 // unplugin destructures it (the sidecar).
 let f4, c4, f6, c6;
 const o = {};
-_ref = (null == _globalThis.window ? void 0 : _globalThis.window).Array, {
+_ref = _globalThis.window.Array, {
   isArray: o.g
 } = _ref, e(), f4 = _Array$fromAsync, {
   custom: c4

@@ -19,6 +19,7 @@ import {
   peelReceiverSequenceTail,
   resolveObjectName,
   pristineRealmHopKey,
+  realmHopKeyName,
   unwrapParensCollectingEffects,
   undefinableOptionalGuard,
   peelPristineProxyHops,
@@ -58,6 +59,10 @@ import {
   receiverContainsOptional,
   memberProxyHopName,
   migratableClaimSe,
+  nodeSpan,
+  openContinuationEnd,
+  climbTransparentWrapperPath,
+  invocationCalleeOf,
   nestedSequenceValueSpelling,
   mayHaveSideEffects,
   subtreeContainsNode,
@@ -72,7 +77,8 @@ import { instanceSynthReceiverPure, isConstantLiteralReceiver } from './destruct
 import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
 
 // A guard may absorb the source continuation only while it owns its reads. A
-// sealed callee keeps its reference outside, and delete keeps the member operand.
+// sealed callee keeps its reference outside: its first retained tail member must
+// remain optional on the short-circuited value. Delete keeps the member operand.
 // A realm hop can fold onto a defined alternate without changing that
 // reference. Paths are live slots, read synchronously; all edits remain with the binding.
 export function planGuardedClaimTail(path, { alwaysDefined = false, resolvePure = null } = {}) {
@@ -165,10 +171,21 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
       ? (sequenceGuard && subtreeContainsNode(sequenceGuard, optional.object) ? sequenceGuard : optional.object)
       : optional.kind === 'erase' ? sequenceGuard : null;
   }
-  if (guard) return {
-    kind: 'guard', receiver, fallback, guard, detached: !hadChainAssign || readAboveStore, hadChainAssign, definedReceiverRead,
-    effects: effects.filter(effect => !guardAssigns.includes(effect) && !subtreeContainsNode(guard, effect)),
-  };
+  if (guard) {
+    // A sealed callee or template tag still reads a reference. Leave its member
+    // in place; the constructor's guard supplies the receiver of that reference.
+    const end = openContinuationEnd(node, ctx.path?.parentPath) ?? ctx.path;
+    const slot = end && isMemberAccessNode(end.node) && climbTransparentWrapperPath(end);
+    if (slot?.parentPath?.node && invocationCalleeOf(slot.parentPath.node) === slot.node) return { kind: 'retain', release: receiver };
+    const lifted = effects.filter(effect => !guardAssigns.includes(effect) && !subtreeContainsNode(guard, effect));
+    const orderedEffects = migratableClaimSe({ sideEffects: lifted, rootNode: guard, end: nodeSpan(node)?.end, node });
+    if (!orderedEffects) return { kind: 'retain', release: receiver };
+    return {
+      kind: 'guard', receiver, fallback, guard, target: end, hadChainAssign, definedReceiverRead,
+      prefix: orderedEffects.leading,
+      effects: orderedEffects.migrated,
+    };
+  }
   const boundary = sealedChainBoundary(node);
   const probe = directClaimProbePlan(node.object, resolveGlobal, ctx)
     ?? (boundary?.member === node ? directClaimProbePlan(node, resolveGlobal, ctx) : null);
@@ -471,7 +488,7 @@ function callIsOptionalProbe(node, claimCtor, readNode, ctx) {
 // a claim's guard can erase there without proving that the captured call is defined.
 // A memo request declines non-realm/computed hops before asking the value resolver.
 export function planOptionalProbe(node, ctx, {
-  hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false,
+  hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false, guardObject = null,
 } = {}) {
   if (!ctx?.adapter || !ctx.resolvePure || !isMemberAccessNode(node)) return null;
   if (memoize) {
@@ -486,7 +503,7 @@ export function planOptionalProbe(node, ctx, {
   function resolveGlobal(name) {
     return ctx.resolvePure({ kind: 'global', name });
   }
-  let probe = node.optional ? node.object : null;
+  let probe = guardObject ?? (node.optional ? node.object : null);
   let cur = unwrapRuntimeExpr(node.object);
   let plainHops = true;
   while (!probe && isMemberAccessNode(cur)) {
@@ -494,9 +511,7 @@ export function planOptionalProbe(node, ctx, {
       probe = cur.object;
       break;
     }
-    if (cur.computed ? !ctx.adapter.isStringLiteral(unwrapRuntimeExpr(cur.property)) : cur.property?.type !== 'Identifier') {
-      plainHops = false;
-    }
+    if (typeof realmHopKeyName(cur, ctx, { allowSideEffectKeys: true }) !== 'string') plainHops = false;
     cur = unwrapRuntimeExpr(cur.object);
   }
   if (!probe && isCallShape(cur) && cur.optional) probe = cur;
@@ -506,19 +521,19 @@ export function planOptionalProbe(node, ctx, {
   const instanceRead = navigated && isCallShape(call) && !call.optional
     && ctx.resolvePure({ kind: 'property', object: 'function', placement: 'prototype',
       key: reader.computed ? null : reader.property?.name })?.kind === 'instance';
-  const undefinable = instanceRead || guardProbeUndefinable(probe, { ...ctx, nestedSeqUnproven: navigated });
+  const undefinable = !!guardObject || instanceRead || guardProbeUndefinable(probe, { ...ctx, nestedSeqUnproven: navigated });
   const claimCtor = hintName?.includes('$') ? hintName.split('$', 1)[0] : null;
   for (let inner = unwrapRuntimeExpr(probe); isMemberAccessNode(inner) && inner.optional && !inner.computed
     && (resolveGlobal(inner.property?.name) || inner.property?.name === claimCtor
       || callIsOptionalProbe(inner.object, claimCtor, node, ctx)); inner = unwrapRuntimeExpr(probe)) probe = inner.object;
-  const verdict = undefinableOptionalGuard(node, ctx.resolvePure, ctx);
-  const sourceSlot = verdict.kind === 'guard' && optionalProbeSourceSlot(probe, verdict.object);
+  const guarded = guardObject ?? undefinableOptionalGuard(node, ctx.resolvePure, ctx).object;
+  const sourceSlot = guarded && optionalProbeSourceSlot(probe, guarded);
   if (sourceSlot) probe = sourceSlot.source;
   const descended = ownOptionalProbe(probe, ctx);
   if (descended) probe = descended;
   if (!undefinable || !plainHops) return null;
 
-  const migration = migratableClaimSe({ sideEffects: effects, receiverEffectCount, rootNode: probe, end: node.end });
+  const migration = migratableClaimSe({ sideEffects: effects, receiverEffectCount, rootNode: probe, end: node.end, node });
   if (!migration && effects?.length) return null;
   const keySe = migration?.migrated?.length ? migration.migrated : null;
   const navSe = migration ? migration.leading : effects;

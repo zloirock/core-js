@@ -1746,9 +1746,21 @@ export default function createDestructureEmitter({
     return element ? { element, sequencePrefix: [] } : null;
   }
 
+  // All assignment cascades attach the first source read to the same extracted
+  // binding. Its source slots have already run when the empty initializer drains.
+  function guardCascadeAssignment(assignment, plan, assignPath) {
+    const key = assignment && probedNavProbeKey(plan);
+    if (!key) return null;
+    const source = plan.probedNavNode ?? assignPath.node.right;
+    const probe = destructureProbeNode?.(peelNestedSequenceExpressions(source).tail ?? source, assignPath);
+    if (probe) assignment.right = t.sequenceExpression([probeKeyReadNode(probe.node, key), assignment.right]);
+    return probe;
+  }
+
   // Bind the discarded-init decision to this assignment's current source frame.
-  function emptiedCascadeRemains(assignPath) {
-    return planDiscardedInit(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }).effects;
+  function emptiedCascadeRemains(assignPath, probe, effects) {
+    effects ??= planDiscardedInit(assignPath.node.right, { scope: assignPath.scope, adapter, path: assignPath }).effects;
+    return probe ? directClaimProbeEffects({ ...probe, node: null }, effects).filter(Boolean) : effects;
   }
 
   function cascadeAssignmentExpressionDestructure({ assignPath, prop, peeled, requireAnchored = false }) {
@@ -1822,19 +1834,7 @@ export default function createDestructureEmitter({
     const { discardsInit } = plan.evaluation;
     // an UNDEFINABLE probe nav under a full-consume assignment host: ride the guarded
     // first-key read ahead of the first extraction assign - same canon as the declarator host
-    if (discardsInit && assigns.length) {
-      const cascadeProbeKey = probedNavProbeKey(plan);
-      if (cascadeProbeKey) {
-        const navBase = plan.probedNavNode ?? assignPath.node.right;
-        const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
-        const guarded = destructureProbeNode?.(probedNavNode, assignPath);
-        if (guarded) {
-          assigns[0].expression.right = t.sequenceExpression([
-            probeKeyReadNode(guarded.node, cascadeProbeKey), assigns[0].expression.right,
-          ]);
-        }
-      }
-    }
+    const sourceProbe = discardsInit && guardCascadeAssignment(assigns[0]?.expression, plan, assignPath);
     // a DISCARDED sequence element hosts no statements: the render lands in its own slot as a
     // sequence - the extractions ahead of whatever residual survives, the order the statement host
     // takes with `insertBefore`. the sentinel `var`s still hoist, ahead of the statement the
@@ -1847,7 +1847,7 @@ export default function createDestructureEmitter({
       // prune empties it, what is left to evaluate is the RIGHT alone - and only where it carries an
       // effect, exactly the statement host's rule. dropping it whole lost a kept WRITE's effect
       if (plan.pattern.properties.length) exprs.push(assignPath.node);
-      else exprs.unshift(...emptiedCascadeRemains(assignPath));
+      else exprs.unshift(...emptiedCascadeRemains(assignPath, sourceProbe));
       if (exprs.length) {
         const [replaced] = peeled.element.replaceWith(exprs.length === 1 ? exprs[0] : t.sequenceExpression(exprs));
         // the sentinels are declared from what SURVIVED: an ANCHORED rebuild lifts the pattern this
@@ -1892,7 +1892,7 @@ export default function createDestructureEmitter({
       applyAnchoredAssignmentRebuild(plan, assignPath);
     }
     if (plan.pattern.properties.length === 0 && !plan.restKeepsLevel) {
-      const remains = emptiedCascadeRemains(assignPath);
+      const remains = emptiedCascadeRemains(assignPath, sourceProbe);
       if (remains.length) {
         exprStmt.get('expression').replaceWith(remains.length === 1 ? remains[0] : t.sequenceExpression(remains));
       } else exprStmt.remove();
@@ -2694,24 +2694,14 @@ export default function createDestructureEmitter({
       const { prefix, tail } = peelNestedSequenceExpressions(assignPath.node.right);
       // an UNDEFINABLE probe nav under a full-consume cascade: ride the guarded first-key
       // read ahead of the first assign, once per pattern - same canon as the declarator host
-      const cascadeProbeKey = assignExprs.length ? probedNavProbeKey(plan) : null;
-      if (cascadeProbeKey) {
-        const navBase = plan.probedNavNode ?? assignPath.node.right;
-        const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
-        const guarded = destructureProbeNode?.(probedNavNode, assignPath);
-        if (guarded) {
-          assignExprs[0].right = t.sequenceExpression([
-            probeKeyReadNode(guarded.node, cascadeProbeKey), assignExprs[0].right,
-          ]);
-        }
-      }
+      const probe = guardCascadeAssignment(assignExprs[0], plan, assignPath);
       // an SE-free init drops whole (its pure prefixes too - the unplugin emitter's collapse
       // replaces the full operand, so keeping a dead literal here would desync the shape)
       const kept = mayHaveSideEffects(assignPath.node.right)
         ? [...prefix, ...isChainAssignment(tail) ? [tail] : []]
         : [];
       const orphaned = assignPath.node;
-      const exprs = [...kept.map(n => cloneReplayedEffect(n, assignPath)), ...assignExprs];
+      const exprs = [...emptiedCascadeRemains(assignPath, probe, kept).map(n => cloneReplayedEffect(n, assignPath)), ...assignExprs];
       assignPath.replaceWith(exprs.length === 1 ? exprs[0] : t.sequenceExpression(exprs));
       t.traverseFast(orphaned, node => { skippedNodes.add(node); });
       return;

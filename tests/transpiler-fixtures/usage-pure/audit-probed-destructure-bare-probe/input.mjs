@@ -3,11 +3,8 @@ export const { Promise: viaBareProbePoly } = globalThis.window;
 export const { customThing: viaBareProbeCustom } = globalThis.window;
 export const { Array: { of: viaBareProbeRestPoly }, ...viaBareProbeRest } = globalThis.window;
 
-// the value that IS the environment probe: a bare one-hop init (`= globalThis.window`), its
-// sealed twin, an agreeing-proxy ternary collapse and an alias HOLDING the probe all consume
-// a value that is absent exactly off-env - the probe reads the first key off the guard whose
-// test operand doubles as the alternate. resolvable roots keep their collapse, and the deep
-// unresolvable hop keeps the accepted realm-self-reference collapse
+// The bare window read and its sealed twin consume the source once, as does an alias holding
+// that value. Resolving a root or a deep self-reference still allows the realm to collapse.
 export const { Array: { of: viaBareProbe } } = globalThis.window;
 export const { Array: { of: viaBareProbeSealed } } = (globalThis.window);
 export const { structuredClone: viaBareProbeFlat } = globalThis.window;
