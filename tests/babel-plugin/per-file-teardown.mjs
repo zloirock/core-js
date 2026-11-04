@@ -8,7 +8,7 @@
 // The measurement needs `--expose-gc`, which the suite orchestrator does not carry, so the
 // module re-execs itself as a plain node child and reads back one JSON line. The child stays
 // zx-free on purpose - only the parent half reports through the shared checker.
-import { parseAsync, transformFromAstAsync } from '@babel/core';
+import { parseAsync, transformFromAstAsync, transformSync } from '@babel/core';
 import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
 
 // `cfg` is bound to an object literal, so the census records `cfg.at` with the assigned
@@ -41,6 +41,7 @@ const OPTIONS = {
   'usage-pure': { method: 'usage-pure', version: '4.0', targets: { ie: 11 } },
 };
 const NOOP_OPTIONS = { marker: 'noop' };
+const ENTRY_OPTIONS = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
 const RESULT_PREFIX = 'per-file-teardown-result ';
 const retained = { ast: null };
 
@@ -53,13 +54,15 @@ function retainingPlugin() {
 }
 
 async function transformHoldingMarker(plugin, options, filename, form) {
-  const source = form === 'restored' ? RESTORED_CODE : form === 'array' ? ARRAY_CODE : form === 'selection' ? SELECTION_CODE : CODE;
+  const source = form === 'entry' ? "import 'core-js/es/array/includes'; export const marker = [];"
+    : form === 'restored' ? RESTORED_CODE : form === 'array' ? ARRAY_CODE : form === 'selection' ? SELECTION_CODE : CODE;
   const ast = await parseAsync(source, { filename, configFile: false, babelrc: false });
-  const marker = form === 'array' ? ast.program.body[0].declaration.body.body[0].declarations[0].id
+  const marker = form === 'entry' ? ast.program.body[1].declaration.declarations[0].init
+    : form === 'array' ? ast.program.body[0].declaration.body.body[0].declarations[0].id
     : form === 'restored' ? ast.program.body[0].declaration.body.body[0].declarations[0].init
     : form === 'selection' ? ast.program.body[0].declaration.declarations[0].init
     : ast.program.body[1].expression.right;
-  const expectedType = form === 'array' ? 'ArrayPattern' : form === 'restored' ? 'ObjectExpression'
+  const expectedType = form === 'entry' ? 'ArrayExpression' : form === 'array' ? 'ArrayPattern' : form === 'restored' ? 'ObjectExpression'
     : form === 'selection' ? 'LogicalExpression' : 'FunctionExpression';
   if (marker.type !== expectedType) throw new Error(`unexpected marker ${ marker.type }`);
   const ref = new WeakRef(marker);
@@ -109,6 +112,33 @@ async function measure() {
       results[`${ prefix }/${ method }/last`] = await collectable(() => transformHoldingMarker(corejsPlugin, options, 'last.js', prefix));
     }
   }
+  results.entryReleased = await collectable(() => transformHoldingMarker(corejsPlugin, ENTRY_OPTIONS, 'entry.mjs', 'entry'));
+  // Each binding context closes over its own types object. Keep the plugin in use
+  // across GC to distinguish a released spare from a collected plugin instance.
+  const types = [];
+  let plugin;
+  function watched(api, options) {
+    plugin = corejsPlugin(Object.create(api, { types: { get() {
+      const marker = new Proxy(api.types, {});
+      types.push(new WeakRef(marker));
+      return marker;
+    } } }), options);
+    return plugin;
+  }
+  let nested = false;
+  function enter() {
+    return { pre() {
+      if (nested) return;
+      nested = true;
+      // eslint-disable-next-line node/no-sync -- both contexts must be live at once
+      transformSync('export const inner = [2].at(0);', config);
+    } };
+  }
+  const config = { filename: 'burst.mjs', configFile: false, babelrc: false, plugins: [[watched, OPTIONS['usage-pure']], enter] };
+  // eslint-disable-next-line node/no-sync -- force a real nested checkout
+  transformSync('export const outer = [1].at(0);', config);
+  results.spareReleased = types.length === 3 && await collectable(() => types[2]);
+  results.warmRetained = !!plugin.visitor && types[1]?.deref() !== undefined;
   return results;
 }
 
@@ -123,6 +153,9 @@ if (typeof globalThis.gc === 'function') {
   checkTruthy('child measurement produced a result', !!line);
   if (line) {
     const results = JSON.parse(line.slice(RESULT_PREFIX.length));
+    check('entry directive candidates release their program', results.entryReleased, true);
+    check('a completed burst releases its extra binding context', results.spareReleased, true);
+    check('the sequential context remains warm', results.warmRetained, true);
     for (const prefix of ['written', 'restored', 'array', 'selection']) {
       const control = results[`${ prefix }/control`];
       checkTruthy(`${ prefix } control: node from a state-free plugin is collectable`, control);

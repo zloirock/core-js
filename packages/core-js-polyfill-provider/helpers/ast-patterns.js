@@ -4512,7 +4512,8 @@ export const SELECTION_TEST_FIELDS = { IfStatement: 'test', ConditionalExpressio
 // for good unless a cut reached a settling in flight below it, whose answer it then depends on: one cut only by
 // its own re-entry is what any ask of it computes. an answer that took a settling below it as open is kept while
 // that settling is in flight and leaves with it (`settlingFrames`): under it every ask stands under the same
-// hypothesis, and whoever asks first answers for it. without the keep a loop writing its accumulators under tests
+// hypothesis. A reader of that cached answer inherits its cut and leaves with the same frame.
+// Without the keep a loop writing its accumulators under tests
 // of one another - a text wrapper's lines, words and widths - settled every write of the others anew under every
 // settling that reached it, a power of the writes. the re-entrant questions in flight that narrow decisions - the
 // census pre-pass, a binding lookup, a decision-root lookup (`narrowingQuestions`) - make the context an answer
@@ -4537,7 +4538,11 @@ function decidedGuards(owner, target, adapter) {
   const decided = byContext[(census && 1) | (lookup && 2) | (root && 4)] ??= new WeakMap();
   let byTarget = decided.get(owner.node);
   if (!byTarget) decided.set(owner.node, byTarget = new Map());
-  if (byTarget.has(target)) return byTarget.get(target);
+  const cached = byTarget.get(target);
+  if (cached) {
+    if (cached.cut !== undefined) lowestSettlingCut = Math.min(lowestSettlingCut, cached.cut);
+    return cached;
+  }
   const depth = settlingTargets.size;
   const outerCut = lowestSettlingCut;
   const refusals = refusedReentries;
@@ -4556,9 +4561,12 @@ function decidedGuards(owner, target, adapter) {
     lowestSettlingCut = Math.min(outerCut, lowestSettlingCut);
   }
   if (!unnarrowed) return settled;
+  // A self-cut is stable. Only a still-active ancestor owns a temporary answer.
+  if (head < depth) {
+    settled.cut = head;
+    settlingFrames[head].push([byTarget, target]);
+  }
   byTarget.set(target, settled);
-  // ... for good, or while the lowest settling in flight it took as open is - one above its own, which has popped
-  if (head < depth) settlingFrames[head].push([byTarget, target]);
   return settled;
 }
 

@@ -109,18 +109,36 @@ const CYCLE = 'let a = Array;\nlet b = Map;\nif (!b) if (!b) a = Shim;\nif (!a) 
 
 // the cycle parsed by `parser` for `method`: its adapter counting decisions, the read of `a`, the two writes, and
 // `neverRuns` - a write's never-run answer with the decisions it took
-function cycleProbe(parser, method) {
-  const program = parser.parseAndScope(CYCLE);
+function cycleProbe(parser, method, source = CYCLE) {
+  const program = parser.parseAndScope(source);
   const adapter = makeAdapter(parser, method, () => null);
   const decisions = countDecisions(adapter, CEILING);
   const read = parser.pickPath(program, 'MemberExpression', path => path.node.object.name === 'a');
-  const [writeA, writeB] = parser.collectPaths(program, 'AssignmentExpression').map(path => path.node);
+  const [writeA, writeB, writeC] = parser.collectPaths(program, 'AssignmentExpression').map(path => path.node);
   function neverRuns(write) {
     const before = decisions();
     const dead = writeNeverRuns({ write, usagePath: read, adapter });
     return { dead, decisions: decisions() - before };
   }
-  return { adapter, decisions, read, writeA, writeB, neverRuns };
+  return { adapter, decisions, read, writeA, writeB, writeC, neverRuns };
+}
+
+// While A is being settled, C reads a cached B which itself depends on A.
+// Once A returns, asking C on its own must settle it against the completed guard.
+const TRANSITIVE = 'let a = Array; let b = Map; let c = Promise;\n'
+  + 'if (!b) if (!c) a = Shim; if (!a) b = Shim2; if (!b) c = Shim3;\n'
+  + 'export const r = a.from(list); export const s = c.resolve(1);';
+for (const parser of adapters) for (const method of ['usage-pure', 'usage-global']) {
+  const label = `${ parser.name }/${ method }/transitive`;
+  const fresh = cycleProbe(parser, method, TRANSITIVE);
+  const expected = fresh.neverRuns(fresh.writeC);
+  check(`${ label }/fresh decision`, expected.dead, method === 'usage-pure');
+  const { writeA, writeC, neverRuns } = cycleProbe(parser, method, TRANSITIVE);
+  neverRuns(writeA);
+  const after = neverRuns(writeC);
+  check(`${ label }/same decision after another read`, after.dead, expected.dead);
+  checkTruthy(`${ label }/temporary decision expired`, after.decisions > 0);
+  check(`${ label }/independent decision is reused`, neverRuns(writeC).decisions, 0);
 }
 
 for (const parser of adapters) for (const method of ['usage-pure', 'usage-global']) {

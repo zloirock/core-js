@@ -23116,4 +23116,19 @@ export function * generate() {
   yield * generateLiteralWrapperBranches();
   yield * generateMirrorRetainedReads();
   yield * generateLocalValueAvailability();
+  for (const middle of ['Map', 'null', 'pick ? Map : null']) for (const primer of ['before', 'after']) {
+    yield { name: `guard-reader-order/${ middle }/${ primer }`, strip: true,
+      code: `export const effects = [];
+        const other = { of(value) { effects.push(this === other ? 'this' : 'lost receiver'); return [value + 1]; } };
+        function read(pick) {
+          let a = Object, b = ${ middle }, c = Array;
+          if (!b) if (!c) a = other;
+          if (!a) b = other;
+          if (!b) c = other;
+          ${ primer === 'before' ? 'void a.unrelated;' : '' }
+          const result = c.of(7)[0];
+          ${ primer === 'after' ? 'void a.unrelated;' : '' }
+          return result;
+        } export const r = [read(true), read(false)];` };
+  }
 }

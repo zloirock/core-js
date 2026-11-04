@@ -219,6 +219,7 @@ export default function plugin(api, options) {
   const getBabelTargets = typeof api.targets === 'function' ? () => babelTargets ??= api.targets() : null;
   const stateKey = Symbol('core-js-file');
   let idle = createFilePlugin(api, options, getBabelTargets, isWebpack);
+  const spares = [];
 
   // Babel prints the value of a shorthand default, skipping comments on its key.
   // Share those comment objects with the value before the final generator runs.
@@ -228,12 +229,15 @@ export default function plugin(api, options) {
 
   // Babel reuses a plugin instance across concurrent or nested files. A file owns its
   // binding state through post(), including the late helper sweep and import flush.
-  // Reuse one completed state for sequential files; overlapping files get their own.
+  // Keep one completed state warm for sequential files. A burst can reuse the rest
+  // while they are live without pinning its peak number of contexts afterwards.
   return {
     name: 'core-js@4',
     pre(...args) {
-      const state = idle ?? createFilePlugin(api, options, getBabelTargets, isWebpack);
+      let state = idle;
       idle = null;
+      while (!state && spares.length) state = spares.pop().deref();
+      state ??= createFilePlugin(api, options, getBabelTargets, isWebpack);
       this[stateKey] = state;
       return state.pre.apply(this, args);
     },
@@ -247,6 +251,7 @@ export default function plugin(api, options) {
       const state = this[stateKey];
       try {
         const result = state.post.apply(this, args);
+        if (idle) spares.push(new WeakRef(idle));
         idle = state;
         return result;
       } finally {
@@ -2567,18 +2572,23 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           );
         }
         // outputDebug AFTER potential warning add so format() includes the late-CJS diagnostic.
-        // then drop closure-captured per-file state so the previous file's AST + injector don't
-        // pin references between `initFile` calls (Babel runs the visitor object for every
-        // transformed file in the same plugin instance). next `initFile` re-allocates
-        // everything; explicit nulling makes the GC bound deterministic
+        // then release the file's state before the context can serve another file
         outputDebug();
+        releaseFile();
+      }
+
+      // Final pruning reads the rewritten tree. The next file's census needs Babel's
+      // source reference lists again. Its own pre-pass answers are still reset after census.
+      function releaseFile() {
+        typeResolvers.reset();
         injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
-        // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
-        // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
-        // emitters do. its derived slots go with it - they are read only during traversal
+        // The census holds written value nodes, the directive candidates hold paths,
+        // and a selection without a source span is keyed by the node itself.
         lateEscapeProgram = sourceGlobalUses = null;
         prePassSites = fileCensus = escapedCtorNames = mutatedStatics = mutationRoots = null;
-        writtenContainerSlots = containerSlotIndex = memberKeyNames = null;
+        writtenContainerSlots = containerSlotIndex = memberKeyNames = format = disabledLines = null;
+        entryDirectiveCandidates.length = 0;
+        deadSelections.clear();
       }
 
       // every per-file slot that is NOT heap-allocated, in one place: postHook nulls the
@@ -2684,12 +2694,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // sorted polyfill region
             finalizeInjector();
             outputDebug();
-            // mirror `postHook`'s closure-captured state cleanup so multi-file batch GC bound is
-            // deterministic - without nulling, FILE A's injector + AST refs survive until the next
-            // initFile reassigns. entryGlobalPre runs the SAME `initFile`, which allocates synthSwap
-            // / destructureEmit / skippedNodes too: entry-global never USES them, but they still pin
-            // the AST (destructureEmit captures injector -> programPath), so null them all here
-            injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
+            releaseFile();
           }),
         };
       }
