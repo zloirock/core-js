@@ -359,8 +359,10 @@ function wrapperCarriesOpaqueNestedClaim(pattern, array, ctx) {
 // Reuse only a stable name from the original literal position. The full RHS still runs
 // before any pattern read; a member value always keeps its one property access. A selection
 // the build decides is the value of it that runs, behind an effect prefix too (`decidedRunningValue`),
-// as a name spelled alone there is reused.
+// as a name spelled alone there is reused. A live default selects a new value in the capture;
+// its source name cannot stand in for that value, even when reading the name is stable.
 export function reusableArrayCaptureReceiver(capture, element, ctx) {
+  if (element.defaultValue) return null;
   const receiver = element.path.reduce((node, index) => pairedArrayWrapInitElement(
     unwrapRuntimeExpr(node)?.elements ?? [], index,
   ), capture.init);

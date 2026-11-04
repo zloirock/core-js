@@ -21,6 +21,9 @@ const ALLOWED = new Map([
   ['audit-proxy-hop-normalize-disabled-line', ['globalThis', 'globalThis', 'globalThis']],
   ['opt-out-over-a-guarded-navigation', ['globalThis', 'globalThis']],
   ['realm-left-patched-native-owner-decides', ['globalThis']],
+  ['realm-selection-disabled-assignment', ['globalThis', 'globalThis']],
+  ['realm-selection-disabled-declaration', ['globalThis', 'globalThis']],
+  ['realm-selection-disabled-typeof', ['self', 'self', 'globalThis']],
   ['user-selection-opted-out', ['globalThis', 'globalThis']],
   // Targets or exclude make this root unavailable; a different backed hop may still fold.
   ['audit-forced-include-modern-targets', Array(4).fill('globalThis')],

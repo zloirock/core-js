@@ -2756,11 +2756,12 @@ export function realmProbeArmSelection(node, ctx) {
 // the SITES a destructure host offers the collapse above, as `{ container, key, init, operand }`:
 // the host's own init slot and, where that init is an array WRAPPER, each element paired with a
 // pattern element. empty where the host is not a destructure, gathers a rest, or the method only
-// reads. both bindings walk the list and do their own swap - the answer is one, the surgery theirs
+// reads, or the source opts out. both bindings walk the list and do their own swap - the answer
+// is one, the surgery theirs
 export function realmSelectingHostCollapses(hostNode, ctx) {
   const slot = hostNode?.type === 'VariableDeclarator' ? 'init'
     : hostNode?.type === 'AssignmentExpression' && hostNode.operator === '=' ? 'right' : null;
-  if (!slot) return [];
+  if (!slot || ctx?.adapter?.isOptedOut?.(hostNode)) return [];
   // a DESTRUCTURE host only - the pattern is what reads the selection's value member by member, and
   // what every route below needs a plain receiver for. a plain binding holds the selection's value
   // whole, where nothing has to name it
@@ -6229,7 +6230,11 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   }
   if (navValueCanShortCircuit(core, resolvePure, aliasCtx, { throughChainAssign, observableRead })) return true;
   const hop = realmHopKeyName(core, aliasCtx, { allowSideEffectKeys: true });
-  if (!proxyHopLacksPureEntry(hop, resolvePure)) return false;
+  const meta = { kind: 'global', name: hop };
+  // A defined entry can still be excluded from this build. Keep that native read's guard,
+  // while a target-native entry the build carries retains the ordinary collapse.
+  if (!hop || !POSSIBLE_GLOBAL_OBJECTS.has(hop)
+    || (aliasCtx?.adapter?.available?.(meta) !== false && !proxyHopLacksPureEntry(hop, resolvePure))) return false;
   const rootRaw = unwrapRuntimeExpr(peelReceiverSequenceTail(core.object));
   // the chain-root peel to FIXPOINT: a write storing an effect-prefixed root is the shape it
   // exists for (`(held = (n++, globalThis)).window`) - the one-step assign peel stops at that
@@ -6746,7 +6751,7 @@ function keptProxyValueFacts(node, resolvePure, isSubstituted = null) {
   const key = identifier ? value.name : member ? staticMemberKeyName(value) : null;
   const pure = key && resolvePure({ kind: 'global', name: key });
   return {
-    rawRead: !identifier && (!member || proxyHopLacksPureEntry(key, resolvePure)),
+    rawRead: !identifier && (!member || POSSIBLE_GLOBAL_OBJECTS.has(key) && !pure),
     spellable: identifier ? !!pure || POSSIBLE_GLOBAL_OBJECTS.has(value.name) || !!isSubstituted?.(value.name)
       : !member || value.computed || !!pure,
   };

@@ -1603,6 +1603,9 @@ function createResolveNodeType(babelNodeType, t, {
     return anchorPathScope(path);
   }
 
+  // A positional capture and a for-x head can revisit their own binding through a source alias.
+  const bindingValuesBeingRead = new Set();
+
   // the value an array pattern's binding `name` captures whole off its declarator's init, or null. Only
   // positional captures carry a whole value. Field extractions keep the field-flow fold, which can
   // include writes and live defaults absent from the literal initializer
@@ -1610,12 +1613,15 @@ function createResolveNodeType(babelNodeType, t, {
     const { id, init } = bindingPath.node;
     if (!init || id?.type !== 'ArrayPattern' || patternSlotHasDefault(id, name)) return null;
     const keys = findPatternKeyPath(id, name, bindingPath.scope);
-    const captured = keys?.every(key => typeof key === 'number' && key >= 0) && followKeyPathInRhs(bindingPath.get('init'), keys);
-    return captured?.node ? captured : null;
+    if (!keys?.every(key => typeof key === 'number' && key >= 0) || bindingValuesBeingRead.has(bindingPath.node)) return null;
+    bindingValuesBeingRead.add(bindingPath.node);
+    try {
+      const captured = followKeyPathInRhs(bindingPath.get('init'), keys);
+      return captured?.node ? captured : null;
+    } finally {
+      bindingValuesBeingRead.delete(bindingPath.node);
+    }
   }
-
-  // the for-x heads whose element `forXHeadElementPath` is reading right now
-  const forXHeadsBeingRead = new Set();
 
   // the value a for-x HEAD binding holds, which no init can spell: what the loop ITERATES. a SOLE
   // element names one value and answers for the whole loop - the one clause of the shared primitive
@@ -1640,13 +1646,13 @@ function createResolveNodeType(babelNodeType, t, {
     if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') {
       // an element reading its own head back (`for (const Y of [Y])`) names no value: the head is
       // asked again while its element resolves
-      if (forXHeadsBeingRead.has(bindingPath.node)) return null;
-      forXHeadsBeingRead.add(bindingPath.node);
+      if (bindingValuesBeingRead.has(bindingPath.node)) return null;
+      bindingValuesBeingRead.add(bindingPath.node);
       let globalName;
       try {
         globalName = first && resolveGlobalName(anchorPathScope(first));
       } finally {
-        forXHeadsBeingRead.delete(bindingPath.node);
+        bindingValuesBeingRead.delete(bindingPath.node);
       }
       if (!globalName || (!POSSIBLE_GLOBAL_OBJECTS.has(globalName) && !resolveKnownConstructor(globalName))) return null;
       return first;

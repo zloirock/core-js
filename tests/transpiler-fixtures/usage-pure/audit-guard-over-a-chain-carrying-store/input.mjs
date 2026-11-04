@@ -7,13 +7,12 @@ let v;
 export const guardOverChainStore = (w = globalThis.window?.self)?.window.Map;
 export const guardOverChainStoreDeep = (v = globalThis.window?.self?.window)?.self.Set;
 
-// Without a live optional in the stored navigation, the known realm identity makes the
-// outer guard redundant. This build excludes self, so the native host read still runs and
-// its value is stored before the pure Map binding is returned.
+// The pure self entry is still carried: web.self names a global module, not the pure entry.
+// Without a live optional in the stored navigation, the ordinary realm assumption erases the guard.
 let plain;
 export const guardOverPlainStore = (plain = globalThis.window.self)?.window.Map;
-// ... and a `?.` the same verdict calls DEAD does not stop the fold MID-RUN either: it reads the
-// run's own proven base, so the hops above it ride onto the binding exactly as their plain twins do
+// A guard judged redundant by that same realm assumption also folds mid-run,
+// as does the corresponding plain navigation.
 export const deadGuardMidRun = globalThis.self?.window.customProp;
 export const deadGuardMidRunTwin = globalThis.self.window.customProp;
 export const deadGuardRepeatedHop = globalThis.self?.self.customProp;

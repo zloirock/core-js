@@ -165,4 +165,19 @@ runBoth('plain read-through keeps the stored guarded realm collapse',
     check(`${ label } plain collapse`, proxyReceiverValueCanBeUndefined(node, ctx.resolvePure, ctx), false);
     check(`${ label } observed value`, proxyReceiverValueCanBeUndefined(node, ctx.resolvePure, ctx, { throughChainAssign: true }), true);
   });
+
+runBoth('excluded and target-native self are different value proofs', 'globalThis.self?.Array;', (parser, program, label) => {
+  const path = member(parser, program, 'Array');
+  const probe = unwrapRuntimeExpr(path.node.object);
+  const ctx = context(parser, path);
+  let carried = true;
+  ctx.adapter.available = () => carried;
+  function native() { return null; }
+  check(`${ label } target-native`, proxyReceiverValueCanBeUndefined(probe, native, ctx), false);
+  carried = false;
+  check(`${ label } excluded`, proxyReceiverValueCanBeUndefined(probe, native, ctx), true);
+  check(`${ label } detection-only resolver`, proxyReceiverValueCanBeUndefined(probe, ctx.resolvePure, ctx), true);
+  carried = true;
+  check(`${ label } restored availability`, proxyReceiverValueCanBeUndefined(probe, native, ctx), false);
+});
 finish();

@@ -10,6 +10,9 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 
 const { checkDeep, finish, runBoth } = createChecker('positional-element-types');
 const rows = [
+  ['self capture', 'var [saved] = [saved]; saved.at;', [null]],
+  ['mutual capture', 'var [saved] = [other]; var [other] = [saved]; saved.includes;', [null]],
+  ['capture cycle in an alias', 'var [saved] = [holder]; var holder = saved; saved.at;', [null]],
   ['array constructor loop', 'for (const R of [Array]) { const { prototype: { at } } = R; R.prototype.includes; }', ['Array', 'Array']],
   ['string constructor loop', 'for (const R of [String]) { const { prototype: { at } } = R; R.prototype.includes; }', ['String', 'String']],
   ['repeated constructor', 'for (const R of [Array, Array]) R.prototype.at;', ['Array']],
