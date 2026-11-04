@@ -1,6 +1,51 @@
 import { withChangingWindow, withWindowPresence } from './unbacked-window-host.cjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
+QUnit.test('a plain read above a stored or aliased window throws before the argument', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const alias = globalThis.window;
+    const key = 'Array';
+    let stored = 17;
+    const events = [];
+    function run(read) {
+      try {
+        return read();
+      } catch (error) {
+        return error.name;
+      }
+    }
+    assert.same(run(() => (stored = globalThis.window?.self).Array.from((events.push('stored'), [7]))[0]), live ? 7 : 'TypeError');
+    assert.same(stored, live ? alias : undefined);
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed read must throw before the argument
+    assert.same(run(() => (globalThis.window?.self)[key].of((events.push('keyed'), 9))[0]), live ? 9 : 'TypeError');
+    assert.same(run(() => alias.self?.Array.of((events.push('alias'), 11))[0]), live ? 11 : 'TypeError');
+    assert.same(run(() => alias?.self?.Array.of((events.push('optional'), 13))[0]), live ? 13 : undefined);
+    assert.deepEqual(events, live ? ['stored', 'keyed', 'alias', 'optional'] : []);
+  });
+});
+
+QUnit.test('a static iterator method is read on the constructor that called it', assert => {
+  // eslint-disable-next-line unicorn/no-static-only-class -- the subclass calls the inherited method with a different receiver
+  class Collection {
+    static * [Symbol.iterator]() { yield this; }
+    static first() { return this[Symbol.iterator]().next().value; }
+  }
+  class Subclass extends Collection { /* empty */ }
+  assert.same(Collection.first(), Collection);
+  assert.same(Subclass.first(), Subclass);
+});
+
+QUnit.test('an optional hop uses the surface saved before a later write', assert => {
+  const foreign = { self: { e2eGuardRouteList: [7] } };
+  withTemporaryProperty(globalThis, 'e2eGuardRouteList', [5], () => {
+    let first, saved;
+    assert.same((first = globalThis, saved = first, first = foreign, saved)?.self.e2eGuardRouteList.at(0), 5);
+    assert.same(first, foreign);
+    assert.same((first = foreign, saved = first, first = globalThis, saved)?.self.e2eGuardRouteList.at(0), 7);
+    assert.same(first, globalThis);
+  });
+});
+
 // a failing report cannot serialize a constructor, so reads are compared by what they hold
 function held(value) {
   return value === Array ? 'Array' : typeof value;

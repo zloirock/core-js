@@ -682,7 +682,6 @@ export default function createAstUsagePureCallback({
     return false;
   }
 
-  // eslint-disable-next-line max-statements -- host dispatch keeps the shared decisions ahead of mutations
   return function astUsagePureCallback(meta, metaPath) {
     const { node } = metaPath;
     // the hop-host note is taken BEFORE any render: a guard replaces the whole nav, and the root
@@ -753,16 +752,9 @@ export default function createAstUsagePureCallback({
       }
       if (node.type !== 'MemberExpression') return;
       if (memberWritePositionBails(metaPath)) return spellLogicalPatchDetect(meta, metaPath);
-      // the iterator-method read outranks the inherited-static machinery on a `this`
-      // receiver (`this[Symbol.iterator]` in a static block -> `_getIteratorMethod(this)`);
-      // `super` still bails inside the handler
-      if (isSourcedSymbolIteratorMeta(meta) && isThisReceiver(node.object)) {
-        if (chainAssignStaged(meta)) return;
-        return handleSymbolIterator(meta, metaPath);
-      }
       if (isThisReceiver(node.object) || node.object?.type === 'Super') {
         if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
-        if (isInheritedStaticLookup(metaPath)) {
+        if (isInheritedStaticLookup(metaPath, meta)) {
           meta = remapInheritedStaticMeta(injectorState, meta, resolveStaticInheritedMember(metaPath));
           if (!meta || isMutatedStatics(meta, metaPath)) return;
           return emitInheritedStatic(meta, metaPath);

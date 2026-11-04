@@ -70,4 +70,17 @@ runBoth('a declined consumer keeps its static receiver live',
     check(`${ label }/static value remains visitable`, handledObjects.has(receiver), false);
   });
 
+for (const receive of ['.window', '[windowKey]']) runBoth(`retained ${ receive } above a carried alias`,
+  `let held; const alias = globalThis, windowKey = 'window'; (held = alias).self${ receive }[(tick(), 'declinedSlot')];`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression', item => unwrapRuntimeExpr(item.node.property)?.type === 'SequenceExpression');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const handledObjects = new Set();
+    handleMemberExpressionNode({ node: path.node, scope: path.scope, path, adapter, handledObjects,
+      suppressProxyGlobals: true, resolveMeta: resolvePure, resolvePure });
+    const receiver = unwrapRuntimeExpr(path.node.object);
+    if (receive === '.window') check(`${ label } outer hop is reserved`, handledObjects.has(receiver), true);
+    check(`${ label } backed self remains visitable`, handledObjects.has(unwrapRuntimeExpr(receiver.object)), false);
+  });
+
 finish();

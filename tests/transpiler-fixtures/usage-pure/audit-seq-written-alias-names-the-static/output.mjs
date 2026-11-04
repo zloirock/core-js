@@ -9,6 +9,6 @@ import _self from "@core-js/pure/actual/self";
 // ahead of it
 let alias;
 let stored;
-export const named = (alias = _globalThis, stored = null == alias.window ? void 0 : _self, _Number$MAX_SAFE_INTEGER);
-export const bare = (stored = null == _globalThis.window ? void 0 : _self, _Number$MAX_SAFE_INTEGER);
+export const named = ((alias = _globalThis, stored = null == alias.window ? void 0 : _self).Number, _Number$MAX_SAFE_INTEGER);
+export const bare = ((stored = null == _globalThis.window ? void 0 : _self).Number, _Number$MAX_SAFE_INTEGER);
 export const guarded = null == (alias = _globalThis, stored = null == alias.window ? void 0 : _self) ? void 0 : _Promise.noSuchStatic;

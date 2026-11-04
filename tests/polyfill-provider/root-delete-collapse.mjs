@@ -1,7 +1,7 @@
 // Root drives and terminal delete claims share their source decisions. Native
 // refreshes may renew children, but retained writes and effects keep their identity.
 import { proxyRootCollapseRoutes } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
-import { planDeletedProxyClaim } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { planDeletedProxyClaim, planInnerProxyCollapse } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { collectChainAssignsThroughMemberChain } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -96,7 +96,7 @@ runBoth('refresh precedes receiver planning', 'let held; (held = globalThis.wind
 
 for (const [source, name, expected] of [
   ['delete globalThis.self.custom;', 'self', 'globalThis'],
-  ['const alias = globalThis; delete alias.self.custom;', 'self', 'alias'],
+  ['const alias = globalThis; delete alias.self.custom;', 'self', null],
   ['delete (() => globalThis)().self.custom;', 'self', 'globalThis'],
   ['delete (() => (effect(), globalThis))().self.custom;', 'self', null],
   ['delete (() => globalThis.window)()?.self.custom;', 'self', null],
@@ -112,8 +112,7 @@ for (const [source, name, expected] of [
   const before = JSON.stringify(program.node);
   const facts = { aliasCtx, resolvePure, deleteFold: true, claimName: name };
   const plan = planDeletedProxyClaim(path.node, facts);
-  check(`${ label }/base`, plan?.pure?.hintName ?? plan?.alias?.name ?? (plan?.keep ? 'keep' : null), expected);
-  if (plan?.alias) check(`${ label }/alias identity`, plan.alias, unwrapRuntimeExpr(path.node.object));
+  check(`${ label }/base`, plan?.pure?.hintName ?? (plan?.keep ? 'keep' : null), expected);
   if (plan?.keep) {
     check(`${ label }/store identity`, plan.keep, parser.pickPath(program, 'AssignmentExpression').node);
     check(`${ label }/store not replayed twice`, plan.effects.includes(plan.keep), false);
@@ -121,9 +120,17 @@ for (const [source, name, expected] of [
   }
   check(`${ label }/non-delete`, planDeletedProxyClaim(path.node, { ...facts, deleteFold: false }), null);
   check(`${ label }/non-realm claim`, planDeletedProxyClaim(path.node, { ...facts, claimName: 'Array' }), null);
-  if (expected !== 'alias' && expected !== 'keep') check(`${ label }/unavailable entries`, planDeletedProxyClaim(path.node,
+  if (expected !== 'keep') check(`${ label }/unavailable entries`, planDeletedProxyClaim(path.node,
     { ...facts, resolvePure: () => null }), null);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+});
+
+runBoth('delete through an alias uses its live receiver', 'const alias = globalThis; delete alias.self.field;', (parser, program, label) => {
+  const path = member(parser, program, 'self');
+  const plan = planInnerProxyCollapse(path.node, { aliasCtx: context(parser, path), resolvePure, deleteFold: true,
+    reader: path.parentPath.node });
+  check(`${ label }/alias identity`, plan?.aliasRoot, unwrapRuntimeExpr(path.node.object));
+  checkDeep(`${ label }/effects`, plan?.effects, []);
 });
 
 for (const prefix of ['', 'effect(), ']) runBoth(`store boundary/${ prefix }`,

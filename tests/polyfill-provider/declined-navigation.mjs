@@ -73,7 +73,9 @@ for (const [source, setup, navigated, deleted, admitted] of [
   ['alias.window.self.slot', 'const alias = globalThis;', true, false, true],
   ['alias.window.self', 'const alias = globalThis;', false, false, false],
   ['(effect(), alias).window.self.slot', 'const alias = globalThis;', true, false, false],
+  ['(effect(), alias).self.slot', 'const alias = globalThis;', true, false, true],
   ['(saved = alias).window.self.slot', 'let saved; const alias = globalThis;', true, false, false],
+  ['(saved = alias).self.slot', 'let saved; const alias = globalThis;', true, false, true],
   ['globalThis.window.self.slot', '', true, true, true],
 ]) runBoth(`inner/${ source }`, `${ setup } const result = ${ source };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result').get('init');
@@ -84,6 +86,7 @@ for (const [source, setup, navigated, deleted, admitted] of [
   check(`${ label } admission`, !!plan.fold, admitted);
   if (admitted) {
     check(`${ label } source`, plan.fold.source, node);
+    checkDeep(`${ label } replays receiver effects`, plan.fold.effects, collapse.effects);
     check(`${ label } alias or pure`, plan.fold.base.alias?.name ?? plan.fold.base.pure.entry, setup ? 'alias' : 'self');
   }
 });

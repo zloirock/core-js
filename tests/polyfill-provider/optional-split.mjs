@@ -54,6 +54,9 @@ for (const [source, key, kind, entry] of [
   ['(held = globalThis)?.Math', 'Math', 'member'],
   ['opaque?.Map', 'Map', 'member'],
   ['globalThis.window?.self', 'self', 'surface'],
+  ['window?.self', 'self', 'surface', 'self'],
+  ['window?.globalThis', 'globalThis', 'surface', 'globalThis'],
+  ['window?.window', 'window', 'surface'],
 ]) runBoth(`landing/${ source }`, `let held; const result = ${ source };`, (parser, program, label) => {
   const path = member(parser, program, key);
   const ctx = context(parser, path);
@@ -63,6 +66,7 @@ for (const [source, key, kind, entry] of [
   check(`${ label }/entry`, plan.pure?.entry, entry);
   checkDeep(`${ label }/repeat query`, planOptionalMemberSplit(path.node, ctx), plan);
   check(`${ label }/speculation leaves source`, JSON.stringify(program.node), before);
+  if (source === 'window?.window') check(`${ label }/native environment member`, plan.member, true);
   if (kind === 'surface') check(`${ label }/bare memo`, plan.guard.bareMemo, true);
   else if (kind === 'proven') check(`${ label }/named continuation`, plan.key, 'Math');
 });

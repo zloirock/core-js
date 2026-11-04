@@ -23,7 +23,7 @@ import {
   unbackedProxyHopKey,
 } from './resolve.js';
 import { decidedReusableReceiver } from './destructure.js';
-import { guardProbeUndefinable, holdsProxySurface } from './guard-preparation.js';
+import { guardProbeUndefinable, holdsProxySurface, planGuardComposition } from './guard-preparation.js';
 
 // A named constructor read owns its ponyfill, except a mutated slot. Realm names
 // are navigation, not constructor claims. Delete ownership ignores the slot write;
@@ -56,6 +56,22 @@ export function optionalConstructorLanding(receiver, ctx) {
     source: realm && isAliasProxyRoot(root, ctx) ? root : null };
 }
 
+// A bare environment root stays the guard even when the defined arm can serve a
+// backed hop. A sequence can prove the same surface at the instant a local was
+// saved; a subsequent write to its source binding cannot change that saved value.
+export function optionalSurfaceLanding(node, ctx) {
+  if (!node?.optional || !ctx?.resolvePure) return null;
+  const root = unwrapRuntimeExpr(node.object);
+  const tail = root?.type === 'SequenceExpression' && unwrapRuntimeExpr(root.expressions.at(-1));
+  const saved = tail?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(tail.name);
+  const bare = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
+  if (!saved && (!bare || ctx.resolvePure({ kind: 'global', name: root.name }))) return null;
+  const hop = pristineRealmHopKey(node, ctx, { allowOptional: true });
+  if (!hop || !holdsProxySurface(node.object, ctx)) return null;
+  const composed = planGuardComposition(node, ctx, { readerKey: hop });
+  return { probe: node.object, pure: composed?.pure ?? (saved ? ctx.resolvePure({ kind: 'global', name: hop }) : null) };
+}
+
 // Decide a single optional member's landing before allocating a guard or import.
 // A live environment probe defeats the whole-constructor swap, even through a
 // seal or an alias. Kept writes and sequence prefixes stay in the guard source;
@@ -64,12 +80,13 @@ export function planOptionalMemberSplit(node, ctx) {
   const { adapter } = ctx;
   const landing = optionalConstructorLanding(node.object, ctx);
   if (landing) return { kind: 'unguarded', ...landing };
-  const surface = holdsProxySurface(node.object, ctx);
+  const landingSurface = optionalSurfaceLanding(node, ctx);
+  const surface = !!landingSurface || holdsProxySurface(node.object, ctx);
   const hop = surface && pristineRealmHopKey(node, ctx, { allowOptional: true });
   const key = node.computed ? null : memberKeyName(node);
   const decided = decidedReusableReceiver(node.object, ctx);
   const guard = { decided, bareMemo: !!hop, mutatedLeaf: !!key && isMutatedGlobalSlot(adapter, key), readerKey: key };
-  if (hop) return { kind: 'surface', guard };
+  if (hop) return { kind: 'surface', guard, pure: landingSurface?.pure, member: !!landingSurface && !landingSurface.pure };
   const pure = surface && splitConstructorClaim(key, ctx);
   if (pure) return { kind: 'pure', guard, pure };
   if (key && (!surface || unwrapRuntimeExpr(node.object)?.type === 'SequenceExpression')) {

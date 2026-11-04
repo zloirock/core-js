@@ -13,7 +13,7 @@ plain = _Number$MAX_SAFE_INTEGER.name;
 stored = (v = _self, _Number$MAX_SAFE_INTEGER).name;
 // the PROBE store is where the miss cost an import outright: with no name the claim read the static
 // natively off the ponyfill, and a realm without it answers undefined
-probeStored = (v = null == _globalThis.window ? void 0 : _self, _Number$MAX_SAFE_INTEGER).name;
+probeStored = ((v = null == _globalThis.window ? void 0 : _self).Number, _Number$MAX_SAFE_INTEGER).name;
 seqStored = (g = _globalThis, v = (g.window, _self), _Number$MAX_SAFE_INTEGER).name;
 out = [plain, stored, probeStored, seqStored];
 export const read = out;

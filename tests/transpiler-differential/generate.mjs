@@ -22916,6 +22916,54 @@ function * generateRealmMemberKeys() {
   })()`), strip: true };
 }
 
+// A plain read above a seal or nullable alias must throw before later effects. A real optional
+// at the alias itself can short-circuit. Drive both host states from outside the transformed module.
+function * generateGuardRouteReads() {
+  const host = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const present of [false, true]) for (const [name, read] of [
+    ['stored', '(held = globalThis.window?.self).Array.from((log.push("arg"), [7]))[0]'],
+    ['stored-prefix', '(log.push("prefix"), held = globalThis.window?.self).Array.of((log.push("arg"), 7))[0]'],
+    ['stored-rhs-prefix', '(mirror = held = (log.push("rhs"), globalThis.window?.self)).Array.of((log.push("arg"), 7))[0]'],
+    ['const-seal', '(globalThis.window?.self)[ctor].from((log.push("arg"), [7]))[0]'],
+    ['alias', 'alias.self?.Array.from((log.push("arg"), [7]))[0]'],
+    ['alias-own-guard', 'alias?.self?.Array.from((log.push("arg"), [7]))[0]'],
+    ['alias-static', '(log.push("prefix"), alias).Map[(log.push("key"), "name")]'],
+    ['carried-alias-static', 'typeof (held = realm).window.Set?.name'],
+    ['carried-alias-write', '((held = realm).self.window[(log.push("key"), "guardRouteWrite")] = (log.push("rhs"), 7))'],
+    ['stored-key-write', '((held = globalThis.window)[hop].guardRouteWrite = (log.push("rhs"), 7))'],
+  ]) {
+    const row = snippet(`guard-route/${ name }/${ present }`, `withWindowPresence(${ present }, () => {
+      const alias = globalThis.window, ctor = "Array", hop = "self";
+      let held = 17, result;
+      ${ name === 'stored-rhs-prefix' ? 'let mirror;' : '' }
+      ${ name.startsWith('carried-alias-') ? 'const realm = globalThis;' : '' }
+      try { result = ${ read }; } catch (error) { result = error.name; }
+      ${ name.endsWith('-write') ? 'finally { delete globalThis.guardRouteWrite; }' : '' }
+      return [result, held === undefined ? "undefined" : held === globalThis ? "realm" : held];
+    })`);
+    yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(host) };\n${ row.code }`, strip: true };
+  }
+  const repeat = snippet('guard-route/reused-sequence-bindings', `withWindowPresence(true, () => {
+    const realm = globalThis, foreign = { self: { guardRouteList: [7] } };
+    realm.guardRouteList = [5];
+    function run() {
+      let first, saved;
+      const a = (first = globalThis, saved = first, first = foreign, saved)?.self.guardRouteList.at(0);
+      const b = (first = foreign, saved = first, first = globalThis, saved)?.self.guardRouteList.at(0);
+      return [a, b, first === realm];
+    }
+    try { return run(); } finally { delete realm.guardRouteList; }
+  })`);
+  yield { ...repeat, code: `import { withWindowPresence } from ${ JSON.stringify(host) };\n${ repeat.code }`, strip: true };
+  for (const [name, body] of [
+    ['present', 'static *[Symbol.iterator]() { yield this; }'],
+    ['missing', ''],
+  ]) yield { ...snippet(`guard-route/this-iterator/${ name }`, `(() => {
+    class Collection { ${ body } static first() { return this[Symbol.iterator]().next().value === this; } }
+    try { return Collection.first(); } catch (error) { return error.name; }
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23391,4 +23439,5 @@ export function * generate() {
   yield * generateConsumedPatternReads();
   yield * generateOptionalStoreSurfaces();
   yield * generateRealmMemberKeys();
+  yield * generateGuardRouteReads();
 }

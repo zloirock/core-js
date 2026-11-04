@@ -6,5 +6,5 @@ import _self from "@core-js/pure/actual/self";
 let alias;
 let stored;
 let key;
-export const written = (alias = _globalThis, stored = null == alias.window ? void 0 : _self, _Promise)[key];
-export const bare = (stored = null == _globalThis.window ? void 0 : _self, _Promise)[key];
+export const written = ((alias = _globalThis, stored = null == alias.window ? void 0 : _self).Promise, _Promise)[key];
+export const bare = ((stored = null == _globalThis.window ? void 0 : _self).Promise, _Promise)[key];
