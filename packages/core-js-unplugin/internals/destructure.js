@@ -184,9 +184,9 @@ import {
   nodeHoldsSubtree,
   overwriteRebindEmitted,
   planDiscardedInitProbe,
+  renderConsumedProbe,
   captureProbePlan,
   planLiftedRhsPrefix,
-  planSealedNavProbe,
   captureSealedNavProbe,
   propLocalName,
   proxyNavSynthBase,
@@ -384,12 +384,15 @@ export default function createAstDestructureEmitter({
   // Record every pristine host fact before live child claims can replace the initializer.
   // A receiver dispatch keeps its own init live; only a discarded value needs a captured probe.
   function recordJob(options) {
-    recordPristineJob(options);
+    const facts = recordPristineJob(options);
     const { job } = options;
-    if (job.kind !== 'instance' && !job.readsReceiver) {
-      job.initProbePlan = captureProbePlan(job.initProbePlan, job.metaPath, probeRenderCtx);
+    if (!facts || !job.prop || job.readsReceiver || job.seCarried || job.seKey) return;
+    if (facts.probe === undefined) {
+      const init = job.declarator?.init ?? job.assignment?.right;
+      const probe = job.initProbePlan ?? planDiscardedInitProbe(init, job.metaPath, probeRenderCtx);
+      facts.probe = captureProbePlan(probe, job.metaPath, probeRenderCtx);
     }
-    job.sealedProbePlan = captureProbePlan(job.sealedProbePlan, job.metaPath, probeRenderCtx);
+    job.initProbePlan = facts.probe;
   }
 
   // Render the shared receiver-mirror plan, or its caller-argument variant, into live source slots.
@@ -418,6 +421,10 @@ export default function createAstDestructureEmitter({
     });
     return applyNestedParamSynthPlan({
       plan,
+      renderAssignmentProbe(node, key, host) {
+        const probe = captureProbePlan(planDiscardedInitProbe(node, host, probeRenderCtx, { mirror: true }), host, probeRenderCtx);
+        return renderConsumedProbe(probe, key, null, host, probeRenderCtx);
+      },
       fallbackOnBail,
       deferredOnly,
       callerMirror: !!argumentSites,
@@ -1924,7 +1931,6 @@ export default function createAstDestructureEmitter({
         rawKeyRootInit: initRawKeyOnRoot(declarator.init),
         // ... and the same timing for the guard the discarded read renders through;
         // its source plan owns the effects the drain places around that read
-        initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
         // A logical selection observes the nested leaf after selecting its receiver.
         // Keep that final property read in the discarded probe.
         initProbeReadsLeaf: selecting?.type === 'LogicalExpression',
@@ -1936,7 +1942,6 @@ export default function createAstDestructureEmitter({
         absentableStoreReadKey: absentableStoreReadKeyOf(declarator.init,
           { scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath) }),
         // ... and the SEALED shape of the same read, for the same reason
-        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
       },
     });
     return 'handled';
@@ -2448,8 +2453,6 @@ export default function createAstDestructureEmitter({
         job: {
           prop, pattern, chain, kind, entry, hintName, declarator,
           local: propLocalName(prop), host: 'memo-decl', exported, metaPath,
-          initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
-          sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
         },
       });
       markRewrite();
@@ -2614,7 +2617,9 @@ export default function createAstDestructureEmitter({
     // use folds / narrows through it (`{ iterator } = globalThis.Symbol; arr[iterator]` ->
     // `_getIteratorMethod(arr)`); ctor aliases (kind global) registered above
     if (kind !== 'global') registerExtractAliases({ metaPath, kind, entry, hintName, prop, declaration, declarationPath });
-    const sinkDrop = forInit && !!discardedReceiverEffects(declarator.init, { scope: metaPath.scope, adapter, path: metaPath })?.length;
+    const sinkDrop = forInit && !!discardedReceiverEffects(declarator.init, {
+      scope: metaPath.scope, adapter, path: metaPath, resolvePure: usage => resolvePure(usage, metaPath),
+    })?.length;
     recordJob({
       hostPath: exported ? declarationPath.parentPath : declarationPath,
       job: {
@@ -2647,8 +2652,6 @@ export default function createAstDestructureEmitter({
         defaulted: prop.value.type === 'AssignmentPattern',
         // the shape of the read a full consume discards, planned on the PRISTINE tree: by drain
         // time the walk has collapsed the nav and the probe's own question is unanswerable
-        initProbePlan: planDiscardedInitProbe(declarator.init, metaPath, { adapter, resolvePure }),
-        sealedProbePlan: planSealedNavProbe(declarator.init, metaPath, { adapter, resolvePure }),
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),
         readsReceiver: kind === 'instance',
         consumeResidualRead: literalPlan.consumeResidualRead,
@@ -3109,8 +3112,7 @@ export default function createAstDestructureEmitter({
     // guard in place
     const sentinelGuardedRhs = !pureNavRhs && sentinel && chain.length === 0 && kind !== 'instance'
       && prop.value.type === 'Identifier'
-      && (!!initProbePlan
-        || !!planSealedNavProbe(hostParent.node.right, metaPath, probeRenderCtx));
+      && !!initProbePlan;
     // a BARE proxy-global receiver names the polyfilled surface as surely as a nav off one does.
     // the SYMBOL leaf keeps its own route: its KEY is a claim of its own, and consuming the
     // destructure would drop that key's polyfill with the pattern
@@ -3198,7 +3200,6 @@ export default function createAstDestructureEmitter({
       // the shape of the read a full consume DISCARDS, planned on the PRISTINE tree - the
       // declaration host's own pair, asked of the assignment's right
       initProbePlan,
-      sealedProbePlan: planSealedNavProbe(hostParent.node.right, metaPath, { adapter, resolvePure }),
       // an SE-keyed prop in an ASSIGNMENT host keeps its ORIGINAL binding in the residual -
       // the overwrite channel re-binds it right after, so no sentinel mints (babel's shape);
       // a rest sibling still renames (the key must keep excluding it from rest)

@@ -10,6 +10,7 @@ import {
   planForInitSink,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { shouldDropRescueReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -262,5 +263,16 @@ runBoth('consumed header roles', 'let held; const result = held = (effect(), Arr
   check(`${ label }/one store`, many.effects.length, 1);
   check(`${ label }/query leaves source intact`, JSON.stringify(path.node), source);
 });
+
+runBoth('missing facts cannot drop a stored receiver', 'let held; const value = (held = (tick(), globalThis.window)).Array;',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'value');
+    const source = unwrapRuntimeExpr(path.node.init);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const frame = { scope: path.scope, path, adapter };
+    check(`${ label }/missing resolver`, shouldDropRescueReceiver(source, frame), false);
+    check(`${ label }/missing frame`, shouldDropRescueReceiver(source), false);
+    check(`${ label }/absence proved`, shouldDropRescueReceiver(source, { ...frame, resolvePure }), false);
+  });
 
 finish();

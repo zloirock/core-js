@@ -13,6 +13,7 @@
 import { ownEmittedPatternClaim, ownOutputTests, sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   renderAliasHeldProbeRead,
+  renderResidualProbeWrites,
   hostSlot,
   renderInstanceDefaultGuard,
   renderAssignmentOverwrite,
@@ -445,6 +446,10 @@ function renderNestedParamSynth({
   return applyNestedParamSynthPlan({
     plan,
     fallbackOnBail, deferredOnly, callerMirror: !!parameterCallSites,
+    renderAssignmentProbe(node, key, host) {
+      const probe = destructureProbeNode?.(node, host, { mirror: true });
+      return probe && hostSlot(probe.decision.readsSource ? probe.node : probeKeyReadNode(probe.node, { name: key }));
+    },
     onApplied: () => { if (plan?.host?.node) mirroredHosts.add(plan.host.node); },
     embed: node => hostSlot(t.cloneNode(node, true)),
     // A caller mirror owns its memo where that caller evaluates the argument, rather than
@@ -507,13 +512,6 @@ function renderNestedParamSynth({
         target = next;
       }
       if (target.node !== targetNode) return false;
-      if (!source.coerceReceiver && host.node.type === 'AssignmentExpression' && source.tree?.kind === 'object') {
-        const guarded = destructureProbeNode?.(targetNode, host);
-        const firstKey = source.tree.entries[0]?.key;
-        if (guarded && typeof firstKey === 'string') rendered = t.sequenceExpression([
-          probeKeyReadNode(guarded.node, { name: firstKey }), rendered,
-        ]);
-      }
       target.replaceWith(estreeToBabel(renderMirrorTarget(rendered, source, hostSlot)));
       return true;
     },
@@ -585,6 +583,7 @@ export default function createDestructureEmitter({
   getDebugOutput,
   markThrowingExtraction,
   destructureProbeNode = null,
+  prepareDestructureProbe,
   collapseKeptNavValueNode = null,
 }) {
   // alias-resolution context for the proxy-global collapse: lets `findProxyGlobal` follow a
@@ -1008,6 +1007,7 @@ export default function createDestructureEmitter({
   // The probe owned by each extracted value, with its source effects and writes. Classification
   // and residual replay consume these facts directly, without inspecting the emitted sequence.
   const patternProbes = new WeakMap();
+  const patternSources = new WeakMap();
   // structural synth-eligibility of an ObjectPattern, judged on the shape it had when the FIRST of
   // its props reached the dispatch - later props see a spliced-down pattern
   const patternSynthEligibility = new WeakMap();
@@ -4493,17 +4493,36 @@ export default function createDestructureEmitter({
   // already owns that read and its effects, so only the last property can add a probe.
   function sealedProbedDestructureValue(prop, value) {
     const props = prop.parentPath?.node?.properties;
-    if (!props || props.length !== 1 || props[0] !== prop.node) return value;
-    const source = destructureSourceNode(prop);
-    const probe = source && destructureProbeNode?.(source, prop);
+    if (!props?.length) return value;
+    const pattern = prop.parentPath.node;
+    let original = patternSources.get(pattern);
+    if (original === undefined) {
+      const source = destructureSourceNode(prop);
+      const render = source && prepareDestructureProbe(source, prop);
+      original = render ? {
+        render,
+        properties: props.slice(),
+        writes: props.length > 1 ? new Map() : null,
+        key: propertyKeyName(props[0]),
+        effects: harvestDiscardedReceiverSE(source, { scope: prop.scope, adapter, path: prop }),
+      } : null;
+      if (props.length > 1) patternSources.set(pattern, original);
+    }
+    if (props.length !== 1 || props[0] !== prop.node) return value;
+    const probe = original?.render();
     if (!probe) return value;
-    const key = propertyKeyName(prop.node);
+    const { key, effects } = original;
     if (!probe.decision.readsSource && !key) return value;
     const read = probe.decision.readsSource ? probe.node : probeKeyReadNode(probe.node, { name: key });
     skippedNodes.add(read);
-    const facts = { node: read, decision: probe.decision,
-      effects: harvestDiscardedReceiverSE(source, { scope: prop.scope, adapter, path: prop }) };
+    const facts = { node: read, decision: probe.decision, effects };
     // The last leaf establishes full consumption, but the source read precedes all bindings.
+    const write = original.writes?.values().next().value;
+    if (write) {
+      write.right = t.sequenceExpression([read, write.right]);
+      patternProbes.set(value, facts);
+      return value;
+    }
     const host = destructurePatternHostPath(prop);
     const first = host && hostFirstInsert.get(host.node)?.node;
     const firstDeclarator = first?.type === 'VariableDeclarator' ? first
@@ -4516,6 +4535,20 @@ export default function createDestructureEmitter({
     const result = t.sequenceExpression([read, value]);
     patternProbes.set(result, facts);
     return result;
+  }
+
+  // All sibling claims have now run. A surviving pattern keeps the captured
+  // receiver; a full consume has already placed the probe on its first write.
+  function finishPartialAssignmentProbe(path) {
+    const { left } = path.node;
+    if (!left.properties.length) return;
+    const original = patternSources.get(left);
+    if (!original?.writes?.size) return;
+    patternSources.delete(left);
+    const ref = renderResidualProbeWrites(original.properties, left, path.node.right, original.writes, {
+      mintRef: () => generateRef(path.scope, path.node), embed: hostSlot, toHost: estreeToBabel,
+    });
+    if (ref) path.node.right = ref;
   }
 
   // the enclosing destructure SOURCE expression (declarator init / assignment right) for a
@@ -5412,7 +5445,8 @@ export default function createDestructureEmitter({
   function handleDestructuredProperty(prop, value, kind) {
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
-    const propValue = prop.node.value;
+    const sourceProp = prop.node;
+    const propValue = sourceProp.value;
     // captured before default-value processing turns Identifier into ConditionalExpression.
     // a THROW PROBE this emitter minted ahead of the value leaves it static: the host classification
     // routes the init's own effects by this flag, and reading the probe as "dynamic" dropped them
@@ -5535,7 +5569,9 @@ export default function createDestructureEmitter({
       });
       if (inserted?.[0]) recordHostInsert(hostNode, inserted[0]);
     } else {
-      emitAssignmentDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty, probe });
+      const original = !isEmpty && patternSources.get(objectPattern.node);
+      const residualFirst = original && !hasRest ? sourceProp === original.properties.at(-1) : undefined;
+      emitAssignmentDestructure({ prop, sourceProp, parent, localBinding, value, isStaticValue, isEmpty, probe, residualFirst });
     }
   }
 
@@ -5582,9 +5618,10 @@ export default function createDestructureEmitter({
 
   // Apply the shared order at the native statement host. A later sibling's receiver memo
   // owns its prefix; otherwise a leading extraction lifts it ahead of both statements.
-  function insertBesideResidualHost(host, residual, statement, prop = null, onInsert = null) {
+  function insertBesideResidualHost(host, residual, statement, prop = null, onInsert = null, residualFirst = null) {
     const key = residual.isAssignmentExpression() ? 'right' : 'init';
-    if (destructureResidualFirst([], { init: residual.node[key], scope: residual.scope, adapter, path: residual })) {
+    if (residualFirst ?? destructureResidualFirst([], { init: residual.node[key], scope: residual.scope, adapter, path: residual })) {
+      if (residualFirst) liftSurvivingResidualPrefix(t, residual.node, key, host, adapter);
       const inserted = (hostLastAfterInsert.get(host.node) ?? host).insertAfter(statement);
       hostLastAfterInsert.set(host.node, inserted.at(-1));
       onInsert?.(inserted);
@@ -5826,24 +5863,47 @@ export default function createDestructureEmitter({
   // an emptied pattern keeps what its receiver still owes (the shared rescue) ahead of the
   // assignment, and one owing nothing is the bare assignment. replacing the STATEMENT instead
   // dropped whatever the sequence held after this element
-  function emitDiscardedSeqElementDestructure({ parent, element, localBinding, value, isStaticValue, isEmpty, probe = null }) {
-    const rescued = isEmpty && isStaticValue && rescuedInitExpression(parent, parent.node.right, probe);
+  function emitDiscardedSeqElementDestructure({
+    sourceProp, parent, element, localBinding, value, isStaticValue, isEmpty, probe, residualFirst,
+  }) {
+    const prefix = [];
+    if (isEmpty && isStaticValue) {
+      const rescued = rescuedInitExpression(parent, parent.node.right, probe);
+      if (rescued) prefix.push(rescued);
+    } else if (!isEmpty) {
+      const frame = { scope: parent.scope, adapter, path: parent };
+      const split = liftedPrefixSplit(parent.node.right, frame);
+      if (split.prefix.length) {
+        prefix.push(...observablePrefixElements(split.prefix, frame));
+        parent.node.right = split.tail;
+      }
+    }
+    const original = patternSources.get(parent.node.left);
     const statements = renderDestructureStatements([{ id: localBinding, init: value }], {
-      prefix: rescued ? [rescued] : [],
+      prefix,
       residual: isEmpty ? null : t.expressionStatement(element.node),
+      residualAt: residualFirst ? 0 : 1,
       embed: hostSlot,
     }).map(node => estreeToBabel(node));
-    inheritSpan(statements[rescued ? 1 : 0].expression, parent.node);
+    const write = statements[prefix.length + (residualFirst ? 1 : 0)].expression;
+    if (!isEmpty && original) {
+      original.writes.set(sourceProp, write);
+      // These prefix elements now execute before this write in the outer sequence.
+      original.effects = original.effects.filter(effect => prefix.every(item => !subtreeContainsNode(item, effect)));
+    }
+    inheritSpan(write, parent.node);
     const expressions = statements.map(statement => statement.expression);
     return element.replaceWith(expressions.length === 1 ? expressions[0] : t.sequenceExpression(expressions));
   }
 
   // AssignmentExpression branch executor. dispatches the planner strategy to the matching
   // AST mutation - parallel to `emitVariableDeclaratorDestructure`'s switch
-  function emitAssignmentDestructure({ prop = null, parent, localBinding, value, isStaticValue, isEmpty, probe = null }) {
+  function emitAssignmentDestructure({ prop, sourceProp, parent, localBinding, value, isStaticValue, isEmpty, probe, residualFirst }) {
     const seqElement = assignmentInStatementPosition(parent) ? null : discardedSequenceElementPath(parent);
     if (seqElement) {
-      return emitDiscardedSeqElementDestructure({ parent, element: seqElement, localBinding, value, isStaticValue, isEmpty, probe });
+      return emitDiscardedSeqElementDestructure({
+        sourceProp, parent, element: seqElement, localBinding, value, isStaticValue, isEmpty, probe, residualFirst,
+      });
     }
     // peel Paren / TS wrappers up to the ExpressionStatement so the rewrite owns the whole
     // statement - replacing only the inner assignment leaves dead wrapper decoration
@@ -5851,6 +5911,8 @@ export default function createDestructureEmitter({
     const assignmentTarget = hostStatementPath(parent);
     const [assignment] = renderDestructureStatements([{ id: localBinding, init: value }], { embed: hostSlot })
       .map(node => estreeToBabel(node));
+    const original = patternSources.get(parent.node.left);
+    if (!isEmpty && original) original.writes.set(sourceProp, assignment.expression);
     inheritSpan(assignment.expression, parent.node);
     inheritSpan(assignment, assignmentTarget.node);
     // save the original body index before the first insertBefore shifts it, so a deferred SE on
@@ -5878,7 +5940,7 @@ export default function createDestructureEmitter({
         // a bodyless control slot hosts no statement list of its own: brace it first, and both the
         // lifted prefix and the extraction land inside that block, where the effect stays conditional
         return insertBesideResidualHost(statementListOf(assignmentTarget.parentPath?.node)
-          ? assignmentTarget : blockWrappedHostStatement(parent), parent, assignment, prop);
+          ? assignmentTarget : blockWrappedHostStatement(parent), parent, assignment, prop, null, residualFirst);
       default:
         throw new Error(brand(`destructure-emitter: unhandled destructure strategy ${ strategy }`));
     }
@@ -6159,6 +6221,7 @@ export default function createDestructureEmitter({
     collapseRealmSelectingHost,
     pruneEmptiedHostDeclarators,
     flushDiscardedElementSentinels,
+    finishPartialAssignmentProbe,
     unexportSentinelDeclarations,
     noteOwnedComments,
     rehomeOwnedComments,

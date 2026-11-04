@@ -109,8 +109,8 @@ for (const input of [
   accepted.aliasProbe.object.right = { type: 'Identifier', name: 'later' };
   check('emitted alias read owns its copy', JSON.stringify(rendered), snapshot);
 }
-// The late sealed fallback has no pre-recorded job plan. Its accepted read still owns
-// the source effect order, including native slots replaced before the drain consumes them.
+// The job records the sealed read before the initializer changes. Its prefix still
+// reads live child slots at drain, and declining the plan performs no late lookup.
 {
   const input = 'const value = (before(), (globalThis.window?.self).Array);';
   const tree = parser.parseAndScope(input);
@@ -121,12 +121,15 @@ for (const input of [
     resolvePure: ({ name }) => ['globalThis', 'self'].includes(name) ? { entry: name, hintName: name } : null,
     injectPureImport: name => `_${ name }`,
   };
-  const rendered = renderDiscardedInitProbe([{ declarator: at.node, metaPath: at }], ctx);
-  checkTruthy('late fallback emits a sealed read', rendered);
-  check('late fallback preserves the prefix', probeResidualEffects(rendered)[0]?.callee.name, 'before');
+  const job = { declarator: at.node, metaPath: at };
+  check('declined read stays declined at drain', renderDiscardedInitProbe([job], ctx), null);
+  job.initProbePlan = captureProbePlan(planDiscardedInitProbe(at.node.init, at, ctx), at, ctx);
+  const rendered = renderDiscardedInitProbe([job], ctx);
+  checkTruthy('queued source emits its sealed read', rendered);
+  check('queued source preserves the prefix', probeResidualEffects(rendered)[0]?.callee.name, 'before');
   pathOfNode(at, probeResidualEffects(rendered)[0]).replaceWith({ type: 'Identifier', name: 'livePrefix' });
-  check('late fallback reads the current prefix slot', probeResidualEffects(rendered)[0]?.name, 'livePrefix');
-  check('late fallback places the prefix before the read', probeEffectNodes(rendered)[1], rendered);
-  check('late fallback does not replay the read', probeEffectNodes(rendered).length, 2);
+  check('queued source reads the current prefix slot', probeResidualEffects(rendered)[0]?.name, 'livePrefix');
+  check('queued source places the prefix before the read', probeEffectNodes(rendered)[1], rendered);
+  check('queued source does not replay the read', probeEffectNodes(rendered).length, 2);
 }
 finish();

@@ -8067,6 +8067,9 @@ export function buildNestedParamSynthPlan(options) {
         && isReReadableSurfaceNav(leaf, null, { ctx: receiverCtx });
       const receiverNode = callReceiver && !metrics.hasDeferred && !retainNativeReads
         && !coerceReceiver && (reusableSurfaceReceiver || metrics.passthroughCount === 1) ? leaf : null;
+      // Coercion and surviving native keys belong to the same receiver evaluation.
+      const captureProxy = coerceReceiver && metrics.hasPassthrough && descriptor.receiverIsProxy
+        && !resolveGlobalPolyfill(descriptor.receiverName);
       const memo = callReceiver && !receiverNode;
       if (!descriptor.receiverName && metrics.hasPassthrough && !callReceiver) continue;
       // ... an EFFECT keeps a selection from collapsing whole, never its dead right: each one this leaf
@@ -8083,6 +8086,7 @@ export function buildNestedParamSynthPlan(options) {
         readProperties: metrics.readProperties,
         levelDefaults: metrics.levelDefaults,
         ...descriptor,
+        ...captureProxy ? { passthroughReceiver: descriptor } : {},
         // the pattern reads each passthrough key once this receiver has evaluated: a realm key read
         // ahead of every write of its slot is the realm still, as the tree that mirrored it took it
         receiverRead: { node: leaf, path: receiverContext(leaf).path },
@@ -8310,10 +8314,13 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
   if (!keyPath.length && ctx.receiverPrefix) {
     const { receiverPrefix, coerceReceiver, preserveNullishReceiver, preserveFalsyReceiver, ...inner } = ctx;
     const value = renderSynthTree(tree, inner, [], receiverState);
+    const capture = ctx.passthroughCapture;
+    const prefix = capture?.needsPrefix && capture.name
+      ? assignmentExpression('=', identifier(capture.name), receiverPrefix) : receiverPrefix;
     // Empty destructuring performs precisely the discarded receiver's nullish check,
     // before any key or binding in the surviving source pattern is evaluated.
     return sequenceExpression([
-      coerceReceiver ? assignmentExpression('=', renderObjectPattern([]), receiverPrefix) : receiverPrefix,
+      coerceReceiver ? assignmentExpression('=', renderObjectPattern([]), prefix) : prefix,
       preserveFalsyReceiver ? logicalExpression('&&', identifier(ctx.receiverName), value) : preserveNullishReceiver
         ? conditionalExpression(nullGuardTest(identifier(ctx.receiverName)), identifier(ctx.receiverName), value) : value,
     ]);
@@ -8333,17 +8340,22 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
       const read = keyPath.reduce(memberFromKeyName, receiver);
       return ctx.renderPassthrough?.(read, tree) ?? read;
     }
+    const { receiverKeys, receiverName, receiverIsProxy } = ctx.passthroughCapture ?? ctx;
     const ref = resolvePassthroughRef({
-      keyPath: ctx.receiverKeys?.length ? [...ctx.receiverKeys, ...keyPath] : keyPath,
-      receiverName: ctx.receiverName,
-      receiverIsProxy: ctx.receiverIsProxy,
+      keyPath: receiverKeys?.length ? [...receiverKeys, ...keyPath] : keyPath,
+      receiverName,
+      receiverIsProxy,
       resolveGlobalPolyfill: ctx.resolveGlobalPolyfill,
       adapter: ctx.adapter,
       raw: tree.bailed === true,
       read: ctx.receiverRead ?? null,
     });
-    let base = ref.pure ? identifier(ctx.injectImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
-    for (const key of ref.path) base = memberFromKeyName(base, key);
+    // A captured environment supplies native slots; a served slot still uses its own import.
+    const capture = !ref.pure && ctx.passthroughCapture;
+    if (capture) capture.name ??= capture.mint();
+    let base = ref.pure ? identifier(ctx.injectImport(ref.pure.entry, ref.pure.hintName))
+      : identifier(capture ? capture.name : ref.name);
+    for (const key of capture ? keyPath : ref.path) base = memberFromKeyName(base, key);
     return ctx.renderPassthrough?.(base, tree) ?? base;
   }
   if (tree.kind === 'array') {
@@ -9313,6 +9325,7 @@ export function applyNestedParamSynthPlan({
   renderTree,
   replaceTarget,
   skipSubtree,
+  renderAssignmentProbe,
   claimProperties = null,
   claimStaticBindings = null,
   fallbackOnBail = false,
@@ -9340,7 +9353,13 @@ export function applyNestedParamSynthPlan({
   for (const target of plan.targets) {
     const { node, tree, receiverName, receiverIsProxy } = target;
     const memoRef = target.memo ? mintMemoRef?.(target) ?? null : null;
-    if (target.memo && !memoRef) continue;
+    if (target.memo && !memoRef || target.passthroughReceiver && !mintMemoRef) continue;
+    // A fully mirrored assignment replaces the source lookup. Its probe occupies the
+    // receiver's own prefix slot, so a stored receiver cannot be evaluated twice.
+    const firstKey = tree.kind === 'object' && tree.entries[0]?.key;
+    const host = target.host ?? plan.host;
+    const probe = !memoRef && !target.coerceReceiver && !target.nullTestOn && host?.node?.type === 'AssignmentExpression'
+      && typeof firstKey === 'string' && renderAssignmentProbe?.(node, firstKey, host);
     // A probe arm carries its original selection into renderMirrorTarget at the insertion
     // boundary, after native target recovery. Replacing only the arm with an always-defined
     // literal would kill its fallback; dropping the probe would lose the source branch.
@@ -9348,12 +9367,15 @@ export function applyNestedParamSynthPlan({
       receiverName: memoRef ?? receiverName,
       receiverIsProxy: memoRef ? false : receiverIsProxy,
       receiverKeys: memoRef ? null : target.receiverKeys,
-      receiverRead: memoRef ? null : target.receiverRead,
+      receiverRead: memoRef && !target.passthroughReceiver ? null : target.receiverRead,
+      passthroughCapture: target.passthroughReceiver && {
+        ...target.passthroughReceiver, name: memoRef, needsPrefix: !memoRef, mint: () => mintMemoRef(target),
+      },
       receiverNode: target.receiverNode ? embed(target.receiverNode) : null,
-      receiverPrefix: target.keepPrefix
+      receiverPrefix: probe || (target.keepPrefix
         ? memoRef
           ? target.localMemo ? identifier(memoRef) : assignmentExpression('=', identifier(memoRef), embed(node))
-          : embed(node) : null,
+          : embed(node) : null),
       coerceReceiver: target.coerceReceiver,
       preserveNullishReceiver: target.preserveNullishReceiver,
       preserveFalsyReceiver: target.preserveFalsyReceiver,

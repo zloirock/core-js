@@ -57,6 +57,7 @@ import {
   invocationNode,
   isAliasProxyRoot,
   isAmbientBindingShape,
+  isChainAssignment,
   isDestructurePattern,
   isDirectiveStatement,
   isMemberAccessNode,
@@ -999,11 +1000,9 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   // what it just stored, and off-realm THAT read throws. asked only where the caller DISCARDS the
   // holder (`allowStoreHolder`): a named binding re-reads for free, where re-emitting a store
   // beside a render that already carries it runs the write twice
-  // ... and only where the stored VALUE is a plain navigation: the probe re-emits the holder as a
-  // CLONE, and a leg whose inserts are not re-visited leaves every claim inside that clone raw - a
-  // polyfill silently missing from the output. an effect there is the effect channel's anyway
-  const store = allowStoreHolder && object?.type === 'AssignmentExpression' && object.operator === '='
-    && !mayHaveSideEffects(object.right) ? object : null;
+  // The stored value's child claims stay in the source slot. The effect channel must
+  // not replay a prefix inside that write beside the accepted read.
+  const store = allowStoreHolder && object?.type === 'AssignmentExpression' && object.operator === '=' ? object : null;
   if (!store && object?.type !== 'Identifier') return null;
   const key = memberKeyName(member);
   if (key === null) return null;
@@ -1097,8 +1096,18 @@ function aliasHeldValueStep(node, aliasCtx) {
       && write.left?.type === 'Identifier' && write.left.name === node.name) held = write.right;
   }
   if (!held || aliasCtx.enteredValues?.has(held)) return null;
+  let value = unwrapTransparentSeq(held);
+  // A lowered temporary can hold a write to the primary realm's environment
+  // probe. Follow that value without moving either effect. A store reached
+  // through another realm hop keeps the ordinary navigation's collapse.
+  const tail = peelReceiverSequenceTail(held);
+  if (isChainAssignment(tail)) {
+    const stored = peelChainRootValue(tail);
+    const base = isMemberAccessNode(stored) && peelReceiverSequenceTail(stored.object);
+    if (base?.type === 'Identifier' && proxyGlobalRootName({ node: base, ...aliasCtx }) === 'globalThis') value = stored;
+  }
   return {
-    value: unwrapTransparentSeq(held),
+    value,
     aliasCtx: { ...aliasCtx, scope: binding.scope ?? aliasCtx.scope, enteredValues: new Set(aliasCtx.enteredValues).add(held) },
   };
 }
@@ -6030,10 +6039,11 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
 // The immediate pattern's discarded receiver: a sealed source read takes precedence over
 // reading the first pattern key. Otherwise preserve the guarded value used by a full consume
 // or mirror. Queue timing stays with the host; asking this question never accepts child claims.
-export function destructureProbePlan(source, resolvePure, ctx) {
+export function destructureProbePlan(source, resolvePure, ctx, { mirror = false } = {}) {
   const sealed = directClaimProbePlan(source, resolvePure, ctx, { allowStoreHolder: true });
-  if (sealed) return sealed;
-  if (peelChainAssignment(source).outer) {
+  if (sealed) return mirror && sealed.kind === 'alias' && sealed.aliasProbe.object.type === 'AssignmentExpression'
+    ? { ...sealed, coerceHolder: true } : sealed;
+  if (peelChainAssignment(peelReceiverSequenceTail(source)).outer) {
     const stored = discardedInitProbePlan(source, resolvePure, ctx);
     if (stored) return stored;
   }
@@ -6158,7 +6168,7 @@ function chainSealedObjects(node) {
   let cur = peelReceiverSequenceTail(node);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const object = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
-    if (sealedLayerBetween(cur.object, object)) {
+    if (!cur.optional && sealedLayerBetween(cur.object, object)) {
       sealed.push(object);
       break;
     }
@@ -6169,9 +6179,9 @@ function chainSealedObjects(node) {
 
 // does a SEAL in this chain hide a SHORT-CIRCUIT? that is the one thing a seal can hide that the
 // collapse may not erase: the `?.` under it is the user's own runtime test, and the seal makes its
-// result observable to the read above (`(globalThis.window?.self).X` throws off-window, where the
-// unsealed spelling short-circuits). a seal over a PLAIN nav hides nothing of the sort - the value
-// canon reads such a nav as the proxy global it navigates, so it collapses like its unsealed twin.
+// result observable to a plain read above (`(globalThis.window?.self).X` throws off-window).
+// An optional reader checks that result again before touching its key. A seal over a PLAIN nav
+// hides no short circuit: the value canon collapses it like its unsealed twin.
 // THE question every seal-aware channel of both emitters asks; asking "can the sealed value be
 // undefined" instead kept the environment probe in the output, which is undefined in exactly the
 // realms the polyfill exists for

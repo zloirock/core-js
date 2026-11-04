@@ -1241,7 +1241,8 @@ function proxyGlobalChainRootName({ node, scope, adapter, path }) {
 // shared so both emitters make the SAME drop decision (else they desync)
 export function shouldDropRescueReceiver(inner, ctx = null) {
   if (!inner) return false;
-  if (ctx && readStandsOverAbsentableStore(inner, ctx)) return false;
+  if (ctx?.resolvePure ? readStandsOverAbsentableStore(inner, ctx)
+    : descendToChainRoot(inner).root?.type === 'AssignmentExpression') return false;
   // unwrap the object through transparent wrappers / a SE-sequence tail before the type check - parsers
   // differ on keeping paren nodes (babel strips `((e(), gt).self)`, oxc keeps it as a wrapper)
   let obj = inner.object;

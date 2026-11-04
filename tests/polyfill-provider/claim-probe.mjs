@@ -1,6 +1,7 @@
 // The erased claim and the discarded initializer ask one owner for source facts. Queries must
 // leave the source untouched, and a retained holder must not acquire a second inline store.
 import {
+  aliasRootedReadMayThrow,
   claimProbeSourceSlot,
   directClaimProbePlan,
   directClaimProbeEffects,
@@ -239,6 +240,17 @@ for (const [read, ownsRead] of [
   check(`${ label }/effects stay in their source slot`, plan.test.source.source, firstRead);
   check(`${ label }/foreign effect does not justify retaining the read`,
     effectfulClaimReadProbe(path.node.init, [identifier('foreign')], resolvePure, ctx), null);
+});
+
+for (const [init, needsRead] of [
+  ['(tick(), held = globalThis.window)', true],
+  ['held = globalThis.window', true],
+  ['held = (tick(), globalThis.self).window', false],
+  ['held ||= globalThis.window', false],
+]) runBoth(`lowered temporary/${ init }`, `let held; const tmp = ${ init }, value = tmp.Array;`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label }/plain read`, aliasRootedReadMayThrow(path.node.init.object, resolvePure, { scope: path.scope, path, adapter }), needsRead);
 });
 
 finish();

@@ -128,22 +128,30 @@ export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx
 
 // Bind a sealed lookup to its prepared checks and ordered effects. Invocation and
 // arguments stay outside that lookup's guard; a whole-call helper receives its value.
-export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects, capture, checks, methodCallConsume }, ctx) {
-  // The producer declares the leading capture that can move into this guard. Move
-  // that same node and remove its old effect slot; no generated spelling is inspected.
-  const { disjuncts, makeBase } = checks || capture
-    ? { disjuncts: checks ?? [capture], makeBase: () => cloneNode(object) }
+export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPath, effects, checks, methodCallConsume }, ctx) {
+  // A split tested the earlier optional link. Its live member still needs its
+  // first read at lookup, before keys, and the same receiver at invocation.
+  const { disjuncts, makeBase } = checks
+    ? { disjuncts: checks, makeBase: () => cloneNode(object) }
     : ctx.guardObject(object, metaPath, { interveningEffects: effects.length > 0 });
   const decision = planMethodCall({
-    receiver: makeBase(), prepared: true,
-    sideEffects: effects.slice(capture ? 1 : 0), args: callerPath.node.arguments,
+    receiver: makeBase(),
+    prepared: !checks,
+    sideEffects: effects,
+    args: callerPath.node.arguments,
     ctx: { scope: metaPath.scope, path: metaPath, adapter: ctx.adapter, injectorState: ctx.injectorState },
   });
-  const { built } = renderGuardedMethodCall(decision, {
-    helper: identifier(id), guard: { checks: disjuncts, receiver: makeBase() },
+  const helper = identifier(id);
+  const built = methodCallConsume ? renderMethodCall(decision, {
+    helper,
+    lookupGuard: composeNullGuardTest(disjuncts),
+    mintRef: () => ctx.injector.generateDeclaredRef(metaPath),
+    embed: cloneNode,
+  }) : renderGuardedMethodCall(decision, {
+    helper, guard: { checks: disjuncts, receiver: makeBase() },
     invoke: methodCallConsume, sealed: true,
     embed: (node, role) => role === 'receiver' ? makeBase() : cloneNode(node),
-  });
+  }).built;
   const consumed = hopPath.node;
   hopPath.replaceWith(built);
   markSubtreeSkipped(ctx.skippedNodes, consumed);

@@ -3,6 +3,7 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
+var _ref;
 // A realm a pattern reads through a wrapper - a `window` read, a for-of over an array holding it, a sequence
 // prefix, a TS assertion, a `self` hop above the key - still fills the key's slot, so a default on the key is dead
 // all the same: no usage in usage-global, and in usage-pure it leaves with the level's mirror, its import too.
@@ -12,11 +13,11 @@ const {
     groupBy
   },
   JSON: J
-} = ({} = window, {
+} = ({} = _ref = window, {
   Map: {
     groupBy: _Map$groupBy
   },
-  JSON: window.JSON
+  JSON: _ref.JSON
 });
 // @ts-expect-error a selection whose other arm lacks the member is the shape under test
 for (const {

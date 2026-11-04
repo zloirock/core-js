@@ -17,7 +17,7 @@ import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from 
 import { harvestDiscardedReceiverSE, readStandsOverAbsentableStore } from
   '@core-js/polyfill-provider/detect-usage/members';
 import {
-  discardedInitProbePlan,
+  destructureProbePlan,
   directClaimProbePlan,
   directClaimProbeEffects,
   claimProbeSourceSlot,
@@ -45,6 +45,7 @@ import {
   memberKeyName,
   observableSequenceElements,
   patternBindingCount,
+  patternFullyConsumed,
   pathOfNode,
   patternHasSeveralSeKeys,
   patternLevelKeepsEffectfulHop,
@@ -706,17 +707,12 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
   return node;
 }
 
-// Accept and render one immediate sealed read while its child paths are still available.
-function sealedNavProbeRead(receiver, metaPath, ctx) {
-  return renderSealedNavProbe(captureSealedNavProbe(receiver, metaPath, ctx), metaPath, ctx);
-}
-
 // the SHAPE of the read a fully-consumed pattern discards, planned on the PRISTINE tree: by
 // drain time the walk has collapsed the nav, and the guard render spells its own leaf. null
 // where the value cannot be undefined - there is nothing for the read to throw on
-export function planDiscardedInitProbe(initNode, metaPath, ctx) {
-  return discardedInitProbePlan(initNode, meta => ctx.resolvePure(meta, metaPath),
-    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath });
+export function planDiscardedInitProbe(initNode, metaPath, ctx, options) {
+  return destructureProbePlan(initNode, meta => ctx.resolvePure(meta, metaPath),
+    { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath }, options);
 }
 
 // Retain native slots before accepting children: a replacement updates the container, not
@@ -728,9 +724,20 @@ export function captureProbePlan(plan, metaPath, ctx) {
   const remaining = directClaimProbeEffects({ decision: plan, node: null }, harvestDiscardedReceiverSE(plan.source,
     { ...nodeSite(plan.source, metaPath), adapter: ctx.adapter }));
   const residual = remaining.map(node => ({ node, slot: node && pathOfNode(metaPath, node) }));
-  // An alias holder stays live until drain, as before: eagerly walking a stored RHS can
-  // rebase its enclosing receiver before the natural claim reaches it.
-  if (plan.kind === 'alias' || plan.kind === 'passthrough') return { ...plan, residual };
+  // Walk only the children of a retained holder. Walking the holder itself could
+  // collapse the enclosing receiver before its original property read is captured.
+  if (plan.kind === 'alias') {
+    const holder = plan.aliasProbe.object;
+    if (holder.type === 'AssignmentExpression') {
+      const ctxAt = { ...nodeSite(holder, metaPath), adapter: ctx.adapter };
+      function resolve(meta) { return ctx.resolvePure(meta, metaPath); }
+      const left = claimProbeSourceSlot(holder.left, resolve, ctxAt);
+      const right = claimProbeSourceSlot(holder.right, resolve, ctxAt);
+      if (left.children.length || right.children.length) ctx.claimLive?.([...left.children, ...right.children], metaPath);
+    }
+    return { ...plan, residual };
+  }
+  if (plan.kind === 'passthrough') return { ...plan, residual };
   const effects = plan.alternateEffects ?? [];
   const sources = [plan.test?.source?.source].filter(Boolean);
   const nodes = [...effects, ...sources];
@@ -777,25 +784,23 @@ export function probeResidualEffects(probe) {
   return probeEffectNodes(probe).filter(node => node !== probe);
 }
 
-// Render a captured discarded-initializer read, or accept its late sealed fallback.
-// An extraction carrying the receiver already performs that read, including after reanchoring.
-export function renderDiscardedInitProbe(jobs, ctx) {
-  const rendered = renderDiscardedInitProbeRead(jobs, ctx);
-  if (rendered?.plan?.residual) probeFacts.set(rendered.node, rendered.plan.residual);
-  return rendered?.node ?? null;
+// Render the pristine decision for the first source key once the host has fully consumed
+// the initializer. A surviving receiver or key effect already owns that read.
+export function renderDiscardedInitProbe(jobs, ctx, declarator = null) {
+  const [job] = jobs;
+  if (!job?.initProbePlan || jobs.some(item => item.seKey || item.readsReceiver || item.seCarried)) return null;
+  const key = job.chain?.length && !job.initProbeReadsLeaf ? job.chain.at(-1).hopProp : job.prop;
+  const aliasCtx = { scope: job.metaPath.scope, adapter: ctx.adapter, path: job.metaPath };
+  if (declarator && (jobs.some(item => item.sentinel) || residualKeepsSibling(declarator, jobs)
+    || !patternFullyConsumed(declarator.id, prop => jobs.some(item => item.prop === prop), aliasCtx))) return null;
+  const lookupKey = !job.initProbePlan.readsSource && key && resolveSynthKeys({ node: key, ...aliasCtx }).lookupKey;
+  return renderConsumedProbe(job.initProbePlan, lookupKey, key, job.metaPath, ctx);
 }
 
-function renderDiscardedInitProbeRead(jobs, ctx) {
-  const [job] = jobs;
-  const plan = job?.initProbePlan;
-  const metaPath = job?.metaPath;
-  if (!metaPath || jobs.some(item => item.seKey || item.readsReceiver || item.seCarried)) return null;
-  // a SEALED init reads through its own boundary member, and THAT read is the one native
-  // performs (`(globalThis.window?.[(c++, 'self')]).Object` - the pattern key never reaches it)
-  const sealed = renderSealedNavProbe(job.sealedProbePlan, metaPath, ctx)
-    ?? sealedNavProbeRead(job.declarator?.init ?? job.assignment?.right, metaPath, ctx);
-  if (sealed) return { node: sealed, plan: job.sealedProbePlan };
+export function renderConsumedProbe(plan, key, prop, metaPath, ctx) {
   if (!plan) return null;
+  if (plan.kind === 'passthrough') return renderSealedNavProbe(plan, metaPath, ctx);
+  if (!plan.readsSource && typeof key !== 'string') return null;
   // The alias holder's child slots finish their natural claims before drain. Rebind only
   // source-spelling paths to that live value; the read decision remains the pristine one.
   const captured = plan.kind === 'alias' ? { ...plan, object: claimProbeSourceSlot(plan.aliasProbe.object,
@@ -803,14 +808,10 @@ function renderDiscardedInitProbeRead(jobs, ctx) {
   const guarded = renderClaimProbe(captured, {
     injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
   });
-  if (plan.kind === 'alias') return { node: guarded, plan };
-  const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
-  // The outermost pattern hop is the first read; a logical selection keeps its leaf read.
-  const keyProp = job.chain?.length && !job.initProbeReadsLeaf ? job.chain.at(-1).hopProp : job.prop;
-  const { lookupKey } = resolveSynthKeys({ node: keyProp, ...aliasCtx });
-  if (typeof lookupKey !== 'string') return null;
-  return { node: renderAliasHeldProbeRead({ key: lookupKey, computed: !isValidIdentifierName(lookupKey),
-    property: keyProp.computed && keyProp.key?.type === 'Identifier' ? cloneNode(keyProp.key) : null }, guarded), plan };
+  const read = plan.readsSource ? guarded : renderAliasHeldProbeRead({ key, computed: !isValidIdentifierName(key),
+    property: prop?.computed && prop.key?.type === 'Identifier' ? cloneNode(prop.key) : null }, guarded);
+  if (plan.residual) probeFacts.set(read, plan.residual);
+  return read;
 }
 
 // the SE prefix of a RE-ANCHORED assignment init lifts to its own statement: the anchored read
@@ -1473,7 +1474,7 @@ function bodylessExtractionFollows(job, adapter) {
 // Bodyless siblings use the ordinary initializer obligations. A memo or a live residual
 // already reads its source; a fully consumed source keeps unowned effects before its reads.
 // The native slot joins var declarations or wraps the result only when statements need it.
-export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = null, resolvePure, sourceFacts },
+export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = null, resolvePure, sourceFacts, probeRenderCtx },
   { program, mintRefName, removeConsumedProps, markRewrite }) {
   const byDeclarator = new Map();
   for (const job of jobs) {
@@ -1498,7 +1499,11 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
     const frame = { scope: metaPath.scope, adapter, path: metaPath };
     const product = declJobs.length === 1 && seqPrefix?.length && !memoRef ? {} : null;
     const values = declJobs.map(job => job.value(memoRef, product));
-    if (seqPrefix?.length && !memoRef) {
+    const probe = !memoRef && renderDiscardedInitProbe(declJobs, probeRenderCtx, declarator);
+    if (probe) {
+      statements.push(...probeResidualEffects(probe).map(expressionStatement));
+      values[0] = sequenceExpression([probe, values[0]]);
+    } else if (seqPrefix?.length && !memoRef) {
       const prefix = livePrefixOf(declarator, seqPrefix, frame);
       const placed = planDiscardedInitPlacement(prefix, {
         readCount: declJobs.length, carrier: product?.receiver === values[0] ? 'receiver' : null,
@@ -1510,7 +1515,7 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter = 
     emitDeclaratorMemo({ refName: memoRef, declarator, statements, declJobs, kind: 'const' });
     removeConsumedProps(declJobs);
     const residualLives = declarator.id.type !== 'ObjectPattern' || declarator.id.properties.length !== 0;
-    if (!residualLives && !memoRef && !seqPrefix?.length) {
+    if (!residualLives && !memoRef && !seqPrefix?.length && !probe) {
       const { effects } = planDiscardedInit(declarator.init, { ...frame, resolvePure }, null, sourceFacts.get(declarator), declJobs);
       statements.push(...effects.map(expressionStatement));
     }

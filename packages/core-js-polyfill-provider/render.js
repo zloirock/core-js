@@ -14,6 +14,7 @@ import {
   optionalCallReceiverGuard,
   observableSequenceElements,
   peelNestedSequenceExpressions,
+  propertyKeyName,
   subtreeContainsNode,
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
@@ -279,7 +280,6 @@ export function renderReceiverEffects(plan, { memo = null, ...hooks } = {}) {
     return {
       receiver: embed(plan.receiver, 'receiver'),
       effects: plan.effects?.map(node => embed(node, 'effect')),
-      leadingCapture: null,
     };
   }
   memo ??= renderReceiverMemo(plan, hooks);
@@ -292,14 +292,12 @@ export function renderReceiverEffects(plan, { memo = null, ...hooks } = {}) {
       ...firstRead,
       ...plan.keyEffects.map(node => embed(node, 'effect')),
     ],
-    leadingCapture: plan.prefixEffects.length || plan.disjuncts ? null : memo.capture ?? null,
   };
 }
 
 // The first receiver read owns its prefix and optional capture; later reads use only
 // the captured value or the proven stable tail. The host registers a capture before
 // any subsequent scope query; embedding gives repeated base reads distinct identities.
-// `capture` names the allocated write itself, or null; it borrows `firstRead` identity.
 export function renderReceiverMemo({ firstReceiver, receiver = firstReceiver, capture }, {
   mintRef, embed = node => node, recordCapture = node => node,
 }) {
@@ -309,7 +307,6 @@ export function renderReceiverMemo({ firstReceiver, receiver = firstReceiver, ca
     : embed(firstReceiver, 'lookup');
   return {
     firstRead,
-    capture: name ? firstRead : null,
     makeBase: () => embed(name ? identifier(name) : receiver, 'receiver'),
   };
 }
@@ -1058,7 +1055,11 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
   }
   const own = markRenderedProbeRead;
   if (plan.kind === 'alias') {
-    return renderAliasHeldProbeRead(plan.aliasProbe, renderProbeSource(plan.object, context), own);
+    const object = renderProbeSource(plan.object, context);
+    // A later pass may collapse a plain realm hop over a stored window. The
+    // stored value must still reject nullish before the probe reads its key.
+    const receiver = plan.coerceHolder ? assignmentExpression('=', objectPattern([]), object) : object;
+    return renderAliasHeldProbeRead(plan.aliasProbe, receiver, own);
   }
   if (plan.kind === 'stored' || plan.kind === 'read' || plan.leafPlan?.leafIsProbe) {
     return renderProbeSource(plan.test.source, context);
@@ -1251,6 +1252,39 @@ export function renderDestructurePrefix(value, prefix, receiver = null) {
   return value;
 }
 
+// Apply a partial flat assignment in source order. The first served write captures the
+// receiver; native slots before a served key execute there, and the remaining pattern
+// reuses that capture. A final served key can simply follow the native residual.
+export function renderResidualProbeWrites(sourceProps, pattern, init, writes, {
+  mintRef, embed = node => node, toHost = node => node,
+}) {
+  const remaining = new Set(pattern.properties);
+  if (!remaining.size || sourceProps.some(prop => !remaining.has(prop)
+    && (!writes.has(prop) || typeof propertyKeyName(prop) !== 'string'))) return null;
+  let ref = null;
+  let leading = 0;
+  for (const prop of sourceProps.slice(0, -1)) {
+    if (remaining.has(prop)) {
+      leading++;
+      continue;
+    }
+    if (ref && !leading) continue;
+    const write = writes.get(prop);
+    const first = !ref;
+    ref ??= mintRef();
+    const object = first ? assignmentExpression('=', identifier(ref.name), embed(init)) : identifier(ref.name);
+    const slots = pattern.properties.splice(0, leading).map(embed);
+    let read = assignmentExpression('=', objectPattern(slots), object);
+    if (first) {
+      const key = propertyKeyName(prop);
+      read = renderAliasHeldProbeRead({ key, computed: !isValidIdentifierName(key) }, read);
+    }
+    write.right = toHost(sequenceExpression([read, embed(write.right)]));
+    leading = 0;
+  }
+  return ref;
+}
+
 // A consumed header's source plan owns its effects and memo landing. A re-anchored
 // pattern takes the planned prefix in its value; otherwise the remaining read gets a
 // leading sink. The binding supplies native embedding and memo rendering.
@@ -1262,9 +1296,10 @@ export function renderForInitSink(plan, { init, value = null, prefix = [], recei
       ...prefix.map(embed), renderDestructurePrefix(embed(value), effects, receiver),
     ]) };
   }
-  const slot = effects ? effects.length ? sequenceExpression(effects) : null
-    : renderMemo(plan.memo) ?? embed(init);
-  const residualPrefix = plan.residualPrefix && slot?.type === 'SequenceExpression' ? slot.expressions.slice(0, -1) : [];
+  const memo = !effects && renderMemo(plan.memo);
+  const residualPrefix = plan.residualPrefix && !memo
+    ? effects ?? peelNestedSequenceExpressions(init).prefix.map(embed) : [];
+  const slot = effects ? effects.length ? sequenceExpression(effects) : null : memo ?? embed(init);
   const sink = residualPrefix.length ? null : slot;
   return { role: 'initializer', sink: sink ? sequenceExpression([...prefix.map(embed), sink]) : null,
     value: sink ? embed(value) : sequenceExpression([...prefix.map(embed), ...residualPrefix, embed(value)]) };

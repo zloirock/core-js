@@ -8,6 +8,7 @@ import {
   hostSlotNode,
   renderLiftedPrefix,
   renderMirrorTarget,
+  renderResidualProbeWrites,
   renderDestructureDispatch,
   renderDestructurePrefix,
   renderForInitSink,
@@ -89,7 +90,10 @@ runBoth('consumed initializer landing', 'const source = (first(), second(), rece
   check(`${ label }/sink provenance`, separate.role, 'initializer');
   const pattern = land({ effects: [first, second], residualPrefix: true });
   check(`${ label }/residual replaces sink`, pattern.sink, null);
-  checkDeep(`${ label }/residual keeps prefix only`, pattern.value.expressions, [first, read]);
+  checkDeep(`${ label }/residual keeps every planned effect`, pattern.value.expressions, [first, second, read]);
+  const sourcePrefix = land({ effects: null, residualPrefix: true }, { renderMemo: () => null, embed: node => ({ source: node }) });
+  checkDeep(`${ label }/source prefix before host embedding`, sourcePrefix.value.expressions.map(item => item.source),
+    [...parser.collectPaths(program, 'CallExpression').map(item => item.node), read]);
   const memo = {};
   const memoValue = identifier('memoValue');
   let rendered = 0;
@@ -164,5 +168,26 @@ runBoth('mirror target product', 'const source = [receiver, (effect(), receiver)
       checkDeep(`${ label }/unguarded embeds only its value`, seen, [value]);
     }
   });
+
+runBoth('partial writes', '({ x, Map: m, y, Set: s, z } = source);', (parser, program, label) => {
+  const { left, right } = parser.pickPath(program, 'AssignmentExpression').node;
+  const props = left.properties.slice();
+  const [x, map, y, set, z] = props;
+  left.properties = [x, y, z];
+  const writes = new Map([[map, { right: identifier('M') }], [set, { right: identifier('S') }]]);
+  let minted = 0;
+  const ref = renderResidualProbeWrites(props, left, right, writes, {
+    mintRef() {
+      minted++;
+      return identifier('memo');
+    },
+  });
+  check(`${ label }/one capture`, minted, 1);
+  check(`${ label }/residual receiver`, ref.name, 'memo');
+  check(`${ label }/first native key`, writes.get(map).right.expressions[0].object.left.properties[0], x);
+  check(`${ label }/capture reads original source`, writes.get(map).right.expressions[0].object.right.right, right);
+  check(`${ label }/second native key`, writes.get(set).right.expressions[0].left.properties[0], y);
+  check(`${ label }/final native key`, left.properties[0], z);
+});
 
 finish();
