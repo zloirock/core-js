@@ -48,6 +48,7 @@ import {
   isReassignedBeyondDeclarator,
   isReusableReceiver,
   leadingDiscardedEffectSlots,
+  literalIsFreshAtRead,
   patternHasAnyDefault,
   patternHasRestReadBeforeNestedBinding,
   pairedArrayWrapInitElement,
@@ -83,7 +84,7 @@ import {
   spelledSlotName,
   statementListOf,
   walkPatternIdentifiers,
-  hostsExportList,
+  canSplitDestructureExport,
   hasRestSiblingExcept,
   seKeyKeepsReceiverRead,
   patternLevelKeepsEffectfulHop,
@@ -1674,13 +1675,14 @@ function positionalDestructurePlan({ prop, pattern, slot, keys, levels = [], hos
     if (placement.isExport && collectExports) for (const item of declaration.node.declarations) walkPatternIdentifiers(item.id, id => {
       if (id.name !== targetNode.name) exportedSiblings.push(id.name);
     });
+    if (placement.isExport && collectExports && !canSplitDestructureExport(host.declarator)
+      && (placement.isMultiDecl || exportedSiblings.length)) return null;
     placement.exportedSiblings = exportedSiblings;
   }
   const residual = pattern.properties.filter(item => item !== prop);
   const keepsClaimKey = residual.some(isRestProperty);
-  const residualBinds = patternBindingCount({ type: 'ObjectPattern', properties: residual }) > 0;
   const outer = levels.slice(0, -1);
-  const outerBinds = outer.some(level => level.before.length || level.after.length);
+  const outerReads = outer.some(level => level.before.length || level.after.length);
   return {
     pattern,
     outerProps: [{ kind: 'consumed', prop, extractions: [{ targetNode, localName: targetNode.name }] }],
@@ -1691,8 +1693,7 @@ function positionalDestructurePlan({ prop, pattern, slot, keys, levels = [], hos
       outer,
       residual,
       keepsClaimKey,
-      residualBinds,
-      memoizeHop: !!keys.length && (residualBinds || outerBinds),
+      memoizeHop: !!keys.length && (!!residual.length || outerReads),
     },
   };
 }
@@ -2051,11 +2052,11 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
   const exportedSiblings = [];
   const hasFollowing = placement.isMultiDecl && path.parentPath.node.declarations.at(-1) !== path.node;
   const inDeclaration = placement.isForInit || placement.isBodyless || (placement.isMultiDecl && placement.isExport) || hasFollowing;
-  const inlineExport = placement.isExport && !inDeclaration ? extractions.at(-1).localName : null;
+  const inlineExports = placement.isExport && !inDeclaration ? new Set([extractions.at(-1).localName]) : null;
   if (placement.isExport) {
     walkPatternIdentifiers(
       pattern,
-      id => { if (id.name !== inlineExport) exportedSiblings.push(id.name); },
+      id => { if (!inlineExports?.has(id.name)) exportedSiblings.push(id.name); },
     );
   }
   return {
@@ -2067,7 +2068,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       assignment,
       statement,
       inDeclaration,
-      inlineExport,
+      inlineExports,
       splitDeclaration: hasFollowing && !placement.isExport && !placement.isForInit && !placement.isBodyless,
       capture: {
         pattern,
@@ -2081,6 +2082,29 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
       exportedSiblings,
     },
   };
+}
+
+// A namespace has no export list. Its compiler can index the original exported array
+// pattern and can publish its names at different times when a later property throws.
+// Separate exported declarations are equivalent for complete reads of an untouched tuple.
+function namespaceArrayExportNames(plan, path, adapter) {
+  if (!plan.array.inlineExports || adapter.isMutatedStatic?.('Array.prototype', 'Symbol.iterator')) return null;
+  const names = new Set(plan.extractions.map(item => item.localName));
+  if (plan.array.exportedSiblings.some(name => !names.has(name))) return null;
+  const ctx = { scope: path.scope, adapter, path };
+  const input = unwrapRuntimeExpr(path.node.init);
+  const array = followConstLiteralAlias(input, ctx);
+  if (array?.type !== 'ArrayExpression' || !isConstantLiteralReceiver(array) || !literalIsFreshAtRead(input, array, ctx)) return null;
+  for (const { index, pattern } of plan.array.capture.elements) {
+    const slot = array.elements[index];
+    if (pattern.type !== 'ObjectPattern' || (slot?.type !== 'ArrayExpression' && slot?.type !== 'ObjectExpression')) return null;
+    for (const prop of pattern.properties) {
+      const key = isPropertyNode(prop) && propertyKeyName(prop);
+      if (!key || prop.value.type !== 'Identifier'
+        || adapter.isMutatedStatic?.(slot.type === 'ArrayExpression' ? 'Array.prototype' : 'Object.prototype', key)) return null;
+    }
+  }
+  return names;
 }
 
 // Collect sequence prefixes from the shared wrapper peel and the innermost array element.
@@ -2854,12 +2878,17 @@ export function buildNestedDestructurePlan({
     // Export source names explicitly instead of assigning visibility by statement index;
     // an export no list may replace (a TS namespace body) keeps the host native.
     const exportPath = arrayPath.parentPath?.parentPath;
-    if (plan?.array.capture && !plan.array.inDeclaration && !plan.array.positional
-      && exportPath?.node?.type === 'ExportNamedDeclaration') {
-      if (!hostsExportList(exportPath.parentPath?.node)) return null;
-      plan.array.exportFrom = null;
-      plan.array.exportedSiblings = [];
-      walkPatternIdentifiers(plan.pattern, id => plan.array.exportedSiblings.push(id.name));
+    if (plan?.array.capture && exportPath?.node?.type === 'ExportNamedDeclaration') {
+      if (!canSplitDestructureExport(arrayPath)) {
+        const names = namespaceArrayExportNames(plan, arrayPath, adapter);
+        if (!names) return null;
+        plan.array.inlineExports = names;
+        plan.array.exportedSiblings = [];
+      } else if (!plan.array.inDeclaration && !plan.array.positional) {
+        plan.array.exportFrom = null;
+        plan.array.exportedSiblings = [];
+        walkPatternIdentifiers(plan.pattern, id => plan.array.exportedSiblings.push(id.name));
+      }
     }
     // Retain RHS evaluation and sibling binding order without capturing a stable name.
     // Navigations still keep one property read, and source writes invalidate name reuse.
@@ -3537,6 +3566,9 @@ export function buildNestedDestructurePlan({
   if (plan && patternKeepsEffectfulHop(pattern, { scope, adapter, path })) {
     plan.restKeepsLevel = true;
   }
+  // A namespace export cannot hide the sentinels a surviving level would bind.
+  if (plan && !canSplitDestructureExport(path) && (plan.wrapperSurvives || plan.restKeepsLevel
+    || patternKeepsEffectfulKey(declarator.id, { scope, adapter, path }) || plan.pattern.properties.some(isRestProperty))) plan = null;
   if (plan) {
     // These source decisions precede pattern pruning and are shared by every apply
     // of this plan. An anchored residual still reads a constructor, but not the init.

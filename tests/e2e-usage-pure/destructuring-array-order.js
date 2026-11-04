@@ -803,3 +803,20 @@ QUnit.test('destructuring: a static with rest stays after its for initializer', 
   /* eslint-enable no-var, no-redeclare, block-scoped-var -- end of the hoisted binding case */
   assert.deepEqual(events, ['string']);
 });
+
+QUnit.test('positional extraction reads a getter once beside a binding-free pattern', assert => {
+  const events = [];
+  const value = [2, 7];
+  Object.defineProperty(value, 'check', { get() {
+    events.push('check');
+    return [];
+  } });
+  const rows = [{ get hop() {
+    events.push('hop');
+    return value;
+  } }];
+  // eslint-disable-next-line no-empty-pattern -- the sibling iterates without binding a name
+  const [{ hop: { at, check: [] } }] = rows;
+  assert.same(at.call(value, -1), 7);
+  assert.deepEqual(events, ['hop', 'check']);
+});

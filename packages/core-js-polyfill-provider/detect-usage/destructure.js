@@ -101,6 +101,7 @@ import {
   stmtRebindNames,
   paramListRunsWork,
   patternBindingCount,
+  patternBindsOnlySentinels,
   patternHasRestReadBeforeNestedBinding,
   patternKeepsEffectfulKey,
   patternHasAnyDefault,
@@ -4844,10 +4845,9 @@ export function residualPrecedesExtractions(pattern, claimedProps, sourceProps, 
 // performed, and repeating it can fire a user getter twice, so both legs drop it. Spreads remain
 // observable through the same scoped effect predicate used by the rescue and placement canons.
 export function residualHuskIsDead({ pattern, init, isSentinel, scope, adapter, path }) {
-  return pattern?.type === 'ObjectPattern' && patternFullyConsumed(pattern, prop => isPropertyNode(prop)
-    && !computedKeyHasSideEffects(prop, { scope, adapter, path }) && prop.value?.type === 'Identifier' && isSentinel(prop.value),
-  { scope, adapter, path })
-    && !(init && mayHaveSideEffects(init, { scope, adapter, path }));
+  const ctx = { scope, adapter, path };
+  return pattern?.type === 'ObjectPattern' && (!pattern.properties.length || patternBindsOnlySentinels(pattern, isSentinel, ctx))
+    && !(init && mayHaveSideEffects(init, ctx));
 }
 
 // the elements of a discarded sequence PREFIX that still run something: an effect, or a receiver

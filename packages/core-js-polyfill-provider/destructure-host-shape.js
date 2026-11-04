@@ -64,6 +64,7 @@ import {
   peelNestedSequenceExpressions,
   peelTransparentExpr,
   peelToExpressionStatement,
+  canSplitDestructureExport,
   isBodylessStatementSlot,
   isForInitDeclaration,
   runsWithoutOwnVarSlot,
@@ -463,7 +464,7 @@ export function renderArrayDestructurePlan(plan, {
         : plan.array.joinResidual ? variableDeclarator(embed(extraction.targetNode), value)
           : variableDeclaration(kind, [variableDeclarator(embed(extraction.targetNode), value)]),
       extraction.prop,
-      extraction.localName === plan.array.inlineExport,
+      plan.array.inlineExports?.has(extraction.localName),
     );
   }
   if (plan.array.interleavedIterator) {
@@ -1378,6 +1379,10 @@ export function planRetainedObjectCapture(options) {
   const inlineReceiver = (!options.assignment || !preserveResult) && options.kind === 'instance' && !plan.narrow
     && !plan.coerceReceiver && plan.pattern?.properties.length === 1 && !plan.rest
     && (!keyEffects || isConstantLiteralReceiver(receiver));
+  // A namespace can export the original bindings of a flat capture. A receiver memo,
+  // nested capture or rest sentinel would become a public binding of that declaration.
+  if (!canSplitDestructureExport(options.hostPath) && !plan.restPure && (plan.capture || plan.arrayCapture
+    || plan.nestedRest || plan.rest || !receiverRef && !reuseReceiver && !inlineReceiver)) return { keepsNative: true };
   return {
     ...plan,
     ...receiverRef ? { receiverRef } : {},

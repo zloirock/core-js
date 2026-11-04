@@ -1453,15 +1453,35 @@ for (const [code, expected] of [
   check(`${ label } source unchanged`, JSON.stringify(program.node ?? program), original);
 });
 
+for (const [name, source, inline, list] of [
+  ['namespace public extractions', 'const rows = [[1], [2]]; namespace NS { export const [{ at: a }, { at: b }] = rows; }', ['a', 'b'], []],
+  ['namespace missing second slot', 'const rows = [[1]]; namespace NS { export const [{ at: a }, { at: b }] = rows; }', null, null],
+  ['namespace unknown iterator', 'namespace NS { export const [{ at: a }, { at: b }] = rows; }', null, null],
+  ['namespace mixed capture', 'namespace NS { export const [first, { at }] = rows; }', null, null],
+  ['module mixed capture', 'export const [first, { at }] = rows;', ['at'], ['first']],
+]) runBoth(`positional exports/${ name }`, source, (parser, program, label) => {
+  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+  const options = { arrayPath, adapter, resolvePure: meta => meta.key === 'at'
+    ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null };
+  const before = JSON.stringify(arrayPath.node);
+  const plan = buildNestedDestructurePlan(options);
+  checkDeep(`${ label } inline declarations`, plan?.array.inlineExports ? [...plan.array.inlineExports] : null, inline);
+  checkDeep(`${ label } public list`, plan?.array.exportedSiblings ?? null, list);
+  check(`${ label } planning leaves source intact`, JSON.stringify(arrayPath.node), before);
+});
+
 // Positional plans retain the native iterator's slot and distinguish a rest exclusion
 // from an ordinary sibling. Planning itself must leave every source occurrence intact.
-for (const [pattern, keys, memoizeHop, keepsClaimKey, residualBinds] of [
-  ['{ at: method }', 0, false, false, false],
-  ['{ at: method, other }', 0, false, false, true],
-  ['{ at: method, ...rest }', 0, false, true, true],
-  ['{ y: { at: method } }', 1, false, false, false],
-  ['{ y: { at: method, other } }', 1, true, false, true],
-  ['{ before, y: { at: method }, after }', 1, true, false, false],
+for (const [pattern, keys, memoizeHop, keepsClaimKey, residualCount] of [
+  ['{ at: method }', 0, false, false, 0],
+  ['{ at: method, other }', 0, false, false, 1],
+  ['{ at: method, ...rest }', 0, false, true, 1],
+  ['{ y: { at: method } }', 1, false, false, 0],
+  ['{ y: { at: method, other } }', 1, true, false, 1],
+  ['{ y: { at: method, other: {} } }', 1, true, false, 1],
+  ['{ y: { other: [], at: method } }', 1, true, false, 1],
+  ['{ before, y: { at: method }, after }', 1, true, false, 0],
 ]) runBoth('positional plan/source ownership', `const [${ pattern }] = rows;`, (parser, program, label) => {
   const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key?.name === 'at');
   const slot = resolvePositionalElementSlot(prop);
@@ -1472,7 +1492,7 @@ for (const [pattern, keys, memoizeHop, keepsClaimKey, residualBinds] of [
   check(`${ label } key depth`, plan.positional.keys.length, keys);
   check(`${ label } receiver memo`, plan.positional.memoizeHop, memoizeHop);
   check(`${ label } rest exclusion`, plan.positional.keepsClaimKey, keepsClaimKey);
-  check(`${ label } residual binding`, plan.positional.residualBinds, residualBinds);
+  check(`${ label } retained property reads`, plan.positional.residual.length, residualCount);
   check(`${ label } occurrence identity`, plan.outerProps[0].prop, prop.node);
   check(`${ label } source unchanged`, JSON.stringify(slot.slot.node), original);
 });
@@ -2366,9 +2386,12 @@ for (const assignment of [false, true]) for (const key of ['"a-b"', '0']) {
     const last = output.at(-1);
     const receiver = assignment ? last.expression.right : last.declarations[0].init;
     check(`${ label }/independent residual identity`, readers.includes(receiver), false);
-    check(`${ label }/canonical member`, receiver.type, 'MemberExpression');
-    check(`${ label }/canonical key`, receiver.property.type, 'Literal');
-    check(`${ label }/key value`, receiver.property.value, key === '0' ? 0 : 'a-b');
+    const memo = output.find(node => node.type === 'VariableDeclaration' && node.declarations[0].init?.type === 'MemberExpression')?.declarations[0];
+    check(`${ label }/shared hop name`, receiver.name, memo?.id.name);
+    check(`${ label }/extraction reads the same hop`, readers[0].name, receiver.name);
+    check(`${ label }/canonical member`, memo?.init.type, 'MemberExpression');
+    check(`${ label }/canonical key`, memo?.init.property.type, 'Literal');
+    check(`${ label }/key value`, memo?.init.property.value, key === '0' ? 0 : 'a-b');
   });
 }
 

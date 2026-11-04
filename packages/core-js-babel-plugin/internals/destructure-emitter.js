@@ -67,7 +67,6 @@ import {
   observableSequenceElements,
   paramsHaveInvisibleCallers,
   patternBindingCount,
-  patternBindsOnlySentinels,
   patternHasSeveralSeKeys,
   patternKeepsEffectfulKey,
   patternLevelKeepsEffectfulHop,
@@ -2953,10 +2952,12 @@ export default function createDestructureEmitter({
     // ... or binds only the sentinels the prune minted over a PURE init: nothing reads them, the
     // init's coercion is spent by the extractions' own reads, and the other leg drops the same
     // residual (`{ w: [, { keys: _unused }] } = { w: [0, Object] }`)
-    const patternEmpties = !plan.wrapperSurvives && (plan.pattern.properties.length === 0
-      || (declarator.node.id.type === 'ObjectPattern'
-        && patternBindsOnlySentinels(declarator.node.id, id => isUnusedName(id) && !residualKeptSentinels.has(id))
-        && !mayHaveSideEffects(declarator.node.init)));
+    const patternEmpties = !plan.wrapperSurvives && (!isForInit || declCount > 1 || extracted.length > 0)
+      && (plan.pattern.properties.length === 0 || residualHuskIsDead({
+        pattern: declarator.node.id, init: declarator.node.init,
+        isSentinel: id => isUnusedName(id) && !residualKeptSentinels.has(id),
+        scope: declarator.scope, adapter, path: declarator,
+      }));
     // the discarded setup handed back for the statement lift (a consumed wrapper's trailing
     // neighbours lift behind it), empty where the rebuild placed it itself
     if (!patternEmpties) collapseRealmSelectingHost(declarator);

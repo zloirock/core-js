@@ -41,6 +41,11 @@ for (const [name, pattern, dead] of [
   ['all sentinels', '{ at: _unused, keys: _unused2 }', true],
   ['nested live name', '{ inner: { at: kept } }', false],
   ['nested sentinel', '{ inner: { at: _unused } }', true],
+  ['empty child coerces its slot', '{ at: {} }', false],
+  ['empty child iterates its slot', '{ at: [] }', false],
+  ['empty child beside a sentinel', '{ first: _unused, next: {} }', false],
+  ['source default beside a sentinel', '{ first: _unused, next: {} = effect() }', false],
+  ['computed source key', '{ [(effect(), "key")]: _unused }', false],
   ['rest beside a sentinel', '{ at: _unused, ...rest }', false],
 ]) {
   runBoth(`husk pattern/${ name }`, `const ${ pattern } = quiet;`, (parser, program, label) => {
