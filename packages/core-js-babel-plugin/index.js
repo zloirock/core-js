@@ -205,7 +205,7 @@ function splitMinifierSequence(programPath, t, census) {
       product.expression.leadingComments = null;
       product.expression.trailingComments = null;
     }
-    t.inheritTrailingComments(converted[converted.length - 1], statement);
+    t.inheritTrailingComments(converted.at(-1), statement);
     if (statements) statements.splice(statements.indexOf(statement), 1, ...converted);
     else host[key] = t.blockStatement(converted);
   }

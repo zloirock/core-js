@@ -173,7 +173,7 @@ export async function preparePureTypes(typesPath, initialPath, basePurePath) {
         continue;
       }
 
-      const adjustedContent = content.replace(
+      const adjustedContent = content.replaceAll(
         /(?<open>\/\/\/\s*<reference\s+types=")(?<path>[^"]+)(?<close>"\s*\/>)/g,
         (...args) => {
           const { open, path, close } = args.at(-1);

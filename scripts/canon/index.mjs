@@ -62,7 +62,7 @@ async function scanFiles() {
 
 function tokenize(name) {
   return name
-    .replace(/(?<lower>[0-9a-z])(?<upper>[A-Z])/gu, '$<lower> $<upper>')
+    .replaceAll(/(?<lower>[0-9a-z])(?<upper>[A-Z])/gu, '$<lower> $<upper>')
     .replaceAll(/[$_]/gu, ' ')
     .toLowerCase()
     .split(/\s+/u)
@@ -213,9 +213,8 @@ function indexSource({ source, file, entries }) {
       || node.type === 'VariableDeclaration' || node.type === 'ExpressionStatement';
     const nextChain = named && !named.data ? [...chain, named.name] : chain;
     const nextDepth = fnDepth + (SCOPE_NODE_TYPES.has(node.type) ? 1 : 0);
-    for (const key of Object.keys(node)) {
+    for (const [key, value] of Object.entries(node)) {
       if (key === 'leadingComments' || key === 'trailingComments' || key === 'loc') continue;
-      const value = node[key];
       if (value && typeof value === 'object') visit(value, nextChain, forwards ? node.leadingComments ?? inherited : undefined, nextDepth);
     }
   }

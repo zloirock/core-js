@@ -862,7 +862,7 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
   for (let level = propPath.parentPath; level?.node; level = level.parentPath) {
     if (level.node.type === 'ObjectPattern') {
       const slots = level.node.properties.map(prop => synthPropDedupKey(prop, ctx));
-      if (level.node.properties.some(isRestProperty) || slots.some(slot => slot === null)) return null;
+      if (level.node.properties.some(isRestProperty) || slots.includes(null)) return null;
       retainsReads ||= new Set(slots).size !== slots.length;
     }
     if (level.node === pattern) break;
