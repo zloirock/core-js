@@ -1,4 +1,6 @@
+import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
@@ -7040,6 +7042,25 @@ for (const [source, typed] of [
       }
     }
   }
+}
+
+// Load pure into a fresh process after removing the native iterator, as on an older host.
+{
+  const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
+  const source = `let x, it;
+    ({ ab: { x, [Symbol.iterator]: it } } = globalThis.Array);
+    module.exports = [x, typeof it === 'function' && it.call(items).next().value, reads];`;
+  const code = createPlugin(options).transform(source, '/nested-iterator.cjs')?.code ?? source;
+  const program = `const native = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+    delete Array.prototype[Symbol.iterator];
+    const items = [7]; items.x = 23;
+    let reads = 0;
+    Object.defineProperty(Array, 'ab', { get() { reads++; return items; } });
+    ${ code }
+    Object.defineProperty(Array.prototype, Symbol.iterator, native);
+    process.stdout.write(JSON.stringify(module.exports));`;
+  const { stdout } = await promisify(execFile)(process.execPath, ['-e', program]);
+  checkDeep('nested iterator assignment/standalone fallback and single read', JSON.parse(stdout), [23, 7, 1]);
 }
 
 // A captured literal's method is read by its dispatch once; an observable wrapper

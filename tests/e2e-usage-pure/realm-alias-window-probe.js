@@ -6,6 +6,29 @@ function held(value) {
   return value === Array ? 'Array' : typeof value;
 }
 
+QUnit.test('effectful realm keys retain the window read and its evaluation order', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    let first, second;
+    function read() {
+      // eslint-disable-next-line no-sequences -- the effect belongs to the window key
+      return (first = globalThis, second = first[events.push('sequence'), 'window'].self)?.Array;
+    }
+    // eslint-disable-next-line no-sequences -- the key is evaluated even when the member base is nullish
+    function remove() { return delete globalThis.window[events.push('delete'), 'self'].e2eAbsentRealmKey; }
+    if (live) {
+      assert.same(read(), Array);
+      assert.same(second, globalThis);
+      assert.true(remove());
+    } else {
+      assert.throws(read, TypeError);
+      assert.same(second, undefined);
+      assert.throws(remove, TypeError);
+    }
+    assert.deepEqual(events, ['sequence', 'delete']);
+  });
+});
+
 // A local alias of the realm reads `window` exactly as the realm name it holds: an optional link
 // over that read is the environment probe the source observes, so it short-circuits off-window,
 // keeps the delete it decides from happening, and reads the live slot every time.

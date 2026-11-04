@@ -13,6 +13,29 @@ import { createChecker, findNode } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('destructure-receiver-capture');
 
+for (const [name, source, captures] of [
+  ['retained sibling', '({ box: { x, [Symbol.iterator]: it } } = globalThis.Array);', true],
+  ['key before sibling', '({ box: { [Symbol.iterator]: it, x } } = globalThis.Array);', true],
+  ['effectful hop', '({ [(effect(), "box")]: { [Symbol.iterator]: it } } = globalThis.Array);', true],
+  ['sole leaf', '({ box: { [Symbol.iterator]: it } } = globalThis.Array);', false],
+  ['served constructor', '({ Map: { x, [Symbol.iterator]: it } } = globalThis);', false],
+  ['observed assignment', 'const value = ({ box: { x, [Symbol.iterator]: it } } = globalThis.Array);', false],
+]) runBoth(`nested iterator assignment/${ name }`, `let it, x; ${ source }`, (parser, program, label) => {
+  const host = parser.pickPath(program, 'AssignmentExpression');
+  const pattern = host.node.left;
+  const inner = pattern.properties[0].value;
+  const prop = inner.properties.find(item => item.computed);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(host.node);
+  const plan = planRetainedObjectCapture({
+    pattern, init: host.node.right, prop, assignment: true, hostPath: host, adapter, kind: 'instance', entry: 'get-iterator-method',
+    resolvePure: meta => meta.kind === 'global' && meta.name === 'Map' ? { entry: 'map' } : null,
+  });
+  check(`${ label }/ordered leaf`, plan?.innerPlan?.prop === prop, captures);
+  if (captures) check(`${ label }/same pattern`, plan.capture.leafPattern, inner);
+  check(`${ label }/unchanged source`, JSON.stringify(host.node), before);
+});
+
 for (const [source, expected] of [
   ['const { row: { at } } = { row: make(), other: effect() };', true],
   ['for (var { row: { at } } = { row: [], other: effect() }; test;) {}', true],

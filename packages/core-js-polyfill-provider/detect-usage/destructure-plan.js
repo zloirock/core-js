@@ -29,6 +29,7 @@ import {
   discardedWrapperEffects,
   catchPropRewriteObservable,
   computedKeyHasSideEffects,
+  patternKeepsEffectfulKey,
   createInstanceNodeCache,
   followConstIdentifierInit,
   followConstLiteralAlias,
@@ -469,7 +470,8 @@ function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pen
   const { adapter, isOwnAlias, resolvePure, resolveGlobalPolyfill, resolveStaticPolyfill, injectorState } = ctx;
   const prop = path.node;
   const resolveOptions = { allowSePeeledFragment: true, allowNavSegments: !pending };
-  const copy = resolveNestedReceiverNode(path, { ...resolveOptions, adapter });
+  const navigation = !pending && entry === 'get-iterator-method' ? {} : null;
+  const copy = resolveNestedReceiverNode(path, { ...resolveOptions, adapter, navigation });
   const plain = pending && !isReReferenceableReceiver(copy) ? null : copy;
   const carried = !plain && consumedAssignmentSlotDropsHost(path) ? carriedInitReceiverNode({
     path,
@@ -480,6 +482,12 @@ function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pen
   const node = plain ?? carried;
   const surfaceOptions = { allowOptionalHops: true, ctx, isOwnAlias };
   if (!pending) {
+    // A sole iterator target can read the exact nested slot once, even when its
+    // name needs brackets. Its discarded assignment supplies no second reader.
+    if (navigation?.node && prop.value.type === 'Identifier' && soleChainToProp(assignment.left, prop)
+      && !patternKeepsEffectfulKey(assignment.left, ctx) && proxyNavHead(assignment.right, ctx)) {
+      return { kind: 'receiver', ...navigation, carriesInit: true };
+    }
     if (seKeyKeepsReceiverRead({
       prop,
       ctx,

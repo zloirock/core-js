@@ -124,6 +124,7 @@ import {
   proxyGlobalRootName,
   proxyHopLacksPureEntry,
   realmHopKeyName,
+  effectfulRealmHop,
   realmRootIsSpellable,
   requireBoundProxyGlobalName,
   resolveKey,
@@ -316,6 +317,7 @@ export function planInnerProxyCollapse(node, {
   valueConsumer = null,
   reader = null,
 }) {
+  if (effectfulRealmHop(reader, aliasCtx) && unwrapRuntimeExpr(reader.object) === node) return null;
   if (valueConsumer) {
     if (!isDestructurePattern(valueConsumer.target) || valueConsumer.observed
       || !navHasUnresolvableProxyHop(node, resolvePure, aliasCtx)
@@ -1030,7 +1032,7 @@ function deepestBackedProxySpan(navNode, ctx, resolvePure) {
     // holds, and the landing then substituted a ponyfill for the local binding the source named
     // (`g.window` stays `g.window`) - or for one holding a value that can be absent
     // (`const w = dw()?.self`), where the `?.` over the store is the whole point
-    const spanName = isHop ? resolveObjectName({ objectNode: span, ...ctx }) ?? memberProxyHopName(span)
+    const spanName = isHop ? resolveObjectName({ objectNode: span, ...ctx }) ?? realmHopKeyName(span, ctx)
       : POSSIBLE_GLOBAL_OBJECTS.has(span.name) ? proxyGlobalRootName({ node: span, ...ctx }) : null;
     // a MUTATED realm slot holds the user's own object, so the run may not ride its ponyfill - the
     // hop stays spelled and the walk keeps looking below it

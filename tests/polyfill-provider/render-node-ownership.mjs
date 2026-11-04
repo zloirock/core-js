@@ -6,6 +6,7 @@ import {
   hostSlot,
   identifier,
   memberExpression,
+  memberFromKeyName,
   renderDeclinedNavigation,
   renderOuterCollapseValue,
   renderProxyReceiverPlan,
@@ -19,6 +20,17 @@ import {
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { check, checkDeep, finish, runBoth } = createChecker('render-node-ownership');
+
+for (const [key, property] of [
+  ['0', 0],
+  ['01', '01'],
+  ['9007199254740993', '9007199254740993'],
+  ['', ''],
+]) {
+  const member = memberFromKeyName(identifier('holder'), key);
+  check(`computed key/${ key }`, member.computed, true);
+  check(`exact property/${ key }`, member.property.value, property);
+}
 
 function sharedNodes(root) {
   const seen = new Set();

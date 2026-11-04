@@ -109,6 +109,7 @@ import {
   agreeingTernaryArm,
   computedKeyWellKnownSymbolName,
   globalProxyMemberName,
+  isPureNavReceiver,
   isStaticPlacement,
   memberTargetTakesExtraction,
   resolveKey,
@@ -1627,6 +1628,17 @@ function planRetainedObjectCaptureShape({
     && (guardedRealm || guardedFallback || guardedPlan.instanceFallback?.kind === 'instance') ? guardedPlan : null;
   const rest = pattern.properties.find(isRestProperty);
   if (rest && kind === 'instance') return null;
+  // A retained hop and its siblings share one source read. Keep the iterator
+  // dispatch at its property position, where earlier writes and later getters can observe it.
+  if (assignment && entry === 'get-iterator-method' && !capturedResult && !pattern.properties.includes(prop)
+    && (isPureNavReceiver(peelNestedSequenceExpressions(init).tail)
+      || allProxySelectingInit(init, ctx))) {
+    const capture = planNestedKeyedPatternCapture({ pattern, init, prop, kind, entry, ctx, holdsReceiver: true });
+    if (capture && !capture.rest && (capture.splitCapture || capture.leafPattern.properties.length > 1)
+      && !capturedRealmCtorPure({ capture, ...ctx, resolveGlobalPolyfill: name => resolvePure?.({ kind: 'global', name }, hostPath) })) {
+      return { capture, assignment, innerPlan: { pattern: capture.leafPattern, prop, assignment } };
+    }
+  }
   // the capture keeps each nested write in its slot: always under rest, and on a discarded
   // assignment wherever a leaf-level item runs code - the extraction canon lands a nested static
   // behind the residual, where a later key or default would still see its target unwritten. A

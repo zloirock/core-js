@@ -9,6 +9,7 @@ import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   calleeParenWrapped,
+  memberKeyName,
   subtreeContainsNode,
   unwrapRuntimeExpr,
   peelNestedSequenceExpressions,
@@ -195,7 +196,7 @@ export function inheritedStaticCalleeSplit(node, callee, metaPath, ctx) {
       path: metaPath,
       bailOnSideEffectKey: true,
     })
-    : callee.property?.type === 'Identifier' ? callee.property.name : null;
+    : memberKeyName(callee);
   if (typeof key !== 'string') return null;
   const thisReceiver = ctx.isThisReceiver(calleeObject);
   if (calleeObject?.type !== 'Super' && !thisReceiver) return null;

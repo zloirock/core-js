@@ -778,8 +778,8 @@ export function renderSynthProperty(key, value, { computed = false } = {}) {
 // a canonical array index reads as a number (`w[1]`), every other non-identifier key as its string
 export function memberFromKeyName(object, keyName, options = {}) {
   if (isValidIdentifierName(keyName)) return memberExpression(object, identifier(keyName), options);
-  const key = /^(?:0|[1-9]\d*)$/.test(keyName) ? Number(keyName) : keyName;
-  return memberExpression(object, literal(key), { ...options, computed: true });
+  const index = /^(?:0|[1-9]\d*)$/.test(keyName) ? Number(keyName) : NaN;
+  return memberExpression(object, literal(Number.isSafeInteger(index) ? index : keyName), { ...options, computed: true });
 }
 
 // the SLOT READ off a receiver base: a key the literal spelled as a STRING reads back computed

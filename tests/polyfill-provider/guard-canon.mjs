@@ -98,6 +98,8 @@ check('navigation prefix/single-element intermediate sequence',
 
 for (const [source, expected] of [
   ['const value = (d++, (c++, globalThis.window.self));', 'guard'],
+  ['const value = (d++, (c++, globalThis["window"].self));', 'guard'],
+  ['const value = (d++, (c++, globalThis[(effect(), "window")].self));', null],
   ['const value = (d++, (c++, globalThis.self));', 'value'],
   ['const value = (d++, (c++, window.self));', 'value'],
   ['const value = (d++, (c++, globalThis.self.window));', null],

@@ -183,8 +183,9 @@ for (const clone of [false, true]) {
 // --- generateDeclaredRef: a TS parameter-property default owns its receiver memo in a lexical
 // activation. A constructor-body var is invisible from the default, and an outer var is shared
 // across reentrant construction. Check the actual parameter/body slots rather than printed text. ---
-{
-  const { ast } = await transformAsync('class C { constructor(public x = [1, 2].flat()) {} }\nnew C();', {
+for (const iife of [false, true]) {
+  const source = 'class C { constructor(public x = [1, 2].flat()) {} }\nnew C();';
+  const { ast } = await transformAsync(iife ? `(() => { ${ source } })();` : source, {
     ast: true,
     configFile: false,
     babelrc: false,
@@ -193,7 +194,7 @@ for (const clone of [false, true]) {
   });
   const constructor = findNode(ast, node => node.type === 'ClassMethod' && node.kind === 'constructor');
   const activation = constructor.params[0].parameter.right;
-  checkTruthy('generateDeclaredRef/param-property default owns a lexical activation',
+  checkTruthy(`generateDeclaredRef/param-property default owns a lexical activation/iife=${ iife }`,
     activation.type === 'CallExpression' && activation.callee.type === 'ArrowFunctionExpression');
   const { body } = activation.callee;
   check('generateDeclaredRef/param-property default ref declared inside its activation',
