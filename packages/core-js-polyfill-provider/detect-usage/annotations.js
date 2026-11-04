@@ -431,7 +431,7 @@ export function isPolyfillableOptional({
   // where the deopt would run the branch. an ALL-PLAIN multi-hop nav stays deoptable (the
   // proxy-collapse assumption keeps it the always-defined realm global)
   const undefinableReceiver = member === node
-    && proxyReceiverValueCanBeUndefined(objCore, resolve, { scope, adapter, path });
+    && proxyReceiverValueCanBeUndefined(objCore, resolve, { scope, adapter, path }, { throughChainAssign: true });
   if (member === node
     && !undefinableReceiver
     && realmRootIsSpellable(objCore, resolve)

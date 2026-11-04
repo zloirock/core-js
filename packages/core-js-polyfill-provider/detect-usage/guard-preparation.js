@@ -40,6 +40,7 @@ import {
   aliasRootedReadMayThrow,
 } from './resolve.js';
 import {
+  isChainAssignment,
   isMemberAccessNode,
   observableSequenceElements,
   peelNestedSequenceExpressions,
@@ -654,22 +655,28 @@ function resolvedRealmValueName(value, ctx) {
 // Realm navigation can contain stores made earlier in the SAME sequence. This is
 // local evaluation order, not a flow proof of writes across a surrounding function.
 export function holdsProxySurface(objectNode, ctx) {
-  const sequenceWrites = new Map();
-  const followed = new Set();
+  const prefix = [];
   let value = unwrapRuntimeExpr(objectNode);
   for (;;) {
     if (value?.type === 'SequenceExpression') {
-      for (const expr of value.expressions.slice(0, -1)) {
-        const write = unwrapRuntimeExpr(expr);
-        if (write?.type === 'AssignmentExpression' && write.operator === '=' && write.left?.type === 'Identifier') {
-          sequenceWrites.set(write.left.name, unwrapRuntimeExpr(write.right));
-        }
-      }
+      prefix.push(...value.expressions.slice(0, -1).map(unwrapRuntimeExpr));
       value = unwrapRuntimeExpr(value.expressions.at(-1));
-    } else if (value?.type === 'Identifier' && sequenceWrites.has(value.name) && !followed.has(value.name)) {
-      followed.add(value.name);
-      value = sequenceWrites.get(value.name);
-    } else if (value?.type === 'AssignmentExpression') {
+    } else if (value?.type === 'Identifier' && prefix.length) {
+      const at = prefix.findLastIndex(expr => expr.type === 'AssignmentExpression' && expr.left.name === value.name
+        || expr.type === 'UpdateExpression' && expr.argument.name === value.name);
+      if (at === -1) break;
+      const write = prefix[at];
+      // The RHS belongs to the instant of this store. A later conditional write, update
+      // or effect that could change the binding defeats the surface proof.
+      if (!isChainAssignment(write) || prefix.slice(at + 1).some(expr => {
+        // A different local assignment can interfere only through its RHS.
+        const local = isChainAssignment(expr) && expr.left.type === 'Identifier' && ctx.scope
+          && ctx.adapter?.hasBinding?.({ scope: ctx.scope, name: expr.left.name, path: ctx.path });
+        return mayHaveSideEffects(local ? expr.right : expr, ctx);
+      })) return false;
+      prefix.length = at;
+      value = unwrapRuntimeExpr(write.right);
+    } else if (isChainAssignment(value)) {
       value = unwrapRuntimeExpr(value.right);
     } else if (isMemberAccessNode(value)) {
       if (!pristineRealmHopKey(value, ctx)) break;

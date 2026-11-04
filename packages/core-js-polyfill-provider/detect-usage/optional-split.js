@@ -44,13 +44,15 @@ function splitStaticClaim(host, key, { resolvePure }) {
 // when the source has no live environment probe. Alias realm roots keep their
 // binding; constructor leaves land on their own ponyfill. Effects still precede
 // the landing. No import or native allocation belongs to this proof.
-function optionalConstructorLanding(receiver, ctx) {
+export function optionalConstructorLanding(receiver, ctx) {
   const swap = proxyGlobalMemberCtorPureSwap({ receiver, aliasCtx: ctx, resolvePure: ctx.resolvePure });
   if (!swap) return null;
-  const root = findProxyGlobal(receiver, ctx, true);
-  if ((swap.se.length && !root) || navValueCanShortCircuit(unwrapRuntimeExpr(receiver), ctx.resolvePure, ctx)) return null;
+  const realm = POSSIBLE_GLOBAL_OBJECTS.has(swap.pure.hintName);
+  const root = realm || swap.se.length ? findProxyGlobal(receiver, ctx, true) : null;
+  if ((swap.se.length && !root)
+    || navValueCanShortCircuit(unwrapRuntimeExpr(receiver), ctx.resolvePure, ctx, { throughChainAssign: true })) return null;
   return { pure: swap.pure, effects: swap.se,
-    source: POSSIBLE_GLOBAL_OBJECTS.has(swap.pure.hintName) && isAliasProxyRoot(root, ctx) ? root : null };
+    source: realm && isAliasProxyRoot(root, ctx) ? root : null };
 }
 
 // Decide a single optional member's landing before allocating a guard or import.

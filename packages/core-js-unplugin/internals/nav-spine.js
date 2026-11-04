@@ -16,6 +16,7 @@ import {
 import {
   assignmentValueDiscarded,
   claimDeleteOperand,
+  isChainAssignment,
   isDestructurePattern,
   isMutatedGlobalSlot,
   nodeHoldsChild,
@@ -218,14 +219,14 @@ export function foldRealmHopOverCarriedValue(basePath, ctx) {
   }
   // the lift lands ON the store when the render replaced its value slot - the assignment is then
   // the climb's base, not a crossed carrier, and it counts as the store all the same
-  let throughStore = cursor.node?.type === 'AssignmentExpression';
+  let throughStore = isChainAssignment(cursor.node);
   for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
     const { node } = up;
-    const carried = (SKIPPABLE_WRAPPER_TYPES.has(node.type) && node.expression === cursor.node)
-      || (node.type === 'AssignmentExpression' && node.right === cursor.node)
+    const store = isChainAssignment(node) && node.right === cursor.node;
+    const carried = store || (SKIPPABLE_WRAPPER_TYPES.has(node.type) && node.expression === cursor.node)
       || (node.type === 'SequenceExpression' && node.expressions.at(-1) === cursor.node);
     if (carried) {
-      if (node.type === 'AssignmentExpression') throughStore = true;
+      throughStore ||= store;
       cursor = up;
       continue;
     }

@@ -6469,7 +6469,7 @@ export function isVestigialOptionalHop(node, resolvePure, aliasCtx = null) {
   const value = peelChainAssignmentDeep(peelReceiverSequenceTail(object));
   const undefinable = isCallShape(value)
     ? callValueCanBeUndefined(value, aliasCtx, resolvePure)
-    : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, value === object ? undefined : { observableRead: true });
+    : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { throughChainAssign: true, observableRead: value !== object });
   return !undefinable && realmRootIsSpellable(value, resolvePure);
 }
 

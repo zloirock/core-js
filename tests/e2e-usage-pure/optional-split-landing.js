@@ -63,3 +63,42 @@ QUnit.test('optional split keeps a new probe above the stored receiver', assert 
     assert.same(held, globalThis);
   });
 });
+
+QUnit.test('optional instance reads preserve stored realm guards', assert => {
+  for (const requested of [false, true]) withWindowPresence(requested, present => {
+    const events = [];
+    let held;
+    const name = globalThis.window?.Map?.name;
+    assert.same(typeof name, present ? 'string' : 'undefined');
+    const last = (held = globalThis.self).window?.Array.from([1, 2]).at((events.push('index'), -1));
+    assert.same(last, present ? 2 : undefined);
+    assert.same(held, globalThis);
+    // eslint-disable-next-line unicorn/prefer-global-this -- This source must read the bare window binding.
+    const first = (held = window)?.self.Array.from([4]).at(0);
+    assert.same(first, present ? 4 : undefined);
+    assert.same(held, present ? globalThis : undefined);
+    assert.deepEqual(events, present ? ['index'] : []);
+    function missing() {
+      events.push('key');
+      return 'missingOptionalRealmSlot';
+    }
+    assert.same(globalThis[missing()]?.self.items, undefined);
+    assert.same(events[events.length - 1], 'key');
+  });
+});
+
+QUnit.test('logical stores keep a foreign receiver for reads, updates and delete', assert => {
+  const foreign = { window: { document: 'own', count: 1 }, self: { items: [3, 4] } };
+  const opts = { root: foreign };
+  assert.same((opts.root ??= globalThis.self).window.document, 'own');
+  (opts.root ||= globalThis.self).window.count++;
+  assert.same(foreign.window.count, 2);
+  assert.same(foreign.count, undefined);
+  assert.same((opts.root ||= globalThis).self?.items.at(-1), 4);
+  assert.same((opts.root ??= globalThis)?.self.items.at(0), 3);
+  assert.true(delete (opts.root ??= globalThis.self).window.document);
+  assert.false('document' in foreign.window);
+  assert.same(opts.root, foreign);
+  let absent = null;
+  assert.throws(() => (absent &&= globalThis).self?.items.at(0), TypeError);
+});

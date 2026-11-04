@@ -62,8 +62,11 @@ export function * proxyRootCollapseRoutes({
   path, aliasCtx, resolvePure, writeTarget, deleteHosted, valueConsumer = null, keptSequence = false,
 }) {
   const { node } = path;
-  if (!maximalProxyGlobalHop(node, aliasCtx, { throughChainAssign: true })
-    || (!deleteHosted && navValueCanShortCircuit(node, resolvePure, aliasCtx))
+  if (!maximalProxyGlobalHop(node, aliasCtx, { throughChainAssign: true })) return;
+  // A kept probe remains the base of the receiver plan, which transfers its optional
+  // onto the surviving leaf. A different carrier has no such landing for a live guard.
+  const keptStore = keptProbeStore(node.object, resolvePure, aliasCtx);
+  if ((!deleteHosted && navValueCanShortCircuit(node, resolvePure, aliasCtx, { throughChainAssign: !keptStore }))
     || runSwallowsStoreProbe(node, resolvePure, aliasCtx)
     || sealedClaimDisposition(node, resolvePure, aliasCtx, node)?.kind === 'throw') return;
   if (valueConsumer) {
@@ -74,7 +77,6 @@ export function * proxyRootCollapseRoutes({
     return;
   }
   const deleteRoot = deleteHosted && !collectChainAssignsThroughMemberChain(node, { throughEffects: false }).length;
-  const keptStore = keptProbeStore(node.object, resolvePure, aliasCtx);
   if (writeTarget && !deleteRoot && !proxyCollapseConsumer({
     node: node.object, host: node, writeTarget: true,
     hasKeptTail: navHasUnresolvableProxyHop(node.object, resolvePure, aliasCtx),

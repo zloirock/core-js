@@ -1,5 +1,5 @@
 import {
-  planOptionalMemberSplit, optionalSplitReusesSurface, planSplitMemberLanding, splitConstructorClaim,
+  optionalConstructorLanding, planOptionalMemberSplit, optionalSplitReusesSurface, planSplitMemberLanding, splitConstructorClaim,
 } from '@core-js/polyfill-provider/detect-usage/optional-split';
 import { spineHoldsKeptWrite } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // the optional-dispatch channel of the usage-pure emitter: the `?.` split forms (a doubly
@@ -8,7 +8,6 @@ import { spineHoldsKeptWrite } from '@core-js/polyfill-provider/detect-usage/pro
 import {
   navRootPrefixNodes,
   peelReceiverSequenceTail,
-  proxyGlobalMemberCtorPureSwap,
   resolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -564,27 +563,20 @@ export default function createOptionalDispatchChannel(ctx) {
     const parent = callerPath?.node;
     const isCall = (parent?.type === 'CallExpression' ? unwrapRuntimeExpr(parent.callee) : null) === memberNode;
     const callOptional = isCall && parent.optional;
-    // the member's own `?.` is DEAD over a value the polyfill makes always-defined - a pure CTOR
-    // binding: it erases with the substitution, and a guard there would test a binding that
-    // cannot be nullish (`globalThis.WeakMap?.name` -> `_nameMaybeFunction(_WeakMap)`)
-    const deadCtorOptional = memberNode.optional === true && proxyGlobalMemberCtorPureSwap({
-      receiver: memberNode.object,
-      aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
-      resolvePure: m => resolvePure(m, metaPath),
-    });
-    const memberOptional = memberNode.optional === true
-            && !(deadCtorOptional && !deadCtorOptional.se.length);
     const { object } = memberNode;
-    // a DEAD ctor optional means a SECOND `?.` sits in the chain: the tail collapses to
-    // the pure ctor either way, so babel calls the whole nav vestigially defined and the
-    // receiver's own guard drops with it (`(call)?.self.WeakMap?.name` -> `_name(_WeakMap)`)
-    const deadCtorSwap = deadCtorOptional && !deadCtorOptional.se.length
-            && receiverCarriesOptional(object) ? deadCtorOptional.pure : null;
+    // A constructor landing can erase this optional only if the source guard is dead.
+    // Leave an effect-bearing landing to the ordinary split, which emits its prefix.
+    const landing = memberNode.optional && optionalConstructorLanding(object, {
+      scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath),
+    });
+    const deadCtorOptional = landing && !landing.effects.length;
+    const memberOptional = memberNode.optional === true && !deadCtorOptional;
+    const deadCtorSwap = deadCtorOptional && receiverCarriesOptional(object);
     eraseVestigialReceiverOptionals({ memberOptional, object, metaPath });
     const { splitSource, rewrapNonNull } = peelNonNullWraps(object);
     let guardDisjuncts = null;
     let effObject = deadCtorSwap
-      ? identifier(injectPureImport(deadCtorSwap.entry, deadCtorSwap.hintName)) : object;
+      ? landing.source ? cloneNode(landing.source) : identifier(injectPureImport(landing.pure.entry, landing.pure.hintName)) : object;
     if (deadCtorSwap) markSubtreeSkipped(skippedNodes, object);
     else if (!memberOptional) {
       const split = splitOptionalReceiver(splitSource, metaPath);
