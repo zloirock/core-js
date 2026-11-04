@@ -102,3 +102,17 @@ QUnit.test('a surviving claim reads the stored guarded receiver once', assert =>
     assert.deepEqual(effects, ['prefix']);
   });
 });
+
+QUnit.test('a binding-free constructor property still coerces its value', assert => {
+  const log = [];
+  assert.throws(() => {
+    // eslint-disable-next-line no-empty-pattern -- the child still coerces its value
+    const { Promise: { absent: {} } } = globalThis;
+    log.push('after');
+  }, TypeError);
+  assert.throws(() => {
+    // eslint-disable-next-line no-empty-pattern -- the child must acquire an iterator
+    for (let { Promise: { absent: [] } } = globalThis, i = 0; i < 1; i++) log.push('loop');
+  }, TypeError);
+  assert.deepEqual(log, []);
+});

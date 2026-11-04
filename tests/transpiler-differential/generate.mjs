@@ -23009,6 +23009,55 @@ function * generateParameterCaptureBoundaries() {
   })()`), strip: true };
 }
 
+// A binding-free residual still consumes its value. Namespace declarations expose only source names.
+function * generatePositionalResiduals() {
+  for (const [name, pattern, value] of [
+    ['object', 'at, extra: {}', '{}'],
+    ['array', 'at, extra: []', '[]'],
+    ['before', 'extra: {}, at', '{}'],
+    ['null', 'at, extra: {}', 'null'],
+    ['noniterable', 'extra: [], at', '3'],
+    ['default', 'at, extra: {} = (log.push("default"), {})', 'undefined'],
+    ['binding', 'at, extra', '11'],
+  ]) yield { ...snippet(`positional-residual/hop-${ name }`, `(() => {
+    const value = [3, 7]; Object.defineProperty(value, "extra", {get() {log.push("extra");return ${ value };}});
+    const rows = [{ get hop() { log.push("hop"); return value; } }];
+    try { const [{ hop: { ${ pattern } } }] = rows; return at.call(value, -1); }
+    catch (error) { return error.name; }
+  })()`), strip: true };
+  for (const [name, code] of [
+    ['empty-object', 'const { Promise: { missing: {} } } = globalThis;'],
+    ['empty-array', 'const { Promise: { missing: [] } } = globalThis;'],
+    ['loop', 'for (let { Promise: { missing: [] } } = globalThis; ; ) { log.push("body"); break; }'],
+    ['loop-siblings', 'for (let { Promise: { missing: {} } } = globalThis, i = (log.push("init"), 0); i < 1; i++) log.push("body");'],
+    ['nested-empty', 'const { Promise: { missing: { nested: {} } } } = globalThis;'],
+    ['prototype', 'const { Promise: { prototype: {} } } = globalThis;'],
+  ]) yield { ...snippet(`positional-residual/anchor-${ name }`, `(() => {
+    try { ${ code } return "ok"; } catch (error) { return error.name; }
+  })()`), strip: true };
+  for (const [name, declaration, result] of [
+    ['mixed', 'export const [first, { at: method }] = mixed;', '[Box.first, Box.method]'],
+    ['two-reads', 'export const [{ at: first }, { at: second }] = rows;', '[Box.first.call(rows[0], -1), Box.second.call(rows[1], -1)]'],
+    ['multi', 'export const before = 1, [first, { at: method }] = mixed;', '[Box.before, Box.first, Box.method]'],
+    ['nested', 'export namespace Inner { export const [first, { at: method }] = mixed; }', 'Object.keys(Box.Inner).sort()'],
+    ['private-looking', 'export const [_ref, { at: _unused }] = mixed;', '[Box._ref, Box._unused]'],
+  ]) yield { name: `positional-residual/namespace-${ name }`, ts: true, strip: true, code: `const mixed: [number, { at: number }] = [3, { at: 5 }];
+    const rows: [number[], number[]] = [[3, 5], [7, 11]];
+    namespace Box { ${ declaration } }
+    export const r = [Object.keys(Box).sort(), ${ result }];` };
+  yield { name: 'positional-residual/namespace-getter-publication', ts: true, strip: true, code: `const seen: string[] = [];
+    const rows = [[3], [7]];
+    Object.defineProperty(rows[1], "at", { get() { seen.push(Object.keys(Box).join(",")); return 17; } });
+    namespace Box { export const [{ at: first }, { at: second }] = rows; }
+    export const r = [Object.keys(Box).sort(), Box.second, seen];` };
+  yield { name: 'positional-residual/namespace-static-mirror', ts: true, strip: true, code: `const effects: string[] = [];
+    function mark() { effects.push("of"); }
+    namespace Box {
+      export const { Array: { from, [(mark(), "of")]: of }, Infinity: infinity } = globalThis;
+    }
+    export const r = [Object.keys(Box).sort(), Box.from([3]), Box.of(7)]; export { effects };` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23486,4 +23535,5 @@ export function * generate() {
   yield * generateRealmMemberKeys();
   yield * generateGuardRouteReads();
   yield * generateParameterCaptureBoundaries();
+  yield * generatePositionalResiduals();
 }

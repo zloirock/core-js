@@ -58,3 +58,33 @@ QUnit.test('destructuring: a wrapped shadowed realm keeps user slots and null th
   assert.deepEqual(read({ Array: { prototype: { at: 19, flat: 23 } } }), [19, 23]);
   assert.throws(() => read(null), TypeError, 'a non-null assertion adds no runtime guard');
 });
+
+const pair: [number[], number[]] = [[3, 5], [7, 11]];
+const mixed: [number, { at: number }] = [13, { at: 17 }];
+namespace PositionalPublic {
+  export const [{ at: left }, { at: right }] = pair;
+  export namespace Nested {
+    export const [index, { at: value }] = mixed;
+  }
+}
+
+QUnit.test('namespace exports keep positional source names and private captures', assert => {
+  assert.deepEqual(Object.keys(PositionalPublic).sort(), ['Nested', 'left', 'right']);
+  assert.deepEqual(Object.keys(PositionalPublic.Nested).sort(), ['index', 'value']);
+  assert.same(PositionalPublic.left.call(pair[0], -1), 5);
+  assert.same(PositionalPublic.right.call(pair[1], -1), 11);
+  assert.same(PositionalPublic.Nested.index, 13);
+  assert.same(PositionalPublic.Nested.value, 17);
+});
+
+const namespaceKeys: string[] = [];
+function noteNamespaceKey() { namespaceKeys.push('of'); }
+namespace StaticPublic {
+  export const { Array: { from, [(noteNamespaceKey(), 'of')]: of }, Infinity: infinity } = globalThis;
+}
+QUnit.test('namespace static captures keep their effects and export only source bindings', assert => {
+  assert.deepEqual(Object.keys(StaticPublic).sort(), ['from', 'infinity', 'of']);
+  assert.deepEqual(StaticPublic.from([3]), [3]);
+  assert.deepEqual(StaticPublic.of(7), [7]);
+  assert.deepEqual(namespaceKeys, ['of']);
+});

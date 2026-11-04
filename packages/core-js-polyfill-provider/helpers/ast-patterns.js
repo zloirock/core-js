@@ -6495,6 +6495,21 @@ export function aliasEscaped(aliasNode, adapter, path) {
   return !!program && !!ESCAPED_CONTAINER_NAMES.get(program)?.has(aliasNode.name);
 }
 
+// Can a literal capture still observe only the data it constructed? Follow a direct
+// alias only when none of its other uses, including uses in hoisted closures, can run first.
+export function literalIsFreshAtRead(input, literal, { scope, adapter, path }) {
+  if (input === literal) return true;
+  if (input?.type !== 'Identifier' || aliasEscaped(input, adapter, path)) return false;
+  const binding = adapter.getBinding({ scope, name: input.name, path, read: input });
+  if (unwrapRuntimeExpr(bindingDeclaratorNode(binding)?.init) !== literal) return false;
+  const refs = adapter.collectBindingReferences?.(path, input.name);
+  if (!refs) return binding?.references === 1;
+  const holder = findNearestVarScopeOwner(binding.declarationPath ?? binding.path)?.node;
+  return !!holder && refs.every(ref => ref.node === input || !codeMayRunBefore({
+    path: ref, holder, node: input, usagePath: path, adapter, seen: new Set(),
+  }));
+}
+
 // Check a dereferenced alias's member path for writes in usage-pure. Binding-flow analysis
 // alone does not track its contents. Use the declaration owner when known, otherwise the
 // name-wide union; anchor slot timing at the final read, even if the alias was captured earlier.
@@ -15864,18 +15879,29 @@ export function patternFullyConsumed(pattern, isConsumed, ctx = null) {
     )));
 }
 
-// does the pattern bind sentinels alone (`isSentinel(identifierNode)` - a minted node on one leg, a
-// minted NAME on the other), nothing the source still reads? an empty pattern binds nothing at all
-export function patternBindsOnlySentinels(pattern, isSentinel) {
-  let sentinelsOnly = true;
-  walkPatternIdentifiers(pattern, id => { sentinelsOnly &&= isSentinel(id); });
-  return sentinelsOnly;
+// Every retained leaf must be an already served sentinel. A source-written empty child
+// still coerces or iterates its own value; computed keys, defaults and rest can run code.
+export function patternBindsOnlySentinels(pattern, isSentinel, ctx = null) {
+  if (pattern?.type === 'Identifier') return isSentinel(pattern);
+  if (pattern?.type === 'ObjectPattern') return pattern.properties.length > 0 && pattern.properties.every(prop => isPropertyNode(prop)
+    && !computedKeyHasSideEffects(prop, ctx) && patternBindsOnlySentinels(prop.value, isSentinel, ctx));
+  if (pattern?.type === 'ArrayPattern') return pattern.elements.some(Boolean)
+    && pattern.elements.every(element => !element || patternBindsOnlySentinels(element, isSentinel, ctx));
+  return false;
 }
 
 // an export LIST is module syntax: only a Program body hosts one, and an export standing in a TS
 // namespace body stays a declaration there - an unwrap into a plain declaration plus a list declines
 export function hostsExportList(parentNode) {
   return parentNode?.type === 'Program';
+}
+
+// Local captures and a separate list of public names require a module export host.
+// Inside a namespace a source binding must be exported by its own declaration.
+export function canSplitDestructureExport(declarator) {
+  if (declarator?.node?.type !== 'VariableDeclarator') return true;
+  const owner = declarator.parentPath?.parentPath;
+  return owner?.node?.type !== 'ExportNamedDeclaration' || hostsExportList(owner.parentPath?.node);
 }
 
 // an exported declaration whose residual binds a minted sentinel would hand that private name out:
@@ -15936,7 +15962,7 @@ export function pruneEmptiedHopProps(node, { mint, onDrop = null, isSentinel = n
       && (pattern?.type === 'ObjectPattern' || (pattern?.type === 'ArrayPattern' && pattern.elements.length === 1))
       && (patternDead(pattern)
         || (isEffectfulKeyHop(prop, ctx) && !!isSentinel && !patternKeepsEffectfulKey(pattern, ctx)
-          && patternBindsOnlySentinels(pattern, isSentinel)));
+          && patternBindsOnlySentinels(pattern, isSentinel, ctx)));
     if (!emptied) kept.push(prop);
     else if (keepsSentinels) {
       if (defaulted) prop.value.left = mint();
