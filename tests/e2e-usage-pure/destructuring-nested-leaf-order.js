@@ -238,3 +238,63 @@ QUnit.test('destructuring: claims ahead of a nested level read a computed root o
   assert.deepEqual(viaThis.call(make()), ['own', [4, 5], 7]);
   assert.deepEqual(log, ['make', 'includes', 'y', 'prefix', 'make', 'includes', 'y', 'box', 'make', 'includes', 'y', 'make', 'includes', 'y']);
 });
+
+QUnit.test('a keyed static preserves the user-selected receiver and its key effect', assert => {
+  const events = [];
+  const custom = {
+    from() {
+      events.push('user');
+      return 31;
+    },
+  };
+  function read(input) {
+    const { source: { [(events.push('key'), 'from')]: from } } = { source: input || Array };
+    return from([1]);
+  }
+  assert.same(read(custom), 31);
+  assert.deepEqual(events, ['key', 'user']);
+  const { [(events.push('realm'), 'Map')]: { fill, z } = {} } = globalThis;
+  assert.deepEqual([fill, z], [undefined, undefined]);
+  assert.deepEqual(events, ['key', 'user', 'realm']);
+});
+
+QUnit.test('a computed realm hop binds its static after the key runs', assert => {
+  const events = [];
+  function mark() { events.push(typeof resolve); }
+  var { globalThis: { [(mark(), 'Promise')]: { resolve } }, Infinity: infinity } = globalThis;
+  assert.deepEqual(events, ['undefined']);
+  assert.same(typeof resolve, 'function');
+  assert.same(infinity, Infinity);
+});
+
+QUnit.test('an assignment capture preserves the empty default at its original hop', assert => {
+  function get(source, events) {
+    let at;
+    // eslint-disable-next-line prefer-const -- exercise assignment to an existing binding
+    ({ slot: { at } = [] } = { slot: source, other: events.push('init') });
+    return at;
+  }
+  const events = [];
+  const array = [11, 13];
+  assert.same(get(array, events).call(array, -1), 13);
+  assert.same(typeof get(undefined, events), 'function');
+  assert.deepEqual(events, ['init', 'init']);
+});
+
+QUnit.test('one split serves the static and guarded siblings in source order', assert => {
+  const events = [];
+  const source = { O: Object, A: Array };
+  let keys, from, weak, promise;
+  // eslint-disable-next-line prefer-const -- both grouped captures assign to existing bindings
+  ({ [(events.push('O'), 'O')]: { keys }, [(events.push('A'), 'A')]: { from } } = source);
+  assert.deepEqual(keys({ x: 1 }), ['x']);
+  assert.deepEqual(from([7]), [7]);
+  // eslint-disable-next-line prefer-const -- the second getter observes the first assignment
+  ({ set: { WeakSet: weak }, map: { Promise: promise } } = {
+    get set() { events.push('set'); return globalThis; },
+    get map() { events.push(typeof weak); return globalThis; },
+  });
+  assert.same(typeof weak, 'function');
+  assert.same(typeof promise, 'function');
+  assert.deepEqual(events, ['O', 'A', 'set', 'function']);
+});

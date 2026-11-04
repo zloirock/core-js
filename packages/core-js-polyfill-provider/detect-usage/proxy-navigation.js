@@ -9,7 +9,9 @@ import {
   claimDeleteOperand,
   isMemberWriteHost,
   memberKeyName,
+  computedKeyStaticName,
   memberKeepsReceiverThrow,
+  mayHaveSideEffects,
 } from '../helpers/ast-patterns.js';
 import {
   deleteGuardKeepingHop,
@@ -303,6 +305,15 @@ function resolvedClaimStore(node, meta, aliasCtx, resolvePure) {
 // Every result is read-local: discarding this iterator must not prime later queries.
 export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, aliasCtx, resolvePure, deletion }) {
   const { path } = aliasCtx;
+  if (kind === 'static') {
+    const ordered = groupedStaticRead(path, aliasCtx);
+    if (ordered) {
+      if (ordered === 'read') yield {
+        kind: 'replace', base: { pure: { entry, hintName } }, effects: [path.node], live: [path.node],
+      };
+      return;
+    }
+  }
   const guard = undefinableOptionalGuard(path.node, resolvePure, aliasCtx);
   if (guard?.kind === 'standdown') return;
   const realm = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName);
@@ -357,6 +368,45 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
       && !(effects.length && carriesRealmAlias(node.object, aliasCtx)) && !probeRunIsTheSourceValue(path, { resolvePure })),
     reread: !POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName),
   };
+}
+
+const orderedStaticReceivers = new WeakMap();
+
+// After destructuring is lowered, one declaration still reads the same receiver in
+// source order. An effectful key makes these Gets observable even for served statics.
+// On a later pass the discarded read before the imported value already performs its Get.
+function groupedStaticRead(path, ctx) {
+  const { node } = path;
+  if (node.type !== 'MemberExpression' || node.optional || node.object.type !== 'Identifier') return null;
+  const slot = climbTransparentWrapperPath(path);
+  const { parentPath } = slot;
+  const parent = parentPath?.node;
+  const kept = parent?.type === 'SequenceExpression' && parent.expressions.length === 2
+    && parent.expressions[0] === slot.node && parent.expressions[1].type === 'Identifier';
+  const initPath = kept ? climbTransparentWrapperPath(parentPath) : slot;
+  const binding = initPath.parentPath;
+  if (binding?.node.type !== 'VariableDeclarator' || binding.node.id.type !== 'Identifier'
+    || binding.node.init !== initPath.node) return null;
+  const declaration = binding.parentPath.node;
+  if (declaration.declarations.length < 2) return null;
+  let names = orderedStaticReceivers.get(declaration);
+  if (!names) {
+    names = new Set();
+    const seen = new Set();
+    const shared = new Set();
+    for (const { id, init } of declaration.declarations) {
+      const initializer = unwrapRuntimeExpr(init);
+      const read = initializer?.type === 'SequenceExpression' ? unwrapRuntimeExpr(initializer.expressions[0]) : initializer;
+      if (id.type !== 'Identifier' || read?.type !== 'MemberExpression' || read.optional || read.object.type !== 'Identifier') continue;
+      const { name } = read.object;
+      if (seen.has(name)) shared.add(name);
+      else seen.add(name);
+      if (read.computed && computedKeyStaticName(read.property) !== null && mayHaveSideEffects(read.property, ctx)) names.add(name);
+    }
+    for (const name of names) if (!shared.has(name)) names.delete(name);
+    orderedStaticReceivers.set(declaration, names);
+  }
+  return names.has(node.object.name) ? kept ? 'kept' : 'read' : null;
 }
 
 // Source-claim priorities shared by the root and hop entry points. Native callbacks

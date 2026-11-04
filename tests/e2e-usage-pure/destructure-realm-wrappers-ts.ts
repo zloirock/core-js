@@ -88,3 +88,15 @@ QUnit.test('namespace static captures keep their effects and export only source 
   assert.deepEqual(StaticPublic.of(7), [7]);
   assert.deepEqual(namespaceKeys, ['of']);
 });
+
+const computedKeys: string[] = [];
+function observeRealmKey() { computedKeys.push('key'); }
+namespace KeyedPublic {
+  export const { globalThis: { [(observeRealmKey(), 'Promise')]: { resolve } }, Infinity: infinity } = globalThis;
+}
+QUnit.test('a computed namespace capture exports only its source names', assert => {
+  assert.deepEqual(Object.keys(KeyedPublic).sort(), ['infinity', 'resolve']);
+  assert.same(typeof KeyedPublic.resolve, 'function');
+  assert.same(KeyedPublic.infinity, Infinity);
+  assert.deepEqual(computedKeys, ['key']);
+});

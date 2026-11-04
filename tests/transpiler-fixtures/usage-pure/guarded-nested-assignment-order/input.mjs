@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Both guarded getters are read in source order. Each native sibling sees the preceding write.
 const log = [];
 let SetValue = 'set-before', MapValue = 'map-before', middle, last;
 ({ set: { WeakSet: SetValue }, middle, map: { WeakMap: MapValue }, last } = {

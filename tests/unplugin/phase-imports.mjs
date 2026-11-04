@@ -19,7 +19,6 @@ export const KNOWN_PHASE_IMPORT_DIFFERENCES = new Map([
   ['usage-pure/container-slots/array-bound-parameter-shared-instance-key', { added: ['@core-js/pure/actual/instance/at'], missing: [] }],
   ['usage-pure/container-slots/string-bound-parameter-shared-instance-key', { added: ['@core-js/pure/actual/instance/at'], missing: [] }],
   ['usage-pure/dead-hop-default-over-a-literal-beside-a-sibling-keeps-the-leaf-native', { added: ['@core-js/pure/actual/array/instance/flat'], missing: [] }],
-  ['usage-pure/guarded-nested-assignment-order', { added: ['@core-js/pure/actual/weak-map'], missing: [] }],
   ['usage-pure/hop-default-under-a-guarded-realm-selection-keeps-the-read-native', { added: ['@core-js/pure/actual/number/is-integer'], missing: [] }],
   ['usage-pure/inner-default-proven-dead-through-a-call-extracts', { added: ['@core-js/pure/actual/map/constructor'], missing: [] }],
   ['usage-pure/member-target-wrapped-whole-in-a-ts-assertion-takes-the-ponyfill', { added: ['@core-js/pure/actual/object/entries'], missing: [] }],

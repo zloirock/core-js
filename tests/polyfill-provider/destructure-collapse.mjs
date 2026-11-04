@@ -2412,4 +2412,22 @@ runBoth('live array default cannot reuse its source name',
     check(`${ label }/declaration reads captured choice`, rendered.elements[0].declarator.init.name, 'saved');
   });
 
+// The computed constructor is reached through a live realm slot. Its imported static
+// must bind only after the key, even if that key reads the binding or throws.
+for (const [label, key, ordered] of [['computed', "(effect(), 'Promise')", true], ['plain', "'Promise'", false]]) {
+  runBoth(`realm constructor key/${ label }`, `const { globalThis: { [${ key }]: { resolve } }, spare } = globalThis;`, (parser, program, name) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = parser.name === 'babel' ? createBabelAdapter({ method: 'usage-pure' }) : createEstreeAdapter({ method: 'usage-pure' });
+    const before = JSON.stringify(path.node);
+    const plan = buildNestedDestructurePlan({
+      declarator: path.node, path, scope: path.scope, adapter,
+      resolvePure: meta => meta.key === 'resolve' ? { kind: 'static', entry: 'promise/resolve', hintName: 'resolve' } : null,
+      resolveGlobalPolyfill: keyName => keyName === 'globalThis' ? { entry: 'global-this', hintName: 'globalThis' } : null,
+    });
+    check(`${ name } ordered`, !!plan?.orderedRealmKeys, ordered);
+    if (ordered) check(`${ name } backed receiver`, plan?.orderedRealmKeys?.get(path.node.id.properties[0]), 'globalThis');
+    check(`${ name } source retained`, JSON.stringify(path.node), before);
+  });
+}
+
 finish();

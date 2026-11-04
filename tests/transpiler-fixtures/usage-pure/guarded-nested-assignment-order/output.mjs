@@ -1,9 +1,9 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-var _ref, _ref2;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+var _ref, _ref2, _ref3;
+// Both guarded getters are read in source order. Each native sibling sees the preceding write.
 const log = [];
 let SetValue = 'set-before',
   MapValue = 'map-before',
@@ -31,10 +31,8 @@ _ref = {
 } = _ref, SetValue = _ref2 === _globalThis ? _WeakSet : _ref2.WeakSet, {
   middle
 } = _ref, {
-  map: {
-    WeakMap: MapValue
-  }
-} = _ref, {
+  map: _ref3
+} = _ref, MapValue = _ref3 === _globalThis ? _WeakMap : _ref3.WeakMap, {
   last
 } = _ref;
 export { SetValue, MapValue, middle, last, log };

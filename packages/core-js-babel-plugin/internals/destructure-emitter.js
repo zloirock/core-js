@@ -10,7 +10,12 @@
 // `flushProbedAnchorSwaps`, `splitFlatMultiDecls`, `tryFlattenProxyHopHost`.
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
-import { ownEmittedPatternClaim, ownOutputTests, sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
+import {
+  ownEmittedPatternClaim,
+  ownOutputTests,
+  patternHoldsOnlyProcessedSentinels,
+  sentinelAlreadyProcessed,
+} from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   renderAliasHeldProbeRead,
   renderResidualProbeWrites,
@@ -150,6 +155,7 @@ import {
   destructureResidualFirst,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
+  planKeyedClaimCapture,
   discardedReceiverEffects,
   planAssignmentOverwrite,
   planSelectingExtraction,
@@ -215,7 +221,6 @@ import {
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
   isForInitDeclaration,
-  planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
   keyedReadEvaluation,
   keyedReadReceiverProven,
@@ -226,6 +231,7 @@ import {
   renderArrayWrapperCapture,
   renderArrayDestructurePlan,
   renderNestedKeyedPatternCapture,
+  renderOrderedRealmKeys,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import { cloneReceiverForEmit, cloneWriteTarget, landInSequenceTail, removePatternSlot } from './babel-compat.js';
 import { planDestructureEmission, groupNativeDeclarators, STRATEGIES } from './destructure-emission-plan.js';
@@ -1203,6 +1209,7 @@ export default function createDestructureEmitter({
   // Ask the shared mirror obligation before binding-only routes reject a pattern-valued
   // static. Its receiver may belong to a declaration, an assignment or a for-x head.
   const patternMirrorBinding = {
+    isProcessedPattern: path => patternHoldsOnlyProcessedSentinels(path, injector, adapter),
     resolvePure,
     parameterCallSites,
     renderMirror: (prop, meta, options) => renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, ...options }),
@@ -2546,26 +2553,6 @@ export default function createDestructureEmitter({
       && hopNamesMissingAbleCtor(item, resolveGlobalPure));
   }
 
-  // every binding leaf of this hop pattern is a sentinel a prior pass printed, standing beside that
-  // pass's own extraction of its key: the residual IS our own output, the claims it stood for were
-  // spent then, and consuming it again extracts the sentinel as a live binding and mints one more
-  // per pass. asked through the shared census - the per-prop route asks the same one ahead of every
-  // claim route, and the trigger below fires BESIDE that route rather than through it
-  function hopPatternHoldsOnlyProcessedSentinels(patternPath) {
-    if (!patternPath?.isObjectPattern() || !patternPath.node.properties.length) return false;
-    for (const propPath of patternPath.get('properties')) {
-      if (!propPath.isObjectProperty()) return false;
-      const valuePath = propPath.get('value');
-      const slot = valuePath.isAssignmentPattern() ? valuePath.get('left') : valuePath;
-      if (slot.isObjectPattern()) {
-        if (!hopPatternHoldsOnlyProcessedSentinels(slot)) return false;
-        continue;
-      }
-      if (!sentinelAlreadyProcessed(propPath, { node: propPath.node, meta: null, injector, adapter })) return false;
-    }
-    return true;
-  }
-
   // Ask the shared plan even without a resolved leaf: a constructor replacement, including
   // its guarded form, can need an anchor. The plan leaves an untouched raw hop in its source form.
   // Before children, settle only anchors and symbol extractions that own the receiver read;
@@ -2586,7 +2573,7 @@ export default function createDestructureEmitter({
       || !multiPropAssignmentAnchorCandidate(pattern, init)) return;
     // Replacing an ancestor leaves queued exit paths attached to its old child array.
     if (ancestorChainDetached(path) || isDisabled(path.node)) return;
-    if (hopPatternHoldsOnlyProcessedSentinels(path.get(isDecl ? 'id' : 'left'))) return;
+    if (patternHoldsOnlyProcessedSentinels(path.get(isDecl ? 'id' : 'left'), injector, adapter)) return;
     const declaratorNode = isDecl ? path.node : { id: pattern, init, loc: path.node.loc };
     let plan = buildFlattenPlan({ declaratorNode, scope: path.scope, path });
     // a claim that rewrote the host in place left the plan of the pattern it replaced, which would render its
@@ -2927,6 +2914,19 @@ export default function createDestructureEmitter({
     if (flattenedDeclarators.has(declarator.node)) return !!prop && planConsumedProp(prop);
     const plan = buildFlattenPlan({ declaratorNode: declarator.node, scope: declarator.scope, path: declarator });
     if (!plan) return false;
+    if (plan.orderedRealmKeys) {
+      if (unwrapExportedHost(declaration)) return true;
+      const { declarations, privateDeclaration } = renderOrderedRealmKeys(plan, {
+        init: declarator.node.init, mintRef: () => generateLocalRef(declarator.scope).name, mintUnused: () => generateUnusedId().name,
+        injectImport: (entry, hint) => injectPureImport(entry, hint).name, embed: hostSlot,
+      });
+      if (privateDeclaration) {
+        const statements = declaration.parentPath.insertBefore(estreeToBabel(privateDeclaration));
+        rebindLiveDeclarators(statements, declarator.scope);
+      }
+      installCaptureDeclarators(declarator, declarations.map(node => estreeToBabel(node)));
+      return true;
+    }
     flattenedDeclarators.add(declarator.node);
     const isForInit = isForInitDeclaration(declaration.parentPath?.node, declaration.node);
     const forInitSE = forInitSESinkParts(declarator.node, isForInit);
@@ -3460,7 +3460,7 @@ export default function createDestructureEmitter({
       injectorState: injector,
       captureFor: { prop: prop.node, pattern: prop.parentPath.node, kind },
     })?.array.capture;
-    const plan = arrayPlan ?? planNestedKeyedPatternCapture(input);
+    const plan = arrayPlan ?? planKeyedClaimCapture(input);
     if (!plan) return false;
     primeDestructureReceiverTypes(prop);
     if (unwrapExportedHost(declaration)) return true;
@@ -4131,6 +4131,10 @@ export default function createDestructureEmitter({
       prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true,
     })) return true;
     if (kind !== 'instance' && renderNestedParamSynth({ prop, meta, deps: synthPlanDeps })) return true;
+    // A pattern-valued realm key still runs when its mirror declines. Per-property
+    // extraction would remove that key together with the constructor binding.
+    if (kind === 'global' && !propBindingIdentifier(prop.node.value)
+      && computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))) return true;
 
     // an INSTANCE claim anywhere in a parameter pattern takes the parameter route, the one a plain
     // key of that pattern takes: below a hop the mirror lands in the slot the hops pair; turned away

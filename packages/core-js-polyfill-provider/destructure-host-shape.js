@@ -665,6 +665,136 @@ export function capturedRealmCtorPure({ capture, scope, adapter, path, resolveGl
   return adapter.isMutatedStatic?.(realm, key) ? null : resolveGlobalPolyfill(key);
 }
 
+// A computed constructor hop is read before any of the bindings it supplies, and
+// before later native siblings. Keep those reads in the source declaration's own slot.
+export function renderOrderedRealmKeys(plan, { init, mintRef, mintUnused, injectImport, embed }) {
+  const root = plan.realmRootPure ? injectImport(plan.realmRootPure.entry, plan.realmRootPure.hintName) : mintRef();
+  const declarations = [];
+  const privateNames = [];
+  const prefix = [];
+  const publicReads = [];
+  function emit(id, value, privateName = null, retainedProp = null) {
+    if (!plan.inlineRealmExport) {
+      declarations.push(variableDeclarator(id, value));
+      return;
+    }
+    // TS and Babel publish namespace bindings at different points. Keep one
+    // exported destructuring declaration so each lowerer retains its own timing.
+    if (privateName) {
+      privateNames.push(variableDeclarator(identifier(privateName)));
+      prefix.push(assignmentExpression('=', id, value));
+      return;
+    }
+    publicReads.push({ id, value: prefix.length ? sequenceExpression([...prefix, value]) : value, retainedProp });
+    prefix.length = 0;
+  }
+  if (!plan.realmRootPure) emit(identifier(root), embed(init), root);
+  function captured(prop, value, receiver) {
+    const alias = plan.orderedRealmKeys.get(prop);
+    if (prop.value.type === 'AssignmentPattern') value = { type: 'AssignmentPattern', left: value, right: embed(prop.value.right) };
+    else if (alias) {
+      // The native presence check must survive a second usage-pure pass over this default.
+      const present = callExpression(identifier(injectImport('reflect/has', 'Reflect$has')), [identifier(receiver), valueLiteral(alias)]);
+      const missing = conditionalExpression(present, voidZero(), identifier(root));
+      value = { type: 'AssignmentPattern', left: value, right: receiver === root ? missing
+        : conditionalExpression(binaryExpression('===', identifier(receiver), identifier(root)), missing, voidZero()) };
+    }
+    return objectProperty(embed(prop.key), value, { computed: prop.computed });
+  }
+  function render(items, receiver) {
+    for (let item of items) {
+      const chain = [];
+      while (item.kind === 'rebuilt' && item.children.length === 1 && !plan.orderedRealmKeys.has(item.children[0].prop)) {
+        chain.push(item.prop);
+        [item] = item.children;
+      }
+      const { prop } = item;
+      const next = item.kind === 'rebuilt' ? mintRef() : item.kind === 'consumed' ? mintUnused() : null;
+      let property = next === null ? embed(prop) : captured(prop, identifier(next), receiver);
+      for (const outer of chain.toReversed()) property = captured(outer, objectPattern([property]), receiver);
+      emit(objectPattern([property]), identifier(receiver), next, item.kind === 'verbatim' ? prop : null);
+      if (item.kind === 'rebuilt') render(item.children, next);
+      else if (item.kind === 'consumed') for (const extraction of item.extractions) {
+        emit(extraction.targetNode ? embed(extraction.targetNode) : identifier(extraction.localName),
+          identifier(injectImport(extraction.entry, extraction.hint)));
+      }
+    }
+  }
+  render(plan.outerProps, root);
+  if (plan.inlineRealmExport) {
+    // Keep the original nesting of public bindings. Babel publishes them in
+    // breadth-first order after the pattern completes; TypeScript publishes as it reads.
+    // Each private read runs in a slot default, in the original lexical environment.
+    let next = 0;
+    function project(pattern) {
+      const props = [];
+      const slots = [];
+      for (const [index, prop] of pattern.properties.entries()) {
+        const slot = publicReads[next];
+        const target = patternSlotTarget(prop.value);
+        let value, source;
+        if (slot?.retainedProp !== prop && target.type === 'ObjectPattern') {
+          const nested = project(target);
+          value = target === prop.value ? nested.id : { ...embed(prop.value), left: nested.id };
+          source = nested.init;
+        } else {
+          // A retained property still performs its own key, default and nested reads.
+          // A scalar has already been served by its entry at the same source position.
+          const binding = slot.retainedProp ? slot.id : objectPattern([objectProperty(identifier('value'), embed(prop.value))]);
+          value = { type: 'AssignmentPattern', left: binding, right: slot.retainedProp ? slot.value
+            : objectExpression([objectProperty(identifier('value'), slot.value)]) };
+          source = voidZero();
+          next++;
+        }
+        props.push(objectProperty(valueLiteral(index), value));
+        slots.push(objectProperty(valueLiteral(index), source));
+      }
+      return variableDeclarator(objectPattern(props), objectExpression(slots));
+    }
+    declarations.push(project(plan.pattern));
+  }
+  return { declarations, privateDeclaration: privateNames.length ? variableDeclaration('var', privateNames) : null };
+}
+
+// A split also owns the other hops it moves off the original receiver. Resolve their
+// leaves on the source paths, while their constructor or guarded realm is still known.
+export function planCaptureSiblings(capture, { hostPath, adapter, resolvePure, planGuardedNarrow, isClaimedProp }) {
+  if (!capture?.splitCapture || capture.inlineLeaf || !hostPath || !adapter || !resolvePure) return capture;
+  let siblings;
+  for (const level of capture.ancestors) {
+    if (level.pattern.properties.length < 2) continue;
+    const levelPath = level.pattern === capture.pattern ? hostPath.get(hostPath.node.type === 'VariableDeclarator' ? 'id' : 'left')
+      : pathOfNode(hostPath, level.pattern);
+    if (!levelPath) continue;
+    for (const outerPath of levelPath.get('properties')) {
+      const outer = outerPath.node;
+      const inner = outer.value;
+      if (outer === level.prop || inner?.type !== 'ObjectPattern' || !inner.properties.length || isClaimedProp?.(outer)
+        || adapter.isOptedOut?.(outer) || inner.properties.some(leaf => isRestProperty(leaf) || isClaimedProp?.(leaf))) continue;
+      const innerPath = outerPath.get('value');
+      const reads = innerPath.get('properties').map(path => {
+        const prop = path.node;
+        if (!isPropertyNode(prop) || prop.computed || prop.value.type !== 'Identifier' || adapter.isOptedOut?.(prop)) return { prop };
+        const { meta } = destructurePropLeafMeta({
+          prop, objectPattern: innerPath, path: path.get('key'), scope: path.scope, adapter, resolvePure,
+        });
+        if (!meta || meta.fromFallback) return { prop };
+        if (meta.guardedAliasHint) {
+          const narrow = planGuardedNarrow?.({
+            meta, path, adapter, resolvePure, parent: null,
+            memberNode: memberExpression(identifier(''), identifier(meta.key)),
+          });
+          return narrow && !narrow.bail ? { prop, narrow } : { prop };
+        }
+        const pure = resolvePure(meta, path);
+        return pure?.kind === 'static' ? { prop, pure } : { prop };
+      });
+      if (reads.some(read => read.narrow || read.pure)) (siblings ??= new Map()).set(outer, reads);
+    }
+  }
+  return siblings ? { ...capture, siblings } : capture;
+}
+
 // Capture the innermost pattern while retaining native outer keys and defaults.
 // `anchorPure` supplies a proven pristine realm constructor, including its whole index for rest.
 // Assignment renders can delegate the moved leaf to `renderLeaf` and preserve the RHS value.
@@ -752,12 +882,23 @@ export function renderNestedKeyedPatternCapture(plan, {
       const outer = pairedRoot ? null : index === 0 ? receiverRef || receiverNode || mintReceiverRef() : mintRef();
       if (typeof outer === 'string' && plan.levelNames?.[index]) noteRefAlias?.(outer, plan.levelNames[index]);
       const ordered = [];
+      function renderSibling({ prop: leaf, narrow: guard, pure }, pattern, refName) {
+        if (!guard && !pure) return { declarator: variableDeclarator(embed({ ...pattern, properties: [leaf] }), identifier(refName)) };
+        const read = guard ? renderCtorIdentityNarrow(guard, memberExpression(identifier(refName), embed(cloneNode(leaf.key))), {
+          injectImport, spellRecv: () => identifier(refName),
+        }) : identifier(injectImport(pure.entry, pure.hintName));
+        return { guarded: !!guard, declarator: variableDeclarator(embed(leaf.value), read) };
+      }
       // ... and the level holding the init rejects nothing a proven init can never be
       let receiverCoerced = index === 0
         && keyedReadReceiverProven({ init: plan.init, hostPath: plan.ctx?.path, adapter: plan.ctx?.adapter });
       for (const prop of level.pattern.properties) {
         if (plan.claimedProps?.has(prop)) continue;
-        const source = prop === level.prop ? {
+        const sibling = plan.siblings?.get(prop);
+        const siblingRef = sibling?.some(read => !read.pure) ? mintRef() : null;
+        const source = sibling ? {
+          ...prop, value: siblingRef ? capturedPatternRef(siblingRef, prop.value) : objectPattern([]),
+        } : prop === level.prop ? {
           ...prop,
           value: level.defaultValue
           ? { ...level.defaultValue, left: typeof receiver === 'string' ? identifier(receiver) : receiver }
@@ -779,10 +920,12 @@ export function renderNestedKeyedPatternCapture(plan, {
           const pattern = pairedRoot ? source.value : { ...level.pattern, properties: [source] };
           // Only a root residual reads the capture source; an inner level has its own receiver.
           if (!pairedRoot && index === 0) markCapturedPatternSource(pattern, { node: plan.init, ctx: plan.ctx });
-          ordered.push({ declarator: variableDeclarator(embed(pattern), init) });
+          ordered.push({ guarded: !!sibling && !prop.computed, declarator: variableDeclarator(embed(pattern), init) });
         }
         receiverCoerced = true;
         if (prop === level.prop) ordered.push(...elements);
+        if (siblingRef && sibling[0].pure) ordered.push({ declarator: variableDeclarator(objectPattern([]), identifier(siblingRef)) });
+        if (sibling) for (const leaf of sibling) ordered.push(renderSibling(leaf, prop.value, siblingRef));
       }
       elements.splice(0, elements.length, ...ordered);
       receiver = outer;
@@ -1385,6 +1528,7 @@ export function planRetainedObjectCapture(options) {
     || plan.nestedRest || plan.rest || !receiverRef && !reuseReceiver && !inlineReceiver)) return { keepsNative: true };
   return {
     ...plan,
+    ...plan.capture && { capture: planCaptureSiblings(plan.capture, options) },
     ...receiverRef ? { receiverRef } : {},
     ...reuseReceiver ? sourceReceiver.type === 'Identifier'
       ? { receiverRef: sourceReceiver.name, reuseReceiver: true }
@@ -1420,6 +1564,7 @@ function planRetainedObjectCaptureShape({
   isClaimedProp = null,
   isConsumedProp = null,
   meta: resolvedMeta = null,
+  captureKeyOrder = false,
   provenCtorName = null,
   receiverRef = undefined,
   capturedElement = false,
@@ -1709,6 +1854,7 @@ function planRetainedObjectCaptureShape({
         resolvePure,
         resolveStaticProp,
         isClaimedProp,
+        captureKeyOrder: !assignment && hostPath?.node?.id?.type === 'ObjectPattern',
         provenCtorName: resolvedMeta.object,
       });
     if (innerPlan) return { capture, assignment, innerPlan: { ...innerPlan, coerceReceiver: true } };
@@ -1769,6 +1915,11 @@ function planRetainedObjectCaptureShape({
   // a consumed assignment yields its receiver, which the flat twin and the overwrite cannot keep
   // (`orderedClaimCapture` says which hops and leaf levels capture)
   if (ordered && !ordered.flat && kind === 'instance') {
+    // A default reads its captured instance slot between the native outer siblings.
+    if (!assignment && ordered.splitCapture && ordered.leafPattern.properties.length === 1
+      && prop.value?.type === 'AssignmentPattern') {
+      return { capture: ordered, assignment, innerPlan: { pattern: ordered.leafPattern, prop, assignment, readsReceiver: true } };
+    }
     // the constructor each captured level holds, which a split render's ref for it stands for: a
     // sibling moved onto that ref is re-detected there and resolves its statics through it. a
     // realm level is a hop, not a constructor, and its siblings keep their native reads
@@ -1903,7 +2054,9 @@ function planRetainedObjectCaptureShape({
   // the capture keeps every crossed key in its slot. Already consumed keys are excluded, including
   // a hop its split twin moves (`isConsumedProp`, asked of the HOST's own pattern only: a nested or
   // element level recursing here carries the host's init, not the value that level reads)
-  const keyOrderSplit = ordered?.flat || !!hostPath && !!adapter && !rest && pattern.properties.includes(prop)
+  const keyedStaticGroup = captureKeyOrder && kind === 'static' && pattern.properties.length > 1 && pattern.properties.includes(prop)
+    && pattern.properties.some(item => computedKeyHasSideEffects(item, ctx));
+  const keyOrderSplit = keyedStaticGroup || ordered?.flat || !!hostPath && !!adapter && !rest && pattern.properties.includes(prop)
     && pattern === (assignment ? hostPath.node?.left : hostPath.node?.id)
     && (extractionCrossesResidualKeys() || assignment && pattern.properties.some(item => computedKeyHasSideEffects(item,
       { scope: hostPath.scope, adapter, path: hostPath })));
@@ -2024,14 +2177,15 @@ function planRetainedObjectCaptureShape({
     prop,
     // This route admits forward binding reads in a flat key; the render must evaluate them.
     keepKeyReads: !!ordered?.flat,
+    readStaticSlots: !!keyedStaticGroup && !assignment,
     narrow,
     retainedStatic,
     primaryPure: primaryStatic?.pure,
     siblingStatics,
     restRiders,
-    readsReceiver: !!narrow || !retainedStatic || !!rest || pattern.properties.some(item => item !== prop
-      && !isClaimedProp?.(item) && (!siblingStatics?.has(item)
-        || siblingStatics.get(item).native || siblingStatics.get(item).narrow)),
+    readsReceiver: !!keyedStaticGroup && !assignment || !!narrow || !retainedStatic || !!rest
+      || pattern.properties.some(item => item !== prop && !isClaimedProp?.(item)
+        && (!siblingStatics?.has(item) || siblingStatics.get(item).native || siblingStatics.get(item).narrow)),
     rest,
     // the receiver IS a constructor the read side names, on a spelling that cannot come out nullish
     // (no `?.`, no lowered short-circuit), or a value that never is: the null rejection the keyed read
@@ -2042,7 +2196,7 @@ function planRetainedObjectCaptureShape({
     receiverNeverNullish,
     // the constructor an assignment's memo holds: a residual left on the memo resolves through it
     receiverName: assignment && !POSSIBLE_GLOBAL_OBJECTS.has(initCtorName() ?? '') ? initCtorName() : null,
-    primaryKey: narrow ? resolvedMeta.key : rest ? resolveKey({
+    primaryKey: narrow ? resolvedMeta.key : rest || keyedStaticGroup ? resolveKey({
       node: prop.key,
       computed: prop.computed,
       keepsKeyNode: true,
@@ -2175,6 +2329,7 @@ export function renderRetainedObjectCapture(plan, {
       mintRef: plan.assignment ? mintDeclaredRef : mintRef, embed,
       receiverRef: !plan.assignment ? plan.receiverRef : null,
       receiverNode: !plan.assignment ? plan.receiverNode : null,
+      injectImport,
       coerceLeaf,
     });
     const capturedElement = captured.elements.find(item => item.pattern === elementPattern);
@@ -2331,6 +2486,7 @@ export function renderRetainedObjectCapture(plan, {
       if (plan.primaryPure?.kind !== 'global' && target.type === 'Identifier') noteStaticAlias?.(target.name, entry);
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
       const keys = observableSequenceElements([...prefix, tail], ctx).map(embed);
+      if (plan.readStaticSlots) keys.push(memberFromKeyName(ref(), plan.primaryKey));
       const read = identifier(injectImport(entry, hintName));
       declarations.push(plan.provenReceiver || receiverCoerced
         ? variableDeclarator(embed(target), keys.length ? sequenceExpression([...keys, read]) : read)
@@ -2414,6 +2570,7 @@ export function renderRetainedObjectCapture(plan, {
       const { prefix: siblingPrefix, tail: siblingTail } = peelNestedSequenceExpressions(prop.key);
       const siblingKeyEffects = prop.computed
         ? observableSequenceElements([...siblingPrefix, siblingTail], ctx).map(embed) : [];
+      if (plan.readStaticSlots && !native && !narrow) siblingKeyEffects.push(memberFromKeyName(ref(), key));
       if (plan.assignment) {
         assignments.push(siblingKeyEffects.length
           ? sequenceExpression([...siblingKeyEffects, siblingWrite]) : siblingWrite);

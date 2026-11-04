@@ -87,7 +87,7 @@ import {
   hasStaticDefinitionKey, resolve as resolveBuiltIn,
 } from '../index.js';
 import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-node-type/value-ops.js';
-import { planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
+import { planCaptureSiblings, planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   aliasRootedReadMayThrow,
   pristineRealmHopKey,
@@ -804,7 +804,9 @@ export function planGuardedDestructureNarrow({
     detach,
     hasConsumedProps: remainingProps.length !== patternNode.properties.length,
     nested,
-    capture: captureCandidate?.leaf === propNode ? captureCandidate : null,
+    capture: captureCandidate?.leaf === propNode ? planCaptureSiblings(captureCandidate, {
+      hostPath: nested.host, adapter, resolvePure, planGuardedNarrow: planGuardedStaticNarrow, isClaimedProp: isConsumedProp,
+    }) : null,
     captureFirst: captureCandidate?.leaf === propNode && plan.instanceFallback?.kind === 'instance',
     keepPatternLive: binding.type === 'ObjectPattern',
     split: detach ? null : split,

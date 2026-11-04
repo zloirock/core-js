@@ -45,15 +45,16 @@ import {
   bodylessSlotReplacement,
   capturedLeafCtorAlias,
   capturedRealmCtorPure,
-  planNestedKeyedPatternCapture,
   planRetainedObjectCapture,
   keyedReadEvaluation,
   renderRetainedObjectCapture,
   renderNestedKeyedPatternCapture,
+  renderOrderedRealmKeys,
   renderArrayWrapperCapture,
   renderArrayDestructurePlan,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
+  planKeyedClaimCapture,
   chainThroughNamedDefaults,
   discardedReceiverEffects,
   destructureDefaultCarriesReceiver,
@@ -103,6 +104,8 @@ import {
   forOfHeadIterableElements,
   hasRestSiblingExcept,
   hostsExportList,
+  canSplitDestructureExport,
+  patternKeepsEffectfulKey,
   isForXStatement,
   isPristineProxyGlobal,
   isSynthSimpleObjectPattern,
@@ -200,7 +203,7 @@ import {
   nestedInstanceWithoutSelectingInit,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
-import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { patternHoldsOnlyProcessedSentinels, sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import createDestructureDrains from './destructure-drain.js';
 
@@ -476,6 +479,7 @@ export default function createAstDestructureEmitter({
   // Ask the shared mirror obligation before competing extraction routes, provided this host
   // has no queued job already owning it. Declaration, assignment and loop receivers may qualify.
   const patternMirrorBinding = {
+    isProcessedPattern: path => patternHoldsOnlyProcessedSentinels(path, injectorState, adapter),
     resolvePure,
     parameterCallSites,
     renderMirror: (metaPath, meta, { parameterCallSites: argumentSites, ...options }) => renderNestedParamSynth({
@@ -1045,6 +1049,29 @@ export default function createAstDestructureEmitter({
   function renderArrayFlattenPlan(metaPath) {
     const declarator = destructurePatternHostPath(metaPath);
     if (declarator?.node?.type !== 'VariableDeclarator' && declarator?.node?.type !== 'AssignmentExpression') return false;
+    const hop = metaPath.node.computed ? metaPath.node : metaPath.parentPath?.parentPath?.node;
+    if (declarator.node.type === 'VariableDeclarator' && declarator.node.id.type === 'ObjectPattern'
+      && hop?.computed && patternSlotTarget(hop.value)?.type === 'ObjectPattern'
+      && computedKeyHasSideEffects(hop, { scope: metaPath.scope, adapter, path: metaPath })) {
+      const keyed = buildNestedDestructurePlan({
+        declarator: declarator.node, scope: metaPath.scope, path: metaPath, adapter, resolvePure,
+        resolveGlobalPolyfill, isDisabledProp: isDisabled,
+      });
+      if (keyed?.orderedRealmKeys) {
+        if (unwrapExportedHost(declarator.parentPath)) return true;
+        const { declarations, privateDeclaration } = renderOrderedRealmKeys(keyed, {
+          init: declarator.node.init, mintRef: mintRefName, mintUnused: mintUnusedName, injectImport: injectPureImport, embed: cloneNode,
+        });
+        retireDeclaratorJobs(declarator);
+        if (privateDeclaration) {
+          const [statement] = declarator.parentPath.parentPath.insertBefore([privateDeclaration]);
+          for (const item of statement.get('declarations')) registerDeclaratorBindings(item);
+        }
+        for (const item of declarator.replaceWithMultiple(declarations)) registerDeclaratorBindings(item);
+        markRewrite();
+        return true;
+      }
+    }
     if (arrayPlanHosts.has(declarator.node)) return false;
     arrayPlanHosts.add(declarator.node);
     const plan = buildNestedDestructurePlan({
@@ -1213,12 +1240,13 @@ export default function createAstDestructureEmitter({
       return;
     }
     const nestedRest = restHost?.node?.type === 'VariableDeclarator'
-      && planNestedKeyedPatternCapture({
+      && planKeyedClaimCapture({
         pattern: restHost.node.id,
         init: restHost.node.init,
         prop: metaPath.node,
         kind,
         entry,
+        meta,
         ctx: keyCtx,
         anchored: entry === 'get-iterator-method' && !!buildNestedDestructurePlan({
           declarator: restHost.node, scope: metaPath.scope, adapter, path: metaPath,
@@ -2359,6 +2387,9 @@ export default function createAstDestructureEmitter({
       metaPath,
     });
     const { declarator, declarationPath, declaration, forInit, exported } = host;
+    // A keyed residual needs a private binding. A namespace cannot export the
+    // original names by a list, so keep the same native declaration as the shared flatten.
+    if (exported && !canSplitDestructureExport(hostParent) && patternKeepsEffectfulKey(declarator.id, keyCtx)) return;
     // the guard canon's context, asked once for this claim: the pure-nav predicates and the value
     // builder all owe the same verdict about the receiver's `?.`
     const guardCtx = navGuardCtx(metaPath);
