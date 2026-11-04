@@ -1,4 +1,4 @@
-import { nestedOptionalClaim } from '@core-js/polyfill-provider/detect-usage/optional-split';
+import { nestedOptionalClaim, optionalSurfaceLanding } from '@core-js/polyfill-provider/detect-usage/optional-split';
 import { navGuardCollapseRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // babel-specific AST primitives + optional-chain handling. covers ref memoization,
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
@@ -1384,14 +1384,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   function composeNavGuardCheck(chainStart, key, path, memoType) {
     const ctx = { scope: path.scope, adapter: getAdapter?.(), path,
       resolvePure: resolvePureGlobalEntry && (({ name }) => resolvePureGlobalEntry(name, path)) };
-    const composed = planGuardComposition(chainStart.node[key], ctx, {
+    const surface = key === 'object' && chainStart !== path && optionalSurfaceLanding(chainStart.node, ctx);
+    const composed = surface?.pure ? surface : planGuardComposition(chainStart.node[key], ctx, {
       readThrough: key === 'object',
       readerKey: key === 'object' ? staticMemberKeyName(chainStart.node) : null,
     });
     if (!composed) return null;
     const receiver = composed.receiver ?? injectPureGlobal(composed.pure.entry, composed.pure.hintName);
-    chainStart.node[key] = seededRefClone(receiver, memoType);
-    deoptionalizeNode(chainStart);
+    if (composed === surface) chainStart.replaceWith(receiver);
+    else {
+      chainStart.node[key] = seededRefClone(receiver, memoType);
+      deoptionalizeNode(chainStart);
+    }
     for (let up = chainStart.parentPath; up && up !== path; up = up.parentPath) {
       if (isOptionalNode(up.node)) deoptionalizeNode(up);
     }

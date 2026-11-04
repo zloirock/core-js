@@ -1,5 +1,5 @@
 import { subsume } from './subsumption.js';
-import { isKnownGlobalName } from '../detect-usage/globals.js';
+import { isKnownGlobalName, isSourcedSymbolIteratorMeta } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import { hasRange, nodeRangeContains } from '../resolve-node-type/base.js';
 import {
@@ -1734,11 +1734,12 @@ export function createClassHelpers({
   // gates static-inheritance dispatch + instance-fallback bail. peel parens / TS casts on
   // the object so `(this as any).X` / `(super).X` still route to static dispatch. direct
   // type-string checks because estree-compat's `types` doesn't export `isSuper`
-  function isInheritedStaticLookup(path) {
+  // A sourced iterator on this reads its method through the iterator helper, even in a static member.
+  function isInheritedStaticLookup(path, meta) {
     const obj = unwrapRuntimeExpr(path.node.object);
     const objType = obj?.type;
     if (objType === 'Super') return true;
-    return objType === 'ThisExpression' && isInStaticContext(path);
+    return objType === 'ThisExpression' && !(meta && isSourcedSymbolIteratorMeta(meta)) && isInStaticContext(path);
   }
 
   // `const { X } = this` in a static method reads the inherited static surface: the shared

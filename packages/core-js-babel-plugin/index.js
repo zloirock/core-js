@@ -147,7 +147,6 @@ import {
   planGuardedStaticNarrow,
   resolveSymbolIteratorEntry,
   symbolIteratorHint,
-  planDeletedProxyClaim,
   planLogicalSlotPatch,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, mutatedStaticLandingVerdict } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -1325,7 +1324,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // class's static surface via the same path - `this` in static ctx is the
             // constructor, so inherited static lookup behaves exactly like `super.X`.
             // cache the predicate so the instance-fallback bail below doesn't re-walk
-            inheritedStatic = isInheritedStaticLookup(path);
+            inheritedStatic = isInheritedStaticLookup(path, meta);
             const inheritedMeta = inheritedStatic ? resolveStaticInheritedMember(path) : null;
             // `extends MyPromise` (user-aliased pure import) - map binding to global hint.
             // carry through `meta.sideEffects` from the original resolution: SE from
@@ -1495,34 +1494,6 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null,
             { keptSeqHopFold: true })) return;
           const chainRootCore = unwrapRuntimeExpr(chainRootPath.node);
-          const deleted = planDeletedProxyClaim(path.node, {
-            aliasCtx: { scope: path.scope, adapter, path },
-            resolvePure: m => resolvePure(m, path),
-            claimName: hintName,
-            deleteFold: canCollapseDeletedNavigation({
-              hosted: deleteHostAboveChain(path, path.node, unwrapRuntimeExpr),
-              mutationPath: path,
-              guardNode: path.scope ? memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }).node : null,
-              aliasCtx: { scope: path.scope, adapter, path },
-              resolvePure: m => resolvePure(m, path),
-            }),
-          });
-          if (deleted) {
-            if (deleted.keep) {
-              synthSwap?.refreshKeptStore(path, deleted.keep);
-              peelParenAndTSSlotPath(path).replaceWith(deleted.effects.length
-                ? t.sequenceExpression([...deleted.effects, deleted.keep]) : deleted.keep);
-              return;
-            }
-            const base = deleted.alias ? t.cloneNode(deleted.alias)
-              : injectPureImport(deleted.pure.entry, deleted.pure.hintName);
-            const dropped = deleted.alias ? [] : collectFoldedReceiverSideEffects(path.node,
-              { ctx: { scope: path.scope, adapter, path } });
-            const landing = peelParenAndTSSlotPath(path);
-            landing.replaceWith(dropped.length ? t.sequenceExpression([...dropped, base]) : base);
-            deoptionalizeDanglingOptionalParent(landing);
-            return;
-          }
           // the call-rooted twin of the hop-collapse drive: a claim on a proxy HOP whose chain
           // roots in an inline-resolvable call has no root-identifier visit to fold from, so the
           // claimless channel owns the run - fired at the chain END, and only where navigation

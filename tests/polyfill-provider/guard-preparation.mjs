@@ -3,7 +3,7 @@
 import {
   guardProbeUndefinable, holdsProxySurface, memoReceiverGlobalName, memoReceiverOriginName, mintedProxyGlobalName,
   planGuardComposition, planOptionalProbe,
-  planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, storedMemoProvesGuard,
+  planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, prepareMemoReceiver, storedMemoProvesGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import {
   markRenderedStoredValue, receiverContainsOptional, trustedIdentifierAliasWrite, unwrapRuntimeExpr,
@@ -345,5 +345,28 @@ for (const [expression, capture] of [['(effect(), stable)', false], ['(effect(),
     checkDeep(`${ label }/query purity`, JSON.stringify(source), before);
   });
 }
+
+for (const [source, expected] of [
+  ['(tick(), globalThis).self', ['sequence', 'sequence']],
+  ['globalThis.window?.self', []],
+]) runBoth(`value and guard memo/${ source }`, `const result = ${ source };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const node = unwrapRuntimeExpr(path.node.init);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { path, scope: path.scope, adapter, resolvePure };
+  const prepared = { type: 'Identifier', name: 'prepared' };
+  const calls = [];
+  const bindings = {
+    renderNav(plan) { calls.push(plan.kind); return prepared; },
+    cloneMemo: cloneNode,
+    pure(result) { return { type: 'Identifier', name: result.hintName }; },
+    guarded(probe) { return probe; },
+  };
+  check(`${ label }/value`, prepareMemoReceiver(node, ctx, bindings), expected.length ? prepared : node);
+  const guard = prepareGuardReceiver(node, ctx, bindings);
+  if (expected.length) check(`${ label }/guard`, guard.firstReceiver.name, 'prepared');
+  else check(`${ label }/keeps the environment read`, guard.firstReceiver.property?.name, 'window');
+  checkDeep(`${ label }/navigation render calls`, calls, expected);
+});
 
 finish();

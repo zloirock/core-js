@@ -966,12 +966,21 @@ export function probedDestructureInitValue(initNode, resolvePure, aliasCtx) {
   return proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { throughChainAssign: true }) ? value : null;
 }
 
+// A vestigial optional can erase a backed global, but its receiver still reads the
+// alias. Unknown, excluded or mutated slots keep their own short-circuit and key.
+function aliasOptionalKeepsGuard(link, receiver, resolvePure, ctx) {
+  if (!isMemberAccessNode(receiver)) return true;
+  const name = realmHopKeyName(receiver, ctx);
+  return !isKnownStaticGlobal(name, ctx?.adapter) || isMutatedGlobalSlot(ctx?.adapter, name)
+    || ctx?.adapter?.available?.({ kind: 'global', name }) === false || !isVestigialOptionalHop(link, resolvePure, ctx);
+}
+
 // the DECISION half of the alias-held claim probe, shared by both emitters' probe channels:
 // a PLAIN member read off an ALIAS holding an absent-able value (`const a = globalThis
 // .window?.Array; a.of(1)` - native throws reading the key where the erase just runs) is
 // re-emitted verbatim as a throw probe. an SE-bearing sequence around the alias peels to the
 // tail (the prefix rides the claim's own SE channel; `navStart` at the tail keeps it AHEAD of
-// the probe, native order), an optional spelling keeps its guard channel, an SE computed key
+// the probe, native order), a live optional keeps its guard channel, an SE computed key
 // keeps its migration canon. returns `{ object, key, computed, navStart }` for the emitters'
 // renders, or null
 function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder = false } = {}) {
@@ -981,21 +990,27 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   // caller's own effect channel, which `navStart` (at the tail) keeps AHEAD of the probe
   member = unwrapRuntimeExpr(peelReceiverSequenceTail(member));
   if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return null;
-  if (member.optional) return null;
-  const objectRaw = peelReceiverSequenceTail(member.object);
-  let object = unwrapRuntimeExpr(objectRaw);
-  // dotted PLAIN links may stand between the claim and the alias (`a.Array.of` off
-  // `a = globalThis.window`): they are part of the read the swap erases - the first of them
-  // dereferences the held value, throwing exactly where the source throws - so the probe
-  // respells the whole run. a computed or `?.` link keeps the decline: its key effects and
-  // its guard are owned by other routes
+  // Keep the portion below a vestigial optional: w.self?.Promise reads w.self
+  // before the constructor can be substituted. A computed intermediate still
+  // owns its key effects unless that whole suffix belongs to the guarded claim.
+  let object;
   const innerKeys = [];
-  while (object?.type === 'MemberExpression' && !object.optional && !object.computed) {
-    const innerKey = memberKeyName(object);
-    if (innerKey === null) break;
-    innerKeys.unshift(innerKey);
-    object = unwrapRuntimeExpr(peelReceiverSequenceTail(object.object));
+  let computed = false;
+  for (let link = member; ; link = object) {
+    object = unwrapRuntimeExpr(peelReceiverSequenceTail(link.object));
+    if (link.optional) {
+      if (aliasOptionalKeepsGuard(link, object, resolvePure, aliasCtx)) return null;
+      member = object;
+      innerKeys.length = 0;
+      computed = false;
+    } else if (link !== member) {
+      const name = memberKeyName(link);
+      if (link.computed || name === null) computed = true;
+      else innerKeys.unshift(name);
+    }
+    if (!isMemberAccessNode(object)) break;
   }
+  if (computed) return null;
   // an inline kept STORE holds a value the same way a named binding does - the source reads off
   // what it just stored, and off-realm THAT read throws. asked only where the caller DISCARDS the
   // holder (`allowStoreHolder`): a named binding re-reads for free, where re-emitting a store
@@ -1012,20 +1027,22 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   // truthy `if` on the binding) cannot see the void - no probe is owed there, and the plain
   // erase keeps the guarded branch byte-clean
   if (!store && aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, object.name)) return null;
-  return { object, key, computed: member.computed, innerKeys, navStart: objectRaw.start ?? member.object.start ?? null };
+  const navStart = peelReceiverSequenceTail(member.object).start ?? member.object.start ?? null;
+  return { object, key, computed: member.computed, innerKeys, navStart };
 }
 
 // the OWE half of the alias-held probe: does the run a swap erases (or re-bases) root at an alias
 // BINDING whose held value can be absent? the binding makes the reads observable - native throws
 // where an always-defined spelling reads on - so a swap that cannot ride a throw probe
 // (`aliasHeldClaimProbe` answers null there: an SE computed key, a bare alias receiver) stands
-// down instead, the pure bias: declining only degrades, erasing loses the throw. a `?.` anywhere
-// in the run hands the question to the guard routes and answers false
+// down instead, the pure bias: declining only degrades, erasing loses the throw. an optional testing a nullable receiver
+// hands the question to the guard routes; a backed hop still owes the earlier alias read
 export function aliasRootedReadMayThrow(node, resolvePure, aliasCtx) {
   let cur = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    if (cur.optional) return false;
-    cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
+    const receiver = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
+    if (cur.optional && aliasOptionalKeepsGuard(cur, receiver, resolvePure, aliasCtx)) return false;
+    cur = receiver;
   }
   if (cur?.type !== 'Identifier') return false;
   if (!aliasHeldValueCanBeUndefined(cur, resolvePure, aliasCtx)) return false;
@@ -1911,7 +1928,9 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // destructuring right-hand side - sits PAST the use by span, so neither the dominance gate below
   // nor the reaching walk sees it, and the declarator init is not what the read observes
   if (anyWriteOutrunsUse((binding.constantViolations ?? []).map(violationNode), path)) return null;
-  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode });
+  // A sequence can write the binding before its tail reads it. Its enclosing
+  // member starts before those writes; use the identifier's own position.
+  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode: readNode ?? usageNode });
   if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path, usageNode })
     && !reaching
     && !everyReachableValueNamesRealm({
@@ -5411,11 +5430,12 @@ export function proxyCollapseBase({
   rootPure,
   keepClaim = false,
   writeReceiver = null,
+  aliasCtx,
 }) {
   if (keptStore) {
     // A final write reference throws after its RHS; the erased hop read threw
     // before it. Re-read only an identifier, never a user's assignment target.
-    const readKey = writeReceiver && !storeReadHopOptional(writeReceiver) && memberKeyName(unwrapRuntimeExpr(writeReceiver));
+    const readKey = writeReceiver && !storeReadHopOptional(writeReceiver) && realmHopKeyName(unwrapRuntimeExpr(writeReceiver), aliasCtx);
     const read = keptStore.left.type === 'Identifier' && typeof readKey === 'string'
       ? { object: keptStore.left, key: readKey, computed: false } : null;
     return read ? { keep: keptStore, read } : { keep: keptStore };
@@ -5435,6 +5455,7 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   const { resolvePure } = ctx;
   const { consumer } = facts;
   if (keptTail.length && effectfulRealmHop(consumer.host, ctx) && consumer.host.object === consumer.node) return null;
+  if (collapsed.carriesAlias && keptTail.some(hop => proxyHopLacksPureEntry(hop.name, resolvePure)) && !facts.deleteFold) return null;
   if (collapsed.aliasRoot && aliasRootedReadMayThrow(collapsed.aliasRoot, resolvePure, ctx)
     && !(memberKeepsReceiverThrow(consumer.host) && consumer.host.object === consumer.node)) return null;
   const deadOptional = facts.allowOptional
@@ -5470,7 +5491,7 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   if (navigated && collapsed.keptWrite && !collapsed.writeStoreSpellable) {
     return {
       kind: 'store', base: proxyCollapseBase({ keptStore: collapsed.keptWrite,
-        writeReceiver: navigation.writeThrough && !facts.deletedAbove ? target.node : null }),
+        writeReceiver: navigation.writeThrough && !facts.deletedAbove ? target.node : null, aliasCtx: ctx }),
       prefix: collapsed.effects.slice(0, collapsed.effects.indexOf(collapsed.keptWrite)),
       optional: storeReadHopOptional(target.node),
     };
@@ -5721,9 +5742,9 @@ function partitionEffectsAtProbe(effects, navStart) {
 function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   preserveRead = false, allowStoreHolder = false,
 } = {}) {
-  const value = peelTransparentExpr(source);
+  const sourceValue = peelTransparentExpr(source);
   // A fallback changes the bound value, but its left read always runs, including its throw.
-  const read = preserveRead && value?.type === 'LogicalExpression' ? value.left : source;
+  const read = preserveRead && sourceValue?.type === 'LogicalExpression' ? sourceValue.left : source;
   const outerBoundary = sealedChainBoundary(read);
   function aliasPlan() {
     if (preserveRead) return null;
@@ -5736,10 +5757,19 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   // An outer seal can end at a claim with no guard of its own. Keep descending the SOURCE
   // boundaries: that claim's value does not discharge a throwing read through an inner seal.
   for (let boundary = outerBoundary; boundary; boundary = sealedChainBoundary(boundary.inner)) {
-    const key = memberKeyName(boundary.member);
-    if (key === null || !proxyReceiverValueCanBeUndefined(boundary.inner,
+    const key = realmHopKeyName(boundary.member, aliasCtx);
+    const stored = peelChainAssignment(peelReceiverSequenceTail(boundary.inner));
+    const value = stored.outer ? peelChainRootValue(stored.value) : boundary.inner;
+    if (key === null || !proxyReceiverValueCanBeUndefined(value,
       resolvePure, aliasCtx, { throughChainAssign: true })) continue;
     const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner, preserveRead };
+    // The assignment owns its RHS and any prefix. Keep the plain read above it
+    // as a unit so a short circuit stores undefined and throws before the next key or argument.
+    if (stored.outer) {
+      if (!preserveRead && !allowStoreHolder && (definedBranchOfGuardConditional(value)
+        || navValueCanShortCircuit(value, resolvePure, aliasCtx, { throughChainAssign: true }))) return { ...facts, kind: 'read' };
+      continue;
+    }
     const navPlan = !preserveRead && planProvenNavGuardCollapse({
       rootNode: boundary.inner, ...aliasCtx, resolvePure,
       throughKeptAssign: true, allowSequenceRoot: true, descendSequenceTail: true,
@@ -5899,21 +5929,31 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
   return decision && claimProbeRenderPlan(decision, resolvePure, ctx, options);
 }
 
+// An assignment or sequence can carry a genuine realm alias. Keep its observable
+// unbacked hops when a claim below or above it substitutes a backed surface.
+export function carriesRealmAlias(source, ctx) {
+  const carrier = unwrapRuntimeExpr(source);
+  const root = peelChainRootValue(carrier);
+  return root !== carrier && root?.type === 'Identifier' && isAliasProxyRoot(root, ctx)
+    && !!proxyGlobalRootName({ node: root, ...ctx });
+}
+
 // A lowered pattern can reach detection as an ordinary read. If its observable
 // receiver is an unbacked realm hop, the first property above it still runs: the
 // root effects do not stand in for that read or its exception. Bare realm folds
 // with no such effects continue to use the ordinary navigation contract.
 export function effectfulClaimReadProbe(node, effects, resolvePure, ctx) {
-  // A larger member claim (including its rendered helper call) owns its
-  // receiver. A lowered binding read, or the callee itself, owns the probe.
+  // An enclosing claim owns its receiver. A carried realm alias still owes the
+  // first plain read through its unbacked hop, even inside that enclosing claim.
   const end = climbTransparentWrapperPath(ctx.path);
   const parent = end.parentPath?.node;
-  if (isMemberAccessNode(parent) && parent.object === end.node || parent?.arguments && parent.callee !== end.node) return null;
+  const enclosed = isMemberAccessNode(parent) && parent.object === end.node || parent?.arguments && parent.callee !== end.node;
   for (let read = node; isMemberAccessNode(read) && !read.optional; read = unwrapRuntimeExpr(read.object)) {
     const receiver = unwrapRuntimeExpr(read.object);
     if (receiver?.optional || !unbackedProxyHopKey(receiver, resolvePure)
       || effects.every(effect => !subtreeContainsNode(receiver, effect))) continue;
-    if (!realmHopKeyName(read, ctx) || !proxyReceiverValueCanBeUndefined(receiver, resolvePure, ctx)) return null;
+    if (!realmHopKeyName(read, ctx) || !carriesRealmAlias(receiver.object, ctx)
+      && (enclosed || !proxyReceiverValueCanBeUndefined(receiver, resolvePure, ctx))) return null;
     return retainedSourceProbe('read', node, read, resolvePure, ctx);
   }
   return null;
@@ -5938,6 +5978,7 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
   // The navigation passthrough retains this whole source read. Its effects still
   // have the same source owner as the other probes; deferred drains need no offset fallback.
   if (decision.kind === 'passthrough') return { ...decision, retained: [decision.boundary.inner], consumed: [] };
+  if (decision.kind === 'read') return retainedSourceProbe('read', decision.source, decision.boundary.member, resolvePure, ctx);
   const { source } = decision;
   const retained = [];
   function slot(node) {

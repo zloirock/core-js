@@ -11,7 +11,7 @@ let out, v;
 const bare = _Number$MAX_SAFE_INTEGER.name;
 const navigated = _Number$MAX_SAFE_INTEGER.name;
 const stored = (v = _self, _Number$MAX_SAFE_INTEGER).name;
-const storedProbe = (v = null == _globalThis.window ? void 0 : _self, _Number$MAX_SAFE_INTEGER).name;
+const storedProbe = ((v = null == _globalThis.window ? void 0 : _self).Number, _Number$MAX_SAFE_INTEGER).name;
 // the receiver whose type the store carries the OTHER way: an array stays an array through it, so
 // the dispatch keeps its specialised helper instead of the generic one
 const arr = [1];

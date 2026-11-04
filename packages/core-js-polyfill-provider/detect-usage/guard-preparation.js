@@ -198,12 +198,15 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
   // A bare alias has no erased receiver read to respell; its surviving member owns
   // the possible throw. Replacing that value would silently erase the exception.
   if (!probe && !node.optional && aliasRootedReadMayThrow(node.object, resolveGlobal, ctx)) return { kind: 'retain' };
+  const emitted = probe ? directClaimProbeEffects({ decision: probe, node: probe }, effects) : effects;
   return {
-    kind: 'replace', receiver, fallback, hadChainAssign, probe,
+    kind: 'replace', receiver, fallback, probe, effects: emitted,
+    // Prepare only a standalone write. Mutating a probe's retained source here
+    // would invalidate the paths it already recorded for the original value.
+    hadChainAssign: hadChainAssign && (!probe || guardAssigns.some(write => emitted.includes(write))),
     // This replacement ends in the constructor itself, after every throw/effect.
     // Only the member reading that value is defined, not a method above it.
     definedReceiverRead,
-    effects: probe ? directClaimProbeEffects({ decision: probe, node: probe }, effects) : effects,
   };
 }
 
@@ -593,11 +596,13 @@ export function planGuardComposition(value, ctx, { readThrough = true, readerKey
 // binding owns conversion/clone/re-entry bookkeeping for the rendered nodes.
 export function prepareMemoReceiver(node, ctx, bindings) {
   if (!ctx?.adapter || !ctx.path || !ctx.resolvePure) return node;
-  prepareKeptMemoTail(node, ctx, bindings);
+  if (bindings.renderKeptTail) prepareKeptMemoTail(node, ctx, bindings);
   const nav = planProvenNavGuardCollapse({
     rootNode: node, ...ctx, allowSequenceRoot: true, descendSequenceTail: true,
   });
-  return nav && !nav.topAssign ? bindings.renderNav(nav) : node;
+  // A nested navigation owns a live test; the guarded reader composes it at the read site.
+  return nav && nav.kind !== 'nested' && !nav.topAssign && (nav.kind === 'sequence' || !nav.call || !guardProbeUndefinable(nav.call, ctx))
+    ? bindings.renderNav(nav) : node;
 }
 
 // A dispatch can substitute a proven static receiver while keeping the effects of
@@ -622,6 +627,7 @@ export function prepareStaticReceiver(node, ctx, { injectImport, embed = source 
     ? memberFromKeyName(quietObject, staticKey, { optional: receiver.optional === true }) : receiver;
   const pure = !navValueCanShortCircuit(node, ctx.resolvePure, ctx)
     && !chainSealsAShortCircuit(node, ctx.resolvePure, ctx)
+    && !aliasRootedReadMayThrow(node, ctx.resolvePure, ctx)
     && instanceSynthReceiverPure(pureView, ctx);
   if (!pure) return node;
   const effects = observableSequenceElements([
@@ -782,12 +788,8 @@ export function prepareGuardReceiver(objectNode, ctx, bindings, {
     return { firstReceiver: objectNode, receiver: objectNode, capture: false, source: objectNode, surface: null };
   }
   const surface = memoReceiverGlobalName(objectNode, ctx);
-  let memoSource = objectNode;
-  const nav = !mutatedLeaf && planProvenNavGuardCollapse({ rootNode: objectNode, ...ctx, allowSequenceRoot: true });
-  if (nav && nav.kind !== 'nested' && !nav.topAssign
-    && (nav.kind === 'sequence' || !nav.call || !guardProbeUndefinable(nav.call, ctx))) {
-    memoSource = bindings.renderNav(nav);
-  } else if (surface) {
+  let memoSource = mutatedLeaf ? objectNode : prepareMemoReceiver(objectNode, ctx, { renderNav: bindings.renderNav });
+  if (memoSource === objectNode && surface) {
     const rootMemo = planGuardRootMemo(objectNode, ctx);
     if (rootMemo) memoSource = rootMemo.source;
     for (let hop = unwrapRuntimeExpr(memoSource), pure; pure = backedMemoHop(hop, ctx);

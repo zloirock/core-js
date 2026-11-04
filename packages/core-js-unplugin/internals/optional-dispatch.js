@@ -368,7 +368,10 @@ export default function createOptionalDispatchChannel(ctx) {
     const { disjuncts, makeBase } = decided
       ? { disjuncts: [cloneNode(node.object)], makeBase: () => cloneNode(decided) }
       : guardObject(node.object, metaPath, options);
-    if (landing.kind === 'surface') return { hopKind: 'member', disjuncts, receiver: makeBase(), proxySurface: true };
+    if (landing.kind === 'surface') return {
+      hopKind: 'member', disjuncts, proxySurface: true,
+      receiver: landing.pure ? pure(landing.pure) : landing.member ? member(makeBase()) : makeBase(),
+    };
     if (landing.kind === 'proven') return {
       hopKind: 'member', disjuncts, receiver: makeBase(), provenKey: landing.key, provenBase: makeBase,
     };

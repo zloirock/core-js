@@ -26,6 +26,7 @@ for (const [source, kind, setup = '', placement = 'static'] of [
   ['(held = globalThis.window)?.self.Promise.noSuchStatic', 'guard', 'let held;'],
   ['(held = globalThis.window)?.window?.self.Promise.noSuchStatic', 'guard', 'let held;'],
   ['(held = globalThis.self).Promise.noSuchStatic', 'replace', 'let held;'],
+  ['(held = globalThis.window?.self).Promise.noSuchStatic', 'replace', 'let held;'],
   ['(globalThis.window?.Promise).noSuchStatic', 'replace'],
   ['(globalThis.window?.Promise)[(effect(), "noSuchStatic")]', 'retain'],
   ['held.Promise.noSuchStatic', 'replace', 'const held = globalThis.window;'],
@@ -48,7 +49,10 @@ for (const [source, kind, setup = '', placement = 'static'] of [
   if (kind === 'retain') return;
   check(`${ label } original source slot`, plan.receiver === (placement === 'prototype' ? node.object.object : node.object), true);
   if (source.includes('?.Promise).')) check(`${ label } sealed source has throw probe`, !!plan.probe, true);
-  if (source.includes('held =')) check(`${ label } kept write is owned`, plan.hadChainAssign, true);
+  if (source.includes('held = globalThis.window?.self)')) {
+    check(`${ label } retained write stays in the probe`, plan.effects[0], plan.probe);
+    check(`${ label } probe needs no separate write preparation`, plan.hadChainAssign, false);
+  } else if (source.includes('held =')) check(`${ label } kept write is owned`, plan.hadChainAssign, true);
   const reader = placement === 'prototype' ? unwrapRuntimeExpr(node.object) : node;
   check(`${ label } only the replaced receiver is defined`, plan.definedReceiverRead, reader.optional ? reader : null);
   if (kind === 'guard') {

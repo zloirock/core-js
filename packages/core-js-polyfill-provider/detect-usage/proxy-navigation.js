@@ -36,6 +36,7 @@ import {
   realmRootIsSpellable,
   directClaimProbePlan,
   effectfulClaimReadProbe,
+  carriesRealmAlias,
   directClaimProbeEffects,
   aliasRootedReadMayThrow,
   undefinableOptionalGuard,
@@ -293,7 +294,7 @@ function resolvedClaimStore(node, meta, aliasCtx, resolvePure) {
   const effects = resolvedClaimEffects(node, meta, aliasCtx);
   const lands = effects.at(-1) === store && store.left.type === 'Identifier';
   return { kind: 'written-store', store, effects: lands ? effects.slice(0, -1) : null,
-    base: proxyCollapseBase({ keptStore: store, writeReceiver: node }) };
+    base: proxyCollapseBase({ keptStore: store, writeReceiver: node, aliasCtx }) };
 }
 
 // Finish a resolved claim before registering imports. A native guard can decline
@@ -352,7 +353,8 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
     kind: 'replace', base, probe,
     effects: probe ? directClaimProbeEffects({ decision: probe, node: probe }, effects) : effects,
     proxyRoot, deletedRun,
-    foldAbove: proxyRoot && (deletedRun || isMemberAccessNode(node) && !probeRunIsTheSourceValue(path, { resolvePure })),
+    foldAbove: proxyRoot && (deletedRun || isMemberAccessNode(node)
+      && !(effects.length && carriesRealmAlias(node.object, aliasCtx)) && !probeRunIsTheSourceValue(path, { resolvePure })),
     reread: !POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName),
   };
 }

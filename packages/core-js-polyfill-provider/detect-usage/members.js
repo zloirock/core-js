@@ -111,13 +111,13 @@ import {
   inlineCallReturnExpression,
   interopDefaultProxyName,
   isCallShape,
-  isAliasProxyHopChain,
   isKnownStaticGlobal,
   isStaticPlacement,
   maximalProxyGlobalPrefix,
   mutationGuardKeepingHop,
   keptProbeStore,
   navHasUnresolvableProxyHop,
+  carriesRealmAlias,
   peelChainRootValue,
   prependChainAssignmentEffect,
   peelReceiverSequenceTail,
@@ -335,7 +335,8 @@ export function planInnerProxyCollapse(node, {
     }
     root = cur;
   }
-  const keptWrite = peelChainAssignment(descendToChainRoot(node).root).outer;
+  const sourceRoot = descendToChainRoot(node).root;
+  const keptWrite = peelChainAssignment(sourceRoot).outer;
   const effects = collectFoldedReceiverSideEffects(node, { rescue: rescue && new Set(rescue), ctx: aliasCtx });
   if (root?.type === 'CallExpression' && aliasCtx && !keptWrite && provenCallRoot) {
     for (let scan = node; isMemberAccessNode(scan); scan = peelReceiverSequenceTail(scan.object)) {
@@ -357,6 +358,10 @@ export function planInnerProxyCollapse(node, {
     // outer optional or computed member could skip or postpone its exception.
     if (aliasRootedReadMayThrow(root, resolvePure, aliasCtx)
       && !(memberKeepsReceiverThrow(reader) && unwrapRuntimeExpr(reader.object) === node)) return null;
+    // A claimless alias carrier still reads its unbacked hop after its prefix or write.
+    // Replaying the setup and substituting the alias would lose that read on an absent host.
+    const carriesAlias = !!effects.length && peelChainRootValue(sourceRoot) === root;
+    if (carriesAlias && !deleteFold && navHasUnresolvableProxyHop(node, resolvePure, aliasCtx)) return null;
     if (!admittedRoot) {
       const { scope, adapter, path } = aliasCtx;
       if (adapter.getBinding({ scope, name: root.name })?.polyfillHint
@@ -364,7 +369,7 @@ export function planInnerProxyCollapse(node, {
       const name = resolveObjectName({ objectNode: root, scope, adapter, path });
       if (!name || !isPristineProxyGlobal(adapter, name)) return null;
     }
-    return { aliasRoot: root, effects, keptWrite,
+    return { aliasRoot: root, effects, keptWrite, carriesAlias,
       writeStoreSpellable: writeStoreSpellable || unwrapRuntimeExpr(keptWrite?.right) === root };
   }
   if (!resolvedValue) {
@@ -386,8 +391,8 @@ export function planInnerProxyCollapse(node, {
 // A terminal delete claim lands on the run's root, while a claim inside a store
 // still owns that stored value. A read through a retained probe observes its value;
 // a direct delete can use the navigation root without replacing what was written.
-// Resolve the carried value first. Calls need a quiet, defined yield, and aliases
-// retain their binding. No host mutates here.
+// A call needs a quiet, defined yield. Alias-only runs keep their binding in the
+// inward receiver route. No host mutates here.
 export function planDeletedProxyClaim(node, { aliasCtx, resolvePure, deleteFold, claimName }) {
   if (!deleteFold || !isMemberAccessNode(node) || !POSSIBLE_GLOBAL_OBJECTS.has(claimName)
     || storedUserAssignmentOf(aliasCtx.path)) return null;
@@ -416,8 +421,7 @@ export function planDeletedProxyClaim(node, { aliasCtx, resolvePure, deleteFold,
     && (proxyRunLandingPure({ ctx: aliasCtx, resolvePure, rootName })
       ?? (storedRootName && storedRootName !== rootName
         ? proxyRunLandingPure({ ctx: aliasCtx, resolvePure, rootName: storedRootName }) : null));
-  if (pure) return { pure };
-  return !rootName && root?.type === 'Identifier' && isAliasProxyHopChain(node, aliasCtx) ? { alias: root } : null;
+  return pure ? { pure } : null;
 }
 
 // substrate-neutral proxy-global receiver collapse DECISION. the emitter collapsers (babel
@@ -558,6 +562,7 @@ export function planProxyReceiver(receiver, {
     kind: 'collapse',
     rootBinding: proxyCollapseBase({
       keptStore: keptAssignRoot,
+      aliasCtx,
       writeReceiver: isWriteTarget && !deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr) ? receiver.object : null,
       aliasRoot: source.aliasRoot,
       rootPure: source.entry && { entry: source.entry, hintName: source.hintName },
@@ -993,15 +998,15 @@ export function planDeclinedNavigation({ receiver = null, meta = null, ...option
   if ((!inner?.aliasRoot && !pure) || (!callPure && !receiver?.navigated)) return plan;
   const target = plan.endPath === path && receiver?.node === path.node ? path : plan.endPath.get('object');
   const source = target.node;
-  const effects = callPure && !inner?.aliasRoot
-    ? source === receiver?.node && inner ? inner.effects
-      : collectFoldedReceiverSideEffects(source, { ctx: { scope, adapter, path } }) : [];
+  // Reuse the effects of the exact alias span being replaced. A wider call fold
+  // must collect its own effects; a delete-only fold cannot move the receiver setup.
+  const replay = callPure && !inner?.aliasRoot || inner?.carriesAlias && source === receiver.node
+    && (!inner.keptWrite || inner.keptWrite.left.type === 'Identifier');
+  const effects = !replay ? [] : source === receiver?.node && inner ? inner.effects
+    : collectFoldedReceiverSideEffects(source, { ctx: { scope, adapter, path } });
   const seFree = !meta?.sideEffects?.length && !meta?.receiverEffectCount;
-  // Only the call fold has an effect replay channel. A retained alias/delete-only
-  // fold cannot discard setup, even when the claim itself carries no effects.
-  const covered = callPure && !inner?.aliasRoot
-    ? seFree || (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
-      .every(effect => effects.includes(effect) || effects.some(held => subtreeContainsNode(held, effect)))
+  const covered = replay ? seFree || (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
+    .every(effect => effects.includes(effect) || effects.some(held => subtreeContainsNode(held, effect)))
     : seFree && !inner.effects.length;
   if (!covered) return { ...plan, verdict: null };
   return { ...plan, fold: {
@@ -2794,6 +2799,10 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
     // Leave that value live so its own static claim can run; only realm hops have
     // a separate kept-navigation render that may still reserve their source slots.
     if (!subsumesReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(current))) break;
+    // A retained unbacked hop still reads the surface below it. A declined
+    // consumer cannot reserve the backed claim on a carried alias for itself.
+    if (!subsumesReceiver && resolvePure && current !== obj && carriesRealmAlias(current.object, { scope, adapter, path })
+      && proxyHopLacksPureEntry(realmHopKeyName(obj, { scope, adapter, path }), resolvePure)) break;
     // FIRST marker owns the hop: a SUBSUMING claim that already marked it (its render carries
     // the whole span) must not have a later DECLINED sibling meta re-record it as still-live -
     // the kept-nav render would race the claim's own receiver spelling

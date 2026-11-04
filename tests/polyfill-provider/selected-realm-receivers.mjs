@@ -7,7 +7,7 @@ import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packa
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { ownEmittedNavClaim, ownEmittedPatternClaim, ownOutputTests } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
-import { wrapperLiteralEntries } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { unwrapRuntimeExpr, wrapperLiteralEntries } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker, expectError } from './harness.mjs';
 
 const { check, finish } = createChecker('selected-realm-receivers');
@@ -460,6 +460,20 @@ for (const parser of adapters) for (const [name, code, expected] of [
   const tests = { isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => current };
   check(`${ parser.name }: data-slot dispatch ownership/${ name }/current ${ current }`,
     ownEmittedPatternClaim(prop, tests), expected && !current);
+}
+
+for (const parser of adapters) {
+  const tree = parser.parseAndScope(`let first, saved; const foreign = {};
+    (first = globalThis, saved = first, first = foreign, saved).self;
+    (first = foreign, saved = first, first = globalThis, saved).self;`);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const reads = parser.collectPaths(tree, 'MemberExpression').filter(p => p.node.property.name === 'self');
+  check(`${ parser.name }/two sequence tail reads`, reads.length, 2);
+  for (const [i, path] of reads.entries()) {
+    const receiver = unwrapRuntimeExpr(path.node.object).expressions.at(-1);
+    const name = resolveObjectName({ objectNode: receiver, readNode: receiver, path, scope: path.scope, adapter });
+    check(`${ parser.name }/realm at tail read ${ i }`, name === 'globalThis', i === 0);
+  }
 }
 
 finish();
