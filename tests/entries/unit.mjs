@@ -162,12 +162,15 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/trunc')(1.5) === 1);
     ok('cbrt' in load(NS, 'math'));
     ok(load(NS, 'number/constructor')('5') === 5);
+    // eslint-disable-next-line math/prefer-number-epsilon -- test the value independently of the built-in
     ok(load(NS, 'number/epsilon') === 2 ** -52);
     ok(load(NS, 'number/is-finite')(42.5));
     ok(load(NS, 'number/is-integer')(42.5) === false);
     ok(load(NS, 'number/is-nan')(NaN));
     ok(load(NS, 'number/is-safe-integer')(42));
+    // eslint-disable-next-line math/prefer-number-max-safe-integer -- test the value independently of the built-in
     ok(load(NS, 'number/max-safe-integer') === 0x1FFFFFFFFFFFFF);
+    // eslint-disable-next-line math/prefer-number-min-safe-integer, math/prefer-number-max-safe-integer -- test the value independently of the built-in
     ok(load(NS, 'number/min-safe-integer') === -0x1FFFFFFFFFFFFF);
     ok(load(NS, 'number/parse-float')('1.5') === 1.5);
     ok(load(NS, 'number/parse-int')('2.1') === 2);

@@ -35,10 +35,6 @@ const ALWAYS = 'always';
 const NEVER = 'never';
 const READONLY = 'readonly';
 
-function disable(rules) {
-  return Object.fromEntries(Object.keys(rules).map(key => [key, OFF]));
-}
-
 const base = {
   // possible problems:
   // enforces return statements in callbacks of array's methods
@@ -1431,6 +1427,16 @@ const forbidESAnnexBBuiltIns = {
   'unicorn/prefer-string-slice': ERROR,
 };
 
+const baseRules = {
+  ...base,
+  ...forbidNonStandardBuiltIns,
+  ...forbidESAnnexBBuiltIns,
+};
+
+function reset(rules, defaults = baseRules) {
+  return Object.fromEntries(Object.keys(rules).map(key => [key, defaults[key] ?? OFF]));
+}
+
 const forbidES5BuiltIns = {
   'es/no-array-isarray': ERROR,
   'es/no-array-prototype-every': ERROR,
@@ -1461,8 +1467,6 @@ const forbidES5BuiltIns = {
   'es/no-string-prototype-trim': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': OFF,
-  // prefer `globalThis` over `window`, `self`, and `global`
-  'unicorn/prefer-global-this': OFF,
 };
 
 const forbidES2015BuiltIns = {
@@ -1594,6 +1598,8 @@ const forbidES2020BuiltIns = {
   'es/no-symbol-matchall': ERROR,
   // prefer `BigInt` literals over the constructor
   'unicorn/prefer-bigint-literals': OFF,
+  // prefer `globalThis` over `window`, `self`, and `global`
+  'unicorn/prefer-global-this': OFF,
 };
 
 const forbidES2021BuiltIns = {
@@ -1872,10 +1878,6 @@ const nodePackages = {
   'unicorn/prefer-optional-catch-binding': OFF,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
   'es/no-atomics': ERROR,
   'es/no-shared-array-buffer': ERROR,
   // disallow top-level `await`
@@ -1890,8 +1892,6 @@ const nodePackages = {
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
   ...forbidES2027BuiltIns,
-  ...disable(forbidES2016IntlBuiltIns),
-  ...disable(forbidES2017IntlBuiltIns),
   ...forbidES2018IntlBuiltIns,
   ...forbidES2020IntlBuiltIns,
   ...forbidES2021IntlBuiltIns,
@@ -1909,7 +1909,6 @@ const nodeDev = {
   'node/no-unsupported-features/es-syntax': [ERROR, { version: DEV_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
-  ...disable(forbidModernBuiltIns),
   ...forbidES2024BuiltIns,
   'es/no-regexp-v-flag': OFF,
   'es/no-string-prototype-iswellformed': OFF,
@@ -1980,7 +1979,7 @@ const tests = {
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
-  ...disable(forbidESAnnexBBuiltIns),
+  ...reset(forbidESAnnexBBuiltIns, {}),
 };
 
 const qunit = {
@@ -2282,7 +2281,7 @@ const nodeDependencies = {
 
 const markdown = {
   ...base,
-  ...disable(forbidModernBuiltIns),
+  ...reset(forbidModernBuiltIns),
   ...forbidCompletelyNonExistentBuiltIns,
   // allow use of console
   'no-console': OFF,
@@ -2417,11 +2416,7 @@ export default [
       unicorn: pluginUnicorn,
       yaml: pluginYaml,
     },
-    rules: {
-      ...base,
-      ...forbidNonStandardBuiltIns,
-      ...forbidESAnnexBBuiltIns,
-    },
+    rules: baseRules,
     settings: {
       'es-x': { allowTestedProperty: true },
       'import-x/resolver-next': [createNodeResolver()],
@@ -2464,14 +2459,15 @@ export default [
     files: [
       '**/postinstall.js',
     ],
-    rules: disable(forbidES5BuiltIns),
+    rules: reset(forbidES5BuiltIns),
   },
   {
     files: [
       'packages/core-js?(-pure)/**/instance/**',
     ],
     rules: {
-      ...disable(forbidModernBuiltIns),
+      // Instance entries read the very methods they expose, including Annex B methods.
+      ...reset(forbidModernBuiltIns, {}),
       ...forbidCompletelyNonExistentBuiltIns,
     },
   },
@@ -2515,6 +2511,7 @@ export default [
     files: [
       'packages/core-js-@(builder|compat)/**',
     ],
+    ignores: ['packages/core-js-compat/src/**'],
     rules: nodePackages,
   },
   {

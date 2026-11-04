@@ -562,6 +562,7 @@ core-js(-pure)/es|stable|actual|full/object/lookup-getter
 core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
 *Examples*:
+<!-- eslint-disable math/prefer-number-is-nan -- demonstrate Object.is with NaN -->
 ```js
 let foo = { q: 1, w: 2 };
 let bar = { e: 3, r: 4 };
@@ -952,7 +953,8 @@ core-js(-pure)/es|stable|actual|full/iterator/windows
 core-js(-pure)/es|stable|actual|full/iterator/zip
 core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
-[*Examples*](https://core-js.io/playground#code=%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D.values%28%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AIterator.from%28%7B%0A++next%3A+%28%29+%3D%3E+%28%7B+done%3A+Math.random%28%29+%3E+0.9%2C+value%3A+Math.random%28%29+%2A+10+%7C+0+%7D%29%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B7%2C+6%2C+3%2C+0%2C+2%2C+8%5D%0A%0AIterator.concat%28%5B0%2C+1%5D.values%28%29%2C+%5B2%2C+3%5D%2C+function+%2A+%28%29+%7B%0A++yield+4%3B%0A++yield+5%3B%0A%7D%28%29%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%5D%0A%0AIterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F%0A%0Aconst+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0AArray.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D%0A%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%282%29%3B+++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%284%29%3B+++++%2F%2F+%3D%3E+false%0A%5BNaN%5D.values%28%29.includes%28NaN%29%3B+++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%283%2C+2%29%3B++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%281%2C+1%29%3B++%2F%2F+%3D%3E+false%0A%0A%2F%2A+eslint-disable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27%0A%2F%2A+eslint-enable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F):
+[*Examples*](https://core-js.io/playground#code=%5B1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%5D.values%28%29%0A++.drop%281%29%0A++.take%285%29%0A++.filter%28it+%3D%3E+it+%25+2%29%0A++.map%28it+%3D%3E+it+%2A%2A+2%29%0A++.toArray%28%29%3B+%2F%2F+%3D%3E+%5B9%2C+25%5D%0A%0AIterator.from%28%7B%0A++next%3A+%28%29+%3D%3E+%28%7B+done%3A+Math.random%28%29+%3E+0.9%2C+value%3A+Math.random%28%29+%2A+10+%7C+0+%7D%29%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B7%2C+6%2C+3%2C+0%2C+2%2C+8%5D%0A%0AIterator.concat%28%5B0%2C+1%5D.values%28%29%2C+%5B2%2C+3%5D%2C+function+%2A+%28%29+%7B%0A++yield+4%3B%0A++yield+5%3B%0A%7D%28%29%29.toArray%28%29%3B+%2F%2F+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%5D%0A%0AIterator.zip%28%5B%0A++%5B0%2C+1%2C+2%5D%2C%0A++%5B3%2C+4%2C+5%5D%2C%0A%5D%29.toArray%28%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+3%5D%2C+%5B1%2C+4%5D%2C+%5B2%2C+5%5D%5D%0A%0AIterator.zipKeyed%28%7B%0A++a%3A+%5B0%2C+1%2C+2%5D%2C%0A++b%3A+%5B3%2C+4%2C+5%2C+6%5D%2C%0A++c%3A+%5B7%2C+8%2C+9%5D%2C%0A%7D%2C+%7B%0A++mode%3A+%27longest%27%2C%0A++padding%3A+%7B+c%3A+10+%7D%2C%0A%7D%29.toArray%28%29%3B+%2F%2F+%3D%3E%0A%2F%2A%0A%5B%0A++%7B+a%3A+0%2C+++++++++b%3A+3%2C+c%3A+7++%7D%2C%0A++%7B+a%3A+1%2C+++++++++b%3A+4%2C+c%3A+8++%7D%2C%0A++%7B+a%3A+2%2C+++++++++b%3A+5%2C+c%3A+9++%7D%2C%0A++%7B+a%3A+undefined%2C+b%3A+6%2C+c%3A+10+%7D%2C%0A%5D%3B%0A+%2A%2F%0A%0Aconst+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0AArray.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0AArray.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D%0A%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%282%29%3B+++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%284%29%3B+++++%2F%2F+%3D%3E+false%0A%5BNaN%5D.values%28%29.includes%28NaN%29%3B+++++++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%283%2C+2%29%3B++%2F%2F+%3D%3E+true%0A%5B1%2C+2%2C+3%5D.values%28%29.includes%281%2C+1%29%3B++%2F%2F+%3D%3E+false%0A%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27):
+<!-- eslint-disable unicorn/require-array-join-separator -- demonstrate the default join separator -->
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -1008,11 +1010,9 @@ Array.from([0, 1].values().windows(3));  // => []
 [1, 2, 3].values().includes(3, 2);  // => true
 [1, 2, 3].values().includes(1, 1);  // => false
 
-/* eslint-disable unicorn/require-array-join-separator -- example */
 [1, 2, 3].values().join();     // => '1,2,3'
 [1, 2, 3].values().join('-');  // => '1-2-3'
 [1, null, 3].values().join();  // => '1,,3'
-/* eslint-enable unicorn/require-array-join-separator -- example */
 ```
 
 > [!WARNING]
@@ -1145,7 +1145,9 @@ core-js/es|stable|actual|full/regexp/to-string
 core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
-[*Examples*](https://core-js.io/playground#code=for+%28let+value+of+%27a%F0%A0%AE%B7b%27%29+%7B%0A++console.log%28value%29%3B+%2F%2F+-%3E+%27a%27%2C+%27%F0%A0%AE%B7%27%2C+%27b%27%0A%7D%0A%0A%27foobarbaz%27.includes%28%27bar%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.includes%28%27bar%27%2C+4%29%3B+++%2F%2F+%3D%3E+false%0A%27foobarbaz%27.startsWith%28%27foo%27%29%3B++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.startsWith%28%27bar%27%2C+3%29%3B+%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27baz%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27bar%27%2C+6%29%3B+++%2F%2F+%3D%3E+true%0A%0A%27string%27.repeat%283%29%3B+%2F%2F+%3D%3E+%27stringstringstring%27%0A%0A%27hello%27.padStart%2810%29%3B+++++++++%2F%2F+%3D%3E+%27+++++hello%27%0A%27hello%27.padStart%2810%2C+%271234%27%29%3B+%2F%2F+%3D%3E+%2712341hello%27%0A%27hello%27.padEnd%2810%29%3B+++++++++++%2F%2F+%3D%3E+%27hello+++++%27%0A%27hello%27.padEnd%2810%2C+%271234%27%29%3B+++%2F%2F+%3D%3E+%27hello12341%27%0A%0A%27%F0%A0%AE%B7%27.codePointAt%280%29%3B+%2F%2F+%3D%3E+134071%0AString.fromCodePoint%2897%2C+134071%2C+98%29%3B+%2F%2F+%3D%3E+%27a%F0%A0%AE%B7b%27%0A%0Alet+name+%3D+%27Bob%27%3B%0AString.raw%60Hi%5Cn%24%7B+name+%7D%21%60%3B+++++++++++%2F%2F+%3D%3E+%27Hi%5C%5CnBob%21%27+%28ES2015+template+string+syntax%29%0AString.raw%28%7B+raw%3A+%27test%27+%7D%2C+0%2C+1%2C+2%29%3B+%2F%2F+%3D%3E+%27t0e1s2t%27%0A%0A%27foo%27.bold%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27%3Cb%3Efoo%3C%2Fb%3E%27%0A%27bar%27.anchor%28%27a%22b%27%29%3B+++++++++++++++%2F%2F+%3D%3E+%27%3Ca+name%3D%22a%26quot%3Bb%22%3Ebar%3C%2Fa%3E%27%0A%27baz%27.link%28%27https%3A%2F%2Fexample.com%27%29%3B+%2F%2F+%3D%3E+%27%3Ca+href%3D%22https%3A%2F%2Fexample.com%22%3Ebaz%3C%2Fa%3E%27%0A%0ARegExp%28%27.%27%2C+%27s%27%29.test%28%27%5Cn%27%29%3B+%2F%2F+%3D%3E+true%0ARegExp%28%27.%27%2C+%27s%27%29.dotAll%3B+++++%2F%2F+%3D%3E+true%0A%0ARegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29.exec%28%27foo%3Aabc%2Cbar%3Adef%27%29.groups%3B+%2F%2F+%3D%3E+%7B+foo%3A+%27abc%27%2C+bar%3A+%27def%27+%7D%0A%0A%27foo%3Aabc%2Cbar%3Adef%27.replace%28RegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29%2C+%27%24%3Cbar%3E%2C%24%3Cfoo%3E%27%29%3B+%2F%2F+%3D%3E+%27def%2Cabc%27%0A%0A%2F%2F+eslint-disable-next-line+regexp%2Fno-useless-flag+--+example%0ARegExp%28%2F.%2Fg%2C+%27m%27%29%3B+%2F%2F+%3D%3E+%2F.%2Fm%0A%0A%2Ffoo%2F.flags%3B+++%2F%2F+%3D%3E+%27%27%0A%2Ffoo%2Fgi.flags%3B+%2F%2F+%3D%3E+%27gi%27%0A%0ARegExp%28%27foo%27%2C+%27y%27%29.sticky%3B+%2F%2F+%3D%3E+true%0A%0Aconst+text+%3D+%27First+line%5CnSecond+line%27%3B%0Aconst+regex+%3D+RegExp%28%27%28%3F%3Cindex%3E%5C%5CS%2B%29+line%5C%5Cn%3F%27%2C+%27y%27%29%3B%0A%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27First%27%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27Second%27%0Aregex.exec%28text%29%3B++++%2F%2F+%3D%3E+null%0A%0A%27foo%27.match%28%7B+%5BSymbol.match%5D%3A+%28%29+%3D%3E+1+%7D%29%3B+++++%2F%2F+%3D%3E+1%0A%27foo%27.replace%28%7B+%5BSymbol.replace%5D%3A+%28%29+%3D%3E+2+%7D%29%3B+%2F%2F+%3D%3E+2%0A%27foo%27.search%28%7B+%5BSymbol.search%5D%3A+%28%29+%3D%3E+3+%7D%29%3B+++%2F%2F+%3D%3E+3%0A%27foo%27.split%28%7B+%5BSymbol.split%5D%3A+%28%29+%3D%3E+4+%7D%29%3B+++++%2F%2F+%3D%3E+4%0A%0ARegExp.prototype.toString.call%28%7B+source%3A+%27foo%27%2C+flags%3A+%27bar%27+%7D%29%3B+%2F%2F+%3D%3E+%27%2Ffoo%2Fbar%27%0A%0A%27+++hello+++%27.trimLeft%28%29%3B++%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimRight%28%29%3B+%2F%2F+%3D%3E+%27+++hello%27%0A%27+++hello+++%27.trimStart%28%29%3B+%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimEnd%28%29%3B+++%2F%2F+%3D%3E+%27+++hello%27%0A%0Afor+%28let+%7B+groups%3A+%7B+number%2C+letter+%7D+%7D+of+%271111a2b3cccc%27.matchAll%28RegExp%28%27%28%3F%3Cnumber%3E%5C%5Cd%29%28%3F%3Cletter%3E%5C%5CD%29%27%2C+%27g%27%29%29%29+%7B%0A++console.log%28number%2C+letter%29%3B+%2F%2F+-%3E+1+a%2C+2+b%2C+3+c%0A%7D%0A%0A%27Test+abc+test+test+abc+test.%27.replaceAll%28%27abc%27%2C+%27foo%27%29%3B+%2F%2F+%3D%3E+%27Test+foo+test+test+foo+test.%27%0A%0A%27abc%27.at%281%29%3B++%2F%2F+%3D%3E+%27b%27%0A%27abc%27.at%28-1%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0A%27a%F0%9F%92%A9b%27.isWellFormed%28%29%3B++++++%2F%2F+%3D%3E+true%0A%27a%5CuD83Db%27.isWellFormed%28%29%3B++%2F%2F+%3D%3E+false%0A%0A%27a%F0%9F%92%A9b%27.toWellFormed%28%29%3B++++++%2F%2F+%3D%3E+%27a%F0%9F%92%A9b%27%0A%27a%5CuD83Db%27.toWellFormed%28%29%3B++%2F%2F+%3D%3E+%27a%EF%BF%BDb%27):
+[*Examples*](https://core-js.io/playground#code=for+%28let+value+of+%27a%F0%A0%AE%B7b%27%29+%7B%0A++console.log%28value%29%3B+%2F%2F+-%3E+%27a%27%2C+%27%F0%A0%AE%B7%27%2C+%27b%27%0A%7D%0A%0A%27foobarbaz%27.includes%28%27bar%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.includes%28%27bar%27%2C+4%29%3B+++%2F%2F+%3D%3E+false%0A%27foobarbaz%27.startsWith%28%27foo%27%29%3B++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.startsWith%28%27bar%27%2C+3%29%3B+%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27baz%27%29%3B++++++%2F%2F+%3D%3E+true%0A%27foobarbaz%27.endsWith%28%27bar%27%2C+6%29%3B+++%2F%2F+%3D%3E+true%0A%0A%27string%27.repeat%283%29%3B+%2F%2F+%3D%3E+%27stringstringstring%27%0A%0A%27hello%27.padStart%2810%29%3B+++++++++%2F%2F+%3D%3E+%27+++++hello%27%0A%27hello%27.padStart%2810%2C+%271234%27%29%3B+%2F%2F+%3D%3E+%2712341hello%27%0A%27hello%27.padEnd%2810%29%3B+++++++++++%2F%2F+%3D%3E+%27hello+++++%27%0A%27hello%27.padEnd%2810%2C+%271234%27%29%3B+++%2F%2F+%3D%3E+%27hello12341%27%0A%0A%27%F0%A0%AE%B7%27.codePointAt%280%29%3B+%2F%2F+%3D%3E+134071%0AString.fromCodePoint%2897%2C+134071%2C+98%29%3B+%2F%2F+%3D%3E+%27a%F0%A0%AE%B7b%27%0A%0Alet+name+%3D+%27Bob%27%3B%0AString.raw%60Hi%5Cn%24%7B+name+%7D%21%60%3B+++++++++++%2F%2F+%3D%3E+%27Hi%5C%5CnBob%21%27+%28ES2015+template+string+syntax%29%0AString.raw%28%7B+raw%3A+%27test%27+%7D%2C+0%2C+1%2C+2%29%3B+%2F%2F+%3D%3E+%27t0e1s2t%27%0A%0A%27foo%27.bold%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27%3Cb%3Efoo%3C%2Fb%3E%27%0A%27bar%27.anchor%28%27a%22b%27%29%3B+++++++++++++++%2F%2F+%3D%3E+%27%3Ca+name%3D%22a%26quot%3Bb%22%3Ebar%3C%2Fa%3E%27%0A%27baz%27.link%28%27https%3A%2F%2Fexample.com%27%29%3B+%2F%2F+%3D%3E+%27%3Ca+href%3D%22https%3A%2F%2Fexample.com%22%3Ebaz%3C%2Fa%3E%27%0A%0ARegExp%28%27.%27%2C+%27s%27%29.test%28%27%5Cn%27%29%3B+%2F%2F+%3D%3E+true%0ARegExp%28%27.%27%2C+%27s%27%29.dotAll%3B+++++%2F%2F+%3D%3E+true%0A%0ARegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29.exec%28%27foo%3Aabc%2Cbar%3Adef%27%29.groups%3B+%2F%2F+%3D%3E+%7B+foo%3A+%27abc%27%2C+bar%3A+%27def%27+%7D%0A%0A%27foo%3Aabc%2Cbar%3Adef%27.replace%28RegExp%28%27foo%3A%28%3F%3Cfoo%3E%5C%5Cw%2B%29%2Cbar%3A%28%3F%3Cbar%3E%5C%5Cw%2B%29%27%29%2C+%27%24%3Cbar%3E%2C%24%3Cfoo%3E%27%29%3B+%2F%2F+%3D%3E+%27def%2Cabc%27%0A%0ARegExp%28%2F.%2Fg%2C+%27m%27%29%3B+%2F%2F+%3D%3E+%2F.%2Fm%0A%0A%2Ffoo%2F.flags%3B+++%2F%2F+%3D%3E+%27%27%0A%2Ffoo%2Fgi.flags%3B+%2F%2F+%3D%3E+%27gi%27%0A%0ARegExp%28%27foo%27%2C+%27y%27%29.sticky%3B+%2F%2F+%3D%3E+true%0A%0Aconst+text+%3D+%27First+line%5CnSecond+line%27%3B%0Aconst+regex+%3D+RegExp%28%27%28%3F%3Cindex%3E%5C%5CS%2B%29+line%5C%5Cn%3F%27%2C+%27y%27%29%3B%0A%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27First%27%0Aregex.exec%28text%29.groups.index%3B+%2F%2F+%3D%3E+%27Second%27%0Aregex.exec%28text%29%3B++++%2F%2F+%3D%3E+null%0A%0A%27foo%27.match%28%7B+%5BSymbol.match%5D%3A+%28%29+%3D%3E+1+%7D%29%3B+++++%2F%2F+%3D%3E+1%0A%27foo%27.replace%28%7B+%5BSymbol.replace%5D%3A+%28%29+%3D%3E+2+%7D%29%3B+%2F%2F+%3D%3E+2%0A%27foo%27.search%28%7B+%5BSymbol.search%5D%3A+%28%29+%3D%3E+3+%7D%29%3B+++%2F%2F+%3D%3E+3%0A%27foo%27.split%28%7B+%5BSymbol.split%5D%3A+%28%29+%3D%3E+4+%7D%29%3B+++++%2F%2F+%3D%3E+4%0A%0ARegExp.prototype.toString.call%28%7B+source%3A+%27foo%27%2C+flags%3A+%27bar%27+%7D%29%3B+%2F%2F+%3D%3E+%27%2Ffoo%2Fbar%27%0A%0A%27+++hello+++%27.trimLeft%28%29%3B++%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimRight%28%29%3B+%2F%2F+%3D%3E+%27+++hello%27%0A%27+++hello+++%27.trimStart%28%29%3B+%2F%2F+%3D%3E+%27hello+++%27%0A%27+++hello+++%27.trimEnd%28%29%3B+++%2F%2F+%3D%3E+%27+++hello%27%0A%0Afor+%28let+%7B+groups%3A+%7B+number%2C+letter+%7D+%7D+of+%271111a2b3cccc%27.matchAll%28RegExp%28%27%28%3F%3Cnumber%3E%5C%5Cd%29%28%3F%3Cletter%3E%5C%5CD%29%27%2C+%27g%27%29%29%29+%7B%0A++console.log%28number%2C+letter%29%3B+%2F%2F+-%3E+1+a%2C+2+b%2C+3+c%0A%7D%0A%0A%27Test+abc+test+test+abc+test.%27.replaceAll%28%27abc%27%2C+%27foo%27%29%3B+%2F%2F+%3D%3E+%27Test+foo+test+test+foo+test.%27%0A%0A%27abc%27.at%281%29%3B++%2F%2F+%3D%3E+%27b%27%0A%27abc%27.at%28-1%29%3B+%2F%2F+%3D%3E+%27c%27%0A%0A%27a%F0%9F%92%A9b%27.isWellFormed%28%29%3B++++++%2F%2F+%3D%3E+true%0A%27a%5CuD83Db%27.isWellFormed%28%29%3B++%2F%2F+%3D%3E+false%0A%0A%27a%F0%9F%92%A9b%27.toWellFormed%28%29%3B++++++%2F%2F+%3D%3E+%27a%F0%9F%92%A9b%27%0A%27a%5CuD83Db%27.toWellFormed%28%29%3B++%2F%2F+%3D%3E+%27a%EF%BF%BDb%27):
+<!-- eslint-disable es/no-string-create-html-methods, es/no-string-prototype-trimleft-trimright, unicorn/prefer-string-trim-start-end -- demonstrate Annex B methods -->
+<!-- eslint-disable regexp/no-useless-flag -- demonstrate replacing RegExp flags -->
 ```js
 for (let value of 'a𠮷b') {
   console.log(value); // -> 'a', '𠮷', 'b'
@@ -1183,7 +1185,6 @@ RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)').exec('foo:abc,bar:def').groups; // =
 
 'foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), '$<bar>,$<foo>'); // => 'def,abc'
 
-// eslint-disable-next-line regexp/no-useless-flag -- example
 RegExp(/./g, 'm'); // => /./m
 
 /foo/.flags;   // => ''
@@ -1402,9 +1403,9 @@ core-js(-pure)/es|stable|actual|full/promise/finally
 core-js(-pure)/es|stable|actual|full/promise/try
 core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```
-Basic [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Aconsole.log%28%27Run%27%29%3B++++++++++++++++++++%2F%2F+-%3E+Run%0AsleepRandom%285%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+-%3E+869%2C+after+5+sec.%0A++return+sleepRandom%2810%29%3B%0A%7D%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+-%3E+202%2C+after+10+sec.%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27immediately+after%27%29%3B++++%2F%2F+-%3E+immediately+after%0A++throw+new+Error%28%27Irror%21%27%29%3B%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27will+not+be+displayed%27%29%3B%0A%7D%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+Error%3A+Irror%21):
+Basic [*examples*](https://core-js.io/playground#code=function+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Aconsole.log%28%27Run%27%29%3B++++++++++++++++++++%2F%2F+-%3E+Run%0AsleepRandom%285%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+-%3E+869%2C+after+5+sec.%0A++return+sleepRandom%2810%29%3B%0A%7D%29.then%28result+%3D%3E+%7B%0A++console.log%28result%29%3B+++++++++++++++++%2F%2F+-%3E+202%2C+after+10+sec.%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27immediately+after%27%29%3B++++%2F%2F+-%3E+immediately+after%0A++throw+new+Error%28%27Irror%21%27%29%3B%0A%7D%29.then%28%28%29+%3D%3E+%7B%0A++console.log%28%27will+not+be+displayed%27%29%3B%0A%7D%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+Error%3A+Irror%21):
+<!-- eslint-disable promise/prefer-await-to-callbacks -- demonstrate Promise callbacks -->
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
 function sleepRandom(time) {
   return new Promise((resolve, reject) => {
     setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3);
@@ -1424,9 +1425,9 @@ sleepRandom(5).then(result => {
   console.log('will not be displayed');
 }).catch(error => console.log(error)); // -> Error: Irror!
 ```
-`Promise.resolve` and `Promise.reject` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0APromise.resolve%2842%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++%2F%2F+-%3E+42%0APromise.reject%2842%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+42%0A%0APromise.resolve%28%24.getJSON%28%27%2Fdata.json%27%29%29%3B+%2F%2F+%3D%3E+ES+promise):
+`Promise.resolve` and `Promise.reject` [*examples*](https://core-js.io/playground#code=Promise.resolve%2842%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++%2F%2F+-%3E+42%0APromise.reject%2842%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+42%0A%0APromise.resolve%28%24.getJSON%28%27%2Fdata.json%27%29%29%3B+%2F%2F+%3D%3E+ES+promise):
+<!-- eslint-disable promise/prefer-await-to-callbacks -- demonstrate Promise callbacks -->
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
 Promise.resolve(42).then(x => console.log(x));         // -> 42
 Promise.reject(42).catch(error => console.log(error)); // -> 42
 
@@ -1447,9 +1448,9 @@ Promise.all([
   sleepRandom(10),            // after 15 sec:
 ]).then(x => console.log(x)); // -> ['foo', 956, 85, 382]
 ```
-`Promise.race` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0Afunction+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Afunction+timeLimit%28promise%2C+time%29+%7B%0A++return+Promise.race%28%5Bpromise%2C+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28reject%2C+time+%2A+1e3%2C+new+Error%28%60Await+%3E+%24%7B+time+%7D+sec%60%29%29%3B%0A++%7D%29%5D%29%3B%0A%7D%0A%0AtimeLimit%28sleepRandom%285%29%2C+10%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++++%2F%2F+-%3E+853%2C+after+5+sec.%0AtimeLimit%28sleepRandom%2815%29%2C+10%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+Error%3A+Await+%3E+10+sec):
+`Promise.race` [*examples*](https://core-js.io/playground#code=function+sleepRandom%28time%29+%7B%0A++return+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28resolve%2C+time+%2A+1e3%2C+0+%7C+Math.random%28%29+%2A+1e3%29%3B%0A++%7D%29%3B%0A%7D%0A%0Afunction+timeLimit%28promise%2C+time%29+%7B%0A++return+Promise.race%28%5Bpromise%2C+new+Promise%28%28resolve%2C+reject%29+%3D%3E+%7B%0A++++setTimeout%28reject%2C+time+%2A+1e3%2C+new+Error%28%60Await+%3E+%24%7B+time+%7D+sec%60%29%29%3B%0A++%7D%29%5D%29%3B%0A%7D%0A%0AtimeLimit%28sleepRandom%285%29%2C+10%29.then%28x+%3D%3E+console.log%28x%29%29%3B+++++++++++%2F%2F+-%3E+853%2C+after+5+sec.%0AtimeLimit%28sleepRandom%2815%29%2C+10%29.catch%28error+%3D%3E+console.log%28error%29%29%3B+%2F%2F+-%3E+Error%3A+Await+%3E+10+sec):
+<!-- eslint-disable promise/prefer-await-to-callbacks -- demonstrate Promise callbacks -->
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
 function timeLimit(promise, time) {
   return Promise.race([promise, new Promise((resolve, reject) => {
     setTimeout(reject, time * 1e3, new Error(`Await > ${ time } sec`));
@@ -1481,9 +1482,9 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // -> [1, 2, 3]
 ```
-`Promise.try` [*examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+promise%2Fprefer-await-to-callbacks+--+example+%2A%2F%0APromise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B%0A%0APromise.try%28%28%29+%3D%3E+%7B+throw+new+Error%28%2742%27%29%3B+%7D%29.catch%28error+%3D%3E+console.log%28%60Promise%2C+rejected+as+%24%7B+error+%7D%60%29%29%3B%0A%0APromise.try%28async+%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B%0A%0APromise.try%28async+%28%29+%3D%3E+%7B+throw+new+Error%28%2742%27%29%3B+%7D%29.catch%28error+%3D%3E+console.log%28%60Promise%2C+rejected+as+%24%7B+error+%7D%60%29%29%3B%0A%0APromise.try%28it+%3D%3E+it%2C+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B):
+`Promise.try` [*examples*](https://core-js.io/playground#code=Promise.try%28%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B%0A%0APromise.try%28%28%29+%3D%3E+%7B+throw+new+Error%28%2742%27%29%3B+%7D%29.catch%28error+%3D%3E+console.log%28%60Promise%2C+rejected+as+%24%7B+error+%7D%60%29%29%3B%0A%0APromise.try%28async+%28%29+%3D%3E+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B%0A%0APromise.try%28async+%28%29+%3D%3E+%7B+throw+new+Error%28%2742%27%29%3B+%7D%29.catch%28error+%3D%3E+console.log%28%60Promise%2C+rejected+as+%24%7B+error+%7D%60%29%29%3B%0A%0APromise.try%28it+%3D%3E+it%2C+42%29.then%28it+%3D%3E+console.log%28%60Promise%2C+resolved+as+%24%7B+it+%7D%60%29%29%3B):
+<!-- eslint-disable promise/prefer-await-to-callbacks -- demonstrate Promise callbacks -->
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
 Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${ it }`));
 
 Promise.try(() => { throw new Error('42'); }).catch(error => console.log(`Promise, rejected as ${ error }`));
@@ -1535,6 +1536,7 @@ async function sleepError(time, msg) {
 ##### Unhandled rejection tracking[⬆](#index)
 
 In Node.js, as with the native implementation, the [`unhandledRejection`](https://nodejs.org/api/process.html#process_event_unhandledrejection) and [`rejectionHandled`](https://nodejs.org/api/process.html#process_event_rejectionhandled) events are available:
+<!-- eslint-disable promise/prefer-await-to-then -- demonstrate a late rejection handler -->
 ```js
 process.on('unhandledRejection', (reason, promise) => console.log('unhandled', reason, promise));
 process.on('rejectionHandled', promise => console.log('handled', promise));
@@ -1542,11 +1544,11 @@ process.on('rejectionHandled', promise => console.log('handled', promise));
 let promise = Promise.reject(42);
 // -> unhandled 42 [object Promise]
 
-// eslint-disable-next-line promise/prefer-await-to-then -- example
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 // -> handled [object Promise]
 ```
-In a browser, an unhandled rejection is reported to the console by default; you can also add handlers for unhandled and later handled rejections, [*examples*](https://core-js.io/playground#code=globalThis.addEventListener%28%27unhandledrejection%27%2C+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%29%3B%0AglobalThis.addEventListener%28%27rejectionhandled%27%2C+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%29%3B%0A%2F%2F+or%0AglobalThis.onunhandledrejection+%3D+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%3B%0AglobalThis.onrejectionhandled+%3D+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%3B%0A%0Alet+promise+%3D+Promise.reject%2842%29%3B%0A%2F%2F+-%3E+unhandled+42+%5Bobject+Promise%5D%0A%0A%2F%2F+eslint-disable-next-line+promise%2Fprefer-await-to-then+--+example%0AsetTimeout%28%28%29+%3D%3E+promise.catch%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%2C+1e3%29%3B%0A%2F%2F+-%3E+handled+42+%5Bobject+Promise%5D):
+In a browser, an unhandled rejection is reported to the console by default; you can also add handlers for unhandled and later handled rejections, [*examples*](https://core-js.io/playground#code=globalThis.addEventListener%28%27unhandledrejection%27%2C+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%29%3B%0AglobalThis.addEventListener%28%27rejectionhandled%27%2C+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%29%3B%0A%2F%2F+or%0AglobalThis.onunhandledrejection+%3D+e+%3D%3E+console.log%28%27unhandled%27%2C+e.reason%2C+e.promise%29%3B%0AglobalThis.onrejectionhandled+%3D+e+%3D%3E+console.log%28%27handled%27%2C+e.reason%2C+e.promise%29%3B%0A%0Alet+promise+%3D+Promise.reject%2842%29%3B%0A%2F%2F+-%3E+unhandled+42+%5Bobject+Promise%5D%0A%0AsetTimeout%28%28%29+%3D%3E+promise.catch%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%2C+1e3%29%3B%0A%2F%2F+-%3E+handled+42+%5Bobject+Promise%5D):
+<!-- eslint-disable promise/prefer-await-to-then -- demonstrate a late rejection handler -->
 ```js
 globalThis.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
 globalThis.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));
@@ -1557,7 +1559,6 @@ globalThis.onrejectionhandled = e => console.log('handled', e.reason, e.promise)
 let promise = Promise.reject(42);
 // -> unhandled 42 [object Promise]
 
-// eslint-disable-next-line promise/prefer-await-to-then -- example
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 // -> handled 42 [object Promise]
 ```
@@ -1664,10 +1665,10 @@ Object.getOwnPropertySymbols(object); // => [Symbol(c)]
 Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
 ```
 
-[*Symbol#description getter*](https://core-js.io/playground#code=Symbol%28%27foo%27%29.description%3B+%2F%2F+%3D%3E+%27foo%27%0A%2F%2F+eslint-disable-next-line+symbol-description+--+example%0ASymbol%28%29.description%3B++++++%2F%2F+%3D%3E+undefined):
+[*Symbol#description getter*](https://core-js.io/playground#code=Symbol%28%27foo%27%29.description%3B+%2F%2F+%3D%3E+%27foo%27%0ASymbol%28%29.description%3B++++++%2F%2F+%3D%3E+undefined):
+<!-- eslint-disable symbol-description -- demonstrate a symbol without a description -->
 ```js
 Symbol('foo').description; // => 'foo'
-// eslint-disable-next-line symbol-description -- example
 Symbol().description;      // => undefined
 ```
 ##### Caveats when using `Symbol` polyfill:[⬆](#index)
@@ -2743,13 +2744,12 @@ class Iterator {
 core-js/proposals/iterator-join
 core-js(-pure)/es|stable|actual|full/iterator/join
 ```
-[*Examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27%0A%2F%2A+eslint-enable+unicorn%2Frequire-array-join-separator+--+example+%2A%2F):
+[*Examples*](https://core-js.io/playground#code=%5B1%2C+2%2C+3%5D.values%28%29.join%28%29%3B+++++%2F%2F+%3D%3E+%271%2C2%2C3%27%0A%5B1%2C+2%2C+3%5D.values%28%29.join%28%27-%27%29%3B++%2F%2F+%3D%3E+%271-2-3%27%0A%5B1%2C+null%2C+3%5D.values%28%29.join%28%29%3B++%2F%2F+%3D%3E+%271%2C%2C3%27):
+<!-- eslint-disable unicorn/require-array-join-separator -- demonstrate the default join separator -->
 ```js
-/* eslint-disable unicorn/require-array-join-separator -- example */
 [1, 2, 3].values().join();     // => '1,2,3'
 [1, 2, 3].values().join('-');  // => '1-2-3'
 [1, null, 3].values().join();  // => '1,,3'
-/* eslint-enable unicorn/require-array-join-separator -- example */
 ```
 
 ##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
@@ -3501,7 +3501,8 @@ core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key
 core-js(-pure)/full/composite-symbol
 ```
-[*Examples*](https://core-js.io/playground#code=%2F%2F+returns+a+symbol%0Aconst+symbol+%3D+compositeSymbol%28%7B%7D%29%3B%0Atypeof+symbol%3B+%2F%2F+%3D%3E+%27symbol%27%0A%0A%2F%2F+works+the+same%2C+but+returns+a+plain+frozen+object+without+a+prototype%0Aconst+key+%3D+compositeKey%28%7B%7D%29%3B%0Atypeof+key%3B+%2F%2F+%3D%3E+%27object%27%0A%28%7B%7D%29.toString.call%28key%29%3B+%2F%2F+%3D%3E+%27%5Bobject+Object%5D%27%0AObject.getPrototypeOf%28key%29%3B+%2F%2F+%3D%3E+null%0AObject.isFrozen%28key%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+a+%3D+%5B%27a%27%5D%3B%0Aconst+b+%3D+%5B%27b%27%5D%3B%0Aconst+c+%3D+%5B%27c%27%5D%3B%0A%0A%2F%2A+eslint-disable+no-self-compare+--+example+%2A%2F%0AcompositeSymbol%28a%29+%3D%3D%3D+compositeSymbol%28a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%29+%21%3D%3D+compositeSymbol%28%5B%27a%27%5D%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+1%29+%3D%3D%3D+compositeSymbol%28a%2C+1%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%29+%21%3D%3D+compositeSymbol%28b%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%2C+c%29+%3D%3D%3D+compositeSymbol%28a%2C+b%2C+c%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%29+%3D%3D%3D+compositeSymbol%281%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%2C+2%2C+b%29+%3D%3D%3D+compositeSymbol%281%2C+a%2C+2%2C+b%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+a%29+%3D%3D%3D+compositeSymbol%28a%2C+a%29%3B+%2F%2F+%3D%3E+true):
+[*Examples*](https://core-js.io/playground#code=%2F%2F+returns+a+symbol%0Aconst+symbol+%3D+compositeSymbol%28%7B%7D%29%3B%0Atypeof+symbol%3B+%2F%2F+%3D%3E+%27symbol%27%0A%0A%2F%2F+works+the+same%2C+but+returns+a+plain+frozen+object+without+a+prototype%0Aconst+key+%3D+compositeKey%28%7B%7D%29%3B%0Atypeof+key%3B+%2F%2F+%3D%3E+%27object%27%0A%28%7B%7D%29.toString.call%28key%29%3B+%2F%2F+%3D%3E+%27%5Bobject+Object%5D%27%0AObject.getPrototypeOf%28key%29%3B+%2F%2F+%3D%3E+null%0AObject.isFrozen%28key%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+a+%3D+%5B%27a%27%5D%3B%0Aconst+b+%3D+%5B%27b%27%5D%3B%0Aconst+c+%3D+%5B%27c%27%5D%3B%0A%0AcompositeSymbol%28a%29+%3D%3D%3D+compositeSymbol%28a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%29+%21%3D%3D+compositeSymbol%28%5B%27a%27%5D%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+1%29+%3D%3D%3D+compositeSymbol%28a%2C+1%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%29+%21%3D%3D+compositeSymbol%28b%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%2C+c%29+%3D%3D%3D+compositeSymbol%28a%2C+b%2C+c%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%29+%3D%3D%3D+compositeSymbol%281%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%2C+2%2C+b%29+%3D%3D%3D+compositeSymbol%281%2C+a%2C+2%2C+b%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+a%29+%3D%3D%3D+compositeSymbol%28a%2C+a%29%3B+%2F%2F+%3D%3E+true):
+<!-- eslint-disable no-self-compare -- demonstrate repeated calls with the same keys -->
 ```js
 // returns a symbol
 const symbol = compositeSymbol({});
@@ -3518,7 +3519,6 @@ const a = ['a'];
 const b = ['b'];
 const c = ['c'];
 
-/* eslint-disable no-self-compare -- example */
 compositeSymbol(a) === compositeSymbol(a); // => true
 compositeSymbol(a) !== compositeSymbol(['a']); // => true
 compositeSymbol(a, 1) === compositeSymbol(a, 1); // => true
@@ -3705,9 +3705,9 @@ core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable
 core-js(-pure)/full/function/is-constructor
 ```
-[*Examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+prefer-arrow-callback+--+example+%2A%2F%0AFunction.isCallable%28null%29%3B++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isCallable%28%7B%7D%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isCallable%28function+%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+%2F%2F+%3D%3E+true%0AFunction.isCallable%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+true%0AFunction.isCallable%28class+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+false%0A%0AFunction.isConstructor%28null%29%3B++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28%7B%7D%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28function+%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+%2F%2F+%3D%3E+true%0AFunction.isConstructor%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28class+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+true):
+[*Examples*](https://core-js.io/playground#code=Function.isCallable%28null%29%3B++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isCallable%28%7B%7D%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isCallable%28function+%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+%2F%2F+%3D%3E+true%0AFunction.isCallable%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+true%0AFunction.isCallable%28class+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+false%0A%0AFunction.isConstructor%28null%29%3B++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28%7B%7D%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28function+%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+%2F%2F+%3D%3E+true%0AFunction.isConstructor%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28class+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+true):
+<!-- eslint-disable prefer-arrow-callback -- compare ordinary functions and arrow functions -->
 ```js
-/* eslint-disable prefer-arrow-callback -- example */
 Function.isCallable(null);                        // => false
 Function.isCallable({});                          // => false
 Function.isCallable(function () { /* empty */ }); // => true
@@ -3773,9 +3773,9 @@ getter self: GlobalThisValue;
 ```
 core-js(-pure)/stable|actual|full/self
 ```
-[*Examples*](https://core-js.io/playground#code=%2F%2F+eslint-disable-next-line+no-restricted-globals+--+example%0Aself.Array+%3D%3D%3D+Array%3B+%2F%2F+%3D%3E+true):
+[*Examples*](https://core-js.io/playground#code=self.Array+%3D%3D%3D+Array%3B+%2F%2F+%3D%3E+true):
+<!-- eslint-disable no-restricted-globals, unicorn/prefer-global-this -- demonstrate self -->
 ```js
-// eslint-disable-next-line no-restricted-globals -- example
 self.Array === Array; // => true
 ```
 
@@ -4111,13 +4111,13 @@ core-js(-pure)/es|stable|actual|full/get-iterator
 core-js(-pure)/es|stable|actual|full/get-iterator-method
 ```
 *Examples*:
+<!-- eslint-disable prefer-rest-params -- demonstrate iteration over arguments -->
 ```js
 import isIterable from 'core-js-pure/actual/is-iterable';
 import getIterator from 'core-js-pure/actual/get-iterator';
 import getIteratorMethod from 'core-js-pure/actual/get-iterator-method';
 
 let list = (function () {
-  // eslint-disable-next-line prefer-rest-params -- example
   return arguments;
 })(1, 2, 3);
 
