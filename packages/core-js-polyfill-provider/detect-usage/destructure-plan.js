@@ -278,6 +278,19 @@ export function planSelectingExtraction({
   return { kind: 'mirror' };
 }
 
+// A static named by a fallback arm may only capture the slot when the selected
+// receiver itself supplies that constructor. Otherwise the original pattern reads it.
+export function planKeyedClaimCapture(input) {
+  const { ctx, kind, meta } = input;
+  if (kind === 'static' && meta?.fromFallback) {
+    const receiver = resolveNestedReceiverNode(ctx.path, { adapter: ctx.adapter, allowSePeeledFragment: true, allowNavSegments: true });
+    const selection = receiver && planSelectingExtraction({ receiver, kind, object: meta.object, nested: true, keepsReceiver: true }, ctx);
+    const value = selection ? selection.kind === 'operand' && selection.node : receiver;
+    if (!value || resolveObjectName({ objectNode: value, ...ctx }) !== meta.object) return null;
+  }
+  return planNestedKeyedPatternCapture(input);
+}
+
 // A static/global claim may use a decided operand or a proved matching primary.
 // An instance meta proves no definedness. A partial consume must keep the effects
 // of the complete selection; matching ternary arms owe an effect-free test.
@@ -3043,6 +3056,8 @@ export function buildNestedDestructurePlan({
     return prop.value?.type === 'AssignmentPattern' ? prop.value.right : null;
   }
 
+  let orderedRealmKeys = false;
+
   // fold an ObjectPattern-valued outer prop: plan each child, aggregate extractions, pick
   // the node kind. no extraction anywhere -> the whole prop stays verbatim; every child
   // consumed -> the prop is consumed whole; otherwise 'rebuilt' with per-child plans.
@@ -3059,8 +3074,11 @@ export function buildNestedDestructurePlan({
       return { kind: 'verbatim', prop: outerProp };
     }
     if (!extractions.length) return { kind: 'verbatim', prop: outerProp };
-    if (children.every(c => c.kind === 'consumed')) {
-      return { kind: 'consumed', prop: outerProp, keyName: propKeyNameScoped(outerProp), extractions };
+    if (children.every(child => child.kind === 'consumed')) {
+      if (children.every(child => !computedKeyHasSideEffects(child.prop, { scope, adapter, path }))) {
+        return { kind: 'consumed', prop: outerProp, keyName: propKeyNameScoped(outerProp), extractions };
+      }
+      orderedRealmKeys = true;
     }
     return { kind: 'rebuilt', prop: outerProp, pattern, extractions, children };
   }
@@ -3434,6 +3452,9 @@ export function buildNestedDestructurePlan({
         // A raw anchor exists only for an actual residual claim. Ordered capture owns
         // its source slots instead; flattening them would hide its receiver/effect order.
         const replacement = anchorPure || anchor.narrow || (guarded && !anchorSlotMutated && resolveGlobalPolyfill(key));
+        if (!replacement && outerProps.some(item => item.kind === 'consumed')
+          && outerProps.some(item => item.kind === 'verbatim' && computedKeyHasSideEffects(item.prop, { scope, adapter, path })
+            && residualClaim(item.prop))) return null;
         if (!replacement && outerProps.every(p => p.kind === 'verbatim')
           && inner.properties.every(leaf => !residualClaim(leaf))) return null;
         // ... and a residual leaf the MIRROR can spell with the member's own ponyfill declines the anchor
@@ -3563,11 +3584,39 @@ export function buildNestedDestructurePlan({
     plan.wrapperSurvives = true;
   }
   // an effectful hop key keeps its level the way a rest does: the hop retires to a sentinel
+  if (orderedRealmKeys && plan && !plan.anchor && !plan.guarded && plan.pattern === declarator.id
+    && declarator.type === 'VariableDeclarator' && plan.outerProps.every(supportedKey)) {
+    const host = path && (path.node === declarator ? path : destructurePatternHostPath(path));
+    const aliases = new Map();
+    function noteAlias(item) {
+      if (item.kind !== 'rebuilt') return;
+      const key = propKeyNameScoped(item.prop);
+      if (POSSIBLE_GLOBAL_OBJECTS.has(key) && resolveGlobalPolyfill(key)) aliases.set(item.prop, key);
+      item.children.forEach(noteAlias);
+    }
+    const realm = POSSIBLE_GLOBAL_OBJECTS.has(plan.receiver);
+    if (realm) plan.outerProps.forEach(noteAlias);
+    plan.orderedRealmKeys = aliases;
+    plan.inlineRealmExport = !canSplitDestructureExport(host);
+    const root = declarator.init;
+    if (plan.inlineRealmExport && root?.type === 'Identifier' && root.name === plan.receiver
+      && POSSIBLE_GLOBAL_OBJECTS.has(root.name) && !adapter?.hasBinding?.({ name: root.name, scope, path })
+      && isPristineProxyGlobal(adapter, root.name)) plan.realmRootPure = resolveGlobalPolyfill(root.name);
+    // A mirror can print an object-returning call for a shared hop it left native.
+    // Re-parsing that call does not prove that its properties came from the realm.
+    if (plan.inlineRealmExport && !realm) plan = null;
+  }
+  function supportedKey(item) {
+    if (isRestProperty(item.prop)) return false;
+    if (item.kind === 'rebuilt') return item.children.every(supportedKey);
+    return item.kind === 'verbatim' || item.kind === 'consumed' && item.extractions.every(extraction => extraction.entry
+      && extraction.localName && (!extraction.targetNode || extraction.targetNode.type === 'Identifier'));
+  }
   if (plan && patternKeepsEffectfulHop(pattern, { scope, adapter, path })) {
     plan.restKeepsLevel = true;
   }
   // A namespace export cannot hide the sentinels a surviving level would bind.
-  if (plan && !canSplitDestructureExport(path) && (plan.wrapperSurvives || plan.restKeepsLevel
+  if (plan && !plan.orderedRealmKeys && !canSplitDestructureExport(path) && (plan.wrapperSurvives || plan.restKeepsLevel
     || patternKeepsEffectfulKey(declarator.id, { scope, adapter, path }) || plan.pattern.properties.some(isRestProperty))) plan = null;
   if (plan) {
     // These source decisions precede pattern pruning and are shared by every apply

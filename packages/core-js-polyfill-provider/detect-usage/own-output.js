@@ -10,6 +10,7 @@ import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './globals.js';
 import { PATTERN_CHAIN_TYPES } from './destructure.js';
 import {
+  consumableHopSlotName,
   computedKeyWellKnownSymbolName,
   MINTED_STATIC_NAME,
   peelReceiverSequenceTail,
@@ -22,6 +23,7 @@ import {
   bindingDeclarationPath,
   canonAnswerTable,
   closestBindingVisibleAtUse,
+  isPropertyNode,
   patternSlotTarget,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
@@ -41,6 +43,7 @@ import {
   pureImportEntryOf,
   pureImportSourceEntry,
   provablyPrecedes,
+  walkAstNodes,
   reassignmentDominatesUsage,
   requireCallSource,
   rootProgramOf,
@@ -559,12 +562,25 @@ export function sentinelAlreadyProcessed(path, { node, meta, injector, adapter =
   const { value } = node;
   if (value?.type !== 'Identifier' || !injector.hasGeneratedUnusedName(value.name)) return false;
   return !injector.isAdoptedUnusedName(value.name) || restSentinelExtractionSibling(path, {
-    key: typeof meta?.key === 'string' ? meta.key : node.key?.name ?? node.key?.value,
+    key: typeof meta?.key === 'string' ? meta.key : consumableHopSlotName(node, { scope: path.scope, path, adapter }),
     symbolIterator: meta ? isSourcedSymbolIteratorMeta(meta)
       : !!adapter && node.computed && computedKeyWellKnownSymbolName({
         keyNode: node.key, scope: path.scope, path, adapter,
       }) === 'iterator',
     injector,
+  });
+}
+
+// A capture can retain several levels solely to evaluate their original keys and
+// getters. Their extracted bindings are already served, while the keys stay visitable.
+export function patternHoldsOnlyProcessedSentinels(pattern, injector, adapter) {
+  if (pattern?.node?.type !== 'ObjectPattern' || !pattern.node.properties.length) return false;
+  return pattern.get('properties').every(path => {
+    if (!isPropertyNode(path.node)) return false;
+    const value = path.get('value');
+    const slot = value.node.type === 'AssignmentPattern' ? value.get('left') : value;
+    return slot.node.type === 'ObjectPattern' ? patternHoldsOnlyProcessedSentinels(slot, injector, adapter)
+      : sentinelAlreadyProcessed(path, { node: path.node, meta: null, injector, adapter });
   });
 }
 
@@ -624,6 +640,14 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
       if (!e) continue;
       switch (e.type) {
         case 'ConditionalExpression': stack.push(e.test, e.alternate, e.consequent); continue;
+        case 'ObjectExpression': {
+          // A namespace publishes each scalar through a pattern in its original
+          // export declaration. Only its single value slot can corroborate this sentinel.
+          const [slot] = e.properties;
+          if (p.parentPath?.node.type === 'TSModuleBlock' && e.properties.length === 1
+            && isPropertyNode(slot) && !slot.computed && foldedPropertyKeyName(slot) === 'value') stack.push(slot.value);
+          continue;
+        }
         case 'BinaryExpression': stack.push(e.left, e.right); continue;
         case 'AssignmentExpression': stack.push(e.right); continue;
         case 'UnaryExpression':
@@ -655,7 +679,13 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
         yield node.argument;
         break;
       case 'VariableDeclaration':
-        for (const d of node.declarations) yield d.init;
+        for (const d of node.declarations) {
+          yield d.init;
+          if (stmt.type !== 'ExportNamedDeclaration' || p.parentPath?.node.type !== 'TSModuleBlock') continue;
+          const defaults = [];
+          walkAstNodes({ root: d.id, visit(item) { if (item.type === 'AssignmentPattern') defaults.push(item.right); } });
+          yield * defaults;
+        }
         break;
       case 'ForStatement':
         yield * inits(node.init);

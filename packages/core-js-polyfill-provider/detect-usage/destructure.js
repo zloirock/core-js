@@ -849,8 +849,12 @@ export function patternClaimOwesMirror(kind, propPath, meta = null) {
 // arguments before the parameter default changes. Source receiver types are primed
 // before an array fallback moves its reads; only a declined array route reaches the mirror.
 export function applyPatternClaimMirror(propPath, meta, {
-  resolvePure, parameterCallSites, renderMirror, primeReceiverTypes, renderArrayFlatten,
+  resolvePure, parameterCallSites, renderMirror, primeReceiverTypes, renderArrayFlatten, isProcessedPattern,
 }) {
+  if (patternSlotTarget(propPath.node.value)?.type === 'ObjectPattern') {
+    const value = propPath.get('value');
+    if (isProcessedPattern?.(value.node.type === 'AssignmentPattern' ? value.get('left') : value)) return true;
+  }
   const kind = resolvePure(meta, propPath)?.kind;
   if (!patternClaimOwesMirror(kind, propPath, meta)) return false;
   if (kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(propPath.parentPath)
@@ -5895,7 +5899,7 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
     if (ownerType === 'Property' || ownerType === 'ObjectProperty') {
       // a bound computed key folds through the consuming canon where an adapter is at hand
       const key = consumableHopSlotName(owner.node, adapter ? { scope: owner.scope ?? leafPattern.scope, adapter, path: owner } : null);
-      if (typeof key === 'string') hops?.unshift({ key, level: owner.parentPath?.node, ...hopLevelBelow(cursor.node) });
+      if (typeof key === 'string') hops?.unshift({ key, level: owner.parentPath?.node, prop: owner.node, ...hopLevelBelow(cursor.node) });
       else hops = null;
       cursor = owner.parentPath;
       objectPattern = cursor;
@@ -10531,7 +10535,7 @@ export function planNestedKeyedPatternCapture({
     for (const level of sourceAncestors) {
       if (level.pattern.properties.some(prop => prop.type === 'RestElement')) return null;
       ancestors.push(level);
-      inner = level.prop.value;
+      inner = level.defaultValue?.left ?? level.prop.value;
     }
   }
   while (inner?.type === 'ObjectPattern') {
@@ -10702,6 +10706,19 @@ export function orderedClaimCapture({
     && pattern.properties.some(item => item.computed && item.value?.type === 'ObjectPattern'
       && item.value.properties.length === 1 && item.value.properties[0] === prop
       && computedKeyWellKnownSymbolName({ keyNode: item.key, ...ctx }) === 'iterator');
+  // A group of instance claims already dispatches in order from its shared memo. A
+  // native sibling instead needs the nested default to stay between the original reads.
+  const defaultBesideResidual = !assignment && prop.value?.type === 'AssignmentPattern' && pattern.properties.length > 1
+    && !(tail?.type === 'Identifier' && injectorState?.isOwnPassGeneratedName?.(tail.name))
+    && (!isReReferenceableReceiver(tail) || hostPath?.parentPath?.node.declarations?.length > 1
+      || isForInitDeclaration(hostPath?.parentPath?.parentPath?.node, hostPath?.parentPath?.node)
+      || !subtreeContainsNode(pattern.properties[0], prop))
+    && pattern.properties.some(item => {
+      if (subtreeContainsNode(item, prop)) return false;
+      if (!isPropertyNode(item) || item.computed || item.value?.type !== 'Identifier' || adapter?.isOptedOut?.(item)) return true;
+      const sibling = buildDestructuringInitMeta({ initNode: init, key: propertyKeyName(item), ...ctx });
+      return !sibling || adapter?.available?.(sibling) === false || resolveBuiltIn(sibling)?.kind !== 'instance';
+    });
   // Keep this capture's untyped hop admission; the instance consumer supplies its final read.
   // An allocator-owned receiver already holds the root. Its branching declaration still splits
   // before a plain nested binding; defaults and quiet singleton chains keep their ordinary extraction.
@@ -10711,7 +10728,7 @@ export function orderedClaimCapture({
     prop,
     entry,
     plansLeaf: true,
-    holdsReceiver: retainsResult || retainsInit || symbolReceiver
+    holdsReceiver: retainsResult || retainsInit || symbolReceiver || defaultBesideResidual
       || !assignment && sharedLeaf && prop.value?.type === 'Identifier' && init?.type === 'Identifier'
         && injectorState?.isOwnPassGeneratedName?.(init.name) && !soleChainToProp(pattern, prop)
       || assignment && pattern.properties.length > 1
@@ -10765,19 +10782,21 @@ export function orderedClaimCapture({
         kind,
         entry,
         ctx,
-        ancestors: hops.map(hop => ({ pattern: hop.level,
-          prop: hop.level.properties.find(item => item.value === hop.pattern) })),
+        ancestors: hops.map(({ level, prop: owner }) => ({
+          pattern: level, prop: owner, defaultValue: owner.value.type === 'AssignmentPattern' ? owner.value : null,
+        })),
       });
     }
   }
-  // Several leaves under an iterator slot keep the symbol plan's native result pattern.
+  // A default or several leaves under an iterator slot keep the symbol plan's native result pattern.
   if (!assignment && capture && (capture.leafPattern.properties.some(item => isClaimedProp?.(item))
-    || capture.leafPattern.properties.length > 1 && capture.ancestors.some(level => level.prop.computed && computedKeyWellKnownSymbolName({
-      keyNode: level.prop.key,
-      scope: hostPath?.scope,
-      path: hostPath,
-      adapter,
-    }) === 'iterator'))) return null;
+    || (capture.leafPattern.properties.length > 1 || prop.value?.type === 'AssignmentPattern')
+      && capture.ancestors.some(level => level.prop.computed && computedKeyWellKnownSymbolName({
+        keyNode: level.prop.key,
+        scope: hostPath?.scope,
+        path: hostPath,
+        adapter,
+      }) === 'iterator'))) return null;
   return capture?.leafPattern.properties.includes(prop) ? capture : null;
 }
 

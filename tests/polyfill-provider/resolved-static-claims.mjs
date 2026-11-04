@@ -143,4 +143,16 @@ runBoth('member store target is not re-read', 'const box = { held: undefined }; 
     check(`${ label }/store retained`, plans[0]?.kind, 'written-store');
     check(`${ label }/no second getter`, plans[0]?.effects, null);
   });
+for (const [source, ordered, spent] of [
+  ['const a = Array.from, b = Array[(key(), "of")];', true, false],
+  ['const a = (Array.from, imported), b = Array[(key(), "of")];', true, true],
+  ['const a = Array.from, b = Array["of"];', false, false],
+  ['const a = Array.from, b = other[(key(), "of")];', false, false],
+  ['const a = Array.from; const b = Array[(key(), "of")];', false, false],
+]) runBoth('a lowered static group retains exactly its observable Gets', source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'from');
+  const plans = [...resolvedStaticClaimRoutes(facts(parser, path, { kind: 'static', entry: 'array/from', hintName: 'Array$from' }))];
+  check(`${ label }/already served`, plans.length === 0, spent);
+  check(`${ label }/raw read`, plans.some(plan => plan.effects?.includes(path.node)), ordered && !spent);
+});
 finish();

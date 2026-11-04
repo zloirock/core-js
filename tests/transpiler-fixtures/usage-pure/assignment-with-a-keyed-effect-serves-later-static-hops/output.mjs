@@ -1,9 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 var _ref;
-// an assignment over a member receiver whose keyed level carries an effectful computed key extracts that
-// level and leaves the levels after it on the native residual: `isInteger` stays native there (an accepted
-// gap of the assignment host), while the same pattern declared serves both
+// The keyed assignment and its declaration twin each serve the later static in one pass.
+// The member receiver is evaluated once, and its original keys determine the read order.
 const ns = {
   box: {
     w: Array,
@@ -14,10 +13,8 @@ let from, isInteger;
 _ref = ns.box, {
   w: {}
 } = _ref, e(), from = _Array$from, {
-  n: {
-    isInteger
-  }
-} = _ref;
+  n: {}
+} = _ref, isInteger = _Number$isInteger;
 use(from, isInteger);
 const _ref2 = ns.box;
 const {

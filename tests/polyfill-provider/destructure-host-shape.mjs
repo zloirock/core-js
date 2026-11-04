@@ -9,6 +9,7 @@ import {
   keyedReadReceiverProven,
   minifierSequenceReducer,
   planArrayWrapperCapture,
+  planCaptureSiblings,
   planMinifierSequenceSplit,
   planNestedKeyedPatternCapture,
   planNestedLeafHost,
@@ -2721,5 +2722,17 @@ for (const [key, computed] of [
 }
 const renamedSlot = renderSynthSlotRead({ base: identifier('receiver'), key: identifier('authored'), computed: false, lookupKey: 'resolved' });
 check('a differently named slot keeps its existing lookup spelling', renamedSlot.property.name, 'resolved');
+
+for (const fallback of ['[]', '{}']) runBoth('a forced capture follows its source default',
+  `let method, spare; ({ box: { at: method } = ${ fallback }, spare } = input);`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression');
+    const { left: pattern, right: init } = host.node;
+    const [prop] = pattern.properties;
+    const level = { pattern, prop, defaultValue: prop.value };
+    const capture = planNestedKeyedPatternCapture({ pattern, init, ancestors: [level], force: true, plansLeaf: true });
+    check(`${ label } original leaf`, capture?.leafPattern === prop.value.left, true);
+    check(`${ label } original default`, capture?.ancestors[0].defaultValue === prop.value, true);
+    check(`${ label } without sibling metadata`, planCaptureSiblings(capture, { hostPath: host, resolvePure: () => null }) === capture, true);
+  });
 
 finish();

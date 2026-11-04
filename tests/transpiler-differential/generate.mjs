@@ -23058,6 +23058,61 @@ function * generatePositionalResiduals() {
     export const r = [Object.keys(Box).sort(), Box.from([3]), Box.of(7)]; export { effects };` };
 }
 
+// The binding values and the trace distinguish a serviced key from a second-pass import.
+function * generateGroupedKeyCaptures() {
+  for (const [name, receiver] of [
+    ['logical', 'user || Array'], ['conditional', 'flag ? user : Array'], ['saved', '(held = user || Array)'],
+  ]) yield { ...snippet(`grouped-keys/select-${ name }`, `(() => {
+    const user = { from() { log.push("user"); return 31; } }; let held; const flag = true;
+    const { box: { [(log.push("key"), "from")]: read } } = { box: ${ receiver } };
+    return read([1]);
+  })()`), strip: true };
+  for (const [name, pattern] of [
+    ['plain', 'let { [(log.push("key"), "Map")]: { fill, z } = {} } = globalThis;'],
+    ['loop', 'for (const { [(log.push("key"), "Map")]: { fill, z } = {} } of [globalThis]) log.push("body");'],
+  ]) yield { ...snippet(`grouped-keys/realm-${ name }`, `(() => { ${ pattern } return log.length; })()`), strip: true };
+  for (const kind of ['var', 'let', 'const']) for (const throws of [false, true]) {
+    yield { ...snippet(`grouped-keys/bind-${ kind }-${ throws }`, `(() => {
+      try {
+        function key() { log.push("key"); ${ throws ? 'throw new RangeError();' : 'log.push(typeof resolve);' } }
+        ${ kind } { globalThis: { [(key(), "Promise")]: { resolve } }, Infinity: inf } = globalThis;
+        return [typeof resolve, inf === Infinity];
+      } catch (error) { return error.name; }
+    })()`), strip: true };
+  }
+  for (const [name, fallback, value] of [
+    ['array', '[]', '[3, 7]'], ['object', '{}', '{ at: 13 }'], ['missing', '[]', 'undefined'],
+    ['null', '{}', 'null'],
+  ]) yield { ...snippet(`grouped-keys/hop-default-${ name }`, `(() => {
+    let at; const input = ${ value };
+    try { ({ x: { at } = ${ fallback } } = { x: input, extra: log.push("init") }); }
+    catch (error) { return error.name; }
+    return typeof at === "function" ? at.call([3, 7], -1) : at;
+  })()`), strip: true };
+  for (const [name, source] of [
+    ['alias', 'box'], ['literal', '{ O: Object, A: Array }'], ['class', 'Statics'],
+  ]) yield { ...snippet(`grouped-keys/static-siblings-${ name }`, `(() => {
+    const box = { O: Object, A: Array }; class Statics { static O = Object; static A = Array; }
+    let keys, from;
+    ({ [(log.push("O"), "O")]: { keys }, [(log.push(typeof keys), "A")]: { from } } = ${ source });
+    return [keys({ a: 3 }), from([7])];
+  })()`), strip: true };
+  for (const [name, value] of [
+    ['realm', 'globalThis'], ['foreign', '{ Promise: 17 }'], ['null', 'null'], ['throw', 'fail()'],
+  ]) yield { ...snippet(`grouped-keys/guarded-${ name }`, `(() => {
+    let S, P; function fail() { throw new RangeError(); }
+    try { ({ set: { WeakSet: S }, map: { Promise: P } } = {
+      get set() { log.push("set"); return globalThis; },
+      get map() { log.push(typeof S); return ${ value }; }
+    }); } catch (error) { return error.name; }
+    return [typeof S, typeof P, P === 17];
+  })()`), strip: true };
+  yield { name: 'grouped-keys/namespace', ts: true, strip: true, code: `export const effects = [];
+    function key() { effects.push("key"); }
+    namespace Box { export const { globalThis: { [(key(), "Promise")]: { resolve } }, Infinity: value } = globalThis; }
+    export const r = [Object.keys(Box).sort(), typeof Box.resolve, Box.value === Infinity];` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23536,4 +23591,5 @@ export function * generate() {
   yield * generateGuardRouteReads();
   yield * generateParameterCaptureBoundaries();
   yield * generatePositionalResiduals();
+  yield * generateGroupedKeyCaptures();
 }

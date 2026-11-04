@@ -188,6 +188,46 @@ catch (error) { r = error.name; }`;
       }
     }
   }
+  // An effect-only pattern still reads the source realm and can throw before its binding is published.
+  {
+    const source = `export const effects = [];
+export let r;
+function key() { mark(); return "Promise"; }
+try {
+  var { self: { [key()]: { resolve } }, other } = globalThis;
+  r = [typeof resolve, other];
+} catch (error) { r = error.name; }`;
+    scenarioSource(source);
+    const config = { configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]] };
+    const { code: babel } = await transformAsync(source, config);
+    const plugin = createUnplugin(OPTIONS);
+    const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
+    for (const [state, result, trace] of [
+      ['foreign', ['function', 4], ['self', 'key', 'Promise', 'other']],
+      ['null', 'TypeError', ['self']], ['undefined', 'TypeError', ['self']],
+      ['throw-self', 'URIError', ['self']], ['throw-key', 'EvalError', ['self', 'key']],
+      ['throw-ctor', 'RangeError', ['self', 'key', 'Promise']], ['absent', ['function', 4], ['key', 'other']],
+    ]) {
+      const setup = `const realm = Function("return this")();
+function mark() { effects.push("key"); ${ state === 'throw-key' ? 'throw new EvalError();' : '' } }
+const foreign = { get Promise() { effects.push("Promise"); ${ state === 'throw-ctor' ? 'throw new RangeError();' : 'return { resolve() {} };' } } };
+${ state === 'absent' ? 'delete realm.self;' : `Object.defineProperty(realm, "self", { configurable: true, get() {
+  effects.push("self"); ${ state === 'throw-self' ? 'throw new URIError();' : `return ${ ['null', 'undefined'].includes(state) ? state : 'foreign' };` }
+} });` }
+Object.defineProperty(realm, "other", { configurable: true, get() { effects.push("other"); return 4; } });`;
+      for (const [host, output] of [['native', source], ['babel', babel], ['unplugin', pre], ['pre+post', post]]) {
+        const prepared = output.replace('export const effects = [];', `export const effects = [];\n${ setup }`);
+        check(`realm-key/${ state }/${ host }/setup`, prepared.includes(setup), true);
+        const file = path.join(DIR, `case-${ count++ }.mjs`);
+        await fs.outputFile(file, prepared);
+        const expected = host === 'native' && state === 'absent' ? 'OK|"TypeError"|[]'
+          : `OK|${ JSON.stringify(result) }|${ JSON.stringify(trace) }`;
+        check(`realm-key/${ state }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+        if (host !== 'native') check(`realm-key/${ state }/${ host }/stripped`, await runInWorker(file), expected);
+      }
+    }
+  }
   // Requeued patterns must use live paths and plans after a capture moved their host.
   for (const shape of ['split', 'split-twice', 'split-default', 'join', 'join-bodyless', 'stale-rest', 'stale-loop']) {
     const split = shape.startsWith('split');
