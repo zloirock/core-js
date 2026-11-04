@@ -1998,15 +1998,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   // Convert the common immediate-pattern probe at the insertion boundary. The caller owns
   // placement; the decision retains source effects and writes for its residual reconciliation.
-  function destructureProbeNode(source, anchorPath) {
+  function prepareDestructureProbe(source, anchorPath, options) {
     const adapter = getAdapter?.();
     if (!adapter || !anchorPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
     const decision = destructureProbePlan(source, ({ name }) => resolvePureGlobalEntry(name, anchorPath),
-      { scope: anchorPath.scope, adapter, path: anchorPath });
+      { scope: anchorPath.scope, adapter, path: anchorPath }, options);
     if (!decision) return null;
-    const node = renderClaimProbeNode(decision);
-    mintedEffectNodes.add(node);
-    return { node, decision };
+    // The next property can remove the prefix or leave a residual. Delay import
+    // registration and render until full consumption actually needs this read.
+    return () => {
+      const node = renderClaimProbeNode(decision);
+      mintedEffectNodes.add(node);
+      return { node, decision };
+    };
+  }
+
+  function destructureProbeNode(source, anchorPath, options) {
+    return prepareDestructureProbe(source, anchorPath, options)?.();
   }
 
   // Keep native sequence provenance and source-clone bookkeeping at insertion.
@@ -2800,6 +2808,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     destructureProbeNode,
+    prepareDestructureProbe,
     renderWriteHostProbeGuard,
     renderResolvedStaticClaimNode,
     flushKeptNavCollapseAt,

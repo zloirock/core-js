@@ -1,6 +1,7 @@
 // A residual value preserves a sealed read before considering the leaf's definedness.
 // Source queries stay pure, including when no host eventually accepts their answer.
 import {
+  chainSealsAShortCircuit,
   directClaimProbePlan,
   discardedInitProbePlan,
   probedNavGuardValuePlan,
@@ -96,4 +97,15 @@ runBoth('excluded realm leaf', 'const value = globalThis.window?.self;', (parser
   check(`${ label }/missing property does not become a missing binding`, conditional.alternate.type, 'MemberExpression');
   check(`${ label }/raw excluded property`, conditional.alternate.property.name, 'self');
 });
+for (const [left, throws] of [
+  ['(globalThis.window?.self).Array', true],
+  ['(globalThis.window?.self)?.Array', false],
+  ['((globalThis.window?.self).Array)?.from', true],
+]) runBoth(`fallback seal/${ left }`, `const value = ${ left } ?? {};`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'LogicalExpression');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label }/throws before the fallback`,
+    chainSealsAShortCircuit(path.node.left, resolvePure, { scope: path.scope, path, adapter }), throws);
+});
+
 finish();

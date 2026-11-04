@@ -418,7 +418,6 @@ export default function createAstUsagePureCallback({
     });
     state.object = result.receiver;
     state.effects = result.effects;
-    state.receiverCapture = result.leadingCapture;
     state.splitDisjuncts = plan.disjuncts ?? null;
     return true;
   }
@@ -448,7 +447,6 @@ export default function createAstUsagePureCallback({
       liveOptionalReceiver: proxyRootFired ? !!proxyRootOptional : receiverCarriesLiveOptional(node.object),
       receiverSe: new Set((meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)),
       effects: null,
-      receiverCapture: null,
       // the guard checks of a receiver the effect route split at its live `?.`
       splitDisjuncts: null,
     };
@@ -547,12 +545,12 @@ export default function createAstUsagePureCallback({
         hopPath,
         callerPath,
         effects: effects ?? [],
-        capture: state.receiverCapture,
         checks: splitDisjuncts,
         methodCallConsume,
       }, {
         guardObject,
         adapter,
+        injector,
         injectorState,
         skippedNodes,
       });

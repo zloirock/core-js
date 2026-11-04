@@ -22696,6 +22696,68 @@ function * generateGuardedFallbackEffects() {
   yield { ...row, code: `import { withChangingWindow } from ${ JSON.stringify(rig) };\n${ row.code }`, strip: true };
 }
 
+// Full consumption owns the initializer read before the first binding, wherever
+// the host has room to emit it. The two environments expose lost probes and stores.
+function * generateConsumedPatternReads() {
+  const host = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const present of [false, true]) for (const [name, body] of [
+    ['declaration', 'const { from, of } = (tick("prefix"), (globalThis.window?.self).Array); return from(of(3))[0];'],
+    ['assignment', '({ Map: a, Set: b } = (tick(typeof a), globalThis.window)); return [typeof a, typeof b];'],
+    ['sequence', 'return (({ Map: a, Set: b } = (tick(typeof a), globalThis.window)), [typeof a, typeof b]);'],
+    ['surviving', 'return (({ Map: a, missing: b } = (tick(typeof a), globalThis.window)), [typeof a, typeof b]);'],
+    ['surviving-first', 'return (({ missing: b, Map: a } = (tick(typeof a), globalThis.window)), [typeof a, typeof b]);'],
+    ['surviving-around', `const realm = Function("return this")();
+      const slot = key => ({ configurable: true, get() { return tick(key + typeof a); } });
+      Object.defineProperties(realm, { leftObs: slot("left:"), rightObs: slot("right:") });
+      try { (({ leftObs: b, Map: a, rightObs: b } = (tick("prefix"), globalThis.window)), 0); }
+      finally { delete realm.leftObs; delete realm.rightObs; } return [typeof a, b];`],
+    ['bodyless', 'if (true) var { Map: M } = (tick("prefix"), globalThis.window); return typeof M;'],
+    ['bodyless-siblings', 'if (true) var x = tick("x"), { Map: M } = globalThis.window, y = tick("y"); return [x, typeof M, y];'],
+    ['for-init', 'for (var { from, of } = (tick("prefix"), (globalThis.window?.self).Array);;) return from(of(7))[0];'],
+    ['stored-header', 'for (const { of } = (held = (tick("store"), globalThis.window)).Array;;) return of(4)[0];'],
+    ['stored-assignment', '({ of: a } = (held = (tick("store"), globalThis.window)).Array); return a(8)[0];'],
+    ['stored-after-prefix', 'const { Map: M } = (tick("prefix"), held = globalThis.window); return typeof M;'],
+    ['lowered-store', 'const tmp = (tick("prefix"), held = globalThis.window), M = tmp.Map; return typeof M;'],
+    ['stored-mirror', '({ Array: { of: a } } = (target().value = globalThis.window).self); return a(9)[0];'],
+    ['alias-mirror', 'const w = globalThis.window; ({ Array: { of: a } } = w.globalThis); return a(9)[0];'],
+    ['optional-fallback', 'const { of } = (globalThis.window?.self)?.Array ?? {}; return typeof of;'],
+    ['plain-fallback', 'const { of } = (globalThis.window?.self).Array ?? {}; return typeof of;'],
+  ]) {
+    const row = snippet(`consumed-pattern/${ name }/${ present }`, `withWindowPresence(${ present }, () => {
+      let a, b, held = "unset";
+      function tick(value) { log.push(value); return value; }
+      const holder = { set value(v) { tick("write"); held = v; } };
+      function target() { tick("holder"); return holder; }
+      let value;
+      try { value = (() => { ${ body } })(); } catch (error) { value = error.name; }
+      return [value, held === "unset" ? "unset" : held == null ? "empty" : "present", typeof a, typeof b];
+    })`);
+    yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(host) };\n${ row.code }`, strip: true };
+  }
+  const partial = snippet('consumed-pattern/nested-survivor-changing-window', `withChangingWindow(() => {
+    if (true) var before = log.push("before"), { Array: { of, unknown } } = (log.push("prefix"), globalThis.window), after = log.push("after");
+    return [before, of(3)[0], unknown, after];
+  })`);
+  yield { ...partial, code: `import { withChangingWindow } from ${ JSON.stringify(host) };\n${ partial.code }`, strip: true };
+  const mixed = snippet('consumed-pattern/pure-and-native-siblings', `withChangingWindow(() => {
+    const { Array: { of, missing }, Set: { custom } } = globalThis.window;
+    return [of(3)[0], missing, custom];
+  })`);
+  yield { ...mixed, code: `import { withChangingWindow } from ${ JSON.stringify(host) };\n${ mixed.code }`, strip: true };
+  yield { ...snippet('consumed-pattern/sealed-iterator-plain', `(() => {
+    const holder = { get list() { log.push("get"); return [3]; } };
+    function invoke(root) { return (root?.list[Symbol.iterator])((log.push("arg"), 1)).next().value; }
+    return invoke(holder);
+  })()`), strip: true };
+  for (const present of [false, true]) for (const args of ['', '(log.push("arg"), 1)']) {
+    yield { ...snippet(`consumed-pattern/sealed-iterator/${ present }/${ args ? 'argument' : 'empty' }`, `(() => {
+      const holder = ${ present ? '{ get list() { log.push("get"); return [3]; } }' : 'null' };
+      try { return (holder?.list[(log.push("key"), Symbol.iterator)])(${ args }).next().value; }
+      catch (error) { return error.name; }
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23168,4 +23230,5 @@ export function * generate() {
         } export const r = [read(true), read(false)];` };
   }
   yield * generateGuardedFallbackEffects();
+  yield * generateConsumedPatternReads();
 }

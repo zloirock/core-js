@@ -287,3 +287,29 @@ QUnit.test('sealed symbol call keeps a captured inner optional receiver through 
   }), TypeError);
   assert.deepEqual(log, ['receiver', 'key']);
 });
+/* eslint-disable no-unsafe-optional-chaining -- the ordinary call outside the seal must evaluate its argument */
+QUnit.test('a sealed iterator call reads the split receiver once before its key and argument', assert => {
+  const log = [];
+  const list = [3];
+  const holder = { get list() {
+    log.push('get');
+    return list;
+  } };
+  function argument() {
+    log.push('arg');
+    return 1;
+  }
+  function call(root) { return (root?.list[(log.push('key'), Symbol.iterator)])(argument()).next().value; }
+  assert.same(call(holder), 3);
+  assert.arrayEqual(log, ['get', 'key', 'arg']);
+  log.length = 0;
+  assert.throws(() => call(null), TypeError);
+  assert.arrayEqual(log, ['arg']);
+  log.length = 0;
+  function iterate(root) { return (root?.list[(log.push('key'), Symbol.iterator)])().next().value; }
+  assert.same(iterate(holder), 3);
+  assert.arrayEqual(log, ['get', 'key']);
+  log.length = 0;
+  assert.throws(() => iterate(null), TypeError);
+  assert.arrayEqual(log, []);
+});

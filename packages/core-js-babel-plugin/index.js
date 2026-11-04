@@ -441,6 +441,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     collapseClaimlessCallRootedNav,
     collapseShortCircuitNavInPlace,
     destructureProbeNode,
+    prepareDestructureProbe,
     renderWriteHostProbeGuard,
     renderResolvedStaticClaimNode,
     flushKeptNavCollapseAt,
@@ -2061,6 +2062,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           resolvedType,
           markThrowingExtraction,
           destructureProbeNode,
+          prepareDestructureProbe,
           collapseKeptNavValueNode,
         });
         // drop per-file AST-keyed caches so memory is deterministic under long-running
@@ -2176,9 +2178,11 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             exit(path) {
               destructureEmit.tryFlattenProxyHopHost(path);
               destructureEmit.flushProbedAnchorSwaps(path.node);
-              // kept nav-collapse renders land here too - requeued, so the remaining merged
-              // passes (ES5 lowerings included) still visit everything they carry
-              if (path.isAssignmentExpression()) flushKeptNavCollapseAt(path);
+              if (path.isAssignmentExpression()) {
+                if (path.node.left.type === 'ObjectPattern') destructureEmit.finishPartialAssignmentProbe(path);
+                // Requeue kept navigation so the remaining merged passes still visit it.
+                flushKeptNavCollapseAt(path);
+              }
             },
           },
         });

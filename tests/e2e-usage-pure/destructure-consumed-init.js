@@ -1,3 +1,5 @@
+import { withWindowPresence } from './unbacked-window-host.cjs';
+
 QUnit.test('consumed initializer: receiver stores precede their own bindings and preserve siblings', assert => {
   const events = [];
   let held;
@@ -125,4 +127,60 @@ QUnit.test('consumed initializer: a loop sink cannot overtake another source gro
   }
   /* eslint-enable no-unreachable-loop -- loop-header observations end here */
   assert.deepEqual(events, ['middle', 'function']);
+});
+/* eslint-disable @stylistic/no-extra-parens, no-unsafe-optional-chaining -- keep the sequence and the two different seals under test */
+QUnit.test('consumed probes keep prefixes and writes in source order', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    let held, a, b;
+    function assign() {
+      return (({ Map: a, Set: b } = (events.push(typeof a), globalThis.window)), 'done');
+    }
+    if (live) assert.same(assign(), 'done');
+    else assert.throws(assign, TypeError);
+    assert.arrayEqual(events, ['undefined']);
+    assert.same(typeof a, live ? 'function' : 'undefined');
+    assert.same(typeof b, live ? 'function' : 'undefined');
+    events.length = 0;
+    function choose() {
+      const { from, of } = (events.push('prefix'), (globalThis.window?.self).Array);
+      return [from([2])[0], of(3)[0]];
+    }
+    if (live) assert.arrayEqual(choose(), [2, 3]);
+    else assert.throws(choose, TypeError);
+    assert.arrayEqual(events, ['prefix']);
+    events.length = 0;
+    function readStore() {
+      const { Map: ctor } = (events.push('prefix'), held = globalThis.window);
+      return typeof ctor;
+    }
+    if (live) assert.same(readStore(), 'function');
+    else assert.throws(readStore, TypeError);
+    assert.same(held, globalThis.window);
+    assert.arrayEqual(events, ['prefix']);
+  });
+});
+
+QUnit.test('bodyless and loop initializers keep their first required read', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    function bodyless(run) {
+      // eslint-disable-next-line no-var -- the unbraced var declaration is the host under test
+      if (run) var { Map: ctor } = (events.push('bodyless'), globalThis.window);
+      return typeof ctor;
+    }
+    assert.same(bodyless(false), 'undefined');
+    if (live) assert.same(bodyless(true), 'function');
+    else assert.throws(() => bodyless(true), TypeError);
+    assert.arrayEqual(events, ['bodyless']);
+    function loop() {
+      // eslint-disable-next-line no-unreachable-loop -- the initializer runs once
+      for (const { from, of } = (events.push('loop'), (globalThis.window?.self).Array); ;) return from(of(19))[0];
+    }
+    if (live) assert.same(loop(), 19);
+    else assert.throws(loop, TypeError);
+    assert.arrayEqual(events, ['bodyless', 'loop']);
+    const { from: fallback } = (globalThis.window?.self)?.Array ?? {};
+    assert.same(typeof fallback, live ? 'function' : 'undefined');
+  });
 });

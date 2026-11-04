@@ -93,6 +93,7 @@ import {
   renderDestructureDispatch,
   renderDestructurePrefix,
   renderForInitSink,
+  renderResidualProbeWrites,
   renderResidualAnchor,
   renderResidualAnchorInit,
   renderNestedDeclarationReceiver,
@@ -438,7 +439,7 @@ export default function createDestructureDrains(ctx) {
   // the frame a claim's own pattern answers in, with the adapter: the ctx the shared prefix canon
   // (`observablePrefixElements`) asks its getter question in
   function patternFrame(metaPath) {
-    return { ...nodeSite(null, metaPath), adapter };
+    return { ...nodeSite(null, metaPath), adapter, resolvePure: meta => resolvePure(meta, metaPath) };
   }
 
   function recordJob({ hostPath, job }) {
@@ -456,8 +457,8 @@ export default function createDestructureDrains(ctx) {
     const residualHost = job.declarator ?? job.assignment;
     if (residualHost && !pristineInitFacts.has(residualHost)) {
       const init = residualHost.init ?? residualHost.right;
-      const at = { scope: job.metaPath?.scope, adapter, path: job.metaPath };
-      const { effects, dropReceiver } = planDiscardedInit(init, { ...at, resolvePure });
+      const at = patternFrame(job.metaPath);
+      const { effects, dropReceiver } = planDiscardedInit(init, at);
       pristineInitFacts.set(residualHost, {
         runs: residualInitRunsEffects({ init, ...at }),
         readWhole: !!init && effects.length === 1 && effects[0] === unwrapRuntimeExpr(init),
@@ -470,6 +471,7 @@ export default function createDestructureDrains(ctx) {
     if (job.declarator && bindingDeclaratorNode(binding) === job.declarator) {
       adapter.recordEmittedBindingSource(job.declarator, job.local, job.value.moduleSource);
     }
+    return pristineInitFacts.get(residualHost);
   }
 
   // Bind the ledger's imported names and instance receivers to the common renderer.
@@ -1218,7 +1220,7 @@ export default function createDestructureDrains(ctx) {
       // chooses whether a sole extraction carries them or a leading declarator does.
       const [{ metaPath }] = declJobs;
       const init = peelTransparentExpr(declarator.init);
-      const sinkPlan = planForInitSink(init, { ...patternFrame(metaPath), resolvePure: meta => resolvePure(meta, metaPath) }, {
+      const sinkPlan = planForInitSink(init, patternFrame(metaPath), {
         reads: declJobs, dropReceiver: declJobs.some(job => job.sinkDrop), memo: declJobs.find(job => job.sinkPlan)?.sinkPlan ?? null,
         binding: extracted.length === 1 ? extracted[0].id : null,
       });
@@ -1497,7 +1499,7 @@ export default function createDestructureDrains(ctx) {
 
   function rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements, insertAt = -1 }) {
     const [{ metaPath }] = declJobsHere;
-    const { effects } = planDiscardedInit(declarator.init, { ...patternFrame(metaPath), resolvePure },
+    const { effects } = planDiscardedInit(declarator.init, patternFrame(metaPath),
       null, pristineInitFacts.get(declarator), declJobsHere);
     // a value-SELECTING init re-emits WHOLE - an effect buried in an operand (a proxy-hop KEY) has
     // no slot of its own, so the rescue canon answers with the selection itself. the POSITION is the
@@ -1924,7 +1926,8 @@ export default function createDestructureDrains(ctx) {
             && jobs.some(job => job.rawKeyRootInit) && jobs.every(job => !job.readsReceiver) ? assignment.right : null;
     // the probe the full consume owes for the read it discards, decided BEFORE the prefix below:
     // that read is the probe's, and lifting it as a statement too ran the write inside it twice
-    const probeLead = discardedRead ? null : renderDiscardedInitProbe(jobs, probeRenderCtx);
+    const residualLives = assignment.left.properties?.length > 0;
+    const probeLead = discardedRead || residualLives ? null : renderDiscardedInitProbe(jobs, probeRenderCtx);
     // the receiver read by an extraction AND by the surviving residual memoizes once - the
     // verdict needs the residual as it survives, so the values re-render onto the ref here
     const holder = jobs[0].receiverHolder;
@@ -2050,7 +2053,16 @@ export default function createDestructureDrains(ctx) {
     if (rhsExprs && !anchorRhsPrefix && !residualCarriesPrefix && !wholeRhsLift && assignment.left.properties.length !== 0) {
       assignment.right = rhsExprs.at(-1);
     }
-    if (assignment.left.properties.length === 0) {
+    const partialProbe = residualLives && !memoRef && !nestedJobs.length
+      && flatJobs.some(job => job.initProbePlan) && flatJobs.every(job => !job.sentinel && !job.readsReceiver);
+    if (partialProbe) {
+      const ref = renderResidualProbeWrites(assignSourceProps, assignment.left, assignment.right,
+        new Map(flatJobs.map((job, index) => [job.prop, flatExtracted[index].expression])), {
+          mintRef: () => identifier(injector.generateDeclaredRef(flatJobs[0].metaPath)),
+        });
+      if (ref) assignment.right = ref;
+    }
+    if (assignment.left.properties.length === 0 && !partialProbe) {
       // with no residual left there is nothing for the cascade to order against: the extractions
       // run in the order the SOURCE wrote their hops (`from = _Array$from; ({ union } = _Set);`)
       const bySource = orderedAssignmentParts();
@@ -2085,9 +2097,16 @@ export default function createDestructureDrains(ctx) {
       const effects = [...discardedRead ? [expressionStatement(discardedRead)] : [], ...rescued];
       spliceAssignmentRewrite([...memoDecl, ...varDecl, ...effects, ...bySource], memoDecl.length || varDecl.length ? [] : effects);
     } else {
+      const remainingProps = partialProbe ? assignment.left.properties : residualSourceProps;
       const residuals = anchoredResidual?.split ? anchoredResidual.split.map(({ hop, view }) => ({
         source: hop, anchored: true, statement: expressionStatement(assignmentExpression('=', view.id, view.init)),
-      })) : [{ sourceProps: residualSourceProps, anchored: !!anchoredResidual, statement: body[at] }];
+      })) : [{
+        sourceProps: remainingProps.length ? remainingProps : null,
+        // An emptied native segment stays behind its preceding write and before the last source key.
+        source: partialProbe && !remainingProps.length ? assignSourceProps.at(-2) : null,
+        anchored: !!anchoredResidual || partialProbe,
+        statement: body[at],
+      }];
       const ordered = orderedAssignmentParts(residuals);
       const residualFirst = ordered[0] === body[at];
       // ... and a prefix no lift plan took (a quiet CALL tail is no pure nav) ran before the pattern
@@ -2145,7 +2164,7 @@ export default function createDestructureDrains(ctx) {
       && jobs.every(job => job.sentinel && computedKeyHasSideEffects(job.prop, patternFrame(job.metaPath)))
       && (jobs.length > 1 || residualKeepsSibling(jobs[0].declarator, jobs));
     if (declaration.declarations.length > 1 || soleSeKeyMemo) {
-      return drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter, resolvePure, sourceFacts: pristineInitFacts },
+      return drainBodylessMultiMemo({ hostNode, declaration, jobs, adapter, resolvePure, sourceFacts: pristineInitFacts, probeRenderCtx },
         { program, mintRefName, removeConsumedProps, markRewrite });
     }
     const [declarator] = declaration.declarations;
@@ -2198,7 +2217,11 @@ export default function createDestructureDrains(ctx) {
         && patternBindingCount(declarator.id) === jobs.reduce((count, job) => count + patternBindingCount(job.prop.value), 0)));
     // ... and a MEMOIZED init keeps its sequence WHOLE: the memo is where it evaluates, and
     // lifting the prefix out of it would take the claims rendered inside that prefix with it
-    if ((seqPrefix?.length || discardsInit) && !memoRef && !residualFirst) {
+    const probe = !memoRef && !residualFirst && renderDiscardedInitProbe(jobs, probeRenderCtx, declarator);
+    if (probe) {
+      statements.push(...probeResidualEffects(probe).map(expressionStatement));
+      values[0] = sequenceExpression([probe, values[0]]);
+    } else if ((seqPrefix?.length || discardsInit) && !memoRef && !residualFirst) {
       if (prefixPlacement.placement === 'value') {
         // the LIVE prefix, like the lift below: a claim inside it renders by REPLACING its node, so
         // the registration-time copy is pre-swap and would ship the raw call (`log.push("e")` beside
@@ -2208,7 +2231,7 @@ export default function createDestructureDrains(ctx) {
         // The shared discard decision reads live children while retaining a whole-read proof
         // made before the walk could replace the source with a generated guard or memo.
         const frame = patternFrame(jobs[0].metaPath);
-        const { effects } = planDiscardedInit(declarator.init, { ...frame, resolvePure },
+        const { effects } = planDiscardedInit(declarator.init, frame,
           null, pristineInitFacts.get(declarator));
         statements.push(...effects.map(expr => expressionStatement(expr)));
       } else {
@@ -2255,7 +2278,7 @@ export default function createDestructureDrains(ctx) {
     // (the rescue canon, the statement drain's own rule), ahead of the bindings it fed
     // ... and with a lifted prefix the two run as ONE statement, the other leg's defer-SE spelling -
     // as do several lifted elements with no rescue behind them (`if (c) { n++, w = K.g; ... }`)
-    else if (!residualLives && !memoRef && (quietRescue.length || extractionsAt > 1)) {
+    else if (!residualLives && !memoRef && !probe && (quietRescue.length || extractionsAt > 1)) {
       const lifted = statements.splice(0, extractionsAt).map(statement => statement.expression);
       const effects = wholeReplay ? [sourceInit] : [...lifted, ...quietRescue];
       statements.unshift(...lifted.length && !wholeReplay ? [expressionStatement(sequenceExpression(effects))]
