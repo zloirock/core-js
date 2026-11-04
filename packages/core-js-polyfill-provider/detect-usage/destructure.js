@@ -998,8 +998,8 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
 // Inside a parameter-default host whose winning receiver is the call argument, an
 // unshadowed undefined/void arm reads the default. The branch walk registers that
 // default at its original parameter slot, leaving the argument and its timing intact.
-// Only effect-free defaults participate in this branch route; other defaults retain
-// their ordinary receiver handling. Null stays out because it never applies a default.
+// This route recognizes an effect-free receiver. Defaults that need an effect replay
+// stay at their source slot. Null stays out because it never applies a default.
 function undefinedArmEffectiveReceiver({ branch, paramDefaultNode, scope, adapter, path }) {
   if (!paramDefaultNode) return null;
   const inner = peelFallbackBranchInner(branch);
@@ -2352,7 +2352,7 @@ const parameterExtractionBarriers = createInstanceNodeCache();
 // A parameter needs its actual receiver, rather than a caller-side mirror or a default-only
 // substitution. Pattern levels can move together to the body entry; their inner defaults
 // must be literals, since a moved expression would resolve body declarations in a different scope.
-// Leaf defaults and other parameter work keep their original timing. A whole receiver default stays.
+// A served leaf default keeps its own route. A whole receiver default stays in the parameter list.
 // eslint-disable-next-line max-statements -- nested pattern admission shares the parameter timing and binding proof
 export function planParameterInstanceExtraction({
   propPath, adapter, resolvePure, isDisabledProp, parameterCallSites = null, isClaimedProp = null,
@@ -2364,8 +2364,8 @@ export function planParameterInstanceExtraction({
   const fnPath = rootPath.parentPath;
   const fn = fnPath?.node;
   const paramIndex = fn?.params?.indexOf(rootPath.node) ?? -1;
-  if (adapter.method !== 'usage-pure' || !fn || fn.generator || fn.async
-    || !['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'].includes(fn.type)
+  if (adapter.method !== 'usage-pure' || !FUNCTION_LIKE_NODE_TYPES.has(fn?.type) || fn.generator
+    || rootPath.node.decorators?.length || patternPath.node.decorators?.length
     || paramIndex < 0
     || fn.params.some((param, index) => param !== rootPath.node && param.type !== 'Identifier'
       && !(index < paramIndex && param.type === 'AssignmentPattern' && param.left.type === 'Identifier'))) return null;
@@ -2387,6 +2387,7 @@ export function planParameterInstanceExtraction({
   }
   parameterExtractionBarriers.delete(adapter, patternPath.node);
   const properties = [];
+  const observed = [];
   const patterns = [patternPath];
   for (const pattern of patterns) {
     if (pattern.node.type === 'ArrayPattern') {
@@ -2399,15 +2400,20 @@ export function planParameterInstanceExtraction({
     for (const prop of pattern.get('properties')) {
       if (!isPropertyNode(prop.node) || prop.node.computed || isDisabledProp?.(prop.node)) return null;
       let target = prop.get('value');
-      if (target.node.type === 'Identifier') properties.push(prop);
-      else {
-        if (target.node.type === 'AssignmentPattern') {
-          if (!isConstantLiteralNode(unwrapRuntimeExpr(target.node.right))) return null;
-          target = target.get('left');
-        }
-        if (!isDestructurePattern(target.node)) return null;
-        patterns.push(target);
+      if (target.node.type === 'AssignmentPattern') {
+        const value = unwrapRuntimeExpr(target.node.right);
+        if (!isConstantLiteralNode(value)) return null;
+        target = target.get('left');
+        // Flat leaf defaults keep their existing mirror. An inner receiver can instead
+        // capture a raw primitive default; coercing an object may invoke user code.
+        if (target.node.type === 'Identifier' && (pattern === patternPath || !PRIMITIVE_LITERAL_TYPES.has(value.type)
+          && !(value.type === 'UnaryExpression' && typeof value.argument.value === 'number'))) return null;
       }
+      if (target.node.type === 'Identifier') {
+        observed.push({ path: target, index: properties.length, moved: true });
+        properties.push(prop);
+      } else if (isDestructurePattern(target.node)) patterns.push(target);
+      else return null;
     }
     if (!patternComputedKeysSynthSafe({
       objectPatternNode: pattern.node, scope: pattern.scope, adapter, path: pattern, distinctReads: true,
@@ -2415,10 +2421,9 @@ export function planParameterInstanceExtraction({
   }
   // A delayed property read crosses later bare parameter bindings too. A parameter closure
   // can observe their TDZ when the original getter runs, before those bindings initialize.
-  const observed = [
-    ...properties.map((prop, index) => ({ path: prop.get('value'), index, moved: true })),
-    ...fnPath.get('params').slice(paramIndex + 1).map((path, index) => ({ path, index: paramIndex + index + 1, moved: false })),
-  ];
+  for (const [index, path] of fnPath.get('params').entries()) {
+    if (index > paramIndex) observed.push({ path, index, moved: false });
+  }
   const observedNames = new Set(observed.map(({ path }) => path.node.name));
   if (paramListReadsName(fn.params, observedNames)) {
     for (const { path: read, index, moved } of observed) {
@@ -2458,12 +2463,13 @@ export function planParameterInstanceExtraction({
   for (const statement of fn.body.type === 'BlockStatement' ? fn.body.body : []) {
     for (const name of stmtRebindNames(statement, [])) bodyBindings.add(name);
   }
-  if (properties.some(prop => bodyBindings.has(prop.node.value.name))) return null;
+  if (observed.some(({ path, moved }) => moved && bodyBindings.has(path.node.name))) return null;
   return withCanonQuestion(() => {
     let claim = false;
     const claimedProperties = [];
     for (const prop of properties) {
       if (isClaimedProp?.(prop)) {
+        if (prop.node.value.type === 'AssignmentPattern') return null;
         claimedProperties.push(prop.node);
         continue;
       }
@@ -2474,15 +2480,22 @@ export function planParameterInstanceExtraction({
       const sourceKind = sourceMeta && resolveBuiltIn(sourceMeta)?.kind;
       // A static/global arm needs its existing mirror or identity guard, not a generic instance read.
       if (!sourceMeta || sourceMeta.guardedAliasHint || sourceKind === 'static' || sourceKind === 'global') return null;
-      if (!qualifiesForParamBodyExtract({ propPath: prop, localId: prop.node.value, receiverCapture: true })) return null;
+      const localId = propBindingIdentifier(prop.node.value);
+      if (!qualifiesForParamBodyExtract({ propPath: prop, localId, receiverCapture: true })) return null;
       const instance = resolvePure({ kind: 'property', object: null, key: propertyKeyName(prop.node), placement: null }, prop)
         ?.kind === 'instance';
+      if (instance && prop.node.value.type === 'AssignmentPattern') return null;
       claim ||= instance;
     }
-    return claim ? {
-      fnPath, rootPath, pattern: patternPath.node, root: rootPath.node, claimedProperties, bindingProperties: properties,
-      paddingRequired: fn.params.every(param => param.type !== 'AssignmentPattern'),
-    } : null;
+    if (!claim) return null;
+    // A simple parameter list maps a sloppy function's own arguments. A setter
+    // cannot add a second parameter or change its length to keep that distinction.
+    const paddingRequired = fn.type !== 'ArrowFunctionExpression' && fn.params.every(param => param.type !== 'AssignmentPattern')
+      && isSloppyAtPath(fnPath) && referencesArgumentsObject(fn);
+    if (paddingRequired && (fn.kind === 'set' || fnPath.parentPath?.node.kind === 'set')) return null;
+    return {
+      fnPath, rootPath, pattern: patternPath.node, root: rootPath.node, claimedProperties, bindingProperties: properties, paddingRequired,
+    };
   });
 }
 
@@ -2652,11 +2665,8 @@ export function paramDefaultInstanceSynthAllowed({
     // numeric key through its resolved name and clone a folded computed one, so none of those
     // loses its binding. a key that resolves to no slot stays native
     if (!isReplayableSynthKey(prop)) return false;
-    // a direct wks key renders through the injected pure symbol binding: admissible only
-    // where that import resolves and `Symbol` is the real global, not a local shadow
-    const wks = prop.computed ? wksComputedKeyName(prop.key) : null;
-    if (wks !== null && (adapter.hasBinding({ scope, name: 'Symbol', path })
-      || !resolvePure({ kind: 'property', object: 'Symbol', key: wks, placement: 'static' }))) return false;
+    // The key renderer can keep a native well-known symbol; a local Symbol has a different meaning.
+    if (prop.computed && wksComputedKeyName(prop.key) !== null && adapter.hasBinding({ scope, name: 'Symbol', path })) return false;
     if (!propBindingIdentifier(prop.value)) return false;
   }
   function unboundPureGlobal(name, read = null) {
@@ -5870,8 +5880,8 @@ function isFilledContainerLiteral(node) {
 // descent picks the matching slot) AND transparent inner defaults. returns { pattern, indices, host }
 // or null. one source for the SE-key gate's receiver check and the mirror's array-wrapper descent
 // `hops` is every level the leaf pattern sits under, receiver-to-leaf: an array wrapper's `index`,
-// an object hop's `key` (a key nothing spells - computed - ends the record, `hops` is then null and
-// only `indices` answers), each with the `level` pattern it stands in, the `pattern` standing under it
+// an object hop's `key`. An unknown key or rest boundary makes `hops` null; neither denotes the root.
+// Each known hop carries the `level` pattern it stands in, the `pattern` standing under it
 // and the receiver-bearing `defaultNode` of that level's element where it spells one; `indices` keeps
 // the array levels alone for the wrapper-only readers
 export function destructureHostThroughWrappers(leafPattern, adapter = null, throughInnerDefaults = false) {
@@ -5907,6 +5917,9 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
       cursor = owner;
       continue;
     }
+    // Rest creates a new container. A mirror above it cannot pair its leaves
+    // with the receiver supplying the original parameter or declaration.
+    if (ownerType === 'RestElement') hops = null;
     break;
   }
   return { pattern: objectPattern?.node, indices, hops, host: cursor?.parentPath, hostPatternPath: cursor };
@@ -6797,7 +6810,7 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDe
     // a PARAMETER pattern of an IIFE: the mirror replaces the call's argument at the parameter's index,
     // the value the pattern reads - the call is the host, the argument slot its `arguments.<i>`
     if (FN_NODE_TYPES.has(parentType) && parent.node.params?.includes(cur.node) && selfHostAllowed(cur, leafPatternPath)) {
-      const site = findIifeCallSite(parent, cur.node);
+      const site = findIifeCallSite(parent, cur.node, { replacesArgument: true });
       const node = site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex, staticIsMutated) : null;
       return node ? { host: site.callPath, slot: `arguments.${ site.paramIndex }`, node } : null;
     }
@@ -7542,7 +7555,7 @@ export function buildNestedParamSynthPlan(options) {
       effectfulKeySeen ||= effectfulKey;
       const eagerNestedInstance = eagerInstance && prop.value?.type !== 'AssignmentPattern';
       const disabled = isDisabledProp?.(prop);
-      if (disabled && (targetLeaves.length < 2 || ctx.kind !== 'ctor')) return null;
+      if (disabled && ctx.kind !== 'ctor') return null;
       const key = mirrorAcceptedKey({ prop, ...keyCtx, seenKeys, instance: ctx.kind === 'instance' });
       if (key === null) {
         if (disabled) return null;
@@ -7566,7 +7579,7 @@ export function buildNestedParamSynthPlan(options) {
       // A disabled sibling retains its native read and every claim below it. It can
       // ride a mirror earned by another slot, but never earns or claims that mirror.
       if (disabled) {
-        entries.push({ key, child: { kind: 'passthrough', bailed: true } });
+        entries.push({ key, disabledProp: prop, child: { kind: 'passthrough', bailed: true } });
         continue;
       }
       const inner = patternSlotTarget(prop.value);
@@ -8363,11 +8376,18 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
       ? renderSynthTree(child, ctx, [...keyPath, String(index)], receiverState) : null));
   }
   // Quoted names change only the key spelling; every mirror level uses the same data slots.
-  return objectExpression(tree.entries.map(({ key, child, symbolKey, readPure, deferred }) => {
+  return objectExpression(tree.entries.map(({ key, child, symbolKey, readPure, deferred, disabledProp }) => {
     if (!symbolKey) {
       const spelled = synthEntryKey({ lookupKey: key }, { resolvedSpelling: true });
-      return (deferred ? objectGetter : objectProperty)(spelled.key,
+      const property = (deferred ? objectGetter : objectProperty)(spelled.key,
         renderSynthTree(child, ctx, [...keyPath, key], receiverState), { computed: spelled.computed });
+      // The emitter reanchors disabled source lines on the printed property.
+      if (disabledProp) {
+        property.start = disabledProp.start;
+        property.end = disabledProp.end;
+        property.loc = disabledProp.loc;
+      }
+      return property;
     }
     const keyName = ctx.injectImport(symbolKey.entry, symbolKey.hintName);
     const receiver = renderSynthTree(child, ctx, keyPath, receiverState);
@@ -9199,10 +9219,8 @@ export function buildPatternRenderPlan(patternNode, { scope, path, adapter }) {
     // a user alias `[s]`, the swapped `[_Symbol$iterator]`) - the value side reads by symbol
     const wks = prop.computed
       ? computedKeyWellKnownSymbolName({ keyNode: prop.key, scope, adapter, path }) : null;
-    // ... and only the RAW member spelling has to be re-spelled: the literal cannot clone it
-    // (that read throws off-engine where the pattern's own swapped key reads the polyfill),
-    // so the slot takes the injected pure symbol binding. every Identifier spelling clones
-    // as it stands. a raw member whose `Symbol` is SHADOWED names no symbol - decline whole
+    // A raw well-known key uses the injected symbol where needed and its native spelling
+    // otherwise. A bound alias keeps its spelling; a shadowed Symbol is not a well-known key.
     const wksSpelling = prop.computed ? wksComputedKeyName(prop.key) : null;
     if (wksSpelling !== null && wks === null) return null;
     // a BOUND-identifier computed key (`[X]`) never folds, but the literal replays it
@@ -9214,9 +9232,8 @@ export function buildPatternRenderPlan(patternNode, { scope, path, adapter }) {
     if (!dedupKey) return null;
     if (seen.has(dedupKey)) continue;
     seen.add(dedupKey);
-    // an SE-free computed key keeps its SOURCE spelling in the literal (`['from']: _X`);
-    // an SE-bearing one folds to the resolved string (the effect cannot re-run); a wks key
-    // spells the injected symbol binding, so it carries no source key node
+    // A computed key keeps its source spelling unless that would repeat an effect.
+    // A well-known key is rendered from its proved symbol name.
     const sourceKey = prop.computed
       && (computedKeyHasSideEffects(prop, { scope, adapter, path }) || wksSpelling !== null) ? null : prop.key;
     keys.push({

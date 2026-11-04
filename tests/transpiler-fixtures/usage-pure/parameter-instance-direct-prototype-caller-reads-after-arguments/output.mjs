@@ -18,7 +18,7 @@ restoreProperty(Array.prototype, 'includes', {
 });
 export let result;
 try {
-  result = ((_ref, other, _unused = void 0) => {
+  result = ((_ref, other) => {
     let includes = _includesMaybeArray(_ref);
     return [includes, other];
   })(Array.prototype, _pushMaybeArray(events).call(events, 'argument'));

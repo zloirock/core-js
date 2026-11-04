@@ -96,9 +96,19 @@ runBoth('claimed nested hop', 'const { Array: { name: method, prototype: { at } 
   const input = { path, sourceLeafCount: 2 };
   const options = context(parser);
   check(`${ label }/unclaimed sibling admits twin`, planNestedLeafTwin(input, options)?.kind, 'declaration');
-  check(`${ label }/claimed hop keeps its own level`, planNestedLeafTwin(input, {
+  check(`${ label }/declaration can capture a claimed hop`, planNestedLeafTwin(input, {
     ...options, resolvePure: () => ({ entry: 'array/at', hintName: 'at' }),
-  }), null);
+  })?.kind, 'declaration');
+});
+
+for (const [name, source, kind] of [
+  ['unbraced claimed hop', 'if (ready) var { Array: { name: method, prototype: { at } } } = globalThis;', 'declaration'],
+  ['for init claimed hop', 'for (const { Array: { name: method, prototype: { at } } } = globalThis; ready;) {}', null],
+]) runBoth(name, source, (parser, program, label) => {
+  const path = findLeaf(parser, program);
+  check(`${ label }/claimed sibling placement`, planNestedLeafTwin({ path, sourceLeafCount: 2 }, {
+    ...context(parser), resolvePure: () => ({ entry: 'array/at', hintName: 'at' }),
+  })?.kind ?? null, kind);
 });
 
 runBoth('consumed source leaf', 'const source = box; const { data: { at: method, other } } = source;', (parser, program, label) => {

@@ -1,5 +1,5 @@
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
-export const viaDotCall = ((_ref, _unused = void 0) => {
+export const viaDotCall = (_ref => {
   let values = _valuesMaybeArray(_ref);
   return values;
 }).call(null, [1, 2]);

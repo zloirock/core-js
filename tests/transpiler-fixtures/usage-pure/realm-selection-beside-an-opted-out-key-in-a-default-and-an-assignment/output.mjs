@@ -12,6 +12,7 @@ export function opt({
 } = c ? {
   Array: {
     from: _Array$from,
+    // core-js-disable-next-line
     of: _globalThis.Array.of
   }
 } : fb) {
@@ -27,6 +28,7 @@ let fe, oe;
 } = c ? {
   Object: {
     fromEntries: _Object$fromEntries,
+    // core-js-disable-next-line
     entries: _globalThis.Object.entries
   }
 } : fb);

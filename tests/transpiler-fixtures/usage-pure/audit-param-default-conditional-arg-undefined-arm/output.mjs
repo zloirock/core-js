@@ -28,7 +28,7 @@ export const nullArm = function ({
 }(cond ? null : {
   from: _Iterator$from
 });
-// an SE-bearing default stays raw on the arm - substituting it would change WHEN eff() runs
+// a default requiring effect replay stays at its parameter slot on the undefined arm
 export const seDefault = function ({
   from
 } = (eff(), Array)) {

@@ -657,7 +657,10 @@ runBoth('late synth symbol spelling', 'const { [Symbol.iterator]: iterator } = A
   const rendered = renderSynthEntryKey(entry, options);
   check(`${ label }/imported symbol`, rendered.key.name, '_iterator');
   check(`${ label }/symbol is computed`, rendered.computed, true);
-  check(`${ label }/excluded symbol declines`, renderSynthEntryKey(entry, { ...options, resolvePure: () => null }), null);
+  const native = renderSynthEntryKey(entry, { resolvePure: () => null, injectImport() { throw new Error('unexpected import'); } });
+  check(`${ label }/native symbol receiver`, native?.key.object?.name, 'Symbol');
+  check(`${ label }/native symbol property`, native?.key.property?.name, 'iterator');
+  check(`${ label }/native symbol stays computed`, native?.computed, true);
 });
 
 finish();

@@ -3,7 +3,7 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // Each receiver evaluates once; method reads preserve the parameter's evaluation order.
 // Literal receivers select typed dispatchers; unknown receivers keep the generic dispatcher.
 // The throwing case stays inside an exported function so module evaluation reaches every row.
-export const viaBareCallThrowsLazily = () => ((_ref, _unused = void 0) => {
+export const viaBareCallThrowsLazily = () => (_ref => {
   let includes = _includes(_ref);
   return includes("x");
 })(arr);

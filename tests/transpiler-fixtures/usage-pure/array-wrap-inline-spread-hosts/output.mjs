@@ -53,7 +53,7 @@ const {
 };
 const viaLaterSpread = _values(_ref5.y);
 class K {
-  f = ((_ref6, _unused = void 0) => {
+  f = (_ref6 => {
     let [_ref7] = _ref6;
     let viaClassField = _toReversedMaybeArray(_ref7.y);
     return viaClassField;

@@ -9,7 +9,7 @@ function make(value) {
   return 'ab';
 }
 async function run() {
-  return ((_ref, other, _unused = void 0) => {
+  return ((_ref, other) => {
     let at = _atMaybeString(_ref);
     return [at.call('ab', -1), other];
   })(make(await _Promise$resolve('resume')), _pushMaybeArray(events).call(events, 'argument'));

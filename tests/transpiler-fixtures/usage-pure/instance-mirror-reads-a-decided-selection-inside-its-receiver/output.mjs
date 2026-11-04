@@ -26,7 +26,7 @@ export function hop(_ref4 = {
   let flat = _flatMaybeArray(_ref4.C);
   return flat;
 }
-export const argument = ((_ref5, _unused = void 0) => {
+export const argument = (_ref5 => {
   let includes = _includes(_ref5);
   return includes;
 })(arr);

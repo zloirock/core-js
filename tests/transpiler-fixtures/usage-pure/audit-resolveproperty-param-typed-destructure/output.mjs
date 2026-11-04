@@ -17,11 +17,15 @@ function process({
 process({
   items: [1, 2, 3]
 });
-export function stringSlot(_ref, _unused = void 0) {
+export function stringSlot(_ref: {
+  value: string;
+}) {
   let at = _atMaybeString(_ref.value);
   return at;
 }
-export function arraySlot(_ref2, _unused2 = void 0) {
+export function arraySlot(_ref2: {
+  value: number[];
+}) {
   let includes = _includesMaybeArray(_ref2.value);
   return includes;
 }

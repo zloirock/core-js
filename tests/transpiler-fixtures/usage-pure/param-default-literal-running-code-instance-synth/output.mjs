@@ -14,7 +14,7 @@ export function viaDefault(_ref = [eff()]) {
   let at = _at(_ref);
   return at;
 }
-export const viaIifeArg = ((_ref2, _unused = void 0) => {
+export const viaIifeArg = (_ref2 => {
   let includes = _includesMaybeArray(_ref2);
   return includes;
 })([eff(), 2]);

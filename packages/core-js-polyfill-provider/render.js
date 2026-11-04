@@ -477,16 +477,22 @@ export function assignmentPattern(left, right) {
 
 // Capture a pattern parameter once and let the ordinary declaration renderer serve its reads.
 // An array keeps one native iterator; splitting it into per-position reads would repeat iteration.
-// A trailing inert default preserves a bare pattern's length and unmapped arguments semantics.
+// A sloppy function can need a trailing default to preserve its observable unmapped arguments.
 export function renderParameterInstanceCapture(plan, { receiverName, unusedName, embed = node => node }) {
+  const { pattern } = plan;
+  let head = identifier(receiverName);
+  // The original pattern still types its moved leaves. Give the parameter its own
+  // annotation for TypeScript metadata without sharing a mutable AST node.
+  if (pattern.typeAnnotation || pattern.optional) {
+    head = embed({ ...head, typeAnnotation: pattern.typeAnnotation && cloneNode(pattern.typeAnnotation), optional: pattern.optional });
+  }
   return {
-    head: plan.root.type === 'AssignmentPattern'
-      ? assignmentPattern(identifier(receiverName), embed(plan.root.right)) : identifier(receiverName),
+    head: plan.root.type === 'AssignmentPattern' ? assignmentPattern(head, embed(plan.root.right)) : head,
     padding: plan.paddingRequired ? assignmentPattern(identifier(unusedName), voidZero()) : null,
     declaration: variableDeclaration('let', renderDestructureDeclarators(
-      plan.pattern.type === 'ArrayPattern'
-        ? [{ id: plan.pattern, init: identifier(receiverName) }]
-        : plan.pattern.properties.map(prop => ({ id: { ...plan.pattern, properties: [prop] }, init: identifier(receiverName) })),
+      pattern.type === 'ArrayPattern'
+        ? [{ id: pattern, init: identifier(receiverName) }]
+        : pattern.properties.map(prop => ({ id: { ...pattern, properties: [prop] }, init: identifier(receiverName) })),
       { embed },
     )),
   };
@@ -654,14 +660,15 @@ export function synthEntryKey({ keyNode, dedupKey, slotKey, lookupKey, computedK
 }
 
 // Bind the saved slot spelling to its live source key or injected well-known symbol.
-// A missing symbol entry has no safe synth spelling. Native key cloning may retain
+// A native well-known key needs no symbol import. Native key cloning may retain
 // directive comments; the key's meaning and computed form belong to this renderer.
 export function renderSynthEntryKey(entry, {
   resolvedSpelling = false, resolvePure, injectImport, cloneHost = cloneNode, embed = node => node,
 }) {
   if (entry.wksSpelling) {
     const pure = resolvePure(symbolStaticMeta(entry.wksSpelling));
-    return pure ? { key: identifier(injectImport(pure.entry, pure.hintName)), computed: true } : null;
+    const key = pure ? identifier(injectImport(pure.entry, pure.hintName)) : memberFromKeyName(identifier('Symbol'), entry.wksSpelling);
+    return { key, computed: true };
   }
   const spelled = synthEntryKey(entry, { resolvedSpelling });
   return { ...spelled, key: spelled.fromSource ? embed(cloneHost(spelled.key)) : spelled.key };

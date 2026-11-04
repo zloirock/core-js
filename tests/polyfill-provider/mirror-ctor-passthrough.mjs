@@ -812,19 +812,25 @@ for (const [method, ownDefault] of [['at', true], ['flat', false]]) runBoth(
 
 // Whole receiver capture keeps open callers and quiet closed callers on the ordinary body renderer.
 // Parameter reads and later binding work retain their original parameter environment.
-for (const [name, source, accepted, padding] of [
-  ['open declaration', 'export function read({ at }) { return at; }', true, true],
-  ['escaped declaration', 'function read({ at }) { return at; } hand(read);', true, true],
-  ['callback expression', 'subscribe(({ at }) => at);', true, true],
-  ['closed caller', 'function read({ at, flat }) { return [at, flat]; } read([1, [2]]);', true, true],
-  ['later identifier', 'function read({ at }, value) { return [at, value]; } read([1], effect());', true, true],
-  ['earlier default', 'export function read(value = effect(), { at }) { return [at, value]; }', true, false],
-  ['whole default', 'export function read({ at } = [1]) { return at; }', true, false],
-  ['mutable binding', 'export function read({ at }) { at = 7; return at; }', true, true],
-  ['arguments object', 'export function read({ at }, value) { return [at, arguments[1]]; }', true, true],
-  ['native sibling', 'export function read({ before, at, after }) { return [before, at, after]; }', true, true],
-  ['typed receiver', 'export function read({ at, length }: string) { return [at, length]; }', true, true],
-  ['typed receiver default', 'export function read({ at }: string = "ab") { return at; }', true, false],
+for (const [name, source, accepted, padding = false, goal = 'module'] of [
+  ['open declaration', 'export function read({ at }) { return at; }', true],
+  ['escaped declaration', 'function read({ at }) { return at; } hand(read);', true],
+  ['callback expression', 'subscribe(({ at }) => at);', true],
+  ['closed caller', 'function read({ at, flat }) { return [at, flat]; } read([1, [2]]);', true],
+  ['later identifier', 'function read({ at }, value) { return [at, value]; } read([1], effect());', true],
+  ['earlier default', 'export function read(value = effect(), { at }) { return [at, value]; }', true],
+  ['whole default', 'export function read({ at } = [1]) { return at; }', true],
+  ['mutable binding', 'export function read({ at }) { at = 7; return at; }', true],
+  ['sloppy observed arguments', 'function read({ at }, value) { value = 9; return [at, arguments[1]]; }', true, true, 'script'],
+  ['strict directive', '"use strict"; function read({ at }, value) { return [at, arguments[1]]; }', true, false, 'script'],
+  ['sloppy setter with arguments', 'const box = { set data({ at }) { use(at, arguments[0]); } };', false, false, 'script'],
+  ['class setter', 'class Box { set data({ at }) { use(at, arguments[0]); } }', true, false, 'script'],
+  ['object method', 'const box = { data({ at }) { use(at); } };', true],
+  ['private method', 'class Box { #data({ at }) { use(at); } }', true],
+  ['arguments object', 'export function read({ at }, value) { return [at, arguments[1]]; }', true],
+  ['native sibling', 'export function read({ before, at, after }) { return [before, at, after]; }', true],
+  ['typed receiver', 'export function read({ at, length }: string) { return [at, length]; }', true],
+  ['typed receiver default', 'export function read({ at }: string = "ab") { return at; }', true],
   ['later default', 'export function read({ at }, value = effect()) { return at; }', false],
   ['later pattern', 'export function read({ at }, { value }) { return at; }', false],
   ['later rest', 'export function read({ at }, ...values) { return at; }', false],
@@ -832,16 +838,22 @@ for (const [name, source, accepted, padding] of [
   ['computed key', 'export function read({ [key]: at }) { return at; }', false],
   ['repeated key', 'export function read({ at, at: again }) { return at; }', false],
   ['rest property', 'export function read({ at, ...rest }) { return at; }', false],
-  ['nested pattern', 'export function read({ row: { at } }) { return at; }', true, true],
-  ['nested literal default', 'export function read({ row: { at } = "ab" }) { return at; }', true, true],
-  ['nested siblings', 'export function read({ first: { at }, last: { flat }, marker }) { return [at, flat, marker]; }', true, true],
-  ['nested native hop sibling', 'export function read({ row: { inner: { at }, marker } }) { return [at, marker]; }', true, true],
-  ['nested claimed hop sibling', 'export function read({ row: { inner: { at }, flat } }) { return [at, flat]; }', true, true],
+  ['nested pattern', 'export function read({ row: { at } }) { return at; }', true],
+  ['nested literal default', 'export function read({ row: { at } = "ab" }) { return at; }', true],
+  ['nested siblings', 'export function read({ first: { at }, last: { flat }, marker }) { return [at, flat, marker]; }', true],
+  ['nested native hop sibling', 'export function read({ row: { inner: { at }, marker } }) { return [at, marker]; }', true],
+  ['nested claimed hop sibling', 'export function read({ row: { inner: { at }, flat } }) { return [at, flat]; }', true],
   ['nested computed literal', 'export function read({ row: { ["at"]: at } }) { return at; }', false],
   ['empty nested level', 'export function read({ row: {}, at }) { return at; }', false],
-  ['nested native leaf sibling', 'export function read({ row: { at, marker } }) { return [at, marker]; }', true, true],
-  ['nested receiver annotation', 'export function read({ row: { at } }: { row: string }) { return at; }', true, true],
-  ['nested whole default', 'export function read({ row: { at } } = getReceiver()) { return at; }', true, false],
+  ['flat leaf default keeps its mirror', 'export function read({ marker = 0, at } = [2]) { return [marker, at]; }', false],
+  ['raw leaf with an inert default', 'export function read({ row: { marker = -1, at } }) { return [marker, at]; }', true],
+  ['served leaf with a literal default', 'export function read({ row: { at = 3, flat } }) { return [at, flat]; }', false],
+  ['raw leaf with effectful default', 'export function read({ row: { marker = effect(), at } }) { return [marker, at]; }', false],
+  ['raw leaf coercing an object', 'export function read({ row: { marker = +[], at } }) { return [marker, at]; }', false],
+  ['raw default binding observed in parameters', 'export function read(probe = () => marker, { row: { marker = 0, at } }) { return probe(); }', false],
+  ['nested native leaf sibling', 'export function read({ row: { at, marker } }) { return [at, marker]; }', true],
+  ['nested receiver annotation', 'export function read({ row: { at } }: { row: string }) { return at; }', true],
+  ['nested whole default', 'export function read({ row: { at } } = getReceiver()) { return at; }', true],
   ['nested leaf default', 'export function read({ row: { at = custom } }) { return at; }', false],
   ['nested expression default', 'export function read({ row: { at } = bodyValue }) { var bodyValue = "ab"; return at; }', false],
   ['nested call default', 'export function read({ row: { at } = fallback() }) { return at; }', false],
@@ -851,20 +863,21 @@ for (const [name, source, accepted, padding] of [
   ['nested parameter read', 'export function read(probe = () => at, { row: { at } }) { return at; }', false],
   ['nested later binding read', 'export function read(probe = () => tail, { row: { at } = { get at() { return probe(); } } }, tail) { return at; }', false],
   ['nested body redeclaration', 'export function read({ row: { at } }) { var at; return at; }', false],
-  ['nested array pattern', 'export function read({ row: [{ at }] }) { return at; }', true, true],
-  ['array parameter', 'export function read([{ at }]) { return at; }', true, true],
-  ['array partial default', 'export function read([{ at, length }] = source()) { return [at, length]; }', true, false],
-  ['array hole', 'export function read([, { at }]) { return at; }', true, true],
+  ['nested array pattern', 'export function read({ row: [{ at }] }) { return at; }', true],
+  ['array parameter', 'export function read([{ at }]) { return at; }', true],
+  ['array partial default', 'export function read([{ at, length }] = source()) { return [at, length]; }', true],
+  ['array hole', 'export function read([, { at }]) { return at; }', true],
   ['array sibling binding', 'export function read([{ at }, later]) { return [at, later]; }', false],
   ['array rest', 'export function read([{ at }, ...tail]) { return [at, tail]; }', false],
   ['array slot default', 'export function read([{ at } = source()]) { return at; }', false],
   ['array earlier observer', 'export function read(probe = () => at, [{ at }]) { return probe(); }', false],
   ['array later observer', 'export function read([{ at }] = install(() => tail), tail) { return at; }', false],
-  ['concise arrow returning arrow', 'export const read = ({ at }) => () => at;', true, true],
-  ['concise arrow returning function', 'export const read = ({ at }) => function () { return at; };', true, true],
-  ['concise arrow returning class', 'export const read = ({ at }) => class { read() { return at; } };', true, true],
+  ['concise arrow returning arrow', 'export const read = ({ at }) => () => at;', true],
+  ['concise arrow returning function', 'export const read = ({ at }) => function () { return at; };', true],
+  ['concise arrow returning class', 'export const read = ({ at }) => class { read() { return at; } };', true],
   ['generator', 'export function* read({ at }) { yield at; }', false],
-  ['async', 'export async function read({ at }) { return at; }', false],
+  ['async generator', 'export async function* read({ at }) { yield at; }', false],
+  ['async', 'export async function read({ at }) { return at; }', true],
   ['body var', 'export function read({ at }) { var at; return at; }', false],
   ['body function', 'export function read({ at }) { function at() {} return at; }', false],
   ['later binding through earlier closure', 'export function read(probe = () => tail, { at } = { get at() { return probe(); } }, tail) { return at; }', false],
@@ -873,11 +886,11 @@ for (const [name, source, accepted, padding] of [
   ['later binding pattern write through earlier closure',
     'export function read(probe = () => ({ x: tail } = { x: 7 }), { at } = { get at() { return probe(); } }, tail) { return at; }', false],
   ['later binding through receiver getter', 'export function read({ at } = { get at() { return tail; } }, tail) { return at; }', false],
-  ['initialized earlier binding', 'export function read(earlier = 7, { at } = { get at() { return earlier; } }, tail) { return at; }', true, false],
-  ['later binding as a property name', 'export function read({ at } = { tail: 7, at: 9 }, tail) { return at; }', true, false],
-  ['nested binding declaration is no read', 'export function read(probe = (tail => () => 7)(1), { at } = { get at() { return probe(); } }, tail) { return at; }', true, false],
-  ['moved binding shadow remains local', 'export function read(probe = (at => () => at)(7), { at }) { return at; }', true, false],
-  ['later binding shadow remains local', 'export function read(probe = (tail => () => tail)(7), { at }, tail) { return at; }', true, false],
+  ['initialized earlier binding', 'export function read(earlier = 7, { at } = { get at() { return earlier; } }, tail) { return at; }', true],
+  ['later binding as a property name', 'export function read({ at } = { tail: 7, at: 9 }, tail) { return at; }', true],
+  ['nested binding declaration is no read', 'export function read(probe = (tail => () => 7)(1), { at } = { get at() { return probe(); } }, tail) { return at; }', true],
+  ['moved binding shadow remains local', 'export function read(probe = (at => () => at)(7), { at }) { return at; }', true],
+  ['later binding shadow remains local', 'export function read(probe = (tail => () => tail)(7), { at }, tail) { return at; }', true],
   ['earlier direct read', 'export function read(value = at, { at }) { return at; }', false],
   ['earlier closure', 'export function read(value = () => at, { at }) { return value(); }', false],
   ['receiver default closure', 'export function read({ at } = install(() => at)) { return at; }', false],
@@ -902,14 +915,18 @@ for (const [name, source, accepted, padding] of [
     ...options, adapter: { ...adapter, method: 'usage-global' },
   }), null);
   if (!accepted || !plan) return;
-  check(`${ label } pads only an otherwise simple list`, plan.paddingRequired, padding);
+  check(`${ label } pads only observable sloppy arguments`, plan.paddingRequired, padding);
   check(`${ label } keeps the source property identities`, subtreeContainsNode(plan.pattern, property.node), true);
   const rendered = renderParameterInstanceCapture(plan, { receiverName: '_ref', unusedName: '_unused' });
   check(`${ label } body declaration remains mutable`, rendered.declaration.kind, 'let');
   check(`${ label } keeps the property node for its source receiver fact`, subtreeContainsNode(rendered.declaration, property.node), true);
   check(`${ label } keeps the source receiver default`, rendered.head.right, plan.root.right);
-  check(`${ label } preserves the receiver annotation in its moved pattern`,
-    rendered.declaration.declarations[0].id.typeAnnotation, plan.pattern.typeAnnotation);
+  checkDeep(`${ label } preserves the receiver annotation on its parameter`,
+    (plan.root.type === 'AssignmentPattern' ? rendered.head.left : rendered.head).typeAnnotation ?? null, plan.pattern.typeAnnotation ?? null);
+  if (plan.pattern.typeAnnotation) {
+    const head = rendered.head.left ?? rendered.head;
+    check(`${ label } parameter and body do not share a mutable annotation`, head.typeAnnotation !== plan.pattern.typeAnnotation, true);
+  }
   check(`${ label } pads without allocating rest`, rendered.padding?.type, padding ? 'AssignmentPattern' : undefined);
   check(`${ label } disabled properties keep the source parameter`, planParameterInstanceExtraction({
     ...options, isDisabledProp: () => true,
@@ -917,7 +934,20 @@ for (const [name, source, accepted, padding] of [
   check(`${ label } a disabled leaf keeps the whole parameter`, planParameterInstanceExtraction({
     ...options, isDisabledProp: node => node === property.node,
   }), null);
-});
+}, undefined, goal);
+
+for (const param of ['@dec { at }: number[]', '@dec { at }: number[] = []']) {
+  runBoth(`decorated parameter capture/${ param }`, `class Box { read(${ param }) { return at; } }`, (parser, program, label) => {
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const [propPath] = pattern.get('properties');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(program.node);
+    check(`${ label } leaves the decorated binding in the parameter list`, !!planParameterInstanceExtraction({
+      propPath, adapter, resolvePure: () => ({ kind: 'instance', entry: 'array/at' }),
+    }), false);
+    check(`${ label } keeps decorator site and annotation`, JSON.stringify(program.node), before);
+  }, ['decorators-legacy']);
+}
 
 // A cached refusal follows the actual parameter-expression read/write, not the old pattern identity.
 // Both emitters revisit the same source pattern after replacing or removing earlier expressions.
@@ -1386,7 +1416,7 @@ for (const type of ['string', 'number[]']) runBoth(`body capture split annotatio
     check(`${ label } one declarator per original slot`, rendered.declaration.declarations.length, 3);
     for (const [index, declaration] of rendered.declaration.declarations.entries()) {
       check(`${ label }/${ index } preserves source property`, declaration.id.properties[0], properties[index].node);
-      check(`${ label }/${ index } preserves pattern annotation`, declaration.id.typeAnnotation, pattern.node.typeAnnotation);
+      check(`${ label }/${ index } preserves the leaf type hint`, declaration.id.typeAnnotation, pattern.node.typeAnnotation);
       check(`${ label }/${ index } reuses the captured receiver`, declaration.init.name, '_ref');
     }
   });

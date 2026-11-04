@@ -30,7 +30,7 @@ restoreProperty(Array.prototype, 'flat', {
 });
 export let result;
 try {
-  result = ((_ref, _unused = void 0) => {
+  result = (_ref => {
     let [_ref2, _ref3] = _ref;
     let at = _atMaybeArray(_ref2);
     let flat = _flatMaybeArray(_ref3);

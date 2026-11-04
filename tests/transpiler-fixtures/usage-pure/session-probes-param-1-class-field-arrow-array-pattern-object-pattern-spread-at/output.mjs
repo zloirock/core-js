@@ -5,7 +5,7 @@ const nb = {
 };
 {
   class K {
-    f = ((_ref, _unused = void 0) => {
+    f = (_ref => {
       let [_ref2] = _ref;
       let a = _at(_ref2.y);
       return a;

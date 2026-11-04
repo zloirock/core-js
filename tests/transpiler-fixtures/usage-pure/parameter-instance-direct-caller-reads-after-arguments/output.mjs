@@ -18,7 +18,7 @@ restoreProperty(String.prototype, 'at', {
 });
 export let result;
 try {
-  result = ((_ref, other, _unused = void 0) => {
+  result = ((_ref, other) => {
     let at = _atMaybeString(_ref);
     return [typeof at, other];
   })('az', _pushMaybeArray(events).call(events, 'argument'));

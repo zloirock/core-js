@@ -615,7 +615,7 @@ export function planNestedDeclarationReceiver({
   }
   const named = root.type === 'Identifier';
   const realmThis = root.type === 'ThisExpression' && isTopLevelThisContext(path);
-  if (!named && !realmThis && (!typedChain || symbolLeaf)) return null;
+  if (!named && !realmThis && !typedChain) return null;
   const nav = named || realmThis ? keys.reduce(memberFromKeyName, root) : null;
   if (nav && !symbolLeaf && !isInstanceSurfaceNav(nav, surfaceOptions) && !typedChain) return null;
   const site = read ?? { node: root, path, scope: path.scope };
@@ -670,27 +670,26 @@ export function planNestedLeafTwin({ path, sourceLeafCount, queuedReceiverRead =
   const ctx = { scope: path.scope, path, adapter };
   const options = { soleSlots: true, allowLeafSiblings: true, allowSlotDefault: true,
     siblingLevels: true, adapter, allowAssignmentHost: true, captureReceiver: true };
-  function owed(walk) {
+  function owed(walk, host) {
     const leaves = walk.leafPattern?.node?.properties ?? [];
     return (leaves.length > 1 || sourceLeafCount > 1
       || leaves.some(item => !isRestProperty(item) && computedKeyHasSideEffects(item, ctx)))
-      && walk.keys.length > 0 && !leafPatternHoldsClaimedHop({
+      && walk.keys.length > 0 && (!host.forInit || !leafPatternHoldsClaimedHop({
       leafPattern: walk.leafPattern, claimProp: path.node, scope: path.scope, adapter, resolvePure,
-    });
+    }));
   }
   const walk = resolveNestedReceiverChain(path, options);
   if (!walk) {
     const capture = queuedReceiverRead && resolveNestedReceiverChain(path, { ...options, rootMemoized: true });
     const declarator = capture?.declarator;
-    if (declarator?.node?.type === 'VariableDeclarator' && owed(capture)
-      && planNestedLeafHost(capture) && hopSplitPlan(capture, { builtInRoot: false })
+    const host = declarator?.node?.type === 'VariableDeclarator' && planNestedLeafHost(capture);
+    if (host && owed(capture, host) && hopSplitPlan(capture, { builtInRoot: false })
       && queuedReceiverRead(declarator)
       && declarator.parentPath.node.declarations.at(-1) === declarator.node) {
       return { kind: 'capture', declarator };
     }
     return planLiteralLeafTwin(path, ctx);
   }
-  if (!owed(walk)) return null;
   const { declarator, leafPattern } = walk;
   const assignment = declarator.node.type === 'AssignmentExpression';
   const statement = assignment ? nestedAssignmentStatementOf(path) : null;
@@ -698,7 +697,7 @@ export function planNestedLeafTwin({ path, sourceLeafCount, queuedReceiverRead =
     || declarator.node.left?.type !== 'ObjectPattern' || declarator.node.left.properties.length !== 1
     || !statementListOf(statement.parentPath?.node) || !assignmentTwinLeafAdmitted(leafPattern.node, ctx))) return null;
   const host = planNestedLeafHost(walk, statement);
-  if (!host) return null;
+  if (!host || !owed(walk, host)) return null;
   const binding = adapter.getBinding({ scope: path.scope, name: walk.root.name, path, read: walk.root });
   const base = resolveNestedReceiverBase({ rootName: walk.root.name, keys: walk.keys, binding,
     adapter, resolveGlobalPolyfill, resolveStaticPolyfill });
@@ -1471,12 +1470,8 @@ export function hopPatternLeafClaims({ pattern, resolvePure, keyCtx }) {
   }));
 }
 
-// ... and the flat twin's own limit: does the leaf pattern hold, beside the claim, a hop whose pattern
-// has leaves the claim funnel claims (`{ name, company: { name: companyName } }`)? both legs leave such a
-// level nested and its claims native: twinned, the hop's own claims would be served only where a leg can
-// memoize the hop eagerly, which unplugin cannot on a loop head or an unbraced `var`. asked of the funnel,
-// not of key names: a leaf it keeps native (under an instance hop, `{ at, flat: { name } }`) claims
-// nothing, and the twin still serves `at`
+// A classic for initializer cannot split a claimed sibling hop into a preceding statement.
+// Ordinary declarations, including an unbraced var, can capture it once at the original site.
 function leafPatternHoldsClaimedHop({ leafPattern, claimProp, scope, adapter, resolvePure }) {
   return leafPattern.get('properties').some(item => {
     if (!isPropertyNode(item.node) || item.node === claimProp) return false;
@@ -3950,7 +3945,11 @@ export function planLiteralRoute({
   entry = null, typedNavChain, allProxyInit = false, sourceBindingCount = patternBindingCount(declarator.id),
   patternCtx = { scope: metaPath.scope, adapter, path: metaPath },
 }) {
-  chain ??= destructureHostThroughWrappers(metaPath.parentPath, adapter, true)?.hops ?? [];
+  if (chain === undefined) {
+    const walked = destructureHostThroughWrappers(metaPath.parentPath, adapter, true);
+    chain = walked ? walked.hops : [];
+  }
+  if (!chain) return null;
   sentinel ??= destructureReadKeepsKey(metaPath, kind, patternCtx);
   typedNavChain ??= entry === 'get-iterator-method' ? typedNavClaimChain(metaPath, { adapter }) : null;
   const declaratorConsumedWhole = sourceBindingCount === patternBindingCount(prop.value);
@@ -3989,8 +3988,8 @@ export function planLiteralRoute({
       // ... asked of THIS DECLARATOR's own pattern, not of the declaration: a sibling declarator
       // keeps its own binding, and the consumed one splits off beside it - the split the other leg
       // already performs (`const { y: { at } } = { y: nb.y }, zn = 1`)
-      // ... and only where the residual DIES: a level an effectful hop key keeps would run the
-      // carried effect a second time beside the dispatch
+      // The carried slot keeps its prefix. A retained level shares that read through
+      // the slot memo below instead of evaluating the prefix again in the dispatch.
       if (!literalReceiver && declaratorConsumedWhole && !sentinel) {
         const carried = carriedInitReceiverNode({ path: metaPath, initNode: declarator.init,
           resolveOptions: { throughNamedDefaults }, adapter });
@@ -4042,8 +4041,9 @@ export function planLiteralRoute({
   // An anchored iterator read retains its raw default/key; a typed user navigation or
   // captured literal owns the slot instead. A host sibling cannot add a second hop read.
   const admitted = !chain.length || entry !== 'get-iterator-method'
-    || !((prop.value.type === 'AssignmentPattern' && !typedNavChain) || computedKeyHasSideEffects(prop, patternCtx)
-      || (declarator.id?.properties?.length > 1 && !typedNavChain && !slotMemo && !literalReceiver));
+    || !computedKeyHasSideEffects(prop, patternCtx) && (!!typedNavChain || !!literalReceiver || !!slotMemo
+      || prop.value.type !== 'AssignmentPattern' && (declarator.id?.properties?.length <= 1
+        || dispatchMayReadNav(metaPath, literalReceiver, { adapter, symbolLeaf: true })));
   // A loop header can carry the initializer in its dispatch; its other readers are
   // captured by forInitNeedsReceiverMemo. A receiverless claim may not discard effects.
   const forInitLiteral = !sentinel && !literalReceiver && !pureNav && forInit && !chain.length
@@ -4200,12 +4200,20 @@ export function planLiteralResidual({
   return { keepKey, siblingAppend, memoizeReceiver, consumeResidualRead, deferMemo: branchingReceiver || sentinel };
 }
 
+// A logical value may be replaced by its proved operand only if the skipped
+// evaluation has no effects. Otherwise the activation evaluates the whole selection once.
+function synthReadReceiver(receiver, ctx) {
+  if (receiver?.type !== 'LogicalExpression') return receiver;
+  const running = decidedRunningOperand(receiver, ctx);
+  return running === receiver.left || running !== receiver && !mayHaveSideEffects(receiver, ctx) ? running : receiver;
+}
+
 // A covered synth needs no receiver reader: each key resolves to a static value.
-// Instance dispatch still needs that reader. A fallback resolves only its live left;
+// Instance dispatch still needs that reader. Only the selected value may supply a fallback;
 // activation planning asks this before saving a read or allocating any memo name.
 export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure }) {
   const value = unwrapRuntimeExpr(receiver);
-  const named = value?.type === 'LogicalExpression' ? value.left : receiver;
+  const named = value?.type === 'LogicalExpression' ? synthReadReceiver(value, contextFor(value)) : receiver;
   const objectName = named ? resolveObjectName({ objectNode: named, ...contextFor(named) }) : null;
   return !!objectName && plan.every(entry => !entry.optedOut && !entry.raw && typeof entry.lookupKey === 'string' && resolvePure({
     kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
@@ -4219,6 +4227,7 @@ export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure 
 export function planSynthReceiverActivation({ receiver, entries = null, callBranch = false, scope, adapter, path, resolvePure }) {
   const synthGuard = planSynthReceiverGuard({ receiver, scope, adapter, path, resolvePure });
   const aliasCtx = { scope, adapter, path };
+  const source = synthReadReceiver(receiver, aliasCtx);
   const fullyCovered = entries && synthPlanFullyCovered(entries, receiver, {
     contextFor: () => aliasCtx, resolvePure,
   });
@@ -4231,9 +4240,9 @@ export function planSynthReceiverActivation({ receiver, entries = null, callBran
     // A partial mirror reads the same canonical receiver as its retained properties.
     // Save that landing before child claims rewrite the navigation.
     memoRead: callBranch || entries && !fullyCovered ? planMemoReadTarget(
-      receiver.type === 'LogicalExpression' ? receiver.left : receiver, { aliasCtx, resolvePure },
+      source, { aliasCtx, resolvePure },
     ) : null,
-    dropRescueReceiver: shouldDropRescueReceiver(receiver.type === 'LogicalExpression' ? receiver.left : receiver),
+    dropRescueReceiver: shouldDropRescueReceiver(source),
     guardedReceiverPlan: synthGuard ? planProxyReceiver(unwrapRuntimeExpr(synthGuard.fallback?.left ?? receiver), {
       aliasCtx, guardedProbe: synthGuard.probe, resolvePure,
     }) : null,
@@ -4250,7 +4259,7 @@ export function renderSynthReplacement(entries, {
   guard = null,
   checkNullish = true,
   aliasCtx,
-  dropRescueReceiver = shouldDropRescueReceiver(receiver.type === 'LogicalExpression' ? receiver.left : receiver),
+  dropRescueReceiver,
   slotFor = entry => entry.polyfill,
   renderLiteral,
   renderMemoArgument,
@@ -4259,7 +4268,8 @@ export function renderSynthReplacement(entries, {
   cloneHost = cloneNode,
   embed = node => node,
 }) {
-  const source = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
+  const source = synthReadReceiver(receiver, aliasCtx ?? {});
+  dropRescueReceiver ??= shouldDropRescueReceiver(source);
   const partial = entries.some(entry => !slotFor(entry));
   let probe;
   function readProbe() { return probe ??= renderProbe?.() ?? false; }
@@ -4292,8 +4302,7 @@ export function renderSynthReplacement(entries, {
 // an instance entry reads the complete runtime selection. A memo parameter, if any,
 // replaces both reads at apply time. This query resolves entries without injecting them.
 export function planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure }) {
-  const readReceiver = receiver.type === 'LogicalExpression'
-    ? peelNestedSequenceExpressions(receiver.left).tail : receiver;
+  const readReceiver = synthReadReceiver(receiver, aliasCtx ?? {});
   const name = readReceiver.type === 'Identifier' ? renderedGlobalHint(readReceiver, aliasCtx) ?? readReceiver.name : null;
   const globalPure = readReceiver.type === 'Identifier'
     ? resolvePure({ kind: 'global', name: readReceiver.name }) : null;
@@ -4368,12 +4377,10 @@ export function renderSynthLiteral(entries, {
   }
   const properties = [];
   for (const entry of entries) {
-    const spelled = renderSynthEntryKey(
+    const { key, computed } = renderSynthEntryKey(
       entry,
       { resolvedSpelling, resolvePure, injectImport, embed, cloneHost: node => cloneKey(node, entry) },
     );
-    if (!spelled) return null;
-    const { key, computed } = spelled;
     let slot = entry.optedOut ? null : slotFor(entry);
     if (slot?.unresolved || requireCoverage && !slot) return null;
     const receiverCtorName = !slot && !receiverPath && !entry.optedOut && !entry.raw && !computed
