@@ -22580,6 +22580,70 @@ function * generateMirrorRetainedReads() {
       } export const r = result;` };
 }
 
+// Local value arms retain their own dispatch families, while a positional capture cycle
+// remains unknown. The directive rows build the absent environment outside the source reader.
+function * generateLocalValueAvailability() {
+  for (const mutual of [false, true]) yield { name: `local-value-availability/self-capture/${ mutual }`, strip: true,
+    code: `export const effects = [];
+      function read() {
+        var [saved] = [${ mutual ? 'other' : 'saved' }];
+        ${ mutual ? 'var [other] = [saved];' : '' }
+        try { return saved.at(0); } catch (error) { return error.name; }
+      } export const r = read();` };
+  for (const present of [false, true]) for (const [name, body] of [
+    ['capture', 'const [{ includes } = fallback({ includes() { return 7; } })] = [source]; return includes();'],
+    ['nested', 'const [{ at: { length } } = fallback({ at: [1, 2] })] = [source]; return length;'],
+    ['leading', 'const [first = fallback(1), { flat }, last] = [source, receiver, 3], extra = 2; return [typeof first, flat(), last, extra];'],
+    ['trailing', 'const [{ flat }, last = fallback(flat())] = [receiver, source]; return typeof last;'],
+  ]) yield { name: `local-value-availability/default/${ name }/${ present }`, strip: true,
+    code: `export const effects = [];
+      const receiver = Object.create({ get flat() { effects.push("read"); return () => 7; } });
+      function fallback(value) { effects.push("default"); return value; }
+      function read(source, receiver) { ${ body } }
+      export const r = read(${ present ? '{ includes() { return 9; }, at: [1, 2, 3] }' : 'undefined' }, receiver);` };
+  for (const source of ['presence', 'alias', 'field', 'prototype']) for (const flag of [false, true]) {
+    const initial = source === 'presence' ? 'typeof Promise !== "undefined" ? "ab" : ["x"]' : '["z"]';
+    const value = source === 'presence' ? '"cd"' : source === 'alias' ? 'arm'
+      : source === 'field' ? 'box.field' : 'Object.create(Array.prototype)';
+    yield { name: `local-value-availability/${ source }/${ flag }`, strip: true,
+      code: `export const effects = [];
+        function read(write) {
+          const arm = ${ flag } ? "x" : ["y"];
+          const box = { field: arm };
+          let value = ${ initial };
+          if (write) value = ${ value };
+          return [value.at(0), value.includes("x")];
+        } export const r = [read(false), read(true)];` };
+  }
+  for (const bodyless of [false, true]) {
+    yield { name: `local-value-availability/capture-cycle/${ bodyless }`, strip: true,
+      code: `export const effects = [];
+        function read(flag) {
+          const list = { a: 3, values() { return 7; } };
+          try {
+            ${ bodyless ? 'if (flag)' : '' } var [{ a: v, values }, { inner: { includes }, k: M } = []] = [list, includes];
+            return [v, values(), typeof M];
+          } catch (error) { return error.name; }
+        } export const r = [read(true), read(false)];` };
+  }
+  const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+  for (const selection of ['realm.self || realm', 'realm.self ?? realm', 'typeof self !== "undefined" ? self : realm']) {
+    for (const assignment of [false, true]) {
+      yield { name: `local-value-availability/directive/${ selection }/${ assignment }`, strip: true,
+        code: `import { withTemporaryProperty } from ${ helper };
+          export const effects = [];
+          const realm = globalThis;
+          function read() {
+            ${ assignment ? 'let M;' : '' }
+            // core-js-disable-next-line
+            ${ assignment ? `({ Math: M } = ${ selection });` : `const { Math: M } = ${ selection };` }
+            return M.max(2, 5);
+          }
+          export const r = withTemporaryProperty(globalThis, "self", undefined, read);` };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23035,4 +23099,5 @@ export function * generate() {
   yield * generateLiteralWrapperSources();
   yield * generateLiteralWrapperBranches();
   yield * generateMirrorRetainedReads();
+  yield * generateLocalValueAvailability();
 }

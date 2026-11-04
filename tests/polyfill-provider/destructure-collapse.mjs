@@ -23,12 +23,22 @@ import {
 import { restSentinelNamesReducer, sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { HOST_SLOT, hostSlot, renderProxyReceiverPlan, callExpression, identifier } from '../../packages/core-js-polyfill-provider/render.js';
 import {
-  planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderArrayDestructurePlan,
+  planArrayWrapperCapture,
+  planRetainedObjectCapture,
+  renderArrayWrapperCapture,
+  renderArrayDestructurePlan,
+  reusableArrayCaptureReceiver,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { buildOffsetToLine } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
-  capturedPatternSource, collectFileCensus, isCapturedKeyedPattern, isPropertyNode,
-  markCapturedKeyedPattern, markCapturedPatternSource, patternFullyConsumed, walkAstNodes,
+  capturedPatternSource,
+  collectFileCensus,
+  isCapturedKeyedPattern,
+  isPropertyNode,
+  markCapturedKeyedPattern,
+  markCapturedPatternSource,
+  patternFullyConsumed,
+  walkAstNodes,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
@@ -2361,5 +2371,22 @@ for (const assignment of [false, true]) for (const key of ['"a-b"', '0']) {
     check(`${ label }/key value`, receiver.property.value, key === '0' ? 0 : 'a-b');
   });
 }
+
+runBoth('live array default cannot reuse its source name',
+  'const source = supplied; const [{ at } = fallback()] = [source];', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+    const ctx = { path: host, scope: host.scope,
+      adapter: (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' }) };
+    const capture = planArrayWrapperCapture({ pattern: host.node.id, init: host.node.init, force: true, ctx });
+    const [element] = capture.elements;
+    checkTruthy(`${ label }/live default recorded`, element.defaultValue);
+    check(`${ label }/selected value needs a capture`, reusableArrayCaptureReceiver(capture, element, ctx), null);
+    check(`${ label }/plain source can still be reused`,
+      reusableArrayCaptureReceiver(capture, { ...element, defaultValue: null }, ctx)?.name, 'source');
+    const rendered = renderArrayWrapperCapture(capture, { mintRef: () => 'saved' });
+    check(`${ label }/default remains in position`, rendered.capture.id.elements[0].type, 'AssignmentPattern');
+    check(`${ label }/default value identity`, rendered.capture.id.elements[0].right, element.defaultValue.right);
+    check(`${ label }/declaration reads captured choice`, rendered.elements[0].declarator.init.name, 'saved');
+  });
 
 finish();

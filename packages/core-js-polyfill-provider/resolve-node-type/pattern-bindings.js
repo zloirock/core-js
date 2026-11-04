@@ -347,14 +347,16 @@ export function createPatternBindings({
     }
     activeLocalReads.add(path.node);
     try {
-      const arms = reachableValueArms(binding, binding.path, path.node.name, path, false, 0, inputs);
-      if (!arms) return null;
+      const values = reachableValueArms(binding, binding.path, path.node.name, path, false, 0, inputs);
+      if (!values) return null;
+      const arms = values.map(value => value.type);
       const hints = new Set();
       let open = false;
-      for (const arm of arms) {
+      for (const { type: arm, hints: ownHints } of values) {
         if (arm && isNullableOrNever(arm)) continue;
         const hint = arm && toHint(arm);
-        if (!hint) open = true;
+        if (!arm && ownHints) for (const own of ownHints) hints.add(own);
+        else if (!hint) open = true;
         else if (TYPE_HINTS.has(hint)) hints.add(hint);
       }
       const annotation = findBindingAnnotation(binding.path);
@@ -1647,6 +1649,8 @@ export function createPatternBindings({
 
   // Every value that can reach a binding read, projected to Types or dispatch families by one
   // enumeration. A pattern assignment contributes its paired field, never its whole RHS.
+  // Local reads keep each arm's hints beside its Type; a missing scalar Type alone is not
+  // an open family set, and a family set must never stand in for that missing Type.
   function reachableValueArms(binding, bindingPath, name, usagePath, unionHints = false, depth = 0, local = null) {
     if (local) {
       const writes = local.assignments.map(assignment => assignment.node);
@@ -1661,27 +1665,27 @@ export function createPatternBindings({
         completions: local.completions,
       });
       const adapter = getDecisionAdapter();
+      const ctx = { adapter, path: usagePath, scope: usagePath.scope, liveArmsOnly: true };
       const replaced = settled || reassignmentDominatesUsage({ reassignmentNodes: writes, usagePath, adapter, climb: true });
-      const enumeration = reassignmentValueEnumeration({ binding, usagePath, name,
-        ctx: { adapter, path: usagePath, scope: usagePath.scope } });
+      const enumeration = reassignmentValueEnumeration({ binding, usagePath, name, ctx });
       if (!enumeration.complete || enumeration.callSites.length) return null;
       const nodes = enumeration.nodes.filter(node => !settled || node.start >= settled.start);
-      if (!replaced && local.init) nodes.unshift(...flattenBranchingValueNodes([local.init]));
+      if (!replaced && local.init) nodes.unshift(...flattenBranchingValueNodes([local.init], { ctx }));
       const types = [];
-      if (!replaced && !local.init) types.push(new $Primitive('undefined'));
+      if (!replaced && !local.init) types.push({ type: new $Primitive('undefined') });
       for (const node of nodes) {
         const value = pathOfNode(usagePath, node);
         if (!value) return null;
         const resolved = resolveNodeType(value);
-        if (resolved) types.push(resolved);
+        if (resolved) types.push({ type: resolved });
         else {
           // A call/alias may carry a cross-family annotation which the scalar fold cannot
           // represent. Keep its existing Type arms instead of re-deriving hints separately.
           const info = findExpressionAnnotation(value);
           const annotation = info && unwrapTypeAnnotation(info.annotation);
           if (isUnionType(annotation)) {
-            types.push(...annotation.types.map(arm => resolveTypeAnnotation(arm, info.scope)));
-          } else types.push(null);
+            types.push(...annotation.types.map(arm => ({ type: resolveTypeAnnotation(arm, info.scope) })));
+          } else types.push({ type: null, hints: mergeArmHints([value], depth) });
         }
       }
       return types;

@@ -20,6 +20,12 @@ let count = 0;
 
 try {
   for (const [shape, expression] of [
+    ['excluded-value-write', '(held = globalThis.self).window.slot = rhs()'],
+    ['excluded-value-tail', '(held = globalThis.self).self.slot = rhs()'],
+    ['excluded-value-read', '(held = globalThis.self).self.slot'],
+    ['excluded-value-optional', 'globalThis.self?.Array'],
+    ['excluded-value-sealed', '(globalThis.self?.Array).from'],
+    ['excluded-value-default', '(() => { const { from } = globalThis.self?.Array ?? {}; return typeof from; })()'],
     ['write', '(held = globalThis.window).self.slot = rhs()'],
     ['prefix', '(prefix(), held = globalThis.window).self.slot = rhs()'],
     ['nested-prefix', '(prefix(), (prefix(), held = globalThis.window)).self.slot = rhs()'],

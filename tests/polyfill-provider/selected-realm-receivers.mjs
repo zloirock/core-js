@@ -2,7 +2,7 @@
 // and keep resolving statics above a constructor reached through that same selection.
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { realmSelectingHostCollapses, resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
@@ -11,6 +11,22 @@ import { wrapperLiteralEntries } from '../../packages/core-js-polyfill-provider/
 import { adapters, createChecker, expectError } from './harness.mjs';
 
 const { check, finish } = createChecker('selected-realm-receivers');
+
+for (const parser of adapters) for (const assignment of [false, true]) {
+  const tree = parser.parseAndScope(assignment
+    ? 'let M; ({ Math: M } = globalThis.self || globalThis);'
+    : 'const { Math: M } = globalThis.self || globalThis;');
+  const host = parser.pickPath(tree, assignment ? 'AssignmentExpression' : 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { adapter, scope: host.scope, path: host };
+  const before = JSON.stringify(host.node);
+  for (const disabled of [false, true, false]) {
+    adapter.isOptedOut = node => node === host.node && disabled;
+    check(`${ parser.name }/${ assignment }/host opt-out ${ disabled }`, realmSelectingHostCollapses(host.node, ctx).length,
+      disabled ? 0 : 1);
+    check(`${ parser.name }/${ assignment }/source stays intact`, JSON.stringify(host.node), before);
+  }
+}
 
 const rows = [
   ['stored consequent', 'flag ? (held = globalThis) : globalThis', 'Promise'],

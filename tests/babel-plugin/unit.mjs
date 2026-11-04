@@ -17,6 +17,7 @@ import './deferred-probe-sources.mjs';
 import './guarded-values.mjs';
 import './excluded-residual-runtime.mjs';
 import './excluded-kept-store-runtime.mjs';
+import './realm-selection-directives.mjs';
 import './residual-source-order-runtime.mjs';
 import './loop-receiver-runtime.mjs';
 import './anchor-activation-runtime.mjs';

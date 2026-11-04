@@ -6,6 +6,33 @@ import { withReentrantQuestion } from '../../packages/core-js-polyfill-provider/
 const { check, checkTruthy, checkDeep, finish } = createChecker('local-flow-values');
 const cases = [
   [
+    'selected-alias-hints',
+    'export function read(flag: boolean, write: boolean) { const arm = flag ? "x" : ["y"];'
+      + 'let value: string | string[] = ["z"]; if (write) value = arm; return value.at(0); }',
+    null,
+    'array,string',
+  ],
+  [
+    'installed-prototype-hints',
+    'export function read(write: boolean) { let value = ["z"]; if (write) value = Object.create(Array.prototype); return value.at(0); }',
+    null,
+    'array',
+  ],
+  [
+    'opaque-selected-object-arm',
+    'export function read(flag: boolean, write: boolean) { const box = flag ? { field: ["x"] } : { field: ["y"] };'
+      + 'let value = ["z"]; if (write) value = box.field; return value.at(0); }',
+    null,
+    null,
+  ],
+  [
+    'field-union-hints',
+    'export function read(flag: boolean, write: boolean) { const box = { field: flag ? "x" : ["y"] };'
+      + 'let value: string | string[] = ["z"]; if (write) value = box.field; return value.at(0); }',
+    null,
+    'array,string',
+  ],
+  [
     'if-else-string',
     'export function read(flag: boolean) { let value: string | string[]; if (flag) value = "a"; else value = "b"; return value.at(0); }',
     'string',
@@ -331,6 +358,25 @@ for (const adapter of adapters) {
 }
 
 for (const adapter of adapters) {
+  for (const live of [true, false]) {
+    const tree = adapter.parseAndScope('export function read(flag: boolean, write: boolean) {'
+      + 'let value = flag ? "ab" : ["x"]; if (write) value = "cd"; return value.at(0); }');
+    const member = adapter.pickPath(tree, 'MemberExpression');
+    let questions = 0;
+    const resolver = adapter.makeResolver({ getDecisionAdapter: () => ({
+      settledSelection() { return null; },
+      decidedSelection(node, context) {
+        check(`${ adapter.name }/initializer context`, context.path.scope, context.scope);
+        questions++;
+        return live ? { fold: 'consequent', skip: 'alternate' } : null;
+      },
+    }) });
+    const type = resolver.resolvePropertyObjectType(member);
+    check(`${ adapter.name }/${ live }/initializer type`, type?.type ?? null, live ? 'string' : null);
+    check(`${ adapter.name }/${ live }/initializer hints`, [...resolver.resolvePropertyUnionHints(member)].sort().join(','),
+      live ? 'string' : 'array,string');
+    checkTruthy(`${ adapter.name }/${ live }/initializer consulted`, questions > 0);
+  }
   const tree = adapter.parseAndScope('export function read(flag: boolean) { let value; value = flag ? "ab" : "cd"; return value.at(0); }');
   const member = adapter.pickPath(tree, 'MemberExpression');
   let questions = 0;

@@ -9,6 +9,23 @@ import { withRealmSlot, withWindowWithoutSelf } from './window-without-self-host
 // (a raw `.self` hop read throws in Node). the fold itself stays locked by the other legs
 const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
 
+QUnit.test('disabled realm selections retain their environment fallbacks', assert => {
+  const realm = globalThis;
+  // core-js-disable-next-line
+  const { Math: first } = realm.self || realm;
+  /* eslint-disable prefer-const -- the assignment host is the regression shape */
+  let second;
+  ({ Math: second } = realm.self ?? realm); // core-js-disable-line
+  /* eslint-enable prefer-const -- end of assignment host */
+  /* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- test the author's environment fallback */
+  // core-js-disable-next-line
+  const { Math: third } = typeof self !== 'undefined' ? self : realm;
+  /* eslint-enable no-restricted-globals, unicorn/prefer-global-this -- end of environment fallback */
+  assert.same(first.max(1, 3), 3);
+  assert.same(second.max(1, 3), 3);
+  assert.same(third.max(1, 3), 3);
+});
+
 QUnit.test('optional static calls keep an earlier environment guard over instance tails', assert => {
   for (const present of [false, true]) withWindowPresence(present, live => {
     let held;

@@ -2542,6 +2542,12 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
       && item.children.slice(0, index).some(before => before.kind === 'verbatim'))))
     || item.children.some(child => child.extractions?.some(extraction => extraction.defaultNode))
     || arrayWrapperNeighbourEffect(init, item.index, pattern)))));
+  // A retained default belongs to its original binding position. Moving it into a
+  // whole-array capture would run it before the earlier element's extracted reads.
+  if (needsCapture && elements.some(item => item.kind === 'verbatim'
+    && item.node?.type === 'AssignmentPattern')) {
+    return positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
+  }
   // An opaque spread stays in the original literal; only its proven prefix pairs.
   // These source positions have already passed the paired-host proof. Retain all
   // native bindings in the capture, including the argument of an array rest slot.

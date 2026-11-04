@@ -1,3 +1,82 @@
+QUnit.test('positional types: a live default supplies the captured receiver', assert => {
+  const effects = [];
+  function fallback(value) {
+    effects.push('default');
+    return value;
+  }
+  function flat(source) {
+    const [{ includes } = fallback({ includes() { return 7; } })] = [source];
+    return includes();
+  }
+  function nested(source) {
+    const [{ at: { length } } = fallback({ at: [1, 2] })] = [source];
+    return length;
+  }
+  assert.same(flat(undefined), 7);
+  assert.same(nested(undefined), 2);
+  assert.deepEqual(effects, ['default', 'default']);
+  assert.same(flat({ includes() { return 9; } }), 9);
+  assert.same(nested({ at: [1, 2, 3] }), 3);
+  assert.deepEqual(effects, ['default', 'default'], 'present slots do not run defaults');
+});
+
+QUnit.test('positional types: defaults and sibling reads retain binding order', assert => {
+  const effects = [];
+  const source = Object.create({ get flat() {
+    effects.push('read');
+    return () => 7;
+  } });
+  function fallback(value) {
+    effects.push('default');
+    return value;
+  }
+  function read(missing, receiver, tail) {
+    const [first = fallback(1), { flat }, last] = [missing, receiver, tail],
+          extra = 2;
+    return [first, flat(), last, extra];
+  }
+  assert.deepEqual(read(undefined, source, 3), [1, 7, 3, 2]);
+  assert.deepEqual(effects, ['default', 'read']);
+  effects.length = 0;
+  function later(missing) {
+    const [{ flat }, last = fallback(flat())] = [source, missing];
+    return last;
+  }
+  assert.same(later(undefined), 7);
+  assert.deepEqual(effects, ['read', 'default'], 'a later default observes the earlier binding');
+});
+
+QUnit.test('positional types: self-referencing var captures retain native initialization', assert => {
+  const list = { a: 11, values() { return 7; } };
+  function direct() {
+    try {
+      // eslint-disable-next-line no-var, es/no-nonstandard-array-prototype-properties -- var reads itself; the missing inner property must throw
+      var [{ a: value, values }, { inner: { includes }, k: M } = []] = [list, M];
+    } catch (error) {
+      // eslint-disable-next-line block-scoped-var -- inspect the partial initialization of hoisted bindings
+      return [error.name, value, values(), typeof includes, typeof M];
+    }
+  }
+  function bodyless(flag) {
+    try {
+      // eslint-disable-next-line no-var, es/no-nonstandard-array-prototype-properties -- the bodyless var initializer must throw
+      if (flag) var [{ a: value, values }, { inner: { includes }, k: M } = []] = [list, includes];
+    } catch (error) {
+      // eslint-disable-next-line block-scoped-var -- inspect the partial initialization of hoisted bindings
+      return [error.name, value, values(), typeof includes, typeof M];
+    }
+  }
+  assert.deepEqual(direct(), ['TypeError', 11, 7, 'undefined', 'undefined']);
+  assert.deepEqual(bodyless(true), ['TypeError', 11, 7, 'undefined', 'undefined']);
+  assert.same(bodyless(false), undefined);
+  function selfRead() {
+    // eslint-disable-next-line no-var -- the capture reads its own hoisted binding
+    var [saved] = [saved];
+    return saved.at(0);
+  }
+  assert.throws(selfRead, TypeError, 'a cyclic value proof terminates and preserves the native read');
+});
+
 QUnit.test('positional types: constructor and realm heads retain both prototype leaves', assert => {
   for (const R of [Array, Array]) {
     const { prototype: { at, includes } } = R;

@@ -36,6 +36,9 @@ for (const [expression, blocks] of [
 });
 
 for (const expression of [
+  '(held = globalThis.self).window.item',
+  '(held = globalThis.self).self.item',
+  '(held = other = globalThis["self"]).window.item',
   '(held = globalThis.window).self.item',
   '(effect(), held = globalThis.window).self.item',
   '(effect(), (otherEffect(), held = globalThis.window)).self.item',
