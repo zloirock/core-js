@@ -6,7 +6,7 @@ const value = [1];
 value[_Symbol$iterator] = function* () {
   yield 'text';
 };
-function read(_ref, _unused = void 0) {
+function read(_ref) {
   let at = _atMaybeArray(_ref);
   return at.call([7], 0);
 }

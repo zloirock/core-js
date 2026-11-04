@@ -5,7 +5,7 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 Array.prototype[_Symbol$iterator] = function* () {
   yield 'text';
 };
-function read(_ref, _unused = void 0) {
+function read(_ref) {
   let at = _at(_ref);
   return at.call('ok', 0);
 }

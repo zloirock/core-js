@@ -22964,6 +22964,51 @@ function * generateGuardRouteReads() {
   })()`), strip: true };
 }
 
+// Parameter capture and synth must preserve the argument, its evaluation frame and the
+// receiver the selected operand supplies. Rest binds a new container at its own level.
+function * generateParameterCaptureBoundaries() {
+  for (const [name, body] of [
+    ['setter', `class Box { set value({ at }) { log.push("body"); this.answer = at.call([3, 7], -1); } }
+      const box = new Box(); box.value = [1]; return [box.answer, Object.getOwnPropertyDescriptor(Box.prototype, "value").set.length];`],
+    ['method', `const api = { read({ at }) { return at.call([3, 7], -1); } };
+      return [api.read([1]), api.read({ get at() { log.push("get"); return function () { return this[0]; }; } })];`],
+    ['own-arguments', `const make = () => Map;
+      return (function ({ groupBy }) { return [typeof groupBy, arguments[0] === Map]; })(make());`],
+    ['mutable-arguments', `function read({ at }, marker) { marker = 19; return [typeof at, arguments[1], marker, read.length]; }
+      return read([2], 7);`],
+    ['array-rest', 'function read([first, ...{ length, at }] = [1, 2, 3]) { return [first, length]; } return read();'],
+    ['computed-hop', `const host = { at: 4, "1": { at: 7 } };
+      for (let { padEnd, 1n: { at } } = host; ;) return [typeof padEnd, at];`],
+    ['rest-argument', 'return (([first, ...{ length, at }]) => [first, length])([3, 4, 5]);'],
+    ['nested-host', `const row = Object.assign([1, 2], { deeper: "yes" });
+      const source = { get inner() { log.push("inner"); return row; } };
+      const { inner: { at, deeper: { includes } } } = source;
+      return [at.call(row, -1), includes.call(row.deeper, "es")];`],
+    ['iterator-default', `const make = () => [4];
+      const { row: { [Symbol.iterator]: iter = null } } = { row: (log.push("prefix"), make()) };
+      return iter.call([7]).next().value;`],
+    ['iterator-sibling', `const { Array: { prototype: { [Symbol.iterator]: iter } }, missing } = globalThis;
+      return [iter.call([3]).next().value, missing];`],
+  ]) yield { ...snippet(`parameter-capture/${ name }`, `(() => { ${ body } })()`), strip: true };
+  for (const [name, selection] of [
+    ['nullish-right', 'null ?? right()'],
+    ['falsy-right', 'undefined || right()'],
+    ['prefix-right', '(log.push("left"), null) ?? right()'],
+    ['live-left', 'rows || right()'],
+    ['unknown', 'arg ?? right()'],
+  ]) yield { ...snippet(`parameter-capture/${ name }`, `(() => {
+    const rows = Object.assign([5, 7], { marker: 13 });
+    const right = () => (log.push("right"), rows);
+    function run(arg) {
+      function read({ box: { marker = -1, at } } = { box: ${ selection } }) {
+        return [marker, at.call(rows, -1)];
+      }
+      return read();
+    }
+    return [run(null), run({ marker: 9, at() { return this[0]; } })];
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23440,4 +23485,5 @@ export function * generate() {
   yield * generateOptionalStoreSurfaces();
   yield * generateRealmMemberKeys();
   yield * generateGuardRouteReads();
+  yield * generateParameterCaptureBoundaries();
 }

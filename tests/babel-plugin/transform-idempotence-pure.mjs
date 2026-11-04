@@ -204,6 +204,8 @@ const CASES = [
   // node that the reprint separates from the author's directive is led by one of its own
   ['directive over two statements', '// core-js-disable-next-line\nuse(a.at(0)); use(b.flat());\nexport const r = c.includes(0);'],
   ['trailing -line over two statements', 'use(a.at(0)); use(b.flat()); // core-js-disable-line\nexport const r = c.includes(0);'],
+  ['opt-out beside an enabled nested parameter static',
+    'function f({ Array: {\n  from,\n  // core-js-disable-next-line\n  of,\n} } = globalThis) { return [from, of]; } export const r = f();'],
   ['directive over two pattern properties', 'const {\n  // core-js-disable-next-line\n  at, flat,\n  includes,\n} = arr;\nexport const r = [at, flat, includes];'],
   ['directive over two object properties', 'const o = {\n  // core-js-disable-next-line\n  k: a.at(0), j: b.flat(),\n  m: c.includes(0),\n};\nexport const r = o;'],
   // the first pass leaves a sole constructor hop raw over its own proxy binding when the opt-out

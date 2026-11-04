@@ -5,7 +5,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 const zero = 0;
 const fallback = [1];
 const empty = '';
-export const array = ((_ref, _unused = void 0) => {
+export const array = (_ref => {
   let at = _atMaybeArray(_ref);
   return at;
 })(zero || fallback);

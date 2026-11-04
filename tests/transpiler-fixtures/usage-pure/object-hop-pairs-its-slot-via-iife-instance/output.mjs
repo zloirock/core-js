@@ -1,5 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-const viaIifeInstance = ((_ref, _unused = void 0) => {
+const viaIifeInstance = (_ref => {
   let m = _atMaybeArray(_ref.w);
   return m;
 })({

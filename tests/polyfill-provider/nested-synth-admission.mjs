@@ -30,13 +30,15 @@ for (const selected of [false, true]) for (const disabledFirst of [false, true])
         meta: { object: 'globalThis', key: 'Array', placement: 'static', fromFallback: fallback },
         isDisabledProp: prop => prop === disabled,
       });
-      check(`${ label } keeps the ordinary extraction or mirrors the selection`, !!plan?.targets?.length, selected);
+      check(`${ label } active slot earns a mirror even for a single receiver`, !!plan?.targets?.length, true);
       check(`${ label } keeps the source tree`, JSON.stringify(program.node), before);
-      if (!selected) return;
+      if (!plan?.targets?.length) return;
       const { entries } = plan.targets[0].tree.entries[0].child;
       checkDeep(`${ label } keeps source order`, entries.map(entry => entry.key), keys.split(', '));
       check(`${ label } active slot earns the mirror`, entries.find(entry => entry.key === 'from').child.kind, 'polyfill');
-      check(`${ label } disabled slot stays raw`, entries.find(entry => entry.key === 'of').child.bailed, true);
+      const raw = entries.find(entry => entry.key === 'of');
+      check(`${ label } disabled slot stays raw`, raw.child.bailed, true);
+      check(`${ label } keeps the directive source for the printed slot`, raw.disabledProp, disabled);
       check(`${ label } disabled slot is never claimed`, plan.targets[0].claimedProperties.includes(disabled), false);
       const imports = [];
       const rendered = renderSynthTree(plan.targets[0].tree, {

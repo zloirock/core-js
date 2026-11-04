@@ -3,7 +3,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // Its Array body selects the Array family for the shared at method.
 type String = number[];
 declare const source: String;
-export function read(_ref = source) {
+export function read(_ref: String = source) {
   let at = _atMaybeArray(_ref);
   return at;
 }

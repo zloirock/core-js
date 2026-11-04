@@ -6,7 +6,7 @@ function f(_ref = x as string) {
   let at = _atMaybeString(_ref);
   return at;
 }
-const g = ((_ref2, _unused = void 0) => {
+const g = (_ref2 => {
   let includes = _includesMaybeString(_ref2);
   return includes;
 })(y as string);

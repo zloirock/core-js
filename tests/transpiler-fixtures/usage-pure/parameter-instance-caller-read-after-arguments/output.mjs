@@ -14,7 +14,7 @@ restoreProperty(Array.prototype, 'at', {
     return own;
   }
 });
-function read(_ref, value, _unused = void 0) {
+function read(_ref, value) {
   let at = _atMaybeArray(_ref);
   return at;
 }

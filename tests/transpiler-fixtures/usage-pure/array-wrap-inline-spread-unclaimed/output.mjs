@@ -7,7 +7,7 @@ function viaParamDefault(_ref = [...[nb]]) {
   return a;
 }
 class K {
-  f = ((_ref3, _unused = void 0) => {
+  f = (_ref3 => {
     let [_ref4] = _ref3;
     let b = _at(_ref4.y);
     return b;

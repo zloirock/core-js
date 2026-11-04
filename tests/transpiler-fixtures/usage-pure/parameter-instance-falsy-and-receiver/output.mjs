@@ -3,7 +3,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 // Falsy left operands remain the selected receivers of closed callers and parameter defaults.
 // Instance helpers must read those values even when the right operand has another family.
 const empty = '';
-function read(_ref, _unused = void 0) {
+function read(_ref) {
   let at = _atMaybeString(_ref);
   return at;
 }

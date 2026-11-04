@@ -12,7 +12,7 @@ const stringBox: {
 stringBox.value = 'cd';
 type StringFieldOracle = typeof stringBox.value;
 const stringFieldOracle: StringFieldOracle = 'ef';
-function readString(_ref, _unused = void 0) {
+function readString(_ref) {
   var _ref2;
   let at = _atMaybeString((_ref2 = _ref.value) === void 0 ? 'gh' : _ref2);
   return at;
@@ -26,12 +26,12 @@ const arrayBox: {
 arrayBox.value = [2];
 type ArrayFieldOracle = typeof arrayBox.value;
 const arrayFieldOracle: ArrayFieldOracle = [3];
-function readArray(_ref3, _unused2 = void 0) {
+function readArray(_ref3) {
   let includes = _includesMaybeArray(_ref3.value);
   return includes;
 }
 export const arrayResult = readArray(arrayBox);
-function readFlat(_ref4, _unused3 = void 0) {
+function readFlat(_ref4) {
   let flat = _flatMaybeArray(_ref4);
   return flat;
 }

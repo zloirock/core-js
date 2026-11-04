@@ -14,7 +14,7 @@ export function viaCall(_ref = make(1)) {
   let at = _at(_ref);
   return at;
 }
-export const viaArgument = ((_ref2, _unused = void 0) => {
+export const viaArgument = (_ref2 => {
   let flat = _flatMaybeArray(_ref2);
   return flat;
 })(make(1));

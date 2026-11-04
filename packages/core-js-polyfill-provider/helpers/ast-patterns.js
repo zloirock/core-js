@@ -8870,7 +8870,7 @@ export function argumentOverridesSlot(args, argIndex, undefinedShadowed, staticI
 // where arrow is decorator arg (NOT an IIFE - `dec`'s args don't bind to the arrow's params).
 // returns `{ callPath, paramIndex }` so callers can decide whether to iterate args as paths
 // (synth-swap path-emission) or as nodes (resolution-layer node-inspection)
-export function findIifeCallSite(fnParentPath, paramNode) {
+export function findIifeCallSite(fnParentPath, paramNode, { replacesArgument = false } = {}) {
   const fnNode = fnParentPath?.node;
   if (!fnNode || !FN_NODE_TYPES.has(fnNode.type)) return null;
   const paramIndex = fnNode.params?.indexOf(paramNode);
@@ -8881,7 +8881,11 @@ export function findIifeCallSite(fnParentPath, paramNode) {
   // slot even when `new` would throw at runtime. a tagged template passes its strings array and
   // interpolations, not the positional list the consumers read, so it is no call site here
   const callPath = immediateInvocationOf(fnParentPath);
-  return callPath && isIifeCallNode(callPath.node) ? { callPath, paramIndex } : null;
+  if (!callPath || !isIifeCallNode(callPath.node)) return null;
+  // Reading a supplied argument for detection is safe. Replacing it also changes
+  // the value observed through an ordinary callee's own arguments object.
+  return replacesArgument && fnNode.type !== 'ArrowFunctionExpression' && referencesArgumentsObject(fnNode)
+    ? null : { callPath, paramIndex };
 }
 
 // node-form helper for resolution-layer use: returns the IIFE caller-arg node bound to
@@ -8952,7 +8956,7 @@ export function positionalElementPath(arrayPath, index, staticIsMutated = null) 
 // arguments diverges from the node form exactly where the two peel differently (a wrapped spread
 // array), and silently loses the receiver this resolver found
 export function findIifeArgPath(fnParentPath, paramNode, staticIsMutated = null) {
-  const site = findIifeCallSite(fnParentPath, paramNode);
+  const site = findIifeCallSite(fnParentPath, paramNode, { replacesArgument: true });
   if (!site) return null;
   const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex, staticIsMutated);
   return coords ? callArgumentPathAt(site.callPath.get('arguments'), coords) : null;

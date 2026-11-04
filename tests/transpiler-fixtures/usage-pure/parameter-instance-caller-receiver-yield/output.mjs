@@ -8,7 +8,7 @@ function make(value) {
   return 'ab';
 }
 function* run() {
-  return ((_ref, other, _unused = void 0) => {
+  return ((_ref, other) => {
     let at = _atMaybeString(_ref);
     return [at.call('ab', -1), other];
   })(make(yield 'pause'), _pushMaybeArray(events).call(events, 'argument'));

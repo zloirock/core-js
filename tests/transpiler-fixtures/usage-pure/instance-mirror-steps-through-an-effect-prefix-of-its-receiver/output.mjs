@@ -32,7 +32,7 @@ export function container(_ref5 = (eff(), {
   let includes = _includes(_ref5.C);
   return includes;
 }
-export const argument = ((_ref6, _unused = void 0) => {
+export const argument = (_ref6 => {
   let toSpliced = _toSplicedMaybeArray(_ref6);
   return toSpliced;
 })((eff(), []));

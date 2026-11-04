@@ -969,3 +969,63 @@ QUnit.test('destructuring parameter: a nested instance keeps its native static s
   assert.deepEqual(events, ['Array', 'prototype', 'isArray']);
   assert.deepEqual(read()[0].call([[9]]), [9]);
 });
+
+QUnit.test('method parameter capture preserves setter arity and the supplied receiver', assert => {
+  const events = [];
+  let result;
+  class Store {
+    set value({ at }) {
+      events.push('body');
+      result = at.call([3, 7], -1);
+    }
+  }
+  const store = new Store();
+  store.value = [2];
+  assert.same(result, 7);
+  assert.same(Object.getOwnPropertyDescriptor(Store.prototype, 'value').set.length, 1);
+  store.value = { get at() {
+    events.push('read');
+    return function () { return this[0]; };
+  } };
+  assert.same(result, 3);
+  assert.deepEqual(events, ['body', 'read', 'body']);
+  assert.throws(() => { store.value = null; }, TypeError);
+});
+
+QUnit.test('async parameter capture keeps getter timing and rejects before the body', assert => {
+  const events = [];
+  // eslint-disable-next-line es/no-async-functions -- exercise parameter initialization across async lowering
+  async function read({ at }) {
+    events.push('body');
+    return at.call([3, 7], await Promise.resolve(-1));
+  }
+  const pending = read({ get at() {
+    events.push('read');
+    return function () { return this[0]; };
+  } });
+  const failed = read(null).then(() => 'missing error', error => error.name);
+  events.push('after');
+  assert.deepEqual(events, ['read', 'body', 'after']);
+  return Promise.all([pending, failed, read([2])]).then(([own, error, builtin]) => {
+    assert.same(own, 3);
+    assert.same(error, 'TypeError');
+    assert.same(builtin, 7);
+  });
+});
+
+QUnit.test('a defaulted iterator reads its literal slot once', assert => {
+  let reads = 0;
+  function source() {
+    reads++;
+    return [13];
+  }
+  const { row: { [Symbol.iterator]: iterate = null } } = { row: source() };
+  assert.same(reads, 1);
+  assert.same(iterate.call([17]).next().value, 17);
+});
+
+QUnit.test('a rest binding destructures the collected array', assert => {
+  function read([first, ...{ length, 0: second }] = [3, 5, 7]) { return [first, length, second]; }
+  assert.deepEqual(read(), [3, 2, 5]);
+  assert.deepEqual(read([11]), [11, 0, undefined]);
+});

@@ -15,7 +15,7 @@ import {
   synthPlanFullyCovered,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
-  buildNestedParamSynthPlan, destructureKeyReadPlan, planStaticPatternInstances, residualPrecedesExtractions,
+  buildNestedParamSynthPlan, destructureHostThroughWrappers, destructureKeyReadPlan, planStaticPatternInstances, residualPrecedesExtractions,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { keyedReadEvaluation } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -213,9 +213,18 @@ for (const [source, options, expected] of [
   check(`${ label }/loop owns its initializer`, !!plan.forInitLiteral, !!options.forInit);
 });
 
+for (const source of [
+  'function read([first, ...{ at: method }]) {}',
+  'const { [unknown]: { at: method } } = source;',
+]) runBoth(`unresolved destructuring path/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', prop => prop.node.value?.name === 'method');
+  const ctx = context(parser, path);
+  check(`${ label }/an unknown receiver never denotes the root`, destructureHostThroughWrappers(path.parentPath, ctx.adapter, true).hops, null);
+});
+
 for (const [tail, options, expected] of [
   ['', {}, true],
-  [' = fallback', { typedNavChain: false }, false],
+  [' = fallback', { typedNavChain: false }, true],
   [' = fallback', { typedNavChain: true }, true],
 ]) runBoth(`iterator literal admission/${ tail }/${ expected }`,
   `const { w: { [Symbol.iterator]: method${ tail } } } = { w: rows };`, (parser, program, label) => {
@@ -275,7 +284,7 @@ for (const [receiver, key, expected] of [
   }, resolvePure };
   check(label, synthPlanFullyCovered([{ lookupKey: key }], host.node.init, options), expected);
   check(`${ label }/source unchanged`, JSON.stringify(host.node), before);
-  check(`${ label }/frame of selected source`, sites[0],
+  check(`${ label }/frame of selected source`, sites.at(-1),
     receiver === '(Array || Object)' ? unwrapRuntimeExpr(host.node.init).left : host.node.init);
 });
 
@@ -295,6 +304,20 @@ for (const [receiver, ctor, selecting] of [
   check(`${ label }/constructor`, plan.receiverCtorName, ctor);
   check(`${ label }/instance selection`, plan.selectsInstance, selecting);
   check(`${ label }/query keeps source`, JSON.stringify(host.node), before);
+});
+
+for (const [expression, possible] of [
+  ['null ?? Map', ['right', 'whole']],
+  ['false || Map', ['right', 'whole']],
+  ['(effect(), null) ?? Map', ['whole']],
+  ['unknown ?? Map', ['whole']],
+  ['Map || effect()', ['left', 'whole']],
+]) runBoth(`selected synth read/${ expression }`, `const { custom } = ${ expression };`, (parser, program, label) => {
+  const host = hostOf(parser, program);
+  const source = host.node.init;
+  const { readReceiver } = planSynthLiteralReceiver(source, { aliasCtx: context(parser, host), resolvePure });
+  const origin = readReceiver === source ? 'whole' : readReceiver === source.left ? 'left' : readReceiver === source.right ? 'right' : null;
+  check(`${ label }/preserves the selected value and preceding effects`, possible.includes(origin), true);
 });
 
 runBoth('synth receiver after constructor substitution', 'const { name } = held;', (parser, program, label) => {

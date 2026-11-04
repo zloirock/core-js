@@ -1,6 +1,6 @@
 // The phase gate records existing import deltas without accepting their runtime behavior.
 // Each exact delta must disappear with its fix; a changed delta or a stale entry fails.
-// W29 tracks the product repairs separately from this runner (notably FC-673 and FC-714).
+// W29 tracks the remaining product repairs separately from this runner.
 export const KNOWN_PHASE_IMPORT_DIFFERENCES = new Map([
   ['usage-pure/array-conditional-static-neighbour', { added: ['@core-js/pure/actual/array/of'], missing: [] }],
   ['usage-pure/audit-callroot-proxy-unresolved-sibling-collapse', { added: ['@core-js/pure/actual/function/instance/name'], missing: [] }],
@@ -26,8 +26,6 @@ export const KNOWN_PHASE_IMPORT_DIFFERENCES = new Map([
   ['usage-pure/prototype-install-absorbed-by-a-guard-render-reads-by-when-the-receiver-is-typed', { added: ['@core-js/pure/actual/instance/at'], missing: [] }],
   ['usage-pure/prototype-installer-open-selection-imported-setter', { added: ['@core-js/pure/actual/instance/at'], missing: [] }],
   ['usage-pure/realm-key-default-beside-claimed-sibling', { added: ['@core-js/pure/actual/array/from'], missing: [] }],
-  ['usage-pure/realm-selection-beside-an-opted-out-key-in-a-default-and-an-assignment',
-    { added: ['@core-js/pure/actual/array/of', '@core-js/pure/actual/object/entries'], missing: [] }],
   ['usage-pure/served-static-dead-default-is-no-usage', { added: ['@core-js/pure/actual/array/instance/to-reversed'], missing: [] }],
   ['usage-pure/stored-realm-run-keeps-its-span-acts', { added: ['@core-js/pure/actual/promise/constructor'], missing: [] }],
   ['usage-global/existing-await-import-dedup', { added: [

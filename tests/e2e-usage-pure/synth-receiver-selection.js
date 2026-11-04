@@ -21,3 +21,25 @@ QUnit.test('synth receiver: supplied properties still override the default', ass
   assert.deepEqual(read({ from: value => ['custom', value[0]] }), ['custom', 5]);
   assert.deepEqual(read(), [5]);
 });
+
+QUnit.test('synth reads the operand selected by a nullish receiver', assert => {
+  const events = [];
+  const rows = [5, 7];
+  // eslint-disable-next-line no-constant-binary-expression -- the null operand must keep its effects before selecting the right
+  function read({ box: { marker = -1, at } } = { box: (events.push('left'), null) ?? (events.push('right'), rows) }) {
+    return [marker, at.call(rows, -1)];
+  }
+  assert.deepEqual(read(), [-1, 7]);
+  assert.deepEqual(events, ['left', 'right']);
+  assert.deepEqual(read({ box: { marker: 3, at() { return this[0]; } } }), [3, 5]);
+  assert.deepEqual(events, ['left', 'right']);
+});
+
+QUnit.test('a synthesized parameter preserves its argument identity for arguments', assert => {
+  function make() { return Map; }
+  const observed = (function ({ groupBy }) {
+    // eslint-disable-next-line prefer-rest-params -- the identity visible through the arguments object is under test
+    return [typeof groupBy, arguments[0] === Map];
+  })(make());
+  assert.deepEqual(observed, ['function', true]);
+});

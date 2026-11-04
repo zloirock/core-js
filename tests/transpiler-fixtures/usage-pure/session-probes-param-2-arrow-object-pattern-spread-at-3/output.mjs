@@ -6,7 +6,7 @@ function mark(t, v) {
   return v;
 }
 {
-  const v = ((_ref, _unused = void 0) => {
+  const v = (_ref => {
     let at = _atMaybeArray(_ref);
     return at;
   })(...[mark('e', [0])]);
