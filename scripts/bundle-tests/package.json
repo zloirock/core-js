@@ -5,6 +5,6 @@
     "@slowcheetah/qunitjs-1": "^1.23.1",
     "babel-loader": "^10.1.1",
     "webpack": "^5.112.2",
-    "webpack-cli": "^7.2.3"
+    "webpack-cli": "^7.3.1"
   }
 }
