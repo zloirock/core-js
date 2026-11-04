@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added a workaround for an SWC optimization that rewrites `Array(1)` to `[,]` and hides [the `Array.prototype.includes` bug in Firefox 99-101](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541)
 - Added missed detection of native `Reflect.construct` ignoring `newTarget.prototype` for built-in constructors in [FF44](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472), fixing transpiled subclassing of constructors like `Array`
 - Added missed detection of native `Array.from` and `%TypedArray%.from` accepting primitive iterator results after warmup in Safari 14
 - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement

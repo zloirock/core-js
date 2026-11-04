@@ -4,10 +4,10 @@ var $includes = require('../internals/array-includes').includes;
 var fails = require('../internals/fails');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
-// FF99+ bug
+// FF99-101 bug
 var BROKEN_ON_SPARSE = fails(function () {
-  // eslint-disable-next-line es/no-array-prototype-includes -- detection
-  return !Array(1).includes();
+  // eslint-disable-next-line no-useless-call -- keep SWC from rewriting `Array(1)` to `[,]`, which hides the Firefox bug
+  return !Array.call(null, 1).includes();
 });
 
 // Safari 26.4- bug
