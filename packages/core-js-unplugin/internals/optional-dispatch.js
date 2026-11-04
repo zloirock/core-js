@@ -22,6 +22,7 @@ import {
   calleeParenWrapped,
   TS_EXPR_WRAPPERS,
   isReusableReceiver,
+  memberKeyName,
   peelNestedSequenceExpressions,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
@@ -163,7 +164,7 @@ export default function createOptionalDispatchChannel(ctx) {
         if (role === 'receiver' && recvType) resolvedType.set(clone, recvType);
         if (role === 'capture' && holdsProxySurface(callee.object, metaPath)) {
           for (let hop = unwrapRuntimeExpr(clone); hop?.type === 'MemberExpression' && !hop.computed
-            && POSSIBLE_GLOBAL_OBJECTS.has(hop.property?.name); hop = unwrapRuntimeExpr(hop.object)) {
+            && POSSIBLE_GLOBAL_OBJECTS.has(memberKeyName(hop)); hop = unwrapRuntimeExpr(hop.object)) {
             skippedNodes.add(hop);
           }
         }
@@ -193,7 +194,7 @@ export default function createOptionalDispatchChannel(ctx) {
         adapter,
         path: calleePath,
         bailOnSideEffectKey: true,
-      }) : callee.property?.name,
+      }) : memberKeyName(callee),
       placement: 'prototype',
     }, calleePath);
     if (!optionalCalleeProbe) return renderOptionalCallSplit({ node, callee, decision, metaPath });
@@ -276,6 +277,11 @@ export default function createOptionalDispatchChannel(ctx) {
     const decision = planOptionalMethodCall({
       callee, call: node, continuation: metaPath.node, ctx: receiverCtx,
     });
+    // The next optional member guards the whole private call. Keeping that call
+    // intact also preserves its receiver and brand check.
+    if (decision.compactMethod && !callee.computed && memberKeyName(callee) === null) {
+      return { hopKind: 'call', disjuncts: [], receiver: node };
+    }
     // Only the callee's own optional call is redundant. A guard below the static
     // receiver still owns the outer instance dispatch, so thread that split through.
     // Undefined means no static claim; null is a static claim needing no receiver split.
@@ -329,7 +335,7 @@ export default function createOptionalDispatchChannel(ctx) {
           adapter,
           path: calleePath,
           bailOnSideEffectKey: true,
-        }) : callee.property?.name,
+        }) : memberKeyName(callee),
         placement: 'prototype',
       }, calleePath);
       if (probe?.kind === 'instance') helper = identifier(injectPureImport(probe.entry, probe.hintName));
@@ -600,7 +606,7 @@ export default function createOptionalDispatchChannel(ctx) {
               ? unwrapRuntimeExpr(splitCall.callee) : null;
       const splitHopKey = splitHop?.type === 'MemberExpression'
               ? (splitHop.computed ? foldSeqKeyLiteralTail(splitHop.property)?.key ?? null
-                : splitHop.property?.type === 'Identifier' ? splitHop.property.name : null)
+                : memberKeyName(splitHop))
               : null;
       // ... and only where THIS hop is a claim of its own: a raw member read has no
       // dispatch to hold the disjunct, so its whole segment memoizes as one value

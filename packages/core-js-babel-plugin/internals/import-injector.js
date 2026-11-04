@@ -254,7 +254,9 @@ export default class ImportInjector extends ImportInjectorState {
       this.#memoDeclarators.set(id.name, declarator);
       return;
     }
-    target.push({ id });
+    // A parameter/field memo must localize at its use. A trailing IIFE parameter
+    // would look like an additional use outside that lexical frame.
+    target.push({ id, unique: this.#varlessRefs.has(id.name) });
     // where the ref ACTUALLY landed only the fresh binding knows: babel's `push` redirects
     // internally (a switch/case scope hosts on the enclosing function, callable scopes may
     // land the id as a trailing PARAM), so `target.path` is not the landing node

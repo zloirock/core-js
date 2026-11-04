@@ -117,6 +117,17 @@ runBoth('mutated and excluded constructor', 'globalThis?.Map;', (parser, program
   check(`${ label }/excluded read remains`, planOptionalMemberSplit(path.node, excluded).kind, 'member');
 });
 
+for (const key of ['at', 'Map', 'self']) runBoth(`private optional/${ key }`,
+  `class Box { #${ key }; read() { return globalThis.window?.#${ key }; } }`, (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+    const path = parser.pickPath(program, type, item => item.node.optional);
+    const ctx = context(parser, path);
+    const plan = planOptionalMemberSplit(path.node, ctx);
+    check(`${ label }/private member`, plan.kind, 'member');
+    check(`${ label }/no public guard key`, plan.guard.readerKey, null);
+    check(`${ label }/continuation`, planSplitMemberLanding(path.node, { proxySurface: true }, ctx).kind, 'member');
+  });
+
 for (const [source, entry] of [
   ['globalThis.window?.Map.prototype', 'Map'],
   ["globalThis.window?.[(effect(), 'Map')][unknown].tail", 'Map'],

@@ -3,6 +3,7 @@ import {
   isMemberAccessNode,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
+  memberKeyName,
   POSSIBLE_GLOBAL_OBJECTS,
   receiverContainsOptional,
   staticMemberKeyName,
@@ -65,11 +66,11 @@ export function planOptionalMemberSplit(node, ctx) {
   if (landing) return { kind: 'unguarded', ...landing };
   const surface = holdsProxySurface(node.object, ctx);
   const hop = surface && pristineRealmHopKey(node, ctx, { allowOptional: true });
-  const key = node.computed ? null : node.property?.name ?? null;
+  const key = node.computed ? null : memberKeyName(node);
   const decided = decidedReusableReceiver(node.object, ctx);
   const guard = { decided, bareMemo: !!hop, mutatedLeaf: !!key && isMutatedGlobalSlot(adapter, key), readerKey: key };
   if (hop) return { kind: 'surface', guard };
-  const pure = surface && node.property?.type === 'Identifier' ? splitConstructorClaim(key, ctx) : null;
+  const pure = surface && splitConstructorClaim(key, ctx);
   if (pure) return { kind: 'pure', guard, pure };
   if (key && (!surface || unwrapRuntimeExpr(node.object)?.type === 'SequenceExpression')) {
     const name = resolveObjectName({ ...ctx, objectNode: peelChainRootValue(node.object) });
@@ -96,11 +97,12 @@ export function optionalSplitReusesSurface(node, ctx) {
 // it. A computed constructor key may resolve quietly; a static key folds only
 // with an explicit spelling whose effects can accompany the replacement.
 export function planSplitMemberLanding(node, { proxySurface, provenKey }, ctx) {
-  if (proxySurface && !node.computed && isPristineProxyGlobal(ctx.adapter, node.property?.name)) return { kind: 'surface' };
+  const name = node.computed ? null : memberKeyName(node);
+  if (proxySurface && name && isPristineProxyGlobal(ctx.adapter, name)) return { kind: 'surface' };
   let folded = null;
   if (proxySurface || provenKey) {
     folded = node.computed ? foldSeqKeyLiteralTail(node.property, ctx)
-      : node.property?.type === 'Identifier' ? { key: node.property.name, effects: [] } : null;
+      : name ? { key: name, effects: [] } : null;
   }
   if (proxySurface) {
     if (!folded && node.computed) {

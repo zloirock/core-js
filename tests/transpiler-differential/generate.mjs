@@ -22807,6 +22807,116 @@ function * generateOptionalStoreSurfaces() {
   }
 }
 
+function * generateRealmMemberKeys() {
+  const host = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const present of [false, true]) for (const [shape, expression] of [
+    ['sequence', '(g = globalThis, held = g[(tick("key"), "window")].self)?.Array.prototype.at'],
+    ['terminal', 'globalThis.window[(tick("key"), "self")]'],
+    ['backed', 'globalThis.self.window[(tick("key"), "self")]'],
+    ['delete', 'delete globalThis.window[(tick("key"), "self")].diffAbsentMemberKey'],
+    ['two-windows', 'globalThis.window.window[(tick("key"), "self")]'],
+    ['quiet', 'globalThis["window"]?.self'],
+  ]) {
+    const row = snippet(`realm-member-key/${ shape }/${ present }`, `withWindowPresence(${ present }, () => {
+      let g, held = "initial";
+      function tick(key) { log.push(key); }
+      try { const value = ${ expression }; return [typeof value, typeof held]; }
+      catch (error) { return [error.name, held === "initial"]; }
+    })`);
+    yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(host) };\n${ row.code }`, strip: true };
+  }
+  for (const [name, spelling, slot] of [
+    ['quoted', '"diff-key"', 'diff-key'],
+    ['index', '0', '0'],
+    ['capitalized', 'DiffCtor', 'DiffCtor'],
+    ['large', '"9007199254740993"', '9007199254740993'],
+    ['bound-empty', '[K]', ''],
+    ['effectful', '[(log.push("key"), "diff-key")]', 'diff-key'],
+  ]) for (const sibling of [false, true]) {
+    yield { ...snippet(`realm-member-key/pattern/${ name }/${ sibling }`, `(() => {
+      const K = "", key = ${ JSON.stringify(slot) }, saved = Object.getOwnPropertyDescriptor(Array, key);
+      function method() { return 7; }
+      const box = { get x() { log.push("x"); return 3; }, [Symbol.iterator]: method };
+      Object.defineProperty(Array, key, { configurable: true, get() { log.push("hop"); return box; } });
+      try {
+        let x, it;
+        ({ ${ spelling }: { ${ sibling ? 'x, ' : '' }[Symbol.iterator]: it } } = globalThis.Array);
+        return [x, it === method];
+      } finally { if (saved) Object.defineProperty(Array, key, saved); else delete Array[key]; }
+    })()`), strip: true };
+  }
+  for (const key of ['prototype', '"prototype"']) yield { ...snippet(`realm-member-key/pattern/instance/${ key }`, `(() => {
+    let it, missing;
+    ({ ${ key }: { [Symbol.iterator]: it, missing } } = globalThis.Array);
+    return [it.call([7]).next().value, missing];
+  })()`), strip: true };
+  for (const [order, properties] of [
+    ['before', 'x, [Symbol.iterator]: it, y'],
+    ['first', '[Symbol.iterator]: it, x, y'],
+  ]) for (const fail of [false, true]) yield { ...snippet(`realm-member-key/iterator-order/${ order }/${ fail }`, `(() => {
+    const items = [7], method = items[Symbol.iterator];
+    let x, y, it;
+    Object.defineProperties(items, {
+      x: { get() { log.push(["x", it === method]); if (${ fail }) throw new RangeError(); return 1; } },
+      y: { get() { log.push(["y", it === method]); return 2; } },
+      [Symbol.iterator]: { get() { log.push("iterator"); return method; } },
+    });
+    Object.defineProperty(Array, "diffIteratorBox", { configurable: true, get() { log.push("slot"); return items; } });
+    try {
+      ({ diffIteratorBox: { ${ properties } } } = globalThis.Array);
+      return [x, it.call(items).next().value, y];
+    } catch (error) { return [error.name, it === method]; }
+    finally { delete Array.diffIteratorBox; }
+  })()`), strip: true };
+  for (const [placement, read] of [
+    ['parameter', 'function read(x, it, value = (({ diffReentrant: { x, [Symbol.iterator]: it } } = globalThis.Array), it())) { return value; }'],
+    ['field', 'class Box { value = (({ diffReentrant: { x: this.x, [Symbol.iterator]: this.it } } = globalThis.Array), this.it()); } function read() { return new Box().value; }'],
+  ]) yield { ...snippet(`realm-member-key/iterator-reentrant/${ placement }`, `(() => {
+    let inside = false;
+    const inner = { x: 1, [Symbol.iterator]() { return "inner"; } };
+    const outer = { get x() { inside = true; try { log.push(read()); } finally { inside = false; } return 2; },
+      [Symbol.iterator]() { return "outer"; } };
+    ${ read }
+    Object.defineProperty(Array, "diffReentrant", { configurable: true,
+      get() { log.push(inside ? "inner slot" : "outer slot"); return inside ? inner : outer; } });
+    try { return read(); } finally { delete Array.diffReentrant; }
+  })()`), strip: true };
+  yield { ...snippet('realm-member-key/pattern/array-position', `(() => {
+    function method() {}
+    const values = { 0: {}, *[Symbol.iterator]() { log.push("iterate"); yield { [Symbol.iterator]: method }; } };
+    Object.defineProperty(Array, "diffPositions", { configurable: true, value: values });
+    try {
+      let it;
+      ({ diffPositions: [{ [Symbol.iterator]: it }] } = globalThis.Array);
+      return it === method;
+    } finally { delete Array.diffPositions; }
+  })()`), strip: true };
+  const restore = new URL('../helpers/restore-property.cjs', import.meta.url).href;
+  const mutation = snippet('realm-member-key/mutation/iterator-close', `withTemporaryProperty(Function("return this")(), "self", undefined, () => {
+    const values = { [Symbol.iterator]() {
+      return {
+        next() { log.push("next"); return { done: true }; },
+        return() { log.push("return"); return {}; },
+      };
+    } };
+    try { [(globalThis[(log.push("self"), "self")][(log.push("window"), "window")]?.Object).probe] = values; }
+    catch (error) { return error.name; }
+  })`);
+  yield { ...mutation, code: `import { withTemporaryProperty } from ${ JSON.stringify(restore) };\n${ mutation.code }`, strip: true };
+  for (const [shape, expr] of [
+    ['both', 'obj?.#at?.().includes(2)'],
+    ['indexed', '[obj][0].#at?.()?.[(log.push("key"), "includes")](2)'],
+  ]) yield { ...snippet(`realm-member-key/private/${ shape }`, `(() => {
+    class Box {
+      #at() { log.push(this === box ? "receiver" : "foreign"); return [2]; }
+      read(obj) { return ${ expr }; }
+    }
+    const box = new Box();
+    function read(obj) { try { return box.read(obj); } catch (error) { return error.name; } }
+    return [read(box), read(null), read({ at() { log.push("public"); return [2]; } })];
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23281,4 +23391,5 @@ export function * generate() {
   yield * generateGuardedFallbackEffects();
   yield * generateConsumedPatternReads();
   yield * generateOptionalStoreSurfaces();
+  yield * generateRealmMemberKeys();
 }

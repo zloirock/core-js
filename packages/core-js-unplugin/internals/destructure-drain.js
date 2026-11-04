@@ -78,13 +78,13 @@ import {
   cloneNode,
   expressionStatement,
   identifier,
-  memberExpression,
   objectPattern,
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
   renderKeyedDestructureRead,
   renderMemoReadTarget,
+  renderSynthSlotRead,
   memberFromKeyName,
   exportDeclaration,
   renderDestructureStatements,
@@ -1967,10 +1967,10 @@ export default function createDestructureDrains(ctx) {
           assignment.right = ctorView.init;
         } else {
           assignment.left = job.pattern;
-          assignment.right = job.chain.reduceRight(
-            (acc, level) => memberExpression(acc, cloneNode(level.hopProp.key), { computed: level.hopProp.computed }),
-            assignment.right,
-          );
+          assignment.right = job.chain.reduceRight((base, { hopProp }) => {
+            const { key, computed } = hopProp;
+            return renderSynthSlotRead({ base, key, computed, lookupKey: key.name });
+          }, assignment.right);
         }
       }
     }

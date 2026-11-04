@@ -1,5 +1,61 @@
 import { restoreProperty } from '../helpers/restore-property.cjs';
 
+QUnit.test('a nested iterator assignment reads the shared slot once', assert => {
+  const events = [];
+  const saved = Object.getOwnPropertyDescriptor(Array, 'e2eIteratorBox');
+  function method() { return 7; }
+  const box = {
+    get value() { events.push('value'); return 3; },
+    [Symbol.iterator]: method,
+  };
+  Object.defineProperty(Array, 'e2eIteratorBox', {
+    configurable: true,
+    get() { events.push('slot'); return box; },
+  });
+  try {
+    let value, it;
+    // eslint-disable-next-line es/no-nonstandard-array-properties, prefer-const -- the assignment reads the installed getter
+    ({ e2eIteratorBox: { value, [Symbol.iterator]: it } } = globalThis.Array);
+    assert.same(value, 3);
+    assert.same(it, method);
+    assert.deepEqual(events, ['slot', 'value']);
+  } finally {
+    restoreProperty(Array, 'e2eIteratorBox', saved);
+  }
+});
+
+QUnit.test('a nested assignment serves the array iterator in property order', assert => {
+  const events = [];
+  const items = [7];
+  const saved = Object.getOwnPropertyDescriptor(Array, 'e2eIteratorBox');
+  const iterator = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+  let it, later;
+  // Preserve the host's native lookup. On IE11 the helper supplies the missing method.
+  Object.defineProperties(items, {
+    [Symbol.iterator]: { get() { events.push('iterator'); return iterator?.value; } },
+    later: {
+      get() {
+        events.push('later');
+        return typeof it;
+      },
+    },
+  });
+  Object.defineProperty(Array, 'e2eIteratorBox', {
+    configurable: true,
+    get() { events.push('slot'); return items; },
+  });
+  try {
+    // eslint-disable-next-line es/no-nonstandard-array-properties -- the nested assignment is under test
+    ({ e2eIteratorBox: { [Symbol.iterator]: it, later } } = globalThis.Array);
+    assert.same(later, 'function');
+    assert.same(typeof it, 'function');
+    assert.same(typeof it === 'function' && it.call(items).next().value, 7);
+    assert.deepEqual(events, ['slot', 'iterator', 'later']);
+  } finally {
+    restoreProperty(Array, 'e2eIteratorBox', saved);
+  }
+});
+
 // An exported parameter remains open to user receivers with accessor-backed slots.
 export function readSelectedDestructure(useConstructor, user) {
   const { from, at } = useConstructor ? Array : user;

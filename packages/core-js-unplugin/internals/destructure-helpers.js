@@ -595,7 +595,7 @@ export function climbPatternChain(patternPath, keyCtx = null) {
     // hop, and the effect would go with it (`{ [(eff(), 'Array')]: { prototype: { at } } }`)
     const foldedComputedKey = hopProp.computed ? consumableHopSlotName(hopProp, keyCtx) : null;
     if ((hopProp.computed && typeof foldedComputedKey !== 'string') || hopValue !== hostPatternPath.node) return;
-    chain.push({ hopProp, outerPattern, outerRest: hasRestSibling(outerPattern, keyCtx), foldedKey: foldedComputedKey || null });
+    chain.push({ hopProp, outerPattern, outerRest: hasRestSibling(outerPattern, keyCtx), foldedKey: foldedComputedKey });
     hostPatternPath = up.parentPath;
   }
   let hostParent = hostPatternPath.parentPath;

@@ -1,5 +1,24 @@
 // --- private instance fields holding polyfilled collections ---
 
+QUnit.test('optional private methods keep their receiver and brand', assert => {
+  const events = [];
+  class Box {
+    #at() {
+      events.push(this);
+      return [2];
+    }
+    read(value) { return value?.#at?.().includes(2); }
+    // eslint-disable-next-line no-sequences -- the computed key runs after the private call
+    readFirst(values) { return values[0].#at?.()?.[events.push('key'), 'includes'](2); }
+  }
+  const box = new Box();
+  assert.true(box.read(box));
+  assert.same(box.read(null), undefined);
+  assert.throws(() => box.read({ at() { return [2]; } }), TypeError);
+  assert.true(box.readFirst([box]));
+  assert.deepEqual(events, [box, box, 'key']);
+});
+
 QUnit.test('private fields: init via Array.from, access via Array.prototype.at', assert => {
   class Ring {
     #data;

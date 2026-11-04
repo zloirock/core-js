@@ -4439,8 +4439,8 @@ export function planKeptSequenceTail(node, ctx) {
       ? realmRootKind(peelPristineProxyHops(unwrapRuntimeExpr(peeled.object), ctx)) : null;
     // ... and no hop earns a guard inside a caller-correct FALLBACK SLOT (`lastGuardEarningHopIdx`
     // owns that rule): the slot keeps the always-defined literal rather than the absent host's throw
-    const probeStop = !wholeKind && !inCallerCorrectFallbackSlot(ctx.aliasCtx?.path)
-      && unbackedProxyHopKey(peeled, meta => ctx.resolveGlobalPolyfill(meta.name)) && !!probeRootKind;
+    const probeStop = !!probeRootKind && !inCallerCorrectFallbackSlot(ctx.aliasCtx?.path)
+      && proxyHopLacksPureEntry(realmHopKeyName(peeled, ctx.aliasCtx), meta => ctx.resolveGlobalPolyfill(meta.name));
     if (!wholeKind && !probeStop) return null;
     return {
       holder: write ?? seq.expressions,
@@ -5434,6 +5434,7 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   const { target, keptTail, writeStep, innerKeptTail, seqPrefixEffects, valueEffects, outerHopName, outerBacked } = outer;
   const { resolvePure } = ctx;
   const { consumer } = facts;
+  if (keptTail.length && effectfulRealmHop(consumer.host, ctx) && consumer.host.object === consumer.node) return null;
   if (collapsed.aliasRoot && aliasRootedReadMayThrow(collapsed.aliasRoot, resolvePure, ctx)
     && !(memberKeepsReceiverThrow(consumer.host) && consumer.host.object === consumer.node)) return null;
   const deadOptional = facts.allowOptional
@@ -5502,6 +5503,13 @@ export function realmHopKeyName(node, aliasCtx = null, { allowSideEffectKeys = f
   return staticMemberKeyName(node) ?? (aliasCtx
     ? resolveKey({ node: node.property, computed: true, bailOnSideEffectKey: !allowSideEffectKeys, ...aliasCtx })
     : null);
+}
+
+// An effectful realm key reads the receiver as written. A fold below it can change
+// the host object or suppress a throw before the key runs.
+export function effectfulRealmHop(node, ctx) {
+  return isMemberAccessNode(node) && node.computed && mayHaveSideEffects(node.property)
+    && POSSIBLE_GLOBAL_OBJECTS.has(realmHopKeyName(node, ctx, { allowSideEffectKeys: true }));
 }
 
 // Admit one hop of a realm collapse, independent of traversal direction or AST dialect.
@@ -6521,7 +6529,7 @@ export function foldableRealmHop(node, ctx) {
 // canon's own - `staticMemberKeyName` folds the dotted, static-computed and SE-seq-keyed spellings
 // alike (a hand-rolled `!computed` read left the seq-keyed `[eff(), 'window']` hop looking backed,
 // and the value collapse rode one hop past what the realm can prove). `resolveHere` is the caller's
-// pure resolver over a meta, the kept-sequence plan and both emitters' tail walks ask it
+// pure resolver over a meta. Naming an effectful hop here requires retaining its source read.
 export function unbackedProxyHopKey(node, resolveHere) {
   const key = isMemberAccessNode(node) ? staticMemberKeyName(node) : null;
   return !!key && proxyHopLacksPureEntry(key, resolveHere);
@@ -6690,6 +6698,8 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
     const readerAbove = readerPath?.node;
     const readsThisHop = !!readerAbove && isMemberAccessNode(readerAbove)
       && unwrapRuntimeExpr(readerAbove.object) === unwrapRuntimeExpr(readerInner);
+    if (readsThisHop && readerAbove.computed
+      && effectfulRealmHop(readerAbove, { ...ctx, scope: readerPath.scope, path: readerPath })) return null;
     if (deleted) {
       if (readerAbove?.type === 'UnaryExpression' && readerAbove.operator === 'delete') break;
       // a LOWERED guard scaffold's null test READS the run it guards: the source's `?.` survived
