@@ -22758,6 +22758,55 @@ function * generateConsumedPatternReads() {
   }
 }
 
+// Author-written optional reads keep their environment test. Only a plain store passes
+// its RHS through the surrounding realm navigation; a logical write can retain a foreign value.
+function * generateOptionalStoreSurfaces() {
+  const host = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const present of [false, true]) for (const [shape, read] of [
+    ['ctor-name', 'globalThis.window?.Map?.name ?? "absent"'],
+    ['aliased-name', 'root.window?.WeakMap?.name?.at(0)'],
+    ['stored-surface', '(held = globalThis.self).window?.Array.from([1, 2]).at((log.push("arg"), -1))'],
+    ['stored-iterator', '(log.push("root"), held = globalThis.self).window?.Array.from([3])[Symbol.iterator]().next().value'],
+    ['stored-root', '(held = window)?.self.storeItems.at(0)'],
+    ['stored-key', '(box.saved = window)?.self.storeItems.at?.(0)'],
+    ['non-realm-key', 'globalThis[(log.push("key"), "missingRealmSlot")]?.self.items'],
+    ['dynamic-key', 'globalThis[key()]?.window.items'],
+    ['typed-store', '((held = globalThis.self) as typeof globalThis).window?.Array.from([5]).at(0)'],
+  ]) {
+    const row = snippet(`optional-store/${ shape }/${ present }`, `withWindowPresence(${ present }, () => {
+      const root = globalThis;
+      let held = "unset";
+      const box = { set saved(v) { log.push("store"); held = v; } };
+      function key() { log.push("dynamic"); return "missingRealmSlot"; }
+      root.storeItems = [3];
+      try {
+        const value = ${ read };
+        return [value, held === "unset" ? "unset" : held == null ? "empty" : "present"];
+      } finally { delete root.storeItems; }
+    })`);
+    yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(host) };\n${ row.code }`,
+      ...shape === 'typed-store' ? { ts: true } : {}, strip: true };
+  }
+  for (const operator of ['||=', '??=', '&&=']) for (const keep of [false, true]) {
+    const retained = operator === '&&=' ? keep ? 'null' : 'foreign' : keep ? 'foreign' : 'null';
+    for (const [shape, operation] of [
+      ['read', `(opts.root ${ operator } globalThis.self).window.document`],
+      ['update', `(opts.root ${ operator } globalThis).window.count++`],
+      ['delete', `delete (opts.root ${ operator } globalThis.self).window.document`],
+      ['guard', `(opts.root ${ operator } globalThis).self?.items.at(-1)`],
+    ]) {
+      const row = snippet(`optional-store/${ shape }/${ operator }/${ keep }`, `withWindowPresence(false, () => {
+        const foreign = { window: { document: "injected", count: 1 }, self: { items: [3, 4] } };
+        const opts = { root: ${ retained } };
+        let value;
+        try { value = ${ operation }; } catch (e) { value = e.name; }
+        return [value, opts.root === foreign, foreign.window.count, "document" in foreign.window];
+      })`);
+      yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(host) };\n${ row.code }`, strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23231,4 +23280,5 @@ export function * generate() {
   }
   yield * generateGuardedFallbackEffects();
   yield * generateConsumedPatternReads();
+  yield * generateOptionalStoreSurfaces();
 }

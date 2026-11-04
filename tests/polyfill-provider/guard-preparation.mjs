@@ -156,6 +156,26 @@ for (const [name, expression, undefinable, surface, globalName, prelude = '', op
   check(`${ label }/read only`, JSON.stringify(program.node), before);
 });
 
+for (const [source, expected] of [
+  ['(held = globalThis)', true],
+  ['(held ||= globalThis)', false],
+  ['(held ??= globalThis)', false],
+  ['(held &&= globalThis)', false],
+  ['(held += globalThis)', false],
+  ['(held = globalThis, held &&= other, held)', false],
+  ['(held = globalThis, held++, held)', false],
+  ['(held = globalThis, change(), held)', false],
+  ['(held = other, held = globalThis, held)', true],
+  ['(other = foreign, held = other, other = globalThis, held)', false],
+  ['(other = globalThis, held = other, other = foreign, held)', true],
+]) runBoth(`surface store/${ source }`, `let held, other; const foreign = {}; const result = ${ source };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(program.node);
+  check(label, holdsProxySurface(path.node.init, { scope: path.scope, adapter, path, resolvePure }), expected);
+  check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+});
+
 // A memo names the value it captured, without treating a constructor as a realm surface.
 for (const [name, expression, expected, setup = '', mutated = false] of [
   ['bare constructor', 'Array', 'Array'],

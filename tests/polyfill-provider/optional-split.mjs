@@ -1,6 +1,11 @@
 // Split landings and nested claim ownership are source decisions in both dialects.
 import {
-  planOptionalMemberSplit, optionalSplitReusesSurface, planSplitMemberLanding, splitConstructorClaim, nestedOptionalClaim,
+  optionalConstructorLanding,
+  planOptionalMemberSplit,
+  optionalSplitReusesSurface,
+  planSplitMemberLanding,
+  splitConstructorClaim,
+  nestedOptionalClaim,
 } from '../../packages/core-js-polyfill-provider/detect-usage/optional-split.js';
 import { planProvenNavGuardCollapse, proxyReceiverValueCanBeUndefined, undefinableOptionalGuard } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -27,6 +32,19 @@ function member(parser, program, key) {
   const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
   return parser.pickPath(program, type, item => item.node.property.name === key);
 }
+
+for (const [source, entry] of [
+  ['globalThis.Map', 'Map'],
+  ['globalThis?.Map', 'Map'],
+  ['globalThis.window?.Map', null],
+  ['(held = window)?.Map', null],
+  ['(held = globalThis.self).window?.Set', null],
+]) runBoth(`constructor name/${ source }`, `let held; const result = (${ source })?.name;`, (parser, program, label) => {
+  const path = member(parser, program, 'name');
+  const before = JSON.stringify(program.node);
+  check(label, optionalConstructorLanding(path.node.object, context(parser, path))?.pure.entry ?? null, entry);
+  check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+});
 
 for (const [source, key, kind, entry] of [
   ['globalThis.Array?.prototype', 'prototype', 'unguarded', 'Array'],

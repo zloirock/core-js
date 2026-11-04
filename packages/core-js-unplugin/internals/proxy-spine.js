@@ -53,6 +53,7 @@ import {
   peelParenAndTSParentPath,
   peelParenAndTSSlotPath,
   peelParenAndTSSlotChild,
+  isChainAssignment,
   POSSIBLE_GLOBAL_OBJECTS,
   runStandsInLoweredGuardTest,
   SKIPPABLE_WRAPPER_TYPES,
@@ -735,6 +736,7 @@ export default function createProxySpineChannel(ctx) {
   // the plain tail (`null == _globalThis.window ? void 0 : _self.assignBox.n`)
   function emitRootGuardedNavCollapse(metaPath) {
     const climbed = [];
+    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
     let cursor = metaPath;
     for (let up = metaPath.parentPath; up?.node; up = up.parentPath) {
       const upNode = up.node;
@@ -746,7 +748,7 @@ export default function createProxySpineChannel(ctx) {
       // paren, a cast in it, the chain marker it closes - is one of those wrappers: whether the
       // run may go on past it is the leaf's own question below, asked of the nav the climb reaches
       if ((SKIPPABLE_WRAPPER_TYPES.has(upNode.type) && upNode.expression === cursor.node)
-        || (upNode.type === 'AssignmentExpression' && upNode.right === cursor.node)
+        || (isChainAssignment(upNode) && upNode.right === cursor.node)
         // ... and a SEQUENCE root rides along whatever its prefix does: an effect-free one is the
         // bare twin's spelling (`(0, globalThis)`), and an effect-bearing one is spelled by the
         // nested render's own test, which carries the probe hop's SOURCE slice - prefix included,
@@ -755,18 +757,16 @@ export default function createProxySpineChannel(ctx) {
         cursor = up;
         continue;
       }
-      // a computed hop climbs too (`[(c++, 'self')]`) - the plan's own key resolution
-      // validates the fold; a hop it rejects falls back to a shallower leaf below
+      // Only a proven realm hop extends this run. An unknown key owns its optional guard.
       if (upNode.type === 'MemberExpression'
         && (upNode.object === cursor.node || unwrapRuntimeExpr(upNode.object) === cursor.node)
-        && (upNode.computed || POSSIBLE_GLOBAL_OBJECTS.has(upNode.property?.name))) {
+        && pristineRealmHopKey(upNode, aliasCtx)) {
         climbed.push(up);
         cursor = up;
         continue;
       }
       break;
     }
-    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
     function resolveHere(m) {
       return resolvePure(m, metaPath);
     }

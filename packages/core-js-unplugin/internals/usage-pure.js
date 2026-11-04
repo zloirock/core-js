@@ -22,6 +22,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   climbTransparentWrapperPath,
   deleteHostAboveChain,
+  isChainAssignment,
   isDeoptedGlobalSlotRead,
   isFunctionParamDestructureParent,
   isTaggedTemplateTag,
@@ -96,7 +97,7 @@ function markDeleteHostedSpine(node, marks, storeKeepsShortCircuit) {
       // OWN short-circuit is the source's act: folding that hands the user's variable the
       // ponyfill where native stores undefined, so the erase verdict stops there
       case 'AssignmentExpression':
-        if (storeKeepsShortCircuit(unwrapRuntimeExpr(cur.right))) return;
+        if (!isChainAssignment(cur) || storeKeepsShortCircuit(unwrapRuntimeExpr(cur.right))) return;
         cur = unwrapRuntimeExpr(cur.right);
         break;
       default:

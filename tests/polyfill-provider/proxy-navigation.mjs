@@ -3,6 +3,7 @@
 import {
   navGuardCollapseRoutes,
   proxyHopClaimRoutes,
+  proxyRootCollapseRoutes,
   staticClaimNavigationRoutes,
   staticClaimNeedsGuard,
   sealedClaimDisposition,
@@ -74,6 +75,19 @@ runBoth('collapse source and retained write', 'let held; const result = (held = 
   check(`${ label }/effect identity`, routes[0].collapsed.effects[0], unwrapRuntimeExpr(node.object));
   check(`${ label }/source unchanged`, JSON.stringify(program.node), source);
 });
+
+for (const [root, fold] of [['globalThis', true], ['window', false], ['globalThis.window', true]]) {
+  runBoth(`stored root/${ root }`, `let held; const result = (held = ${ root })?.self.items;`, (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+    const path = parser.pickPath(program, type, item => item.node.property.name === 'items');
+    const before = JSON.stringify(program.node);
+    const routes = [...proxyRootCollapseRoutes({ path, aliasCtx: context(parser, path), resolvePure })];
+    const receiver = routes.find(route => route.kind === 'receiver');
+    check(label, !!receiver, fold);
+    if (root === 'globalThis.window') check(`${ label }/kept optional`, receiver.plan.optional, true);
+    check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+  });
+}
 
 runBoth('native continuation is lazy', 'const result = globalThis.self;', (parser, program, label) => {
   const path = parser.pickPath(program, 'Identifier', item => item.node.name === 'globalThis');

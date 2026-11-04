@@ -2,7 +2,7 @@
 import { adapters, createChecker } from '../polyfill-provider/harness.mjs';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import createUsagePureCallback from '../../packages/core-js-unplugin/internals/usage-pure.js';
-import { nodeSite, stampNodeSite } from '../../packages/core-js-unplugin/internals/nav-spine.js';
+import { foldRealmHopOverCarriedValue, nodeSite, stampNodeSite } from '../../packages/core-js-unplugin/internals/nav-spine.js';
 
 const { check, finish } = createChecker('unplugin-receiver-effects');
 const parser = adapters.find(item => item.name === 'oxc');
@@ -54,4 +54,18 @@ for (const mutate of [false, true]) {
   check(`${ mutate }/receiver retains its resolved type`, resolvedType.get(lookup.arguments[0]) === type, true);
   check(`${ mutate }/receiver retains its source frame`, nodeSite(lookup.arguments[0]).path === path, true);
 }
+// The replacement can leave the cursor on the store or on its RHS. Only plain
+// assignment carries that RHS into the following window read.
+for (const operator of ['=', '||=', '&&=', '??=', '+=']) for (const atStore of [false, true]) {
+  const tree = parser.parseAndScope(`let held; (held ${ operator } globalThis).window.field;`);
+  const store = parser.pickPath(tree, 'AssignmentExpression');
+  const field = parser.pickPath(tree, 'MemberExpression', item => item.node.property.name === 'field');
+  const windowRead = field.node.object;
+  foldRealmHopOverCarriedValue(atStore ? store : store.get('right'), {
+    adapter: createEstreeAdapter({ method: 'usage-pure' }), resolvePure: () => null,
+  });
+  check(`carrier/${ operator }/${ atStore ? 'store' : 'rhs' }`, field.node.object,
+    operator === '=' ? windowRead.object : windowRead);
+}
+
 finish();

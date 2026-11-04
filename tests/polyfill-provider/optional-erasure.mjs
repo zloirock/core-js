@@ -30,6 +30,8 @@ for (const [name, source, expected, mutated = []] of [
   ['stored null', 'let held; const value = (held = null)?.self;', []],
   ['stored realm', 'let held; const value = (held = globalThis)?.self;', ['self']],
   ['stored probe', 'let held; const value = (held = globalThis.window)?.self;', []],
+  ['stored surface before probe', 'let held; const value = (held = globalThis.self).window?.Array;', []],
+  ['unknown realm slot', 'const value = globalThis[readKey()]?.self;', []],
   ['stored prefix', 'let held; const value = (held = (effect(), globalThis))?.self;', ['self']],
   ['alias', 'const realm = globalThis; const value = realm?.self;', ['self']],
   ['alias probe', 'const realm = globalThis.window; const value = realm?.self;', []],
@@ -85,6 +87,7 @@ for (const [expression, expected, count] of [
   ['globalThis.self.Array', false, 0],
   ['globalThis?.self?.Array', true, 2],
   ['(held = globalThis.window)?.self', false, 0],
+  ['(held = globalThis.self).window?.Array', false, 0],
 ]) {
   runBoth(`value proof/${ expression }`, `let held; const value = ${ expression };`, (parser, program, label) => {
     const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
