@@ -164,6 +164,7 @@ export default function createProxySpineChannel(ctx) {
     hopPeelCtx,
     injectPureImport,
     injector,
+    injectorState,
     markRewrite,
     memoValueClones,
     nestedGuardCtx,
@@ -241,7 +242,7 @@ export default function createProxySpineChannel(ctx) {
     const tailArguments = new Set();
     let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? parent : null,
       captureSource, undefined, liveArguments,
-      { scope: metaPath.scope, path: metaPath, adapter, injectorState: injector });
+      { scope: metaPath.scope, path: metaPath, adapter, injectorState });
     // the plan's continuation rides inside the live branch, the short-circuit is spelled once above
     // it, and the replaced target climbs to the outermost absorbed step
     let tailTarget = null;
@@ -910,12 +911,12 @@ export default function createProxySpineChannel(ctx) {
 
   // the live-`?.` probe guard of the generic static claim, extracted for its size; true
   // when the guard rendered (the caller returns)
-  function emitLiveOptionalProbeGuard({ metaPath, node, entry, hintName, effects, receiverEffectCount }) {
+  function emitLiveOptionalProbeGuard({ metaPath, node, entry, hintName, effects, receiverEffectCount, probe }) {
     // the collapse owns the shape wherever a `delete` may still fold it
-    if (deleteHostForClaim(metaPath, node, { forFold: true })) return false;
-    const plan = planOptionalProbe(node, {
+    if (probe === undefined && deleteHostForClaim(metaPath, node, { forFold: true })) return false;
+    const plan = probe === undefined ? planOptionalProbe(node, {
       scope: metaPath.scope, path: metaPath, adapter, resolvePure: meta => resolvePure(meta, metaPath),
-    }, { hintName, reader: metaPath.parentPath?.node, effects, receiverEffectCount });
+    }, { hintName, reader: metaPath.parentPath?.node, effects, receiverEffectCount }) : probe;
     if (!plan) return false;
     const { source: probeSource, prefix: prefixSe, keySe, keepSequence: keepSeqInTest } = plan;
     const id = injectPureImport(entry, hintName);
@@ -1002,9 +1003,16 @@ export default function createProxySpineChannel(ctx) {
   }
 
   // Bind the common consumer question for the ordinary claim route as well.
-  function spineIsNavigated(targetPath) {
-    return proxyCollapseConsumer(spineConsumerFacts(targetPath),
-      { adapter, resolvePure: m => resolveGlobalPolyfill(m.name) });
+  function spineIsNavigated(targetPath, collapsed, deadOptional) {
+    function resolve(meta) { return resolveGlobalPolyfill(meta.name); }
+    const facts = spineConsumerFacts(targetPath);
+    return proxyCollapseConsumer({
+      ...facts,
+      hasKeptTail: !!collapsed && unbackedProxyHopKey(targetPath.node, resolve),
+      keptWrite: collapsed?.keptWrite,
+      storeHoldsProbe: collapsed?.writeStoreSpellable === false,
+      deadOptional,
+    }, { adapter, resolvePure: resolve });
   }
 
   // a `?.` the shared vestigial verdict calls DEAD reads the always-defined binding this claim
@@ -1293,7 +1301,7 @@ export default function createProxySpineChannel(ctx) {
     })) {
       if (product.kind === 'guard') {
         if (emitLiveOptionalProbeGuard({
-          metaPath, node, entry, hintName, effects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+          metaPath, node, entry, hintName, probe: product.probe,
         })) return;
         continue;
       }

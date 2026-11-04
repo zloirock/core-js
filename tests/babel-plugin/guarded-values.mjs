@@ -3,6 +3,7 @@
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
+import plugin from '../../packages/core-js-babel-plugin/index.js';
 import createASTHelpers, { rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
@@ -63,6 +64,36 @@ for (const [expression, accepted = true] of [
         catch(error){return JSON.stringify([error.name,effects]);}})()`);
     }
     check(`${ label }/native/window=${ present }`, evaluate(code), evaluate(source));
+  }
+}
+// A sibling can hand Babel a complete AST without source locations. The tested
+// member is still the owner of its key, including when the root store is synthetic.
+for (const expression of [
+  '(prefix(), held = globalThis.window)?.[(key(), "Map")].missing',
+  'delete globalThis.window?.[(key(), "Map")].missing',
+]) {
+  const source = `let held; export const result = ${ expression };`;
+  const options = { filename: 'synthetic.mjs', configFile: false, babelrc: false };
+  const { ast } = await transformAsync(source, { ...options, ast: true, code: false });
+  t.removePropertiesDeep(ast);
+  const { code } = await transformFromAstAsync(ast, source, {
+    ...options, plugins: [[plugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const reparsed = (await transformAsync(code, { ...options, ast: true, code: false })).ast;
+  const imports = reparsed.program.body.filter(item => item.type === 'ImportDeclaration').map(item => item.source.value);
+  checkTruthy(`${ expression }/served global`, imports.includes('@core-js/pure/actual/global-this'));
+  checkTruthy(`${ expression }/served constructor`, imports.some(entry => entry.startsWith('@core-js/pure/actual/map')));
+  for (const present of [false, true]) {
+    const body = code.replaceAll(/^import .*;$/gmu, '').replaceAll('export const result', 'const result');
+    function evaluate(program) {
+      return runInNewContext(`const _globalThis = this; const _Map = Map; const calls = [];
+        ${ present ? 'this.window = this;' : '' }
+        function prefix() { calls.push('prefix'); }
+        function key() { calls.push('key'); }
+        ${ program }
+        JSON.stringify([result, calls]);`);
+    }
+    check(`${ expression }/window=${ present }`, evaluate(body), evaluate(source.replace('export const', 'const')));
   }
 }
 finish();

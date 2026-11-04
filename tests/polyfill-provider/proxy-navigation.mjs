@@ -6,6 +6,7 @@ import {
   staticClaimNavigationRoutes,
   staticClaimNeedsGuard,
   sealedClaimDisposition,
+  spineHoldsKeptWrite,
   navGuardKeepsStoredProbe,
 } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
 import { canCollapseDeletedNavigation, planProvenNavGuardCollapse, sealedChainBoundary } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
@@ -254,6 +255,14 @@ for (const [expression, defined] of [
     else check(`${ label }/retained tail owns the read`, routes[0].probe.boundary.member, null);
     check(`${ label }/probe source identity`, routes[0].probe.source, source);
     check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+
+runBoth('stored optional receiver under multiple hops',
+  'let held; const value = (held = globalThis)?.self.window?.self.slot;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+    const source = unwrapRuntimeExpr(path.node.init).object;
+    check(`${ label } retained store under the hops`, spineHoldsKeptWrite(source), true);
+    check(`${ label } a hop is not the stored value itself`, spineHoldsKeptWrite(source, { throughHops: false }), false);
   });
 
 finish();

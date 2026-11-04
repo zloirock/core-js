@@ -52,7 +52,6 @@ import {
   peelSkippableWrapperPath,
   peelTransparentExpr,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
-  TS_EXPR_WRAPPERS,
   usableAliasInfo,
   isMemberAccessNode,
   spelledWriteSlot,
@@ -1390,34 +1389,22 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           // above it still guards the raw method, whose value was not replaced.
           if (fallbackPlan.definedReceiverRead) deoptionalizeAstNode(fallbackPlan.definedReceiverRead);
           if (fallbackPlan.kind === 'guard') {
-            const { guard, detached, effects } = fallbackPlan;
-            // Collapse the kept value against the source reader, before replacing the slot.
+            const { guard, target } = fallbackPlan;
             collapseKeptNavValueNode(guard, path, { observed: true });
-            receiverPath.replaceWith(t.cloneNode(injectPureImport(fallback.entry, fallback.hintName)));
+            const receiver = renderStaticFallbackReceiver(fallbackPlan, {
+              injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+              cloneHost: source => t.cloneNode(source),
+              embed: hostSlot,
+            });
+            receiverPath.replaceWith(estreeToBabel(receiver));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
-            // Native paths retain Babel's Optional* types and transparent TS wrappers.
-            // Parentheses seal the continuation; a non-null assertion does not.
-            let tip = path;
-            while (!isWrappedInParens(tip)) {
-              const slot = peelParenAndTSSlotPath(tip, TS_EXPR_WRAPPERS);
-              const par = slot.parentPath;
-              if ((par?.isMemberExpression() || par?.isOptionalMemberExpression()) && par.node.object === slot.node) {
-                tip = par;
-                continue;
-              }
-              if ((par?.isCallExpression() || par?.isOptionalCallExpression()) && par.node.callee === slot.node) {
-                tip = par;
-                continue;
-              }
-              break;
-            }
-            const test = nullFirstGuardTest(navGuardTestNode(guard, path, null, null, { detached }), { embed: hostSlot });
-            const deleteHost = deleteOverOpenContinuation(tip.node, tip.parentPath);
+            const test = nullFirstGuardTest(navGuardTestNode(guard, path, null, null, { detached: true }), { embed: hostSlot });
+            const deleteHost = deleteOverOpenContinuation(target.node, target.parentPath);
             const guarded = estreeToBabel(deleteHost
               ? renderDeleteShortCircuitGuard(test, hostSlot(deleteHost.node.argument))
-              : renderShortCircuitGuard(test, hostSlot(tip.node)));
-            (deleteHost ?? tip).replaceWith(withSideEffects(guarded, effects));
+              : renderShortCircuitGuard(test, hostSlot(target.node)));
+            (deleteHost ?? target).replaceWith(withSideEffects(guarded, fallbackPlan.prefix));
             return;
           }
           if (fallbackPlan.hadChainAssign) collapseKeptNavValueNode(receiverPath.node, path, { immediate: true });

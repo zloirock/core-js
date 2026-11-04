@@ -22660,6 +22660,42 @@ function * generateLocalValueAvailability() {
   }
 }
 
+// Both window states are supplied outside the transform. Calls, receiver identity and the
+// effect trace distinguish a dropped guard from a misplaced prefix or duplicated store.
+function * generateGuardedFallbackEffects() {
+  const rig = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const present of [false, true]) for (const [shape, read] of [
+    ['stored-root', '(log.push("p"), held = globalThis.window)?.Map.missing'],
+    ['stored-sequence', '(held = (log.push("p"), globalThis).window)?.Set.prototype.has'],
+    ['key-and-call', '(log.push("p"), held = globalThis.window)?.[(log.push("key"), "Set")].hasOwnProperty?.((log.push("arg"), "prototype"))'],
+    ['sealed-optional-call', '(globalThis.window?.Set.hasOwnProperty)?.((log.push("arg"), "prototype"))'],
+    ['sealed-plain-call', '(globalThis.window?.Set.hasOwnProperty)((log.push("arg"), "prototype"))'],
+    ['sealed-call-tail', '(globalThis.window?.Array.of.call)?.(null, log.push("arg"))'],
+    ['delete-key', 'delete globalThis.window?.[(log.push("key"), "Map")].guardStoreMissing'],
+    ['bound-key', 'globalThis.window?.self[ctor].of(log.push("arg"))'],
+    ['computed-key', 'globalThis.window?.self[(log.push("key"), "Array")].of(log.push("arg"))'],
+    ['sealed', '((log.push("p"), globalThis.window)?.Array).from'],
+    ['flat', '(() => { const { Map: ctor } = source().window; return typeof ctor; })()'],
+    ['nested', '(() => { let of; ({ Array: { of } } = (log.push("p"), globalThis).window); return of(1)[0]; })()'],
+    ['lowered-root', 'typeof source().window.Map'],
+    ['lowered-prefix', '(log.push("p"), globalThis).window.Array.of(1)[0]'],
+  ]) {
+    const row = snippet(`guarded-fallback/${ shape }/${ present }`, `withWindowPresence(${ present }, () => {
+      let held = "unset";
+      const ctor = "Array";
+      function source() { log.push("source"); return globalThis; }
+      try { const value = ${ read }; return [typeof value === "function" ? "fn" : value, held === globalThis.window]; }
+      catch (error) { return [error.name, held === globalThis.window]; }
+    })`);
+    yield { ...row, code: `import { withWindowPresence } from ${ JSON.stringify(rig) };\n${ row.code }`, strip: true };
+  }
+  const row = snippet('guarded-fallback/changing-getter', `withChangingWindow(() => {
+    const { Map: ctor } = globalThis.window;
+    return [typeof ctor, globalThis.window === undefined];
+  })`);
+  yield { ...row, code: `import { withChangingWindow } from ${ JSON.stringify(rig) };\n${ row.code }`, strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23131,4 +23167,5 @@ export function * generate() {
           return result;
         } export const r = [read(true), read(false)];` };
   }
+  yield * generateGuardedFallbackEffects();
 }

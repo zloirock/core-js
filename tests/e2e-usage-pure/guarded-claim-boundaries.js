@@ -92,3 +92,75 @@ QUnit.test('guard prefixes and every kept store run once before the branch', ass
     assert.arrayEqual(events, ['delete-prefix'], 'delete keeps the same prefix owner');
   });
 });
+
+/* eslint-disable no-prototype-builtins -- the inherited method must receive its constructor as this */
+QUnit.test('a static fallback guards its key and calls the method on its constructor', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    let held;
+    const expected = live ? true : undefined;
+    const result = (log.push('prefix'), held = globalThis.window)?.[(log.push('key'), 'Set')].hasOwnProperty?.(
+      (log.push('arg'), 'prototype'));
+    assert.same(result, expected);
+    assert.same(held, globalThis.window);
+    assert.arrayEqual(log, live ? ['prefix', 'key', 'arg'] : ['prefix']);
+    log.length = 0;
+    const ctor = 'Array';
+    const values = globalThis.window?.self[ctor].of(log.push('arg'));
+    assert.same(values?.[0], live ? 1 : undefined);
+    assert.arrayEqual(log, live ? ['arg'] : []);
+  });
+});
+
+QUnit.test('a seal keeps the method reference and the invocation owns its arguments', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    function argument() {
+      log.push('arg');
+      return 'prototype';
+    }
+    function call() { return (globalThis.window?.Set.hasOwnProperty)(argument()); }
+    assert.same((globalThis.window?.Set.hasOwnProperty)?.(argument()), live ? true : undefined);
+    assert.arrayEqual(log, live ? ['arg'] : []);
+    log.length = 0;
+    if (live) assert.same(call(), true);
+    else assert.throws(call, TypeError);
+    assert.arrayEqual(log, ['arg']);
+    log.length = 0;
+    const result = (globalThis.window?.Array.of.call)?.(null, argument());
+    assert.same(result?.[0], live ? 'prototype' : undefined);
+    assert.arrayEqual(log, live ? ['arg'] : []);
+    log.length = 0;
+    assert.same(delete globalThis.window?.[(log.push('key'), 'Map')].guardStoreMissing, true);
+    assert.arrayEqual(log, live ? ['key'] : []);
+  });
+});
+
+/* eslint-enable no-prototype-builtins -- the remaining probes have no inherited callee */
+
+QUnit.test('a consumed plain window read owns its call and assignment effects once', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const log = [];
+    function root() {
+      log.push('root');
+      return globalThis;
+    }
+    function extract() {
+      const { Map: ctor } = root().window;
+      return typeof ctor;
+    }
+    let of;
+    function assign() {
+      ({ Array: { of } } = (log.push('prefix'), globalThis).window);
+      return of(1)[0];
+    }
+    if (live) {
+      assert.same(extract(), 'function');
+      assert.same(assign(), 1);
+    } else {
+      assert.throws(extract, TypeError);
+      assert.throws(assign, TypeError);
+    }
+    assert.arrayEqual(log, ['root', 'prefix']);
+  });
+});

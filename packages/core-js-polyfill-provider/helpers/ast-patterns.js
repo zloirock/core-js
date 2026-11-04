@@ -8562,22 +8562,54 @@ export function reassignmentReachesUsage({ binding, adapter, path, usageNode = n
 // globalThis.window?.self)?.Array.of`) evaluates before the test does, so it `leading`s the whole
 // guarded claim; an SE BETWEEN the root and the claim (a dropped hop's computed-key effect -
 // `window?.[(e++, 'self')].Array`) `migrated`s into the guarded branch, in native order (test ->
-// key effect -> leaf read). null only when an effect has no region at all - a position-less
-// synthesized node, one straddling the root, one outside the claim span - and the caller keeps the
-// raw stand-down there. a stand-down on a POLYFILLABLE static is a missed polyfill, not a formatting
-// choice, so the regions are enumerated rather than defaulted
-export function migratableClaimSe({ sideEffects, receiverEffectCount = 0, rootNode, end }) {
+// key effect -> leaf read). Without spans, source identity can still prove the same regions.
+// An effect straddling the root or outside the claim has no proven home; keep its source.
+export function migratableClaimSe({ sideEffects, receiverEffectCount = 0, rootNode, end, node }) {
   if (!sideEffects?.length && !receiverEffectCount) return { leading: [], migrated: [] };
+  if (!sideEffects?.length) return null;
   const root = nodeSpan(rootNode);
-  if (!sideEffects?.length || !root || end === undefined) return null;
   const leading = [];
   const migrated = [];
   for (const se of sideEffects) {
     const span = nodeSpan(se);
-    if (!span) return null;
+    if (!span || !root || end === undefined) return unpositionedClaimEffects(sideEffects, node, rootNode);
     if (span.start >= root.start && span.end <= root.end) continue;
     if (span.start >= root.end && span.end <= end) migrated.push(se);
     else if (span.end <= root.start) leading.push(se);
+    else return null;
+  }
+  return { leading, migrated };
+}
+
+// Synthetic nodes can still prove order by identity. Follow the value spine to
+// the guard: sequence prefixes precede it, keys and arguments above it follow.
+// An effect outside those slots, or a guard off that spine, stays on its source.
+function unpositionedClaimEffects(effects, node, rootNode) {
+  const root = unwrapRuntimeExpr(rootNode);
+  let current = unwrapRuntimeExpr(node);
+  const before = [];
+  const after = [];
+  while (current && current !== root) {
+    if (isMemberAccessNode(current)) {
+      if (current.computed) after.push(current.property);
+      current = current.object;
+    } else if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
+      after.push(...current.arguments);
+      current = current.callee;
+    } else if (current.type === 'SequenceExpression') {
+      before.push(...current.expressions.slice(0, -1));
+      current = current.expressions.at(-1);
+    } else if (current.type === 'AssignmentExpression' && current.operator === '=') current = current.right;
+    else return null;
+    current = unwrapRuntimeExpr(current);
+  }
+  if (!root || current !== root) return null;
+  const leading = [];
+  const migrated = [];
+  for (const effect of effects) {
+    if (subtreeContainsNode(root, effect)) continue;
+    if (before.some(slot => subtreeContainsNode(slot, effect))) leading.push(effect);
+    else if (after.some(slot => subtreeContainsNode(slot, effect))) migrated.push(effect);
     else return null;
   }
   return { leading, migrated };
@@ -12041,6 +12073,24 @@ export function claimDeleteOperand(path) {
 }
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
 
+// The last member or call in the same optional chain. A TS layer between links
+// is transparent; a parenthesis or the end of an ESTree chain seals its value.
+export function openContinuationEnd(child, up, sealed = node => !!node.extra?.parenthesized) {
+  let end = null;
+  for (let path = up; path?.node && !sealed(child); path = path.parentPath) {
+    const link = path.node;
+    if (TS_EXPR_WRAPPERS.has(link.type) && link.expression === child) {
+      child = link;
+      continue;
+    }
+    if (!(isMemberAccessNode(link) && link.object === child)
+      && !((link.type === 'CallExpression' || link.type === 'OptionalCallExpression') && link.callee === child)) break;
+    end = path;
+    child = link;
+  }
+  return end;
+}
+
 // the `delete` a guard standing for `child` owes its whole act to: the operator over the CONTINUATION
 // of the guarded value - members through their objects, calls through their callees, and the TS
 // layers between them, whose `!` ends nothing. a `?.` of a link's own continues it too: it re-tests a
@@ -12049,18 +12099,10 @@ export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
 // source throws, and one around the WHOLE operand seals nothing. `up` is the path above `child`, which
 // may be a fresh render with no path of its own; `sealed` answers the paren question for a node, for
 // a dialect that records it off the node
-export function deleteOverOpenContinuation(child, up, sealed = node => !!node.extra?.parenthesized) {
-  let node = child;
-  let path = up;
-  while (!sealed(node)) {
-    const link = path?.node;
-    const continues = TS_EXPR_WRAPPERS.has(link?.type) ? link.expression === node
-      : (isMemberAccessNode(link) && link.object === node)
-        || ((link?.type === 'CallExpression' || link?.type === 'OptionalCallExpression') && link.callee === node);
-    if (!continues) break;
-    node = link;
-    path = path.parentPath;
-  }
+export function deleteOverOpenContinuation(child, up, sealed) {
+  const end = openContinuationEnd(child, up, sealed);
+  let node = end?.node ?? child;
+  let path = end?.parentPath ?? up;
   while (path?.node && SKIPPABLE_WRAPPER_TYPES.has(path.node.type) && path.node.expression === node) {
     node = path.node;
     path = path.parentPath;

@@ -33,6 +33,7 @@ import {
   storedNavHopClaimSuppressed,
   storedUserAssignmentOf,
   navGuardTestPlan,
+  claimProbeSourceSlot,
   navGuardSourcePlan,
   probedNavGuardValuePlan,
   foldableRealmHop,
@@ -946,7 +947,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     let probeObject = anchoredSeq ? guardObject : unwrapCollectingSePrefixes(guardObject, peeledPrefix);
     if (probeObject !== guardObject && !peeledPrefix.every(prefixAccounted)) probeObject = guardObject;
     const claimSe = migratableClaimSe({
-      sideEffects, receiverEffectCount, rootNode: probeObject, end: nodeSpan(path.node)?.end,
+      sideEffects, receiverEffectCount, rootNode: probeObject, end: nodeSpan(path.node)?.end, node: path.node,
     });
     if (!claimSe) return false;
     const { leading: leadingSe, migrated: migratedSe } = claimSe;
@@ -985,6 +986,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       alwaysDefined: true,
       resolvePure: m => resolvePureGlobalEntry(m.name, path),
     });
+    if (continuation.sealedTail) {
+      continuation.sealedTail.type = 'OptionalMemberExpression';
+      continuation.sealedTail.optional = true;
+    }
     const invokeParent = continuation.call;
     const isInvoke = !!invokeParent;
     let target = isInvoke ? invokeParent : replacePath;
@@ -1260,12 +1265,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         cloneHost: source => t.cloneWithoutRetiring(source), embed: hostSlot, own: source => source,
       })));
     }
-    // `detached`: the caller's own render lifts this test out of the tree, so no visitor reaches
-    // its root again - a raw `globalThis` frozen there is a ReferenceError on exactly the engines
-    // the ponyfill serves. an ATTACHED test keeps the live node, whose root substitutes on re-entry
-    const clone = detached
-      ? cloneWithSubstitutedProxyRoot(node, anchorPath ?? ctx.path, { t, resolvePureGlobalEntry, injectPureGlobal })
-      : t.cloneNode(node, true);
+    // A lifted fallback has no later visit to its source root. Substitute that
+    // root where the source slot found it, including inside a sequence or store.
+    // Writes retain their live source; a lifted alias member still needs its own visit.
+    if (detached && injectPureGlobal) {
+      const source = claimProbeSourceSlot(node, resolvePure, ctx);
+      if (source.root) return markGuardTestRendered(estreeToBabel(renderNavGuardTest({ source }, {
+        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+        cloneHost: item => t.cloneWithoutRetiring(item), embed: hostSlot, own: item => item,
+      })));
+    }
+    const clone = t.cloneNode(node, true);
     const dead = vestigialNavOptionals(clone, resolvePure, ctx);
     // a nav that still owes its own collapse - one BURIED in a call root, or one the landing canon
     // handed to the collapse (`reenter`) - cannot go back as the live node: the claim's walk already
@@ -1275,7 +1285,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const { root } = descendToChainRoot(node, true);
       const buriedCall = (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression')
         && inlineCallProxyGlobalRoot({ callNode: root, ...ctx });
-      return markGuardTestRendered(detached || buriedCall || reenter ? clone : node);
+      const liftedMember = detached && isMemberAccessNode(peelReceiverSequenceTail(node));
+      return markGuardTestRendered(buriedCall || reenter || liftedMember ? clone : node);
     }
     for (const hop of dead) {
       hop.type = 'MemberExpression';

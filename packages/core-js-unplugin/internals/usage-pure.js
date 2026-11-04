@@ -235,6 +235,7 @@ export default function createAstUsagePureCallback({
     substituteProbeProxyRoot,
   } = createProxySpineChannel({
     adapter,
+    injectorState,
     deleteHostedSpines,
     destructureEmit,
     hopPeelCtx,
@@ -855,7 +856,7 @@ export default function createAstUsagePureCallback({
       { scope: metaPath.scope, adapter, path: metaPath }, {
         resolvePure: m => resolvePure(m, metaPath),
         resolveGlobal: ({ name }) => resolveGlobalPolyfill(name),
-        mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true,
+        mintedAliasRef: name => injectorState.getBindingInfo(name)?.minted === true,
         // This enter visit leaves the receiver's original children queued. Moving their
         // live source would detach those visits; the common answer names the retained slot.
         pendingReceiver: node.object,
@@ -871,9 +872,10 @@ export default function createAstUsagePureCallback({
       markRewrite();
       replaceGuardedHop({
         hopPath: metaPath, test,
-        built: memberExpression(identifier(injectPureImport(fallback.entry, fallback.hintName)),
+        built: memberExpression(renderStaticFallbackReceiver(plan, { injectImport: injectPureImport }),
           cloneNode(node.property), { computed: node.computed }),
-        skippedNodes, navAlternate: true, prefixSe: plan.effects.map(cloneNode),
+        skippedNodes, navAlternate: true, prefixSe: plan.prefix.map(cloneNode),
+        fallbackTarget: plan.target,
       });
       return;
     } else if (plan) {
@@ -931,7 +933,8 @@ export default function createAstUsagePureCallback({
       // ... and only where something READS through the hop: in VALUE position the drop would
       // change what the expression yields (`t = g.window` stores the window object, not `g`).
       // a dead leaf above the spine is that reader itself
-      const navigatedSpine = spineNode !== node || spineIsNavigated(metaPath).navigated;
+      const navigatedSpine = !!collapsed
+        && (spineNode !== node || spineIsNavigated(metaPath, collapsed, !!node.optional && optionalFolds).navigated);
       // a call-rooted spine under the `delete` fold lands the ROOT ponyfill - the base the
       // identifier spelling of the same nav folds onto (`delete dh()?.window?.k` ->
       // `delete _globalThis.k`); a value-position read keeps its own channels

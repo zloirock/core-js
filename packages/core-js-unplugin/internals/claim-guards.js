@@ -188,6 +188,7 @@ export function replaceGuardedHop({
   preserveOptionalHops = false,
   leafKeySe = null,
   prefixSe = null,
+  fallbackTarget = null,
   resolveHere = null,
 }) {
   // ONE home for the realm-hop question: a caller hands its resolver and the climb asks the canon,
@@ -201,7 +202,7 @@ export function replaceGuardedHop({
   const continuation = test ? planGuardedClaimTail(hopPath, { alwaysDefined, resolvePure: resolveHere }) : null;
   const sealedTail = continuation?.sealedTail;
   const deleteHostTail = continuation?.deleteHost;
-  const climbed = continuation?.absorb
+  const climbed = continuation?.absorb && !fallbackTarget
     ? climbAbsorbedTail(hopPath, {
       alwaysDefined,
       navAlternate,
@@ -212,7 +213,7 @@ export function replaceGuardedHop({
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
   const foldedHops = climbed?.foldedHops ?? [];
   if (sealedTail) sealedTail.optional = true;
-  let target = climbed?.target ?? hopPath;
+  let target = (continuation?.absorb ? fallbackTarget : null) ?? climbed?.target ?? hopPath;
   // did the climb take a TAIL along? a TS wrapper spanning one asserts about a read the render
   // KEEPS, so it stays; one spanning the substituted span alone asserts about nothing
   const tailAbsorbed = target !== hopPath;

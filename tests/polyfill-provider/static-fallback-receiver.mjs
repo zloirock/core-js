@@ -42,7 +42,9 @@ for (const [source, kind, setup = '', placement = 'static'] of [
   const plan = planStaticFallbackReceiver(node, meta, fallback, ctx, options);
   check(`${ label } choice`, plan?.kind, kind);
   check(`${ label } query preserves tree`, JSON.stringify(program.node), before);
-  checkDeep(`${ label } ignored query is repeatable`, planStaticFallbackReceiver(node, meta, fallback, ctx, options), plan);
+  const repeated = planStaticFallbackReceiver(node, meta, fallback, ctx, options);
+  check(`${ label } same native target`, repeated.target, plan.target);
+  checkDeep(`${ label } ignored query is repeatable`, { ...repeated, target: null }, { ...plan, target: null });
   if (kind === 'retain') return;
   check(`${ label } original source slot`, plan.receiver === (placement === 'prototype' ? node.object.object : node.object), true);
   if (source.includes('?.Promise).')) check(`${ label } sealed source has throw probe`, !!plan.probe, true);
@@ -53,7 +55,6 @@ for (const [source, kind, setup = '', placement = 'static'] of [
     check(`${ label } original probe`, !!plan.guard?.type, true);
     if (source.includes('?.window?.')) {
       check(`${ label } second read stays in guard`, plan.guard, node.object.object.object);
-      check(`${ label } lifted read owns root substitution`, plan.detached, true);
     }
     check(`${ label } guard owns its write`, plan.effects.length, 0);
     return;
@@ -88,5 +89,20 @@ runBoth('tail and computed key effects', 'const result = (effect(), Promise)[(ke
   checkDeep(`${ label } query alone does not mint`, regular, plan);
   check(`${ label } absent constructor declines`, planStaticFallbackReceiver(node, meta, null, ctx, { resolvePure }), null);
 });
+
+runBoth('guarded computed constructor and optional call',
+  'const result = (before(), globalThis.window)?.[(key(), "Map")].hasOwnProperty?.(arg());', (parser, program, label) => {
+    let call = parser.pickPath(program, 'VariableDeclarator').get('init');
+    if (call.node.type === 'ChainExpression') call = call.get('expression');
+    const path = call.get('callee');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const [before, key] = ['before', 'key'].map(name => parser.pickPath(program, 'CallExpression', p => p.node.callee.name === name).node);
+    const meta = { placement: 'static', sideEffects: [before, key], receiverEffectCount: 2 };
+    const plan = planStaticFallbackReceiver(path.node, meta, fallback, { path, scope: path.scope, adapter }, { resolvePure });
+    check(`${ label } guard`, plan.kind, 'guard');
+    check(`${ label } call owns its receiver`, plan.target?.node, call.node);
+    check(`${ label } root prefix`, plan.prefix?.[0], before);
+    check(`${ label } key in the live arm`, plan.effects[0], key);
+  });
 
 finish();

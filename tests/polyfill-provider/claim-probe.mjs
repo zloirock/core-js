@@ -4,6 +4,7 @@ import {
   claimProbeSourceSlot,
   directClaimProbePlan,
   directClaimProbeEffects,
+  effectfulClaimReadProbe,
   destructureProbePlan,
   discardedInitProbePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
@@ -205,6 +206,39 @@ for (const init of [
       directClaimProbeEffects({ decision: plan, node: identifier('probe') }, [path.node.init]).length, 1);
   }
   check(`${ label }/query preserves source`, JSON.stringify(path.node), before);
+});
+
+runBoth('root sequence outside a guarded key',
+  'const value = ((before(), globalThis.window)?.[(key(), "Array")]).of;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = directClaimProbePlan(path.node.init, resolvePure, { scope: path.scope, adapter, path });
+    const [before, key] = ['before', 'key'].map(name => parser.pickPath(program, 'CallExpression', p => p.node.callee.name === name).node);
+    check(`${ label } root owned once`, plan.consumed.filter(node => node === before).length, 1);
+    check(`${ label } root before test`, plan.prefix[0], before);
+    check(`${ label } only the computed key in the live arm`, plan.alternateEffects.length, 1);
+    check(`${ label } key identity`, plan.alternateEffects[0], key);
+  });
+
+for (const [read, ownsRead] of [
+  ['(effect(), globalThis).window.Array.of', true],
+  ['(effect(), globalThis).window?.Array', false],
+  ['(effect(), globalThis)?.window.Array', false],
+  ['(effect(), globalThis).self.Array', false],
+  ['globalThis.window.Array', false],
+]) runBoth(`ordinary read after lowering/${ read }`, `const value = ${ read };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path: path.get('init') };
+  const calls = parser.collectPaths(program, 'CallExpression').map(item => item.node);
+  const plan = effectfulClaimReadProbe(path.node.init, calls, resolvePure, ctx);
+  check(`${ label }/owns the plain read`, plan?.kind ?? null, ownsRead ? 'read' : null);
+  if (!ownsRead) return;
+  const firstRead = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'Array').node;
+  check(`${ label }/retains the first property above window`, plan.retained[0], firstRead);
+  check(`${ label }/effects stay in their source slot`, plan.test.source.source, firstRead);
+  check(`${ label }/foreign effect does not justify retaining the read`,
+    effectfulClaimReadProbe(path.node.init, [identifier('foreign')], resolvePure, ctx), null);
 });
 
 finish();
