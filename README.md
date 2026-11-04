@@ -3558,6 +3558,7 @@ class DOMException {
 { core-js, @core-js/pure }/stable|actual|full/dom-exception/constructor
 ```
 [*Examples*](https://core-js.io/playground#code=const+exception+%3D+new+DOMException%28%27error%27%2C+%27DataCloneError%27%29%3B%0Aexception.name%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%27%0Aexception.message%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27error%27%0Aexception.code%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+25%0Atypeof+exception.stack%3B++++++++++++++++++++%2F%2F+%3D%3E+%27string%27%0Aexception+instanceof+DOMException%3B+++++++++%2F%2F+%3D%3E+true%0Aexception+instanceof+Error%3B++++++++++++++++%2F%2F+%3D%3E+true%0Aexception.toString%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%3A+error%27%0AObject.prototype.toString.call%28exception%29%3B+%2F%2F+%3D%3E+%27%5Bobject+DOMException%5D%27):
+<!-- eslint-disable unicorn/prefer-error-is-error -- demonstrate DOMException inheritance from Error -->
 ```js
 const exception = new DOMException('error', 'DataCloneError');
 exception.name;                            // => 'DataCloneError'

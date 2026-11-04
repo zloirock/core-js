@@ -166,9 +166,9 @@ function buildImports(importsList, level = 0) {
 }
 
 async function prependImports(version) {
-  for (const subset of Object.keys(imports)) {
+  for (const [subset, types] of Object.entries(imports)) {
     const filePath = buildFilePath(version, subset);
-    const importLines = buildImports(imports[subset]);
+    const importLines = buildImports(types);
     outputFiles[filePath] = `${ importLines }\n${ outputFiles[filePath] ?? '' }`;
   }
 }

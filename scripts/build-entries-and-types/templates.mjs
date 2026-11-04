@@ -20,7 +20,7 @@ function buildCoreJSTypeName(namespace, name) {
 
 function buildSelfForNamespace(namespace, prefix, mutable) {
   const ns = mutable ? namespace : getSelfNamespace(namespace);
-  return `${ prefix && missingNamespacesInES6.includes(ns) ? prefix : '' }${ ns }${ getCommonGenericsForNamespace(ns) }`;
+  return `${ prefix && ns === 'AsyncIterator' ? prefix : '' }${ ns }${ getCommonGenericsForNamespace(ns) }`;
 }
 
 function buildModulePath({ entry, packageName }) {
@@ -37,13 +37,9 @@ function isAllowedFunctionName(name) {
   }
 }
 
-const namespacesWithTwoGeneric = [
-  'Map',
-  'ReadonlyMap',
-  'WeakMap',
-];
+const namespacesWithTwoGeneric = new Set(['Map', 'ReadonlyMap', 'WeakMap']);
 
-const namespacesWithOneGeneric = [
+const namespacesWithOneGeneric = new Set([
   'Array',
   'ReadonlyArray',
   'Set',
@@ -52,20 +48,12 @@ const namespacesWithOneGeneric = [
   'Promise',
   'Iterator',
   'AsyncIterator',
-];
+]);
 
-const namespacesWithReadonlyClass = [
-  'Array',
-  'Set',
-  'Map',
-];
-
-const missingNamespacesInES6 = [
-  'AsyncIterator',
-];
+const namespacesWithReadonlyClass = new Set(['Array', 'Set', 'Map']);
 
 function getSelfNamespace(namespace) {
-  if (namespacesWithReadonlyClass.includes(namespace)) {
+  if (namespacesWithReadonlyClass.has(namespace)) {
     return `Readonly${ namespace }`;
   }
 
@@ -79,30 +67,30 @@ function getGenericsForNamespace(namespace) {
   if (namespace === 'WeakSet') {
     return '<T extends WeakKey>';
   }
-  if (namespacesWithTwoGeneric.includes(namespace)) {
+  if (namespacesWithTwoGeneric.has(namespace)) {
     return '<K, V>';
   }
-  if (namespacesWithOneGeneric.includes(namespace)) {
+  if (namespacesWithOneGeneric.has(namespace)) {
     return '<T>';
   }
   return '';
 }
 
 function getAnyGenericsForNamespace(namespace) {
-  if (namespacesWithTwoGeneric.includes(namespace)) {
+  if (namespacesWithTwoGeneric.has(namespace)) {
     return '<any, any>';
   }
-  if (namespacesWithOneGeneric.includes(namespace)) {
+  if (namespacesWithOneGeneric.has(namespace)) {
     return '<any>';
   }
   return '';
 }
 
 function getCommonGenericsForNamespace(namespace) {
-  if (namespacesWithTwoGeneric.includes(namespace)) {
+  if (namespacesWithTwoGeneric.has(namespace)) {
     return '<K, V>';
   }
-  if (namespacesWithOneGeneric.includes(namespace)) {
+  if (namespacesWithOneGeneric.has(namespace)) {
     return '<T>';
   }
   return '';

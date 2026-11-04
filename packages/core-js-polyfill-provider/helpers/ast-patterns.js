@@ -8144,7 +8144,10 @@ function framesDownTo(ownerPath, path) {
   const frames = [];
   for (let p = path; p?.node; p = p.parentPath) {
     frames.push(p.node);
-    if (p.node === ownerPath.node) return frames.reverse();
+    if (p.node === ownerPath.node) {
+      frames.reverse();
+      return frames;
+    }
   }
   return null;
 }

@@ -53,7 +53,7 @@ function createLauncher(displayName, browserType) {
     this.on('kill', async done => {
       await close(this, log);
       this._done();
-      process.nextTick(done);
+      queueMicrotask(done);
     });
   }
 
