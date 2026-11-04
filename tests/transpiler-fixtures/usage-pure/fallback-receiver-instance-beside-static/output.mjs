@@ -15,12 +15,12 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 // polyfill off the fallback arm in either order the pattern names the two, on either host; a key
 // that is a static of the fallback's constructor AND an instance method branches on the arm, and
 // statics around the instance member read it the way a direct read of the constructor does. the
-// mirror's instance slot dispatches off the constructor (`name: _nameMaybeFunction(_Map)`): the
-// claim reads that slot back, and a raw `_Map.name` is undefined where the engine lacks `name`
+// mirror's getter calls the name helper on the constructor at the pattern slot. A raw
+// `_Map.name` inside that getter would be undefined on engines without function names.
 let nm, s;
 const _ref = _globalThis.zz || {
   get name() {
-    return _Map.name;
+    return _nameMaybeFunction(_Map);
   },
   groupBy: _Map$groupBy
 };
@@ -30,7 +30,7 @@ nm = _nameMaybeFunction(_ref);
 } = _ref);
 const _ref2 = null ?? {
   get name() {
-    return _Promise.name;
+    return _nameMaybeFunction(_Promise);
   },
   try: _Promise$try
 };
@@ -41,7 +41,7 @@ const {
 const _ref3 = _globalThis.yy || {
     from: _Iterator$from,
     get name() {
-      return _Iterator.name;
+      return _nameMaybeFunction(_Iterator);
     }
   },
   f = _ref3 === _Iterator ? _Iterator$from : _ref3.from,

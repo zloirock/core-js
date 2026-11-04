@@ -2267,11 +2267,9 @@ export default function createDestructureEmitter({
     return idx !== -1 && plan.outerProps[idx].kind !== 'verbatim';
   }
 
-  // props the plan declared `symbol-iterator-key` (a defaulted / non-binding value keeps the
-  // key-swap): the natural computed-key visitor owns the key-text against the rebuilt
-  // receiver - the per-prop instance route must not extract the leaf back out of the residual
-  // (stealing it would guard the HELPER result where native raw-read semantics run the default)
-  const keySwapOwnedProps = new WeakSet();
+  // A key swap or fallback mirror has served the claim, but the pattern still reads
+  // this property. Ordered capture must count it when placing another extraction.
+  const retainedClaimProps = new WeakSet();
 
   // assignment hosts an anchored rebuild already re-shaped: the pre-rebuild plan is gone
   // (a fresh synthetic re-plan of the mutated node no longer anchors), so anchored-ness is
@@ -2291,7 +2289,7 @@ export default function createDestructureEmitter({
   function sekeySymbolKeepsKeySwap(prop, meta, entry) {
     if (meta?.fromFallback || !computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))) return false;
     if (entry !== SYMBOL_ITERATOR_PURE_RESULT.entry || !hostFlattenPlanAnchors(prop)) return false;
-    keySwapOwnedProps.add(prop.node);
+    retainedClaimProps.add(prop.node);
     return true;
   }
 
@@ -2440,7 +2438,7 @@ export default function createDestructureEmitter({
           unusedNames.push(...prunePatternByPlan(planNode.pattern, planNode.children, { keepSentinels, ctx }));
           break;
         case 'symbol-iterator-key':
-          keySwapOwnedProps.add(planNode.prop);
+          retainedClaimProps.add(planNode.prop);
       }
     }
     if (removed.size) pattern.properties = pattern.properties.filter(p => !removed.has(p));
@@ -3400,7 +3398,7 @@ export default function createDestructureEmitter({
       parameterCallSites,
       // A receiver mirror serves properties without consuming their native bindings or keys.
       // Per-prop extractions remove their slot or leave a spent value / sentinel behind.
-      isClaimedProp: item => (!synthPlanDeps.mirroredHosts.has(declarator.node) && skippedNodes.has(item))
+      isClaimedProp: item => (skippedNodes.has(item) && !retainedClaimProps.has(item) && !synthPlanDeps.mirroredHosts.has(declarator.node))
         || (!!item.value && skippedNodes.has(item.value))
         || injector.hasGeneratedUnusedName(propBindingIdentifier(item.value)?.name),
       // A guarded source still owes its outer coercion before any nested key.
@@ -4620,7 +4618,10 @@ export default function createDestructureEmitter({
         && realmSelectionCollapseOperand(realmInit, { adapter, injectorState: injector, scope: sibling.scope, path: sibling });
       if (collapses) continue;
       handleObjectPropertyResult({ prop: sibling, meta, kind: null, entry: null, hintName: null });
-      skippedNodes.add(sibling.node);
+      if (sibling.node) {
+        skippedNodes.add(sibling.node);
+        retainedClaimProps.add(sibling.node);
+      }
     }
   }
 
@@ -4657,10 +4658,7 @@ export default function createDestructureEmitter({
     if (t.isMemberExpression(unwrapRuntimeExpr(staticMemberTarget)) && !memberTargetTakesExtraction(staticMemberTarget,
       { hostPattern: destructurePatternHostPath(prop)?.node?.left, prop: prop.node })) return;
     if (meta?.parameterArgumentsOnly) return handleParameterDestructure({ prop, meta, kind, entry, hintName });
-    // a key-swap survivor of an already-rendered flatten / fold (revisits re-enter here
-    // after the host rebuild requeues the pattern subtree): the natural computed-key
-    // visitor owns the key-text, nothing to extract
-    if (keySwapOwnedProps.has(prop.node)) return;
+    if (retainedClaimProps.has(prop.node)) return;
     // a prop a prior pass already claimed (its overwrite rebind, substituted default,
     // minted computed key or printed sentinel stands beside it) - the shared census
     // family, ahead of every route
@@ -4722,7 +4720,7 @@ export default function createDestructureEmitter({
       && (sourceHost?.isAssignmentExpression() && symbolIteratorMemberTarget(prop.node, entry, {
         hostPattern: sourceHost.node.left, ctx: aliasCtxFromPath(prop),
       }) || flattenPlanConsumesProp(prop))
-      && (tryFlattenNestedProxyDestructure(prop) || keySwapOwnedProps.has(prop.node))) return;
+      && (tryFlattenNestedProxyDestructure(prop) || retainedClaimProps.has(prop.node))) return;
     // a RELOCATED catch pattern reaches here as an ordinary declarator - written that way by a
     // sibling, by the unplugin emitter's earlier phase, or by hand. its bindings are block-scoped to the
     // catch, so the same per-prop liveness rule the clause form gets applies: a binding the body
@@ -6141,14 +6139,14 @@ export default function createDestructureEmitter({
 
   return {
     capturePatternForExtraction({ prop, meta }) {
-      if (anchoredCtorResidualLeaf(prop) || keySwapOwnedProps.has(prop.node)) return true;
+      if (anchoredCtorResidualLeaf(prop) || retainedClaimProps.has(prop.node)) return true;
       const pure = isSourcedSymbolIteratorMeta(meta) ? SYMBOL_ITERATOR_PURE_RESULT : resolvePure(meta, prop);
       if (!pure && !meta.fromFallback) return false;
       // An anchored host can rebuild while retaining this raw symbol slot. Let its
       // ordinary route finish; a false consume result does not mean the host stayed put.
       if (isSourcedSymbolIteratorMeta(meta) && hostFlattenPlanAnchors(prop)) return false;
       if (isSourcedSymbolIteratorMeta(meta) && flattenPlanConsumesProp(prop)
-        && (tryFlattenNestedProxyDestructure(prop) || keySwapOwnedProps.has(prop.node))) return true;
+        && (tryFlattenNestedProxyDestructure(prop) || retainedClaimProps.has(prop.node))) return true;
       if (sekeySymbolKeepsKeySwap(prop, meta, pure?.entry)) return false;
       return capturePatternForExtraction(prop, pure?.entry, pure?.hintName, pure?.kind ?? null, meta);
     },

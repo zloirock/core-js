@@ -390,6 +390,13 @@ function valueProofAdapter(adapter) {
   return proof;
 }
 
+// A child rewrite may already have replaced the source global with its import. Only
+// that unpositioned reference inherits the injector's name; a written import keeps its own surface.
+export function renderedGlobalHint(node, ctx) {
+  return node?.type === 'Identifier' && nodePositionKey(node) === null
+    ? ctx?.adapter?.getBinding?.({ scope: ctx.scope, name: node.name, path: ctx.path })?.polyfillHint ?? null : null;
+}
+
 // Explicit pure receivers keep their own static reads in global mode. Retain their known
 // function/object type so declining a static cannot create unrelated instance claims.
 // Pure substitution still serves narrow constructor entries; full indexes keep method identity.
@@ -398,9 +405,7 @@ function valueProofAdapter(adapter) {
 // asks it before its own swap
 export function importedStaticReadMeta({ node, meta, scope, adapter, path, objectPattern = null, walkPath = [] }) {
   function explicitSource(sourceNode, ctx) {
-    const leaf = unwrapRuntimeExpr(sourceNode);
-    if (leaf?.type === 'Identifier' && nodePositionKey(leaf) === null
-      && ctx.adapter?.getBinding?.({ scope: ctx.scope, name: leaf.name, path: ctx.path })?.polyfillHint) return null;
+    if (renderedGlobalHint(unwrapRuntimeExpr(sourceNode), ctx)) return null;
     return moduleDefaultSource({ node: sourceNode, ...ctx });
   }
   let directSource = null;

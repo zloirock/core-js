@@ -229,6 +229,7 @@ import {
   outerDestructureReceiver,
   fallbackInitWhollyDiscardable,
   importedStaticReadMeta,
+  renderedGlobalHint,
   resolveBranchProxyName,
   resolveNestedReceiverNode,
   resolvePositionalElementSlot,
@@ -4284,6 +4285,7 @@ export function renderSynthReplacement(entries, {
 export function planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure }) {
   const readReceiver = receiver.type === 'LogicalExpression'
     ? peelNestedSequenceExpressions(receiver.left).tail : receiver;
+  const name = readReceiver.type === 'Identifier' ? renderedGlobalHint(readReceiver, aliasCtx) ?? readReceiver.name : null;
   const globalPure = readReceiver.type === 'Identifier'
     ? resolvePure({ kind: 'global', name: readReceiver.name }) : null;
   const pure = globalPure && globalPure.kind !== 'instance' ? globalPure
@@ -4291,7 +4293,7 @@ export function planSynthLiteralReceiver(receiver, { aliasCtx, resolvePure }) {
   return {
     readReceiver,
     pure,
-    receiverCtorName: readReceiver.type === 'Identifier' && isStaticPlacement(readReceiver.name) ? readReceiver.name
+    receiverCtorName: name && isStaticPlacement(name) ? name
       : aliasCtx && pure ? globalProxyMemberName({ node: readReceiver, ...aliasCtx }) : null,
     selectsInstance: receiver.type === 'LogicalExpression' || receiver.type === 'ConditionalExpression',
   };

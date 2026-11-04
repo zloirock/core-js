@@ -134,10 +134,34 @@ QUnit.test('evaluation order: a fallback receiver serves a static beside an inst
   ({ name: label, values } = globalThis.absentReceiverForTheTest || Object);
   assert.same(typeof groupBy, 'function');
   assert.same(typeof tryStatic, 'function');
-  assert.same(typeof name, 'string');
-  assert.same(typeof tryName, 'string');
-  assert.same(typeof label, 'string');
+  assert.same(typeof name, 'string', 'Map name');
+  assert.same(typeof tryName, 'string', 'Promise name');
+  assert.same(typeof label, 'string', 'Object name');
   assert.deepEqual(values({ a: 1 }), [1]);
+});
+
+QUnit.test('evaluation order: a constructor fallback reads the selected receiver at each pattern slot', assert => {
+  function read(source) {
+    const { name: first, groupBy, name: second } = source || Map;
+    return [first, groupBy, second];
+  }
+  const seen = [];
+  const source = {
+    get name() {
+      seen.push(this === source ? 'name' : 'wrong receiver');
+      return seen.length;
+    },
+    get groupBy() {
+      seen.push('groupBy');
+      return 17;
+    },
+  };
+  assert.deepEqual(read(source), [1, 17, 3]);
+  assert.deepEqual(seen, ['name', 'groupBy', 'name']);
+  const [first, groupBy, second] = read(null);
+  assert.same(typeof first, 'string');
+  assert.same(typeof groupBy, 'function');
+  assert.same(second, first);
 });
 
 // a pattern level whose DEFAULT is a call runs that call only when the default fires

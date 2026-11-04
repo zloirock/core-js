@@ -3,8 +3,8 @@
 // polyfill off the fallback arm in either order the pattern names the two, on either host; a key
 // that is a static of the fallback's constructor AND an instance method branches on the arm, and
 // statics around the instance member read it the way a direct read of the constructor does. the
-// mirror's instance slot dispatches off the constructor (`name: _nameMaybeFunction(_Map)`): the
-// claim reads that slot back, and a raw `_Map.name` is undefined where the engine lacks `name`
+// mirror's getter calls the name helper on the constructor at the pattern slot. A raw
+// `_Map.name` inside that getter would be undefined on engines without function names.
 let nm, s;
 ({ name: nm, groupBy: s } = (globalThis.zz || Map));
 const { name: nm2, try: t } = (null ?? Promise);
