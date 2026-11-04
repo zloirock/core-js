@@ -1815,6 +1815,10 @@ const polyfills = {
 
 const transpiledAndPolyfilled = {
   ...noAsyncAwait,
+  ...forbidSomeES2025Syntax,
+  // allow RegExp syntax handled by Babel
+  'es/no-regexp-duplicate-named-capturing-groups': OFF,
+  'es/no-regexp-modifiers': OFF,
   // disallow accessor properties
   'es/no-accessor-properties': ERROR,
   // disallow async functions
@@ -1825,8 +1829,6 @@ const transpiledAndPolyfilled = {
   'es/no-top-level-await': ERROR,
   // unpolyfillable es2015 builtins
   'es/no-proxy': ERROR,
-  // disallow duplicate named capture groups
-  'es/no-regexp-duplicate-named-capturing-groups': OFF,
   'es/no-string-prototype-normalize': ERROR,
   // unpolyfillable es2017 builtins
   'es/no-atomics': ERROR,
@@ -1841,7 +1843,6 @@ const transpiledAndPolyfilled = {
   'regexp/prefer-named-capture-group': OFF,
   // prefer `BigInt` literals over the constructor
   'unicorn/prefer-bigint-literals': OFF,
-  ...forbidSomeES2025Syntax,
   ...forbidCompletelyNonExistentBuiltIns,
 };
 
