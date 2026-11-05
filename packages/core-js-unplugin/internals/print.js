@@ -635,6 +635,9 @@ function localizeBodyComments({ bodies, comments, taken, tails }) {
     for (const node of body) {
       const trailingLine = previousLine;
       previousLine = node.loc?.end.line ?? previousLine;
+      // A comment inside this span cannot start before its node. Keep checking relocated
+      // spans and unknown locations; injected siblings still carry the last positioned line.
+      if (trailingLine === undefined || node.loc?.start.line > trailingLine) continue;
       const start = sourceOffset(node, 'start');
       const end = sourceOffset(node, 'end');
       if (start === undefined || end === undefined) continue;

@@ -642,14 +642,12 @@ export default function createPlugin(options) {
     // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
     if (pass === 'post') snapshots.take(id, environment);
 
-    // a binding pattern in a params list estree-toolkit never walks as a pattern - every
-    // type-level signature TS has - aborts the crawl, so neutralize them before it runs.
-    // deliberately UNCONDITIONAL: the pass is a plain walk over an AST the parser has just built
-    // and the crawler is about to walk again, so gating it on a TS extension buys nothing measurable
-    // and costs a code path resting on a subtle assumption - oxc enables TS on `.ts`/`.mts`/`.cts`/
-    // `.tsx`, lowercase only, so a `.TS` file would silently lose the pass
+    // Only the usage lanes build estree-toolkit scopes, and only the TS parser languages can
+    // produce signatures whose patterns that crawler cannot walk. Use the same language passed
+    // to the parser, including SFC virtual ids; entry's raw census needs no neutralization.
+    const readsCensus = methodReadsUsageCensus(method);
     const patternRestorations = [];
-    neutralizeUnwalkedParamPatterns(ast, patternRestorations);
+    if (readsCensus && sourceDialect.lang !== 'jsx') neutralizeUnwalkedParamPatterns(ast, patternRestorations);
 
     // the format owner answers both halves at once, from the id, the body and the goal the parse
     // actually used. the write-back is load-bearing in BOTH directions - a CommonJS id can carry
@@ -688,7 +686,6 @@ export default function createPlugin(options) {
     // The format reducer publishes FIRST, after collection: subsequent results and scoped walks
     // must see the resolved language goal before consulting the memoised strictness model.
     // Entry-global collects format and minifier-sequence facts; the remaining reducers belong to the usage lanes
-    const readsCensus = methodReadsUsageCensus(method);
     const optionalCalls = [];
     const fileCensus = collectFileCensus(ast, [
       moduleFormatReducer(moduleFormat => {
