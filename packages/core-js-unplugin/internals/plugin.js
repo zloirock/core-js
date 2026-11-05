@@ -701,9 +701,8 @@ export default function createPlugin(options) {
         ast.sourceType = format.sourceType;
       }),
       minifierSequenceReducer(),
-      // Keep the source gate first: ordinary files need no extra dialect check.
       // Only TS/TSX can contain the instantiations collected by this raw census.
-      ...code.includes('?.') && sourceDialect.lang !== 'jsx' ? [{
+      ...sourceDialect.lang !== 'jsx' && code.includes('?.') ? [{
         visit(node) {
           if (node.type === 'CallExpression' && optionalCallInstantiationCallee(node)) optionalCalls.push(node);
         },

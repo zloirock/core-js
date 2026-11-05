@@ -1,2 +1,2 @@
-obj.at! as any++;
---obj.includes! satisfies any;
+(obj.at! as any)++;
+--(obj.includes! satisfies any);

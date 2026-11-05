@@ -1,7 +1,5 @@
-// the second axis of the same slot: WHERE the instantiation sits. a host that ends the expression - a
-// value, an argument, an element - leaves a loose-but-not-fusing shape bare, and only a shape fusing on
-// its own token keeps its parens: they are spelled as a node later lowerings must accept, so they are
-// only added where owed
+// Type arguments apply to the whole logical expression in a value, call argument or array element.
+// The cast, angle assertion and postfix update also keep their grouping before the type arguments.
 const f: any = (x: number) => x;
 const g: any = (x: number) => x;
 let q: any;

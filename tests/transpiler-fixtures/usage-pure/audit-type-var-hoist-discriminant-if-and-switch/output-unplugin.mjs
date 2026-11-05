@@ -1,8 +1,8 @@
-// a discriminated union resolves through the discriminant test, which reaches the hoisted binding by
-// identity. the two test forms are separate paths in that resolver, so they get a method each
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 
+// a discriminated union resolves through the discriminant test, which reaches the hoisted binding by
+// identity. the two test forms are separate paths in that resolver, so they get a method each
 declare const discSrc: { kind: "a"; v: string[] } | { kind: "b"; v: string };
 
 export function viaDiscriminantIf() {

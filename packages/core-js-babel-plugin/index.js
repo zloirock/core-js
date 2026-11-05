@@ -167,6 +167,7 @@ import {
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
+  generatorWorkarounds,
   instantiationSlotNeedsParens,
   foldInstantiationsPass,
   restoreParenCompensations,
@@ -265,12 +266,13 @@ export default function plugin(api, options) {
 function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   // every clone in this plugin goes through the range-preserving wrapper: babel's own `cloneNode`
   // drops the source offsets the provider's positional rules read (see `rangePreservingTypes`)
-  const { types: babelTypes } = api;
+  const { types: babelTypes, traverse, version: babelVersion } = api;
   const t = rangePreservingTypes(babelTypes);
+  const legacyParens = generatorWorkarounds(babelVersion);
 
   // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
   // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
-  const pathsKeepParent = Number.parseInt(api.version, 10) >= 8;
+  const pathsKeepParent = Number.parseInt(babelVersion, 10) >= 8;
   // set at program entry, read by the late-bound compat callbacks below
   let currentSynthSwap = null;
   // late-bound like `currentSynthSwap`: the file's opt-out directives, which the shared canon reads
@@ -393,10 +395,12 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   // A shallow Program owns the new census: the source tree keeps its pristine flow tables.
   function refreshLateCtorEscapes() {
     if (lateEscapeProgram) {
-      const program = lateEscapeProgram;
+      const { program, selectedInits } = lateEscapeProgram;
       lateEscapeProgram = null;
       const source = escapedCtorNames;
-      const late = collectFileCensus({ ...program }, [escapedCtorReferencesReducer({ isOptedOut: currentIsDisabled })]).escapedCtorNames;
+      const late = collectFileCensus({ ...program }, [
+        escapedCtorReferencesReducer({ isOptedOut: currentIsDisabled, selectedInits }),
+      ]).escapedCtorNames;
       escapedCtorNames = {
         has: (name, held) => source?.has(name, held) === true || late.has(name, held),
         readsUnnamedStatic: name => source?.readsUnnamedStatic(name) === true || late.readsUnnamedStatic(name),
@@ -497,6 +501,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   // Per-binding-context adapter: each active file reads its own `injector`.
   // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const adapter = createBabelAdapter({
+    traverse,
     getInjector: () => injector,
     nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
     method,
@@ -1056,20 +1061,11 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         const guard = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), hoisted]) : hoisted;
         t.traverseFast(rawBranch, n => skippedNodes.add(n));
-        // the generator prints the `expr<T>` instantiation slot without the parens its precedence
-        // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
-        // uninvoked) - so the guard ternary, which is what will OCCUPY that slot after the swap,
-        // takes them here. this is the ONE paren node spelled before the lowerings rather than in
-        // `post()`, and it is safe for a structural reason: what it wraps is `binding === ctor ?
-        // static : raw`, which cannot hold an `await` or a `yield`, so regenerator never has to
-        // explode it. it is also only reachable when the fold could not run - a foldable host takes
-        // the type arguments during the usage traversal, and by then there is no node left to find.
-        // a WRAPPER between the swap and the instantiation is not this rule's to compensate: the
-        // slot then holds the wrapper, whose own priority the late restoration reads off the same
-        // predicate - and every wrapper that owes the parens is a TS cast, which that pass covers
+        // Old generators need explicit grouping when the guard replaces the operand of
+        // `expr<T>`. The guard contains no await or yield that regenerator would have to explode.
         if (tailPath !== path) tailPath.replaceWith(guard);
         else if (callPath) callPath.replaceWith(guard);
-        else if (path.parentPath?.node?.type === 'TSInstantiationExpression'
+        else if (legacyParens.instantiation && path.parentPath?.node?.type === 'TSInstantiationExpression'
           && instantiationSlotNeedsParens(guard)) path.replaceWith(t.parenthesizedExpression(guard));
         else path.replaceWith(guard);
         return true;
@@ -2317,10 +2313,22 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // `null.has(...)` throws TypeError on every body child here
       function reTraverseHelperBodies(path) {
         if (!originalBodyNodes) return;
+        const helpers = path.get('body').filter(child => !originalBodyNodes.has(child.node));
+        // The late escape census runs on the first introduced global. A preceding helper can
+        // trigger it before we visit a later helper's `typeof Symbol === "function" ? Symbol : {}`.
+        // Record the live initializer for the census. Keep the original tree for static detection.
+        if (isPure) for (const helper of helpers) helper.traverse({
+          VariableDeclarator(declarator) {
+            const { id, init } = declarator.node;
+            if (id.type !== 'Identifier' || init?.type !== 'ConditionalExpression' || nodePositionKey(init) !== null) return;
+            const initPath = declarator.get('init');
+            const decision = adapter.decidedSelection(init, { scope: initPath.scope, path: initPath, adapter });
+            const selected = decision?.substituted && init[decision.fold];
+            if (selected?.type === 'Identifier' && isKnownGlobalName(selected.name)) lateEscapeProgram.selectedInits.set(init, selected);
+          },
+        });
         const helperWithCatch = withProxyHopTrigger(withCatchExtractor(helperVisitors));
-        for (const childPath of path.get('body')) {
-          if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
-        }
+        for (const helper of helpers) helper.traverse(helperWithCatch);
       }
 
       // the partly dead user selections still standing once the claims rendered fold to what they yield
@@ -2482,16 +2490,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         if (!injector) return;
         // kept nav-collapse mutations land after every claim resolver has seen the source chain
         flushKeptNavCollapses();
-        // the FOLD half only - the parens wait for `post()`, which spells out its own reason. this
-        // one is here to catch what a sibling inserted before our exit ran, and it sits AHEAD of the
-        // skipFile bail below because a disabled file is reprinted just the same: the compensations
-        // are damage control for that reprint, not injection. re-running over an already-folded tree
-        // is inert - a folded host no longer carries an instantiation node. what the placement does
-        // NOT buy a disabled file is getting ahead of the lowerings: that file runs no usage
-        // traversal, so this is its ONLY fold, and by `Program:exit` every sibling visitor has read
-        // the node already - `((h.m)<T>)?.(a)` loses its receiver there exactly as it does with no
-        // core-js in the list at all
-        parensPending = foldInstantiationsPass(path);
+        // Catch instantiations a sibling introduced before our exit. Disabled files are
+        // reprinted too, so check before the injection bail. Explicit parens wait for post().
+        parensPending = foldInstantiationsPass(path, legacyParens, traverse.cheap, adapter.parameterPropertyVisitors);
         // probed-anchor destructure inits retype into their guard spelling at the same point
         destructureEmit?.flushProbedAnchorSwaps();
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
@@ -2500,7 +2501,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // synth-swap entries against an unflushed receiver map, and flush imports the
         // user explicitly suppressed. exit clean so no polyfill leaks into a disabled file
         if (skipFile) return;
-        lateEscapeProgram = path.node;
+        lateEscapeProgram = { program: path.node, selectedInits: new WeakMap() };
         reTraverseHelperBodies(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.pruneEmptiedHostDeclarators();
@@ -2539,7 +2540,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // LAST reachable point: `post()` runs after every sibling's `Program:exit`, so a shape a
         // later-ordered sibling inserted is compensated here or nowhere. ahead of the injector bail -
         // a skipped file is reprinted just the same
-        restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
+        restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes,
+          legacyParens, adapter.parameterPropertyVisitors);
         anchorDisableDirectives(this.file?.path?.node);
         if (!injector) return;
         // a sibling CommonJS rewriter that runs after our last flush leaves whatever it did not
@@ -2665,7 +2667,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // the fold has no earlier mount here and this is its only one - OUTSIDE the skip,
             // because a disabled file is reprinted just the same and would otherwise be handed back
             // unparsable. the paren half runs in this mode's `post`, like everywhere else
-            parensPending = foldInstantiationsPass(this.file.path);
+            parensPending = foldInstantiationsPass(this.file.path, legacyParens, traverse.cheap, adapter.parameterPropertyVisitors);
             injector.flush();
             // snapshot AFTER compensating AND after the flush, for the same reason the usage path
             // snapshots there: the flush inserts the import block, and nodes missing from the set
@@ -2676,7 +2678,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           post: withBrand(function entryGlobalPost() {
             // the twin of `postHook`'s first line, for the same reasons spelled out there: last
             // reachable point, and ahead of every bail because a skipped file is reprinted too
-            restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
+            restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes,
+              legacyParens, adapter.parameterPropertyVisitors);
             anchorDisableDirectives(this.file?.path?.node);
             injector?.flush();
             // shared with the main `programExit` tail (`finalizeInjector`): canonical-sort

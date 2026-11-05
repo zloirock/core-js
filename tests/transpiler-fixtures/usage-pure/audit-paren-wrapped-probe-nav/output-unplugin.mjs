@@ -1,7 +1,3 @@
-// a paren layer sits BETWEEN the probe nav and its tail. the guard's own parens ARE that layer's
-// once the render absorbs it, so every step above reads off the guarded value from OUTSIDE them:
-// none of it may be folded in, and the tail keeps the source's PLAIN dereference - which throws
-// where the guard answers nullish, exactly as the source does
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
@@ -10,6 +6,10 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 
 var _ref, _ref2, _ref3, _ref4;
 
+// a paren layer sits BETWEEN the probe nav and its tail. the guard's own parens ARE that layer's
+// once the render absorbs it, so every step above reads off the guarded value from OUTSIDE them:
+// none of it may be folded in, and the tail keeps the source's PLAIN dereference - which throws
+// where the guard answers nullish, exactly as the source does
 _globalThis.parenBox = { list: ['ab', 'cd'], n: 7 };
 
 export const parenNavDispatch = null == (_ref = (null == _globalThis.window ? void 0 : _self.parenBox).list) ? void 0 : _at(_ref).call(_ref, 0);

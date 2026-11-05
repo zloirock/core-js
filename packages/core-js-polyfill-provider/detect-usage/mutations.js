@@ -3057,7 +3057,7 @@ const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 
 // Per-file constructor escapes, resolved after every declaration and alias source is recorded.
 // eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
-export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
+export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits = null } = {}) {
   const optedOutNodes = isOptedOut ? new WeakSet() : null;
   let stamps = null;
   let programNode = null;
@@ -4439,7 +4439,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null } = {}) {
             kind: frame?.parentNode?.kind,
             ownerNode: frame?.scopes?.findLast(scope => isVarScopeBoundary(scope.type)),
           })) walkPatternIdentifiers(node.id, id => guardedAliases.add(id.name));
-          recordPatternAlias(node.id, node.init, bindsIn);
+          // Babel may already know which arm of a generated helper initializer it will emit.
+          recordPatternAlias(node.id, selectedInits?.get(node.init) ?? node.init, bindsIn);
           noteTopLevelNames(node, frame);
         }
         break;

@@ -1,6 +1,5 @@
-// the second axis of the same slot: WHERE the instantiation sits, with a polyfilled static under it
-// so the ponyfill substitution and the host decision meet. a host that ends the expression leaves a
-// loose-but-not-fusing shape bare, and only a shape fusing on its own token keeps its parens
+// After a static is replaced with its ponyfill, the type arguments still apply to the whole
+// logical expression in a value or call argument. A postfix update also retains its grouping.
 const g: any = (x: number) => x;
 let q: any;
 // @ts-expect-error an instantiation over a value with no generic signature is the shape under test

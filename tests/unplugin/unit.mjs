@@ -187,7 +187,8 @@ for (const method of ['usage-global', 'usage-pure']) {
     ['import removal', `import 'core-js/modules/es.array.from'; ${ alias }`, 'mjs', 2],
     // The prefix is read before surgery using the same scoped pre-pass root.
     ['require prefix', `(values.at(0), require)('core-js/modules/es.array.from'); ${ alias }`, 'mjs', 2],
-    ['optional normalization', `${ alias } fn<number>?.(1);`, 'ts', 2],
+    ['optional normalization', `${ alias } obj.fn<number>?.(1);`, 'ts', 2],
+    ['optional plain callee', `${ alias } fn<number>?.(1);`, 'ts', 1],
     ['decorator', `${ alias } class C { constructor(@dec(new M()) public value: any) {} }`, 'ts', 1],
   ];
   const plugin = createPlugin(options);
@@ -244,6 +245,8 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
     ['ordinary', 'const value = user.unknown;'],
     ['optional', 'const value = user?.unknown;'],
     ['instantiation', 'const value = (user.unknown<number>)?.(1);'],
+    ['plain callee', 'const value = (fn<number>)?.(1);'],
+    ['indirect eval', 'const value = (eval<number>)?.(text);'],
     ['opted out', '// core-js-disable-next-line\nconst value = (user.unknown<number>)?.(1);'],
   ]) {
     let walks = 0;
@@ -254,11 +257,20 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
     results.push({ walks, code });
     check(`optional census/${ method }/${ label }/no extra program walk`, walks, results[0].walks);
     // The edit dissolves only the instantiation, retaining its source parens and type arguments.
-    if (label === 'instantiation') check(`optional census/${ method }/normalized`, /\?\.\s*<number>/u.test(code), true);
-    else if (label === 'opted out') check(`optional census/${ method }/directive`, code.includes('<number>)?.'), true);
+    switch (label) {
+      case 'instantiation':
+      case 'indirect eval':
+        check(`optional census/${ method }/${ label }/normalized`, /\?\.\s*<number>/u.test(code), true);
+        break;
+      case 'plain callee':
+        check(`optional census/${ method }/no receiver to normalize`, code, source);
+        break;
+      case 'opted out':
+        check(`optional census/${ method }/directive`, code.includes('<number>)?.'), true);
+        break;
+    }
   }
-  // The existing source gate remains shared by all dialects, while TypeScript
-  // retains its normalization in files that can carry an optional instantiation.
+  // Only TS dialects can contain an instantiation, including embedded scripts.
   const { includes } = String.prototype;
   for (const [id, typed] of [
     ['/optional-census.js', false], ['/optional-census.jsx', false],
@@ -274,7 +286,7 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
         if (this === source && search === '?.') scans++;
         return includes.call(this, search, ...args);
       }, () => plugin.transform(source, id)?.code ?? source);
-      check(`optional census/${ method }/${ id }/${ source }/one source scan`, scans, 1);
+      check(`optional census/${ method }/${ id }/${ source }/source scans`, scans, typed ? 1 : 0);
       check(`optional census/${ method }/${ id }/${ source }/uninstrumented output`, output,
         plugin.transform(source, id)?.code ?? source);
     }
@@ -5100,9 +5112,9 @@ function checkEngineOptionRetired() {
     .transform('import "core-js/modules/es.array.at";\narr.at(0);', 'input.mjs');
   check('usage-global transforms', astUsage?.code.startsWith('import "core-js/modules/es.array.at";'), true);
   check('the swept user module import is not doubled', astUsage.code.match(/es\.array\.at/g).length, 1);
-  check('instantiation normalizes before an optional call',
-    createPlugin(usageOptions).transform('const r = ((f)<string>)?.(1);\narr.at(0);', 'input.ts')
-      .code.includes('f?.<string>(1)'), true);
+  check('instantiated member normalizes before an optional call',
+    createPlugin(usageOptions).transform('const r = ((obj.f)<string>)?.(1);\narr.at(0);', 'input.ts')
+      .code.includes('?.<string>(1)'), true);
   // standalone post (no pre snapshot) transforms like the single pass at the plugin layer
   check('phased usage-global transforms at the plugin layer',
     createPlugin(usageOptions).transform('arr.at(0);', 'input.mjs', 'post')

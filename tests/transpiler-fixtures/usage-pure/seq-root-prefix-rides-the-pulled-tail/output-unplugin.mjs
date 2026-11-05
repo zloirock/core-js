@@ -1,3 +1,9 @@
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _globalThis from "@core-js/pure/actual/global-this";
+import _self from "@core-js/pure/actual/self";
+
+var _ref, _ref2, _ref3, _ref4, _ref5;
+
 // a nav whose ROOT is a sequence and whose prefix hop is a PROBE renders as a guard, and the tail
 // above the collapse is pulled inside the alternate. that pull replaces a span holding the root's
 // sequence prefix while the test respells the probe, so the prefix owes itself a slot in the landing
@@ -9,11 +15,6 @@
 // pristine hop onto its ponyfill (`_self.Array`) while the other memoizes the probe and reads the
 // hop off that ref (`_ref.Array`) - `window.self === window`, so the two name one object and each
 // runs the prefix exactly once. the sidecar holds that second spelling
-import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-import _globalThis from "@core-js/pure/actual/global-this";
-import _self from "@core-js/pure/actual/self";
-
-var _ref, _ref2, _ref3, _ref4, _ref5;
 let c = 0;
 
 function a() {}

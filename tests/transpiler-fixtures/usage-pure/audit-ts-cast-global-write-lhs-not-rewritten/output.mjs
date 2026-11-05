@@ -5,7 +5,7 @@
 // and paren let casts slip through and over-substituted the global. every wrapper x write-form below;
 // all 6 globals rewrite in READ position elsewhere, so the absence of any import here is the assertion
 (Map as any) = x;
-<any> Set = y;
+(<any> Set) = y;
 (Promise satisfies any) ||= z;
 // @ts-expect-error arithmetic tsc refuses is the shape under test
 WeakMap! += 1;

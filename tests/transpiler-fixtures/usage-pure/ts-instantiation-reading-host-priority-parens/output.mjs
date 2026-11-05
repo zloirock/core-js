@@ -9,7 +9,7 @@ import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 const g: any = (x: number) => x;
 let q: any;
 // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
-const hostMember = _nameMaybeFunction(g || _Array$from<any>);
+const hostMember = _nameMaybeFunction((g || _Array$from)<any>);
 // @ts-expect-error an instantiation over a value with no generic signature is the shape under test
 const hostComputedMember = ((g || _Array$of)<any>)[0];
 const hostConditionalTest = (q = _Promise$allSettled)<any> ? 1 : 2;

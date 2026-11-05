@@ -1,12 +1,14 @@
-// A static keyed by an effect between a member target and a plain slot, assigned off a probed `window` and
-// off the realm: each leg keeps the source order, babel reading the constructor hop as a member while
-// unplugin destructures it (the sidecar).
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 
 var _ref, _ref2;
+
+// A static keyed by an effect between a member target and a plain slot, assigned off a probed `window` and
+// off the realm: each leg keeps the source order, babel reading the constructor hop as a member while
+// unplugin destructures it (the sidecar).
 let f4, c4, f6, c6;
+
 const o = {};
 
 (

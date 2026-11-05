@@ -1959,12 +1959,12 @@ for (const [label, source, copies] of [
   check(`source receiver store/${ label }: additional copies`, captures, copies);
 }
 
-// @babel/generator prints a `<T>x` left of an assignment bare, which no parser reads back
+// Older @babel/generator versions print a `<T>x` assignment target without the required grouping.
 const angleTarget = babelParse('(<any>sink.a);', { plugins: ['typescript'], createParenthesizedExpressions: true })
   .program.body[0].expression;
 const angleClone = cloneWriteTarget(t, angleTarget);
-check('cloneWriteTarget/takes the slot inside a paren node and spells its angle assertion as `as`',
-  `${ angleClone.type } ${ angleClone.expression.type }`, 'TSAsExpression MemberExpression');
+check('cloneWriteTarget/takes the slot inside a paren node and preserves its angle assertion',
+  `${ angleClone.type } ${ angleClone.expression.type }`, 'TSTypeAssertion MemberExpression');
 const plainTarget = babelParse('sink.a;').program.body[0].expression;
 const plainClone = cloneWriteTarget(t, plainTarget);
 checkTruthy('cloneWriteTarget/clones any other target as spelled', plainClone !== plainTarget && plainClone.type === 'MemberExpression');
@@ -1986,13 +1986,11 @@ for (const [label, source] of [
     parserOpts: { plugins: ['typescript'] },
     plugins: [[babelPlugin, { method: 'usage-pure', targets: { ie: 11 } }]],
   });
-  let parses = true;
-  try {
-    babelParse(code, { sourceType: 'module', plugins: ['typescript'] });
-  } catch {
-    parses = false;
-  }
-  check(`angle-asserted write target/${ label }: the output parses back`, parses, true);
+  const targets = [];
+  t.traverseFast(babelParse(code, { sourceType: 'module', plugins: ['typescript'] }), node => {
+    if (node.type === 'TSTypeAssertion') targets.push(node.expression.type);
+  });
+  checkDeep(`angle-asserted write target/${ label }: the assertion stays on the member`, targets, ['MemberExpression']);
 }
 
 for (const [label, source] of [

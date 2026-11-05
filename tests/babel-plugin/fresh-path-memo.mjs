@@ -12,7 +12,7 @@ import { createBabelAdapter, freshPathOfNode, rebuildLaggedScopeBinding } from '
 import { rangePreservingTypes, removePatternSlot } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import {
-  ancestorChainDetached, bindingNodeType, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup,
+  ancestorChainDetached, bindingNodeType, buildOwnerWritePathIndex, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
@@ -494,10 +494,12 @@ for (const [label, copyMethod, retires] of [['retiring copy', 'cloneNode', true]
   check(`render copy/${ label }: every write it reads is attached`, writes.every(write => !!write.node && !ancestorChainDetached(write)), retires);
 }
 
-// babel's visitor keys omit a parameter property's decorators, so its tracker never records a write one
-// hosts: the lookup recovers it from the scan as an entry with no path to climb. the write index still
-// finds it, and once the render replaces it, the lookup's view takes the live write in its place
-{
+// Older Babel visitor keys omit parameter-property decorators. On every host the write
+// index must find the source write, then follow the live write after a render replaces it.
+const traverseRequire = createRequire(createRequire(requireBabel.resolve('@babel/core')).resolve('@babel/traverse'));
+const { VISITOR_KEYS } = traverseRequire('@babel/types');
+const { NodePath } = traverseRequire('@babel/traverse');
+for (const omitDecorators of [false, true]) {
   const programPath = await parseProgram('let M;\nclass C { constructor(@dec(({ Map: M } = g)) private x) {} }\nuse(M.groupBy);', ['typescript', 'decorators-legacy']);
   const [, classStatement, useStatement] = programPath.get('body');
   const usePath = useStatement.get('expression.arguments.0.object');
@@ -509,13 +511,34 @@ for (const [label, copyMethod, retires] of [['retiring copy', 'cloneNode', true]
   function view() {
     return lookup({ scope: usePath.scope, name: 'M', path: usePath })?.constantViolations ?? [];
   }
-  checkTruthy('parameter decorator write: the view starts on the source write', view().some(write => (write.node ?? write) === original));
-  checkTruthy('parameter decorator write: the write index finds it', ownerWritePathIndex(programPath).get(original)?.node === original);
-  const rendered = t.assignmentExpression('=', t.identifier('M'), t.identifier('_Map'));
-  writePath.replaceWith(t.sequenceExpression([rendered, t.identifier('g')]));
-  const writes = view();
-  checkTruthy('parameter decorator write: the view drops the replaced write', writes.every(write => (write.node ?? write) !== original));
-  checkTruthy('parameter decorator write: the view takes the rendered one', writes.some(write => write.node === rendered && !ancestorChainDetached(write)));
+  const keys = VISITOR_KEYS.TSParameterProperty;
+  const nativeTraverse = NodePath.prototype.traverse;
+  let manualWalks = 0;
+  try {
+    if (omitDecorators) VISITOR_KEYS.TSParameterProperty = keys.filter(key => key !== 'decorators');
+    NodePath.prototype.traverse = function (...args) {
+      if (this.node.type === 'Decorator') manualWalks++;
+      return nativeTraverse.apply(this, args);
+    };
+    checkTruthy(`parameter decorator write/${ omitDecorators }: uncached index finds it`,
+      buildOwnerWritePathIndex(programPath).get(original)?.node === original);
+    check(`parameter decorator write/${ omitDecorators }: manual traversal only for missing keys`,
+      manualWalks, omitDecorators || !keys.includes('decorators') ? 1 : 0);
+    checkTruthy(`parameter decorator write/${ omitDecorators }: the view starts on the source write`,
+      view().some(write => (write.node ?? write) === original));
+    checkTruthy(`parameter decorator write/${ omitDecorators }: the write index finds it`,
+      ownerWritePathIndex(programPath).get(original)?.node === original);
+    const rendered = t.assignmentExpression('=', t.identifier('M'), t.identifier('_Map'));
+    writePath.replaceWith(t.sequenceExpression([rendered, t.identifier('g')]));
+    const writes = view();
+    checkTruthy(`parameter decorator write/${ omitDecorators }: the view drops the replaced write`,
+      writes.every(write => (write.node ?? write) !== original));
+    checkTruthy(`parameter decorator write/${ omitDecorators }: the view takes the rendered one`,
+      writes.some(write => write.node === rendered && !ancestorChainDetached(write)));
+  } finally {
+    NodePath.prototype.traverse = nativeTraverse;
+    VISITOR_KEYS.TSParameterProperty = keys;
+  }
 }
 
 finish();

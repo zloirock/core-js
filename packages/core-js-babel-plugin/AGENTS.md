@@ -4,7 +4,7 @@ Babel binding for `@core-js/polyfill-provider`. Read [the provider contract](../
 
 ## Target environment
 
-Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-js/compat` in dependencies: although unused at runtime, `index.d.ts` imports its types for consumers' tsc.
+Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-js/compat` in dependencies: the binding uses its version helpers and `index.d.ts` imports its types.
 
 ## Layout
 
@@ -23,7 +23,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`; Babel 7 and 8. Keep `@core-j
 - Clone through `rangePreservingTypes`. Babel cloning drops `start` / `end`; the wrapper restores them from `loc` for the provider's positional proofs.
 - Use the injector's scope bags for Babel 7 object maps and Babel 8 `referencesSet` / `uidsSet`.
 - Remove a pattern slot through `removePatternSlot`. Babel's `remove()` would also drop the binding an assignment-pattern slot only writes.
-- Clone a source slot a built write targets through `cloneWriteTarget`, which spells it as the render canon's writes are spelled at the `estree-to-babel` boundary.
+- Clone a source slot a built write targets through `cloneWriteTarget` to unwrap explicit source parentheses before calling Babel's assignment builder.
 - Ask `resolveModuleFormat` with the filename and explicit parse goal. A declared script is evidence; Babel's default `module` goal is not.
 
 ## Validation

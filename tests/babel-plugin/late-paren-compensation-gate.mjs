@@ -12,26 +12,22 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { createChecker } from '../polyfill-provider/harness.mjs';
+import { generatorWorkarounds } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
-const { transformAsync } = requireBabel('@babel/core');
+const { transformAsync, transformSync, transformFromAstSync, traverse, version } = requireBabel('@babel/core');
 
 const { checkTruthy, finish } = createChecker('late-paren-compensation-gate');
 
-// an optional chain used as a tagged template's TAG is the compensation's own subject: the source
-// parens are what ended the chain, and printing the tag bare (`o?.f`t``) does not parse at all
-function optionalChainTag(t) {
-  return t.taggedTemplateExpression(
-    t.optionalMemberExpression(t.identifier('o'), t.identifier('f'), false, true),
-    t.templateLiteral([t.templateElement({ raw: 't', cooked: 't' }, true)], []),
-  );
-}
-
-function isCompensated(node) {
-  return node?.tag?.type === 'ParenthesizedExpression';
+// All supported generators still drop this seal without compensation: when o is
+// null the ordinary call must throw. Its AST records which statements post() reached.
+function sealedNonNullCall(t) {
+  const member = t.optionalMemberExpression(t.identifier('o'), t.identifier('f'), false, true);
+  member.extra = { parenthesized: true };
+  return t.callExpression(t.tsNonNullExpression(member), []);
 }
 
 // sibling ordered AFTER core-js: its exit runs once ours already did, so what it plants here is
@@ -42,7 +38,7 @@ function makeSiblingPlanting(where, observed) {
     visitor: {
       Program: {
         exit(programPath) {
-          const planted = optionalChainTag(t);
+          const planted = sealedNonNullCall(t);
           observed.planted = planted;
           if (where === 'new-statement') {
             programPath.pushContainer('body', t.expressionStatement(planted));
@@ -52,11 +48,9 @@ function makeSiblingPlanting(where, observed) {
         },
       },
     },
-    // runs after core-js's own `post()`, so it reads the tree the late pass just left behind. it
-    // also unplants, keeping the printed output valid whatever the verdict was
+    // Read the tree after core-js's post().
     post() {
-      observed.compensated = isCompensated(observed.planted);
-      if (where !== 'new-statement') observed.planted.tag = { type: 'NumericLiteral', value: 1 };
+      observed.compensated = observed.planted.callee.expression.type === 'ParenthesizedExpression';
     },
   });
 }
@@ -80,14 +74,13 @@ async function plant(where, source, parserPlugins = []) {
 {
   const { compensated, code } = await plant('new-statement', 'var a = [1, 2].flat();');
   checkTruthy('sibling-added top-level statement is compensated', compensated);
-  checkTruthy('and prints with the parens that make it parse', code.includes('(o?.f)`t`'));
+  checkTruthy('and prints with the parens that seal the call', code.includes('(o?.f)!()'));
 }
 
 // the price of the gate, and the reason it is spelled as a gate rather than a full re-walk: a
 // statement that was already there when we finished is not re-entered, so a sibling mutating INSIDE
 // one is out of reach. What buys that back is a full AST walk on every file. The shape is out of
-// reach only for a sibling that BUILDS one: no emitter in these packages constructs a tagged
-// template or an instantiation at all, and the lowerings only ever remove optional chains, so
+// reach only for a sibling that builds a new sealed chain inside an existing statement, so
 // everything the early pass saw is still all there is. If the trade is revisited, this case says so
 {
   const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();');
@@ -97,7 +90,7 @@ async function plant(where, source, parserPlugins = []) {
 // and the flag is what decides, not luck: the SAME plant in the SAME position is reached once the
 // file owes parens on its own, because then the late pass takes the full walk
 {
-  const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = (o?.f)`x`;');
+  const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = (o?.f)!();', ['typescript']);
   checkTruthy('parens pending: the full walk reaches the same plant', compensated);
 }
 
@@ -108,13 +101,30 @@ async function plant(where, source, parserPlugins = []) {
   checkTruthy('a plain template tag does not owe parens, so the walk stays gated', !compensated);
 }
 
-// ... and the owing tag may sit under a TS wrapper the reprint keeps: the counter asks the
-// restoration's own predicate through it, or the wrapped spelling leaves the walk gated while the
-// tag prints bare - which does not parse at all
-{
-  const { compensated } = await plant('in-existing-statement',
-    'var a = [1, 2].flat();\nvar b = (o?.f!)`x`;', ['typescript']);
-  checkTruthy('a TS-wrapped optional-chain tag still owes parens, so the walk runs full', compensated);
+// Patched generators print both tag spellings without help. Older ones need the
+// late walk, including when a TS wrapper sits between the tag and the optional chain.
+const legacy = generatorWorkarounds(version);
+for (const [release, instantiation, tag, write] of [
+  ['7.29.7', true, true, true], ['7.29.12', false, true, true], ['7.29.13', false, false, true],
+  ['8.0.4', true, true, true], ['8.0.5', true, false, true], ['8.0.10', false, false, false], ['8.1.0', false, false, false],
+]) {
+  const actual = generatorWorkarounds(release);
+  checkTruthy(`workaround boundaries/${ release }`, actual.instantiation === instantiation && actual.tag === tag && actual.write === write);
+}
+for (const source of ['(o?.f)`x`', '(o?.f!)`x`']) {
+  const { compensated, code } = await plant('in-existing-statement',
+    `const tag = ${ source }; var seed = 0;`, ['typescript']);
+  checkTruthy(`tag gets a late walk only on old generators: ${ source }`, compensated === legacy.tag);
+  checkTruthy(`tag remains grouped: ${ source }`, code.includes(source));
+}
+
+for (const [source, pending] of [
+  ['(fn<T>).member', legacy.instantiation],
+  ['(x as number)++', legacy.write],
+  ['(<number>obj.x) = value', legacy.write],
+]) {
+  const { compensated } = await plant('in-existing-statement', `const value = ${ source }; var seed = 0;`, ['typescript']);
+  checkTruthy(`a fixed generator needs no late walk: ${ source }`, compensated === pending);
 }
 
 for (const [source, pending] of [['(o?.f)!()', true], ['o?.f!()', false]]) {
@@ -146,6 +156,7 @@ const SHAPES = [
   ['tagged-template host', 'var r = (t<string>)`x`;'],
   ['conditional test', 'var r = ((s = f)<string>) ? 1 : 2;'],
   ['optional call host', 'var r = (h.m<string>)?.(1);'],
+  ['sealed instantiation call', 'var r = ((o?.f)<string>)(1);'],
   ['sealed non-null call', 'var r = (o?.f)!();'],
   ['sealed non-null member', 'var r = (o?.f)!.x;'],
   ['nested sealed assertion', 'var r = (o?.f!)!();'],
@@ -154,6 +165,93 @@ const SHAPES = [
 const { parse } = requireBabel('@babel/parser');
 function parseTS(source) {
   return parse(source, { sourceType: 'module', plugins: ['typescript'] });
+}
+
+// Older traversal tables omit a parameter property's decorators in both the raw
+// counter and the late restoration. Exercise the omission even on patched hosts.
+// Keep the table swap synchronous: other unit modules can have pending transforms.
+const traverseRequire = createRequire(createRequire(requireBabel.resolve('@babel/core')).resolve('@babel/traverse'));
+const { VISITOR_KEYS } = traverseRequire('@babel/types');
+const parameterKeys = VISITOR_KEYS.TSParameterProperty;
+const decoratorParser = { plugins: ['typescript', 'decorators-legacy'] };
+const typescript = requireBabel('@babel/plugin-transform-typescript');
+function decoratorArgumentResult(code) {
+  try {
+    const cls = parse(code, decoratorParser).program.body.find(node => node.type === 'ClassDeclaration');
+    const [argument] = cls.body.body[0].params[0].decorators[0].expression.arguments;
+    const t = requireBabel('@babel/types');
+    // Lower optionals too: a second print through an old generator can lose a tag's seal again.
+    // eslint-disable-next-line node/no-sync -- the temporary traversal table must not leak to other unit modules
+    const lowered = transformFromAstSync(t.file(t.program([t.expressionStatement(argument)])), null, {
+      configFile: false, babelrc: false, plugins: [typescript, requireBabel('@babel/plugin-transform-optional-chaining')],
+    }).code;
+    return runInNewContext(lowered, { o: null, x: 1 });
+  } catch (error) {
+    return error.name;
+  }
+}
+
+function checkDecoratorHosts(method, omitDecorators) {
+  for (const createParenthesizedExpressions of [false, true]) {
+    for (const parameter of ['value: unknown', 'public value: unknown', 'public value: unknown = 0']) {
+      for (const late of [false, true]) {
+        for (const directive of ['', '// core-js-disable-file\n']) {
+          for (const [expression, expected] of [
+            ['(o?.f)!()', 'TypeError'], ['o?.f!()', undefined],
+            ['((o?.f)<number>)()', 'TypeError'], ['(o?.f)`x`', 'TypeError'],
+            ['(x as number)++', 1],
+          ]) {
+            const source = `class C { constructor(@dec(${ expression }) ${ parameter }) {} }`;
+            // eslint-disable-next-line node/no-sync -- the temporary traversal table must not leak to other unit modules
+            const { code } = transformSync(directive + (late ? '' : source), {
+              configFile: false, babelrc: false, filename: 'decorator-parens.ts',
+              parserOpts: { ...decoratorParser, createParenthesizedExpressions },
+              plugins: [
+                ['@core-js', { method, targets: { ie: 11 } }],
+                ...late ? [() => ({ visitor: {
+                  Program: { exit(p) { p.pushContainer('body', parse(source, decoratorParser).program.body); } },
+                } })] : [],
+              ],
+            });
+            const label = `${ omitDecorators }/${ method }/${ createParenthesizedExpressions }/${ parameter }/${ late }/${ !!directive }`;
+            checkTruthy(`decorator parens/${ label }/${ expression }`, decoratorArgumentResult(code) === expected);
+          }
+        }
+      }
+    }
+  }
+}
+
+for (const omitDecorators of [false, true]) {
+  try {
+    if (omitDecorators) VISITOR_KEYS.TSParameterProperty = parameterKeys.filter(key => key !== 'decorators');
+    const control = parse('class C { constructor(@dec public value: number) {} }', decoratorParser);
+    checkTruthy(`parameter decorators/traversal control/${ omitDecorators }`,
+      traverse.hasType(control, 'Decorator') === (!omitDecorators && parameterKeys.includes('decorators')));
+    for (const method of ['entry-global', 'usage-global', 'usage-pure']) checkDecoratorHosts(method, omitDecorators);
+  } finally {
+    VISITOR_KEYS.TSParameterProperty = parameterKeys;
+  }
+}
+
+// The generator must preserve which expression is updated or assigned, including when
+// the source parser kept explicit parens. A successful reparse alone misses `<T>(x++)`.
+for (const createParenthesizedExpressions of [false, true]) {
+  const source = [
+    '(x as number)++;',
+    '--(x satisfies number);',
+    '(<number>x)--;',
+    '(<number>o.x) = value;',
+    '({ x: (<number>o.x) = value } = source);',
+    'x!++;',
+  ].join('\n');
+  const { code } = await transformAsync(source, {
+    configFile: false, babelrc: false, filename: 'asserted-writes.ts',
+    parserOpts: { plugins: ['typescript'], createParenthesizedExpressions },
+    plugins: [['@core-js', { method: 'usage-pure', targets: { ie: 11 } }]],
+  });
+  checkTruthy(`asserted write targets round-trip/${ createParenthesizedExpressions }`,
+    requireBabel('@babel/types').isNodesEquivalent(parseTS(source).program, parseTS(code).program));
 }
 
 // the planted statement's own top-level expression: what the whole thing evaluates AS
@@ -240,6 +338,7 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
     for (const directive of ['', '// core-js-disable-file\n', '// core-js-disable-next-line\n', '// core-js-disable-line']) {
       for (const [expression, throws] of [
         ['o?.f!()', false], ['(o?.f)!()', true], ['(o?.f!)!()', true],
+        ['((o?.f)<number>)()', true], ['(o?.f)<number>?.()', false],
         ['(o?.f)!?.()', false], ['(o?.f)!.x', true], ['(o?.f)?.x', false],
       ]) {
         const source = `const o: any = null; let result;

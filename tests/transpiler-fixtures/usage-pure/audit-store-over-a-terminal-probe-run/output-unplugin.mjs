@@ -1,10 +1,11 @@
-// A stored terminal realm probe keeps the value of its final window read.
-// Parentheses, dead sequence elements and proven call roots do not turn that probe
-// into a backed realm value. Prefix and computed-key effects run once in source order.
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 
+// A stored terminal realm probe keeps the value of its final window read.
+// Parentheses, dead sequence elements and proven call roots do not turn that probe
+// into a backed realm value. Prefix and computed-key effects run once in source order.
 let e = 0;
+
 let stored;
 
 function dh() {

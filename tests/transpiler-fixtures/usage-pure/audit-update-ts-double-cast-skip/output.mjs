@@ -2,6 +2,6 @@
 // recognisable polyfill target after the wrapper chain unwraps, so `.at` / `.includes`
 // instance polyfills are not injected
 // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
-obj.at! as any as unknown++;
+(obj.at! as any as unknown)++;
 // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
---obj.includes! satisfies any as unknown;
+--(obj.includes! satisfies any as unknown);
