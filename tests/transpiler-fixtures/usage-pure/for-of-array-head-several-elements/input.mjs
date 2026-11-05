@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// A literal keeps its native slots while an independently resolved call supplies its static.
 // Native iteration, source effects and residual bindings stay in order.
 const held = [Math];
 for (const [{ sinh: viaMixedAlias }] of [held, [Math]]) use(viaMixedAlias(1));

@@ -4,8 +4,7 @@
 // semantically identical short-circuit, cosmetic AST-shape divergence -> output-unplugin.mjs
 const arr = [[1]];
 arr.flat?.()?.flatMap(x => x)?.at(0);
-// the SE-keyed POLY optional hop joins the same divergence family; the key SE replays
-// between the receiver memo and the dispatch identically on both emitters
+// The effectful inner key keeps its nested guard on both emitters and runs between the receiver and dispatch.
 arr.flat?.()?.[(eff2(), 'find')](h)?.at(6);
 // inner computed-key SE + hop-key SE replay in native order: the receiver memo hoists
 // AHEAD of the key effects even under the inner chain's guard

@@ -1,6 +1,6 @@
 import { sealedClaimDisposition } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import {
-  optionalMemberStaysGuarded, planSymbolReceiverEffects, planStaticFallbackReceiver,
+  optionalMemberStaysGuarded, planStaticFallbackReceiver,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
   navValueCanShortCircuit,
@@ -8,7 +8,6 @@ import {
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
-import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   dispatchConsumesRun,
   planDeclinedNavigation,
@@ -27,7 +26,6 @@ import {
   isFunctionParamDestructureParent,
   isTaggedTemplateTag,
   mutatedSlotLeftNativeWarning,
-  peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   patternSlotTarget,
   receiverCarriesLiveOptional,
@@ -38,39 +36,31 @@ import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/cla
 import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   assignmentExpression,
-  callExpression,
   chainExpression,
   cloneNode,
   identifier,
   memberExpression,
   sequenceExpression,
-  nullGuardTest,
   nullFirstGuardTest,
   renderInExpressionPlan,
   renderDeclinedNavigation,
   renderLogicalSlotPatch,
   renderStaticFallbackReceiver,
-  renderMethodCall,
-  renderReceiverEffects,
-  renderGuardedMethodCall,
-  planMethodCall,
   renderProxyReceiverPlan,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
   replaceGuardedHop,
-  sealedLayerAbove,
 } from './claim-guards.js';
 import {
   climbToCallerPath,
-  cloneStamped,
   foldPendingReceiverSpineRoot,
   insideMemoClone,
   markSubtreeSkipped,
   noteProxyHopClaimHost,
   sourceSpanKey,
 } from './nav-spine.js';
-import { collapseSymbolProxyRoot, emitSealedKeySeConsume, isSealedDirectSymbolCall } from './se-dispatch.js';
+import { collapseSymbolProxyRoot } from './se-dispatch.js';
 import createProxySpineChannel from './proxy-spine.js';
 import createOptionalDispatchChannel from './optional-dispatch.js';
 import { isSourcedSymbolIteratorMeta, SYMBOL_ITERATOR_PURE_RESULT } from '@core-js/polyfill-provider/detect-usage/globals';
@@ -189,26 +179,8 @@ export default function createAstUsagePureCallback({
   };
   // what the module-scope type-stamp pair needs
   const typeStampCtx = { resolveNodeType, resolvedType };
-  // what the module-scope bare-optional SE dispatch needs
-  const bareOptionalCtx = {
-    adapter,
-    injectorState,
-    injectPureImport,
-    markRewrite,
-    skippedNodes,
-    injector,
-  };
-  // Source context for the SE-key binding and the navigation tail's instance memo.
-  const seKeyReadCtx = {
-    adapter,
-    injectorState,
-    injectPureImport,
-    injector,
-    markRewrite,
-    skippedNodes,
-    assignmentExpression,
-    resolvePure,
-  };
+  // The proxy guard may memoize an instance claim on its surviving tail.
+  const seKeyReadCtx = { injector, assignmentExpression, resolvePure };
   // what the module-scope pristine-hop peel needs
   const hopPeelCtx = { adapter, resolveGlobalPolyfill };
   // what the module-scope nested-guard value render needs
@@ -256,17 +228,12 @@ export default function createAstUsagePureCallback({
   Object.assign(destructureEmit.probeRenderCtx, { substituteProbeProxyRoot });
   Object.assign(nestedGuardCtx, { substituteProbeProxyRoot });
   const {
-    composeGuardTest,
     emitInheritedStatic,
-    emitInstanceWithPeeledSe,
     eraseVestigialReceiverOptionals,
-    guardObject,
     replaceInstanceLike,
-    splitOptionalReceiver,
   } = createOptionalDispatchChannel({
     STAGED_SPLIT,
     adapter,
-    bareOptionalCtx,
     guardCommaMemos,
     inheritedCtx,
     injectPureImport,
@@ -284,14 +251,10 @@ export default function createAstUsagePureCallback({
     resolvePureOrGlobalFallback,
     resolveStaticInheritedMember,
     resolvedType,
-    seKeyReadCtx,
     skippedNodes,
     toHint,
     typeStampCtx,
   });
-  // the destructure drain owes the same probe reads this callback spells on its claims, and its
-  // own emitter has no path to this closure - hand it the bound renders
-
   // `'at' in arr` - the provider plan decides, four spellings apply it (babel-blueprint arms)
   function handleInExpression(meta, metaPath) {
     if (foldedInTests.has(metaPath.node)) return;
@@ -326,36 +289,6 @@ export default function createAstUsagePureCallback({
     markRewrite();
   }
 
-  // `x[S]?.(args)` - the method memo dispatches with its `this` kept:
-  // `_getIteratorMethod(x)?.call(x, args)`, receiver memoized when not reusable; the own
-  // chain wrapper appears only when the source chain does not continue above
-  function emitSymbolIteratorOptionalCall({ metaPath, id, object, parent, memberOptional = false, sideEffects, receiverEffectCount }) {
-    const callPath = metaPath.parentPath;
-    const decision = planMethodCall({
-      receiver: object, optional: true, args: parent.arguments, sideEffects, receiverEffectCount,
-      callPath,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-    });
-    const hooks = {
-      helper: identifier(id), chain: false,
-      mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
-    };
-    const product = memberOptional ? renderGuardedMethodCall(decision, hooks) : null;
-    const dispatch = product ? product.built : renderMethodCall(decision, hooks);
-    const chainContinues = decision.continues;
-    if (memberOptional) {
-      const [testRead] = product.checks;
-      probeTestClones.add(testRead);
-      replaceGuardedHop({ hopPath: callPath, test: nullGuardTest(testRead), built: dispatch, skippedNodes });
-      return;
-    }
-    let target = callPath;
-    if (!chainContinues && target.parentPath?.node?.type === 'ChainExpression') target = target.parentPath;
-    const consumed = callPath.node;
-    target.replaceWith(chainContinues ? dispatch : chainExpression(dispatch));
-    markSubtreeSkipped(skippedNodes, consumed);
-  }
-
   // a proxy-nav symbol receiver collapses through the shared plan: redundant hops drop, a
   // kept chain-assign root re-emits itself, harvested effects ride the collapsed spine
   // (`(a = globalThis.window).self[S]` -> `_gim(a = _globalThis.window)`), a dropped hop's
@@ -377,7 +310,6 @@ export default function createAstUsagePureCallback({
     if (!rendered) return;
     state.object = rendered.object;
     state.memberOptional ||= !!proxyPlan.optional;
-    state.proxyPlanFired = true;
     // effects the plan spelled into its render are consumed - a 'member' plan spells its
     // inner levels' too, so the walk collects every level; the LEAF key's own effects
     // still route through the SE channel over the collapsed receiver
@@ -385,227 +317,45 @@ export default function createAstUsagePureCallback({
     for (let level = proxyPlan; level; level = level.inner) {
       for (const expr of level.harvestedSE ?? []) planConsumed.add(expr);
     }
+    state.receiverEffectCount -= state.pendingEffects.slice(0, state.receiverEffectCount).filter(effect => planConsumed.has(effect)).length;
     state.pendingEffects = state.pendingEffects.filter(effect => !planConsumed.has(effect));
     state.pendingReceiverOnly = false;
   }
 
-  // Bind native guard preparation and ref allocation to the shared effect order.
-  // Effects retain source identity; captures and repeated receiver reads own their nodes.
-  function routeSymbolReceiverEffects(metaPath, state) {
-    const caller = climbToCallerPath(metaPath)?.node;
-    const input = {
-      member: metaPath.node,
-      caller,
-      iteratorEntry: resolveSymbolIteratorEntry(metaPath.node, caller),
-      receiver: state.object,
-      sideEffects: state.pendingEffects,
-      receiverEffects: state.receiverSe,
-      memberOptional: state.memberOptional,
-      liveOptionalReceiver: state.liveOptionalReceiver,
-      callOptional: state.callOptional,
-      collapsed: state.proxyPlanFired,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState, resolvePure: meta => resolvePure(meta, metaPath) },
-    };
-    let plan = planSymbolReceiverEffects(input);
-    if (plan?.split) {
-      const split = splitOptionalReceiver(state.object, metaPath);
-      plan = planSymbolReceiverEffects({ ...input, split: split === STAGED_SPLIT ? null : split });
-    }
-    if (!plan) return false;
-    const result = renderReceiverEffects(plan, {
-      mintRef: () => injector.generateDeclaredRef(metaPath),
-      embed: (node, role) => role === 'receiver' ? cloneStamped(node, typeStampCtx)
-        : role === 'capture' ? cloneNode(node) : node,
-    });
-    state.object = result.receiver;
-    state.effects = result.effects;
-    state.splitDisjuncts = plan.disjuncts ?? null;
-    return true;
-  }
-
   // `obj[Symbol.iterator]()` -> `_getIterator(obj)`; the read form -> `_getIteratorMethod(obj)`
-  // eslint-disable-next-line max-statements -- ordered receiver, key and iterator lookup stages of one claim
   function handleSymbolIterator(meta, metaPath) {
     const { node } = metaPath;
     if (node.object?.type === 'Super') return;
+    const entry = resolveSymbolIteratorEntry(node, climbToCallerPath(metaPath)?.node);
+    if (!isEntryAvailable(entry)) return;
     // Consume the shared source-slot proof before proxy collapse or native guard splitting.
     eraseVestigialReceiverOptionals({ memberOptional: node.optional === true, object: node.object, metaPath });
     // asked of the PROVIDER, before the collapse erases the span that carried the `?.` - the
     // same flag-based verdict the other two emitters read, so all three route alike
-    const proxyRootOptional = meta.symbolReceiverProxyRoot?.isOptionalAccess;
     const proxyRootFired = collapseSymbolProxyRoot(meta, metaPath,
       { resolvePure, injectPureImport, skippedNodes });
-    const parent = metaPath.parentPath?.node;
     const state = {
       object: node.object,
       memberOptional: node.optional === true,
-      callOptional: parent?.type === 'CallExpression' && parent.callee === node && parent.optional,
-      proxyPlanFired: proxyRootFired,
       pendingEffects: meta.sideEffects ?? [],
+      receiverEffectCount: meta.receiverEffectCount ?? 0,
       pendingReceiverOnly: !!meta.sideEffects?.length && meta.receiverEffectCount === meta.sideEffects.length,
-      // asked BEFORE the collapse: a live `?.` anywhere in the receiver keeps the memo (the
-      // null-guard replays the hop effect from it), a sealed or absent one takes the flat route
-      liveOptionalReceiver: proxyRootFired ? !!proxyRootOptional : receiverCarriesLiveOptional(node.object),
-      receiverSe: new Set((meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)),
-      effects: null,
-      // the guard checks of a receiver the effect route split at its live `?.`
-      splitDisjuncts: null,
     };
     if (!proxyRootFired) collapseSymbolReceiver(meta, metaPath, state);
-    const receiverCore = unwrapRuntimeExpr(state.object);
-    const receiverSequence = receiverCore?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(receiverCore) : null;
-    const receiverPure = instanceSynthReceiverPure(receiverSequence?.tail ?? state.object, {
-      scope: metaPath.scope,
-      path: metaPath,
-      adapter,
-      injectorState,
-      resolvePure: m => resolvePure(m, metaPath),
-    });
-    if (receiverPure) {
-      const receiver = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
-      // This pending view keeps source effect identities; the final receiver emission clones it.
-      state.object = receiverSequence ? sequenceExpression([...receiverSequence.prefix, receiver]) : receiver;
-      if (state.pendingEffects.length && !state.memberOptional && !receiverSequence) {
-        state.pendingEffects = [state.object, ...state.pendingEffects];
-      }
-    }
-    if (state.pendingEffects.length || (!state.proxyPlanFired && meta.receiverEffectCount)) {
-      if (!state.pendingEffects.length) return;
-      if (!routeSymbolReceiverEffects(metaPath, state)) return;
-    }
-    const { callOptional, memberOptional, effects } = state;
-    let { object } = state;
-    // a PAREN SEAL makes the `?.` moot for the entry decision: a plainly-called sealed
-    // lookup (`(arr?.[S])()` / `(x?.y?.[S])()`) consumes as the direct get-iterator, the
-    // receiver's own `?.` riding inside the helper argument
-    const sealedDirectCall = isSealedDirectSymbolCall(metaPath);
-    // inner optional hops: the receiver splits at its last-evaluated `?.` MEMBER hop and
-    // the whole consumed shape rides the guard (`foo?.bar[S]()` -> `foo == null ? void 0 :
-    // _getIterator(foo.bar)`); call-hop receivers and doubly-optional forms stay staged.
-    // only a LIVE `?.` splits: a seal below the member ends its chain, a `!` does not
-    // (`foo?.bar![S]()` short-circuits exactly like its assertion-free twin). the effect route
-    // above may have split it already
-    let splitDisjuncts = state.splitDisjuncts ?? null;
-    if (!sealedDirectCall && receiverCarriesLiveOptional(object)) {
-      if (callOptional || effects) return;
-      // the member's own `?.` guards on the MEMO of the carrier receiver instead of a
-      // split (`x?.y?.[S]().next()` -> `null == (_ref = x?.y) ? void 0 : _getIterator(_ref)
-      // .next()`) - emitGuardedSymbolConsume's guardObject keeps the inner short-circuit
-      if (!memberOptional) {
-        const split = splitOptionalReceiver(object, metaPath);
-        if (!split || split === STAGED_SPLIT || split.hopKind !== 'member') return;
-        splitDisjuncts = split.disjuncts;
-        object = split.receiver;
-      }
-    }
-    // the caller ABOVE any seal: the shared resolver peels the callee itself, so the sealed
-    // form needs no second spelling of the entry rule here
-    const entry = resolveSymbolIteratorEntry(node, climbToCallerPath(metaPath)?.node ?? parent);
-    if (!isEntryAvailable(entry)) return;
-    // the computed `Symbol.iterator` key must not ALSO take the plain static swap - the
-    // helper consumes the whole member
-    if (node.computed) markSubtreeSkipped(skippedNodes, node.property);
-    const id = injectPureImport(entry, symbolIteratorHint(entry));
-    markRewrite();
     if (state.pendingReceiverOnly) {
-      object = foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHopSpine, injectPureImport }) ?? object;
+      state.object = foldPendingReceiverSpineRoot(state.object, metaPath, { collapseProxyHopSpine, injectPureImport }) ?? state.object;
     }
-    if (callOptional) return emitSymbolIteratorOptionalCall({
-      metaPath, id, object, parent, memberOptional, sideEffects: state.pendingEffects,
-      receiverEffectCount: state.pendingEffects.filter(effect => state.receiverSe.has(effect)).length,
-    });
-    const consumesCall = entry === 'get-iterator';
-    // extracted from its chain, a carrier receiver takes a wrapper of its own for the print
-    function receiverClone() {
-      return receiverCarriesOptional(object) ? chainExpression(cloneStamped(object, typeStampCtx)) : cloneStamped(object, typeStampCtx);
-    }
-    // a PAREN SEAL between the member and its call (`(arr?.[S])()`): the lookup value is
-    // read plainly, so the `?.` produces no guard - a nullish receiver throws through the
-    // helper exactly like the native `(undefined)()`
-    const callerPath = climbToCallerPath(metaPath);
-    // a SEAL is a real paren - the member's own ChainExpression wrapper is the chain itself
-    // (`x?.[S]` alone must keep its guard), and a `!` before the call continues it (`x?.[S]!()`)
-    const sealed = sealedLayerAbove(metaPath, node);
-    // the METHOD form consumed by a plain call keeps `this`: `x[S](42)` dispatches
-    // `_getIteratorMethod(x).call(x, 42)`; a non-reusable receiver memoizes into the
-    // helper argument (`_getIteratorMethod(_ref = getObj()).call(_ref, arg)`)
-    const methodCallConsume = !consumesCall
-      && callerPath?.node?.type === 'CallExpression' && !callerPath.node.optional
-      && unwrapRuntimeExpr(callerPath.node.callee) === node;
-    const hopPath = consumesCall || (sealed && memberOptional) || methodCallConsume ? callerPath : metaPath;
-    // A seal leaves invocation outside the source optional's short circuit. A whole-call
-    // helper receives the guarded lookup value; a method call keeps its receiver and
-    // evaluates arguments outside the lookup guard.
-    if ((sealedDirectCall || (sealed && methodCallConsume))
-      && (memberOptional || state.liveOptionalReceiver)
-      && (effects?.length || methodCallConsume || meta.sideEffects?.length)) {
-      return emitSealedKeySeConsume({
-        id,
-        object,
-        metaPath,
-        hopPath,
-        callerPath,
-        effects: effects ?? [],
-        checks: splitDisjuncts,
-        methodCallConsume,
-      }, {
-        guardObject,
-        adapter,
-        injector,
-        injectorState,
-        skippedNodes,
-      });
-    }
-    const core = buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone });
-    const built = withSideEffects(core, effects);
-    if (memberOptional && !sealed) {
-      emitGuardedSymbolConsume({ metaPath, id, object, effects, methodCallConsume, callerPath, hopPath });
-      return;
-    }
-    if (splitDisjuncts) {
-      replaceGuardedHop({ hopPath, test: composeGuardTest(splitDisjuncts, null), built, skippedNodes });
-      return;
-    }
-    const consumed = hopPath.node;
-    hopPath.replaceWith(built);
-    markSubtreeSkipped(skippedNodes, consumed);
-  }
-
-  // the consume CORE: the helper call, and for the method form its `.call` dispatch -
-  // a non-reusable receiver memoizes into the helper argument
-  function buildSymbolConsumeCore({ id, object, methodCallConsume, callerPath, metaPath, receiverClone }) {
-    if (!methodCallConsume) return callExpression(identifier(id), [receiverClone()]);
-    const decision = planMethodCall({
-      receiver: object, args: callerPath.node.arguments,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-    });
-    return renderMethodCall(decision, {
-      helper: identifier(id),
-      mintRef: () => injector.generateDeclaredRef(metaPath),
-      embed: (node, role) => role === 'lookup' || role === 'capture' ? receiverClone() : cloneNode(node),
-    });
-  }
-
-  // `x?.[S]` / `x?.[S]()` - the null test guards the whole consumed shape; a non-reusable
-  // receiver memoizes through the shared guard
-  function emitGuardedSymbolConsume({ metaPath, id, object, effects, methodCallConsume, callerPath, hopPath }) {
-    const guard = guardObject(object, metaPath, { interveningEffects: !!effects?.length });
-    const decision = planMethodCall({
-      receiver: guard.makeBase(), prepared: true, sideEffects: effects,
-      args: callerPath?.node?.arguments,
-      ctx: { scope: metaPath.scope, path: metaPath, adapter, injectorState },
-    });
-    const { built } = renderGuardedMethodCall(decision, {
-      helper: identifier(id), guard: { checks: guard.disjuncts, receiver: guard.makeBase() },
-      invoke: methodCallConsume,
-      embed: (node, role) => role === 'receiver' ? guard.makeBase() : cloneNode(node),
-    });
-    const [check] = guard.disjuncts;
-    // the split hands raw CHECKS - the spelling is the canon's, at the render boundary
-    // the shared climb absorbs the plain tail into the alternate
-    // (`x?.[S]().next()` -> `x == null ? void 0 : _getIterator(x).next()`)
-    probeTestClones.add(check);
-    replaceGuardedHop({ hopPath, test: nullGuardTest(check), built, skippedNodes });
+    if (replaceInstanceLike({
+      metaPath,
+      entry,
+      hintName: symbolIteratorHint(entry),
+      object: state.object,
+      sourceOptional: state.memberOptional,
+      sideEffects: state.pendingEffects,
+      receiverEffectCount: state.receiverEffectCount,
+      preparedOptionals: true,
+      consumesCall: entry === 'get-iterator',
+    }) && node.computed) markSubtreeSkipped(skippedNodes, node.property);
   }
 
   // Apply the shared patch product and register the new subtree with the native traversal.
@@ -799,14 +549,10 @@ export default function createAstUsagePureCallback({
       // ? void 0 : ...`); only a HARVESTED assign the render has no slot for stays staged
       if (chainAssignStaged(meta) && meta.sideEffects?.length
         && meta.sideEffects.some(effect => !subtreeContainsNode(node.object, effect))) return;
-      if (meta.sideEffects?.length || meta.receiverEffectCount) {
-        return emitInstanceWithPeeledSe(meta, metaPath, entry, hintName);
-      }
-      // a computed key only reaches here FOLDED (the meta resolved through it) with its
-      // effects already harvested - the emission consumes the member whole, so the dead key
-      // spelling (a discarded `(globalThis, "fl") + "at"`) must not fire its own claims
-      if (node.computed) markSubtreeSkipped(skippedNodes, node.property);
-      replaceInstanceLike({ metaPath, id: injectPureImport(entry, hintName) });
+      // Extract the whole member once. A folded key remains visitable through its
+      // harvested effects; an effect-free key has no claim left after dispatch.
+      if (node.computed && !meta.sideEffects?.length) markSubtreeSkipped(skippedNodes, node.property);
+      replaceInstanceLike({ metaPath, entry, hintName, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount });
       return;
     }
     // a LEAF claim re-visited INSIDE a guard-test clone is the read that test performs: swapping

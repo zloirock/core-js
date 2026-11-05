@@ -6560,7 +6560,8 @@ function containerSelectionArms(node, ctx) {
 // `hostless`: no host spells a slot for the pattern (a catch parameter, a parameter no caller census
 // closes, a head over a held iterable) - the NEAREST default's walk alone answers, its arm open
 // `pairContainers`: instance/caller mirrors and read-only queries may extract literal slots.
-// Static mirrors may pair only to locate an independent receiver default; live slots stay native.
+// Static mirrors may pair only to locate an independent receiver default. A literal
+// source keeps its own native slots without excluding a different source's mirror.
 // `verdictOnly`: the walk answers the arms alone, so it may read a named callee's returned literal and keep a slot
 // foreign to the host - nothing it reaches is rewritten
 function mirrorReceiverNodes({
@@ -6572,6 +6573,7 @@ function mirrorReceiverNodes({
   // whole, or - where it cannot - leaves the host to its other routes rather than bailing
   let foreign = false;
   let nativeReads = false;
+  let literalSource = false;
   // the receivers a level's DEFAULT supplied (below): they stand in the host's PATTERN, not in the
   // slot the plan named, so the span rule below does not apply and the render locates them from
   // the host itself
@@ -6674,7 +6676,10 @@ function mirrorReceiverNodes({
       for (let at = from; at < hops.length; at++) {
         const hop = hops[at];
         if (hop.index !== undefined) {
-          if (!pairContainers && armHop < at && levelLiteral()?.type === 'ArrayExpression') return false;
+          if (!pairContainers && armHop < at && levelLiteral()?.type === 'ArrayExpression') {
+            literalSource = true;
+            return true;
+          }
           if (!run.length) runPattern = hop.level;
           run.push(hop.index);
           // the pattern under an array level is the element's own, like the one under a key
@@ -6706,9 +6711,26 @@ function mirrorReceiverNodes({
         // a static container) and a default stands at or below this level: that level is open
         if (literal?.type !== 'ObjectExpression') {
           if (armHop >= at && !slotValueProvablyDefined(node, ctx)) return forkAtArm(at) === FORK_ONLY;
+          if (armHop >= at && paired) {
+            // A defined container does not prove that its property is defined.
+            // The default of a known realm constructor is dead; a user slot may be missing.
+            const slot = walkStaticReceiverChain({
+              receiverNode: node, walkPath: hops.slice(at, armHop + 1).map(level => level.key ?? String(level.index)),
+              scope: ctx.scope, adapter, path: host, usageNode: node,
+            });
+            if (!slot) {
+              arms.add('open');
+              return forkAtArm(at) === FORK_ONLY;
+            }
+            arms.add('dead');
+            reachedArm = true;
+          }
           break;
         }
-        if (!pairContainers && armHop < at) return false;
+        if (!pairContainers && armHop < at) {
+          literalSource = true;
+          return true;
+        }
         const match = findObjectKeyBeforeSpread(literal.properties, prop => spelledSlotName(prop) === hop.key);
         if (match && literal.properties.slice(literal.properties.indexOf(match) + 1)
           .some(prop => spelledSlotName(prop) === null)) return false;
@@ -6767,7 +6789,8 @@ function mirrorReceiverNodes({
       if (!receiverNodes.includes(tail)) receiverNodes.push(tail);
     }
   }
-  return { receiverNodes, patternNode, patterns, defaultBorn, arms, foreign, nativeReads };
+  if (literalSource && !receiverNodes.length && !nativeReads) return null;
+  return { receiverNodes, patternNode, patterns, defaultBorn, arms, foreign, nativeReads: nativeReads || literalSource };
 }
 
 // The whole index an object rest in `patternNode` over this constructor reads, or null - the one answer
@@ -10195,14 +10218,9 @@ function heldSelectionSlotGuardMeta(objectPattern, { key, adapter }) {
   } : null;
 }
 
-// a nested leaf whose host reads a selection of containers (`containerSelectionArms`) reads one arm's
-// slot per pass: `{ C: { groupBy } } = c ? { C: Object } : { C: Map }` is the flat `{ groupBy } = c ?
-// Object : Map` spelled through containers, so it takes that selection's `fromFallback` meta over the
-// slots the mirror descent reaches, each of which has to name a constructor - and so does one whose
-// level DEFAULT holds such a selection (`{ W: { C: { groupBy } } = c ? { C: Object } : { C: Map } }`),
-// on a host no value spells too (a catch parameter: the default's walk alone answers, as in the plan).
-// usage-pure only: the global union the nested walk collects already covers every arm, and a fallback
-// meta would end it
+// Derive static fallback metadata only from the same receiver slots the mirror may
+// rewrite. A selected literal keeps its native slots; a separately live default
+// may contribute its own constructor. The global leg already unions its sources.
 function selectedContainerSlotMeta(objectPattern, { key, adapter, resolveStaticKey }) {
   if (adapter.method !== 'usage-pure') return null;
   const planHost = mirrorPlanHost(objectPattern, false, false, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
@@ -10214,7 +10232,13 @@ function selectedContainerSlotMeta(objectPattern, { key, adapter, resolveStaticK
   if ([planHost?.node, ...walked?.hops?.map(hop => hop.defaultNode) ?? []]
     .every(node => !node || !containerSelectionArms(levelLiteralThroughIife(node).literal, ctx))) return null;
   const slots = walked?.hops ? mirrorReceiverNodes({
-    receiverSources: hostless ? [] : [planHost.node], hops: walked.hops, host, adapter, hostPattern: walked.pattern, hostless,
+    receiverSources: hostless ? [] : [planHost.node],
+    hops: walked.hops,
+    host,
+    adapter,
+    hostPattern: walked.pattern,
+    hostless,
+    pairContainers: false,
   })?.receiverNodes : null;
   const metas = (slots ?? []).map(slot => buildDestructuringInitMeta({ initNode: slot, key, ...ctx, resolveStaticKey }));
   if (metas.length < 2 || metas.some(meta => !meta?.object || meta.placement !== 'static')) return null;

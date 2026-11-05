@@ -23058,6 +23058,66 @@ function * generatePositionalResiduals() {
     export const r = [Object.keys(Box).sort(), Box.from([3]), Box.of(7)]; export { effects };` };
 }
 
+// The traces distinguish a live receiver or key from a short-circuited call.
+function * generateOptionalClaimSources() {
+  for (const value of ['null', '{ get rows() { log.push("rows"); return [7]; } }', '{ rows: {} }']) {
+    for (const [form, expr] of [
+      ['read', 'typeof box?.rows[(log.push("key"), "at")]'],
+      ['optional', 'box?.rows[(log.push("key"), "at")]?.((log.push("arg"), -1))?.toFixed(0)'],
+      ['sealed-method', '(box?.rows?.[(log.push("key"), "at")])((log.push("arg"), -1))'],
+      ['sealed-receiver', '(box?.rows)[(log.push("key"), "at")]((log.push("arg"), -1))'],
+      ['iterator', 'box?.rows[(log.push("key"), Symbol.iterator)]?.()?.next()?.value'],
+    ]) yield { ...snippet(`optional-claims/${ form }-${ value === 'null' ? 'null' : value.includes('get') ? 'getter' : 'missing' }`,
+      `(() => { const box = ${ value }; try { return ${ expr }; } catch (error) { return error.name; } })()`), strip: true };
+  }
+  for (const present of [false, true]) {
+    const make = present ? 'function () { log.push(this === box); return [9]; }' : 'undefined';
+    yield { ...snippet(`optional-claims/iterator-after-call-${ present }`, `(() => {
+      const box = { make: ${ make } };
+      return box.make?.()[(log.push("key"), Symbol.iterator)]().next().value;
+    })()`), strip: true };
+    yield { ...snippet(`optional-claims/iterator-argument-${ present }`, `(() => {
+      const self = { [Symbol.iterator](x) { log.push(this === self); return { value: x }; } };
+      const box = ${ present ? '{ self }' : 'null' };
+      return box?.self[(log.push("key"), Symbol.iterator)]?.((log.push("arg"), 5))?.value;
+    })()`), strip: true };
+    yield { ...snippet(`optional-claims/source-selection-${ present }`, `(() => {
+      const values = [];
+      for (const { Array: { of } } of [${ present ? 'globalThis,' : '' }
+        { Array: { get of() { log.push("user"); return null; } } }, ${ present ? '' : 'globalThis' }]) values.push(typeof of);
+      return values;
+    })()`), strip: true };
+    yield { ...snippet(`optional-claims/selected-container-${ present }`, `(() => {
+      function read(flag) { const { C: { groupBy } } = flag ? { C: Object } : { C: Map }; return typeof groupBy; }
+      return [read(true), read(false)][${ present ? 0 : 1 }];
+    })()`), strip: true };
+  }
+  for (const [name, value] of [['present', '[7]'], ['missing', '{ at: null }']]) {
+    yield { ...snippet(`optional-claims/key-before-continuation-${ name }`, `(() => {
+      function get() { log.push("get"); return ${ value }; }
+      return get()[(log.push("key"), "at")]?.((log.push("arg"), 0)).toFixed(1);
+    })()`), strip: true };
+  }
+  for (const [name, receiver] of [['assertion', '(box?.rows as number[])'], ['non-null', 'box?.rows!']]) {
+    yield { ...snippet(`optional-claims/typescript-${ name }`, `(() => {
+      const box = { get rows() { log.push("rows"); return [7]; } };
+      return ${ receiver }[(log.push("key"), Symbol.iterator)]?.()?.next().value;
+    })()`), ts: true, strip: true };
+  }
+  yield { ...snippet('optional-claims/mixed-assignment-head', `(() => {
+    let of; const values = [];
+    for ({ Array: { of } } of [globalThis, { Array: { of: null } }]) values.push(typeof of);
+    return values;
+  })()`), strip: true };
+  for (const [name, source] of [['inline', '[globalThis]'], ['held', 'held']]) {
+    yield { ...snippet(`optional-claims/live-default-${ name }`, `(() => {
+      const held = [globalThis];
+      const [{ UserObject: { fromEntries } = (log.push("default"), Object) }] = ${ source };
+      return fromEntries([["answer", 23]]).answer;
+    })()`), strip: true };
+  }
+}
+
 // The binding values and the trace distinguish a serviced key from a second-pass import.
 function * generateGroupedKeyCaptures() {
   for (const [name, receiver] of [
@@ -23591,5 +23651,6 @@ export function * generate() {
   yield * generateGuardRouteReads();
   yield * generateParameterCaptureBoundaries();
   yield * generatePositionalResiduals();
+  yield * generateOptionalClaimSources();
   yield * generateGroupedKeyCaptures();
 }

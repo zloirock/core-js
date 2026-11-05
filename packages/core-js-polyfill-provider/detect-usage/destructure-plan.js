@@ -76,6 +76,7 @@ import {
   PRIMITIVE_LITERAL_TYPES,
   propBindingIdentifier,
   propertyKeyName,
+  pureImportSourceEntry,
   proxySurfaceIdentifier,
   receiverCarriesLiveOptional,
   relocatedHeadElement,
@@ -151,6 +152,7 @@ import {
   guaranteedRealmObjectName,
   isStaticPlacement,
   navValueCanShortCircuit,
+  moduleDefaultSource,
   peelReceiverSequenceTail,
   peelChainRootValue,
   isPureNavReceiver,
@@ -3683,10 +3685,10 @@ function slotOrInnerDefault(elementNode, slotNode) {
 
 // the literal a LEVEL of a head element holds, as the mirror reaches it: an inline one, a bound
 // one, the one a transparent IIFE returns (descended in its body), the one a CALL yields - bound or
-// not - spelled whole ahead of the call, with the slots the callee fills from its PARAMETERS mapped to
+// not - mirrored after the call, with the slots the callee fills from its PARAMETERS mapped to
 // the call's arguments (`paramArgs`); any other element passes through as written
 function headLevelLiteral(receiver, ctx) {
-  let node = unwrapRuntimeExpr(receiver);
+  let node = unwrapRuntimeExpr(peelReceiverSequenceTail(unwrapRuntimeExpr(receiver)));
   for (let inlined = peelZeroArgIifeReturn(
     node,
     { staticIsMutated: ctx.adapter.isMutatedStaticSlot ?? ctx.adapter.isMutatedStatic },
@@ -3754,13 +3756,17 @@ function leafClaimOff({ key, receivers, ctx, resolvePure }) {
   return { metas, claims };
 }
 
-// does the mirror's literal serve a leaf's claim? only a polyfillable static of the constructor each
-// receiver names through the init-meta canon the flat head asks too (`globalThis.Array`, `(e(), Array)`, a
-// selection) - an instance claim passes through the literal natively, and a call's value is no slot for
-// it: its mirror would respell the callee's return or argument
-function mirrorServesLeaf({ prop, key, receivers, claim, resolvePure }) {
+// A static may stay in its receiver mirror when each branch names its builtin or
+// already supplies an imported data slot. Native user slots keep the relocation proof.
+// Instance claims and call results need their ordinary host; the mirror cannot rewrite
+// a callee's return or argument to supply a method.
+function mirrorServesLeaf({ prop, key, receivers, claim, resolvePure, ctx }) {
   return !!claim.claims && receivers.length > 0 && receivers.every((receiver, at) => {
     const meta = claim.metas[at];
+    // A statically imported value is already served on this branch. A user slot
+    // still needs the ordinary relocation proof for any neighbouring builtin.
+    const own = objectLevelPairedProperty(unwrapRuntimeExpr(receiver), key);
+    if (own && own.match.value === own.read && pureImportSourceEntry(moduleDefaultSource({ node: own.read, ...ctx }))) return true;
     return !invocationNode(peelNestedSequenceExpressions(unwrapRuntimeExpr(receiver)).tail)
       && meta?.placement === 'static' && !!meta.object
       && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });
@@ -3815,7 +3821,7 @@ function nestedClaimBeyondMirror(node, receivers, {
     return leafClaims.get(prop);
   }
   function literalServes(prop, key) {
-    return mirrorServesLeaf({ prop, key, receivers, claim: leafClaim(prop, key), resolvePure });
+    return mirrorServesLeaf({ prop, key, receivers, claim: leafClaim(prop, key), resolvePure, ctx });
   }
   const levelUnmirrored = unmirrored || !patternKeysMirrorable({ paramNode: pattern, ...ctx })
     || levelPassthroughOutruns({ node, pattern, literalServes, ctx });
@@ -3853,7 +3859,7 @@ function nestedClaimBeyondMirror(node, receivers, {
           key: itemKey,
           receivers: unmirroredBelow,
           claim: leafClaimOff({ key: itemKey, receivers: unmirroredBelow, ctx, resolvePure }),
-          resolvePure,
+          resolvePure, ctx,
         }),
         ctx,
       })));

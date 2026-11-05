@@ -68,7 +68,6 @@ import {
   mayHaveSideEffects,
   subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
-  classifyReceiverSE,
   reEvaluationObservable,
   CHAIN_HOP_WRAPPER_TYPES,
   deleteHostAboveChain,
@@ -234,10 +233,12 @@ export function planSymbolReceiverRoot(proxyRoot, { sideEffects, receiverEffectC
 // that can throw. A prepared guard already owns that first evaluation; otherwise
 // a whole receiver can carry its own prefix, and only a stable value may be read
 // again after a key. Capture is an application request, never an allocation here.
+// sourceReceiver retains the source identity when native preparation cloned the first read.
 // All slots belong to this synchronous question and remain in their source frame.
 export function planReceiverEffects({
   receiver,
   firstReceiver = receiver,
+  sourceReceiver = firstReceiver,
   sideEffects,
   receiverEffectCount = 0,
   guarded = false,
@@ -254,11 +255,11 @@ export function planReceiverEffects({
   if (seMode === 'peel' && !keyEffects.length) return { receiver, effects: keyEffects };
   if (receiverReads === 1 && (seMode !== 'peel' && !keyEffects.length
     || !guarded && isConstantLiteralReceiver(unwrapRuntimeExpr(receiver)))) {
-    return { receiver, effects: sideEffects.filter(effect => !subtreeContainsNode(receiver, effect)) };
+    return { receiver, effects: sideEffects.filter(effect => !subtreeContainsNode(sourceReceiver, effect)) };
   }
   const interveningEffects = keyEffects.length > 0;
   const prefixEffects = seMode === 'peel' && !guarded ? [] : sideEffects.slice(0, receiverEffectCount)
-    .filter(effect => !subtreeContainsNode(receiver, effect));
+    .filter(effect => !subtreeContainsNode(sourceReceiver, effect));
   if (!reEvaluationObservable(receiver)
     && !(ctx?.adapter && ctx.scope && ctx.path && ctx.resolvePure
       && claimReceiverEvaluationMayThrow(receiver, ctx.resolvePure, ctx))
@@ -272,66 +273,20 @@ export function planReceiverEffects({
       ] : sideEffects,
     };
   }
+  // A split may have put its generated capture inside the lookup. Evaluate that
+  // write once before the key and reuse its private binding after the key runs.
+  const source = unwrapRuntimeExpr(receiver);
+  const memo = !guarded && source?.type === 'AssignmentExpression' && source.operator === '='
+    && source.left.type === 'Identifier' && ctx?.injectorState?.isOwnPassGeneratedName?.(source.left.name)
+    ? { firstReceiver: receiver, receiver: source.left, capture: false }
+    : planReceiverMemo(receiver, { interveningEffects, ctx });
   return {
-    ...planReceiverMemo(receiver, { interveningEffects, ctx }),
+    ...memo,
     ordered: true,
     prefixEffects,
     keyEffects,
     interveningEffects,
   };
-}
-
-// Before a symbol guard is applied, receiver effects must fit inside its tested
-// value. A live inner link instead requests native split preparation, then uses
-// the same receiver-memo decision. Optional invocation owns its capture elsewhere.
-// `split` contains prepared native slots, not a callback deciding this route.
-export function planSymbolReceiverEffects({
-  member,
-  caller,
-  iteratorEntry,
-  receiver,
-  sideEffects,
-  receiverEffects,
-  memberOptional,
-  liveOptionalReceiver,
-  callOptional,
-  collapsed,
-  ctx,
-  split,
-}) {
-  if (callOptional) return { receiver, effects: null };
-  const keyEffects = sideEffects.filter(effect => !receiverEffects.has(effect));
-  const receiverSE = sideEffects.filter(effect => receiverEffects.has(effect));
-  if (memberOptional) {
-    const peeled = unwrapRuntimeExpr(receiver);
-    const reusable = !receiverSE.length && isReusableReceiver(peeled, { interveningEffects: sideEffects.length > 0, ctx });
-    if (!reusable && receiverSE.some(effect => !subtreeContainsNode(receiver, effect))) return null;
-    return { receiver: reusable ? peeled : receiver, effects: keyEffects };
-  }
-  if (liveOptionalReceiver && !collapsed && receiverCarriesLiveOptional(receiver)) {
-    if (split === undefined) return { split: true };
-    if (split?.hopKind !== 'member') return null;
-    const memo = planReceiverMemo(split.receiver, { interveningEffects: keyEffects.length > 0, ctx });
-    return {
-      ...memo,
-      // A prepared sequence still owns its first read when its stable tail needs no capture.
-      ordered: memo.firstReceiver !== memo.receiver,
-      prefixEffects: [],
-      keyEffects,
-      effects: keyEffects,
-      disjuncts: split.disjuncts,
-    };
-  }
-  const receiverReads = iteratorEntry === 'get-iterator' || !isCallShape(caller)
-    || unwrapRuntimeExpr(caller.callee) !== member ? 1 : 2;
-  return planReceiverEffects({
-    receiver,
-    sideEffects: [...receiverSE, ...keyEffects],
-    receiverEffectCount: receiverSE.length,
-    seMode: classifyReceiverSE(receiver, false, sideEffects),
-    receiverReads,
-    ctx,
-  });
 }
 
 // does a nav (or bare identifier) bottom out on a realm root the binding-aware canon proves -

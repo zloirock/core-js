@@ -14,5 +14,5 @@ function key() {
   _pushMaybeArray(log).call(log, 'key');
   return 'flat';
 }
-const r = null == (_ref = recv(), _ref2 = (key(), _flatMaybeArray(_ref))) ? void 0 : _mapMaybeArray(_ref3 = _ref2.call(_ref)).call(_ref3, x => x);
+const r = null == (_ref = (_ref2 = recv(), key(), _flatMaybeArray(_ref2))) ? void 0 : _mapMaybeArray(_ref3 = _ref.call(_ref2)).call(_ref3, x => x);
 export { r };

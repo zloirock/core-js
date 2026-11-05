@@ -18,6 +18,10 @@ const { check, finish } = createChecker('transform-idempotence');
 // one representative per mechanism the defense cycle touched: the answer each one produces has to
 // survive being fed its own output
 const CASES = [
+  ['computed optional call retains the receiver type', 'function get(value) { mark(); return value; }\n'
+    + 'export const r = get({ at: null })[(key(), "at")]?.(arg()).toFixed(1);'],
+  ['selected container resolves both statics on its first pass',
+    'export function f(flag) { const { C: { groupBy } } = flag ? { C: Map } : { C: Object }; return groupBy; }'],
   ['patched static', 'Object.create = shim;\nvar o = Object.create(null);\nexport const r = o.at(0);'],
   ['reachable-value union', 'let x = null;\nconst f = () => x.at(0);\nx = [1];\nexport const r = f();'],
   ['installed prototype', 'let o = { __proto__: Array.prototype };\nexport const r = o.at(-1);'],
