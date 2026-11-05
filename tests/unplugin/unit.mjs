@@ -8,6 +8,7 @@ import './probe-planning.mjs';
 import './destructure-products.mjs';
 import './receiver-effects.mjs';
 import './fixture-output-normalization.mjs';
+import './syntax-preparation.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { Traverser } from 'estree-toolkit/dist-es/traverse';
 import { Scope } from 'estree-toolkit/dist-es/scope';
@@ -2415,6 +2416,9 @@ async function checkAstPrintContracts() {
     ['line', 'first(); if (enabled) { value = // value\nread(); }'],
     ['multiline', 'first(); if (enabled) { value = /* value\ncontinued */ read(); }'],
     ['next line', 'first();\nif (enabled) { value = /* value */ read(); }'],
+    ['first statement', 'if (enabled) { value = /* value */ read(); }'],
+    ['previous multiline', 'first(\n  argument\n); if (enabled) { value = /* value */ read(); }'],
+    ['separate class methods', 'class A { first() {}\nsecond() { return /* value */ read(); } }'],
     ['list tail', 'first(); if (enabled) { value = read(/* argument */); } /* tail */ after();'],
     ['export tail', 'let a; export { a /* exported */ };'],
     ['import tail', 'first(); import x, { y /* imported */ } from "y";'],
