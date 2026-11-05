@@ -1,7 +1,7 @@
-// The computed method name reads global Array.from outside the parameter scope.
+// The computed method name reads global Array.of outside the parameter scope.
 // The method body keeps the supplied receiver and its own from method.
 class Box {
-  [Array.from([1])[0]](Array) {
+  [Array.of(1)[0]](Array) {
     return Array.from([2]);
   }
 }

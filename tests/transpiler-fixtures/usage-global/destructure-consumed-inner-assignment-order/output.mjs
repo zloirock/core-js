@@ -1,5 +1,6 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.string.iterator";
 // Consuming the inner pattern keeps its setter before the outer binding.
@@ -12,7 +13,7 @@ const target = {
 };
 let read;
 ({
-  from: read
+  of: read
 } = {
   from: target.read
 } = (events.push('init'), Array));

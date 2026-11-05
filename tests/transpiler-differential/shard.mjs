@@ -8,7 +8,7 @@
 // context the rest of tests/ is written in. The workers are pointedly NOT in this branch: they are
 // spawned per evaluation and run under the builtin strip, where this import would cost both dearly.
 import 'zx/globals';
-import { auditDrifted, beginCase, cacheStats, collectCases, collectEvicted, discardCase, hashCode, mixedCase } from './cache-store.mjs';
+import { auditDrifted, beginCase, cacheStats, collectCases, collectEvicted, discardCase, caseSrc, mixedCase } from './cache-store.mjs';
 import { accountSnippet, emptyCoverage } from './coverage.mjs';
 import { generate } from './generate.mjs';
 import { checkGlobalSnippet } from './global-leg.mjs';
@@ -38,8 +38,8 @@ const failures = [];
 const coverage = emptyCoverage();
 // run both oracles over one snippet. `live` opens its cache group with every cell forced to run
 async function judge(snippet, live) {
-  await beginCase({ name: snippet.name, code: snippet.code, ts: snippet.ts, sourceType: snippet.sourceType, live, prefix });
-  const verdict = await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip, snippet.sourceType);
+  await beginCase({ name: snippet.name, code: snippet.code, ts: snippet.ts, sourceType: snippet.sourceType, isolated: snippet.isolated, live, prefix });
+  const verdict = await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip, snippet.sourceType, snippet.isolated);
   const { failed, detail } = summarizeVerdict(verdict);
   const lines = failed ? [`${ snippet.name } :: ${ detail }`] : [];
   // the usage-global leg: skipped for by-design full-env shapes (their stripped divergence is
@@ -104,7 +104,7 @@ for (const snippet of subset) {
   // outcome is a bug in the legs' own bookkeeping and must kill the shard rather than be recorded
   // as a snippet that crashed
   accountSnippet(coverage, outcomes);
-  prefix = hashCode(`${ prefix }\u0000${ snippet.code }`, snippet.ts, snippet.sourceType);
+  prefix = caseSrc({ code: snippet.code, ts: snippet.ts, sourceType: snippet.sourceType, isolated: snippet.isolated, prefix });
   if (++processed % PROGRESS_EVERY === 0 || processed === subset.length) {
     process.stderr.write(`${ cyan(`[differential ${ shard + 1 }/${ total }]`) } ${ cyan(processed) }/${ cyan(subset.length) }`
       + ` | pure ${ green(passed) } ok | ast-leg ${ cyan(coverage['ast-print-through'].checked) }`

@@ -15,12 +15,13 @@ import {
 import { handleMemberExpressionNode, planGuardedStaticNarrow } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { collectMemberUnionCandidates } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
+import { registerDeclAliasIfSound } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import {
   escapedCtorReferencesReducer,
   mutationShapesReducer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
-const { check, checkDeep, checkTruthy, finish } = createChecker('census-alias-writes');
+const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('census-alias-writes');
 
 const sibling = 'function sibling() { var a = {}; a = Set; void a.name; }';
 const rows = [
@@ -508,5 +509,22 @@ for (const parser of adapters) for (const size of [16, 64]) {
   check(`${ label }/escape control`, census.escapedCtorNames.has('Map', true), true);
   checkTruthy(`${ label }/receiver lookup budget`, lookups > size && lookups <= 64 + 6 * size, `${ lookups } lookups`);
 }
+
+for (const [name, source, trusted] of [
+  ['label', 'label: var { Map: M } = globalThis;', true],
+  ['labelled block', 'label: { var { Map: M } = globalThis; }', true],
+  ['conditional label', 'if (flag) { label: var { Map: M } = globalThis; }', false],
+]) runBoth(`alias placement/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const recorded = [];
+  const result = registerDeclAliasIfSound({
+    kind: 'var', localName: 'M', hint: 'Map', stmtPath: path, bindingNode: path.node, adapter,
+    injector: { registerGlobalAlias(...args) { recorded.push(args); } },
+  });
+  check(`${ label }/placement decision`, result, trusted);
+  check(`${ label }/registered once`, recorded.length, 1);
+  check(`${ label }/runtime guard`, recorded[0]?.[2].guarded === true, !trusted);
+});
 
 finish();

@@ -1,5 +1,6 @@
 // Deferred values publish a fresh receiver role on every render. Defaults and receivers
-// are read after child rewrites, so the role must not point into an earlier result.
+// are read after child rewrites on the literal route; navigation keeps its prepared
+// receiver unless explicitly overridden. A render never borrows the previous result.
 import { adapters, createChecker } from '../polyfill-provider/harness.mjs';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import createDestructureDrains from '../../packages/core-js-unplugin/internals/destructure-drain.js';
@@ -37,9 +38,13 @@ for (const guarded of [false, true]) for (const literalRoute of [false, true]) {
   if (guarded) prop.value.right = identifier('lateDefault');
   host.init = identifier('lateReceiver');
   const second = {};
-  const after = value(literalRoute ? null : 'lateReceiver', second);
+  const after = value(null, second);
+  const expectedReceiver = literalRoute ? 'lateReceiver' : 'rows';
   check(`${ label }/role points at the lookup`, second.receiver.callee.name, '_at');
-  check(`${ label }/receiver is read late`, second.receiver.arguments[0].name, 'lateReceiver');
+  check(`${ label }/receiver follows its route`, second.receiver.arguments[0].name, expectedReceiver);
+  const override = {};
+  value('overrideReceiver', override);
+  check(`${ label }/explicit receiver override`, override.receiver.arguments[0].name, 'overrideReceiver');
   check(`${ label }/a second render owns its slot`, first.receiver !== second.receiver, true);
   check(`${ label }/render did not reuse the old value`, JSON.stringify(before), snapshot);
   if (guarded) check(`${ label }/default is read late`, after.consequent.expression.name, 'lateDefault');
@@ -48,7 +53,7 @@ for (const guarded of [false, true]) for (const literalRoute of [false, true]) {
   checkDeep(
     `${ label }/prefix reaches only the current receiver`,
     second.receiver.arguments[0].expressions.map(node => node.name),
-    ['effect', 'lateReceiver'],
+    ['effect', expectedReceiver],
   );
   check(`${ label }/prefix leaves the old result intact`, JSON.stringify(before), snapshot);
 }

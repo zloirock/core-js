@@ -3,5 +3,5 @@
 const events = [];
 const target = { set read(value) { events.push(value([2])[0]); } };
 let read;
-({ from: read } = { from: target.read } = (events.push('init'), Array));
+({ of: read } = { from: target.read } = (events.push('init'), Array));
 export const result = [read([5]), events];

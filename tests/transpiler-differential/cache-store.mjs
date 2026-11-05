@@ -60,10 +60,11 @@ export function hashCode(code, ts = false, sourceType = 'module') {
   return createHash('sha256').update(ts ? '1' : '0').update(sourceType === 'script' ? 'S' : 'M').update(code).digest('hex').slice(0, 16);
 }
 
-// a group's address: the snippet's own bytes AND the chunk prefix it runs behind (see `beginCase`).
+// A group's address includes its own bytes, execution isolation and the chunk prefix
+// it runs behind (see `beginCase`). The default shared route retains its former address.
 // exported so nothing has to re-derive the formula - a second spelling of it would drift silently
-export function caseSrc({ code, ts = false, prefix = '', sourceType = 'module' }) {
-  return hashCode(`${ prefix }\u0000${ code }`, ts, sourceType);
+export function caseSrc({ code, ts = false, prefix = '', sourceType = 'module', isolated = false }) {
+  return hashCode(`${ isolated ? 'isolated\u0000' : '' }${ prefix }\u0000${ code }`, ts, sourceType);
 }
 
 // --- shard side ---
@@ -129,7 +130,7 @@ function cellValue(cell) {
 // depends on more than its own code (the corpus has shapes that read how many properties `globalThis`
 // carries, which grows as modules load) would otherwise be judged by mixing a value recorded in one
 // run with one produced in another, and diverge for a reason the product had nothing to do with.
-export async function beginCase({ name, code, ts = false, live = false, prefix = '', sourceType = 'module' }) {
+export async function beginCase({ name, code, ts = false, live = false, prefix = '', sourceType = 'module', isolated = false }) {
   const cases = await loadedCases();
   currentName = name;
   currentTs = ts;
@@ -140,7 +141,7 @@ export async function beginCase({ name, code, ts = false, live = false, prefix =
   // shifted prefix voids the whole group, which is exactly right - the recorded values described a
   // realm that no longer exists. A plugin edit leaves the prefix untouched and keeps the cache warm;
   // a corpus edit invalidates what follows it, which is the work that genuinely has to be redone
-  currentSrc = caseSrc({ code, ts, prefix, sourceType });
+  currentSrc = caseSrc({ code, ts, prefix, sourceType, isolated });
   currentSourceHash = hashCode(code, ts, sourceType);
   const stored = cases[name];
   currentStored = !live && stored?.src === currentSrc ? stored : null;

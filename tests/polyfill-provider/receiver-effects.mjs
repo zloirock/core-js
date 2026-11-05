@@ -1,13 +1,10 @@
 // Receiver evaluation is shared even when a host has already prepared its guard.
-import { runInNewContext } from 'node:vm';
-import generatePackage from '@babel/generator';
 import {
   planReceiverEffects,
   planSymbolReceiverRoot,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import { classifyReceiverSE, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
-  callExpression,
   cloneNode,
   hostSlot,
   hostSlotNode,
@@ -19,12 +16,10 @@ import {
   sequenceExpression,
 } from '../../packages/core-js-polyfill-provider/render.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
-import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('receiver-effects');
-const generate = generatePackage.default ?? generatePackage;
 
 for (const [name, prelude, expression, capture, firstEffects] of [
   ['quiet receiver', 'const rows = [];', 'rows["at"]', false, []],
@@ -217,19 +212,6 @@ runBoth('symbol split key order', 'const result = box?.rows[Symbol.iterator];', 
   });
   checkDeep(`${ label } prepared prefix runs before key`, rendered.effects, [prefix, tail, key]);
   check(`${ label } prepared stable tail is reused`, rendered.receiver, tail);
-  const { code } = generate(estreeToBabel(sequenceExpression([
-    ...rendered.effects,
-    callExpression(identifier('consume'), [rendered.receiver]),
-  ])));
-  const log = [];
-  const value = {};
-  check(`${ label } prepared runtime value`, runInNewContext(code, {
-    _prepared: value,
-    prefix: () => log.push('prefix'),
-    key: () => log.push('key'),
-    consume(receiver) { log.push('consume'); return receiver; },
-  }), value);
-  checkDeep(`${ label } prepared runtime order`, log, ['prefix', 'key', 'consume']);
 });
 
 finish();

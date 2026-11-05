@@ -9,6 +9,7 @@ import {
   sealedClaimDisposition,
   spineHoldsKeptWrite,
   navGuardKeepsStoredProbe,
+  probeHopInValue,
 } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
 import { canCollapseDeletedNavigation, planProvenNavGuardCollapse, sealedChainBoundary } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -278,5 +279,25 @@ runBoth('stored optional receiver under multiple hops',
     check(`${ label } retained store under the hops`, spineHoldsKeptWrite(source), true);
     check(`${ label } a hop is not the stored value itself`, spineHoldsKeptWrite(source, { throughHops: false }), false);
   });
+
+// Probe membership follows the stored value's source extent, not the outer expression.
+for (const expression of [
+  '(held = globalThis.window)?.self',
+  '(prefix(), held = globalThis.window)?.self',
+  '(held = (prefix(), globalThis.window))?.self',
+]) runBoth(`stored probe extent/${ expression }`, `let held; const result = ${ expression };`, (parser, program, label) => {
+  const rootAssign = parser.pickPath(program, 'AssignmentExpression').node;
+  const members = parser.collectPaths(program, 'MemberExpression');
+  if (parser.name === 'babel') members.push(...parser.collectPaths(program, 'OptionalMemberExpression'));
+  const inside = members.find(path => path.node.property.name === 'window').node;
+  const outside = members.find(path => path.node.property.name === 'self').node;
+  const plan = { rootAssign };
+  const before = JSON.stringify(rootAssign);
+  check(`${ label }/probe in stored value`, probeHopInValue(plan, { node: inside }), true);
+  check(`${ label }/probe above store`, probeHopInValue(plan, { node: outside }), false);
+  check(`${ label }/no store`, probeHopInValue({}, { node: inside }), false);
+  check(`${ label }/minted node has no source extent`, probeHopInValue(plan, { node: { ...inside, start: undefined } }), false);
+  check(`${ label }/query retains prefix and store`, JSON.stringify(rootAssign), before);
+});
 
 finish();

@@ -1,7 +1,7 @@
 // Static dispatch preparation retains source effects and refuses live guards.
 import { prepareStaticReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { isReusableReceiver, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -81,6 +81,22 @@ for (const receive of ['.window', '[windowKey]']) runBoth(`retained ${ receive }
     const receiver = unwrapRuntimeExpr(path.node.object);
     if (receive === '.window') check(`${ label } outer hop is reserved`, handledObjects.has(receiver), true);
     check(`${ label } backed self remains visitable`, handledObjects.has(unwrapRuntimeExpr(receiver.object)), false);
+  });
+
+runBoth('adopted import does not prove receiver reuse',
+  'import max from "@core-js/pure/actual/number/max-safe-integer"; const value = max;',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    for (const own of [false, true]) {
+      const injectorState = {
+        isOwnPassPureBinding: () => own,
+        getPureImport: () => ({ entry: 'number/max-safe-integer' }),
+      };
+      check(`${ label }/own pass ${ own }`, isReusableReceiver(path.node.init, {
+        interveningEffects: true, ctx: { path, scope: path.scope, adapter, injectorState },
+      }), own);
+    }
   });
 
 finish();

@@ -165,9 +165,10 @@ function lazyModule(code, ts, sourceType) {
   let promise = null;
   return () => promise ??= writeModule(code, ts, sourceType);
 }
-// Evaluate with full builtins: Modules share this realm; Scripts get a fresh CommonJS worker.
-async function evalInRealm(file, sourceType = 'module', nativeAlias = false) {
-  if (sourceType === 'script') return runInWorker(await file(), { sourceType, strip: false, nativeAlias });
+// Evaluate with full builtins. Namespace-sensitive Modules and all Scripts get a fresh
+// worker, so a neighbouring import cannot install a static on their ponyfill constructor.
+async function evalInRealm(file, sourceType = 'module', nativeAlias = false, isolated = false) {
+  if (isolated || sourceType === 'script') return runInWorker(await file(), { sourceType, strip: false, nativeAlias });
   try {
     const mod = await import(pathToFileURL(await file()).href);
     return runtimeKey({ ok: true, r: mod.r, effects: mod.effects });
@@ -216,8 +217,8 @@ function ensureWorker() {
   return workerReady;
 }
 // re-run an already-written module file in the builtin-stripped realm; returns its runtimeKey
-async function evalStripped(file, sourceType = 'module') {
-  if (sourceType === 'script') return runInWorker(file, { sourceType, nativeAlias: false });
+async function evalStripped(file, sourceType = 'module', isolated = false) {
+  if (isolated || sourceType === 'script') return runInWorker(file, { sourceType, nativeAlias: false });
   await ensureWorker();
   // the worker may have died while we awaited readiness - retry once against a fresh fork
   if (!worker) await ensureWorker();
@@ -255,7 +256,7 @@ export function setEqual(a, b) {
 // `stripCoverage` / `astCoverage` say, for each deep leg, whether the snippet was CHECKED or the
 // NAMED reason it was not: the shard turns them into the run's coverage accounting, and a leg that
 // stops deep-checking then shows as a shortfall instead of as a silently smaller number
-export async function checkSnippet(src, options, ts = false, stripCheck = false, sourceType = 'module') {
+export async function checkSnippet(src, options, ts = false, stripCheck = false, sourceType = 'module', isolated = false) {
   const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src, options, ts, timed: true, sourceType });
   if (babelError || unpluginError) {
     return { transformCrash: true, babelError, unpluginError, stripCoverage: 'transform-crash', astCoverage: 'transform-crash' };
@@ -281,7 +282,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false,
     evaluate: async () => {
       Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
       try {
-        return await evalInRealm(lazyModule(src, ts, sourceType), sourceType, true);
+        return await evalInRealm(lazyModule(src, ts, sourceType), sourceType, true, isolated);
       } finally {
         delete globalThis.self;
       }
@@ -311,7 +312,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false,
         evaluate: async () => {
           Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
           try {
-            return await evalInRealm(lazyModule(astPrinted, ts, sourceType), sourceType, true);
+            return await evalInRealm(lazyModule(astPrinted, ts, sourceType), sourceType, true, isolated);
           } finally {
             delete globalThis.self;
           }
@@ -326,8 +327,8 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false,
   // not written at all when both realms answer from the cache
   const babelFile = lazyModule(babelOut, ts, sourceType);
   const unpluginFile = lazyModule(unpluginOut, ts, sourceType);
-  const babelRun = WANT_BABEL ? await cached({ type: 'pure-babel', code: babelOut, evaluate: () => evalInRealm(babelFile, sourceType) }) : null;
-  const unpluginRun = WANT_UNPLUGIN ? await cached({ type: 'pure-unplugin', code: unpluginOut, evaluate: () => evalInRealm(unpluginFile, sourceType) }) : null;
+  const babelRun = WANT_BABEL ? await cached({ type: 'pure-babel', code: babelOut, evaluate: () => evalInRealm(babelFile, sourceType, false, isolated) }) : null;
+  const unpluginRun = WANT_UNPLUGIN ? await cached({ type: 'pure-unplugin', code: unpluginOut, evaluate: () => evalInRealm(unpluginFile, sourceType, false, isolated) }) : null;
   mark('eval transformed x2', t0);
 
   // stripped-realm oracle: gated on the snippet's `strip` flag - the generator's assertion that this
@@ -351,10 +352,10 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false,
   if (stripCoverage === 'checked') {
     t0 = process.hrtime.bigint();
     babelStripped = WANT_BABEL
-      ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile(), sourceType) })
+      ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile(), sourceType, isolated) })
       : null;
     unpluginStripped = WANT_UNPLUGIN
-      ? await cached({ type: 'strip-unplugin', code: unpluginOut, evaluate: async () => evalStripped(await unpluginFile(), sourceType) })
+      ? await cached({ type: 'strip-unplugin', code: unpluginOut, evaluate: async () => evalStripped(await unpluginFile(), sourceType, isolated) })
       : null;
     strippedMismatch = (WANT_BABEL && babelStripped !== native) || (WANT_UNPLUGIN && unpluginStripped !== native);
     mark('stripped worker x2', t0);

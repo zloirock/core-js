@@ -10,6 +10,8 @@
 // run must produce exactly what the cold one did.
 import { fileURLToPath } from 'node:url';
 import { createContext, runInContext } from 'node:vm';
+import { CACHE_MACHINERY, STRIP_DEPS } from './cache-machinery.mjs';
+import { generate } from './generate.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { coverageShortfalls, emptyCoverage, skippedTotal } from './coverage.mjs';
 import { buildStripScript } from './strip-manifest.mjs';
@@ -48,6 +50,19 @@ const store = await import('./cache-store.mjs');
 const { applyRuntimeStamps, beginCase, cached, caseSrc, collectCases, discardCase, hashCode, mergeCases, mixedCase, nextRound } = store;
 
 check('hashCode separates the TS flag', hashCode('x', true) === hashCode('x', false), false);
+check('isolation changes the group address', caseSrc({ code: 'x', isolated: true }) === caseSrc({ code: 'x' }), false);
+check('omitted isolation preserves shared-realm addresses', caseSrc({ code: 'x', isolated: false }), caseSrc({ code: 'x' }));
+// Every foreign helper in generated source affects evaluation without changing emitter output.
+const helperPaths = new Set();
+for (const snippet of generate()) for (const match of snippet.code.matchAll(/["'](?<file>file:[^\s"']+)["']/gu)) {
+  helperPaths.add(path.relative(HERE, fileURLToPath(match.groups.file)).replaceAll('\\', '/'));
+}
+check('foreign dependency census is live', helperPaths.has('../e2e-usage-pure/unbacked-window-host.cjs'), true);
+for (const helper of helperPaths) check(`cache includes ${ helper }`, CACHE_MACHINERY.includes(helper), true);
+const harnessSource = await fs.readFile(join(HERE, 'harness.mjs'), 'utf8');
+for (const match of harnessSource.matchAll(/from '(?<dependency>@babel\/plugin-[^']+)'/gu)) {
+  check(`cache includes strip dependency ${ match.groups.dependency }`, STRIP_DEPS.includes(match.groups.dependency), true);
+}
 
 // a planted cell is addressed by the hashes the store itself computes, so the fixture is built from
 // them rather than from literals that would drift the moment the hashing changes
@@ -85,6 +100,9 @@ checkDeep('both cells survive in the working set', [collectCases().live['pure-ba
 
 await beginCase({ name: 'live', code: SRC, sourceType: 'script' });
 check('the same source in another source goal evaluates', (await evaluated('live', 'pure-babel', OUT)).ran, true);
+
+await beginCase({ name: 'live', code: SRC, isolated: true });
+check('a formerly shared evaluation is not reused in isolation', (await evaluated('live', 'pure-babel', OUT)).ran, true);
 
 await beginCase({ name: 'moved', code: SRC });
 check('a cell whose code moved evaluates', (await evaluated('moved', 'pure-babel', OUT)).ran, true);
@@ -406,4 +424,28 @@ try {
   iteratorPollution = error.message;
 }
 check('the final audit detects symbol-keyed iterator pollution', iteratorPollution.includes('%IteratorPrototype%.Symbol.dispose'), true);
+
+// A namespace import in one evaluation must not arm another row or the other emitter.
+// The ordinary shared route is the positive contamination control, not the oracle.
+process.env.DIFF_TMP = TMP;
+const { checkSnippet, closeStrippedWorker } = await import('./harness.mjs');
+for (const [name, key] of [['map', 'groupBy'], ['promise', 'allSettled']]) {
+  const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const seed = `import C from '@core-js/pure/actual/${ name }'; export const r = typeof C.${ key }; export const effects = [];`;
+  await beginCase({ name: `namespace-seed/${ name }`, code: seed, live: true });
+  const seeded = await checkSnippet(seed, options, false, true);
+  check(`${ name }/shared worker seeded`, seeded.babelStripped, 'OK|"function"|[]');
+  const code = `import C from '@core-js/pure/actual/${ name }/constructor'; export const r = Function('C', 'return typeof C.${ key }')(C); export const effects = [];`;
+  for (const isolated of [false, true]) {
+    await beginCase({ name: `namespace-read/${ name }/${ isolated }`, code, live: true, isolated });
+    const result = await checkSnippet(code, options, false, true, 'module', isolated);
+    const expected = `OK|"${ isolated ? 'undefined' : 'function' }"|[]`;
+    for (const leg of ['native', 'babelRun', 'unpluginRun', 'astPrintRun', 'babelStripped', 'unpluginStripped']) {
+      check(`${ name }/isolation ${ isolated }/${ leg }`, result[leg], expected);
+    }
+    check(`${ name }/isolated source still transforms`, result.importMismatch, false);
+  }
+}
+closeStrippedWorker();
+
 finish();

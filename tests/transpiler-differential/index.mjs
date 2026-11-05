@@ -18,6 +18,7 @@
 import { fork } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { CACHE_MACHINERY, STRIP_DEPS } from './cache-machinery.mjs';
 import { applyRuntimeStamps, mergeCases, nextRound } from './cache-store.mjs';
 import { LEGS, coverageShortfalls, mergeCoverage, skippedTotal } from './coverage.mjs';
 import { generate } from './generate.mjs';
@@ -100,21 +101,7 @@ if (EMITTER !== 'both') echo(red(`SINGLE-EMITTER RUN (${ EMITTER }): the other e
 // machinery edits coexist instead of poisoning each other. the plugins under test are absent on
 // purpose - a changed output invalidates its own cell by its own hash, which is exactly the
 // property that makes an edit cost proportional to its size
-const CACHE_MACHINERY = [
-  '../helpers/restore-property.cjs',
-  'cache-store.mjs',
-  'global-leg.mjs',
-  'global-leg-worker.mjs',
-  'harness.mjs',
-  'rig-aliases.mjs',
-  'realm-runner.mjs',
-  'serialize.mjs',
-  'shard.mjs',
-  'strip-builtins.mjs',
-  'strip-manifest.mjs',
-  'stripped-worker.mjs',
-];
-const STRIP_DEPS = ['@babel/core', '@babel/plugin-transform-typescript', '@babel/plugin-proposal-decorators', '@babel/plugin-transform-class-properties'];
+
 // NUL between parts: a bare concat would let two different states hash equal when bytes move
 // across a boundary (file tail to next file head, version digit to the next version)
 const machinery = createHash('sha256');

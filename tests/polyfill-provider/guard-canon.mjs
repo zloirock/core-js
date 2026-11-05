@@ -400,12 +400,11 @@ runBoth('callee aliases reuse their binding records',
         return name === 'first' && !firstAvailable ? null : reader.getBinding({ scope, name, path: readPath });
       },
       hasBinding(...args) { extraLookups++; return reader.hasBinding(...args); },
-      getBindingNodeType() { extraLookups++; return null; },
     };
     const callHop = { node: path.node, ctx: { adapter: counted, scope: path.scope, path }, seen: new Set() };
     const resolved = resolveInlineCalleeFunction(callHop);
     check(`${ label }/resolved body`, resolved?.node.body.name, 'Map');
-    check(`${ label }/no repeated existence or type searches`, extraLookups, 0);
+    check(`${ label }/no repeated existence searches`, extraLookups, 0);
     check(`${ label }/module and callee share each binding read`, bindingReads, 2);
     check(`${ label }/lookup does not read unrelated adapter facts`, unrelatedReads, 0);
     check(`${ label }/returned context keeps the original adapter`, resolved?.ctx.adapter, counted);
