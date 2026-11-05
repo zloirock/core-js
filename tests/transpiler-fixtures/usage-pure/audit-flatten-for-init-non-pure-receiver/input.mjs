@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A literal user container retains its native static read in the for-init header.
+// The prefix and calls through that binding keep their independent instance polyfills.
 const userGlobal = { Array };
 for (const { Array: { from } } = ((() => [].values())(), userGlobal); false;) from([]).at(0);

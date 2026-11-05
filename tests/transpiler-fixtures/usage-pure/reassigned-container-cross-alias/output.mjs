@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Cross-alias stores preserve the current container instead of recursing through stale initializers.
+// The nested raw read remains native.
 let first = {
   x: Number
 };

@@ -1,6 +1,6 @@
 import _Promise from "@core-js/pure/actual/promise";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A reassigned array wrapper supplies its replacement element to destructuring.
+// The native race read uses the full Promise constructor in that element.
 let rw5 = [{
   p: Object
 }];

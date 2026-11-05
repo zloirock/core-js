@@ -1,8 +1,8 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// A preceding declarator finishes before the constructor-valued getter is captured.
+// The from and name extractions keep that source order.
 class KE {
   static get I() {
     log();

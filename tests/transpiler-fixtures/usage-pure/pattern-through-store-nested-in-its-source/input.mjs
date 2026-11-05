@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Stores nested inside array sources preserve the actual container identity.
+// Native groupBy and allSettled reads use full Map and Promise entries.
 let cache;
 export const [[{ groupBy }]] = [(cache = [Map])];
 

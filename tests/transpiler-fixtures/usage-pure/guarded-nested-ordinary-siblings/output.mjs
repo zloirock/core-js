@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Native getter leaves surround a served constructor at their original source positions.
+// Each getter observes only the bindings already initialized before its own read.
 const log = [];
 const _ref = {
     get at() {

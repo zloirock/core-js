@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Parentheses preserve the array-wrapper boundary and its native static/rest reads.
+// The flat realm twin extracts values while retaining the same rest exclusions.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const [{ Object: { keys, ...restA } }] = ([globalThis]);

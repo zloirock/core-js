@@ -10,8 +10,8 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Set from "@core-js/pure/actual/set";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// Getter reads in initializer prefixes remain observable even when a static receiver is discarded.
+// Captures, bodyless hosts and native array wrappers each retain the getter once.
 class K {
   static get g() {
     log();

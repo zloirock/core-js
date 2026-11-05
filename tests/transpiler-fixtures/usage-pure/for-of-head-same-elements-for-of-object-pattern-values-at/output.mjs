@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
+// A literal-object loop element keeps its native Object.values read.
+// Its nested array at leaf still dispatches on the captured array receiver.
 for (const _ref of [{
   w: Object,
   y: [1]

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions.
+// A literal-object loop element retains its native static and own data-property reads.
+// An own at value does not request an instance helper.
 for (const {
   w: {
     entries: viaDualBesideData

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Realm properties inside literal containers must not read shadowing local constructor names.
+// The retained native patterns keep their explicit globalThis or self receiver.
 import { Array } from './array.js';
 export function viaParameter(Map) {
   const { a: { groupBy, prototype } } = { a: globalThis.Map };

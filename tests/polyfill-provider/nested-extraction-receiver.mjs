@@ -1,5 +1,6 @@
 // Source lifetime, not parser dialect, determines which nested receiver can be saved.
 import { planAssignmentOverwrite, planLiteralRoute } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { planRetainedObjectCapture } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { identifier, hostSlot, renderNestedExtractionReceiver } from '../../packages/core-js-polyfill-provider/render.js';
 import { resolveNestedReceiverPlan, resolveDestructureReceiverPlan } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
@@ -74,28 +75,35 @@ for (const [name, source, expected] of [
   }
 });
 
-// A surviving reader needs the captured slot; a rest sibling prevents that capture.
+// The early retained-pattern plan owns the capture shape. Retaining a rest sibling
+// does not serve its native instance read; the late overwrite cannot recapture it.
 for (const [name, pattern, init, inline] of [
   ['inner sibling', '{ y: { at: method, length: kept } }', '{ y: holder.rows }', false],
   ['outer sibling', '{ y: { at: method }, kept }', '{ y: holder.rows, kept: 1 }', true],
-  ['rest refuses capture', '{ y: { at: method, ...rest } }', '{ y: holder.rows }', null],
+  ['rest keeps capture', '{ y: { at: method, ...rest } }', '{ y: holder.rows }', false],
 ]) runBoth(name, `let method, kept, rest; (${ pattern } = ${ init });`, (parser, program, label) => {
   const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
     item => item.node.value?.name === 'method');
-  const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+  const hostPath = parser.pickPath(program, 'AssignmentExpression');
+  const assignment = hostPath.node;
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   const ctx = { scope: path.scope, path, adapter, resolveGlobalPolyfill, resolveStaticPolyfill, isOwnAlias: () => false };
   const input = {
     path, assignment, entry: 'instance/at', pending: true,
-    chain: [{ outerPattern: assignment.left, hopProp: assignment.left.properties[0] }],
   };
   const before = JSON.stringify(program.node);
-  const plan = planAssignmentOverwrite(input, ctx);
-  check(`${ label }/capture`, plan?.kind ?? null, inline === null ? null : 'capture');
+  const captureInput = {
+    pattern: assignment.left, init: assignment.right, assignment: true, prop: path.node, hostPath,
+    adapter, kind: 'instance', entry: 'instance/at', meta: { kind: 'property', key: 'at' },
+    resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'instance/at' } : null,
+  };
+  const plan = planRetainedObjectCapture(captureInput);
+  check(`${ label }/capture`, !!plan?.capture, true);
   check(`${ label }/inline leaf`, plan?.capture?.inlineLeaf ?? null, inline);
-  const repeated = planAssignmentOverwrite(input, ctx);
-  check(`${ label }/repeat capture`, repeated?.kind, plan?.kind);
+  const repeated = planRetainedObjectCapture(captureInput);
+  check(`${ label }/repeat capture`, !!repeated?.capture, true);
   check(`${ label }/repeat source slot`, repeated?.capture?.leafPattern, plan?.capture?.leafPattern);
+  check(`${ label }/no late recapture`, planAssignmentOverwrite(input, ctx), null);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
 

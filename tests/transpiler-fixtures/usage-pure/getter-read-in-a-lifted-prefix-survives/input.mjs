@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// Getter reads in initializer prefixes remain observable even when a static receiver is discarded.
+// Captures, bodyless hosts and native array wrappers each retain the getter once.
 class K { static get g() { log(); return 0; } }
 function mkMap() { log(); return Map; }
 const z1 = 1, { from: a1, foo: b1 } = (K.g, Array);

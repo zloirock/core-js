@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Both the outer sequence and inner array-element effects stay in the for-init header.
+// The wrapper and its static from read remain native.
 const seen = [];
 const eff = t => (seen.push(t), t);
 let out;

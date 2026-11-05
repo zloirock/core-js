@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A native array-wrapped Symbol alias identifies a later defaulted iterator read.
+// The iterator token is served and the subsequent computed access uses the iterator helper.
 const [{ Symbol: ArrayWrapSymbol }] = [globalThis];
 const { iterator: viaArrayWrap = fb } = ArrayWrapSymbol;
 export const f = [11, 12][viaArrayWrap];

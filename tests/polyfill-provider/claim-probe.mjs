@@ -64,7 +64,7 @@ for (const [source, kind, readKind] of [
 
 for (const [source, storeAllowed, arrayWrapped] of [
   ['let held; const value = (held = globalThis.window).Array;', true, false],
-  ['let held; const value = [(held = globalThis.window).Array];', false, true],
+  ['let held; const value = [(held = globalThis.window).Array];', true, true],
 ]) runBoth(source, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
@@ -74,7 +74,7 @@ for (const [source, storeAllowed, arrayWrapped] of [
   check(`${ label }/retained holder`, directClaimProbePlan(member, resolvePure, ctx), null);
   check(`${ label }/discarded holder`, directClaimProbePlan(member, resolvePure, ctx,
     { allowStoreHolder: true })?.kind, 'alias');
-  check(`${ label }/mirror owns store`, !!discardedInitProbePlan(path.node.init, resolvePure, ctx)?.aliasProbe, storeAllowed);
+  check(`${ label }/discarded source retains store`, !!discardedInitProbePlan(path.node.init, resolvePure, ctx)?.aliasProbe, storeAllowed);
 });
 
 for (const [source, leafIsProbe, alias] of [

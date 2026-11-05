@@ -113,7 +113,7 @@ import {
   renderSynthActivation,
   sequenceExpression,
 } from '../render.js';
-import { literalNodeValue, nodeRangeContains } from '../resolve-node-type/base.js';
+import { literalNodeValue } from '../resolve-node-type/base.js';
 import {
   classifyVariableDeclarationHost,
   assignmentTwinLeafAdmitted,
@@ -464,7 +464,6 @@ export function planAssignmentOverwrite(input, ctx) {
   if (!target) return null;
   const receiver = planNestedAssignmentReceiver(input, ctx);
   if (!receiver) return null;
-  if (receiver.kind === 'capture') return { ...receiver, target };
   const prunesSlot = consumedAssignmentSlotPrunes(path, ctx);
   return {
     ...receiver,
@@ -477,12 +476,12 @@ export function planAssignmentOverwrite(input, ctx) {
 }
 
 // Choose the receiver of a nested assignment extraction, without importing or editing nodes.
-// A pending host still has source children: it can capture them and anchor a kept surface,
+// A pending host still has source children and can anchor a kept surface,
 // but must not save navigation across a root that will be replaced before drain. A rendered
 // host instead reads its current navigation; its anchors/defaults have already had first refusal.
 // These are source lifetimes, independent of parser dialect. The result owns the read policy;
-// the binding only applies a capture or renders the selected root and keys at that lifetime.
-function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pending = false }, ctx) {
+// the binding renders the selected root and keys at that lifetime.
+function planNestedAssignmentReceiver({ path, assignment, entry, pending = false }, ctx) {
   const { adapter, isOwnAlias, resolvePure, resolveGlobalPolyfill, resolveStaticPolyfill, injectorState } = ctx;
   const prop = path.node;
   const resolveOptions = { allowSePeeledFragment: true, allowNavSegments: !pending };
@@ -520,23 +519,6 @@ function planNestedAssignmentReceiver({ path, assignment, entry, chain = [], pen
   // refreshed at drain; a copied bare token has no navigation whose root rewrite can be missed.
   const direct = node && { kind: 'receiver', node, keys: [], carriesInit: !!carried, refresh: pending && !!carried, rebind: pending };
   if (pending && direct) return direct;
-  if (pending && !copy) {
-    const singleRead = resolveNestedReceiverNode(path, { allowSeFreeSingleRead: true, allowSePeeledFragment: true, adapter });
-    if (singleRead && !isReReferenceableAcrossReads(singleRead, ctx)) {
-      const capture = planNestedKeyedPatternCapture({
-        pattern: assignment.left,
-        init: assignment.right,
-        force: true,
-        plansLeaf: true,
-        prop,
-        kind: 'instance',
-        entry,
-        ctx,
-        ancestors: chain.toReversed().map(level => ({ pattern: level.outerPattern, prop: level.hopProp })),
-      });
-      if (capture) return { kind: 'capture', capture };
-    }
-  }
   const surface = pending && peelTransparentExpr(assignment.right)?.type === 'ObjectExpression'
     ? resolveNestedNavDispatch(path, { adapter, resolvePure }).dispatch : null;
   if (surface?.kind === 'surface' && surface.root && dispatchMayReadNav(path, surface.node,
@@ -853,7 +835,7 @@ export function planInitializerNavigation({ init, prop, kind, entry, keys, sourc
   const guardCtx = { resolvePure: ctx.resolvePure, aliasCtx: ctx };
   return root && isPureNavReceiver(root, guardCtx)
     && isInstanceSurfaceNav(keys.reduce(memberFromKeyName, root), { ctx, isOwnAlias: ctx.isOwnAlias })
-    ? { carried: false, carrier: planInitializerCarrier({ residual: true }), receiver: root } : null;
+    ? { carried: false, receiver: root } : null;
 }
 
 // Choose who evaluates an acquired initializer, before native insertion. One value slot
@@ -1645,12 +1627,12 @@ export function hopNamesMissingAbleCtor(hopProp, resolveGlobalPolyfill) {
 
 // does the host's LEVEL survive a consume, keeping every consumed leaf as a sentinel? an init whose
 // object literal spreads (the spread reads the source's own keys), an array wrapper the pairing walk
-// keeps (`peeled: false` asks it here; a caller that already peeled passes its own verdict), or a
+// keeps (askPairing queries it here; a caller that already paired can skip that query), or a
 // pattern HOP whose key carries an effect (the key has to run once where it stands). one answer for
 // the plan and for the render that re-asks it
-export function hostLevelSurvives(declarator, { peeled = true, ctx = null } = {}) {
+export function hostLevelSurvives(declarator, { askPairing = true, ctx = null } = {}) {
   return objectInitSpreadSurvives(declarator.init) || patternKeepsEffectfulHop(declarator.id, ctx)
-    || (peeled && peelArrayWrapperPair({
+    || (askPairing && peelArrayWrapperPair({
       pattern: declarator.id,
       init: declarator.init,
       liftTrailing: true,
@@ -3277,10 +3259,6 @@ export function buildNestedDestructurePlan({
     return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath));
   }
 
-  // Strict source containment: equal or unknown spans cannot prove a duplicate rescue.
-  function spanStrictlyContains(outer, inner) {
-    return nodeRangeContains(outer, inner) && (outer.start !== inner.start || outer.end !== inner.end);
-  }
   // Unknown spans stay eligible: a synthesized node's effect must not disappear from the harvest.
   function spanWithinSlot(node, host) {
     if (typeof node?.start !== 'number' || typeof host?.start !== 'number') return true;
@@ -3326,10 +3304,8 @@ export function buildNestedDestructurePlan({
     // updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root call.
     // harvested into the plan so the emit re-runs it once ahead of the extraction (full consume)
     // or keeps it verbatim in the residual init (partial consume).
-    // span guard: `peelArrayWrapperPair` may have DEREFERENCED a const-alias wrapper
-    // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
-    // setup already runs at the alias declaration, so harvesting it would double-run - and so
-    // would a RELOCATED head's element, evaluated by the loop head the body declarator reads
+    // A relocated head's source element already ran in the loop. Rescues must stay
+    // within this discarded initializer; an external source span is not its work.
     const probed = init && !headElement
       ? discardRescueNodesWithReads({ node: initBeforeCollapse, scope, adapter, path }) : [];
     const inSlot = declarator.init
@@ -3507,9 +3483,6 @@ export function buildNestedDestructurePlan({
         // globalThis)` left `Set` on the proxy while its twin anchored `{ union } = _Set`). a chain
         // ASSIGNMENT tail is accounted the same way the single-key anchor accounts it: the discard
         // harvest rescues the write whole, and the residual reads the value it stored
-        // ... and a wrapper a SPREAD keeps alive changes nothing here: the anchored prop leaves the
-        // pattern for a declarator of its own like anywhere else, and the emitters keep the wrapper
-        // standing as a husk for the iteration (the native residual would read the missing ctor)
         const initTail = unwrapCollectingSePrefixes(declarator.init, []);
         const reanchored = mayHaveSideEffects(initTail) && !isChainAssignment(initTail)
           ? planned : planned.map(p => anchorMissingAbleResidual(p, pattern, receiver));
@@ -3555,10 +3528,7 @@ export function buildNestedDestructurePlan({
       }
       if (!plan && hopHostEligible) plan = planPeeledProxyHop();
     } else if (receiver && isStaticPlacement(receiver)) {
-      // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
-      // are direct method extractions. an ArrayPattern wrapper (with or without a rest
-      // sibling) survives the residual render - the rebuilt pattern is spliced back into
-      // the original LHS text
+      // A known constructor supplies direct method extractions from this ObjectPattern.
       const outerProps = pattern.properties.map(p => planInnerProp(p, receiver, { node: init }));
       if (outerProps.some(hasExtractions)) {
         plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe };
@@ -3572,17 +3542,7 @@ export function buildNestedDestructurePlan({
       }
     }
   }
-  // a harvested node replays ONCE: the same node taken by two collectors (a call the host init IS,
-  // rescued as the init and again as the call the peel stepped through) keeps its first entry, and a
-  // node that CONTAINS another replays it - the peeled-hop rescue takes `<call>.w` where the discard
-  // rescue already took the `<call>` it reads off, nodes identity cannot match - so the containing
-  // span wins. asked once, BELOW every harvest, since the collectors reach one effect independently
-  if (plan?.discardSe?.length > 1) {
-    const harvested = plan.discardSe;
-    plan.discardSe = harvested.filter((node, index) => harvested.indexOf(node) === index && harvested
-      .every((other, otherIndex) => otherIndex === index || !spanStrictlyContains(other, node)));
-  }
-  if (plan && hostLevelSurvives(declarator, { peeled: false, ctx: { scope, adapter, path } })) {
+  if (plan && hostLevelSurvives(declarator, { askPairing: false, ctx: { scope, adapter, path } })) {
     plan.wrapperSurvives = true;
   }
   // an effectful hop key keeps its level the way a rest does: the hop retires to a sentinel
@@ -4302,7 +4262,7 @@ export function synthPlanFullyCovered(plan, receiver, { contextFor, resolvePure 
   const value = unwrapRuntimeExpr(receiver);
   const named = value?.type === 'LogicalExpression' ? synthReadReceiver(value, contextFor(value)) : receiver;
   const objectName = named ? resolveObjectName({ objectNode: named, ...contextFor(named) }) : null;
-  return !!objectName && plan.every(entry => !entry.optedOut && !entry.raw && typeof entry.lookupKey === 'string' && resolvePure({
+  return !!objectName && plan.every(entry => !entry.optedOut && typeof entry.lookupKey === 'string' && resolvePure({
     kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
   })?.kind === 'static');
 }
@@ -4421,10 +4381,6 @@ export function renderSynthLiteral(entries, {
   cloneKey = cloneHost,
   embed = node => node,
   markSkipped = null,
-  receiverPath = null,
-  requireCoverage = false,
-  resolvedSpelling = false,
-  adapter = aliasCtx?.adapter,
 }) {
   function imported(slot) { return identifier(slot.name ?? injectImport(slot.entry, slot.hintName)); }
   let receiverPlan;
@@ -4466,40 +4422,18 @@ export function renderSynthLiteral(entries, {
   for (const entry of entries) {
     const { key, computed } = renderSynthEntryKey(
       entry,
-      { resolvedSpelling, resolvePure, injectImport, embed, cloneHost: node => cloneKey(node, entry) },
+      { resolvePure, injectImport, embed, cloneHost: node => cloneKey(node, entry) },
     );
     let slot = entry.optedOut ? null : slotFor(entry);
-    if (slot?.unresolved || requireCoverage && !slot) return null;
-    const receiverCtorName = !slot && !receiverPath && !entry.optedOut && !entry.raw && !computed
+    if (slot?.unresolved) return null;
+    const receiverCtorName = !slot && !entry.optedOut && !computed
       ? planReceiver().receiverCtorName : null;
-    if (!receiverPath && !slot && !entry.optedOut && !computed && receiverCtorName) {
+    if (!slot && !entry.optedOut && !computed && receiverCtorName) {
       const candidate = resolvePure({ kind: 'property', object: receiverCtorName, key: entry.lookupKey, placement: 'static' });
       if (candidate?.kind === 'static') slot = candidate;
     }
     const dispatch = !slot && !entry.optedOut && entry.wks !== 'iterator' && !computed && receiverCtorName
       ? instanceHopDispatch({ ctorName: receiverCtorName, key: entry.lookupKey, resolvePure }) : null;
-    function pathRead() {
-      const ref = resolvePassthroughRef(
-        {
-          keyPath: [...receiverPath.keys, entry.lookupKey],
-          receiverName: receiverPath.name,
-          receiverIsProxy: receiverPath.proxy,
-          adapter,
-          resolveGlobalPolyfill: name => resolvePure({ kind: 'global', name }),
-          resolveStaticPolyfill: (ctorName, slotKey) => staticHopPure({ ctorName, key: slotKey, resolvePure }),
-          raw: entry.optedOut || entry.raw,
-        },
-      );
-      let base = ref.pure ? imported(ref.pure) : identifier(ref.name);
-      const pathDispatch = !ref.static && !computed && key.type !== 'Literal' && ref.path.length === 1
-        && ref.path[0] === entry.lookupKey && aliasCtx ? instanceHopDispatch(
-          { ctorName: ref.pure ? ref.ctor : ref.name, key: entry.lookupKey, resolvePure },
-        ) : null;
-      if (pathDispatch) return callExpression(imported(pathDispatch), [base]);
-      for (const hop of ref.path) base = hop === entry.lookupKey
-        ? renderSynthSlotRead({ base, key, computed, lookupKey: hop }) : memberFromKeyName(base, hop);
-      return base;
-    }
     let value;
     if (slot?.instance) {
       const source = slot.receiver;
@@ -4510,15 +4444,15 @@ export function renderSynthLiteral(entries, {
         : planReceiver().selectsInstance ? embed(cloneHost(memo ?? receiver)) : receiverRef();
       value = callExpression(imported(slot), [argument]);
     } else if (slot) value = imported(slot);
-    else if (!receiverPath && (dispatch || entry.wks === 'iterator' && !entry.optedOut)) {
+    else if (dispatch || entry.wks === 'iterator' && !entry.optedOut) {
       value = callExpression(imported(dispatch ?? SYMBOL_ITERATOR_PURE_RESULT), [receiverRef()]);
     } else {
-      value = receiverPath ? pathRead() : renderSynthSlotRead({ base: receiverRef(), key, computed, lookupKey: entry.lookupKey });
+      value = renderSynthSlotRead({ base: receiverRef(), key, computed, lookupKey: entry.lookupKey });
       if (entry.wks === 'iterator' && !entry.optedOut && value.type === 'MemberExpression') {
         value = callExpression(imported(SYMBOL_ITERATOR_PURE_RESULT), [value.object]);
       }
     }
-    if (entry.optedOut || entry.raw) markSkipped?.(value);
+    if (entry.optedOut) markSkipped?.(value);
     // A retained getter observes the pattern's preceding bindings and defaults. Read
     // it at that slot, using the receiver already kept stable by the activation plan.
     properties.push(slot ? renderSynthProperty(key, value, { computed }) : objectGetter(key, value, { computed }));

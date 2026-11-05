@@ -1,6 +1,6 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// Accessor-backed member reads inside literal slots execute once in source order.
+// Their nested static reads remain native across wrapper, alias and sibling hosts.
 const log = [];
 const {
   w: {

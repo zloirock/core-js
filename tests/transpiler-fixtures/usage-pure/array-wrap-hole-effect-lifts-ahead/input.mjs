@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Skipped array slots still run their effects before the selected property reads.
+// Instance and mixed realm captures keep one element value for their extracted and residual leaves.
 const log = [];
 const rows = [[1, 2]];
 const [, { Array: { prototype: { at: viaSurface } } }] = [log.push('n'), (log.push('e'), globalThis)];

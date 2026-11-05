@@ -3,8 +3,8 @@ import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Symbol from "@core-js/pure/actual/symbol";
 import _URL from "@core-js/pure/actual/url";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Selecting literal containers retain all possible constructor values and native static reads.
+// Each stored constructor carries the full surface required by its observed member.
 const promises = {
   C: _Promise
 };

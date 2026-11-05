@@ -2,6 +2,8 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+// A synthesized parameter default retains its nested at claim on every defaulted call.
+// A supplied argument skips that default and keeps its own methods and length.
 const log = [];
 function read({
   of,

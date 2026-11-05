@@ -121,6 +121,19 @@ for (const [expression, nav, keys, computed] of [
   check(`${ label }/computed`, !!result.computed, computed);
 });
 
+for (const [expression, expected] of [
+  ['globalThis?.self', ['self']],
+  ['globalThis.self?.Array', ['self', 'Array']],
+  ['globalThis.window?.self', []],
+]) runBoth(`guarded navigation shape/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator').get('init');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(path.node);
+  const guardCtx = { resolvePure, aliasCtx: { adapter, scope: path.scope, path } };
+  checkDeep(`${ label }/source hop keys`, navHopChain(path.node, guardCtx).keys, expected);
+  check(`${ label }/source untouched`, JSON.stringify(path.node), before);
+});
+
 for (const [expression, landing, prefix = ''] of [
   ['(first(), (second(), globalThis.self))?.custom', 'self'],
   ['(first(), (second(), globalThis.window))?.custom', null],

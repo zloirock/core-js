@@ -9,12 +9,11 @@ import {
   fallbackDestructureHasPolyfillableBranch,
   patternHopKeysToHost,
   decidedRunningOperand,
-  liftedRealmNavEffect,
   observablePrefixElements,
   liftedPrefixSplit,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maybeRegisterAssignmentAliasWrite, registerBindinglessCtorAlias } from '@core-js/polyfill-provider/helpers/class-walk';
-import { harvestDiscardedReceiverSE, readStandsOverAbsentableStore } from
+import { harvestDiscardedReceiverSE } from
   '@core-js/polyfill-provider/detect-usage/members';
 import {
   destructureProbePlan,
@@ -42,7 +41,6 @@ import {
   isPristineProxyGlobal,
   isValidIdentifierName,
   mayHaveSideEffects,
-  memberKeyName,
   observableSequenceElements,
   patternBindingCount,
   patternFullyConsumed,
@@ -62,7 +60,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
-  assignmentNeedsReceiverMemo,
   forInitNeedsReceiverMemo,
   orderDestructureParts,
   partitionDestructureReads,
@@ -92,7 +89,6 @@ import {
   renderClaimProbe,
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
-  renderStaticDefaultGuard,
   exportDeclaration,
   renderDestructureStatements,
   renderDestructurePrefix,
@@ -133,9 +129,8 @@ export function emitAssignStaticDefaultOverwrite({ hostParent, prop, chain, kind
   const id = ctx.injectPureImport(entry, hintName);
   ctx.markRewrite();
   ctx.markSubtreeSkipped(ctx.skippedNodes, hostParent.node);
-  // ... the default is dead text over the pure (always defined) - the canon drops it
-  hostParent.replaceWith(assignmentExpression('=', identifier(prop.value.left.name),
-    renderStaticDefaultGuard({ read: identifier(id), defaultValue: prop.value.right, reread: identifier(id), alwaysDefined: true })));
+  // A static import is always defined, so the leaf default cannot run.
+  hostParent.replaceWith(assignmentExpression('=', identifier(prop.value.left.name), identifier(id)));
   return true;
 }
 
@@ -311,12 +306,11 @@ export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 
   return observableSequenceElements(takeSourceSequencePrefix(declarator, key, ctx), ctx).map(expr => expressionStatement(expr));
 }
 
-// A bodyless assignment has no statement list to splice into. Bind the same capture and
-// read order as a statement host, keeping a sole replacement bare and bracing several parts.
+// A bodyless assignment has no statement list to splice into. Apply the common read order,
+// keeping a sole replacement bare and bracing several parts. Whole-init captures route earlier.
 export function drainBodylessAssignment({ hostNode, jobs }, {
   program,
   markRewrite,
-  mintRefName,
   removeConsumedProps,
   reanchorSoleCtorHopResidual,
   surfaceInitInfo = null,
@@ -342,29 +336,16 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   // stored (the statement host's rule, in the block this slot opens)
   const writeRight = seqPrefix?.length === 1 && peeledRight?.type === 'AssignmentExpression'
     && spellsSameSource(peeledRight, peelTransparentExpr(seqPrefix[0]));
-  // the WHOLE right recorded as the prefix (the sole-consume lift) is no sequence prefix: a sequence
-  // it spells is its own, which the lift canon reads below - matched against the record by count, its
-  // tail was taken for a quiet receiver (`(log(), mk().Map ?? Set)` lost the `mk()` call)
-  const wholeRight = !writeRight && seqPrefix?.length === 1 && seqPrefix[0] === bodylessAssign.right;
   const liftCtx = { ...nodeSite(bodylessAssign.right, jobs[0].metaPath), adapter: memoCtx?.adapter };
   // the right as it stands now, split the way the record was (`liftedPrefixSplit`): the same elements, live
-  const liveSplit = !writeRight && !wholeRight && seqPrefix?.length ? liftedPrefixSplit(peeledRight, liftCtx) : null;
+  const liveSplit = !writeRight && seqPrefix?.length ? liftedPrefixSplit(peeledRight, liftCtx) : null;
   const liveSeq = writeRight ? [peeledRight, peelChainRootValue(peeledRight)]
     : liveSplit && liveSplit.prefix.length === seqPrefix.length ? [...liveSplit.prefix, liveSplit.tail] : null;
-  // ... and a WHOLE right the consume discards owes what the lift canon says, as on the statement
-  // host: nothing past a deciding left (`if (c) ({ of } = Array ?? (log(), Set))` lifts nothing),
-  // spelled as the one expression the statement host prints
-  const wholeRightLift = wholeRight && !residualSurvives ? liftedRealmNavEffect(bodylessAssign.right, liftCtx) : null;
-  // ... and past it, the elements of that right read through its wrappers, which the trim canon keeps
-  // where they run something - the statement host's lift (a TS wrapper leaves with the value it wraps,
-  // a quiet tail behind a prefix with nothing it reads: `if (c) ({ of } = (log(), X || Set))` lifts `log()`)
-  const wholeRightSeq = wholeRight && !residualSurvives && !wholeRightLift ? peelNestedSequenceExpressions(peeledRight) : null;
-  // ... per element ahead of a SURVIVING residual, the statement host's lift there (`f(); g(); m = _Array$from;`)
-  const prefixStatements = wholeRightLift ? liftedPrefixStatements(wholeRightLift.effects, liftCtx)
-    : wholeRightSeq ? liftedPrefixStatements([...wholeRightSeq.prefix, wholeRightSeq.tail], liftCtx)
-    : residualSurvives && liveSeq && !writeRight
-      ? observablePrefixElements(liveSeq.slice(0, -1), liftCtx).map(expr => expressionStatement(expr))
-      : liftedPrefixStatements(writeRight && residualSurvives ? [] : liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? []);
+  // Captured whole initializers never reach this residual-only drain. Its live prefix
+  // is the same split recorded at registration, or the retained write itself.
+  const prefixStatements = residualSurvives && liveSeq && !writeRight
+    ? observablePrefixElements(liveSeq.slice(0, -1), liftCtx).map(expr => expressionStatement(expr))
+    : liftedPrefixStatements(writeRight && residualSurvives ? [] : liveSeq?.slice(0, -1) ?? []);
   // ... and an extraction that READS the receiver beside a surviving residual needs a memo, which a
   // lifted prefix leaves no slot for - unless the quiet tail is a surface both may re-read for free
   if (residualSurvives && seqPrefix?.length && jobs.some(job => job.readsReceiver)
@@ -382,23 +363,6 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
     ? [variableDeclaration('var', mintedNames.map(name => variableDeclarator(identifier(name))))] : [];
   // a SURVIVING residual then reads the quiet tail the prefix left behind - a kept write stays whole
   if (liveSeq && !writeRight && bodylessAssign.left.properties?.length) bodylessAssign.right = liveSeq.at(-1);
-  // the memo verdict needs the residual as it SURVIVES - after the consumed props leave
-  const memoRef = assignmentNeedsReceiverMemo(bodylessAssign, jobs, memoCtx) ? mintRefName() : null;
-  const memoInit = memoRef ? bodylessAssign.right : null;
-  // a MEMOIZED receiver hosts both reads in ONE block: the `_ref` declaration and the
-  // residual reading it belong together, so the slot braces exactly once
-  if (memoRef) {
-    for (const [index, job] of jobs.entries()) {
-      statements[index].expression.right = job.value(memoRef);
-    }
-    bodylessAssign.right = identifier(memoRef);
-    const residuals = bodylessAssign.left.properties.length ? [{ statement: expressionStatement(bodylessAssign) }] : [];
-    const body = [...prefixStatements, ...renderDestructureStatements([], {
-      capture: { name: memoRef, value: memoInit },
-    }), ...varDecl, ...orderedStatements(residuals)];
-    if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
-    return;
-  }
   // A kept key remains in the native residual. Its extraction is ordered by the same
   // live-key rule as a statement host; declarations of minted sentinels lead the block.
   if (sentinelKept) {
@@ -437,7 +401,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       before: partition.before.map(job => entries.get(job)),
       after: partition.after.map(job => entries.get(job)),
       keyFirst: partition.keyFirst,
-    }, residuals, { sourceProps, captured: !!memoRef }).map(part => part.statement);
+    }, residuals, { sourceProps }).map(part => part.statement);
   }
 }
 
@@ -758,14 +722,6 @@ export function captureProbePlan(plan, metaPath, ctx) {
     alternateEffects: live.slice(0, effects.length),
     test: test ? { ...plan.test, source: test } : plan.test,
   };
-}
-
-// the KEY a discarded read spells over a kept store the realm may leave void, or null: by drain time
-// the collapse may have folded that key into the extraction, and the lift rebuilds the read from
-// this name off the live store. the VERDICT is the shared canon's - this only names its answer
-export function absentableStoreReadKeyOf(initNode, ctx) {
-  const read = readStandsOverAbsentableStore(initNode, ctx);
-  return read ? memberKeyName(read) : null;
 }
 
 // Source effects by rendered probe identity. A null slot is the probe's position in the
@@ -1697,10 +1653,9 @@ export function guardedSlotValue(built, valueNode, guardRef) {
   if (!guardRef) return built;
   // the VALUE node is CAPTURED at registration - a sentinel rename detaches it from the prop
   // before the drain, and `.right` still reads lazily so later in-place rewrites land through it.
-  // which of the canon's two default guards applies is the same question both of them answer by:
-  // a plain binding re-reads for free, a dispatch result has to be memoized to be re-read
+  // A static import is always defined; a dispatch result needs one memoized read.
   return built.type === 'Identifier'
-    ? renderStaticDefaultGuard({ read: built, defaultValue: valueNode.right, reread: built, alwaysDefined: true })
+    ? built
     : buildInstanceDefaultGuard({
       assignedRef: identifier(guardRef),
       call: built,

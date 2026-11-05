@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A const-bound literal wrapper retains its native Array.from read.
+// The result type still selects array dispatch for at and includes.
 const wrapper = { a: Array };
 const { a: { from } } = wrapper;
 const arr = from('hi');

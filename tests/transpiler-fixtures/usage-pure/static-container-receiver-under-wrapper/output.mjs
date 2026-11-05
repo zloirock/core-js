@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Member and indexed reads inside literal slots remain the source of native statics.
+// Effectful calls keep their call count across nested and array-wrapped hosts.
 let hits = 0;
 function once() {
   hits += 1;

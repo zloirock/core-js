@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// A receiver store precedes its effectful computed key and remains observable.
+// Direct static claims are served; the array-wrapper twin keeps its native read.
 const log = [];
 let r1;
 (r1 = _globalThis)[_pushMaybeArray(log).call(log, typeof r1), "Array"];

@@ -1,6 +1,6 @@
 import _Iterator from "@core-js/pure/actual/iterator";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A clean literal container keeps its native Iterator.from read.
+// Its stored Iterator uses the full entry so that native read still has the static.
 const clean = {
   S: _Iterator
 };

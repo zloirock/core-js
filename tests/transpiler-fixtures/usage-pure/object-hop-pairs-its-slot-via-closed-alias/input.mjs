@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A closure can reassign the alias stored in a literal container.
+// The native nested static read preserves the value captured by that container.
 let closedAlias = globalThis;
 function closeOver() {
   closedAlias = self;

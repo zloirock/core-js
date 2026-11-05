@@ -7,7 +7,8 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// A call receiver with surviving rest reads cannot be repeated by an overwrite.
+// An instance read beside object rest retains its native source and exclusions.
+// The receiver call and computed key run once; rest, not call repeatability, prevents overwrite.
 let method, rest;
 ({
   [(effect(), Symbol.iterator)]: method = fallback(),

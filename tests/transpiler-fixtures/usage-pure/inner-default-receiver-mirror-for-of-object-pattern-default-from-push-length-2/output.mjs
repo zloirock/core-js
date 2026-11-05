@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// An explicitly undefined keyed loop slot uses Array while a defined slot keeps its supplied value.
+// Both routes preserve the served from claim.
 const out = [];
 for (const {
   k: {

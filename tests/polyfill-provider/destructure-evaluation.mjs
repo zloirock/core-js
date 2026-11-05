@@ -540,8 +540,7 @@ runBoth('rest segmentation refusal', 'const { [key()]: at, ...rest } = held;', (
 for (const [pattern, options, expected] of [
   ['{ at, name }', {}, ['at', 'name']],
   ['{ name }', {}, null],
-  ['{ at = fallback() }', {}, null],
-  ['{ at = fallback() }', { defaults: true }, ['at']],
+  ['{ at = fallback() }', {}, ['at']],
   ['{ at, at: again }', {}, null],
   ['{ at, [key]: other }', {}, null],
   ['{ at, ...rest }', {}, null],

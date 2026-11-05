@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Loop heads reading properties of a served static keep that static as their receiver.
+// Direct, call-produced and array-wrapped hosts preserve their native residual boundaries.
 let arity, viaCall, wrapped, beside, besideName, awaited, opaque;
 const log = [];
 function realm() {

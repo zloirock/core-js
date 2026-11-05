@@ -15,7 +15,6 @@ import {
 } from '../helpers/ast-patterns.js';
 import {
   deleteGuardKeepingHop,
-  canCollapseDeletedNavigation,
   navValueCanShortCircuit,
   navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
@@ -23,7 +22,6 @@ import {
   mutationGuardKeepingHop,
   unbackedProxyHopKey,
   pristineRealmHopKey,
-  callValueCanBeUndefined,
   unbackedTailRidesAbove,
   writtenRunKeptProbeStore,
   proxyCollapseConsumer,
@@ -209,10 +207,9 @@ export function * proxyHopClaimRoutes({
 }
 
 // A sealed source read owns its throw before any outer key or optional reader.
-// Otherwise an admitted guard plan offers its plain-call collapse and root landing.
-// A delete that can erase its guards must either spell the value
-// or stand down; it must never fall back to constructing a conditional delete.
-export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx, deleteHosted }) {
+// The caller admits only plans that need a guard: plain-call and erasable-delete
+// navigation belongs to the ordinary collapse route before this query.
+export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx }) {
   if (sealedChainBoundary(aliasCtx.path.node)
     && sealedClaimDisposition(source(), plan.resolvePure, aliasCtx, reader?.())?.kind === 'throw') {
     const probe = directClaimProbePlan(source(), plan.resolvePure, aliasCtx);
@@ -225,19 +222,7 @@ export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx
     } else yield probe ? { kind: 'sealed-probe', probe, defined: !tail } : { kind: 'stand-down' };
     return;
   }
-  const definedCallRoot = plan.hops.every(hop => !hop.optional && !hop.liveOptional)
-    && plan.call && !callValueCanBeUndefined(plan.call, aliasCtx, plan.resolvePure);
-  if (definedCallRoot) {
-    yield { kind: 'receiver-collapse' };
-    if (plan.rootName && !plan.topAssign && !plan.seqAroundPrefix?.length && !plan.rootEffectCall) {
-      const pure = proxyRunLandingPure({ navNode: source(), ctx: aliasCtx, resolvePure: plan.resolvePure, rootName: plan.rootName });
-      if (pure) yield { kind: 'root-collapse', pure };
-    }
-  }
-  if (canCollapseDeletedNavigation({ hosted: deleteHosted(), guardNode: aliasCtx.path.node,
-    aliasCtx, resolvePure: plan.resolvePure })) {
-    yield { kind: plan.valueFormSpells ? 'delete-collapse' : 'stand-down' };
-  } else yield { kind: 'guard' };
+  yield { kind: 'guard' };
 }
 
 // A plain read through an absent sealed value owns the throw, unless it names the

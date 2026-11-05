@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// A positional assignment pattern keeps its native Set extraction and construction.
+// The known element pairing must not introduce wrapper synthesis.
 let ax, AM, AS;
 ([{ Set: AS }] = [globalThis]);
 export const viaAssignSound = new AS(soundSeed);

@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Selecting wrapper routes retain the whole runtime level when spreads or later keys can affect it.
+// Supported constructor branches are served; unknown alias and getter replacements stay native.
 const [{ hasOwn: viaSpreadShift }] = [...[c ? Object : userObj]];
 const [, { getOwnPropertyNames: viaSpreadAhead }] = [...[0], c ? Object : userObj];
 const { w: { is: viaSpreadLevel } } = { w: c ? Object : userObj, ...more };

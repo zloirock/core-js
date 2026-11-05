@@ -45,9 +45,6 @@ export const STRATEGIES = Object.freeze({
   REPLACE_ASSIGNMENT: 'replace-assignment',
   // empty AssignmentExpression with static value - SE lifts ahead of the host, replace
   LIFT_SE_AND_REPLACE_ASSIGN: 'lift-se-and-replace-assign',
-  // bodyless host + empty AssignmentExpression with SE-bearing static value - block-wrap
-  // so the SE stays conditional on the host. AE counterpart of `WRAP_BODYLESS_SE`
-  WRAP_BODYLESS_SE_ASSIGN: 'wrap-bodyless-se-assign',
   // non-empty AssignmentExpression - insert new assignment before
   INSERT_BEFORE_ASSIGNMENT: 'insert-before-assignment',
 });
@@ -67,7 +64,7 @@ export function planDestructureEmission({
   });
   // AssignmentExpression is the only other shape callers reach here with -
   // function-param destructure / catch / nested-proxy go through other emit paths
-  return planAssignmentExpression({ isEmpty, isBodyless, isStaticValue, hasSideEffects });
+  return planAssignmentExpression({ isEmpty, isStaticValue });
 }
 
 // VariableDeclarator branch dispatcher. extracted as a sub-function to keep the top-level
@@ -93,11 +90,9 @@ function planVariableDeclarator({
 
 // AssignmentExpression branch dispatcher. mirrors `planVariableDeclarator`'s shape:
 // non-empty short-circuits to insertBefore; empty falls through host-shape decisions.
-// bodyless host gate sits ABOVE the SE-lift branch because `plantSideEffect` would
-// hoist the SE past the unbraced slot to the enclosing array-bodied parent
-function planAssignmentExpression({ isEmpty, isBodyless, isStaticValue, hasSideEffects }) {
+// Effectful bodyless assignments already belong to the retained-capture renderer.
+function planAssignmentExpression({ isEmpty, isStaticValue }) {
   if (!isEmpty) return STRATEGIES.INSERT_BEFORE_ASSIGNMENT;
-  if (isBodyless && isStaticValue && hasSideEffects) return STRATEGIES.WRAP_BODYLESS_SE_ASSIGN;
   return isStaticValue ? STRATEGIES.LIFT_SE_AND_REPLACE_ASSIGN : STRATEGIES.REPLACE_ASSIGNMENT;
 }
 

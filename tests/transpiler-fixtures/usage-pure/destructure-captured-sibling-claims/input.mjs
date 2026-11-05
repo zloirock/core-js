@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A captured realm element keeps its store, instance receiver and residual sibling.
+// Its supported Object.keys claim and a later independent Array.from claim are both served.
 export function captured(effect) {
   let held;
   const [{ Array: { prototype: { at } }, Object: { keys }, other }] = [held = (effect(), globalThis)];

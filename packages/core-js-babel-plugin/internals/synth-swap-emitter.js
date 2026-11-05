@@ -275,15 +275,13 @@ export default function createSynthSwapEmitter({
 
   function collapseProxyGlobalReceiver(receiver, {
     aliasCtx = null,
-    isWriteTarget = false,
     throughChainAssign = false,
     hopsOnly = false,
-    carrySource = false,
   } = {}) {
-    const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
+    const plan = planProxyReceiver(receiver, { aliasCtx, throughChainAssign, resolvePure });
     if (!plan) return null;
     if (hopsOnly && plan.rootBinding?.pure) return null;
-    return renderCollapsePlan(plan, { carrySource });
+    return renderCollapsePlan(plan);
   }
 
   // A collapse can retain a store after subsuming its children. Fresh child nodes let
@@ -431,8 +429,8 @@ export default function createSynthSwapEmitter({
     entries.forEach(
       (entry, index) => {
         const property = result.properties[index];
-        if (entry.optedOut || entry.raw) t.traverseFast(property, node => { skippedNodes.add(node); });
         if (entry.optedOut) {
+          t.traverseFast(property, node => { skippedNodes.add(node); });
           // Sibling lowering clones these reads; the source line keeps an explicit
           // opt-out effective after their identity-keyed skip marks are lost. Keep
           // the getter frame synthetic so printing anchors the native read inside it.

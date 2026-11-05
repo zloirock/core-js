@@ -52,7 +52,6 @@ import {
   exportedSentinelSplit,
   invalidateScopeVarIndex,
   isDestructurePattern,
-  isTopLevelThisContext,
   mayHaveSideEffects,
   noteRelocatedHeadName,
   noteRenderRetiredTargets,
@@ -118,7 +117,6 @@ import {
   forInitMemoVerdicts,
   hopChainKeys,
   interleavedSeKeySegments,
-  isMintedOrProxyName,
   jobHostSiblingDeclarators,
   joinSeKeySiblingDeclarator,
   keptSymbolSentinelResidual,
@@ -189,10 +187,8 @@ export default function createDestructureDrains(ctx) {
   }
 
   // the extracted binding's value: a static / global claim is the import binding itself;
-  // an instance claim is the method lookup over the (reusable) receiver. a DEFAULT on the
-  // prop keeps native-miss semantics at the top level (`_Symbol === void 0 ? d : _Symbol`,
-  // the instance form through a memo ref); a default under the nested flatten drops - the
-  // extracted static always wins there, exactly babel's split.
+  // an instance claim dispatches through the receiver and retains its live default.
+  // An always-defined static import makes the source default unreachable.
   // The thunk optionally fills a fresh product with its dispatch receiver. It never retains that
   // product: a second render owns a new slot, and default wrapping preserves the declared read.
   // eslint-disable-next-line max-statements -- per-kind value dispatch, one arm per receiver shape
@@ -213,7 +209,6 @@ export default function createDestructureDrains(ctx) {
     typedHop = null,
     typedNavChain = null,
     guardCtx = null,
-    carriesInit = false,
   }) {
     const defaultPattern = liveDestructureDefault(prop.value, kind);
     const hopDefault = typedHop?.defaultHost;
@@ -249,9 +244,8 @@ export default function createDestructureDrains(ctx) {
     }
     if (kind === 'instance') {
       let receiver = peelTransparentExpr(receiverNode);
-      // a lifted SE prefix leaves the TAIL as the nav (the prefix runs as its own statement) -
-      // unless this dispatch CARRIES the init, which means no residual survives to run it
-      if (!carriesInit && receiver?.type === 'SequenceExpression') {
+      // The lifted prefix runs separately; the dispatch reads its remaining tail.
+      if (receiver?.type === 'SequenceExpression') {
         receiver = peelNestedSequenceExpressions(receiver).tail;
       }
       // the receiver as a dispatch spells it: the LIVE node where the route offers one (a claim
@@ -383,17 +377,12 @@ export default function createDestructureDrains(ctx) {
       // built after the traversal, so the ordinary identifier claim never reaches it
       // Nested hop chains have already selected their base above.
       const barePure = bareProxyGlobalPure(receiver, metaPath, { adapter, resolveGlobalPolyfill });
-      if (barePure) {
-        if (defaultPattern) return null;
-        const id1 = injectPureImport(entry, hintName);
-        const recvId = injectPureImport(barePure.entry, barePure.hintName);
-        return (override, product) => renderDestructureDispatch(identifier(id1), identifier(override ?? recvId), product);
-      }
       const id = injectPureImport(entry, hintName);
+      const recvId = barePure ? injectPureImport(barePure.entry, barePure.hintName) : null;
       if (!defaultPattern) {
         return (override, product) => renderDestructureDispatch(
           identifier(id),
-          override ? identifier(override) : duplicateReceiver(receiverSpelling, injector),
+          override || recvId ? identifier(override ?? recvId) : duplicateReceiver(receiverSpelling, injector),
           product,
         );
       }
@@ -408,7 +397,7 @@ export default function createDestructureDrains(ctx) {
       // default THROUGH that slot, and the moved node must carry them - never a clone
       const fold = leafDefaultFold(ref);
       function thunk(override, product) {
-        const recv = override ? identifier(override)
+        const recv = override || recvId ? identifier(override ?? recvId)
           : proxyNav ? proxyNav() : duplicateReceiver(receiverSpelling, injector);
         return fold(renderDestructureDispatch(identifier(id), recv, product));
       }
@@ -482,17 +471,11 @@ export default function createDestructureDrains(ctx) {
   }
 
   // The ledger owns imported binding identities and source frames. The common renderer owns
-  // flat and nested slot values; only native skip marks and source clones are applied here.
+  // flat slot values; only native skip marks and source clones are applied here.
   function renderPatternLiteral({
     plan,
     receiver,
-    baseName = null,
-    baseIsProxy = false,
-    passthroughPrefix = null,
     slots,
-    rawSlots = null,
-    requireFullCoverage = false,
-    resolvedSpelling = requireFullCoverage,
     memo = null,
     instanceReceiver = null,
     metaPath = null,
@@ -500,18 +483,10 @@ export default function createDestructureDrains(ctx) {
     sealedProbePlan = null,
     passthroughBase = null,
   }) {
-    const name = baseName ?? (receiver?.type === 'Identifier' ? receiver.name : null);
-    const receiverPath = resolvedSpelling && passthroughPrefix?.length && name
-      ? { name, keys: passthroughPrefix, proxy: baseIsProxy || isMintedOrProxyName(name, injectorState) } : null;
-    return renderSynthLiteral(
-      rawSlots?.size ? plan.map(entry => ({ ...entry, raw: rawSlots.has(entry.dedupKey) })) : plan,
+    return renderSynthLiteral(plan,
       {
         receiver: instanceReceiver ?? passthroughBase ?? receiver,
         memo,
-        receiverPath,
-        requireCoverage: requireFullCoverage,
-        resolvedSpelling,
-        adapter,
         aliasCtx: metaPath ? { ...nodeSite(receiver, metaPath), adapter } : null,
         guardedReceiverPlan,
         sealedReceiverPlan: sealedProbePlan,
@@ -558,7 +533,7 @@ export default function createDestructureDrains(ctx) {
       slotFor: entry => synthSlot(slots, entry),
       cloneHost: cloneSource,
       renderLiteral: activation => renderPatternLiteral({
-        ...pending, ...activation, requireFullCoverage: pending.nestedOnly,
+        ...pending, ...activation,
       }),
       renderMemoArgument: () => {
         const argument = renderMemoArg(pending.memoRead, metaPath);
@@ -808,10 +783,8 @@ export default function createDestructureDrains(ctx) {
     return [...lead, ...renderDestructureStatements([declarators], { kind, exported })];
   }
 
-  // one extracted binding's VALUE off the whole-init memo. a DEFAULTED prop keeps
-  // native-miss semantics through the guard ternary; a STATIC re-reads its import
-  // directly (`_Array$from === void 0 ? [] : _Array$from`), an instance dispatch
-  // memoizes through a ref (recorded in `guardRefs`, so the caller can lead with it)
+  // One extracted value off the whole-init memo. Static imports are always defined;
+  // instance defaults memoize the dispatched value through a ref in guardRefs.
   function memoJobValue({ job, refName, guardRefs, receiver = identifier(refName) }) {
     if (job.value) return job.value(refName ?? receiver.name);
     const id = injectPureImport(job.entry, job.hintName);
@@ -905,23 +878,15 @@ export default function createDestructureDrains(ctx) {
       // it - respelled from the seal boundary, carrying the holder - so lifting it here too would
       // run the write twice. where the probe DECLINED, this lift carries that read instead
       const storeRead = discardedReadOverWrite(declarator.init, rescueAssign);
-      // Carried writes are absent from the captured residual list. Where the collapse has
-      // already folded that key away, the read is rebuilt off the
-      // LIVE store (its own value is rewritten by now) plus the key the source spelled
-      const storeReadKey = declJobs.find(job => job.absentableStoreReadKey)?.absentableStoreReadKey ?? null;
-      const readOverWrite = storeReadKey !== null
-        ? storeRead ?? (rescueAssign?.type === 'AssignmentExpression'
-          ? memberFromKeyName(cloneNode(rescueAssign), storeReadKey) : null)
-        : null;
       // ... and the write rides the extraction's own slot only where the init IS the store: nothing
       // is read off it, so the write is the whole value the extraction takes (`{ Array: { from } }
       // = (a = globalThis)`). with a read standing over it, that read is the discarded one and the
       // write lifts as its own statement ahead of the extraction
-      const ridesTheValue = (!readOverWrite && !storeRead && spellableStore
+      const ridesTheValue = (!storeRead && spellableStore
         && declJobs.some(job => job.kind !== 'global'))
         || declJobs.some(job => job.buriedKeyEffect && job.chain?.length);
       if (ridesTheValue) seqRescues.push(rescue);
-      else liftedRescues.push(readOverWrite ?? rescue);
+      else liftedRescues.push(rescue);
     }
     // the CHANNEL decides the grouping: the nested-flatten chain lifts per statement
     // (`new _Set(arr); new _Map();`), the chainless consume joins as one comma
@@ -1122,9 +1087,7 @@ export default function createDestructureDrains(ctx) {
     if (declJobs.every(job => job.kind === 'static' || job.kind === 'global')) {
       return emitPartialStaticMemo();
     }
-    // ... and a receiver-less claim BESIDE the reading ones binds its own pure off no memo, the way
-    // it does in the full-consume memo: what the memo serves is the readers and the residual
-    if (declJobs.every(job => job.kind !== 'instance')) return false;
+    // The remaining group contains an instance reader; receiverless siblings use their imports.
     return emitPartialInstanceMemo();
   }
 
@@ -1383,14 +1346,10 @@ export default function createDestructureDrains(ctx) {
         continue;
       }
       const emptiedHere = declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0;
-      // a DEFAULTED job reads its slot PAST the key effect, so the residual runs first - the
-      // same order the sole-declarator join spells (`{ [(e(), 'k')]: _unused } = [4], s = ...`)
-      const residualFirst = !emptiedHere && declJobs.some(job => job.defaulted && job.sentinel);
-      if (residualFirst) declarators.push(declarator);
       for (const job of orderDeclaratorJobs(declJobs)) {
         declarators.push(variableDeclarator(job.bindingTarget, job.value()));
       }
-      if (!emptiedHere && !residualFirst) declarators.push(declarator);
+      if (!emptiedHere) declarators.push(declarator);
     }
     hostNode.declarations = declarators;
     if (ahead.length) body.splice(at, declarators.length ? 0 : 1,
@@ -1434,35 +1393,6 @@ export default function createDestructureDrains(ctx) {
       job.bindingTarget = job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop);
     }
     return { memoByDeclarator, jobsByDeclarator, memoDeclJobs };
-  }
-
-  // multi-declarator SE-key sentinels stay ONE declaration: each declarator keeps its
-  // residual (the key effect runs in place) and the extraction follows as a sibling
-  // declarator (`{ [(e1(), 'at')]: _unused } = arr, a = _at(arr), ...` - babel's shape);
-  // a single declarator splits with the extraction ahead instead
-  function drainSeKeySentinelSiblings({ hostNode, jobsByDeclarator, memoDeclJobs }) {
-    // an EXPORT host keeps the same shape - the declaration is rewritten in place and its
-    // wrapper rides along, so every binding stays exported from the one statement
-    if (hostNode.declarations.length <= 1 || !jobsByDeclarator.size) return false;
-    // a MEMO-DECL sibling owns its own emission (a hoisted `_ref` and the extractions off it):
-    // rewriting the declaration in place here would leave that declarator raw, its claim lost
-    if (memoDeclJobs?.size) return false;
-    if (jobsByDeclarator.values().some(list => list.some(job => !job.sentinel || !job.seKey
-      || job.catchBorn || job.chain?.length
-      // a receiverless STATIC splits its extraction out instead (`const from = _Array$from;`
-      // first, the residual keeps its own statement - babel's known-global shape)
-      || !job.readsReceiver))) return false;
-    if (jobsByDeclarator.keys().some(declarator => declarator.init?.type !== 'Identifier')) return false;
-    const declarators = [];
-    for (const declarator of hostNode.declarations) {
-      // a declarator here holds at most one flat SE-key claim: the only instance claim off a realm read is
-      // the iterator lookup, and a defaulted one does not extract
-      const declJobs = orderDeclaratorJobs(jobsByDeclarator.get(declarator) ?? []);
-      declarators.push(declarator, ...declJobs.map(job => variableDeclarator(job.bindingTarget, job.value())));
-    }
-    hostNode.declarations = declarators;
-    markRewrite();
-    return true;
   }
 
   // a lifted SE-prefix statement may itself be a destructure ASSIGNMENT whose hop the anchor
@@ -1649,7 +1579,6 @@ export default function createDestructureDrains(ctx) {
       .map(declarator => [declarator, [...declarator.id.properties]]));
     removeConsumedProps(jobs.filter(job => job.host !== 'memo-decl'));
     if (drainSentinelMemoSiblings({ hostNode, body, at, jobs, jobsByDeclarator, memoByDeclarator, memoDeclJobs })) return;
-    if (drainSeKeySentinelSiblings({ hostNode, jobsByDeclarator, memoDeclJobs })) return;
     // sibling-declarator mode: the declaration stays ONE statement, each extraction appended
     // as a declarator after its residual (babel's multi-declarator kept-key shape)
     if (drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator, sourceProps, memoDeclJobs })) return;
@@ -1888,21 +1817,13 @@ export default function createDestructureDrains(ctx) {
       drainBodylessAssignment({ hostNode, jobs }, {
         program,
         markRewrite,
-        mintRefName,
         removeConsumedProps,
         reanchorSoleCtorHopResidual,
         surfaceInitInfo,
-        // the memo verdict is one question for both spellings of this host: a bodyless slot changes
-        // where the statements land, never what the receiver is
         memoCtx: { adapter, injectorState },
       });
       return;
     }
-    // an ALL-ANCHORED line has no consumed sibling to drive the split: every job would only
-    // re-read its own hop off the pure ctor, and babel leaves that line whole on the substituted
-    // global proxy (`({ Set: { intersection }, WeakSet: { customW } } = _globalThis)`)
-    // (a SOLE hop keeps its own re-anchor - that shape is the sole-ctor-hop residual's)
-    if (jobs.length > 1 && jobs.every(job => job.prop?.value?.type === 'ObjectPattern')) return;
     // The common order reads keys before consumption renames their source slots.
     const { before: flatJobs, after: nestedJobs, keyFirst: seKeyResidualFirst }
       = partitionDestructureReads(jobs, job => patternFrame(job.metaPath));
@@ -2012,11 +1933,6 @@ export default function createDestructureDrains(ctx) {
     // source wrote it (`({ customW } = (c++, _Map))`)
     const anchorRhsPrefix = inSequence && !wholeRhsLift && rhsExprs && jobs.length === 1
       && jobs[0].prop?.value?.type === 'ObjectPattern' ? rhsExprs.slice(0, -1) : null;
-    // A top-level this residual precedes every nested extraction, so it can keep the
-    // prefix in its own RHS, preserving both its source slot and its comments.
-    const residualCarriesPrefix = rhsExprs && assignment.left.properties?.length > 0
-      && !flatJobs.length && !memoDecl.length && !anchoredResidual && !seKeyResidualFirst && !inSequence
-      && rhsTail?.type === 'ThisExpression' && isTopLevelThisContext(jobs[0].metaPath);
     const frame = patternFrame(jobs[0].metaPath);
     // a SOLE flat extraction that READS the receiver carries the source's prefix INSIDE its dispatch
     // argument (`at = _atMaybeArray((eff(), arr))`), the declaration hosts' shape and the other leg's:
@@ -2031,7 +1947,7 @@ export default function createDestructureDrains(ctx) {
     // ahead of the extractions, and the whole-right lift stands down for it as every channel here does
     const stmtSeqPrefix = probeLead && !memoRef && assignment.left.properties?.length === 0
       ? liftedPrefixStatements(probeResidualEffects(probeLead), frame)
-      : anchorRhsPrefix || carriesPrefix || residualCarriesPrefix || (wholeRhsLift && discardedRead) ? []
+      : anchorRhsPrefix || carriesPrefix || (wholeRhsLift && discardedRead) ? []
       : wholeRhsLift ? (probeLead
         ? liftedPrefixStatements(probeResidualEffects(probeLead), frame)
         // A child may have respelled a dropped realm navigation onto a minted alias.
@@ -2049,8 +1965,7 @@ export default function createDestructureDrains(ctx) {
           ? [expressionStatement(assignment.right)] : liftedPrefixStatements(rhsExprs.slice(0, -1), frame)
         : observablePrefixElements(rhsExprs.slice(0, -1), frame).map(expr => expressionStatement(expr))) : [];
     // A prefix this channel lifted or discarded leaves only the tail in the residual.
-    // A residual that carries its own prefix keeps the original RHS instead.
-    if (rhsExprs && !anchorRhsPrefix && !residualCarriesPrefix && !wholeRhsLift && assignment.left.properties.length !== 0) {
+    if (rhsExprs && !anchorRhsPrefix && !wholeRhsLift && assignment.left.properties.length !== 0) {
       assignment.right = rhsExprs.at(-1);
     }
     const partialProbe = residualLives && !memoRef && !nestedJobs.length

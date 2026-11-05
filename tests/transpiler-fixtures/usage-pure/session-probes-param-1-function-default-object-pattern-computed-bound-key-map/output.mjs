@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A bound parameter key selects the literal default's own slot.
+// Its nested Map extraction remains native.
 {
   const boundKey = 'w';
   function boundKeyParam({

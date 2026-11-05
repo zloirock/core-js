@@ -2,8 +2,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Reflect from "@core-js/pure/actual/reflect";
 import _Symbol from "@core-js/pure/actual/symbol";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Each container read observes the last preceding write, including self and cross assignments.
+// Native nested reads keep full constructor surfaces; direct static reads retain independent claims.
 let rw4 = {
   a: Object
 };

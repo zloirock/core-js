@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// An unknown computed key can replace a literal slot, so its statics dispatch on the stored constructor.
+// The clean Iterator container retains the full constructor and native property read.
 const clean = { S: Iterator };
 const { S: { from } } = clean;
 export function dynamicBails(o) {

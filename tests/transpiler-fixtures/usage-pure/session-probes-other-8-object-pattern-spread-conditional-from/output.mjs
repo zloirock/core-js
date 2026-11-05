@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// Object spreading completes before the explicit selecting slot is read by the native pattern.
 let pick = 1;
 const userObj = {};
 const more = {};

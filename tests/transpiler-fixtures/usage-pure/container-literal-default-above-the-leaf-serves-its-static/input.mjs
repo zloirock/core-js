@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// Literal-container defaults retain their supplied-value branch and native static reads.
+// Stored constructors keep full entries; supported neighbouring instance leaves keep their own captures.
 function h1(o) { const { A: { B: { groupBy: s } } = { B: Map } } = o; return s; }
 const { A: { B: { try: t2 } } = { B: Promise } } = {};
 function h3(o) { const { A: { B: { C: { from: f } } } = { B: { C: Iterator } } } = o; return f; }

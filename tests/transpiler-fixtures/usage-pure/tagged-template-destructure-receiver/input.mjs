@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A direct tag-returned constructor supports static extraction.
+// Constructor values inside literal wrappers keep full entries and native property reads.
 function tagArray() { return Array; }
 function tagMap() { return Map; }
 function wrap(strings, value) { return value; }

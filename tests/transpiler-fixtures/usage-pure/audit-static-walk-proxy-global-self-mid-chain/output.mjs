@@ -1,6 +1,6 @@
 import _self from "@core-js/pure/actual/self";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A literal namespace holding self keeps its native nested Map.groupBy read.
+// The self reference is still served independently.
 const ns = {
   root: _self
 };

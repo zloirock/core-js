@@ -1,4 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+// Only undefined selects the parameter receiver default; null still fails its property read.
+// A supplied realm constructor and the default retain their own pure extraction paths.
 export function read(pick) {
   // Only undefined selects the parameter default; the other arm keeps its own value.
   return (({

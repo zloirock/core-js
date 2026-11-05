@@ -5,8 +5,8 @@ import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Discarded initializer prefixes replay observable effects once and omit effect-free terms.
+// Prefixes kept by native wrappers or surviving expressions retain their original order.
 function eff() {}
 function eff2() {}
 let a, b, c, d, e;

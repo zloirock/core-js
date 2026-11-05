@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// A native array-wrapped self extraction still identifies the realm for a later static read.
+// Promise.resolve receives its dedicated import.
 const [{ self: fromArray }] = [globalThis];
 export const destructuredThroughArray = fromArray.Promise.resolve(1);

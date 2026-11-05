@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Two realm elements retain independent positional constructor hints while their patterns stay native.
+// A later Array.from call is served through the first binding.
 const [{ Array: F }, { Promise: P }] = [globalThis, globalThis];
 export const viaBothA = F.from([1]);

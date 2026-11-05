@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _JSON$rawJSON from "@core-js/pure/actual/json/raw-json";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A shared realm alias resolves each array position independently.
+// The wrapper stays native and the second binding's JSON.rawJSON call is served.
 const g = _globalThis;
 const [{
   Reflect: RE

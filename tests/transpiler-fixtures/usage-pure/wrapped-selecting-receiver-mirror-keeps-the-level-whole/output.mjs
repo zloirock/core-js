@@ -2,8 +2,8 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$is from "@core-js/pure/actual/object/is";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Selecting wrapper routes retain the whole runtime level when spreads or later keys can affect it.
+// Supported constructor branches are served; unknown alias and getter replacements stay native.
 const [{
   hasOwn: viaSpreadShift
 }] = [c ? {

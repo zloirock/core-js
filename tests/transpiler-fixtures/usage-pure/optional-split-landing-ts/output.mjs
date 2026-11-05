@@ -4,6 +4,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$values from "@core-js/pure/actual/object/values";
 var _ref;
+// TS wrappers retain the stored receiver, source prefix and computed-key order.
+// Pure optional splitting preserves the live window guard around the prototype claim.
 const realm = _globalThis;
 let held: typeof globalThis;
 const log: string[] = [];

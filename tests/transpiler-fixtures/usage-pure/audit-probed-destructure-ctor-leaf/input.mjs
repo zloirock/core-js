@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Constructor-leaf probes preserve the source's potentially throwing read before a static extraction.
+// Aliases and seals retain their boundaries; literal-wrapper twins stay native.
 export const { of: viaCtorLeaf } = globalThis.window?.Array;
 export const { from: viaCtorLeafRenamed } = globalThis.window?.Array;
 export const { of: viaCtorLeafDeep } = globalThis.window?.self.Array;

@@ -1,7 +1,7 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// A complete caller census supplies a realm inside a literal spine.
+// The retained native pattern still evaluates its effectful key before later bindings.
 const events = [];
 function read({
   w: [{

@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// A sequence initializer evaluates its prefix before the Iterator-valued getter.
+// The served concat and name leaves share the captured result.
 class KE {
   static get I() { log(); return Iterator; }
 }

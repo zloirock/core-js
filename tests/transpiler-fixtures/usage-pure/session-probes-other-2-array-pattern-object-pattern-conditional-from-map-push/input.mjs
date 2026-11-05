@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// A conditional constructor and a realm neighbour retain their native array-pattern reads.
+// The later static comparison, push call and realm reference are independently served.
 let pick = 1;
 const userObj = {};
 const log = [];

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// A constructor alias inside a literal wrapper retains its native static read.
+// Following the alias still narrows the result's findLast and fill calls.
 const Foo = Array;
 const wrapper = { a: Foo };
 const { a: { from } } = wrapper;

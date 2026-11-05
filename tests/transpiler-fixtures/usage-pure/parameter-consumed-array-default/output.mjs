@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A parameter-array default serves Array.from for both absent and supplied Array elements.
+// A supplied user object retains its own from method across repeated calls.
 function read([{
   from
 } = {

@@ -1,8 +1,8 @@
 import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
 import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// Instance defaults guard the extracted method and preserve array siblings.
+// The static-only Array.of wrapper keeps its native read and default.
 let o;
 [{
   of: o = fb

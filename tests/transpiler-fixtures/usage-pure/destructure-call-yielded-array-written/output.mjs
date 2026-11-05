@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// A returned array can be overwritten, truncated or passed to unknown code before destructuring.
+// Every native slot read observes the resulting array, including the unchanged control.
 const make = () => [String, 0];
 const written = make();
 written[0] = {};

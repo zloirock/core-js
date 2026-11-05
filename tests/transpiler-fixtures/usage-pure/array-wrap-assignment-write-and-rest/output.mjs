@@ -3,8 +3,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 var _ref, _ref2, _ref3, _unused, _unused2;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// Realm stores and object-rest exclusions retain their source order inside array assignments.
+// Only captured static leaves receive imports; spread and neighbouring-slot residuals keep native reads.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];

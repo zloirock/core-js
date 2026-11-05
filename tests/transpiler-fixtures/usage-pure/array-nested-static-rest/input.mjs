@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Statics nested under an array element retain their native source hops, defaults and rest exclusions.
+// The initializer prefix runs once; independent push and hasOwn calls are still served.
 const log = [];
 const [{ Object: { keys, ...rest } }] = [(log.push('init'), globalThis)];
 const [{ Object: { entries = log.push('default'), ...remaining } }, tail] = [globalThis, 1];

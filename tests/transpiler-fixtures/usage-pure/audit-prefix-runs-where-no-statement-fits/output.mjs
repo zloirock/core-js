@@ -5,8 +5,8 @@ import _Map from "@core-js/pure/actual/map";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Initializer prefixes run before destructuring reads in bodyless, sibling and for-init hosts.
+// Direct claims keep their polyfills while literal-wrapper reads remain native.
 function eff() {}
 function pre() {}
 var bm, bo;

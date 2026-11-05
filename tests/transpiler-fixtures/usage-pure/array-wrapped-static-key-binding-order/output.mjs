@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// An effectful computed key observes its static binding before initialization.
+// The capture serves from only after that key and preserves the second element.
 let seen;
 function observe() {
   try {

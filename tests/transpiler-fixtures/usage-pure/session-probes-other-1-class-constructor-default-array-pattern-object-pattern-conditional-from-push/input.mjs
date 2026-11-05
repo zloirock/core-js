@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// A constructor's array default keeps its native supplied/defaulted from reads.
+// The later Array.from comparison and push call are independently served.
 let pick = 1;
 const userObj = {};
 const log = [];

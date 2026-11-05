@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A user branch keeps its own slot values and defaults, including accessor effects.
+// Only proven realm branches may supply static polyfills through the selecting route.
 let reads = 0;
 const host = {
   Object,

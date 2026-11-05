@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order.
+// A conditional static branch stays beside its native neighbour under one array capture.
+// The condition runs before either getter, including after destructuring lowering.
 const [{
   native
 }, {

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// A captured Iterator-valued getter supplies both zip and name after the preceding native Array.from read.
+// The getter runs once and zip receives its own static import.
 class KE {
   static get I() { log(); return Iterator; }
 }

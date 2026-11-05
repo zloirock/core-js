@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Member assignment targets consume their actual literal-container property values.
+// Neither all-member nor mixed-member patterns synthesize static imports.
 const src = {
   Object,
   Array

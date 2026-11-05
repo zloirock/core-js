@@ -32,7 +32,6 @@ import {
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   peelNestedSequenceExpressions,
-  isCalleeReference,
   valueIsDroppedAt,
   unwrapRuntimeExpr,
   resolveBatchDirectivePromotionPolicy,
@@ -337,9 +336,6 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     readsUnnamedStatic: name => escapedCtorNames?.readsUnnamedStatic(name) === true,
     astPredicates: {
       isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
-      // babel's own `t.is*({ callee: node })` matchers are strict-identity, which the shared answer
-      // is not: the argument order is all this adapter adds
-      isCallee: (node, parent) => isCalleeReference(parent, node),
       isSpreadElement: node => t.isSpreadElement(node),
     },
     getBabelTargets,
@@ -1395,7 +1391,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             receiverPath.replaceWith(estreeToBabel(receiver));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
-            const test = nullFirstGuardTest(navGuardTestNode(guard, path, null, null, { detached: true }), { embed: hostSlot });
+            const test = nullFirstGuardTest(navGuardTestNode(guard, path, null, { detached: true }), { embed: hostSlot });
             const deleteHost = deleteOverOpenContinuation(target.node, target.parentPath);
             const guarded = estreeToBabel(deleteHost
               ? renderDeleteShortCircuitGuard(test, hostSlot(deleteHost.node.argument))

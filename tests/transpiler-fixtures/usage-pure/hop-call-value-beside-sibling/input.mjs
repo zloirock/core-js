@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A proven call-valued literal slot retains its call effects beside residual siblings.
+// Supported indirect-call statics are served without changing which selecting branch supplies the receiver.
 const c = 1;
 const userObj = {};
 const log = [];

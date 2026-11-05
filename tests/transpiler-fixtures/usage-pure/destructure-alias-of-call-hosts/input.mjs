@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// An alias of a returned object preserves the same indirect-call source across binding hosts.
+// Supported nested statics retain their extraction while the call itself stays observable.
 const built = () => ({ a: Math });
 const builtAlias = built();
 const { a: { imul: viaAliasOfCall } } = builtAlias;

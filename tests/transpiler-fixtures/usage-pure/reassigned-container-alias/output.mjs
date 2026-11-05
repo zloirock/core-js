@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A container alias reassignment changes which object supplies its nested raw read.
+// The literal-wrapper pattern stays native.
 let first = {
   x: Number
 };

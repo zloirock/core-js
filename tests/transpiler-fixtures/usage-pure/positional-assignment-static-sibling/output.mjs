@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A positional assignment keeps the native Object.keys read beside a captured array at leaf.
+// Each binding uses its own element's value.
 const array = [2, 7],
   rows = [Object, array];
 let keys, at;

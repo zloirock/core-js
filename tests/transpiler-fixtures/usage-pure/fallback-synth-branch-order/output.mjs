@@ -2,6 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+// A selecting fallback keeps prefix, chosen-arm and residual-default effects in source order.
+// Pure serves the constructor branch without rewriting the user branch or executing a dead arm.
 export function read(pick, nested) {
   const log = [];
   const {

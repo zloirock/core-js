@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// A served static value makes its leaf default dead without moving receiver or key effects.
+// Native wrapper boundaries and independent instance/name reads retain their own behavior.
 const fb = 0;
 const K = 'from';
 function k() { return 'from'; }

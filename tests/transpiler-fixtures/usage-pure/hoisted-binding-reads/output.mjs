@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// Reads before declaration keep their original hoisting or TDZ behavior.
+// Known defaults and computed keys cannot turn an unavailable binding into an initialized receiver.
 let r1, r2, r3, r4, r5;
 try {
   const {

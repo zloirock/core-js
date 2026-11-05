@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Reassignment after a destructuring read cannot change the array value already consumed.
+// The literal wrapper and its static from read remain native.
 let w = [Array];
 const [{
   from

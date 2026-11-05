@@ -3,8 +3,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$all from "@core-js/pure/actual/promise/all";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// Captured statics and function-name leaves keep their bindings beside deeper native claims.
+// Computed keys and nested defaults remain in source order.
 const box = {
   A: Array,
   B: _Promise

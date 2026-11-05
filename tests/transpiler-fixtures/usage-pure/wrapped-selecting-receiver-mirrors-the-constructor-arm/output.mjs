@@ -6,8 +6,8 @@ import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Supported selecting extraction serves only the chosen constructor branch through wrapper levels.
+// User branches, receiver defaults and source effects retain their own values and order.
 const [{
   of: viaElementDefault
 } = {}] = [c ? {

@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order.
+// A receiver default remains supported through two parameter-array levels.
+// The from claim follows the supplied element or Array fallback at its original slot.
 function f([[{ from } = Array]]) {
   return from([1]);
 }

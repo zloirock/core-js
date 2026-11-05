@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Each container read observes the last preceding write, including self and cross assignments.
+// Native nested reads keep full constructor surfaces; direct static reads retain independent claims.
 let rw4 = { a: Object };
 const { keys: beforeWrite } = rw4.a;
 rw4 = { a: Map };

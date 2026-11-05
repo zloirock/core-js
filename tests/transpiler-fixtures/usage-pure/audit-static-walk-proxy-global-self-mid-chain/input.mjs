@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A literal namespace holding self keeps its native nested Map.groupBy read.
+// The self reference is still served independently.
 const ns = { root: self };
 const { root: { Map: { groupBy } } } = ns;
 export const grouped = groupBy([1, 2, 3], n => n % 2);

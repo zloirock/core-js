@@ -61,7 +61,6 @@ import { commentPlacements, commentSignature, strip } from './structural.mjs';
 import {
   KNOWN_BUNDLERS,
   hasCoreJSImport,
-  isCallee,
   isChunkLoaderBundler,
   stripLeadingBOMs,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
@@ -69,6 +68,7 @@ import unpluginPackage from '../../packages/core-js-unplugin/package.json' with 
 import { captureLogs, importedPolyfills, reportCount, reportedPolyfills } from '../polyfill-provider/debug-report.mjs';
 import {
   findNodeSlot,
+  isCalleeReference,
   ancestorChainDetached,
   unwrapRuntimeExpr as unwrapNode,
   isTopLevelImportLike,
@@ -3561,31 +3561,31 @@ function checkUnwrapNode() {
 }
 checkUnwrapNode();
 
-// --- isCallee: parent is Call/New with `node` as callee (through wrappers) ---
+// --- isCalleeReference: parent is Call/New with `node` as callee (through wrappers) ---
 function checkIsCallee() {
   const ident = { type: 'Identifier', name: 'fn' };
   const callDirect = { type: 'CallExpression', callee: ident };
-  check('isCallee/CallExpression direct', isCallee(ident, callDirect), true);
+  check('isCalleeReference/CallExpression direct', isCalleeReference(callDirect, ident), true);
 
   const newDirect = { type: 'NewExpression', callee: ident };
-  check('isCallee/NewExpression direct', isCallee(ident, newDirect), true);
+  check('isCalleeReference/NewExpression direct', isCalleeReference(newDirect, ident), true);
 
   // through TS wrapper - unwrapNode peels
   const callThroughTS = { type: 'CallExpression',
     callee: { type: 'TSAsExpression', expression: ident } };
-  check('isCallee/through TSAsExpression', isCallee(ident, callThroughTS), true);
+  check('isCalleeReference/through TSAsExpression', isCalleeReference(callThroughTS, ident), true);
 
   // not callee: parent is member access, not call
   const memberParent = { type: 'MemberExpression', object: ident };
-  check('isCallee/MemberExpression NOT callee', isCallee(ident, memberParent), false);
+  check('isCalleeReference/MemberExpression NOT callee', isCalleeReference(memberParent, ident), false);
 
   // mismatched callee
   const otherIdent = { type: 'Identifier', name: 'fn2' };
   const callOther = { type: 'CallExpression', callee: otherIdent };
-  check('isCallee/different callee', isCallee(ident, callOther), false);
+  check('isCalleeReference/different callee', isCalleeReference(callOther, ident), false);
 
   // null parent
-  check('isCallee/null parent', isCallee(ident, null), false);
+  check('isCalleeReference/null parent', isCalleeReference(null, ident), false);
 }
 checkIsCallee();
 

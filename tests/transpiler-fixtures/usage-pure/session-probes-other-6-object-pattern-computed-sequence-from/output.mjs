@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// An effectful literal-container hop keeps its native static read without dropping the key call.
 function eff() {
   return Object;
 }

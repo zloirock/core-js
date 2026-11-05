@@ -1,5 +1,4 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A literal-array parameter default retains its native from read and empty element fallback.
 {
   function fromArr([{
     from

@@ -13,8 +13,8 @@ import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Computed hop keys retain their effects before supported leaf captures and native residuals.
+// Instance and static readers keep the receiver selected at their own source level.
 const order = [];
 const eff = tag => (_pushMaybeArray(order).call(order, tag), tag);
 const {
@@ -43,6 +43,7 @@ const {
     w: src
   },
   viaAliasSlot = _at(_ref2);
+// An instance leaf uses the captured selected slot, so the hop and method are not reread.
 const {
     [(eff('memo'), 'w')]: _ref3
   } = {
@@ -127,6 +128,9 @@ const {
   } = _globalThis,
   viaSymbol = _getIteratorMethod(_ref4);
 export { order, viaStatic, viaNav, viaLiteral, viaAliasSlot, viaLiteralSlot, viaSibling, z, viaPairA, viaPairB, viaRest, rest, viaAssign, viaParam, viaProxyHop, viaDeep, viaDefault, viaSymbol };
+
+// An effectful receiver slot is evaluated once before its hop key; the selected instance
+// method is then read once from that captured slot.
 const {
     [(eff('call'), 'w')]: _ref5
   } = {

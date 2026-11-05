@@ -1,3 +1,5 @@
+// A stored realm receiver keeps its source prefix and write before the optional continuation.
+// Pure serves supported statics and prototype methods while a missing method keeps its optional argument guard.
 const realm = globalThis;
 let held;
 const log = [];

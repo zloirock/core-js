@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A getter reading the constructor binding it is about to initialize still throws in the TDZ.
+// No later sibling getter may run after that abrupt completion.
 const log = [];
 let caught;
 try {

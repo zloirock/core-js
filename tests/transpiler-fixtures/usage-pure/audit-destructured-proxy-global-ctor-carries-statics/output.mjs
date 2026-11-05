@@ -5,8 +5,8 @@ import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol from "@core-js/pure/actual/symbol";
 import _WeakMap from "@core-js/pure/actual/weak-map";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Escaping constructor values from direct realm patterns retain their full static surface.
+// Literal wrappers keep native extraction; nested hops and loop heads preserve their own capture rules.
 const Map = _Map;
 const S = _Set;
 const {

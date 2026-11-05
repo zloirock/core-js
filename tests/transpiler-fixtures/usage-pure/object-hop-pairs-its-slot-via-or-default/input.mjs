@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A realm-valued logical expression in a literal slot keeps its native Map read.
+// Deciding the logical expression does not synthesize a constructor wrapper.
 const { w: { Map: viaOrDefault } } = { w: globalThis || {} };
 export default [viaOrDefault];

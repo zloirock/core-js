@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 var _ref2;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// An array capture evaluates the selecting constructor before either element binds its property.
+// Pure instance leaves keep their own receivers; the supported conditional from branch still receives its polyfill.
 const [, _ref] = [source, (effect(), pick) ? Array : other];
 const at = _at(source);
 const from = _ref === Array ? _Array$from : _ref.from;

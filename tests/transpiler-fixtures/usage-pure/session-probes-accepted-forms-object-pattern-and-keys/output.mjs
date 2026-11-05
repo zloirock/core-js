@@ -1,6 +1,6 @@
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A proven call in a selecting object slot remains observable before the keys binding.
+// The supported indirect-call static route serves Object.keys.
 function eff() {
   return Object;
 }

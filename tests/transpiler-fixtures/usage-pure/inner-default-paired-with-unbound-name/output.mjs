@@ -2,8 +2,8 @@ import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// Unknown supplied values keep runtime identity tests against receiver defaults.
+// Supported fallback statics are served; an unrelated static-only literal wrapper stays native.
 function use() {/* empty */}
 const [{
   groupBy

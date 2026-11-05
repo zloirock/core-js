@@ -2,6 +2,7 @@
 // "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import {
+  isCalleeReference,
   MUTATED_MEMBERS_UNKNOWN,
   MUTATED_STATIC_PINNED,
   kebabToPascal,
@@ -162,7 +163,7 @@ export function createPolyfillResolver(options, {
   typeResolvers, astPredicates, getBabelTargets, isMutatedStatic = null, isEscapedCtor = null, readsUnnamedStatic = null,
 } = {}) {
   const { resolvePropertyObjectType, resolveGuardHints, resolvePropertyUnionHints, toHint, isString, isObject } = typeResolvers;
-  const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
+  const { isMemberLike, isSpreadElement } = astPredicates;
   const {
     method,
     mode,
@@ -242,7 +243,7 @@ export function createPolyfillResolver(options, {
       callPath = callPath.parentPath;
     }
     const parent = callPath?.node ?? path.parent;
-    if (!isCallee(node, parent)) return false;
+    if (!isCalleeReference(parent, node)) return false;
     switch (name) {
       case 'min-args': {
         const [length] = args;

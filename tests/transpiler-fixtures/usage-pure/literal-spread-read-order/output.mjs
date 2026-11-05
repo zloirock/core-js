@@ -1,6 +1,6 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Spreading a literal source runs its getter before any destructuring assignment.
+// The static wrapper read stays native and the getter observes the old binding value.
 const log = [];
 const extra = {
   get value() {

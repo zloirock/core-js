@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// A stored literal container stays in the for-init header with its prefix.
+// Its native groupBy read retains the full Map entry and function-name inference.
 const o = {};
 for (let { C: { groupBy } } = (eff(), o.s = { C: Map }); ;) {
   log(groupBy.name);

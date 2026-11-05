@@ -462,7 +462,6 @@ function makeFilterEnv() {
   };
   const stubAstPredicates = {
     isMemberLike: () => false,
-    isCallee: (node, parent) => parent?.type === 'CallExpression' && parent.callee === node,
     isSpreadElement: arg => arg?.type === 'SpreadElement',
   };
   return { typeResolvers: stubTypeResolvers, astPredicates: stubAstPredicates };
@@ -598,7 +597,7 @@ function makeCallExprPath({ arguments: args }) {
     method: 'usage-global', version: '4.0', targets: { ie: 11 },
   }, env);
 
-  // bare reference to `Error` (no call) - isCallee returns false, filter doesn't reject -
+  // bare reference to `Error` (no call) - isCalleeReference is false, filter doesn't reject -
   // wait, filter returns FALSE when not callee. so `false` means "filter didn't reject",
   // meta resolution proceeds. but `Error` global has only filter-gated deps - if filter
   // doesn't apply, deps come through. Verified by integration: this matches the docs

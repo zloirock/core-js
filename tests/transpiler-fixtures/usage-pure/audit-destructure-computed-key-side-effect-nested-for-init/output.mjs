@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A nested computed static key stays in its for-init capture.
+// It runs once before from is initialized, without lifting work outside the loop header.
 for (const {
     x: _ref
   } = {

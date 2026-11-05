@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A bound or inline literal container remains the source of a parameter default.
+// Its native constructor and passthrough reads must not invent an unnamed receiver.
 const w = { g: globalThis };
 function read({ g: { Set, other } } = w) {
   return [new Set(), other];

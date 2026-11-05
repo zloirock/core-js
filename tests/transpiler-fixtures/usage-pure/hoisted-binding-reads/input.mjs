@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// Reads before declaration keep their original hoisting or TDZ behavior.
+// Known defaults and computed keys cannot turn an unavailable binding into an initialized receiver.
 let r1, r2, r3, r4, r5;
 try { const { a: { from } } = container; r1 = from([1]).length; } catch (error) { r1 = error.name; }
 try { const alias = container; const { a: { from } } = alias; r2 = from([1]).length; } catch (error) { r2 = error.name; }

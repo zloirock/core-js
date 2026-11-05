@@ -1,6 +1,6 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// An array level under an object key retains native iteration and static reads.
+// Call and tag effects run where their source elements are constructed.
 const log = [];
 const mk = () => {
   _pushMaybeArray(log).call(log, 'mk');

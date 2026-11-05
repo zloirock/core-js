@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Removing a core-js import must not fuse adjacent statements into a call or indexing expression.
+// Guard renders and native array assignments retain the required statement separator.
 let from;
 export let x = 4
 import 'core-js/modules/es.array.from';

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Cross assignments inside a callback preserve the last container value seen by destructuring.
+// The nested from read remains native.
 function invoke(callback) {
   return callback();
 }

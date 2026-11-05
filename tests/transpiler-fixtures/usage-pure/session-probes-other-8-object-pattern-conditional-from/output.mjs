@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A getter returning a conditional value remains the source of the native from read.
 let pick = 1;
 const userObj = {};
 {

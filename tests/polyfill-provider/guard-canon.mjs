@@ -672,12 +672,12 @@ check('nav-test/probe reads off the ponyfilled base',
 // the kept root WRITE is the source's own first act - it rides ahead of the base, inside the value
 check('nav-test/a kept write rides ahead of the base',
   (() => {
-    const test = renderNavGuardTestBase(BASE, { rootAssign: assign('w', identifier('g')), injectImport });
+    const test = renderNavGuardTestBase(BASE, { prefix: [assign('w', identifier('g'))], injectImport });
     return `${ test.object.type }:${ test.object.expressions[0].type }:${ test.object.expressions[1].name }`;
   })(), 'SequenceExpression:AssignmentExpression:_self');
 
-check('nav-test/embed wraps the carried write',
-  renderNavGuardTestBase(BASE, { rootAssign: assign('w', identifier('g')), injectImport, embed: hostSlot })
+check('nav-test/retains an embedded prefix write',
+  renderNavGuardTestBase(BASE, { prefix: [hostSlot(assign('w', identifier('g')))], injectImport })
     .object.expressions[0].type, HOST_SLOT);
 
 // --- the alias-held probe read ---

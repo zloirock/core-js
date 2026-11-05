@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A literal host keeps its static Array.from read and captures the instance flat receiver.
+// The two sibling branches retain their original source bindings and order.
 const arr = [1, [2]];
 const { x: { from: f }, y: { flat: m } } = { x: Array, y: arr };

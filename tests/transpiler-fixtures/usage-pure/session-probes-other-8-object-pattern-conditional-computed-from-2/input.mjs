@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A computed sibling can affect literal-container resolution, so the selected from pattern stays native.
 let pick = 1;
 const userObj = {};
 const k = 'k';

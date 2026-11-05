@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A decided logical-or evaluates its literal-container right arm and preserves native static reads.
+// Independent instance claims retain their dispatch and stored constructors keep full entries.
 export const { C: { groupBy } } = typeof Symbol == 'undefined' || { C: Map };
 let fromAsync;
 ({ C: { fromAsync } } = typeof Symbol == 'undefined' || { C: Array });

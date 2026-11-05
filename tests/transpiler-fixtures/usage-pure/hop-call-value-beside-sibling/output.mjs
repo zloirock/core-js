@@ -2,8 +2,8 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A proven call-valued literal slot retains its call effects beside residual siblings.
+// Supported indirect-call statics are served without changing which selecting branch supplies the receiver.
 const c = 1;
 const userObj = {};
 const log = [];

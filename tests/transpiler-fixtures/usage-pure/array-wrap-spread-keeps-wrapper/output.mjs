@@ -2,8 +2,8 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Spreads retain native array iteration and static wrapper reads.
+// Instance leaves before a spread use a known element; shifted leaves dispatch on the runtime element.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];
@@ -41,6 +41,7 @@ const [, _ref4] = [...xs, _globalThis];
 const behindSpread = _at(_ref4.Array.prototype);
 const [, _ref5] = [...xs, [6, 7]];
 const slotBehindSpread = _at(_ref5);
+// The array wrapper keeps both native constructor hops and its spread iteration.
 const [{
   AggregateError: {
     customZ

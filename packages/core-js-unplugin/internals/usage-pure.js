@@ -244,7 +244,6 @@ export default function createAstUsagePureCallback({
     markRewrite,
     memoValueClones,
     peelNonNullWraps,
-    proxyHopKey,
     resolveGlobalPolyfill,
     resolveNodeType,
     resolvePure,
@@ -490,7 +489,7 @@ export default function createAstUsagePureCallback({
         // - except the SOURCED well-known-symbol prop, whose render (`_getIteratorMethod`)
         // reads THROUGH the receiver and sees the patched slot
         if (chainAssignStaged(meta)
-          || (!isSourcedSymbolIteratorMeta(meta) && mutatedSlotWinsOverClaim(meta, node, metaPath))) return;
+          || (!isSourcedSymbolIteratorMeta(meta) && mutatedSlotWinsOverClaim(meta, metaPath))) return;
         // the destructure pipeline: resolved claims route to the staged emitter, everything
         // else stays raw. a `[Symbol.iterator]` prop resolves to null - its pure resolution
         // IS the shared triple (`_getIteratorMethod`), gated on symbol provenance
@@ -535,7 +534,7 @@ export default function createAstUsagePureCallback({
     // keeps the ponyfill its receiver still needs
     // ... and the slot-deopt DIAGNOSTIC rides the gate that acts on it: the report names the
     // written slot once, the gate keeps its reads native
-    if (result?.kind !== 'instance' && mutatedSlotWinsOverClaim(meta, node, metaPath)) return noteDeoptedSlotRead(meta, deoptCtx);
+    if (result?.kind !== 'instance' && mutatedSlotWinsOverClaim(meta, metaPath)) return noteDeoptedSlotRead(meta, deoptCtx);
     // the traversal is pre-order, so by the time a hop fires every ancestor has had its own
     // verdict: a consumer that resolved will own the render, one that did not renders
     // nothing and must not silence this claim
@@ -727,9 +726,7 @@ export default function createAstUsagePureCallback({
   // `metaPath` rides along because the mutation does NOT speak for the DETECT the write computes
   // from (`X.y = X.y || patch`): that read runs before the write lands, and the census answer is
   // asked of the shared predicate with the read's own position rather than of the pair alone
-  function mutatedSlotWinsOverClaim(meta, node, metaPath = null) {
-    if (isMutatedStatics(meta, metaPath)) return true;
-    return meta.kind === 'global' && node.type === 'Identifier'
-      && isMutatedStatics({ kind: 'property', object: 'globalThis', key: meta.name, placement: 'static' }, metaPath);
+  function mutatedSlotWinsOverClaim(meta, metaPath = null) {
+    return isMutatedStatics(meta, metaPath) || isDeoptedGlobalSlotRead(meta, adapter, metaPath);
   }
 }

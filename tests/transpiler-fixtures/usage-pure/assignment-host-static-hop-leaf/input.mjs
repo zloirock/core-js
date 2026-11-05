@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Nested assignment leaves read function names from the served static methods.
+// Their receiver, defaults and residual siblings stay ordered across statement and expression hosts.
 let name, junk, arity;
 ({ Array: { of: { name }, junk } } = globalThis);
 ({ Array: { of: { name } } } = globalThis);

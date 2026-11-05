@@ -1,3 +1,5 @@
+// TS wrappers retain the stored receiver, source prefix and computed-key order.
+// Pure optional splitting preserves the live window guard around the prototype claim.
 const realm = globalThis;
 let held: typeof globalThis;
 const log: string[] = [];

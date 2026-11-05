@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A literal-container constructor read keeps its source fallback instead of replacing the slot wholesale.
 {
 const { w: { Map: M = fb } } = { w: globalThis }; M();
 }

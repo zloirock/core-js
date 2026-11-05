@@ -6,8 +6,8 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _Reflect from "@core-js/pure/actual/reflect";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Decided selections expose their live container to later member analysis.
+// Direct member statics remain served while nested destructuring retains native slot reads.
 const aliased = {
   C: _Map
 };

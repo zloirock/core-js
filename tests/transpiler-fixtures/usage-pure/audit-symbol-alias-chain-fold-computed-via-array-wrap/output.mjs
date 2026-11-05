@@ -1,8 +1,8 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A native array-wrapped Symbol alias identifies a later defaulted iterator read.
+// The iterator token is served and the subsequent computed access uses the iterator helper.
 const [{
   Symbol: ArrayWrapSymbol
 }] = [_globalThis];

@@ -1,8 +1,8 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _Set from "@core-js/pure/actual/set/constructor";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A constructor stored in a container carries statics needed by retained native reads.
+// The requirement follows named properties, array slots, selecting branches and getter results.
 const shorthand = {
   Map: _Map
 };
@@ -27,6 +27,8 @@ const [{}] = indexed,
     groupBy: viaIndex,
     ...indexRest
   } = _Map;
+// ... and a SELECTION between values reaches every arm, so a container standing as one arm owes the
+// same entry - the arm a run takes is not the census's to decide
 const selected = {
   Map: _Map
 };
@@ -36,6 +38,9 @@ const {
   },
   ...selectionRest
 } = _globalThis.window ?? selected;
+// ... and the two negatives keep the narrow entry. A slot the pattern merely REACHES through stores
+// nothing - a getter hands back the realm, and the realm's own binding answers its statics - and a
+// key that names no static of the stored constructor asks nothing of the entry either
 const reached = {
   get realm() {
     return _globalThis;

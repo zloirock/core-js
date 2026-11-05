@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Direct realm destructuring serves Array.from while a literal Object wrapper stays native.
+// Both static results still narrow their later instance calls independently.
 const { Array: { from } } = globalThis;
 const wrapper = { a: Object };
 const { a: { entries } } = wrapper;

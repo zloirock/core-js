@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A getter supplying the realm runs mark before its WeakSet leaf is bound.
+// The supported constructor extraction must keep that getter effect once.
 const {
     w: _ref
   } = {

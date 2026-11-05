@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A returned array keeps its call, native iteration and static property read.
+// Its empty element default remains in the pattern for both optional and ordinary calls.
 const makeMath = () => [Math];
 const [{
   sign

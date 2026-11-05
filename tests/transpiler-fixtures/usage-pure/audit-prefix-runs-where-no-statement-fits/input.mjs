@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Initializer prefixes run before destructuring reads in bodyless, sibling and for-init hosts.
+// Direct claims keep their polyfills while literal-wrapper reads remain native.
 function eff() {}
 function pre() {}
 var bm, bo;

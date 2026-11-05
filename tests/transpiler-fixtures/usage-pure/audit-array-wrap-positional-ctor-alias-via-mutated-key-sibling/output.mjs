@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A write to the RegExp realm slot does not turn the neighbouring WeakMap slot into that replacement.
+// Both wrapper extractions and the WeakMap construction stay native.
 _globalThis.RegExp = fake;
 const [{
   RegExp: RX

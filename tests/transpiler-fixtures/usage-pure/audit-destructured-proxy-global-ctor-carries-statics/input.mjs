@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Escaping constructor values from direct realm patterns retain their full static surface.
+// Literal wrappers keep native extraction; nested hops and loop heads preserve their own capture rules.
 const { Map } = globalThis;
 const { Set: S } = globalThis;
 const { self: { WeakMap } } = globalThis;

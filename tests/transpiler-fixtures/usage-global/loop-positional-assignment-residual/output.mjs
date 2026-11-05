@@ -8,6 +8,8 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.push";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// Each loop iteration assigns the selected array method and its native length from the same element.
+// Pure captures the instance receiver; global injection leaves the source assignment in the head.
 let at, length;
 const readers = [];
 for ([{

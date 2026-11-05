@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// Realm stores and object-rest exclusions retain their source order inside array assignments.
+// Only captured static leaves receive imports; spread and neighbouring-slot residuals keep native reads.
 const seen = [];
 const eff = t => (seen.push(t), t);
 const xs = [1];

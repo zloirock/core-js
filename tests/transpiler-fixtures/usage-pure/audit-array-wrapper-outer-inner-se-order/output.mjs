@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// Nested literal wrappers retain every outer and inner prefix in source order.
+// Their static leaves remain native across declaration, assignment and for-init hosts.
 function outerEffect() {
   return 1;
 }

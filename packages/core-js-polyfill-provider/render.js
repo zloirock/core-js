@@ -1145,10 +1145,9 @@ export function renderGuardedChainTail(tail, base, { cloneHost = node => node, c
 // the guard TEST a resolvable base supplies (`navGuardTestBase` decides there IS one): the probe
 // hop read off the ponyfilled base, with a kept root write riding ahead of it in a sequence
 // (`(w = _globalThis, _self).window`) - the write is the source's own act and evaluates first
-export function renderNavGuardTestBase(base, { rootAssign = null, prefix = [], injectImport, embed = node => node }) {
+export function renderNavGuardTestBase(base, { prefix = [], injectImport }) {
   const pure = identifier(injectImport(base.basePure.entry, base.basePure.hintName));
-  const effects = rootAssign ? [...prefix, embed(cloneNode(rootAssign))] : prefix;
-  const root = effects.length ? sequenceExpression([...effects, pure]) : pure;
+  const root = prefix.length ? sequenceExpression([...prefix, pure]) : pure;
   return memberExpression(root, identifier(base.probeName));
 }
 
@@ -1482,14 +1481,4 @@ export function renderDestructureStatements(reads, {
       : expressionStatement(assignmentExpression('=', embed(read.id), embed(read.init))));
   }
   return statements;
-}
-
-// the static twin: the read needs no memo (an import binding or a plain ref re-reads for
-// free), so the guard tests it directly - `<read> === void 0 ? <default> : <reread>`.
-// `alwaysDefined`: the read is the polyfill's own import binding, which the guard can never see
-// undefined - the user's default is dead text there and the value is the binding alone
-// (`const { from: F = fb } = Array` -> `const F = _Array$from`), on both legs alike
-export function renderStaticDefaultGuard({ read, defaultValue, reread, alwaysDefined = false }) {
-  if (alwaysDefined) return reread;
-  return conditionalExpression(binaryExpression('===', read, voidZero()), defaultValue, reread);
 }

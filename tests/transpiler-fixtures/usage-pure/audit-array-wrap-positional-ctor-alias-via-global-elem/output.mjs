@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Each element binds the property of its own receiver, including a user object beside the realm.
+// The later Map.groupBy call resolves through the second binding only.
 const userObj = {
   Set: function () {}
 };
