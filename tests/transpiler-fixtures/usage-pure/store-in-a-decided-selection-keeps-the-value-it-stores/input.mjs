@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A decided conditional retains the chosen store and skips the other arm.
+// Native literal-container reads consume the object actually stored.
 var stash;
 export const { C: { groupBy } } = typeof Symbol != 'undefined' ? (stash = { C: Map }) : { C: Object };
 var held;

@@ -3,8 +3,8 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Sibling declarators and trailing array elements keep their source evaluation order.
+// Static wrapper reads remain native; supported instance captures stay in their original host.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const xs = [1];

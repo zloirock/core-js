@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// An unconditional realm alias inside a literal wrapper keeps native nested static reads.
+// Only the realm reference itself is replaced.
 export function unconditionalHop() {
   var G = globalThis;
   const { w: { Object: { values } } } = { w: G };

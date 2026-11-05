@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A parameter's conditional array default and inner fallback keep native from reads.
+// Supplied arguments are not replaced by the default's inferred value.
 let pick = 1;
 const userObj = {};
 {

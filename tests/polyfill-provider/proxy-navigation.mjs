@@ -11,7 +11,7 @@ import {
   navGuardKeepsStoredProbe,
   probeHopInValue,
 } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
-import { canCollapseDeletedNavigation, planProvenNavGuardCollapse, sealedChainBoundary } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { canCollapseDeletedNavigation, navPlanNeedsGuard, planProvenNavGuardCollapse, sealedChainBoundary } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -46,12 +46,6 @@ for (const [expression, folds] of [
   check(`${ label }/ordinary read`, canCollapseDeletedNavigation({ ...facts, hosted: false }), false);
   check(`${ label }/lowered test is read`, canCollapseDeletedNavigation({ ...facts, loweredGuardTest: true }), false);
   check(`${ label }/source stays intact`, JSON.stringify(program.node), source);
-  for (const valueFormSpells of [false, true]) {
-    const plan = { hops: [], resolvePure, valueFormSpells };
-    const routes = [...navGuardCollapseRoutes(plan, { source: () => path.node, aliasCtx, deleteHosted: () => true })];
-    checkDeep(`${ label }/value spelling ${ valueFormSpells }`, routes.map(route => route.kind),
-      [folds ? valueFormSpells ? 'delete-collapse' : 'stand-down' : 'guard']);
-  }
 });
 
 runBoth('claim versus whole run', 'delete globalThis.self.window?.self.chrome;', (parser, program, label) => {
@@ -156,32 +150,22 @@ for (const [expression, expected] of [
   routes.return();
 });
 
-runBoth('call-root priority and lazy landing', 'const result = (() => globalThis)().window.self;', (parser, program, label) => {
-  const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'self');
-  const call = parser.pickPath(program, 'CallExpression').node;
+for (const expression of [
+  'globalThis.window?.self',
+  '(effect(), globalThis).window?.self',
+  '(() => globalThis)().window?.self',
+  '(held = globalThis.window)?.self',
+]) runBoth(`guard route/${ expression }`, `let held; const result = ${ expression };`, (parser, program, label) => {
+  const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+  const path = parser.pickPath(program, type, item => item.node.property.name === 'self');
   const aliasCtx = context(parser, path);
-  let reads = 0;
-  let deletes = 0;
-  const plan = { hops: [], call, rootName: 'globalThis', resolvePure };
-  const facts = {
-    aliasCtx,
-    source() { reads++; return path.node; },
-    deleteHosted() { deletes++; return false; },
-  };
-  const accepted = navGuardCollapseRoutes(plan, facts);
-  check(`${ label }/receiver first`, accepted.next().value.kind, 'receiver-collapse');
-  accepted.return();
-  check(`${ label }/success avoids fallback reads`, reads, 0);
-  check(`${ label }/success avoids delete query`, deletes, 0);
-  const declined = navGuardCollapseRoutes(plan, facts);
-  check(`${ label }/same initial choice`, declined.next().value.kind, 'receiver-collapse');
-  const landing = declined.next().value;
-  check(`${ label }/root fallback`, landing.kind, 'root-collapse');
-  check(`${ label }/backed landing`, landing.pure.entry, 'self');
-  check(`${ label }/one landing query`, reads, 1);
-  check(`${ label }/guard last`, declined.next().value.kind, 'guard');
-  check(`${ label }/delete queried after declines`, deletes, 1);
-  check(`${ label }/finished`, declined.next().done, true);
+  const before = JSON.stringify(program.node);
+  const plan = planProvenNavGuardCollapse({ rootNode: path.node, ...aliasCtx, resolvePure,
+    allowUndefinableRoot: true, allowSequenceRoot: true, descendSequenceTail: true, throughKeptAssign: true });
+  check(`${ label }/real plan needs a guard`, navPlanNeedsGuard(plan), true);
+  const routes = [...navGuardCollapseRoutes(plan, { source: () => path.node, aliasCtx })];
+  checkDeep(`${ label }/guard owns the admitted plan`, routes.map(route => route.kind), ['guard']);
+  check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
 
 // A seal owns a read only when its value can vanish; a pristine realm hop can
@@ -238,7 +222,7 @@ for (const tail of ['[effect()]', '?.[effect()]', '[key]']) {
       const plan = planProvenNavGuardCollapse({ rootNode: source, ...aliasCtx, resolvePure,
         allowUndefinableRoot: true, allowSequenceRoot: true, descendSequenceTail: true });
       const routes = [...navGuardCollapseRoutes(plan, {
-        source: () => source, reader: () => path.node, aliasCtx, deleteHosted: () => false,
+        source: () => source, reader: () => path.node, aliasCtx,
       })];
       checkDeep(`${ label }/probe before value`, routes.map(route => route.kind), ['sealed-probe']);
       check(`${ label }/probe retains read`, routes[0].probe.boundary.member, source);
@@ -262,7 +246,7 @@ for (const [expression, defined] of [
     const before = JSON.stringify(program.node);
     const plan = planProvenNavGuardCollapse({ rootNode: source, ...aliasCtx, resolvePure, throughKeptAssign: true });
     const routes = [...navGuardCollapseRoutes(plan, {
-      source: () => source, reader: () => path.node, aliasCtx, deleteHosted: () => false,
+      source: () => source, reader: () => path.node, aliasCtx,
     })];
     checkDeep(`${ label }/throw survives erased inner readers`, routes.map(route => route.kind),
       [defined ? 'sealed-probe' : 'sealed-tail']);

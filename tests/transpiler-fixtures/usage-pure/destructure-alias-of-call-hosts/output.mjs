@@ -2,8 +2,8 @@ import _Math$imul from "@core-js/pure/actual/math/imul";
 import _Math$log2 from "@core-js/pure/actual/math/log2";
 import _Math$sign from "@core-js/pure/actual/math/sign";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// An alias of a returned object preserves the same indirect-call source across binding hosts.
+// Supported nested statics retain their extraction while the call itself stays observable.
 const built = () => ({
   a: Math
 });

@@ -1,3 +1,5 @@
+// A selecting fallback keeps prefix, chosen-arm and residual-default effects in source order.
+// Pure serves the constructor branch without rewriting the user branch or executing a dead arm.
 export function read(pick, nested) {
   const log = [];
   const { from, of, missing = (log.push('default'), 9) } = (log.push('before'), pick

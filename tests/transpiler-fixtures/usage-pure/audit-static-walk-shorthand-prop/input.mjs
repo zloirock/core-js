@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A shorthand slot denotes the local binding's value just like an explicit property.
+// Its native from read preserves Array result inference for the later at call.
 const Array = globalThis.Array;
 const wrapper = { Array };
 const { Array: { from } } = wrapper;

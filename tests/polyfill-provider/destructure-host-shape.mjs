@@ -2784,7 +2784,27 @@ for (const [name, before, after, expected, mutation] of [
     resolvePure: meta => ['at', 'includes'].includes(meta.key)
       ? { kind: 'instance', entry: `instance/${ meta.key }`, hintName: meta.key } : null,
   });
-  check(`${ label }/iterator-moving admission`, !!plan?.defaultCapture && !plan.defaultCapture.retainedHead, expected);
+  check(`${ label }/iterator-moving admission`, !!plan?.defaultCapture, expected);
+});
+
+// Keep an active array iterator around every native key read. A closed call with an
+// empty element can bind the static after the parameter, without moving those reads.
+runBoth('retained array head with a static default', `function f([{ from, [(effect(), 'unknown')]: x } = Array]) {
+  return [from, x];
+} f([void 0]);`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    path => path.node.key.name === 'from');
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', collectBindingReferences: resolver.collectBindingReferences,
+  });
+  const plan = planRetainedObjectCapture({
+    propPath: prop, adapter, meta: { kind: 'property', object: 'Array', key: 'from', placement: 'static' },
+    parameterCallSites: resolver.parameterCallSites,
+    resolvePure: meta => meta.object === 'Array' && meta.key === 'from'
+      ? { kind: 'static', entry: 'array/from', hintName: 'Array$from' } : null,
+  });
+  check(`${ label }/retains native head`, plan?.defaultCapture?.retainedHead, true);
 });
 
 finish();

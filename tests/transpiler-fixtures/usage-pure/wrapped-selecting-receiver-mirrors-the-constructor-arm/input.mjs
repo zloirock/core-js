@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Supported selecting extraction serves only the chosen constructor branch through wrapper levels.
+// User branches, receiver defaults and source effects retain their own values and order.
 const [{ of: viaElementDefault } = {}] = [c ? Array : userObj];
 const [{ from: viaAnd }] = [c && Array];
 const [{ trunc: viaPrefix }] = [(mark++, c ? Math : userObj)];

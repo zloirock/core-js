@@ -1,8 +1,8 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// A bodyless conditional keeps a Promise-valued getter and both extracted leaves inside its guard.
+// The static try import and name dispatch share the captured constructor.
 class KE {
   static get P() {
     log();

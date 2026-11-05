@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
+// A for-of head over a bound literal container retains the native from property read.
+// The body push call is polyfilled independently.
 const out = [];
 const W = { w: Array };
 for (const { w: { from } } of [W]) out.push(typeof from);

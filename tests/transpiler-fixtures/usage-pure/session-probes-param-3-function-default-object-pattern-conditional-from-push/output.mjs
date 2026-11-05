@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// A parameter default keeps native selecting slot reads and supplied user values.
+// The separate Array.from comparison and push call remain independently polyfilled.
 let pick = 1;
 const userObj = {};
 const log = [];

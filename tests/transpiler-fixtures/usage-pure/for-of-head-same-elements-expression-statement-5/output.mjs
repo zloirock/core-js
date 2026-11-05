@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
+// A known literal container keeps its native Object.is read beside an instance at capture.
+// The trailing array effect runs before either property binds.
 const known = {
   w: Object,
   y: [1]

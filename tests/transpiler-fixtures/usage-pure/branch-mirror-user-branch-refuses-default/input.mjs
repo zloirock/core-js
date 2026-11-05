@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A user branch keeps its own slot values and defaults, including accessor effects.
+// Only proven realm branches may supply static polyfills through the selecting route.
 let reads = 0;
 const host = { Object, get Array() { reads += 1; return Array; } };
 const { Object: { keys: hostKeys }, Array: { from: hostFrom = null } } = globalThis.window ?? host;

@@ -4,6 +4,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$values from "@core-js/pure/actual/object/values";
 var _ref;
+// A stored realm receiver keeps its source prefix and write before the optional continuation.
+// Pure serves supported statics and prototype methods while a missing method keeps its optional argument guard.
 const realm = _globalThis;
 let held;
 const log = [];

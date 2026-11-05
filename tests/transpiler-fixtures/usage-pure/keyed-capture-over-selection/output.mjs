@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Computed keys over a selecting literal container keep their key effects and native boundaries.
+// Only independently admitted claims are served; array-contained statics remain native.
 const {
     Array: _ref
   } = cnd && {

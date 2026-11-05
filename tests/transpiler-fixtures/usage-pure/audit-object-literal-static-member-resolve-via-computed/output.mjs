@@ -1,6 +1,6 @@
 import _Promise from "@core-js/pure/actual/promise";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A later computed literal key replaces an earlier plain property with the same name.
+// The native allSettled read uses the full Promise value stored in that slot.
 
 const withComputed = {
   N: Array,

@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Nested and outer getters keep depth-first source order around a served constructor.
+// Later getters observe the initialized binding; earlier ones cannot be moved past it.
 const log = [];
 const _ref = {
     get before() {

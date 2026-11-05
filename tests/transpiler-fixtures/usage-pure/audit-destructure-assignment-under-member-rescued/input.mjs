@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A store beneath an array element's member read remains in that source expression.
+// The wrapper keeps its native from read and the realm reference still receives its polyfill.
 let a;
 const [{
   from

@@ -3,8 +3,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// Getter-supplied realm values are evaluated once before a nested constructor is bound or assigned.
+// Direct, aliased and assignment hosts preserve the getter's observed binding value.
 export function direct(log) {
   const {
       w: _ref

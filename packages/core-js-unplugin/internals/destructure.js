@@ -50,7 +50,6 @@ import {
   renderRetainedObjectCapture,
   renderNestedKeyedPatternCapture,
   renderOrderedRealmKeys,
-  renderArrayWrapperCapture,
   renderArrayDestructurePlan,
 } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -115,7 +114,6 @@ import {
   patternSlotTarget,
   patternMemberTargetPairs,
   soleChainToProp,
-  isChainAssignment,
   isBodylessStatementSlot,
   peelFallbackBranchInner,
   peelTransparentExpr,
@@ -144,7 +142,6 @@ import { detectIifeArgReceiverPath, findSynthSwapReceiver } from './destructure-
 import { nodeSite, stampNodeSite } from './nav-spine.js';
 import { replaceNodeInTree } from './emit-shared.js';
 import {
-  assignmentExpression,
   blockStatement,
   expressionStatement,
   memberFromKeyName,
@@ -164,7 +161,6 @@ import {
   exportDeclaration,
 } from '@core-js/polyfill-provider/render';
 import {
-  absentableStoreReadKeyOf,
   anchorLeadingStatement,
   arrayWrapperDeclarator,
   buildInstanceDefaultGuard,
@@ -198,7 +194,6 @@ import {
   registerInstanceSynthSlot,
   routeSelectionMirror,
   SELECTING_INIT_TYPES,
-  hopDefaultCarriesEffect,
   nestedLeafSelectingReceiver,
   nestedInstanceWithoutSelectingInit,
   warnConditionalFallbackUntouched,
@@ -523,7 +518,6 @@ export default function createAstDestructureEmitter({
       || !patternComputedKeysSynthSafe({ objectPatternNode: pattern, scope: metaPath.scope, adapter, path: metaPath })) return false;
     const receiver = findSynthSwapReceiver(hostParent, pattern, adapter, resolvePure);
     let baseIdent = receiver;
-    let passthroughPrefix = null;
     // the SE policy decides the channel BEFORE any direct route: an SE-bearing receiver
     // (a call, a rescue-carrying member / logical left) memoizes through the IIFE param -
     // the direct swap would re-run its setup on every unresolved re-read
@@ -540,7 +534,7 @@ export default function createAstDestructureEmitter({
     // a fallback LEFT takes the nav base only when it spells NO effect of its own: an
     // SE-bearing one routes through the callBranch memo, which owns the re-emission order
     if (navBase && !(receiver?.type === 'LogicalExpression' && navBase.leadingEffects)) {
-      ({ baseIdent, passthroughPrefix } = navBase);
+      ({ baseIdent } = navBase);
       baseIsProxy = true;
     } else if (!sePolicy.callBranch && receiver?.type === 'LogicalExpression') {
       // a fallback-shaped receiver (`(SE, Array) || Set`) collapses LEFT: the literal replaces
@@ -573,11 +567,9 @@ export default function createAstDestructureEmitter({
         resolvePure: meta => resolvePure(meta, metaPath),
       });
       pending = {
-        plan, receiver, baseName: callBranch || baseIdent.type !== 'Identifier' ? null : baseIdent.name,
+        plan, receiver,
         passthroughBase: !callBranch && !baseIsProxy && receiver.type === 'LogicalExpression'
           && baseIdent.type !== 'Identifier' && baseIdent.type !== 'ThisExpression' ? baseIdent : null,
-        baseIsProxy,
-        passthroughPrefix,
         // the provider's own verdict on whether the receiver's READ has to run: the same
         // `classifyCallBranchForSynth` answer babel's swap consumes
         rescueSe: sePolicy.rescueSe ?? null,
@@ -1217,28 +1209,6 @@ export default function createAstDestructureEmitter({
       && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
     const restHost = destructurePatternHostPath(metaPath);
     if (renderArrayFlattenPlan(metaPath)) return;
-    const arrayRest = restHost?.node?.type === 'VariableDeclarator'
-      && buildNestedDestructurePlan({
-        arrayPath: restHost,
-        adapter,
-        injectorState,
-        captureFor: { prop: metaPath.node, pattern: metaPath.parentPath.node, kind },
-      })?.array.capture;
-    if (arrayRest) {
-      if (unwrapExportedHost(restHost.parentPath)) return;
-      const rendered = renderArrayWrapperCapture(arrayRest, { mintRef: mintRefName });
-      // Re-detection owns the moved pattern; queued claims still name the old array host.
-      retireDeclaratorJobs(restHost);
-      const [capture] = restHost.replaceWithMultiple([rendered.capture,
-        ...rendered.elements.flatMap(element => element.declarator ? [element.declarator] : [])]);
-      capture.get('id').traverse({
-        Identifier(path) {
-          capture.scope.registerBinding(capture.parentPath.node.kind, path, capture);
-        },
-      });
-      markRewrite();
-      return;
-    }
     const nestedRest = restHost?.node?.type === 'VariableDeclarator'
       && planKeyedClaimCapture({
         pattern: restHost.node.id,
@@ -1821,15 +1791,6 @@ export default function createAstDestructureEmitter({
           metaPath,
         });
         if (forInitValue) {
-          // ... and so does a HOP whose DEFAULT carries an EFFECT, the assignment host's same arm
-          if (hopDefaultCarriesEffect(chain)) {
-            // the SHARED plan answers first, as it does on the other binding: it reads the slot the
-            // default pairs with and mirrors the arm there, where the per-branch route below only sees
-            // the leaf's own meta and leaves a passthrough sibling's tree unrenderable
-            if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return 'handled';
-            routeSelectionMirror(metaPath, handlePerBranch, meta);
-            return 'handled';
-          }
           registerExtractAliases({ metaPath, kind, entry, hintName, prop, declaration: declarationPath.node, declarationPath });
           recordJob({
             hostPath: exported ? declarationPath.parentPath : declarationPath,
@@ -1861,7 +1822,7 @@ export default function createAstDestructureEmitter({
       return 'handled';
     }
     // Source admission has already chosen a shared receiver for the surviving readers.
-    if (initializerNavigation?.carrier === 'memo') {
+    if (initializerNavigation && !initializerNavigation.carried) {
       recordJob({
         hostPath: exported ? declarationPath.parentPath : declarationPath,
         job: {
@@ -1956,20 +1917,11 @@ export default function createAstDestructureEmitter({
         // A KEY effect buried in the source spine rides the extraction's
         // own sequence, where the source ran it - inside the read, not ahead of it
         buriedKeyEffect: navSpineHasComputedKeyEffect(declarator.init),
-        rawKeyRootInit: initRawKeyOnRoot(declarator.init),
         // ... and the same timing for the guard the discarded read renders through;
         // its source plan owns the effects the drain places around that read
         // A logical selection observes the nested leaf after selecting its receiver.
         // Keep that final property read in the discarded probe.
         initProbeReadsLeaf: selecting?.type === 'LogicalExpression',
-        // ... and whether a read stands over a store the realm may leave void: where the probe
-        // DECLINES that read (an effect inside the stored value keeps the whole init with the
-        // effect channel), this lift is what carries it, and with it the throw the consume erases
-        // ... kept as the KEY the read spells: by drain time the collapse may have folded that key
-        // into the extraction, and the lift rebuilds the read off the live store instead
-        absentableStoreReadKey: absentableStoreReadKeyOf(declarator.init,
-          { scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath) }),
-        // ... and the SEALED shape of the same read, for the same reason
       },
     });
     return 'handled';
@@ -2153,13 +2105,12 @@ export default function createAstDestructureEmitter({
     chain,
     sentinel,
     metaPath,
-    initNode = null,
   }) {
     const keyCtx = { scope: metaPath.scope, adapter, path: metaPath };
     // the bodyless slot extracts every resolvable prop; an INSTANCE read requires a
     // reusable receiver (the extraction re-reads it), a SENTINEL (SE key / rest) keeps
     // its renamed residual beside the extractions
-    let initValue = peelTransparentExpr(initNode ?? host.declarator.init);
+    let initValue = peelTransparentExpr(host.declarator.init);
     // an SE SEQUENCE init lifts its prefix as block statements; only the TAIL is the
     // receiver and must be quiet (`(eff('a'), globalThis)` -> `eff('a'); var from = ...`) - the live
     // arm's prefix of a selection the build decides with it (`liftedPrefixSplit`)
@@ -2290,7 +2241,7 @@ export default function createAstDestructureEmitter({
         return carriedInitReceiverNode({ path: metaPath, initNode: host.declarator.init, adapter })
           ?? dispatchReceiver;
       }
-      if (nestedReceiver || seqPrefix?.length || initNode) return dispatchReceiver;
+      if (nestedReceiver || seqPrefix?.length) return dispatchReceiver;
       return host.declarator.init ?? dispatchReceiver;
     }
     // ... while a receiver-LESS claim reads nothing a memo would share: the residual evaluates the init
@@ -2340,9 +2291,6 @@ export default function createAstDestructureEmitter({
         initTail: initValue,
         nestedMemoNode,
         readsReceiver: kind === 'instance',
-        // the ARRAY-wrapped host keeps its wrapper: the quiet tail replaces the ELEMENT,
-        // not the whole init
-        initHost: initNode ?? null,
         defaulted,
         value: kind !== 'instance'
           ? () => guardedSlotValue(identifier(injectPureImport(entry, hintName)), defaultNode, guardRef)
@@ -2794,7 +2742,7 @@ export default function createAstDestructureEmitter({
   // Apply the common overwrite product in the native statement/sequence slot. The
   // deferred render follows borrowed receiver and default slots after child rewrites.
   function emitAssignmentOverwrite({
-    metaPath, kind, entry, hintName, prop, pattern, chain, sentinel, hostParent, exprStmtPath, seqHostStatement, bodyless,
+    metaPath, entry, hintName, prop, pattern, chain, sentinel, hostParent, exprStmtPath, seqHostStatement, bodyless,
   }) {
     if (exprStmtPath?.node?.type !== 'ExpressionStatement' && !seqHostStatement) return false;
     const keyCtx = { scope: metaPath.scope, adapter, path: metaPath, injectorState };
@@ -2802,7 +2750,6 @@ export default function createAstDestructureEmitter({
       path: metaPath,
       assignment: hostParent.node,
       entry,
-      chain,
       pending: true,
     }, {
       ...keyCtx,
@@ -2814,33 +2761,6 @@ export default function createAstDestructureEmitter({
     });
     if (!receiverPlan) return false;
     const bindingId = receiverPlan.target;
-    if (receiverPlan.kind === 'capture') {
-      const { capture } = receiverPlan;
-      const rendered = renderNestedKeyedPatternCapture(capture, {
-        mintRef: () => injector.generateDeclaredRef(metaPath), assignment: true, embed: cloneNode,
-        renderLeaf: capture.inlineLeaf ? receiverNode => assignmentExpression('=', cloneNode(bindingId), buildValue({
-          kind,
-          entry,
-          hintName,
-          receiverNode,
-          prop,
-          nested: false,
-          chainKeys: [],
-          metaPath,
-          literalRoute: true,
-          guardCtx: navGuardCtx(metaPath),
-        })()) : null,
-      });
-      // the capture copies the pattern's targets: the source pattern leaves
-      noteRenderRetiredWrites(hostParent.node.left);
-      if (!seqHostStatement) {
-        const statements = rendered.expression.expressions.map(expressionStatement);
-        if (bodyless) exprStmtPath.replaceWith(bodylessSlotReplacement(exprStmtPath.node, statements));
-        else exprStmtPath.replaceWithMultiple(statements);
-      } else hostParent.replaceWith(rendered.expression);
-      markRewrite();
-      return true;
-    }
     const id = injectPureImport(entry, hintName);
     const overwriteRef = receiverPlan.fallback ? identifier(injector.generateDeclaredRef(metaPath)) : null;
     markRewrite();
@@ -2920,16 +2840,6 @@ export default function createAstDestructureEmitter({
     // and a leaf the ordered capture declined keeps its read native.
     if (rhs?.type === 'LogicalExpression' && rhs.operator === '&&' && chain.length > 0
       && kind !== 'instance' && hasRestSibling(pattern, keyCtx)) return;
-    // This consumer asks only about a capture; other RHS routes decide their own receiver.
-    if (isChainAssignment(peelTransparentExpr(rhs))) {
-      const selection = selectingExtractionPlan({
-        receiver: rhs, kind, object: meta?.object, nested: chain.length > 0,
-      }, metaPath);
-      if (selection?.kind === 'native') {
-        routeSelectionMirror(metaPath, handlePerBranch, meta);
-        return;
-      }
-    }
     // the hop-host note is taken AHEAD of every route: a claim this host CONSUMES never reaches the
     // stand-down below, and the residual it leaves behind re-anchors like an untouched one
     noteStaticHopPatternCallHost();
@@ -2964,15 +2874,6 @@ export default function createAstDestructureEmitter({
       routeSelectionMirror(metaPath, handlePerBranch, meta);
       return;
     }
-    // a HOP whose DEFAULT carries an EFFECT, the declarator host's same arm in the same order: the
-    // selecting gates above answer the default they can SPELL, and this one answers the rest of
-    // them - a sequence around the selection is what the type set does not name (`= (h++, u ||
-    // globalThis)`), and the consume below dropped the whole mirror with it
-    if (kind !== 'instance' && hopDefaultCarriesEffect(chain)) {
-      if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
-      routeSelectionMirror(metaPath, handlePerBranch, meta);
-      return;
-    }
     if (emitAssignStaticDefaultOverwrite({ hostParent, prop, chain, kind, entry, hintName, metaPath },
       { adapter, injectorState, injectPureImport, markRewrite, markSubtreeSkipped, skippedNodes })) return;
     // a NESTED instance leaf in a destructuring-ASSIGNMENT has no declaration to host a
@@ -2989,7 +2890,7 @@ export default function createAstDestructureEmitter({
     // import, and it is what the DECLARATION host renders on both legs. claimed here, the leaf parted
     // the two emitters on the assignment form alone
     if (kind === 'instance' && chain.length > 0 && emitAssignmentOverwrite({
-      metaPath, kind, entry, hintName, prop, pattern, chain, sentinel, hostParent, exprStmtPath, seqHostStatement, bodyless,
+      metaPath, entry, hintName, prop, pattern, chain, sentinel, hostParent, exprStmtPath, seqHostStatement, bodyless,
     })) return;
     // A bodyless slot can still use the consume route when the overwrite declined.
     // an opaque receiver still consumes when the extraction is its ONLY read: a sole

@@ -3,8 +3,8 @@ import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Shared-name instance keys keep runtime dispatch through selecting receivers.
+// Static branches are served without replacing a user object's own entries, keys or values.
 function viaParamDefault(_ref = [c ? Object : userObj]) {
   let [_ref2] = _ref;
   let e = _entries(_ref2);

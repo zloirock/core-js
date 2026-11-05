@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A held window probe remains observable through direct, nested and rest-bearing static reads.
+// The literal-array twin keeps its native property read.
 const heldProbe = _globalThis.window;
 export const viaAliasChainDecl = (heldProbe.Array, _Array$of);
 let viaAliasChainAssign;
@@ -20,6 +20,7 @@ export const {
     of: _Array$of
   }
 });
+// In a full consume, the throw probe precedes the first extracted binding.
 export const viaAliasChainMultiA = (heldProbe.Array, _Array$of);
 export const viaAliasChainMultiB = _Array$from;
 const _ref = heldProbe.Array,

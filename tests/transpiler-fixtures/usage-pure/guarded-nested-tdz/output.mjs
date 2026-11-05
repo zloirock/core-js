@@ -2,8 +2,8 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A getter reading the constructor binding it is about to initialize still throws in the TDZ.
+// No later sibling getter may run after that abrupt completion.
 const log = [];
 let caught;
 try {

@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A direct tag-returned constructor supports static extraction.
+// Constructor values inside literal wrappers keep full entries and native property reads.
 function tagArray() {
   return Array;
 }

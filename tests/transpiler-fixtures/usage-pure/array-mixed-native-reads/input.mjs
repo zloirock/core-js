@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Mixed literal containers retain their static property reads and native array iteration.
+// Only the instance leaves dispatch through their original array or string receiver.
 const numbers = { methods: Object, value: [4, 8] };
 const [{ methods: { is }, value: { at } }] = [numbers, mark()];
 const text = { value: 'abc', methods: Math };

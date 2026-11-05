@@ -5,8 +5,8 @@ import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Iterator$zip from "@core-js/pure/actual/iterator/zip";
 import _Iterator$zipKeyed from "@core-js/pure/actual/iterator/zip-keyed";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// A constructor-valued getter runs once before both static and instance sibling bindings.
+// The capture serves each static while the name helper reads that same constructor value.
 class KE {
   static get I() {
     log();

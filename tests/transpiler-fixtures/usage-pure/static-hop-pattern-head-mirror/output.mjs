@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Loop heads reading properties of a served static keep that static as their receiver.
+// Direct, call-produced and array-wrapped hosts preserve their native residual boundaries.
 let arity, viaCall, wrapped, beside, besideName, awaited, opaque;
 const log = [];
 function realm() {

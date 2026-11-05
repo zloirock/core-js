@@ -420,8 +420,8 @@ function hasRuntimeBinding(scope, name, path = null, read = null) {
 
 // the ONE scoped pre-pass walk (estree side): every registration that has to stand before the
 // usage pass meets a use rides it, and each lane brings its own cheap census gate - a file that
-// trips none pays no walk at all. The mutation lane classifies its sites in place; the held-read
-// lane collects property paths for scoped settlement. The alias lane only COLLECTS, because
+// trips none pays no walk at all. The mutation lane classifies its sites in place;
+// the alias lane only COLLECTS, because
 // registration reads an injector this walk runs ahead of and has to
 // stay behind the mutated-static enrichment that feeds it. shares every resolution step with the
 // read side via `mutations` (provider)
@@ -588,7 +588,7 @@ export function createEstreeAdapter(options = {}) {
       // unbound sent `resolveObjectName` down the would-be-global branch, where `_ref` names nothing -
       // the static claim rebuilt onto the ref then died into a raw read off the ponyfill.
       // a memo holding the SURFACE keeps the unbound reading: this leg's own surface routes resolve it
-      // (`proxySurfaceNameOf`), and answering here folds an SE-keyed hop the reference emitter keeps
+      // through the shared proxy receiver plan; answering here would fold a kept SE-keyed hop
       return !!(minted?.hint
         && ((minted.minted && !POSSIBLE_GLOBAL_OBJECTS.has(minted.hint)) || (minted.source && !minted.userNamed)));
     },

@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// Getter-supplied realm values are evaluated once before a nested constructor is bound or assigned.
+// Direct, aliased and assignment hosts preserve the getter's observed binding value.
 export function direct(log) {
   const { w: { WeakSet: Value } } = { get w() { log.push('direct'); return globalThis; } };
   return Value;

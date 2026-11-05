@@ -3,8 +3,8 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Skipped array slots still run their effects before the selected property reads.
+// Instance and mixed realm captures keep one element value for their extracted and residual leaves.
 const log = [];
 const rows = [[1, 2]];
 const [,,] = [_pushMaybeArray(log).call(log, 'n'), (_pushMaybeArray(log).call(log, 'e'), _globalThis)];

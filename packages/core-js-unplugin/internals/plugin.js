@@ -104,7 +104,6 @@ import {
   KNOWN_BUNDLERS,
   sourceDialectOf,
   stripLeadingBOMs,
-  isCallee,
   optionalCallInstantiationCallee,
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
@@ -478,10 +477,6 @@ export default function createPlugin(options) {
     readsUnnamedStatic: name => currentEscapedCtorNames?.readsUnnamedStatic(name) === true,
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
-      // `isCallee` peels parens / TS wrappers / ChainExpression from `parent.callee` before the
-      // identity check, so the resolver's wrapper-walking `filter()` doesn't over-inject when
-      // `parent.callee` is a wrapper around the member (`(obj?.fn)()`)
-      isCallee,
       isSpreadElement: node => node?.type === 'SpreadElement',
     },
   });

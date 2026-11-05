@@ -3,8 +3,8 @@ import _Math$log1p from "@core-js/pure/actual/math/log1p";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Destructuring writes bind the actual slots of a call result.
+// Later member and computed-key reads use those bindings without mixing unrelated call arguments.
 const assign = () => ({
   a: Object,
   b: [Math]

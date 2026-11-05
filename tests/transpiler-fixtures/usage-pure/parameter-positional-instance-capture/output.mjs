@@ -1,4 +1,6 @@
 import _at from "@core-js/pure/actual/instance/at";
+// Pure parameter extraction captures the actual positional receiver once.
+// Full, partial and supplied patterns retain their own methods and native length binding.
 export function full(_ref) {
   let [_ref2] = _ref;
   let at = _at(_ref2);

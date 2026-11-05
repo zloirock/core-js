@@ -3,8 +3,8 @@ import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
+// Bodyless hosts keep initializer effects and served bindings under the same guard.
+// The array-wrapped static stays native while the direct realm forms extract their methods.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 let c = 1;
@@ -17,11 +17,15 @@ if (c) var {
     from: _Array$from
   }
 });
+
+// The array-wrapped twin keeps its native static read inside the bodyless branch.
 if (c) var [{
   Array: {
     of
   }
 }] = [(eff('b'), _globalThis)];
+
+// bodyless loop arm
 while (c--) var {
   Array: {
     fromAsync
@@ -31,6 +35,8 @@ while (c--) var {
     fromAsync: _Array$fromAsync
   }
 });
+
+// assignment host on a bodyless slot keeps its own channel
 let groupBy;
 if (seen.length) ({
   Map: {

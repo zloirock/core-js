@@ -3,6 +3,8 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+// Pure activation serves all admitted statics without losing nested claims or source effects.
+// A selecting fallback runs only when its probe does not supply the receiver.
 const effects = [];
 export function read(choose) {
   const {

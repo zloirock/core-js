@@ -1,5 +1,4 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// Nested array and element defaults keep native hasOwn reads at their original levels.
 {
 function g({ w: [{ hasOwn } = {}] = [] } = { w: [Object] }) { return hasOwn; }
 }

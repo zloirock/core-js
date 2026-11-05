@@ -4,8 +4,8 @@ import _Iterator from "@core-js/pure/actual/iterator";
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// Literal-container defaults retain their supplied-value branch and native static reads.
+// Stored constructors keep full entries; supported neighbouring instance leaves keep their own captures.
 function h1(o) {
   const {
     A: {

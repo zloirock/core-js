@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions.
+// A literal loop element and an unrelated body receiver retain separate native destructuring reads.
 {
 for (const { w: { keys } } of [{ w: Object }]) { const { w: { is } } = _x; }
 }

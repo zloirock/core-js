@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A chain assignment makes the wrapper hold its latest array value.
+// The native allSettled read keeps the Promise source supplied by that write.
 let wrap = [Object], w2;
 wrap = w2 = [Promise];
 const [{ allSettled }] = wrap;

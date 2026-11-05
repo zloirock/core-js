@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Discarded initializer prefixes replay observable effects once and omit effect-free terms.
+// Prefixes kept by native wrappers or surviving expressions retain their original order.
 function eff() {}
 function eff2() {}
 let a, b, c, d, e;

@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Two realm elements retain independent positional constructor hints while their patterns stay native.
+// A later Array.from call is served through the first binding.
 const [{
   Array: F
 }, {

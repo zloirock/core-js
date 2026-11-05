@@ -3,7 +3,6 @@ import {
   unwrapParens,
   requireCallSource,
   tsRuntimeBindingName,
-  unwrapRuntimeExpr,
   walkPatternIdentifiers,
   isDestructurePattern,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -287,21 +286,6 @@ export function stripLeadingBOMs(code) {
   let i = 0;
   while (code.charCodeAt(i) === 0xFEFF) i++;
   return i === 0 ? code : code.slice(i);
-}
-
-// classifies `node`'s role under `parent`: 'call' / 'new' when node is the (wrapper-peeled)
-// callee of that invocation, null otherwise. the single source of the invocation-kind answer -
-// deriving kind from `parent.type` alone misclassifies ARGUMENT positions (`new Tag(base.name)`:
-// the member's parent is the NewExpression, but its callee is `Tag`)
-function calleeKind(node, parent) {
-  if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return null;
-  if (unwrapRuntimeExpr(parent.callee) !== node) return null;
-  return parent.type === 'NewExpression' ? 'new' : 'call';
-}
-
-// check if parent is a call/new expression with node as callee
-export function isCallee(node, parent) {
-  return calleeKind(node, parent) !== null;
 }
 
 // TODO: Remove once optional-chaining transforms before Babel 7.29.13 / 8.1.0 are unsupported.

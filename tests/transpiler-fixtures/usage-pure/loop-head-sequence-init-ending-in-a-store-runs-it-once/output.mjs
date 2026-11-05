@@ -1,6 +1,6 @@
 import _Map from "@core-js/pure/actual/map";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A sequence ending in a container store runs both setup and the write once.
+// Native static reads consume the same stored value inside the loop header.
 const box = {};
 for (const {
   C: {

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// An effectful constructor key and an opaque instance leaf share one array capture.
+// The static claims are served without repeating the key or losing the native length read.
 export function read(unknown) {
   const log = [];
   for (const e of [Array]) {

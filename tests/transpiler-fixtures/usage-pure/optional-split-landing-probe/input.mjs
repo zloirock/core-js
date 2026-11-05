@@ -1,3 +1,5 @@
+// Optional static and instance claims keep the first live realm probe and stored receiver.
+// Repeated window hops, constructor guards and parentheses retain their distinct short-circuit boundaries.
 const log = [];
 const value = globalThis.window?.self?.Object[(log.push('key'), 'values')]({ a: 5 }).at(0);
 const claimed = globalThis.window?.Map.prototype.has.call(new Map([[1, 3]]), 1);

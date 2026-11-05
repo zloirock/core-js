@@ -18,7 +18,7 @@ const lowerings = ['classes', 'destructuring', 'block-scoping']
   .map(name => requireBabel.resolve(`@babel/plugin-transform-${ name }`));
 
 for (const method of ['usage-global', 'usage-pure']) {
-  const source = await readFile(new URL(`../transpiler-fixtures/${ method }/loop-destructure-sibling-lowering/input.mjs`, import.meta.url), 'utf8');
+  const source = await readFile(new URL(`../transpiler-fixtures/${ method }/loop-destructure-shared-lowering-source/input.mjs`, import.meta.url), 'utf8');
   const { code, ast } = await transformAsync(source, {
     filename: 'input.mjs',
     babelrc: false,
@@ -111,6 +111,24 @@ const second = held?.Map;`;
     check(`guarded store/parens=${ createParenthesizedExpressions }/prefix=${ !!prefix }/sealed=${ sealed }/overwritten=${ overwritten }`,
       native, overwritten ? 1 : 0);
   }
+}
+
+// A dropped default is no longer cloned, but its writes must stop widening later
+// reads. A retained instance default still writes and must keep the generic helper.
+for (const [name, body, dead] of [
+  ['flat', "const { from = (list = 'ab', 0) } = Array;", true],
+  ['nested-function', "(() => { const { from = (list = 'ab', 0) } = Array; return from; })();", true],
+  ['computed', "const { [(effect(), 'from')]: from = (list = 'ab', 0) } = Array;", true],
+  ['realm', "const { Map: M = (list = 'ab', Set) } = globalThis;", true],
+  ['instance', "const { at = (list = 'ab', 0) } = opaque;", false],
+]) {
+  const { ast } = await transformAsync(`let list = [1, 2]; ${ body } export const last = list.at(-1);`, {
+    filename: 'input.mjs', configFile: false, babelrc: false, ast: true,
+    plugins: [[plugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const imports = new Set(ast.program.body.filter(node => node.type === 'ImportDeclaration').map(node => node.source.value));
+  check(`default writes/${ name }/typed`, imports.has('@core-js/pure/actual/array/instance/at'), dead);
+  check(`default writes/${ name }/generic`, imports.has('@core-js/pure/actual/instance/at'), !dead);
 }
 
 finish();

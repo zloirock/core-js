@@ -3,8 +3,8 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 var _unused2;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Effects inside an array element run once in for-init and assignment hosts.
+// Captured static leaves beside rest are served; the simple wrapper keeps its native from read.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 let out1;

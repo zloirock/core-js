@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// An IIFE beneath a stored receiver executes its setup once before the member read.
+// The literal wrapper stays native and preserves the stored realm.
 let calls = 0;
 let a;
 const [{

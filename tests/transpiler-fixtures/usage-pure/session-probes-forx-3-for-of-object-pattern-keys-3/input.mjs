@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions.
+// Plain and getter-backed loop elements retain their native keys reads and distinct evaluation paths.
 {
 for (const { w: { keys } } of [{ w: Object }, { get w() { return Object; } }]) keys;
 }

@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Static function properties share the same method value with their native sibling reads.
+// Supported name dispatch keeps the source receiver across defaults and binding hosts.
 const c = 1;
 function eff() {}
 const { of: { name: viaFlat, foo: f1 } } = Array;

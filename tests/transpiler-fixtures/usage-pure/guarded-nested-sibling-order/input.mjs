@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Nested and outer getters keep depth-first source order around a served constructor.
+// Later getters observe the initialized binding; earlier ones cannot be moved past it.
 const log = [];
 export const { before, box: { first, realm: { WeakSet: Value }, last }, after } = {
   get before() { log.push('before'); return 1; },

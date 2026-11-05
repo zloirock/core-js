@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A defined realm element makes the IIFE's receiver default dead.
+// The literal-array pattern retains its native constructor and static reads.
 export const iifeRealm = (([{
   Set: S,
   Array: {

@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Literal construction evaluates sibling effects before nested instance reads.
+// Captured at and iterator claims retain the selected slot and residual sibling values.
 function siblingKeepsResidual(hit) {
   const _ref = {
     w: _globalThis,

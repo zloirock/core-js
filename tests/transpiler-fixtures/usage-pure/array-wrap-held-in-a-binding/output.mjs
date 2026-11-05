@@ -1,7 +1,7 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering. Instance claims retain their own receivers.
+// Array literals held by bindings keep their effects and nested native property reads.
+// An outer inline wrapper retains its trailing effect before either iteration.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const wrap = [(eff('h'), _globalThis), eff('i')];

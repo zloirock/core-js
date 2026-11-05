@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// A for-of array head keeps its native Object.values read beside a captured array at leaf.
+// Both bindings retain their original element positions.
 {
 for (const [{ values }, { at }] of [[Object, [1]]]) [values, at];
 }

@@ -1,7 +1,7 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
+// A literal-object for-of element keeps its native nested Map read.
+// The independent body push call remains polyfilled.
 function forOfHop() {
   const out = [];
   for (const {

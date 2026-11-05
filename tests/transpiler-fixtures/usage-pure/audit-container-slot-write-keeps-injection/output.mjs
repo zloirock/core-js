@@ -1,7 +1,7 @@
 import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Writes and repositioning preserve the actual runtime slot of a container.
+// Pure keeps native container statics and full replacement constructors; direct reaching-value statics still resolve.
 const w = {
   k: Object
 };
@@ -18,6 +18,7 @@ const {
     entries
   }
 } = b;
+// A direct reaching-value static is served; literal-container and unknown-receiver reads remain native.
 let O = Object;
 O = _Map;
 const reachingValue = _Map$groupBy;
@@ -35,6 +36,7 @@ export function unknownReceiverNoStaticInjection(anything) {
   } = anything;
   return nothingInjected;
 }
+// A repositioned container member keeps the actual runtime slot; its bound call key does not hide the mutation.
 const repositioned = [{
   q: 1
 }, Array];

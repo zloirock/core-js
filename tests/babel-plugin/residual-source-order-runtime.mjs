@@ -290,6 +290,85 @@ function restore() { for (const [key, descriptor] of saved) {
       }
     }
   }
+  // These drain paths carry a source prefix or a live iterator default; a capture
+  // must not steal their effects, even when the output is parsed and lowered again.
+  for (const [shape, body, expected, iteratorRead, strippedExpected = expected] of [
+    ['this-prefix', `let from, x;
+try { ({ x, Array: { from } } = (effects.push("prefix"), this)); }
+catch (error) { effects.push(error.name); }
+export const r = [typeof from, typeof x];`,
+    'OK|["undefined","undefined"]|["prefix","TypeError"]'],
+    ['call-prefix', `let from, x;
+({ from, x } = (effects.push("prefix"), (() => Array)()));
+export const r = [typeof from, typeof x];`,
+    'OK|["function","undefined"]|["prefix"]'],
+    ['overwrite-inner-sibling', `const rows = [3, 7];
+const holder = { get rows() { effects.push("get"); return rows; } };
+let method, kept;
+({ y: { at: method, length: kept } } = { y: holder.rows });
+export const r = [method.call(rows, -1), kept];`, 'OK|[7,2]|["get"]'],
+    ['overwrite-outer-sibling', `const rows = [3, 7];
+const holder = { get rows() { effects.push("get"); return rows; } };
+let method, kept;
+({ y: { at: method }, kept } = { y: holder.rows, kept: 1 });
+export const r = [method.call(rows, -1), kept];`, 'OK|[7,1]|["get"]'],
+    ['overwrite-rest-sibling', `const rows = [3, 7];
+const holder = { get rows() { effects.push("get"); return rows; } };
+let method, rest;
+({ y: { at: method, ...rest } } = { y: holder.rows });
+export let r;
+try { r = [method.call(rows, -1), rest[0]]; }
+catch (error) { r = [error.name, rest[0]]; }`, 'OK|[7,3]|["get"]', undefined,
+    // An instance beside rest stays native: absence of at is observable after the
+    // getter and rest copy, just as it is for a native read in the stripped realm.
+    'OK|["TypeError",3]|["get"]'],
+    ['retained-array-head', `function key() { effects.push("key"); return "unknown"; }
+function f([{ from, [(key(), "unknown")]: x } = Array]) {
+  effects.push("body");
+  return [from([3])[0], typeof x];
+}
+export const r = f([void 0]);`, 'OK|[3,"undefined"]|["key","body"]'],
+    ['retained-arrow-head', `function key() { effects.push("key"); return "unknown"; }
+const f = ([{ from, [(key(), "unknown")]: x } = Array]) => [from([3])[0], typeof x];
+export const r = f([void 0]);`, 'OK|[3,"undefined"]|["key"]'],
+    ['realm-default', `const { [Symbol.iterator]: iterator = (effects.push("default"), 17) } = globalThis;
+export const r = iterator;`, 'OK|17|["default"]'],
+    ['realm-getter-default', `const { [Symbol.iterator]: iterator = (effects.push("default"), 17) } = globalThis;
+export const r = iterator;`, 'OK|17|["get","default"]', 'return undefined;'],
+    ['realm-getter-method', `const { [Symbol.iterator]: iterator = (effects.push("default"), 17) } = globalThis;
+export const r = iterator();`, 'OK|23|["get"]', 'return () => 23;'],
+    ['realm-getter-throw', `export let r;
+try { const { [Symbol.iterator]: iterator = (effects.push("default"), 17) } = globalThis; r = iterator; }
+catch (error) { r = error.name; }`, 'OK|"RangeError"|["get"]', 'throw new RangeError("iterator");'],
+  ]) {
+    const source = `export const effects = [];\n${ body }`;
+    scenarioSource(source);
+    const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+    const { code: babel } = await transformAsync(source, {
+      configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, options]],
+    });
+    const unplugin = createUnplugin(options).transform(source, 'input.mjs').code;
+    const outputs = [['native', source], ['babel', babel], ['unplugin', unplugin]];
+    for (const [host, output] of outputs.slice(1)) {
+      const { code } = await transformAsync(output, {
+        configFile: false, babelrc: false, plugins: [requireBabel.resolve('@babel/plugin-transform-destructuring')],
+      });
+      outputs.push([`${ host }/lowered`, code]);
+    }
+    for (const [host, output] of outputs) {
+      const setup = iteratorRead === undefined ? null : `import realm from '@core-js/pure/actual/global-this';
+import iteratorKey from '@core-js/pure/actual/symbol/iterator';
+Object.defineProperty(realm, iteratorKey, {
+  configurable: true, get() { effects.push("get"); ${ iteratorRead } }
+});`;
+      const prepared = setup ? output.replace('export const effects = [];', `export const effects = [];\n${ setup }`) : output;
+      if (setup) check(`drain/${ shape }/${ host }/setup`, prepared.includes(setup), true);
+      const file = path.join(DIR, `case-${ count++ }.mjs`);
+      await fs.outputFile(file, prepared);
+      check(`drain/${ shape }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
+      if (host !== 'native') check(`drain/${ shape }/${ host }/stripped`, await runInWorker(file), strippedExpected);
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }

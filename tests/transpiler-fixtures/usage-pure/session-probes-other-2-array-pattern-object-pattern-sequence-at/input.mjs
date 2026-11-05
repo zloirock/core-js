@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Effects in selecting array elements and literal slots stay at their source positions.
+// The supported nested at receiver is captured; static-only from patterns remain native.
 let pick = 1;
 const userObj = {};
 const arr = [1, 2];

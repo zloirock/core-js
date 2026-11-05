@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// An outer array captures the inner array value before later binding reassignment.
+// Both nested static reads remain native and keep the source snapshot's identity.
 
 let inner = [Array];
 const outer = [inner];

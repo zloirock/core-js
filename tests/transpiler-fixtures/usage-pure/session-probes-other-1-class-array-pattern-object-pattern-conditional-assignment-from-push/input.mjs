@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// A class static block keeps its native conditional array-pattern read.
+// The later Array.from comparison and push call retain their independent polyfills.
 let pick = 1;
 const userObj = {};
 const log = [];

@@ -62,15 +62,15 @@ for (const [name, init, prefixCount, tailName] of [
   check(`${ label }/query does not rewrite source`, JSON.stringify(program.node), before);
 });
 
-for (const [name, init, sibling, carried, carrier, forInit = false] of [
-  ['sole prefix', '(effect(), globalThis)', '', true, null],
-  ['sole store', '(held = globalThis)', '', true, null],
-  ['store in header', '(held = globalThis)', '', true, null, true],
-  ['prefix in header is not an early lift', '(effect(), globalThis)', '', false, null, true],
-  ['surviving sibling shares prefix', '(effect(), globalThis)', ', other', false, 'memo'],
-  ['surviving sibling shares store', '(held = globalThis)', ', other', false, 'memo'],
-  ['ordinary root has no moved effects', 'globalThis', '', false, null],
-  ['user member names no builtin surface', '(effect(), user)', ', other', false, null],
+for (const [name, init, sibling, carried, memo, forInit = false] of [
+  ['sole prefix', '(effect(), globalThis)', '', true, false],
+  ['sole store', '(held = globalThis)', '', true, false],
+  ['store in header', '(held = globalThis)', '', true, false, true],
+  ['prefix in header is not an early lift', '(effect(), globalThis)', '', false, false, true],
+  ['surviving sibling shares prefix', '(effect(), globalThis)', ', other', false, true],
+  ['surviving sibling shares store', '(held = globalThis)', ', other', false, true],
+  ['ordinary root has no moved effects', 'globalThis', '', false, false],
+  ['user member names no builtin surface', '(effect(), user)', ', other', false, false],
 ]) runBoth(name, `let held; const { Array: { prototype: { at: method } }${ sibling } } = ${ init };`, (parser, program, label) => {
   const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value.name === 'method');
   const declaration = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern').node;
@@ -92,7 +92,7 @@ for (const [name, init, sibling, carried, carrier, forInit = false] of [
   const plan = planInitializerNavigation(input, ctx);
   check(`${ label }/navigation inspects source readers`, patternReads > 0, true);
   check(`${ label }/carried`, !!plan?.carried, carried);
-  check(`${ label }/carrier`, plan?.carrier ?? null, carrier);
+  check(`${ label }/memo receiver`, !!plan && !plan.carried, memo);
   checkDeep(`${ label }/repeat query`, planInitializerNavigation(input, ctx), plan);
   check(`${ label }/source untouched`, JSON.stringify(program.node), before);
 });

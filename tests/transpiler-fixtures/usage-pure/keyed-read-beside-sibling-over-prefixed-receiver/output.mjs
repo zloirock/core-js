@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Object$keys from "@core-js/pure/actual/object/keys";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A receiver prefix precedes a nested computed key, then its sibling read.
+// Captured from and keys claims retain that source order in const and let hosts.
 const box = {
   w: Array,
   other: 1

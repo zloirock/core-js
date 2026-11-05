@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A call-valued literal slot with at and keys retains both native reads beside its sibling.
 const k = 'k';
 function eff() {
   return Object;

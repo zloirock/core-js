@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions.
+// Loop-element calls keep each argument's value distinct, including a user constructor-like object.
+// Only the supported call-dependent static route is served; constant wrapper reads remain native.
 function pick(value) {
   return value;
 }

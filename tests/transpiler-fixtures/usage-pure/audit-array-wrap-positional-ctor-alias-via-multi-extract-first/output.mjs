@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Multiple constructor bindings from one array pattern retain separate identities.
+// The later Symbol.for read resolves through the first binding without rewriting the wrapper.
 const [{
   Symbol: SM
 }, {

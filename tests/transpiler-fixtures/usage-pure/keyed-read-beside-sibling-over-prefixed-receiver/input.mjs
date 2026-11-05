@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A receiver prefix precedes a nested computed key, then its sibling read.
+// Captured from and keys claims retain that source order in const and let hosts.
 const box = { w: Array, other: 1 };
 const { w: { [(log('from'), 'from')]: from }, other } = (log('box'), box);
 const holder = { v: Object, more: 2 };

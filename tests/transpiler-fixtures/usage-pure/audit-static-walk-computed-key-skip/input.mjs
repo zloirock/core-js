@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A bound computed key selects the same literal-object slot as a plain key.
+// The nested static read stays native while the independent at call is served.
 const dynamicKey = 'a';
 const wrapper = { [dynamicKey]: Array };
 const { a: { from } } = wrapper;

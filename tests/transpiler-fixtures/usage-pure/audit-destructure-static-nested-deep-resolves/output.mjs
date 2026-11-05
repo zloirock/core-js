@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Two literal-object levels retain their native static read.
+// The known Array.from result still narrows the later at, includes and copyWithin calls.
 const wrapper = {
   a: {
     b: Array

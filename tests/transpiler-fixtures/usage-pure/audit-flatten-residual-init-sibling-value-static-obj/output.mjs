@@ -1,7 +1,7 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 var _ref;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A literal namespace keeps its native static from read beside a defaulted residual binding.
+// The independent flat call inside that default remains polyfilled.
 const wrapper = {
   ns: Array
 };

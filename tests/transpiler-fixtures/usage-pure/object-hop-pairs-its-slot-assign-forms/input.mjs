@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Direct realm assignments keep supported static and constructor claims.
+// Literal-object hops retain native reads while preserving nested prefixes, defaults and stores.
 function assignForms(f, g) {
   let nestedSeq;
   let seqDefault;
@@ -11,7 +11,8 @@ function assignForms(f, g) {
   ({ w: { Map: hopOrDefault } } = { w: globalThis || {} });
   ({ w: { Array: { from: hopNav } } } = { w: globalThis });
   ({ w: { Map: hopOptional } } = { w: globalThis?.globalThis });
-  let hopSeq;
+  // A prefix inside the literal slot stays in that slot before the native nested read.
+let hopSeq;
   let hopSeqDefault;
   ({ w: { Array: { from: hopSeq } } } = { w: (f(), (g(), globalThis)) });
   ({ w: { Map: hopSeqDefault } } = { w: (f(), globalThis ?? {}) });

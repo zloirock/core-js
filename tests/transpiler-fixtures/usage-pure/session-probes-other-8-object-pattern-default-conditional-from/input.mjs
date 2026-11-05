@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A defaulted literal slot retains its native from read from the selected constructor or user object.
 let pick = 1;
 const userObj = {};
 {

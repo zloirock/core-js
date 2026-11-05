@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A callee-filled slot reflects the argument of that particular call.
+// Later statics retain their own argument's hint; nested literal-wrapper statics stay native.
 const wrap = value => ({ a: value });
 const { a: viaParam } = wrap(Object);
 export const fromParam = viaParam.groupBy([1], v => v);

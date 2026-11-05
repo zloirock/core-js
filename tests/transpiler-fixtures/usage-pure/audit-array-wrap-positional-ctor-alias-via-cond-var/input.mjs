@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A conditionally initialized var cannot promise a constructor on the untaken branch.
+// Its native pattern and guarded later read remain intact.
 function condVar(c) {
   if (c) { var [{ Iterator: CB }] = [globalThis]; }
   return CB && CB.range(0, c);

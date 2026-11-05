@@ -2,8 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Direct selecting receivers serve supported static and instance leaves from one chosen value.
+// Nested literal and loop hosts preserve their own instance receiver and native residual boundaries.
 export function flat(flag, user) {
   const _ref = flag ? (Array, {
       from: _Array$from,

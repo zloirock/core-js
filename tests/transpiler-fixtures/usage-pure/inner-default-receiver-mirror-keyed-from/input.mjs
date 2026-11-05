@@ -1,4 +1,4 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A defined keyed slot makes its Array receiver default dead.
+// The supported from extraction still uses the selected slot's constructor.
 const { k: { from: keyedFrom } = Array } = { k: Array };
 export { keyedFrom };

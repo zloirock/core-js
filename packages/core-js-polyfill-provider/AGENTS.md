@@ -60,8 +60,7 @@ Every hop key is named by `realmHopKeyName` and folded by `foldableRealmHop`, ne
 
 A guard on an erased realm receiver evaluates the root prefix before its test, and a computed key or call argument on the live branch. Only a plain store carries its right-hand value through a realm hop. An optional read still tests an unproven receiver, and a retained probe carries its guard onto the surviving leaf. A sealed call or tag still owns a member reference. A consumed initializer's retained source read carries its own calls, getters and stores once, including when the pattern disappears.
 
-Accepted prices: a collapsed `window` navigation can yield `undefined` where native throws, and a bare `window` selection can take the author's fallback instead of throwing; a backed `??` / `||` left denotes the realm; caller-default slots may keep an always-defined literal; the emitters may differ on keeping a bare name read in a collapsed init's sequence prefix or a dead `0,` of a run carried through a sequence; proxy collapses need not reach a fixed point in one pass (`pre` and `pre+post` can differ). None of these licenses erasing a mutation guard.
-
+Accepted prices: a collapsed `window` navigation can yield `undefined` where native throws, and a bare `window` selection can take the author's fallback instead of throwing; a backed `??` / `||` left denotes the realm; caller-default slots may keep an always-defined literal; proxy collapses need not reach a fixed point in one pass (`pre` and `pre+post` can differ). Writes and updates through collapsed window navigation pay the same price as reads; retransformation may change a D.0-native read while preserving runtime behavior. None of these licenses erasing a mutation guard. Legacy bare-name and dead-`0,` spelling differences remain tracked debt.
 
 ## Destructuring and callers
 
@@ -100,7 +99,7 @@ Each is a limit of the model, not a license to weaken the proofs above; its owne
 - A realm member as a destructuring target or a for-of head (`({ Promise: globalThis.Promise } = globalThis)`) is no self-copy: its read stays native.
 - A script that may run bare is bare only for what it hands out (`programTopLevelIsRealm`).
 - An effectful computed key keeps a pattern's member target native, and an effectful keyed level of an assignment over a member receiver leaves the levels after it native.
-- An exotic destructuring spelling - an effectful or computed key beside claims, a getter on a claimed slot, a rest or default level under a selection - can run in another order than native or keep a native read, and the emitters can differ there; each is locked by its fixture and stated at the deciding code, both read before treating one as a bug.
+- An exotic destructuring spelling - an effectful or computed key beside claims, a getter on a claimed slot, a rest or default level under a selection - can run in another order than native or keep a native read; each price is locked by its fixture and stated at the deciding code. A difference between emitters within an accepted price is still a defect with one shared owner.
 
 ## Canon owners and dialect rules
 

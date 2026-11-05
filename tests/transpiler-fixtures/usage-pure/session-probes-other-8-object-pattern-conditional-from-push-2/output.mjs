@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A conditional value inside a literal object retains its native from read.
+// The separate Array.from comparison and push call are independently served.
 let pick = 1;
 const userObj = {};
 const log = [];

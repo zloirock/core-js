@@ -4173,7 +4173,7 @@ function literalHoldsClass(node) {
 // `memoizedName` marks a static ponyfill binding that several leaves share through one
 // whole-init memo. `staticMemo` prevents that value from carrying a constructor alias.
 export function resolveDestructureReceiverPlan(leafPath, {
-  allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
+  allowSeFreeSingleRead = false,
   adapter = null, injectorState = null, resolvePureGlobal = null, patternSize = null, memoizedName = null,
 } = {}) {
   const patternPath = leafPath.parentPath;
@@ -4184,7 +4184,7 @@ export function resolveDestructureReceiverPlan(leafPath, {
   if (!initKey) {
     // with the adapter: it is what folds a BOUND hop key (`{ [k]: { at } }` with `const k = 'w'`) to
     // the slot it names - without it the walk stops at the computed key and the claim ships native
-    const node = resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead, allowInitCarriedEffects, adapter, injectorState });
+    const node = resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead, adapter, injectorState });
     if (node && isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, injectorState, path: leafPath })) {
       return { channel: 'resolved', node };
     }
@@ -7725,7 +7725,7 @@ export function buildNestedParamSynthPlan(options) {
         const slotPattern = pure?.kind === 'static' ? inner : prop.value;
         const slotLeaves = (!pure || pure.kind !== 'instance') && planStaticPatternInstances(
           slotPattern,
-          { resolvePure, assignment: host?.node.type === 'AssignmentExpression', defaults: true,
+          { resolvePure, assignment: host?.node.type === 'AssignmentExpression',
             receiverObject: !pure && key === 'prototype' ? ctx.name : undefined },
         );
         entries.push(slotLeaves
@@ -8319,15 +8319,15 @@ export function fallbackInitWhollyDiscardable(initNode, rescueReachable, ctx) {
 }
 
 // A pattern reading a static value descends only when its plain, distinct keys include an
-// instance claim. The kept pattern may own leaf defaults; a literal-only slot cannot replay
-// those defaults. Assignment targets must be writable without an extra receiver evaluation.
+// instance claim. The kept pattern owns its leaf defaults. Assignment targets must be
+// writable without an extra receiver evaluation.
 // Each leaf carries its resolved dispatch so a late render never asks about the enclosing claim.
-export function planStaticPatternInstances(pattern, { resolvePure, receiverObject = undefined, assignment = false, defaults = false }) {
+export function planStaticPatternInstances(pattern, { resolvePure, receiverObject = undefined, assignment = false }) {
   if (pattern?.type !== 'ObjectPattern' || !pattern.properties.length) return null;
   const leaves = [];
   let claims = false;
   for (const item of pattern.properties) {
-    if (!isPropertyNode(item) || item.computed || !defaults && item.value?.type === 'AssignmentPattern') return null;
+    if (!isPropertyNode(item) || item.computed) return null;
     if (assignment && !propBindingIdentifier(item.value) && !memberTargetTakesExtraction(item.value)) return null;
     const key = plainSynthKeyName(item.key);
     if (key === null || key === '__proto__' || leaves.some(leaf => leaf.key === key)) return null;

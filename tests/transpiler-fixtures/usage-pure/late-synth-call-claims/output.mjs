@@ -1,6 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
+// Synthesizing a static argument must retain claims inside the call that supplies its receiver.
+// The nested at call runs once before the of and length bindings initialize.
 const log = [];
 export const result = (({
   of,

@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// An array containing a literal namespace keeps its native Object.entries read.
+// Its known result type still selects the array at helper.
 const wrapper = {
   ns: Object
 };

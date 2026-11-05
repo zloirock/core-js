@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A decided test can yield a boolean instead of its constructor-containing operand.
+// The native pattern must read that actual value, preserving its failure or absent property.
 export const {
   C: {
     groupBy

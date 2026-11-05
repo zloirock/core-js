@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A sequence prefix remains ahead of the call and its native array iteration.
+// Both the optional call and literal-array twin keep native static reads and element defaults.
 const log = [];
 const make = () => (log.push('make'), [Math]);
 const [{ trunc: viaPrefixed } = {}] = (log.push('prefix'), make());

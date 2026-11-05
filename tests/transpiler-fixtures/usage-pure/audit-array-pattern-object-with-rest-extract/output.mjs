@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order.
+// A captured Array.from leaf retains its static polyfill and rest exclusion.
+// Instance leaves under rest-bearing literal wrappers keep their native reads.
 const [,] = [Array];
 const from = _Array$from;
 const {
@@ -19,12 +19,14 @@ const [{
   },
   ...wrapRest
 }] = [nb];
+// The flat twin retains the same native instance read beside rest.
 const {
   y: {
     at: viaFlatHopRename
   },
   ...flatRest
 } = nb;
+// a NEIGHBOUR element pairs by index, so the rename reads the element this pattern stands on
 const [zLead, {
   y: {
     at: viaWrapSecondSlot

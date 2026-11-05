@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// Unknown supplied values keep runtime identity tests against receiver defaults.
+// Supported fallback statics are served; an unrelated static-only literal wrapper stays native.
 function use() {/* empty */}
 const [{ groupBy } = Map] = [UserMaps];
 for (const [{ fromAsync } = Array] of [[UserArrays]]) use(fromAsync);

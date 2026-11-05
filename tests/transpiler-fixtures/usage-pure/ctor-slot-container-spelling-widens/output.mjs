@@ -1,6 +1,6 @@
 import _Map from "@core-js/pure/actual/map";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// A stored constructor's full-entry requirement follows prefixes, stores, aliases and selections.
+// Rest-bearing patterns still read the actual constructor held by each container.
 let spellingHits = 0;
 const prefixed = (spellingHits++, {
   Map: _Map
@@ -51,6 +51,8 @@ const [{}] = indexedHop,
     groupBy: viaIndexHop,
     ...indexHopRest
   } = _Map;
+// ... and the spelling alone widens nothing: a name holding a literal whose slot stores no
+// constructor asks the entry for nothing, and the read stays exactly where the source wrote it
 const plainSource = {
   Map: {}
 };

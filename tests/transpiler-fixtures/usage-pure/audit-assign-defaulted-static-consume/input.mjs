@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims. Instance claims retain their own receivers.
+// Instance defaults guard the extracted method and preserve array siblings.
+// The static-only Array.of wrapper keeps its native read and default.
 let o;
 [{ of: o = fb }] = [Array];
 use(o);

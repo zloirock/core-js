@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// A polyfilled call buried in an array element's prefix keeps its own substitution.
+// The enclosing Map.groupBy read stays native and the prefix runs once in its original slot.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const w = "abc";

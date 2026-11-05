@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A prefix or store does not change a fresh object's truthiness.
+// The selected literal container retains native static reads, effects and stored identity.
 export const { C: { groupBy } } = (console.log(), { C: Map }) || { C: Object };
 let stash;
 export const { C: { from } } = (stash = { C: Iterator }) || { C: Array };

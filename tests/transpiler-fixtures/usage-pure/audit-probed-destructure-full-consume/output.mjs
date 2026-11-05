@@ -4,8 +4,8 @@ import _Math$sign from "@core-js/pure/actual/math/sign";
 import _Object$seal from "@core-js/pure/actual/object/seal";
 import _self from "@core-js/pure/actual/self";
 import _structuredClone from "@core-js/pure/actual/structured-clone";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Fully consumed realm patterns retain the probe read that can throw before extraction.
+// The array-contained static remains native and performs its own read.
 export const {
   Math: {
     cbrt: viaMultiPropA

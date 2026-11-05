@@ -1,7 +1,7 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Literal sibling effects run in property construction order before the iterator read.
+// The iterator helper uses the selected realm slot without replaying those effects.
 let count = 0;
 const hit = () => ++count;
 const _ref = {

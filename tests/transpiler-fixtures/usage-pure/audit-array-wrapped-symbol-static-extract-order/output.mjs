@@ -1,6 +1,6 @@
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// A symbol-keyed leaf beside rest keeps its native iterator read and rest exclusions.
+// The neighbouring of read also remains native; Symbol.iterator itself is served.
 const [{
   [_Symbol$iterator]: it,
   of: o,

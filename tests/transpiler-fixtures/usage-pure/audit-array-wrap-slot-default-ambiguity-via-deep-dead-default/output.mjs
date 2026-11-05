@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// A defined deeply nested realm element makes its receiver default dead.
+// The pattern remains native while the later Iterator use retains its constructor claim.
 let deepFb = {};
 const [[{
   Iterator: I

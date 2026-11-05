@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 var _unused;
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// Array assignment captures preserve rest exclusions around a served from leaf.
+// A static-only neighbouring-slot pattern retains its native of read.
 let from, rest, other;
 [,] = [Array], from = _Array$from, {
   from: _unused,

@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Direct realm destructuring serves Array.from while a literal Object wrapper stays native.
+// Both static results still narrow their later instance calls independently.
 const {
   Array: {
     from

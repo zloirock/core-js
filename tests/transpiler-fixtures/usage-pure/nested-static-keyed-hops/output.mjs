@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Array$of from "@core-js/pure/actual/array/of";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Nested computed keys run from outer level to inner level before binding.
+// Realm and literal captures both serve their statics without duplicating those key effects.
 const events = [];
 var {
   [(_pushMaybeArray(events).call(events, 'realm'), 'Array')]: {

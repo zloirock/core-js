@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Getter reads and binding initialization keep their source order. Instance claims retain their own receivers.
+// A preceding declarator finishes before the constructor-valued getter is captured.
+// The from and name extractions keep that source order.
 class KE {
   static get I() { log(); return Iterator; }
 }

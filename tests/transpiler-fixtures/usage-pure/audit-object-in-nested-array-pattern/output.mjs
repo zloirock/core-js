@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Native iteration, source effects and residual bindings stay in order.
+// A receiver default remains supported through two parameter-array levels.
+// The from claim follows the supplied element or Array fallback at its original slot.
 function f([[{
   from
 } = {

@@ -1,6 +1,6 @@
 import _Promise from "@core-js/pure/actual/promise";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// An effectful write supplies the latest container and runs its prefix once.
+// The native allSettled read uses the full stored Promise constructor.
 let effCount = 0;
 const eff9 = () => effCount++;
 let rw9 = {

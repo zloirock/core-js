@@ -1,5 +1,5 @@
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Direct selecting receivers serve supported static and instance leaves from one chosen value.
+// Nested literal and loop hosts preserve their own instance receiver and native residual boundaries.
 export function flat(flag, user) {
   const { from, at } = flag ? Array : user;
   return [from, at];

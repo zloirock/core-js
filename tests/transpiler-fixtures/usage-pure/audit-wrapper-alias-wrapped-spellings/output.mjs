@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// Parentheses and sequences preserve the value captured by an array-wrapper alias.
+// The nested statics stay native, including the uncertain position after a spread.
 const [parenElement] = [[_globalThis]];
 export const [{
   Object: {

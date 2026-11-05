@@ -1,7 +1,7 @@
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// Calls inside literal-container defaults run only when those defaults fire.
+// Native static reads require full Map and Promise entries for the returned constructors.
 function f() {
   log();
   return _Map;

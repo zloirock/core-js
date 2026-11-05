@@ -1,6 +1,6 @@
 import _Map from "@core-js/pure/actual/map";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A prefix runs before the container store that follows it.
+// Native nested static reads consume that same stored object.
 var one, two;
 export const {
   C: {

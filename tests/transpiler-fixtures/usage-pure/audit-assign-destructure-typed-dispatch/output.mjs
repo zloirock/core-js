@@ -5,8 +5,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _at from "@core-js/pure/actual/instance/at";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 var _ref, _ref2, _ref3, _ref4, _unused;
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// A destructuring assignment provides a type hint for later instance dispatch.
+// A genuine reassignment widens that hint; literal wrappers keep native static reads.
 let from;
 from = _Array$from;
 export const r1 = _atMaybeArray(_ref = from([1, 2])).call(_ref, 0);

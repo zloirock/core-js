@@ -1,7 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Positional capture uses the array element's value, including a value returned by a getter.
+// Native own methods stay untouched; a returned string selects string instance dispatch.
 const proxyRoot = function () {
   const [{
     Array: {

@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Supplied values and defaults keep their source branches and independent claims.
+// Effectful keys under selecting realm receivers retain their own capture and default boundaries.
+// Supported branch claims use Array.from while native wrapper forms keep their original reads.
 let pick = 1;
 let calls = 0;
 const key = () => {
@@ -46,6 +46,7 @@ const {
     from: _Array$from
   }
 };
+// the control: the literal spelling of the same effectful key
 const [,] = [_globalThis];
 const {
   Array: {}

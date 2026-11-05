@@ -2,8 +2,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Nested assignment leaves read function names from the served static methods.
+// Their receiver, defaults and residual siblings stay ordered across statement and expression hosts.
 let name, junk, arity;
 ({
   Array: {

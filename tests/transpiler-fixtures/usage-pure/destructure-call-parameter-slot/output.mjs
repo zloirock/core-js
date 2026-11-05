@@ -2,8 +2,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Math$log10 from "@core-js/pure/actual/math/log10";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Supplied values and defaults keep their source branches and independent claims.
+// A callee-filled slot reflects the argument of that particular call.
+// Later statics retain their own argument's hint; nested literal-wrapper statics stay native.
 const wrap = value => ({
   a: value
 });

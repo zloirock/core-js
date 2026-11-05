@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// An array pattern under a literal-object key keeps native iteration and static property reads.
+// Declaration, assignment, loop and default hosts preserve that same boundary.
 const held = { k: [Math] };
 const { k: [{ trunc: viaAlias }] } = held;
 use(viaAlias(1.5));

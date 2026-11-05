@@ -1,5 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order.
+// A static-only conditional array assignment retains its native from read and chosen element.
 let pick = 1;
 const userObj = {};
 {

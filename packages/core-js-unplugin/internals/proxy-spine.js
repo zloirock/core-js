@@ -1098,8 +1098,7 @@ export default function createProxySpineChannel(ctx) {
     }, {
       allowOptional, consumer: spineConsumerFacts(target),
       get mutatedGuards() { return mutatedRunKeepsItsGuards(metaPath); },
-      sealed: parent?.node?.type === 'ParenthesizedExpression'
-        || (parent?.node?.type === 'ChainExpression' && parent.parentPath?.node?.type === 'ParenthesizedExpression'),
+      sealed: sealedLayerAbove(target, target.node),
       get deletedAbove() { return deleteHostAboveChain(target, target.node, unwrapRuntimeExpr); },
       get deleteFold() { return deleteHostForClaim(metaPath, metaPath.node, { forFold: true }); },
       get inProbe() { return insideMemoClone(metaPath, probeTestClones); },
@@ -1443,10 +1442,7 @@ export default function createProxySpineChannel(ctx) {
     deoptionalizeOverSubstituted,
     emitGuardedDestructureNarrow,
     emitGuardedStaticNarrow,
-    emitLiveOptionalProbeGuard,
     emitOwnOptionalGuardedClaim,
-    emitProxyHopClaim,
-    emitRootGuardedNavCollapse,
     emitStaticGlobalClaim,
     emitStaticOverGuardedNav,
     mutatedRunKeepsItsGuards,

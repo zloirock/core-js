@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Static-only array patterns keep native getters and binding order.
+// A later neighbour observes the static binding after its source slot has initialized.
 let sign, other;
 const source = { get other() { return typeof sign; } };
 const rows = [Math, source];

@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
-// Shared capture and receiver-default routes preserve independently supported claims.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Direct realm assignments keep supported static and constructor claims.
+// Literal-object hops retain native reads while preserving nested prefixes, defaults and stores.
 function assignForms(f, g) {
   let nestedSeq;
   let seqDefault;
@@ -43,6 +43,7 @@ function assignForms(f, g) {
   } = {
     w: _globalThis
   });
+  // A prefix inside the literal slot stays in that slot before the native nested read.
   let hopSeq;
   let hopSeqDefault;
   ({

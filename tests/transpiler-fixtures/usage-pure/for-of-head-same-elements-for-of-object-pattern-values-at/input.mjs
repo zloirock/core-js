@@ -1,3 +1,3 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Reads and effects remain inside their source control-flow positions. Instance claims retain their own receivers.
+// A literal-object loop element keeps its native Object.values read.
+// Its nested array at leaf still dispatches on the captured array receiver.
 for (const { w: { values: viaDualBesideInstance }, y: { at: viaInstanceBeside } } of [{ w: Object, y: [1] }]) [viaDualBesideInstance, viaInstanceBeside];

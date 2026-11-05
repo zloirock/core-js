@@ -4355,10 +4355,9 @@ function plainNavHopKey(node) {
   return key?.type === 'TemplateLiteral' ? null : extractStaticString(key);
 }
 
-// a chain MARKER whose `?.` the guard canon ERASES guards nothing: the source cannot short-circuit
-// there, so every receiver question below may read the nav it wraps. asked once, at the route's
-// entry - the marker alone otherwise declined the extraction and the claim shipped native, while
-// the babel binding (whose parser spells no marker at all) extracted off the same source
+// A source navigation query may cross ESTree's chain marker only after proving its guard
+// dead. Babel has no such marker; both dialects must expose the same hop keys under that proof.
+// Live short circuits keep their boundary. The node is borrowed and never changed.
 export function peelDeadChainMarker(node, guardCtx = null) {
   const cur = peelTransparentExpr(node);
   if (cur?.type !== 'ChainExpression' || !guardCtx?.resolvePure) return node;
@@ -4771,24 +4770,16 @@ export function planProvenNavGuardCollapse({
   return {
     assignWrap: lastUnresolvableIdx !== -1 ? assignWrap : null,
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
-    // whether the root below the hops does anything observable - a write, a sequence prefix, an
-    // effect-bearing call. the base substitution of `navGuardTestBase` spells the whole prefix away,
-    // so it is exactly this that decides whether it may
-    rootEffects,
     // the WRITE the plan's own test spells (`null == (w = _globalThis).window`): a consumer replaying
     // the claim's side effects must skip it, or the source's single store runs twice - and a raw
     // replay spells it unpolyfilled (`w = globalThis`), a bare global in usage-pure output
     rootAssign: chainAssign ?? null,
-    topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx,
+    topAssign, topAssignSteps, hops, collapseIdx, lastUnresolvableIdx,
     seqAroundPrefix,
     leafName: hops[collapseIdx].name, leafPure, rootValueNode: seqRootNode ?? n, seqRoot: !!seqRootNode,
     // the root itself can be absent (an alias holding a probe, a bare probe name): the render owes a
     // test on it, ahead of whatever the hops fold to
     rootUndefinable,
-    // the sequence's TAIL is part of what the hops navigate, so a render that descended past it
-    // re-emits the PREFIX only: spelling the whole sequence puts the tail's ponyfill in twice
-    // (`(k++, _globalThis, _self).window`)
-    seqTailDescended: !!seqRootNode && descendSequenceTail,
     // asked of the RAW right, not of the dug value: the chain-assign walk hands the value with its
     // transparent layers already peeled, so a render reading the flag off the peeled node landed OVER
     // them and dropped an assertion the source wrote - and a runtime narrowing outranks the wider
@@ -6049,7 +6040,7 @@ function discardedInitProbeNavStart(initNode) {
 }
 
 // A fully consumed pattern needs the value's own probe, or the alias read through its first seal.
-// A sequence contributes its tail; a one-element array's mirror already owns an inline store.
+// A sequence contributes its tail; a one-element array contributes its element.
 // An outer store remains the value being probed: its RHS and write must run once, together.
 // As with sealedClaimProbePlan, this retains source facts without committing any host effects.
 export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
@@ -6061,7 +6052,7 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
   }
   if (!nav) return null;
   const stored = peelChainAssignment(nav);
-  if (!arrayWrapped && stored.outer && proxyReceiverValueCanBeUndefined(stored.value, resolvePure, aliasCtx)) {
+  if (stored.outer && proxyReceiverValueCanBeUndefined(stored.value, resolvePure, aliasCtx)) {
     return retainedSourceProbe('stored', initNode, nav, resolvePure, aliasCtx);
   }
   const leafPlan = sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx, { probeLeaf: true });
@@ -6080,7 +6071,7 @@ export function discardedInitProbePlan(initNode, resolvePure, aliasCtx) {
     );
   }
   const aliasProbe = aliasHeldClaimProbe(sealedChainBoundary(nav)?.member ?? nav,
-    resolvePure, aliasCtx, { allowStoreHolder: !arrayWrapped });
+    resolvePure, aliasCtx, { allowStoreHolder: true });
   return aliasProbe ? claimProbeRenderPlan({ kind: 'alias', source: initNode, aliasProbe,
     navStart: aliasProbe.navStart }, resolvePure, aliasCtx) : null;
 }
@@ -6800,10 +6791,6 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
 // it as "unresolvable" turns an erasable navigation into an environment probe - the two emitters
 // then answer the same source differently, which is what the target-only spelling produced. the
 // per-target resolver still leads, so a hop it answers needs no definitions lookup.
-// the canon's near names decide a HOST SHAPE, not entry existence, so none of them subsumes this:
-// `classifyVariableDeclarationHost` classifies a destructure host, `respellKeptHop`
-// re-spells a kept hop onto a binding. `navHasUnresolvableProxyHop` stays the owner of the question - this is
-// its arm, lifted so `proxyReceiverValueCanBeUndefined` asks it in the same spelling
 export function proxyHopLacksPureEntry(hop, resolvePure) {
   return !!hop && POSSIBLE_GLOBAL_OBJECTS.has(hop)
     && !resolvePure({ kind: 'global', name: hop })

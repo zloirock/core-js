@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live. Instance claims retain their own receivers.
+// Bound computed keys preserve the actual slot under nested object and array patterns.
+// Instance claims use that slot's receiver; literal-container statics and constructors stay native.
 {
 const k = 'Map'; const { w: { [k]: m } } = { w: globalThis }; use(m);
 }

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Binding identity, writes and later reads retain their existing inference and ordering.
+// A dominating container write replaces the old source before destructuring.
+// The native groupBy read requires the full Map value held by that write.
 let rw1 = { k: Object };
 rw1 = { k: Map };
 const { k: { groupBy: viaDominating } } = rw1;

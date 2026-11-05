@@ -1,8 +1,8 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Object$values from "@core-js/pure/actual/object/values";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Native iteration, source effects and residual bindings stay in order. Instance claims retain their own receivers.
+// Parentheses preserve the array-wrapper boundary and its native static/rest reads.
+// The flat realm twin extracts values while retaining the same rest exclusions.
 const seen = [];
 const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 const [{

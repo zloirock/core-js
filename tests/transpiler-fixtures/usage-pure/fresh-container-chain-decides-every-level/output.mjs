@@ -1,7 +1,7 @@
 import _Map from "@core-js/pure/actual/map";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Fresh-object truthiness decides the first live container of a logical chain.
+// Nested destructuring keeps a native static read; a direct member static remains served.
 export const {
   C: {
     groupBy

@@ -1,5 +1,5 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
-// Receiver evaluation, residual reads and independent claims remain live.
+// Decided selections expose their live container to later member analysis.
+// Direct member statics remain served while nested destructuring retains native slot reads.
 const aliased = typeof Symbol != 'undefined' ? { C: Map } : { C: Object };
 export const viaAlias = () => aliased.C.groupBy([1], x => x);
 const inSlot = { C: typeof Symbol != 'undefined' ? Iterator : Object };

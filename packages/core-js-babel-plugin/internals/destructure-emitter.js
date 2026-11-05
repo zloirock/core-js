@@ -28,7 +28,6 @@ import {
   renderKeyedDestructureRead,
   renderMirrorTarget,
   renderLiftedPrefix,
-  renderStaticDefaultGuard,
   exportDeclaration,
   renderDestructureStatements,
   renderDestructureDeclarators,
@@ -954,12 +953,12 @@ export default function createDestructureEmitter({
       if (decls.some(item => !extractionSourceAt.has(item) && item.id?.type !== 'Identifier')) continue;
       const groups = new Map();
       for (const [index, item] of decls.entries()) {
-        const host = extractionHostOf.get(item) ?? initializerSlots.get(item)?.host;
+        const host = extractionHostOf.get(item) ?? initializerSlots.get(item);
         if (!host) continue;
         if (!groups.has(host)) groups.set(host, { positions: [], reads: [], initializers: [] });
         const group = groups.get(host);
         group.positions.push(index);
-        if (initializerSlots.get(item)?.role === 'initializer') group.initializers.push({ item });
+        if (initializerSlots.has(item)) group.initializers.push({ item });
         else group.reads.push({ item, sourceAt: extractionSourceAt.get(item) });
       }
       for (const { positions, reads, initializers } of groups.values()) {
@@ -1971,13 +1970,10 @@ export default function createDestructureEmitter({
     if (e.kind === 'global') adapter.recordEmittedBindingSource(
       scope.getBinding(e.localName)?.path.node, e.localName, injector.getBindingInfo(id.name)?.source,
     );
-    // the leaf's own default is dead text over the pure (always defined) - the canon drops it
-    return e.defaultNode
-      ? estreeToBabel(renderStaticDefaultGuard({
-        read: hostSlot(t.cloneNode(id)), defaultValue: hostSlot(t.cloneNode(e.defaultNode)), reread: hostSlot(t.cloneNode(id)),
-        alwaysDefined: true,
-      }))
-      : id;
+    // A static import is always defined: the dropped default's writes must leave the
+    // source analysis too, even though no clone now visits that discarded subtree.
+    if (e.defaultNode) noteRenderRetiredWrites(e.defaultNode);
+    return id;
   }
 
   // anchored residual rebuild for an assignment host: swap the LHS to the (pruned) inner
@@ -2347,18 +2343,9 @@ export default function createDestructureEmitter({
   // semantics: `rest.Array` becomes defined, originally excluded). consumed subtrees are
   // skip-seeded so queued visitor re-entries short-circuit; verbatim survivors (including
   // `[Symbol.iterator]`-keyed props whose key the natural visitor polyfills) stay live.
-  // `keepSentinels`: the wrapper this pattern sits in SURVIVES the consume (a spread keeps its
-  // array iterating), so a pattern the prune would EMPTY keeps its consumed leaves as sentinels
-  // instead - at leaf depth, the shape a bound neighbour leaves (`[{ Array: { from: _unused } },
-  // plain2]`); one that keeps a live prop sheds the consumed ones like any partial consume
-  // ... asked through the PLAN: a level a spread keeps alive keeps the leaf sentinels, a level a REST
-  // keeps alive empties the consumed hop and binds the hop itself to a sentinel (`{ w: _unused,
-  // ...rest }` - the flat rest shape one level down), minting into the caller's declaration list
-  // `keepSentinels`: the declaration render keeps a surviving level's leaf sentinels; the assignment
-  // cascade never did - its surviving literal stays as a statement of its own
-  function prunePatternByPlanAndRest(plan, hostPattern, { keepSentinels = false, ctx = null } = {}) {
-    const names = prunePatternByPlan(plan.pattern, plan.outerProps,
-      { keepSentinels: keepSentinels && !plan.restKeepsLevel, ctx });
+  // Prune consumed leaves and keep rest exclusions in their native pattern slots.
+  function prunePatternByPlanAndRest(plan, hostPattern, { ctx = null } = {}) {
+    const names = prunePatternByPlan(plan.pattern, plan.outerProps, { ctx });
     if (plan.restKeepsLevel) {
       pruneEmptiedHopProps(hostPattern, {
         mint: () => {
@@ -2373,31 +2360,9 @@ export default function createDestructureEmitter({
     return names;
   }
 
-  function prunePatternByPlan(pattern, planNodes, { keepSentinels = false, ctx = null } = {}) {
+  function prunePatternByPlan(pattern, planNodes, { ctx = null } = {}) {
     // a rest sibling and an effectful hop key keep the level's consumed props as sentinels alike
     const hasRest = patternLevelKeepsSentinels(pattern, ctx);
-    // ... and only where the prune would EMPTY the pattern: a prop the source still binds keeps the
-    // residual alive by itself, and a sentinel beside it reads a key the extraction already spells
-    const emptiesPattern = pattern.properties.every(item => planNodes.some(planNode => planNode.prop === item));
-    if (keepSentinels && !hasRest && emptiesPattern
-      && planNodes.every(planNode => planNode.kind === 'consumed' || planNode.kind === 'anchored')) {
-      // ... a sentinel only where its read cannot throw: a leaf UNDER a MISSING-ABLE ctor hop would read
-      // the ctor the stripped realm lacks (`_globalThis.Iterator.from`), and an anchored prop reads its own
-      // binding - both leave the husk, which coerces the slot and lets the spread iterate even as `[{}]`.
-      // a global claim's own sentinel (`{ WeakSet: _unused }`) reads one hop off the realm and stays
-      const kept = planNodes.filter(planNode => planNode.kind === 'consumed'
-        && !(planNode.prop.value?.type === 'ObjectPattern'
-          && hopNamesMissingAbleCtor(planNode.prop, name => resolvePure({ kind: 'global', name }))));
-      for (const planNode of planNodes) {
-        // a KEPT sentinel still evaluates its own KEY, so that read stays visitable: skipping the whole
-        // prop shipped a raw `[Symbol.iterator]` off the realm beside a residual the polyfill spells
-        const keepsSentinel = kept.includes(planNode);
-        planConsumedProps.add(planNode.prop);
-        t.traverseFast(keepsSentinel ? planNode.prop.value : planNode.prop, node => { skippedNodes.add(node); });
-        if (!keepsSentinel) pattern.properties = pattern.properties.filter(item => item !== planNode.prop);
-      }
-      return kept.flatMap(planNode => renameLeavesToUnused(planNode.prop));
-    }
     const removed = new Set();
     // sentinel names accumulate for the AssignmentExpression host, which must hoist
     // `var _unused;` declarations (a VariableDeclarator host declares them via the pattern)
@@ -2441,7 +2406,7 @@ export default function createDestructureEmitter({
           break;
         }
         case 'rebuilt':
-          unusedNames.push(...prunePatternByPlan(planNode.pattern, planNode.children, { keepSentinels, ctx }));
+          unusedNames.push(...prunePatternByPlan(planNode.pattern, planNode.children, { ctx }));
           break;
         case 'symbol-iterator-key':
           retainedClaimProps.add(planNode.prop);
@@ -2628,7 +2593,7 @@ export default function createDestructureEmitter({
     const { kind } = declarator.parentPath.node;
     declarator.node.id = generateUnusedId();
     declarator.node.init = t.sequenceExpression([...forInitSE.prefix, forInitSE.tail]);
-    initializerSlots.set(declarator.node, { role: 'initializer', host: declarator.node });
+    initializerSlots.set(declarator.node, declarator.node);
     rebindMovedBindings(declarator.insertAfter(extracted), kind, bindings);
   }
 
@@ -2894,7 +2859,7 @@ export default function createDestructureEmitter({
       if (placement.placement === 'statements') return replayed;
       if (placement.placement === 'sink') {
         const sink = t.variableDeclarator(generateUnusedId(), replayed.length === 1 ? replayed[0] : t.sequenceExpression(replayed));
-        initializerSlots.set(sink, { role: placement.role, host: declarator.node });
+        initializerSlots.set(sink, declarator.node);
         extracted.unshift(sink);
       } else if (placement.placement === 'value') {
         const [first] = extracted;
@@ -2946,7 +2911,7 @@ export default function createDestructureEmitter({
         t.inheritsComments(item.id, sourceProp.key);
       }
     }
-    prunePatternByPlanAndRest(plan, declarator.node.id, { keepSentinels: !!plan.wrapperSurvives, ctx: aliasCtxFromPath(declarator) });
+    prunePatternByPlanAndRest(plan, declarator.node.id, { ctx: aliasCtxFromPath(declarator) });
     // a wrapper a spread keeps alive never EMPTIES: what leaves it (an anchored prop reading its
     // own ctor binding) leaves a `{}` husk that still coerces the slot and lets the spread iterate
     // ... or binds only the sentinels the prune minted over a PURE init: nothing reads them, the
@@ -2958,9 +2923,8 @@ export default function createDestructureEmitter({
         isSentinel: id => isUnusedName(id) && !residualKeptSentinels.has(id),
         scope: declarator.scope, adapter, path: declarator,
       }));
-    // the discarded setup handed back for the statement lift (a consumed wrapper's trailing
-    // neighbours lift behind it), empty where the rebuild placed it itself
     if (!patternEmpties) collapseRealmSelectingHost(declarator);
+    // Rebuilt anchors return the setup that must run before their extracted reads.
     const liftedSetup = applyAnchoredInitRebuilds(plan, declarator, extracted, patternEmpties);
     // seed skippedNodes for the subtree about to be orphaned so scheduled visitor re-entries
     // short-circuit. for-init+SE preserves the init (under a sink id), so its inner
@@ -3549,6 +3513,7 @@ export default function createDestructureEmitter({
       if (kind === 'static') {
         const { name } = propBindingIdentifier(prop.node.value);
         injector.registerBodyExtractAlias(name, entry, prop.scope.getBinding(name));
+        if (prop.node.value.type === 'AssignmentPattern') noteRenderRetiredWrites(prop.node.value.right);
       }
       if (kind === 'instance' && prop.node.value.type === 'AssignmentPattern') {
         read = buildInstanceDefaultGuard(t, {
@@ -3678,15 +3643,9 @@ export default function createDestructureEmitter({
         });
       } else injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
       const pure = injectPureImport(entry, hintName);
-      // the leaf's own default is dead text over the pure (always defined) - the canon drops it
-      polyfillValue = !patternValue && prop.node.value?.type === 'AssignmentPattern'
-        ? estreeToBabel(renderStaticDefaultGuard({
-          read: hostSlot(t.cloneNode(pure)),
-          defaultValue: hostSlot(t.cloneNode(prop.node.value.right)),
-          reread: hostSlot(t.cloneNode(pure)),
-          alwaysDefined: true,
-        }))
-        : t.cloneNode(pure);
+      // No copy carries a static's dead default; retire its source writes explicitly.
+      if (!patternValue && prop.node.value?.type === 'AssignmentPattern') noteRenderRetiredWrites(prop.node.value.right);
+      polyfillValue = t.cloneNode(pure);
     }
     const bindingKind = residualDecl.node.kind;
     const bindings = releaseMovedBindings(prop.findParent(item => item.isVariableDeclarator()),
@@ -5328,7 +5287,7 @@ export default function createDestructureEmitter({
       }).map(node => estreeToBabel(node));
       const extracted = rendered.pop();
       const [sink = null] = rendered;
-      if (sink) initializerSlots.set(sink, { role: sinkProduct.role, host: parent.node });
+      if (sink) initializerSlots.set(sink, parent.node);
       decls[idx] = extracted;
       const firstExtraction = decls.findIndex(d => extractionHostOf.get(d) === parent.node);
       if (sink) decls.splice(firstExtraction === -1 ? idx : firstExtraction, 0, sink);
@@ -5929,10 +5888,6 @@ export default function createDestructureEmitter({
     const ctx = classifyAssignmentDestructureSite({ parent, assignmentTarget, isStaticValue, isEmpty });
     const strategy = planDestructureEmission(ctx);
     switch (strategy) {
-      case STRATEGIES.WRAP_BODYLESS_SE_ASSIGN:
-        return wrapBodylessAssignWithSideEffect({
-          assignmentTarget, initNode: parent.node.right, assignment, probe,
-        });
       case STRATEGIES.LIFT_SE_AND_REPLACE_ASSIGN: {
         plantSideEffect(assignmentTarget, parent.node.right, probe);
         const trailing = moveTrailingInsertsAhead(assignmentTarget);
@@ -5949,17 +5904,6 @@ export default function createDestructureEmitter({
       default:
         throw new Error(brand(`destructure-emitter: unhandled destructure strategy ${ strategy }`));
     }
-  }
-
-  // The assignment host is a single
-  // ExpressionStatement with no sibling declarators, so the block is just `[<SE>; <assign>;]` - the
-  // SE is what the shared rescue says the init owes, which may be nothing at all
-  function wrapBodylessAssignWithSideEffect({ assignmentTarget, initNode, assignment, probe = null }) {
-    const rescued = rescuedInitExpression(assignmentTarget, initNode, probe);
-    const statements = renderDestructureStatements([{ statement: assignment }], {
-      prefix: rescued ? [rescued] : [], embed: hostSlot,
-    }).map(node => estreeToBabel(node));
-    assignmentTarget.replaceWith(estreeToBabel(bodylessSlotReplacement(assignmentTarget.node, statements, hostSlot)));
   }
 
   // a whole-init pre-memo INSERTS a sibling declarator, and an earlier prop's emission on the SAME
@@ -6055,7 +5999,7 @@ export default function createDestructureEmitter({
         const sink = consumedInitSink(declaratorNode.init);
         declaratorNode.id = generateUnusedId();
         declaratorNode.init = sink.effects.length === 1 ? sink.effects[0] : t.sequenceExpression(sink.effects);
-        initializerSlots.set(declaratorNode, { role: 'initializer', host: declaratorNode });
+        initializerSlots.set(declaratorNode, declaratorNode);
         const rest = decls.filter(item => item !== declaratorNode);
         const first = rest.findIndex(item => extractionHostOf.get(item) === declaratorNode);
         rest.splice(first === -1 ? decls.indexOf(declaratorNode) : first, 0, declaratorNode);
