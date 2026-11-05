@@ -10,7 +10,9 @@ import {
   ownedLeadingComments,
 } from '@core-js/polyfill-provider/helpers/source-scan';
 import { stampReplacementSpan } from './emit-shared.js';
-import { sortedPrefixLength, TRANSPARENT_EXPR_WRAPPER_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  sortedPrefixLength, STATEMENT_LIST_HOST_TYPES, TRANSPARENT_EXPR_WRAPPER_TYPES,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // the esrap printer adapter: oxc-parser hands out offsets, esrap attaches comments and
 // emits sourcemap segments by `loc` - this module synthesizes the locs and owns the
@@ -256,6 +258,8 @@ function synthesizeLocs(program, comments, source) {
   const heirs = [];
   // the positioned hosts of a list tail (`collectListTails`)
   const listHosts = [];
+  // Statement lists whose siblings share esrap's trailing-comment cursor.
+  const bodies = [];
   // where each trailing candidate's code ends, and the innermost node ending there (`collectTrailingComments`)
   const trailEnds = trailingCommentEnds(comments, source);
   const endOwners = new Map();
@@ -341,6 +345,8 @@ function synthesizeLocs(program, comments, source) {
       }
       walk(node[key], anchor);
     }
+    if (comments.length && Array.isArray(node.body)
+      && (STATEMENT_LIST_HOST_TYPES.has(node.type) || node.type === 'ClassBody')) bodies.push(node.body);
   })(program, null);
   // a multiline JSDoc cast followed on its closing line still accumulates a newline
   // inside the generated parens. ending the print-only comment loc one line earlier
@@ -364,6 +370,7 @@ function synthesizeLocs(program, comments, source) {
   }
   return {
     comments: comments.map(comment => ({ ...comment, loc: printLoc(comment), value: printValue(comment) })),
+    bodies,
     hasChainExpression,
     endOwners,
     heirs,
@@ -376,11 +383,11 @@ function synthesizeLocs(program, comments, source) {
 
 // Comments each heir owns, by index: a statement's annotation (`ownedLeadingComments`),
 // or a moved default's leading run (across opening parentheses) and comments inside its source span.
-function ownedCommentIndexes({ heirs, comments, source }) {
+// Additional source spans use the same innermost-owner sweep without claiming a leading run.
+function ownedCommentIndexes({ heirs, comments, source, spans = [] }) {
   const owned = new Map();
-  if (!heirs.length || !comments.length) return owned;
-  const lineOf = buildOffsetToLine(source);
-  const spans = [];
+  if (!(heirs.length || spans.length) || !comments.length) return owned;
+  const lineOf = heirs.length ? buildOffsetToLine(source) : null;
   for (const heir of heirs) {
     const expression = !/(?:Declaration|Statement)$/.test(heir.type);
     let end = heir.ownedCommentsAt;
@@ -404,7 +411,7 @@ function ownedCommentIndexes({ heirs, comments, source }) {
       spans.push({ heir, start: heir.ownedCommentsAt, end: heir.ownedCommentsEnd });
     }
   }
-  // Source default spans nest or stand apart. Sweep them once so deeply nested defaults
+  // Source spans nest or stand apart. Sweep them once so deeply nested frames
   // do not repeatedly collect every descendant comment; the innermost frame owns each one.
   spans.sort((a, b) => a.start - b.start || b.end - a.end);
   const owners = new Map();
@@ -616,6 +623,38 @@ function collectTrailingComments({ tails, trailEnds, endOwners, comments, taken,
   }
 }
 
+// esrap's body trailing flush reaches the NEXT statement's end, not its start.
+// Give that statement's interior its own cursor when the previous sibling ends on
+// the first interior comment's line, even across injected unpositioned siblings.
+// Innermost spans claim first; moved defaults and explicit tails keep their existing
+// ownership. Text equality is irrelevant.
+function localizeBodyComments({ bodies, comments, taken, tails }) {
+  const spans = [];
+  for (const body of bodies) {
+    let previousLine;
+    for (const node of body) {
+      const trailingLine = previousLine;
+      previousLine = node.loc?.end.line ?? previousLine;
+      const start = sourceOffset(node, 'start');
+      const end = sourceOffset(node, 'end');
+      if (start === undefined || end === undefined) continue;
+      const first = comments[sortedPrefixLength(comments, comment => comment.start < start)];
+      if (!first || first.start >= end || first.loc.start.line !== trailingLine) continue;
+      spans.push({ heir: node, start, end });
+    }
+  }
+  const localized = new Map();
+  for (const [node, indexes] of ownedCommentIndexes({ heirs: [], spans, comments })) {
+    const owned = [];
+    for (const index of indexes) if (!taken.has(index) && !tails.indexes.has(index)) {
+      taken.add(index);
+      owned.push(comments[index]);
+    }
+    if (owned.length) localized.set(node, owned);
+  }
+  return localized;
+}
+
 // the tails no visit wrote go back to the cursor; true when there were any
 function dropUnwrittenTails(tails) {
   let dropped = false;
@@ -695,7 +734,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     return false;
   }
   const {
-    comments: locatedComments, endOwners, hasChainExpression, heirs, listHosts, locate, sourceStarts, trailEnds,
+    comments: locatedComments, bodies, endOwners, hasChainExpression, heirs, listHosts, locate, sourceStarts, trailEnds,
   } = synthesizeLocs(program, ownComments, source);
   // A surviving source node keeps its default's comments, including a rewritten default's span.
   // No source node in the span means the default was removed: do not annotate a lifted effect.
@@ -713,7 +752,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   const tails = collectListTails({ hosts: listHosts, comments: locatedComments, taken, source, locate });
   collectTrailingComments({ tails, trailEnds, endOwners, comments: locatedComments, taken, locate });
   const anchors = new Map(anchoredComments);
-  const localized = new Map();
+  const localized = localizeBodyComments({ bodies, comments: locatedComments, taken, tails });
   for (const [heir, indexes] of heirComments) {
     if (heir.discardedComments) continue;
     const owned = indexes.map(index => locatedComments[index]);
@@ -745,8 +784,8 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   function render() {
     const printComments = taken.size || tails.indexes.size
       ? locatedComments.filter((comment, index) => !taken.has(index) && !tails.indexes.has(index)) : locatedComments;
-    // Every moved default has its own comment cursor. Its receiver's later source offsets must
-    // not flush comments out of the default, including annotations inside call arguments.
+    // Moved defaults and same-line statements have their own comment cursors. A receiver or
+    // sibling must not flush their interiors, including annotations inside call arguments.
     function createLanguage(dialectComments) {
       const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }), tails);
       for (const type of new Set(anchors.keys().map(node => node.type))) {

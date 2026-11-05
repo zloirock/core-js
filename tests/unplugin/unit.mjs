@@ -2400,6 +2400,80 @@ async function checkAstPrintContracts() {
   checkDeep('print keeps comment kind, order and multiplicity after a synthetic getter return',
     commentSignature(memoPrinted.comments), commentSignature(memoParse.comments));
   check('print of a synthetic getter return is a fixed point', reprint(memoOutput), memoOutput);
+  // Same-line siblings must not steal comments from the next statement's interior.
+  // Preserve placement as well as multiplicity: deleting a duplicate is not enough.
+  for (const [label, source] of [
+    ['program', 'let value; if (enabled) /* branch */ value = /* value */ read();'],
+    ['block', 'function f() { let value; if (enabled) { /* branch */ value = /* value */ read(); } }'],
+    ['class', 'class A { first() {} second() { return /* value */ read(); } }'],
+    ['static', 'class A { static { let value; if (enabled) value = /* value */ read(); } }'],
+    ['namespace', 'namespace A { let value; if (enabled) value = /* value */ read(); }'],
+    ['nested', 'first(); if (one) { second(); if (two) { third(); value = /* value */ read(); } }'],
+    ['empty', 'first();; if (enabled) { value = /* value */ read(); }'],
+    ['identical', 'first(); /* same */ if (enabled) { /* same */ value = /* same */ read(); } /* same */ after();'],
+    ['annotation', 'first(); const value = /* @__PURE__ */ read(); after();'],
+    ['line', 'first(); if (enabled) { value = // value\nread(); }'],
+    ['multiline', 'first(); if (enabled) { value = /* value\ncontinued */ read(); }'],
+    ['next line', 'first();\nif (enabled) { value = /* value */ read(); }'],
+    ['list tail', 'first(); if (enabled) { value = read(/* argument */); } /* tail */ after();'],
+    ['export tail', 'let a; export { a /* exported */ };'],
+    ['import tail', 'first(); import x, { y /* imported */ } from "y";'],
+    ['property', 'first(); const value = { key /* key */: read() };'],
+    ['method', 'first(); const value = { method(/* parameter */) { return /* result */ read(); } };'],
+    ['declarators', 'first(); const a = /* first */ read(), b = /* second */ read();'],
+    ['directive', 'first(); if (enabled) {\n// core-js-disable-next-line\nvalue = read(); }'],
+    ['interface', 'interface A { first: number; second: /* type */ string; }'],
+    ['decorator', 'class A { first() {} @dec(/* argument */) second() { return /* result */ read(); } }'],
+  ]) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/body.ts', source);
+    const printed = printProgram({ program: parsed.program, comments: parsed.comments, source, id: '/body.ts' });
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const reparsed = parseSync('/body.ts', printed.code);
+    checkDeep(`body comments/${ label }/parse`, reparsed.errors, []);
+    checkDeep(`body comments/${ label }/signature`, commentSignature(reparsed.comments), commentSignature(parsed.comments));
+    checkDeep(`body comments/${ label }/placement`, commentPlacements(reparsed.program, printed.code, reparsed.comments),
+      commentPlacements(parsed.program, source, parsed.comments));
+    check(`body comments/${ label }/fixed point`, astPrint(printed.code).code, printed.code);
+    checkDeep(`body comments/${ label }/same tree`,
+      printProgram({ program: parsed.program, comments: parsed.comments, source, id: '/body.ts' }), printed);
+  }
+  for (const gap of [' ', '\n']) for (const branch of ['consequent', 'alternate']) for (const injected of [false, true]) {
+    const source = `let value;${ gap }if (enabled) /* yes */ value = /* first */ read(1); else /* no */ value = /* second */ read(2);`;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/body.mjs', source);
+    const [, statement] = parsed.program.body;
+    if (injected) parsed.program.body.splice(1, 0, mintStatement(builders.callExpression(mintIdentifier('after'), [])));
+    statement[branch] = stampReplacementSpan({
+      type: 'BlockStatement', body: [statement[branch], mintStatement(builders.callExpression(mintIdentifier('after'), []))],
+    }, statement[branch]);
+    const printed = printProgram({ program: parsed.program, comments: parsed.comments, source, id: '/body.mjs' });
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const reparsed = parseSync('/body.mjs', printed.code);
+    const label = `body comments/synthetic ${ branch }/${ JSON.stringify(gap) }/injected ${ injected }`;
+    checkDeep(`${ label }/parse`, reparsed.errors, []);
+    checkDeep(`${ label }/signature`, commentSignature(reparsed.comments), commentSignature(parsed.comments));
+    check(`${ label }/first annotation`, printed.code.includes('value = /* first */ read(1)'), true);
+    check(`${ label }/second annotation`, printed.code.includes('value = /* second */ read(2)'), true);
+    check(`${ label }/fixed point`, reprint(printed.code), printed.code);
+    for (const enabled of [false, true]) {
+      const activeBranch = enabled ? 'consequent' : 'alternate';
+      const trace = [];
+      const context = {
+        enabled,
+        read: value => { trace.push(value); return value; },
+        after: () => trace.push('after'),
+      };
+      check(`${ label }/runtime ${ enabled }`, runInNewContext(`${ printed.code }; value;`, context), enabled ? 1 : 2);
+      checkDeep(`${ label }/effects ${ enabled }`, trace, [
+        ...injected ? ['after'] : [], enabled ? 1 : 2, ...branch === activeBranch ? ['after'] : [],
+      ]);
+    }
+    const beforeRead = printed.code.slice(0, printed.code.indexOf('read(')).split('\n');
+    const position = originalPositionFor(new TraceMap(printed.map), { line: beforeRead.length, column: beforeRead.at(-1).length });
+    const sourceRead = source.slice(0, source.indexOf('read(')).split('\n');
+    checkDeep(`${ label }/source map`, [position.line, position.column], [sourceRead.length, sourceRead.at(-1).length]);
+  }
   // a comment between `throw` / `yield` and the operand keeps the parens the peel drops elsewhere,
   // and the operand opens on its own line: `throw // note` is a bare `throw;` by the grammar
   const thrown = reprint('function f() {\n  throw (\n    // note\n    a.at(0)\n  );\n}\n');
