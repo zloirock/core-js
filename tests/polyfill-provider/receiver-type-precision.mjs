@@ -1220,4 +1220,28 @@ for (const [label, source, expected, expectedHints] of [
     [expected, expectedHints]);
 });
 
+// Printed instance dispatch keeps its return family only when it invokes the method
+// with the same receiver. A method borrowed from another family proves nothing here.
+for (const [name, setup, expression, entry, expected] of [
+  ['array entries', 'const receiver = [1];', 'helper(receiver).call(receiver)', 'array/instance/entries', 'Iterator'],
+  ['array apply', 'const receiver = [1];', 'helper(receiver).apply(receiver, [])', 'array/instance/entries', 'Iterator'],
+  ['array slice', 'const receiver = [1];', 'helper(receiver).call(receiver)', 'instance/slice', 'Array'],
+  ['string slice', "const receiver = 'ab';", 'helper(receiver).call(receiver)', 'instance/slice', 'string'],
+  ['borrowed string slice', "const receiver = 'ab', other = [1];", 'helper(receiver).call(other)', 'instance/slice', null],
+  ['receiver replaced by string', 'let receiver = [1];', "helper(receiver).call((receiver = 'ab', receiver))", 'instance/slice', null],
+  ['receiver replaced by array', "let receiver = 'ab';", 'helper(receiver).call((receiver = [1], receiver))', 'instance/slice', null],
+  ['unrecognized import', 'const receiver = [1];', 'helper(receiver).call(receiver)', 'custom/entries', null],
+  ['no helper identity', 'const receiver = [1];', 'helper(receiver).call(receiver)', null, null],
+  ['spread receiver', 'const receiver = [1];', 'helper(...receiver).call(receiver)', 'array/instance/entries', null],
+  ['ordinary property', 'const receiver = [1];', 'helper(receiver).other(receiver)', 'array/instance/entries', null],
+  ['overridden call', 'const receiver = [1];', 'helper(receiver).call(receiver)', 'array/instance/entries', null],
+]) runBoth(`printed dispatch/${ name }`, `${ setup } const result = ${ expression };`, (adapter, program, label) => {
+  const result = adapter.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'result').get('init');
+  const type = adapter.makeResolver({
+    getPolyfillBindingEntry: (scope, key) => key === 'helper' ? entry : null,
+    isMutatedStatic: (object, key) => name === 'overridden call' && object === 'Function.prototype' && key === 'call',
+  }).resolveNodeType(result);
+  check(label, type ? type.primitive ? type.type : type.constructor : null, expected);
+});
+
 finish();

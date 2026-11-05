@@ -2963,8 +2963,9 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
 // a COMPUTED link is refused where the extraction would move the write and the key's evaluation with it,
 // which a host holding the prop as its sole chain (`hostPattern`, past the props
 // an earlier claim took out - `gone`) rules out: the extraction then replaces the whole statement in the
-// order the source evaluates it
-export function memberTargetTakesExtraction(valueNode, { hostPattern = null, prop = null, gone = null } = {}) {
+// order the source evaluates it. A mirror retaining the complete pattern (`inPlace`)
+// keeps every target evaluation in its original slot, including computed links.
+export function memberTargetTakesExtraction(valueNode, { hostPattern = null, prop = null, gone = null, inPlace = false } = {}) {
   // a leaf DEFAULT over a static is dead text either way - the extraction writes the import, which is
   // never undefined - so the slot answers the same peeled as a binding leaf's does
   const target = spelledWriteSlot(valueNode);
@@ -2977,7 +2978,7 @@ export function memberTargetTakesExtraction(valueNode, { hostPattern = null, pro
     computed ||= root.computed;
     root = unwrapRuntimeExpr(root.object);
   }
-  if (computed && !(hostPattern && soleChainToProp(hostPattern, prop, gone))) return null;
+  if (computed && !inPlace && !(hostPattern && soleChainToProp(hostPattern, prop, gone))) return null;
   return root?.type === 'Identifier' || root?.type === 'ThisExpression' ? target : null;
 }
 

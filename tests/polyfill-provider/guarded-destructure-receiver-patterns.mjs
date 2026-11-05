@@ -2,7 +2,7 @@
 // Direct scalar bindings retain their old route, and iterable patterns stay separate.
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { buildDestructureLeafMeta, classifyDestructureLeafHost } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { buildDestructureLeafMeta, classifyDestructureLeafHost, nearestInnerDefaultDead } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import {
   planGuardedDestructureNarrow,
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
@@ -171,6 +171,21 @@ for (const parser of adapters) for (const [name, expression, pick, expected] of 
   check(`${ parser.name }: own scalar guard: ${ name }`, ownEmittedNavClaim(path.node, path, {
     isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => false,
   }), expected);
+}
+
+// A held inner container is checked against the remaining member path, not the
+// outer wrapper's keys. A write to that slot keeps its receiver default live.
+for (const parser of adapters) for (const written of [false, true]) {
+  const program = parser.parseAndScope('const inner = { y: [1] }; const { w: { y: { flat } = [2] } } = { w: inner };');
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.key.name === 'flat');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const queried = [];
+  adapter.isWrittenContainerSlot = (name, keys) => {
+    queried.push([name, keys.join('.')]);
+    return written && name === 'inner' && keys.join('.') === 'y';
+  };
+  check(`${ parser.name }/held inner default/${ written }`, nearestInnerDefaultDead(prop.parentPath, adapter), !written);
+  check(`${ parser.name }/remaining alias path/${ written }`, queried.some(([name, key]) => name === 'inner' && key === 'y'), true);
 }
 
 finish();

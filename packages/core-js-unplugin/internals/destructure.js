@@ -1407,9 +1407,7 @@ export default function createAstDestructureEmitter({
         keyNameOf: leafProp => leafProp.key?.name ?? leafProp.key?.value ?? null,
       });
       if (keyedLeaf) {
-        const helperRead = value;
-        const leafId = injectPureImport(keyedLeaf.instanceEntry, keyedLeaf.instanceHint);
-        value = (ref, product) => renderDestructureDispatch(identifier(leafId), helperRead(ref), product);
+        value = instanceLeafReader(keyedLeaf, value, metaPath);
       }
       // the pattern's leaves read off the helper result and claim nothing of their own; their values stay live
       if (keyedPattern) walkAstNodes({ root: keyedPattern, visit: node => { if (node.type === 'Property') skippedNodes.add(node); } });
@@ -2046,6 +2044,20 @@ export default function createAstDestructureEmitter({
     return leafTwin;
   }
 
+  // Dispatch the single nested iterator-method leaf, retaining its own default and
+  // evaluating the helper result once. The receiver role belongs to the dispatch call.
+  function instanceLeafReader(leaf, read, metaPath) {
+    const id = injectPureImport(leaf.instanceEntry, leaf.instanceHint);
+    const ref = leaf.defaultPattern ? injector.generateDeclaredRef(metaPath) : null;
+    return (receiver, product) => {
+      const call = renderDestructureDispatch(identifier(id), read(receiver), product);
+      return ref ? buildInstanceDefaultGuard({
+        assignedRef: identifier(ref), call, defaultValue: leaf.defaultPattern.right,
+        defaultPattern: leaf.defaultPattern, defaultName: leaf.localName, reread: identifier(ref),
+      }) : call;
+    };
+  }
+
   // the read a nested leaf's twin destructures. a DEFAULT on the SLOT folds into it: what the twin
   // binds off is the slot's own value when it is defined and the default when it is not, through the
   // render canon. mirroring the default alone polyfills the arm that may never run and leaves the live
@@ -2574,10 +2586,8 @@ export default function createAstDestructureEmitter({
         keyNameOf: leafProp => leafProp.key?.name ?? leafProp.key?.value ?? null,
       });
       if (leaf) {
-        const inner = value;
-        const leafId = injectPureImport(leaf.instanceEntry, leaf.instanceHint);
         collapseLeafName = leaf.localName;
-        value = (ref, product) => renderDestructureDispatch(identifier(leafId), inner(ref), product);
+        value = instanceLeafReader(leaf, value, metaPath);
       }
     }
     // a symbol-PATTERN sibling leaves a residual that must still SPELL the key: over a

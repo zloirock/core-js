@@ -6,6 +6,7 @@ import _Object$defineProperty from "@core-js/pure/actual/object/define-property"
 import _Object$getOwnPropertyDescriptor from "@core-js/pure/actual/object/get-own-property-descriptor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
+var _ref2;
 // A symbol-iterator value keeps the claims nested beneath its pattern.
 // Sibling statics must not hide instance properties read from that value.
 const name = _nameMaybeFunction(_getIteratorMethod(_globalThis));
@@ -42,9 +43,6 @@ const _ref = {
   } = _ref;
 const viaSiblingCtor = _nameMaybeFunction(_getIteratorMethod(_ref));
 if (previousArrayIterator) _Object$defineProperty(Array, arrayIteratorKey, previousArrayIterator);else delete Array[arrayIteratorKey];
-// NEGATIVE: a DEFAULTED leaf keeps the destructure - binding the dispatcher result directly would
-// drop the user's default, and guarding it is the instance-default channel's own shape
-const {
-  name: viaDefault = fallback()
-} = _getIteratorMethod(Array);
+// A defaulted leaf guards the dispatched value once, preserving the user's fallback.
+const viaDefault = (_ref2 = _nameMaybeFunction(_getIteratorMethod(Array))) === void 0 ? fallback() : _ref2;
 console.log(name, viaAlias, viaSibling, customQ, twoA, twoB, bind, plain, viaCtor, of, viaSiblingCtor, viaDefault);

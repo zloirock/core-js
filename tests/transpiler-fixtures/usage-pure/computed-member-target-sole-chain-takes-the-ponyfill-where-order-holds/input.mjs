@@ -1,7 +1,6 @@
-// A computed member target its pattern holds as the sole chain takes the ponyfill where its route keeps the
-// source order: an effect-keyed static extracts in order, and a realm hop mirrors the literal with the write
-// left in place. Under a nested instance claim it keeps the native read - the overwrite would read the
-// receiver after the target's key - and so it does beside a sibling, whose extraction lands ahead of the key.
+// Computed member targets take statics without moving target evaluation ahead of siblings.
+// A sole chain extracts in place; a shared pattern mirrors its receiver and keeps target order.
+// Nested instance targets remain native where an overwrite would re-read the receiver after the key.
 let o;
 ({ [(e(), 'from')]: sink[k()] } = Array);
 ({ Object: { [(e(), 'fromEntries')]: sink[k2()] } } = globalThis);

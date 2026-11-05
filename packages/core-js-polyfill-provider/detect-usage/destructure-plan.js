@@ -879,15 +879,17 @@ function guardedInitializerBinding(initNode, injectorState) {
 }
 
 // A fully consumed receiver is read inside its only extraction, or shared by the
-// completed read group. A collapsed leaf still reads its capture; a symbol pattern
-// binds off the helper result and therefore needs only one receiver evaluation.
+// completed read group. An uncollapsed symbol pattern binds off one helper result.
+// A defaulted collapsed leaf already guards its single result through a memo; it
+// needs no second capture of the receiver. Other collapsed leaves keep their capture.
 export function planConsumedInitializerCarrier(init, reads, ctx) {
   const needsValue = reads.some(read => read.kind === 'instance');
   if (!needsValue) return { carrier: 'effects' };
   const [first] = reads;
   const stored = reads.length === 1 && chainAssignOverPureNav(init);
   const inline = reads.length === 1 && (stored
-    || (!first.collapseLeaf && (first.prop.value?.type !== 'ObjectPattern' || first.symbolPattern)));
+    || ((!first.collapseLeaf || !!first.collapseLeaf.defaultPattern)
+      && (first.prop.value?.type !== 'ObjectPattern' || first.symbolPattern)));
   const parts = !inline && initializerEffectParts(init);
   const proven = parts && provenRealmCallRoot(parts.tail, ctx.path, ctx.adapter);
   const pure = proven && proxySurfaceIdentifier(proven, ctx) && ctx.resolveGlobalPolyfill(proven.name);
@@ -1576,16 +1578,15 @@ export function symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled, key
   if (inner?.type !== 'ObjectPattern' || inner.properties.length !== 1) return null;
   const [leaf] = inner.properties;
   if (!isPropertyNode(leaf) || leaf.computed || isDisabled?.(leaf)) return null;
-  // a DEFAULTED leaf stays on the destructure: the dispatcher result would have to be guarded
-  // (`(ref = _m(x)) === void 0 ? <default> : ref`), which is the instance-default channel's shape,
-  // and binding it directly here would drop the user's default outright
-  if (leaf.value?.type === 'AssignmentPattern') return null;
+  // A default belongs to the dispatched value, not to the iterator method receiver.
+  // Both emitters guard that value through the ordinary instance-default channel.
   const key = keyNameOf(leaf);
   const bound = key === null ? null : propBindingIdentifier(leaf.value);
   if (!bound) return null;
   const pure = resolvePure({ kind: 'property', object: 'function', key, placement: 'prototype' });
   return pure?.kind === 'instance'
-    ? { localName: bound.name, instanceEntry: pure.entry, instanceHint: pure.hintName } : null;
+    ? { localName: bound.name, instanceEntry: pure.entry, instanceHint: pure.hintName,
+      defaultPattern: leaf.value.type === 'AssignmentPattern' ? leaf.value : null } : null;
 }
 
 // the KEY a full-consume throw probe re-reads off the guarded PROBED value: native

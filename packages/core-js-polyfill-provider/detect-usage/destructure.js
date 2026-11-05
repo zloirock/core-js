@@ -2061,7 +2061,7 @@ function chooseFallbackReceiverNode({
   argScope = scope,
   argPath = path,
 }) {
-  if (isUsableFallbackReceiverArg(argNode, argScope, adapter)) return argNode;
+  if (isUsableFallbackReceiverArg(argNode, argScope, adapter, argPath)) return argNode;
   if (resolvableArgSupersedesDeadDefault({
     argNode,
     defaultNode,
@@ -5861,14 +5861,14 @@ function isNestedDestructureDefault(assignmentPatternPath) {
 // carries nothing and records none
 // ... and so does a CONTAINER literal holding values (`= { B: Map }`, `= [Map]`): the levels below read
 // its slots where the default fires, while an empty one supplies nothing to any of them
-// ... and a SELECTION whose every arm is one of those (`= c ? { B: Map } : { B: Set }`): the level reads
-// the arm that runs
+// ... and a SELECTION whose arms are receivers or containers, including an empty fallback:
+// `globalThis || {}` still carries the realm receiver, and its default may be proven dead.
 function hopLevelBelow(elementNode) {
   const right = elementNode?.type === 'AssignmentPattern' ? elementNode.right : null;
   const literal = unwrapExpressionChain(right);
   const selection = literal?.type === 'ConditionalExpression' || literal?.type === 'LogicalExpression';
   const defaultNode = right && (destructureRightIsReceiver(right) || isFilledContainerLiteral(literal)
-    || (selection && allDestructureValueBranches(literal, leaf => isFilledContainerLiteral(leaf)
+    || (selection && allDestructureValueBranches(literal, leaf => leaf?.type === 'ObjectExpression' || leaf?.type === 'ArrayExpression'
       || isReceiverShapedNode(leaf) || !!invocationNode(leaf)))) ? right : null;
   return { pattern: patternSlotTarget(elementNode), defaultNode };
 }
@@ -6381,10 +6381,10 @@ const nestedParamSynthPlan = createInstanceNodeCache();
 // renderer has already materialized as data. The latter is an output ledger, never a predicted mirror.
 const instanceArgumentWindows = createInstanceNodeCache();
 
-// may the host walk stop at `cur`'s direct parent (a param default / declarator / cascade)? always when
-// `cur` is ABOVE the trigger leaf's own pattern; at the leaf pattern itself ONLY when it is MIXED (a
-// nested value the mirror owns) - so a flat ctor sibling stranded native by the deferral gate is mirrored,
-// while a pure-flat pattern keeps its own body-extract / synth-swap fallback (mirror does not fire there)
+// The host walk can stop above the triggering leaf's pattern, or at a pattern with
+// nested values the mirror owns. A flat assignment with a computed target also keeps
+// the mirror: extracting siblings could move their writes ahead of that target.
+// Other flat patterns keep their existing body-extract or synth-swap fallback.
 function selfHostAllowed(cur, leafPatternPath) {
   // ... except on a for-x HEAD, which has no such fallback: both of those need a statement slot, and
   // a head is the one host with none. the relocation that mints one stands down where the mirror can
@@ -6402,7 +6402,11 @@ function selfHostAllowed(cur, leafPatternPath) {
   // in the loop's `left`, where a statement cannot go either
   if (isForXStatement(head?.node) && head.node.left === below.node) return true;
   return cur !== leafPatternPath
-    || (cur.node?.type === 'ObjectPattern' && objectPatternHasNestedValue(cur.node));
+    || (cur.node?.type === 'ObjectPattern' && (objectPatternHasNestedValue(cur.node)
+      // A computed target beside another leaf cannot be extracted ahead of it.
+      // Mirroring the receiver retains every target in the original pattern order.
+      || cur.node.properties.length > 1 && cur.node.properties.some(prop => isPropertyNode(prop)
+        && memberTargetTakesExtraction(prop.value, { inPlace: true }) && !memberTargetTakesExtraction(prop.value))));
 }
 
 // the one property-level question the mirror asks: can it spell this key statically as a property?
@@ -6589,7 +6593,9 @@ function mirrorReceiverNodes({
     // one walk per live arm: `from` is the hop it starts at, `startBorn` whether a default supplied
     // it, and a forked walk inherits the level the fork stood at - the default IS that slot's value
     // eslint-disable-next-line max-statements -- shared slot/default walk, with pure container admission at each level
-    function walk(start, from, startBorn, startDepth = 0, startPattern = null) {
+    function walk(start, from, startBorn, startDepth = 0, startPattern = null, startCtx = ctx) {
+      let localCtx = startCtx;
+      let at = from;
       let node = start;
       let run = [];
       let depth = startDepth;
@@ -6605,14 +6611,23 @@ function mirrorReceiverNodes({
       // so the leaf the walk reaches is the one the leaf collector's own peel finds - and the mirror
       // replaces it in place, the siblings and the body around it as written
       function levelLiteral() {
-        const peeled = levelLiteralThroughIife(node, ctx);
+        if (verdictOnly && node?.type === 'Identifier') {
+          const followed = followConstIdentifierInit({ node, ctx: localCtx });
+          const remainingKeys = hops.slice(at - run.length).map(hop => hop.key ?? String(hop.index));
+          if (followed.node !== node && !aliasSlotWritten(node, remainingKeys, adapter, localCtx)) {
+            node = followed.node;
+            localCtx = followed.ctx;
+          }
+        }
+        const peeled = levelLiteralThroughIife(node, localCtx);
         node = peeled.node;
         // ... and a VERDICT walk reads a named callee's returned literal too: it only asks whether the
         // slot holds a value, while a mirror may not rewrite a body that serves every caller
         if (verdictOnly && peeled.literal?.type === 'CallExpression') {
-          const called = callYieldedLiteral({ node: peeled.literal, seen: new Set(), ctx });
+          const called = callYieldedLiteral({ node: peeled.literal, seen: new Set(), ctx: localCtx });
           if (called?.literal?.type === 'ObjectExpression' || called?.literal?.type === 'ArrayExpression') {
             node = called.literal;
+            localCtx = { ...localCtx, scope: called.scope, path: pathOfNode(host, node) ?? localCtx.path };
             return called.literal;
           }
         }
@@ -6633,7 +6648,7 @@ function mirrorReceiverNodes({
           foreign = true;
           return node !== null;
         }
-        node = descendArrayWrapperInit({ node, ctx }, run, { throughStores: false })?.node ?? null;
+        node = descendArrayWrapperInit({ node, ctx: localCtx }, run, { throughStores: false })?.node ?? null;
         paired ||= level?.type === 'ArrayExpression';
         run = [];
         return node !== null;
@@ -6642,9 +6657,9 @@ function mirrorReceiverNodes({
       // hop `at` while a level with a DEFAULT still stands at or below it: nothing proves that
       // level's slot, so it is open, and the default's walk alone answers for it - the arm the
       // source leaves to the runtime is mirrored, the live arm's read stays native
-      function forkAtArm(at) {
-        if (armHop < at) return false;
-        const levelDepth = depth + hops.slice(at, armHop + 1).filter(hop => hop.index === undefined).length;
+      function forkAtArm(hopAt) {
+        if (armHop < hopAt) return false;
+        const levelDepth = depth + hops.slice(hopAt, armHop + 1).filter(hop => hop.index === undefined).length;
         return walk(hops[armHop].defaultNode, armHop + 1, true, levelDepth, hops[armHop].pattern) ? FORK_ONLY : false;
       }
       // a level with a receiver-bearing DEFAULT reads it where the slot it pairs with provably holds
@@ -6653,27 +6668,28 @@ function mirrorReceiverNodes({
       // mirror replaces it in place, so every pass that takes the default reads the mirror
       // ... a level with no such default whose key pairs no value the descent can follow (absent under
       // an empty default, a throwing read, a spread's slot) loses the element like an opaque container
-      function settle(hop, at, slotAbsent, levelDepth) {
-        if (!hop.defaultNode) return node !== null || forkAtArm(at);
-        const verdict = pairedDefaultArm(node, ctx, slotAbsent);
-        if (at === armHop) {
+      function settle(hop, hopAt, slotAbsent, levelDepth) {
+        if (!hop.defaultNode) return node !== null || forkAtArm(hopAt);
+        const verdict = pairedDefaultArm(node, localCtx, slotAbsent);
+        if (hopAt === armHop) {
           arms.add(verdict);
           reachedArm = true;
         }
         if (verdict === 'born') {
           node = hop.defaultNode;
+          localCtx = ctx;
           born = true;
           return true;
         }
         if (verdict === 'open') {
-          if (!walk(hop.defaultNode, at + 1, true, levelDepth, hop.pattern)) return false;
+          if (!walk(hop.defaultNode, hopAt + 1, true, levelDepth, hop.pattern)) return false;
           // an element nothing spells - a held container (`= slot`), a spread-shifted slot - has
           // no walk of its own: the default's walk is this level's whole answer
           if (node === null) return FORK_ONLY;
         }
         return node !== null;
       }
-      for (let at = from; at < hops.length; at++) {
+      for (; at < hops.length; at++) {
         const hop = hops[at];
         if (hop.index !== undefined) {
           if (!pairContainers && armHop < at && levelLiteral()?.type === 'ArrayExpression') {
@@ -6690,7 +6706,7 @@ function mirrorReceiverNodes({
           const index = run.pop();
           if (!flushIndices()) return forkAtArm(at) === FORK_ONLY;
           const level = levelLiteral();
-          node = descendArrayWrapperInit({ node, ctx }, [index], { throughStores: false })?.node ?? null;
+          node = descendArrayWrapperInit({ node, ctx: localCtx }, [index], { throughStores: false })?.node ?? null;
           paired ||= level?.type === 'ArrayExpression';
           const absent = node === null && level?.type === 'ArrayExpression'
             && level.elements.slice(0, index + 1).every(item => item?.type !== 'SpreadElement');
@@ -6703,20 +6719,20 @@ function mirrorReceiverNodes({
         const literal = levelLiteral();
         // a selection of containers holds one arm per pass: each arm walks the hops left on its own,
         // so the mirror lands in the slot of whichever arm runs and the selection stays as written
-        const selectedArms = containerSelectionArms(literal, ctx);
-        if (selectedArms) return selectedArms.every(arm => walk(arm, at, born, depth, pattern));
+        const selectedArms = containerSelectionArms(literal, localCtx);
+        if (selectedArms) return selectedArms.every(arm => walk(arm, at, born, depth, pattern, localCtx));
         // no literal in the slot: the keys left are navs the plan's own context walk descends off
         // this receiver (`= globalThis` mirrors the whole outer pattern) - the descent ends here
         // ... unless the container is OPAQUE (nothing the context walk descends: not a proxy, not
         // a static container) and a default stands at or below this level: that level is open
         if (literal?.type !== 'ObjectExpression') {
-          if (armHop >= at && !slotValueProvablyDefined(node, ctx)) return forkAtArm(at) === FORK_ONLY;
+          if (armHop >= at && !slotValueProvablyDefined(node, localCtx)) return forkAtArm(at) === FORK_ONLY;
           if (armHop >= at && paired) {
             // A defined container does not prove that its property is defined.
             // The default of a known realm constructor is dead; a user slot may be missing.
             const slot = walkStaticReceiverChain({
               receiverNode: node, walkPath: hops.slice(at, armHop + 1).map(level => level.key ?? String(level.index)),
-              scope: ctx.scope, adapter, path: host, usageNode: node,
+              scope: localCtx.scope, adapter, path: host, usageNode: node,
             });
             if (!slot) {
               arms.add('open');
@@ -6735,7 +6751,9 @@ function mirrorReceiverNodes({
         if (match && literal.properties.slice(literal.properties.indexOf(match) + 1)
           .some(prop => spelledSlotName(prop) === null)) return false;
         // the claim funnel keeps such a leaf native (`claimUnderSharedHopSlot`); a plan asked anyway declines
-        if (match && hopSlotReadElsewhere({ levelNode: hop.level, key: hop.key, scope: ctx.scope, adapter, path: ctx.path })) return false;
+        if (match && hopSlotReadElsewhere({
+          levelNode: hop.level, key: hop.key, scope: localCtx.scope, adapter, path: localCtx.path,
+        })) return false;
         // absent from a literal whose every key is spelled - no spread or computed key could be it
         const absent = !match && literal.properties.every(prop => spelledSlotName(prop) !== null);
         node = match ? objectPropertyReadValue(match, { preservesBody: true }) : null;
@@ -7572,9 +7590,17 @@ export function buildNestedParamSynthPlan(options) {
     let defaultSeen = false;
     let effectfulKeySeen = false;
     let declinedRealm = false;
+    let targetWriteSeen = false;
     for (const prop of patternNode.properties) {
       // A computed-key effect runs before this slot's read. A default runs after its own
       // read. Both keep every following read at the pattern site.
+      const memberTarget = host?.node.type === 'AssignmentExpression'
+        && memberTargetTakesExtraction(prop.value, {
+          // A flat mirror keeps the original receiver evaluation. Nested mirrors can
+          // erase a constructor hop, so those retain the existing sole-chain proof.
+          inPlace: patternNode === host.node.left, hostPattern: host.node.left, prop,
+        });
+      targetWriteSeen ||= !!memberTarget && !memberTargetTakesExtraction(prop.value);
       const earlierDefault = defaultSeen;
       const effectfulKey = isPropertyNode(prop) && prop.computed && computedKeyHasSideEffects(prop, keyCtx);
       const eagerInstance = ctx.eagerInstance && !earlierDefault && !effectfulKeySeen && !effectfulKey;
@@ -7712,7 +7738,7 @@ export function buildNestedParamSynthPlan(options) {
         // pattern, where the source wrote it (the plan's pattern-valued static)
         const consumable = host?.node.type !== 'AssignmentExpression' || !!propBindingIdentifier(prop.value)
           || isMirrorablePatternValue(prop.value)
-          || !!memberTargetTakesExtraction(prop.value, { hostPattern: host.node.left, prop });
+          || !!memberTarget;
         // A nested claim renders its resolved instance dispatch through the slot's live value
         // (`keys: { name: _nameMaybeFunction(_Object$keys) }`). The consumed pattern cannot
         // rediscover that receiver after relocation, so rendering must keep the source answer.
@@ -7759,8 +7785,9 @@ export function buildNestedParamSynthPlan(options) {
       }
     }
     // Native siblings must not run ahead of the declined child's keys, defaults or TDZ.
-    // The existing getter mirror keeps those reads at their original pattern slots.
-    if (declinedRealm) for (const entry of entries) {
+    // Newly retained computed targets may run keys or setters. The existing getter
+    // mirror keeps native reads at their original slots, between those writes.
+    if (declinedRealm || targetWriteSeen) for (const entry of entries) {
       if (entry.child.kind !== 'polyfill' && !entry.child.pure) entry.deferred = true;
     }
     if (!retainNativeReads) {
@@ -9674,7 +9701,7 @@ function isProxyGlobalLeaf(tail, ctx) {
   let n = tail;
   while ((n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') && !n.computed
     && n.property?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.property.name)) n = n.object;
-  return n?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name) && !!proxyGlobalRootName({ node: n, ...ctx });
+  return !!proxyGlobalRootName({ node: n, ...ctx });
 }
 
 // do ALL reachable value branches resolve to a global proxy? a non-proxy branch means a `= _polyfill`

@@ -6944,14 +6944,14 @@ export function parameterStaticSource(sites, paramIndex, resolveSource) {
 // the slots of a wrapper literal, each `[key, value]`: a property's readable key - null for one no canon
 // folds, and for a spread - or an element's index, up to the first element spread, which shifts the rest.
 // Descriptor readers project object property nodes through the same key pairing.
-export function wrapperLiteralEntries(literal, { propertyNodes = false } = {}) {
+export function wrapperLiteralEntries(literal, { propertyNodes = false, keyOf = foldedPropertyKeyName } = {}) {
   if (literal?.type === 'ArrayExpression') {
     const spread = literal.elements.findIndex(element => element?.type === 'SpreadElement');
     return (spread === -1 ? literal.elements : literal.elements.slice(0, spread)).map((element, index) => [String(index), element]);
   }
   if (literal?.type !== 'ObjectExpression') return [];
   return literal.properties.map(prop => [
-    prop.type === 'SpreadElement' ? null : foldedPropertyKeyName(prop),
+    prop.type === 'SpreadElement' ? null : keyOf(prop),
     propertyNodes ? prop : prop.value,
   ]);
 }

@@ -118,6 +118,23 @@ runBoth('an install the tree lost after an earlier read', 'const target = {}; (c
     check(`${ label } after`, type ? type.constructor ?? type.type : null, 'Object');
   });
 
+// A replacement retains the call argument in a new parent chain. Both an
+// already queried install and a first query after replacement must still see it.
+for (const early of [false, true]) runBoth(`an install carried by a replacement/${ early }`,
+  'const target = {}; (c ? Object : Reflect).setPrototypeOf(target, Array.prototype); target.at(0); target.findLast(f);',
+  (adapter, program, label) => {
+    const resolver = adapter.makeResolver();
+    const before = adapter.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    if (early) check(`${ label }/before`, [...resolver.resolvePropertyUnionHints(before)].join(','), 'array');
+    const statement = adapter.pickPath(program, 'ExpressionStatement', path => path.node.expression?.callee?.property?.name === 'setPrototypeOf');
+    const call = statement.node.expression;
+    statement.get('expression').replaceWith({ type: 'SequenceExpression',
+      expressions: [{ type: 'Identifier', name: 'other' }, structuredClone(call)] });
+    const after = adapter.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'findLast');
+    const hints = resolver.resolvePropertyUnionHints(after);
+    check(`${ label }/after`, hints ? [...hints].join(',') : null, 'array');
+  });
+
 // A local setter may write its first argument's prototype through an alias. Its live body
 // supplies a possible install, but its second argument proves no installed family.
 for (const method of ['usage-pure', 'usage-global']) for (const [name, setup, body] of [

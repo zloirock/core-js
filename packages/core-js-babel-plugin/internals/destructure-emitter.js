@@ -1929,13 +1929,16 @@ export default function createDestructureEmitter({
 
   // a leaf resolved as an INSTANCE member of the extracted iterator method: the synth call becomes
   // the dispatcher's receiver (`_name(_getIteratorMethod(x))`) instead of being destructured,
-  // the same shape a flat instance extraction emits. the call appears ONCE - the shared helper admits
-  // a single leaf precisely so no memo is owed here. takes the LEAF (a plan extraction record and the
-  // emitter's own resolution carry the same two fields), so both producers spell this once
-  function instanceLeafCall(leaf, value) {
-    return leaf?.instanceEntry
-      ? t.callExpression(injectPureImport(leaf.instanceEntry, leaf.instanceHint), [value])
-      : value;
+  // the same shape a flat instance extraction emits. A default guards that one result
+  // through a memo; an unguarded single leaf needs none. Both plan records and local
+  // leaf resolution carry the same dispatch and default fields.
+  function instanceLeafCall(leaf, value, scope) {
+    if (!leaf?.instanceEntry) return value;
+    const call = t.callExpression(injectPureImport(leaf.instanceEntry, leaf.instanceHint), [value]);
+    return leaf.defaultPattern ? buildInstanceDefaultGuard(t, {
+      call, defaultNode: t.cloneNode(leaf.defaultPattern.right), ref: generateRef(scope, leaf.defaultPattern),
+      defaultName: leaf.localName,
+    }) : call;
   }
 
   // what an extraction WRITES INTO: a pattern value, the MEMBER slot the source named, or the
@@ -1960,7 +1963,7 @@ export default function createDestructureEmitter({
         : flattenSynthReceiver(initNode, plan);
       return instanceLeafCall(e, t.callExpression(
         t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
-        [receiver]));
+        [receiver]), scope);
     }
     // a MEMBER target binds no local name, so there is no alias for a later read to resolve through
     if (e.kind !== 'global' && e.localName) {
@@ -3525,7 +3528,7 @@ export default function createDestructureEmitter({
       const keyedLeaf = keyedPattern && symbolIteratorInstanceLeaf({
         value: keyedPattern, resolvePure, isDisabled: null, keyNameOf: propertyKeyName,
       });
-      if (keyedLeaf) read = t.callExpression(injectPureImport(keyedLeaf.instanceEntry, keyedLeaf.instanceHint), [read]);
+      if (keyedLeaf) read = instanceLeafCall(keyedLeaf, read, prop.scope);
       const binding = keyedLeaf ? t.identifier(keyedLeaf.localName)
         : keyedPattern ? clonePatternClaimed(keyedPattern) : t.cloneNode(propBindingIdentifier(prop.node.value));
       const rendered = renderKeyedDestructureRead({
@@ -3660,7 +3663,7 @@ export default function createDestructureEmitter({
       const isExport = declaration.parentPath?.isExportNamedDeclaration();
       const declarators = [
         ...foldedTestRef ? [t.variableDeclarator(t.cloneNode(foldedTestRef))] : [],
-        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
+        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue, prop.scope)),
       ];
       const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
       // a SIBLING declarator keeps the declaration: the extraction takes the dead slot in place and
@@ -3731,7 +3734,7 @@ export default function createDestructureEmitter({
       // standalone branch's `insertBefore` re-traversal, and the consumed / unplugin paths.
       // a LIVE-defaulted extraction takes this arm on a standalone host too: it must evaluate
       // AFTER the kept key's side effect (native reads the key first, then fires the default)
-      const trailing = t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue));
+      const trailing = t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue, prop.scope));
       const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
       noteExtractionSource(trailing, prop.node, hostDeclarator.parentPath, hostDeclarator.node);
       if (!wholeInitMemoized.has(hostDeclarator.node)) attachToPrevDeclarator.add(trailing);
@@ -3755,7 +3758,7 @@ export default function createDestructureEmitter({
       // residual (the kept key's effect runs first) - the catch-canon shape the unplugin emitter emits
       const extracted = t.variableDeclaration(residualDecl.node.kind, [
         t.variableDeclarator(t.cloneNode(foldedTestRef)),
-        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
+        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue, prop.scope)),
       ]);
       const [guardPath] = bound(residualDecl.insertAfter(extracted));
       splitResidualAfterDefaultProp({ prop, guardPath });
@@ -3763,7 +3766,7 @@ export default function createDestructureEmitter({
       const isExport = residualDecl.parentPath?.isExportNamedDeclaration();
       const extracted = t.variableDeclaration(residualDecl.node.kind, [
         ...foldedTestRef ? [t.variableDeclarator(t.cloneNode(foldedTestRef))] : [],
-        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
+        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue, prop.scope)),
       ]);
       const anchor = isExport ? residualDecl.parentPath : residualDecl;
       const node = isExport ? t.exportNamedDeclaration(extracted, []) : extracted;

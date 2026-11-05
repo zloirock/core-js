@@ -18,6 +18,7 @@ import { $Object, $Primitive } from './base.js';
 import {
   NO_PROTOTYPE_VALUE,
   ancestorChainDetached,
+  nodePositionKey,
   bindingLoopAnchor,
   cachedContainerPaths,
   installedPrototypeValueAt,
@@ -239,21 +240,33 @@ export function createExpressionDispatch({
     return { values, undefinedShadowed };
   }
 
-  // ... its half over the references of the binding a declarator's initializer `path` fills: `{ binding,
-  // installs }`, each install a `{ value, ref, absorbable, partial }` that may run - one in an arm the build
-  // never takes is none (`writeNeverRuns`), and a partial one lands only where a setter arm of its callee
-  // runs (`installCalleeArms`). the reference walk is remembered per initializer, and every ask
-  // checks that each install a render may take out of the tree still stands there: pure's guard over the
-  // owners of an open selection replaces the call carrying one, and an answer kept from before that render
-  // would make a later read take it after an earlier read alone. a render never puts one back, so a
-  // detached install is dropped for good. an initializer typed by its own node asks this half alone
-  // (`initGainsDispatchingPrototype`)
+  // A guard may clone a source argument into its replacement calls. Recover those
+  // live paths before asking about the installer and prototype value; their cached
+  // parent may already hold the guard. A removed call has no matching source argument.
+  function liveInstallReferences(ref) {
+    if (!ancestorChainDetached(ref)) return [ref];
+    const position = nodePositionKey(ref.node);
+    if (!position) return [];
+    let anchor = ref.parentPath;
+    while (anchor && (!anchor.node || ancestorChainDetached(anchor))) anchor = anchor.parentPath;
+    const found = [];
+    anchor?.traverse({ Identifier(path) {
+      if (path.node.name === ref.node.name && nodePositionKey(path.node) === position) found.push(path);
+    } });
+    return found;
+  }
+
+  // The binding's prototype installs are source facts. A guard renderer copies a
+  // setter call into its branches; detaching the original call does not undo the
+  // installation while its source argument survives in the replacement. An install
+  // removed outright must still disappear from the cached facts.
   let bindingInstalls = new WeakMap();
   function bindingPrototypeInstalls(path, undefinedShadowed = null) {
     let found = bindingInstalls.get(path.node);
     if (found === undefined) bindingInstalls.set(path.node, found = findBindingPrototypeInstalls(path, undefinedShadowed));
-    if (found?.installs.some(({ ref, absorbable }) => absorbable && ancestorChainDetached(ref))) {
-      found.installs = found.installs.filter(({ ref, absorbable }) => !absorbable || !ancestorChainDetached(ref));
+    if (found?.installs.some(({ ref }) => ancestorChainDetached(ref))) {
+      found = findBindingPrototypeInstalls(path, found.undefinedShadowed);
+      bindingInstalls.set(path.node, found);
     }
     return found;
   }
@@ -269,11 +282,11 @@ export function createExpressionDispatch({
     const shadowed = undefinedShadowed ?? (refs.length ? !!getScopeBinding({ scope: path.scope, name: 'undefined', path }) : false);
     const adapter = getDecisionAdapter();
     const installs = [];
-    for (const ref of refs) {
+    for (const sourceRef of refs) for (const ref of liveInstallReferences(sourceRef)) {
       const value = installedPrototypeValuePathAt(ref, shadowed);
       if (!value || writeNeverRuns({ write: ref.node, usagePath: ref, adapter })) continue;
       const arms = installCalleeArms(ref);
-      installs.push({ value, ref, absorbable: arms === 'every' || arms === 'some', partial: arms === 'some' });
+      installs.push({ value, ref, partial: arms === 'some' });
     }
     return { binding, installs, undefinedShadowed: shadowed };
   }

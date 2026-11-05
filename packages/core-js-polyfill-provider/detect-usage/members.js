@@ -2588,7 +2588,7 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   const prop = unwrapParensCollectingEffects(node.property, sideEffects,
     element => discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0);
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
-  const ref = asSymbolRef({ node: prop.object, scope, adapter, path });
+  const ref = asSymbolRef({ node: peelReceiverSequenceTail(prop.object), scope, adapter, path });
   if (!ref) return null;
   // the Symbol ref's proxy-global chain receiver (`(c++, globalThis.self).Symbol.iterator`,
   // `(c++, globalThis).self.Symbol.iterator`) is fully dropped when the eliminated `o[key]` rewrites to
@@ -2622,7 +2622,7 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   // is `arr[<well-known-symbol-value>]` which doesn't match the `Symbol.X` polyfill dispatch
   // shape - Symbol constructor itself doesn't carry well-known-symbol-valued properties
   if (!name || name.startsWith('Symbol.')) return null;
-  return { key: `Symbol.${ name }`, ref, sideEffects };
+  return { key: `Symbol.${ name }`, ref: { ...ref, raw: prop.object }, sideEffects };
 }
 
 // walk the proxy-global chain at `node`, seeding every intermediate MemberExpression AND the
