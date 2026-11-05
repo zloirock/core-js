@@ -23676,4 +23676,19 @@ export function * generate() {
   yield * generateOptionalClaimSources();
   yield * generateGroupedKeyCaptures();
   yield * generatePhaseTargetOrder();
+  // Primitive/instance guards stay open, while their cyclic writes can change the receiver's family.
+  for (const middle of ['[1]', '""', 'pick ? [1] : ""']) for (const primer of ['before', 'after']) {
+    yield { name: `open-guard-reader-order/${ middle }/${ primer }`, strip: true,
+      code: `export const effects = [];
+        function read(pick) {
+          let a = [], b = ${ middle }, c = [7];
+          if (!b) if (!c) a = (effects.push('a'), ['unused']);
+          if (!a) b = (effects.push('b'), [2]);
+          if (!b) c = (effects.push('c'), 'nine');
+          ${ primer === 'before' ? 'void a.unrelated;' : '' }
+          const result = c.at(-1);
+          ${ primer === 'after' ? 'void a.unrelated;' : '' }
+          return result;
+        } export const r = [read(true), read(false)];` };
+  }
 }

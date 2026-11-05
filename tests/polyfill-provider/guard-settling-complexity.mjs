@@ -9,12 +9,14 @@
 // settling completed, and kept for good after that
 import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { collectFileCensus, withReentrantQuestion, writeNeverRuns } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  collectFileCensus, cutDeepWalk, cycleGuardHas, readDecidesWrite, refuseReentry, withReentrantQuestion, writeNeverRuns,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
 import { adapters, createChecker, resolvePure } from './harness.mjs';
 
-const { check, checkTruthy, finish } = createChecker('guard-settling-complexity');
+const { check, checkTruthy, finish, throwsWith } = createChecker('guard-settling-complexity');
 
 function lines(count, line) {
   return Array.from({ length: count }, (unused, index) => line(index)).join('\n');
@@ -124,7 +126,7 @@ function cycleProbe(parser, method, source = CYCLE) {
 }
 
 // While A is being settled, C reads a cached B which itself depends on A.
-// Once A returns, asking C on its own must settle it against the completed guard.
+// Once A returns, C can be kept only if every guard stayed open, as the cut assumed.
 const TRANSITIVE = 'let a = Array; let b = Map; let c = Promise;\n'
   + 'if (!b) if (!c) a = Shim; if (!a) b = Shim2; if (!b) c = Shim3;\n'
   + 'export const r = a.from(list); export const s = c.resolve(1);';
@@ -137,7 +139,7 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
   neverRuns(writeA);
   const after = neverRuns(writeC);
   check(`${ label }/same decision after another read`, after.dead, expected.dead);
-  checkTruthy(`${ label }/temporary decision expired`, after.decisions > 0);
+  check(`${ label }/only a changed hypothesis expires`, after.decisions > 0, method === 'usage-pure');
   check(`${ label }/independent decision is reused`, neverRuns(writeC).decisions, 0);
 }
 
@@ -150,10 +152,10 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
   check(`${ label }/the guards of the first write decide`, first.dead, method === 'usage-pure');
   // the two hosts of the write of `a`, and the host of the write of `b` once
   check(`${ label }/a settling reached twice under one in flight is settled once`, first.decisions, 3);
-  // ... whose answer left with the settling it took as open: asked on its own it is settled afresh, ...
+  // ... whose answer survives only when the completed cycle validated all its open-guard assumptions
   const second = neverRuns(writeB);
   check(`${ label }/the guards of the second write decide`, second.dead, method === 'usage-pure');
-  check(`${ label }/settled afresh once that settling completed`, second.decisions, 1);
+  check(`${ label }/a changed hypothesis settles afresh`, second.decisions, method === 'usage-pure' ? 1 : 0);
   // ... and kept for good then, as the first write's answer was: a cut by its own re-entry alone
   check(`${ label }/kept for good after that`, neverRuns(writeB).decisions, 0);
   check(`${ label }/the first write's answer was kept for good`, neverRuns(writeA).decisions, 0);
@@ -189,6 +191,85 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
   check(`${ label }/the abandoned decision left the settling`, thrown, 'decision abandoned');
   adapter.settledSelection = settledSelection;
   check(`${ label }/the next ask settles from the start`, neverRuns(writeA).decisions, 3);
+}
+
+// Controlled dependencies isolate invalidation from the resolver: A asks B and C, B asks A, and C reads
+// cached B. Any narrowed guard or assumption outside this cycle must expire both dependent answers.
+function dependencyProbe(parser, options = {}) {
+  const { changed = -1, fold = false, cut } = options;
+  const program = parser.parseAndScope('let a, b, c; if (a) a = 1; if (b) b = 1; if (c) c = 1; export const r = a.x;');
+  const writes = parser.collectPaths(program, 'AssignmentExpression').map(path => path.node);
+  const hosts = parser.collectPaths(program, 'IfStatement').map(path => path.node);
+  const read = parser.pickPath(program, 'MemberExpression');
+  const counts = [0, 0, 0];
+  const adapter = {
+    decidedSelection() { return null; },
+    settledSelection(host) {
+      const index = hosts.indexOf(host);
+      counts[index]++;
+      if (index === 0) {
+        ask(1);
+        ask(2);
+      } else if (index === 1) {
+        if (cut === 'context') withReentrantQuestion(() => ask(0), 'root');
+        else if (cut === 'adapter') ask(0, { ...adapter });
+        else ask(0);
+        switch (cut) {
+          case 'cycle': cycleGuardHas(new Set([host]), host); break;
+          case 'refusal': refuseReentry(); break;
+          case 'depth': cutDeepWalk(); break;
+          case 'served read': readDecidesWrite({ readNode: hosts[0].test, write: writes[0], usagePath: read, adapter }); break;
+        }
+      } else ask(1);
+      if (index === options.throwAt) throw new Error('dependent abandoned');
+      return index === changed ? { [fold ? 'fold' : 'skip']: 'consequent' } : null;
+    },
+  };
+  function ask(index, host = adapter) {
+    return writeNeverRuns({ write: writes[index], usagePath: read, adapter: host });
+  }
+  function readDecides(index) {
+    return readDecidesWrite({ readNode: hosts[index].test, write: writes[index], usagePath: read, adapter });
+  }
+  return { ask, counts, readDecides };
+}
+
+for (const parser of adapters) {
+  for (const changed of [-1, 0, 1, 2]) for (const fold of [false, true]) {
+    const { ask, counts, readDecides } = dependencyProbe(parser, { changed, fold });
+    const label = `${ parser.name }/dependency/${ changed }/${ fold }`;
+    check(`${ label }/first verdict`, ask(0), changed === 0 && !fold);
+    const before = counts[1] + counts[2];
+    check(`${ label }/second verdict`, ask(1), changed === 1 && !fold);
+    check(`${ label }/third verdict`, ask(2), changed === 2 && !fold);
+    check(`${ label }/only unchanged cycles survive`, counts[1] + counts[2] > before, changed !== -1);
+    check(`${ label }/the retained guard still owns its read`, readDecides(2), changed !== 2 || !fold);
+  }
+  for (const cut of ['context', 'adapter', 'cycle', 'refusal', 'depth', 'served read']) {
+    const { ask, counts } = dependencyProbe(parser, { cut });
+    ask(0);
+    const before = counts[1] + counts[2];
+    check(`${ parser.name }/${ cut }/unknown stays unknown`, ask(2), false);
+    checkTruthy(`${ parser.name }/${ cut }/dependent expires`, counts[1] + counts[2] > before);
+  }
+  const options = { throwAt: 2 };
+  const { ask, counts } = dependencyProbe(parser, options);
+  throwsWith(`${ parser.name }/abandoned cycle`, () => ask(0), 'dependent abandoned');
+  options.throwAt = -1;
+  check(`${ parser.name }/retry after an abandoned dependent`, ask(0), false);
+  check(`${ parser.name }/completed sibling was discarded`, counts[1], 2);
+}
+
+// Query order must not turn an ignored early read into a different decision later in the file.
+const ORDERS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+for (const parser of adapters) for (const method of ['usage-pure', 'usage-global']) for (const order of ORDERS) {
+  const { writeA, writeB, writeC, neverRuns, decisions } = cycleProbe(parser, method, TRANSITIVE);
+  const writes = [writeA, writeB, writeC];
+  const label = `${ parser.name }/${ method }/order ${ order }`;
+  for (const index of order) check(`${ label }/verdict ${ index }`, neverRuns(writes[index]).dead, method === 'usage-pure');
+  const before = decisions();
+  for (const index of order) neverRuns(writes[index]);
+  check(`${ label }/completed decisions are reused`, decisions(), before);
 }
 
 finish();

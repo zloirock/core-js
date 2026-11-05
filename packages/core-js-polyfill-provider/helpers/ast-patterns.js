@@ -2240,6 +2240,7 @@ export function withVarScopeOwners(visit) {
 // of the guard it was handed, and handed any part of that guard it takes the same steps (`cycleGuardCuts`)
 export function cycleGuardHas(seen, element) {
   if (!seen?.has(element)) return false;
+  invalidateSettlingHypothesis();
   if (canonAnswers) canonAnswers.cuts++;
   return true;
 }
@@ -2273,6 +2274,7 @@ export function withReentrantQuestion(question, kind) {
 // ... and the re-entries the lookups in flight refused so far (`withBindingLookupGuard`)
 let refusedReentries = 0;
 export function refuseReentry() {
+  invalidateSettlingHypothesis();
   refusedReentries++;
 }
 
@@ -2288,8 +2290,10 @@ export function withPresenceReadQuestion(question) {
 
 // a recursive walk cut at its depth budget: it answers unknown, and unlike a cycle guard's cut the answers
 // around it are kept: only a chain past every realistic spelling meets the budget, and a walk refused its
-// memos there would grow with the square of the chain
+// memos there would grow with the square of the chain. This does not validate dependent guard answers:
+// those still expire with the enclosing settling.
 export function cutDeepWalk() {
+  invalidateSettlingHypothesis();
   return null;
 }
 
@@ -4517,8 +4521,10 @@ export const SELECTION_TEST_FIELDS = { IfStatement: 'test', ConditionalExpressio
 // global another install it guards patches) takes the inner ask's guards open - the cut. an answer is kept
 // for good unless a cut reached a settling in flight below it, whose answer it then depends on: one cut only by
 // its own re-entry is what any ask of it computes. an answer that took a settling below it as open is kept while
-// that settling is in flight and leaves with it (`settlingFrames`): under it every ask stands under the same
-// hypothesis. A reader of that cached answer inherits its cut and leaves with the same frame.
+// that settling is in flight (`settlingFrames`): under it every ask stands under the same hypothesis. A reader
+// of that cached answer inherits its cut. On return the dependent answers leave unless every settling in the
+// completed cycle left all its guards open, validating exactly the hypothesis the cuts supplied. A changed
+// guard or a cut outside this guard cycle (including another adapter/context) forbids this keep.
 // Without the keep a loop writing its accumulators under tests
 // of one another - a text wrapper's lines, words and widths - settled every write of the others anew under every
 // settling that reached it, a power of the writes. the re-entrant questions in flight that narrow decisions - the
@@ -4532,16 +4538,27 @@ const decidedGuardsByAdapter = new WeakMap();
 const settlingTargets = new Map();
 let lowestSettlingCut = Infinity;
 const settlingFrames = [];
+// A non-guard cut supplies no hypothesis this settling can validate on return. Propagate the invalidation
+// through every enclosing frame as it returns, including frames with no dependent answers of their own.
+function invalidateSettlingHypothesis() {
+  const frame = settlingFrames.at(-1);
+  if (frame) frame.changed = true;
+}
+
+// The cached settling of one target, including the lifetime of answers that depend on its open-guard hypothesis.
 function decidedGuards(owner, target, adapter) {
+  const { census, lookup, root } = narrowingQuestions;
+  const context = (census && 1) | (lookup && 2) | (root && 4);
   const inFlight = settlingTargets.get(target);
   if (inFlight !== undefined) {
+    const frame = settlingFrames[inFlight];
+    if (frame.adapter !== adapter || frame.context !== context) invalidateSettlingHypothesis();
     lowestSettlingCut = Math.min(lowestSettlingCut, inFlight);
     return { open: collectVarGuardsToDeclarator(owner.node, target), dead: false };
   }
   let byContext = decidedGuardsByAdapter.get(adapter);
   if (!byContext) decidedGuardsByAdapter.set(adapter, byContext = []);
-  const { census, lookup, root } = narrowingQuestions;
-  const decided = byContext[(census && 1) | (lookup && 2) | (root && 4)] ??= new WeakMap();
+  const decided = byContext[context] ??= new WeakMap();
   let byTarget = decided.get(owner.node);
   if (!byTarget) decided.set(owner.node, byTarget = new Map());
   const cached = byTarget.get(target);
@@ -4554,23 +4571,31 @@ function decidedGuards(owner, target, adapter) {
   const refusals = refusedReentries;
   lowestSettlingCut = Infinity;
   settlingTargets.set(target, depth);
-  settlingFrames.push([]);
+  settlingFrames.push({ answers: [], adapter, context, changed: false });
   let settled, head, unnarrowed;
   try {
     settled = settledVarGuards(owner, target, adapter);
   } finally {
     settlingTargets.delete(target);
-    // the answers that took this settling as open leave with it
-    for (const [answers, kept] of settlingFrames.pop()) answers.delete(kept);
+    const frame = settlingFrames.pop();
     head = lowestSettlingCut;
     unnarrowed = !lookup || refusedReentries === refusals;
+    // Keep dependents only if every completed settling validated its open-guard hypothesis.
+    const unchanged = unnarrowed && settled && !settled.dead
+      && settled.open.length === collectVarGuardsToDeclarator(owner.node, target).length;
+    const closed = unchanged && !frame.changed && head >= depth;
+    for (const [answers, kept] of frame.answers) {
+      if (closed) answers.get(kept).cut = undefined;
+      else answers.delete(kept);
+    }
+    if (!unchanged || frame.changed) invalidateSettlingHypothesis();
     lowestSettlingCut = Math.min(outerCut, lowestSettlingCut);
   }
   if (!unnarrowed) return settled;
   // A self-cut is stable. Only a still-active ancestor owns a temporary answer.
   if (head < depth) {
     settled.cut = head;
-    settlingFrames[head].push([byTarget, target]);
+    settlingFrames[head].answers.push([byTarget, target]);
   }
   byTarget.set(target, settled);
   return settled;
@@ -4700,7 +4725,11 @@ function ownWriteOwner(write, node, usagePath) {
 // what the read holds there. asked outside the write's own settling, which takes the test's reads as the build
 // serves them to decide it. a read no guard test of the write holds or reads leaves the guards unsettled
 export function readDecidesWrite({ readNode, write, usagePath, adapter }) {
-  if (!adapter?.decidedSelection || settlingTargets.has(write)) return false;
+  if (!adapter?.decidedSelection) return false;
+  if (settlingTargets.has(write)) {
+    invalidateSettlingHypothesis();
+    return false;
+  }
   const owner = guardedWriteOwner(write, usagePath);
   if (!owner) return false;
   const parents = ownerParentIndexLocating(owner.node, write);
