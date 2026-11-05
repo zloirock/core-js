@@ -70,6 +70,10 @@ for (const [name, source, expected, kind = 'static'] of [
   ['loop body closure', 'for (const row of [{ C: Array }]) { const read = () => { const { C: { from } } = row; }; }', true],
   ['loop body assignment', 'let from; for (const row of [{ C: Array }]) { effect(); ({ C: { from } } = (row)); }', true],
   ['loop body alias', 'for (const row of [{ C: Array }]) { const held = row; const { C: { from } } = held; }', true],
+  ['nested loop aliases', 'for (const row of [{ C: Array }]) for (const held of [row]) { const { C: { from } } = held; }', true],
+  ['nested loop mixed sources', 'for (const row of [{ C: Array }]) for (const held of [row, source]) { const { C: { from } } = held; }', false],
+  ['nested loop source reassigned', 'for (let row of [{ C: Array }]) { row = source; for (const held of [row]) { const { C: { from } } = held; } }', false],
+  ['cyclic loop source', 'for (var row of [held]) for (var held of [row]) { const { C: { from } } = held; }', false],
   ['loop source prefix', 'for (const row of [(effect(), { C: Array })]) { const { C: { from } } = row; }', true],
   ['loop mixed sources', 'for (const row of [{ C: Array }, source]) { const { C: { from } } = row; }', false],
   ['loop source reassigned', 'for (let row of [{ C: Array }]) { row = source; const { C: { from } } = row; }', false],
@@ -1774,6 +1778,11 @@ function injectorFor({ generated = [], adopted = [], pureImports = {} } = {}) {
     getPureImport: name => pureImports[name] ?? null,
   };
 }
+
+runBoth('sentinel/a user name alone proves nothing', 'const { Array: { missing: _unused } } = globalThis;', (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'missing');
+  check(label, sentinelAlreadyProcessed(path, { node: path.node, meta: null, injector: injectorFor() }), false);
+});
 
 runBoth('sentinel/our own unused name is processed', 'const { from: _unused } = R;', (adapter, prog, lbl) => {
   const type = adapter.name === 'babel' ? 'ObjectProperty' : 'Property';

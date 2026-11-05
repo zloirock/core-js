@@ -79,7 +79,7 @@ for (const input of [
   const rendered = renderClaimProbe(plan, { injectImport: name => `_${ name }` });
   const snapshot = JSON.stringify(rendered);
   checkTruthy(`${ input }/render reads current child`, snapshot.includes(input.includes('stored') ? 'liveHolder' : 'liveKey'));
-  check(`${ input }/old child left behind`, snapshot.includes('"at"'), false);
+  check(`${ input }/old child left behind`, snapshot.includes(input.includes('stored') ? '"prepare"' : '"at"'), false);
   at.node.init = { type: 'Identifier', name: 'later' };
   check(`${ input }/capture survives another rewrite`, JSON.stringify(renderClaimProbe(plan, { injectImport: name => `_${ name }` })), snapshot);
 }

@@ -225,4 +225,42 @@ for (const leg of ['babel', 'babel/reparsed', 'unplugin', 'pre+post']) {
   runInContext(code, context);
   check(`${ leg }/co-transform preserves the opted-out slot`, result, '[[3],41]');
 }
+
+// Array iterator closing is observable before lowering. Babel's standalone array
+// destructuring lowering bypasses the iterator even without our plugin; keep this
+// oracle on the printed JS so it tests the capture decision rather than that lowering.
+const iteratorClose = `
+  const events = [];
+  const prototype = Object.getPrototypeOf([][Symbol.iterator]());
+  const previous = Object.getOwnPropertyDescriptor(prototype, 'return');
+  function read([{ at: first, [(Object.defineProperty(prototype, 'return', {
+    configurable: true,
+    get() {
+      events.push('return');
+      return function () { events.push('close'); return {}; };
+    },
+  }), 'flat')]: second }] = [[1, 2], 3]) {
+    return [typeof first, typeof second];
+  }
+  try { publish(read(), events); }
+  finally {
+    if (previous) Object.defineProperty(prototype, 'return', previous);
+    else delete prototype.return;
+  }
+`;
+for (const leg of ['native', 'babel', 'unplugin', 'pre+post']) {
+  const pluginOptions = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const plugin = createUnplugin(pluginOptions);
+  let printed = leg === 'native' ? iteratorClose : leg === 'babel'
+    ? (await transformAsync(iteratorClose, { ...options, plugins: [[babelPlugin, pluginOptions]] })).code
+    : plugin.transform(iteratorClose, '/input.mjs', leg === 'pre+post' ? 'pre' : 'single')?.code ?? iteratorClose;
+  if (leg === 'pre+post') printed = plugin.transform(printed, '/input.mjs', 'post')?.code ?? printed;
+  const { code } = await transformAsync(printed, {
+    ...options, plugins: [requireBabel('@babel/plugin-transform-modules-commonjs')],
+  });
+  let result;
+  runInNewContext(code, { require: requireBabel, publish(...values) { result = JSON.stringify(values); } });
+  check(`iterator close/${ leg }`, result, '[["function","function"],["return","close"]]');
+}
+
 finish();

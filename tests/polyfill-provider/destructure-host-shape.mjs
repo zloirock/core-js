@@ -2735,4 +2735,56 @@ for (const fallback of ['[]', '{}']) runBoth('a forced capture follows its sourc
     check(`${ label } without sibling metadata`, planCaptureSiblings(capture, { hostPath: host, resolvePure: () => null }) === capture, true);
   });
 
+// Moving an array-parameter capture must not advance iterator close across observable keys.
+const orderedInstanceParameter = "{ at: a, [(log.push('key'), 'includes')]: b, length: c }";
+for (const [name, before, after, expected, mutation] of [
+  ['quiet closed append', '', 'g(); export const effects = log;', true],
+  ['immediate caller precedes observation', '', '(() => g())(); export const effects = log;', true],
+  ['own push function', 'log.push = function () {};', 'g();', false],
+  ['own push getter', "Object.defineProperty(log, 'push', { get() { return function () {}; } });", 'g();', false],
+  ['own primitive push', 'log.push = 1;', 'g();', false],
+  ['own length write', 'log.length = 0;', 'g();', false],
+  ['alias handout', 'const alias = log;', 'g();', false],
+  ['unknown handout', 'mutate(log);', 'g();', false],
+  ['deferred handout after source call', '', 'observe(); g(); function observe() { mutate(log); }', false],
+  ['hoisted write after source call', '', 'patch(); g(); function patch() { log.push = function () {}; }', false],
+  ['loop handout feeds next call', '', 'for (let i = 0; i < 2; i++) { g(); mutate(log); }', false],
+  ['linking export after source call', '', 'g(); export { log };', false],
+  ['prototype numeric setter', '', 'g();', false, 'Array.prototype.0'],
+  ['prototype push change', '', 'g();', false, 'Array.prototype.push'],
+  ['prototype iterator replacement', '', 'g();', false, 'Array.prototype.Symbol.iterator'],
+  ['visible iterator return accessor', "Object.defineProperty(Object.getPrototypeOf([][Symbol.iterator]()), 'return', { get() { return close; } });", 'g();', false],
+  ['claimed leaf default', 'unknown(log);', 'g();', false],
+  ['optional call', '', 'g();', false],
+]) runBoth(`iterator-close capture closure/${ name }`, `const log = []; ${ before }
+  function g([${ name === 'optional call' ? orderedInstanceParameter.replace('log.push(', 'log.push?.(')
+    : name === 'claimed leaf default' ? orderedInstanceParameter.replace('at: a', 'at: a = fallback()') : orderedInstanceParameter }] = [[1, 2], 3]) {
+    return [a, b, c];
+  } ${ after }`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', path => path.node.value.name === 'a'
+    || path.node.value.left?.name === 'a');
+  check(`${ label }/claimed property selected`, !!prop, true);
+  const resolver = parser.makeResolver();
+  const census = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer(null)]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    collectBindingReferences: resolver.collectBindingReferences,
+    getMutatedStatics: () => new Set(mutation ? [mutation] : []),
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  const refs = resolver.collectBindingReferences(prop, 'log', { closed: true });
+  check(`${ label }/reference hook available`, Array.isArray(refs), name !== 'linking export after source call');
+  if (name === 'visible iterator return accessor') check(`${ label }/generic return veto`, adapter.isWrittenContainerSlot('', ['return']), true);
+  const plan = planRetainedObjectCapture({
+    propPath: prop,
+    adapter,
+    meta: { kind: 'property', key: 'at', placement: 'prototype' },
+    parameterCallSites: resolver.parameterCallSites,
+    resolvePure: meta => ['at', 'includes'].includes(meta.key)
+      ? { kind: 'instance', entry: `instance/${ meta.key }`, hintName: meta.key } : null,
+  });
+  check(`${ label }/iterator-moving admission`, !!plan?.defaultCapture && !plan.defaultCapture.retainedHead, expected);
+});
+
 finish();

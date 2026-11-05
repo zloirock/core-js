@@ -19489,7 +19489,8 @@ function * generateTypeofDeclaredSources() {
 // Pure static specialization beyond that key is unsupported, so the full native comparison
 // remains while the global leg still runs stripped. Dedicated fallback e2e tests separately
 // strip the nested static/instance claims without relying on the outer Array.of extraction.
-// The held hosts below retain their existing extraction limitations.
+// The held hosts below are outside the static forms retained by the B.0 design;
+// their absence is intentional, not an outstanding extraction bug.
 const SEALED_KEY_HOSTS = [
   { id: 'declaration', build: sealed => `const { of: o } = ${ sealed }.Array; return typeof o;` },
   { id: 'fallback', build: sealed => `const { of: o } = ${ sealed }.Array ?? {}; return typeof o;` },
@@ -19675,7 +19676,7 @@ function * generateRetainedWrapperNamespaces() {
     ['held-default', 'const fallback = { C };', `const { value: { C: { ${ key }: method } } = fallback } = {};`],
     ['array-default', '', `const { value: [{ ${ key }: method }] = [C] } = {};`],
   ]) yield { ...snippet(`retained-wrapper-namespace/${ name }/${ shape }`,
-    `await (async () => { const C = ${ name }; ${ setup } ${ read } return ${ call }; })()`), strip: true };
+    `await (async () => { const C = ${ name }; ${ setup } ${ read } return ${ call }; })()`), strip: true, isolated: true };
 }
 
 // Direct probes preserve the absent holder, the first throwing seal and both effect halves.
@@ -20008,6 +20009,7 @@ function * generateAliasRings() {
       ${ body }
       export { r, effects };`,
     strip: true,
+    isolated: true,
   };
 }
 
@@ -20129,8 +20131,8 @@ function * generateLocalFlowJoins() {
     ['inner-shadow', 'if (flag) { let value; value = ["inner"]; } else value = "cd";'],
     ['closure', 'if (flag) value = "ab"; else value = "cd"; function change() { value = ["ef"]; } change();'],
     ['caught-exit', 'try { if (flag) throw new Error("stop"); value = ["cd"]; } catch {}'],
-    ['prototype', 'if (flag) value = ["ab"]; else value = ["cd"]; Object.setPrototypeOf(value, String.prototype);'],
-    ['alias-prototype', 'if (flag) value = ["ab"]; else value = ["cd"]; const alias = value; Object.setPrototypeOf(alias, String.prototype);'],
+    ['prototype', 'if (flag) value = ["ab"]; else value = ["cd"]; Object.setPrototypeOf(value, String.prototype); value.toString = () => "value";'],
+    ['alias-prototype', 'if (flag) value = ["ab"]; else value = ["cd"]; const alias = value; Object.setPrototypeOf(alias, String.prototype); value.toString = () => "alias";'],
     ['prototype-readable', 'if (flag) value = ["ab"]; else value = ["cd"]; value.toString = () => "wrapped"; Object.setPrototypeOf(value, String.prototype);'],
     ['alias-prototype-readable',
       'if (flag) value = ["ab"]; else value = ["cd"]; value.toString = () => "wrapped";'

@@ -12,17 +12,17 @@ export function wrap(text) {
     out.push(line.at(0));
     word = ch + width;
     width = line;
-    out.push(width.at(-1));
+    out.push(width.includes(-1));
     word = line;
-    out.push(word.at(0));
+    out.push(word.startsWith(0));
     line = ch + word;
     width = word;
-    out.push(width.at(-1));
+    out.push(width.endsWith(-1));
     width = line;
-    out.push(width.at(0));
+    out.push(width.padStart(0));
     word = ch + line;
     line = width;
-    out.push(line.at(-1));
+    out.push(line.padEnd(-1));
   }
   return out;
 }

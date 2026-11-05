@@ -5932,16 +5932,16 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
 // The native-wrapper policy follows a stable source through the same binding and value
 // canons in both claim and fallback planning. A for-of binding holds its literal elements
 // wherever the read stands in the body; statement position and parentheses prove nothing.
-export function destructureSourceIsLiteralWrapper(node, ctx, pattern = null) {
+// Nested loop aliases follow the same bounded source walk, in each iterable's own scope.
+export function destructureSourceIsLiteralWrapper(node, ctx, pattern = null, depth = 0) {
+  if (depth >= STATIC_WALK_DEPTH) return false;
   const source = followConstIdentifierInit({ node: peelChainRootValue(decidedRunningOperand(node, ctx)), ctx });
   const value = unwrapRuntimeExpr(decidedRunningOperand(source.node, source.ctx));
   if (literalDestructureSource(value)) return true;
   const values = value?.type === 'Identifier' && forOfHeadValues(value, source.ctx);
-  if (values?.length && values.every(entry => !!literalDestructureSource(
-    peelChainRootValue(decidedRunningOperand(entry.node, entry.ctx)),
-  ))) return true;
+  if (values?.length && values.every(entry => destructureSourceIsLiteralWrapper(entry.node, entry.ctx, null, depth + 1))) return true;
   const captured = capturedPatternSource(pattern);
-  return !!captured && destructureSourceIsLiteralWrapper(captured.node, captured.ctx ?? ctx);
+  return !!captured && destructureSourceIsLiteralWrapper(captured.node, captured.ctx ?? ctx, null, depth + 1);
 }
 
 // Common captures may expose a supported flat read, and an existing fallback claim may

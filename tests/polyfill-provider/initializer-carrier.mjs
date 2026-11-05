@@ -2,6 +2,7 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
   initializerEffectParts,
+  residualReadOwnsValue,
   planInitializerCarrier,
   planInitializerNavigation,
   planConsumedInitializerCarrier,
@@ -125,5 +126,23 @@ for (const [name, init, pattern, collapseLeaf, expected] of [
 checkDeep('receiver-less claims keep only effects', planConsumedInitializerCarrier(null, [{ kind: 'static' }], {}),
   { carrier: 'effects' });
 checkDeep('an empty read group keeps only effects', planConsumedInitializerCarrier(null, [], {}), { carrier: 'effects' });
+
+// A sole nested static/global extraction owns the value needed by its residual pattern.
+for (const [pattern, kind, expected] of [
+  ['{ Map: { missing } }', 'global', true],
+  ['{ from: { name } }', 'static', true],
+  ['{ at: { name } }', 'instance', false],
+  ['{ Map: value }', 'global', false],
+  ['{ Map: [value] }', 'global', false],
+  ['{ Map: { missing } = fallback }', 'global', false],
+]) runBoth(`residual value owner/${ kind }/${ pattern }`, `const ${ pattern } = source;`, (parser, program, label) => {
+  const [prop] = parser.pickPath(program, 'VariableDeclarator').node.id.properties;
+  const reads = [{ kind, prop }];
+  const before = JSON.stringify(prop);
+  check(`${ label }/one read`, residualReadOwnsValue(reads), expected);
+  check(`${ label }/no read`, residualReadOwnsValue([]), false);
+  check(`${ label }/multiple reads`, residualReadOwnsValue([...reads, ...reads]), false);
+  check(`${ label }/query keeps the pattern`, JSON.stringify(prop), before);
+});
 
 finish();

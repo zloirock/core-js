@@ -8,6 +8,6 @@ function shared(flag) {
   return [of, length];
 }
 function user(flag, shim) {
-  const { Array: { [(trace('key'), 'from')]: from } } = flag ? globalThis : shim;
-  return from;
+  const { Array: { [(trace('key'), 'fromAsync')]: fromAsync } } = flag ? globalThis : shim;
+  return fromAsync;
 }

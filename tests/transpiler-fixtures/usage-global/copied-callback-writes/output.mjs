@@ -1,5 +1,6 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.concat";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.push";
@@ -13,9 +14,9 @@ import "core-js/modules/es.string.includes";
 // Each read observes its reaching value, even when successive writes change its family.
 const effects = [];
 const result = [[1, 2], [3, 4]].map((rows, index) => {
-  rows = (effects.push(`read${index}`), index ? 'cd' : rows.slice());
+  rows = (effects.push(`read${index}`), index ? 'cd' : rows.concat([]));
   const first = rows.at(0);
   rows = (effects.push(`write${index}`), index ? [7, 8] : 'ab');
-  return [first, rows.at(-1), rows.includes(index ? 8 : 'b')];
+  return [first, rows.includes(index ? 8 : 'b'), rows.slice(0, 1)];
 });
 export { result, effects };

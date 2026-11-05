@@ -10,36 +10,29 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, runBoth, finish } = createChecker('binding-node-type');
+const { check, runBoth, finish } = createChecker('binding-node-type');
 
-for (const [title, source, ask, expected] of [
+for (const [title, source, ask, expected, reads] of [
   ['global alias', 'const first = Array; first.from([]);',
-    ctx => resolveObjectName({ objectNode: ctx.node, ...ctx }), 'Array'],
+    ctx => resolveObjectName({ objectNode: ctx.node, ...ctx }), 'Array', 1],
   ['navigation alias', 'const first = globalThis.Array; const second = first; second.from([]);',
-    ctx => navigatedChainKeys(ctx.node, ctx)?.keys.join(','), 'Array'],
+    ctx => navigatedChainKeys(ctx.node, ctx)?.keys.join(','), 'Array', 2],
   ['container alias', 'const first = { slot: Array }; const second = first; second.from([]);',
-    ctx => walkStaticReceiverChain({ receiverNode: ctx.node, walkPath: ['slot'], ...ctx }), 'Array'],
+    ctx => walkStaticReceiverChain({ receiverNode: ctx.node, walkPath: ['slot'], ...ctx }), 'Array', 3],
   ['branching alias', 'const first = flag ? Array : Iterator; const second = first; second.from([]);',
     ctx => flattenFallbackBranches({ key: 'from', followAliasLeaves: true, ...ctx }).map(meta => meta.object).join(','),
-    'Array,Iterator'],
+    'Array,Iterator', 24],
 ]) runBoth(title, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'CallExpression');
   const reader = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-global' });
   let bindingReads = 0;
-  let typeLookups = 0;
   const adapter = {
     ...reader,
     getBinding(input) { bindingReads++; return reader.getBinding(input); },
-    getBindingNodeType(input) {
-      typeLookups++;
-      const binding = reader.getBinding(input);
-      return binding?.node?.type ?? binding?.path?.node?.type ?? null;
-    },
   };
   const ctx = { node: path.node.callee.object, scope: path.scope, adapter, path };
   check(`${ label }/resolved value`, ask(ctx), expected);
-  checkTruthy(`${ label }/binding proof exercised`, bindingReads > 0);
-  check(`${ label }/no repeated type lookup`, typeLookups, 0);
+  check(`${ label }/binding records are reused`, bindingReads, reads);
 });
 
 for (const [source, expected] of [

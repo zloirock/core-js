@@ -164,3 +164,18 @@ QUnit.test('an optional iterator method keeps its receiver and live tail', asser
   assert.same(read({ rows }), 13);
   assert.deepEqual(effects, ['key', 'arg', true]);
 });
+
+QUnit.test('a prepared optional receiver keeps its prefix before the iterator key', assert => {
+  const events = [];
+  const box = { rows: [7, 8] };
+  function read(source) {
+    // eslint-disable-next-line no-sequences -- observe the computed key after the optional receiver
+    return (events.push('prefix'), source)?.rows[events.push('key'), Symbol.iterator]();
+  }
+  const iterator = read(box);
+  assert.same(iterator.next().value, 7);
+  assert.deepEqual(events, ['prefix', 'key']);
+  events.length = 0;
+  assert.same(read(null), undefined);
+  assert.deepEqual(events, ['prefix']);
+});

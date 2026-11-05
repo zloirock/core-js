@@ -73,7 +73,10 @@ QUnit.test('a member overwrite preserves getter default and setter order', asser
     effects.push('setter');
     stored = value;
   } };
-  ({ slot: { at: target.method = (effects.push('default'), 29) } } = { slot: receiver });
+  function read(source) {
+    ({ slot: { at: target.method = (effects.push('default'), 29) } } = { slot: source });
+  }
+  read(receiver);
   assert.same(stored, 29);
   assert.deepEqual(effects, ['getter', 'default', 'setter']);
 });
