@@ -15,9 +15,10 @@ const arr = [[1]];
 
 null == (_ref = _flatMaybeArray(arr)?.call(arr)) || null == (_ref2 = _flatMapMaybeArray(_ref).call(_ref, (x) => x)) ? void 0 : _atMaybeArray(_ref2).call(_ref2, 0);
 
-// the SE-keyed POLY optional hop joins the same divergence family; the key SE replays
-// between the receiver memo and the dispatch identically on both emitters
-null == (_ref3 = _flatMaybeArray(arr)?.call(arr)) || null == (_ref4 = (eff2(), _findMaybeArray(_ref3).call(_ref3, h))) ? void 0 : _at(_ref4).call(_ref4, 6);
+// The effectful inner key keeps its nested guard on both emitters and runs between the receiver and dispatch.
+null == (_ref3 = null == (_ref4 = _flatMaybeArray(arr)?.call(arr))
+	? void 0
+	: (eff2(), _findMaybeArray(_ref4).call(_ref4, h))) ? void 0 : _at(_ref3).call(_ref3, 6);
 
 // inner computed-key SE + hop-key SE replay in native order: the receiver memo hoists
 // AHEAD of the key effects even under the inner chain's guard

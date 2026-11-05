@@ -3,7 +3,6 @@ import { runInNewContext } from 'node:vm';
 import generatePackage from '@babel/generator';
 import {
   planReceiverEffects,
-  planSymbolReceiverEffects,
   planSymbolReceiverRoot,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import { classifyReceiverSE, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -13,6 +12,8 @@ import {
   hostSlot,
   hostSlotNode,
   identifier,
+  planMethodCall,
+  planOptionalMethodCall,
   renderReceiverEffects,
   renderSymbolReceiverRoot,
   sequenceExpression,
@@ -113,24 +114,17 @@ runBoth('symbol source slots', 'const rows = []; const result = (first(), rows)[
     const receiver = member.object;
     const [first] = peelNestedSequenceExpressions(receiver).prefix;
     const [key] = peelNestedSequenceExpressions(member.property).prefix;
-    const input = {
-      member,
-      caller: path.node,
-      iteratorEntry: 'get-iterator-method',
-      receiver,
-      sideEffects: [first, key],
-      receiverEffects: new Set([first]),
-    };
+    const input = { receiver, sideEffects: [first, key], receiverEffectCount: 1 };
     const before = JSON.stringify(program.node);
-    const guarded = planSymbolReceiverEffects({ ...input, memberOptional: true });
+    const guarded = planReceiverEffects({ ...input, guarded: true });
     check(`${ label } guard owns the first value`, guarded.receiver, receiver);
     checkDeep(`${ label } guard only replays key`, guarded.effects, [key]);
-    check(`${ label } optional invocation owns its effects`, planSymbolReceiverEffects({ ...input, callOptional: true }).effects, null);
-    check(`${ label } detached receiver effect declines`, planSymbolReceiverEffects({
-      ...input,
-      memberOptional: true,
-      receiver: peelNestedSequenceExpressions(receiver).tail,
-    }), null);
+    const invocation = planMethodCall({ ...input, optional: true });
+    check(`${ label } optional invocation remains optional`, invocation.optional, true);
+    checkDeep(`${ label } optional invocation keeps its key`, invocation.keyEffects, [key]);
+    checkDeep(`${ label } detached prefix precedes the lookup`, planMethodCall({
+      ...input, receiver: peelNestedSequenceExpressions(receiver).tail,
+    }).prefixEffects, [first]);
     checkDeep(`${ label } prepared guard removes receiver harvest`, planReceiverEffects({
       receiver,
       sideEffects: [first, key],
@@ -179,33 +173,43 @@ runBoth('symbol source slots', 'const rows = []; const result = (first(), rows)[
     check(`${ label } source still unchanged`, JSON.stringify(program.node), before);
   });
 
-runBoth('symbol live guard split', 'const result = box?.rows[Symbol.iterator];', (parser, program, label) => {
-  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
-  const member = unwrapRuntimeExpr(path.node.init);
-  const input = {
-    member,
-    receiver: member.object,
-    liveOptionalReceiver: true,
-    sideEffects: [],
-    receiverEffects: new Set(),
-  };
-  check(`${ label } native split requested`, planSymbolReceiverEffects(input).split, true);
-  check(`${ label } unavailable split refuses`, planSymbolReceiverEffects({ ...input, split: null }), null);
-  check(`${ label } call split refuses`, planSymbolReceiverEffects({ ...input, split: { hopKind: 'call' } }), null);
-  const disjuncts = [member.object];
-  const split = { hopKind: 'member', receiver: member.object, disjuncts };
-  const plan = planSymbolReceiverEffects({ ...input, split });
-  check(`${ label } retains prepared checks`, plan.disjuncts, disjuncts);
-  check(`${ label } preserves first split value`, plan.firstReceiver, split.receiver);
+for (const [kind, source] of [['member', 'box?.rows'], ['call', 'box.rows?.()']]) {
+  runBoth(`symbol live ${ kind } guard`, `const result = ${ source }[Symbol.iterator]?.();`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const call = unwrapRuntimeExpr(path.node.init);
+    const member = unwrapRuntimeExpr(call.callee);
+    const before = JSON.stringify(program.node);
+    const lookup = planOptionalMethodCall({ callee: member, call });
+    check(`${ label } lookup retains first receiver`, lookup.firstReceiver, member.object);
+    const invoke = planMethodCall({ receiver: member.object, args: call.arguments, optional: call.optional });
+    check(`${ label } invocation guards the method`, invoke.optional, true);
+    check(`${ label } query preserves the source`, JSON.stringify(program.node), before);
+  });
+}
 
+runBoth('capture in a computed lookup', 'let held; (held = get())[(key(), "at")];', (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression', item => item.node.computed);
+  const receiver = unwrapRuntimeExpr(path.node.object);
+  const [key] = peelNestedSequenceExpressions(path.node.property).prefix;
+  for (const generated of [false, true]) {
+    const plan = planReceiverEffects({
+      receiver, sideEffects: [key], receiverReads: 1,
+      ctx: { injectorState: { isOwnPassGeneratedName: name => generated && name === 'held' } },
+    });
+    check(`${ label }/${ generated }: source evaluated first`, plan.firstReceiver, receiver);
+    check(`${ label }/${ generated }: capture user-writable value`, plan.capture, !generated);
+    check(`${ label }/${ generated }: only a generated binding can be reused`, plan.receiver, generated ? receiver.left : receiver);
+    checkDeep(`${ label }/${ generated }: key stays after the capture`, plan.keyEffects, [key]);
+  }
+});
+
+runBoth('symbol split key order', 'const result = box?.rows[Symbol.iterator];', (parser, program, label) => {
   const prefix = { type: 'CallExpression', callee: { type: 'Identifier', name: 'prefix' }, arguments: [] };
   const key = { type: 'CallExpression', callee: { type: 'Identifier', name: 'key' }, arguments: [] };
   const tail = { type: 'Identifier', name: '_prepared' };
   const prepared = { type: 'SequenceExpression', expressions: [prefix, tail] };
-  const sequencePlan = planSymbolReceiverEffects({
-    ...input,
-    sideEffects: [key],
-    split: { ...split, receiver: prepared },
+  const sequencePlan = planReceiverEffects({
+    receiver: prepared, sideEffects: [key], receiverReads: 1,
     ctx: { injectorState: { isOwnPassGeneratedName: name => name === '_prepared' } },
   });
   const rendered = renderReceiverEffects(sequencePlan, {

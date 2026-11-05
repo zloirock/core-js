@@ -102,3 +102,25 @@ QUnit.test('logical stores keep a foreign receiver for reads, updates and delete
   let absent = null;
   assert.throws(() => (absent &&= globalThis).self?.items.at(0), TypeError);
 });
+
+QUnit.test('a keyed optional dispatch preserves the receiver and argument order', assert => {
+  const events = [];
+  const box = { get rows() {
+    events.push('rows');
+    return [7];
+  } };
+  function read(receiver) {
+    return receiver?.rows[(events.push('key'), 'at')]?.((events.push('arg'), -1))?.toFixed(0);
+  }
+  assert.same(read(null), undefined);
+  assert.deepEqual(events, []);
+  assert.same(read(box), '7');
+  assert.deepEqual(events, ['rows', 'key', 'arg']);
+  events.length = 0;
+  function sealed(receiver) {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- The sealed call must evaluate its argument before throwing.
+    return (receiver?.rows?.[(events.push('key'), 'at')])((events.push('arg'), -1));
+  }
+  assert.throws(() => sealed(null), TypeError);
+  assert.deepEqual(events, ['arg']);
+});

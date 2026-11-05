@@ -2000,7 +2000,7 @@ function checkOptionalReceiverCaptureBoundaries() {
           + 'module.exports = [r, trace];',
           [[1, 2], 'receiver;list;key;argument;'],
           'array/instance/flat',
-          false,
+          true,
         ],
         // The realm key stays native; its independent name claim can now dispatch.
         // Calling Object.name still throws after the key effect.
@@ -6021,7 +6021,7 @@ for (const [source, typed] of [
   const channel = createOptionalDispatchChannel({
     adapter, injector, injectorState: injector, resolvedType,
     skippedNodes: new WeakSet(), memoValueClones: new WeakSet(), guardCommaMemos: new WeakSet(),
-    resolveGlobalPolyfill: () => null, resolvePure: () => null,
+    resolveGlobalPolyfill: () => null, resolvePure: () => null, injectPureImport: () => '_at',
     peelNonNullWraps: node => ({ splitSource: node, rewrapNonNull: value => value }),
     markRewrite() { rewrites++; },
     resolveNodeType(path) {
@@ -6030,7 +6030,7 @@ for (const [source, typed] of [
       return resultType;
     },
   });
-  check(`call-result stamp/${ source }/dispatch succeeds`, channel.replaceInstanceLike({ metaPath: use, id: '_at' }), true);
+  check(`call-result stamp/${ source }/dispatch succeeds`, channel.replaceInstanceLike({ metaPath: use, entry: 'instance/at', hintName: 'at' }), true);
   check(`call-result stamp/${ source }/type queried only when retained`, queries, Number(typed));
   check(`call-result stamp/${ source }/one rewrite`, rewrites, 1);
   let stamped = false;

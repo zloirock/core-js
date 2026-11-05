@@ -1,4 +1,4 @@
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// A literal keeps its native slots while an independently resolved call supplies its static.
 // Reads and effects remain inside their source control-flow positions.
 const headed = () => ({ a: Object });
 for (const { a: viaHead } of [headed()]) use(viaHead.is(5, 5));

@@ -634,11 +634,24 @@ for (const source of ['const [C] = [Map]; use(new C());']) {
   ]) check(`array pattern narrow control [${ emitter }]: ${ source }`, imports.has('@core-js/pure/actual/map'), false);
 }
 
+// A known key with an unproven realm slot has an independent default. Its user
+// branch stays native, while the default serves the requested static directly.
+for (const receiver of ['[globalThis]', 'rows']) {
+  const source = `const key = "userSlot", rows = [globalThis]; const [{ [key]: { groupBy } = Map }] = ${ receiver }; use(groupBy);`;
+  for (const [emitter, imports] of [
+    ['babel', await babelImports(source, PURE)],
+    ['unplugin', unpluginImports(source, PURE)],
+  ]) {
+    check(`known key default/${ receiver } [${ emitter }]: static`, imports.has('@core-js/pure/actual/map/group-by'), true);
+    check(`known key default/${ receiver } [${ emitter }]: constructor`, imports.has('@core-js/pure/actual/map/constructor'), false);
+    check(`known key default/${ receiver } [${ emitter }]: namespace`, imports.has('@core-js/pure/actual/map'), false);
+  }
+}
+
 // A retained wrapper read consumes the substituted constructor. Its whole entry must
 // carry the static even when a reaching write or decided arm identifies one constructor.
 for (const [label, source, entry, staticEntry] of [
   ['literal wrapper', 'const [{ groupBy }] = [Map]; use(groupBy);', 'map', 'group-by'],
-  ['computed key default', 'const key = "userSlot"; const [{ [key]: { groupBy } = Map }] = [globalThis]; use(groupBy);', 'map', 'group-by'],
   ['opaque key default', 'const [{ [key]: { groupBy } = Map }] = [globalThis]; use(groupBy);', 'map', 'group-by'],
   ['reassigned nested container', 'let rows = [{ C: Object }]; rows = [{ C: Promise }]; const [{ C: { race } }] = rows; use(race);', 'promise', 'race'],
   ['chained container write', 'let rows = [Object], other; rows = other = [Promise]; const [{ allSettled }] = rows; use(allSettled);', 'promise', 'all-settled'],

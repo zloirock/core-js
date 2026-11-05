@@ -132,3 +132,35 @@ QUnit.test('for-of: custom iterable yielding array fragments spread on each step
   assert.deepEqual(flat, [0, 1, 2, 3, 4, 5]);
   assert.deepEqual(Array.from(chunked).flat(), [0, 1, 2, 3, 4, 5]);
 });
+
+QUnit.test('an iterator lookup continues the optional receiver call', assert => {
+  const effects = [];
+  const box = { make() {
+    effects.push(this === box);
+    return [7];
+  } };
+  function read(holder) {
+    // eslint-disable-next-line no-sequences -- The computed key must run inside the optional chain.
+    return holder.make?.()[effects.push('key'), Symbol.iterator]().next().value;
+  }
+  assert.same(read({}), undefined);
+  assert.deepEqual(effects, []);
+  assert.same(read(box), 7);
+  assert.deepEqual(effects, [true, 'key']);
+});
+
+QUnit.test('an optional iterator method keeps its receiver and live tail', assert => {
+  const effects = [];
+  const rows = { [Symbol.iterator](index) {
+    effects.push(this === rows);
+    return { value: index };
+  } };
+  function read(holder) {
+    // eslint-disable-next-line no-sequences -- The key precedes the optional invocation's argument.
+    return holder?.rows[effects.push('key'), Symbol.iterator]?.((effects.push('arg'), 13))?.value;
+  }
+  assert.same(read(null), undefined);
+  assert.deepEqual(effects, []);
+  assert.same(read({ rows }), 13);
+  assert.deepEqual(effects, ['key', 'arg', true]);
+});

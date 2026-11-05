@@ -1,17 +1,15 @@
 import {
   optionalConstructorLanding, planOptionalMemberSplit, optionalSplitReusesSurface, planSplitMemberLanding, splitConstructorClaim,
 } from '@core-js/polyfill-provider/detect-usage/optional-split';
-import { spineHoldsKeptWrite } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 // the optional-dispatch channel of the usage-pure emitter: the `?.` split forms (a doubly
 // optional call, an optional member hop, the receiver splits) and the instance/inherited
 // dispatches with their guard spellings. created per transform over the factory's context
 import {
   navRootPrefixNodes,
-  peelReceiverSequenceTail,
   resolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
+  planReceiverEffects, prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, vestigialReceiverOptionals } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -24,7 +22,6 @@ import {
   isReusableReceiver,
   memberKeyName,
   peelNestedSequenceExpressions,
-  receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
   subtreeContainsNode,
   climbTransparentWrapperPath,
@@ -43,7 +40,7 @@ import {
   memberExpression,
   nullGuardTest,
   renderMethodCall,
-  renderGuardedMethodCall,
+  renderReceiverEffects,
   renderOptionalMethodCall,
   renderReceiverMemo,
   renderKeptSequenceTail,
@@ -61,25 +58,18 @@ import {
   stampReplacementSpan,
   withSideEffects,
 } from './emit-shared.js';
-import { guardProbeUndefinable, optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
+import { optionalCallSegmentBelow, replaceGuardedHop } from './claim-guards.js';
 import {
   climbToCallerPath,
   cloneSpinePeeled,
   cloneStamped,
-  foldSeqKeyLiteralTail,
   isDeleteOperand,
   markSubtreeSkipped,
   memoizedCallResultType,
-  navRootIsProxyIdentifier,
   nodeTypeRefinement,
-  spineCarriesComputedHop,
   stampSourceCallType,
 } from './nav-spine.js';
 import {
-  emitBareOptionalSeDispatch,
-  emitOptionalCallWithLiftedSe,
-  emitSeKeyReadMemo,
-  emitSeReadFormOverLiveOptional,
   inheritedStaticCalleeSplit,
 } from './se-dispatch.js';
 
@@ -87,7 +77,6 @@ export default function createOptionalDispatchChannel(ctx) {
   const {
     STAGED_SPLIT,
     adapter,
-    bareOptionalCtx,
     guardCommaMemos,
     inheritedCtx,
     injectPureImport,
@@ -103,7 +92,6 @@ export default function createOptionalDispatchChannel(ctx) {
     resolvePureOrGlobalFallback,
     resolveStaticInheritedMember,
     resolvedType,
-    seKeyReadCtx,
     skippedNodes,
     toHint,
     typeStampCtx,
@@ -450,14 +438,9 @@ export default function createOptionalDispatchChannel(ctx) {
     return receiverHoldsProxySurface(objectNode, { path: metaPath, scope: metaPath?.scope, adapter });
   }
 
-  // `recv.at(args)` -> `_at(recv).call(recv, args)`; `recv.at` -> `_at(recv)`; the receiver
-  // memoizes through `var _ref;` when repeating it would re-run effects. the `?.` directly
-  // at the member becomes the null-check conditional (`arr == null ? void 0 : ...` for a
-  // reusable receiver, `null == (_ref = make()) ? void 0 : ...` for a memoized one - the
-  // operand order is the legs' shared spelling), an optional CALL keeps its `?.` on `.call`
   // guard-comma fusion: the split's `(_r = X, _g = _r.m)` memo with a RESOLVING method -
   // the lookup absorbs the receiver memo (`_g = _mMaybe(_r = X)`), babel's nesting
-  function fuseGuardCommaMemo({ metaPath, id }) {
+  function fuseGuardCommaMemo({ metaPath, entry, hintName }) {
     const assignUp = metaPath.parentPath?.node;
     const seqPath = metaPath.parentPath?.parentPath;
     if (assignUp?.type !== 'AssignmentExpression' || assignUp.right !== metaPath.node
@@ -474,7 +457,7 @@ export default function createOptionalDispatchChannel(ctx) {
       if (skippedNodes.has(orig)) skippedNodes.add(copy);
     }
     seqPath.replaceWith(assignmentExpression('=', cloneNode(assignUp.left),
-      callExpression(identifier(id), [recvClone])));
+      callExpression(identifier(injectPureImport(entry, hintName)), [recvClone])));
     markSubtreeSkipped(skippedNodes, consumed);
     return true;
   }
@@ -496,7 +479,7 @@ export default function createOptionalDispatchChannel(ctx) {
   // lands (its memo joins split disjuncts when the split ran)
   function resolveDispatchSpelling({
     metaPath, effObject, memberOptional, isCall, guardDisjuncts,
-    sourceReceiver = effObject, sideEffects = [], receiverEffectCount = 0, args = [], optional = false,
+    sourceReceiver = effObject, sideEffects = [], receiverEffectCount = 0, args = [], optional = false, callPath = null,
   }) {
     // source parens are printer trivia - the reusability question and the re-spelled
     // receiver both read through them (`(arr).at(0)` -> `_at(arr).call(arr, 0)`); TS
@@ -508,12 +491,12 @@ export default function createOptionalDispatchChannel(ctx) {
     effObject = prepareStaticReceiver(effObject, receiverCtx, { injectImport: injectPureImport, embed: cloneNode });
     if (!memberOptional && isCall) return {
       callDecision: planMethodCall({
-        receiver: effObject, sourceReceiver, sideEffects, receiverEffectCount, args, optional, ctx: receiverCtx,
+        receiver: effObject, sourceReceiver, sideEffects, receiverEffectCount, args, optional, callPath, ctx: receiverCtx,
       }),
       check: null,
       guardDisjuncts,
     };
-    const decision = planReceiverMemo(effObject, { ctx: receiverCtx });
+    const decision = planReceiverMemo(effObject, { interveningEffects: sideEffects.length > receiverEffectCount, ctx: receiverCtx });
     const reusable = !decision.capture;
     let check = null;
     let lookupArg;
@@ -534,7 +517,7 @@ export default function createOptionalDispatchChannel(ctx) {
       lookupArg = memo.makeBase();
       callReceiver = memo.makeBase();
     } else {
-      lookupArg = cloneStamped(effObject, typeStampCtx);
+      lookupArg = effObject;
     }
     return { check, lookupArg, callReceiver, guardDisjuncts };
   }
@@ -561,10 +544,16 @@ export default function createOptionalDispatchChannel(ctx) {
       ? renderProxyReceiverPlan(plan, { injectImport: injectPureImport, cloneHost: cloneNode }) : receiverNode;
   }
 
+  // Apply one instance or iterator lookup through the common receiver/call plan.
+  // Key effects stay after the first read and inside its guard; a sealed method
+  // leaves its arguments outside that guard. Only whole-call helpers consume the call.
   // eslint-disable-next-line max-statements -- sequential emission steps of one instance claim
-  function replaceInstanceLike({ metaPath, id, sideEffects = [], receiverEffectCount = 0 }) {
+  function replaceInstanceLike({
+    metaPath, entry, hintName, sideEffects = [], receiverEffectCount = 0,
+    object = metaPath.node.object, sourceOptional = metaPath.node.optional === true, consumesCall = false, preparedOptionals = false,
+  }) {
     const memberNode = metaPath.node;
-    if (fuseGuardCommaMemo({ metaPath, id })) return true;
+    if (!sideEffects.length && fuseGuardCommaMemo({ metaPath, entry, hintName })) return true;
     if (isDeleteOperand(metaPath)) return false;
     // the caller past transparent wrappers; `calleeIsMember` holds when the call's callee
     // unwraps to exactly this member (the paren-lookup class included)
@@ -572,29 +561,33 @@ export default function createOptionalDispatchChannel(ctx) {
     const parent = callerPath?.node;
     const isCall = (parent?.type === 'CallExpression' ? unwrapRuntimeExpr(parent.callee) : null) === memberNode;
     const callOptional = isCall && parent.optional;
-    const { object } = memberNode;
+    const methodCall = isCall && !consumesCall;
     // A constructor landing can erase this optional only if the source guard is dead.
     // Leave an effect-bearing landing to the ordinary split, which emits its prefix.
-    const landing = memberNode.optional && optionalConstructorLanding(object, {
+    const landing = sourceOptional && optionalConstructorLanding(object, {
       scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath),
     });
     const deadCtorOptional = landing && !landing.effects.length;
-    const memberOptional = memberNode.optional === true && !deadCtorOptional;
+    // A plainly called, sealed iterator lookup throws in the whole-call helper.
+    // With no detached receiver or key effect, its source chain can go directly into that argument.
+    const sealedIterator = isCall && consumesCall && calleeParenWrapped(parent) && sideEffects.length === receiverEffectCount
+      && sideEffects.every(effect => subtreeContainsNode(object, effect));
+    const memberOptional = sourceOptional && !deadCtorOptional && !sealedIterator;
     const deadCtorSwap = deadCtorOptional && receiverCarriesOptional(object);
-    eraseVestigialReceiverOptionals({ memberOptional, object, metaPath });
+    if (!preparedOptionals) eraseVestigialReceiverOptionals({ memberOptional, object, metaPath });
     const { splitSource, rewrapNonNull } = peelNonNullWraps(object);
     let guardDisjuncts = null;
     let effObject = deadCtorSwap
       ? landing.source ? cloneNode(landing.source) : identifier(injectPureImport(landing.pure.entry, landing.pure.hintName)) : object;
     if (deadCtorSwap) markSubtreeSkipped(skippedNodes, object);
-    else if (!memberOptional) {
+    else if (!memberOptional && !sealedIterator) {
       const split = splitOptionalReceiver(splitSource, metaPath);
       if (split === STAGED_SPLIT) return false;
       if (split) {
         ({ disjuncts: guardDisjuncts } = split);
         effObject = collapseSplitReceiver(rewrapNonNull(split.receiver), metaPath);
       }
-    } else if (receiverCarriesOptional(object)) {
+    } else if (memberOptional && receiverCarriesOptional(object)) {
       // a receiver whose LAST optional hop is a CALL splits (the dispatch memo guards as its
       // own disjunct, the member-optional memo joins it); one ending on an optional MEMBER
       // stays whole - its memo IS the guard (`null == (_ref = a?.b)`), and the descent
@@ -608,8 +601,7 @@ export default function createOptionalDispatchChannel(ctx) {
       const splitHop = splitCall?.type === 'CallExpression'
               ? unwrapRuntimeExpr(splitCall.callee) : null;
       const splitHopKey = splitHop?.type === 'MemberExpression'
-              ? (splitHop.computed ? foldSeqKeyLiteralTail(splitHop.property)?.key ?? null
-                : memberKeyName(splitHop))
+              ? memberKeyName(splitHop)
               : null;
       // ... and only where THIS hop is a claim of its own: a raw member read has no
       // dispatch to hold the disjunct, so its whole segment memoizes as one value
@@ -633,8 +625,8 @@ export default function createOptionalDispatchChannel(ctx) {
       }
     }
     const spelling = resolveDispatchSpelling({
-      metaPath, effObject, memberOptional, isCall, guardDisjuncts, sourceReceiver: object,
-      sideEffects, receiverEffectCount, args: isCall ? parent.arguments : [], optional: callOptional,
+      metaPath, effObject, memberOptional, isCall: methodCall, guardDisjuncts, sourceReceiver: object,
+      sideEffects, receiverEffectCount, args: isCall ? parent.arguments : [], optional: callOptional, callPath: callerPath,
     });
     const { check, lookupArg, callReceiver, callDecision } = spelling;
     ({ guardDisjuncts } = spelling);
@@ -646,7 +638,8 @@ export default function createOptionalDispatchChannel(ctx) {
     const parenWrapped = isCall && calleeParenWrapped(parent);
     const test = composeGuardTest(guardDisjuncts, check);
     const sealedLookup = isCall && parenWrapped && test && !callOptional;
-    if (isCall) {
+    if (methodCall) {
+      const id = injectPureImport(entry, hintName);
       // the `?.call` needs a chain wrapper of its own ONLY when the original chain does not
       // continue above: a continuing hop keeps riding the source ChainExpression, and sealing
       // the dispatch under a nested wrapper would cut the short-circuit off from the tail
@@ -655,7 +648,8 @@ export default function createOptionalDispatchChannel(ctx) {
         && ((upNode.type === 'MemberExpression' && upNode.object === parent)
           || (upNode.type === 'CallExpression' && upNode.callee === parent));
       built = renderMethodCall(callDecision ?? planMethodCall({
-        receiver: callReceiver, prepared: true, optional: callOptional, args: parent.arguments, ctx: receiverCtx,
+        receiver: callReceiver, prepared: true, optional: callOptional, args: parent.arguments, callPath: callerPath,
+        sideEffects: sideEffects.slice(receiverEffectCount), ctx: receiverCtx,
       }), {
         helper: identifier(id),
         lookup: callDecision ? null : callExpression(identifier(id), [lookupArg]),
@@ -665,7 +659,20 @@ export default function createOptionalDispatchChannel(ctx) {
         embed: cloneCallSlot,
       });
     } else {
-      built = callExpression(identifier(id), [lookupArg]);
+      // The source receiver or its guard already carries its own effects. The key
+      // follows the live receiver and never runs on the short-circuited branch.
+      const plan = sideEffects.length && planReceiverEffects({
+        receiver: lookupArg, sourceReceiver: object, sideEffects, receiverEffectCount,
+        guarded: memberOptional, receiverReads: 1, ctx: receiverCtx,
+      });
+      const product = plan ? renderReceiverEffects(plan, {
+        mintRef: () => injector.generateDeclaredRef(metaPath),
+        embed: (node, role) => role === 'effect' ? node : cloneStamped(node, typeStampCtx),
+      }) : { receiver: cloneStamped(lookupArg, typeStampCtx) };
+      const id = injectPureImport(entry, hintName);
+      built = sealedLookup
+        ? callExpression(identifier(id), [renderShortCircuitGuard(test, withSideEffects(product.receiver, product.effects))])
+        : withSideEffects(callExpression(identifier(id), [product.receiver]), product.effects);
     }
     // the ORIGINAL node's resolved type travels to the replacement: a member ABOVE reads off
     // it, and untyped there the next claim resolves generic (`.name` off an array value
@@ -679,172 +686,6 @@ export default function createOptionalDispatchChannel(ctx) {
       hopPath: isCall ? callerPath : metaPath, test: sealedLookup ? null : test, built, skippedNodes, returnType, resolvedType,
     });
     return true;
-  }
-
-  // Bind an instance claim carrying harvested effects. Ordinary reads ask the shared
-  // receiver/effect plan; method calls and live optional receivers retain native
-  // preparation, so each source guard still owns its continuation and effect order.
-  // eslint-disable-next-line max-statements -- sequential emission steps of one instance claim
-  function emitInstanceWithPeeledSe(meta, metaPath, entry, hintName) {
-    // an OPTIONAL SE-keyed member combines with its split receiver below - the memo joins
-    // the disjuncts; a BARE reusable receiver is its own test, and nothing else carries one
-    const { node } = metaPath;
-    const memberOptional = node.optional === true;
-    // a VESTIGIAL `?.` in the receiver is not a live one: the render below erases it anyway, so the
-    // routing must not read the spelling it is about to discard. left un-erased, every arm here
-    // saw a live optional, fell through to the staged bail and lost the claim outright - and the
-    // stand-down it fell into only pays off where a resolvable inner claim CLIMBS over this node
-    // and re-drives it, which the root-claim fold of an unbacked run never does
-    eraseVestigialReceiverOptionals({ memberOptional, object: node.object, metaPath });
-    const callerPath = climbToCallerPath(metaPath);
-    const parent = callerPath?.node;
-    // the climb finds the enclosing expression, which is a CALL only when this claim is its
-    // CALLEE - an argument-position claim (`_name(x[(eff(), 'flat')])`, a sibling render's
-    // own call) reads like the plain form, and rewriting the call would consume a span this
-    // claim does not own
-    const methodCall = parent?.type === 'CallExpression' && unwrapRuntimeExpr(parent.callee) === node;
-    // A live inner optional still needs native split preparation below. Ordinary
-    // reads use the same first-read/capture decision as the other binding.
-    if (!methodCall && !receiverCarriesLiveOptional(node.object)) {
-      return emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, seKeyReadCtx);
-    }
-    // The ordinary handoff owns the complete first receiver and only re-reads its stable tail.
-    // A receiver-only harvest needs no separate prefix replay before that lookup argument.
-    if (meta.sideEffects?.length && meta.sideEffects.length <= (meta.receiverEffectCount ?? 0)
-      && meta.sideEffects.every(effect => subtreeContainsNode(node.object, effect))) {
-      return replaceInstanceLike({ metaPath, id: injectPureImport(entry, hintName) });
-    }
-    if (methodCall && !parent.optional && !memberOptional && !receiverCarriesOptional(node.object)) {
-      return replaceInstanceLike({
-        metaPath, id: injectPureImport(entry, hintName),
-        sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-      });
-    }
-    const receiverCtx = { scope: metaPath.scope, path: metaPath, adapter, injectorState };
-    const receiverPure = instanceSynthReceiverPure(node.object, { ...receiverCtx, resolvePure: m => resolvePure(m, metaPath) });
-    if (receiverPure) node.object = identifier(injectPureImport(receiverPure.entry, receiverPure.hintName));
-    // an OPTIONAL method call lifts its harvested effects - and a SOURCE sequence prefix on
-    // the receiver - ahead of the plain `?.call` dispatch, babel's shape:
-    // `(a(), arr)[(k(), 'flat')]?.()` -> `(a(), k(), _flatMaybeArray(arr)?.call(arr))`
-    if (methodCall && parent.optional && !memberOptional && !receiverCarriesOptional(node.object)) {
-      return emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPath, meta, entry, hintName },
-        {
-          injectPureImport,
-          markRewrite,
-          skippedNodes,
-          injector,
-          injectorState,
-          adapter,
-          resolvePure,
-          receiverPure,
-        });
-    }
-    if (!methodCall && !memberOptional && receiverCarriesLiveOptional(node.object)
-      && spineHoldsKeptWrite(node.object)
-      && guardProbeUndefinable(node.object, { metaPath, adapter, resolvePure })
-      && spineCarriesComputedHop(node.object)) {
-      return emitSeReadFormOverLiveOptional({ node, metaPath, entry, hintName },
-        {
-          splitOptionalReceiver,
-          stagedSplit: STAGED_SPLIT,
-          injectPureImport,
-          markRewrite,
-          composeGuardTest,
-          skippedNodes,
-          collapseSplitReceiver,
-        });
-    }
-    // a non-call instance READ over a live `?.` guarding a GENUINE probe, every harvested
-    // effect inside the receiver: the ordinary split owns it - the receiver spelling rides
-    // the guard test whole, the way a chain-assign receiver already does. the stand-down
-    // below is for claims a resolvable inner claim re-drives; over an unresolvable probe
-    // there is nobody, and standing down lost the claim outright (a raw `?.Map.name`)
-    // ... and the question is about the receiver's LIVE `?.`, not about the value the whole
-    // receiver yields: a chain ending on a BACKED read answers "defined" for its leaf while the
-    // `?.` below it still tests the environment, and the value ask turned the arm away and lost
-    // the claim (`f().window[(c++, 'window')]?.window.Array.name` kept every hop raw)
-    // An excluded root has no later collapse to wait for either: the live split owns that read.
-    if (!methodCall && !memberOptional && receiverCarriesLiveOptional(node.object)
-      && (guardProbeUndefinable(node.object, { metaPath, adapter, resolvePure })
-        || !navRootIsProxyIdentifier(node, metaPath, adapter, { requireBareName: true }))
-      && (meta.sideEffects ?? []).every(effect => subtreeContainsNode(node.object, effect))) {
-      const id = injectPureImport(entry, hintName);
-      return replaceInstanceLike({ metaPath, id });
-    }
-
-    if (!methodCall || (parent.optional && !memberOptional)) return;
-    // The proof view uses the nested tail; the first evaluation still carries the whole source.
-    let receiver = peelReceiverSequenceTail(node.object);
-    const tailPure = receiverPure ?? instanceSynthReceiverPure(receiver, { ...receiverCtx, resolvePure: m => resolvePure(m, metaPath) });
-    if (tailPure) receiver = identifier(injectPureImport(tailPure.entry, tailPure.hintName));
-    const receiverSequence = peelNestedSequenceExpressions(node.object);
-    const renderedFirstReceiver = tailPure
-      ? sequenceExpression([...receiverSequence.prefix, receiver]) : node.object;
-    const ordinaryDecision = !memberOptional && planMethodCall({
-      receiver: renderedFirstReceiver, sourceReceiver: node.object,
-      sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-      args: parent.arguments, ctx: receiverCtx,
-    });
-    if (ordinaryDecision && !ordinaryDecision.capture) {
-      const id = injectPureImport(entry, hintName);
-      const dispatch = renderMethodCall(ordinaryDecision, { helper: identifier(id), embed: cloneCallSlot });
-      markRewrite();
-      callerPath.replaceWith(dispatch);
-      return;
-    }
-    // a non-reusable receiver memoizes FIRST, then the harvested key SE, then the dispatch
-    // on the memo - ECMA receiver-before-key; an optional-carrying receiver splits into the
-    // guard and the memo seq rides the alternate:
-    // `a.flat?.()[(eff(), 'k')](2)` -> `null == (_r = _flat(a)) ? void 0 :
-    // (_r2 = _r.call(a), eff(), _k(_r2).call(_r2, 2))`
-    let guardDisjuncts = null;
-    let effReceiver = node.object;
-    if (receiverCarriesOptional(node.object)) {
-      const split = splitOptionalReceiver(node.object, metaPath);
-      // A receiver value outside the split grammar can still ride its own optional
-      // member's whole-value memo. Its effects stay inside that memo, and its nested
-      // claims remain visitable instead of waiting for a later transform pass.
-      if (split === null && memberOptional
-        && (meta.sideEffects ?? []).every(effect => subtreeContainsNode(node.object, effect))) {
-        return replaceInstanceLike({ metaPath, id: injectPureImport(entry, hintName) });
-      }
-      if (!split || split === STAGED_SPLIT) return;
-      ({ disjuncts: guardDisjuncts, receiver: effReceiver } = split);
-    } else if (memberOptional) {
-      emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath, meta, entry, hintName }, bareOptionalCtx);
-      return;
-    }
-    const id = injectPureImport(entry, hintName);
-    if (!memberOptional) {
-      const decision = planMethodCall({
-        receiver: effReceiver, sourceReceiver: node.object,
-        sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-        args: parent.arguments, ctx: receiverCtx,
-      });
-      const dispatch = renderMethodCall(decision, {
-        helper: identifier(id), mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneCallSlot,
-      });
-      markRewrite();
-      replaceGuardedHop({
-        hopPath: callerPath, test: composeGuardTest(guardDisjuncts, null),
-        built: dispatch, skippedNodes,
-      });
-      return;
-    }
-    // The optional member's own guard captures the receiver before its key effects.
-    const decision = planMethodCall({
-      receiver: effReceiver,
-      sideEffects: meta.sideEffects.filter(effect => !subtreeContainsNode(effReceiver, effect)),
-      args: parent.arguments, ctx: receiverCtx,
-    });
-    const { checks, built } = renderGuardedMethodCall({ ...decision, capture: true }, {
-      helper: identifier(id), mintRef: () => injector.generateDeclaredRef(metaPath), embed: cloneNode,
-    });
-    markRewrite();
-    replaceGuardedHop({
-      hopPath: callerPath, test: composeGuardTest([...guardDisjuncts ?? [], ...checks], null),
-      built, skippedNodes,
-    });
   }
 
   // `this.from(x)` / `super.of(x)` in static context resolve against the super class's
@@ -887,12 +728,9 @@ export default function createOptionalDispatchChannel(ctx) {
   }
 
   return {
-    composeGuardTest,
     emitInheritedStatic,
-    emitInstanceWithPeeledSe,
     eraseVestigialReceiverOptionals,
     guardObject,
     replaceInstanceLike,
-    splitOptionalReceiver,
   };
 }

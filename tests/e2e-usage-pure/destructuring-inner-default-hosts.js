@@ -358,3 +358,26 @@ QUnit.test('inner default: bracket-shaped string keys remain literal and preserv
     restoreProperty(globalThis, '[missing]', previous);
   }
 });
+
+QUnit.test('a mixed destructuring head keeps the literal slot and serves the realm', assert => {
+  const events = [];
+  const kinds = [];
+  for (const { Array: { of } } of [globalThis, { Array: { get of() {
+    events.push('user');
+    return null;
+  } } }]) {
+    kinds.push(typeof of);
+  }
+  assert.deepEqual(kinds, ['function', 'object']);
+  assert.deepEqual(events, ['user']);
+});
+
+QUnit.test('a live receiver default works through an inline and a held array', assert => {
+  const held = [globalThis];
+  const events = [];
+  const [{ MissingObject: { fromEntries: inline } = (events.push('inline'), Object) }] = [globalThis];
+  const [{ MissingObject: { fromEntries: alias } = (events.push('alias'), Object) }] = held;
+  assert.same(inline([['x', 13]]).x, 13);
+  assert.same(alias([['x', 17]]).x, 17);
+  assert.deepEqual(events, ['inline', 'alias']);
+});

@@ -1,6 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
+import _Math$sinh from "@core-js/pure/actual/math/sinh";
 import _Object$is from "@core-js/pure/actual/object/is";
-// Literal-container static/global leaves use the shared fallback; no wrapper synthesis is required.
+// A literal keeps its native slots while an independently resolved call supplies its static.
 // Reads and effects remain inside their source control-flow positions.
 const headed = () => ({
   a: Object
@@ -29,4 +30,8 @@ for (const {
   }
 } of [(() => ({
   a: Math
-}))(), built()]) use(viaTwoElements(1));
+}))(), (built(), {
+  a: {
+    sinh: _Math$sinh
+  }
+})]) use(viaTwoElements(1));

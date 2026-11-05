@@ -142,7 +142,7 @@ export function planMethodCall({
   const memo = !prepared && planReceiverMemo(receiver, { interveningEffects: keyEffects.length > 0, ctx });
   const tail = memo ? memo.receiver : receiver;
   const reusable = !memo?.capture;
-  let firstReadEffects = reusable && keyEffects.length
+  let firstReadEffects = !prepared && reusable && keyEffects.length
     ? observableSequenceElements([receiver], ctx, { preserveSourceReads: true }) : [];
   // A wrapped first read owns its prefix and type comments as one source expression.
   if (firstReadEffects.length && unwrapRuntimeExpr(receiver) !== receiver) firstReadEffects = [receiver];
@@ -366,9 +366,12 @@ export function renderOptionalMethodCall(plan, {
     : plan.superReceiver ? () => ({ type: 'ThisExpression' }) : memo.makeBase;
   const firstRead = memo?.firstRead;
   const testsReceiver = !!helper && plan.receiverGuard === 'value';
+  // Keep a computed key's first receiver in the lookup itself. Reparse can then
+  // recover its type from the capture even when the native method stays untouched.
+  const separateCapture = !helper && !guard && plan.capture && !plan.interveningEffects;
   let lookup = helper
     ? callExpression(helper, [guard || testsReceiver ? receiver() : firstRead])
-    : memberExpression(guard || plan.capture ? receiver() : firstRead, embed(callee.property, 'key'),
+    : memberExpression(guard || separateCapture ? receiver() : firstRead, embed(callee.property, 'key'),
       { computed: callee.computed, optional: !guard && !!callee.optional });
   if (!helper && !guard && callee.optional) lookup = chainExpression(lookup);
   lookup = recordLookup(lookup);
@@ -378,7 +381,7 @@ export function renderOptionalMethodCall(plan, {
   if (!compact) {
     const methodName = mintRef('method');
     methodCheck = recordCapture(assignmentExpression('=', identifier(methodName), lookup), 'method');
-    if (!helper && !guard && plan.capture) methodCheck = sequenceExpression([firstRead, methodCheck]);
+    if (separateCapture) methodCheck = sequenceExpression([firstRead, methodCheck]);
     disjuncts.push(methodCheck);
     lookup = embed(identifier(methodName), 'method');
   }

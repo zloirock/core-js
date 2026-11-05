@@ -464,6 +464,25 @@ Object.defineProperty(realm, "window", { configurable: true, get() { effects.pus
     const comments = parseSync(code, { configFile: false, babelrc: false }).comments.map(comment => comment.value.trim());
     check(`relocated body/${ name }/comments survive once in source order`, JSON.stringify(comments), '["head","body"]');
   }
+  // Printing a served neighbour must not promote a retained literal into a body extraction.
+  {
+    const source = `export const r = [], effects = [];
+      const built = () => ({ C: Array });
+      for (const { C: { of } } of [(() => ({ C: Array }))(), built()]) r.push(typeof of);`;
+    const options = { configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]] };
+    const first = (await transformAsync(source, options)).code;
+    const plugin = createUnplugin(OPTIONS);
+    const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
+    for (const [name, output] of [
+      ['babel', first], ['babel twice', (await transformAsync(first, options)).code],
+      ['unplugin', pre], ['unplugin pre+post', plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre],
+    ]) {
+      const file = path.join(DIR, 'mixed-source.mjs');
+      await fs.writeFile(file, output);
+      check(`mixed source/${ name }/full`, await runInWorker(file, { strip: false }), 'OK|["function","function"]|[]');
+      check(`mixed source/${ name }/stripped`, await runInWorker(file), 'OK|["undefined","function"]|[]');
+    }
+  }
 } finally {
   await fs.remove(DIR);
 }
