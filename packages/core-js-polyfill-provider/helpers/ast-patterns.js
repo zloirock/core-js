@@ -2846,16 +2846,22 @@ const OWNER_WRITE_PATH_TYPES = new Set([
   'ForInStatement',
   'FunctionDeclaration',
 ]);
-// the walk handing every write-shaped path below the one it runs from to `add`. babel's visitor keys omit a
-// parameter property's decorators, so the walk enters them itself: a write one hosts has a path on both sides
-function writePathVisitors(add) {
+// Collect live writes, entering parameter decorators only when the host walker missed them.
+function walkWritePaths(path, add, includeRoot = false) {
+  let missed;
   const visitors = {
     ...Object.fromEntries([...OWNER_WRITE_PATH_TYPES].map(type => [type, add])),
+    // TODO: Remove the fallback after dropping @babel/types before 7.29.11 / 8.0.8.
     TSParameterProperty(p) {
-      if (p.node.decorators?.length) for (const decorator of p.get('decorators')) decorator.traverse(visitors);
+      if (p.node.decorators?.length) for (const decorator of p.get('decorators')) {
+        (missed ??= new Map()).set(decorator.node, decorator);
+      }
     },
+    Decorator(p) { missed?.delete(p.node); },
   };
-  return visitors;
+  if (includeRoot) visitors[path.node.type]?.(path);
+  path.traverse(visitors);
+  if (missed?.size) for (const decorator of missed.values()) decorator.traverse(visitors);
 }
 // uncached builder: babel's binding recoveries must read the LIVE AST (the plugin's own render
 // replaces write nodes, so a cached index may hold replaced originals)
@@ -2864,7 +2870,7 @@ export function buildOwnerWritePathIndex(ownerPath) {
   function add(p) {
     if (!index.has(p.node)) index.set(p.node, p);
   }
-  ownerPath.traverse(writePathVisitors(add));
+  walkWritePaths(ownerPath, add);
   return index;
 }
 export function ownerWritePathIndex(ownerPath) {
@@ -8120,12 +8126,7 @@ function joinSideIndexes({ holder, ownerPath, paths }) {
   function add(path) {
     if (!writePaths.has(path.node)) writePaths.set(path.node, path);
   }
-  for (const path of paths) {
-    const visitors = writePathVisitors(add);
-    // the path itself first: the walk below enters its children alone
-    visitors[path.node.type]?.(path);
-    path.traverse(visitors);
-  }
+  for (const path of paths) walkWritePaths(path, add, true);
   for (const owner of [rootPathOf(holder), ownerPath]) {
     const known = ownerWritePathIndexCache.get(owner);
     if (known) for (const [node, path] of writePaths) if (!known.has(node)) known.set(node, path);
@@ -13558,23 +13559,18 @@ export function arrayWrapperResidualDroppable(pattern, emptied) {
       && !item.computed && wrapperElementClaimed(item.value, emptied));
 }
 
-// ... and a residual the wrapper KEEPS still sheds its TRAILING emptied elements: an array pattern
-// whose LAST element binds nothing is a shape `@babel/plugin-transform-destructuring` lowers wrong -
-// `const [{ other }, {}] = [x, arr]` becomes `_objectDestructuringEmpty(x.other)`, losing the
-// binding entirely - and the elements shed here coerce nothing the extraction does not coerce
-// itself. only over a LITERAL init, where the shed positions still evaluate; an iterated one would
-// pull fewer times. answers how many elements may go
-export function arrayWrapperResidualTrailingShed(pattern, emptied) {
+// Trim trailing positions whose extraction already performs their coercions. The
+// initializer must be a literal; shortening an iterated pattern would pull fewer times.
+export function arrayWrapperResidualTrailingShed(pattern, emptied, bindingCount) {
   if (pattern?.type !== 'ArrayPattern') return 0;
-  // ... and a pattern binding NOTHING sheds nothing: the same lowering pairs a SOLE binding-free
-  // element against the whole literal rather than its first element (`const [{}] = [null, x]` stops
-  // throwing), so a residual that is all husk keeps the length that pairs it positionally
-  if (patternBindingCount(pattern) === 0) return 0;
+  // TODO: Drop this guard once downstream transform-destructuring before 7.29.13 / 8.0.5
+  // is unsupported. It pairs a lone empty element with the whole literal, losing its throw.
+  if (!(bindingCount ?? patternBindingCount(pattern))) return 0;
   let shed = 0;
   for (let at = pattern.elements.length - 1; at >= 0; at -= 1) {
     const element = pattern.elements[at];
     // a hole sheds freely; a claimed pattern only once it BINDS nothing - a sentinel is a binding,
-    // and the shape the lowering miscompiles is exactly the binding-free one
+    // and must remain in the residual
     if (element !== null
       && !(wrapperElementClaimed(element, emptied) && patternBindingCount(element) === 0)) break;
     shed += 1;

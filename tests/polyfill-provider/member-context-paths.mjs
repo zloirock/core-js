@@ -384,7 +384,7 @@ for (const parser of adapters) {
   ]) {
     for (const readOnly of [false, true]) {
       const program = parser.parseAndScope(source, 'module', ['decorators-legacy']);
-      // Babel's parameter-property visitor omits its decorator children.
+      // Older Babel visitor tables omit parameter-property decorators.
       const paths = name === 'parameter decorator'
         ? parser.pickPath(program, 'TSParameterProperty').get('decorators')[0].get('expression').get('arguments')
         : parser.collectPaths(program, 'MemberExpression', path => path.node.property.name === 'at');

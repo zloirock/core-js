@@ -1,5 +1,6 @@
 import {
   blocksUidSlot,
+  unwrapParens,
   requireCallSource,
   tsRuntimeBindingName,
   unwrapRuntimeExpr,
@@ -303,16 +304,16 @@ export function isCallee(node, parent) {
   return calleeKind(node, parent) !== null;
 }
 
-// `((X)<T>)?.(a)` hides the callee from any later optional-chaining lowering: babel's
-// `isTransparentExprWrapper` does not list `TSInstantiationExpression` the way our own
-// `TS_EXPR_WRAPPERS` does, so it memoizes no receiver and emits a bare `_ref(a)` - the call
-// loses its `this`. the instantiation dissolves into the call's own type arguments and its
-// operand becomes the callee (`(X)?.<T>(a)` - the same TS spelling with no instantiation node
-// left between the call and its callee). returns the recognized instantiation node, or null
+// TODO: Remove once optional-chaining transforms before Babel 7.29.13 / 8.1.0 are unsupported.
+// The later transformer is supplied by the bundler. Older Babel loses the receiver of
+// `(obj.method<T>)?.()`; moving the type arguments onto the call exposes the member to it.
 export function optionalCallInstantiationCallee(node) {
   if (node?.type !== 'CallExpression' || !node.optional) return null;
-  let { callee } = node;
-  while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+  const callee = unwrapParens(node.callee);
   if (callee?.type !== 'TSInstantiationExpression') return null;
-  return (callee.typeArguments ?? callee.typeParameters) ? callee : null;
+  if (!(callee.typeArguments ?? callee.typeParameters)) return null;
+  // An ordinary name has no receiver. Keep eval indirect and compound callees grouped
+  // even if the next stage uses an older Babel generator before lowering the call.
+  const target = unwrapParens(callee.expression);
+  return target.type === 'Identifier' && target.name !== 'eval' ? null : callee;
 }

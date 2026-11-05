@@ -6,4 +6,4 @@ let x = _Map;
 // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
 x++;
 // @ts-expect-error an update through a cast, which tsc refuses, is the shape under test
-Map satisfies Function++;
+(Map satisfies Function)++;

@@ -5112,9 +5112,8 @@ QUnit.test('destructuring: a wrapper read waits for what runs before it', assert
   assert.same(log.join(','), 'neighbour,lead', 'with nothing reordered around it');
 });
 
-// an emptied element at the END of a wrapper sheds: the position needs no holding there, and an
-// array pattern whose last element binds nothing is a shape the downstream destructuring lowering
-// miscompiles - it drops an earlier element's binding, which this bundle's own lowering would show
+// Older Babel destructuring transforms lost the preceding binding when the last
+// element was emptied. The extraction and the remaining binding must both survive.
 QUnit.test('destructuring: an emptied trailing element sheds from the wrapper', assert => {
   const rows = [1, [2]];
   const holder = { other: 7 };

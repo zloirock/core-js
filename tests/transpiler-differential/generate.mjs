@@ -18482,9 +18482,8 @@ const WRAPPED_MEMBER_TARGETS = [
   ['cast-static', '({ from: (box.v as any) } = Array);', 'box.v([1, 2]).length'],
   ['non-null-instance', '({ at: box.v! } = [1, 2]);', 'box.v.call([1, 2], -1)'],
   ['cast-nested-instance', '({ y: { flat: (box.v as any) } } = { y: [[1], [2]] });', 'box.v.call([[1], [2]]).length'],
-  // an angle assertion under a pattern default is no row: babel's generator prints it unparenthesized
-  // wherever the plugin leaves the pattern as written (the usage-global leg), which no longer parses
   ['angle-static', '({ from: <any>box.v } = Array);', 'box.v([1, 2]).length'],
+  ['angle-static-default', '({ from: (<any>box.v) = undefined } = Array);', 'box.v([1, 2]).length'],
   ['angle-static-beside-rest', 'let r; ({ fromEntries: <any>box.v, ...r } = Object);', "box.v([['a', 1]]).a"],
   ['angle-nested-rest', 'let r; ({ Array: { from: <any>box.v, ...r } } = globalThis);', 'box.v([1, 2, 3]).length'],
   ['angle-beside-bound-constructor', 'let A; ({ Array: A, Array: { of: <any>box.v } } = globalThis);', 'box.v(1).length'],

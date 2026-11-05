@@ -1,2 +1,2 @@
-obj.at as any++;
---obj.flat as any;
+(obj.at as any)++;
+--(obj.flat as any);

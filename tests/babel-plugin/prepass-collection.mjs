@@ -65,6 +65,63 @@ for (const method of ['usage-global', 'usage-pure']) {
   }
 }
 
+// Entry mode needs paths to move type arguments, but no scoped walk just to
+// check a plain file for generator workarounds.
+for (const [label, source, expected] of [
+  ['plain JS', 'const value = fn;', 0],
+  ['optional-chain tag', 'const value = (box?.method)`x`;', 0],
+  ['sealed non-null call', 'const value = (box?.method)!();', 0],
+  ['instantiated callee', 'const value = (box.method<string>)?.();', 1],
+]) {
+  const original = NodePath.prototype.traverse;
+  let walks = 0;
+  NodePath.prototype.traverse = function (visitors, ...args) {
+    if (insidePre && this.node.type === 'Program' && visitors.TSInstantiationExpression) walks++;
+    return original.call(this, visitors, ...args);
+  };
+  try {
+    transform(source, 'entry-global', { parserOpts: { plugins: ['typescript'] } });
+  } finally {
+    NodePath.prototype.traverse = original;
+  }
+  check(`entry-global/${ label }/scoped instantiation walks`, walks, expected);
+}
+
+// Parameter-property decorators are native children on patched Babel versions.
+const decoratedParameter = 'class C { constructor(@dec(Array.from(xs)) public x: number) {} }';
+const decoratorOptions = { filename: '/decorator.ts', parserOpts: { plugins: ['typescript', 'decorators-legacy'] } };
+let nativeDecoratorVisit = false;
+transform(decoratedParameter, 'usage-pure', {
+  ...decoratorOptions,
+  plugins: [() => ({ visitor: { Decorator() { nativeDecoratorVisit = true; } } })],
+});
+// Core and traverse can resolve separate copies of @babel/types. Advertise the
+// opposite visitor table through core while leaving the actual traversal intact.
+function differentTypes(api, options) {
+  const keys = { ...api.types.VISITOR_KEYS, TSParameterProperty: nativeDecoratorVisit ? ['parameter'] : ['decorators', 'parameter'] };
+  const types = { ...api.types, VISITOR_KEYS: keys };
+  return babelPlugin(Object.create(api, { types: { value: types } }), options);
+}
+
+for (const method of ['usage-global', 'usage-pure']) {
+  let requeues = 0;
+  const original = NodePath.prototype.requeue;
+  NodePath.prototype.requeue = function (child, ...args) {
+    if (this.node.type === 'TSParameterProperty' && child?.node.type === 'Decorator') requeues++;
+    return original.call(this, child, ...args);
+  };
+  let code;
+  try {
+    code = transform(decoratedParameter, method, {
+      ...decoratorOptions, plugins: [[differentTypes, { ...OPTIONS, method }]],
+    });
+  } finally {
+    NodePath.prototype.requeue = original;
+  }
+  checkTruthy(`${ method }/decorator expression injects`, code.includes(method === 'usage-pure' ? '/array/from' : 'es.array.from'));
+  check(`${ method }/requeue only without native traversal`, requeues > 0, !nativeDecoratorVisit);
+}
+
 for (const [label, source] of [
   ['forward alias', 'function read() { return new M([[1, 2]]).size; } let M; ({ Map: M } = globalThis); read();'],
   ['split mutation and alias', 'function read() { return [Array.from(), new M().size]; } let M; Array.from = () => 7, ({ Map: M } = globalThis), read();'],
@@ -100,6 +157,8 @@ for (const [label, source] of [
   const native = runInNewContext(lower(source, [typescript]));
   checkDeep('optional instantiation/native receiver', native, [true, 7]);
   for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    checkDeep(`${ method }/optional instantiation/sibling lowering`,
+      runInNewContext(lower(source, [[babelPlugin, { ...OPTIONS, method }], optional, typescript])), native);
     const normalized = createPlugin({ ...OPTIONS, method }).transform(source, '/prepass.ts')?.code ?? source;
     checkDeep(`${ method }/optional instantiation/later lowering`,
       runInNewContext(lower(normalized, [optional, typescript])), native);

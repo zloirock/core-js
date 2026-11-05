@@ -296,8 +296,8 @@ for (const importStyle of [undefined, 'require']) {
 
 // A bare async source names no Promise static that could decorate the narrow constructor.
 // Run the repository's actual sibling lowering pipeline, then assert its entire import set.
-// Regenerator reads named Symbol keys; an inner parameter named `r` must not hand out the
-// outer `r` holding Symbol. An actual exported Symbol below still requires its namespace.
+// Regenerator reads named Symbol keys through a guarded alias. An actual exported Symbol
+// below still requires its namespace, independently of the helper's local names.
 {
   const lowering = requireBabel('../../babel.config.js');
   const expected = [
@@ -343,6 +343,48 @@ for (const importStyle of [undefined, 'require']) {
     runInNewContext(code, context);
     checkTruthy(`late namespace/${ importStyle }/${ label }/runtime without native Symbol`, await context.exports.run() === 1);
   }
+}
+
+// A generated alias can select the ponyfill or an object with its own static.
+// Only a guard this build settles lets the late census discard the other receiver.
+for (const [label, test, takesFallback] of [
+  ['served typeof', 'typeof Symbol === "function"', false],
+  ['unknown flag', 'flag', true],
+  ['shadowed typeof', 'typeof Map === "function"', true],
+]) {
+  const { code } = await transformAsync('capture(read(false, null), read(true, function local() {}));', {
+    configFile: false,
+    babelrc: false,
+    plugins: [
+      ({ template }) => ({
+        visitor: {
+          Program: {
+            exit(path) {
+              path.unshiftContainer('body', template.statement.ast(`
+                function read(flag, Map) {
+                  var held = ${ test } ? Symbol : { iterator: "own" };
+                  return held.iterator;
+                }
+              `));
+            },
+          },
+        },
+      }),
+      ['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle: 'require' }],
+    ],
+  });
+  const entry = takesFallback ? 'symbol' : 'symbol/constructor';
+  checkTruthy(`late alias/${ label }/constructor entry`, code.includes(`"@core-js/pure/actual/${ entry }"`));
+  const load = createRequire(import.meta.url);
+  const iterator = load('@core-js/pure/actual/symbol/iterator');
+  runInNewContext(code, {
+    Symbol: undefined,
+    require: load,
+    capture(first, second) {
+      checkTruthy(`late alias/${ label }/false`, first === (takesFallback ? 'own' : iterator));
+      checkTruthy(`late alias/${ label }/true`, second === iterator);
+    },
+  });
 }
 
 // Proper iterator lowering shares generated helper returns across separate call sites.

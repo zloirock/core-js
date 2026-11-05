@@ -1,3 +1,4 @@
+import { compare, semver } from '@core-js/compat/helpers';
 import { destructurePropLeafMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   resolveKey as sharedResolveKey,
@@ -85,12 +86,7 @@ export function collectPrePassSites(programPath, adapter, census = null, resolve
       collectDestructures ? destructureSiteVisitors(sites) : {}),
     // Babel's Optional* twins must see patches such as Object?.assign(Array, {...}).
     ...handleSite ? { OptionalMemberExpression: handleSite, OptionalCallExpression: handleSite } : {},
-    // Babel omits parameter-property decorators from its visitor keys. Both mutation sites
-    // and alias writes in those decorators belong to the same pre-pass as ordinary ones.
-    TSParameterProperty(path) {
-      if (!path.node.decorators?.length) return;
-      for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
-    },
+    ...adapter.parameterPropertyVisitors,
   });
   finalize?.();
   return { mutated, sites };
@@ -101,13 +97,28 @@ function babelScopeBinding(scope, name) {
   return scope.getBinding(name);
 }
 
+// @babel/traverse can resolve a different @babel/types instance from core. Ask the
+// traversal that actually visits the file whether it follows parameter decorators.
+const DECORATED_PARAMETER = {
+  type: 'TSParameterProperty',
+  parameter: { type: 'Identifier', name: 'x' },
+  decorators: [{ type: 'Decorator', expression: { type: 'Identifier', name: 'dec' } }],
+};
+// TODO: Drop this fallback once @babel/types before 7.29.11 and 8.0.8 are unsupported.
+const LEGACY_PARAMETER_PROPERTY_VISITORS = {
+  TSParameterProperty(path) {
+    if (path.node.decorators?.length) for (const decorator of path.get('decorators')) path.requeue(decorator);
+  },
+};
+
 // the babel half of the adapter mirror: `createEstreeAdapter` (unplugin's internals/detect-usage.js)
-// exposes the same surface, and a contract change to either must land in both. one member is
+// exposes the same provider-facing surface; changes to that contract must land in both. One member is
 // asymmetric by construction and stays so: `getTSImportEqualsNode` exists only on the estree
 // side, because estree-toolkit registers no binding for `import x = require(...)` while babel
 // does - the two answer the SAME question, one through a dedicated lookup, one through its
 // native binding (the provider's consumer branches on the member's presence). The `getInjector`
 // closure keeps per-transform state out of module globals; concurrent transforms each build their own.
+// `parameterPropertyVisitors` serves only Babel's walks; the provider never reads it.
 // The argless `babelAdapter` below is the stateless view the entry-detection path shares
 export function createBabelAdapter(options = {}) {
   const { getInjector = () => null, nestedTSRuntimeDeclarations } = options;
@@ -124,6 +135,8 @@ export function createBabelAdapter(options = {}) {
     return !bindingId || bindingId === memoDecl.id ? memoDecl : null;
   }
   return createDetectionAdapter(options, adapter => ({
+    parameterPropertyVisitors: options.traverse?.hasType(DECORATED_PARAMETER, 'Decorator')
+      ? null : LEGACY_PARAMETER_PROPERTY_VISITORS,
     hasBinding({ scope, name, path = null, read = null }) {
       // a plugin-minted memo ref appended on the memo-dense fast path is scope-invisible
       // until the programExit re-crawl - the injector's declarator registry is authoritative
@@ -530,6 +543,23 @@ export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled
 // symbol-keyed `handledObjects.delete` for the emitter that re-emits a marked receiver by identity
 export const USAGE_VISITORS_RELEASE_HANDLED = Symbol('core-js.usageVisitors.releaseHandled');
 
+// These core releases require a generator containing the respective fix. An older
+// core paired with a newer generator can safely keep the fallback.
+export function generatorWorkarounds(version) {
+  const core = semver(version);
+  function before(v7, v8) {
+    return version.includes('-') || compare(core, '<', core.major === 7 ? v7 : v8);
+  }
+  return {
+    // TODO: Remove the instantiation parens fallback after dropping generators before 7.29.12 / 8.0.10.
+    instantiation: before('7.29.12', '8.0.10'),
+    // TODO: Remove the optional-chain tag fallback after dropping generators before 7.29.13 / 8.0.5.
+    tag: before('7.29.13', '8.0.5'),
+    // TODO: Remove the write-target fallback after dropping Babel 7 and Babel 8 before 8.0.10.
+    write: version.includes('-') || compare(core, '<', '8.0.10'),
+  };
+}
+
 // shapes the instantiation slot (`<here><T>`) accepts BARE - a LeftHandSideExpression, plus the
 // few looser shapes @babel/generator parenthesizes on its own account (a SequenceExpression, an
 // object/class/function literal). ALLOWLIST, not denylist: a shape nobody anticipated is taken to
@@ -568,7 +598,7 @@ const BARE_INSTANTIATION_SLOT_TYPES = new Set([
 ]);
 
 // does the node filling a type-instantiation slot owe that slot the parens the source spelled?
-// @babel/generator has no `needsParens` rule for the slot, so anything looser than a
+// Older Babel generators have no `needsParens` rule for the slot, so anything looser than a
 // LeftHandSideExpression reprints BARE and re-parses as something else: `(await p)<T>(1)` becomes
 // `await p(1)` (the call moves inside the await), `(a?.b)<T>(1)` lets the chain swallow the call,
 // `(q = f)<T>(1)` assigns the call's result, `(++q)<T>(1)` stops parsing at all. asking the SLOT's
@@ -586,10 +616,9 @@ export function instantiationSlotNeedsParens(node) {
 // know it (regenerator throws on one, and `await` / `yield` operands, which need the parens most,
 // are exactly what it must explode). babel 7 spells the field `typeParameters`, babel 8
 // `typeArguments`, on BOTH nodes, so carrying the key across is version-symmetric.
-// dropping the node is load-bearing beyond the printing: the lowerings downstream misread it while
-// it survives - optional-chaining does not peel a `TSInstantiationExpression`, so a member callee
-// under one is invisible to it and the call it emits has lost its receiver. hence this runs BEFORE
-// them, and the paren half that ADDS a node they cannot walk runs after
+// Folding also preserves type arguments when a pure claim replaces the callee, and keeps
+// a sealed optional chain out of an ordinary call (`((o?.m)<T>)()` must throw for null).
+// Older optional-chain transforms need the member callee exposed to preserve its receiver.
 function foldInstantiationIntoTypeArgumentHost(path) {
   const parent = typeArgumentHostOf(path);
   if (!parent) return false;
@@ -639,22 +668,9 @@ function foldInstantiationTypeArguments(path) {
   foldInstantiationIntoTypeArgumentHost(path);
 }
 
-// the mirror of the fold above: the source parens are what made the slot's contents
-// legal, and this ADDS them back as a node the lowerings do not understand. the drop reproduces on a
-// plain parse/print round-trip with no plugin, so it is this plugin's mere presence that forces it.
-// `ParenthesizedExpression` exists only under `createParenthesizedExpressions`, and regenerator
-// throws on any it has to explode - which is every one holding an `await` or a `yield`. so the
-// parens go in at `post()`, after every `Program:exit` has run: nothing downstream ever sees them,
-// and the generator still prints them. when a TS strip DID run in the same pass there is no TS node
-// left here to compensate, and babel's own precedence table already covers the plain result.
-// the pure guard-narrow emit restores the same slot from its own side, through the same predicate
-function restoreInstantiationParens(path) {
-  // the fold runs here TOO, and it is not a leftover: the parens below cover only the shapes that
-  // survive it, so a node the early pass never saw - one a later-ordered sibling inserted - would
-  // otherwise be handed straight to a restoration that declines it (`((c ? f : g)<T>)(a)` reprints
-  // as `c ? f : g<T>(a)`, with the call inside the alternate). moving the fold EARLY was about
-  // getting ahead of the lowerings, not about giving it up here: nothing runs after `post()`, so
-  // doing it again is free, and on an already-folded tree there is no node left to fold
+// Old generators also lose parentheses on instantiations outside a type-argument host.
+// Restore them after sibling lowerings: regenerator cannot explode a ParenthesizedExpression.
+function restoreLegacyInstantiationParens(path) {
   if (foldInstantiationIntoTypeArgumentHost(path)) return;
   const inner = path.node.expression;
   const operandOwesParens = instantiationSlotNeedsParens(inner);
@@ -685,7 +701,7 @@ const OPTIONAL_CHAIN_PAREN_TYPES = new Set([
 ]);
 
 // a tag always seals its optional chain; a non-null assertion seals only a parenthesized
-// operand. The generator drops both seals, including ones under further TS wrappers.
+// operand. Even current generators drop this latter seal, including under further TS wrappers.
 // A real paren node already preserves the boundary. Counting and restoration share this test.
 function chainHostOwesRestoredParens(node) {
   let core = node.type === 'TaggedTemplateExpression' ? node.tag : node.expression;
@@ -694,12 +710,8 @@ function chainHostOwesRestoredParens(node) {
   return core.type !== 'ParenthesizedExpression' && OPTIONAL_CHAIN_PAREN_TYPES.has(core.type);
 }
 
-// the same @babel/generator drop for a TAGGED template's tag: `(a?.b.tag)`x`` reprints as
-// `a?.b.tag`x``, which is not parseable at all - a tagged template may not sit on an optional
-// chain, and the source parens are what ended that chain. reproduces on a plain parse/print
-// round-trip with no plugin, so restore the paren node wherever this plugin forces the reprint.
-// A sealed non-null operand has the same loss: `(a?.b)!()` becomes `a?.b!()`, letting
-// the chain swallow a required call. Both hosts use the same late restoration.
+// Older generators print an optional-chain tag bare, which does not parse. Even newer
+// ones print `(a?.b)!()` as `a?.b!()`, letting the chain swallow a required call.
 function restoreOptionalChainParens(path) {
   if (chainHostOwesRestoredParens(path.node)) {
     const key = path.node.type === 'TaggedTemplateExpression' ? 'tag' : 'expression';
@@ -707,57 +719,58 @@ function restoreOptionalChainParens(path) {
   }
 }
 
-// the descent both halves share, so each spells it the same way. given the original top-level set it
-// enters ONLY the nodes a sibling added since - a full re-walk is pure waste on every file, tens of
-// milliseconds per hundred kB. no set means the whole program is what needs the work
-function compensationPass(programPath, originalBodyNodes, visitor) {
-  if (!programPath) return;
-  if (!originalBodyNodes) {
-    programPath.traverse(visitor);
-    return;
-  }
-  for (const childPath of programPath.get('body')) {
-    if (!originalBodyNodes.has(childPath.node)) childPath.traverse(visitor);
-  }
+// Older Babel generators print `(x as T)++` as invalid TypeScript and `(<T>x) = y`
+// as an assertion over the assignment. Restore the source grouping after sibling lowerings.
+const WRITE_ASSERTIONS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSTypeAssertion']);
+function assertedWriteKey(node) {
+  if (node.type === 'UpdateExpression' && WRITE_ASSERTIONS.has(node.argument.type)) return 'argument';
+  if ((node.type === 'AssignmentExpression' || node.type === 'AssignmentPattern') && node.left.type === 'TSTypeAssertion') return 'left';
+  return null;
 }
 
-// the EARLY half as a pass, mounted three times per file on purpose: inside the usage traversal
-// (where the emitters can still compose with the result), at `Program:exit` for siblings that
-// inserted before ours ran, and in entry-global's `pre`, which has no usage traversal at all.
-// re-running is inert - a folded host no longer carries an instantiation node.
-// it also returns whether the LATE pass has anything to do: this walk sees every node anyway, so it
-// answers for free, and a file with nothing left to compensate skips the second walk entirely.
-// a tag counts only when it still owes restored parens (the restoration's own predicate, asked
-// here) - counting every tagged template instead would hand the full walk to any file that uses a
-// template tag at all. the shape cannot appear after this point either: lowerings only REMOVE
-// optional chains, and what a sibling adds at top level the gated descent still reaches.
-// an instantiation that survived the fold counts whether or not the restoration will act on it: the
-// exact test IS the restoration, and asking it twice costs more than the walk it would save on a
-// shape this rare. A non-null assertion counts only when its operand owes a source seal
-export function foldInstantiationsPass(programPath, originalBodyNodes = null) {
+// Count on the raw tree first. Instantiations and decorators omitted by its visitor
+// keys need Babel paths before sibling lowerings; other files skip that walk.
+export function foldInstantiationsPass(programPath, legacy, traverseFast, parameterPropertyVisitors) {
   let parensPending = false;
-  // fresh visitor literal per call: babel's traverse explodes the object in place
-  compensationPass(programPath, originalBodyNodes, {
+  let needsPaths = false;
+  function count(node) {
+    if (node.type === 'TSInstantiationExpression'
+      || parameterPropertyVisitors && node.type === 'TSParameterProperty' && node.decorators?.length) needsPaths = true;
+    else if (!parensPending && (node.type === 'TSNonNullExpression' || legacy.tag && node.type === 'TaggedTemplateExpression')) {
+      parensPending = chainHostOwesRestoredParens(node);
+    } else if (!parensPending && legacy.write && assertedWriteKey(node)) parensPending = true;
+  }
+  traverseFast(programPath.node, count);
+  if (needsPaths) programPath.traverse({
+    ...parameterPropertyVisitors,
+    ...parameterPropertyVisitors && { enter: ({ node }) => { count(node); } },
     TSInstantiationExpression(path) {
-      if (!foldInstantiationIntoTypeArgumentHost(path)) parensPending = true;
-    },
-    'TaggedTemplateExpression|TSNonNullExpression'(path) {
-      if (chainHostOwesRestoredParens(path.node)) parensPending = true;
+      if (!foldInstantiationIntoTypeArgumentHost(path) && legacy.instantiation) parensPending = true;
     },
   });
   return parensPending;
 }
 
-// the LATE half as a pass, mounted at `post()` and nowhere else, because the two halves must sit on
-// opposite sides of every downstream lowering: the fold REMOVES a node those lowerings misread,
-// these parens ADD one they cannot walk. `post()` is also the only hook that runs after EVERY
-// sibling's `Program:exit`, so a shape a later-ordered sibling inserted is compensated here or
-// nowhere. re-running is inert - a restored host already carries its paren node
-export function restoreParenCompensations(programPath, originalBodyNodes = null) {
-  compensationPass(programPath, originalBodyNodes, {
-    TSInstantiationExpression: restoreInstantiationParens,
-    'TaggedTemplateExpression|TSNonNullExpression': restoreOptionalChainParens,
-  });
+// A later sibling can introduce the same shapes after our Program.exit.
+export function restoreParenCompensations(programPath, originalBodyNodes, legacy, parameterPropertyVisitors) {
+  if (!programPath) return;
+  const visitors = {
+    ...parameterPropertyVisitors,
+    TSInstantiationExpression: legacy.instantiation ? restoreLegacyInstantiationParens : foldInstantiationTypeArguments,
+    [legacy.tag ? 'TaggedTemplateExpression|TSNonNullExpression' : 'TSNonNullExpression']: restoreOptionalChainParens,
+    ...legacy.write && {
+      'UpdateExpression|AssignmentExpression|AssignmentPattern'({ node }) {
+        const key = assertedWriteKey(node);
+        // Babel's parser accepts this tree with createParenthesizedExpressions,
+        // but its LVal builder rejects a ParenthesizedExpression in the same slot.
+        if (key) node[key] = { type: 'ParenthesizedExpression', expression: node[key] };
+      },
+    },
+  };
+  if (!originalBodyNodes) programPath.traverse(visitors);
+  else for (const path of programPath.get('body')) {
+    if (!originalBodyNodes.has(path.node)) path.traverse(visitors);
+  }
 }
 
 export function createUsageVisitors({
@@ -949,18 +962,7 @@ export function createUsageVisitors({
       else if (dead.skip) path.skipKey(dead.skip);
     },
     TSInstantiationExpression: foldInstantiationTypeArguments,
-    // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so @babel/traverse
-    // never descends into a legacy param decorator's expression on a constructor parameter-property
-    // (`constructor(@dec(Array.from([1])) private p) {}`) and its polyfillable globals go undetected.
-    // requeue each decorator so the usage detectors run on it. plain Identifier params need no help -
-    // their visitor keys keep `decorators`, and so do ObjectPattern / AssignmentPattern, the two other
-    // param shapes a legacy decorator parses on. RestElement and ArrayPattern share the visitorKeys
-    // gap and are owed nothing: the parser rejects a decorator on either
-    // guard on length so non-decorated parameter properties are untouched
-    TSParameterProperty(path) {
-      if (!path.node.decorators?.length) return;
-      for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
-    },
+    ...adapter.parameterPropertyVisitors,
     // Program.enter calls this to drop per-file WeakSet state
     [USAGE_VISITORS_RESET]: core.reset,
     [USAGE_VISITORS_IS_HANDLED]: core.isHandled,

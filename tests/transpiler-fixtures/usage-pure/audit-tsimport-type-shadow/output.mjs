@@ -5,7 +5,7 @@ import _Set from "@core-js/pure/actual/set/constructor";
 // runtime references to `Set` resolve to the global. Without filtering this binding shape
 // in `hasBinding`, the polyfill would suppress for tsc-elided imports. Both adapters use
 // `ambient binding filter` (shared helper) for symmetric filtering
-import Set = require('node:set');
+import type Set = require('node:set');
 function build() {
   var _ref;
   // @ts-expect-error a type-only import read as a value is the shape under test

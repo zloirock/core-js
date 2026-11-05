@@ -108,7 +108,7 @@ import {
   renderNavGuardTest,
   renderShortCircuitGuard,
 } from '@core-js/polyfill-provider/render';
-import estreeToBabel, { printableWriteTarget } from './estree-to-babel.js';
+import estreeToBabel from './estree-to-babel.js';
 
 // is `child` the operand slot (object/callee) of an optional expression,
 // possibly through TS wrappers OR explicit ParenthesizedExpression?
@@ -138,10 +138,9 @@ export function removePatternSlot(slot) {
   }
 }
 
-// clone a slot target as the left of a write the emitter builds: the node dialect keeps a source paren as a
-// node no assignment takes, so the write takes the slot inside it, spelled as the render canon's writes are
+// Babel's assignment builder takes the target inside an explicit source paren.
 export function cloneWriteTarget(t, node) {
-  return printableWriteTarget(t.cloneNode(unwrapParens(node)));
+  return t.cloneNode(unwrapParens(node));
 }
 
 // write `rendered` into the slot the value peel ended on, replayed by its keys (`receiverSequenceTailKeys`):

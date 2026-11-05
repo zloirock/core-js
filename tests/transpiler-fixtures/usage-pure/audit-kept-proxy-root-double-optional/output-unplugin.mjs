@@ -1,5 +1,3 @@
-// Quiet optional realm hops retain their existing fold. Effectful keys and optional calls stay live.
-// Ordinary optional instance calls keep their own receiver guards.
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
@@ -8,6 +6,8 @@ import _self from "@core-js/pure/actual/self";
 
 var _ref;
 
+// Quiet optional realm hops retain their existing fold. Effectful keys and optional calls stay live.
+// Ordinary optional instance calls keep their own receiver guards.
 export const bareDoubleOptional = null == _globalThis.window
 	? void 0
 	: _flatMaybeArray(_self.Array.prototype).call([2, [3]]);

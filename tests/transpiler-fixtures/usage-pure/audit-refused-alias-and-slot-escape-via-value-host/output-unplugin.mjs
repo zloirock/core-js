@@ -1,9 +1,9 @@
-// the REFUSED-alias guarded narrow renders for the SOLE-ASSIGNMENT host exactly as for the
-// declarator host (`g = (se, M === _Map ? _Map$groupBy : M.groupBy)`) - the raw read off a
-// claimed alias answered `undefined` where every engine with the ctor answers the member
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 
+// the REFUSED-alias guarded narrow renders for the SOLE-ASSIGNMENT host exactly as for the
+// declarator host (`g = (se, M === _Map ? _Map$groupBy : M.groupBy)`) - the raw read off a
+// claimed alias answered `undefined` where every engine with the ctor answers the member
 let n = 0;
 
 // the VALUE-CONSUMING assignment host preserves its native value - the RHS object - as a

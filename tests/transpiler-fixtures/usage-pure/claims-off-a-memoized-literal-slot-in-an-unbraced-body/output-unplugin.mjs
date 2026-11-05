@@ -1,7 +1,3 @@
-// Several claims beside a nested pattern, in an object literal whose slot is memoized, as the first of the
-// declarators an unbraced body holds: the memo leads the declaration as a declarator of its own, and each
-// claim binds right after the residual, in the order the source wrote them - two under an `if`, three under
-// a `while`, a defaulted one among two under a `for`. Unplugin's drains bind them ahead of it (the sidecar).
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _findMaybeArray from "@core-js/pure/actual/array/instance/find";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
@@ -12,6 +8,10 @@ import _keys from "@core-js/pure/actual/instance/keys";
 
 var _ref3;
 
+// Several claims beside a nested pattern, in an object literal whose slot is memoized, as the first of the
+// declarators an unbraced body holds: the memo leads the declaration as a declarator of its own, and each
+// claim binds right after the residual, in the order the source wrote them - two under an `if`, three under
+// a `while`, a defaulted one among two under a `for`. Unplugin's drains bind them ahead of it (the sidecar).
 if (a) var _ref = box.y,
 	at = _at(_ref),
 	includes = _includes(_ref),

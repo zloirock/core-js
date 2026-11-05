@@ -2581,13 +2581,14 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
   });
   if (leading.length && !statementListOf(host.parentPath?.node)) return null;
   const residualPattern = { ...pattern, elements: elements.map(item => item.residual ?? item.node) };
-  const shed = arrayWrapperResidualTrailingShed(residualPattern, emptied);
+  const residualBindings = patternBindingCount(residualPattern);
+  const shed = arrayWrapperResidualTrailingShed(residualPattern, emptied, residualBindings);
   if (shed && shed < residualPattern.elements.length) residualPattern.elements.length -= shed;
   const effects = residualInitRunsEffects({ init, scope: path.scope, adapter, path });
   // Consumed elements are evaluated by their extraction or shared memo. Only the
   // other positions can still owe a discarded effect when the wrapper disappears.
   const readElements = new Set(elements.filter(item => item.kind === 'rebuilt').map(item => item.index));
-  let discarded = !patternBindingCount(residualPattern) && arrayWrapperResidualDroppable(residualPattern, emptied)
+  let discarded = !residualBindings && arrayWrapperResidualDroppable(residualPattern, emptied)
     ? discardedWrapperEffects({
       ...init,
       elements: init.elements.map((node, index) => readElements.has(index) ? null : node),
