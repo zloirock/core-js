@@ -1,7 +1,5 @@
-// where pure guards an open selection of the installer's owners, the guard absorbs the install call: a
-// receiver typed before that render - a closure written above it - reads the install, one typed after it
-// does not, whatever else the file reads. global, rewriting nothing, reads it for both; the installer and
-// its owners load their own modules
+// A guard carries the prototype install into its rendered branches. Both an early closure
+// query and a later receiver query retain that source fact; query order cannot erase the install.
 const owners = {};
 export const early = () => owners.findLast(f);
 (c ? Object : Reflect).setPrototypeOf(owners, Array.prototype);

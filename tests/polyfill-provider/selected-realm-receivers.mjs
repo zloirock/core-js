@@ -446,6 +446,7 @@ for (const [name, argument, changed] of [
 // It is prior output only; the helper's actual scope, entry and one receiver argument must match.
 for (const parser of adapters) for (const [name, code, expected] of [
   ['data slot', 'const { at: out } = { at: At(input) };', true],
+  ['nested default', 'for (const realm of [globalThis]) { const { Array: { prototype: { at: out } = { at: At(input) } } } = realm; }', true],
   ['nested parameter', 'export function read({ row: { at: out } } = flag ? { row: { at: At(input) } } : raw) {}', true],
   ['body helper shadow', 'export function read({ row: { at: out } } = { row: { at: At(input) } }) { var At = other; }', true],
   ['parameter helper shadow', 'export function read(At, { at: out } = { at: At(input) }) {}', false],

@@ -21,7 +21,6 @@ const { [Symbol.iterator]: { name: viaCtor } } = Array;
 const { of, [Symbol.iterator]: { name: viaSiblingCtor } } = Array;
 if (previousArrayIterator) Object.defineProperty(Array, arrayIteratorKey, previousArrayIterator);
 else delete Array[arrayIteratorKey];
-// NEGATIVE: a DEFAULTED leaf keeps the destructure - binding the dispatcher result directly would
-// drop the user's default, and guarding it is the instance-default channel's own shape
+// A defaulted leaf guards the dispatched value once, preserving the user's fallback.
 const { [Symbol.iterator]: { name: viaDefault = fallback() } } = Array;
 console.log(name, viaAlias, viaSibling, customQ, twoA, twoB, bind, plain, viaCtor, of, viaSiblingCtor, viaDefault);

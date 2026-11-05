@@ -29,6 +29,25 @@ for (const meta of [null, undefined]) check('an absent claim does not ask the re
   resolvePure() { throw new Error('an absent claim has no pure resolution'); },
 }), null);
 
+// A flat mirror retains its source receiver. A computed target under a shared
+// constructor hop keeps that read; only the established sole chain can consume it.
+for (const [source, expected] of [
+  ['let next; ({ keys: sink[key()], values: next } = Object);', true],
+  ['({ Object: { keys: sink[key()] } } = globalThis);', true],
+  ['let from; ({ Array: { from }, Object: { keys: sink[key()] } } = globalThis);', false],
+]) runBoth(`computed target mirror boundary/${ source }`, source, (parser, program, label) => {
+  const leafPatternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties
+    .some(prop => prop.key?.name === 'keys'));
+  const prop = leafPatternPath.node.properties.find(item => item.key?.name === 'keys');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = buildNestedParamSynthPlan({
+    leafPatternPath, adapter, meta: { kind: 'property', object: 'Object', key: 'keys', placement: 'static' },
+    resolvePure: meta => meta.kind === 'property' && ['from', 'keys', 'values'].includes(meta.key)
+      ? { kind: 'static', entry: `${ meta.object.toLowerCase() }/${ meta.key }`, hintName: meta.key } : null,
+  });
+  check(`${ label } owns the target`, !!plan?.claimedProperties.includes(prop), expected);
+});
+
 // Caller arguments are settled before a default changes; receiver facts are captured
 // before an array rewrite. A refusal must not invoke any later application callback.
 for (const host of ['parameter', 'declaration']) {

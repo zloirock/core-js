@@ -48,7 +48,6 @@ import {
   withCanonQuestion,
   writeNeverRuns,
   annexBHoistOutrunsBinding,
-  ancestorChainDetached,
   bindingBoundName,
   isBindingDeclarationPath,
   isForXStatement,
@@ -1009,9 +1008,10 @@ export function createBindingAnalysis({
   // holding one included). the setter read off a name the pair cannot follow to its owner installs on
   // `every` run: the pair's alias walk names constructors alone, and `Reflect` is a namespace (`const R
   // = Reflect`). only those spellings reach the value walk - any other call the pair rejects pays a node
-  // test. a call the build replaced itself (pure's guard over owners whose setter it imports absorbs
-  // the call into its arms) survives in one emitter's cached reference chain alone, detached from the
-  // tree, so neither reads it. shared by the type layer's install channel and the closure classifier,
+  // test. A guard render copies an open setter call into its arms; its source reference still
+  // describes an installation while its argument survives in the replacement; the
+  // install collector checks that source argument. Shared by the type
+  // layer's install channel and the closure classifier,
   // so the two cannot disagree on which call installs a prototype. A local function's live
   // writes through its first parameter may install too, but its second argument proves no family:
   // the body supplies an unknown install, never a family from an unselected native setter
@@ -1024,7 +1024,6 @@ export function createBindingAnalysis({
     if (!readOffOwners && node.type !== 'Identifier' && !getFallbackBranchSlots(node) && !t.isFunction(node)) return null;
     const value = resolveRuntimeExpression(readOffOwners ? callee.get('object') : callee);
     const selection = !!getFallbackBranchSlots(value.node);
-    if (ancestorChainDetached(callee)) return null;
     if (!selection && !readOffOwners) {
       if (!t.isFunction(value.node) || value.node.params?.[0]?.type !== 'Identifier') return null;
       return withCanonQuestion(() => {

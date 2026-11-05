@@ -100,6 +100,7 @@ for (const [name, init, sibling, carried, memo, forInit = false] of [
 for (const [name, init, pattern, collapseLeaf, expected] of [
   ['one opaque read', 'make()', '{ at: method }', false, 'dispatch'],
   ['one collapsed read', 'make()', '{ at: method }', true, 'memo'],
+  ['one defaulted collapsed read', 'make()', '{ name: method = fallback() }', 'default', 'dispatch'],
   ['two opaque reads', 'make()', '{ at: method, includes: another }', false, 'memo'],
   ['two reads with a stable tail', '(effect(), globalThis)', '{ at: method, includes: another }', false, 'lift'],
   ['a stored stable tail', '(held = (effect(), globalThis))', '{ at: method, includes: another }', false, 'lift'],
@@ -113,7 +114,8 @@ for (const [name, init, pattern, collapseLeaf, expected] of [
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   const ctx = { adapter, path, scope: path.scope, resolveGlobalPolyfill: () => null };
-  const reads = path.node.id.properties.map(prop => ({ kind: 'instance', prop, collapseLeaf }));
+  const reads = path.node.id.properties.map(prop => ({ kind: 'instance', prop,
+    collapseLeaf: collapseLeaf === 'default' ? { defaultPattern: prop.value } : collapseLeaf }));
   const before = JSON.stringify(program.node);
   const initNode = name === 'a generated guard keeps its probe'
     ? renderShortCircuitGuard(path.node.init.test, path.node.init.alternate) : path.node.init;

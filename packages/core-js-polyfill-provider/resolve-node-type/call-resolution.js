@@ -33,7 +33,7 @@
 // binding-analysis cluster instantiated upstream (factory function declaration is hoisted;
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { MAX_DEPTH, $Object, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam } from './base.js';
+import { MAX_DEPTH, PRIMITIVE_WRAPPERS, $Object, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam } from './base.js';
 import {
   collectQualifiedSegments,
   discriminateOverloads,
@@ -50,6 +50,9 @@ import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   classConstructorFunction,
   cleanDestructureAliasWrites,
+  callPairing,
+  kebabToCamel,
+  pathOfNode,
   forOfHeadElements,
   getCallSiteTypeArgs,
   getTypeArgs,
@@ -95,6 +98,7 @@ export function createCallResolution({
   resolveKnownInstanceMember,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   staticPairFromPolyfillEntry,
+  polyfillEntryAt,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
   swapAliasToTSTypeQueryWithSubst,
@@ -126,6 +130,30 @@ export function createCallResolution({
       || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES, callPath);
   }
 
+  // A pure instance dispatcher returns the method, which the emitted call invokes
+  // through call/apply with the same identifier receiver. A borrowed method selected
+  // from another receiver proves no return type. Use the original member return registry.
+  // Argument-dependent refinements stay opaque here; receiver inheritance is retained.
+  function dispatchedInstanceReturn(callee) {
+    const key = resolveMemberPropertyName(callee);
+    if (key !== 'call' && key !== 'apply') return null;
+    const pairing = callPairing(callee.parentPath?.node, null, { staticIsMutated: isMutatedStatic });
+    const dispatch = pairing?.callee;
+    if (dispatch?.type !== 'CallExpression' || dispatch.callee.type !== 'Identifier' || !pairing.thisArg) return null;
+    const selected = unwrapExpressionChain(dispatch.arguments[0]);
+    const invoked = unwrapExpressionChain(pairing.thisArg);
+    if (dispatch.arguments.length !== 1 || selected?.type !== 'Identifier' || invoked?.type !== 'Identifier'
+      || selected.name !== invoked.name) return null;
+    const entry = polyfillEntryAt(pathOfNode(callee, dispatch.callee));
+    const segments = entry?.split('/');
+    if (segments?.at(-2) !== 'instance') return null;
+    const receiver = pathOfNode(callee.parentPath, pairing.thisArg);
+    const type = receiver && resolveNodeType(receiver);
+    const family = type?.primitive ? PRIMITIVE_WRAPPERS[type.type] : type?.constructor;
+    const hint = family && lookupNested(KNOWN_INSTANCE_METHOD_RETURN_TYPES, family, kebabToCamel(segments.at(-1)));
+    return hint ? typeFromHint(hint, type) : null;
+  }
+
   // ES construct semantics: a constructor's PRIMITIVE return is DISCARDED and the fresh object
   // stands in its place. every RUNTIME lane below answers "what does the call return", so under
   // `new` each of them has to be read that way - reading it off the resolved callee's node SHAPE
@@ -149,6 +177,8 @@ export function createCallResolution({
   function resolveRuntimeCallReturnType(callee) {
     // method call: obj.method() or obj?.method()
     if (isMemberLike(callee)) {
+      const dispatched = dispatchedInstanceReturn(callee);
+      if (dispatched) return dispatched;
       // receiver is statically undefined/null/never -> chain is broken at runtime; propagate
       // the same to downstream so `fn(){}; fn().at(0).includes(1)` doesn't half-polyfill
       const receiverType = resolveNodeType(callee.get('object'));

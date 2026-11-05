@@ -121,13 +121,15 @@ function branchingInitResolves(node, ctx, resolvesBranch) {
 // proxy-global object case (`= globalThis`, including `_globalThis` via polyfillHint and `const g =
 // globalThis` alias chains); the injector's import table resolves the injected-import case an in-place
 // rewrite leaves behind (`= _Promise`, or the defaulted `_Symbol === void 0 ? d : _Symbol` whose guard
-// ternary is walked). a user binding of the same name resolves to neither - uniqueName keeps injected
+// ternary is walked). Only validation of an already registered alias admits that substitution;
+// registration must prove the realm, since a constructor's properties are not global slots.
+// a user binding of the same name resolves to neither - uniqueName keeps injected
 // UIDs collision-free
 // `ctx` is `{ scope, adapter, injector, path }`: every shadow question below is asked AT the use
 // path, never at the scope owner alone - a path-less lookup anchored at the owner missed a shadow
 // local to a block the owner does not open (a static block's `enum globalThis`), and the alias
 // registered over it
-function aliasInitResolvesToGlobal(node, ctx) {
+function aliasInitResolvesToGlobal(node, ctx, substituted = false) {
   if (!node) return false;
   const { scope, adapter, injector, path = null } = ctx;
   if (node.type === 'Identifier') {
@@ -136,17 +138,17 @@ function aliasInitResolvesToGlobal(node, ctx) {
     // scope-bound user code - serving it here would verify an alias shape against a coincident
     // name from another scope
     const imp = injector?.getPureImport?.(node.name);
-    return !!imp && !imp.userNamed;
+    return substituted && !!imp && !imp.userNamed;
   }
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
-    return branchingInitResolves(node, ctx, branch => aliasInitResolvesToGlobal(branch, ctx));
+    return branchingInitResolves(node, ctx, branch => aliasInitResolvesToGlobal(branch, ctx, substituted));
   }
   // an array-wrapped alias (`const [{ Map: M }] = [globalThis]`) leaves an ArrayExpression init; an
   // element resolving to a global keeps the guard's established bar (receiver-is-global, key-blind).
   // needed post-consumption: babel's flatten empties the pattern slot before the member visit, so this
   // stale init is the only walkable evidence that the registered alias is THIS binding, not a shadow
   if (node.type === 'ArrayExpression') {
-    return node.elements.some(el => el && el.type !== 'SpreadElement' && aliasInitResolvesToGlobal(el, ctx));
+    return node.elements.some(el => el && el.type !== 'SpreadElement' && aliasInitResolvesToGlobal(el, ctx, substituted));
   }
   return false;
 }
@@ -201,9 +203,9 @@ function arrayInitServesPattern(id, init) {
 function declaratorInitResolvesForName({ id, init, boundName, ctx }) {
   if (!init) return false;
   const positional = positionalArrayWrapInit(id, init, boundName);
-  if (positional !== undefined) return !!positional && aliasInitResolvesToGlobal(positional, ctx);
+  if (positional !== undefined) return !!positional && aliasInitResolvesToGlobal(positional, ctx, true);
   if (id?.type === 'ObjectPattern' && patternBindsNameNested(id, boundName)) return false;
-  return arrayInitServesPattern(id, init) && aliasInitResolvesToGlobal(init, ctx);
+  return arrayInitServesPattern(id, init) && aliasInitResolvesToGlobal(init, ctx, true);
 }
 
 // shared shadow guard for a `registerGlobalAlias` destructure-alias (`info.source === null`): the binding
@@ -1022,13 +1024,10 @@ function assignmentAliasWriteAssign(violation, boundName) {
   return null;
 }
 
-// unwrap paren / TS / SE wrappers AND a zero-arg IIFE returning a proxy-global: at runtime
-// `(function(){return globalThis})().Array` accesses `Array` on `globalThis` exactly like the
-// bare `globalThis.Array` chain. owns the unwrap so callers pass the raw `.object` node;
-
 // strict: IIFE caller-arg overrides wrapper-default ONLY when it is a bare Identifier the
 // static layer can actually CLASSIFY - a known proxy global, a constructor-shaped
-// (capitalised) name, or a binding that follows to a proxy global. an UNRESOLVABLE arg
+// (capitalised) name, or a binding that follows to a known realm or constructor,
+// including its own pure import. An UNRESOLVABLE arg
 // (lowercase unbound name, local non-global binding) must NOT preempt: the wrapper default
 // owns the undefined-arg path, so keeping IT as the synth target leaves the live arg native
 // (caller value wins) while the no-arg / undefined-arg call still gets the polyfill -
@@ -1039,7 +1038,7 @@ function assignmentAliasWriteAssign(violation, boundName) {
 // `adapter.hasBinding` (when scope/adapter are available) to tell global from shadowed; without
 // them, treat `undefined` as the global sentinel. `void x` is a UnaryExpression and is
 // rejected by the Identifier gate above
-export function isClassifiableReceiverArg(node, scope, adapter) {
+export function isClassifiableReceiverArg(node, scope, adapter, path = null) {
   if (node?.type !== 'Identifier') return false;
   if (node.name === 'undefined') {
     if (!scope || !adapter) return false;
@@ -1051,7 +1050,9 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
   if (node.name[0] >= 'A' && node.name[0] <= 'Z') {
     return !scope || !adapter || adapter.hasBinding({ scope, name: node.name }) || isKnownStaticGlobal(node.name, adapter);
   }
-  return !!(scope && adapter) && isProxyGlobalIdentifierNode({ node, scope, adapter });
+  if (!scope || !adapter) return false;
+  const held = resolveObjectName({ objectNode: node, scope, adapter, path });
+  return !!held && (POSSIBLE_GLOBAL_OBJECTS.has(held) || isKnownStaticGlobal(held, adapter));
 }
 
 // a fallback-destructure receiver (IIFE call-arg / wrapper RHS) usable in place of the param default:
@@ -1059,13 +1060,13 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
 // downstream (`(({from}=Object) => ...)(c ? Array : Map)`). a non-receiver arg (notably the global
 // `undefined`, where the runtime applies the default) is not usable and keeps the default. shared by
 // every meta / synth receiver-choice so the call-arg-wins rule never drifts between sites
-export function isUsableFallbackReceiverArg(node, scope, adapter) {
+export function isUsableFallbackReceiverArg(node, scope, adapter, path = null) {
   // peel a safe SE tail so an SE-prefixed arg (`(eff(), c ? Set : Iterator)`) classifies by its
   // receiver value, not the raw SequenceExpression - the provider enumeration callers pass the raw
   // arg, and without this an SE-branching arg is judged unusable and the runtime-dead default wins,
   // dropping the arg's reachable branch polyfill. the detect callers pre-peel too (now idempotent)
   const peeled = unwrapSafeSequenceTail(node);
-  return isClassifiableReceiverArg(peeled, scope, adapter)
+  return isClassifiableReceiverArg(peeled, scope, adapter, path)
     || peeled?.type === 'ConditionalExpression' || peeled?.type === 'LogicalExpression';
 }
 

@@ -13,8 +13,10 @@ import {
   consumableHopSlotName,
   computedKeyWellKnownSymbolName,
   MINTED_STATIC_NAME,
+  peelChainRootValue,
   peelReceiverSequenceTail,
   pureEntryTarget,
+  resolveKey,
   symbolKeyFromSource,
 } from './resolve.js';
 import {
@@ -33,6 +35,7 @@ import {
   destructureReceiverNode,
   singleReturnBodyExpression,
   foldedPropertyKeyName,
+  FUNCTION_LIKE_NODE_TYPES,
   identifierDeclaratorInit,
   initializerReachesRead,
   isNullLiteralNode,
@@ -46,6 +49,7 @@ import {
   walkAstNodes,
   reassignmentDominatesUsage,
   requireCallSource,
+  resolveFallbackReceiver,
   rootProgramOf,
   statementListOf,
   tsImportEqualsRequireSource,
@@ -284,11 +288,11 @@ function guardedAliasAlternateRead(path) {
   return false;
 }
 
-// an INSTANCE claim over an adopted GENERATED REF (`_ref.slice(1)` where `_ref` memoizes a
+// A member or pattern claim over an adopted GENERATED REF (`_ref.slice(1)` where `_ref` memoizes a
 // value the first pass already typed and adjudicated): the raw spelling IS the verdict -
 // re-claiming through the ref's unknown type would upgrade it to a maybe-dispatch
 function adoptedRefReceiverClaim(node, path, tests = null) {
-  const receiver = unwrapRuntimeExpr(node?.object);
+  const receiver = unwrapRuntimeExpr(node);
   if (receiver?.type !== 'Identifier' || !ORPHAN_REF_PATTERN.test(receiver.name)) return false;
   // a `_refN` THIS pass minted is a sibling emission's memo, not an adopted prior verdict
   if (tests?.isOwnPassName?.(receiver.name)) return false;
@@ -561,7 +565,7 @@ function overwriteRebindSibling(path, { localName, key, ...tests }) {
 export function sentinelAlreadyProcessed(path, { node, meta, injector, adapter = null }) {
   const { value } = node;
   if (value?.type !== 'Identifier' || !injector.hasGeneratedUnusedName(value.name)) return false;
-  return !injector.isAdoptedUnusedName(value.name) || restSentinelExtractionSibling(path, {
+  return !injector.isAdoptedUnusedName(value.name) || extractionSibling(path, {
     key: typeof meta?.key === 'string' ? meta.key : consumableHopSlotName(node, { scope: path.scope, path, adapter }),
     symbolIterator: meta ? isSourcedSymbolIteratorMeta(meta)
       : !!adapter && node.computed && computedKeyWellKnownSymbolName({
@@ -598,7 +602,9 @@ export function patternHoldsOnlyProcessedSentinels(pattern, injector, adapter) {
 // output re-extracts the sentinel as a live binding and mints a fresh one, growing it per pass.
 // Import deduplication follows the current flavor; prior-output recognition also reads source
 // imports from another flavor. A shadow, erased import or rewritten require cannot stand in for it.
-function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) {
+// A residual constructor uses the same proof against its immediately following static
+// extraction; unrelated earlier or later imports cannot own that native receiver.
+function extractionSibling(path, { key, symbolIterator, injector, receiver = null }) {
   let p = path;
   let paramsBody = null;
   while (p?.parentPath && !statementListOf(p.parentPath.node)) {
@@ -616,8 +622,12 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
   const list = paramsBody ?? statementListOf(p?.parentPath?.node);
   if (!Array.isArray(list)) return false;
   function extractsKey(name) {
-    const entry = injector.getPureImport(name)?.entry ?? pureImportEntryOf(path, name);
+    const entry = injector?.getPureImport(name)?.entry ?? pureImportEntryOf(path, name);
     if (!entry) return false;
+    if (receiver) {
+      const target = pureEntryTarget(entry);
+      return !!target?.member && target.global === receiver;
+    }
     const segments = entry.split('/');
     if (symbolIterator) return entry === 'get-iterator-method';
     if (typeof key !== 'string') return false;
@@ -709,7 +719,8 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
         break;
     }
   }
-  for (const stmt of list) for (const init of inits(stmt)) if (init && readsPureImport(init)) return true;
+  const siblings = receiver ? list.slice(list.indexOf(p.node) + 1, list.indexOf(p.node) + 2) : list;
+  for (const stmt of siblings) for (const init of inits(stmt)) if (init && readsPureImport(init)) return true;
   return false;
 }
 
@@ -720,8 +731,8 @@ function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) 
 // literal over our own import and adds an entry per pass, while the other arm stays the source's own
 // value. recognised by the arm's BINDING - a user ternary or `||` of the same shape holds no pure
 // import there - and the ternary additionally by its narrow shape, whose other arm reads the tested
-// receiver itself
-function ownNarrowedReceiverArm(path, tests) {
+// receiver itself. An adopted receiver memo carries the same settled decision.
+function ownRenderedPatternReceiver(path, tests) {
   // the climb stops at the FIRST host that holds a value - a default pairing the pattern is one
   // (`function ({ map } = nul || _Iterator.prototype)`), and walking past it reaches the function,
   // which holds nothing the pattern reads
@@ -734,6 +745,7 @@ function ownNarrowedReceiverArm(path, tests) {
   }
   const slot = destructureReceiverSlot(host?.node);
   const receiver = slot ? unwrapRuntimeExpr(host.node[slot]) : null;
+  if (adoptedRefReceiverClaim(receiver, path, tests)) return true;
   if (receiver?.type === 'LogicalExpression' && (receiver.operator === '||' || receiver.operator === '&&')) {
     return pureImportRootName(receiver.right) !== null
       && pureDefaultImportBinding(path, pureImportRootName(receiver.right), tests);
@@ -758,11 +770,11 @@ function pureImportRootName(node) {
 
 // a claim INSIDE the fallback arm of our own defaulted-extraction guard
 // (`(_refN = _X(recv)) === void 0 ? fb : _refN` and the plain `_X === void 0 ? fb : _X`):
-// the arm is dead at runtime (the polyfilled read is always defined), so pass 1
-// deliberately leaves the fallback's claims raw - re-claiming them re-spells dead code on
-// every pass. recognized by the guard's OWN spelling: the compared read's callee (or the
-// read itself) is a pure default-import binding
-function ownDefaultedGuardFallbackClaim(path, tests) {
+// the first pass already visited or declined its fallback claims. A dispatcher result
+// may still be undefined, so the fallback itself remains. A direct static-import slot
+// also proves a destructuring default dead. Recognize the imported guard or mirror
+// without re-deciding the fallback on every subsequent pass.
+function ownDefaultedGuardFallbackClaim(path, tests, adapter) {
   function guardReadsPureImport(testNode) {
     const test = unwrapRuntimeExpr(testNode);
     if (test?.type !== 'BinaryExpression' || test.operator !== '===') return false;
@@ -781,6 +793,9 @@ function ownDefaultedGuardFallbackClaim(path, tests) {
     const parent = up.node;
     if (parent.type === 'ConditionalExpression' && parent.consequent === cur.node
       && guardReadsPureImport(parent.test)) return true;
+    if (parent.type === 'AssignmentPattern' && parent.right === cur.node
+      && isPropertyNode(up.parentPath?.node)
+      && patternSlotHoldsPureImport(up.parentPath, tests, adapter, { defined: true })) return true;
     // the climb stays inside the expression the arm hosts
     if (typeof parent.type !== 'string' || parent.type.endsWith('Statement')
       || parent.type.endsWith('Declaration')) return false;
@@ -788,30 +803,41 @@ function ownDefaultedGuardFallbackClaim(path, tests) {
   return false;
 }
 
-// a claim RIDING THE ALTERNATE of our own rendered null-guard (`null == probe ? void 0 :
-// <claims here>` where the probed read's leaf is a pure binding): the render deliberately
-// kept the alternate's spellings - the collapse already adjudicated them, and a fresh
-// claim (a proxy-hop fold included) re-decides a settled verdict on every pass
-function ownRenderedGuardAlternateClaim(path, tests) {
-  function isNullLiteral(node) {
-    const literal = unwrapRuntimeExpr(node);
-    return literal?.value === null || literal?.type === 'NullLiteral';
-  }
+// A rendered null guard retains its raw probe and alternate. A prior import at the
+// probe's root owns the alternate; a served static in the alternate owns its matching
+// constructor probe. Replacing that probe with the always-defined constructor changes
+// both the test and a source assignment capturing it. Effects inside the probe stay live.
+function ownRenderedGuardClaim(path, tests) {
+  let probeSpine = true;
   for (let cur = path, up = cur.parentPath; up?.node; cur = up, up = up.parentPath) {
     const parent = up.node;
-    if (parent.type === 'ConditionalExpression' && parent.alternate === cur.node) {
+    if (parent.type === 'ConditionalExpression') {
       const test = unwrapRuntimeExpr(parent.test);
       const consequent = unwrapRuntimeExpr(parent.consequent);
       if (test?.type === 'BinaryExpression' && test.operator === '=='
-        && (isNullLiteral(test.left) || isNullLiteral(test.right))
+        && (isNullLiteralNode(test.left) || isNullLiteralNode(test.right))
         && consequent?.type === 'UnaryExpression' && consequent.operator === 'void') {
-        let leaf = unwrapRuntimeExpr(isNullLiteral(test.left) ? test.right : test.left);
-        while (leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
-          leaf = unwrapRuntimeExpr(leaf.object);
+        let leaf = unwrapRuntimeExpr(isNullLiteralNode(test.left) ? test.right : test.left);
+        if (parent.alternate === cur.node) {
+          while (leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
+            leaf = unwrapRuntimeExpr(leaf.object);
+          }
+          if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests)) return true;
+        } else if (probeSpine && parent.test === cur.node) {
+          const probe = unwrapRuntimeExpr(peelChainRootValue(leaf));
+          let served = peelReceiverSequenceTail(parent.alternate);
+          if (served?.type === 'CallExpression') served = unwrapRuntimeExpr(served.callee);
+          if (served?.type === 'Identifier' && pureDefaultImportBinding(path, served.name, tests)
+            && (probe?.type === 'MemberExpression' || probe?.type === 'OptionalMemberExpression')
+            && pureEntryTarget(pureImportEntryOf(path, served.name))?.global === memberKeyName(probe)) return true;
         }
-        if (leaf?.type === 'Identifier' && pureDefaultImportBinding(path, leaf.name, tests)) return true;
       }
     }
+    probeSpine &&= SKIPPABLE_WRAPPER_TYPES.has(parent.type)
+      || (parent.type === 'MemberExpression' || parent.type === 'OptionalMemberExpression') && parent.object === cur.node
+      || parent.type === 'AssignmentExpression' && parent.operator === '=' && parent.right === cur.node
+      || parent.type === 'SequenceExpression' && parent.expressions.at(-1) === cur.node
+      || parent.type === 'BinaryExpression';
     if (typeof parent.type !== 'string' || parent.type.endsWith('Statement')
       || parent.type.endsWith('Declaration')) return false;
   }
@@ -831,6 +857,19 @@ export function ownEmittedLogicalPatch(path, { host, operator }, tests) {
     && pureDefaultImportBinding(path, call.callee.name, tests);
 }
 
+// A reanchored residual reads the original constructor for its unserved keys;
+// the immediately following static extraction proves which constructor was served.
+// Replacing that residual receiver would discard user properties of the original.
+function ownResidualReceiverClaim(path) {
+  let value = path;
+  while (SKIPPABLE_WRAPPER_TYPES.has(value.parentPath?.node?.type)) value = value.parentPath;
+  const host = value.parentPath?.node;
+  const pattern = host?.type === 'VariableDeclarator' && host.init === value.node ? host.id
+    : host?.type === 'AssignmentExpression' && host.operator === '=' && host.right === value.node ? host.left : null;
+  const receiver = memberKeyName(path.node);
+  return pattern?.type === 'ObjectPattern' && !!receiver && extractionSibling(path, { receiver });
+}
+
 // the member funnel: every nav-position census in one gate, ahead of both emitters' member
 // claim routes. `node` is the MemberExpression, `metaPath` its path. The producer's
 // placement keeps arbitrary instance payloads live beneath a prior realm guard.
@@ -843,12 +882,70 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
   }
   return guardedAliasAlternateRead(metaPath)
     || computedKeyIsMintedImport(node, metaPath, tests, { readOfIteratorIsNotOurs: true, packages: adapter?.packages })
-    || adoptedRefReceiverClaim(node, metaPath, tests)
-    || ownDefaultedGuardFallbackClaim(metaPath, tests)
-    || ownRenderedGuardAlternateClaim(metaPath, tests)
+    || adoptedRefReceiverClaim(node.object, metaPath, tests)
+    || ownDefaultedGuardFallbackClaim(metaPath, tests, adapter)
+    || ownRenderedGuardClaim(metaPath, tests)
+    || ownNativeMirrorRead(metaPath, tests)
+    || ownResidualReceiverClaim(metaPath)
     || navHoldsMintedSeCall(node.object, metaPath, tests)
     || ((meta?.placement !== 'prototype' || hasOwnStaticDefinition(meta.guardedAliasHint, meta.key))
       && navHoldsRenderedGuard(node.object, metaPath, tests, adapter));
+}
+
+// A mixed mirror serves some slots and deliberately reads the others natively.
+// Its lazy spelling is a one-argument, one-return IIFE; a getter reads only that
+// captured receiver. Literal realm mirrors use the same key on an imported realm.
+// Pair all keys once per read-only question, scoped to the import proof and capture.
+function nativeMirrorSlot(literal, key, path, tests, capture = null) {
+  if (literal?.type !== 'ObjectExpression') return false;
+  const answers = canonAnswerTable(nativeMirrorSlot, [tests, capture, path.scope]);
+  const known = answers?.get(literal);
+  if (known !== undefined) return !!known?.has(key);
+  function answer(keys) {
+    answers?.set(literal, keys);
+    return !!keys?.has(key);
+  }
+  let served = false;
+  const native = new Set();
+  for (const prop of literal.properties) {
+    const name = foldedPropertyKeyName(prop);
+    if (name === null) return answer(null);
+    const getter = prop.type === 'ObjectMethod' && prop.kind === 'get' ? prop : prop.kind === 'get' ? prop.value : null;
+    const value = unwrapRuntimeExpr(getter ? singleReturnBodyExpression(getter.body) : prop.value);
+    const at = value && (pathOfNode(path, value) ?? path);
+    if (!getter && value?.type === 'Identifier' && pureDefaultImportBinding(at, value.name, tests)) {
+      served = true;
+      continue;
+    }
+    if (getter && (getter.params.length || getter.async || getter.generator || getter.body.body.length !== 1)) return answer(null);
+    if (value?.type !== 'MemberExpression' || value.optional || memberKeyName(value) !== name) return answer(null);
+    const receiver = unwrapRuntimeExpr(value.object);
+    if (receiver?.type !== 'Identifier') return answer(null);
+    if (capture ? receiver.name !== capture : !pureDefaultImportBinding(at, receiver.name, tests)
+      || !POSSIBLE_GLOBAL_OBJECTS.has(entryToGlobalHint(pureImportEntryOf(at, receiver.name)))) return answer(null);
+    native.add(name);
+  }
+  return answer(served ? native : null);
+}
+
+// A native getter inside the lazy mirror remains native on subsequent passes too.
+function ownNativeMirrorRead(path, tests) {
+  let read = path;
+  while (SKIPPABLE_WRAPPER_TYPES.has(read.parentPath?.node?.type)) read = read.parentPath;
+  if (read.parentPath?.node?.type !== 'ReturnStatement' || read.parentPath.node.argument !== read.node) return false;
+  for (let cur = read.parentPath; cur?.node; cur = cur.parentPath) {
+    const fn = cur.node;
+    if (!FUNCTION_LIKE_NODE_TYPES.has(fn.type)) continue;
+    const literal = singleReturnBodyExpression(fn.body);
+    if (fn.body.type !== 'BlockStatement' || literal?.type !== 'ObjectExpression' || fn.async || fn.generator || fn.params.length !== 1
+      || fn.params[0].type !== 'Identifier' || fn.body.body.length !== 1) continue;
+    let call = cur.parentPath;
+    while (SKIPPABLE_WRAPPER_TYPES.has(call?.node?.type)) call = call.parentPath;
+    if (call?.node?.type !== 'CallExpression' || unwrapRuntimeExpr(call.node.callee) !== fn
+      || call.node.arguments.length !== 1 || call.node.arguments[0].type === 'SpreadElement') return false;
+    return nativeMirrorSlot(literal, memberKeyName(path.node), call, tests, fn.params[0].name);
+  }
+  return false;
 }
 
 // the MIRROR's own literal read back: that render replaces the receiver with `{ <key>: { <member>:
@@ -862,8 +959,16 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
 // A nullable lazy mirror owns only the whole receiver: its activation returns the original
 // nullish value or an imported dispatcher read through its own captured parameter. A served
 // activation beside a raw selecting arm cannot own that other arm's claim.
-function patternSlotHoldsPureImport(path, tests, adapter) {
+function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, outerDefault = false } = {}) {
+  function keyOf(prop) {
+    const structural = foldedPropertyKeyName(prop);
+    if (structural !== null || !adapter) return structural;
+    const keyPath = pathOfNode(path, prop.key);
+    return keyPath ? resolveKey({ node: prop.key, computed: prop.computed,
+      scope: keyPath.scope, path: keyPath, adapter, bailOnSideEffectKey: true }) : null;
+  }
   const keys = [];
+  let defaultBoundary = false;
   let pattern = path.parentPath.node;
   let cur = path;
   for (; cur?.node; cur = cur.parentPath) {
@@ -872,8 +977,12 @@ function patternSlotHoldsPureImport(path, tests, adapter) {
       pattern = cur.node;
       continue;
     }
+    if (type === 'AssignmentPattern' && isPropertyNode(cur.parentPath?.node)) {
+      if (defined || outerDefault) continue;
+      defaultBoundary = true;
+    }
     if (type !== 'Property' && type !== 'ObjectProperty') break;
-    const key = foldedPropertyKeyName(cur.node);
+    const key = keyOf(cur.node);
     if (key === null) return false;
     keys.unshift(key);
   }
@@ -883,6 +992,13 @@ function patternSlotHoldsPureImport(path, tests, adapter) {
       : destructureReceiverNode(cur, pattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
   if (!init || !keys.length) return false;
   let sourcePath = cur;
+  if (host?.type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(cur.parentPath?.node?.type)) {
+    const caller = resolveFallbackReceiver(cur, host, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
+    if (caller?.callPath && peelReceiverSequenceTail(caller.rhsNode)?.type === 'ObjectExpression') {
+      init = caller.rhsNode;
+      sourcePath = caller.callPath;
+    }
+  }
   const receiver = peelReceiverSequenceTail(init);
   // A body-entry capture keeps the original receiver default on its actual parameter binding.
   // Follow only that direct, unwritten binding; an arbitrary alias names no prior output.
@@ -900,29 +1016,34 @@ function patternSlotHoldsPureImport(path, tests, adapter) {
   const arms = selecting?.type === 'LogicalExpression' ? [selecting.left, selecting.right]
     : selecting?.type === 'ConditionalExpression' ? [selecting.consequent, selecting.alternate] : [selecting];
   const pairings = canonAnswerTable(patternSlotHoldsPureImport, []);
-  return arms.some(arm => {
+  const owned = arms.some(arm => {
     let node = peelReceiverSequenceTail(arm);
     const callee = node?.type === 'CallExpression' && !node.optional && node.arguments.length === 1
       && node.arguments[0].type !== 'SpreadElement' ? unwrapRuntimeExpr(node.callee) : null;
-    const capture = callee?.type === 'ArrowFunctionExpression' && !callee.async && !callee.generator
+    const capture = FUNCTION_LIKE_NODE_TYPES.has(callee?.type) && !callee.async && !callee.generator
       && callee.params.length === 1 && callee.params[0].type === 'Identifier'
       && callee.body.type === 'BlockStatement' && callee.body.body.length === 1 && !callee.body.directives?.length
       ? callee.params[0].name : null;
     if (capture) {
       if (arms.length !== 1) return false;
       const returned = singleReturnBodyExpression(callee.body);
-      const test = returned?.type === 'ConditionalExpression' ? unwrapRuntimeExpr(returned.test) : null;
-      if (test?.type !== 'BinaryExpression' || test.operator !== '==' || test.left.type !== 'Identifier'
-        || test.left.name !== capture || !isNullLiteralNode(test.right)
-        || returned.consequent.type !== 'Identifier' || returned.consequent.name !== capture) return false;
-      node = unwrapRuntimeExpr(returned.alternate);
+      if (returned?.type === 'ObjectExpression') node = returned;
+      else {
+        if (callee.type !== 'ArrowFunctionExpression') return false;
+        const test = returned?.type === 'ConditionalExpression' ? unwrapRuntimeExpr(returned.test) : null;
+        if (test?.type !== 'BinaryExpression' || test.operator !== '==' || test.left.type !== 'Identifier'
+          || test.left.name !== capture || !isNullLiteralNode(test.right)
+          || returned.consequent.type !== 'Identifier' || returned.consequent.name !== capture) return false;
+        node = unwrapRuntimeExpr(returned.alternate);
+      }
     }
     for (const [index, key] of keys.entries()) {
       if (node?.type !== 'ObjectExpression') return false;
+      if (!defined && nativeMirrorSlot(node, key, sourcePath, tests, capture)) return true;
       let slots = pairings?.get(node);
       if (slots === undefined) {
-        slots = node.properties.some(prop => prop.type === 'SpreadElement' || prop.computed)
-          ? null : new Map(wrapperLiteralEntries(node, { propertyNodes: true }));
+        const entries = wrapperLiteralEntries(node, { propertyNodes: true, keyOf });
+        slots = entries.some(([name]) => name === null) ? null : new Map(entries);
         pairings?.set(node, slots);
       }
       const prop = slots?.get(key);
@@ -935,8 +1056,8 @@ function patternSlotHoldsPureImport(path, tests, adapter) {
     }
     const dispatch = node?.type === 'CallExpression' && !node.optional && node.callee.type === 'Identifier'
       && node.arguments.length === 1 && node.arguments[0].type !== 'SpreadElement';
-    if (capture || dispatch) {
-      if (!dispatch) return false;
+    if (dispatch) {
+      if (defined) return false;
       if (capture) {
         if (node.arguments[0].type !== 'Identifier' || node.arguments[0].name !== capture) return false;
         const argumentPath = pathOfNode(sourcePath, node.arguments[0]);
@@ -953,6 +1074,9 @@ function patternSlotHoldsPureImport(path, tests, adapter) {
     const source = pathOfNode(sourcePath, node) ?? path;
     return pureDefaultImportBinding(source, node.name, tests);
   });
+  // An already rendered default owns its leaves without activating the untouched
+  // outer receiver. Only an unowned default asks about the enclosing mirror.
+  return owned || defaultBoundary && patternSlotHoldsPureImport(path, tests, adapter, { outerDefault: true });
 }
 
 // the pattern funnel: every destructure-prop census in one gate, ahead of both emitters'
@@ -962,7 +1086,7 @@ export function ownEmittedPatternClaim(metaPath, tests, adapter = null) {
   if (defaultHoldsPureImport(metaPath, tests)
     || patternDefaultHoldsPureImport(metaPath, tests)
     || patternSlotHoldsPureImport(metaPath, tests, adapter)
-    || ownNarrowedReceiverArm(metaPath, tests)
+    || ownRenderedPatternReceiver(metaPath, tests)
     || computedKeyIsMintedImport(metaPath.node, metaPath, tests)) return true;
   const value = metaPath.node?.value;
   const local = patternSlotTarget(value);

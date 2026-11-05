@@ -1,11 +1,11 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$values from "@core-js/pure/actual/object/values";
-// A computed member target its pattern holds as the sole chain takes the ponyfill where its route keeps the
-// source order: an effect-keyed static extracts in order, and a realm hop mirrors the literal with the write
-// left in place. Under a nested instance claim it keeps the native read - the overwrite would read the
-// receiver after the target's key - and so it does beside a sibling, whose extraction lands ahead of the key.
+// Computed member targets take statics without moving target evaluation ahead of siblings.
+// A sole chain extracts in place; a shared pattern mirrors its receiver and keeps target order.
+// Nested instance targets remain native where an overwrite would re-read the receiver after the key.
 let o;
 e(), sink[k()] = _Array$from;
 ({
@@ -33,7 +33,10 @@ e(), sink[k()] = _Array$from;
 } = {
   y: arr
 });
-o = _Object$values;
 ({
-  entries: sink[k5()]
-} = Object);
+  entries: sink[k5()],
+  values: o
+} = {
+  entries: _Object$entries,
+  values: _Object$values
+});

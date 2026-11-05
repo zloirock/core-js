@@ -1,6 +1,5 @@
-// A computed member target whose preceding siblings earlier claims extract is the sole chain of what the
-// statement still holds: both emitters extract it after them, in source order. A sibling that stays in the
-// pattern - a key with no polyfill - keeps it native.
+// Computed member targets and their siblings retain source order in a receiver mirror.
+// Native sibling reads use getters at their pattern slots, between target evaluations and writes.
 let v;
 const o = {};
 ({ values: o.v, entries: sink[k()] } = Object);

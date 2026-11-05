@@ -800,7 +800,7 @@ export default function createDestructureDrains(ctx) {
       value = callExpression(
         identifier(injectPureImport(job.collapseLeaf.instanceEntry, job.collapseLeaf.instanceHint)), [value]);
     }
-    const defaultPattern = liveDestructureDefault(job.prop.value, job.kind);
+    const defaultPattern = job.collapseLeaf?.defaultPattern ?? liveDestructureDefault(job.prop.value, job.kind);
     if (!defaultPattern) return value;
     const guardRef = guardRefs.get(job) ?? mintMemoGuardRef(job);
     guardRefs.set(job, guardRef);

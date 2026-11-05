@@ -23175,6 +23175,26 @@ function * generateGroupedKeyCaptures() {
     export const r = [Object.keys(Box).sort(), typeof Box.resolve, Box.value === Infinity];` };
 }
 
+// Kept computed targets must not move a sibling assignment ahead of a key or setter.
+// The throw axis observes the bindings published before abrupt completion.
+function * generatePhaseTargetOrder() {
+  for (const computed of [false, true]) for (const first of [false, true]) for (const throws of [false, true]) {
+    const target = computed ? 'sink[(log.push("key"), "method")]' : 'sink.method';
+    const props = [`entries: ${ target }`, 'values: next'];
+    if (!first) props.reverse();
+    yield { ...snippet(`phase-target-order/${ computed }/${ first }/${ throws }`, `(() => {
+      let next, value;
+      const sink = { set method(fn) {
+        log.push(typeof next);
+        value = fn({ a: 3 })[0][1];
+        ${ throws ? 'throw new RangeError("setter");' : '' }
+      } };
+      try { ({ ${ props.join(', ') } } = Object); } catch (error) { log.push(error instanceof RangeError); }
+      return [value, typeof next, next ? next({ a: 4 })[0] : null];
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23655,4 +23675,5 @@ export function * generate() {
   yield * generatePositionalResiduals();
   yield * generateOptionalClaimSources();
   yield * generateGroupedKeyCaptures();
+  yield * generatePhaseTargetOrder();
 }
