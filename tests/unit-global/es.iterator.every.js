@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('Iterator#every', assert => {
   const { every } = Iterator.prototype;
@@ -13,16 +12,14 @@ QUnit.test('Iterator#every', assert => {
   assert.true(every.call(createIterator([1, 2, 3]), it => typeof it == 'number'), 'basic functionality #1');
   assert.false(every.call(createIterator([1, 2, 3]), it => it % 2), 'basic functionality #2');
   every.call(createIterator([1]), function (arg, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
     assert.same(counter, 0, 'counter');
   });
 
-  if (STRICT) {
-    assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => every.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => every.call([], () => { /* empty */ }), TypeError);
@@ -31,4 +28,30 @@ QUnit.test('Iterator#every', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => every.call(it, {}), TypeError);
   assert.true(it.closed, 'every closes iterator on validation error');
+
+  // .return() called on early exit (predicate returns false)
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    every.call(it2, value => value < 2);
+    assert.same(returnCount, 1, '.return() called when predicate returns false');
+  }
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it3 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => every.call(it3, () => { throw new Error('test'); }), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
 });

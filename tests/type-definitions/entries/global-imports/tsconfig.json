@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "./test.ts"
+  ],
+  "compilerOptions": {
+    "lib": ["es2025", "dom"],
+    "types": ["@core-js/types"]
+  }
+}

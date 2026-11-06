@@ -1,70 +1,49 @@
+// @types: proposals/symbol-description
 // `Symbol.prototype.description` getter
 // https://tc39.es/ecma262/#sec-symbol.prototype.description
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var globalThis = require('../internals/global-this');
-var call = require('../internals/function-call');
-var uncurryThis = require('../internals/function-uncurry-this');
-var hasOwn = require('../internals/has-own-property');
+var IS_PURE = require('../internals/is-pure');
+var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
+var getBuiltIn = require('../internals/get-built-in');
 var isCallable = require('../internals/is-callable');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var toString = require('../internals/to-string');
-var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
+var symbolDescription = require('../internals/symbol-description');
 
 var NativeSymbol = globalThis.Symbol;
 var SymbolPrototype = NativeSymbol && NativeSymbol.prototype;
 
-if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
-  // Safari 12 bug
-  NativeSymbol().description !== undefined
-)) {
-  var EmptyStringDescriptionStore = {};
+if (isCallable(NativeSymbol) && (!IS_PURE || NATIVE_SYMBOL) && !symbolDescription.correct) {
+  var EmptyStringDescriptionStore = symbolDescription.empty;
   // wrap Symbol constructor for correct work with undefined description
   var SymbolWrapper = function Symbol() {
     var description = arguments.length < 1 || arguments[0] === undefined ? undefined : toString(arguments[0]);
     var result = isPrototypeOf(SymbolPrototype, this)
-      // eslint-disable-next-line sonarjs/inconsistent-function-call -- ok
       ? new NativeSymbol(description)
       // in Edge 13, String(Symbol(undefined)) === 'Symbol(undefined)'
+      // eslint-disable-next-line sonarjs/inconsistent-function-call -- preserve the constructor rejection
       : description === undefined ? NativeSymbol() : NativeSymbol(description);
     if (description === '') EmptyStringDescriptionStore[result] = true;
     return result;
   };
 
   copyConstructorProperties(SymbolWrapper, NativeSymbol);
-  // wrap Symbol.for for correct handling of empty string descriptions
-  var nativeFor = SymbolWrapper['for'];
-  defineBuiltIn(SymbolWrapper, 'for', function (key) {
-    var stringKey = toString(key);
-    var symbol = call(nativeFor, this, stringKey);
-    if (stringKey === '') EmptyStringDescriptionStore[symbol] = true;
-    return symbol;
-  });
+  // @dependency: es.symbol.constructor
+  if (IS_PURE) copyConstructorProperties(SymbolWrapper, getBuiltIn('Symbol'));
   SymbolWrapper.prototype = SymbolPrototype;
-  SymbolPrototype.constructor = SymbolWrapper;
-
-  var NATIVE_SYMBOL = String(NativeSymbol('description detection')) === 'Symbol(description detection)';
-  var thisSymbolValue = uncurryThis(SymbolPrototype.valueOf);
-  var symbolDescriptiveString = uncurryThis(SymbolPrototype.toString);
-  var regexp = /^Symbol\((.*)\)[^)]+$/;
-  var replace = uncurryThis(''.replace);
-  var stringSlice = uncurryThis(''.slice);
-
-  defineBuiltInAccessor(SymbolPrototype, 'description', {
-    configurable: true,
-    get: function description() {
-      var symbol = thisSymbolValue(this);
-      if (hasOwn(EmptyStringDescriptionStore, symbol)) return '';
-      var string = symbolDescriptiveString(symbol);
-      var desc = NATIVE_SYMBOL ? stringSlice(string, 7, -1) : replace(string, regexp, '$1');
-      return desc === '' ? undefined : desc;
-    }
-  });
+  if (!IS_PURE) {
+    SymbolPrototype.constructor = SymbolWrapper;
+    defineBuiltInAccessor(SymbolPrototype, 'description', {
+      configurable: true,
+      get: symbolDescription.get,
+    });
+  }
 
   $({ global: true, constructor: true, forced: true }, {
-    Symbol: SymbolWrapper
+    Symbol: SymbolWrapper,
   });
 }

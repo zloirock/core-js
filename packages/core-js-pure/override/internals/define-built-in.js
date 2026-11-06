@@ -7,6 +7,6 @@ module.exports = function (target, key, value, options) {
     value: value,
     enumerable: !!options.enumerable,
     configurable: !options.nonConfigurable,
-    writable: !options.nonWritable
+    writable: !options.nonWritable,
   });
 };

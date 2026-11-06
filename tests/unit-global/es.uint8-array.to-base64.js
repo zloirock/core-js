@@ -1,6 +1,6 @@
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
+QUnit.test('Uint8Array.prototype.toBase64', assert => {
   const { toBase64 } = Uint8Array.prototype;
   assert.isFunction(toBase64);
   assert.arity(toBase64, 0);
@@ -73,7 +73,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   assert.same(new Uint8Array([255]).toBase64({ omitPadding: 1 }), '/w');
 });
 
-if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.toBase64, resizable buffers', assert => {
+if (typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.toBase64, resizable buffers', assert => {
   // https://issues.chromium.org/issues/454630441
   const rab = new ArrayBuffer(6, { maxByteLength: 12 });
   const tracking = new Uint8Array(rab);

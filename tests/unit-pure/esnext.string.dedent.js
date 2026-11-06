@@ -1,10 +1,10 @@
-import defineProperties from 'core-js-pure/es/object/define-properties';
-import isFrozen from 'core-js-pure/es/object/is-frozen';
-import { DESCRIPTORS, FREEZING, GLOBAL } from '../helpers/constants.js';
-import Symbol from 'core-js-pure/es/symbol';
-import cooked from 'core-js-pure/full/string/cooked';
-import dedent from 'core-js-pure/full/string/dedent';
-import freeze from 'core-js-pure/es/object/freeze';
+import defineProperties from '@core-js/pure/es/object/define-properties';
+import isFrozen from '@core-js/pure/es/object/is-frozen';
+import { GLOBAL } from '../helpers/constants.js';
+import Symbol from '@core-js/pure/es/symbol';
+import cooked from '@core-js/pure/full/string/cooked';
+import dedent from '@core-js/pure/full/string/dedent';
+import freeze from '@core-js/pure/es/object/freeze';
 
 QUnit.test('String.dedent', assert => {
   assert.isFunction(dedent);
@@ -76,15 +76,11 @@ QUnit.test('String.dedent, template identity', assert => {
   assert.notSame(tag({ raw: freeze(['\n  a\n']) }), result, 'equal raw strings with a different identity');
   assert.arrayEqual(result, ['a']);
   assert.arrayEqual(result.raw, ['a']);
-  if (FREEZING) {
-    assert.true(isFrozen(result), 'cooked array is frozen');
-    assert.true(isFrozen(result.raw), 'raw array is frozen');
-  }
-  if (DESCRIPTORS) {
-    assert.nonEnumerable(result, 'raw');
-    assert.nonWritable(result, 'raw');
-    assert.nonConfigurable(result, 'raw');
-  }
+  assert.true(isFrozen(result), 'cooked array is frozen');
+  assert.true(isFrozen(result.raw), 'raw array is frozen');
+  assert.nonEnumerable(result, 'raw');
+  assert.nonWritable(result, 'raw');
+  assert.nonConfigurable(result, 'raw');
 });
 
 QUnit.test('String.dedent, captured RegExp methods', assert => {
@@ -161,7 +157,7 @@ QUnit.test('String.dedent, large raw length', assert => {
   for (const length of [0x100000000, 0x1FFFFFFFFFFFFF, Infinity]) {
     assert.throws(() => dedent({ raw: freeze({ length }) }), TypeError, 'invalid first element');
   }
-  if (DESCRIPTORS) {
+  {
     const error = new Error('first element');
     let lengthCalls = 0;
     const raw = freeze(defineProperties({}, {

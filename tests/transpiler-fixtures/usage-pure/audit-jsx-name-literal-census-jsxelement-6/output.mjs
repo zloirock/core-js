@@ -1,0 +1,1 @@
+export const elements = [<Other.Tail x={1} />];

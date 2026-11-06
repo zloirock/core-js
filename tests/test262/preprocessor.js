@@ -64,7 +64,7 @@ const exclude = [
 
 module.exports = test => {
   const file = test.file.replaceAll('\\', '/');
-  if (!include.some(namespace => file.includes(`built-ins/${ namespace }/`))) return null;
+  if (include.every(namespace => !file.includes(`built-ins/${ namespace }/`))) return null;
   if (exclude.some(it => file.includes(it))) return null;
   if (expectedFailures.has(file.slice(file.indexOf('built-ins/')))) return null;
   return test;

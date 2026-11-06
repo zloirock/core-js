@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import expm1 from 'core-js-pure/es/math/expm1';
+import expm1 from '@core-js/pure/es/math/expm1';
 
 QUnit.test('Math.expm1', assert => {
   assert.isFunction(expm1);

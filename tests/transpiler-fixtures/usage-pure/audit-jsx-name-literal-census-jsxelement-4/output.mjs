@@ -1,0 +1,1 @@
+export const elements = [<div x={1} />];

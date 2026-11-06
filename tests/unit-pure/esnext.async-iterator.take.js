@@ -1,8 +1,7 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
-import AsyncIterator from 'core-js-pure/actual/async-iterator';
-import Symbol from 'core-js-pure/es/symbol';
+import AsyncIterator from '@core-js/pure/full/async-iterator';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('AsyncIterator#take', assert => {
   const { take } = AsyncIterator.prototype;
@@ -12,10 +11,8 @@ QUnit.test('AsyncIterator#take', assert => {
   assert.name(take, 'take');
   assert.nonEnumerable(AsyncIterator.prototype, 'take');
 
-  if (STRICT) {
-    assert.throws(() => take.call(undefined, 1), TypeError);
-    assert.throws(() => take.call(null, 1), TypeError);
-  }
+  assert.throws(() => take.call(undefined, 1), TypeError);
+  assert.throws(() => take.call(null, 1), TypeError);
 
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   assert.throws(() => take.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');

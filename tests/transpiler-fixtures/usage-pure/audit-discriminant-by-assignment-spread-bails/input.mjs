@@ -1,0 +1,12 @@
+// narrow-by-assignment must bail when the RHS ObjectExpression contains a
+// SpreadElement. spread can override any literal key at runtime
+// (`{kind:'a', ...x}` where `x.kind === 'b'`), so narrowing to the 'a' branch
+// based on the explicit `kind:'a'` literal would be unsound. fallback: w stays
+// the unrefined `Shape` union, .at uses the generic instance polyfill
+type Shape = { kind: 'a'; data: string } | { kind: 'b'; data: number[] };
+declare const init: Shape;
+declare const fragment: Partial<Shape>;
+let w: Shape = init;
+// @ts-expect-error the write crosses the declared or narrowed type on purpose, and the read sees the runtime value
+w = { kind: 'a', data: 'hi', ...fragment };
+w.data.at(0);

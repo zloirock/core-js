@@ -1,13 +1,4 @@
 export const data = {
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.symbol': {
-    chrome: '49',
-    edge: '15',
-    firefox: '51',
-    hermes: '0.1',
-    rhino: '1.7.15',
-    safari: '10.0',
-  },
   'es.symbol.constructor': {
     chrome: '41',
     edge: '13',
@@ -151,6 +142,337 @@ export const data = {
     rhino: '1.7.13',
     safari: '9.0',
   },
+  'es.object.assign': {
+    chrome: '49',
+    // order of operations bug
+    // edge: '13',
+    firefox: '36',
+    hermes: '0.4',
+    rhino: '1.9.0',
+    safari: '9.0',
+  },
+  'es.object.define-getter': {
+    chrome: '62',
+    edge: '16',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
+  'es.object.define-setter': {
+    chrome: '62',
+    edge: '16',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
+  'es.object.entries': {
+    chrome: '54',
+    edge: '14',
+    firefox: '47',
+    hermes: '0.1',
+    rhino: '1.7.14',
+    safari: '10.1',
+  },
+  'es.object.freeze': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.from-entries': {
+    chrome: '73',
+    firefox: '63',
+    hermes: '0.4',
+    rhino: '1.7.14',
+    safari: '12.1',
+  },
+  'es.object.get-own-property-descriptor': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.get-own-property-descriptors': {
+    chrome: '54',
+    edge: '15',
+    firefox: '50',
+    hermes: '0.6',
+    rhino: '1.7.15',
+    safari: '10.0',
+  },
+  'es.object.get-own-property-names': {
+    chrome: '40',
+    edge: '13',
+    firefox: '33',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.get-own-property-symbols': {
+    chrome: '41',
+    edge: '13',
+    firefox: '36',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.get-prototype-of': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.group-by': {
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    bun: '1.1.2', // '1.0.19',
+    chrome: '117',
+    firefox: '119',
+    rhino: '1.8.0',
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    safari: '18.0', // '17.4',
+  },
+  'es.object.has-own': {
+    chrome: '93',
+    firefox: '92',
+    hermes: '0.10',
+    rhino: '1.7.15',
+    safari: '15.4',
+  },
+  'es.object.is': {
+    android: '4.1',
+    chrome: '19',
+    edge: '12',
+    firefox: '22',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.is-extensible': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.is-frozen': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.is-sealed': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.keys': {
+    chrome: '40',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.lookup-getter': {
+    chrome: '62',
+    edge: '16',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
+  'es.object.lookup-setter': {
+    chrome: '62',
+    edge: '16',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
+  'es.object.prevent-extensions': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.proto': {
+    chrome: '5',
+    deno: false,
+    firefox: '2',
+    hermes: '0.1',
+    ie: '11',
+    opera: '10.50',
+    rhino: '1.9.0',
+    safari: '3.1',
+  },
+  'es.object.seal': {
+    chrome: '44',
+    edge: '13',
+    firefox: '35',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.set-prototype-of': {
+    chrome: '34',
+    firefox: '31',
+    hermes: '0.1',
+    ie: '11',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.object.to-string': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.object.values': {
+    chrome: '54',
+    edge: '14',
+    firefox: '47',
+    hermes: '0.1',
+    rhino: '1.7.14',
+    safari: '10.1',
+  },
+  'es.reflect.namespace': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.apply': {
+    chrome: '49',
+    edge: '15',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.construct': {
+    chrome: '49',
+    edge: '15',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1055472
+    firefox: '45', // '44',
+    hermes: '0.7',
+    safari: '10.0',
+  },
+  'es.reflect.define-property': {
+    chrome: '49',
+    edge: '13',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.delete-property': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.get': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.get-own-property-descriptor': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.get-prototype-of': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.has': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.is-extensible': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.own-keys': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.prevent-extensions': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.set': {
+    // MS Edge 17-18 Reflect.set allows setting the property to object
+    // with non-writable property on the prototype
+    // edge: '12',
+    chrome: '49',
+    firefox: '42',
+    hermes: '0.7',
+    safari: '10.0',
+  },
+  'es.reflect.set-prototype-of': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
+  'es.reflect.to-string-tag': {
+    chrome: '86',
+    firefox: '82',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '14.0',
+  },
   'es.error.cause': {
     chrome: '94',
     firefox: '91',
@@ -168,16 +490,6 @@ export const data = {
     node: '24.3',
     rhino: '1.9.0',
   },
-  'es.error.to-string': {
-    chrome: '33',
-    firefox: '11',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '8.0',
-  },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.aggregate-error': null,
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
@@ -206,6 +518,146 @@ export const data = {
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1971000
     firefox: '141',
   },
+  'es.promise.constructor': {
+    // V8 6.6 has a serious bug
+    chrome: '67', // '51',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.catch': {
+    chrome: '67',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.finally': {
+    // V8 6.6 has a serious bug
+    chrome: '67', // '63',
+    firefox: '69',
+    // Previous versions are non-generic
+    // https://bugs.webkit.org/show_bug.cgi?id=200788
+    ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
+    rhino: '1.7.14',
+    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
+  },
+  'es.promise.reject': {
+    chrome: '67',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.resolve': {
+    chrome: '67',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.all': {
+    chrome: '67',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.all-settled': {
+    chrome: '76',
+    firefox: '71',
+    rhino: '1.7.15',
+    safari: '13',
+  },
+  'es.promise.any': {
+    chrome: '85',
+    firefox: '79',
+    rhino: '1.8.0',
+    safari: '14.0',
+  },
+  'es.promise.race': {
+    chrome: '67',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.try': {
+    // includes `PromiseResolve` semantics detection from
+    // https://github.com/tc39/ecma262/pull/3883
+    bun: '1.4.1', // '1.1.22',
+    chrome: '154', // '128',
+    firefox: '156', // '134',
+    // rhino: '1.9.0',
+    // safari: '18.2',
+  },
+  'es.promise.with-resolvers': {
+    bun: '0.7.1',
+    chrome: '119',
+    firefox: '121',
+    rhino: '1.9.0',
+    safari: '17.4',
+  },
+  // TODO: recheck
+  'es.array.iterator': {
+    chrome: '49',
+    edge: '15',
+    firefox: '60',
+    hermes: '0.1',
+    rhino: '1.7.15',
+    safari: '10.0',
+  },
+  'es.array.from-async': { // `Promise` dependency should be loaded before
+    // https://bugs.webkit.org/show_bug.cgi?id=326074
+    bun: '1.4.4', // '1.1.2', '0.3.0',
+    // V8 incorrectly closes iterators on step errors and retries failed cleanup.
+    // https://issues.chromium.org/issues/511947515
+    // chrome: '121',
+    // deno: '1.38',
+    // Firefox and Safari do not capture `next` before calling the constructor.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2088041
+    // Firefox also masks the original error when cleanup rejects.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2078778
+    // firefox: '115',
+    // https://bugs.webkit.org/show_bug.cgi?id=326074
+    // safari: '18.0', // '16.4', https://bugs.webkit.org/show_bug.cgi?id=271703
+  },
+  'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
+    bun: '1.3.0',
+    // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
+    // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
+    chrome: '136',
+    firefox: '141',
+  },
+  'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
+  },
+  'es.math.log2': {
+    chrome: '41',
+    edge: '12',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.9.2',
+    safari: '7.1',
+  },
+  'es.string.repeat': {
+    chrome: '41',
+    edge: '13',
+    firefox: '24',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
+  'es.string.pad-end': {
+    chrome: '57',
+    edge: '15',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '11.0',
+  },
+  'es.string.pad-start': {
+    chrome: '57',
+    edge: '15',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '11.0',
+  },
   'es.array.at': {
     chrome: '92',
     firefox: '90',
@@ -228,13 +680,13 @@ export const data = {
     rhino: '1.8.0',
     safari: '9.0',
   },
-  'es.array.every': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
+  // TODO: recheck
+  'es.array.entries': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    rhino: '1.8.0',
+    safari: '10.0',
   },
   'es.array.fill': {
     chrome: '45',
@@ -292,14 +744,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '12.0',
   },
-  'es.array.for-each': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
   'es.array.from': {
     chrome: '51',
     edge: '15',
@@ -330,22 +774,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  'es.array.is-array': {
-    chrome: '5',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '10.50',
-    rhino: '1.7.13',
-    safari: '4.0',
-  },
-  'es.array.iterator': {
-    chrome: '66',
-    edge: '15',
-    firefox: '60',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
   'es.array.join': {
     chrome: '26',
     edge: '13',
@@ -353,6 +781,14 @@ export const data = {
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
+  },
+  // TODO: recheck
+  'es.array.keys': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    rhino: '1.8.0',
+    safari: '10.0',
   },
   'es.array.last-index-of': {
     chrome: '51',
@@ -392,7 +828,7 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    node: '6.0', // ^^^
+    node: '0.11.0', // ^^^
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -401,7 +837,7 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    node: '6.0', // ^^^
+    node: '0.11.0', // ^^^
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -421,14 +857,6 @@ export const data = {
     firefox: '48',
     rhino: '1.9.0',
     safari: '10.0',
-  },
-  'es.array.some': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
   },
   'es.array.sort': {
     chrome: '70',
@@ -496,6 +924,15 @@ export const data = {
     // bug with setting length fixed only in Safari 16
     safari: '16.0',
   },
+  // TODO: recheck
+  'es.array.values': {
+    chrome: '66',
+    edge: '15',
+    firefox: '60',
+    node: '10.9',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
   'es.array.with': {
     chrome: '110',
     deno: '1.27',
@@ -506,14 +943,17 @@ export const data = {
     rhino: '1.8.0',
     safari: '16.0',
   },
+  // TODO: recheck
   'es.array-buffer.constructor': {
     chrome: '28',
     edge: '14',
     firefox: '44',
     hermes: '0.1',
+    node: '0.11.4',
     rhino: '1.8.0',
     safari: '12.0',
   },
+  // TODO: recheck
   'es.array-buffer.is-view': {
     chrome: '32',
     firefox: '29',
@@ -522,37 +962,15 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
+  // TODO: recheck
   'es.array-buffer.slice': {
     chrome: '31',
     firefox: '46',
     hermes: '0.1',
     ie: '11',
+    node: '0.11.4',
     rhino: '1.7.13',
     safari: '12.1',
-  },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.data-view': null,
-  'es.data-view.constructor': {
-    chrome: '26',
-    firefox: '15',
-    hermes: '0.1',
-    ie: '10',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.data-view.get-float16': {
-    bun: '1.1.23',
-    chrome: '135',
-    deno: '1.43',
-    firefox: '129',
-    safari: '18.2',
-  },
-  'es.data-view.set-float16': {
-    bun: '1.1.23',
-    chrome: '135',
-    deno: '1.43',
-    firefox: '129',
-    safari: '18.2',
   },
   'es.array-buffer.detached': {
     bun: '1.0.19',
@@ -577,51 +995,76 @@ export const data = {
     rhino: '1.9.0',
     safari: '17.4',
   },
-  'es.date.get-year': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '9',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
+  // TODO: recheck
+  'es.array-buffer.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '48',
+    safari: '10',
   },
-  // TODO: Remove from `core-js@4`
-  'es.date.now': {
-    chrome: '5',
-    firefox: '2',
+  // TODO: recheck
+  'es.array-buffer.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
     hermes: '0.1',
-    ie: '9',
-    opera: '10.50',
-    rhino: '1.7.13',
-    safari: '4.0',
+    rhino: '1.9.0',
+    safari: '10',
   },
-  'es.date.set-year': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '3',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
-  'es.date.to-gmt-string': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '3',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
-  'es.date.to-iso-string': {
+  // TODO: recheck
+  'es.data-view.constructor': {
     chrome: '26',
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=649575
-    firefox: '6',
+    // https://github.com/chakra-core/ChakraCore/commit/17b8f3aae80bcb3aa2d4297360191424879f4800
+    edge: '15',
+    // https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/40#javascript
+    firefox: '40',
     hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
+    node: '0.11.4',
+    rhino: '1.8.0',
     safari: '7.1',
+  },
+  // TODO: recheck
+  'es.data-view.set-int8': {
+    chrome: '26',
+    firefox: '15',
+    hermes: '0.1',
+    ie: '10',
+    node: '0.11.5', // broken in 0.11.4
+    rhino: '1.7.13',
+    safari: '8.0',
+  },
+  // TODO: recheck
+  'es.data-view.set-uint8': {
+    chrome: '26',
+    firefox: '15',
+    hermes: '0.1',
+    ie: '10',
+    node: '0.11.5', // broken in 0.11.4
+    rhino: '1.7.13',
+    safari: '8.0',
+  },
+  'es.data-view.get-float16': {
+    bun: '1.1.23',
+    chrome: '135',
+    deno: '1.43',
+    firefox: '129',
+    safari: '18.2',
+  },
+  'es.data-view.set-float16': {
+    bun: '1.1.23',
+    chrome: '135',
+    deno: '1.43',
+    firefox: '129',
+    safari: '18.2',
+  },
+  // TODO: recheck
+  'es.data-view.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.9.0', // missing again in 1.8
+    safari: '10',
   },
   'es.date.to-json': {
     chrome: '26',
@@ -639,16 +1082,6 @@ export const data = {
     rhino: '1.8.0',
     safari: '10.0',
   },
-  // TODO: Remove from `core-js@4`
-  'es.date.to-string': {
-    chrome: '5',
-    firefox: '2',
-    hermes: '0.1',
-    ie: '9',
-    opera: '10.50',
-    rhino: '1.7.13',
-    safari: '3.1',
-  },
   'es.disposable-stack.constructor': {
     bun: '1.3.0',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
@@ -657,26 +1090,8 @@ export const data = {
     deno: '2.2.10',
     firefox: '141',
   },
-  'es.escape': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '3',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
-  'es.function.bind': {
-    chrome: '7',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '12',
-    rhino: '1.7.13',
-    safari: '5.1',
-  },
   'es.function.has-instance': {
-    chrome: '51',
+    chrome: '50',
     edge: '15',
     firefox: '50',
     hermes: '0.1',
@@ -906,8 +1321,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '10.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.map': null,
   'es.map.constructor': {
     chrome: '51',
     edge: '15',
@@ -915,6 +1328,14 @@ export const data = {
     hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.map.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.map.group-by': {
@@ -1027,6 +1448,7 @@ export const data = {
     edge: '13',
     firefox: '20',
     hermes: '0.1',
+    node: '0.11.2',
     rhino: '1.7.13',
     safari: '9.0',
   },
@@ -1044,14 +1466,6 @@ export const data = {
     firefox: '48',
     hermes: '0.1',
     rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.math.log2': {
-    chrome: '41',
-    edge: '12',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.9.2',
     safari: '7.1',
   },
   'es.math.sign': {
@@ -1101,6 +1515,24 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
+  'es.parse-float': {
+    chrome: '35',
+    edge: '79',
+    firefox: '8',
+    hermes: '0.1',
+    ie: '8',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
+  'es.parse-int': {
+    chrome: '35',
+    edge: '79',
+    firefox: '21',
+    hermes: '0.1',
+    ie: '9',
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -1190,6 +1622,7 @@ export const data = {
     edge: '18',
     firefox: '87',
     hermes: '0.1',
+    node: '0.11.0',
     rhino: '1.7.13',
     safari: '11',
   },
@@ -1199,490 +1632,6 @@ export const data = {
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
-  },
-  'es.number.to-precision': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '8',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.object.assign': {
-    chrome: '49',
-    // order of operations bug
-    // edge: '13',
-    firefox: '36',
-    hermes: '0.4',
-    rhino: '1.9.0',
-    safari: '9.0',
-  },
-  // TODO: Remove from `core-js@4`
-  'es.object.create': {
-    chrome: '5',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '12',
-    rhino: '1.7.13',
-    safari: '4.0',
-  },
-  'es.object.define-getter': {
-    chrome: '62',
-    edge: '16',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.object.define-properties': {
-    chrome: '37',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '12',
-    rhino: '1.7.13',
-    safari: '5.1',
-  },
-  'es.object.define-property': {
-    chrome: '37',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '12',
-    rhino: '1.7.13',
-    safari: '5.1',
-  },
-  'es.object.define-setter': {
-    chrome: '62',
-    edge: '16',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.object.entries': {
-    chrome: '54',
-    edge: '14',
-    firefox: '47',
-    hermes: '0.1',
-    rhino: '1.7.14',
-    safari: '10.1',
-  },
-  'es.object.freeze': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.from-entries': {
-    chrome: '73',
-    firefox: '63',
-    hermes: '0.4',
-    rhino: '1.7.14',
-    safari: '12.1',
-  },
-  'es.object.get-own-property-descriptor': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.get-own-property-descriptors': {
-    chrome: '54',
-    edge: '15',
-    firefox: '50',
-    hermes: '0.6',
-    rhino: '1.7.15',
-    safari: '10.0',
-  },
-  'es.object.get-own-property-names': {
-    chrome: '40',
-    edge: '13',
-    firefox: '33',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.get-own-property-symbols': {
-    chrome: '41',
-    edge: '13',
-    firefox: '36',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.get-prototype-of': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.group-by': {
-    // https://bugs.webkit.org/show_bug.cgi?id=271524
-    bun: '1.1.2', // '1.0.19',
-    chrome: '117',
-    firefox: '119',
-    rhino: '1.8.0',
-    // https://bugs.webkit.org/show_bug.cgi?id=271524
-    safari: '18.0', // '17.4',
-  },
-  'es.object.has-own': {
-    chrome: '93',
-    firefox: '92',
-    hermes: '0.10',
-    rhino: '1.7.15',
-    safari: '15.4',
-  },
-  'es.object.is': {
-    android: '4.1',
-    chrome: '19',
-    edge: '12',
-    firefox: '22',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.is-extensible': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.is-frozen': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.is-sealed': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.keys': {
-    chrome: '40',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.lookup-getter': {
-    chrome: '62',
-    edge: '16',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.object.lookup-setter': {
-    chrome: '62',
-    edge: '16',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.object.prevent-extensions': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.proto': {
-    chrome: '5',
-    deno: false,
-    firefox: '2',
-    hermes: '0.1',
-    ie: '11',
-    opera: '10.50',
-    rhino: '1.9.0',
-    safari: '3.1',
-  },
-  'es.object.seal': {
-    chrome: '44',
-    edge: '13',
-    firefox: '35',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.set-prototype-of': {
-    chrome: '34',
-    firefox: '31',
-    hermes: '0.1',
-    ie: '11',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.object.to-string': {
-    chrome: '49',
-    edge: '15',
-    firefox: '51',
-    hermes: '0.1',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.object.values': {
-    chrome: '54',
-    edge: '14',
-    firefox: '47',
-    hermes: '0.1',
-    rhino: '1.7.14',
-    safari: '10.1',
-  },
-  'es.parse-float': {
-    chrome: '35',
-    edge: '79',
-    firefox: '8',
-    hermes: '0.1',
-    ie: '8',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.parse-int': {
-    chrome: '35',
-    edge: '79',
-    firefox: '21',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.promise': {
-    // V8 6.6 has a serious bug
-    chrome: '67', // '51',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.constructor': {
-    // V8 6.6 has a serious bug
-    chrome: '67', // '51',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.all': {
-    chrome: '67',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.all-settled': {
-    chrome: '76',
-    firefox: '71',
-    rhino: '1.7.15',
-    safari: '13',
-  },
-  'es.promise.any': {
-    chrome: '85',
-    firefox: '79',
-    rhino: '1.8.0',
-    safari: '14.0',
-  },
-  'es.promise.catch': {
-    chrome: '67',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.finally': {
-    // V8 6.6 has a serious bug
-    chrome: '67', // '63',
-    firefox: '69',
-    // Previous versions are non-generic
-    // https://bugs.webkit.org/show_bug.cgi?id=200788
-    ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
-    rhino: '1.7.14',
-    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
-  },
-  'es.promise.race': {
-    chrome: '67',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.reject': {
-    chrome: '67',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.resolve': {
-    chrome: '67',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.try': {
-    // includes `PromiseResolve` semantics detection from
-    // https://github.com/tc39/ecma262/pull/3883
-    bun: '1.4.1', // '1.1.22',
-    chrome: '154', // '128',
-    firefox: '156', // '134',
-    // rhino: '1.9.0',
-    // safari: '18.2',
-  },
-  'es.promise.with-resolvers': {
-    bun: '0.7.1',
-    chrome: '119',
-    firefox: '121',
-    rhino: '1.9.0',
-    safari: '17.4',
-  },
-  'es.array.from-async': { // `Promise` dependency should be loaded before
-    // https://bugs.webkit.org/show_bug.cgi?id=326074
-    bun: '1.4.4', // '1.1.2', '0.3.0',
-    // V8 incorrectly closes iterators on step errors and retries failed cleanup.
-    // https://issues.chromium.org/issues/511947515
-    // chrome: '121',
-    // deno: '1.38',
-    // Firefox and Safari do not capture `next` before calling the constructor.
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=2088041
-    // Firefox also masks the original error when cleanup rejects.
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=2078778
-    // firefox: '115',
-    // https://bugs.webkit.org/show_bug.cgi?id=326074
-    // safari: '18.0', // '16.4', https://bugs.webkit.org/show_bug.cgi?id=271703
-  },
-  'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
-    bun: '1.3.0',
-    // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
-    // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
-    chrome: '136',
-    firefox: '141',
-  },
-  'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
-  },
-  'es.reflect.apply': {
-    chrome: '49',
-    edge: '15',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.construct': {
-    chrome: '49',
-    edge: '15',
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1055472
-    firefox: '45', // '44',
-    hermes: '0.7',
-    safari: '10.0',
-  },
-  'es.reflect.define-property': {
-    chrome: '49',
-    edge: '13',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.delete-property': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.get': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.get-own-property-descriptor': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.get-prototype-of': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.has': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.is-extensible': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.own-keys': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.prevent-extensions': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.set': {
-    // MS Edge 17-18 Reflect.set allows setting the property to object
-    // with non-writable property on the prototype
-    // edge: '12',
-    chrome: '49',
-    firefox: '42',
-    hermes: '0.7',
-    safari: '10.0',
-  },
-  'es.reflect.set-prototype-of': {
-    chrome: '49',
-    edge: '12',
-    firefox: '42',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.reflect.to-string-tag': {
-    chrome: '86',
-    firefox: '82',
-    hermes: '0.7',
-    rhino: '1.8.0',
-    safari: '14.0',
   },
   'es.regexp.constructor': {
     chrome: '64',
@@ -1722,6 +1671,13 @@ export const data = {
     hermes: '0.4',
     safari: '11.1',
   },
+  'es.regexp.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '49',
+    rhino: '1.7.15',
+    safari: '10.0',
+  },
   'es.regexp.sticky': {
     chrome: '49',
     edge: '13',
@@ -1742,8 +1698,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '10.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.set': null,
   'es.set.constructor': {
     chrome: '51',
     edge: '15',
@@ -1753,7 +1707,15 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  'es.set.difference.v2': {
+  // TODO: recheck
+  'es.set.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
+    rhino: '1.7.15',
+    safari: '10.0',
+  },
+  'es.set.difference': {
     // Bun 1.2.4 has a bug when `this` is updated while Set.prototype.difference is being executed
     // https://bugs.webkit.org/show_bug.cgi?id=288595
     bun: '1.2.5', // '1.1.1',
@@ -1771,7 +1733,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=288595
     safari: '26.0', // '18.0', // '17.0',
   },
-  'es.set.intersection.v2': {
+  'es.set.intersection': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://issues.chromium.org/issues/42204504
@@ -1785,7 +1747,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.is-disjoint-from.v2': {
+  'es.set.is-disjoint-from': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://issues.chromium.org/issues/42204504
@@ -1799,7 +1761,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.is-subset-of.v2': {
+  'es.set.is-subset-of': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://issues.chromium.org/issues/42204504
@@ -1813,7 +1775,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.is-superset-of.v2': {
+  'es.set.is-superset-of': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://issues.chromium.org/issues/42204504
@@ -1827,7 +1789,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.symmetric-difference.v2': {
+  'es.set.symmetric-difference': {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     bun: '1.2.5', // '1.1.1',
@@ -1841,7 +1803,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     safari: '26.0', // '18.0', // '17.0',
   },
-  'es.set.union.v2': {
+  'es.set.union': {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     bun: '1.2.5', // '1.1.1',
@@ -1857,7 +1819,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     safari: '26.0', // '18.0', // '17.0',
   },
-  'es.string.at-alternative': {
+  'es.string.at': {
     chrome: '92',
     firefox: '90',
     hermes: '0.13',
@@ -1926,36 +1888,12 @@ export const data = {
     rhino: '1.8.0',
     safari: '13.1', // '13',
   },
-  'es.string.pad-end': {
-    chrome: '57',
-    edge: '15',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '11.0',
-  },
-  'es.string.pad-start': {
-    chrome: '57',
-    edge: '15',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '11.0',
-  },
   'es.string.raw': {
     chrome: '41',
     edge: '13',
     firefox: '34',
     hermes: '0.1',
     rhino: '1.7.14',
-    safari: '9.0',
-  },
-  'es.string.repeat': {
-    chrome: '41',
-    edge: '13',
-    firefox: '24',
-    hermes: '0.1',
-    rhino: '1.7.13',
     safari: '9.0',
   },
   'es.string.replace': {
@@ -1993,15 +1931,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '10.0',
   },
-  'es.string.substr': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '9',
-    opera: '4',
-    rhino: '1.7.13',
-    safari: '1',
-  },
   'es.string.to-well-formed': {
     // Safari ToString conversion bug
     // https://bugs.webkit.org/show_bug.cgi?id=251757
@@ -2016,7 +1945,7 @@ export const data = {
     edge: '15',
     firefox: '52',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.7.13',
     safari: '12.1',
   },
   'es.string.trim-end': {
@@ -2197,20 +2126,49 @@ export const data = {
     firefox: '55',
     safari: '14.0',
   },
+  'es.typed-array.from': {
+    chrome: '54',
+    edge: '15',
+    firefox: '55',
+    safari: '15.0',
+  },
+  'es.typed-array.of': {
+    chrome: '54',
+    edge: '15',
+    firefox: '55',
+    safari: '14.0',
+  },
+  // TODO: recheck
+  'es.typed-array.iterator': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
+    safari: '10.0',
+  },
   'es.typed-array.at': {
     chrome: '92',
     firefox: '90',
     hermes: '0.13',
     'react-native': '0.71',
-    rhino: '1.7.15',
+    rhino: '1.9.0',
     safari: '15.4',
   },
   'es.typed-array.copy-within': {
     chrome: '45',
     edge: '13',
-    firefox: '34',
+    firefox: '35',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.entries': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.every': {
@@ -2218,7 +2176,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.fill': {
@@ -2233,7 +2191,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find': {
@@ -2241,7 +2199,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find-index': {
@@ -2249,21 +2207,21 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find-last': {
     chrome: '97',
     firefox: '104',
     hermes: '0.11',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '15.4',
   },
   'es.typed-array.find-last-index': {
     chrome: '97',
     firefox: '104',
     hermes: '0.11',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '15.4',
   },
   'es.typed-array.for-each': {
@@ -2271,21 +2229,15 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
-  },
-  'es.typed-array.from': {
-    chrome: '54',
-    edge: '15',
-    firefox: '55',
-    safari: '15.0',
   },
   'es.typed-array.includes': {
     chrome: '49',
     edge: '14',
     firefox: '43',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.index-of': {
@@ -2293,14 +2245,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
-  'es.typed-array.iterator': {
-    chrome: '51',
-    edge: '13',
-    firefox: '37',
-    hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.join': {
@@ -2308,7 +2253,16 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.keys': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.last-index-of': {
@@ -2316,7 +2270,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.map': {
@@ -2324,21 +2278,15 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
-  },
-  'es.typed-array.of': {
-    chrome: '54',
-    edge: '15',
-    firefox: '55',
-    safari: '14.0',
   },
   'es.typed-array.reduce': {
     chrome: '45',
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reduce-right': {
@@ -2346,7 +2294,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reverse': {
@@ -2354,7 +2302,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.set': {
@@ -2377,51 +2325,76 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.sort': {
     chrome: '74',
     firefox: '67',
     hermes: '0.10',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
-  'es.typed-array.subarray': {
-    chrome: '26',
+  // TODO: recheck
+  'es.typed-array.species': {
+    chrome: '51',
     edge: '13',
-    firefox: '15',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1165053
+    firefox: '48',
+    rhino: '1.7.15',
+    safari: '10.0',
+  },
+  'es.typed-array.subarray': {
+    chrome: '48',
+    edge: '13',
+    firefox: '35',
     hermes: '0.1',
-    ie: '11',
-    rhino: '1.7.13',
-    safari: '7.1',
+    rhino: '1.9.0',
+    safari: '10.0',
   },
   'es.typed-array.to-locale-string': {
     chrome: '45',
     firefox: '51',
     hermes: '0.1',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.to-reversed': {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '16.0',
   },
   'es.typed-array.to-sorted': {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    rhino: '1.8.0',
+    rhino: '1.9.0',
     safari: '16.0',
   },
   'es.typed-array.to-string': {
     chrome: '51',
     edge: '13',
     firefox: '51',
+    hermes: '0.1',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.7.15',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.values': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
     hermes: '0.1',
     safari: '10.0',
   },
@@ -2483,17 +2456,6 @@ export const data = {
     firefox: '133',
     safari: '18.2',
   },
-  'es.unescape': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '3',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.weak-map': null,
   'es.weak-map.constructor': {
     chrome: '51',
     // adding frozen arrays to WeakMap unfreeze them
@@ -2516,8 +2478,6 @@ export const data = {
     firefox: '144',
     safari: '26.2',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.weak-set': null,
   'es.weak-set.constructor': {
     chrome: '51',
     edge: '15',
@@ -2527,76 +2487,8 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.aggregate-error': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.suppressed-error.constructor': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.from-async': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.at': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.filter-out': {
-  },
-  'esnext.array.filter-reject': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.find-last': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.find-last-index': null,
-  'esnext.array.group': {
-    // disabled from Bun 0.6.2
-    // bun: '0.1.9',
-    // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
-    // chrome: '108',
-    // safari: '16.4',
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.group-by': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.group-by-to-map': {
-  },
-  'esnext.array.group-to-map': {
-    // disabled from Bun 0.6.2
-    // bun: '0.1.9',
-    // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
-    // chrome: '108',
-    // safari: '16.4',
-  },
-  'esnext.array.is-template-object': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.last-index': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.last-item': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.to-reversed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.to-sorted': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.to-spliced': null,
-  'esnext.array.unique-by': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.with': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.detached': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.transfer': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.transfer-to-fixed-length': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.async-disposable-stack.constructor': null,
   'esnext.async-iterator.constructor': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.async-iterator.as-indexed-pairs': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.async-iterator.async-dispose': null,
   'esnext.async-iterator.drop': {
   },
   'esnext.async-iterator.every': {
@@ -2611,8 +2503,6 @@ export const data = {
   },
   'esnext.async-iterator.from': {
   },
-  'esnext.async-iterator.indexed': {
-  },
   'esnext.async-iterator.map': {
   },
   'esnext.async-iterator.reduce': {
@@ -2623,423 +2513,62 @@ export const data = {
   },
   'esnext.async-iterator.to-array': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.bigint.range': {
-  },
-  'esnext.composite-key': {
-  },
-  'esnext.composite-symbol': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.data-view.get-float16': null,
   'esnext.data-view.get-uint8-clamped': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.data-view.set-float16': null,
   'esnext.data-view.set-uint8-clamped': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.disposable-stack.constructor': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.error.is-error': null,
-  'esnext.function.demethodize': {
-  },
-  'esnext.function.is-callable': {
-  },
-  'esnext.function.is-constructor': {
   },
   'esnext.function.metadata': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.function.un-this': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.global-this': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.constructor': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.as-indexed-pairs': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.chunks': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.concat': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.dispose': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.drop': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.every': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.filter': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.find': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.flat-map': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.for-each': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.from': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.includes': null,
-  'esnext.iterator.indexed': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.join': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.map': null,
   'esnext.iterator.range': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.reduce': null,
-  'esnext.iterator.sliding': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.some': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.take': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.windows': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.zip': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.zip-keyed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.json.is-raw-json': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.json.parse': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.json.raw-json': null,
-  'esnext.map.delete-all': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.emplace': {
-  },
-  'esnext.map.every': {
-  },
-  'esnext.map.filter': {
-  },
-  'esnext.map.find': {
-  },
-  'esnext.map.find-key': {
-  },
-  'esnext.map.from': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.get-or-insert': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.map.get-or-insert-computed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.map.group-by': null,
-  'esnext.map.includes': {
-  },
-  'esnext.map.key-by': {
-  },
-  'esnext.map.key-of': {
-  },
-  'esnext.map.map-keys': {
-  },
-  'esnext.map.map-values': {
-  },
-  'esnext.map.merge': {
-  },
-  'esnext.map.of': {
-  },
-  'esnext.map.reduce': {
-  },
-  'esnext.map.some': {
-  },
-  'esnext.map.update': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.update-or-insert': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.upsert': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.clamp': {
-  },
-  'esnext.math.deg-per-rad': {
-  },
-  'esnext.math.degrees': {
-  },
-  'esnext.math.fscale': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.f16round': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.math.iaddh': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.imulh': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.isubh': {
-  },
-  'esnext.math.rad-per-deg': {
-  },
-  'esnext.math.radians': {
-  },
-  'esnext.math.scale': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.seeded-prng': {
-  },
-  'esnext.math.signbit': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.sum-precise': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.math.umulh': {
   },
   'esnext.number.clamp': {
   },
-  'esnext.number.from-string': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.number.range': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.has-own': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-entries': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-keys': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-values': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.group-by': null,
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'esnext.observable': {
-  },
-  'esnext.observable.constructor': {
-  },
-  'esnext.observable.from': {
-  },
-  'esnext.observable.of': {
+  'esnext.object.keys-length': {
   },
   'esnext.promise.all-keyed': {
     firefox: '155',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.all-settled': null,
   'esnext.promise.all-settled-keyed': {
     firefox: '155',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.any': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.try': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.with-resolvers': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.define-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.delete-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-metadata-keys': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-own-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-own-metadata-keys': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.has-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.has-own-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.regexp.escape': null,
-  'esnext.set.add-all': {
-  },
-  'esnext.set.delete-all': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.difference.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.difference': {
-  },
-  'esnext.set.every': {
-  },
-  'esnext.set.filter': {
-  },
-  'esnext.set.find': {
-  },
-  'esnext.set.from': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.intersection.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.intersection': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-disjoint-from.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-disjoint-from': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-subset-of.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-subset-of': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-superset-of.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-superset-of': {
-  },
-  'esnext.set.join': {
-  },
-  'esnext.set.map': {
-  },
-  'esnext.set.of': {
-  },
-  'esnext.set.reduce': {
-  },
-  'esnext.set.some': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.symmetric-difference.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.symmetric-difference': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.union.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.union': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.string.at': {
-  },
   'esnext.string.cooked': {
-  },
-  'esnext.string.code-points': {
   },
   'esnext.string.dedent': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.string.is-well-formed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.string.match-all': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.string.replace-all': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.string.to-well-formed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.async-dispose': null,
   'esnext.symbol.custom-matcher': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.dispose': null,
   'esnext.symbol.is-registered-symbol': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.is-registered': {
   },
   // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
   'esnext.symbol.is-well-known-symbol': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.is-well-known': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.matcher': {
-  },
   'esnext.symbol.metadata': {
     deno: '1.40.4',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.metadata-key': {
+  'web.dom-exception.constructor': {
+    bun: '0.1.1',
+    chrome: '46',
+    deno: '1.7',
+    firefox: '37',
+    node: '17.0',
+    safari: '11.1',
   },
-  'esnext.symbol.observable': {
+  'web.dom-exception.stack': {
+    deno: '1.15',
+    firefox: '37',
+    ie: '10',
+    node: '17.0',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.pattern-match': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.replace-all': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.from-async': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.at': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.filter-out': {
-  },
-  'esnext.typed-array.filter-reject': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.find-last': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.find-last-index': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.group-by': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.to-reversed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.to-sorted': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.to-spliced': {
-  },
-  'esnext.typed-array.unique-by': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.with': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.uint8-array.from-base64': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.uint8-array.from-hex': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.uint8-array.set-from-base64': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.uint8-array.set-from-hex': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.uint8-array.to-base64': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.uint8-array.to-hex': null,
-  'esnext.weak-map.delete-all': {
-  },
-  'esnext.weak-map.from': {
-  },
-  'esnext.weak-map.of': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.emplace': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.get-or-insert': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.get-or-insert-computed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': {
-  },
-  'esnext.weak-set.add-all': {
-  },
-  'esnext.weak-set.delete-all': {
-  },
-  'esnext.weak-set.from': {
-  },
-  'esnext.weak-set.of': {
+  'web.dom-exception.to-string-tag': {
+    bun: '0.1.1',
+    chrome: '49',
+    deno: '1.7',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1277799
+    firefox: '78',
+    node: '17.0',
+    safari: '11.1',
   },
   'web.atob': {
     bun: '0.1.1',
@@ -3068,11 +2597,27 @@ export const data = {
     opera: '10.5',
     safari: '3.0',
   },
-  'web.clear-immediate': {
-    bun: '0.1.7',
-    deno: '2.4',
-    ie: '10',
-    node: '0.9.1',
+  // TODO: recheck
+  'web.dom-collections.iterator': {
+    bun: '0.1.1',
+    chrome: '66',
+    deno: '1.0',
+    firefox: '44',
+    hermes: '0.1',
+    node: '0.0.1',
+    rhino: '1.7.13',
+    safari: '13.1',
+  },
+  // TODO: recheck
+  'web.dom-collections.entries': {
+    bun: '0.1.1',
+    chrome: '66',
+    deno: '1.0',
+    firefox: '50',
+    hermes: '0.1',
+    node: '0.0.1',
+    rhino: '1.7.13',
+    safari: '13.1',
   },
   'web.dom-collections.for-each': {
     bun: '0.1.1',
@@ -3085,52 +2630,33 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  'web.dom-collections.iterator': {
+  // TODO: recheck
+  'web.dom-collections.keys': {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
-    firefox: '60',
+    firefox: '50',
     hermes: '0.1',
     node: '0.0.1',
     rhino: '1.7.13',
     safari: '13.1',
   },
-  'web.dom-exception.constructor': {
+  // TODO: recheck
+  'web.dom-collections.values': {
     bun: '0.1.1',
-    chrome: '46',
-    deno: '1.7',
-    firefox: '37',
-    node: '17.0',
-    safari: '11.1',
-  },
-  'web.dom-exception.stack': {
-    deno: '1.15',
-    firefox: '37',
-    ie: '10',
-    node: '17.0',
-  },
-  'web.dom-exception.to-string-tag': {
-    bun: '0.1.1',
-    chrome: '49',
-    deno: '1.7',
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1277799
-    firefox: '78',
-    node: '17.0',
-    safari: '11.1',
-  },
-  // TODO: Remove this module from `core-js@4` since it's split to submodules
-  'web.immediate': {
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.7',
-    deno: '2.4',
-    ie: '10',
-    node: '0.9.1',
+    chrome: '66',
+    deno: '1.0',
+    firefox: '50',
+    hermes: '0.1',
+    node: '0.0.1',
+    rhino: '1.7.13',
+    safari: '13.1',
   },
   'web.queue-microtask': {
     // wrong arity in Bun <= 1.3.14, https://github.com/oven-sh/bun/issues/9249
     bun: '1.4.0', // '0.1.1',
     chrome: '71',
-    deno: '1.0',
+    deno: '1.24.3',
     firefox: '69',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     node: '12.0', // '11.0',
@@ -3158,34 +2684,6 @@ export const data = {
     ie: '10',
     node: '0.9.1',
   },
-  'web.set-interval': {
-    android: '1.5',
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.1',
-    chrome: '1',
-    deno: '1.0',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '10',
-    node: '0.0.1',
-    opera: '7',
-    rhino: '1.7.13',
-    safari: '1.0',
-  },
-  'web.set-timeout': {
-    android: '1.5',
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.1',
-    chrome: '1',
-    deno: '1.0',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '10',
-    node: '0.0.1',
-    opera: '7',
-    rhino: '1.7.13',
-    safari: '1.0',
-  },
   'web.structured-clone': {
     // https://github.com/whatwg/html/pull/5749
     // deno: '1.14',
@@ -3193,27 +2691,10 @@ export const data = {
     // firefox: '94',
     // node: '17.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's split to submodules
-  'web.timers': {
-    android: '1.5',
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.1',
-    chrome: '1',
-    deno: '1.0',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '10',
-    node: '0.0.1',
-    opera: '7',
-    rhino: '1.7.13',
-    safari: '1.0',
-  },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'web.url': null,
   'web.url.constructor': {
     bun: '0.1.1',
     chrome: '67',
-    deno: '1.0',
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -3242,7 +2723,7 @@ export const data = {
   'web.url.to-json': {
     bun: '0.1.1',
     chrome: '71',
-    deno: '1.0',
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -3250,12 +2731,10 @@ export const data = {
     node: '10.0',
     safari: '14.0.1', // '14.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'web.url-search-params': null,
   'web.url-search-params.constructor': {
     bun: '0.1.1',
     chrome: '67',
-    deno: '1.0',
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -3289,99 +2768,9 @@ export const data = {
   },
 };
 
+// eslint-disable-next-line unicorn/no-useless-collection-argument -- allow for future cases
 export const renamed = new Map([
-  // TODO: Clean in `core-js@4`
-  ['es.aggregate-error', 'es.aggregate-error.constructor'],
-  ['es.data-view', 'es.data-view.constructor'],
-  ['es.map', 'es.map.constructor'],
-  ['es.set', 'es.set.constructor'],
-  ['es.weak-map', 'es.weak-map.constructor'],
-  ['es.weak-set', 'es.weak-set.constructor'],
-  ['esnext.aggregate-error', 'es.aggregate-error'],
-  ['esnext.array.at', 'es.array.at'],
-  ['esnext.array.find-last', 'es.array.find-last'],
-  ['esnext.array.find-last-index', 'es.array.find-last-index'],
-  ['esnext.array.from-async', 'es.array.from-async'],
-  ['esnext.array.to-reversed', 'es.array.to-reversed'],
-  ['esnext.array.to-sorted', 'es.array.to-sorted'],
-  ['esnext.array.to-spliced', 'es.array.to-spliced'],
-  ['esnext.array.with', 'es.array.with'],
-  ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
-  ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
-  ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
-  ['esnext.async-disposable-stack.constructor', 'es.async-disposable-stack.constructor'],
-  ['esnext.async-iterator.async-dispose', 'es.async-iterator.async-dispose'],
-  ['esnext.data-view.get-float16', 'es.data-view.get-float16'],
-  ['esnext.data-view.set-float16', 'es.data-view.set-float16'],
-  ['esnext.disposable-stack.constructor', 'es.disposable-stack.constructor'],
-  ['esnext.error.is-error', 'es.error.is-error'],
-  ['esnext.global-this', 'es.global-this'],
-  ['esnext.iterator.constructor', 'es.iterator.constructor'],
-  ['esnext.iterator.chunks', 'es.iterator.chunks'],
-  ['esnext.iterator.concat', 'es.iterator.concat'],
-  ['esnext.iterator.dispose', 'es.iterator.dispose'],
-  ['esnext.iterator.drop', 'es.iterator.drop'],
-  ['esnext.iterator.every', 'es.iterator.every'],
-  ['esnext.iterator.filter', 'es.iterator.filter'],
-  ['esnext.iterator.find', 'es.iterator.find'],
-  ['esnext.iterator.flat-map', 'es.iterator.flat-map'],
-  ['esnext.iterator.for-each', 'es.iterator.for-each'],
-  ['esnext.iterator.from', 'es.iterator.from'],
-  ['esnext.iterator.includes', 'es.iterator.includes'],
-  ['esnext.iterator.join', 'es.iterator.join'],
-  ['esnext.iterator.map', 'es.iterator.map'],
-  ['esnext.iterator.reduce', 'es.iterator.reduce'],
-  ['esnext.iterator.some', 'es.iterator.some'],
-  ['esnext.iterator.take', 'es.iterator.take'],
-  ['esnext.iterator.to-array', 'es.iterator.to-array'],
-  ['esnext.iterator.windows', 'es.iterator.windows'],
-  ['esnext.iterator.zip', 'es.iterator.zip'],
-  ['esnext.iterator.zip-keyed', 'es.iterator.zip-keyed'],
-  ['esnext.json.is-raw-json', 'es.json.is-raw-json'],
-  ['esnext.json.parse', 'es.json.parse'],
-  ['esnext.json.raw-json', 'es.json.raw-json'],
-  ['esnext.map.group-by', 'es.map.group-by'],
-  ['esnext.map.get-or-insert', 'es.map.get-or-insert'],
-  ['esnext.map.get-or-insert-computed', 'es.map.get-or-insert-computed'],
-  ['esnext.math.f16round', 'es.math.f16round'],
-  ['esnext.math.sum-precise', 'es.math.sum-precise'],
-  ['esnext.object.has-own', 'es.object.has-own'],
-  ['esnext.object.group-by', 'es.object.group-by'],
-  ['esnext.promise.all-settled', 'es.promise.all-settled'],
-  ['esnext.promise.any', 'es.promise.any'],
-  ['esnext.promise.try', 'es.promise.try'],
-  ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['esnext.regexp.escape', 'es.regexp.escape'],
-  ['esnext.set.difference.v2', 'es.set.difference.v2'],
-  ['esnext.set.intersection.v2', 'es.set.intersection.v2'],
-  ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],
-  ['esnext.set.is-subset-of.v2', 'es.set.is-subset-of.v2'],
-  ['esnext.set.is-superset-of.v2', 'es.set.is-superset-of.v2'],
-  ['esnext.set.symmetric-difference.v2', 'es.set.symmetric-difference.v2'],
-  ['esnext.set.union.v2', 'es.set.union.v2'],
-  ['esnext.string.is-well-formed', 'es.string.is-well-formed'],
-  ['esnext.string.match-all', 'es.string.match-all'],
-  ['esnext.string.replace-all', 'es.string.replace-all'],
-  ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
-  ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
-  ['esnext.typed-array.at', 'es.typed-array.at'],
-  ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
-  ['esnext.symbol.dispose', 'es.symbol.dispose'],
-  ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
-  ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],
-  ['esnext.typed-array.to-reversed', 'es.typed-array.to-reversed'],
-  ['esnext.typed-array.to-sorted', 'es.typed-array.to-sorted'],
-  ['esnext.typed-array.with', 'es.typed-array.with'],
-  ['esnext.uint8-array.from-base64', 'es.uint8-array.from-base64'],
-  ['esnext.uint8-array.from-hex', 'es.uint8-array.from-hex'],
-  ['esnext.uint8-array.set-from-base64', 'es.uint8-array.set-from-base64'],
-  ['esnext.uint8-array.set-from-hex', 'es.uint8-array.set-from-hex'],
-  ['esnext.uint8-array.to-base64', 'es.uint8-array.to-base64'],
-  ['esnext.uint8-array.to-hex', 'es.uint8-array.to-hex'],
-  ['esnext.weak-map.get-or-insert', 'es.weak-map.get-or-insert'],
-  ['esnext.weak-map.get-or-insert-computed', 'es.weak-map.get-or-insert-computed'],
-  ['web.url', 'web.url.constructor'],
-  ['web.url-search-params', 'web.url-search-params.constructor'],
+  // empty
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];
@@ -3389,36 +2778,10 @@ for (const [old, nw] of renamed) data[old] = data[nw];
 export const dataWithIgnored = { ...data };
 
 export const ignored = [
-  // TODO: Clean in `core-js@4`
-  'es.aggregate-error.constructor',
-  'es.data-view.constructor',
-  'es.map.constructor',
-  'es.set.constructor',
-  'es.string.trim-left',
-  'es.string.trim-right',
-  'es.symbol.constructor',
-  'es.symbol.for',
-  'es.symbol.key-for',
-  'es.object.get-own-property-symbols',
-  'es.promise.constructor',
-  'es.promise.all',
-  'es.promise.catch',
-  'es.promise.race',
-  'es.promise.reject',
-  'es.promise.resolve',
-  'es.weak-map.constructor',
-  'es.weak-set.constructor',
-  'esnext.observable.constructor',
-  'esnext.observable.from',
-  'esnext.observable.of',
-  'web.clear-immediate',
-  'web.set-immediate',
-  'web.set-interval',
-  'web.set-timeout',
-  'web.url.constructor',
-  'web.url-search-params.constructor',
+  // empty
 ];
 
+// eslint-disable-next-line sonarjs/no-empty-collection -- safe
 for (const ignore of ignored) delete data[ignore];
 
 export const modules = Object.keys(data);

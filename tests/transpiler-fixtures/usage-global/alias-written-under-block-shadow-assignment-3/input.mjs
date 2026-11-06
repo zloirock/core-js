@@ -1,0 +1,4 @@
+let unshadowed;
+{
+  unshadowed = Math;
+}

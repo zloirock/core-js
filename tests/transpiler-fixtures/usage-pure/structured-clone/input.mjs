@@ -1,0 +1,1 @@
+structuredClone({ a: 1 });

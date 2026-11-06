@@ -2,3 +2,5 @@ node_modules/
 /src/
 *.log
 .*
+
+/AGENTS.md

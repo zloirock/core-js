@@ -1,0 +1,25 @@
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.string.at";
+// the ancestor reached through a const alias: the alias chain climbs to the scope its own root is
+// declared in, so the canonical name it yields is only meaningful together with THAT scope. resolved
+// back in the scope the walk started from, an inner class of the root's name answers instead
+class Foo {
+  static make() {
+    this.items = "poison";
+    return 1;
+  }
+}
+const FooAlias = Foo;
+// alias hop crosses OUT of the shadowed region, so the held super-static must still be found and the
+// narrow must widen - BOTH `at` legs
+export function aliasedAncestorHeldSuperStaticDropsNarrow() {
+  class Foo {}
+  class Base extends FooAlias {}
+  class Sub extends Base {
+    static items = [1, 2, 3];
+    static grab() {
+      return super.make;
+    }
+  }
+  return Sub.items.at(0);
+}

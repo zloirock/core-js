@@ -1,11 +1,10 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
-import concat from 'core-js-pure/es/iterator/concat';
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import from from 'core-js-pure/es/array/from';
-import defineProperty from 'core-js-pure/es/object/define-property';
+import concat from '@core-js/pure/es/iterator/concat';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import from from '@core-js/pure/es/array/from';
+import defineProperty from '@core-js/pure/es/object/define-property';
 
 QUnit.test('Iterator.concat', assert => {
   assert.isFunction(concat);
@@ -101,8 +100,10 @@ QUnit.test('Iterator.concat', assert => {
 // https://issues.chromium.org/issues/580293064
 QUnit.test('Iterator.concat, abrupt iterator steps', assert => {
   const expectedError = new Error('iterator step');
-  const isExpectedError = error => error === expectedError;
-  const check = (next, expected, message) => {
+  function isExpectedError(error) {
+    return error === expectedError;
+  }
+  function check(next, expected, message) {
     let returnCalls = 0;
     const iterator = concat(createIterable([], {
       next,
@@ -116,14 +117,12 @@ QUnit.test('Iterator.concat, abrupt iterator steps', assert => {
     assert.deepEqual(iterator.next(), { done: true, value: undefined }, 'completed after the error');
     iterator.return();
     assert.same(returnCalls, 0, 'does not close the source after the error');
-  };
+  }
   check(() => { throw expectedError; }, isExpectedError, 'next throws');
   check(() => 42, TypeError, 'next returns a primitive');
-  if (DESCRIPTORS) {
-    for (const key of ['done', 'value']) {
-      check(() => defineProperty({ done: false }, key, {
-        get() { throw expectedError; },
-      }), isExpectedError, `${ key } getter throws`);
-    }
+  for (const key of ['done', 'value']) {
+    check(() => defineProperty({ done: false }, key, {
+      get() { throw expectedError; },
+    }), isExpectedError, `${ key } getter throws`);
   }
 });

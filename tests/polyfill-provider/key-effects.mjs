@@ -1,0 +1,356 @@
+// Scoped computed-key effects retain getter reads where structural purity alone would drop them.
+import {
+  collectFileCensus,
+  computedKeyHasSideEffects,
+  patternFullyConsumed,
+  patternHasSeveralSeKeys,
+  patternKeepsEffectfulHop,
+  patternKeepsEffectfulKey,
+  patternLevelKeepsEffectfulHop,
+  patternLevelKeepsSentinels,
+  seKeyKeepsReceiverRead,
+  sequencePrefixWithSideEffects,
+  unwrapRuntimeExpr,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  consumedAssignmentSlotPrunes,
+  destructureKeyReadPlan,
+  isBuiltInSurfaceNav,
+  isReReadableSurfaceNav,
+  planNestedKeyedPatternCapture,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { keyedReadDiscardedReceiver, keyedReadReceiverProven } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
+import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { resolveKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { findNamespaceMemberValue } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { createChecker } from './harness.mjs';
+import { renderKeyedDestructureRead, identifier, callExpression, hostSlot } from '../../packages/core-js-polyfill-provider/render.js';
+
+const { check, checkDeep, runBoth, finish } = createChecker('key-effects');
+
+for (const [name, source, reusable] of [
+  ['quiet free', 'const { [(effect(), "at")]: method } = rows;', true],
+  ['constant', 'const rows = []; const { [(effect(), "at")]: method } = rows;', true],
+  ['ambient', 'declare const rows: number[]; const { [(effect(), "at")]: method } = rows;', true],
+  ['exported', 'export const { [(effect(), "at")]: method } = rows;', true],
+  ['live import', 'import rows from "other"; const { [(effect(), "at")]: method } = rows;', false],
+  ['key write', 'let rows = []; const { [(rows = other, "at")]: method } = rows;', false],
+  ['member', 'const { [(effect(), "at")]: method } = holder.rows;', false],
+]) runBoth(`sole keyed receiver/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = destructureKeyReadPlan(prop, { scope: path.scope, path, adapter });
+  check(`${ label }/reuse decision`, plan.reuseReceiver, reusable);
+  const receiverName = reusable ? unwrapRuntimeExpr(path.node.init).name : 'capture';
+  const rendered = renderKeyedDestructureRead({
+    receiverName,
+    receiver: hostSlot(path.node.init),
+    binding: identifier('method'),
+    keys: plan.keys.map(hostSlot),
+    read: callExpression(identifier('dispatch'), [identifier(receiverName)]),
+    reuseReceiver: reusable,
+  });
+  check(`${ label }/capture count`, rendered.length, reusable ? 1 : 2);
+  check(`${ label }/null rejection precedes key`, rendered.at(-1).init.type, 'ConditionalExpression');
+  check(`${ label }/null branch reads receiver`, rendered.at(-1).init.consequent.object.name, receiverName);
+  // a receiver proven never nullish is reused wherever the plan sees it: no write reaches the name
+  if (name === 'constant') {
+    check(`${ label }/proven`, keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter }), true);
+  }
+});
+
+// a proven receiver drops the null rejection, and its binding only where nothing reads the capture: a
+// dispatch spelled off the capture keeps it even over a proven name the plan does not reuse
+for (const [name, readsReceiver, captures] of [['dispatch', true, 2], ['static', false, 1]]) {
+  runBoth(`proven keyed receiver/${ name }`, 'const { [(effect(), "at")]: method } = rows;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const discarded = keyedReadDiscardedReceiver({
+      receiver: path.node.init,
+      proven: true,
+      readsReceiver,
+      ctx: { scope: path.scope, adapter, path },
+    });
+    const rendered = renderKeyedDestructureRead({
+      receiverName: 'capture',
+      receiver: hostSlot(path.node.init),
+      binding: identifier('method'),
+      keys: [],
+      read: readsReceiver ? callExpression(identifier('dispatch'), [identifier('capture')]) : identifier('pony'),
+      proven: true,
+      discarded: discarded?.map(hostSlot),
+    });
+    check(`${ label }/declarators`, rendered.length, captures);
+    check(`${ label }/no null rejection`, rendered.at(-1).init.type, readsReceiver ? 'CallExpression' : 'Identifier');
+  });
+}
+
+// an owed node as the rows below spell it: a call by its callee, anything else by its type
+function owedSpelling(node) {
+  return node.type === 'CallExpression' ? `${ node.callee.name }()` : node.type;
+}
+
+// what a sole keyed read owes a receiver nothing reads is what discarding it runs - the effect prefix, the
+// running operand of a decided init, an effectful call, a getter read whole - and a receiver a read takes
+// (a dispatch, a null rejection) owes its capture instead
+for (const [name, source, readsReceiver, owed] of [
+  ['effect prefix', 'const { [(key(), "from")]: f } = (init(), Iterator);', false, 'init()'],
+  ['bare constructor', 'const { [(key(), "from")]: f } = Iterator;', false, ''],
+  ['decided operand', 'const { [(key(), "from")]: f } = typeof Symbol != "undefined" ? (init(), Iterator) : Object;', false, 'init()'],
+  ['effectful call', 'function mk() { init(); return Iterator; } const { [(key(), "from")]: f } = mk();', false, 'mk()'],
+  [
+    'getter read',
+    'const o = { get I() { init(); return Iterator; } }; const { [(key(), "from")]: f } = (pre(), o.I);',
+    false,
+    'SequenceExpression',
+  ],
+  ['dispatch', 'const { [(key(), "at")]: m } = (init(), [1]);', true, null],
+  ['unproven', 'const { [(key(), "from")]: f } = (init(), rows);', false, null],
+]) runBoth(`discarded keyed receiver/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  // a build serving every entry, so the presence test decides
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    isEntryAvailable: () => true,
+  });
+  const ctx = { scope: prop.scope, adapter, path: prop };
+  const plan = destructureKeyReadPlan(prop, ctx);
+  const discarded = keyedReadDiscardedReceiver({
+    receiver: plan.receiver,
+    proven: keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter }),
+    readsReceiver,
+    ctx,
+  });
+  check(`${ label }/owed`, discarded && discarded.map(owedSpelling).join(','), owed);
+  if (!discarded) return;
+  // ... spelled ahead of the keys in place of a capture
+  const rendered = renderKeyedDestructureRead({
+    receiverName: null,
+    receiver: hostSlot(plan.receiver),
+    binding: identifier('f'),
+    keys: plan.keys.map(hostSlot),
+    read: identifier('pony'),
+    proven: true,
+    discarded: discarded.map(hostSlot),
+  });
+  check(`${ label }/no capture`, rendered.length, 1);
+  const [{ init }] = rendered;
+  const spelled = init.type === 'SequenceExpression' ? init.expressions : [init];
+  check(`${ label }/order`, spelled.map(item => item.type === 'CoreJsHostSlot' ? owedSpelling(item.node) : item.name).join(','),
+    [owed, 'key()', 'pony'].filter(Boolean).join(','));
+});
+
+for (const [name, observable] of [['g', true], ['quiet', false]]) {
+  runBoth(`leaf/${ name }`, `
+    const box = { get g() { effect(); return 0; }, quiet: 0 };
+    const { [(box.${ name }, 'flat')]: first, [(box.${ name }, 'at')]: second } = Array.prototype;
+  `, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const pattern = path.node.id;
+    const [prop] = pattern.properties;
+    check(`${ label }/structural cache has no scoped answer`, computedKeyHasSideEffects(prop), false);
+    check(`${ label }/computed key`, computedKeyHasSideEffects(prop, ctx), observable);
+    check(`${ label }/several keys`, patternHasSeveralSeKeys(pattern, 2, ctx), observable);
+    check(`${ label }/sentinel level`, patternLevelKeepsSentinels(pattern, ctx), observable);
+    check(`${ label }/retained key`, patternKeepsEffectfulKey(pattern, ctx), observable);
+    check(`${ label }/receiver read`, seKeyKeepsReceiverRead({ prop, receiver: path.node.init, ctx }), observable);
+    check(`${ label }/prefix`, !!sequencePrefixWithSideEffects(unwrapRuntimeExpr(prop.key), ctx), observable);
+    check(`${ label }/key folding has an effects channel`, resolveKey({
+      node: prop.key, computed: true, ...ctx, bailOnSideEffectKey: true,
+    }), observable ? null : 'flat');
+    check(`${ label }/scope answer cannot contaminate structural cache`, computedKeyHasSideEffects(prop), false);
+  });
+  runBoth(`assignment/${ name }`, `
+    const box = { get g() { effect(); return 0; }, quiet: 0 };
+    let selected;
+    ({ [(box.${ name }, 'flat')]: selected } = Array.prototype);
+  `, (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression', item => item.node.left.type === 'ObjectPattern');
+    const [propPath] = host.get('left').get('properties');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: propPath.scope, adapter, path: propPath };
+    check(`${ label }/prune preserves key`, consumedAssignmentSlotPrunes(propPath, ctx), !observable);
+    check(`${ label }/read plan`, !!destructureKeyReadPlan(propPath, ctx), observable);
+  });
+  runBoth(`nested/${ name }`, `
+    const box = { get g() { effect(); return 0; }, quiet: 0 };
+    const { [(box.${ name }, 'methods')]: { flat } } = receiver;
+  `, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const pattern = path.node.id;
+    const [outer] = pattern.properties;
+    const [leaf] = outer.value.properties;
+    check(`${ label }/hop level`, patternLevelKeepsEffectfulHop(pattern, ctx), observable);
+    check(`${ label }/whole host`, patternKeepsEffectfulHop(pattern, ctx), observable);
+    check(`${ label }/nested consume`, patternFullyConsumed(pattern, prop => prop === leaf, ctx), !observable);
+    check(`${ label }/ordered capture`, !!planNestedKeyedPatternCapture({ pattern, init: path.node.init, ctx }), observable);
+  });
+}
+
+// A computed key and a default read are evaluation positions on an assignment pattern.
+// Neither is a member write: misclassifying them invalidates earlier getter queries too.
+runBoth('assignment pattern read positions', `
+  const key = { get value() { effect(); return 0; } };
+  const fallback = { value: 0 }, receiver = { method: Array };
+  const { [(key.value, 'from')]: first } = Array;
+  let second;
+  ({ [(key.value, 'of')]: second = fallback.value } = Array);
+  ({ from: receiver.method } = Array);
+`, (parser, program, label) => {
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const writes = census.writtenContainerSlots.keys().map(key => key.replace(/#\d+/u, '')).toArray().sort();
+  checkDeep(`${ label }/only actual member target is written`, writes, ['receiver.method']);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  for (const patternPath of parser.collectPaths(program, 'ObjectPattern')) {
+    for (const prop of patternPath.node.properties) {
+      if (!prop.computed) continue;
+      check(`${ label }/getter survives the full-file mutation census`, computedKeyHasSideEffects(prop, {
+        scope: patternPath.scope, adapter, path: patternPath,
+      }), true);
+    }
+  }
+});
+
+runBoth('a replaced realm slot cannot be demoted into several reads', `
+  const methods = globalThis.Array.prototype;
+`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(['globalThis.Array']),
+  });
+  check(`${ label }/unscoped spelling alone misses the getter`, isReReadableSurfaceNav(path.node.init), true);
+  check(`${ label }/scoped second read refuses`, isReReadableSurfaceNav(path.node.init, null, {
+    ctx: { scope: path.scope, adapter, path },
+  }), false);
+});
+
+// Transparent type wrappers preserve the namespace proof and the second-read mutation census.
+for (const [label, source, builtIn, reReadable, mutated = null] of [
+  ['typed root', 'const methods = (globalThis as any).Array.prototype;', true, true],
+  ['typed intermediate', 'const methods = (globalThis.Array as any).prototype;', true, true],
+  ['typed whole value', 'const methods = (globalThis.Array.prototype as any);', true, true],
+  ['typed realm alias', 'const realm = globalThis; const methods = (realm as any).Array.prototype;', true, true],
+  ['typed top-level this', 'const methods = (this as any).Array.prototype;', true, true],
+  ['typed this alias', 'const realm = this; const methods = (realm as any).Array.prototype;', true, true],
+  ['typed captured this', 'const realm = this; function read() { const methods = (realm as any).Array.prototype; }', true, true],
+  ['typed this user key', 'const methods = (this as any).Data.prototype;', false, false],
+  ['typed this mutated realm slot', 'const methods = (this as any).Array.prototype;', true, false, 'globalThis.Array'],
+  ['typed this mutated prototype', 'const methods = (this.Array as any).prototype;', true, false, 'Array.prototype'],
+  ['typed shadow', 'function take(globalThis: object) { const methods = (globalThis as any).Array.prototype; }', false, false],
+  ['typed getter', 'const box = { get Array() { return Array; } }; const methods = (box as any).Array.prototype;', false, false],
+  ['typed mutable alias', 'let realm = globalThis; realm = other; const methods = (realm as any).Array.prototype;', false, false],
+  ['typed unknown global', 'const methods = (globalThis as any).Data.prototype;', false, false],
+  ['typed computed nav', 'const methods = (globalThis as any)["Array"].prototype;', false, false],
+  ['typed mutated realm slot', 'const methods = (globalThis as any).Array.prototype;', true, false, 'globalThis.Array'],
+  ['typed mutated prototype', 'const methods = (globalThis.Array as any).prototype;', true, false, 'Array.prototype'],
+  ['typed effectful root', 'const methods = ((before(), globalThis) as any).Array.prototype;', false, false],
+  ['typed optional hop', 'const methods = (globalThis as any).window?.Array.prototype;', false, false],
+  ['typed sealed optional hop', 'const methods = (globalThis.window?.Array as any).prototype;', false, false],
+  ['typed deep sealed hop', 'const methods = ((globalThis.window?.self as any).Array as any).prototype;', false, false],
+  ['typed local this', 'function take() { const methods = (this as any).Array.prototype; }', false, false],
+  ['typed local this alias', 'function take() { const realm = this; const methods = (realm as any).Array.prototype; }', false, false],
+  ['typed private receiver', 'class Box { #root = globalThis; read() { const methods = (this.#root as any).Array.prototype; } }', false, false],
+]) runBoth(`typed surface nav/${ label }`, source, (parser, program, row) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'methods');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', getMutatedStatics: () => new Set(mutated ? [mutated] : []),
+  });
+  const ctx = { scope: path.scope, adapter, path };
+  const before = JSON.stringify(path.node.init);
+  check(`${ row }/namespace value`, isBuiltInSurfaceNav(path.node.init, { ctx }), builtIn);
+  check(`${ row }/second read`, isReReadableSurfaceNav(path.node.init, null, { ctx }), reReadable);
+  check(`${ row }/a raw root is not a minted alias`, isReReadableSurfaceNav(path.node.init, null, { ctx, ownAliasRoot: true }), false);
+  check(`${ row }/source AST retained`, JSON.stringify(path.node.init), before);
+});
+
+runBoth('a rescue query preserves unsettled getter return candidates', `
+  const box = { get value() { switch (choice) { case 0: return Promise; default: return Math; } } };
+`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const candidates = [];
+  const value = findNamespaceMemberValue(path.node.init, 'value', path.scope, { method: 'usage-global' }, resolveKey, {
+    spreadVetoes: false, rescuesRead: true, candidateSink: candidates,
+  });
+  check(`${ label }/no single returned value`, value, null);
+  checkDeep(`${ label }/all returns still reach injection`, candidates.map(node => node.name).sort(), ['Math', 'Promise']);
+});
+
+// A quiet sole keyed receiver can move after its key, but the same value must still be selected.
+// Nullish rejection remains independent and precedes the key whenever the receiver may be nullish.
+for (const [name, source, inline, mutation = null] of [
+  ['literal', 'let k = 0; const { [(k++, "at")]: method } = [1, 2];', true],
+  ['template', 'let k = 0; const { [(k++, "at")]: method } = `text`;', true],
+  ['bound fallback', 'let k = 0; const maybe = choose(); const { [(k++, "at")]: method } = maybe ?? [1];', true],
+  ['prototype', 'let k = 0; const { [(k++, "at")]: method } = Array.prototype;', true],
+  ['conditional parameter', 'let k = 0; const rows = [1]; function read(flag) { const { [(k++, "at")]: method } = flag ? rows : Array.prototype; }', true],
+  ['wrapped conditional', 'let k = 0; const flag = true; const { [(k++, "at")]: method } = ((flag ? [1] : [2]) as number[]);', true],
+  ['nullable', 'let k = 0; const flag = choose(); const { [(k++, "at")]: method } = flag ? [1] : null;', false],
+  ['opaque', 'let k = 0; const flag = choose(), opaque = choose(); const { [(k++, "at")]: method } = flag ? [1] : opaque;', false],
+  ['key writes selector', 'let flag = true; const { [(flag = false, "at")]: method } = flag ? [1] : [2];', false],
+  ['key writes receiver', 'let rows = [1]; const { [(rows = [2], "at")]: method } = rows ?? [3];', false],
+  ['getter', 'let k = 0; const holder = { get rows() { effect(); return [1]; } }; const { [(k++, "at")]: method } = holder.rows;', false],
+  ['effectful literal', 'let k = 0; const { [(k++, "at")]: method } = [effect()];', false],
+  ['implicit throw', 'let k = 0; const { [(k++, "at")]: method } = [+1n];', false],
+  ['free test throws first', 'let k = 0; const { [(k++, "at")]: method } = missing ? [1] : [2];', false],
+  ['test before initializer', 'let k = 0; const { [(k++, "at")]: method } = flag ? [1] : [2]; const flag = true;', false],
+  ['shadowed prototype', 'let k = 0; function read(Array) { const { [(k++, "at")]: method } = Array.prototype; }', false],
+  ['possibly missing constructor', 'let k = 0; const { [(k++, "at")]: method } = WeakRef.prototype;', false],
+  ['written prototype', 'let k = 0; const { [(k++, "at")]: method } = Array.prototype;', false, 'globalThis.Array'],
+  ['later parameter', 'let k = 0; function read(first = (() => { const { [(k++, "at")]: method } = later ? [1] : [2]; })(), later) {}', false],
+]) runBoth(`a sole keyed receiver needs only its observable snapshot/${ name }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    getMutatedStatics: () => new Set(mutation ? [mutation] : []),
+  });
+  const plan = destructureKeyReadPlan(prop, { scope: prop.scope, path: prop, adapter });
+  const proven = keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter });
+  const inlineReceiver = !!plan.inlineReceiver && proven;
+  check(`${ label }/inline receiver`, inlineReceiver, inline);
+  const rendered = renderKeyedDestructureRead({
+    receiverName: inlineReceiver ? null : 'capture',
+    receiver: hostSlot(plan.receiver),
+    binding: identifier('method'),
+    keys: plan.keys.map(hostSlot),
+    read: callExpression(identifier('dispatch'), [inlineReceiver ? hostSlot(plan.receiver) : identifier('capture')]),
+    reuseReceiver: inlineReceiver,
+    proven,
+  });
+  check(`${ label }/capture count`, rendered.length, inline ? 1 : 2);
+});
+
+// Sloppy simple parameters can change through mapped arguments without a named write.
+// Module and directive strictness keep arguments unmapped, so the quiet selection can still move.
+for (const [name, sourceType, directive, inline] of [
+  ['mapped arguments', 'script', '', false],
+  ['strict Program', 'script', '"use strict";', true],
+  ['strict module', 'module', '', true],
+]) runBoth(`sole keyed parameter movement/${ name }`, `${ directive }
+  function read(flag) {
+    const { [(arguments[0] = false, 'at')]: method } = flag ? [1] : 'text';
+    return method;
+  }
+  read(true);
+`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const [prop] = path.get('id').get('properties');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = destructureKeyReadPlan(prop, { scope: prop.scope, path: prop, adapter });
+  check(`${ label }/inline receiver`, !!plan.inlineReceiver, inline);
+  check(`${ label }/non-null proof is independent`, keyedReadReceiverProven({ init: path.node.init, hostPath: path, adapter }), true);
+}, undefined, sourceType);
+
+finish();

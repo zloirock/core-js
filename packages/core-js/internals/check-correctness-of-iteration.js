@@ -10,11 +10,11 @@ try {
     next: function () {
       return { done: !!called++ };
     },
-    'return': function () {
+    return: function () {
       SAFE_CLOSING = true;
-    }
+    },
   };
-  // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
+  // eslint-disable-next-line unicorn/no-immediate-mutation -- ES5 syntax limitation
   iteratorWithReturn[ITERATOR] = function () {
     return this;
   };
@@ -29,12 +29,12 @@ module.exports = function (exec, SKIP_CLOSING) {
   var ITERATION_SUPPORT = false;
   try {
     var object = {};
-    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
+    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES5 syntax limitation
     object[ITERATOR] = function () {
       return {
         next: function () {
           return { done: ITERATION_SUPPORT = true };
-        }
+        },
       };
     };
     exec(object);

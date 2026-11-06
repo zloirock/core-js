@@ -1,11 +1,10 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
 
 QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   assert.isFunction(getOwnPropertyDescriptor);
   assert.arity(getOwnPropertyDescriptor, 2);
   assert.name(getOwnPropertyDescriptor, 'getOwnPropertyDescriptor');
+
   assert.deepEqual(getOwnPropertyDescriptor({ q: 42 }, 'q'), {
     writable: true,
     enumerable: true,
@@ -19,8 +18,4 @@ QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   }
   assert.throws(() => getOwnPropertyDescriptor(null), TypeError, 'throws on null');
   assert.throws(() => getOwnPropertyDescriptor(undefined), TypeError, 'throws on undefined');
-});
-
-QUnit.test('Object.getOwnPropertyDescriptor.sham flag', assert => {
-  assert.same(getOwnPropertyDescriptor.sham, DESCRIPTORS ? undefined : true);
 });

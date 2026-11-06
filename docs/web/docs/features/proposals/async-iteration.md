@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-async-iteration)
 
 ## Modules
-[`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js).
+[`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.async-iterator.js).
 
 ## Built-ins signatures
 ```ts
@@ -15,8 +15,11 @@ class Symbol {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/async-iteration
-core-js(-pure)/es|stable|actual|full/symbol/async-iterator
+{ core-js, @core-js/pure }/es|stable|actual|full/symbol/async-iterator
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/async-iteration`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/async-iteration.d.ts)
 
 ## Examples
 ```js

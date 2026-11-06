@@ -1,11 +1,10 @@
 import { createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
-import from from 'core-js-pure/es/array/from';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import zip from 'core-js-pure/es/iterator/zip';
+import from from '@core-js/pure/es/array/from';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import zip from '@core-js/pure/es/iterator/zip';
 
 QUnit.test('Iterator.zip', assert => {
   assert.isFunction(zip);
@@ -157,7 +156,7 @@ QUnit.test('Iterator.zip', assert => {
     assert.same(caught, expectedError, 'propagates the original error from inner return()');
   }
 
-  if (DESCRIPTORS) {
+  {
     const expectedError = new Error('input value');
     const closed = [];
     const inner = createIterator([], {
@@ -190,18 +189,20 @@ QUnit.test('Iterator.zip', assert => {
 
   assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
   assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
-  if (DESCRIPTORS) {
+  {
     let valueRead = false;
-    const exhausted = () => ({
-      next() {
-        return defineProperty({ done: true }, 'value', {
-          get() {
-            valueRead = true;
-            throw new Error('The value of a done result must not be read');
-          },
-        });
-      },
-    });
+    function exhausted() {
+      return {
+        next() {
+          return defineProperty({ done: true }, 'value', {
+            get() {
+              valueRead = true;
+              throw new Error('The value of a done result must not be read');
+            },
+          });
+        },
+      };
+    }
     assert.deepEqual(from(zip([exhausted(), [1, 2]])), [], 'shortest');
     assert.deepEqual(from(zip([[1], exhausted()], { mode: 'longest' })), [[1, undefined]], 'longest');
     assert.deepEqual(from(zip([exhausted(), exhausted()], { mode: 'strict' })), [], 'strict');

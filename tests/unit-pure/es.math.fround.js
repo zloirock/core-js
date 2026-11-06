@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import fround from 'core-js-pure/es/math/fround';
+import fround from '@core-js/pure/es/math/fround';
 
 const { MAX_VALUE, MIN_VALUE } = Number;
 
@@ -16,7 +16,6 @@ QUnit.test('Math.fround', assert => {
   assert.same(fround(-0), -0);
   assert.same(fround(MIN_VALUE), 0);
   assert.same(fround(-MIN_VALUE), -0);
-  // Known Firefox 4-5 failures: infinities and +/-MAX_VALUE produce NaN.
   assert.same(fround(Infinity), Infinity);
   assert.same(fround(-Infinity), -Infinity);
   assert.same(fround(MAX_VALUE), Infinity);

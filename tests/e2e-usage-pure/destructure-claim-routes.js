@@ -1,0 +1,428 @@
+import { restoreProperty } from '../helpers/restore-property.cjs';
+
+QUnit.test('a nested iterator assignment reads the shared slot once', assert => {
+  const events = [];
+  const saved = Object.getOwnPropertyDescriptor(Array, 'e2eIteratorBox');
+  function method() { return 7; }
+  const box = {
+    get value() { events.push('value'); return 3; },
+    [Symbol.iterator]: method,
+  };
+  Object.defineProperty(Array, 'e2eIteratorBox', {
+    configurable: true,
+    get() { events.push('slot'); return box; },
+  });
+  try {
+    let value, it;
+    // eslint-disable-next-line es/no-nonstandard-array-properties, prefer-const -- the assignment reads the installed getter
+    ({ e2eIteratorBox: { value, [Symbol.iterator]: it } } = globalThis.Array);
+    assert.same(value, 3);
+    assert.same(it, method);
+    assert.deepEqual(events, ['slot', 'value']);
+  } finally {
+    restoreProperty(Array, 'e2eIteratorBox', saved);
+  }
+});
+
+QUnit.test('a nested assignment serves the array iterator in property order', assert => {
+  const events = [];
+  const items = [7];
+  const saved = Object.getOwnPropertyDescriptor(Array, 'e2eIteratorBox');
+  const iterator = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator);
+  let it, later;
+  // Preserve the host's native lookup. On IE11 the helper supplies the missing method.
+  Object.defineProperties(items, {
+    [Symbol.iterator]: { get() { events.push('iterator'); return iterator?.value; } },
+    later: {
+      get() {
+        events.push('later');
+        return typeof it;
+      },
+    },
+  });
+  Object.defineProperty(Array, 'e2eIteratorBox', {
+    configurable: true,
+    get() { events.push('slot'); return items; },
+  });
+  try {
+    // eslint-disable-next-line es/no-nonstandard-array-properties -- the nested assignment is under test
+    ({ e2eIteratorBox: { [Symbol.iterator]: it, later } } = globalThis.Array);
+    assert.same(later, 'function');
+    assert.same(typeof it, 'function');
+    assert.same(typeof it === 'function' && it.call(items).next().value, 7);
+    assert.deepEqual(events, ['slot', 'iterator', 'later']);
+  } finally {
+    restoreProperty(Array, 'e2eIteratorBox', saved);
+  }
+});
+
+// An exported parameter remains open to user receivers with accessor-backed slots.
+export function readSelectedDestructure(useConstructor, user) {
+  const { from, at } = useConstructor ? Array : user;
+  return [from, at];
+}
+
+QUnit.test('destructuring: a sole nested computed hop captures once before its key', assert => {
+  const events = [];
+  const values = [4, 5];
+  function source() {
+    events.push('init');
+    return {
+      get data() {
+        events.push('get');
+        return values;
+      },
+    };
+  }
+  const { [(events.push('key'), 'data')]: { at } } = source();
+  assert.same(at.call(values, -1), 5);
+  assert.deepEqual(events, ['init', 'key', 'get']);
+});
+
+QUnit.test('destructuring: a nested instance beside rest preserves collection and order', assert => {
+  const events = [];
+  const values = [4, 5];
+  const source = {
+    get before() {
+      events.push('before');
+      return 1;
+    },
+    get data() {
+      events.push('data');
+      return values;
+    },
+    get after() {
+      events.push('after');
+      return 2;
+    },
+  };
+  const { before, [(events.push('key'), 'data')]: { includes, ...rest }, after } = source;
+  const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'includes');
+  // The pre transform retains the native rest boundary; post can serve a ponyfill after lowering.
+  if (includes === undefined) assert.same(descriptor, undefined);
+  else {
+    assert.true(includes.call(values, 5));
+    assert.false(includes.call(values, 6));
+  }
+  assert.false('includes' in rest);
+  assert.same(rest[0], 4);
+  assert.deepEqual([before, after], [1, 2]);
+  assert.deepEqual(events, ['before', 'key', 'data', 'after']);
+});
+
+QUnit.test('destructuring: a middle static follows its instance sibling', assert => {
+  for (const supplied of [false, true]) {
+    const events = [];
+    let M = Map;
+    if (supplied) M = {
+      get name() {
+        events.push('name');
+        return 'user';
+      },
+      get groupBy() {
+        events.push('groupBy');
+        return 7;
+      },
+      get at() {
+        events.push('at');
+        return 8;
+      },
+    };
+    const { name: nm, groupBy: method, at: other } = M;
+    if (supplied) {
+      assert.deepEqual([nm, method, other], ['user', 7, 8]);
+      assert.deepEqual(events, ['name', 'groupBy', 'at']);
+    } else {
+      assert.same(method([1, 2, 3], value => value % 2).get(1).length, 2);
+    }
+  }
+});
+
+QUnit.test('destructuring: a stored realm selection keeps leaf defaults on its own route', assert => {
+  let stored;
+  function read(enabled) {
+    const { Array: { from } } = stored = enabled && globalThis;
+    return from;
+  }
+  assert.deepEqual(read(true)([2, 3]), [2, 3]);
+  assert.same(typeof stored, 'object');
+  assert.throws(() => read(false), TypeError);
+  assert.same(stored, false);
+});
+
+QUnit.test('destructuring: nested prototype extraction keeps observable prefixes', assert => {
+  const events = [];
+  const observed = {
+    get value() {
+      events.push('get');
+      return 0;
+    },
+  };
+  const { prototype: { at } } = (observed.value, String);
+  let count = 0;
+  const { prototype: { includes } } = (count++, Array);
+  assert.same(at.call('abc', -1), 'c');
+  assert.true(includes.call([1, 2], 2));
+  assert.deepEqual(events, ['get']);
+  assert.same(count, 1);
+});
+
+QUnit.test('destructuring: a prefix reading a getter runs however the file writes its key', assert => {
+  const events = [];
+  const observed = {
+    get mode() {
+      events.push('get');
+      return 0;
+    },
+    set mode(value) {
+      events.push(`set ${ value }`);
+    },
+  };
+  const { prototype: { at } } = (observed.mode, String);
+  observed.mode = 1;
+  assert.same(at.call('abc', -1), 'c');
+  assert.deepEqual(events, ['get', 'set 1']);
+});
+
+QUnit.test('destructuring: a loop guard follows the native slot it detached from', assert => {
+  function read(supplied) {
+    const events = [];
+    let M = Map;
+    if (supplied) M = {
+      get name() {
+        events.push('name');
+        return 'user';
+      },
+      get at() {
+        events.push('at');
+        return 8;
+      },
+      get groupBy() {
+        events.push('groupBy');
+        return 7;
+      },
+    };
+    let once = true;
+    let result;
+    for (const { name: nm, at: other, groupBy: method } = M; once; once = false) {
+      result = supplied ? [nm, other, method] : [typeof nm, other, typeof method];
+    }
+    return { result, events };
+  }
+  assert.deepEqual(read(true), { result: ['user', 8, 7], events: ['name', 'at', 'groupBy'] });
+  assert.deepEqual(read(false), { result: ['string', undefined, 'function'], events: [] });
+});
+
+QUnit.test('destructuring: a capture after a detached guard preserves every binding', assert => {
+  function read(supplied) {
+    const events = [];
+    let M = Map;
+    if (supplied) M = {
+      get groupBy() {
+        events.push('groupBy');
+        return 7;
+      },
+      get at() {
+        events.push('at');
+        return 8;
+      },
+      get name() {
+        events.push('name');
+        return 'user';
+      },
+    };
+    const { groupBy: method, at: other, name: nm } = M;
+    return { result: supplied ? [method, other, nm] : [typeof method, other, typeof nm], events };
+  }
+  assert.deepEqual(read(true), { result: [7, 8, 'user'], events: ['groupBy', 'at', 'name'] });
+  assert.deepEqual(read(false), { result: ['function', undefined, 'string'], events: [] });
+});
+
+QUnit.test('destructuring: nested sequence prefixes run in order before a prototype read', assert => {
+  const events = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- Keep the nested sequence spelling under test.
+  const { prototype: { at } } = (events.push('outer'), (events.push('inner'), Array));
+  assert.same(at.call([4, 5], -1), 5);
+  assert.deepEqual(events, ['outer', 'inner']);
+});
+
+QUnit.test('destructuring: an assignment guard follows its earlier instance write', assert => {
+  function read(supplied) {
+    const events = [];
+    let M = Map;
+    if (supplied) M = {
+      get name() {
+        events.push('name');
+        return 'user';
+      },
+      get groupBy() {
+        events.push('groupBy');
+        return 7;
+      },
+      get at() {
+        events.push('at');
+        return 8;
+      },
+    };
+    let nm, method, other;
+    // eslint-disable-next-line prefer-const -- Keep the assignment host under test.
+    ({ name: nm, groupBy: method, at: other } = M);
+    return { result: supplied ? [nm, method, other] : [typeof nm, typeof method, other], events };
+  }
+  assert.deepEqual(read(true), { result: ['user', 7, 8], events: ['name', 'groupBy', 'at'] });
+  assert.deepEqual(read(false), { result: ['string', 'function', undefined], events: [] });
+});
+
+QUnit.test('destructuring: a loop prototype read keeps every nested sequence prefix', assert => {
+  const events = [];
+  let once = true;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- Keep the nested sequence spelling under test.
+  for (const { prototype: { at } } = (events.push('outer'), (events.push('inner'), Array)); once; once = false) {
+    assert.same(at.call([4, 5], -1), 5);
+  }
+  assert.deepEqual(events, ['outer', 'inner']);
+});
+
+QUnit.test('destructuring: a loop head runs the store its sequence init ends in once', assert => {
+  const events = [];
+  const box = {
+    get slot() { return this.value; },
+    set slot(value) { events.push('set'); this.value = value; },
+  };
+  let once = true;
+  for (const { C: { groupBy } } = (events.push('effect'), box.slot = { C: Map }); once; once = false) {
+    assert.same(groupBy([1, 2], x => x % 2).get(1)[0], 1);
+  }
+  assert.deepEqual(events, ['effect', 'set']);
+});
+
+QUnit.test('destructuring: a bodyless declaration keeps every nested sequence prefix', assert => {
+  const events = [];
+  // eslint-disable-next-line no-constant-condition, no-var, sonarjs/no-gratuitous-expressions, @stylistic/no-extra-parens -- Keep the bodyless host and nested sequence under test.
+  if (true) var { prototype: { at } } = (events.push('outer'), (events.push('inner'), Array));
+  assert.same(at.call([4, 5], -1), 5);
+  assert.deepEqual(events, ['outer', 'inner']);
+});
+
+QUnit.test('destructuring: a bodyless nested prefix retains its own polyfills', assert => {
+  const list = [[1], [2]];
+  const text = 'prefix';
+  // eslint-disable-next-line no-constant-condition, no-var, sonarjs/no-gratuitous-expressions, @stylistic/no-extra-parens -- Keep the bodyless host and nested sequence under test.
+  if (true) var { at } = (list.flat(), (text.includes('x'), globalThis.Array.prototype));
+  assert.deepEqual(at.call(list, -1), [2]);
+});
+
+QUnit.test('destructuring: a selected receiver reads a static before its instance sibling', assert => {
+  const events = [];
+  const user = {
+    get from() {
+      events.push('from');
+      return 7;
+    },
+    get at() {
+      events.push('at');
+      return 8;
+    },
+  };
+  assert.deepEqual(readSelectedDestructure(false, user), [7, 8]);
+  assert.deepEqual(events, ['from', 'at']);
+  const [from, at] = readSelectedDestructure(true, user);
+  assert.same(typeof from, 'function');
+  assert.same(at, undefined);
+  assert.deepEqual(events, ['from', 'at']);
+});
+
+QUnit.test('destructuring: an assignment guard stays after the native sibling', assert => {
+  const events = [];
+  let M = Map;
+  if (events) M = {
+    get name() {
+      events.push('name');
+      return 'user';
+    },
+    get at() {
+      events.push('at');
+      return 8;
+    },
+    get groupBy() {
+      events.push('groupBy');
+      return 7;
+    },
+  };
+  let nm, other, method;
+  // eslint-disable-next-line prefer-const -- Keep the assignment host under test.
+  ({ name: nm, at: other, groupBy: method } = M);
+  assert.deepEqual([nm, other, method], ['user', 8, 7]);
+  assert.deepEqual(events, ['name', 'at', 'groupBy']);
+});
+
+QUnit.test('destructuring: a capture revisits live declarators after moving earlier statics', assert => {
+  const events = [];
+  // eslint-disable-next-line unicorn/no-useless-coercion -- Keep the computed key opaque to static evaluation.
+  const key = String('length');
+  // eslint-disable-next-line no-empty-pattern -- Keep the preceding native pattern under test.
+  const { NaN: {}, Array: { from, [(events.push('key'), 'of')]: of, [key]: value } } = globalThis;
+  assert.deepEqual(from([4, 9]), [4, 9]);
+  assert.deepEqual(of(17), [17]);
+  assert.same(value, 1);
+  assert.deepEqual(events, ['key']);
+});
+
+QUnit.test('destructuring: per-property emission retires a declined plan before a nested claim', assert => {
+  const { Map, Array: { from }, ...rest } = globalThis;
+  assert.same(new Map([[1, 4]]).get(1), 4);
+  assert.deepEqual(from([9]), [9]);
+  assert.false('Map' in rest);
+  assert.false('Array' in rest);
+});
+
+QUnit.test('destructuring: a split assignment stops visiting its detached pattern', assert => {
+  const events = [];
+  const saved = Object.getOwnPropertyDescriptor(Array, 'fc666Slot');
+  restoreProperty(Array, 'fc666Slot', { configurable: true, get() {
+    events.push('get');
+    return { at() {
+      events.push('call');
+      return 17;
+    } };
+  } });
+  try {
+    let from, at, rest;
+    for ({ Array: { from, fc666Slot: { at }, ...rest } } of [globalThis]) {
+      assert.same(from([4, 9])[1], 9);
+      assert.same(at(), 17);
+      assert.false('fc666Slot' in rest);
+    }
+    assert.deepEqual(events, ['get', 'call']);
+  } finally {
+    restoreProperty(Array, 'fc666Slot', saved);
+  }
+});
+
+QUnit.test('destructuring: a consumed realm assignment yields the realm beside a pure static', assert => {
+  let iterator;
+  const result = { Symbol: { iterator } } = globalThis;
+  assert.same(result, globalThis);
+  assert.same(iterator, Symbol.iterator);
+});
+
+QUnit.test('destructuring: a returned realm assignment keeps the static callable', assert => {
+  let withResolvers;
+  function capture() {
+    return { Promise: { withResolvers } } = globalThis;
+  }
+  assert.same(capture(), globalThis);
+  const record = withResolvers();
+  assert.isFunction(record.promise.then);
+  assert.isFunction(record.resolve);
+  assert.isFunction(record.reject);
+});
+
+QUnit.test('a captured static rest keeps an independent claim in its write target', assert => {
+  let from;
+  const holder = {};
+  ({ Array: { from, ...holder['rest'.at(-1)] } } = globalThis);
+  assert.arrayEqual(from([4, 9]), [4, 9]);
+  assert.same(typeof holder.t, 'object');
+  assert.false('from' in holder.t, 'the served property is excluded from rest');
+});

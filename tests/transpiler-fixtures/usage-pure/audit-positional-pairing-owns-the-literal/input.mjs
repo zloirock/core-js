@@ -1,0 +1,17 @@
+// Positional capture uses the array element's value, including a value returned by a getter.
+// Native own methods stay untouched; a returned string selects string instance dispatch.
+const proxyRoot = (function () {
+  const [{ Array: { from } }] = [globalThis];
+  return from;
+})();
+const opaqueHopOwnName = (function () {
+  const box = { get Array() { return { prototype: { at: 1 } }; } };
+  const [{ Array: { prototype: { at } } }] = [box];
+  return at;
+})();
+const opaqueHopTyped = (function () {
+  const box = { get Array() { return { prototype: 'ab' }; } };
+  const [{ Array: { prototype: { at } } }] = [box];
+  return at;
+})();
+export { proxyRoot, opaqueHopOwnName, opaqueHopTyped };

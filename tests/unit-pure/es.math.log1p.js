@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import log1p from 'core-js-pure/es/math/log1p';
+import log1p from '@core-js/pure/es/math/log1p';
 
 QUnit.test('Math.log1p', assert => {
   assert.isFunction(log1p);
@@ -8,7 +8,6 @@ QUnit.test('Math.log1p', assert => {
   assert.arity(log1p, 1);
   assert.same(log1p(''), log1p(0));
   assert.same(log1p(NaN), NaN);
-  // Known Firefox 4-5 failure for this NaN result.
   assert.same(log1p(-2), NaN);
   assert.same(log1p(-1), -Infinity);
   assert.same(log1p(0), 0);

@@ -1,11 +1,11 @@
 // TODO: fix escaping in regexps
 /* eslint-disable prefer-regex-literals, regexp/prefer-regexp-exec -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.match);
   assert.arity(''.match, 1);
   assert.name(''.match, 'match');
@@ -106,10 +106,9 @@ const run = assert => {
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/g).length, 1, 'S15.5.4.10_A2_T7 #1');
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/g)[0], '02134', 'S15.5.4.10_A2_T7 #2');
-  /* IE8- buggy here (empty string instead of `undefined`), but we don't polyfill base `.match` logic
   matches = ['02134', '02134', undefined];
   string = 'Boston, MA 02134';
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/;
+  regexp = /(\d{5})([ -]?\d{4})?$/;
   regexp.lastIndex = 0;
   assert.same(string.match(regexp).length, 3, 'S15.5.4.10_A2_T8 #1');
   assert.same(string.match(regexp).index, string.lastIndexOf('0'), 'S15.5.4.10_A2_T8 #2');
@@ -118,7 +117,7 @@ const run = assert => {
   }
   string = 'Boston, MA 02134';
   matches = ['02134', '02134', undefined];
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/;
+  regexp = /(\d{5})([ -]?\d{4})?$/;
   regexp.lastIndex = string.length;
   assert.same(string.match(regexp).length, 3, 'S15.5.4.10_A2_T9 #1');
   assert.same(string.match(regexp).index, string.lastIndexOf('0'), 'S15.5.4.10_A2_T9 #2');
@@ -127,7 +126,7 @@ const run = assert => {
   }
   string = 'Boston, MA 02134';
   matches = ['02134', '02134', undefined];
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/;
+  regexp = /(\d{5})([ -]?\d{4})?$/;
   regexp.lastIndex = string.lastIndexOf('0');
   assert.same(string.match(regexp).length, 3, 'S15.5.4.10_A2_T10 #1');
   assert.same(string.match(regexp).index, string.lastIndexOf('0'), 'S15.5.4.10_A2_T10 #2');
@@ -136,14 +135,13 @@ const run = assert => {
   }
   string = 'Boston, MA 02134';
   matches = ['02134', '02134', undefined];
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/;
+  regexp = /(\d{5})([ -]?\d{4})?$/;
   regexp.lastIndex = string.lastIndexOf('0') + 1;
   assert.same(string.match(regexp).length, 3, 'S15.5.4.10_A2_T11 #1');
   assert.same(string.match(regexp).index, string.lastIndexOf('0'), 'S15.5.4.10_A2_T11 #2');
   for (let i = 0, { length } = matches; i < length; ++i) {
     assert.same(string.match(regexp)[i], matches[i], 'S15.5.4.10_A2_T11 #3');
   }
-  */
   string = 'Boston, MA 02134';
   regexp = /(\d{5})([ -]?\d{4})?$/g;
   assert.same(string.match(regexp).length, 1, 'S15.5.4.10_A2_T12 #1');
@@ -174,7 +172,7 @@ const run = assert => {
 
   assert.throws(() => ''.match.call(Symbol('match test'), /./), 'throws on symbol context');
   assert.throws(() => ''.match(Symbol('match test')), TypeError, 'throws on symbol argument');
-};
+}
 
 QUnit.test('String#match regression', run);
 
@@ -197,9 +195,10 @@ QUnit.test('RegExp#@@match basic behavior', assert => {
 });
 
 QUnit.test('String#match delegates to @@match', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
+  /* eslint-disable es/no-nonstandard-array-prototype-properties -- @@match */
   object[Symbol.match] = function (it) {
     return { value: it };
   };
@@ -211,13 +210,14 @@ QUnit.test('String#match delegates to @@match', assert => {
   };
   assert.same(string.match(regexp).value, string);
   assert.same(''.match.call(number, regexp).value, number);
+  /* eslint-enable es/no-nonstandard-array-prototype-properties -- @@match */
 });
 
 QUnit.test('RegExp#@@match delegates to exec', assert => {
-  const exec = function (...args) {
+  function exec(...args) {
     execCalled = true;
     return /./.exec.apply(this, args);
-  };
+  }
 
   let execCalled = false;
   let re = /[ac]/;

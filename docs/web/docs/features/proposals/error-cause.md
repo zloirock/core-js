@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-error-cause)
 
 ## Modules
-[`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js) and [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js).
+[`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.cause.js) and [`es.error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.cause.js).
 
 ## Built-ins signatures
 ```ts
@@ -36,8 +36,11 @@ class AggregateError extends Error {
 core-js/proposals/error-cause
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
-core-js(-pure)/es|stable|actual|full/aggregate-error
+{ core-js, @core-js/pure }/es|stable|actual|full/aggregate-error
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/error-cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/error-cause.d.ts)
 
 ## Examples
 ```js

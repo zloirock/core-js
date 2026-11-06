@@ -1,0 +1,18 @@
+// type arguments are type-only but they name runtime globals, and folding the instantiation hands
+// the whole list to the host above it - the sweep has to keep reaching them at their new owner.
+// one global per line: injection is observable only through the import set here, so two lines
+// sharing a global would mask each other. the tail lines keep the instantiation node instead
+declare const f: any;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
+const foldCall = ((f as any)<Map<string, number>>)([1]);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
+const foldNew = new ((f as any)<Set<number>>)();
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
+const foldTag = ((f as any)<WeakMap<object, number>>)`t`;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
+const foldOptionalCall = ((f as any)<Promise<number>>)?.([1]);
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
+const keptMemberTail = ((f as any)<WeakSet<object>>).name;
+// @ts-expect-error an instantiation over a value with no generic signature is the shape under test
+const keptBareValue = ((f as any)<ArrayBuffer>);
+export const r = [foldCall, foldNew, foldTag, foldOptionalCall, keptMemberTail, keptBareValue];

@@ -1,0 +1,46 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
+// Direct selecting receivers serve supported static and instance leaves from one chosen value.
+// Nested literal and loop hosts preserve their own instance receiver and native residual boundaries.
+export function flat(flag, user) {
+  const _ref = flag ? (Array, {
+      from: _Array$from,
+      get at() {
+        return Array.at;
+      }
+    }) : user,
+    from = _ref === Array ? _Array$from : _ref.from,
+    at = _at(_ref);
+  return [from, at];
+}
+export function nested(flag, user) {
+  const {
+      w: _ref2
+    } = {
+      w: flag ? (Array, {
+        from: _Array$from,
+        get includes() {
+          return Array.includes;
+        }
+      }) : user
+    },
+    from = _ref2 === Array ? _Array$from : _ref2.from,
+    includes = _includes(_ref2);
+  return [from, includes];
+}
+export function loop(flag, user) {
+  for (const _ref3 of [flag ? (Array, {
+    from: _Array$from,
+    get map() {
+      return Array.map;
+    }
+  }) : user]) {
+    const {
+        from
+      } = _ref3,
+      map = _mapMaybeArray(_ref3);
+    return [from, map];
+  }
+}

@@ -1,7 +1,6 @@
 /* eslint-disable no-console -- needed for logging */
 import childProcess from 'node:child_process';
 import { constants } from 'node:fs';
-// eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
 import { cp, access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
@@ -15,6 +14,9 @@ const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 // `Build bundles` of a push takes a minute or two
 const BUNDLES_TIMEOUT = 5 * 60e3;
 const BUNDLES_POLL = 5e3;
+
+// agent instructions live next to the blog posts, but are not content
+const NOT_BLOG_POSTS = new Set(['AGENTS.md']);
 
 export async function isExists(target) {
   try {
@@ -62,7 +64,7 @@ export async function copyBlogPosts(srcDir) {
   const toDir = join(srcDir, 'docs/web/blog/');
   const entries = await readdir(fromDir, { withFileTypes: true });
   await Promise.all(entries
-    .filter(entry => entry.isFile())
+    .filter(entry => entry.isFile() && !NOT_BLOG_POSTS.has(entry.name))
     .map(entry => cp(join(fromDir, entry.name), join(toDir, entry.name))));
   console.timeEnd('Copied blog posts');
 }
@@ -150,7 +152,7 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, check
   // `node_modules` is ignored by git, so after a checkout it still holds the dependencies of the previous version
   await installDependencies(srcDir, checkout);
 
-  // the package keeps the last build, and local tests of `core-js-bundle` need the standard one
+  // the package keeps the last build, and local tests of `@core-js/bundle` need the standard one
   await bundlePackage(true);
   await bundlePackage(false);
 
@@ -196,7 +198,7 @@ export async function getDefaultVersion(versionFile, defaultVersion = null) {
 }
 
 export async function readJSON(filePath) {
-  const buffer = await readFile(filePath, 'utf8');
+  const buffer = await readFile(filePath);
   return JSON.parse(buffer);
 }
 

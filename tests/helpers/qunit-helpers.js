@@ -1,23 +1,19 @@
-import { DESCRIPTORS } from './constants.js';
-import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
-import defineProperties from 'core-js-pure/es/object/define-properties';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import reduce from 'core-js-pure/es/array/reduce';
-import isIterable from 'core-js-pure/es/is-iterable';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import globalThis from '@core-js/pure/es/global-this';
+import assign from '@core-js/pure/es/object/assign';
+import isIterable from '@core-js/pure/es/is-iterable';
 import { is, arrayFromArrayLike } from './helpers.js';
 
-// for Babel template transform
-// eslint-disable-next-line es/no-object-create -- safe
-if (!Object.create) Object.create = create;
-// eslint-disable-next-line es/no-object-freeze -- safe
-if (!Object.freeze) Object.freeze = Object;
-// eslint-disable-next-line es/no-object-defineproperties -- safe
-if (!DESCRIPTORS) Object.defineProperties = defineProperties;
+function toPropertyKey(it) {
+  return typeof it === 'symbol' ? it : String(it);
+}
 
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
-const { getOwnPropertyDescriptor } = Object;
+// for Babel / Regenerator runtime
+if (!globalThis.Symbol || toPropertyKey(globalThis.Symbol.iterator) !== toPropertyKey(Symbol.iterator)) {
+  globalThis.Symbol = Symbol;
+}
+
+const { getOwnPropertyDescriptor, getOwnPropertyNames } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
 
 const { assert } = QUnit;
@@ -45,24 +41,22 @@ assign(assert, {
     });
   },
   enumerable(O, key, message) {
-    const result = !DESCRIPTORS || propertyIsEnumerable.call(O, key);
+    const result = propertyIsEnumerable.call(O, key);
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be enumerable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`
-        : 'Enumerability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`,
     });
   },
   // TODO: Drop from future `core-js` versions
-  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
+  // unavailable in `qunit@1` that's required for testing in Chrome 38, etc.
   false(value, message = 'The value is `false`') {
     this.same(value, false, message);
   },
   isAsyncIterable(actual, message = 'The value is async iterable') {
     this.pushResult({
-      result: typeof actual == 'object' && typeof actual[ASYNC_ITERATOR] == 'function',
+      result: typeof actual == 'object' && typeof actual[Symbol.asyncIterator] == 'function',
       actual,
       expected: 'The value should be async iterable',
       message,
@@ -114,36 +108,30 @@ assign(assert, {
     });
   },
   nonConfigurable(O, key, message) {
-    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.configurable;
+    const result = !getOwnPropertyDescriptor(O, key)?.configurable;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-configurable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`
-        : 'Configurability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`,
     });
   },
   nonEnumerable(O, key, message) {
-    const result = !DESCRIPTORS || !propertyIsEnumerable.call(O, key);
+    const result = !propertyIsEnumerable.call(O, key);
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-enumerable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`
-        : 'Enumerability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
     });
   },
   nonWritable(O, key, message) {
-    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.writable;
+    const result = !getOwnPropertyDescriptor(O, key)?.writable;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-writable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`
-        : 'Writability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`,
     });
   },
   notSame(actual, expected, message) {
@@ -182,13 +170,14 @@ assign(assert, {
     });
   },
   // TODO: Drop from future `core-js` versions
-  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
+  // unavailable in `qunit@1` that's required for testing in Chrome 38, etc.
   true(value, message = 'The value is `true`') {
     this.same(value, true, message);
   },
 });
 
-assert.skip = reduce(getOwnPropertyNames(assert), (skip, method) => {
+// eslint-disable-next-line es/no-array-prototype-reduce -- safe
+assert.skip = getOwnPropertyNames(assert).reduce((skip, method) => {
   skip[method] = () => { /* empty */ };
   return skip;
 }, {});

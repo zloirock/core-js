@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-Symbol-description)
 
 ## Modules
-[`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js).
+[`es.symbol.description`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.symbol.description.js).
 
 ## Built-ins signatures
 ```ts
@@ -23,3 +23,6 @@ core-js/es|stable|actual|full/symbol/description
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/symbol-description`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/symbol-description.d.ts)

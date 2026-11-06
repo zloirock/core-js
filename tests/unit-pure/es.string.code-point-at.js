@@ -1,6 +1,4 @@
-import { STRICT } from '../helpers/constants.js';
-
-import codePointAt from 'core-js-pure/es/string/code-point-at';
+import codePointAt from '@core-js/pure/es/string/code-point-at';
 
 QUnit.test('String#codePointAt', assert => {
   assert.isFunction(codePointAt);
@@ -55,12 +53,10 @@ QUnit.test('String#codePointAt', assert => {
   assert.same(codePointAt('\uDF06abc', undefined), 0xDF06);
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => codePointAt(Symbol('codePointAt test'), 1), 'throws on symbol context');
   }
 
-  if (STRICT) {
-    assert.throws(() => codePointAt(null, 0), TypeError);
-    assert.throws(() => codePointAt(undefined, 0), TypeError);
-  }
+  assert.throws(() => codePointAt(null, 0), TypeError);
+  assert.throws(() => codePointAt(undefined, 0), TypeError);
 });

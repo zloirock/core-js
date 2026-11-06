@@ -1,0 +1,1 @@
+[...WeakSet] = pool;

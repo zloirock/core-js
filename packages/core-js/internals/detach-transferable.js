@@ -1,6 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 var isDetached = require('../internals/array-buffer-is-detached');
 var enforceInternalState = require('../internals/internal-state').enforce;
@@ -8,9 +8,9 @@ var postMessage = require('../internals/message-channel-post');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = globalThis.structuredClone;
-var $ArrayBuffer = globalThis.ArrayBuffer;
 // captured before the transfer polyfill of this copy can replace it
-var arrayBufferTransfer = $ArrayBuffer && uncurryThis($ArrayBuffer.prototype.transfer);
+// eslint-disable-next-line es/no-arraybuffer-prototype-transfer -- safe
+var arrayBufferTransfer = uncurryThisClause(ArrayBuffer.prototype.transfer);
 var detach = false;
 var buffer, $detach;
 
@@ -25,9 +25,9 @@ if (PROPER_STRUCTURED_CLONE_TRANSFER) {
       arrayBufferTransfer(transferable);
     } catch (error) { /* empty */ }
   };
-} else if ($ArrayBuffer) try {
+} else try {
   if (postMessage) {
-    buffer = new $ArrayBuffer(2);
+    buffer = new ArrayBuffer(2);
 
     $detach = function (transferable) {
       postMessage(null, [transferable]);

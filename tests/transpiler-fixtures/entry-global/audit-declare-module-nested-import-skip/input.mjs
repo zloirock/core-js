@@ -1,0 +1,9 @@
+// ImportDeclaration nested inside `declare module "x" { ... }` is type-only - TypeScript
+// elides the whole block at runtime. entry detection must not treat it as a runtime
+// entry and inject polyfill imports for code that never ships. the top-level entry
+// alongside it shows legitimate imports still flow through while the nested one is skipped.
+// @ts-expect-error an ambient module declared from a module file is the shape under test
+declare module "polyfilled" {
+  import 'core-js/actual/array/from';
+}
+import 'core-js/actual/array/at';

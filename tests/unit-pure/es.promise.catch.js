@@ -1,5 +1,5 @@
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise#catch', assert => {
   assert.isFunction(Promise.prototype.catch);

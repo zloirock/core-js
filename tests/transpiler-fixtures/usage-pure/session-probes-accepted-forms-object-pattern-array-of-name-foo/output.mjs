@@ -1,0 +1,23 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+{
+  const {
+    Array: {
+      of: {
+        name: splitBesideStatic,
+        foo: splitFoo
+      },
+      from: splitFrom
+    }
+  } = {
+    Array: {
+      of: {
+        name: _nameMaybeFunction(_Array$of),
+        foo: _Array$of.foo
+      },
+      from: _Array$from
+    }
+  };
+  [splitBesideStatic, splitFoo, splitFrom];
+}

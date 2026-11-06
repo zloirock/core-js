@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-Array.prototype.includes)
 
 ## Modules
-[`es.array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.includes.js) and [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.includes.js).
+[`es.array.includes`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.includes.js) and [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.includes.js).
 
 ## Built-ins signatures
 ```ts
@@ -19,9 +19,12 @@ class %TypedArray% {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/array-includes
-core-js(-pure)/es|stable|actual|full/array(/virtual)/includes
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/includes
 core-js/es|stable|actual|full/typed-array/includes
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-includes`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-includes.d.ts)
 
 ## Examples
 ```js

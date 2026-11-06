@@ -1,0 +1,19 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "4.10",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ],
+  "parserOpts": {
+    "plugins": [
+      "flow"
+    ]
+  }
+}

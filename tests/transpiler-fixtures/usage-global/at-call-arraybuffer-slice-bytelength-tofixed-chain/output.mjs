@@ -1,0 +1,10 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.string.repeat";
+import "core-js/modules/es.array-buffer.constructor";
+import "core-js/modules/es.array-buffer.detached";
+import "core-js/modules/es.array-buffer.transfer";
+import "core-js/modules/es.array-buffer.transfer-to-fixed-length";
+import "core-js/modules/es.array-buffer.species";
+import "core-js/modules/es.array-buffer.to-string-tag";
+import "core-js/modules/es.number.to-fixed";
+new ArrayBuffer(8).slice(0, 4).byteLength.toFixed(2);

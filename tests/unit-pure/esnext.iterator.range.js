@@ -1,10 +1,9 @@
 /* eslint-disable es/no-bigint -- safe */
-import { DESCRIPTORS, MAX_SAFE_INTEGER, STRICT } from '../helpers/constants.js';
-import from from 'core-js-pure/es/array/from';
-import range from 'core-js-pure/full/iterator/range';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import TO_STRING_TAG from 'core-js-pure/es/symbol/to-string-tag';
+import { MAX_SAFE_INTEGER } from '../helpers/constants.js';
+import from from '@core-js/pure/es/array/from';
+import range from '@core-js/pure/full/iterator/range';
+import getPrototypeOf from '@core-js/pure/es/object/get-prototype-of';
+import TO_STRING_TAG from '@core-js/pure/es/symbol/to-string-tag';
 
 QUnit.test('Iterator.range', assert => {
   assert.isFunction(range);
@@ -95,8 +94,8 @@ QUnit.test('Iterator.range', assert => {
   assert.true(iterator.inclusive);
 
   iterator = range(0, 5);
-  if (DESCRIPTORS) for (const key of ['start', 'end', 'step', 'inclusive']) {
-    const descriptor = getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
+  for (const key of ['start', 'end', 'step', 'inclusive']) {
+    const descriptor = Object.getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
     assert.isFunction(descriptor.get, key);
     assert.same(descriptor.set, undefined, `${ key } has no setter`);
     assert.false(descriptor.enumerable, key);
@@ -104,12 +103,10 @@ QUnit.test('Iterator.range', assert => {
     assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
   }
   // IE11 does not throw on computed-key assignment to getter-only properties.
-  if (DESCRIPTORS && STRICT) {
-    assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
-    assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
-    assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
-    assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
-  }
+  assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
+  assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
+  assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
+  assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
 
   assert.throws(() => range(Infinity, 10, 0), RangeError);
   assert.throws(() => range(-Infinity, 10, 0), RangeError);
@@ -183,8 +180,8 @@ QUnit.test('Iterator.range', assert => {
     assert.true(iterator.inclusive);
 
     iterator = range(BigInt(0), BigInt(5));
-    if (DESCRIPTORS) for (const key of ['start', 'end', 'step', 'inclusive']) {
-      const descriptor = getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
+    for (const key of ['start', 'end', 'step', 'inclusive']) {
+      const descriptor = Object.getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
       assert.isFunction(descriptor.get, key);
       assert.same(descriptor.set, undefined, `${ key } has no setter`);
       assert.false(descriptor.enumerable, key);
@@ -192,12 +189,10 @@ QUnit.test('Iterator.range', assert => {
       assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
     }
     // IE11 does not throw on computed-key assignment to getter-only properties.
-    if (DESCRIPTORS && STRICT) {
-      assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
-      assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
-      assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
-      assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
-    }
+    assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
+    assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
+    assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
+    assert.throws(() => { iterator.inclusive = 42; }, TypeError, 'inclusive is read-only');
 
     assert.throws(() => range(Infinity, BigInt(10), BigInt(0)), TypeError);
     assert.throws(() => range(-Infinity, BigInt(10), BigInt(0)), TypeError);

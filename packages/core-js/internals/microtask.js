@@ -1,7 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
-var bind = require('../internals/function-bind-context');
 var macrotask = require('../internals/task').set;
 var Queue = require('../internals/queue');
 var IS_IOS = require('../internals/environment-is-ios');
@@ -47,7 +46,7 @@ if (!microtask) {
     promise = Promise.resolve(undefined);
     // workaround of WebKit ~ iOS Safari 10.1 bug
     promise.constructor = Promise;
-    then = bind(promise.then, promise);
+    then = promise.then.bind(promise);
     notify = function () {
       then(flush);
     };
@@ -60,11 +59,10 @@ if (!microtask) {
   // - setImmediate
   // - MessageChannel
   // - window.postMessage
-  // - onreadystatechange
   // - setTimeout
   } else {
-    // `webpack` dev server bug on IE global methods - use bind(fn, global)
-    macrotask = bind(macrotask, globalThis);
+    // `webpack` dev server bug on IE global methods - use macrotask.bind(globalThis)
+    macrotask = macrotask.bind(globalThis);
     notify = function () {
       macrotask(flush);
     };

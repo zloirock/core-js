@@ -1,0 +1,13 @@
+// 3-level nesting: function -> nested-block -> enum. ancestor-walk via TS_RUNTIME_SCOPE_ANCHOR
+// types must reach the BlockStatement anchor through both function body and inner block.
+// outer scope (no shadow) - polyfill must fire there as the global rule
+export function outer() {
+  if (Math.random() < 0.5) {
+    enum Map { A = 1 }
+    // @ts-expect-error a construction of the user's shadowing binding, which tsc refuses, is the shape under test
+    return new Map();
+  }
+  return null;
+}
+
+export const fromOuter = new Map();

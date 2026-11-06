@@ -1,3 +1,4 @@
+// @types: proposals/explicit-resource-management
 'use strict';
 // https://tc39.es/ecma262/#sec-iterator.prototype-%symbol.dispose%
 var call = require('../internals/function-call');
@@ -5,7 +6,7 @@ var defineBuiltIn = require('../internals/define-built-in');
 var getMethod = require('../internals/get-method');
 var hasOwn = require('../internals/has-own-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var IteratorPrototype = require('../internals/iterator-prototype');
 
 var DISPOSE = wellKnownSymbol('dispose');
 

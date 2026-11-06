@@ -11,19 +11,19 @@ var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = globalThis.structuredClone;
-var ArrayBuffer = globalThis.ArrayBuffer;
-var DataView = globalThis.DataView;
+var $ArrayBuffer = ArrayBuffer;
+var $DataView = DataView;
+var ArrayBufferPrototype = $ArrayBuffer.prototype;
+var DataViewPrototype = $DataView.prototype;
 var Uint8Array = globalThis.Uint8Array;
 var TypeError = globalThis.TypeError;
 var RangeError = globalThis.RangeError;
 var min = Math.min;
-var ArrayBufferPrototype = ArrayBuffer.prototype;
-var DataViewPrototype = DataView.prototype;
 var isResizable = uncurryThisAccessor(ArrayBufferPrototype, 'resizable', 'get');
 var maxByteLength = uncurryThisAccessor(ArrayBufferPrototype, 'maxByteLength', 'get');
 var getInt8 = uncurryThis(DataViewPrototype.getInt8);
 var setInt8 = uncurryThis(DataViewPrototype.setInt8);
-var set = Uint8Array && uncurryThis(Uint8Array.prototype.set);
+var set = uncurryThis(Uint8Array.prototype.set);
 
 var throwNotDetachable = function (error) {
   if (error.name === 'DataCloneError') throw new TypeError('ArrayBuffer is not detachable');
@@ -52,7 +52,8 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
     : undefined;
   // allocation must succeed before the source is detached; species is not used
   try {
-    newBuffer = new ArrayBuffer(newByteLength, options);
+    // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+    newBuffer = new $ArrayBuffer(newByteLength, options);
   } catch (error) {
     // IE11 throws a TypeError when the requested allocation is too large.
     if (error instanceof TypeError) throw new RangeError('Wrong length');
@@ -60,11 +61,11 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
   }
   var copyLength = min(newByteLength, byteLength);
   // typed array views have stricter size limits than buffers on some hosts.
-  if (copyLength && (!set || fails(function () {
+  if (copyLength && fails(function () {
     set(new Uint8Array(newBuffer, 0, copyLength), new Uint8Array(arrayBuffer, 0, copyLength));
-  }))) {
-    var a = new DataView(arrayBuffer);
-    var b = new DataView(newBuffer);
+  })) {
+    var a = new $DataView(arrayBuffer);
+    var b = new $DataView(newBuffer);
     for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
   }
   try {

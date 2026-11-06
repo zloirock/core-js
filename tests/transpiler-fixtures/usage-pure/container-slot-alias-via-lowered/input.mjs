@@ -1,0 +1,7 @@
+// A slot alias captures the value its initializer reads. Read-only aliases and nested wrappers preserve static and instance
+// precision; writes and escapes affect only the value they can reach.
+const r = { w: Object, y: [1] };
+const out = [];
+var _r$w = r.w, viaLowered = _r$w.values;
+out.push(viaLowered);
+export { out };

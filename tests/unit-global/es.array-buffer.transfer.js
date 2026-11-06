@@ -1,9 +1,11 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import V8_VERSION from 'core-js-pure/internals/environment-v8-version';
 import { GLOBAL } from '../helpers/constants.js';
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
 const transfer = GLOBAL?.ArrayBuffer?.prototype?.transfer;
+// V8 6.7 -> 67, in Chromium browsers their own version is the same number
+const v8 = (GLOBAL.process?.versions?.v8 ?? GLOBAL.Deno?.version?.v8)?.split('.');
+const V8_VERSION = v8 ? +(v8[0] + v8[1]) : +(/Chrome\/(\d+)/.exec(GLOBAL.navigator?.userAgent ?? '')?.[1] ?? 0);
 
 if (transfer) QUnit.test('ArrayBuffer#transfer', assert => {
   assert.isFunction(transfer);

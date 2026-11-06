@@ -23,6 +23,18 @@ jobs:
       - run: pip install codespell
       - run: npx run-s lint-raw
 
+  type-definitions:
+    if: *not-duplicate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm run prepare-monorepo
+      - run: npx run-s build-types types-coverage test-type-definitions-all
+
   karma:
     if: *not-duplicate
     runs-on: windows-2022
@@ -32,14 +44,46 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: ^24.18
+          node-version: 26.0.0
           cache: npm
+      # the browsers belong to the playwright version, not to the lockfile: keying on the file
+      # would re-download a gigabyte on every unrelated dependency bump
+      - id: playwright
+        shell: bash
+        run: |
+          version=$(node -p "require('./tests/karma/package-lock.json').packages['node_modules/playwright'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: D:\ms-playwright
-          key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
+          key: playwright-windows-2022-${{ steps.playwright.outputs.version }}
       - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-karma
+      - run: npx run-s bundle-package test-unit-karma
+
+  e2e-usage-pure-karma:
+    if: *not-duplicate
+    runs-on: windows-2022
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.0.0
+          cache: npm
+      # the browsers belong to the playwright version, not to the lockfile: keying on the file
+      # would re-download a gigabyte on every unrelated dependency bump
+      - id: playwright
+        shell: bash
+        run: |
+          version=$(node -p "require('./tests/karma/package-lock.json').packages['node_modules/playwright'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: D:\ms-playwright
+          key: playwright-windows-2022-${{ steps.playwright.outputs.version }}
+      - run: npm run prepare-monorepo
+      - run: npm run test-e2e-usage-pure-karma
 
   bun:
     if: *not-duplicate
@@ -54,7 +98,7 @@ jobs:
         with:
           bun-version: latest
       - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-bun
+      - run: npx run-s bundle-package test-unit-bun
 
   deno:
     if: *not-duplicate
@@ -69,17 +113,15 @@ jobs:
         with:
           deno-version: latest
       - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-deno
+      - run: npx run-s bundle-package test-unit-deno
 
-  promises-and-observables:
+  promises:
     if: *not-duplicate
     strategy:
       matrix:
         node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
+          - ^22.22.2
+          - ^24.15
           - 25
           - 26
     runs-on: ubuntu-latest
@@ -90,7 +132,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npx run-s test-promises test-observables
+      - run: npm run test-promises
 
   tests:
     if: *not-duplicate
@@ -101,10 +143,8 @@ jobs:
           - windows-latest
           - macos-latest
         node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
+          - ^22.22.2
+          - ^24.15
           - 25
           - 26
     runs-on: ${{ matrix.os }}
@@ -115,4 +155,68 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
+      - run: npx run-s bundle-package test-unit-node test-entries test-compat-data test-compat-tools test-builder
+
+  transpiling:
+    if: *not-duplicate
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        node:
+          - ^22.22.2
+          - ^24.15
+          - 25
+          - 26
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: npm run prepare-monorepo
+      - run: npx run-s build-types test-polyfill-provider test-babel-plugin test-babel-plugin-unit test-babel-plugin-v7 test-babel-plugin-unit-v7 test-unplugin test-unplugin-unit test-unplugin-roundtrip test-e2e-usage-pure test-transpiler-integration
+
+  transpiler-differential:
+    if: *not-duplicate
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            node: ^22.22.2
+          - os: ubuntu-latest
+            node: latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm run prepare-monorepo
+      # a new snapshot advances the audit counter and retains newly evaluated cells
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/core-js-differential
+          key: transpiler-differential-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.node.outputs.node-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: transpiler-differential-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.node.outputs.node-version }}-
+      - run: npm run test-transpiler-differential
+
+  transpiler-perf:
+    if: *not-duplicate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm run prepare-monorepo
+      - run: npm run test-transpiler-perf -- --samples=3
