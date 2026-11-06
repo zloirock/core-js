@@ -5,7 +5,6 @@ import defineProperties from 'core-js-pure/es/object/define-properties';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
 import reduce from 'core-js-pure/es/array/reduce';
 import isIterable from 'core-js-pure/es/is-iterable';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
@@ -59,14 +58,6 @@ assign(assert, {
   // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
   false(value, message = 'The value is `false`') {
     this.same(value, false, message);
-  },
-  isAsyncIterable(actual, message = 'The value is async iterable') {
-    this.pushResult({
-      result: typeof actual == 'object' && typeof actual[ASYNC_ITERATOR] == 'function',
-      actual,
-      expected: 'The value should be async iterable',
-      message,
-    });
   },
   isFunction(fn, message = 'The value is a function') {
     this.pushResult({
