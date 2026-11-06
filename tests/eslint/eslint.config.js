@@ -500,6 +500,9 @@ const base = {
   // forbid Webpack loader syntax in imports
   'import/no-webpack-loader-syntax': ERROR,
 
+  // ensure that filenames match a convention
+  'name/match': [ERROR, /^[\da-z][\d\-.a-z]*[\da-z]$/],
+
   // node:
   // enforce the style of file extensions in `import` declarations
   'node/file-extension-in-import': ERROR,
@@ -2358,6 +2361,9 @@ const globalsZX = {
   YAML: READONLY,
 };
 
+// JSON and Markdown use ESLint's JavaScript language with a custom parser or processor.
+const jsFile = '*.{cjs,js,mjs,json,md}';
+
 export default [
   {
     ignores: [
@@ -2376,6 +2382,7 @@ export default [
     ],
   },
   {
+    files: [`**/${ jsFile }`],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
@@ -2412,7 +2419,6 @@ export default [
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
       unicorn: pluginUnicorn,
-      yaml: pluginYaml,
     },
     rules: baseRules,
     settings: {
@@ -2423,7 +2429,7 @@ export default [
   {
     files: [
       '**/*.mjs',
-      'tests/eslint/**',
+      `tests/eslint/**/${ jsFile }`,
     ],
     languageOptions: {
       sourceType: 'module',
@@ -2431,7 +2437,7 @@ export default [
   },
   {
     files: [
-      'packages/core-js?(-pure)/**',
+      `packages/core-js?(-pure)/**/${ jsFile }`,
       'tests/compat/*.js',
     ],
     languageOptions: {
@@ -2441,15 +2447,15 @@ export default [
   },
   {
     files: [
-      'packages/core-js?(-pure)/**',
-      'tests/@(helpers|unit-pure|wpt-url-resources)/**',
+      `packages/core-js?(-pure)/**/${ jsFile }`,
+      `tests/@(helpers|unit-pure|wpt-url-resources)/**/${ jsFile }`,
       'tests/compat/*-runner.js',
     ],
     rules: forbidModernBuiltIns,
   },
   {
     files: [
-      'packages/core-js?(-pure)/**',
+      `packages/core-js?(-pure)/**/${ jsFile }`,
     ],
     rules: polyfills,
   },
@@ -2461,7 +2467,7 @@ export default [
   },
   {
     files: [
-      'packages/core-js?(-pure)/**/instance/**',
+      `packages/core-js?(-pure)/**/instance/**/${ jsFile }`,
     ],
     rules: {
       // Instance entries read the very methods they expose, including Annex B methods.
@@ -2471,7 +2477,7 @@ export default [
   },
   {
     files: [
-      'tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**',
+      `tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**/${ jsFile }`,
     ],
     languageOptions: {
       sourceType: 'module',
@@ -2480,12 +2486,12 @@ export default [
   },
   {
     files: [
-      'tests/**',
+      `tests/**/${ jsFile }`,
     ],
     rules: tests,
   },
   {
-    files: ['tests/compat/tests.js', 'tests/unit-global/**'],
+    files: ['tests/compat/tests.js', `tests/unit-global/**/${ jsFile }`],
     // These tests exercise Annex B built-ins directly.
     rules: reset(forbidESAnnexBBuiltIns, {}),
   },
@@ -2501,7 +2507,7 @@ export default [
   },
   {
     files: [
-      'tests/@(helpers|unit-@(global|pure))/**',
+      `tests/@(helpers|unit-@(global|pure))/**/${ jsFile }`,
     ],
     languageOptions: {
       globals: globals.qunit,
@@ -2510,13 +2516,13 @@ export default [
   },
   {
     files: [
-      'scripts/usage/**',
+      `scripts/usage/**/${ jsFile }`,
     ],
     rules: playwright,
   },
   {
     files: [
-      'packages/core-js-@(builder|compat)/**',
+      `packages/core-js-@(builder|compat)/**/${ jsFile }`,
     ],
     ignores: ['packages/core-js-compat/src/**'],
     rules: nodePackages,
@@ -2524,8 +2530,8 @@ export default [
   {
     files: [
       '*.js',
-      'packages/core-js-compat/src/**',
-      'scripts/**',
+      `packages/core-js-compat/src/**/${ jsFile }`,
+      `scripts/**/${ jsFile }`,
       '@(tests|website)/**/*.{cjs,js,mjs}',
     ],
     ignores: [
@@ -2540,7 +2546,7 @@ export default [
   },
   {
     files: [
-      'tests/@(compat|unit-global)/**',
+      `tests/@(compat|unit-global)/**/${ jsFile }`,
     ],
     languageOptions: {
       globals: globalsESNext,
@@ -2548,7 +2554,7 @@ export default [
   },
   {
     files: [
-      '@(scripts|tests)/*/**',
+      `@(scripts|tests)/*/**/${ jsFile }`,
     ],
     rules: {
       // disable this rule for lazily installed dependencies and for test bundles, which are built before the tests
@@ -2557,8 +2563,8 @@ export default [
   },
   {
     files: [
-      'packages/core-js-compat/src/**',
-      'scripts/**',
+      `packages/core-js-compat/src/**/${ jsFile }`,
+      `scripts/**/${ jsFile }`,
       'tests/**/*.mjs',
       'website/**.mjs',
     ],
@@ -2574,14 +2580,8 @@ export default [
     },
   },
   {
-    rules: {
-      // ensure that filenames match a convention
-      'name/match': [ERROR, /^[\da-z][\d\-.a-z]*[\da-z]$/],
-    },
-  },
-  {
     files: [
-      'packages/core-js?(-pure)/modules/**',
+      `packages/core-js?(-pure)/modules/**/${ jsFile }`,
     ],
     rules: {
       // ensure that filenames match a convention
@@ -2590,7 +2590,7 @@ export default [
   },
   {
     files: [
-      'tests/@(unit-@(global|pure))/**',
+      `tests/@(unit-@(global|pure))/**/${ jsFile }`,
     ],
     rules: {
       // ensure that filenames match a convention
@@ -2598,8 +2598,9 @@ export default [
     },
   },
   {
+    files: ['**/*.{yaml,yml}'],
     language: 'yaml/yaml',
-    files: ['*.yaml', '*.yml'],
+    plugins: { yaml: pluginYaml },
     rules: yaml,
   },
   {
@@ -2633,7 +2634,7 @@ export default [
     rules: markdown,
   },
   {
-    files: ['**/*.md/*'],
+    files: [`**/*.md/${ jsFile }`],
     rules: {
       // enforce a case style for filenames
       'unicorn/filename-case': OFF,
@@ -2643,7 +2644,7 @@ export default [
   },
   {
     files: [
-      'website/src/js/*',
+      `website/src/js/${ jsFile }`,
     ],
     languageOptions: {
       sourceType: 'module',
@@ -2657,7 +2658,7 @@ export default [
   },
   {
     files: [
-      'website/**',
+      `website/**/${ jsFile }`,
     ],
     rules: {
       'import/no-unresolved': OFF,
