@@ -18,6 +18,7 @@ import {
   prologueEndIndex,
   isDirectiveStatement,
   markGeneratedMemoDeclarator,
+  walkAstChildren,
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -184,21 +185,45 @@ function refAnchorIndex(body, from) {
   return end;
 }
 
-// every node reachable from the program - the flush asks it whether a recorded ref host
-// still lives in the tree
-function collectNodes(root) {
-  const seen = new Set();
-  (function walk(node) {
-    if (!node || typeof node !== 'object' || seen.has(node)) return;
-    seen.add(node);
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      const value = node[key];
-      if (Array.isArray(value)) for (const item of value) walk(item);
-      else walk(value);
+// The node currently occupying one edge recorded by the final-tree census.
+function occurrenceChildAt(parent, { keys, listKeys }, index) {
+  const listKey = listKeys[index];
+  return (listKey ? parent[listKey] : parent)?.[keys[index]];
+}
+
+// Look for the registered hosts in the final syntax tree. A clone can carry the same
+// source range as a detached host, so only the exact block, function or loop counts.
+function findDetachedRefHosts(program, refs, bindings) {
+  const detached = new Set();
+  for (const { host } of refs) if (host) detached.add(host);
+  for (const { host, name } of refs) {
+    if (!detached.has(host)) continue;
+    const binding = bindings.get(name);
+    const occurrence = binding?.reads[0] ?? binding?.writes[0] ?? binding?.declarations[0];
+    if (!occurrence || occurrence.ancestors[0] !== program) continue;
+    // Cleanup may move a use or one of its ancestors. Only a still-attached prefix
+    // of the final census can certify a host; look up the remaining hosts together.
+    for (let i = 1; i < occurrence.ancestors.length; i++) {
+      const node = occurrence.ancestors[i];
+      if (occurrenceChildAt(occurrence.ancestors[i - 1], occurrence, i) !== node) break;
+      detached.delete(node);
+      if (!detached.size) return detached;
+      if (node === host) break;
     }
-  })(root);
-  return seen;
+  }
+  if (detached.size) {
+    const seen = new Set();
+    const stack = [program];
+    function enqueue(child) { stack.push(child); }
+    while (detached.size && stack.length) {
+      const node = stack.pop();
+      if (seen.has(node)) continue;
+      seen.add(node);
+      detached.delete(node);
+      if (detached.size) walkAstChildren(node, enqueue);
+    }
+  }
+  return detached;
 }
 
 // Remove unread minted memos whose initializers are inert. A sole statement write may also
@@ -320,8 +345,7 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
           const key = occurrence.keys[i];
           const listKey = occurrence.listKeys[i];
           const node = occurrence.ancestors[i];
-          const container = listKey ? path.node[listKey] : path.node;
-          if (container?.[key] !== node) return null;
+          if (occurrenceChildAt(path.node, occurrence, i) !== node) return null;
           path = path.constructor.for({ node, key, listKey, parentPath: path, ctx: path.ctx }).init();
         }
       } else path = memoRegistrations.get(name)?.path;
@@ -355,10 +379,13 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     if (to) node.name = to;
   }
   const liveRefs = refNames
-    .map((entry, registrationIndex) => ({ ...entry, registrationIndex, owned: injector.isOwnPassGeneratedName(entry.name) }))
+    .map((entry, registrationIndex) => ({
+      ...entry, registrationIndex, owned: injector.isOwnPassGeneratedName(entry.name),
+      host: entry.hostBodyless?.parent ?? entry.hostBlock ?? entry.hostFunction,
+    }))
     .filter(entry => !localRefs.has(entry.name) && (refCounts.get(entry.name) ?? 0) > 0)
-    .sort((a, b) => printRank.indexOf(a.name) - printRank.indexOf(b.name))
-    .map(entry => ({ ...entry, name: renameMap.get(entry.name) ?? entry.name }));
+    .sort((a, b) => printRank.indexOf(a.name) - printRank.indexOf(b.name));
+  const detachedHosts = findDetachedRefHosts(program, liveRefs, census.memoBindings);
   const liveInProgram = createPureImportLiveness({
     pureImports: injector.pureImports,
     existingPureImports: injector.existingPureImports,
@@ -387,11 +414,10 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
   // clones the subtree it moves): the declaration would then land in a detached node and
   // the surviving reads have none. the program level always holds one, so a lost host
   // degrades there instead of dropping - a re-homed clone is the fix, this is the net
-  const liveHosts = liveRefs.some(entry => entry.hostFunction || entry.hostBlock)
-    ? collectNodes(program) : null;
-  for (const { name, registrationIndex, owned, hostFunction, hostBlock, hostBodyless } of liveRefs) {
+  for (const { name: original, registrationIndex, owned, host: registeredHost, hostFunction, hostBlock, hostBodyless } of liveRefs) {
+    const name = renameMap.get(original) ?? original;
     let host = program;
-    if ((hostFunction && !liveHosts?.has(hostFunction)) || (hostBlock && !liveHosts?.has(hostBlock))) {
+    if (detachedHosts.has(registeredHost)) {
       if (!byHost.has(program)) byHost.set(program, []);
       byHost.get(program).push({ name, registrationIndex, owned });
       continue;

@@ -2601,6 +2601,45 @@ async function checkAstFlushContracts() {
     if (hostFunction) check(`${ label }/source prologue`, body[0].expression.value, 'use strict');
   }
 
+  // A local declaration can use its census occurrence without rescanning unrelated syntax.
+  function tailReadsWithRef(local) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure' });
+    const name = state.generateDeclaredRef();
+    const program = programOf(`function read() { use(${ name }); } after();`);
+    const [, tail] = program.body;
+    const { expression } = tail;
+    let reads = 0;
+    Object.defineProperty(tail, 'expression', { get() {
+      reads++;
+      return expression;
+    } });
+    flushIntoProgram({ injector: state, program, refNames: [{ name, hostBlock: local && program.body[0].body }], memoReuseContext: {} });
+    return reads;
+  }
+  const programReads = tailReadsWithRef(false);
+  check('ref placement observes the control tail', programReads > 0, true);
+  check('ref placement reuses the final census for a local host', tailReadsWithRef(true), programReads);
+
+  for (const bodyless of [false, true]) for (const attached of [true, false]) {
+    const state = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure' });
+    const name = state.generateDeclaredRef();
+    const use = `use(${ name } = 23);`;
+    const source = `'use strict'; for (let i = 0; i < 1; ++i) ${ bodyless ? use : `{ ${ use } }` }`;
+    const program = programOf(source);
+    const [, loop] = program.body;
+    if (!attached) {
+      program.body[1] = structuredClone(loop);
+      program.extra = { previousLoop: loop };
+    }
+    const host = bodyless ? { hostBodyless: { parent: loop, slot: 'body' } } : { hostBlock: loop.body };
+    flushIntoProgram({ injector: state, program, refNames: [{ name, ...host }], memoReuseContext: {} });
+    const label = `ref placement/${ attached ? 'live' : 'cloned' }/${ bodyless ? 'bodyless' : 'block' }`;
+    check(`${ label }/declaration`, attached ? loop.body.body[0].type : program.body[1].type, 'VariableDeclaration');
+    const values = [];
+    runInNewContext(printProgram({ program, comments: [], source }).code, { use: value => values.push(value) });
+    checkDeep(`${ label }/runtime`, values, [23]);
+  }
+
   const memoInjector = new ImportInjector({ importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false });
   for (const [source, expected] of [
     ['_ref = Array;', ''],
