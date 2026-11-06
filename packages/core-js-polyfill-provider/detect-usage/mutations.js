@@ -9009,7 +9009,11 @@ function resolveMutationSite({
   }
   function visitBinding(identNode, depth, ctx = siteCtx) {
     const { scope, adapter, path } = ctx;
-    if (!adapter.hasBinding({ scope, name: identNode.name, path })) return;
+    if (!adapter.hasBinding({ scope, name: identNode.name, path })) {
+      // A free name used as the receiver names its own slot. Alias leaves have already been resolved.
+      if (depth === 0) names.add(identNode.name);
+      return;
+    }
     const binding = adapter.getBinding({ scope, name: identNode.name, path });
     // keyed by the DECLARATION node: both adapters build a FRESH binding view per lookup, so
     // identity on the view never matched and the guard never fired. the declaration node is
@@ -9137,12 +9141,7 @@ function resolveMutationSite({
   const target = valueFanLeaves(targetNode, []);
   for (const leaf of target) {
     if (leaf.type === 'Identifier') {
-      if (!siteAdapter.hasBinding({ scope: siteScope, name: leaf.name, path: sitePath })) {
-        // unshadowed bare name - the direct global candidate, no alias machinery involved
-        names.add(leaf.name);
-      } else {
-        visitBinding(leaf, 0);
-      }
+      visitBinding(leaf, 0);
     } else {
       const name = resolveLeafName(leaf, siteCtx);
       if (name) names.add(name);
