@@ -2490,7 +2490,11 @@ export default [
     files: [
       'tests/compat/tests.js',
     ],
-    rules: forbidCompletelyNonExistentBuiltIns,
+    rules: {
+      ...forbidCompletelyNonExistentBuiltIns,
+      // disallow usage of expressions in statement position
+      'no-unused-expressions': base['no-unused-expressions'],
+    },
   },
   {
     files: [
