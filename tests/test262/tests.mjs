@@ -44,7 +44,7 @@ for (const file of expectedFailures) {
   equal(preprocessor(sibling), sibling, 'Expected failures match complete paths');
 }
 
-const test262Dir = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-test262-'));
+const test262Dir = await fs.mkdtemp(path.join(os.tmpdir(), '-core-js-test262-'));
 try {
   await fs.writeJson(path.join(test262Dir, 'package.json'), { version: '5.0.0' });
   for (const file of ['assert.js', 'sta.js']) {
@@ -70,14 +70,18 @@ try {
   }
 
   const prelude = path.join(test262Dir, 'prelude.js');
-  const patterns = [`${ test262Dir }/test/built-ins/**/*.js`];
+  // A leading dash in a real glob is part of the pattern.
+  const runFixture = () => within(() => {
+    $.cwd = path.dirname(test262Dir);
+    return run([`${ path.basename(test262Dir) }/test/built-ins/**/*.js`], { test262Dir, prelude }).nothrow().quiet();
+  });
   await fs.writeFile(prelude, '');
-  const passed = await run(patterns, { test262Dir, prelude }).nothrow().quiet();
+  const passed = await runFixture();
   equal(passed.exitCode, 0, passed.toString());
   match(passed.stdout, /Ran 4 tests\s+4 passed\s+0 failed/);
 
   await fs.writeFile(prelude, 'Array.prototype.map = function () { return []; };\n');
-  const failed = await run(patterns, { test262Dir, prelude }).nothrow().quiet();
+  const failed = await runFixture();
   equal(failed.exitCode, 1, failed.toString());
   match(failed.stdout, /Ran 4 tests\s+0 passed\s+4 failed/);
 } finally {

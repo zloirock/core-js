@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 const featuresExclude = [
   'arraybuffer-transfer',
   'error-stack-accessor',
@@ -18,9 +20,9 @@ export default function run(patterns, {
     --threads=${ os.cpus().length } \
     --timeout=60000 \
     --host-args="--unhandled-rejections=none" \
-    --preprocessor=preprocessor.js \
+    --preprocessor=${ fileURLToPath(new URL('./preprocessor.js', import.meta.url)) } \
     --prelude=${ prelude } \
     --test262-dir=${ test262Dir } \
-    ${ patterns } \
+    -- ${ patterns } \
   `;
 }

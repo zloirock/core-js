@@ -2,16 +2,23 @@ import { minify } from 'terser';
 import builder from 'core-js-builder';
 import config from 'core-js-builder/config.js';
 
-function namedArg(name, fallback) {
-  const idx = argv._.indexOf(name);
-  return idx === -1 ? fallback : argv._[idx + 1];
+const args = argv._.values();
+const cliOptions = new Map();
+for (const key of args) {
+  const value = key === 'bundled-name' || key === 'minified-name' ? args.next().value : true;
+  if (value === undefined) {
+    console.error(`Missing bundle filename after ${ key }`);
+    process.exitCode = 1;
+    break;
+  }
+  if (!cliOptions.has(key)) cliOptions.set(key, value);
 }
 
 const { cyan, green } = chalk;
-const DENO = argv._.includes('deno');
-const ESMODULES = argv._.includes('esmodules');
-const BUNDLED_NAME = namedArg('bundled-name', 'index');
-const MINIFIED_NAME = namedArg('minified-name', 'minified');
+const DENO = cliOptions.has('deno');
+const ESMODULES = cliOptions.has('esmodules');
+const BUNDLED_NAME = cliOptions.get('bundled-name') ?? 'index';
+const MINIFIED_NAME = cliOptions.get('minified-name') ?? 'minified';
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
@@ -59,7 +66,7 @@ async function bundle({ bundled, minified, options = {} }) {
   log('minification', minified, code);
 }
 
-await bundle(DENO ? {
+if (!process.exitCode) await bundle(DENO ? {
   bundled: BUNDLED_NAME,
   options: {
     targets: { deno: '1.0' },
