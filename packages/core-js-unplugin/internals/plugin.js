@@ -1,4 +1,4 @@
-import { parseSync } from 'oxc-parser';
+import * as oxc from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import { restSentinelNamesReducer } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
@@ -333,6 +333,19 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
   return anchored.size ? { anchored, removed } : null;
 }
 
+// The WASM entry only exposes the standard parser. Eager transfer on native hosts
+// reads slices from the original string, while the standard parser replaces lone surrogates.
+function parseSource(id, code, lang, sourceType) {
+  if (oxc.rawTransferSupported?.() && code.isWellFormed()) {
+    try {
+      // eslint-disable-next-line node/no-sync -- the transform consumes the tree synchronously
+      return oxc.parseSync(id, code, { lang, sourceType, experimentalRawTransfer: true });
+    } catch { /* The runtime may refuse the transfer buffer even on a supported platform. */ }
+  }
+  // eslint-disable-next-line node/no-sync -- the fallback has the same synchronous contract
+  return oxc.parseSync(id, code, { lang, sourceType });
+}
+
 // disable-directive state for a (code, ast, comments) snapshot: the offset->line mapper
 // plus the parsed line set. `disable-file` only counts above any code - a `'use strict'`
 // prologue can precede it, so directives before the cutoff are skipped
@@ -606,9 +619,7 @@ export default function createPlugin(options) {
     // they go before the parse. `createClassHelpers` is per-transform-fresh below; only the
     // persistent resolver needs clearing here
     typeResolvers.reset();
-    // parse synchronously with oxc-parser
-    // eslint-disable-next-line node/no-sync -- the transform uses oxc's synchronous parser
-    let parsed = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: sourceDialect.parseGoal });
+    let parsed = parseSource(cleanId, code, sourceDialect.lang, sourceDialect.parseGoal);
     let [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
     // a refused goal may retry the other on an unpinned id: Script-only syntax (an Annex-B HTML
     // comment, a legacy octal) refuses Module, while ESM in a CommonJS id refuses Script. only a
@@ -616,8 +627,7 @@ export default function createPlugin(options) {
     // `await(import(x))` can call a function named `await` there. `.mjs` / `.mts` remain pinned.
     if (fatal && !sourceDialect.esm) {
       const retryGoal = sourceDialect.parseGoal === 'module' ? 'script' : 'module';
-      // eslint-disable-next-line node/no-sync -- the transform uses oxc's synchronous parser
-      const retried = parseSync(cleanId, code, { lang: sourceDialect.lang, sourceType: retryGoal });
+      const retried = parseSource(cleanId, code, sourceDialect.lang, retryGoal);
       const [stillFatal] = retried.errors?.filter(e => e.severity === 'Error') ?? [];
       if (!stillFatal) [parsed, fatal] = [retried, undefined];
     }
