@@ -2444,8 +2444,8 @@ export default [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(helpers|unit-pure)/**',
-      'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
+      'tests/@(helpers|unit-pure|wpt-url-resources)/**',
+      'tests/compat/*-runner.js',
     ],
     rules: forbidModernBuiltIns,
   },

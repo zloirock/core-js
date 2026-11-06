@@ -1,6 +1,6 @@
 'use strict';
-/* eslint-disable unicorn/prefer-global-this -- required */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
+// eslint-disable-next-line es/no-object-create -- available in all engines using this runner
 var results = GLOBAL.results = Object.create(null);
 var data = GLOBAL.data;
 var tests = GLOBAL.tests;
