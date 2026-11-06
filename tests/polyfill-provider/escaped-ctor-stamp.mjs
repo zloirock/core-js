@@ -2233,6 +2233,81 @@ for (const adapter of adapters) {
   }
 }
 
+// Resolving a local method only needs the scopes of names that can open its owner.
+// Unrelated references still go through the ordinary census walk. Count reads of their scope
+// chains during finalization, for both an actual method and a call with no candidate.
+for (const adapter of adapters) {
+  const nameReads = [];
+  for (const [call, handsOutMap] of [
+    ['const box = 1; box.missing();', false],
+    ['const box = { make() { return Map; } }; hand(box.make());', true],
+  ]) {
+    const program = adapter.parseAndScope(`function run(other) { ${ 'other;'.repeat(32) } ${ call } } run(0);`).node;
+    const reducer = escapedCtorReferencesReducer();
+    let finalizing = false;
+    let references = 0;
+    let scopeReads = 0;
+    let reads = 0;
+    const { escapedCtorNames } = collectFileCensus(program, [{
+      visit(node, frame) {
+        if (node.name === 'other' && frame.parentNode?.type === 'ExpressionStatement') {
+          references++;
+          Object.defineProperty(node, 'name', {
+            get() {
+              if (finalizing) reads++;
+              return 'other';
+            },
+          });
+          const scopes = new Proxy(frame.scopes, {
+            get(target, key, receiver) {
+              if (finalizing && key === 'length') scopeReads++;
+              return Reflect.get(target, key, receiver);
+            },
+          });
+          reducer.visit(node, { ...frame, scopes });
+        } else reducer.visit(node, frame);
+      },
+      result() {
+        finalizing = true;
+        return reducer.result();
+      },
+    }]);
+    nameReads.push(reads);
+    const label = `${ adapter.name }: ${ call }`;
+    check(`${ label } counts all unrelated references`, references, 32);
+    check(`${ label } leaves unrelated scopes unread`, scopeReads, 0);
+    check(`${ label } reports the constructor returned by the method`, escapedCtorNames.has('Map', true), handsOutMap);
+  }
+  check(`${ adapter.name }: resolving a method does not rescan unrelated names`, nameReads[1], nameReads[0]);
+}
+
+// A bare read opens the literal to outside writes. Refuse its method before walking
+// the literal for `this`; the same closed literal still needs that check.
+for (const adapter of adapters) for (const open of [false, true]) {
+  const program = adapter.parseAndScope(`function run() {
+    const box = { take(x) { return x; }, padding: [19] };
+    ${ open ? 'hand(box);' : '' } hand(box.take(Map));
+  } run();`).node;
+  const reducer = escapedCtorReferencesReducer();
+  const array = findNode(program, node => node.type === 'ArrayExpression');
+  let inspections = 0;
+  let finalizing = false;
+  array.elements[0] = new Proxy(array.elements[0], {
+    ownKeys(target) {
+      if (finalizing) inspections++;
+      return Reflect.ownKeys(target);
+    },
+  });
+  collectFileCensus(program, [{
+    visit: reducer.visit,
+    result() {
+      finalizing = true;
+      return reducer.result();
+    },
+  }]);
+  check(`${ adapter.name }: inspect the literal only for a closed method owner (${ open })`, inspections > 0, !open);
+}
+
 // A returned-container proof belongs to the callee for this census, including a
 // rejection. More calls must not repeat a walk of the same immutable body.
 for (const adapter of adapters) {
