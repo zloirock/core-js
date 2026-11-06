@@ -7,7 +7,7 @@ import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } f
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { moduleDefaultSource, resolveInlineCalleeFunction } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { beginMutationPrePass, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, runBoth, finish } = createChecker('mutation-return-channels');
 const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, mode: 'full' };
@@ -183,4 +183,29 @@ for (const source of unavailableCallees) runBoth(`unavailable callee: ${ source 
   check(`${ name }: read declines`, resolveInlineCalleeFunction(hop), null);
   check(`${ name }: mutation declines`, resolveInlineCalleeFunction(hop, { allowUninitializedCallee: true }), null);
 });
+// A direct receiver asks for presence once before reading the binding. A free root
+// still names its own slot, while a local shadows that spelling.
+for (const [source, name, bound, slot, patched] of [
+  ['Array.from = patch;', 'Array', false, 'Array.from', true],
+  ['const target = Array; target.from = patch;', 'target', true, 'Array.from', true],
+  ['function run(Array) { Array.from = patch; }', 'Array', true, 'Array.from', false],
+  ['const target = foreign; target.from = patch;', 'target', true, 'foreign.from', false],
+]) runBoth(`mutation receiver: ${ source }`, source, (parser, program, label) => {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const queries = [];
+  for (const method of ['hasBinding', 'getBinding']) {
+    const lookup = adapter[method];
+    adapter[method] = function (ask) {
+      if (ask.name === name) queries.push(method);
+      return lookup.call(this, ask);
+    };
+  }
+  const site = parser.pickPath(program, 'AssignmentExpression');
+  const { mutated, handleSite, finalize } = beginMutationPrePass({ rootNode: program.node, adapter, census: { hasMutationShapes: true } });
+  handleSite(site);
+  finalize();
+  check(`${ label }/queries up to the first binding read`, queries.slice(0, 2).join(','), bound ? 'hasBinding,getBinding' : 'hasBinding');
+  check(`${ label }/${ slot }`, mutated.has(slot), patched);
+});
+
 finish();
