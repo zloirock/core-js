@@ -1,5 +1,5 @@
 import { STRICT } from '../helpers/constants.js';
-import { createIterator } from '../helpers/helpers.js';
+import { createIterator, observableReturn } from '../helpers/helpers.js';
 
 import Iterator from 'core-js-pure/es/iterator';
 import from from 'core-js-pure/es/array/from';
@@ -39,15 +39,9 @@ QUnit.test('Iterator#chunks', assert => {
   assert.throws(() => chunks.call(it, -1), RangeError, 'throws on negative argument');
   assert.throws(() => chunks.call(it, 2 ** 32), RangeError, 'throws on negative argument');
 
-  const observableReturn = {
-    return() {
-      this.called = true;
-      return { done: true, value: undefined };
-    },
-  };
   const itObservable = createIterator([1, 2, 3], observableReturn);
   assert.throws(() => chunks.call(itObservable, 0x100000000), RangeError, 'throws on argument more then 2^32 - 1');
-  assert.true(itObservable.called, 'iterator closed on argument validation error');
+  assert.same(itObservable.returnCalls, 1, 'iterator closed on argument validation error');
 });
 
 QUnit.test('Iterator#chunks with an exhausted source', assert => {

@@ -1,5 +1,5 @@
 import { STRICT } from '../helpers/constants.js';
-import { createIterator } from '../helpers/helpers.js';
+import { createIterator, observableReturn } from '../helpers/helpers.js';
 
 QUnit.test('Iterator#join', assert => {
   const { join } = Iterator.prototype;
@@ -11,16 +11,9 @@ QUnit.test('Iterator#join', assert => {
   assert.looksNative(join);
   assert.nonEnumerable(Iterator.prototype, 'join');
 
-  const observableReturn = {
-    return() {
-      this.called = true;
-      return { done: true, value: undefined };
-    },
-  };
-
   const itObservable1 = createIterator([1, 2, 3], observableReturn);
   assert.strictEqual(join.call(itObservable1), '1,2,3', 'without separator attribute');
-  assert.true(itObservable1.called, 'iterator closes');
+  assert.same(itObservable1.returnCalls, 0, 'does not call return after exhaustion');
   assert.strictEqual(join.call(createIterator([1, 2, 3]), '-'), '1-2-3', 'with separator attribute');
   assert.strictEqual(join.call(createIterator([1, null, 3]), '-'), '1--3', 'skips nullish values');
   assert.strictEqual(join.call(createIterator([1, undefined, 3]), '-'), '1--3', 'skips undefined values');
@@ -35,9 +28,10 @@ QUnit.test('Iterator#join', assert => {
 
   const itObservable2 = createIterator([1, 2, 3], observableReturn);
   assert.throws(() => join.call(itObservable2, symbol), TypeError, 'throws on symbol separator');
-  assert.true(itObservable2.called, 'iterator closes on argument validation error');
+  assert.false(itObservable2.called, 'validates the separator before calling next');
+  assert.same(itObservable2.returnCalls, 1, 'iterator closes on argument validation error');
 
   const itObservable3 = createIterator([1, symbol, 3], observableReturn);
   assert.throws(() => join.call(itObservable3), TypeError, 'throws on non-stringable value');
-  assert.true(itObservable3.called, 'iterator closes on value conversion error');
+  assert.same(itObservable3.returnCalls, 1, 'iterator closes on value conversion error');
 });

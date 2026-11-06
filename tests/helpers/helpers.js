@@ -36,6 +36,14 @@ export function createIterator(elements, methods) {
   return iterator;
 }
 
+export const observableReturn = {
+  returnCalls: 0,
+  return() {
+    this.returnCalls++;
+    return { done: true, value: undefined };
+  },
+};
+
 export function createSetLike(elements) {
   return {
     size: elements.length,

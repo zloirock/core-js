@@ -1,4 +1,4 @@
-import { createIterator } from '../helpers/helpers.js';
+import { createIterator, observableReturn } from '../helpers/helpers.js';
 import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Iterator.zip', assert => {
@@ -26,44 +26,45 @@ QUnit.test('Iterator.zip', assert => {
   result = zip([[1, 2, 3], [4, 5, 6, 7]], { mode: 'strict' });
   assert.throws(() => from(result), TypeError);
 
-  const observableReturn = {
-    return() {
-      this.called = true;
-      return { done: true, value: undefined };
-    },
-  };
-
   {
     const it1 = createIterator([1, 2], observableReturn);
     const it2 = createIterator([3, 4], observableReturn);
     result = zip([it1, it2]);
+    assert.deepEqual([it1.called, it2.called], [false, false], 'zip is lazy');
     assert.deepEqual(result.next().value, [1, 3]);
+    assert.deepEqual([it1.called, it2.called], [true, true], 'next advances both iterators');
+    assert.deepEqual([it1.returnCalls, it2.returnCalls], [0, 0], 'keeps both iterators open after next');
     assert.deepEqual(result.return(), { done: true, value: undefined });
     assert.deepEqual(result.next(), { done: true, value: undefined });
-    assert.true(it1.called, 'first iterator return called');
-    assert.true(it2.called, 'second iterator return called');
+    assert.same(it1.returnCalls, 1, 'first iterator return called');
+    assert.same(it2.returnCalls, 1, 'second iterator return called');
   }
 
   {
-    const it = createIterator([1, 2, 3], observableReturn);
-    result = zip([it, [4, 5]], { mode: 'strict' });
+    const longer = createIterator([1, 2, 3], observableReturn);
+    const shorter = createIterator([4, 5], observableReturn);
+    result = zip([longer, shorter], { mode: 'strict' });
     assert.throws(() => from(result), TypeError);
-    assert.true(it.called, 'iterator return called #1');
+    assert.same(longer.returnCalls, 1, 'iterator return called #1');
+    assert.same(shorter.returnCalls, 0, 'does not close the exhausted second iterator');
   }
 
   {
-    const it = createIterator([3, 4, 5], observableReturn);
-    result = zip([[1, 2], it], { mode: 'strict' });
+    const shorter = createIterator([1, 2], observableReturn);
+    const longer = createIterator([3, 4, 5], observableReturn);
+    result = zip([shorter, longer], { mode: 'strict' });
     assert.throws(() => from(result), TypeError);
-    assert.true(it.called, 'iterator return called #2');
+    assert.same(longer.returnCalls, 1, 'iterator return called #2');
+    assert.same(shorter.returnCalls, 0, 'does not close the exhausted first iterator');
   }
 
   {
-    const it1 = createIterator([1, 2], { next() { throw new Error(); } });
+    const it1 = createIterator([1, 2], { ...observableReturn, next() { throw new Error(); } });
     const it2 = createIterator([3, 4], observableReturn);
     result = zip([it1, it2]);
     assert.throws(() => from(result), Error);
-    assert.true(it2.called, 'iterator return called #4');
+    assert.same(it1.returnCalls, 0, 'does not close the iterator whose next throws');
+    assert.same(it2.returnCalls, 1, 'iterator return called #4');
   }
 
   {
@@ -134,7 +135,7 @@ QUnit.test('Iterator.zip', assert => {
       caught = error;
     }
     assert.same(caught, expectedError, 'original error is preserved');
-    assert.true(it1.called, 'first iterator return called on non-iterable second element');
+    assert.same(it1.returnCalls, 1, 'first iterator return called on non-iterable second element');
   }
 
   {
@@ -144,8 +145,8 @@ QUnit.test('Iterator.zip', assert => {
         throw expectedError;
       },
     };
-    const it1 = createIterator([1, 2], throwingReturn);
-    const it2 = createIterator([3, 4], observableReturn);
+    const it1 = createIterator([1, 2], observableReturn);
+    const it2 = createIterator([3, 4], throwingReturn);
     result = zip([it1, it2]);
     result.next();
     let caught;
@@ -155,6 +156,7 @@ QUnit.test('Iterator.zip', assert => {
       caught = error;
     }
     assert.same(caught, expectedError, 'propagates the original error from inner return()');
+    assert.same(it1.returnCalls, 1, 'closes the remaining iterator when another return throws');
   }
 
   if (DESCRIPTORS) {

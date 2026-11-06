@@ -1,4 +1,4 @@
-import { createIterator } from '../helpers/helpers.js';
+import { createIterator, observableReturn } from '../helpers/helpers.js';
 import { DESCRIPTORS } from '../helpers/constants.js';
 
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -36,16 +36,11 @@ QUnit.test('Iterator.zipKeyed', assert => {
     defineProperty(obj, Symbol('d'), { get: () => [10, 11, 12] });
     assert.deepEqual(from(zipKeyed(obj)), [{ a: 0, b: 3, c: 7 }, { a: 1, b: 4, c: 8 }, { a: 2, b: 5, c: 9 }]);
 
-    const it = createIterator([1, 2], {
-      return() {
-        this.called = true;
-        return { done: true, value: undefined };
-      },
-    });
+    const it = createIterator([1, 2], observableReturn);
     obj = { a: it };
     defineProperty(obj, 'b', { get: () => { throw new Error(); }, enumerable: true });
     assert.throws(() => from(zipKeyed(obj)), Error);
-    assert.true(it.called, 'iterator return called');
+    assert.same(it.returnCalls, 1, 'iterator return called');
 
     const foo = Symbol('foo');
     const bar = Symbol('bar');
