@@ -272,7 +272,6 @@ async function buildBlogMenu() {
     // the preview goes to the blog index, its in-page anchors have to point to the post page
     htmlFileName = mdPath.replace(config.docsDir, '').replace(/\.md$/i, '.html');
     let htmlContent = await marked.parse(content);
-    // eslint-disable-next-line redos/no-vulnerable -- safe
     htmlContent = htmlContent.replace(/<h1[^>]*>.*?<\/h1>/i, '');
     const hrIndex = htmlContent.search(/<hr>/i);
     const preview = hrIndex !== -1 ? htmlContent.slice(0, hrIndex) : htmlContent;
