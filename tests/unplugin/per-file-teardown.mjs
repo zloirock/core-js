@@ -60,6 +60,7 @@ if (typeof globalThis.gc === 'function') {
         format: 'module',
         shortCircuit: true,
         source: `import { parseSync as parse } from ${ JSON.stringify(parserURL) };
+          export * from ${ JSON.stringify(parserURL) };
           export function parseSync(...args) {
             const result = parse(...args);
             globalThis.observeTeardownTree(result.program);
