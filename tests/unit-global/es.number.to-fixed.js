@@ -22,7 +22,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(toFixed.call(1, '0.9'), '1');
   assert.same(toFixed.call(1, NaN), '1');
   assert.same(toFixed.call(1, 'some string'), '1');
-  assert.notThrows(() => toFixed.call(1, -0.1) === '1');
+  assert.returns(() => toFixed.call(1, -0.1), '1');
   assert.same(new Number(1).toFixed(), '1');
   assert.same(new Number(1).toFixed(0), '1');
   assert.same(new Number(1).toFixed(1), '1.0');
@@ -34,7 +34,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(new Number(1).toFixed('0.9'), '1');
   assert.same(new Number(1).toFixed(NaN), '1');
   assert.same(new Number(1).toFixed('some string'), '1');
-  assert.notThrows(() => new Number(1).toFixed(-0.1) === '1');
+  assert.returns(() => new Number(1).toFixed(-0.1), '1');
   assert.same(NaN.toFixed(), 'NaN');
   assert.same(NaN.toFixed(0), 'NaN');
   assert.same(NaN.toFixed(1), 'NaN');
@@ -46,7 +46,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(NaN.toFixed('0.9'), 'NaN');
   assert.same(NaN.toFixed(NaN), 'NaN');
   assert.same(NaN.toFixed('some string'), 'NaN');
-  assert.notThrows(() => NaN.toFixed(-0.1) === 'NaN');
+  assert.returns(() => NaN.toFixed(-0.1), 'NaN');
   assert.same(new Number(1e21).toFixed(), String(1e21));
   assert.same(new Number(1e21).toFixed(0), String(1e21));
   assert.same(new Number(1e21).toFixed(1), String(1e21));
@@ -58,7 +58,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(new Number(1e21).toFixed('0.9'), String(1e21));
   assert.same(new Number(1e21).toFixed(NaN), String(1e21));
   assert.same(new Number(1e21).toFixed('some string'), String(1e21));
-  assert.notThrows(() => new Number(1e21).toFixed(-0.1) === String(1e21));
+  assert.returns(() => new Number(1e21).toFixed(-0.1), String(1e21));
   assert.throws(() => 1.0.toFixed(-101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
   assert.throws(() => 1.0.toFixed(101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
   assert.throws(() => NaN.toFixed(Infinity), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');

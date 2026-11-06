@@ -10,8 +10,7 @@ QUnit.test('Object.seal', assert => {
   assert.name(seal, 'seal');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
-    assert.notThrows(() => seal(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
-    assert.same(seal(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
+    assert.returns(() => seal(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
   const results = [];
   for (const key in seal({})) results.push(key);

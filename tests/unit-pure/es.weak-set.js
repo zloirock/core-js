@@ -88,7 +88,7 @@ QUnit.test('WeakSet#delete', assert => {
   weakset.delete(a);
   assert.false(weakset.has(a), 'WeakSet has not value after .delete() #1');
   assert.true(weakset.has(b), 'WeakSet still has value after .delete() #2');
-  assert.notThrows(() => !weakset.delete(1), 'return false on primitive');
+  assert.returns(() => weakset.delete(1), false, 'return false on primitive');
 });
 
 QUnit.test('WeakSet#has', assert => {
@@ -100,7 +100,7 @@ QUnit.test('WeakSet#has', assert => {
   assert.true(weakset.has(object), 'WeakSet has value after .add()');
   weakset.delete(object);
   assert.false(weakset.has(object), 'WeakSet has not value after .delete()');
-  assert.notThrows(() => !weakset.has(1), 'return false on primitive');
+  assert.returns(() => weakset.has(1), false, 'return false on primitive');
 });
 
 QUnit.test('WeakSet#@@toStringTag', assert => {

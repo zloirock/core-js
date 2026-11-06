@@ -88,7 +88,7 @@ QUnit.test('WeakMap#delete', assert => {
   weakmap.delete(a);
   assert.false(weakmap.has(a), 'WeakMap has not value after .delete() #1');
   assert.true(weakmap.has(b), 'WeakMap still has value after .delete() #2');
-  assert.notThrows(() => !weakmap.delete(1), 'return false on primitive');
+  assert.returns(() => weakmap.delete(1), false, 'return false on primitive');
   const object = {};
   weakmap.set(object, 42);
   freeze(object);
@@ -110,7 +110,7 @@ QUnit.test('WeakMap#get', assert => {
   assert.same(weakmap.get(object), 42, 'WeakMap .get() return value');
   weakmap.delete(object);
   assert.same(weakmap.get(object), undefined, 'WeakMap .get() after .delete() return undefined');
-  assert.notThrows(() => weakmap.get(1) === undefined, 'return undefined on primitive');
+  assert.returns(() => weakmap.get(1), undefined, 'return undefined on primitive');
   object = {};
   weakmap.set(object, 42);
   freeze(object);
@@ -132,7 +132,7 @@ QUnit.test('WeakMap#has', assert => {
   assert.true(weakmap.has(object), 'WeakMap .has() return true');
   weakmap.delete(object);
   assert.false(weakmap.has(object), 'WeakMap .has() after .delete() return false');
-  assert.notThrows(() => !weakmap.has(1), 'return false on primitive');
+  assert.returns(() => weakmap.has(1), false, 'return false on primitive');
   object = {};
   weakmap.set(object, 42);
   freeze(object);

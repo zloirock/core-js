@@ -22,7 +22,7 @@ QUnit.test('Array#slice', assert => {
   assert.deepEqual(slice(string, -2, -3), []);
   const list = GLOBAL.document && document.body && document.body.childNodes;
   if (list) {
-    assert.notThrows(() => isArray(slice(list)), 'works with NodeList');
+    assert.returns(() => isArray(slice(list)), true, 'works with NodeList');
   }
   if (STRICT) {
     assert.throws(() => slice(null), TypeError);

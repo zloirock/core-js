@@ -28,9 +28,9 @@ QUnit.test('String#includes', assert => {
   const regexp = /./;
   assert.throws(() => '/./'.includes(regexp), TypeError);
   regexp[Symbol.match] = false;
-  assert.notThrows(() => '/./'.includes(regexp));
+  assert.returns(() => '/./'.includes(regexp), true);
   const object = {};
-  assert.notThrows(() => '[object Object]'.includes(object));
+  assert.returns(() => '[object Object]'.includes(object), true);
   object[Symbol.match] = true;
   assert.throws(() => '[object Object]'.includes(object), TypeError);
 });

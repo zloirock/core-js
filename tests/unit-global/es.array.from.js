@@ -102,12 +102,12 @@ QUnit.test('Array.from', assert => {
   array = [1, 2, 3];
   delete array[1];
   assert.arrayEqual(from(array, String), ['1', 'undefined', '3'], 'Ignores holes');
-  assert.notThrows(() => from({
+  assert.returns(() => from({
     length: -1,
     0: 1,
   }, () => {
     throw new Error();
-  }).length === 0, 'Uses ToLength');
+  }).length, 0, 'Uses ToLength');
   assert.arrayEqual(from([], undefined), [], 'Works with undefined as second argument');
   assert.throws(() => from([], null), TypeError, 'Throws with null as second argument');
   assert.throws(() => from([], 0), TypeError, 'Throws with 0 as second argument');

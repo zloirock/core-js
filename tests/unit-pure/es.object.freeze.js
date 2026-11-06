@@ -10,8 +10,7 @@ QUnit.test('Object.freeze', assert => {
   assert.name(freeze, 'freeze');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
-    assert.notThrows(() => freeze(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
-    assert.same(freeze(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
+    assert.returns(() => freeze(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
   const results = [];
   for (const key in freeze({})) results.push(key);

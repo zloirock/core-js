@@ -60,7 +60,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
       assert.same(result, '3614570289', 'stable #2');
     }
 
-    assert.notThrows(() => new TypedArray([1, 2, 3]).toSorted(undefined).length === 3, 'works with undefined');
+    assert.returns(() => new TypedArray([1, 2, 3]).toSorted(undefined).length, 3, 'works with undefined');
     assert.throws(() => new TypedArray([1, 2, 3]).toSorted(null), TypeError, 'throws on null');
     assert.throws(() => new TypedArray([1, 2, 3]).toSorted({}), TypeError, 'throws on {}');
 

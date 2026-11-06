@@ -9,8 +9,7 @@ QUnit.test('Object.isExtensible', assert => {
   assert.looksNative(isExtensible);
   const primitives = [42, 'string', false, null, undefined];
   for (const value of primitives) {
-    assert.notThrows(() => isExtensible(value) || true, `accept ${ value }`);
-    assert.false(isExtensible(value), `returns false on ${ value }`);
+    assert.returns(() => isExtensible(value), false, `returns false on ${ value }`);
   }
   assert.true(isExtensible({}));
   if (NATIVE) assert.false(isExtensible(preventExtensions({})));

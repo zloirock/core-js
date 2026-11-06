@@ -18,7 +18,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(toFixed(1, '0.9'), '1');
   assert.same(toFixed(1, NaN), '1');
   assert.same(toFixed(1, 'some string'), '1');
-  assert.notThrows(() => toFixed(1, -0.1) === '1');
+  assert.returns(() => toFixed(1, -0.1), '1');
   assert.same(toFixed(Object(1)), '1');
   assert.same(toFixed(Object(1), 0), '1');
   assert.same(toFixed(Object(1), 1), '1.0');
@@ -30,7 +30,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(toFixed(Object(1), '0.9'), '1');
   assert.same(toFixed(Object(1), NaN), '1');
   assert.same(toFixed(Object(1), 'some string'), '1');
-  assert.notThrows(() => toFixed(Object(1), -0.1) === '1');
+  assert.returns(() => toFixed(Object(1), -0.1), '1');
   assert.same(toFixed(NaN), 'NaN');
   assert.same(toFixed(NaN, 0), 'NaN');
   assert.same(toFixed(NaN, 1), 'NaN');
@@ -42,7 +42,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(toFixed(NaN, '0.9'), 'NaN');
   assert.same(toFixed(NaN, NaN), 'NaN');
   assert.same(toFixed(NaN, 'some string'), 'NaN');
-  assert.notThrows(() => toFixed(NaN, -0.1) === 'NaN');
+  assert.returns(() => toFixed(NaN, -0.1), 'NaN');
   assert.same(toFixed(1e21), String(1e21));
   assert.same(toFixed(1e21, 0), String(1e21));
   assert.same(toFixed(1e21, 1), String(1e21));
@@ -54,7 +54,7 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(toFixed(1e21, '0.9'), String(1e21));
   assert.same(toFixed(1e21, NaN), String(1e21));
   assert.same(toFixed(1e21, 'some string'), String(1e21));
-  assert.notThrows(() => toFixed(1e21, -0.1) === String(1e21));
+  assert.returns(() => toFixed(1e21, -0.1), String(1e21));
   assert.throws(() => toFixed(1, -101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
   assert.throws(() => toFixed(1, 101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
   assert.throws(() => toFixed(NaN, Infinity), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');

@@ -14,7 +14,7 @@ if (DESCRIPTORS) {
     bar.toString = function () {
       throw new Error();
     };
-    assert.notThrows(() => bar.name === 'bar', 'works with redefined `.toString`');
+    assert.returns(() => bar.name, 'bar', 'works with redefined `.toString`');
     const baz = Object(() => { /* empty */ });
     baz.toString = function () {
       return '';

@@ -164,6 +164,21 @@ assign(assert, {
   required(message = 'It should be called') {
     this.ok(true, message);
   },
+  returns(fn, expected, message) {
+    let actual;
+    try {
+      actual = fn();
+    } catch (error) {
+      this.pushResult({
+        result: false,
+        actual: error,
+        expected,
+        message: message ? `${ message } (threw)` : 'The call threw',
+      });
+      return;
+    }
+    this.same(actual, expected, message);
+  },
   same(actual, expected, message) {
     this.pushResult({
       result: is(actual, expected),

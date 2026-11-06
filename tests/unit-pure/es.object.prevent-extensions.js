@@ -10,8 +10,7 @@ QUnit.test('Object.preventExtensions', assert => {
   assert.name(preventExtensions, 'preventExtensions');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
-    assert.notThrows(() => preventExtensions(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
-    assert.same(preventExtensions(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
+    assert.returns(() => preventExtensions(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
   const results = [];
   for (const key in preventExtensions({})) results.push(key);

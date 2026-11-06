@@ -23,7 +23,6 @@ if (DESCRIPTORS) {
         assert.same(array.byteOffset, 0, '#byteOffset, passed string');
         assert.same(array.byteLength, 4 * bytes, '#byteLength, passed string');
         assert.arrayEqual(array, [0, 0, 0, 0], 'correct values, passed string');
-        return true;
       }, 'passed string');
       assert.notThrows(() => {
         // throws in IE / Edge / FF
@@ -31,42 +30,36 @@ if (DESCRIPTORS) {
         assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
         assert.same(array.byteLength, 1 * bytes, '#byteLength, passed boolean');
         assert.arrayEqual(array, [0], 'correct values, passed boolean');
-        return true;
       }, 'passed boolean');
       assert.notThrows(() => {
         array = new TypedArray();
         assert.same(array.byteOffset, 0, '#byteOffset, without arguments');
         assert.same(array.byteLength, 0, '#byteLength, without arguments');
         assert.arrayEqual(array, [], 'correct values, without arguments');
-        return true;
       }, 'without arguments');
       assert.notThrows(() => {
         array = new TypedArray(undefined);
         assert.same(array.byteOffset, 0, '#byteOffset, passed undefined');
         assert.same(array.byteLength, 0, '#byteLength, passed undefined');
         assert.arrayEqual(array, [], 'correct values, passed undefined');
-        return true;
       }, 'passed undefined');
       assert.notThrows(() => {
         array = new TypedArray(-0);
         assert.same(array.byteOffset, 0, '#byteOffset, passed -0');
         assert.same(array.byteLength, 0, '#byteLength, passed -0');
         assert.arrayEqual(array, [], 'correct values, passed -0');
-        return true;
       }, 'passed -0');
       assert.notThrows(() => {
         array = new TypedArray(NaN);
         assert.same(array.byteOffset, 0, '#byteOffset, passed NaN');
         assert.same(array.byteLength, 0, '#byteLength, passed NaN');
         assert.arrayEqual(array, [], 'correct values, passed NaN');
-        return true;
       }, 'passed NaN');
       assert.notThrows(() => {
         array = new TypedArray(1.5);
         assert.same(array.byteOffset, 0, '#byteOffset, passed 1.5');
         assert.same(array.byteLength, 1 * bytes, '#byteLength, passed 1.5');
         assert.arrayEqual(array, [0], 'correct values, passed 1.5');
-        return true;
       }, 'passed 1.5');
       if (NATIVE) assert.throws(() => new TypedArray(-1), RangeError, 'throws on -1');
       assert.notThrows(() => {
@@ -74,7 +67,6 @@ if (DESCRIPTORS) {
         assert.same(array.byteOffset, 0, '#byteOffset, passed null');
         assert.same(array.byteLength, 0, '#byteLength, passed null');
         assert.arrayEqual(array, [], 'correct values, passed null');
-        return true;
       }, 'passed null');
       array = new TypedArray([1, 2, 3, 4]);
       assert.same(array.byteOffset, 0, '#byteOffset, passed array');
@@ -96,28 +88,24 @@ if (DESCRIPTORS) {
         assert.same(array.byteOffset, 0, '#byteOffset, passed empty object (also array-like case)');
         assert.same(array.byteLength, 0, '#byteLength, passed empty object (also array-like case)');
         assert.arrayEqual(array, [], 'correct values, passed empty object (also array-like case)');
-        return true;
       }, 'passed empty object (also array-like case)');
       assert.notThrows(() => {
         array = new TypedArray(createIterable([1, 2, 3, 4]));
         assert.same(array.byteOffset, 0, '#byteOffset, passed iterable');
         assert.same(array.byteLength, 4 * bytes, '#byteLength, passed iterable');
         assert.arrayEqual(array, [1, 2, 3, 4], 'correct values, passed iterable');
-        return true;
       }, 'passed iterable');
       assert.notThrows(() => {
         array = new TypedArray([{ valueOf() { return 2; } }]);
         assert.same(array.byteOffset, 0, '#byteOffset, passed array with object convertible to primitive');
         assert.same(array.byteLength, bytes, '#byteLength, passed array with object convertible to primitive');
         assert.arrayEqual(array, [2], 'correct values, passed array with object convertible to primitive');
-        return true;
       }, 'passed array with object convertible to primitive');
       assert.notThrows(() => {
         array = new TypedArray(createIterable([{ valueOf() { return 2; } }]));
         assert.same(array.byteOffset, 0, '#byteOffset, passed iterable with object convertible to primitive');
         assert.same(array.byteLength, bytes, '#byteLength, passed iterable with object convertible to primitive');
         assert.arrayEqual(array, [2], 'correct values, passed iterable with object convertible to primitive');
-        return true;
       }, 'passed iterable with object convertible to primitive');
       array = new TypedArray(new TypedArray([1, 2, 3, 4]));
       assert.same(array.byteOffset, 0, '#byteOffset, passed typed array');

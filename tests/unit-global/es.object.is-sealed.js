@@ -9,8 +9,7 @@ QUnit.test('Object.isSealed', assert => {
   assert.nonEnumerable(Object, 'isSealed');
   const primitives = [42, 'string', false, null, undefined];
   for (const value of primitives) {
-    assert.notThrows(() => isSealed(value) || true, `accept ${ value }`);
-    assert.true(isSealed(value), `returns true on ${ value }`);
+    assert.returns(() => isSealed(value), true, `returns true on ${ value }`);
   }
   assert.false(isSealed({}));
   if (NATIVE) assert.true(isSealed(seal({})));

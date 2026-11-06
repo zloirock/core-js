@@ -10,8 +10,7 @@ QUnit.test('Object.seal', assert => {
   assert.nonEnumerable(Object, 'seal');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
-    assert.notThrows(() => seal(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
-    assert.same(seal(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
+    assert.returns(() => seal(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
   if (NATIVE) assert.true(isSealed(seal({})));
   const results = [];

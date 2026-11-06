@@ -24,7 +24,7 @@ QUnit.test('Array#slice', assert => {
   assert.deepEqual(slice.call(string, -2, -3), []);
   const list = GLOBAL.document && document.body && document.body.childNodes;
   if (list) {
-    assert.notThrows(() => isArray(slice.call(list)), 'works on NodeList');
+    assert.returns(() => isArray(slice.call(list)), true, 'works on NodeList');
   }
   if (STRICT) {
     assert.throws(() => slice.call(null), TypeError);

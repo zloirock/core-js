@@ -4,7 +4,7 @@ import sort from 'core-js-pure/es/array/sort';
 
 QUnit.test('Array#sort', assert => {
   assert.isFunction(sort);
-  assert.notThrows(() => sort([1, 2, 3], undefined), 'works with undefined');
+  assert.returns(() => sort([1, 2, 3], undefined).length, 3, 'works with undefined');
   assert.throws(() => sort([1, 2, 3], null), TypeError, 'throws on null');
   assert.throws(() => sort([1, 2, 3], {}), TypeError, 'throws on {}');
 

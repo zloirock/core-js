@@ -57,7 +57,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
     }
 
     assert.throws(() => sort.call([0], () => { /* empty */ }), "isn't generic");
-    assert.notThrows(() => new TypedArray([1, 2, 3]).sort(undefined).length === 3, 'works with undefined');
+    assert.returns(() => new TypedArray([1, 2, 3]).sort(undefined).length, 3, 'works with undefined');
     assert.throws(() => new TypedArray([1, 2, 3]).sort(null), TypeError, 'throws on null');
     assert.throws(() => new TypedArray([1, 2, 3]).sort({}), TypeError, 'throws on {}');
     if (STRICT) {

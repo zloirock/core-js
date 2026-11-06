@@ -24,9 +24,9 @@ QUnit.test('Array#flatMap', assert => {
     assert.throws(() => flatMap(null, it => it), TypeError);
     assert.throws(() => flatMap(undefined, it => it), TypeError);
   }
-  assert.notThrows(() => flatMap({ length: -1 }, () => {
+  assert.returns(() => flatMap({ length: -1 }, () => {
     throw new Error();
-  }).length === 0, 'uses ToLength');
+  }).length, 0, 'uses ToLength');
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {

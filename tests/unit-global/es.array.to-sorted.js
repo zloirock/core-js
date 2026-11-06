@@ -116,7 +116,7 @@ QUnit.test('Array#toSorted', assert => {
 
   assert.same(result, 'DGBEFHACIJK', 'stable #2');
 
-  assert.notThrows(() => [1, 2, 3].toSorted(undefined).length === 3, 'works with undefined');
+  assert.returns(() => [1, 2, 3].toSorted(undefined).length, 3, 'works with undefined');
   assert.throws(() => [1, 2, 3].toSorted(null), TypeError, 'throws on null');
   assert.throws(() => [1, 2, 3].toSorted({}), TypeError, 'throws on {}');
 

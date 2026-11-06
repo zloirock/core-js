@@ -75,12 +75,12 @@ QUnit.test('Reflect.set', assert => {
     o = defineProperty({}, 'test', {
       get() { /* empty */ },
     });
-    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
+    assert.returns(() => set(getPrototypeOf(o), 'test', 1, o), false);
     o = defineProperty({}, 'test', {
       // eslint-disable-next-line no-unused-vars -- required for testing
       set(v) { /* empty */ },
     });
-    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
+    assert.returns(() => set(getPrototypeOf(o), 'test', 1, o), false);
 
     // accessor descriptor with get: undefined, set: undefined on receiver should return false
     const accessorReceiver = {};

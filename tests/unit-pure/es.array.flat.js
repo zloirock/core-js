@@ -20,11 +20,11 @@ QUnit.test('Array#flat', assert => {
     assert.throws(() => flat(undefined), TypeError);
   }
   if (DESCRIPTORS) {
-    assert.notThrows(() => flat(defineProperty({ length: -1 }, 0, {
+    assert.returns(() => flat(defineProperty({ length: -1 }, 0, {
       get() {
         throw new Error();
       },
-    })).length === 0, 'uses ToLength');
+    })).length, 0, 'uses ToLength');
   }
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor

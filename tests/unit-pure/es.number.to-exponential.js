@@ -20,7 +20,7 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(1, '0.9'), '1e+0');
   assert.same(toExponential.call(1, NaN), '1e+0');
   assert.same(toExponential.call(1, 'some string'), '1e+0');
-  assert.notThrows(() => toExponential.call(1, -0.1) === '1e+0');
+  assert.returns(() => toExponential.call(1, -0.1), '1e+0');
   assert.same(toExponential.call(new Number(1)), '1e+0');
   assert.same(toExponential.call(new Number(1), 0), '1e+0');
   assert.same(toExponential.call(new Number(1), 1), '1.0e+0');
@@ -32,7 +32,7 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(new Number(1), '0.9'), '1e+0');
   assert.same(toExponential.call(new Number(1), NaN), '1e+0');
   assert.same(toExponential.call(new Number(1), 'some string'), '1e+0');
-  assert.notThrows(() => toExponential.call(new Number(1), -0.1) === '1e+0');
+  assert.returns(() => toExponential.call(new Number(1), -0.1), '1e+0');
   assert.same(toExponential.call(NaN), 'NaN');
   assert.same(toExponential.call(NaN, 0), 'NaN');
   assert.same(toExponential.call(NaN, 1), 'NaN');
@@ -44,7 +44,7 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(NaN, '0.9'), 'NaN');
   assert.same(toExponential.call(NaN, NaN), 'NaN');
   assert.same(toExponential.call(NaN, 'some string'), 'NaN');
-  assert.notThrows(() => toExponential.call(NaN, -0.1) === 'NaN');
+  assert.returns(() => toExponential.call(NaN, -0.1), 'NaN');
 
   assert.same(toExponential.call(new Number(1e21)), '1e+21');
   assert.same(toExponential.call(new Number(1e21), 0), '1e+21');
@@ -151,7 +151,7 @@ QUnit.test('Number#toExponential', assert => {
 
   assert.same(toExponential.call(NaN, 1000), 'NaN', 'NaN check before fractionDigits check');
   assert.same(toExponential.call(Infinity, 1000), 'Infinity', 'Infinity check before fractionDigits check');
-  assert.notThrows(() => toExponential.call(new Number(1e21), -0.1) === '1e+21');
+  assert.returns(() => toExponential.call(new Number(1e21), -0.1), '1e+21');
   assert.throws(() => toExponential.call(1.0, -101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
   assert.throws(() => toExponential.call(1.0, 101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
   assert.throws(() => toExponential.call({}, 1), TypeError, '? thisNumberValue(this value)');

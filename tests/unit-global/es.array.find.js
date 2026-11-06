@@ -22,11 +22,11 @@ QUnit.test('Array#find', assert => {
     assert.throws(() => find.call(null, 0), TypeError);
     assert.throws(() => find.call(undefined, 0), TypeError);
   }
-  assert.notThrows(() => find.call({
+  assert.returns(() => find.call({
     length: -1,
     0: 1,
   }, () => {
     throw new Error();
-  }) === undefined, 'uses ToLength');
+  }), undefined, 'uses ToLength');
   assert.true('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

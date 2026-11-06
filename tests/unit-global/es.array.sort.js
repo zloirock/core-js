@@ -119,7 +119,7 @@ QUnit.test('Array#sort', assert => {
   const obj2 = { toString() { return 'a'; } };
   assert.same([obj1, obj2].sort()[0], obj1, 'stable sort for equal string representations');
 
-  assert.notThrows(() => [1, 2, 3].sort(undefined).length === 3, 'works with undefined');
+  assert.returns(() => [1, 2, 3].sort(undefined).length, 3, 'works with undefined');
   assert.throws(() => [1, 2, 3].sort(null), TypeError, 'throws on null');
   assert.throws(() => [1, 2, 3].sort({}), TypeError, 'throws on {}');
 

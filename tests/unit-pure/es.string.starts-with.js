@@ -32,9 +32,9 @@ QUnit.test('String#startsWith', assert => {
   const regexp = /./;
   assert.throws(() => startsWith('/./', regexp), TypeError);
   regexp[Symbol.match] = false;
-  assert.notThrows(() => startsWith('/./', regexp));
+  assert.returns(() => startsWith('/./', regexp), true);
   const object = {};
-  assert.notThrows(() => startsWith('[object Object]', object));
+  assert.returns(() => startsWith('[object Object]', object), true);
   object[Symbol.match] = true;
   assert.throws(() => startsWith('[object Object]', object), TypeError);
   // side-effect ordering: ToString(searchString) should happen before ToIntegerOrInfinity(position)

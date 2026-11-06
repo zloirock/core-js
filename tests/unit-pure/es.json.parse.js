@@ -24,7 +24,7 @@ QUnit.test('JSON.parse', assert => {
     assert.throws(() => parse('\ufeff1234', reviver), SyntaxError, `15.12.1.1-0-6 ${ note }`); // should produce a syntax error
     assert.throws(() => parse('\u2028\u20291234', reviver), SyntaxError, `15.12.1.1-0-8 ${ note }`); // should produce a syntax error
     assert.notThrows(() => parse('\t\r \n{\t\r \n"property"\t\r \n:\t\r \n{\t\r \n}\t\r \n,\t\r \n"prop2"\t\r \n:\t\r \n' +
-      '[\t\r \ntrue\t\r \n,\t\r \nnull\t\r \n,123.456\t\r \n]\t\r \n}\t\r \n', reviver), SyntaxError, `15.12.1.1-0-9 ${ note }`); // should JSON parse without error
+      '[\t\r \ntrue\t\r \n,\t\r \nnull\t\r \n,123.456\t\r \n]\t\r \n}\t\r \n', reviver), `15.12.1.1-0-9 ${ note }`); // should JSON parse without error
     assert.same(parse('\t1234', reviver), 1234, `15.12.1.1-g1-1-1 ${ note }`); // '<TAB> should be ignored'
     assert.throws(() => parse('12\t34', reviver), SyntaxError, `15.12.1.1-g1-1-2 ${ note }`); // <TAB> should produce a syntax error as whitespace results in two tokens
     assert.same(parse('\r1234', reviver), 1234, `15.12.1.1-g1-2-1 ${ note }`); // '<CR> should be ignored'

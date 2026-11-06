@@ -23,12 +23,12 @@ QUnit.test('Array#flat', assert => {
     assert.throws(() => flat.call(undefined), TypeError);
   }
   if (DESCRIPTORS) {
-    assert.notThrows(() => flat.call(defineProperty({ length: -1 }, 0, {
+    assert.returns(() => flat.call(defineProperty({ length: -1 }, 0, {
       enumerable: true,
       get() {
         throw new Error();
       },
-    })).length === 0, 'uses ToLength');
+    })).length, 0, 'uses ToLength');
   }
   assert.true('flat' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   array = [];

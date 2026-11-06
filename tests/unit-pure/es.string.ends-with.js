@@ -32,9 +32,9 @@ QUnit.test('String#endsWith', assert => {
   const regexp = /./;
   assert.throws(() => endsWith('/./', regexp), TypeError);
   regexp[Symbol.match] = false;
-  assert.notThrows(() => endsWith('/./', regexp));
+  assert.returns(() => endsWith('/./', regexp), true);
   const object = {};
-  assert.notThrows(() => endsWith('[object Object]', object));
+  assert.returns(() => endsWith('[object Object]', object), true);
   object[Symbol.match] = true;
   assert.throws(() => endsWith('[object Object]', object), TypeError);
   // side-effect ordering: ToString(searchString) should happen before ToIntegerOrInfinity(endPosition)

@@ -27,10 +27,10 @@ QUnit.test('Array#findLastIndex', assert => {
     assert.throws(() => findLastIndex(null, 0), TypeError);
     assert.throws(() => findLastIndex(undefined, 0), TypeError);
   }
-  assert.notThrows(() => findLastIndex({
+  assert.returns(() => findLastIndex({
     length: -1,
     0: 1,
   }, () => {
     throw new Error();
-  }) === -1, 'uses ToLength');
+  }), -1, 'uses ToLength');
 });

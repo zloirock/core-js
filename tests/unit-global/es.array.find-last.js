@@ -30,11 +30,11 @@ QUnit.test('Array#findLast', assert => {
     assert.throws(() => findLast.call(null, 0), TypeError);
     assert.throws(() => findLast.call(undefined, 0), TypeError);
   }
-  assert.notThrows(() => findLast.call({
+  assert.returns(() => findLast.call({
     length: -1,
     0: 1,
   }, () => {
     throw new Error();
-  }) === undefined, 'uses ToLength');
+  }), undefined, 'uses ToLength');
   assert.true('findLast' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

@@ -27,9 +27,9 @@ QUnit.test('Array#flatMap', assert => {
     assert.throws(() => flatMap.call(null, it => it), TypeError);
     assert.throws(() => flatMap.call(undefined, it => it), TypeError);
   }
-  assert.notThrows(() => flatMap.call({ length: -1 }, () => {
+  assert.returns(() => flatMap.call({ length: -1 }, () => {
     throw new Error();
-  }).length === 0, 'uses ToLength');
+  }).length, 0, 'uses ToLength');
   assert.true('flatMap' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
