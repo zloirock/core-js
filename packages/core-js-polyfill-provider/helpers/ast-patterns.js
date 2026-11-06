@@ -3289,6 +3289,29 @@ export function stmtRebindNames(stmt, out) {
 // common case still resolves. cached per owner node (same staleness contract as `scopeVarsCache`)
 const scopeReassignCache = new WeakMap();
 const EMPTY_REASSIGNMENTS = [];
+let writeScanWindow;
+export function withOverlappingWriteScans(visit) {
+  const previous = writeScanWindow;
+  writeScanWindow = {};
+  try {
+    return visit();
+  } finally {
+    writeScanWindow = previous;
+  }
+}
+
+// Only whole-function scans can share body writes. A Program scan can cover a
+// previously requested function as well. Lexical owners use the ordinary walk.
+function overlappingWriteOwner(path) {
+  const state = writeScanWindow;
+  const { node } = path;
+  if (!state || !(node.type === 'Program' || FUNCTION_LIKE_NODE_TYPES.has(node.type) && node.body?.type === 'BlockStatement')) return null;
+  const outer = state.owner;
+  if (outer && pathIsInside(path.parentPath, outer)) return node;
+  state.owner = path;
+  return outer && pathIsInside(outer.parentPath, path) ? outer.node : null;
+}
+
 // build the reassignment index for EVERY name in ONE walk of `ownerNode`'s subtree: a
 // per-name walk re-scans the whole owner subtree per queried name, which is quadratic on a
 // large single-scope bundle. the per-name skip semantics ("a construct shadowing `name`
@@ -3339,7 +3362,9 @@ const nestedWriteOwners = new WeakMap();
 
 // the walk behind the index: `visit` records an owner's writes from its root down, `scanUnder` the
 // writes of a few nodes standing deep in it (`refreshWritesAtSlot`)
-function reassignmentScanner() {
+function reassignmentScanner(common, bodies) {
+  let body;
+  let collecting = null;
   const index = new Map();
   const shadowDepth = new Map();
   // the innermost function below the scanned owner the walk stands in
@@ -3358,6 +3383,7 @@ function reassignmentScanner() {
   // The target walker calls synchronously; var initializers record their declarator rather
   // than the enclosing declaration. No per-node array or callback escapes this scan.
   function recordWritten(id) {
+    if (collecting) collecting.push(id.name, writeNode);
     record(id.name, writeNode);
   }
   function recordWrites(node) {
@@ -3481,13 +3507,21 @@ function reassignmentScanner() {
     }
     const frame = frameOf(node, atOwnerRoot, sloppyHere);
     const { shadowNames } = frame;
+    const outerTape = collecting;
+    if (collecting && (frame.nests || frame.slotted || frame.switchSplit || shadowNames.length || frame.sloppyInside !== sloppyHere)) {
+      collecting.push(node);
+      collecting = null;
+    }
     if (frame.switchSplit) {
       visitPlanned(node.discriminant, childPlan(frame, node.discriminant));
       push(shadowNames);
       for (const c of node.cases ?? []) visitPlanned(c, childPlan(frame, c));
       pop(shadowNames);
+      collecting = outerTape;
       return;
     }
+    const outerBody = body;
+    if ((node === common || body && frame.nests) && node.body?.type === 'BlockStatement') body = node.body;
     const { slotted } = frame;
     if (slotted) walkAstChildren(node, child => definitionTimeSlotOf(node, child) && visitPlanned(child, childPlan(frame, child)));
     const outer = nested;
@@ -3500,7 +3534,26 @@ function reassignmentScanner() {
     // write under it stays recorded (`function a() {} { var a = 'x' }` redeclares `a`). a loop whose
     // head declares the binding is no such owner: its body block is a scope of its own, and a
     // declaration there shadows the head inside it
-    walkAstChildren(node, child => (slotted && definitionTimeSlotOf(node, child)) || visitPlanned(child, childPlan(frame, child)));
+    if (node === body) {
+      // A tape holds a name/write pair or an opaque scope node. On replay the
+      // enclosing owner supplies the shadow depth and the innermost function.
+      const entries = bodies.get(node);
+      if (entries) {
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i];
+          if (typeof entry === 'string') record(entry, entries[++i]);
+          else visit(entry, false, frame.sloppyInside);
+        }
+      } else {
+        collecting = [];
+        walkAstChildren(node, frame.sloppyInside ? visitSloppyChild : visitStrictChild);
+        bodies.set(node, collecting);
+      }
+    } else {
+      walkAstChildren(node, child => (slotted && definitionTimeSlotOf(node, child)) || visitPlanned(child, childPlan(frame, child)));
+    }
+    collecting = outerTape;
+    body = outerBody;
     pop(shadowNames);
     nested = outer;
   }
@@ -3534,7 +3587,12 @@ function reassignmentScanner() {
 function scopeReassignmentIndexFor(ownerPath) {
   const ownerNode = ownerPath.node;
   let index = scopeReassignCache.get(ownerNode);
-  if (!index) scopeReassignCache.set(ownerNode, index = buildScopeReassignmentIndex(ownerNode, isSloppyAtPath(ownerPath)));
+  if (!index) {
+    const common = overlappingWriteOwner(ownerPath);
+    const scanner = reassignmentScanner(common, common && (writeScanWindow.bodies ??= new WeakMap()));
+    scanner.visit(ownerNode, true, isSloppyAtPath(ownerPath));
+    scopeReassignCache.set(ownerNode, index = scanner.index);
+  }
   return index;
 }
 
