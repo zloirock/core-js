@@ -4782,6 +4782,34 @@ function checkAstPrintLocator() {
   check('locator: LS breaks a line', JSON.stringify(at(9)), '{"line":5,"column":0}');
   check('locator: PS breaks a line', JSON.stringify(at(11)), '{"line":6,"column":0}');
   check('locator: column counts from the line start', JSON.stringify(at(1)), '{"line":1,"column":1}');
+
+  const mixed = buildOffsetToLoc('a\nb\r\nc\rd\u2028e\u2029\uD83D\uDE00z');
+  const positions = [
+    [0, 1, 0], [1, 1, 1], [2, 2, 0], [3, 2, 1], [4, 2, 2], [5, 3, 0], [6, 3, 1],
+    [7, 4, 0], [8, 4, 1], [9, 5, 0], [10, 5, 1], [11, 6, 0], [12, 6, 1], [13, 6, 2],
+    [14, 6, 3], [19, 6, 8], [-1, 1, -1],
+  ];
+  // Parent endpoints jump ahead of their children; relocated nodes can also jump backwards.
+  for (const order of [positions, positions.toReversed(), [positions[0], ...positions.toReversed(), ...positions]]) {
+    for (const [offset, line, column] of order) {
+      checkDeep(`locator: arbitrary order at ${ offset }`, mixed(offset), { line, column });
+    }
+  }
+  const empty = buildOffsetToLoc('');
+  const blankLines = buildOffsetToLoc('\n\r\n\u2028\u2029');
+  checkDeep('locator: empty source EOF', empty(0), { line: 1, column: 0 });
+  checkDeep('locator: blank lines EOF', blankLines(5), { line: 5, column: 0 });
+  checkDeep('locator: CRLF interior stays on its preceding line', blankLines(2), { line: 2, column: 1 });
+  checkDeep('locator: independent source after another locator moved', mixed(13), { line: 6, column: 2 });
+  const saved = mixed(13);
+  const repeated = mixed(13);
+  repeated.column = 99;
+  checkDeep('locator: returned positions do not alias', saved, { line: 6, column: 2 });
+  checkDeep('locator: returned mutations do not change the cached line', mixed(14), { line: 6, column: 3 });
+  const invalid = mixed(NaN);
+  check('locator: NaN keeps the first-line fallback', invalid.line, 1);
+  check('locator: NaN keeps an invalid column', Number.isNaN(invalid.column), true);
+  checkDeep('locator: valid query after NaN', mixed(11), { line: 6, column: 0 });
 }
 checkAstPrintLocator();
 

@@ -29,8 +29,12 @@ export function buildOffsetToLine(code) {
 // diagnostics twin would only add per-call cost
 export function buildOffsetToLoc(code) {
   const lineStarts = collectLineStarts(code);
+  let lineIndex = 0;
   return offset => {
-    const lineIndex = lineIndexFor(lineStarts, offset);
+    // Repeated positions on one line need no search; jumps in either direction still do.
+    if (!(offset >= lineStarts[lineIndex] && offset < (lineStarts[lineIndex + 1] ?? Infinity))) {
+      lineIndex = lineIndexFor(lineStarts, offset);
+    }
     return { line: lineIndex + 1, column: offset - lineStarts[lineIndex] };
   };
 }
