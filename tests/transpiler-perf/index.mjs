@@ -525,7 +525,7 @@ const CASES = [
     emitters: ['unplugin'], phase: 'pre+post', injections: { 'usage-global': 65, 'usage-pure': 47 },
     bounds: { 'usage-global': { unplugin: 2 }, 'usage-pure': { unplugin: 2 } } },
   { name: 'three.core.js', source: () => threeFile('build/three.core.js'), bounds: {
-    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 5, unplugin: 4 },
+    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeFile('build/three.module.js'), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },

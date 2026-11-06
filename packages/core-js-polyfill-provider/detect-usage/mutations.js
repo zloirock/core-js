@@ -3097,15 +3097,24 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   const aliasInit = new Map();
   const written = new Map();
   const unrootedKeys = new Set();
-  // Bare reads keep written values observable in pure output, including through local wrappers.
-  // Whether the container actually leaves is answered by the escape walk, which follows its writes.
-  const readsBare = new Set();
-  // ... and the reads themselves: the name-keyed sets above widen, which every escape consumer
-  // wants, while the member-callee route asks whether THIS binding is read or written - answered
-  // once per name and owner from these nodes (`openedBindings`)
-  const bareReadRefs = [];
-  const writtenOwnerRefs = [];
+  // A bare read or named export makes writes to the name observable. Only actual references
+  // contribute scopes to member-callee resolution; an export alone leaves its bucket empty.
+  const bareReadRefs = new Map();
+  function bareRefsForName(name) {
+    let refs = bareReadRefs.get(name);
+    if (!refs) bareReadRefs.set(name, refs = []);
+    return refs;
+  }
+  // Computed reads often belong to receivers never queried as method owners. Keep the
+  // walk linear and only group these references if a queried name actually occurs.
+  const unreadableOwnerNames = new Set();
   const unreadableOwnerRefs = [];
+  let unreadableByName;
+  function unreadableRefsForName(name) {
+    if (!unreadableOwnerNames.has(name)) return null;
+    unreadableByName ??= Map.groupBy(unreadableOwnerRefs, node => node.name);
+    return unreadableByName.get(name);
+  }
   // ... save a read binding another name to it (`const A = K`): the alias binding, by name and owner. a class
   // owner reads two more apart: a construction's callee and a subclass's heritage (`classStaticsHandedOut`)
   const ownerAliasReads = new Map();
@@ -3131,8 +3140,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   let hasOpaqueIteration = false;
   const writeTargetRoots = new WeakSet();
   const localCallables = new Map();
-  const writtenCallOwners = new Set();
-  const unreadableCallOwners = new Set();
   const exportedCallableNames = new Set();
   // Count declarations by name AND owner: a namesake in another scope cannot open this caller set.
   const bindingCounts = new Map();
@@ -3194,7 +3201,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     keys.push(...trailing);
     if (!root || keys.includes(null)) return false;
     if (root.type === 'Identifier') {
-      if (writtenCallOwners.has(root.name)) return false;
+      if (callablePropertyWrites.has(root.name)) return false;
       if (aliasInit.has(root.name)) {
         const cacheKey = `${ aliasBindingKey(aliasInit, root.name, aliasReferenceScopes(aliasInit, root)) }${ JSON.stringify(keys) }`;
         if (builtinAliases.has(cacheKey)) return builtinAliases.get(cacheKey);
@@ -3377,7 +3384,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     if (!isMemberAccessNode(callee)) return null;
     const owner = unwrapRuntimeExpr(callee.object);
     const writes = owner?.type === 'Identifier' && callablePropertyWrites.get(owner.name);
-    if (!writes || readsBare.has(owner.name) || exportedCallableNames.has(owner.name)
+    if (!writes || bareReadRefs.has(owner.name) || exportedCallableNames.has(owner.name)
       || referenceScopes.get(node)?.some(scope => FUNCTION_LIKE_NODE_TYPES.has(scope.type))) return null;
     const scopes = referenceScopes.get(owner) ?? [];
     const binding = declarations.resolve(owner.name, scopes);
@@ -3435,7 +3442,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       pairing = callPairing(assigned ? { ...node, callee: assigned } : node, programNode, {
         nameIsShadowed: name => root?.type === 'Identifier' && root.name === name
           && declarations.declares(name, referenceScopes.get(root) ?? []),
-        staticIsMutated: owner => writtenCallOwners.has(owner.split('.', 1)[0]),
+        staticIsMutated: owner => callablePropertyWrites.has(owner.split('.', 1)[0]),
         getCalleeEntry: pureEntryOf,
       });
       // Census consumers pair a complete value list, not raw argument paths. Expand known
@@ -3528,7 +3535,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     // An escape-only census can keep candidates, but cannot certify a pristine mutator.
     const roots = RECORDED_MUTATION_ROOTS.get(programNode);
     if (pairing.callee !== peelToBareExpr(call.callee) && (!roots || roots.open
-      || writtenCallOwners.has(pairing.callee?.name)
+      || callablePropertyWrites.has(pairing.callee?.name)
       || ['Reflect', 'Function', pairing.callee?.name].some(name => roots.names.has(name) || roots.globalSlots.has(name)))) return null;
     returnedWriteValues.set(call, new Map());
     const source = peelReceiverSequenceTail(pairing.args[summary.index]);
@@ -3551,10 +3558,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     callableScopeFacts ??= {
       declarations,
       referenceScopes,
-      readsBare,
       nonCalleeNameUses,
-      writtenCallOwners,
-      unreadableCallOwners,
+      callablePropertyWrites,
       aliases: aliasInit,
       openedBinding,
       openedOnlyByWrites,
@@ -3570,12 +3575,12 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     return callableScopeFacts;
   }
   // is the binding `owner` declares under `name` OPENED - by a READ, bare or through a key the census
-  // cannot name, or by a WRITE through a member? the name-keyed sets answer for every namesake in the
-  // file; this answers for the one binding, each recorded reference resolved through the completed
+  // cannot name, or by a WRITE through a member? a name alone covers every namesake in the
+  // file; this answers for the one binding, each reference of a queried name resolved through the completed
   // declarations once. a reference whose chain the census never recorded resolves to nothing and
   // opens every binding of the name - the widening side. a read binding an ALIAS (`const A = K`) hands
   // the binding to that alias alone, so whatever opens the alias opens it
-  let openings = null;
+  const openingsByName = new Map();
   // ... answered once per kind, name and owner: the openings are complete when first asked, and a binding many
   // aliases hold is asked at every call through one of them, each ask walking all of its aliases again
   const openedAnswers = { read: new Map(), write: new Map() };
@@ -3586,32 +3591,25 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     return byOwner.get(owner);
   }
   function openedThrough(kind, name, owner, seen) {
+    let openings = openingsByName.get(name);
     if (!openings) {
-      openings = { read: new Map(), write: new Map(), aliases: new Map() };
-      function resolved(node, scopes) {
-        return scopes ? declarations.resolve(node.name, scopes) ?? null : null;
+      openings = { read: new Set(), write: new Set(), aliases: [] };
+      function resolved(scopes) {
+        return scopes ? declarations.resolve(name, scopes) ?? null : null;
       }
-      function open(byName, node, scopes) {
-        let owners = byName.get(node.name);
-        if (!owners) byName.set(node.name, owners = new Set());
-        owners.add(resolved(node, scopes));
-      }
-      for (const node of bareReadRefs) {
+      for (const node of bareReadRefs.get(name) ?? []) {
+        const binding = resolved(referenceScopes.get(node));
         const alias = ownerAliasReads.get(node);
-        if (!alias) {
-          open(openings.read, node, referenceScopes.get(node));
-          continue;
-        }
-        let aliases = openings.aliases.get(node.name);
-        if (!aliases) openings.aliases.set(node.name, aliases = []);
-        aliases.push({ owner: resolved(node, referenceScopes.get(node)), alias });
+        if (alias) openings.aliases.push({ owner: binding, alias });
+        else openings.read.add(binding);
       }
-      for (const node of unreadableOwnerRefs) open(openings.read, node, referenceScopes.get(node));
-      for (const { node, scopes } of writtenOwnerRefs) open(openings.write, node, scopes);
+      for (const node of unreadableRefsForName(name) ?? []) openings.read.add(resolved(referenceScopes.get(node)));
+      for (const { scopes } of callablePropertyWrites.get(name) ?? []) openings.write.add(resolved(scopes));
+      openingsByName.set(name, openings);
     }
-    const owners = openings[kind].get(name);
-    if (owners && (owners.has(owner) || owners.has(null))) return true;
-    for (const entry of openings.aliases.get(name) ?? []) {
+    const owners = openings[kind];
+    if (owners.has(owner) || owners.has(null)) return true;
+    for (const entry of openings.aliases) {
       if (entry.owner !== owner && entry.owner !== null || seen.has(entry.alias)) continue;
       seen.add(entry.alias);
       if (openedThrough(kind, entry.alias.name, entry.alias.owner, seen)) return true;
@@ -3623,17 +3621,16 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   // a `constructor` read reaches (`readsConstructorKey`), and a subclass calls them as its own unless its static
   // context reaches past its name or it is handed on in turn (a namesake's reads count, to stay on the safe
   // side); every other read - an argument, a return, a key no canon names - hands them out
-  let classReads = null;
+  let classReads;
   function classStaticsHandedOut(name, owner, seen = new Set()) {
-    if (!classReads) {
-      classReads = new Map();
-      for (const node of [...bareReadRefs, ...unreadableOwnerRefs]) {
-        let reads = classReads.get(node.name);
-        if (!reads) classReads.set(node.name, reads = []);
-        reads.push({ node, owner: declarations.resolve(node.name, referenceScopes.get(node) ?? []) ?? null });
-      }
+    classReads ??= new Map();
+    let reads = classReads.get(name);
+    if (!reads) {
+      const refs = [...bareReadRefs.get(name) ?? [], ...unreadableRefsForName(name) ?? []];
+      reads = refs.map(node => ({ node, owner: declarations.resolve(name, referenceScopes.get(node) ?? []) ?? null }));
+      classReads.set(name, reads);
     }
-    return (classReads.get(name) ?? []).some(({ node, owner: read }) => {
+    return reads.some(({ node, owner: read }) => {
       if (read !== owner && read !== null && owner !== null || seen.has(node)) return false;
       seen.add(node);
       const alias = ownerAliasReads.get(node);
@@ -3959,8 +3956,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       for (const target of targets) {
         const root = runtimeChainRoot(target);
         if (root?.type === 'Identifier') {
-          writtenCallOwners.add(root.name);
-          writtenOwnerRefs.push({ node: root, scopes: frame?.scopes ?? [] });
           let writes = callablePropertyWrites.get(root.name);
           if (!writes) callablePropertyWrites.set(root.name, writes = []);
           writes.push({ target, value: type === 'AssignmentExpression' && node.operator === '=' ? node.right : null,
@@ -3984,7 +3979,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
         // constructor's OWN statics (below)
         const readKey = staticMemberKeyName(node) ?? (node.computed ? computedKeyStaticName(node.property) : null);
         if (readKey === null && owner?.type === 'Identifier') {
-          unreadableCallOwners.add(owner.name);
+          unreadableOwnerNames.add(owner.name);
           unreadableOwnerRefs.push(owner);
         }
         // Record an unknown selection after its key's effects. The completed alias graph decides
@@ -4096,8 +4091,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       || isBindingPosition(frame?.parentNode, node)) return;
     const discarded = frame?.parentNode?.type === 'UnaryExpression' && frame.parentNode.operator === 'void';
     if (!writeTargetRoots.has(node) && !discarded) {
-      (memberObjects.has(node) ? readsThrough : readsBare).add(node.name);
-      if (!memberObjects.has(node)) bareReadRefs.push(node);
+      if (memberObjects.has(node)) readsThrough.add(node.name);
+      else bareRefsForName(node.name).push(node);
       const parent = frame?.parentNode;
       if (parent?.type === 'NewExpression' && parent.callee === node) constructedRefs.add(node);
       else if (CLASS_NODE_TYPES.has(parent?.type) && parent.superClass === node) heritageRefs.set(node, parent);
@@ -4288,7 +4283,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     if (node.source || node.exportKind === 'type') return;
     for (const specifier of node.specifiers ?? []) {
       if (specifier.local?.type !== 'Identifier' || specifier.exportKind === 'type') continue;
-      readsBare.add(specifier.local.name);
+      bareRefsForName(specifier.local.name);
       nonCalleeNameUses.add(specifier.local.name);
       exportedCallableNames.add(specifier.local.name);
       // ... and the VALUE goes with the binding: an importer reads whatever this name holds, so a
@@ -4304,7 +4299,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     for (const declarator of node.declaration?.declarations ?? []) {
       const namedPattern = isDestructurePattern(declarator.id) && patternNamesEverySlot(declarator.id);
       walkPatternIdentifiers(declarator.id, id => {
-        readsBare.add(id.name);
+        bareRefsForName(id.name);
         if (declarator.init && namedPattern) {
           referenceScopes.set(id, frame?.scopes ?? []);
           escaped.add(id);
@@ -4826,11 +4821,11 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     const name = object && (receiverOnly || object.type === 'Identifier') ? staticMemberKeyName(member) : null;
     const root = receiverOnly && object ? memberChainKeys(member).root : null;
     if (receiverOnly && (name === null || root?.type !== 'Identifier' || guardedAliases.has(root.name)
-      || readsBare.has(root.name) || censusSlotWritten(programNode, aliasInit, member, true))) return false;
+      || bareReadRefs.has(root.name) || censusSlotWritten(programNode, aliasInit, member, true))) return false;
     if (receiverOnly && isMemberAccessNode(object)) return null;
     if (object?.type !== 'Identifier') return receiverOnly ? false : null;
     const blocks = name === null ? null : enumBlocks.get(object.name);
-    if (!blocks || readsBare.has(object.name) || guardedAliases.has(object.name)
+    if (!blocks || bareReadRefs.has(object.name) || guardedAliases.has(object.name)
       || !receiverOnly && censusSlotWritten(programNode, aliasInit, member)) return receiverOnly ? false : null;
     const owner = declarations.resolve(object.name, aliasReferenceScopes(aliasInit, object) ?? []);
     for (const { node, scope } of blocks) {
@@ -5045,7 +5040,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
           landing = 'outside';
           break;
         }
-        if (readsBare.has(held.name) || readsThrough.has(held.name)) landing = 'kept';
+        if (bareReadRefs.has(held.name) || readsThrough.has(held.name)) landing = 'kept';
       }
       if (landing === null && passed.values().some(each => each !== name && readsThrough.has(each))) landing = 'kept';
       landings.set(key, landing);
@@ -5057,12 +5052,12 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       const landing = root && !outside ? aliasWriteLanding(root, name) : null;
       if (paramIndex >= 0 && (defaultValue && closedParameterHosts.has(host)
         || parameterMemberUses(host, paramIndex, referencesArguments(host))?.writesOnly)) kept.add(value);
-      else if (outside || landing === 'outside' || (defaultValue && readsBare.has(name))) {
+      else if (outside || landing === 'outside' || (defaultValue && bareReadRefs.has(name))) {
         escaped.add(value);
         // ... a parameter's default is a value a function of this file takes, as an argument is
         if (paramIndex >= 0) unnamedReadSources.push(value);
       } else if (landing === 'kept' || ((!installed || observedInstalledTargets.has(name) || exportedCallableNames.has(name))
-        && (readsBare.has(name) || readsThrough.has(name)))) kept.add(value);
+        && (bareReadRefs.has(name) || readsThrough.has(name)))) kept.add(value);
     }
     // ... and a NAME no declaration reaches is the realm's slot of that name, the one `globalThis.<name>`
     // names: a write into it hands what it stores out as the member spelling's does, a global's own value
@@ -5390,17 +5385,15 @@ function localCallableOf(name, scopes, localCallables, scopeFacts) {
 
 // the function ONE member write installs under a function or class owner's key, or null - none over a
 // static the class body defines, which the write replaces only from where it runs
-function ownerMethodWrite(owner, member, scopeFacts) {
-  const scopes = scopeFacts.referenceScopes.get(owner) ?? [];
-  const values = aliasEntriesInScope(scopeFacts.aliases, owner.name, scopes);
-  const container = values.length === 1 ? unwrapRuntimeExpr(values[0].value) : null;
+function ownerMethodWrite(name, binding, container, member, scopeFacts) {
   if (!FUNCTION_LIKE_NODE_TYPES.has(container?.type) && !CLASS_NODE_TYPES.has(container?.type)) return null;
   const key = memberKeyName(member);
-  if (CLASS_NODE_TYPES.has(container.type) && key !== null && classStaticSlotMember(container, key)) return null;
+  if (key === null) return null;
   // ... filed under the owner's own name: the callees resolve before the alias classes are drawn (`finalize`)
-  const writes = key === null ? [] : writtenSlotValues(scopeFacts.written, owner.name, JSON.stringify([key]));
+  const writes = writtenSlotValues(scopeFacts.written, name, JSON.stringify([key]));
   const installed = writes.length === 1 ? unwrapRuntimeExpr(installedWriteValue(writes[0])) : null;
-  return FUNCTION_LIKE_NODE_TYPES.has(installed?.type) ? installed : null;
+  if (!FUNCTION_LIKE_NODE_TYPES.has(installed?.type) || !scopeFacts.openedOnlyByWrites?.(name, binding)) return null;
+  return CLASS_NODE_TYPES.has(container.type) && classStaticSlotMember(container, key) ? null : installed;
 }
 
 // the owner a value stands for: itself, or where it is a name holding another owner's binding (`const A = K`),
@@ -5489,7 +5482,7 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
   }
   if (cur?.type === 'Super') {
     const owner = scopeFacts?.referenceScopes.get(cur)?.findLast(scope => CLASS_NODE_TYPES.has(scope.type));
-    if (!owner || !owner.id || scopeFacts.nonCalleeNameUses.has(owner.id.name) || scopeFacts.writtenCallOwners.has(owner.id.name)
+    if (!owner || !owner.id || scopeFacts.nonCalleeNameUses.has(owner.id.name) || scopeFacts.callablePropertyWrites.has(owner.id.name)
       || localCallableOf(owner.id.name, scopeFacts.referenceScopes.get(cur), localCallables, scopeFacts) !== owner) return finish(null);
     cur = peelCalleeValue(owner.superClass);
   }
@@ -5511,24 +5504,27 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
     // shadowing the literal) owns no entry, so the read resolves to no method at all
     const ownerScopes = scopeFacts.referenceScopes.get(owner) ?? [];
     const binding = scopeFacts.declarations.resolve(owner.name, ownerScopes);
+    if (!binding) return finish(null);
+    const values = aliasEntriesInScope(scopeFacts.aliases, owner.name, ownerScopes, binding);
+    const value = values.length === 1 ? unwrapRuntimeExpr(values[0].value) : null;
+    if (!value) return finish(null);
     // a FUNCTION or class owner holds no literal slot, but ONE write installing a function under the
     // key (`function Holder() {} Holder.make = function () {}`) is the method the read names, where
     // nothing but member writes opens the owner
-    const methodWrite = binding && scopeFacts.openedOnlyByWrites?.(owner.name, binding) ? ownerMethodWrite(owner, cur, scopeFacts) : null;
+    const methodWrite = ownerMethodWrite(owner.name, binding, value, cur, scopeFacts);
     if (methodWrite) {
       seen.set(cur, methodWrite);
       cur = methodWrite;
       continue;
     }
-    if (!binding) return finish(null);
-    const values = aliasEntriesInScope(scopeFacts.aliases, owner.name, ownerScopes, binding);
-    const held = values.length === 1 ? heldOwner(unwrapRuntimeExpr(values[0].value), scopeFacts) : null;
-    const chain = [[owner.name, binding], ...held?.links ?? []];
+    const held = heldOwner(value, scopeFacts);
+    const isClass = CLASS_NODE_TYPES.has(held.owner?.type);
+    if (!isClass && held.owner?.type !== 'ObjectExpression') return finish(null);
+    const chain = [[owner.name, binding], ...held.links];
     // ... a literal's method is opened by any read or write of a binding on the way to it, a class's static by a
     // write alone: a read hands the statics on, which the caller census answers (`classStaticsHandedOut`)
-    const isClass = CLASS_NODE_TYPES.has(held?.owner?.type);
     const opened = isClass ? scopeFacts.openedByWrite : scopeFacts.openedBinding;
-    if (!held || chain.some(([name, link]) => opened(name, link))) return finish(null);
+    if (chain.some(([name, link]) => opened(name, link))) return finish(null);
     const slot = ownerCallSlot(held.owner, cur, scopeFacts, chain);
     if (!slot) return finish(null);
     if (isClass) classChains.push(...chain);
@@ -5657,7 +5653,7 @@ function argumentKeptBy({ pairing, index, scopeFacts, factCache, callee, referen
         : 'none';
       if (collectReads && (typeof disposition === 'object' || disposition === 'selected')) {
         const source = parameterStaticSource(scopeFacts.parameterCallSites.get(callee), index, argument => {
-          return argument.type === 'Identifier' && isStaticPlacement(argument.name) && !scopeFacts.writtenCallOwners.has(argument.name)
+          return argument.type === 'Identifier' && isStaticPlacement(argument.name) && !scopeFacts.callablePropertyWrites.has(argument.name)
             && !scopeFacts.declarations.declares(argument.name, scopeFacts.referenceScopes.get(argument) ?? []) ? argument.name : null;
         });
         const keys = typeof disposition === 'object' ? [...disposition.readKeys]
