@@ -2,6 +2,7 @@ const skipNames = [['', '.map'], ['package', '.json']];
 const skip = [
   ...skipNames.map(parts => parts.join('*')),
   '**/node_modules/**',
+  './deno/corejs/index.js',
   './tests/bundles/**',
   './tests/**/bundles/**',
   './packages/core-js-bundle/*.js',
