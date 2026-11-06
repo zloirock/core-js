@@ -881,7 +881,7 @@ export default function createPlugin(options) {
       // so the abstain decision reads these
       let astSweptImports = false;
       let astNormalized = false;
-      const deferredImportSyntax = new Set();
+      let deferredImportSyntax;
       if (method !== 'entry-global') {
         const removed = new Set();
         scanExistingCoreJSImports(ast, {
@@ -897,6 +897,7 @@ export default function createPlugin(options) {
             if (deferImports) {
               // Post consumes this statement. Its load syntax is not a usage, but
               // an indirect require's effect prefix still runs and needs detection.
+              deferredImportSyntax ??= new Set();
               const prefixes = extractEntrySideEffectPrefixes(ast, new Set([node]), estreeAdapter, prePass?.programPath).get(node);
               walkAstNodes({ root: node, visit(part) {
                 if (prefixes?.includes(part)) return false;
@@ -1154,7 +1155,7 @@ export default function createPlugin(options) {
         });
         const syntaxVisitors = createSyntaxVisitors({
           injectModulesForModeEntry, injectModulesForEntry, isWebpack,
-          isDisabled: node => deferredImportSyntax.has(node) || isDisabled(node),
+          isDisabled: deferredImportSyntax ? node => deferredImportSyntax.has(node) || isDisabled(node) : isDisabled,
         });
 
         withTraversalCaches(true, () => walkUsage(mergeVisitors({
