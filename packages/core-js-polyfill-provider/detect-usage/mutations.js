@@ -43,6 +43,7 @@ import {
   classStaticsCallable,
   classStaticSlotMember,
   collectFileCensus,
+  climbTransparentWrapperPath,
   collectPatternDefaultValues,
   collectForXWriteMembers,
   collectOwnReturns,
@@ -6095,6 +6096,8 @@ export function mutationShapesReducer(packages = null) {
   // the same census walk and the same stamp set, and the fact that decides them - which containers
   // this file loses track of - is computed here and nowhere else
   let programNode = null;
+  // Some targets record a write on the member's own path in the scoped walk.
+  let needsMemberMutationVisitor = false;
   const closureMemo = new Map();
   // the parameters a function DEFAULTS: the one value a parameter holds that its function spells.
   // what the calls pass is not followed - a patch routed through an argument (`install(Array)`) is
@@ -6727,6 +6730,7 @@ export function mutationShapesReducer(packages = null) {
       const members = [];
       collectForXWriteMembers(left, members);
       for (const member of members) {
+        needsMemberMutationVisitor = true;
         const stored = paired.filter(([target]) => target === member);
         if (!stored.length) recordMemberSlotWrite(member);
         for (const [, value] of stored) recordMemberSlotWrite(member, value);
@@ -6810,13 +6814,17 @@ export function mutationShapesReducer(packages = null) {
   // than off the raw node type, which answered differently on the two parsers. what it iterates is
   // never the target's own value: the loop binds the ELEMENTS
   function recordForXHead(node) {
-    recordWriteTarget(unwrapRuntimeExpr(node.left), node.right, { rightIsTheValue: false });
+    const left = unwrapRuntimeExpr(node.left);
+    if (isMemberAccessNode(left)) needsMemberMutationVisitor = true;
+    recordWriteTarget(left, node.right, { rightIsTheValue: false });
   }
 
   function recordAssignment(node) {
     // plain and logical assigns install the right operand verbatim, while an arithmetic compound
     // DERIVES its value, so no candidate is known for it
-    recordWriteTarget(unwrapRuntimeExpr(node.left), node.right, {
+    const left = unwrapRuntimeExpr(node.left);
+    if (left !== node.left && isMemberAccessNode(left)) needsMemberMutationVisitor = true;
+    recordWriteTarget(left, node.right, {
       rightIsTheValue: true, installed: VALUE_FLOW_ASSIGN_OPS.has(node.operator) ? node.right : null,
       write: node.operator === '=' ? node : null,
     });
@@ -7468,6 +7476,7 @@ export function mutationShapesReducer(packages = null) {
     stampContainers(containers, writtenContainerSlots, containerSlotIndex);
     return {
       hasMutationShapes,
+      needsMemberMutationVisitor,
       mutationRoots,
       writtenContainerSlots,
       containerSlotIndex,
@@ -7717,7 +7726,8 @@ function isLogicalInstallOp(operator) {
   return operator === '||=' || operator === '??=';
 }
 
-function classifyMutationSite(node, parent, grandparent, ctx) {
+function classifyMutationSite(path, ctx) {
+  const { node } = path;
   if (node.type === 'UnaryExpression') {
     return node.operator === 'delete' ? memberMutationEntry(node.argument, ctx) : [];
   }
@@ -7739,9 +7749,15 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   if (node.type === 'ForOfStatement' || node.type === 'ForInStatement') {
     return bareSlotWriteEntries(unwrapRuntimeExpr(node.left), ctx);
   }
-  if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
-    && isMemberMutationContext(node, parent, grandparent)) {
-    return memberMutationEntry(node, ctx, parent?.type === 'AssignmentExpression' ? parent.operator : null);
+  if (isMemberAccessNode(node)) {
+    const target = climbTransparentWrapperPath(path);
+    const { parent } = target;
+    // A wrapped update, delete or compound assignment already records the write at its host.
+    // A pattern leaf has no such host record; test the slot outside all its wrappers.
+    const writes = target === path ? isMemberMutationContext : isMemberWriteOnlyContext;
+    return writes(target.node, parent, target.parentPath?.parent)
+      ? memberMutationEntry(node, ctx, parent?.type === 'AssignmentExpression' ? parent.operator : null)
+      : [];
   }
   if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return [];
   return classifyMutatorCall(node, ctx);
@@ -7947,7 +7963,7 @@ function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null }
     function recordUnplaced(key) {
       recordMutation(key, null);
     }
-    for (const entry of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
+    for (const entry of classifyMutationSite(path, ctx)) {
       if (entry.globalSlotKey) {
         recordHere(mutatedStaticKey('globalThis', entry.globalSlotKey));
         continue;
@@ -8120,16 +8136,26 @@ export function beginMutationPrePass({ rootNode, adapter, census = null, resolve
 // contexts; the HOST visits classify delete / update / assignment with a downward wrapper peel
 // (stacked parens / TS casts); a bare-identifier for-x LHS assigns a global slot per iteration -
 // no member/assignment node exists for it, so the statement itself is the classification site.
-// babel layers its Optional* dialect twins on top
-export function mutationSiteVisitors(handleSite) {
+// Babel keeps separate Optional* node types for the same sites.
+export function mutationSiteVisitors(handleSite, memberVisits = true, babel = false) {
+  // A host already records a direct assignment's member on the assignment path. Update and
+  // delete also have a distinct record on the immediate member path; keep both in visit order.
+  function visitArgument(path) {
+    handleSite(path);
+    if (!memberVisits && isMemberAccessNode(path.node.argument)) handleSite(path.get('argument'));
+  }
   return {
-    MemberExpression: handleSite,
+    ...memberVisits && { MemberExpression: handleSite },
     CallExpression: handleSite,
     AssignmentExpression: handleSite,
-    UpdateExpression: handleSite,
-    UnaryExpression: handleSite,
+    UpdateExpression: visitArgument,
+    UnaryExpression(path) {
+      if (path.node.operator === 'delete') visitArgument(path);
+    },
     ForOfStatement: handleSite,
     ForInStatement: handleSite,
+    ...babel && { OptionalCallExpression: handleSite },
+    ...babel && memberVisits && { OptionalMemberExpression: handleSite },
   };
 }
 

@@ -82,10 +82,8 @@ export function collectPrePassSites(programPath, adapter, census = null, resolve
   const sites = [];
   if (!handleSite && !collectDestructures) return { mutated, sites };
   programPath.traverse({
-    ...mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {},
+    ...mergeVisitors(handleSite ? mutationSiteVisitors(handleSite, census?.needsMemberMutationVisitor !== false, true) : {},
       collectDestructures ? destructureSiteVisitors(sites) : {}),
-    // Babel's Optional* twins must see patches such as Object?.assign(Array, {...}).
-    ...handleSite ? { OptionalMemberExpression: handleSite, OptionalCallExpression: handleSite } : {},
     ...adapter.parameterPropertyVisitors,
   });
   finalize?.();

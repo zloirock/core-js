@@ -7,7 +7,7 @@ import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } f
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { moduleDefaultSource, resolveInlineCalleeFunction } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { beginMutationPrePass, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { beginMutationPrePass, mutationShapesReducer, mutationSiteVisitors } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, runBoth, finish } = createChecker('mutation-return-channels');
 const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, mode: 'full' };
@@ -93,6 +93,43 @@ for (const [label, source] of rows) runBoth(label, source, (parser, program, nam
   check(`${ name }: scoped slot`, mutated?.has('Array.from'), true);
   const coarse = makeAdapter({ method: 'usage-global', getMutationRoots: () => census.mutationRoots });
   check(`${ name }: gate covers slot`, coarse.isMutatedStaticSlot('Array', 'from'), true);
+});
+// Direct assignments already record their parent. Delete and update also record their
+// member path; a target in a pattern or for-head still needs its own member visitor.
+for (const [label, source, memberVisits, anchors, writesFrom = true] of [
+  ['direct', 'Array.from; Array.from = value;', false, ['AssignmentExpression']],
+  ['update', '++Array.from; Array.from--;', false, ['UpdateExpression', 'MemberExpression', 'UpdateExpression', 'MemberExpression']],
+  ['delete', 'delete Array.from; void Array.from;', false, ['UnaryExpression', 'MemberExpression']],
+  ['pattern', '({ value: Array.from } = source);', true],
+  ['default', '[Array.from = fallback] = source;', true],
+  ['rest', '[...Array.from] = source;', true],
+  ['for-head', 'for (Array.from of source);', true],
+  ['for-in', 'for (Array.from in source);', true],
+  ['wrapped', '(Array.from as any) = value;', true],
+  ['bindings', 'const { [Array.from]: [a = Array.from], ...rest } = source; Array.of = patch;', false, ['AssignmentExpression'], false],
+  ['parameters and catch', 'function f({ a: [b] }) { try {} catch ({ message }) {} } Array.of = patch;', false, ['AssignmentExpression'], false],
+  ['read-only slots', 'let a, rest; ({ [Array.from]: [a = Array.from], ...rest } = source);', false, ['AssignmentExpression'], false],
+  ['loop bindings', 'for (const { a: [v] } of source) {} Array.of = patch;', false, ['ForOfStatement', 'AssignmentExpression'], false],
+  ['write in binding default', 'const [v = (Array.from = patch)] = source;', false, ['AssignmentExpression']],
+  ['nested default target', '({ a: [, { b: Array.from = fallback }] } = source);', true],
+  ['wrapped property target', '({ a: ((Array.from as any)!) } = source);', true],
+  ['nested wrapped rest target', 'for ([, { ...((Array.from as any)!) }] of source) {}', true],
+  ['wrapped loop target', 'for (((Array.from as any)!) in source) {}', true],
+  ['nested target in a binding default', 'function f([v = ([Array.from] = source)]) {}', true],
+]) runBoth(`mutation member visits: ${ label }`, source, (parser, program, name) => {
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const babel = parser.name === 'babel';
+  const calls = [];
+  const visitors = mutationSiteVisitors(path => { calls.push(path.node.type); }, census.needsMemberMutationVisitor, babel);
+  check(`${ name }: register member visitor`, 'MemberExpression' in visitors, memberVisits);
+  if (anchors) {
+    program.traverse(visitors);
+    check(`${ name }: write anchors`, calls.join(','), anchors.join(','));
+  }
+  const adapter = (babel ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const { mutated } = babel ? collectBabelPrePassSites(program, adapter, census)
+    : collectPrePassSites({ ast: program.node, adapter, census, collectMutations: true });
+  check(`${ name }: scoped slot`, mutated.has('Array.from'), writesFrom);
 });
 // A failed call cannot patch a return, including an alias that captured undefined earlier.
 const unavailableCallees = [

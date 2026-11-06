@@ -442,8 +442,9 @@ export function collectPrePassSites({
   const aliasSites = [];
   if (!handleSite && !wantsAliases) return { mutated, aliasSites };
   const siteVisitors = wantsAliases
-    ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite) : {}, destructureSiteVisitors(aliasSites, isDisabled))
-    : handleSite ? mutationSiteVisitors(handleSite) : {};
+    ? mergeVisitors(handleSite ? mutationSiteVisitors(handleSite, census?.needsMemberMutationVisitor !== false) : {},
+      destructureSiteVisitors(aliasSites, isDisabled))
+    : handleSite ? mutationSiteVisitors(handleSite, census?.needsMemberMutationVisitor !== false) : {};
   let programPath = null;
   traverse(ast, {
     $: { scope: true },
