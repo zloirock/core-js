@@ -3,6 +3,7 @@
 // The TypeScript control proves that the parser observer reaches the preparation pass.
 import { registerHooks } from 'node:module';
 import * as oxc from 'oxc-parser';
+import { createSyntaxVisitors } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish } = createChecker('unplugin-syntax-preparation');
@@ -110,6 +111,27 @@ try {
   hooks.deregister();
   delete globalThis.observePreparationTree;
   delete globalThis.observePreparationTransport;
+}
+
+// ESTree uses Literal for both numbers and regular expressions. Only the latter can
+// owe regexp syntax helpers; its shared handler still has to check ambient ancestors.
+for (const [expression, ambient, walks, injects] of [
+  ['0', false, false, false],
+  ['"(?<name>a)"', false, false, false],
+  ['/(?<name>a)/', false, true, true],
+  ['/(?<name>a)/', true, true, false],
+]) {
+  const { program } = await oxc.parse('literal.js', expression);
+  const node = program.body[0].expression;
+  let parents = 0;
+  const entries = [];
+  const visitors = createSyntaxVisitors({ isDisabled: () => false, injectModulesForModeEntry: entry => entries.push(entry) });
+  visitors.Literal({ node, get parentPath() {
+    parents++;
+    return ambient ? { node: { type: 'TSInterfaceDeclaration' } } : null;
+  } });
+  check(`literal ancestry/${ expression }/${ ambient }`, parents > 0, walks);
+  check(`literal injection/${ expression }/${ ambient }`, entries.includes('regexp/exec'), injects);
 }
 
 finish();

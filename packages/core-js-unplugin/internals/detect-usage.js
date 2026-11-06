@@ -1039,7 +1039,9 @@ export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesF
     JSXSpreadChild: handlers.onJsxSpreadChild,
     YieldExpression: handlers.onYieldExpression,
     // estree hands a regexp literal as a `Literal` carrying a `regex` bag
-    Literal: handlers.onRegExpLiteral,
+    Literal(path) {
+      if (path.node.regex) handlers.onRegExpLiteral(path);
+    },
     VariableDeclaration: handlers.onVariableDeclaration,
     // every class-member spelling this dialect has: the rule reads the KEY, so the list only has
     // to REACH each of them

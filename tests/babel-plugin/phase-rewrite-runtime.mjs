@@ -163,6 +163,8 @@ try {
 for (const [name, source, promise] of [
   ['entry await', "await import('core-js/modules/es.array.from'); Array.from([]);", false],
   ['user await', "await import('./user.mjs'); Array.from([]);", true],
+  ['two owned awaits', "await import('core-js/modules/es.array.from'); await import('core-js/modules/es.array.of');", false],
+  ['owned and user await', "await import('core-js/modules/es.array.from'); await import('./user.mjs');", true],
   ['live prefix', "await (Promise.resolve(1), import('core-js/modules/es.array.from')); Array.from([]);", true],
 ]) {
   const options = { ...OPTIONS, method: 'usage-global' };
