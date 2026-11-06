@@ -36,6 +36,8 @@ const $TYPED_ARRAYS = {
   Uint8ClampedArray: 1,
 };
 
+if (GLOBAL.Float16Array) $TYPED_ARRAYS.Float16Array = 2;
+
 export const TYPED_ARRAYS = [];
 
 for (const name in $TYPED_ARRAYS) TYPED_ARRAYS.push({

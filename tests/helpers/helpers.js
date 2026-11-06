@@ -127,6 +127,31 @@ export function arrayFromArrayLike(source) {
   } return result;
 }
 
+export function createTypedArraySortCases() {
+  const descending = [];
+  const ascendingGroups = [];
+  for (let i = 0; i < 516; i++) {
+    descending.push(515 - i);
+    ascendingGroups.push(i - 2 * (i % 4) + 3);
+  }
+
+  const keys = [0, 1, 0, 2, 1, 1, 2, 1, 0, 0];
+  const input = [];
+  const groups = [[], [], []];
+  for (let i = 0; i < 520; i++) {
+    const key = keys[Math.floor(i / 52)];
+    // Encode the original position and sort key as an exact binary16 integer.
+    const value = 3 * i + key;
+    input.push(value);
+    groups[key].push(value);
+  }
+
+  return [
+    { input: descending, compare: (a, b) => (a / 4 | 0) - (b / 4 | 0), expected: ascendingGroups, label: 'stable #1' },
+    { input, compare: (a, b) => b % 3 - a % 3, expected: groups[2].concat(groups[1], groups[0]), label: 'stable #2' },
+  ];
+}
+
 export function includes(target, wanted) {
   for (const element of target) if (wanted === element) return true;
   return false;

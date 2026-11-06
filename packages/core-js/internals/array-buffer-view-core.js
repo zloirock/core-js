@@ -48,7 +48,8 @@ var TypedArrayConstructorsList = {
   Float64Array: 8
 };
 
-var BigIntArrayConstructorsList = {
+var OptionalTypedArrayConstructorsList = {
+  Float16Array: 2,
   BigInt64Array: 8,
   BigUint64Array: 8
 };
@@ -58,7 +59,7 @@ var isView = function isView(it) {
   var klass = classof(it);
   return klass === 'DataView'
     || hasOwn(TypedArrayConstructorsList, klass)
-    || hasOwn(BigIntArrayConstructorsList, klass);
+    || hasOwn(OptionalTypedArrayConstructorsList, klass);
 };
 
 var getTypedArrayConstructor = function (it) {
@@ -72,7 +73,7 @@ var isTypedArray = function (it) {
   if (!isObject(it)) return false;
   var klass = classof(it);
   return hasOwn(TypedArrayConstructorsList, klass)
-    || hasOwn(BigIntArrayConstructorsList, klass);
+    || hasOwn(OptionalTypedArrayConstructorsList, klass);
 };
 
 var aTypedArray = function (it) {
@@ -136,7 +137,7 @@ for (NAME in TypedArrayConstructorsList) {
   else NATIVE_ARRAY_BUFFER_VIEWS = false;
 }
 
-for (NAME in BigIntArrayConstructorsList) {
+for (NAME in OptionalTypedArrayConstructorsList) {
   Constructor = globalThis[NAME];
   Prototype = Constructor && Constructor.prototype;
   if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;

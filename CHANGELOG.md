@@ -11,6 +11,7 @@
 - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
 - Added missed detection of native `%TypedArray%.prototype.with` converting the value with `ToNumber` instead of `ToBigInt` on `BigInt` arrays in [Rhino 1.9](https://github.com/mozilla/rhino/pull/2467)
 - Added missed detection of native `%TypedArray%.prototype.slice` returning a view on the source buffer instead of a copy in [Rhino 1.8](https://github.com/mozilla/rhino/pull/1905)
+- Fixed polyfilled typed array methods theoretically rejecting native `Float16Array` instances, including `%TypedArray%.prototype.with`
 - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
 - Fixed `structuredClone` preserving length-tracking views of resizable and growable shared buffers and throwing `DataCloneError` for out-of-bounds views
 - Fixed `structuredClone` transferring platform objects before validating the transfer list and cloning the value, and processing mixed transfer lists out of order
