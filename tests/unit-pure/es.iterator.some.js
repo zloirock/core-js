@@ -9,7 +9,7 @@ QUnit.test('Iterator#some', assert => {
   assert.isFunction(some);
   assert.arity(some, 1);
   assert.name(some, 'some');
-  assert.nonEnumerable(Iterator.prototype, 'some');
+  assert.nonEnumerableIn(Iterator.prototype, 'some');
 
   assert.true(some.call(createIterator([1, 2, 3]), it => it % 2), 'basic functionality #1');
   assert.false(some.call(createIterator([1, 2, 3]), it => typeof it == 'string'), 'basic functionality #2');

@@ -325,8 +325,8 @@ QUnit.test('Map Iterator', assert => {
   assert.looksNative(iterator.next);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.nonEnumerable(iterator, 'next');
-  assert.nonEnumerable(iterator, Symbol.iterator);
+  assert.nonEnumerableIn(iterator, 'next');
+  assert.nonEnumerableIn(iterator, Symbol.iterator);
   results.push(iterator.next().value);
   assert.true(map.delete('a'));
   assert.true(map.delete('b'));

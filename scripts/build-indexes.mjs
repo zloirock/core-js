@@ -13,7 +13,7 @@ async function generateTestsIndex(name, pkg) {
   return fs.writeFile(`${ dir }/index.js`, `import '../helpers/qunit-helpers';\n\n${ files
     .filter(it => /^(?:es|esnext|helpers|web)\./.test(it))
     .map(it => `import './${ it.slice(0, -3) }';\n`)
-    .join('') }${ pkg !== 'core-js' ? `\nimport core from '${ pkg }';\ncore.globalThis.core = core;\n` : '' }`);
+    .join('') }${ pkg !== 'core-js' ? `\nimport core from '${ pkg }';\ncore.globalThis.core = core;\ncore.globalThis.PURE = true;\n` : '' }`);
 }
 
 await generateNamespaceIndex('es', /^es\./);

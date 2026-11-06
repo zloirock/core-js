@@ -9,7 +9,7 @@ QUnit.test('Iterator#reduce', assert => {
   assert.isFunction(reduce);
   assert.arity(reduce, 1);
   assert.name(reduce, 'reduce');
-  assert.nonEnumerable(Iterator.prototype, 'reduce');
+  assert.nonEnumerableIn(Iterator.prototype, 'reduce');
 
   assert.same(reduce.call(createIterator([1, 2, 3]), (a, b) => a + b, 1), 7, 'basic functionality');
   assert.same(reduce.call(createIterator([1, 2, 3]), (a, b) => a + b), 6, 'basic functionality, no init');

@@ -9,7 +9,7 @@ QUnit.test('Iterator#find', assert => {
   assert.isFunction(find);
   assert.arity(find, 1);
   assert.name(find, 'find');
-  assert.nonEnumerable(Iterator.prototype, 'find');
+  assert.nonEnumerableIn(Iterator.prototype, 'find');
 
   assert.same(find.call(createIterator([1, 2, 3]), it => !(it % 2)), 2, 'basic functionality');
   find.call(createIterator([1]), function (arg, counter) {

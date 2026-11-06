@@ -1,10 +1,12 @@
-import { DESCRIPTORS } from './constants.js';
+import { DESCRIPTORS, GLOBAL } from './constants.js';
 import assign from 'core-js-pure/es/object/assign';
 import create from 'core-js-pure/es/object/create';
 import defineProperties from 'core-js-pure/es/object/define-properties';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import reduce from 'core-js-pure/es/array/reduce';
 import isIterable from 'core-js-pure/es/is-iterable';
+import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
@@ -17,7 +19,7 @@ if (!DESCRIPTORS) Object.defineProperties = defineProperties;
 
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 const { getOwnPropertyDescriptor } = Object;
-const { toString, propertyIsEnumerable } = Object.prototype;
+const { toString, hasOwnProperty, propertyIsEnumerable } = Object.prototype;
 
 const { assert } = QUnit;
 
@@ -69,7 +71,7 @@ assign(assert, {
   },
   isIterable(actual, message = 'The value is iterable') {
     this.pushResult({
-      result: isIterable(actual),
+      result: GLOBAL.PURE ? isIterable(actual) : typeof (actual?.[ITERATOR] ?? actual?.['@@iterator']) == 'function',
       actual,
       expected: 'The value should be iterable',
       message,
@@ -105,7 +107,7 @@ assign(assert, {
     });
   },
   nonConfigurable(O, key, message) {
-    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.configurable;
+    const result = !DESCRIPTORS || getOwnPropertyDescriptor(O, key)?.configurable === false;
     this.pushResult({
       result,
       actual: result,
@@ -116,7 +118,7 @@ assign(assert, {
     });
   },
   nonEnumerable(O, key, message) {
-    const result = !DESCRIPTORS || !propertyIsEnumerable.call(O, key);
+    const result = !DESCRIPTORS || getOwnPropertyDescriptor(O, key)?.enumerable === false;
     this.pushResult({
       result,
       actual: result,
@@ -126,8 +128,13 @@ assign(assert, {
         : 'Enumerability is not applicable',
     });
   },
+  nonEnumerableIn(O, key, message) {
+    let owner = O;
+    while (owner && !hasOwnProperty.call(owner, key)) owner = getPrototypeOf(owner);
+    this.nonEnumerable(owner || O, key, message);
+  },
   nonWritable(O, key, message) {
-    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.writable;
+    const result = !DESCRIPTORS || getOwnPropertyDescriptor(O, key)?.writable === false;
     this.pushResult({
       result,
       actual: result,
