@@ -1978,8 +1978,6 @@ const tests = {
   'unicorn/prefer-includes': OFF,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
-  // allow Annex B methods for testing
-  ...reset(forbidESAnnexBBuiltIns, {}),
 };
 
 const qunit = {
@@ -2485,6 +2483,11 @@ export default [
       'tests/**',
     ],
     rules: tests,
+  },
+  {
+    files: ['tests/compat/tests.js', 'tests/unit-global/**'],
+    // These tests exercise Annex B built-ins directly.
+    rules: reset(forbidESAnnexBBuiltIns, {}),
   },
   {
     files: [
