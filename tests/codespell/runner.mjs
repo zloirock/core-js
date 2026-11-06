@@ -1,6 +1,9 @@
 const skipNames = [['', '.map'], ['package', '.json']];
 const skip = [
   ...skipNames.map(parts => parts.join('*')),
+  '**/.git',
+  '**/.git/**',
+  '**/.work/**',
   '**/node_modules/**',
   './deno/corejs/index.js',
   './tests/bundles/**',
@@ -40,6 +43,7 @@ if (!await which('codespell', { nothrow: true })) {
   if (process.env.CI) process.exitCode = 1;
 } else if (!argv._.length || targets.length) {
   const result = await $({ stdio: 'inherit', nothrow: true })`codespell \
+    --check-hidden \
     --skip=${ String(skip) } \
     --ignore-words-list=${ String(ignoreWords) } \
     --enable-colors \
