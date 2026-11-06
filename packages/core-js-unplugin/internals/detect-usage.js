@@ -45,6 +45,7 @@ import {
   unwrapTransparentSeq,
   varScopeBlockOfBinding,
   wrapScopeBindingLookup,
+  withOverlappingWriteScans,
   writesPastCeiling,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -446,11 +447,11 @@ export function collectPrePassSites({
       destructureSiteVisitors(aliasSites, isDisabled))
     : handleSite ? mutationSiteVisitors(handleSite, census?.needsMemberMutationVisitor !== false) : {};
   let programPath = null;
-  traverse(ast, {
+  withOverlappingWriteScans(() => traverse(ast, {
     $: { scope: true },
     Program(path) { programPath = path; },
     ...siteVisitors,
-  });
+  }));
   finalize?.();
   return { mutated, aliasSites, programPath };
 }

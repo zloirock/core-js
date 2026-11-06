@@ -47,6 +47,7 @@ import {
   synthOwnerStrictlyInsideScope,
   typeArgumentHostOf,
   wrapScopeBindingLookup,
+  withOverlappingWriteScans,
   writesPastCeiling,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -81,11 +82,11 @@ export function collectPrePassSites(programPath, adapter, census = null, resolve
     : { mutated: null };
   const sites = [];
   if (!handleSite && !collectDestructures) return { mutated, sites };
-  programPath.traverse({
+  withOverlappingWriteScans(() => programPath.traverse({
     ...mergeVisitors(handleSite ? mutationSiteVisitors(handleSite, census?.needsMemberMutationVisitor !== false, true) : {},
       collectDestructures ? destructureSiteVisitors(sites) : {}),
     ...adapter.parameterPropertyVisitors,
-  });
+  }));
   finalize?.();
   return { mutated, sites };
 }

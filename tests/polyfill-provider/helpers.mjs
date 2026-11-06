@@ -78,6 +78,7 @@ import {
   stepOverChainWrappers,
   suspensionPointBefore,
   walkAstNodes,
+  withOverlappingWriteScans,
   recomputedBindingWrites,
   synthHoistedBinding,
   typeParameterInScope,
@@ -2977,6 +2978,61 @@ for (const adapter of adapters) {
     buildScopeReassignmentIndex(owner, true).get('A').length, 1);
   check(`buildScopeReassignmentIndex/strict: the block function is block-scoped, the write reaches out [${ adapter.name }]`,
     buildScopeReassignmentIndex(owner, false).get('A').length, 2);
+
+  // An enclosing scan can hide writes to an inner binding. Reading that owner's
+  // body again must recover its writes in source order, including unknown AST slots.
+  const nestedScopes = adapter.parseAndScope(`function outer() {
+    var a = 0;
+    function middle() {
+      var b = 0;
+      function inner() {
+        var c = 0;
+        c = 1;
+        { let c = 0; c = 2; }
+        a = 3; b = 4;
+        return c;
+      }
+    }
+  }`);
+  const declarations = adapter.collectPaths(nestedScopes, 'VariableDeclarator', path => path.parentPath.node.kind === 'var');
+  const leaf = adapter.pickPath(nestedScopes, 'ReturnStatement').node.argument;
+  const extra = { type: 'UpdateExpression', operator: '++', argument: { type: 'Identifier', name: 'c' }, prefix: false };
+  let reads = 0;
+  Object.defineProperty(leaf, 'extension', {
+    enumerable: true,
+    get() {
+      reads++;
+      return extra;
+    },
+  });
+  function writesAt(bindingPath) {
+    return recomputedBindingWrites({
+      kind: 'var', bindingPath, usePath: bindingPath, name: bindingPath.node.id.name, fallback: [],
+    });
+  }
+  withOverlappingWriteScans(() => {
+    checkDeep(`overlapping owners/outer [${ adapter.name }]`, writesAt(declarations[0]).map(write => write.right.value), [3]);
+    checkDeep(`overlapping owners/middle [${ adapter.name }]`, writesAt(declarations[1]).map(write => write.right.value), [4]);
+    const before = reads;
+    const writes = writesAt(declarations[2]);
+    check(`overlapping owners/scanned extension [${ adapter.name }]`, before > 0, true);
+    check(`overlapping owners/reuse [${ adapter.name }]`, reads, before);
+    checkDeep(`overlapping owners/inner [${ adapter.name }]`, writes.map(write => write.type), ['AssignmentExpression', 'UpdateExpression']);
+    check(`overlapping owners/shadow [${ adapter.name }]`, writes[0]?.right?.value, 1);
+    check(`overlapping owners/node identity [${ adapter.name }]`, writes[1] === extra, true);
+  });
+
+  // A switch in a lexical owner's walk has no function body to inspect.
+  const lexical = adapter.parseAndScope('function f() { let x; switch (x) { case 0: x = 7; } }');
+  const local = adapter.pickPath(lexical, 'VariableDeclarator');
+  const branch = adapter.pickPath(lexical, 'SwitchStatement');
+  let bodyReads = 0;
+  Object.defineProperty(branch.node, 'body', { get() { bodyReads++; } });
+  const lexicalWrites = withOverlappingWriteScans(() => recomputedBindingWrites({
+    kind: 'let', bindingPath: local, usePath: local, name: 'x', fallback: [],
+  }));
+  checkDeep(`lexical write scan/assignments [${ adapter.name }]`, lexicalWrites.map(write => write.right.value), [7]);
+  check(`lexical write scan/function body reads [${ adapter.name }]`, bodyReads, 0);
 
   // the catch PARAMETER anchors at its own clause: the outer binding's write is not its own, its
   // body's write is
