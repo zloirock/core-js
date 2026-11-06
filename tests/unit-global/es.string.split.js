@@ -2,11 +2,10 @@
 /* eslint-disable regexp/no-empty-group, regexp/no-empty-capturing-group -- required for testing */
 /* eslint-disable regexp/optimal-lookaround-quantifier, regexp/no-lazy-ends -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
-import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+QUnit.test('String#split regression', assert => {
   assert.isFunction(''.split);
   assert.arity(''.split, 2);
   assert.name(''.split, 'split');
@@ -690,9 +689,7 @@ const run = assert => {
   }
 
   assert.throws(() => ''.split.call(Symbol('split test'), /./), 'throws on symbol context');
-};
-
-QUnit.test('String#split regression', run);
+});
 
 QUnit.test('RegExp#@@split appearance', assert => {
   const split = /./[Symbol.split];
@@ -780,4 +777,23 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
   assert.throws(() => re[Symbol.split]('123451234'));
 });
 
-QUnit.test('RegExp#@@split implementation', patchRegExp$exec(run));
+QUnit.test('RegExp#@@split applies the limit to captures returned by the splitter', assert => {
+  const re = /(,)/;
+  let calls = 0;
+  re.exec = () => assert.avoid('the original regexp should not be executed');
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand -- constructor
+    [Symbol.species]: function (source, flags) {
+      const splitter = new RegExp(source, flags);
+      splitter.exec = function (string) {
+        calls++;
+        const match = RegExp.prototype.exec.call(this, string);
+        if (match) match[1] = 'capture';
+        return match;
+      };
+      return splitter;
+    },
+  };
+  assert.deepEqual('a,b,c'.split(re, 2), ['a', 'capture']);
+  assert.same(calls, 2, 'stops executing the splitter at the limit');
+});

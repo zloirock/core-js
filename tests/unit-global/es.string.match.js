@@ -1,11 +1,10 @@
 // TODO: fix escaping in regexps
 /* eslint-disable prefer-regex-literals, regexp/prefer-regexp-exec -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
-import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+QUnit.test('String#match regression', assert => {
   assert.isFunction(''.match);
   assert.arity(''.match, 1);
   assert.name(''.match, 'match');
@@ -174,9 +173,7 @@ const run = assert => {
 
   assert.throws(() => ''.match.call(Symbol('match test'), /./), 'throws on symbol context');
   assert.throws(() => ''.match(Symbol('match test')), TypeError, 'throws on symbol argument');
-};
-
-QUnit.test('String#match regression', run);
+});
 
 QUnit.test('RegExp#@@match appearance', assert => {
   const match = /./[Symbol.match];
@@ -236,7 +233,17 @@ QUnit.test('RegExp#@@match delegates to exec', assert => {
   assert.throws(() => re[Symbol.match]('abc'));
 });
 
-QUnit.test('RegExp#@@match implementation', patchRegExp$exec(run));
+QUnit.test('RegExp#@@match advances after empty custom matches', assert => {
+  const re = /x/g;
+  const indices = [];
+  re.lastIndex = 7;
+  re.exec = function () {
+    indices.push(this.lastIndex);
+    return indices.length <= 2 ? [''] : null;
+  };
+  assert.deepEqual('ab'.match(re), ['', '']);
+  assert.deepEqual(indices, [0, 1, 2]);
+});
 
 QUnit.test('RegExp#@@match global+unicode empty match at string end', assert => {
   // eslint-disable-next-line regexp/no-empty-group -- testing

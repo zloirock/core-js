@@ -1,10 +1,9 @@
 /* eslint-disable prefer-regex-literals -- required for testing */
 import { GLOBAL, STRICT } from '../helpers/constants.js';
-import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+QUnit.test('String#search regression', assert => {
   assert.isFunction(''.search);
   assert.arity(''.search, 1);
   assert.name(''.search, 'search');
@@ -80,9 +79,7 @@ const run = assert => {
   const regExpLike = { source: 'b', toString() { return 'a'; } };
   regExpLike[Symbol.match] = true;
   assert.same('ab'.search(regExpLike), 0, 'regex-like argument');
-};
-
-QUnit.test('String#search regression', run);
+});
 
 QUnit.test('RegExp#@@search appearance', assert => {
   const search = /./[Symbol.search];
@@ -138,4 +135,14 @@ QUnit.test('RegExp#@@search delegates to exec', assert => {
   assert.throws(() => re[Symbol.search]('abc'));
 });
 
-QUnit.test('RegExp#@@search implementation', patchRegExp$exec(run));
+QUnit.test('RegExp#@@search restores negative zero after custom exec', assert => {
+  const re = /x/;
+  re.lastIndex = -0;
+  re.exec = function () {
+    assert.same(this.lastIndex, 0);
+    this.lastIndex = 7;
+    return { index: 42 };
+  };
+  assert.same('abc'.search(re), 42);
+  assert.same(re.lastIndex, -0);
+});

@@ -1,10 +1,9 @@
 /* eslint-disable prefer-regex-literals, regexp/no-unused-capturing-group, unicorn/prefer-string-replace-all -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
-import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+QUnit.test('String#replace regression', assert => {
   assert.isFunction(''.replace);
   assert.arity(''.replace, 2);
   assert.name(''.replace, 'replace');
@@ -133,9 +132,7 @@ const run = assert => {
   assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
 
   assert.same('.a'.replace(new RegExp('a', 'y'), '.'), '.a', 'Replacement for y');
-};
-
-QUnit.test('String#replace regression', run);
+});
 
 QUnit.test('RegExp#@@replace appearance', assert => {
   const replace = /./[Symbol.replace];
@@ -229,7 +226,20 @@ QUnit.test('RegExp#@@replace correctly handles substitutions', assert => {
   assert.deepEqual(args, ['23', '7', 1, '1234', { '!!!': '7' }]);
 });
 
-QUnit.test('RegExp#@@replace implementation', patchRegExp$exec(run));
+QUnit.test('RegExp#@@replace collects custom matches before calling the replacer', assert => {
+  const re = /x/g;
+  let calls = 0;
+  re.exec = () => {
+    calls++;
+    if (calls === 1) return { 0: 'a', index: 0, length: 1 };
+    if (calls === 2) return { 0: 'c', index: 2, length: 1 };
+    return null;
+  };
+  assert.same('abc'.replace(re, match => {
+    assert.same(calls, 3);
+    return match.toUpperCase();
+  }), 'AbC');
+});
 
 QUnit.test('RegExp#@@replace global+unicode empty match at string end', assert => {
   // eslint-disable-next-line regexp/no-empty-group -- testing
