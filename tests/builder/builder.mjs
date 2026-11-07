@@ -36,4 +36,21 @@ for (const targets of [{}, { esmodules: false }, 'kaios 2.5']) {
   strictEqual(await builder({ targets, format: 'esm' }), allPolyfills, `empty targets: ${ JSON.stringify(targets) }`);
 }
 
+const excludedPolyfills = await builder({
+  modules: ['core-js/actual', /^esnext\.reflect\./],
+  exclude: [/^es\.math\./, 'es.number.constructor'],
+  targets: '> 0.5%, not dead, ie 9-11',
+  format: 'cjs',
+});
+
+ok(!excludedPolyfills.includes("require('core-js/modules/esnext.math.f16round');"), 'README example excludes Math.f16round alias');
+ok(!excludedPolyfills.includes("require('core-js/modules/esnext.math.sum-precise');"), 'README example excludes Math.sumPrecise alias');
+ok(excludedPolyfills.includes("require('core-js/modules/es.array.at');"), 'README example preserves unrelated polyfills');
+
+strictEqual(
+  await builder({ modules: ['es.array.at', 'esnext.array.at', 'es.array.includes'], exclude: 'esnext.array.at', targets: 'ie 11', format: 'cjs' }),
+  await builder({ modules: 'es.array.includes', targets: 'ie 11', format: 'cjs' }),
+  'excluding an alias also excludes its stable module and preserves unrelated polyfills',
+);
+
 echo(chalk.green('builder tested'));

@@ -68,11 +68,11 @@ module.exports = function ({
     targets: {},
   };
 
-  exclude = normalizeModules(exclude);
+  exclude = new Set([...normalizeModules(exclude)].map(it => it.replace(/^esnext\./, 'es.')));
 
   modules = modules ? [...normalizeModules(modules)] : allModules;
 
-  if (exclude.size) modules = modules.filter(it => !exclude.has(it));
+  if (exclude.size) modules = modules.filter(it => !exclude.has(it.replace(/^esnext\./, 'es.')));
 
   modules = intersection(modules, version ? getModulesListForTargetVersion(version) : allModules);
 

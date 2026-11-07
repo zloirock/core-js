@@ -108,6 +108,53 @@ deepEqual(compat({
   },
 }, 'no exclude');
 
+for (const exclude of [
+  'es.array.at',
+  /^es\.array\.at$/,
+  ['es.array.at'],
+  'core-js/stable/array/at',
+  'esnext.array.at',
+  /^esnext\.array\.at$/,
+  ['esnext.array.at'],
+  'core-js/proposals/relative-indexing-method',
+]) {
+  deepEqual(compat({
+    modules: ['es.array.at', 'esnext.array.at'],
+    exclude,
+    targets: 'ie 11',
+  }), { list: [], targets: {} }, `exclude stabilized aliases: ${ JSON.stringify(exclude) }`);
+}
+
+deepEqual(compat({
+  modules: 'esnext.array.at',
+  exclude: 'es.array.at',
+  targets: 'ie 11',
+}), { list: [], targets: {} }, 'exclude a stable module when only its alias is selected');
+
+for (const exclude of ['es.array.at', 'esnext.array.at']) {
+  deepEqual(compat({
+    modules: ['es.array.at', 'esnext.array.at'],
+    exclude,
+    targets: 'chrome 100',
+    inverse: true,
+  }), { list: [], targets: {} }, 'inverse respects excluded stabilized aliases');
+}
+
+deepEqual(compat({
+  modules: ['es.math.f16round', 'esnext.math.f16round', 'esnext.math.clamp'],
+  exclude: /^es\.math\./,
+  targets: 'ie 11',
+}), {
+  list: ['esnext.math.clamp'],
+  targets: { 'esnext.math.clamp': { ie: '11' } },
+}, 'excluding stable math modules preserves unrelated proposals');
+
+deepEqual(compat({
+  modules: 'es.array.at',
+  exclude: 'esnext.array.at',
+  targets: 'ie 11',
+}), { list: [], targets: {} }, 'exclude an alias when only its stable module is selected');
+
 const noTargets = compat();
 
 for (const targets of [
