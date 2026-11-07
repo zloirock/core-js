@@ -11,6 +11,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { resolveKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { planNestedDefaultHop } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import { createMemberResolve } from '../../packages/core-js-polyfill-provider/resolve-node-type/member-resolve.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
@@ -680,6 +681,11 @@ for (const [label, source, hint, entry, expected] of [
   ['generated call', 'const result = Ctor();', 'Symbol', 'symbol/constructor', 'symbol'],
   ['wrapped call', 'const result = (Ctor as any)();', 'Symbol', 'symbol/constructor', 'symbol'],
   ['imported construction', 'import Ctor from "@core-js/pure/actual/map/constructor"; const result = new Ctor();', 'Map', 'map/constructor', 'Map'],
+  ['imported construction without hint', 'import Ctor from "@core-js/pure/actual/map/constructor"; const result = new Ctor();', null, 'map/constructor', 'Map'],
+  ['generated construction', 'const result = new Ctor();', 'Map', 'map/constructor', 'Map'],
+  ['wrapped construction', 'const result = new (Ctor as any)();', 'Set', 'set/constructor', 'Set'],
+  ['namespace construction', 'const result = new Ctor();', 'Map', 'map', 'Map'],
+  ['unknown construction entry', 'const result = new Ctor();', 'Map', 'map/custom', null],
   ['static helper', 'const result = Ctor({});', 'Object', 'object/keys', 'Array'],
   ['unknown entry', 'const result = Ctor();', 'Symbol', 'symbol/custom', null],
 ]) runBoth(`hinted constructor ${ label }`, source, (adapter, program, name) => {
@@ -690,6 +696,36 @@ for (const [label, source, hint, entry, expected] of [
   }).resolveNodeType(path);
   check(name, type ? type.primitive ? type.type : type.constructor : null, expected);
 });
+
+runBoth('constructor import entry refreshes after reset', 'const result = new Ctor();', (adapter, program, name) => {
+  const path = adapter.pickPath(program, 'VariableDeclarator').get('init');
+  let entry = 'map/constructor';
+  const resolver = adapter.makeResolver({ getPolyfillBindingEntry: () => entry });
+  check(`${ name }/cold`, resolver.resolveNodeType(path)?.constructor, 'Map');
+  check(`${ name }/warm`, resolver.resolveNodeType(path)?.constructor, 'Map');
+  entry = 'set/constructor';
+  resolver.reset();
+  check(`${ name }/reset`, resolver.resolveNodeType(path)?.constructor, 'Set');
+});
+
+// A nested leaf's array default must not make the outer Map/Set read look like an array read.
+for (const [ctor, expected] of [['Map', null], ['Set', null], ['Array', 'instance']]) {
+  runBoth(`nested constructor hop/${ ctor }`, `const receiver = new ${ ctor }();
+    ${ expectError('reading at off a method or the array default is intentional runtime JavaScript') }
+    const { keys: { at } = [] } = receiver;`, (parser, program, label) => {
+    const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', p => p.node.key.name === 'at');
+    const receiverPath = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern').get('init');
+    const typeResolvers = parser.makeResolver();
+    const { resolver: { resolvePure } } = createPolyfillResolver({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }, {
+      typeResolvers, astPredicates: { isMemberLike: () => false, isSpreadElement: () => false },
+    });
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const result = planNestedDefaultHop({ chain: [{}], kind: 'instance', entry: 'instance/at', path, receiverPath }, {
+      adapter, resolvePure, resolveNodeType: typeResolvers.resolveNodeType, toHint: typeResolvers.toHint,
+    });
+    check(`${ label }/outer dispatch`, result.pure?.kind ?? null, expected);
+  });
+}
 
 runBoth('inherited member cache resets mutation facts', 'const box = {}; const result = box.toString;',
   (adapter, program, name) => {

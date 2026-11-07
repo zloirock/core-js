@@ -5,25 +5,38 @@
 //
 // Public surface:
 //   resolveThisAnchor(path)          - { kind: 'class', classPath, isStatic } | { kind: 'object', objectPath } | null
+//   resolveThisClass(path)           - class anchor | null (only class anchors)
 //   resolveThisObject(path)          - object-literal path | null (only object anchors)
+//   resolveExpressionToClassPath(path) - runtime or ambient class declaration path | null
 //   resolveSuperClassPath(classPath) - parent ClassDeclaration / DeclareClass path | null
+//   classConstructionPreservesInstance(classPath) - whether construction preserves the class's instance
 //   resolveClassContext(objectPath)  - resolves `Foo` / `new Foo()` / `this` / `super` / `Reflect.construct(C)` to
 //                                      { classPath, isStatic, receiverArgs } - the type arguments an instance
-//                                      receiver instantiates the class with
+//                                      receiver instantiates the class with; null for an unproven instance
 //   buildParentClassSubstFromNodes / buildParentClassSubst - chain extends type-args -> parent declParams
+//   reset()                         - drop cached construction proofs when source facts change
 //
 // Service object:
 //   - `t` (Babel/ESTree types adapter)
 //   - factory helpers: `resolveRuntimeExpression`, `isReflectConstructCallee`, `buildSubstMap`
-//   - cluster outputs: `findAmbientDeclarationPath` (`name-resolution`), `applyAliasSubstDeep`
+//   - cluster outputs: `resolveClassInheritance` (`global-resolve`),
+//     `findAmbientDeclarationPath` (`name-resolution`), `applyAliasSubstDeep`
 //     (`type-subst` - passed directly; it is bound before this factory runs)
 //
 // `isAmbientClassNode` imports from `name-resolution` because it doubles as a cache key
 // for `ambientDeclCache`; identity must match between cluster and factory call sites.
-// `getSuperTypeArgs` comes from `helpers/ast-patterns.js` directly
+// `getHeritageTypeArgs` comes from `helpers/ast-patterns.js` directly
 import { isAmbientClassNode } from './name-resolution.js';
 import { collectQualifiedSegments, openTypeArg } from './ast-shapes.js';
-import { classSuperPath, getHeritageTypeArgs } from '../helpers/ast-patterns.js';
+import { MAX_DEPTH } from './base.js';
+import {
+  classConstructorFunction,
+  classSuperPath,
+  collectOwnReturns,
+  flattenBranchingValueNodes,
+  getHeritageTypeArgs,
+  prototypeValueMayDispatch,
+} from '../helpers/ast-patterns.js';
 
 // ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
 // function-value via the `.value` slot. unified set covers both parser dialects
@@ -41,6 +54,7 @@ export function createClassContext({
   isReflectConstructCallee,
   buildSubstMap,
   constructionTypeArgs,
+  resolveClassInheritance,
   findAmbientDeclarationPath,
   findDeclPathBySegments,
   isClassLikeDeclaration,
@@ -145,6 +159,34 @@ export function createClassContext({
     return superClass.node ? resolveExpressionToClassPath(superClass) : null;
   }
 
+  // A constructor can replace its instance with an unrelated object, including through an
+  // inherited or unknown base constructor. A class decorator can replace the constructor itself.
+  // Such a result proves neither the class family nor its members. Primitive returns and `return this`
+  // preserve the instance; nested returns belong to those functions. The proof is about the class
+  // definition, independent of its uses.
+  // Rewrites preserve its construction semantics; reset drops it when source facts change.
+  let constructionProofs = new WeakMap();
+  function classConstructionPreservesInstance(classPath) {
+    if (constructionProofs.has(classPath.node)) return constructionProofs.get(classPath.node);
+    let result = true;
+    let depth = MAX_DEPTH;
+    for (let current = classPath; current;) {
+      const body = classConstructorFunction(current.node)?.body;
+      if (!depth-- || current.node.decorators?.length
+        || collectOwnReturns(body).some(ret => flattenBranchingValueNodes([ret.argument]).some(
+          value => value.type !== 'ThisExpression' && prototypeValueMayDispatch(value, true),
+        ))) {
+        result = false;
+        break;
+      }
+      const parent = resolveSuperClassPath(current);
+      if (!parent && classSuperPath(current).node && !resolveClassInheritance(current)) result = false;
+      current = parent;
+    }
+    constructionProofs.set(classPath.node, result);
+    return result;
+  }
+
   // a class's own type parameters as type arguments, every one left open (`openTypeArg`) - what an
   // instance whose construction the reader cannot see is known by. one array per class: the
   // class-as-type reference built from it is interned by identity
@@ -165,12 +207,14 @@ export function createClassContext({
     // `declare class`, or a qualified `NS.Foo` - all resolved by the shared class-path helper)
     if (t.isNewExpression(node)) {
       const classPath = resolveExpressionToClassPath(objectPath.get('callee'));
-      if (classPath) return { classPath, isStatic: false, receiverArgs: constructionTypeArgs(classPath.node, objectPath) };
+      if (classPath && classConstructionPreservesInstance(classPath)) {
+        return { classPath, isStatic: false, receiverArgs: constructionTypeArgs(classPath.node, objectPath) };
+      }
     }
     // `Reflect.construct(target, args[, newTarget])` is structurally equivalent to
     // `new target(...args)`, EXCEPT the created object's prototype is `newTarget.prototype`
-    // when the 3rd argument is present - so a 3-arg call returns an instance of newTarget, not
-    // target. resolve the constructor from `arguments[2]` when given (else `arguments[0]`) so
+    // when the 3rd argument is present. A target returning another object bypasses that prototype
+    // too. Otherwise resolve `arguments[2]` when given (else `arguments[0]`) so
     // `inst.X` reaches the right class's members / polyfill family. callee shape: bare
     // `Reflect.construct` (no local shadow) or post-rewrite alias. `get('arguments')[i]` is the
     // parser-agnostic form (the dotted child-key `'arguments.0'` works in babel but not
@@ -180,8 +224,11 @@ export function createClassContext({
       && node.arguments?.[0]) {
       const ctorIndex = node.arguments[2] ? 2 : 0;
       const classPath = resolveExpressionToClassPath(objectPath.get('arguments')[ctorIndex]);
+      const target = ctorIndex ? resolveExpressionToClassPath(objectPath.get('arguments')[0]) : classPath;
       // the arguments travel in an array, so nothing binds the class's type parameters
-      if (classPath) return { classPath, isStatic: false, receiverArgs: openClassArgs(classPath.node) };
+      if (classPath && target && classConstructionPreservesInstance(target)) {
+        return { classPath, isStatic: false, receiverArgs: openClassArgs(classPath.node) };
+      }
     }
     // this.prop inside a class member: the instance was made with type arguments the class body
     // cannot see, so its own parameters stay open
@@ -235,8 +282,10 @@ export function createClassContext({
     resolveThisObject,
     resolveExpressionToClassPath,
     resolveSuperClassPath,
+    classConstructionPreservesInstance,
     resolveClassContext,
     buildParentClassSubstFromNodes,
     buildParentClassSubst,
+    reset() { constructionProofs = new WeakMap(); },
   };
 }

@@ -110,6 +110,7 @@ import {
   hasRestSiblingExcept,
   isAmbientBindingShape,
   isAmbientTypeDeclaration,
+  classConstructorFunction,
   isASTNode,
   isBindingPosition,
   isChainAssignment,
@@ -515,6 +516,95 @@ runBoth('new Date() -> Date', 'const x = new Date();', (adapter, prog, lbl) => {
   const call = adapter.pickPath(prog, 'NewExpression');
   checkType(lbl, adapter.makeResolver().resolveNodeType(call),
     { primitive: false, ctor: 'Date' });
+});
+
+// A constructor name alone proves no instance family. Keep the known-result paths precise.
+for (const [label, code, ctor] of [
+  ['unknown global', 'new ExternalList();', null],
+  ['unknown realm member', 'new globalThis.ExternalList();', null],
+  ['aliased unknown global', 'const C = ExternalList; new C();', null],
+  ['proxy', 'new Proxy([1], {});', null],
+  ['aliased proxy', 'const P = Proxy; new P([1], {});', null],
+  ['parameter', 'function f(C) { return new C(); }', null],
+  ['object wrapper', 'new Object(value);', null],
+  ['array', 'new Array();', 'Array'],
+  ['string wrapper', 'new String();', 'String'],
+  ['typed array', 'new Uint8Array();', 'TypedArray'],
+  ['local class', 'class C {} new C();', 'Object'],
+  ['array subclass', 'class C extends Array {} new C();', 'Array'],
+  ['class returning an array', 'class C { constructor() { return [1]; } } new C();', null],
+  ['inherited replacing constructor', 'class B { constructor() { return [1]; } } class C extends B {} new C();', null],
+  ['subclass returning a string wrapper', 'class C extends Array { constructor() { return Object("ab"); } } new C();', null],
+  ['class returning this', 'class C extends Array { constructor() { super(); return this; } } new C();', 'Array'],
+  ['class returning a primitive', 'class C { constructor() { return 1; } } new C();', 'Object'],
+  ['class with a bare return', 'class C { constructor() { return; } } new C();', 'Object'],
+  ['class with a nested return', 'class C extends Array { constructor() { super(); const f = () => []; } } new C();', 'Array'],
+  ['wrapped class return', 'class C { constructor() { return (effect(), []); } } new C();', null],
+  ['conditional class return', 'class C { constructor() { return flag ? this : []; } } new C();', null],
+  ['shadowed undefined class return', 'class C { constructor(undefined) { return undefined; } } new C([]);', null],
+  ['cyclic class construction', 'class B extends C {} class C extends B {} new C();', null],
+  ['construct signature', 'declare const C: new () => string[]; new C();', 'Array'],
+  ['constructor return', 'function C() { return [1]; } new C();', 'Array'],
+]) {
+  runBoth(`constructed receiver: ${ label }`, code, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'NewExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor });
+  });
+}
+
+// A class decorator can replace the constructor; a member decorator preserves the instance family.
+for (const parser of adapters) for (const [label, declaration, ctor] of [
+  ['decorated class', '@decorate class C {}', null],
+  ['decorated parent', '@decorate class B {} class C extends B {}', null],
+  ['decorated member', 'class C extends Array { @decorate method() {} }', 'Array'],
+]) {
+  const program = parser.parseAndScope(`declare const decorate: any; ${ declaration } new C();`, 'module', ['decorators-legacy']);
+  checkType(`${ parser.name }/construction after ${ label }`,
+    parser.makeResolver().resolveNodeType(parser.pickPath(program, 'NewExpression')), { primitive: false, ctor });
+}
+
+// A replacement object does not carry the class's fields or method return types.
+for (const [label, source] of [
+  ['field', 'class C { value = "ab"; constructor() { return { value: [] }; } } const result = new C().value;'],
+  ['method', 'class C { value() { return "ab"; } constructor() { return { value() { return []; } }; } } const result = new C().value();'],
+  ['reflect', 'class C { value = "ab"; constructor() { return { value: [] }; } } const result = Reflect.construct(C, []).value;'],
+  ['reflect new target', 'class B { constructor() { return { value: [] }; } } class C { value = "ab"; } const result = Reflect.construct(B, [], C).value;'],
+  ['reflect method', 'class C { value() { return "ab"; } constructor() { return { value() { return []; } }; } } const result = Reflect.construct(C, []).value();'],
+  ['reflect new target method',
+    'class B { constructor() { return { value() { return []; } }; } } class C { value() { return "ab"; } } const result = Reflect.construct(B, [], C).value();'],
+  ['unknown base', 'class C extends External { value() { return "ab"; } } const result = new C().value();'],
+]) runBoth(`replacing class constructor/${ label }`, source, (adapter, prog, lbl) => {
+  const result = adapter.pickPath(prog, 'VariableDeclarator', path => path.node.id?.name === 'result').get('init');
+  check(lbl, adapter.makeResolver().resolveNodeType(result), null);
+});
+
+runBoth('class construction proof refreshes after reset', 'class C { constructor() { return 1; } } new C();', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'NewExpression');
+  const ret = adapter.pickPath(prog, 'ReturnStatement');
+  const resolver = adapter.makeResolver();
+  checkType(`${ lbl }/cold`, resolver.resolveNodeType(call), { primitive: false, ctor: 'Object' });
+  checkType(`${ lbl }/warm`, resolver.resolveNodeType(call), { primitive: false, ctor: 'Object' });
+  ret.node.argument = { type: 'ArrayExpression', elements: [] };
+  resolver.reset();
+  checkType(`${ lbl }/reset`, resolver.resolveNodeType(call), { primitive: false, ctor: null });
+});
+
+runBoth('class construction proof reads its body only for the first use', `class C extends Array { constructor() { super(); ${ 'this.x = 1;'.repeat(64) } } }
+  ${ 'new C();'.repeat(64) }`, (adapter, prog, lbl) => {
+  const calls = adapter.collectPaths(prog, 'NewExpression');
+  const { body } = classConstructorFunction(adapter.pickPath(prog, 'ClassDeclaration').node);
+  const statements = body.body;
+  let reads = 0;
+  Object.defineProperty(body, 'body', {
+    get() { reads++; return statements; },
+    configurable: true,
+  });
+  const resolver = adapter.makeResolver();
+  checkType(lbl, resolver.resolveNodeType(calls[0]), { primitive: false, ctor: 'Array' });
+  const coldReads = reads;
+  check(`${ lbl }/cold read is observed`, coldReads > 0, true);
+  for (const call of calls.slice(1)) checkType(lbl, resolver.resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  check(`${ lbl }/no further body reads`, reads, coldReads);
 });
 
 // --- Member-call return propagation through instance methods ---

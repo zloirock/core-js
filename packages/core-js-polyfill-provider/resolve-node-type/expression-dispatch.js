@@ -50,7 +50,6 @@ export function createExpressionDispatch({
   resolveNodeType,
   resolveBindingType,
   unwrapTypeAnnotation,
-  resolveGlobalName,
   resolveConstructorType,
   resolveConstructorCallType,
   resolveCallReturnType,
@@ -61,6 +60,7 @@ export function createExpressionDispatch({
   computeObjectAliasClosure,
   thisAnchorIsProvable,
   resolveExpressionToClassPath,
+  classConstructionPreservesInstance,
   resolveClassInheritance,
   resolveFromMemberExpression,
   resolveArrayIndexAccess,
@@ -89,23 +89,24 @@ export function createExpressionDispatch({
     // own output reads where the source wrote `new Map()`, and taking it for an unknown value cost
     // the receiver its whole type - every method the ponyfill's prototype already carries was
     // dispatched again on the next pass
-    const name = resolveGlobalName(callee) ?? polyfillHintGlobalName(callee);
-    // a known global / class name resolves to its constructor type directly. an ambient binding
+    const name = globalNamedThroughOwnImport(callee) ?? polyfillHintGlobalName(callee);
+    // a known global resolves to its constructor type directly. an ambient binding
     // (`declare const Ctor: new () => T`) also resolves via resolveGlobalName to its bare name but
     // is NOT a known constructor (resolveConstructorType -> null) - fall through to the class /
-    // construct-signature fallbacks below instead of short-circuiting to a foreign $Object(name)
+    // construct-signature fallbacks below instead of leaving its result unknown
     if (name) {
       const ctorType = resolveConstructorType(name, path);
       if (ctorType) return ctorType;
     }
-    // a class callee yields the instance type via the inheritance walk. `resolveExpressionToClassPath`
+    // a class callee that preserves its instance yields its type via the inheritance walk;
+    // a constructor returning a foreign object proves no class family. `resolveExpressionToClassPath`
     // covers the runtime class AND the ambient `declare class` form (no runtime value binding on Babel,
-    // so a bare Identifier degrades to the foreign nominal `$Object('X')` and misses an `extends
-    // Array`/`Set` base without the ambient-index fallback estree-toolkit gets from `scope.bindings`)
+    // so a bare Identifier stays unknown and misses an `extends Array`/`Set` base without the
+    // ambient-index fallback estree-toolkit gets from `scope.bindings`)
     const classPath = resolveExpressionToClassPath(callee);
     // resolveClassInheritance now distinguishes base-less (-> `Object`) from unknowable super (-> null /
     // generic), so no `|| $Object('Object')` floor - that would re-suppress the unknowable case
-    if (classPath) return resolveClassInheritance(classPath);
+    if (classPath) return classConstructionPreservesInstance(classPath) ? resolveClassInheritance(classPath) : new $Object(null);
     // callee resolves to a TSConstructorType signature (or TSFunctionType - they share the
     // `returnType` slot and `functionTypeReturnAnnotation` treats both identically). example:
     // `const Ctor = wrap('a')` where `wrap<T>(): new (...) => string[]` - Ctor's annotation
@@ -117,9 +118,9 @@ export function createExpressionDispatch({
     // reached only the function-value lane, letting an ambient head and a call-signature past
     const ctorReturn = resolveCallReturnType(callee, 'construct');
     if (ctorReturn) return ctorReturn;
-    // a resolved global name with no constructor type and no construct-signature fallback keeps its
-    // foreign nominal ($Object(name)); a fully unresolvable callee stays unknown ($Object(null))
-    return new $Object(name ?? null);
+    // Construction guarantees an object, but a name alone proves no instance family.
+    // Proxy and unknown external constructors can return objects needing instance polyfills.
+    return new $Object(null);
   }
 
   // the type a CALL evaluates to: the known static / global / instance-method return tables, the

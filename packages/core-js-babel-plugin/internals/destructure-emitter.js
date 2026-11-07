@@ -1113,7 +1113,8 @@ export default function createDestructureEmitter({
     const writes = releaseMovedBindings(plan.rootPath, Object.keys(t.getBindingIdentifiers(plan.pattern)));
     plan.rootPath.replaceWith(estreeToBabel(rendered.head));
     if (rendered.padding) plan.fnPath.pushContainer('params', [estreeToBabel(rendered.padding)]);
-    for (const param of plan.fnPath.get('params')) param.scope.registerBinding('param', param);
+    // A default parameter has its own initializer scope; its binding belongs to the function.
+    for (const param of plan.fnPath.get('params')) plan.fnPath.scope.registerBinding('param', param);
     const declaration = estreeToBabel(rendered.declaration);
     catchBornDeclarations.add(declaration);
     const body = plan.fnPath.get('body');

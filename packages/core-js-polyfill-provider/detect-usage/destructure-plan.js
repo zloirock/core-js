@@ -397,7 +397,8 @@ function nestedDefaultHopPure({ defaultPath, receiverPath, path }, {
   const type = resolveNodeType?.(receiverPath);
   const hint = type && toHint ? toHint(type) : null;
   if (!type?.primitive && type?.constructor && hasSubstitutedConstructor?.(type.constructor)) return null;
-  const pure = resolvePure({ kind: 'property', object: hint ?? undefined, key, placement: 'prototype' }, hint ? path : null);
+  // Receiver refinement belongs to this outer read, not the nested leaf's fallback receiver.
+  const pure = resolvePure({ kind: 'property', object: hint ?? undefined, key, placement: 'prototype' }, hint ? outerProp : null);
   return pure?.kind === 'instance' ? pure : null;
 }
 
