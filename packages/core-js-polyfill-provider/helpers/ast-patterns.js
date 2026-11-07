@@ -3797,13 +3797,16 @@ function withoutPhantomWrites(binding) {
 // type layer reads, in the constructor's scope, with the constructor's writes to the name as its
 // violations - resolved through the owner's write index like the hoisted twin's, and declined
 // whole when one cannot be located. a use in a decorator hanging off that same parameter list is
-// evaluated outside the constructor and sees no parameter property, as in the binding climb
+// evaluated outside the constructor and sees no parameter property, as in the binding climb.
+// Reuse the var-owner climb; parameter shapes themselves stay live across sibling rewrites.
 function parameterPropertyTwin(synthCache, path, name, native = null, lookupScope = null) {
   // A binding already owned by the lookup scope cannot have a closer synthetic twin.
   if (!path || lookupScope && native?.scope === lookupScope) return null;
   let definitionTimeFrames;
-  for (let cur = memberContextPath(path); cur?.node; cur = memberContextPath(cur.parentPath)) {
+  for (let cur = findNearestVarScopeOwner(path); cur?.node; cur = findNearestVarScopeOwner(cur.parentPath)) {
     const { node, scope } = cur;
+    // An existing binding in this owner hides every outer parameter property.
+    if (scope && native?.scope === scope) return null;
     if (!FUNCTION_LIKE_NODE_TYPES.has(node.type)) continue;
     const index = (node.params ?? []).findIndex(param => param?.type === 'TSParameterProperty'
       && tsRuntimeBindingName(patternSlotTarget(param.parameter)) === name);

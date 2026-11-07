@@ -5246,12 +5246,16 @@ export default function createDestructureEmitter({
   // ... asked of the FINISHED tree too: babel's own `insertBefore` / `insertAfter` brace a bodyless
   // slot on their way, so a block they synthesized there (no source span) holding nothing but `var`
   // declarations is that slot's join as well. an arrow body is a block of its own, never a slot
-  function joinBodylessVarBlocks(programPath) {
+  function joinBodylessVarBlocks(programPath, containsNode) {
+    function canJoin(node) {
+      return node.type === 'BlockStatement' && !node.loc && !node.directives?.length && node.body.length > 0
+        && node.body.every(stmt => t.isVariableDeclaration(stmt, { kind: 'var' }));
+    }
+    if (!containsNode(programPath.node, canJoin)) return;
     programPath.traverse({
       BlockStatement(path) {
-        if (path.node.loc || path.parentPath.isArrowFunctionExpression()
+        if (!canJoin(path.node) || path.parentPath.isArrowFunctionExpression()
           || !isBodylessStatementSlot(path.parentPath.node, path.node)) return;
-        if (path.node.body.some(stmt => !t.isVariableDeclaration(stmt, { kind: 'var' }))) return;
         const { scope } = path;
         path.replaceWith(bodylessSlotStatement('var', path.node.body));
         rebindLiveDeclarators(path, scope);

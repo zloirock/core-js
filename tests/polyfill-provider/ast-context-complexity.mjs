@@ -461,6 +461,44 @@ for (const parser of adapters) {
     }
   }
 
+  // Binding lookups share the enclosing-owner search instead of climbing every block
+  // again for a possible constructor parameter. Count the full lookup, not one helper.
+  for (const depth of [16, 64]) {
+    const program = parser.parseAndScope(`const rows = []; function read() {
+      ${ '{'.repeat(depth) } rows.at(0); ${ '}'.repeat(depth) }
+    }`);
+    const use = parser.pickPath(program, 'MemberExpression');
+    const native = use.scope.getBinding('rows');
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    const properties = [];
+    let reads = 0;
+    for (let path = use; path; path = path.parentPath) if (path.node.type === 'BlockStatement') {
+      const descriptor = Object.getOwnPropertyDescriptor(path, 'parentPath');
+      const { parentPath } = path;
+      properties.push([path, descriptor]);
+      Object.defineProperty(path, 'parentPath', {
+        configurable: true,
+        get() { reads++; return parentPath; },
+      });
+    }
+    const label = `${ parser.name }/nested binding lookup/${ depth }`;
+    try {
+      withTraversalCaches(true, () => {
+        check(`${ label }/initial declaration`, lookup({ scope: use.scope, name: 'rows', path: use })?.path?.node, native.path.node);
+        checkTruthy(`${ label }/counter control`, reads > depth);
+        reads = 0;
+        for (let i = 0; i < 16; i++) check(`${ label }/repeated declaration/${ i }`,
+          lookup({ scope: use.scope, name: 'rows', path: use })?.path?.node, native.path.node);
+        checkTruthy(`${ label }/bounded repeated ancestry`, reads <= 3 * 16 * (depth + 1), `${ reads } parent reads`);
+      });
+    } finally {
+      for (const [path, descriptor] of properties) {
+        if (descriptor) Object.defineProperty(path, 'parentPath', descriptor);
+        else delete path.parentPath;
+      }
+    }
+  }
+
   // Repeated calls of one wide reader must inspect its parameter shape once, not per call.
   for (const size of [32, 128]) {
     const params = ['o', ...Array.from({ length: size }, (unused, i) => `p${ i }`)];

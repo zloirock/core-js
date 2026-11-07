@@ -280,6 +280,8 @@ for (const [prefix, callee, descriptor, expected] of [
   const expression = { type: 'ExpressionStatement', expression: identifier('effect') };
   const declaration = { type: 'VariableDeclaration', kind: 'var', declarations: [{ type: 'VariableDeclarator', id: identifier('a') }] };
   const next = { type: 'VariableDeclaration', kind: 'const', declarations: [{ type: 'VariableDeclarator', id: identifier('b') }] };
+  checkDeep('bodyless var with no surviving statements leaves an empty block',
+    bodylessSlotReplacement(declaration, []), { type: 'BlockStatement', body: [] });
   check('bodyless single statement retains identity', bodylessSlotReplacement(expression, [expression]), expression);
   checkDeep(
     'bodyless declarations join their original var',

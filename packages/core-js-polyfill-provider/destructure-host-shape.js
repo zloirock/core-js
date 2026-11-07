@@ -165,7 +165,7 @@ export { isBodylessStatementSlot, planNestedKeyedPatternCapture };
 // `embed` preserves host nodes at the render boundary, after classifying their shapes.
 export function bodylessSlotReplacement(hostNode, statements, embed = node => node) {
   if (statements.length === 1) return embed(statements[0]);
-  if (hostNode?.type === 'VariableDeclaration' && hostNode.kind === 'var'
+  if (statements.length && hostNode?.type === 'VariableDeclaration' && hostNode.kind === 'var'
     && statements.every(stmt => stmt.type === 'VariableDeclaration')) {
     return variableDeclaration('var', statements.flatMap(stmt => stmt.declarations.map(embed)));
   }
