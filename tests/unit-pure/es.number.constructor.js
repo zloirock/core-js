@@ -1,4 +1,6 @@
 /* eslint-disable sonarjs/inconsistent-function-call -- required for testing */
+import { nativeSubclass } from '../helpers/helpers.js';
+
 import globalThis from 'core-js-pure/es/global-this';
 import create from 'core-js-pure/es/object/create';
 import Number from 'core-js-pure/es/number';
@@ -16,6 +18,24 @@ function getCheck(assert) {
     assert.same(x.valueOf(), b, `new Number(${ typeof a } ${ a }).valueOf() -> ${ b }`);
   };
 }
+
+if (nativeSubclass) QUnit.test('Number subclassing with native classes', assert => {
+  const Subclass = nativeSubclass(Number);
+  Subclass.prototype.twice = function () {
+    return this * 2;
+  };
+  const number = new Subclass(3);
+  assert.true(number instanceof Subclass, 'subclass instance');
+  assert.true(number instanceof Number, 'Number instance');
+  assert.same(number.twice, Subclass.prototype.twice, 'subclass method');
+  assert.same(number.valueOf(), 3, 'numeric value');
+  const zero = new Subclass();
+  assert.true(zero instanceof Subclass, 'subclass instance without arguments');
+  assert.same(zero.valueOf(), 0, 'default numeric value');
+  const extra = new Subclass(3, 4, 5, 6);
+  assert.true(extra instanceof Subclass, 'subclass instance with extra arguments');
+  assert.same(extra.valueOf(), 3, 'extra arguments are ignored');
+});
 
 QUnit.test('Number constructor: regression', assert => {
   const check = getCheck(assert);

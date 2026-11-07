@@ -10,17 +10,20 @@ var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var hasOwn = require('../internals/has-own-property');
+var inheritIfRequired = require('../internals/inherit-if-required');
 // add debugging info
 require('../internals/shared-store');
 
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
+    var instance;
     if (this instanceof Wrapper) {
       switch (arguments.length) {
-        case 0: return new NativeConstructor();
-        case 1: return new NativeConstructor(a);
-        case 2: return new NativeConstructor(a, b);
-      } return new NativeConstructor(a, b, c);
+        case 0: instance = new NativeConstructor(); break;
+        case 1: instance = new NativeConstructor(a); break;
+        case 2: instance = new NativeConstructor(a, b); break;
+        default: instance = new NativeConstructor(a, b, c);
+      } return inheritIfRequired(instance, this, Wrapper);
     } return apply(NativeConstructor, this, arguments);
   };
   Wrapper.prototype = NativeConstructor.prototype;

@@ -1,4 +1,5 @@
 import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants.js';
+import { nativeSubclass } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 const { setPrototypeOf, create } = Object;
@@ -121,6 +122,29 @@ QUnit.test('Promise#then', assert => {
 QUnit.test('Promise#@@toStringTag', assert => {
   assert.same(Promise.prototype[Symbol.toStringTag], 'Promise', 'Promise::@@toStringTag is `Promise`');
   assert.same(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
+});
+
+if (nativeSubclass) QUnit.test('Promise subclassing with native classes', assert => {
+  const Subclass = nativeSubclass(Promise);
+  Subclass.prototype.method = function () { /* empty */ };
+  const promise = new Subclass(resolve => resolve(42));
+  assert.true(promise instanceof Subclass, 'subclass instance');
+  assert.true(promise instanceof Promise, 'Promise instance');
+  assert.same(promise.method, Subclass.prototype.method, 'subclass method');
+  assert.true(Subclass.resolve(1) instanceof Subclass, 'resolve returns a subclass instance');
+  const chained = promise.then(value => {
+    assert.same(value, 42, 'fulfilled value');
+    return value + 1;
+  });
+  assert.true(chained instanceof Subclass, 'then returns a subclass instance');
+  const async = assert.async();
+  chained.then(value => {
+    assert.same(value, 43, 'chained value');
+    async();
+  }, error => {
+    assert.avoid(error);
+    async();
+  });
 });
 
 if (PROTO) QUnit.test('Promise subclassing', assert => {

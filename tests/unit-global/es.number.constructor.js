@@ -182,6 +182,17 @@ QUnit.test('Number constructor: regression', assert => {
     assert.true(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
     assert.true(new Subclass() instanceof Number, 'correct subclassing with native classes #2');
     assert.same(new Subclass(1).toFixed(2), '1.00', 'correct subclassing with native classes #3');
+    Subclass.prototype.twice = function () {
+      return this * 2;
+    };
+    const instance = new Subclass(3);
+    assert.true(instance instanceof Subclass, 'subclass instance with a value');
+    assert.same(instance.twice, Subclass.prototype.twice, 'subclass method');
+    assert.same(instance.valueOf(), 3, 'numeric value');
+    assert.same(new Subclass().valueOf(), 0, 'default numeric value');
+    const extra = new Subclass(3, 4, 5, 6);
+    assert.true(extra instanceof Subclass, 'subclass instance with extra arguments');
+    assert.same(extra.valueOf(), 3, 'extra arguments are ignored');
   }
 });
 
