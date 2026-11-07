@@ -22,6 +22,7 @@ import { CACHE_MACHINERY, STRIP_DEPS } from './cache-machinery.mjs';
 import { applyRuntimeStamps, mergeCases, nextRound } from './cache-store.mjs';
 import { LEGS, coverageShortfalls, mergeCoverage, skippedTotal } from './coverage.mjs';
 import { generate } from './generate.mjs';
+import { openWorktreeCache } from './worktree-cache.mjs';
 import './method-call-evaluation.mjs';
 
 const { cyan, green, red } = chalk;
@@ -110,7 +111,6 @@ for (const name of STRIP_DEPS) machinery.update((await fs.readJson(join(ROOT, 'n
 machinery.update(process.version);
 const CACHE_DIR = join(os.homedir(), '.cache', 'core-js-differential');
 const CACHE_NAME = `cache-${ machinery.digest('hex').slice(0, 12) }.json`;
-const CACHE_FILE = join(CACHE_DIR, CACHE_NAME);
 // the runtime a cached result depends on is NOT in the code that produced it: an output is a list
 // of imports, so a polyfill edit moves the result without moving a single byte of the output. the
 // two flavours pull different trees (usage-pure the generated `@core-js/pure` entry layer,
@@ -120,41 +120,23 @@ const CACHE_FILE = join(CACHE_DIR, CACHE_NAME);
 // ignore files sit in the same directories and change far more often than the code does, and
 // counting them would throw the cache away on a documentation edit. content, never mtime - an
 // idempotent `npm run prepare` rewrites the generated pure tree with identical bytes
-async function hashTree(roots) {
-  const found = await Promise.all(roots.map(root => glob(['**/*.js', '**/package.json'], { cwd: root, absolute: true, onlyFiles: true })));
-  const files = found.flat().sort();
-  const hash = createHash('sha256');
-  // NUL between parts: a bare concat would let two different trees hash equal when bytes move
-  // across a boundary (a path tail into the next file's head)
-  for (const file of files) hash.update(file).update('\0').update(await fs.readFile(file)).update('\0');
-  return hash.digest('hex').slice(0, 12);
-}
-const PURE_TREE = [join(ROOT, 'packages', 'core-js-pure')];
-const GLOBAL_TREE = [join(ROOT, 'packages', 'core-js', 'modules'), join(ROOT, 'packages', 'core-js', 'internals')];
-const [pureStamp, globalStamp] = await Promise.all([hashTree(PURE_TREE), hashTree(GLOBAL_TREE)]);
-const runtime = { pure: pureStamp, global: globalStamp };
-// manual reset, for a suspicion the hashes above cannot express. It discards the CONTENTS; the file
+const RUNTIME_TREES = { pure: ['packages/core-js-pure'], global: ['packages/core-js/modules', 'packages/core-js/internals'] };
+// manual reset, for a suspicion the cache hashes cannot express. It discards the CONTENTS; the file
 // is still read, because the audit's rotation counter is coverage bookkeeping rather than cached
 // data - resetting it would restart the sample from the same cells after every manual reset
 const INVALIDATE = process.env.INVALIDATE_CACHE === '1';
-let stored = {};
-try {
-  stored = await fs.readJson(CACHE_FILE);
-} catch { /* first run for this machinery, or a torn file - everything just evaluates */ }
+const evaluationCache = await openWorktreeCache({ root: ROOT, directory: CACHE_DIR, name: CACHE_NAME, trees: RUNTIME_TREES, invalidate: INVALIDATE });
+const { runtime, stored, borrowedFrom } = evaluationCache;
 const { cases: liveCases, stale } = applyRuntimeStamps(stored, runtime);
 // a first run for this machinery has no stamps to match, which is not a runtime change
 const hadCache = Boolean(Object.keys(stored.cases ?? {}).length);
-async function writeCache(payload) {
-  await ensureDir(CACHE_DIR);
-  const tmpFile = `${ CACHE_FILE }.${ process.pid }.tmp`;
-  await fs.writeJson(tmpFile, payload);
-  await fs.rename(tmpFile, CACHE_FILE);
-}
-// the shards read the FILE, so a runtime-voided cell has to be gone from it BEFORE they fork -
-// rewriting here is what makes the header stamps effective rather than advisory
-if (stale.length && hadCache && !INVALIDATE) await writeCache({ round: stored.round ?? 0, runtime, cases: liveCases });
+// Every shard reads this run's immutable snapshot. Another run, even in this same tree, cannot
+// change the runtime/cells underneath a worker that has not loaded its cache yet.
+const CACHE_INPUT = join(TMP, 'cache.json');
+if (!INVALIDATE) await evaluationCache.snapshot(CACHE_INPUT, { round: stored.round ?? 0, cases: liveCases });
 if (INVALIDATE) echo(red('INVALIDATE_CACHE=1: the evaluation cache is ignored - every leg runs live and the file is rewritten'));
 else if (stale.length && hadCache) echo(`core-js runtime changed: ${ cyan(stale.join(', ')) } cells dropped, the rest kept`);
+else if (borrowedFrom) echo(`Evaluation cache seeded from ${ cyan(borrowedFrom) }; writes stay in this worktree`);
 
 const MARKER = /@@SHARD@@(?<json>.*)@@/u;
 const children = [];
@@ -171,7 +153,7 @@ function runChunk(chunk) {
         DIFF_EMITTER: EMITTER,
         // empty path = no cache to read; the shard still reports its working set, so the run
         // rewrites the file from live evaluations
-        DIFF_CACHE: INVALIDATE ? '' : CACHE_FILE,
+        DIFF_CACHE: INVALIDATE ? '' : CACHE_INPUT,
       },
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
@@ -310,9 +292,8 @@ if (shareBase) {
 // merges cell-wise, so the emitter or leg it skipped keeps its cells instead of losing them.
 // fail-open: cache trouble must never fail the run
 try {
-  await writeCache({
+  await evaluationCache.write({
     round: nextRound(stored),
-    runtime,
     cases: mergeCases({
       existing: liveCases,
       sets: results.map(r => r.cases ?? {}),
@@ -321,13 +302,8 @@ try {
       reset: INVALIDATE,
     }),
   });
-  // hash-named caches of dead machinery accumulate - sweep them on every run, not only on a storing
-  // one: stable machinery would otherwise never sweep at all
-  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-  for (const file of await glob('*.json', { cwd: CACHE_DIR, absolute: true })) {
-    if (file.endsWith(CACHE_NAME)) continue;
-    if ((await fs.stat(file)).mtimeMs < cutoff) await remove(file);
-  }
+  // Prune dead machinery only in this worktree; other trees and the legacy donor remain untouched.
+  await evaluationCache.prune();
 } catch { /* cache trouble must not shadow the verdict above */ }
 // the self-teaching line goes LAST - consumers read run TAILS (a `| tail -N` pipe cuts a top
 // banner off), and an agent that paid for one full run learns the cheap edit-loop modes here

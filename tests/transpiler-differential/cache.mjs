@@ -10,11 +10,14 @@
 // run must produce exactly what the cold one did.
 import { fileURLToPath } from 'node:url';
 import { createContext, runInContext } from 'node:vm';
+import { createHash } from 'node:crypto';
 import { CACHE_MACHINERY, STRIP_DEPS } from './cache-machinery.mjs';
 import { generate } from './generate.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { coverageShortfalls, emptyCoverage, skippedTotal } from './coverage.mjs';
 import { buildStripScript } from './strip-manifest.mjs';
+import { readRuntimeStamps } from './runtime-stamps.mjs';
+import { openWorktreeCache } from './worktree-cache.mjs';
 
 const { ensureDir, outputFile, readJson, removeSync, writeJson } = fs;
 const { dirname, join } = path;
@@ -215,6 +218,231 @@ const globalPart = applyRuntimeStamps(STAMPED, { pure: 'p', global: 'MOVED' });
 checkDeep('a global-runtime edit drops only global cells', Object.keys(globalPart.cases.one).sort(), ['arming', 'native', 'pure-babel', 'src']);
 checkDeep('  and the raw-source cells never depend on a runtime', [purePart.cases.one.native, globalPart.cases.one.arming], ['n', 'a']);
 
+// Identical runtime content permits reuse across worktree paths without hiding a runtime edit.
+const TREES = { pure: ['pure'], global: ['global/modules', 'global/internals'] };
+const LEFT = join(TMP, 'left');
+const RIGHT = join(TMP, 'right');
+const runtimeFiles = {
+  'pure/index.js': 'module.exports = 1;',
+  'pure/package.json': '{ "main": "index.js" }',
+  'global/modules/index.js': 'module.exports = 2;',
+  'global/internals/index.js': 'module.exports = 3;',
+};
+for (const root of [LEFT, RIGHT]) {
+  for (const [name, source] of Object.entries(runtimeFiles)) await outputFile(join(root, name), source);
+}
+const original = await readRuntimeStamps(LEFT, TREES);
+checkDeep('a missing runtime header keeps the cache cold', (await readRuntimeStamps(LEFT, TREES, null)).compatible, { pure: undefined, global: undefined });
+checkDeep('runtime stamps do not depend on directory order', (await readRuntimeStamps(LEFT, { ...TREES, global: [...TREES.global].reverse() })).runtime, original.runtime);
+const relocated = await readRuntimeStamps(RIGHT, TREES, original.runtime);
+checkDeep('runtime stamps survive a checkout move', relocated.runtime, original.runtime);
+const runtimeCells = { ...STAMPED, runtime: original.runtime };
+const afterMove = applyRuntimeStamps({ ...runtimeCells, runtime: relocated.compatible }, relocated.runtime);
+checkDeep('a checkout move preserves every evaluation cell', afterMove.cases, STAMPED.cases);
+checkDeep('a checkout move invalidates no runtime', afterMove.stale, []);
+await outputFile(join(RIGHT, 'pure/README.md'), 'Changed documentation');
+checkDeep('documentation does not invalidate runtime', (await readRuntimeStamps(RIGHT, TREES)).runtime, original.runtime);
+
+// Reproduce the previous coordinator's stamp independently, including its absolute paths.
+const legacy = {};
+for (const [tree, directories] of Object.entries(TREES)) {
+  const hash = createHash('sha256');
+  const files = Object.keys(runtimeFiles).filter(file => directories.some(directory => file.startsWith(`${ directory }/`))).sort();
+  // glob's absolute paths use forward slashes on Windows too.
+  for (const file of files) hash.update(join(LEFT, file).replaceAll('\\', '/')).update('\0').update(runtimeFiles[file]).update('\0');
+  legacy[tree] = hash.digest('hex').slice(0, 12);
+}
+const migrated = await readRuntimeStamps(LEFT, TREES, legacy);
+checkDeep('matching legacy stamps preserve cells without reevaluation', migrated.compatible, original.runtime);
+const foreign = await readRuntimeStamps(RIGHT, TREES, legacy);
+checkDeep('unknown legacy origins cannot authorize reuse', foreign.compatible, legacy);
+check('unknown legacy origins invalidate runtime cells', applyRuntimeStamps({ ...STAMPED, runtime: foreign.compatible }, foreign.runtime).stale.length, 6);
+
+await outputFile(join(RIGHT, 'pure/package.json'), '{ "main": "other.js" }');
+const manifestEdit = await readRuntimeStamps(RIGHT, TREES, original.runtime);
+checkDeep('a manifest edit invalidates only its runtime', applyRuntimeStamps({ ...runtimeCells, runtime: manifestEdit.compatible }, manifestEdit.runtime).stale, purePart.stale);
+await outputFile(join(LEFT, 'pure/index.js'), 'module.exports = 4;');
+const contentEdit = await readRuntimeStamps(LEFT, TREES, legacy);
+check('legacy stamps cannot hide a runtime edit', contentEdit.compatible.pure === contentEdit.runtime.pure, false);
+check('a pure edit preserves the unchanged legacy global tree', contentEdit.compatible.global, contentEdit.runtime.global);
+await fs.rename(join(RIGHT, 'global/internals/index.js'), join(RIGHT, 'global/internals/renamed.js'));
+const pathEdit = await readRuntimeStamps(RIGHT, TREES, original.runtime);
+check('a runtime file rename changes its stamp', pathEdit.runtime.global === original.runtime.global, false);
+await outputFile(join(RIGHT, 'global/internals/extra.js'), 'module.exports = 3;');
+const addedFile = await readRuntimeStamps(RIGHT, TREES);
+check('an added runtime file changes its stamp', addedFile.runtime.global === pathEdit.runtime.global, false);
+await fs.remove(join(RIGHT, 'global/internals/extra.js'));
+check('removing the added file restores the stamp', (await readRuntimeStamps(RIGHT, TREES)).runtime.global, pathEdit.runtime.global);
+
+// --- coordinator storage: worktree ownership and donor isolation ---
+const CACHE_ROOT = join(TMP, 'owned-caches');
+const TREE_A = join(TMP, 'tree-a');
+const TREE_B = join(TMP, 'tree-b');
+const TREE_C = join(TMP, 'tree-c');
+const CACHE_NAME = 'cache-machinery-node.json';
+for (const root of [TREE_A, TREE_B, TREE_C]) {
+  for (const [name, source] of Object.entries(runtimeFiles)) await outputFile(join(root, name), source);
+}
+const ownedOptions = { directory: CACHE_ROOT, name: CACHE_NAME, trees: TREES };
+const ownerA = await openWorktreeCache({ ...ownedOptions, root: TREE_A });
+checkDeep('the first worktree starts cold', ownerA.stored, {});
+await ownerA.write({ round: 17, cases: STAMPED.cases });
+const sourceBytes = await fs.readFile(ownerA.file, 'utf8');
+const brokenDonor = join(CACHE_ROOT, 'worktrees', 'broken', CACHE_NAME);
+await outputFile(brokenDonor, '{ broken donor');
+const ownerB = await openWorktreeCache({ ...ownedOptions, root: TREE_B });
+check('another worktree has a different persistent address', ownerB.file === ownerA.file, false);
+check('an absent cache borrows a matching donor', ownerB.borrowedFrom, ownerA.file);
+check('borrowing preserves the audit rotation', ownerB.stored.round, 17);
+checkDeep('borrowing preserves evaluations', ownerB.stored.cases, STAMPED.cases);
+check('a malformed donor is skipped without changing it', await fs.readFile(brokenDonor, 'utf8'), '{ broken donor');
+const snapshotB = await ownerB.snapshot(join(TMP, 'input-b.json'), ownerB.stored);
+await ownerB.write({ round: 18, cases: { local: { src: 'b', native: 'own' } } });
+check('writing a borrowed cache never changes the donor', await fs.readFile(ownerA.file, 'utf8'), sourceBytes);
+checkDeep('workers retain their input after a persistent rewrite', (await readJson(snapshotB)).cases, STAMPED.cases);
+let snapshotError;
+try {
+  await ownerB.snapshot(snapshotB, { round: 19, cases: {} });
+} catch (error) { snapshotError = error.code; }
+check('a worker input cannot be overwritten', snapshotError, 'EEXIST');
+const reopenedB = await openWorktreeCache({ ...ownedOptions, root: TREE_B });
+check('an existing own cache takes precedence over donors', reopenedB.borrowedFrom, null);
+checkDeep('an existing own cache keeps its own results', reopenedB.stored.cases, { local: { src: 'b', native: 'own' } });
+const resetB = await openWorktreeCache({ ...ownedOptions, root: TREE_B, invalidate: true });
+check('explicit reset does not borrow', resetB.borrowedFrom, null);
+check('explicit reset keeps its own audit counter', resetB.stored.round, 18);
+await resetB.write({ round: 19, cases: {} });
+check('reset never changes another worktree', await fs.readFile(ownerA.file, 'utf8'), sourceBytes);
+const resetC = await openWorktreeCache({ ...ownedOptions, root: TREE_C, invalidate: true });
+checkDeep('reset of a missing cache stays cold despite donors', resetC.stored, {});
+check('reset of a missing cache does not borrow', resetC.borrowedFrom, null);
+await outputFile(ownerB.file, '{ broken');
+check('a broken own cache is not silently replaced by a donor', (await openWorktreeCache({ ...ownedOptions, root: TREE_B })).borrowedFrom, null);
+await fs.remove(ownerB.file);
+await outputFile(join(TREE_B, 'pure/index.js'), 'module.exports = 99;');
+const incompatibleB = await openWorktreeCache({ ...ownedOptions, root: TREE_B });
+checkDeep('different runtime content cannot borrow a donor', incompatibleB.stored, {});
+const otherMachinery = await openWorktreeCache({ ...ownedOptions, root: TREE_C, name: 'cache-other-machinery-node.json' });
+check('different machinery or Node cannot borrow a donor', otherMachinery.borrowedFrom, null);
+await outputFile(join(TREE_C, 'global/modules/index.js'), 'module.exports = 99;');
+checkDeep('both runtime stamps must match a donor', (await openWorktreeCache({ ...ownedOptions, root: TREE_C })).stored, {});
+await outputFile(join(TREE_C, 'global/modules/index.js'), runtimeFiles['global/modules/index.js']);
+await ownerB.write({ round: 20, cases: STAMPED.cases });
+const staleOwnB = await openWorktreeCache({ ...ownedOptions, root: TREE_B });
+check('a changed own runtime cannot trigger borrowing', staleOwnB.borrowedFrom, null);
+checkDeep('a changed own runtime drops only its own dependent cells', applyRuntimeStamps(staleOwnB.stored, staleOwnB.runtime).cases, purePart.cases);
+await incompatibleB.write({ round: 2, cases: { changed: { src: 'b', native: 'changed' } } });
+const unchangedA = await openWorktreeCache({ ...ownedOptions, root: TREE_A });
+checkDeep('a different runtime in B does not invalidate A', applyRuntimeStamps(unchangedA.stored, unchangedA.runtime).stale, []);
+checkDeep('A retains its results after B changes runtime', unchangedA.stored.cases, STAMPED.cases);
+
+// Parallel trees and same-process writers publish complete JSON; readers hold private snapshots.
+await Promise.all([
+  ownerA.write({ round: 20, cases: { a: { src: 'a', native: 'A' } } }),
+  incompatibleB.write({ round: 21, cases: { b: { src: 'b', native: 'B' } } }),
+]);
+checkDeep('parallel writers remain in their own worktrees',
+  [(await readJson(ownerA.file)).cases, (await readJson(incompatibleB.file)).cases],
+  [{ a: { src: 'a', native: 'A' } }, { b: { src: 'b', native: 'B' } }]);
+await Promise.all([ownerA.write({ round: 22, cases: { one: {} } }), ownerA.write({ round: 23, cases: { two: {} } })]);
+const concurrentA = await readJson(ownerA.file);
+check('same-tree concurrent writes leave one complete payload',
+  (concurrentA.round === 22 && 'one' in concurrentA.cases) || (concurrentA.round === 23 && 'two' in concurrentA.cases), true);
+checkDeep('concurrent writes cannot change the earlier worker snapshot', (await readJson(snapshotB)).cases, STAMPED.cases);
+const ALIAS_A = join(TMP, 'alias-a');
+await fs.symlink(TREE_A, ALIAS_A, process.platform === 'win32' ? 'junction' : 'dir');
+check('two paths to the same real worktree share ownership', (await openWorktreeCache({ ...ownedOptions, root: ALIAS_A })).file, ownerA.file);
+
+const oldA = join(dirname(ownerA.file), 'cache-old.json');
+const oldB = join(dirname(ownerB.file), 'cache-old.json');
+const flat = join(CACHE_ROOT, CACHE_NAME);
+for (const file of [oldA, oldB, flat]) {
+  await outputFile(file, '{}');
+  await fs.utimes(file, new Date(0), new Date(0));
+}
+await ownerA.prune();
+check('cleanup removes stale machinery only from its own tree', await fs.pathExists(oldA), false);
+check('cleanup keeps other worktrees', await fs.pathExists(oldB), true);
+check('cleanup keeps the legacy shared donor', await fs.pathExists(flat), true);
+check('cleanup keeps the active own cache', await fs.pathExists(ownerA.file), true);
+
+// An old flat cache is copied only after its stamps are proved; it is never rewritten in place.
+const legacyDirectory = join(TMP, 'legacy-caches');
+const legacyPath = join(legacyDirectory, CACHE_NAME);
+const legacyStamps = await readRuntimeStamps(TREE_A, TREES);
+await outputFile(legacyPath, JSON.stringify({ round: 25, runtime: legacyStamps.legacy, cases: STAMPED.cases }));
+const flatBytes = await fs.readFile(legacyPath, 'utf8');
+const migratedOwner = await openWorktreeCache({ ...ownedOptions, directory: legacyDirectory, root: TREE_A });
+check('a proven flat legacy cache can seed an own cache', migratedOwner.borrowedFrom, legacyPath);
+await migratedOwner.write(migratedOwner.stored);
+check('legacy migration does not change the shared source', await fs.readFile(legacyPath, 'utf8'), flatBytes);
+checkDeep('legacy migration saves portable runtime stamps', (await readJson(migratedOwner.file)).runtime, migratedOwner.runtime);
+
+// Windows glob paths use forward slashes even though path.join returns native separators. Drive
+// the same storage API with Windows paths on every OS, including a stale file as a positive control.
+const hostGlobals = { fs, path, glob };
+const windowsRemoved = [];
+const windowsDirectory = path.win32.join('C:\\', 'cache');
+const windowsName = 'cache-active.json';
+const windowsDonor = path.win32.join(windowsDirectory, 'worktrees', 'donor', windowsName);
+let windowsFile;
+let windowsBorrowed;
+try {
+  globalThis.path = path.win32;
+  let borrowing = false;
+  globalThis.fs = {
+    realpath: async root => root,
+    readJson: async file => {
+      if (!borrowing || path.normalize(file) === windowsDonor) return { round: 1, runtime: windowsRuntime, cases: STAMPED.cases };
+      throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+    },
+    stat: async () => ({ mtimeMs: 0 }),
+    remove: async file => { windowsRemoved.push(file); },
+  };
+  globalThis.glob = async (pattern, options) => {
+    const files = pattern === 'cache-*.json' ? [windowsName, 'cache-old.json']
+      : pattern === `*/${ windowsName }` ? [`donor/${ windowsName }`] : [];
+    return options.absolute ? files.map(file => path.join(options.cwd, file).replaceAll('\\', '/')) : files;
+  };
+  const windowsRuntime = (await readRuntimeStamps('C:\\repo', TREES)).runtime;
+  const options = { root: 'C:\\repo', directory: windowsDirectory, name: windowsName, trees: TREES };
+  const windowsOwner = await openWorktreeCache(options);
+  windowsFile = windowsOwner.file;
+  await windowsOwner.prune();
+  borrowing = true;
+  windowsBorrowed = (await openWorktreeCache(options)).borrowedFrom;
+} finally {
+  Object.assign(globalThis, hostGlobals);
+}
+checkDeep('Windows cleanup retains the active file and removes stale machinery', windowsRemoved, [path.win32.join(path.win32.dirname(windowsFile), 'cache-old.json')]);
+check('Windows donor paths use the same identity as owned paths', windowsBorrowed, windowsDonor);
+
+// Well-formed JSON can still hold damaged groups/cells. Preserve the healthy cells and the audit
+// rather than crashing during runtime invalidation or accepting a non-string evaluation result.
+const damaged = {
+  round: 1.5, runtime: ownerA.runtime,
+  cases: {
+    ...STAMPED.cases, empty: null, array: [], noSource: { native: 'n' },
+    cells: { src: 's', native: 3, arming: 'a', 'pure-babel': { h: 'x', r: null }, 'global-babel': { h: 3, r: 'r' }, 'strip-babel': [] },
+  },
+};
+await writeJson(ownerA.file, damaged);
+const repaired = await openWorktreeCache({ ...ownedOptions, root: TREE_A });
+checkDeep('damaged groups and cells do not discard healthy evaluations', repaired.stored.cases, { ...STAMPED.cases, cells: { src: 's', arming: 'a' } });
+check('a fractional counter cannot disable the rotating audit', repaired.stored.round, 0);
+check('repair does not rewrite the cache input', (await readJson(ownerA.file)).round, 1.5);
+let repairedStale;
+try {
+  repairedStale = applyRuntimeStamps(repaired.stored, { ...ownerA.runtime, pure: 'changed' }).cases;
+} catch (error) { repairedStale = error.name; }
+checkDeep('damaged cache still permits runtime invalidation', repairedStale, { ...purePart.cases, cells: { src: 's', arming: 'a' } });
+for (const round of [-1, '3', null, 1e100]) {
+  await writeJson(ownerA.file, { ...damaged, round, cases: STAMPED.cases });
+  const reset = await openWorktreeCache({ ...ownedOptions, root: TREE_A, invalidate: true });
+  check(`invalid audit counter ${ JSON.stringify(round) } restarts at zero`, reset.stored.round, 0);
+  checkDeep('  without discarding healthy evaluations before explicit reset', reset.stored.cases, STAMPED.cases);
+}
+
 // --- unit: merge and liveness ---
 const existing = {
   kept: { src: 's', native: 'old', 'global-babel': { h: 'g', r: 'untouched' } },
@@ -281,7 +509,14 @@ function accountedPerLeg(result) {
 const SHARD_CACHE = join(TMP, 'shard-cache.json');
 const cold = await runShard();
 checkDeep('the cold run evaluates and fails nothing', [cold.cacheStats.hits, cold.failures.length], [0, 0]);
-await writeJson(SHARD_CACHE, { round: 0, runtime: { pure: 'p', global: 'g' }, cases: cold.cases });
+// Feed real worker results through the donor path, then replace both persistent files. Workers
+// must still read the original snapshot and reproduce the cold verdict without fresh evaluations.
+await ownerA.write({ round: 0, cases: cold.cases });
+const shardOwner = await openWorktreeCache({ ...ownedOptions, root: TREE_C });
+check('the real shard borrows the compatible tree', shardOwner.borrowedFrom, ownerA.file);
+await shardOwner.snapshot(SHARD_CACHE, shardOwner.stored);
+await ownerA.write({ round: 1, cases: {} });
+await shardOwner.write({ round: 2, cases: {} });
 const hot = await runShard({ cache: SHARD_CACHE });
 checkDeep('the hot run reproduces the cold verdict', verdictOf(hot), verdictOf(cold));
 check('  having evaluated nothing', hot.cacheStats.evaluated, 0);
