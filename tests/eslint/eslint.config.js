@@ -1828,6 +1828,15 @@ const transpiledAndPolyfilled = {
   // allow RegExp syntax handled by Babel
   'es/no-regexp-duplicate-named-capturing-groups': OFF,
   'es/no-regexp-modifiers': OFF,
+  // disallow RegExp literal flags that Babel leaves unchanged
+  // es-x also rejects constructors used by polyfill tests and has no option to check only literals
+  // unsupported literals prevent legacy engines from parsing the entire file
+  'no-restricted-syntax': [ERROR,
+    {
+      selector: 'Literal[regex.flags=/[dsvy]/]',
+      message: 'Use RegExp constructors for the d, s, v and y flags',
+    },
+  ],
   // disallow accessor properties
   'es/no-accessor-properties': ERROR,
   // disallow async functions
@@ -2477,18 +2486,18 @@ export default [
   },
   {
     files: [
+      `tests/**/${ jsFile }`,
+    ],
+    rules: tests,
+  },
+  {
+    files: [
       `tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**/${ jsFile }`,
     ],
     languageOptions: {
       sourceType: 'module',
     },
     rules: transpiledAndPolyfilled,
-  },
-  {
-    files: [
-      `tests/**/${ jsFile }`,
-    ],
-    rules: tests,
   },
   {
     files: ['tests/compat/tests.js', `tests/unit-global/**/${ jsFile }`],
@@ -2651,6 +2660,11 @@ export default [
     },
     rules: {
       ...transpiledAndPolyfilled,
+      // keep the base restrictions alongside the RegExp literal restrictions
+      'no-restricted-syntax': [
+        ...base['no-restricted-syntax'],
+        ...transpiledAndPolyfilled['no-restricted-syntax'].slice(1),
+      ],
       'no-restricted-globals': OFF,
       'unicorn/prefer-global-this': OFF,
       '@stylistic/quotes': [ERROR, 'single', { allowTemplateLiterals: ALWAYS }],
