@@ -50,6 +50,8 @@
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
 - Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
+- Updated `URL` polyfill handling of `file:` hosts and empty path segments, `blob:` origins, and empty `pathname` assignments to the current URL Standard, [#1586](https://github.com/zloirock/core-js/issues/1586)
+- Fixed failed `URL#href` assignments corrupting the URL and its `searchParams`, and URL parsing depending on replaced string iterator methods
 - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
 - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
 - Fixed the pure version marking the native `Error.isError` as `.sham`

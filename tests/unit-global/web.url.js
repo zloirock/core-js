@@ -176,6 +176,27 @@ QUnit.test('URL constructor', assert => {
   // assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path'); // TypeError in Chrome 67 and 109
   // assert.same(String(new URL('bar', 'foo://host/a/b')), 'foo://host/a/bar', 'relative URL with non-special base with path'); // throws in native Firefox 57-68
   assert.same(String(new URL('bar', 'https://example.com/a/b')), 'https://example.com/a/bar', 'relative URL with special base with path');
+
+  for (const [input, base, expected] of [
+    // ['file://h/C:/a/b', undefined, 'file://h/C:/a/b'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['file://example.net/C:/', undefined, 'file://example.net/C:/'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['file://0.0.0.0/C:/', undefined, 'file://0.0.0.0/C:/'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['file://[::1]/C:/', undefined, 'file://[::1]/C:/'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['/', 'file://h/C:/a/b', 'file://h/C:/'], // fails in Chrome 95 (Windows), Chrome 155 (macOS), Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['C|', 'file://host/dir/file', 'file://host/C:'], // fails in Chrome 155, Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['/c:/foo', 'file://host/path', 'file://host/c:/foo'], // fails in Chrome 155 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['file://spider///', undefined, 'file://spider///'], // fails in Firefox 157, Node 14.21.3, Deno 2.9.8
+    // ['file:////foo', undefined, 'file:////foo'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
+    // ['file:////foo?query#fragment', undefined, 'file:////foo?query#fragment'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
+    // ['file://localhost//a//../..//', undefined, 'file://///'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
+    // ['/////mouse', 'file:///elephant', 'file://///mouse'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
+    ['file:', undefined, 'file:///'],
+    // ['file:foo', undefined, 'file:///foo'], // fails in Chrome 155 (Windows)
+  ]) {
+    const url = new URL(input, base);
+    assert.same(url.href, expected, input);
+    assert.same(new URL(url.href).href, expected, 'serialization round trip');
+  }
 });
 
 QUnit.test('URL#href', assert => {
@@ -252,6 +273,52 @@ QUnit.test('URL#href', assert => {
     // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
     // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
     // assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
+
+    const href = 'https://user:pass@example.com:8080/path?q=1#fragment';
+    url = new URL(href);
+    const params = url.searchParams;
+    // fails in Chrome 92 (Windows), Firefox 57
+    // for (const invalid of ['https://evil.com:abc', 'http:', 'relative/path', 'http://[::1', 'http://a%b']) {
+    //   assert.throws(() => { url.href = invalid; }, TypeError, invalid);
+    //   assert.same(url.href, href, 'all URL components are preserved');
+    //   assert.same(url.origin, 'https://example.com:8080', 'origin is still readable');
+    //   assert.same(url.search, '?q=1');
+    //   assert.same(url.searchParams, params, 'searchParams identity is preserved');
+    //   assert.same(String(params), 'q=1', 'searchParams contents are preserved');
+    // }
+
+    url.href = 'foo:/next?x=2';
+    assert.same(url.href, 'foo:/next?x=2', 'successful assignment replaces the URL');
+    assert.same(url.searchParams, params, 'successful assignment preserves searchParams identity');
+    assert.same(String(params), 'x=2');
+    params.set('x', '3');
+    assert.same(url.href, 'foo:/next?x=3', 'searchParams remains bound to the URL');
+    url.search = '?y=4';
+    assert.same(String(params), 'y=4', 'URL still updates the same searchParams');
+
+    // fails in Chrome 92 (Windows), Firefox 157, Deno 2.9.8
+    // url = new URL('https://example.com/path');
+    // assert.throws(() => { url.href = 'http:'; }, TypeError);
+    // url.protocol = 'file:';
+    // assert.same(url.href, 'file://example.com/path', 'failed assignment cannot create a file URL with a null host');
+
+    // fails in Chrome 92 (Windows), Deno 1.10.3
+    // url = new URL('https://example.com/path?q=1');
+    // assert.throws(() => {
+    //   url.href = {
+    //     toString() {
+    //       url.hash = 'changed';
+    //       return 'https://evil.com:abc';
+    //     },
+    //   };
+    // }, TypeError);
+    // assert.same(url.href, 'https://example.com/path?q=1#changed');
+    //
+    // const error = new Error('conversion');
+    // assert.throws(() => {
+    //   url.href = { toString() { throw error; } };
+    // }, error);
+    // assert.same(url.href, 'https://example.com/path?q=1#changed');
   }
 
   // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
@@ -280,6 +347,22 @@ QUnit.test('URL#origin', assert => {
 
   // blob URL origin should resolve to the inner URL's origin
   assert.same(new URL('blob:https://example.com/some-uuid').origin, 'https://example.com');
+
+  for (const [input, expected] of [
+    // ['blob:ftp://host/path', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
+    // ['blob:ws://example.org/', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
+    // ['blob:wss://example.org/', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
+    // ['blob:blob:https://example.org/', 'null'], // fails in Chrome 67 (Windows), Firefox 127, Safari 16, Node 17.0.1, Deno 2.9.8
+    // ['blob://h/http:example.com', 'null'], // fails in Safari 15, Node 17.0.1
+    // ['blob:/https://example.org/', 'null'], // fails in Safari 15
+    // ['blob:', 'null'], // fails in Safari 15
+    ['blob:null/uuid', 'null'],
+    // ['blob:file:///x', new URL('file:///x').origin], // fails in Node 20.0.0, Bun 1.4.4
+    ['blob:https://example.org/uuid', 'https://example.org'],
+    ['blob:http://example.org:88/uuid', 'http://example.org:88'],
+  ]) {
+    assert.same(new URL(input).origin, expected, input);
+  }
 });
 
 QUnit.test('URL#protocol', assert => {
@@ -616,6 +699,45 @@ QUnit.test('URL#pathname', assert => {
     url.pathname = 'bar/baz';
     assert.same(url.pathname, '/bar/baz');
     assert.same(String(url), 'http://zloirock.ru/bar/baz');
+
+    /*
+    for (const [href, pathname, expected] of [
+      ['file://host/dir/file', 'C|', 'file://host/C:'], // fails in Chrome 95 (Windows), Chrome 155 (macOS), Firefox 157, Safari 27, Node 14.21.3, Deno 2.9.8, Bun 1.4.4
+      ['file://host/dir/file', '/C:/path', 'file://host/C:/path'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+      ['file://host/dir/file?x#y', '///path', 'file://host///path?x#y'], // fails in Firefox 157, Node 14.21.3, Deno 2.9.8
+      ['file:///unicorn', '//\\/', 'file://////'], // fails in Chrome 155, Firefox 123, Node 14.21.3, Deno 2.9.8
+      ['file:///unicorn', '//monkey/..//', 'file://///'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
+    ]) {
+      url = new URL(href);
+      url.pathname = pathname;
+      assert.same(url.href, expected, pathname);
+      url.href = expected;
+      assert.same(url.href, expected, 'href setter');
+    }
+    */
+
+    // fails in Chrome 129 (Windows), Firefox 132, Node 14.21.3
+    // for (const pathname of ['', '\t\n\r']) {
+    //   url = new URL('foo:/some/path?query#fragment');
+    //   url.pathname = pathname;
+    //   assert.same(url.href, 'foo:/?query#fragment');
+    //   assert.same(url.pathname, '/');
+    //   const parsed = new URL(url.href);
+    //   parsed.pathname = 'next';
+    //   assert.same(parsed.href, 'foo:/next?query#fragment', 'path remains hierarchical after parsing');
+    //   assert.same(new URL('child', url).href, 'foo:/child', 'URL remains usable as a base');
+    // }
+
+    for (const [href, expected] of [
+      ['file:///some/path', 'file:///'],
+      // ['foo://somehost/some/path', 'foo://somehost'], // fails in Chrome 129 (Windows), Firefox 132, Safari 14, Deno 2.0.6
+      // ['foo:///some/path', 'foo://'], // fails in Chrome 129 (Windows), Firefox 157, Safari 14, Deno 2.9.8
+      ['foo:opaque', 'foo:opaque'],
+    ]) {
+      url = new URL(href);
+      url.pathname = '';
+      assert.same(url.href, expected, href);
+    }
   }
 });
 

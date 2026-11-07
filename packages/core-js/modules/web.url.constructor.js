@@ -1,6 +1,4 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.string.iterator');
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
@@ -12,9 +10,8 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
 var assign = require('../internals/object-assign');
-var arrayFrom = require('../internals/array-from');
 var arraySlice = require('../internals/array-slice');
-var codeAt = require('../internals/string-multibyte').codeAt;
+var multibyte = require('../internals/string-multibyte');
 var toASCII = require('../internals/string-punycode-to-ascii');
 var percentCoding = require('../internals/url-percent-coding');
 var $toString = require('../internals/to-string');
@@ -29,6 +26,8 @@ var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
+var codeAt = multibyte.codeAt;
+var charAtMultibyte = multibyte.charAt;
 
 var NativeURL = globalThis.URL;
 var TypeError = globalThis.TypeError;
@@ -43,7 +42,6 @@ var numberToString = uncurryThis(1.1.toString);
 var pop = uncurryThis([].pop);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
-var shift = uncurryThis([].shift);
 var split = uncurryThis(''.split);
 var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
@@ -81,6 +79,18 @@ var MAPPED_ONTO_FORBIDDEN = '\u00A8\u00AF\u00B4\u00B8\u02D8\u02D9\u02DA\u02DB\u0
   + '\uFE72\uFE74\uFE76\uFE78\uFE7A\uFE7C\uFE7E\uFFE3';
 // eslint-disable-next-line no-unassigned-vars -- expected `undefined` value
 var EOF;
+
+var stringToCodePoints = function (string) {
+  var result = [];
+  var index = 0;
+  var chr;
+  while (index < string.length) {
+    chr = charAtMultibyte(string, index);
+    push(result, chr);
+    index += chr.length;
+  }
+  return result;
+};
 
 // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
 var isIgnoredCodePoint = function (code) {
@@ -132,7 +142,7 @@ var domainToASCII = function (domain) {
   // every mapped, ignored and disallowed code point is non-ASCII, so an ASCII domain
   // needs the punycode step only - this keeps the common case off the slow path
   if (!exec(NON_ASCII, domain)) return domain === '' ? null : toASCII(domain);
-  var codePoints = arrayFrom(domain);
+  var codePoints = stringToCodePoints(domain);
   var result = '';
   var index, code, mapped;
   for (index = 0; index < codePoints.length; index++) {
@@ -423,10 +433,10 @@ var CANNOT_BE_A_BASE_URL_PATH = {};
 var QUERY = {};
 var FRAGMENT = {};
 
-var URLState = function (url, isBase, base) {
+var URLState = function (url, parseOnly, base) {
   var urlString = $toString(url);
   var baseState, failure, searchParams;
-  if (isBase) {
+  if (parseOnly) {
     failure = this.parse(urlString);
     if (failure) throw new TypeError(failure);
     this.searchParams = null;
@@ -472,7 +482,7 @@ URLState.prototype = {
 
     input = replace(input, TAB_AND_NEW_LINE, '');
 
-    codePoints = arrayFrom(input);
+    codePoints = stringToCodePoints(input);
 
     while (pointer <= codePoints.length) {
       chr = codePoints[pointer];
@@ -625,7 +635,7 @@ URLState.prototype = {
           if (chr === '@') {
             if (seenAt) buffer = '%40' + buffer;
             seenAt = true;
-            bufferCodePoints = arrayFrom(buffer);
+            bufferCodePoints = stringToCodePoints(buffer);
             for (var i = 0; i < bufferCodePoints.length; i++) {
               var codePoint = bufferCodePoints[i];
               if (codePoint === ':' && !seenPasswordToken) {
@@ -642,7 +652,7 @@ URLState.prototype = {
             (chr === '\\' && url.isSpecial())
           ) {
             if (seenAt && buffer === '') return INVALID_AUTHORITY;
-            pointer -= arrayFrom(buffer).length + 1;
+            pointer -= stringToCodePoints(buffer).length + 1;
             buffer = '';
             state = HOST;
           } else buffer += chr;
@@ -781,6 +791,8 @@ URLState.prototype = {
           } else if (chr !== EOF) {
             state = PATH;
             if (chr !== '/') continue;
+          } else if (stateOverride && url.host === null) {
+            push(url.path, '');
           } break;
 
         case PATH:
@@ -800,18 +812,11 @@ URLState.prototype = {
               }
             } else {
               if (url.scheme === 'file' && !url.path.length && isWindowsDriveLetter(buffer)) {
-                // eslint-disable-next-line max-depth -- ok
-                if (url.host !== null && url.host !== '') url.host = '';
                 buffer = charAt(buffer, 0) + ':'; // normalize windows drive letter
               }
               push(url.path, buffer);
             }
             buffer = '';
-            if (url.scheme === 'file' && (chr === EOF || chr === '?' || chr === '#')) {
-              while (url.path.length > 1 && url.path[0] === '') {
-                shift(url.path);
-              }
-            }
             if (chr === '?') {
               url.query = '';
               state = QUERY;
@@ -866,7 +871,7 @@ URLState.prototype = {
     } else if (!this.isSpecial()) {
       if (exec(FORBIDDEN_HOST_CODE_POINT, input)) return INVALID_HOST;
       result = '';
-      codePoints = arrayFrom(input);
+      codePoints = stringToCodePoints(input);
       for (index = 0; index < codePoints.length; index++) {
         result += utf8PercentEncode(codePoints[index], C0ControlPercentEncodeSet);
       }
@@ -922,7 +927,7 @@ URLState.prototype = {
       }
       output += serializeHost(host);
       if (port !== null) output += ':' + port;
-    } else if (scheme === 'file') output += '//';
+    }
     if (host === null && !url.cannotBeABaseURL && path.length > 1 && path[0] === '') output += '/.';
     output += url.cannotBeABaseURL ? path[0] : path.length ? '/' + join(path, '/') : '';
     if (query !== null) output += '?' + query;
@@ -931,8 +936,9 @@ URLState.prototype = {
   },
   // https://url.spec.whatwg.org/#dom-url-href
   setHref: function (href) {
-    var failure = this.parse(href);
-    if (failure) throw new TypeError(failure);
+    var state = new URLState(href, true);
+    state.searchParams = this.searchParams;
+    assign(this, state);
     this.searchParams.update();
   },
   // https://url.spec.whatwg.org/#dom-url-origin
@@ -940,7 +946,10 @@ URLState.prototype = {
     var scheme = this.scheme;
     var port = this.port;
     if (scheme === 'blob') try {
-      return new URLConstructor(this.path[0]).origin;
+      var pathURL = new URLState(this.getPathname(), true);
+      var $scheme = pathURL.scheme;
+      return $scheme === 'http' || $scheme === 'https' || $scheme === 'file'
+        ? pathURL.getOrigin() : 'null';
     } catch (error) {
       return 'null';
     }
@@ -959,7 +968,7 @@ URLState.prototype = {
     return this.username;
   },
   setUsername: function (username) {
-    var codePoints = arrayFrom($toString(username));
+    var codePoints = stringToCodePoints($toString(username));
     if (this.cannotHaveUsernamePasswordPort()) return;
     this.username = '';
     for (var i = 0; i < codePoints.length; i++) {
@@ -971,7 +980,7 @@ URLState.prototype = {
     return this.password;
   },
   setPassword: function (password) {
-    var codePoints = arrayFrom($toString(password));
+    var codePoints = stringToCodePoints($toString(password));
     if (this.cannotHaveUsernamePasswordPort()) return;
     this.password = '';
     for (var i = 0; i < codePoints.length; i++) {
