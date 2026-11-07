@@ -94,6 +94,7 @@
   - Removed unneeded dependencies and workarounds from some entries
 - Fixed missing polyfills and rejected exact versions for mobile `browserslist` targets in `core-js-compat` and `core-js-builder`
 - Fixed handling of Safari Technology Preview and `latest` targets in `core-js-compat` and `core-js-builder`; invalid non-numeric target versions now throw a `RangeError` naming the engine and value
+- Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
 - Compat data improvements:
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
   - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)

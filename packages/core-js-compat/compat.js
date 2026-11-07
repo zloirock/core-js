@@ -60,7 +60,8 @@ module.exports = function ({
   if (modules === null || modules === undefined) modules = filter;
   inverse = !!inverse;
 
-  const parsedTargets = targets ? targetsParser(targets) : null;
+  const parsed = targets ? targetsParser(targets) : null;
+  const parsedTargets = parsed && parsed.size ? parsed : null;
 
   const result = {
     list: [],

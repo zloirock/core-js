@@ -108,6 +108,33 @@ deepEqual(compat({
   },
 }, 'no exclude');
 
+const noTargets = compat();
+
+for (const targets of [
+  {},
+  [],
+  { browsers: '' },
+  { browsers: [] },
+  { browsers: {} },
+  { esmodules: false },
+  { esmodules: 'intersect' },
+  { esmodules: 'intersect', browsers: 'ie 11' },
+  'kaios 2.5',
+  'and_uc 15.5',
+  'op_mini all',
+  { ios_safari: '12' },
+  { edge_chromium: 90 },
+]) {
+  deepEqual(compat({ targets }), noTargets, `empty targets: ${ JSON.stringify(targets) }`);
+  deepEqual(compat({ targets, inverse: true }), { list: [], targets: {} }, `empty inverse targets: ${ JSON.stringify(targets) }`);
+}
+
+deepEqual(
+  compat({ targets: 'chrome 100, kaios 2.5' }),
+  compat({ targets: { chrome: '100' } }),
+  'untracked engines do not disable filtering for tracked engines',
+);
+
 deepEqual(
   compat({ targets: { chrome: 93 } }),
   compat({ modules: 'core-js', targets: { chrome: 93 } }),
