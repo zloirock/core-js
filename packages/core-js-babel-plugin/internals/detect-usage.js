@@ -781,6 +781,7 @@ export function createUsageVisitors({
   onSuppressedProxyHop = null,
   suppressKeptNavHop = null,
   suppressKeptNavRoot = null,
+  findKeptNavRoot = null,
   onDeadBranch = null,
   onDiscardedClaim = null,
   onUsage,
@@ -809,16 +810,12 @@ export function createUsageVisitors({
   });
   const { skipUpdateTargets } = core;
 
-  // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
-  // already established the read context (e.g., assignment LHS - strict-mode binding lookup)
-  function handleIdentifier(path, skipReferencedCheck = false) {
-    if (!core.mayEmitGlobalUsage(path.node?.name)) return;
-    // orphaned node (parent removed by a sibling transform): `isReferencedIdentifier`
-    // reads `parent.type` unconditionally and would crash. check BEFORE everything else
+  // Babel has already classified a reference; the global write visitor admits its own targets.
+  function handleIdentifier(path) {
+    // Only a stored navigation can consume a local alias in the production hook.
+    const keptRoot = findKeptNavRoot?.(path);
+    if (!core.mayEmitGlobalUsage(path.node?.name, keptRoot)) return;
     if (!path.parent) return;
-    if (!skipReferencedCheck && !path.isReferencedIdentifier()) return;
-    // the logical-assign LHS polyfill injection lives on a dedicated `Identifier` visitor
-    // (babel classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
     // ReferencedIdentifier matches JSXIdentifier in too many positions - which of them claims a
     // runtime value is the tag-root canon's question, shared with unplugin's own JSX visitor
     if (path.node.type === 'JSXIdentifier' && !jsxTagRootReferencesBinding(path)) return;
@@ -846,7 +843,7 @@ export function createUsageVisitors({
     // tsc - runtime resolves to global) and recognises plugin-managed bindings (pure-import
     // aliases, global destructure aliases). single check, parity with unplugin's visitor.
     // the stored kept-nav ROOT hook runs inside the core tail, shared with unplugin
-    core.emitGlobalUsage(path);
+    core.emitGlobalUsage(path, keptRoot);
   }
 
   function handleMemberExpression(path) {
@@ -926,26 +923,16 @@ export function createUsageVisitors({
       [TYPE_ANNOTATION_HOSTS]: core.checkTypeAnnotation,
       ...core.annotationDeclVisitors,
     } : null,
-    // ReferencedIdentifier covers all read positions for polyfill detection. a combined
-    // `'ReferencedIdentifier|Identifier'` shape would register the handler twice via
-    // `visitors.explode`, firing handleIdentifier twice per referenced Identifier
-    // (the second pass guarded by `handledObjects` WeakSet, but parent / isReferenced
-    // checks would run twice). two visitors instead: ReferencedIdentifier handles polyfill
-    // detection; bare Identifier injects for the assignment / logical-assign LHS (babel
-    // classifies `Map ||= X` LHS as non-reference, so ReferencedIdentifier never fires
-    // for it - a separate visitor is needed to polyfill the written global)
     ReferencedIdentifier: handleIdentifier,
-    Identifier(path) {
-      if (!path.parent) return;
-      const { parent } = path;
-      // assignment LHS in global mode: strict-mode reads the binding before the write, so
-      // `Map = X` / `Map ||= X` / `Map += 1` all need the polyfill. babel's
-      // `isReferencedIdentifier` returns false for AssignmentExpression.left AND for bare
-      // pattern leaves (`[Map] = arr`), so fire manually - a pattern-element write needs the
-      // slot to exist exactly like the flat form
-      if (method !== 'usage-pure'
-        && ((parent.type === 'AssignmentExpression' && parent.left === path.node)
-          || bareAssignmentPatternLeafPath(path))) return handleIdentifier(path, true);
+    // Babel excludes bare write targets from references. Only usage-global installs
+    // their bindings; the pure visitor has no work on these identifiers.
+    ...!skipUpdateTargets && {
+      Identifier(path) {
+        if (!core.mayEmitGlobalUsage(path.node?.name)) return;
+        const { parent } = path;
+        if (parent && (parent.type === 'AssignmentExpression' && parent.left === path.node
+          || bareAssignmentPatternLeafPath(path))) handleIdentifier(path);
+      },
     },
     'MemberExpression|OptionalMemberExpression': handleMemberExpression,
     ObjectProperty(path) {

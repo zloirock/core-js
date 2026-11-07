@@ -268,6 +268,16 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   const t = rangePreservingTypes(babelTypes);
   const legacyParens = generatorWorkarounds(babelVersion);
 
+  // Search with the running traversal's visitor keys. Older or separately resolved types
+  // may not share its stop token; the accumulated answer still holds after a complete walk.
+  function containsNode(root, matches) {
+    let found = false;
+    traverse.cheap(root, node => {
+      if (found ||= matches(node)) return babelTypes.traverseFast.stop;
+    });
+    return found;
+  }
+
   // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
   // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
   const pathsKeepParent = Number.parseInt(babelVersion, 10) >= 8;
@@ -1808,17 +1818,18 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // (`ntm = (ntw = globalThis).window?.self`), and the inner write - whose value is the bare
         // root - carries no navigation for the plan to render, so stopping there left the outer
         // store's hops raw
-        suppressKeptNavRoot: isPure ? path => {
+        findKeptNavRoot: isPure ? storedUserAssignmentOf : undefined,
+        suppressKeptNavRoot: isPure ? (path, firstStore) => {
           if (keptNavHookOptedOut(path)) return false;
           const seen = new Set();
           let rendered = false;
-          for (let at = path; at?.parentPath;) {
-            const stored = storedUserAssignmentOf(at);
-            if (!stored || seen.has(stored)) break;
+          let stored = firstStore;
+          for (let at = path; stored && !seen.has(stored);) {
             seen.add(stored);
             rendered = !!collapseKeptNavValueNode(stored, path, { immediate: true }) || rendered;
             while (at?.node && at.node !== stored) at = at.parentPath;
             at = at?.parentPath;
+            stored = storedUserAssignmentOf(at);
           }
           return rendered;
         } : undefined,
@@ -2401,8 +2412,16 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // there is nothing to sweep - skip the whole-program walk
         if (!memberHandler) return;
         const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
+        // A synthetic static also contains its global Identifier. Inspect each live top-level
+        // child as Babel reaches it, so rewrites and requeued statements keep their usual order.
+        function mayHoldGlobal(node) {
+          return node.type === 'Identifier' && isKnownGlobalName(node.name);
+        }
         // read-only where the primary traversal is: its climbs share the same runs
         withTraversalCaches(!isPure, () => path.traverse({
+          Statement(statement) {
+            if (statement.parent === path.node && !containsNode(statement.node, mayHoldGlobal)) statement.skip();
+          },
           'MemberExpression|OptionalMemberExpression'(member) {
             const obj = member.node.object;
             // gate the object on `isKnownGlobalName`, NOT shape alone: the plugin's own synthetic
@@ -2478,7 +2497,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // the sentinel `var`s a discarded-element render owes, asked of the finished tree
         destructureEmit.flushDiscardedElementSentinels();
         destructureEmit.unexportSentinelDeclarations(path);
-        destructureEmit.joinBodylessVarBlocks(path);
+        destructureEmit.joinBodylessVarBlocks(path, containsNode);
         rewalkRetainedForInits();
         destructureEmit.rehomeOwnedComments();
         postSweepIntroduced(path);

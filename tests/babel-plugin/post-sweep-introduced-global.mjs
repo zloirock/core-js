@@ -479,4 +479,39 @@ for (const [label, test, takesFallback] of [
   }
 }
 
+// A sibling can put a position-less block in an existing statement slot. Only a
+// nonempty body made entirely of var declarations can become one declaration there.
+for (const method of ['usage-pure', 'usage-global']) {
+  const { code } = await transformAsync('if (flag) empty(); if (flag) vars(); if (flag) directive();', {
+    configFile: false,
+    babelrc: false,
+    plugins: [
+      ({ types: t }) => ({
+        visitor: {
+          IfStatement(path) {
+            const { name } = path.node.consequent.expression.callee;
+            function declaration(value) {
+              return t.variableDeclaration('var', [t.variableDeclarator(t.identifier(value), t.numericLiteral(1))]);
+            }
+            const body = name === 'empty' ? [] : [declaration('first'), declaration('second')];
+            const directives = name === 'directive' ? [t.directive(t.directiveLiteral('keep me'))] : [];
+            path.get('consequent').replaceWith(t.blockStatement(body, directives));
+          },
+        },
+      }),
+      ['@core-js', { method, version: '4.0', targets: { ie: 11 } }],
+    ],
+  });
+  checkTruthy(`${ method }/empty sibling block remains valid`, /if \(flag\) \{\}/u.test(code));
+  checkTruthy(`${ method }/sibling var declarations share the statement slot`, /if \(flag\) var first = 1,\s*second = 1;/u.test(code));
+  checkTruthy(`${ method }/sibling block retains its directive`, code.includes('"keep me"'));
+  let result;
+  try {
+    result = runInNewContext(`${ code }\n[first, second]`, { flag: true });
+  } catch (error) {
+    result = error.name;
+  }
+  checkTruthy(`${ method }/printed sibling blocks execute`, JSON.stringify(result) === '[1,1]');
+}
+
 finish();

@@ -1,5 +1,6 @@
 import { createBabelAdapter, createUsageVisitors as createBabelUsageVisitors } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter, createUsageVisitors as createEstreeUsageVisitors } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { storedUserAssignmentOf } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { handleMemberExpressionNode } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { resolve } from '../../packages/core-js-polyfill-provider/index.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
@@ -15,11 +16,28 @@ import {
   staticMemberKeyName,
   withTraversalCaches,
   withVarScopeOwners,
+  wrapScopeBindingLookup,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { adapters, createChecker, expectError } from './harness.mjs';
+import { adapters, babelAdapter, createChecker, expectError } from './harness.mjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
 const { check, checkTruthy, checkDeep, finish } = createChecker('member-context-paths');
+function readsReferenceParent(path, visit) {
+  const { parent } = path;
+  let read = false;
+  withTemporaryProperty(path, 'parent', undefined, () => {
+    Object.defineProperty(path, 'parent', {
+      configurable: true,
+      get() {
+        read = true;
+        return parent;
+      },
+    });
+    visit(path);
+  });
+  return read;
+}
+
 // An ordinary identifier needs no global reference-position query, unless a live
 // navigation hook consumes aliases too. Known names retain their normal detection.
 for (const parser of adapters) for (const method of ['usage-global', 'usage-pure']) {
@@ -38,24 +56,72 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
       suppressKeptNavRoot: hook ? path => { roots.push(path.node.name); return true; } : null,
     });
     for (const path of paths) {
-      const { parent } = path;
-      let reads = 0;
-      withTemporaryProperty(path, 'parent', undefined, () => {
-        Object.defineProperty(path, 'parent', {
-          configurable: true,
-          get() {
-            reads++;
-            return parent;
-          },
-        });
-        (visitors.ReferencedIdentifier ?? visitors.Identifier)(path);
-      });
+      const read = readsReferenceParent(path, visitors.ReferencedIdentifier ?? visitors.Identifier);
       const observed = hook || path.node.name === 'Map';
-      check(`global name gate/${ parser.name }/${ method }/${ hook }/${ path.node.name }/reference query`, reads > 0, observed);
+      check(`global name gate/${ parser.name }/${ method }/${ hook }/${ path.node.name }/reference query`, read, observed);
     }
     checkDeep(`global name gate/${ parser.name }/${ method }/${ hook }/claims`, claims, hook ? [] : ['Map']);
     checkDeep(`global name gate/${ parser.name }/${ method }/${ hook }/alias hook`, roots, hook ? ['ordinary', 'Map'] : []);
   }
+}
+
+// A local root only needs Babel's reference checks when its value reaches a source store.
+{
+  const program = babelAdapter.parseAndScope(`
+    const plain = 0, prefix = () => 0, alias = { self: 1 };
+    let held;
+    plain;
+    held = (prefix(), alias).self;
+    Map;
+  `);
+  const store = babelAdapter.pickPath(program, 'AssignmentExpression').node;
+  const checked = [];
+  const roots = [];
+  const claims = [];
+  const visitors = createBabelUsageVisitors({
+    adapter: createBabelAdapter({ method: 'usage-pure' }),
+    method: 'usage-pure',
+    findKeptNavRoot: storedUserAssignmentOf,
+    suppressKeptNavRoot(path, selected) {
+      roots.push([path.node.name, selected === store]);
+      return true;
+    },
+    onUsage(meta) { claims.push(meta.name); },
+  });
+  for (const path of babelAdapter.collectPaths(program, 'ReferencedIdentifier')) {
+    if (readsReferenceParent(path, visitors.ReferencedIdentifier)) checked.push(path.node.name);
+  }
+  checkDeep('stored root/reference checks', checked, ['alias', 'Map']);
+  checkDeep('stored root/hook receives its source assignment', roots, [['alias', true]]);
+  checkDeep('stored root/unrelated global still emits', claims, ['Map']);
+}
+
+// Use Babel's real virtual visitor dispatch. It classifies Map as a read before the
+// callback runs; only global mode also needs the bare and destructured write targets.
+for (const method of ['usage-global', 'usage-pure']) {
+  const program = babelAdapter.parseAndScope('Map; Set ||= fallback; [WeakMap] = slots; box.WeakSet;');
+  const mapRead = babelAdapter.pickPath(program, 'ReferencedIdentifier', path => path.node.name === 'Map');
+  const { isReferencedIdentifier } = mapRead;
+  let repeated = 0;
+  const globals = [];
+  const visitors = createBabelUsageVisitors({
+    adapter: createBabelAdapter({ method }),
+    method,
+    onUsage(meta) {
+      if (meta.kind === 'global') globals.push(meta.name);
+    },
+  });
+  check(`identifier dispatch/${ method }/write visitor`, typeof visitors.Identifier === 'function', method === 'usage-global');
+  if (method === 'usage-global') {
+    const local = babelAdapter.pickPath(program, 'Identifier', path => path.node.name === 'slots');
+    check('identifier dispatch/global ignores local write candidates', readsReferenceParent(local, visitors.Identifier), false);
+  }
+  withTemporaryProperty(mapRead, 'isReferencedIdentifier', function (...args) {
+    repeated++;
+    return isReferencedIdentifier.apply(this, args);
+  }, () => program.traverse(visitors));
+  check(`identifier dispatch/${ method }/reference already classified`, repeated, 0);
+  checkDeep(`identifier dispatch/${ method }/reads and writes`, globals, method === 'usage-pure' ? ['Map'] : ['Map', 'Set', 'WeakMap']);
 }
 
 const nav = `globalThis${ '.self'.repeat(16) }.Map`;
@@ -376,7 +442,14 @@ for (const parser of adapters) {
     ['constructor property', `const value = 'outer'; class C { constructor(public value: any) { ${ access }; } }`, 'property'],
     ['constructor default', `import value from 'outer'; class C { constructor(public value: any = []) { ${ access }; } }`, 'default'],
     ['computed member key', `const value = 'outer'; class C { constructor(public value: any) { host[${ access }].tail; } }`, 'property'],
+    ['nested blocks', `const value = 'outer'; class C { constructor(public value: any) { if (flag) { { ${ access }; } } } }`, 'property'],
+    ['nested function', `const value = 'outer'; class C { constructor(public value: any) { function read() { ${ access }; } } }`, 'property'],
+    ['nested arrow', `const value = 'outer'; class C { constructor(public value: any) { () => ${ access }; } }`, 'property'],
+    ['nested class field', `const value = 'outer'; class C { constructor(public value: any) { class D { field = ${ access }; } } }`, 'property'],
+    ['nested static block', `const value = 'outer'; class C { constructor(public value: any) { class D { static { ${ access }; } } } }`, 'property'],
+    ['nested method key', `const value = 'outer'; class C { constructor(public value: any) { class D { [${ access }]() {} } } }`, 'property'],
     ['ordinary parameter', `const value = 'outer'; class C { constructor(public value: any) { function read(value) { ${ access }; } } }`, 'parameter'],
+    ['enclosing native parameter', `const value = 'outer'; class C { constructor(public value: any) { function read(value) { function inner() { ${ access }; } } } }`, 'parameter'],
     ['nearest lexical', `${ ABSENT_RUN }const value = 'outer'; class C { constructor(public value: any) { { const value = []; ${ access }; } } }`, 'lexical'],
     ['method key', `${ ABSENT_RUN }const value = 'outer'; class C { [${ access }]() {} constructor(public value: any) {} }`, 'outer'],
     ['parameter decorator', `import value from 'outer'; class C { constructor(@dec(${ access }) public value: any) {} }`, 'import'],
@@ -420,6 +493,22 @@ for (const parser of adapters) {
         if (expected === 'property' || expected === 'default' || expected === 'parameter') check(`${ label }/parameter kind`, binding?.kind, 'param');
       });
     }
+  }
+
+  // Keeping the owner path never freezes the constructor's parameter list.
+  {
+    const program = parser.parseAndScope('const value = []; class C { constructor() { value.at(0); } }');
+    const path = parser.pickPath(program, 'MemberExpression');
+    const owner = findNearestVarScopeOwner(path).node;
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    const property = parser.pickPath(parser.parseAndScope('class C { constructor(public value: any) {} }'), 'TSParameterProperty').node;
+    withVarScopeOwners(() => {
+      const outer = lookup({ scope: path.scope, name: 'value', path });
+      owner.params.push(property);
+      check(`${ parser.name }/kept owner/new parameter`, lookup({ scope: path.scope, name: 'value', path })?.kind, 'param');
+      owner.params.pop();
+      check(`${ parser.name }/kept owner/removed parameter`, lookup({ scope: path.scope, name: 'value', path })?.path, outer.path);
+    });
   }
 
   // A chain wrapper changes short-circuiting, but not which static supplies its receiver.

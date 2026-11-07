@@ -74,14 +74,14 @@ export function createUsageHandlerCore({
   let handledObjects = new WeakSet();
   let proxySegments = method === 'usage-global' ? new WeakMap() : null;
 
-  // Reject ordinary names before the host analyzes their reference position. A stored-nav
-  // hook still consumes local aliases, so its names must reach the full identifier funnel.
-  function mayEmitGlobalUsage(name) {
-    return !!suppressKeptNavRoot || isKnownGlobalName(name);
+  // A selected store keeps its local alias eligible. A hook without a selector may consume
+  // any alias; otherwise only a known global needs the reference-position checks.
+  function mayEmitGlobalUsage(name, keptRoot = suppressKeptNavRoot) {
+    return !!keptRoot || isKnownGlobalName(name);
   }
 
   // the identifier tail every host runs after its own referenced-position gates
-  function emitGlobalUsage(path) {
+  function emitGlobalUsage(path, keptRoot) {
     const { node } = path;
     // a TYPE reference reaches this lane rather than the annotation walk - both parsers report it
     // as a referenced identifier - so the type-space shadow question belongs here, where every
@@ -97,8 +97,8 @@ export function createUsageHandlerCore({
     // visit - the one place a member-channel skip or a declined claim cannot hide (a claim
     // that declines leaves no render owning the value's hops). ungated by name: an ALIAS root
     // (`const galias = globalThis; (ntm = (se, galias).window.self)`) stores the same canon,
-    // and the hook self-gates cheaply (a parent climb, then the plan's own proxy-root proof)
-    if (suppressKeptNavRoot?.(path)) return;
+    // and the hook receives the store selected before the reference-position checks
+    if (keptRoot !== null && suppressKeptNavRoot?.(path, keptRoot)) return;
     // The alias hook above also consumes ordinary names. Only known globals can request a
     // polyfill below, so their scope lookup need not run for every local reference in the file.
     if (!isKnownGlobalName(node.name)) return;
