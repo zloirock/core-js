@@ -617,6 +617,30 @@ for (const parser of adapters) {
     check(`${ parser.name }/${ size }/no irrelevant slot reads`, reads, 0);
   }
 
+  // A computed member has a property operand, not a definition-time key slot.
+  // Keep the ordinary census visits and the enclosing parameter-region walk.
+  for (const [name, source, expected] of [
+    ['read', 'const holder = {}; holder[key];', 1],
+    ['write', 'const holder = {}; holder[key] = Map;', 1],
+    ['parameter', 'function expose(arg = holder[key]) { return arg; }', 3],
+  ]) {
+    const program = parser.parseAndScope(source);
+    const member = parser.pickPath(program, 'MemberExpression').node;
+    let reads = 0;
+    Object.defineProperty(member, 'censusProbe', {
+      configurable: true, enumerable: true, get() { reads++; return null; },
+    });
+    try {
+      walkAstChildren(member, () => false);
+      check(`${ parser.name }/computed census/${ name }/counter control`, reads, 1);
+      reads = 0;
+      collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
+      check(`${ parser.name }/computed census/${ name }/visits`, reads, expected);
+    } finally {
+      delete member.censusProbe;
+    }
+  }
+
   // Before a member matches a loop head there is no receiver-identity question.
   // Crossing a function must not trigger a full definition-time context census.
   for (const [name, source] of [

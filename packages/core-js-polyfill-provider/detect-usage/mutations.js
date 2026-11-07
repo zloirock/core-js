@@ -3319,7 +3319,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   const outerEvaluatedOwners = new WeakMap();
   function recordOuterEvaluatedRegion(node) {
     const hasParams = FUNCTION_LIKE_NODE_TYPES.has(node.type);
-    const hasDefinitionSlots = node.decorators?.length || node.superClass || node.computed === true;
+    const hasDefinitionSlots = node.decorators?.length || node.superClass || node.computed === true && node.key;
     if (!hasParams && !hasDefinitionSlots) return;
     const roots = hasParams ? [...node.params ?? []] : [];
     // the property gate the path-side climb uses: only a node HOLDING one of those slots can answer
