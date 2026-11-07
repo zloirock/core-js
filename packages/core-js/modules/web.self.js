@@ -53,7 +53,7 @@ try {
       // the assignment preserves the read when minifying
       selfGlobalReceiver = globalThis.self && selfGlobalReceiver;
     }
-  } else $({ global: true, simple: true, forced: INCORRECT_VALUE }, {
+  } else $({ global: true, enumerable: true, forced: INCORRECT_VALUE }, {
     self: globalThis
   });
 } catch (error) { /* empty */ }
