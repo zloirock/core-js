@@ -41,9 +41,10 @@ const validTargets = new Set([
 ]);
 
 // TODO: Drop the fallback in core-js@4
+// eslint-disable-next-line node/no-unsupported-features/es-syntax, es/no-object-entries -- with a fallback
 const entries = Object.entries || function (object) {
   return Object.keys(object).map(key => [key, object[key]]);
-}
+};
 
 function toLowerKeys(object) {
   return entries(object).reduce((accumulator, [key, value]) => {
