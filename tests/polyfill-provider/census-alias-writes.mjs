@@ -48,6 +48,8 @@ const rows = [
   ['catch binding owns the write', 'function expose() { try { work(); } catch (a) { a = Map; hand(a); } }'],
   ['default evaluates outside body bindings', 'let a; function expose(value = (a = Map)) { var a = Number; } hand(a);'],
   ['computed method key evaluates outside body bindings', 'let a; const box = { [a = Map]() { var a = Number; } }; hand(a);'],
+  ['parameter default escapes the outer constructor', 'function expose(value = hand(Map)) { var Map; }'],
+  ['computed method key escapes the outer constructor', 'const box = { [hand(Map)]() { var Map; } };'],
   ['unknown target keeps its conservative sources', 'a = Map; hand(a);'],
   ['loop assignment reaches its outer binding', 'function expose() { var a; { for ([a] of [[Map]]) {} } hand(a); }'],
   ['loop assignment from a closure', 'function expose() { var a; function install() { for ({ value: a } of [{ value: Map }]) {} } hand(a); }'],
