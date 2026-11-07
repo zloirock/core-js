@@ -1,9 +1,20 @@
 'use strict';
+const { inspect } = require('node:util');
+
 // QUnit's TAP reporter prints a line per PASSING test - hundreds to over a thousand per bundle, and
 // the runners here start several qunit processes at once, so those lines interleave on top of that.
 // what stays is failures, bail-outs and the counts, skipped tests as a number rather than by name;
 // what is left is deliberately not valid TAP, and nothing here parses this stream
 const NOISE = /^(?:ok \d+|TAP version)/;
+
+function printable(value) {
+  if (value === null || ['undefined', 'string', 'number', 'boolean'].includes(typeof value)) return value;
+  try {
+    return inspect(value, { customInspect: false });
+  } catch {
+    return '<uninspectable>';
+  }
+}
 
 // a timer still armed when the run ends holds node alive for its whole remaining delay, so a
 // fallback timeout left undisarmed on the path that wins turns the tail of every run into
@@ -32,6 +43,24 @@ module.exports = {
         if (!NOISE.test(line)) process.stdout.write(`${ line }\n`);
       },
     });
+    // QUnit 3.0.0's TAP formatter can throw on the expected constructor in assert.throws().
+    const { logAssertion } = reporter;
+    reporter.logAssertion = (error, severity) => {
+      let output;
+      // Capture the diagnostic so a failed stdout write never triggers a formatting retry.
+      const formatter = { log(line) { output = line; } };
+      try {
+        logAssertion.call(formatter, error, severity);
+      } catch {
+        logAssertion.call(formatter, {
+          message: printable(error.message),
+          actual: printable(error.actual),
+          expected: printable(error.expected),
+          stack: error.stack && String(printable(error.stack)),
+        }, severity);
+      }
+      reporter.log(output);
+    };
     // after the tap init, so the counts print before the verdict
     runner.on('runEnd', reportArmedTimers);
     return reporter;
