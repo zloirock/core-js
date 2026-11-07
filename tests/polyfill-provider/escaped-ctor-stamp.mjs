@@ -2235,7 +2235,7 @@ for (const adapter of adapters) {
 
 // Resolving a local method only needs the scopes of names that can open its owner.
 // Unrelated references still go through the ordinary census walk. Count reads of their scope
-// chains during finalization, for both an actual method and a call with no candidate.
+// chains and identity checks during finalization, for an actual method and a call with no candidate.
 for (const adapter of adapters) {
   const nameReads = [];
   for (const [call, handsOutMap] of [
@@ -2248,10 +2248,16 @@ for (const adapter of adapters) {
     let references = 0;
     let scopeReads = 0;
     let reads = 0;
+    const unrelated = new WeakSet();
+    let firstReference;
+    let identityChecks = 0;
+    let counterControl = 0;
     const { escapedCtorNames } = collectFileCensus(program, [{
       visit(node, frame) {
         if (node.name === 'other' && frame.parentNode?.type === 'ExpressionStatement') {
           references++;
+          unrelated.add(node);
+          firstReference ??= node;
           Object.defineProperty(node, 'name', {
             get() {
               if (finalizing) reads++;
@@ -2269,12 +2275,26 @@ for (const adapter of adapters) {
       },
       result() {
         finalizing = true;
-        return reducer.result();
+        const { has } = NativeSet.prototype;
+        NativeSet.prototype.has = function (value) {
+          if (unrelated.has(value)) identityChecks++;
+          return has.call(this, value);
+        };
+        try {
+          new NativeSet([firstReference]).has(firstReference);
+          counterControl = identityChecks;
+          identityChecks = 0;
+          return reducer.result();
+        } finally {
+          NativeSet.prototype.has = has;
+        }
       },
     }]);
     nameReads.push(reads);
     const label = `${ adapter.name }: ${ call }`;
     check(`${ label } counts all unrelated references`, references, 32);
+    check(`${ label } observes identity checks`, counterControl, 1);
+    check(`${ label } checks the repeated unrelated name only once`, identityChecks, 1);
     check(`${ label } leaves unrelated scopes unread`, scopeReads, 0);
     check(`${ label } reports the constructor returned by the method`, escapedCtorNames.has('Map', true), handsOutMap);
   }

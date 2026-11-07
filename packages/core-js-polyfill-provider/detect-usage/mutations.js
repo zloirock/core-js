@@ -3672,7 +3672,9 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       const callee = peelCalleeValue(invocationOf(node).callee);
       invoked.add(callee);
     }
-    for (const node of nameUses) if (!invoked.has(node)) nonCalleeNameUses.add(node.name);
+    for (const node of nameUses) {
+      if (!nonCalleeNameUses.has(node.name) && !invoked.has(node)) nonCalleeNameUses.add(node.name);
+    }
     const forwarded = new Set();
     const open = new Set();
     const callableNames = new Set(),
@@ -3708,12 +3710,12 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     }
     // A method and its local aliases have one caller set. Any unaccounted read of any
     // spelling opens that set; resolving a fixed callee alone is not a closure proof.
-    for (const node of [...nameUses, ...memberUses]) {
-      if (invoked.has(node) || forwarded.has(node)) continue;
+    for (const uses of [nameUses, memberUses]) for (const node of uses) {
       // The completed declaration pass identifies possible callable spellings first.
       // Ordinary values and members of other receivers cannot open a local caller set.
       if (node.type === 'Identifier' ? !callableNames.has(node.name)
         : !methodOwners.has(unwrapRuntimeExpr(node.object)?.name)) continue;
+      if (invoked.has(node) || forwarded.has(node)) continue;
       const host = calleeFunctionOf(node, localCallables, callableScope);
       if (host) open.add(host);
     }
