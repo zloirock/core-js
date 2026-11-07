@@ -7,9 +7,11 @@ QUnit.test('self', assert => {
   assert.true(Object.prototype.propertyIsEnumerable.call(GLOBAL, 'self'), 'enumerable');
   if (DESCRIPTORS) {
     const descriptor = Object.getOwnPropertyDescriptor(self, 'self');
-    // can't be properly defined (non-configurable) in some ancient engines like PhantomJS
-    // assert.isFunction(descriptor.get, 'a getter');
-    // assert.true(descriptor.configurable, 'configurable');
+    // Non-configurable native self cannot be replaced in old WebKit.
+    if (descriptor.configurable) {
+      assert.isFunction(descriptor.get, 'a getter');
+      assert.isFunction(descriptor.set, 'a setter');
+    }
     const receivers = [GLOBAL, undefined, null];
     const invalidReceivers = [{}, false, 0, ''];
     if (descriptor.get) {
