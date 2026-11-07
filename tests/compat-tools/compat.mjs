@@ -163,6 +163,13 @@ deepEqual(
   'mobile browserslist ranges include all required polyfills',
 );
 
+for (const targets of ['safari TP', { safari: 'tp' }, { browsers: { safari: 'latest' } }]) {
+  deepEqual(compat({ modules: ['es.array.at', 'esnext.array.filter-out'], targets }), {
+    list: ['esnext.array.filter-out'],
+    targets: { 'esnext.array.filter-out': { safari: '999999' } },
+  }, 'latest Safari needs polyfills only for unsupported features');
+}
+
 const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true });
 
 ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');

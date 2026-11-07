@@ -87,7 +87,12 @@ module.exports = function (targets) {
 
   const reduced = new Map();
 
-  for (const [engine, version] of normalized) {
+  for (const [engine, value] of normalized) {
+    // Treat TP and latest as newer than known numeric releases.
+    const version = /^(?:latest|tp)$/i.test(value) ? '999999' : value;
+    if (!/^\d/.test(version)) {
+      throw new RangeError(`Invalid version "${ version }" for "${ engine }"`);
+    }
     if (!reduced.has(engine) || compare(version, '<=', reduced.get(engine))) {
       reduced.set(engine, version);
     }

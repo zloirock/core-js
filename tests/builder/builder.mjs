@@ -22,4 +22,12 @@ strictEqual(
   'mobile browserslist range includes all required polyfills',
 );
 
+const modulesPolyfills = await builder({
+  modules: 'es.array.at',
+  targets: 'supports es6-module',
+  format: 'esm',
+});
+
+ok(modulesPolyfills.includes("import 'core-js/modules/es.array.at.js';"), 'supports query including Safari TP preserves older targets');
+
 echo(chalk.green('builder tested'));

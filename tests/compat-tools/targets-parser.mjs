@@ -1,4 +1,4 @@
-import { deepEqual } from 'node:assert/strict';
+import { deepEqual, doesNotThrow, throws } from 'node:assert/strict';
 import targetsParser from 'core-js-compat/targets-parser.js';
 
 deepEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
@@ -159,5 +159,48 @@ deepEqual(targetsParser({
   ['chrome', '80'],
   ['firefox', '70'],
 ]), 'targets.esmodules: intersect, versions above esmodules minimum unchanged');
+
+for (const targets of [
+  'safari TP',
+  'safari TP, op_mini all',
+  { safari: 'tp' },
+  { safari: 'LATEST' },
+  { browsers: { safari: 'latest' } },
+  { esmodules: 'intersect', browsers: 'safari TP' },
+]) {
+  deepEqual(targetsParser(targets), new Map([
+    ['safari', '999999'],
+  ]), `latest Safari version: ${ JSON.stringify(targets) }`);
+}
+
+deepEqual(targetsParser({ chrome: 'latest', safari: 'TP', ios_saf: '15.4' }), new Map([
+  ['chrome', '999999'],
+  ['ios', '15.4'],
+  ['safari', '999999'],
+]), 'latest versions mixed with numeric versions and aliases');
+
+for (const targets of [
+  { safari: 'TP', browsers: { safari: '15' } },
+  { safari: '15', browsers: { safari: 'TP' } },
+]) {
+  deepEqual(targetsParser(targets), new Map([
+    ['safari', '15'],
+  ]), 'numeric minimum is preserved alongside TP');
+}
+
+deepEqual(targetsParser('supports es6-module').get('safari'), '10.1', 'supports query preserves the Safari minimum');
+doesNotThrow(() => targetsParser('unreleased versions'), 'unreleased versions including Safari TP');
+
+for (const [targets, engine, version] of [
+  [{ safari: 'no!' }, 'safari', 'no!'],
+  [{ browsers: { ios_saf: 'beta' } }, 'ios', 'beta'],
+  [{ node: true }, 'node', 'true'],
+  [{ browsers: { node: 'current' } }, 'node', 'current'],
+]) {
+  throws(() => targetsParser(targets), {
+    name: 'RangeError',
+    message: `Invalid version "${ version }" for "${ engine }"`,
+  }, 'invalid version identifies the engine and value');
+}
 
 echo(chalk.green('targets parser tested'));
