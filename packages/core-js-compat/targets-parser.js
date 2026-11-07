@@ -40,18 +40,26 @@ const validTargets = new Set([
   'samsung',
 ]);
 
+// TODO: Drop the fallback in core-js@4
+const entries = Object.entries || function (object) {
+  return Object.keys(object).map(key => [key, object[key]]);
+}
+
 function toLowerKeys(object) {
-  return Object.entries(object).reduce((accumulator, [key, value]) => {
+  return entries(object).reduce((accumulator, [key, value]) => {
     accumulator[key.toLowerCase()] = value;
     return accumulator;
   }, {});
 }
 
 module.exports = function (targets) {
-  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || Array.isArray(targets))
+  targets = (typeof targets != 'object' || Array.isArray(targets))
     ? { browsers: targets } : toLowerKeys(targets);
 
-  const list = Object.entries(rest);
+  const { browsers, esmodules, node } = targets;
+
+  // TODO: Use object rest in core-js@4
+  const list = entries(targets).filter(([key]) => key !== 'browsers' && key !== 'esmodules' && key !== 'node');
 
   const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
 
@@ -59,12 +67,12 @@ module.exports = function (targets) {
     if (typeof browsers == 'string' || Array.isArray(browsers)) {
       list.push(...browserslist(browsers, { mobileToDesktop: true }).map(it => it.split(' ')));
     } else {
-      list.push(...Object.entries(browsers));
+      list.push(...entries(browsers));
     }
   }
 
   if (normalizedESModules === true) {
-    list.push(...Object.entries(external.modules));
+    list.push(...entries(external.modules));
   }
 
   if (node) {

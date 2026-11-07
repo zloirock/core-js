@@ -26,6 +26,7 @@ import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
+const COMPAT_NODE_VERSIONS = '6.4.0';
 const DEV_NODE_VERSIONS = '^20.19';
 
 const ERROR = 'error';
@@ -2535,6 +2536,16 @@ export default [
     ],
     ignores: ['packages/core-js-compat/src/**'],
     rules: nodePackages,
+  },
+  {
+    files: [`packages/core-js-compat/**/${ jsFile }`],
+    ignores: ['packages/core-js-compat/src/**'],
+    rules: {
+      ...forbidES2017BuiltIns,
+      ...forbidES2017IntlBuiltIns,
+      'node/no-unsupported-features/es-syntax': [ERROR, { version: COMPAT_NODE_VERSIONS }],
+      'node/no-unsupported-features/node-builtins': [ERROR, { version: COMPAT_NODE_VERSIONS, allowExperimental: false }],
+    },
   },
   {
     files: [

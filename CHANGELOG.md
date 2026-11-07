@@ -97,6 +97,7 @@
 - Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
 - Fixed `exclude` in `core-js-compat` and `core-js-builder` treating stable `es.*` modules and their legacy `esnext.*` aliases inconsistently; excluding either name now excludes both
 - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`; it now behaves like an omitted option
+- Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
 - Compat data improvements:
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
   - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
