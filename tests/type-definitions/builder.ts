@@ -13,6 +13,7 @@ await builder({ exclude: 'core-js/actual' });
 await builder({ exclude: 'es.array.push' });
 await builder({ exclude: /^es\.array\./ });
 await builder({ exclude: ['core-js/actual', /^es\.array\./] });
+await builder({ exclude: null });
 await builder({ modules: 'core-js/actual', exclude: /^es\.array\./ });
 await builder({ targets: '> 1%' });
 await builder({ targets: ['defaults', 'last 5 versions'] });

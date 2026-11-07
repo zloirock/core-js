@@ -32,6 +32,8 @@ ok(modulesPolyfills.includes("import 'core-js/modules/es.array.at.js';"), 'suppo
 
 const allPolyfills = await builder({ format: 'esm' });
 
+strictEqual(await builder({ exclude: null, format: 'esm' }), allPolyfills, 'exclude: null means no exclusions');
+
 for (const targets of [{}, { esmodules: false }, 'kaios 2.5']) {
   strictEqual(await builder({ targets, format: 'esm' }), allPolyfills, `empty targets: ${ JSON.stringify(targets) }`);
 }

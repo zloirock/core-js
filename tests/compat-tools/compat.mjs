@@ -1,4 +1,4 @@
-import { deepEqual, ok } from 'node:assert/strict';
+import { deepEqual, ok, throws } from 'node:assert/strict';
 import compat from 'core-js-compat/compat.js';
 
 deepEqual(compat({
@@ -107,6 +107,12 @@ deepEqual(compat({
     'es.math.atanh': {},
   },
 }, 'no exclude');
+
+deepEqual(compat({ exclude: null }), compat(), 'exclude: null means no exclusions');
+
+for (const exclude of [false, 0, [null]]) {
+  throws(() => compat({ exclude }), TypeError, `invalid exclude: ${ JSON.stringify(exclude) }`);
+}
 
 for (const exclude of [
   'es.array.at',

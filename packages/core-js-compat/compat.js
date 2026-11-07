@@ -58,6 +58,7 @@ module.exports = function ({
   inverse = false,
 } = {}) {
   if (modules === null || modules === undefined) modules = filter;
+  if (exclude === null) exclude = [];
   inverse = !!inverse;
 
   const parsed = targets ? targetsParser(targets) : null;
