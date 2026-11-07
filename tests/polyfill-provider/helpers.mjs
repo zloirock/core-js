@@ -59,6 +59,7 @@ import {
   getDirectStatementBody,
   identifierReferencedInSubtree,
   declaredIdentifierNodes,
+  createDeclaredNameIndex,
   aliasReadGuardedAgainstNullish,
   inferTypeParameterNames,
   isBindingDeclarationPath,
@@ -3262,6 +3263,83 @@ for (const adapter of adapters) for (const width of [32, 128]) {
     check(`declaredIdentifierNodes/empty selection/${ adapter.name }/${ width }/${ shape }`,
       declaredIdentifierNodes(fn, () => false), null);
   }
+}
+
+// A closed declaration index needs neither identifier sets nor scope lookup for other names.
+// Matching declarations remain observable, including names supplied later or through a selector.
+for (const adapter of adapters) {
+  for (const width of [0, 32, 128]) {
+    const padding = Array.from({ length: width }, (_, i) => `var unused${ i };`).join(' ');
+    const program = adapter.parseAndScope(`${ padding } var needle;`).node;
+    const index = createDeclaredNameIndex(new Set(['needle']));
+    const scopes = [];
+    let scopeReads = 0;
+    const frame = { parentNode: null, get scopes() {
+      scopeReads++;
+      return scopes;
+    } };
+    const { Set: NativeSet } = globalThis;
+    let allocations = 0;
+    const label = `createDeclaredNameIndex/work/${ adapter.name }/${ width }`;
+    globalThis.Set = class extends NativeSet {
+      constructor(...args) {
+        super(...args);
+        allocations++;
+      }
+    };
+    try {
+      check(`${ label }/control value`, new Set(['control']).has('control'), true);
+      check(`${ label }/counter control`, allocations, 1);
+      allocations = 0;
+      for (const declaration of program.body) {
+        frame.parentNode = declaration;
+        index.record(declaration.declarations[0], frame);
+      }
+    } finally {
+      globalThis.Set = NativeSet;
+    }
+    check(`${ label }/selected binding`, index.resolve('needle', scopes), null);
+    check(`${ label }/unselected binding`, index.resolve('unused0', scopes), undefined);
+    check(`${ label }/scope work`, scopeReads, 1);
+    checkTruthy(`${ label }/bounded sets`, allocations > 0 && allocations <= 2, `${ allocations } sets`);
+  }
+  const program = adapter.parseAndScope('function holder(ignored, needle) {}').node;
+  const [fn] = program.body;
+  const frame = { parentNode: program, scopes: [] };
+  const declared = declaredIdentifierNodes(fn);
+  for (const supplied of [false, true]) {
+    const names = new Set(['needle']);
+    const index = createDeclaredNameIndex(names);
+    const seen = [];
+    const label = `createDeclaredNameIndex/selector/${ adapter.name }/${ supplied }`;
+    index.record(fn, frame, (id, node) => {
+      seen.push([id.name, node === fn]);
+      if (id.name === 'ignored') names.add(id.name);
+      return id.name !== 'needle';
+    }, supplied ? declared : undefined);
+    checkDeep(`${ label }/all declarations`, seen, [['holder', true], ['ignored', true], ['needle', true]]);
+    check(`${ label }/selector admits a new name`, index.resolve('ignored', [fn]), fn);
+    check(`${ label }/selector rejects a selected name`, index.resolve('needle', [fn]), undefined);
+    check(`${ label }/function name stays filtered`, index.resolve('holder', []), undefined);
+  }
+  const names = new Set();
+  const index = createDeclaredNameIndex(names);
+  index.record(fn, frame);
+  check(`createDeclaredNameIndex/empty/${ adapter.name }`, index.resolve('needle', [fn]), undefined);
+  names.add('needle');
+  index.record(fn, frame);
+  check(`createDeclaredNameIndex/updated names/${ adapter.name }`, index.resolve('needle', [fn]), fn);
+  const complete = createDeclaredNameIndex();
+  complete.record(fn, frame);
+  check(`createDeclaredNameIndex/complete function/${ adapter.name }`, complete.resolve('holder', []), null);
+  check(`createDeclaredNameIndex/complete parameter/${ adapter.name }`, complete.resolve('ignored', [fn]), fn);
+  const supplied = createDeclaredNameIndex(new Set(['needle']));
+  supplied.record(fn, frame, null, null);
+  check(`createDeclaredNameIndex/supplied empty/${ adapter.name }`, supplied.resolve('needle', [fn]), undefined);
+  supplied.record(fn, frame, null, new Set([fn.params[0]]));
+  check(`createDeclaredNameIndex/supplied filtered/${ adapter.name }`, supplied.resolve('ignored', [fn]), undefined);
+  supplied.record(fn, frame, null, new Set([fn.params[1]]));
+  check(`createDeclaredNameIndex/supplied selected/${ adapter.name }`, supplied.resolve('needle', [fn]), fn);
 }
 
 // Metadata is not a reference position. Its width must not multiply source-slot queries.

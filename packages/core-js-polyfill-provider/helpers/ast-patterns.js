@@ -10621,6 +10621,8 @@ export function declarationScopesOf(node, frame) {
 // `names` narrows what is recorded when a reducer knows the closed set it will ask about
 export function createDeclaredNameIndex(names = null) {
   const declaredIn = new Map();
+  // Apply a closed name filter while collecting identifiers, before allocating a set or scopes.
+  const selectName = names ? id => names.has(id.name) : null;
   return {
     // An already-classified binding, for censuses that also record synthetic declarations.
     recordName(name, scope) {
@@ -10633,7 +10635,8 @@ export function createDeclaredNameIndex(names = null) {
     // narrows what is taken - a reducer indexing one PROPERTY of a binding rather than the whole
     // lattice passes it, and asks the same chain question of the narrower index
     record(node, frame, select = null, knownDeclared = undefined) {
-      const declared = knownDeclared === undefined ? declaredIdentifierNodes(node) : knownDeclared;
+      // A supplied selector still observes every declaration, even outside the closed name set.
+      const declared = knownDeclared === undefined ? declaredIdentifierNodes(node, select ? null : selectName) : knownDeclared;
       if (!declared || isAmbientBindingShape(node, frame.parentNode)) return;
       const { own, named } = declarationScopesOf(node, frame);
       for (const id of declared) {
