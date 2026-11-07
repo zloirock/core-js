@@ -23195,6 +23195,86 @@ function * generatePhaseTargetOrder() {
   }
 }
 
+// Unknown named constructors may yield any instance family. The foreign installer keeps
+// the constructed global opaque to both emitters while preserving native runtime behavior.
+function * generateUnknownConstructorReceivers() {
+  const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+  const bodies = [
+    ['direct', 'return new ExternalConstructorForDiff().at((effects.push("argument"), -1));'],
+    ['stored', 'const held = new ExternalConstructorForDiff(); return held.at((effects.push("argument"), -1));'],
+    ['alias', 'const Alias = ExternalConstructorForDiff; return new Alias().at((effects.push("argument"), -1));'],
+    ['realm', 'return new globalThis.ExternalConstructorForDiff().at((effects.push("argument"), -1));'],
+  ];
+  for (const [family, value] of [
+    ['array', '[4, 9]'],
+    ['string', 'Object("ab")'],
+    ['own', '{ label: 10, at(index) { effects.push(this.label); return this.label + index; } }'],
+  ]) for (const [form, body] of bodies) {
+    yield { name: `unknown-constructor/${ family }/${ form }`, strip: true,
+      code: `import { withTemporaryProperty } from ${ helper };
+        export const effects = [];
+        const value = ${ value };
+        function External() { effects.push("construct"); return value; }
+        export const r = withTemporaryProperty(globalThis, "ExternalConstructorForDiff", External, () => {
+          ${ body }
+        });` };
+  }
+  yield { name: 'unknown-constructor/foreign-base', strip: true,
+    code: `import { withTemporaryProperty } from ${ helper };
+      export const effects = [];
+      function External() { return { value() { return [4, 9]; } }; }
+      export const r = withTemporaryProperty(globalThis, "ExternalConstructorForDiff", External, () => {
+        class Derived extends ExternalConstructorForDiff { value() { return "ab"; } }
+        return new Derived().value().at(-1);
+      });` };
+  for (const [form, body] of [
+    ['direct', 'return new Proxy(value, {}).findLast(item => item < 9);'],
+    ['stored', 'const held = new Proxy(value, {}); return held.at(-1);'],
+    ['alias', 'const Alias = Proxy; return new Alias(value, {}).at(-1);'],
+  ]) {
+    yield { name: `proxy-constructor/${ form }`, strip: true,
+      code: `export const effects = [];
+        const value = [4, 9];
+        export const r = (() => { ${ body } })();` };
+  }
+  for (const [form, declaration, expression] of [
+    ['class', 'class C { constructor() { effects.push("construct"); return [4, 9]; } }', 'new C()'],
+    ['inherited-class', 'class B { constructor() { return [4, 9]; } } class C extends B {}', 'new C()'],
+    ['derived-class', 'class C extends Array { constructor() { return Object("ab"); } }', 'new C()'],
+    ['class-field', 'class C { value = "ab"; constructor() { return { value: [4, 9] }; } }', 'new C().value'],
+    ['class-method', 'class C { value() { return "ab"; } constructor() { return { value() { return [4, 9]; } }; } }', 'new C().value()'],
+    ['reflect-class', 'class C { value = "ab"; constructor() { return { value: [4, 9] }; } }', 'Reflect.construct(C, []).value'],
+    ['reflect-new-target', 'class B { constructor() { return { value: [4, 9] }; } } class C { value = "ab"; }', 'Reflect.construct(B, [], C).value'],
+  ]) {
+    yield { name: `unknown-constructor/${ form }`, strip: true,
+      code: `export const effects = []; ${ declaration } export const r = (${ expression }).at((effects.push("argument"), -1));` };
+  }
+  for (const [form, declaration] of [
+    ['decorated-class', '@replace class C {}'],
+    ['decorated-parent', '@replace class B {} class C extends B {}'],
+  ]) {
+    yield { name: `unknown-constructor/${ form }`, ts: true, strip: true,
+      code: `export const effects = [];
+        const replace = Function("return function () { return [4, 9]; }");
+        ${ declaration } export const r = new C().at(-1);` };
+  }
+  for (const [form, declaration, expression] of [
+    ['reflect-method', 'class C { value() { return "ab"; } constructor() { return { value() { return [4, 9]; } }; } }', 'R.construct(C, [])'],
+    ['reflect-new-target-method', 'class B { constructor() { return { value() { return [4, 9]; } }; } } class C { value() { return "ab"; } }', 'R.construct(B, [], C)'],
+  ]) {
+    yield { name: `unknown-constructor/${ form }`, strip: true,
+      code: `import "@core-js/pure/actual/reflect/construct";
+        import R from "@core-js/pure/actual/reflect/namespace";
+        export const effects = []; ${ declaration } export const r = ${ expression }.value().at(-1);` };
+  }
+  for (const ctor of ['Map', 'Set']) for (const arrow of [false, true]) {
+    const params = `({ keys: { at } = [] } = new ${ ctor }())`;
+    yield { name: `unknown-constructor/parameter-default/${ ctor }/${ arrow ? 'arrow' : 'function' }`, strip: true,
+      code: `export const effects = []; ${ arrow ? `const f = ${ params } => at;` : `function f${ params } { return at; }` }
+        export const r = f();` };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -23691,4 +23771,5 @@ export function * generate() {
           return result;
         } export const r = [read(true), read(false)];` };
   }
+  yield * generateUnknownConstructorReceivers();
 }

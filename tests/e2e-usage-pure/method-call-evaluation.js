@@ -1,3 +1,8 @@
+/* global ExternalConstructorForTest -- installed by the foreign helper to keep the constructor opaque */
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+import '@core-js/pure/actual/reflect/construct';
+import reflectNamespace from '@core-js/pure/actual/reflect/namespace';
+
 // Exported callers keep the dispatcher open to receivers supplied by another module.
 export function invokeMethod(receiver, argument) {
   return receiver.at(argument());
@@ -393,3 +398,126 @@ QUnit.test('optional method continuation: captures survive re-entry in defaults 
     assert.same(invoke(() => ({ at() { return undefined; } }), () => 0), undefined);
   }
 });
+
+QUnit.test('constructed receiver: an external constructor can return different instance families', assert => {
+  const own = { at(index) {
+    assert.same(this, own);
+    return index + 10;
+  } };
+  for (const [value, expected] of [[[1, 2, 3], 3], [Object('abc'), 'c'], [own, 9]]) {
+    let calls = 0;
+    function External() {
+      calls++;
+      return value;
+    }
+    // The foreign helper installs the name without revealing its constructor body to this module.
+    withTemporaryProperty(Function('return this')(), 'ExternalConstructorForTest', External, () => {
+      assert.same(new ExternalConstructorForTest().at(-1), expected);
+      const held = new ExternalConstructorForTest();
+      assert.same(held.at(-1), expected);
+      const Alias = ExternalConstructorForTest;
+      assert.same(new Alias().at(-1), expected);
+      assert.same(new globalThis.ExternalConstructorForTest().at(-1), expected);
+      assert.same(calls, 4);
+    });
+  }
+});
+
+QUnit.test('constructed receiver: an external array result retains findLast', assert => {
+  function External() { return [1, 2, 3]; }
+  withTemporaryProperty(Function('return this')(), 'ExternalConstructorForTest', External, () => {
+    const held = new ExternalConstructorForTest();
+    assert.same(held.findLast(value => value < 3), 2);
+  });
+});
+
+// eslint-disable-next-line es/no-proxy -- Proxy is an optional host capability, absent on IE11
+if (typeof Proxy === 'function') QUnit.test('constructed receiver: proxy methods retain polyfills and user overrides', assert => {
+  /* eslint-disable es/no-proxy -- the test is gated on host support */
+  assert.same(new Proxy([1, 2, 3], {}).findLast(value => value < 3), 2);
+  const held = new Proxy([1, 2, 3], {});
+  assert.same(held.at(-1), 3);
+  const Alias = Proxy;
+  assert.same(new Alias([4, 5], {}).at(-1), 5);
+  let reads = 0;
+  const own = new Proxy([], { get(target, key) {
+    if (key !== 'at') return target[key];
+    reads++;
+    return function (index) {
+      assert.same(this, own);
+      return index + 10;
+    };
+  } });
+  assert.same(own.at(-1), 9);
+  assert.same(reads, 1);
+  /* eslint-enable es/no-proxy -- end of host-dependent constructor checks */
+});
+
+QUnit.test('constructed receiver: Object preserves the wrapped value family', assert => {
+  assert.same(new Object([1, 2, 3]).findLast(value => value < 3), 2);
+  assert.same(new Object('abc').at(-1), 'c');
+});
+
+/* eslint-disable no-constructor-return -- replacing the instance is the behavior under test */
+QUnit.test('constructed receiver: a class can replace its instance', assert => {
+  const events = [];
+  class C {
+    constructor() {
+      events.push('construct');
+      return [1, 2, 3];
+    }
+  }
+  assert.same(new C().at((events.push('argument'), -1)), 3);
+  assert.deepEqual(events, ['construct', 'argument']);
+});
+
+QUnit.test('constructed receiver: inherited and derived constructors can replace their instances', assert => {
+  class Base { constructor() { return [1, 2, 3]; } }
+  class Derived extends Base { /* empty */ }
+  assert.same(new Derived().findLast(value => value < 3), 2);
+  class Foreign extends Array { constructor() { return Object('abc'); } }
+  assert.same(new Foreign().at(-1), 'c');
+});
+
+QUnit.test('constructed receiver: a replacement has its own fields and methods', assert => {
+  class Fields {
+    value = 'abc';
+    constructor() { return { value: [1, 2, 3] }; }
+  }
+  assert.same(new Fields().value.at(-1), 3);
+  class Methods {
+    value() { return 'abc'; }
+    constructor() { return { value() { return [1, 2, 3]; } }; }
+  }
+  assert.same(new Methods().value().at(-1), 3);
+  function External() {
+    return { value() { return [1, 2, 3]; } };
+  }
+  withTemporaryProperty(Function('return this')(), 'ExternalConstructorForTest', External, () => {
+    class Derived extends ExternalConstructorForTest {
+      value() { return 'abc'; }
+    }
+    assert.same(new Derived().value().at(-1), 3);
+  });
+});
+
+QUnit.test('constructed receiver: Reflect.construct keeps the target replacement', assert => {
+  class Target {
+    value = 'abc';
+    constructor() { return { value: [1, 2, 3] }; }
+  }
+  class NewTarget { value = 'abc'; }
+  assert.same(Reflect.construct(Target, []).value.at(-1), 3);
+  assert.same(Reflect.construct(Target, [], NewTarget).value.at(-1), 3);
+  // Exercise an existing namespace as well as the global spelling.
+  class MethodTarget {
+    value() { return 'abc'; }
+    constructor() { return { value() { return [1, 2, 3]; } }; }
+  }
+  class MethodNewTarget {
+    value() { return 'abc'; }
+  }
+  assert.same(reflectNamespace.construct(MethodTarget, []).value().at(-1), 3);
+  assert.same(reflectNamespace.construct(MethodTarget, [], MethodNewTarget).value().at(-1), 3);
+});
+/* eslint-enable no-constructor-return -- end of replacement-constructor cases */

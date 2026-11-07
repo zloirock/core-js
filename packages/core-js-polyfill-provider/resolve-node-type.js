@@ -1851,8 +1851,10 @@ function createResolveNodeType(babelNodeType, t, {
     resolveExpressionToClassPath,
     resolveSuperClassPath,
     resolveClassContext,
+    classConstructionPreservesInstance,
     buildParentClassSubstFromNodes,
     buildParentClassSubst,
+    reset: resetClassContext,
   } = createClassContext({
     t,
     resolveRuntimeExpression,
@@ -1860,6 +1862,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildSubstMap,
     // forward-decl thunk: call-resolution instantiates later in the factory body
     constructionTypeArgs: (...args) => callResolutionCluster.constructionTypeArgs(...args),
+    resolveClassInheritance,
     findAmbientDeclarationPath,
     findDeclPathBySegments,
     isClassLikeDeclaration,
@@ -2793,7 +2796,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveBindingType,
     unwrapTypeAnnotation,
     polyfillHintGlobalName,
-    resolveGlobalName,
     resolveConstructorType,
     resolveConstructorCallType,
     resolveCallReturnType,
@@ -2804,6 +2806,7 @@ function createResolveNodeType(babelNodeType, t, {
     computeObjectAliasClosure,
     thisAnchorIsProvable,
     resolveExpressionToClassPath,
+    classConstructionPreservesInstance,
     resolveClassInheritance,
     resolveFromMemberExpression,
     resolveArrayIndexAccess,
@@ -2843,6 +2846,7 @@ function createResolveNodeType(babelNodeType, t, {
     bindingAnalysisCluster.reset(options);
     memberResolveCluster.reset();
     classFieldsCluster.reset();
+    resetClassContext();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
     patternBindingsCluster.reset();

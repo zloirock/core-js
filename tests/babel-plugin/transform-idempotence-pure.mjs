@@ -18,6 +18,10 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  ['unknown constructed receiver', 'export const value = new External().at(-1);'],
+  ['own constructor with nested default', 'const receiver = new Map(); export const { keys: { at } = [] } = receiver;'],
+  ['own constructor in a captured parameter', 'function f({ keys: { at } = [] } = new Map()) { return at; } f();'],
+  ['class constructor returning a foreign object', 'class C { constructor() { return []; } } export const value = new C().at(-1);'],
   ['live residual after a guarded prefix',
     'export const { Map: { missing = "ab".at(-1) } } = (before(), globalThis.window?.self);'],
   ['live residual after a stored prefix',

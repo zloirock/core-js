@@ -1,11 +1,12 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-var _ref, _ref2;
+var _ref, _ref2, _ref3;
 // `new C()` on a value typed with a construct signature (`{ new (): T }`, or a constructable
 // interface) narrows on the constructed instance - the `new`-context mirror of how a call
 // signature narrows a call. crucially the two contexts use DIFFERENT signatures: `new` on a
-// call-ONLY type does NOT borrow the call return, so it stays unresolved (the last line keeps
-// its native `.flat`, no polyfill injected). distinct methods trace each line.
+// call-ONLY type does NOT borrow the call return, so its unknown instance family needs generic
+// dispatch for `.flat`. distinct methods trace each line.
 type Make<T> = {
   new (): T[];
 };
@@ -21,4 +22,4 @@ type CallOnly = {
 };
 declare const callOnly: CallOnly;
 // @ts-expect-error a function called with new is the shape under test
-export const c = new callOnly().flat();
+export const c = _flatMaybeArray(_ref3 = new callOnly()).call(_ref3);

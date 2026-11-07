@@ -72,6 +72,10 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['unknown constructor in wrappers', 'export const value = (new ((External))()).at(-1);'],
+  ['own constructor in a captured parameter', 'function f({ keys: { at } = [] } = (new Map())) { return at; } f();'],
+  ['typed constructor in wrappers', 'export const value = (new ((External as any)!)()).at(-1);', ['typescript']],
+  ['class constructor returning a wrapped object', 'class C { constructor() { return ((effect(), [])); } } export const value = new ((C))().at(-1);'],
   ['stored optional constructor static', 'let held; export const r = (held = Array)?.from?.([1, 2]).at(-1);'],
   ['stored optional constructor callee wrapper', 'let held; export const r = ((held = Array).from)?.([1, 2]).at(-1);'],
   ['typed optional constructor store',
