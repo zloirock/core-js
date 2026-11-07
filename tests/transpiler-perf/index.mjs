@@ -528,7 +528,7 @@ const CASES = [
     'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeFile('build/three.module.js'), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   // generated decoder code stresses nested control flow, parameter reads and member analysis
   { name: 'draco_decoder.js, generated decoder',
@@ -581,7 +581,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic namesake methods, 1300 classes', source: () => syntheticNamesakeMethods(1300), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic selection chains, 1000 links each', source: () => syntheticSelectionChains(1000), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -617,7 +617,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic shared container names, 1300 functions', source: () => syntheticSharedContainerNames(1300), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 3, unplugin: 2 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic namespace parameter, 1200 reads and callers', source: () => syntheticNamespaceParameterReads(1200), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -632,7 +632,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
   } },
   { name: 'synthetic write-dense binding, 900 uses of 64 writes', source: () => syntheticWriteDenseBinding(900, 64), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },

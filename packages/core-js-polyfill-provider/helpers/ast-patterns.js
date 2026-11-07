@@ -196,6 +196,8 @@ export function walkAstNodes({ root, visit, leave = null, parent = null, depth =
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const field in node) {
       const value = node[field];
+      // Array.isArray must still throw on revoked callable proxies.
+      if (value === null || typeof value !== 'object' && typeof value !== 'function') continue;
       if (Array.isArray(value)) for (let index = 0; index < value.length; index++) step(value[index], node, level + 1, index, field);
       else step(value, node, level + 1, field);
     }
@@ -9877,6 +9879,8 @@ export function walkAstChildren(node, visit) {
   // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
   for (const key in node) {
     const value = node[key];
+    // Array.isArray must still throw on revoked callable proxies.
+    if (value === null || typeof value !== 'object' && typeof value !== 'function') continue;
     if (Array.isArray(value)) {
       for (const el of value) if (isASTNode(el)) visit(el, key, true);
     } else if (isASTNode(value)) visit(value, key, false);

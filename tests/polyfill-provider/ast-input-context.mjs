@@ -14,6 +14,7 @@ import {
   objectOwnThisMethodInfo,
   pathOfNode,
   readsConstructorKey,
+  walkAstChildren,
   walkAstNodes,
   writtenNames,
   withCanonQuestion,
@@ -27,6 +28,79 @@ const { check, checkDeep, finish, runBoth, throwsWith } = createChecker('ast-inp
 
 for (const type of ['CommentBlock', 'CommentLine', 'Block', 'Line']) {
   check(`comment ${ type } is not syntax`, isASTNode({ type, value: 'text' }), false);
+}
+
+for (const recursive of [false, true]) {
+  const seen = [];
+  const reads = [];
+  const shared = { type: 'Identifier', name: 'shared' };
+  const first = { type: 'Identifier', name: 'first' };
+  const root = Object.assign(Object.create({ inherited: shared }), {
+    type: 'Program',
+    offset: 0,
+    empty: null,
+    missing: undefined,
+    callable: Object.assign(() => 0, { type: 'Identifier' }),
+    metadata: { nested: shared },
+    comments: [{ type: 'CommentBlock', value: 'text' }],
+    body: [null, first, { type: 'Identifier', name: 'replaced' }],
+    scalar: '',
+    extension: null,
+  });
+  Object.defineProperties(root, {
+    scalar: { enumerable: true, get() { reads.push('scalar'); return 'text'; } },
+    extension: { enumerable: true, get() { reads.push('extension'); return { type: 'Extension', child: shared }; } },
+  });
+  function visit(node) {
+    seen.push(node.name || node.type);
+    if (node === first) {
+      root.body[2] = shared;
+      root.body.push(shared);
+    }
+    if (!recursive) walkAstChildren(node, visit);
+  }
+  if (recursive) walkAstNodes({ root, visit });
+  else visit(root);
+  checkDeep(`raw walk ${ recursive }/live order and repeated positions`, seen, ['Program', 'first', 'shared', 'shared', 'Extension', 'shared', 'shared']);
+  checkDeep(`raw walk ${ recursive }/metadata reads once`, reads, ['scalar', 'extension']);
+}
+
+// Callable proxies are not AST nodes, but Array.isArray must still reject a
+// revoked one in a field. Array elements go directly to the node predicate.
+for (const recursive of [false, true]) for (const callable of [false, true]) for (const array of [false, true]) {
+  const { proxy, revoke } = Proxy.revocable(callable ? () => 0 : {}, {});
+  revoke();
+  const root = { type: 'Program', metadata: array ? [proxy] : proxy };
+  let errorName;
+  try {
+    if (recursive) walkAstNodes({ root, visit: () => true });
+    else walkAstChildren(root, () => true);
+  } catch (error) {
+    errorName = error.name;
+  }
+  check(`raw walk ${ recursive }/revoked ${ callable }/${ array }`, errorName, callable && array ? undefined : 'TypeError');
+}
+
+{
+  const root = { type: 'Program', body: [{ type: 'Extension', child: { type: 'Identifier', name: 'deep' } }] };
+  const visits = [];
+  walkAstNodes({
+    root,
+    depth: 1022,
+    visit(node, parent, key, listKey) { visits.push(['visit', node.type, parent?.type, key, listKey]); },
+    leave(node) { visits.push(['leave', node.type]); },
+  });
+  checkDeep('raw walk/depth and position', visits, [
+    ['visit', 'Program', undefined, null, null], ['visit', 'Extension', 'Program', 0, 'body'],
+    ['leave', 'Extension'], ['leave', 'Program'],
+  ]);
+  visits.length = 0;
+  walkAstNodes({
+    root,
+    visit(node) { visits.push(node.type); return node !== root.body[0]; },
+    leave(node) { visits.push(`leave ${ node.type }`); },
+  });
+  checkDeep('raw walk/pruned leave', visits, ['Program', 'Extension', 'leave Program']);
 }
 
 for (const parser of adapters) {
