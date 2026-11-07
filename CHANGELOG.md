@@ -89,6 +89,7 @@
   - Added missed `Array[@@species]`, `Object.prototype.toString`, iterators and other dependencies to some entries
   - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/string/virtual/` and `Number.prototype.clamp` to `/full/number/virtual/` namespace entries
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
+  - Fixed `/error/to-string`, `/function/has-instance` and `/dom-collections/for-each` entry exports to accept the receiver as the first argument
   - Removed unneeded dependencies and workarounds from some entries
 - Compat data improvements:
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above

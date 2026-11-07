@@ -1,5 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
-import { ok } from 'node:assert/strict';
+import { deepEqual, ok, throws } from 'node:assert/strict';
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
@@ -58,7 +58,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
       return this + a + b;
     }, 1, 2)(3) === 6);
     load(NS, 'function/name');
-    load(NS, 'function/has-instance');
+    ok(load(NS, 'function/has-instance')(Array, []) === true);
+    ok(load(NS, 'function/has-instance')(Array, {}) === false);
+    ok(load(NS, 'function/has-instance')({}, []) === false);
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(typeof load(NS, 'array/from-async') == 'function');
@@ -138,7 +140,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(new (load(NS, 'error/constructor').Error)(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'error/is-error')(new Error()));
-    ok(typeof load(NS, 'error/to-string') == 'function');
+    ok(load(NS, 'error/to-string')(new Error('a')) === 'Error: a');
+    ok(load(NS, 'error/to-string')({ name: 'Custom', message: 'a' }) === 'Custom: a');
+    throws(() => load(NS, 'error/to-string')(null), TypeError);
     ok(new (load(NS, 'error').Error)(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'math/acosh')(1) === 0);
     ok(Object.is(load(NS, 'math/asinh')(-0), -0));
@@ -690,7 +694,17 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
     ok(typeof load(NS, 'dom-collections').iterator == 'function');
-    ok(typeof load(NS, 'dom-collections/for-each') == 'function');
+    const forEach = load(NS, 'dom-collections/for-each');
+    const collection = { 0: 'a', 2: 'b', length: 3 };
+    const context = {};
+    const calls = [];
+    ok(forEach(collection, function (value, index, target) {
+      ok(this === context);
+      ok(target === collection);
+      calls.push([value, index]);
+    }, context) === undefined);
+    deepEqual(calls, [['a', 0], ['b', 2]]);
+    throws(() => forEach(null, Boolean), TypeError);
     ok(typeof load(NS, 'dom-collections/iterator') == 'function');
     ok(load(NS, 'self').Math === Math);
     ok(typeof load(NS, 'set-timeout') == 'function');
