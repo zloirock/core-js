@@ -157,6 +157,12 @@ deepEqual(compat({
   },
 }, 'some targets');
 
+deepEqual(
+  compat({ targets: 'and_chr >= 80, and_ff >= 68, Android >= 5' }),
+  compat({ targets: { android: '37', 'chrome-android': '80', 'firefox-android': '68' } }),
+  'mobile browserslist ranges include all required polyfills',
+);
+
 const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true });
 
 ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');

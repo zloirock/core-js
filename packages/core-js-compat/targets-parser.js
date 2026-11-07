@@ -57,7 +57,7 @@ module.exports = function (targets) {
 
   if (browsers && normalizedESModules !== true) {
     if (typeof browsers == 'string' || Array.isArray(browsers)) {
-      list.push(...browserslist(browsers).map(it => it.split(' ')));
+      list.push(...browserslist(browsers, { mobileToDesktop: true }).map(it => it.split(' ')));
     } else {
       list.push(...Object.entries(browsers));
     }

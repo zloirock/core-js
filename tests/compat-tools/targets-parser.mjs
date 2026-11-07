@@ -7,6 +7,28 @@ deepEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
   ['ios', '12.2-12.5'],
 ]), 'browserslist');
 
+deepEqual(targetsParser('and_chr >= 80, and_ff >= 68, Android >= 5'), new Map([
+  ['android', '37'],
+  ['chrome-android', '80'],
+  ['firefox-android', '68'],
+]), 'mobile browserslist ranges');
+
+deepEqual(targetsParser(['android 100', 'and_chr 100', 'and_ff 100']), new Map([
+  ['android', '100'],
+  ['chrome-android', '100'],
+  ['firefox-android', '100'],
+]), 'exact mobile browserslist versions');
+
+deepEqual(targetsParser('Android >= 4.4'), new Map([
+  ['android', '4.4'],
+]), 'legacy Android browserslist range');
+
+deepEqual(targetsParser({ browsers: 'Android >= 5, ios >= 10', chrome: 80 }), new Map([
+  ['android', '37'],
+  ['chrome', '80'],
+  ['ios', '10.0-10.2'],
+]), 'mobile browserslist ranges mixed with explicit targets');
+
 deepEqual(targetsParser('baseline 2022 or not and_chr <= 999 or not and_ff <= 999 or ios 15.3 or ie 11'), new Map([
   ['chrome', '108'],
   ['edge', '108'],

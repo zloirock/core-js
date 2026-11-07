@@ -1,4 +1,4 @@
-import { ok } from 'node:assert/strict';
+import { ok, strictEqual } from 'node:assert/strict';
 import builder from 'core-js-builder';
 
 const polyfills = await builder({
@@ -15,5 +15,11 @@ ok(polyfills.includes("import 'core-js/modules/web.structured-clone.js';"), 'act
 ok(!polyfills.includes("import 'core-js/modules/es.weak-set.js';"), 'actual node 16 #5');
 ok(!polyfills.includes("import 'core-js/modules/esnext.weak-set.from.js';"), 'actual node 16 #6');
 ok(!polyfills.includes("import 'core-js/modules/esnext.array.group-by.js';"), 'actual node 16 #7');
+
+strictEqual(
+  await builder({ targets: 'Android >= 5', format: 'esm' }),
+  await builder({ targets: { android: '37' }, format: 'esm' }),
+  'mobile browserslist range includes all required polyfills',
+);
 
 echo(chalk.green('builder tested'));
