@@ -1,7 +1,7 @@
 import { NODE, DENO } from '../helpers/constants.js';
 
 QUnit.test('URL.parse', assert => {
-  let { parse } = URL;
+  const { parse } = URL;
 
   assert.isFunction(parse);
   assert.arity(parse, 1);
@@ -10,15 +10,15 @@ QUnit.test('URL.parse', assert => {
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(parse);
 
-  // Deno 1.46.3 and 2.x require a URL receiver even for the exported static method.
-  if (DENO) parse = parse.bind(URL);
-
   assert.same(parse(undefined), null, 'undefined');
   assert.same(parse(undefined, undefined), null, 'undefined, undefined');
   assert.deepEqual(parse('q:w'), new URL('q:w'), 'q:w');
   assert.deepEqual(parse('q:w', undefined), new URL('q:w'), 'q:w, undefined');
   assert.deepEqual(parse('q:/w'), new URL('q:/w'), 'q:/w');
   assert.deepEqual(parse('q:/w', undefined), new URL('q:/w', undefined), 'q:/w, undefined');
+  // https://github.com/denoland/deno/issues/37104
+  assert.deepEqual(parse.call(null, 'q:w'), new URL('q:w'), 'null receiver');
+  assert.deepEqual(parse.call(Object, 'q:w'), new URL('q:w'), 'receiver is not used as the constructor');
   // assert.deepEqual(parse(undefined, 'q:/w'), new URL(undefined, 'q:/w'), 'undefined, q:/w'); // throws in native Firefox 57-68
   assert.deepEqual(parse(undefined, 'https://example.com/'), new URL('https://example.com/undefined'), 'undefined, special base');
   assert.same(parse('https://login:password@examp:le.com:8080/?a=1&b=2&a=3&c=4#fragment'), null, 'https://login:password@examp:le.com:8080/?a=1&b=2&a=3&c=4#fragment');

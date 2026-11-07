@@ -2448,7 +2448,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   }],
   'web.url.parse': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
-    return URL.parse;
+    // Deno 2.9.8 still requires a URL receiver for a valid input.
+    // https://github.com/denoland/deno/issues/37104
+    var parse = URL.parse;
+    return parse('https://example.com/').href === 'https://example.com/';
   }],
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;

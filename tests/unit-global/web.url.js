@@ -579,6 +579,7 @@ QUnit.test('URL#hostname', assert => {
     assert.same(url.hostname, 'example.com');
     assert.same(String(url), 'http://example.com:81/');
 
+    // Native Deno 1.46.3-2.5.7 also accept a port instead of ignoring the assignment.
     // url = new URL('http://zloirock.ru:81/');
     // url.hostname = 'example.com:82';
     // assert.same(url.hostname, 'zloirock.ru', 'hostname with port is rejected'); // '' in Chrome 67

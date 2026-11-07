@@ -1,17 +1,11 @@
-import { DENO } from '../helpers/constants.js';
-
 import URL from 'core-js-pure/stable/url';
-import $parse from 'core-js-pure/stable/url/parse';
+import parse from 'core-js-pure/stable/url/parse';
 
 QUnit.test('URL.parse', assert => {
-  let parse = $parse;
   assert.isFunction(parse);
   assert.arity(parse, 1);
   assert.name(parse, 'parse');
   assert.enumerable(URL, 'parse');
-
-  // Deno 1.46.3 and 2.x require a URL receiver even for the exported static method.
-  if (DENO) parse = parse.bind(URL);
 
   assert.same(parse(undefined), null, 'undefined');
   assert.same(parse(undefined, undefined), null, 'undefined, undefined');
@@ -19,6 +13,9 @@ QUnit.test('URL.parse', assert => {
   assert.deepEqual(parse('q:w', undefined), new URL('q:w'), 'q:w, undefined');
   assert.deepEqual(parse('q:/w'), new URL('q:/w'), 'q:/w');
   assert.deepEqual(parse('q:/w', undefined), new URL('q:/w', undefined), 'q:/w, undefined');
+  // https://github.com/denoland/deno/issues/37104
+  assert.deepEqual(parse.call(null, 'q:w'), new URL('q:w'), 'null receiver');
+  assert.deepEqual(parse.call(Object, 'q:w'), new URL('q:w'), 'receiver is not used as the constructor');
   assert.deepEqual(parse(undefined, 'q:/w'), new URL(undefined, 'q:/w'), 'undefined, q:/w');
   assert.same(parse('https://login:password@examp:le.com:8080/?a=1&b=2&a=3&c=4#fragment'), null, 'https://login:password@examp:le.com:8080/?a=1&b=2&a=3&c=4#fragment');
   assert.same(parse('http://a\u0001b.example.com/'), null, 'forbidden domain code point');

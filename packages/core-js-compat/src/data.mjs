@@ -3234,7 +3234,9 @@ export const data = {
   'web.url.parse': {
     bun: '1.1.4',
     chrome: '126',
-    deno: '1.43',
+    // The implementation still depends on `this` in Deno 2.9.8.
+    // https://github.com/denoland/deno/issues/37104
+    // deno: '1.43',
     firefox: '126',
     node: '22.1',
     safari: '18.0',
