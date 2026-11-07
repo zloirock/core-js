@@ -30,6 +30,37 @@ import { adapters, createChecker, findNode } from './harness.mjs';
 const { check, checkDeep, checkTruthy, finish } = createChecker('ast-context-complexity');
 
 for (const parser of adapters) {
+  // Scalar positions and names cannot contain children. Keep those fields out of
+  // array dispatch while visiting the same syntax through either raw walker.
+  for (const recursive of [false, true]) {
+    const program = parser.parseAndScope('const value = Map.groupBy(items, key); value;');
+    const names = [];
+    const { isArray } = Array;
+    let scalarChecks = 0;
+    let control;
+    function visit(node) {
+      if (node.type === 'Identifier') names.push(node.name);
+      if (!recursive) walkAstChildren(node, visit);
+    }
+    Array.isArray = value => {
+      if (value === null || typeof value !== 'object') scalarChecks++;
+      return isArray(value);
+    };
+    try {
+      Array.isArray('counter control');
+      control = scalarChecks;
+      scalarChecks = 0;
+      if (recursive) walkAstNodes({ root: program.node, visit });
+      else visit(program.node);
+    } finally {
+      Array.isArray = isArray;
+    }
+    const label = `${ parser.name }/scalar fields/${ recursive }`;
+    check(`${ label }/counter control`, control, 1);
+    check(`${ label }/array dispatch`, scalarChecks, 0);
+    checkDeep(`${ label }/syntax visits`, names, ['value', 'Map', 'groupBy', 'items', 'key', 'value']);
+  }
+
   // A declaration or a complete branch is never a logical-assignment target.
   // Guard queries must not index writes in unrelated nested function bodies.
   for (const size of [32, 128]) for (const [shape, source, hostType, guarded] of [
