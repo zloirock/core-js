@@ -2233,6 +2233,46 @@ for (const adapter of adapters) {
   }
 }
 
+// A local call resolves its declaration once before selecting the callable's recorded value.
+// Count scope-chain queries, including module bindings whose owner is null, as call sites grow.
+for (const adapter of adapters) for (const declaration of ['function', 'var']) for (const nested of [false, true]) {
+  const counts = [];
+  for (const calls of [1, 16]) {
+    const define = declaration === 'function' ? 'function selected(C) { return C; }' : 'var selected = function(C) { return C; };';
+    const body = `${ define } ${ 'hand(selected(Map));'.repeat(calls) }`;
+    const program = adapter.parseAndScope(nested ? `function run() { ${ body } } run();` : body).node;
+    const reducer = escapedCtorReferencesReducer();
+    let finalizing = false;
+    let references = 0;
+    let scopeReads = 0;
+    const { escapedCtorNames } = collectFileCensus(program, [{
+      visit(node, frame) {
+        if (node.name === 'selected' && frame.parentNode?.type === 'CallExpression' && frame.parentNode.callee === node) {
+          references++;
+          const scopes = new Proxy(frame.scopes, {
+            get(target, key, receiver) {
+              if (finalizing && key === 'length') scopeReads++;
+              return Reflect.get(target, key, receiver);
+            },
+          });
+          reducer.visit(node, { ...frame, scopes });
+        } else reducer.visit(node, frame);
+      },
+      result() {
+        finalizing = true;
+        return reducer.result();
+      },
+    }]);
+    const label = `${ adapter.name }: ${ declaration } ${ nested ? 'nested' : 'module' } callee with ${ calls } calls`;
+    check(`${ label } counts every callee`, references, calls);
+    checkTruthy(`${ label } observes scope queries`, scopeReads > 0);
+    check(`${ label } preserves the returned constructor escape`, escapedCtorNames.has('Map', true), true);
+    counts.push(scopeReads);
+  }
+  checkTruthy(`${ adapter.name }: ${ declaration } ${ nested ? 'nested' : 'module' } callees reuse their resolved owners`,
+    counts[1] - counts[0] <= 2 * (16 - 1), `${ counts[0] } -> ${ counts[1] } scope queries`);
+}
+
 // Resolving a local method only needs the scopes of names that can open its owner.
 // Unrelated references still go through the ordinary census walk. Count reads of their scope
 // chains and identity checks during finalization, for an actual method and a call with no candidate.
