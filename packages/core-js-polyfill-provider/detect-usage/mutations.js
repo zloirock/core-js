@@ -3409,7 +3409,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     const returned = singleReturnBodyExpression(fn.body);
     const index = returned?.type === 'Identifier' ? fn.params.findIndex(param => param.name === returned.name) : -1;
     if (index < 0 || !paramReturnsTheValue(fn, index, referencesArguments(fn))) return null;
-    const original = localCallableOf(owner.name, scopes, localCallables, { declarations });
+    const original = localCallableOf(owner.name, scopes, localCallables, { declarations }, binding);
     if (!FUNCTION_LIKE_NODE_TYPES.has(original?.type)) return null;
     const roots = RECORDED_MUTATION_ROOTS.get(programNode);
     if (!roots || roots.open || roots.names.has('Function') || roots.globalSlots.has('Function')) return null;
@@ -5371,12 +5371,13 @@ function localCallableOwners(name, entries, declarations) {
 // separately, and a name bound or assigned twice in the scope the chain reaches answers nothing - an
 // entry spelling no construct included (`let f = make(); f = function () {}` may call what `make`
 // returned), save one a call cannot reach (`let f; f = function () {}`). without facts the chain is
-// unknown and only a single binding of the name may answer
-function localCallableOf(name, scopes, localCallables, scopeFacts) {
+// unknown and only a single binding of the name may answer. A caller that already resolved the
+// declaration can supply its owner, including `null` for a file-level binding.
+function localCallableOf(name, scopes, localCallables, scopeFacts, owner) {
   const entries = localCallables.get(name);
   if (!entries) return null;
   const declarations = scopeFacts?.declarations ?? null;
-  const owner = declarations ? declarations.resolve(name, scopes ?? []) : undefined;
+  if (owner === undefined) owner = declarations ? declarations.resolve(name, scopes ?? []) : undefined;
   const binding = localCallableOwners(name, entries, declarations).bindings.get(owner);
   if (!binding) return null;
   // a call cannot reach no value or a primitive (`let f;`, `f = null`): it throws there instead. asked of a binding
@@ -5496,8 +5497,9 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
     if (cur.type === 'Identifier') {
       if (!localCallables.has(cur.name)) return finish(null);
       const scopes = scopeFacts?.referenceScopes.get(cur) ?? [];
-      if (scopeFacts && !scopeFacts.declarations.declares(cur.name, scopes)) return finish(null);
-      cur = peelCalleeValue(localCallableOf(cur.name, scopes, localCallables, scopeFacts));
+      const owner = scopeFacts?.declarations.resolve(cur.name, scopes);
+      if (scopeFacts && owner === undefined) return finish(null);
+      cur = peelCalleeValue(localCallableOf(cur.name, scopes, localCallables, scopeFacts, owner));
       continue;
     }
     const owner = unwrapRuntimeExpr(cur.object);
@@ -5535,11 +5537,9 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
     [cur] = memberSlotValues(slot);
     seen.set(member, cur);
   }
-  if (FUNCTION_LIKE_NODE_TYPES.has(cur?.type)) {
-    return finish(cur);
-  }
   // a `new C(...)` runs the class's CONSTRUCTOR, so that is the body its result comes from
-  return finish(CLASS_NODE_TYPES.has(cur?.type) ? classConstructorFunction(cur) : null);
+  return finish(FUNCTION_LIKE_NODE_TYPES.has(cur?.type) ? cur
+    : CLASS_NODE_TYPES.has(cur?.type) ? classConstructorFunction(cur) : null);
 }
 
 // every [destructure pattern, default value] pair a pattern spells, at any depth: its
