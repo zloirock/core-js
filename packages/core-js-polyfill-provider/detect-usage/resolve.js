@@ -3677,6 +3677,9 @@ export function resolveInlineCalleeFunction(hop, {
     bindings.set(name, { scope, path: readPath, read, binding });
     return binding;
   }
+  // A direct unbound callee has neither a module entry nor a local body. Both walks below
+  // ask for this binding first; reuse it when present and skip their setup when absent.
+  if (bindings && !calleeBinding({ scope: hop.ctx.scope, name: hop.node.callee.name, path, read: hop.node.callee })) return null;
   const seen = new Set(hop.seen);
   // a receiver invoker, a pure invoker binding or a tag names its function through the pairing
   // canon; a plain call is read as the source spells it - SE-bail (unwrapTransparentSeq), NOT

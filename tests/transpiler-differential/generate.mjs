@@ -23772,4 +23772,13 @@ export function * generate() {
         } export const r = [read(true), read(false)];` };
   }
   yield * generateUnknownConstructorReceivers();
+  // A scoped constructor can return a global, even under a native constructor's spelling.
+  for (const [name, setup, expression] of [
+    ['alias', 'function Factory() { return Array; } const Alias = Factory;', 'new Alias()'],
+    ['native-name-shadow', 'function Int32Array() { return Array; }', 'new Int32Array(1)'],
+  ]) yield mutationSnippet(`constructed-mutation-receiver/${ name }`,
+    `(() => { const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+      const patched = () => "patched"; ${ setup }
+      try { const held = ${ expression }; held.from = patched; return Array.from([1]); }
+      finally { restoreProperty(Array, "from", descriptor); } })()`);
 }

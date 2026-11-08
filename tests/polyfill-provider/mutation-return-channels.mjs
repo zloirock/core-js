@@ -5,7 +5,7 @@ import plugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { moduleDefaultSource, resolveInlineCalleeFunction } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { beginMutationPrePass, mutationShapesReducer, mutationSiteVisitors } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
@@ -243,6 +243,36 @@ for (const [source, name, bound, slot, patched] of [
   finalize();
   check(`${ label }/queries up to the first binding read`, queries.slice(0, 2).join(','), bound ? 'hasBinding,getBinding' : 'hasBinding');
   check(`${ label }/${ slot }`, mutated.has(slot), patched);
+});
+
+// An unbound direct callee cannot resolve to a local body or a pure invoker. Do not copy
+// the alias history for that refusal; a bound callee still forks it and keeps the caller's set.
+for (const method of ['usage-global', 'usage-pure']) for (const [prefix, invocation, expected, copies] of [
+  ['', 'new Int32Array(1)', null, 0],
+  ['', 'foreign()', null, 0],
+  ['', 'foreign?.()', null, 0],
+  ['function Factory() { return Array; }', 'new Factory()', 'FunctionDeclaration', 1],
+  ['function Factory() { return Array; } const alias = Factory;', 'new alias()', 'FunctionDeclaration', 1],
+  ['function Factory() { return Array; }', 'Factory()', 'FunctionDeclaration', 1],
+  ['const Factory = () => Array;', 'Factory?.()', 'ArrowFunctionExpression', 1],
+  ['let Factory; Factory = function () { return Array; };', 'new Factory()', 'FunctionExpression', 1],
+  ['import invoke from "@core-js/pure/actual/reflect/apply"; function Factory() { return Array; }',
+    'invoke(Factory, null, [])', 'FunctionDeclaration', 1],
+]) runBoth(`${ method }/callee opening: ${ prefix } ${ invocation }`, `${ prefix } ${ invocation };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'ExpressionStatement', item => item.node.expression.type !== 'AssignmentExpression');
+  const node = unwrapRuntimeExpr(path.node.expression);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method });
+  const seen = new Set(['unrelated']);
+  const iterate = seen[Symbol.iterator];
+  let copied = 0;
+  seen[Symbol.iterator] = function * () {
+    copied++;
+    yield * iterate.call(this);
+  };
+  const result = resolveInlineCalleeFunction({ node, seen, ctx: { scope: path.scope, adapter, path } });
+  check(`${ label }/body`, result?.node.type ?? null, expected);
+  check(`${ label }/history copies`, copied, copies);
+  check(`${ label }/caller history stays intact`, seen.size, 1);
 });
 
 finish();
