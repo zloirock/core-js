@@ -10,8 +10,9 @@ const { checkDeep, checkTruthy, finish } = createChecker('mutation-site-candidat
   tsc: 'Runtime wrappers deliberately surround dynamic write targets and opaque values.',
 });
 
-function collect(parser, source, indexed, sourceType = 'module', plugins = []) {
+function collect(parser, source, indexed, sourceType = 'module', plugins = [], prepare = null) {
   const program = parser.parseAndScope(source, sourceType, plugins);
+  prepare?.(program);
   const census = collectFileCensus(program.node, [mutationShapesReducer(null, indexed)]);
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
   const { getBinding } = adapter;
@@ -195,10 +196,38 @@ for (const parser of adapters) for (const size of [16, 64]) {
   const normal = collect(parser, prefix + 'buffer[keyHolder.unknownKey] = 1;'.repeat(size), true);
   checkDeep(`${ parser.name }/${ size }/live unknown-key mutation`, normal.keys, ['Array.*']);
   checkDeep(`${ parser.name }/${ size }/only live key query`, normal.keyQueries, 1);
-  checkTruthy(`${ parser.name }/${ size }/observer sees buffer resolution`, normal.bufferLookups > 0);
+  checkDeep(`${ parser.name }/${ size }/one binding lookup per buffer receiver`, normal.bufferLookups, size);
   const logical = collect(parser, prefix + 'buffer[keyHolder.unknownKey] ||= 1;'.repeat(size), true);
   checkDeep(`${ parser.name }/${ size }/logical unknown-key mutation`, logical.keys, ['Array.*']);
   checkDeep(`${ parser.name }/${ size }/logical key gate precedes receiver`, logical.bufferLookups, 0);
+}
+
+// The alias fan has already named its leaf. Keep the separate initializer-read proof,
+// but do not repeat it when visiting that same leaf's binding and reachable writes.
+for (const parser of adapters) for (const [label, source, keys, lookups = 3] of [
+  ['constant', 'const buffer = Array; const alias = buffer; alias.from = replacement;', ['Array.from', 'Array.+']],
+  ['later write', 'let buffer = Array; const alias = buffer; buffer = Map; alias.from = replacement;',
+    ['Array.from', 'Array.+', 'Map.from', 'Map.+']],
+  ['live shadow', 'const buffer = Array; { const buffer = Map; const alias = buffer; alias.groupBy = replacement; }',
+    ['Map.groupBy', 'Map.+']],
+  ['import', 'Array.of = other; import buffer from "@core-js/pure/actual/map"; buffer.groupBy = replacement;',
+    ['Array.of', 'Array.+', 'Map.groupBy', 'Map.+'], 1],
+]) {
+  const result = collect(parser, source, true);
+  checkDeep(`${ parser.name }/alias ${ label }/mutation set`, result.keys, keys);
+  checkDeep(`${ parser.name }/alias ${ label }/binding questions`, result.bufferLookups, lookups);
+}
+
+// A retained read with an earlier source span resolves there, past a TS shadow at the
+// consumer. Its binding must not be replaced by the consumer's previously found binding.
+for (const parser of adapters) {
+  const source = 'const H = Array; const held = H; { namespace H { export const from = 1; } H.from = replacement; }';
+  const result = collect(parser, source, true, 'module', [], program => {
+    const captured = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'held').node.init;
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.object.name === 'H');
+    member.node.object = { ...captured };
+  });
+  checkDeep(`${ parser.name }/separate receiver read`, result.keys, ['Array.from', 'Array.+']);
 }
 
 finish();

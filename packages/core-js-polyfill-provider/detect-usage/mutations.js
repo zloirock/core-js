@@ -176,6 +176,7 @@ import {
   writesPastCeiling,
   pureReturnBodyValue,
   isRestProperty,
+  lookupReadPath,
   patternEdgeSide,
   withReentrantQuestion,
 } from '../helpers/ast-patterns.js';
@@ -192,6 +193,7 @@ import {
   ownChainOptionalObjects,
   peelReceiverSequenceTail,
   requireBoundProxyGlobalName,
+  resolveBindingToGlobal,
   resolveKey,
   resolveObjectName,
   presenceDecision,
@@ -9098,8 +9100,14 @@ function resolveMutationSite({
     // `{Map:M}` selector. over-record stays the safe direction; the fan still runs for reassignment unions.
     // runs BEFORE the null-binding bail: the canon answers even where the adapter has no binding
     // OBJECT (estree surfaces TSImportEquals only through the dedicated declaration lookup)
-    const direct = resolveObjectName({ objectNode: identNode, scope, adapter, path });
-    if (direct) names.add(direct);
+    // Alias leaves already asked the read canon. A direct receiver can reuse this binding
+    // only where the read shares the lookup anchor; keep the generic walk's depth charge.
+    if (depth === 0) {
+      const direct = lookupReadPath(path, identNode) === path
+        ? withinAliasWalkBudget(resolveBindingToGlobal, { name: identNode.name, scope, adapter, path, read: identNode, binding })
+        : resolveObjectName({ objectNode: identNode, scope, adapter, path });
+      if (direct) names.add(direct);
+    }
     if (!binding) return;
     // a PARAMETER has no declarator to fan: its values are its default (`bindingParamValues`)
     if (binding.kind === 'param') {

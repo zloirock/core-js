@@ -1668,6 +1668,8 @@ function bindingLessGlobalName(name, { scope, adapter, read = null }) {
   return isStaticPlacement(held) ? held : null;
 }
 
+// The global named by an identifier already proven bound. A supplied `binding` must answer
+// this exact scope/name/path/read lookup; absent facts keep the adapter lookup below.
 // `path` (optional) - an AST path inside the lookup site so the adapter can anchor TS-runtime
 // shadow detection at a deeper scope than `scope.path`. estree-toolkit's scope tracker doesn't
 // register StaticBlock as its own scope owner, so a member visit `Map.Foo` inside
@@ -1675,7 +1677,7 @@ function bindingLessGlobalName(name, { scope, adapter, read = null }) {
 // `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the StaticBlock
 // to find the enum. babel's scope tracker does anchor at StaticBlock so the legacy `scope.path`
 // fallback works for it; estree-toolkit needs the explicit path
-function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null, read = null }) {
+export function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null, read = null, binding }) {
   seen ??= new Set();
   if (cycleGuardHas(seen, name)) return null;
   // `seen` is a recursion STACK, not a visited set: only names on the CURRENT descent stay
@@ -1685,18 +1687,18 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = 
   // element independently; a visited-set left every later element unresolvable
   seen.add(name);
   try {
-    return withinAliasWalkBudget(resolveGuardedBindingToGlobal, { name, scope, adapter, seen, path, usageNode, readNode, read });
+    return withinAliasWalkBudget(resolveGuardedBindingToGlobal, { name, scope, adapter, seen, path, usageNode, readNode, read, binding });
   } finally {
     seen.delete(name);
   }
 }
 
-function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null, read = null }) {
+function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null, readNode = null, read = null, binding }) {
   // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk.
   // pass `path` so the adapter's var-hoist fallback can surface a nested-block `var` alias
   // (`var g = globalThis` inside an `if`) that estree-toolkit's name-only scope index misses, and
   // the node the name is read at (`read`) where that is not the use - an alias's initializer
-  const binding = adapter.getBinding({ scope, name, path, read });
+  if (binding === undefined) binding = adapter.getBinding({ scope, name, path, read });
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
