@@ -28,3 +28,13 @@ QUnit.test('URL.canParse', assert => {
   assert.throws(() => canParse({ toString() { throw new Error('thrower'); } }), 'conversion thrower #1');
   assert.throws(() => canParse('q:w', { toString() { throw new Error('thrower'); } }), 'conversion thrower #2');
 });
+
+QUnit.test('URL.canParse converts lone surrogates before removing tabs and newlines', assert => {
+  for (const separator of ['\t', '\n', '\r', '\t\n\r']) {
+    const input = `a\uD800${ separator }\uDC00b`;
+    assert.false(canParse(`http://${ input }/`), 'invalid domain');
+    assert.false(canParse('b', `http://${ input }/`), 'invalid base domain');
+    assert.true(canParse(`http://example.com/${ input }`), 'valid path');
+  }
+  assert.true(canParse('http://a\uD800\uDC00b/'), 'surrogate pair is kept');
+});

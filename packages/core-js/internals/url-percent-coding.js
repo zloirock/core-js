@@ -1,7 +1,9 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
+// TODO: in core-js@4, replace direct /modules/ requires with implicit dependencies
 require('../modules/es.string.from-code-point');
+require('../modules/es.string.to-well-formed');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
@@ -10,14 +12,12 @@ var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var push = uncurryThis([].push);
-var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
+var toWellFormed = uncurryThis(getBuiltInPrototypeMethod('String', 'toWellFormed'));
 
 var FALLBACK_REPLACER = '\uFFFD';
 var VALID_HEX = /^[0-9a-f]+$/i;
-// a surrogate pair is matched first, so a one-unit match is always a lone surrogate
-var SURROGATE = /[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g;
 
 var parseHexOctet = function (string, start) {
   var substr = stringSlice(string, start, start + 2);
@@ -61,10 +61,6 @@ var utf8Decode = function (octets) {
   ) return null;
 
   return codePoint;
-};
-
-var replaceLoneSurrogate = function (chunk) {
-  return chunk.length === 2 ? chunk : FALLBACK_REPLACER;
 };
 
 // https://url.spec.whatwg.org/#percent-decode
@@ -161,7 +157,7 @@ var encode = function (input) {
   try {
     return $encodeURIComponent(input);
   } catch (error) {
-    return $encodeURIComponent(replace(input, SURROGATE, replaceLoneSurrogate));
+    return $encodeURIComponent(toWellFormed(input));
   }
 };
 

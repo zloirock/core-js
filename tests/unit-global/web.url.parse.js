@@ -35,3 +35,18 @@ QUnit.test('URL.parse', assert => {
   assert.throws(() => parse({ toString() { throw new Error('thrower'); } }), 'conversion thrower #1');
   assert.throws(() => parse('q:w', { toString() { throw new Error('thrower'); } }), 'conversion thrower #2');
 });
+
+QUnit.test('URL.parse converts lone surrogates before removing tabs and newlines', assert => {
+  const { parse } = URL;
+
+  for (const separator of ['\t', '\n', '\r', '\t\n\r']) {
+    const input = `a\uD800${ separator }\uDC00b`;
+    // Native Firefox 57-93 accepts U+FFFD in domains.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
+    // assert.same(parse(`http://${ input }/`), null, 'invalid domain');
+    // assert.same(parse('b', `http://${ input }/`), null, 'invalid base domain');
+    assert.same(parse(`http://example.com/${ input }`).pathname, '/a%EF%BF%BD%EF%BF%BDb', 'valid path');
+    assert.same(parse('b', `http://example.com/${ input }/`).pathname, '/a%EF%BF%BD%EF%BF%BDb/b', 'base path');
+  }
+  assert.same(parse('http://example.com/a\uD800\uDC00b').pathname, '/a%F0%90%80%80b', 'surrogate pair is kept');
+});

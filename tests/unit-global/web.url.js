@@ -199,6 +199,51 @@ QUnit.test('URL constructor', assert => {
   }
 });
 
+QUnit.test('URL converts lone surrogates before removing tabs and newlines', assert => {
+  for (const separator of ['\t', '\n', '\r', '\t\n\r']) {
+    const input = `a\uD800${ separator }\uDC00b`;
+    const expected = 'a%EF%BF%BD%EF%BF%BDb';
+    const url = new URL(`http://${ input }:${ input }@example.com/${ input }?${ input }#${ input }`);
+    assert.same(url.href, `http://${ expected }:${ expected }@example.com/${ expected }?${ expected }#${ expected }`, 'constructor');
+    assert.same(new URL('b', `http://example.com/${ input }/`).pathname, `/${ expected }/b`, 'base');
+    assert.same(new URL(`mailto:${ input }`).pathname, expected, 'opaque path');
+    // Native Chromium 156 percent-encodes tabs and newlines in data: paths.
+    // https://issues.chromium.org/issues/344343043
+    // assert.same(new URL(`data:${ input }`).pathname, expected, 'data: path');
+    // Native Firefox 57-93 accepts U+FFFD in domains.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
+    // assert.throws(() => new URL(`http://${ input }/`), TypeError, 'invalid domain');
+    // assert.throws(() => new URL('b', `http://${ input }/`), TypeError, 'invalid base domain');
+
+    if (DESCRIPTORS) {
+      for (const [property, value, result] of [
+        ['href', `http://example.com/${ input }`, `http://example.com/${ expected }`],
+        // Native Chrome 67-92 and Edge 79-92 invalidate the URL instead of ignoring the value.
+        // https://crbug.com/819342
+        // https://crbug.com/1018721
+        // ['host', input, 'example.com'],
+        // ['hostname', input, 'example.com'],
+        // Native Chrome 67-92 and Edge 79-92 keep tabs and newlines in pathname, search and hash.
+        // https://crbug.com/1214932
+        // Native Firefox 57-117 also keeps them in pathname.
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1818374
+        // ['pathname', input, `/${ expected }`],
+        // Native Firefox 57-83 keeps tabs and newlines in search and hash.
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1324247
+        // ['search', input, `?${ expected }`],
+        // ['hash', input, `#${ expected }`],
+      ]) {
+        const target = new URL('http://example.com/');
+        target[property] = value;
+        assert.same(target[property], result, `${ property } setter`);
+      }
+    }
+  }
+
+  assert.same(new URL('http://example.com/a\uD800\uDC00b').pathname, '/a%F0%90%80%80b', 'surrogate pair is kept');
+  assert.same(new URL('http://example.com/a\uD800b').pathname, '/a%EF%BF%BDb', 'lone surrogate without whitespace');
+});
+
 QUnit.test('URL#href', assert => {
   let url = new URL('http://zloirock.ru/');
 
