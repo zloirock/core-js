@@ -1935,7 +1935,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           ...methodReadsUsageCensus(method) ? [
             memberKeyNamesReducer(),
             ctorAliasShapesReducer(),
-            mutationShapesReducer(packages),
+            mutationShapesReducer(packages, isPure),
             escapedCtorReferencesReducer({ isOptedOut: disabledLines?.size ? isDisabled : null }),
             restSentinelNamesReducer(),
             proxyWriteOriginsReducer(),

@@ -120,6 +120,7 @@ import './holder-receiver-body-channels.mjs';
 import './mutation-return-channels.mjs';
 // ... and the mutation gate's alias closure cost, counted in global-object probes on namesake alias chains
 import './mutation-gate-complexity.mjs';
+import './mutation-site-candidates.mjs';
 // ... and the escape census' alias classes, counted in reads of the selections a chain of them spells
 import './alias-class-complexity.mjs';
 // the escape STAMP's node identity: the census writes a stamp and the pure claim reads one, and a
