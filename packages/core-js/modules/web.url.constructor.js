@@ -213,8 +213,9 @@ var mapCodePoint = function (code, character) {
 // per-code-point case mapping, mathematical Latin letters and digits, and code points mapping
 // onto a forbidden domain code point.
 // Not covered, so such domains are punycoded rather than mapped or rejected:
-// other unassigned code points and compatibility decompositions, half-width forms, NFC, CheckJoiners,
-// CheckBidi, and labels that already arrive punycoded - those are not decoded back for validation.
+// other unassigned code points and compatibility decompositions, half-width forms, NFC,
+// labels beginning with a combining mark (General_Category=Mark), CheckJoiners, CheckBidi,
+// and labels that already arrive punycoded - those are not decoded back for validation.
 var domainToASCII = function (domain) {
   // an ASCII domain only needs lowercasing - keep the common case off the slow path
   if (!exec(NON_ASCII, domain)) return domain === '' ? null : toLowerCase(domain);
