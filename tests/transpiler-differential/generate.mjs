@@ -23791,4 +23791,20 @@ export function * generate() {
           held.from = patched; return Array.from([1]); } }
         finally { restoreProperty(Array, "from", descriptor); } })()`);
   }
+  // A deferred mutation observes writes from a sibling function, including paired targets.
+  // The loop twin also keeps writes from another invocation; neither may use the initial object.
+  for (const [name, write, ts = false] of [
+    ['plain', 'held = Array;'],
+    ['wrapped', '(held as any) = Array;', true],
+    ['pattern', 'const key = "picked"; ({ [key]: held } = { picked: Array });'],
+    ['for-of', 'for (held of [Array]) {}'],
+  ]) for (const loop of [false, true]) {
+    yield { ...mutationSnippet(`deferred-write-context/${ name }/${ loop }`,
+      `(() => { const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+        const patched = () => "patched"; const key = "other"; let held = {};
+        function assign() { ${ write } }
+        function patch() { ${ loop ? 'for (let i = 0; i < 2; i++)' : '' } { held.from = patched; } }
+        try { assign(); patch(); return Array.from([1]); }
+        finally { restoreProperty(Array, "from", descriptor); } })()`), ts };
+  }
 }

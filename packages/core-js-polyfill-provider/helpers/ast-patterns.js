@@ -6318,7 +6318,6 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // `usageNode` is a multi-hop alias hop's read site: a transitive source's write AFTER that read
   // (`const a = src; src = X`) cannot reach the captured value, so it is not a reachable union value
   const readNode = usageNode ?? usagePath.node;
-  const useInLoop = !everyWrite && nodeSitsInLoopRerunWithin(owner.node, readNode, usagePath);
   // an Identifier-shaped violation (adapters that record the LHS Identifier) resolves its
   // enclosing assignment by subtree search - anchor that search at the BINDING's own scope
   // block, not the usage's var-scope owner: a use inside an inner function (a param default,
@@ -6334,6 +6333,8 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // early return, the mutation census over-records (more bails), and a type built from it is LESS
   // narrow, which is exactly what a bail-safe consumer wants
   const closureReenters = !everyWrite && readRunsDeferredWithin(usagePath, binding.scope?.block ?? binding.scope?.path?.node);
+  // Either rerun keeps later writes; a deferred read already proves that without a loop walk.
+  const useInLoop = !everyWrite && !closureReenters && nodeSitsInLoopRerunWithin(owner.node, readNode, usagePath);
   // what a write installs reads a selection the build decides as its live operand, unless the census asks
   const liveCtx = ctx && !countDeadWrites ? { ...ctx, liveArmsOnly: true } : ctx;
   const out = [];
@@ -6372,10 +6373,10 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
         bindingScopeNode: violationSearchRoot,
         bindingAnchor: bindingLoopAnchor(binding),
       })) continue;
-    // a write's arms are asked of the var-scope owner that holds it, not of a closure the read sits in,
-    // and a pattern pairs in the scope it stands in - the key and the source a block there rebinds. a
-    // plain write's value is read where it stands by the caller, so only a pattern pays for the path
-    const writeOwner = varScopeOwnerHolding(node, usagePath)?.node ?? owner.node;
+    // An explicit assignment spells its target and value; other records need the owning frame.
+    // Patterns still pair in their write scope, where keys and source bindings may be shadowed.
+    const writeOwner = node.type === 'AssignmentExpression' ? owner.node
+      : varScopeOwnerHolding(node, usagePath)?.node ?? owner.node;
     const writeCtx = ctx && isDestructurePattern(plainWriteOf(node, writeOwner)?.target)
       ? { ...liveCtx, scope: writeScopeAt(usagePath, node, ctx.scope) } : liveCtx;
     const site = reassignmentValueNodesAt(node, violationSearchRoot, bindingName, writeCtx, writeOwner);
