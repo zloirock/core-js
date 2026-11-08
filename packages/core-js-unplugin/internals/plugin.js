@@ -727,7 +727,7 @@ export default function createPlugin(options) {
         escapedCtorReferencesReducer({ isOptedOut: disabledLines?.size ? isDisabled : null }),
         restSentinelNamesReducer(),
         memberKeyNamesReducer(),
-        mutationShapesReducer(packages),
+        mutationShapesReducer(packages, method === 'usage-pure'),
         ctorAliasShapesReducer(),
         proxyWriteOriginsReducer(),
         nestedTSRuntimeDeclarationsReducer(),

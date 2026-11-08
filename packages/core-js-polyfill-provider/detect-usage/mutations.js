@@ -6092,8 +6092,9 @@ function canonicalSlotPaths(plainAliases, name, keys, memo) {
 // the containers a call hands out, and the ctor-escape stamps. one record per shape it collects;
 // the reader-side questions (`isWrittenContainerSlot`, `writtenContainerSlotValues`) are answered
 // from the published result, never from the walk in progress
+// Only a scoped mutation prepass needs the optional site index; global census consumers do not.
 // eslint-disable-next-line max-statements -- the census hub: one record per shape it collects
-export function mutationShapesReducer(packages = null) {
+export function mutationShapesReducer(packages = null, collectMutationSites = false) {
   // the program node, for the ctor-escape stamps this reducer contributes at publish time: it is
   // the same census walk and the same stamp set, and the fact that decides them - which containers
   // this file loses track of - is computed here and nowhere else
@@ -6135,10 +6136,17 @@ export function mutationShapesReducer(packages = null) {
   // live in the call's source argument and never in the target's own chain; `bareCallee` names
   // the identifier such a call was made through, which decides whether it can be a mutator at all
   const targets = [];
+  // Keep the host and its target: pattern leaves are visited separately from their assignment.
+  // The index only skips classification; native traversal order and scope construction stay intact.
+  const mutationCandidateNodes = collectMutationSites ? new Set() : null;
+  let currentMutationSite;
   let markTopLevelThis = false;
   function pushTarget(node, { installsUnknownKeys = false, bareCallee = null } = {}) {
     if (!node) return;
-    targets.push({ node, viaTopLevelThis: markTopLevelThis, installsUnknownKeys, bareCallee });
+    targets.push(mutationCandidateNodes ? {
+      node, site: currentMutationSite, scopes: currentScopes,
+      viaTopLevelThis: markTopLevelThis, installsUnknownKeys, bareCallee,
+    } : { node, viaTopLevelThis: markTopLevelThis, installsUnknownKeys, bareCallee });
   }
   const valueBound = new Set();
   // names this file binds to a FUNCTION literal - the only callees the scoped stage's inline-call
@@ -6837,6 +6845,7 @@ export function mutationShapesReducer(packages = null) {
       programNode = node;
       CONTAINER_SLOT_RECORDS.set(node, fileContainerRecords);
     }
+    currentMutationSite = node;
     markTopLevelThis = !!frame?.atThisTopLevel;
     currentScopes = frame?.scopes ?? [];
     currentThisOwner = frame?.thisOwner ?? null;
@@ -7231,7 +7240,7 @@ export function mutationShapesReducer(packages = null) {
       });
     }
     let open = false;
-    for (const { node, viaTopLevelThis, installsUnknownKeys, bareCallee } of targets) {
+    for (const { node, site, scopes, viaTopLevelThis, installsUnknownKeys, bareCallee } of targets) {
       // a BARE callee reaches the mutators only through a binding that HOLDS one - an extracted
       // or destructured `Object.defineProperty`, or an import of its pure entry. a callee this
       // file binds to nothing of the sort (`foo(bar())`, in half of real files) classifies as no
@@ -7272,6 +7281,23 @@ export function mutationShapesReducer(packages = null) {
             // the slot the literal spells, so it can reach a built-in. the slot write itself
             // (`box.Array = Fake`) replaces no namespace - it rides the written-slot channel
             || (root.keys.length > 1 && containerHasKey(containerBound.get(root.name), firstKey));
+        }
+        // The file gate names polyfillable namespaces, but an open pass also records other free
+        // receivers (`document.title`, `process.exitCode`). Keep them, imports and every `this`
+        // target; only a local target proven inert by the completed census can be skipped.
+        if (mutationCandidateNodes) {
+          let candidate = fires || root.thisRooted || importBound.has(root.name);
+          if (!candidate && root.name) {
+            const owner = declared.resolve(root.name, scopes);
+            // The raw chain includes a function while walking its keys and parameters too.
+            // Its body declarations do not prove a root local there. Concise bodies stay open.
+            candidate = owner === undefined
+              || FUNCTION_LIKE_NODE_TYPES.has(owner?.type) && !scopes.includes(owner.body);
+          }
+          if (candidate) {
+            mutationCandidateNodes.add(site);
+            mutationCandidateNodes.add(node);
+          }
         }
         if (!fires) continue;
         hasMutationShapes = true;
@@ -7478,6 +7504,7 @@ export function mutationShapesReducer(packages = null) {
     stampContainers(containers, writtenContainerSlots, containerSlotIndex);
     return {
       hasMutationShapes,
+      mutationCandidateNodes,
       needsMemberMutationVisitor,
       mutationRoots,
       writtenContainerSlots,
@@ -7715,6 +7742,12 @@ function bareSlotWriteEntries(target, ctx, rhs = null) {
 function memberMutationEntry(slot, ctx, operator = null) {
   const member = unwrapRuntimeExpr(slot);
   if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return [];
+  // A key cannot contribute when its receiver names no global. Reuse the handler's
+  // target resolution; logical installs keep the early unknown-key gate below.
+  if (!isLogicalInstallOp(operator)) {
+    const { names, receiverDeopts } = ctx.resolveTarget(member.object, ctx.path);
+    if (!names.length && !receiverDeopts.length) return [];
+  }
   const key = mutationKeyName(member.property, member.computed, ctx);
   if (key === null && isLogicalInstallOp(operator)) return [];
   return [{ targetNode: member.object, keys: key !== null ? [key] : null }];
@@ -7954,7 +7987,7 @@ function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null }
     return names;
   }
   function handleSite(path) {
-    const ctx = { scope: path.scope, adapter, path, pendingIdentitySkips, resolveStaticKey };
+    const ctx = { scope: path.scope, adapter, path, pendingIdentitySkips, resolveStaticKey, resolveTarget: resolveTargetOnce };
     // ... the write, whichever visit reached it: the member a host visitor also accepts as its
     // assignment's target writes where that assignment does, after the value it stores is read
     const { node, parent } = path;
@@ -8117,7 +8150,9 @@ function recordedWritesSplit(list, settled, globalSlot) {
 // dialect over `handleSite` (null when the gate is closed) and calls `finalize` after it
 export function beginMutationPrePass({ rootNode, adapter, census = null, resolveStaticKey = null }) {
   const mutated = new Set();
+  const candidateNodes = census?.mutationCandidateNodes;
   if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(rootNode, adapter.packages))) {
+    candidateNodes?.clear();
     return { mutated, handleSite: null, finalize: null };
   }
   const { handleSite, finalizeMutationSet, sites } = createMutationSiteHandler({ adapter, mutated, resolveStaticKey });
@@ -8125,11 +8160,17 @@ export function beginMutationPrePass({ rootNode, adapter, census = null, resolve
   // the pass runs before the census it builds is visible, so a decision it asks may take a slot the census
   // marks written for a served one: each step is a re-entrant question, whose answers no per-node memo keeps
   // and a guard's settling keeps for the steps of the pass alone (`withReentrantQuestion`)
-  function handleNarrowedSite(...args) {
-    return withReentrantQuestion(() => handleSite(...args), 'census');
+  function handleNarrowedSite(path) {
+    if (candidateNodes?.size && !candidateNodes.has(path.node)) return;
+    return withReentrantQuestion(() => handleSite(path), 'census');
   }
   function finalizeNarrowed() {
-    return withReentrantQuestion(finalizeMutationSet, 'census');
+    try {
+      return withReentrantQuestion(finalizeMutationSet, 'census');
+    } finally {
+      // Admission is needed only during this pass. A later collection uses the full fallback.
+      candidateNodes?.clear();
+    }
   }
   return { mutated, handleSite: handleNarrowedSite, finalize: finalizeNarrowed };
 }
