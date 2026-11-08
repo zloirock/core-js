@@ -127,14 +127,22 @@ var isDisallowedCodePoint = function (code) {
         return true;
     }
   }
-  return code === 0xFFFD
-    // lone surrogate - a matched pair is a single code point and never lands here
-    || (code >= 0xD800 && code <= 0xDFFF)
-    // C1 controls
-    || (code >= 0x80 && code <= 0x9F)
-    // line and paragraph separators, bidirectional formatting characters
+  return (code >= 0x80 && code <= 0x9F) // C1 controls
+    // format controls and line / paragraph separators
+    || (code >= 0x600 && code <= 0x605) || code === 0x61C || code === 0x6DD || code === 0x70F
+    || (code >= 0x890 && code <= 0x891) || code === 0x8E2
     || (code >= 0x200E && code <= 0x200F) || (code >= 0x2028 && code <= 0x2029)
     || (code >= 0x202A && code <= 0x202E) || (code >= 0x2065 && code <= 0x2069)
+    || code === 0x110BD || code === 0x110CD || (code >= 0x13430 && code <= 0x1343F)
+    // ideographic description characters, annotation / replacement characters and tags
+    || (code >= 0x2FF0 && code <= 0x2FFF) || code === 0x31EF
+    || (code >= 0xFFF9 && code <= 0xFFFD) || code === 0xE0001 || (code >= 0xE0020 && code <= 0xE007F)
+    // compatibility decompositions containing a label separator, except the IDNA separators
+    || (code >= 0x2024 && code <= 0x2026) || (code >= 0x2488 && code <= 0x249B)
+    || code === 0x33C2 || code === 0x33C7 || code === 0x33D8 || code === 0xFE12
+    || code === 0xFE19 || code === 0xFE30 || code === 0xFE52 || code === 0x1F100
+    // lone surrogate - a matched pair is a single code point and never lands here
+    || (code >= 0xD800 && code <= 0xDFFF)
     // noncharacters
     || (code >= 0xFDD0 && code <= 0xFDEF) || (code & 0xFFFE) === 0xFFFE
     // private use
@@ -199,7 +207,7 @@ var mapCodePoint = function (code, character) {
 
 // https://url.spec.whatwg.org/#concept-domain-to-ascii
 // A subset of UTS#46 processing - the full mapping table is too large to ship. Covered are the
-// entries cheap to express: the ignored and disallowed code points, full-width forms,
+// entries cheap to express: selected ignored and disallowed code points, full-width forms,
 // per-code-point case mapping, mathematical Latin letters and digits, and code points mapping
 // onto a forbidden domain code point.
 // Not covered, so such domains are punycoded rather than mapped or rejected:

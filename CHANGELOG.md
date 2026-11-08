@@ -56,6 +56,7 @@
 - Fixed `URL` setters skipping value conversion on early returns and changing state before value conversion
 - Fixed `URL` domain case folding for Greek, Cherokee, historic Cyrillic, and Deseret letters
 - Fixed mapping of mathematical Latin letters and digits in `URL` domains, [#1223](https://github.com/zloirock/core-js/issues/1223)
+- Fixed rejection of disallowed Unicode format controls, tags, ideographic description characters, and compatibility characters containing label separators in `URL` domains
 - Added a workaround for [`URL.parse` depending on its receiver in Deno](https://github.com/denoland/deno/issues/37104)
 - Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity
 - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)

@@ -198,6 +198,57 @@ QUnit.test('URL constructor', assert => {
   }
 });
 
+QUnit.test('URL domain Unicode validation: disallowed code points', assert => {
+  // https://www.unicode.org/Public/18.0.0/idna/IdnaMappingTable.txt
+  for (const [first, last] of [
+    [0x600, 0x605], [0x61C, 0x61C], [0x6DD, 0x6DD], [0x70F, 0x70F], [0x890, 0x891], [0x8E2, 0x8E2],
+    [0x2024, 0x2026], [0x2488, 0x249B], [0x2FF0, 0x2FFF], [0x31EF, 0x31EF],
+    [0x33C2, 0x33C2], [0x33C7, 0x33C7], [0x33D8, 0x33D8],
+    [0xFE12, 0xFE12], [0xFE19, 0xFE19], [0xFE30, 0xFE30], [0xFE52, 0xFE52], [0xFFF9, 0xFFFC],
+    [0x110BD, 0x110BD], [0x110CD, 0x110CD], [0x13430, 0x1343F], [0x1F100, 0x1F100],
+    [0xE0001, 0xE0001], [0xE0020, 0xE007F],
+  ]) {
+    for (let code = first; code <= last; code++) {
+      const character = code <= 0xFFFF
+        ? String.fromCharCode(code)
+        : String.fromCharCode(0xD800 + ((code - 0x10000) >> 10), 0xDC00 + (code & 0x3FF));
+      assert.throws(() => new URL(`https://a${ character }b.example/`), TypeError, `U+${ code.toString(16) }`);
+      assert.throws(() => new URL(`https://a${ encodeURIComponent(character) }b.example/`), TypeError, `percent-encoded U+${ code.toString(16) }`);
+    }
+  }
+});
+
+QUnit.test('URL domain Unicode validation: parsing and setters', assert => {
+  for (const character of ['\u0600', '\u2024', '\uD80D\uDC30', '\uDB40\uDC41']) {
+    const hostname = `a${ character }b.example`;
+    const input = `https://${ hostname }/`;
+    assert.same(URL.parse(input), null, 'URL.parse rejects a disallowed character');
+    assert.false(URL.canParse(input), 'URL.canParse rejects a disallowed character');
+    assert.throws(() => new URL(`//${ hostname }/`, 'https://example.com/'), TypeError, 'relative URL');
+
+    const original = 'https://example.com:8080/path?key=value#hash';
+    const url = new URL(original);
+    const params = url.searchParams;
+    assert.throws(() => { url.href = input; }, TypeError, 'href setter');
+    assert.same(url.href, original, 'failed href setter preserves the URL');
+    assert.same(url.searchParams, params, 'failed href setter preserves searchParams identity');
+    for (const key of ['host', 'hostname']) {
+      url[key] = hostname;
+      assert.same(url.href, original, `${ key } setter rejects the host without changing the URL`);
+      assert.same(url.searchParams, params, `${ key } setter preserves searchParams identity`);
+      assert.same(String(params), 'key=value', `${ key } setter preserves searchParams contents`);
+    }
+  }
+});
+
+QUnit.test('URL domain Unicode validation: allowed separators and ignored controls', assert => {
+  for (const separator of ['.', '\u3002', '\uFF0E', '\uFF61']) {
+    assert.same(new URL(`https://a${ separator }b.example/`).hostname, 'a.b.example', 'IDNA separator remains allowed');
+  }
+  assert.same(new URL('https://a\u00ADb.example/').hostname, 'ab.example', 'ignored control remains allowed');
+  assert.same(new URL('https://a\uDB40\uDD00b.example/').hostname, 'ab.example', 'supplementary variation selector remains allowed');
+});
+
 QUnit.test('URL domain case mapping', assert => {
   // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
   for (const [domain, expected, message] of [
