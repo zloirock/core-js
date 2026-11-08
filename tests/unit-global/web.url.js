@@ -245,6 +245,91 @@ QUnit.test('URL converts lone surrogates before removing tabs and newlines', ass
   assert.same(new URL('http://example.com/a\uD800b').pathname, '/a%EF%BF%BDb', 'lone surrogate without whitespace');
 });
 
+if (DESCRIPTORS) QUnit.test('URL setter value conversion before an early return', assert => {
+  for (const [href, key] of [
+    ['mailto:x', 'host'],
+    ['mailto:x', 'hostname'],
+    ['mailto:x', 'pathname'],
+    ['mailto:x', 'port'],
+    ['file:///x', 'port'],
+    ['foo:/x', 'port'],
+  ]) {
+    const url = new URL(href);
+    const error = new Error('conversion');
+    let calls = 0;
+    url[key] = {
+      toString() {
+        calls++;
+        return '1';
+      },
+    };
+    assert.same(calls, 1, `${ key } on ${ href } converts once`);
+    assert.same(url.href, href, `${ key } on ${ href } ignores the converted value`);
+    assert.throws(() => { url[key] = Symbol('value'); }, TypeError, `${ key } on ${ href } rejects a symbol`);
+    assert.throws(() => {
+      url[key] = { toString() { throw error; } };
+    }, error, `${ key } on ${ href } propagates conversion errors`);
+    assert.same(url.href, href, `${ key } on ${ href } preserves the URL after errors`);
+  }
+});
+
+// Native Node < 17 converts values before validating the receiver; fixed in 17.0.0.
+// https://github.com/nodejs/node/pull/39752
+// Native Node >= 20.0.0 regressed for href; confirmed in 26.13.0 and 27 alpha.
+// https://github.com/nodejs/node/pull/47339
+// https://github.com/nodejs/node/issues/67344
+if (DESCRIPTORS) QUnit.skip('URL setter value conversion after receiver validation', assert => {
+  for (const key of ['href', 'protocol', 'username', 'password', 'host', 'hostname', 'port', 'pathname', 'search', 'hash']) {
+    const setter = Object.getOwnPropertyDescriptor(URL.prototype, key).set;
+    let calls = 0;
+    assert.throws(() => {
+      setter.call({}, {
+        toString() {
+          calls++;
+          return '';
+        },
+      });
+    }, TypeError, `${ key } rejects an invalid receiver`);
+    assert.same(calls, 0, `${ key } validates the receiver before converting the value`);
+  }
+});
+
+if (DESCRIPTORS) QUnit.test('URL setter value conversion before changing state', assert => {
+  const url = new URL('https://example.com/old/path?q=1#hash');
+  const error = new Error('conversion');
+  assert.throws(() => {
+    url.pathname = { toString() { throw error; } };
+  }, error);
+  assert.same(url.href, 'https://example.com/old/path?q=1#hash', 'pathname is preserved after a conversion error');
+
+  // Native Node 18.16.0-18.x and >= 19.7.0 use a URL captured before value conversion.
+  // Still fails in Node 26.13.0 and 27 alpha; introduced by the Ada integration:
+  // https://github.com/nodejs/node/pull/46410
+  // https://github.com/nodejs/node/issues/67345
+  // for (const [key, value, expected] of [
+  //   ['host', 'other.example:8080', 'https://other.example:8080/old'],
+  //   ['hostname', 'other.example', 'https://other.example/old'],
+  //   ['port', '8080', 'https://example.com:8080/old'],
+  //   ['pathname', '/new', 'https://example.com/new'],
+  // ]) {
+  //   const target = new URL('mailto:x');
+  //   target[key] = {
+  //     toString() {
+  //       target.href = 'https://example.com/old';
+  //       return value;
+  //     },
+  //   };
+  //   assert.same(target.href, expected, `${ key } uses the URL changed during conversion`);
+  //   target[key] = {
+  //     toString() {
+  //       target.href = 'mailto:x';
+  //       return value;
+  //     },
+  //   };
+  //   assert.same(target.href, 'mailto:x', `${ key } checks for an early return after conversion`);
+  // }
+});
+
 QUnit.test('URL#href', assert => {
   let url = new URL('http://zloirock.ru/');
 

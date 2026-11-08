@@ -1104,7 +1104,7 @@ var accessorDescriptor = function (getter, setter) {
       return getInternalURLState(this)[getter]();
     },
     set: setter && function (value) {
-      return getInternalURLState(this)[setter](value);
+      return getInternalURLState(this)[setter]($toString(value));
     },
     configurable: true,
     enumerable: true
