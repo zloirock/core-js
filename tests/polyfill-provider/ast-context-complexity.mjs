@@ -99,6 +99,41 @@ for (const parser of adapters) {
     }
   }
 
+  // A deferred read keeps later writes without indexing its body for a loop. An explicit
+  // assignment also spells its value without locating the frame of a sibling function.
+  for (const size of [16, 64]) for (const everyWrite of [false, true]) {
+    const program = parser.parseAndScope(`function outer() {
+      let value = "initial";
+      function read() { ${ 'sink(0);'.repeat(size) } use(value); }
+      function write() { value = "next"; }
+    }`);
+    const owner = parser.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'outer');
+    const read = parser.pickPath(program, 'FunctionDeclaration', path => path.node.id.name === 'read');
+    const declaration = parser.pickPath(program, 'VariableDeclarator');
+    const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+    const usagePath = parser.pickPath(program, 'CallExpression', path => path.node.callee.name === 'use');
+    const binding = {
+      node: declaration.node, declarationPath: declaration, scope: { block: owner.node }, constantViolations: [assignment],
+    };
+    const padding = read.node.body.body.slice(0, size);
+    let visits = 0;
+    for (const node of padding) Object.defineProperty(node, 'writeWalkProbe', {
+      configurable: true, enumerable: true, get() { visits++; return null; },
+    });
+    const label = `${ parser.name }/write context/${ size }/${ everyWrite }`;
+    try {
+      walkAstNodes({ root: read.node, visit() { return true; } });
+      check(`${ label }/counter control`, visits, size);
+      visits = 0;
+      const result = reassignmentValueEnumeration({ binding, usagePath, name: 'value', countDeadWrites: true, everyWrite });
+      checkDeep(`${ label }/values`, result.nodes.map(node => node.value), ['next']);
+      check(`${ label }/complete`, result.complete, true);
+      check(`${ label }/no unrelated body walk`, visits, 0);
+    } finally {
+      for (const node of padding) delete node.writeWalkProbe;
+    }
+  }
+
   // Both trackers' write identities retain the short-circuit guard, for names and members.
   for (const operator of ['=', '&&=', '||=', '??=']) for (const target of ['C', 'box.C']) {
     const program = parser.parseAndScope(`function f(C, box) { ${ target } ${ operator } Set; use(${ target }); }`);
