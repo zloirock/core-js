@@ -76,8 +76,9 @@ QUnit.test('URL constructor', assert => {
   // assert.throws(() => new URL('http://a\u00A0b.example.com/'), 'no-break space in a domain'); // 'a%20b.example.com' in Chromium
   // assert.throws(() => new URL('http://a\u3000b.example.com/'), 'ideographic space in a domain'); // 'a%20b.example.com' in Chromium
   // assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point'); // no error in Chrome 67 and 109
-  // Known Node 10-14 failure: native URL accepts a domain mapped to an empty string.
-  assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
+  // Native Node 10-14 accepts a domain mapped to an empty string; fixed in Node 15.0.0.
+  // https://github.com/nodejs/node/pull/33770
+  // assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
 
   // the forbidden host code point set is smaller - an opaque host keeps them percent-encoded
   // TypeError in Safari 16, '' in Chrome 67 and 109
