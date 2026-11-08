@@ -11,7 +11,6 @@ var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
 var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
-var push = uncurryThis([].push);
 var stringSlice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var toWellFormed = uncurryThis(getBuiltInPrototypeMethod('String', 'toWellFormed'));
@@ -24,43 +23,6 @@ var parseHexOctet = function (string, start) {
   if (!exec(VALID_HEX, substr)) return NaN;
 
   return $parseInt(substr, 16);
-};
-
-var getLeadingOnes = function (octet) {
-  var count = 0;
-  for (var mask = 0x80; mask > 0 && (octet & mask) !== 0; mask >>= 1) {
-    count++;
-  }
-  return count;
-};
-
-var utf8Decode = function (octets) {
-  var codePoint = null;
-  var length = octets.length;
-
-  switch (length) {
-    case 1:
-      codePoint = octets[0];
-      break;
-    case 2:
-      codePoint = (octets[0] & 0x1F) << 6 | (octets[1] & 0x3F);
-      break;
-    case 3:
-      codePoint = (octets[0] & 0x0F) << 12 | (octets[1] & 0x3F) << 6 | (octets[2] & 0x3F);
-      break;
-    case 4:
-      codePoint = (octets[0] & 0x07) << 18 | (octets[1] & 0x3F) << 12 | (octets[2] & 0x3F) << 6 | (octets[3] & 0x3F);
-      break;
-  }
-
-  // reject surrogates, overlong encodings, and out-of-range codepoints
-  if (codePoint === null
-    || codePoint > 0x10FFFF
-    || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
-    || codePoint < (length > 3 ? 0x10000 : length > 2 ? 0x800 : length > 1 ? 0x80 : 0)
-  ) return null;
-
-  return codePoint;
 };
 
 // https://url.spec.whatwg.org/#percent-decode
@@ -90,18 +52,19 @@ var decode = function (input) {
       }
 
       i += 2;
-      var byteSequenceLength = getLeadingOnes(octet);
 
-      if (byteSequenceLength === 0) {
+      if (octet < 0x80) {
         decodedChar = fromCharCode(octet);
       } else {
-        if (byteSequenceLength === 1 || byteSequenceLength > 4) {
+        // https://encoding.spec.whatwg.org/#utf-8-decoder - valid leading bytes
+        if (octet < 0xC2 || octet > 0xF4) {
           result += FALLBACK_REPLACER;
           i++;
           continue;
         }
 
-        var octets = [octet];
+        var byteSequenceLength = octet < 0xE0 ? 2 : octet < 0xF0 ? 3 : 4;
+        var codePoint = octet & (0x7F >> byteSequenceLength);
         var sequenceIndex = 1;
 
         while (sequenceIndex < byteSequenceLength) {
@@ -114,6 +77,7 @@ var decode = function (input) {
           if (nextByte !== nextByte || nextByte > 191 || nextByte < 128) break;
 
           // https://encoding.spec.whatwg.org/#utf-8-decoder - position-specific byte ranges
+          // Reject overlong encodings, surrogates, and code points above U+10FFFF.
           if (sequenceIndex === 1) {
             if (octet === 0xE0 && nextByte < 0xA0) break;
             if (octet === 0xED && nextByte > 0x9F) break;
@@ -121,24 +85,17 @@ var decode = function (input) {
             if (octet === 0xF4 && nextByte > 0x8F) break;
           }
 
-          push(octets, nextByte);
+          codePoint = codePoint << 6 | nextByte & 0x3F;
           i += 2;
           sequenceIndex++;
         }
 
-        if (octets.length !== byteSequenceLength) {
+        if (sequenceIndex !== byteSequenceLength) {
           result += FALLBACK_REPLACER;
           continue;
         }
 
-        var codePoint = utf8Decode(octets);
-        if (codePoint === null) {
-          for (var replacement = 0; replacement < byteSequenceLength; replacement++) result += FALLBACK_REPLACER;
-          i++;
-          continue;
-        } else {
-          decodedChar = fromCodePoint(codePoint);
-        }
+        decodedChar = fromCodePoint(codePoint);
       }
     }
 

@@ -201,6 +201,40 @@ QUnit.test('URLSearchParams rejects non-object iterator results', assert => {
   }
 });
 
+QUnit.test('URLSearchParams invalid UTF-8 lead bytes', assert => {
+  // https://encoding.spec.whatwg.org/#utf-8-decoder
+  for (const lead of ['80', 'BF', 'C0', 'C1', 'F5', 'F6', 'F7', 'F8', 'FF']) {
+    let input = `%${ lead }`;
+    let expected = '\uFFFD';
+    for (let count = 0; count < 4; count++) {
+      const params = new URLSearchParams(`a=${ input }&${ input }=b`);
+      assert.same(params.get('a'), expected, `${ input } in a value`);
+      assert.same(params.get(expected), 'b', `${ input } in a key`);
+      assert.same(new URLSearchParams(`a=${ input }x%41%C2%A2`).get('a'), `${ expected }xA\u00A2`, 'following input is preserved');
+      input += '%80';
+      expected += '\uFFFD';
+    }
+  }
+});
+
+QUnit.test('URLSearchParams valid UTF-8 boundaries', assert => {
+  for (const [input, expected] of [
+    ['%C2%80', '\u0080'],
+    ['%DF%BF', '\u07FF'],
+    ['%E0%A0%80', '\u0800'],
+    ['%ED%9F%BF', '\uD7FF'],
+    ['%EE%80%80', '\uE000'],
+    ['%F0%90%80%80', '\uD800\uDC00'],
+  ]) {
+    assert.same(new URLSearchParams(`a=${ input }`).get('a'), expected, 'valid UTF-8 boundary');
+  }
+});
+
+QUnit.test('URLSearchParams UTF-8 noncharacters', assert => {
+  assert.same(new URLSearchParams('a=%EF%BF%BF').get('a'), '\uFFFF', 'U+FFFF');
+  assert.same(new URLSearchParams('a=%F4%8F%BF%BF').get('a'), '\uDBFF\uDFFF', 'U+10FFFF');
+});
+
 QUnit.test('URLSearchParams#append', assert => {
   const { append } = URLSearchParams.prototype;
   assert.isFunction(append);

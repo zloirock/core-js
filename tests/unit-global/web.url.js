@@ -1348,6 +1348,31 @@ QUnit.test('URL#searchParams', assert => {
   }
 });
 
+// Native Chrome 67-76 decodes invalid UTF-8 as Latin-1; fixed in 77.
+// https://chromium-review.googlesource.com/c/chromium/src/+/1669297
+QUnit.skip('URL query invalid UTF-8 lead bytes', assert => {
+  for (const lead of ['F5', 'F6', 'F7']) {
+    for (const [tail, expected] of [['%80', '\uFFFD\uFFFD'], ['%BF%80', '\uFFFD\uFFFD\uFFFD']]) {
+      const input = `%${ lead }${ tail }`;
+      const query = `${ input }=${ input }`;
+      assert.same(new URL(`https://example.org/?${ query }`).searchParams.get(expected), expected, 'constructor');
+      if (DESCRIPTORS) {
+        for (const key of ['search', 'href']) {
+          const url = new URL('https://example.org/?old=value');
+          const params = url.searchParams;
+          url[key] = key === 'search' ? query : `https://example.org/?${ query }`;
+          assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+          assert.same(params.get(expected), expected, `${ key } decodes the new query`);
+          assert.false(params.has('old'), `${ key } replaces the old query`);
+          params.set('next', '1');
+          const encoded = encodeURIComponent(expected);
+          assert.same(url.search, `?${ encoded }=${ encoded }&next=1`, 'searchParams stays linked');
+        }
+      }
+    }
+  }
+});
+
 QUnit.test('URL#hash', assert => {
   let url = new URL('http://zloirock.ru/');
 
