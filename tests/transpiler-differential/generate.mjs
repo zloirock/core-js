@@ -23781,4 +23781,14 @@ export function * generate() {
       const patched = () => "patched"; ${ setup }
       try { const held = ${ expression }; held.from = patched; return Array.from([1]); }
       finally { restoreProperty(Array, "from", descriptor); } })()`);
+  // A mutation follows the alias's captured receiver, not a later write or a use-site shadow.
+  for (const written of [false, true]) for (const shadowed of [false, true]) {
+    yield mutationSnippet(`captured-mutation-receiver/${ written }/${ shadowed }`,
+      `(() => { const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+        const patched = () => "patched";
+        let source = Array; const held = source; ${ written ? 'source = Map;' : '' }
+        try { { ${ shadowed ? 'const source = Map;' : '' }
+          held.from = patched; return Array.from([1]); } }
+        finally { restoreProperty(Array, "from", descriptor); } })()`);
+  }
 }
