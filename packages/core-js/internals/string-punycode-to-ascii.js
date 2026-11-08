@@ -13,10 +13,8 @@ var initialN = 128; // 0x80
 var delimiter = '-'; // '\x2D'
 var regexNonASCII = /[^\0-\u007E]/; // non-ASCII chars
 var regexSeparators = /[.\u3002\uFF0E\uFF61]/g; // RFC 3490 separators
-var OVERFLOW_ERROR = 'Overflow: input needs wider integers to process';
 var baseMinusTMin = base - tMin;
 
-var $RangeError = RangeError;
 var exec = uncurryThis(regexSeparators.exec);
 var floor = Math.floor;
 var fromCharCode = String.fromCharCode;
@@ -130,7 +128,7 @@ var encode = function (input) {
     // Increase `delta` enough to advance the decoder's <n,i> state to <m,0>, but guard against overflow.
     var handledCPCountPlusOne = handledCPCount + 1;
     if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-      throw new $RangeError(OVERFLOW_ERROR);
+      return null;
     }
 
     delta += (m - n) * handledCPCountPlusOne;
@@ -139,7 +137,7 @@ var encode = function (input) {
     for (i = 0; i < input.length; i++) {
       currentValue = input[i];
       if (currentValue < n && ++delta > maxInt) {
-        throw new $RangeError(OVERFLOW_ERROR);
+        return null;
       }
       if (currentValue === n) {
         // Represent delta as a generalized variable-length integer.
@@ -174,7 +172,12 @@ module.exports = function (input) {
   var i, label;
   for (i = 0; i < labels.length; i++) {
     label = labels[i];
-    push(encoded, exec(regexNonASCII, label) ? 'xn--' + encode(label) : label);
+    if (exec(regexNonASCII, label)) {
+      label = encode(label);
+      if (label === null) return null;
+      label = 'xn--' + label;
+    }
+    push(encoded, label);
   }
   return join(encoded, '.');
 };
