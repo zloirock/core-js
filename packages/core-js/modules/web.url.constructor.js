@@ -111,6 +111,8 @@ var isIgnoredCodePoint = function (code) {
     || (code >= 0x180B && code <= 0x180F)
     || (code >= 0x2060 && code <= 0x2064) || (code >= 0x206A && code <= 0x206F)
     || (code >= 0xFE00 && code <= 0xFE0F)
+    || (code >= 0x1BCA0 && code <= 0x1BCA3)
+    || (code >= 0x1D173 && code <= 0x1D17A)
     || (code >= 0xE0100 && code <= 0xE01EF);
 };
 
@@ -207,7 +209,7 @@ var mapCodePoint = function (code, character) {
 
 // https://url.spec.whatwg.org/#concept-domain-to-ascii
 // A subset of UTS#46 processing - the full mapping table is too large to ship. Covered are the
-// entries cheap to express: selected ignored and disallowed code points, full-width forms,
+// entries cheap to express: ignored and selected disallowed code points, full-width forms,
 // per-code-point case mapping, mathematical Latin letters and digits, and code points mapping
 // onto a forbidden domain code point.
 // Not covered, so such domains are punycoded rather than mapped or rejected:

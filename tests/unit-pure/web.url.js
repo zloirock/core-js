@@ -249,6 +249,95 @@ QUnit.test('URL domain Unicode validation: allowed separators and ignored contro
   assert.same(new URL('https://a\uDB40\uDD00b.example/').hostname, 'ab.example', 'supplementary variation selector remains allowed');
 });
 
+QUnit.test('URL domain ignored shorthand format controls', assert => {
+  // https://www.unicode.org/Public/18.0.0/idna/IdnaMappingTable.txt
+  for (let code = 0x1BCA0; code <= 0x1BCA3; code++) {
+    const character = String.fromCharCode(0xD800 + ((code - 0x10000) >> 10), 0xDC00 + (code & 0x3FF));
+    const hostname = `exa${ character }mple.com`;
+    const input = `https://${ hostname }/path?key=value#hash`;
+    const expected = 'https://example.com/path?key=value#hash';
+    assert.same(new URL(input).href, expected, `U+${ code.toString(16) }`);
+    assert.same(new URL(`https://exa${ encodeURIComponent(character) }mple.com/`).hostname, 'example.com', 'percent-encoded control');
+    assert.same(new URL(`https://${ character }example.com${ character }/`).hostname, 'example.com', 'leading and trailing controls');
+    assert.same(new URL(`//${ hostname }/`, 'https://base.example/').hostname, 'example.com', 'relative URL');
+    assert.same(new URL('/relative', input).href, 'https://example.com/relative', 'base URL');
+    assert.same(URL.parse(input).href, expected, 'URL.parse');
+    assert.true(URL.canParse(input), 'URL.canParse');
+
+    if (DESCRIPTORS) {
+      for (const key of ['host', 'hostname', 'href']) {
+        const url = new URL('https://base.example/path?key=value#hash');
+        const params = url.searchParams;
+        url[key] = key === 'href' ? input : hostname;
+        assert.same(url.href, expected, `${ key } setter`);
+        assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+        assert.same(String(params), 'key=value', `${ key } preserves searchParams contents`);
+      }
+    }
+
+    assert.same(new URL(`https://1${ character }27.0.0.1/`).hostname, '127.0.0.1', 'ignored before IPv4 parsing');
+    assert.throws(() => new URL(`https://${ character }/`), TypeError, 'empty domain after removing the control');
+    assert.same(URL.parse(`https://${ character }/`), null, 'URL.parse rejects an empty domain');
+    assert.false(URL.canParse(`https://${ character }/`), 'URL.canParse rejects an empty domain');
+  }
+});
+
+// These characters became ignored in Unicode 16; older native IDNA tables reject them.
+// Native Firefox 118-141 rejects them; fixed in 142 (the pure version polyfills earlier releases).
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1960300
+// Native Chrome / Edge <= 142 reject them; fixed in 143 with ICU 77.
+// https://crbug.com/421834885
+// Native Node <= 23.10.0 rejects them; fixed in 23.11.0 with Ada 3.2.1.
+// https://github.com/nodejs/node/pull/57429
+// Native Safari 14.1 / macOS 11 and 18.3 / macOS 14 reject them; 18.6 / macOS 15 passes.
+// Native Deno 2.9.7 still uses idna_adapter 1.2.0 with ICU4X 1.5.
+// https://github.com/denoland/deno/pull/36652
+QUnit.skip('URL domain ignored musical format controls', assert => {
+  // https://www.unicode.org/Public/18.0.0/idna/IdnaMappingTable.txt
+  for (let code = 0x1D173; code <= 0x1D17A; code++) {
+    const character = String.fromCharCode(0xD800 + ((code - 0x10000) >> 10), 0xDC00 + (code & 0x3FF));
+    const hostname = `exa${ character }mple.com`;
+    const input = `https://${ hostname }/path?key=value#hash`;
+    const expected = 'https://example.com/path?key=value#hash';
+    assert.same(new URL(input).href, expected, `U+${ code.toString(16) }`);
+    assert.same(new URL(`https://exa${ encodeURIComponent(character) }mple.com/`).hostname, 'example.com', 'percent-encoded control');
+    assert.same(new URL(`https://${ character }example.com${ character }/`).hostname, 'example.com', 'leading and trailing controls');
+    assert.same(new URL(`//${ hostname }/`, 'https://base.example/').hostname, 'example.com', 'relative URL');
+    assert.same(new URL('/relative', input).href, 'https://example.com/relative', 'base URL');
+    assert.same(URL.parse(input).href, expected, 'URL.parse');
+    assert.true(URL.canParse(input), 'URL.canParse');
+
+    if (DESCRIPTORS) {
+      for (const key of ['host', 'hostname', 'href']) {
+        const url = new URL('https://base.example/path?key=value#hash');
+        const params = url.searchParams;
+        url[key] = key === 'href' ? input : hostname;
+        assert.same(url.href, expected, `${ key } setter`);
+        assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+        assert.same(String(params), 'key=value', `${ key } preserves searchParams contents`);
+      }
+    }
+
+    assert.same(new URL(`https://1${ character }27.0.0.1/`).hostname, '127.0.0.1', 'ignored before IPv4 parsing');
+    assert.throws(() => new URL(`https://${ character }/`), TypeError, 'empty domain after removing the control');
+    assert.same(URL.parse(`https://${ character }/`), null, 'URL.parse rejects an empty domain');
+    assert.false(URL.canParse(`https://${ character }/`), 'URL.canParse rejects an empty domain');
+  }
+});
+
+// Native Chrome 67/156 and Edge 79/143 keep localhost in file URLs without a Windows drive letter.
+// https://crbug.com/41299821
+QUnit.skip('URL domain ignored controls in file hosts', assert => {
+  assert.same(new URL('file://localhost/path').href, 'file:///path', 'ASCII localhost');
+  for (const [first, last] of [[0x1BCA0, 0x1BCA3], [0x1D173, 0x1D17A]]) {
+    for (let code = first; code <= last; code++) {
+      const character = String.fromCharCode(0xD800 + ((code - 0x10000) >> 10), 0xDC00 + (code & 0x3FF));
+      assert.same(new URL(`file://lo${ character }calhost/path`).href, 'file:///path', 'ignored before checking localhost');
+      assert.same(new URL(`file://lo${ encodeURIComponent(character) }calhost/path`).href, 'file:///path', 'percent-encoded control');
+    }
+  }
+});
+
 QUnit.test('URL domain case mapping', assert => {
   // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
   for (const [domain, expected, message] of [
