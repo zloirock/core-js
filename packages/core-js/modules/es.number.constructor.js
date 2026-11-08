@@ -113,5 +113,9 @@ var copyConstructorProperties = function (target, source) {
   }
 };
 
-if (IS_PURE && PureNumberNamespace) copyConstructorProperties(path[NUMBER], PureNumberNamespace);
-if (FORCED || IS_PURE) copyConstructorProperties(path[NUMBER], NativeNumber);
+// Native pure wrappers already preserve these properties in `export`.
+// Forced replacements and ES3 engines still need the Number-specific fallback.
+if (FORCED || (IS_PURE && !DESCRIPTORS)) {
+  if (IS_PURE && PureNumberNamespace) copyConstructorProperties(path[NUMBER], PureNumberNamespace);
+  copyConstructorProperties(path[NUMBER], NativeNumber);
+}

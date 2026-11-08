@@ -9,12 +9,13 @@ var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
+var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var hasOwn = require('../internals/has-own-property');
 var inheritIfRequired = require('../internals/inherit-if-required');
 // add debugging info
 require('../internals/shared-store');
 
-var wrapConstructor = function (NativeConstructor) {
+var wrapConstructor = function (NativeConstructor, arity, namespace) {
   var Wrapper = function (a, b, c) {
     var instance;
     if (this instanceof Wrapper) {
@@ -27,6 +28,13 @@ var wrapConstructor = function (NativeConstructor) {
     } return apply(NativeConstructor, this, arguments);
   };
   Wrapper.prototype = NativeConstructor.prototype;
+  // function length is not configurable in some old engines
+  try {
+    defineBuiltIn(Wrapper, 'length', arity === undefined ? NativeConstructor.length : arity, { nonWritable: true });
+  } catch (error) { /* empty */ }
+  // previously exported methods take precedence over native properties
+  if (namespace) copyConstructorProperties(Wrapper, namespace);
+  copyConstructorProperties(Wrapper, NativeConstructor);
   return Wrapper;
 };
 
@@ -70,7 +78,7 @@ module.exports = function (options, source) {
 
     targetProperty = target[key];
 
-    // Forced constructor exports can still reuse a native.
+    // forced constructor exports can still reuse a native
     if (nativeSource && (USE_NATIVE || options.constructor === true)) if (options.dontCallGetSet) {
       descriptor = getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
@@ -84,7 +92,7 @@ module.exports = function (options, source) {
     // bind methods to global for calling from export context
     if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, globalThis);
     // wrap global constructors for prevent changes in this version
-    else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty);
+    else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty, options.arity, targetProperty);
     // make static versions for prototype methods
     else if (PROTO && isCallable(sourceProperty)) resultProperty = uncurryThis(sourceProperty);
     // default case

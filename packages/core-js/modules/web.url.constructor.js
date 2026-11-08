@@ -1170,6 +1170,7 @@ if (NativeURL) {
 
 setToStringTag(URLConstructor, 'URL');
 
-$({ global: true, constructor: true, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
+// The pure version needs its own constructor when replacing static methods like `parse`.
+$({ global: true, constructor: true, wrap: true, arity: 1, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
   URL: URLConstructor
 });

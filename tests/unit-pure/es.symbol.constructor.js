@@ -15,6 +15,8 @@ import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
+  // Native wrappers can preserve arity only when function length is configurable.
+  if (DESCRIPTORS && getOwnPropertyDescriptor(() => { /* empty */ }, 'length').configurable) assert.arity(Symbol, 0);
   assert.nonWritable(Symbol, 'prototype');
   const symbol1 = Symbol('symbol');
   const symbol2 = Symbol('symbol');

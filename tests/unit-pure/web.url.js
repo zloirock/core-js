@@ -1,5 +1,5 @@
 /* eslint-disable es/no-object-getownpropertydescriptor, unicorn/relative-url-style -- required for testing */
-import { DESCRIPTORS, NODE } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, NODE } from '../helpers/constants.js';
 import urlTestData from '../wpt-url-resources/urltestdata.js';
 import settersTestData from '../wpt-url-resources/setters.js';
 import toASCIITestData from '../wpt-url-resources/toascii.js';
@@ -12,6 +12,12 @@ const { hasOwnProperty } = Object.prototype;
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
   if (!NODE) assert.arity(URL, 1);
+
+  if (typeof GLOBAL.URL == 'function') {
+    assert.notSame(URL, GLOBAL.URL, 'static polyfills do not modify the native constructor');
+    if (GLOBAL.URL.createObjectURL) assert.isFunction(URL.createObjectURL);
+    if (GLOBAL.URL.revokeObjectURL) assert.isFunction(URL.revokeObjectURL);
+  }
 
   if (URL.createObjectURL) assert.enumerable(URL, 'createObjectURL');
   if (URL.revokeObjectURL) assert.enumerable(URL, 'revokeObjectURL');
