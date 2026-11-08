@@ -115,7 +115,7 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('http://%D0%B1.com/').hostname, 'xn--90a.com', 'percent-decoded non-ASCII domain');
   // assert.throws(() => new URL('http://%01.example.com/'), 'percent-decoded forbidden domain code point'); // no error in Safari 14
   // assert.throws(() => new URL('http://a%b'), 'invalid percent sequence in a domain'); // accepted by native Firefox 57-66
-  // Known Node 20.0.0 failures: percent-decoded IPv4 yields an empty hostname.
+  // Native Node 20.0.0 returns an empty hostname; Node 20.20.2 passes.
   assert.same(new URL('http://%31%32%37.0.0.1/').hostname, '127.0.0.1', 'percent-decoded domain parsed as IPv4');
   assert.same(new URL('http://127.0.0.%31/').hostname, '127.0.0.1', 'percent-decoded IPv4 last part');
   assert.same(new URL('http://%30x7f.0.0.1/').hostname, '127.0.0.1', 'percent-decoded hexadecimal IPv4 part');
