@@ -60,6 +60,7 @@ QUnit.test('URL constructor', assert => {
     assert.throws(() => new URL('http://a\u0001b.example.com/'), 'C0 control in a domain');
     assert.throws(() => new URL('https://a\u001Fb/'), 'C0 control in a domain');
     assert.throws(() => new URL('ws://a\u000Bb/'), 'C0 control in a domain');
+    // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // assert.throws(() => new URL('file://a\u000Cb/c'), 'C0 control in a file: domain'); // 'ab' in Chromium and WebKit, '' in FF
     // assert.throws(() => new URL('http://a\u007Fb.example.com/'), 'DELETE in a domain'); // accepted by native Firefox 57-97
   }
@@ -149,11 +150,13 @@ QUnit.test('URL constructor', assert => {
   // assert.same(String(new URL('file:foo')), 'file:///foo', 'file scheme without slashes');
   // assert.same(new URL('file:foo').host, '', 'file scheme without slashes: host');
 
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
   // assert.same(String(new URL('file://nnsc.nsf.net/bar/baz')), 'file://nnsc.nsf.net/bar/baz', 'file scheme'); // 'file:///bar/baz' in FF
   // assert.same(String(new URL('file://localhost/bar/baz')), 'file:///bar/baz', 'file scheme'); // 'file://localhost/bar/baz' in Chrome
 
   // FILE_SLASH state: host should be inherited from file: base
   // some browsers have a non-spec-compliant native URL implementation for this case
+  // Firefox discards the base host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
   if (new URL('file:/path', 'file://somehost/dir/file').host === 'somehost') {
     assert.same(new URL('file:/path', 'file://somehost/dir/file').href, 'file://somehost/path', 'file slash: href with inherited host');
   }
@@ -179,6 +182,8 @@ QUnit.test('URL constructor', assert => {
   assert.same(String(new URL('bar', 'https://example.com/a/b')), 'https://example.com/a/bar', 'relative URL with special base with path');
 
   for (const [input, base, expected] of [
+    // Firefox discards nonempty file hosts, including inherited ones.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // ['file://h/C:/a/b', undefined, 'file://h/C:/a/b'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
     // ['file://example.net/C:/', undefined, 'file://example.net/C:/'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
     // ['file://0.0.0.0/C:/', undefined, 'file://0.0.0.0/C:/'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
@@ -198,6 +203,169 @@ QUnit.test('URL constructor', assert => {
     assert.same(url.href, expected, input);
     assert.same(new URL(url.href).href, expected, 'serialization round trip');
   }
+});
+
+QUnit.test('URL domain case mapping', assert => {
+  // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
+  for (const [domain, expected, message] of [
+    ['\u03A3\u0391\u03A3.\u4E2D\u56FD', 'xn--mxa9ab.xn--fiqs8s', 'per-code-point sigma'],
+    ['\u0395\u039B\u039B\u0391\u03A3', 'xn--mxahsa5b', 'single-label sigma'],
+    ['a.\u039F\u0394\u039F\u03A3', 'a.xn--pxavbq', 'last-label sigma'],
+    ['\u039F\u0394\u039F\u03A3-2.gr', 'xn---2-k9b7bby.gr', 'sigma before a caseless suffix'],
+    ['\u0395\u039B\u039B\u0391\u03A3.gr', 'xn--mxahsa5b.gr', 'sigma before a cased suffix'],
+    ['\u13E3\u13B3\u13A9.com', 'xn--f9dt7l.com', 'Cherokee capitals'],
+    ['\uABB3\uAB83\uAB79.com', 'xn--f9dt7l.com', 'Cherokee small letters'],
+    ['\u13A0\u13EF\u13F0\u13F5.com', 'xn--58d2ndu.com', 'Cherokee capital range endpoints'],
+    ['\uAB70\uABBF\u13F8\u13FD.com', 'xn--58d2ndu.com', 'Cherokee small range endpoints'],
+    ['\u1F80\u1F87\u1F88\u1F8F.gr', 'xn--uxaaaa5206aca1cd.gr', 'Greek alpha with ypogegrammeni and prosgegrammeni'],
+    ['\u1F90\u1F97\u1F98\u1F9F.gr', 'xn--uxaaaa5816aca1cd.gr', 'Greek eta with ypogegrammeni and prosgegrammeni'],
+    ['\u1FA0\u1FA7\u1FA8\u1FAF.gr', 'xn--uxaaaa5056aca1cd.gr', 'Greek omega with ypogegrammeni and prosgegrammeni'],
+    ['\u1FB2\u1FB3\u1FB4\u1FB7\u1FBC.gr', 'xn--hxajb3abbab1694dfua.gr', 'other Greek alpha with iota'],
+    ['\u1FC2\u1FC3\u1FC4\u1FC7\u1FCC.gr', 'xn--jxarbfbbab7994duxa.gr', 'other Greek eta with iota'],
+    ['\u1FF2\u1FF3\u1FF4\u1FF7\u1FFC.gr', 'xn--uxaaaaa6gd1b0624c98a.gr', 'other Greek omega with iota'],
+    ['a\u0345b.gr', 'xn--ab-09b.gr', 'combining Greek ypogegrammeni'],
+    ['\u1C80\u1C81\u1C82\u1C83\u1C84\u1C85\u1C86\u1C87\u1C88.ru', 'xn--b1ae4amfa0dylk164l.ru', 'historic Cyrillic letters'],
+    ['\u041F\u0420\u0418\u041C\u0415\u0420.\u0420\u0424', 'xn--e1afmkfd.xn--p1ai', 'ordinary Cyrillic capitals'],
+    ['\uFF21\uFF22\uFF23.\uFF23\uFF2F\uFF2D', 'abc.com', 'full-width capitals'],
+    ['\uD801\uDC00\uD801\uDC27.com', 'xn--hj8cuc.com', 'supplementary capitals'],
+    ['EXAMPLE.COM', 'example.com', 'ASCII capitals'],
+    ['A\u00C4Z.COM', 'xn--az-via.com', 'mixed ASCII and non-ASCII capitals'],
+    ['\u03A3\u0391\u03A3\u3002\u4E2D\u56FD', 'xn--mxa9ab.xn--fiqs8s', 'IDNA dot separators'],
+  ]) {
+    assert.same(new URL(`http://${ domain }/`).hostname, expected, message);
+  }
+
+  assert.same(new URL('http://%CE%A3%CE%91%CE%A3/').hostname, 'xn--mxa9ab', 'case mapping after percent decoding');
+  assert.same(new URL('http://%E1%8F%A3%E1%8E%B3%E1%8E%A9.com/').hostname, 'xn--f9dt7l.com', 'Cherokee after percent decoding');
+  // Native Firefox < 122 and Chrome / Edge < 130 parse this as an opaque path.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1603699
+  // https://crbug.com/1416006
+  // assert.same(new URL('nonspecial://EXAMPLE.COM/').hostname, 'EXAMPLE.COM', 'opaque host keeps its case');
+  assert.same(new URL('http://EXAMPLE.COM/ABC').pathname, '/ABC', 'path keeps its case');
+});
+
+QUnit.test('URL domain case mapping in parsing and setters', assert => {
+  for (const [domain, expected] of [
+    ['\u03A3\u0391\u03A3.\u4E2D\u56FD', 'xn--mxa9ab.xn--fiqs8s'],
+    ['\uABB3\uAB83\uAB79.com', 'xn--f9dt7l.com'],
+    ['\u1FBC.gr', 'xn--mxaq.gr'],
+    ['\u1C80.ru', 'xn--b1a.ru'],
+  ]) {
+    const input = `http://${ domain }/`;
+    assert.same(URL.parse(input).hostname, expected, 'URL.parse');
+    assert.true(URL.canParse(input), 'URL.canParse');
+    assert.same(new URL(`//${ domain }/`, 'https://example.com/').hostname, expected, 'relative URL');
+
+    const url = new URL('http://example.com/');
+    url.href = input;
+    assert.same(url.hostname, expected, 'href setter');
+    url.href = 'http://example.com/';
+    url.host = domain;
+    assert.same(url.hostname, expected, 'host setter');
+    url.href = 'http://example.com/';
+    url.hostname = domain;
+    assert.same(url.hostname, expected, 'hostname setter');
+
+    // Native Firefox drops file hosts, still reproducible in Firefox 159.
+    // The global version uses native URL from Firefox 57, the pure version from Firefox 118.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
+    // assert.same(new URL(`file://${ domain }/path`).hostname, expected, 'file URL');
+    // const file = new URL('file:///path');
+    // file.hostname = domain;
+    // assert.same(file.hostname, expected, 'file hostname setter');
+  }
+});
+
+QUnit.test('URL domain mathematical Latin letters and digits', assert => {
+  // https://github.com/zloirock/core-js/issues/1223
+  // Explicit alphabets include the letters encoded in Letterlike Symbols.
+  for (const [letters, name] of [
+    ['𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳', 'bold'],
+    ['𝐴𝐵𝐶𝐷𝐸𝐹𝐺𝐻𝐼𝐽𝐾𝐿𝑀𝑁𝑂𝑃𝑄𝑅𝑆𝑇𝑈𝑉𝑊𝑋𝑌𝑍𝑎𝑏𝑐𝑑𝑒𝑓𝑔ℎ𝑖𝑗𝑘𝑙𝑚𝑛𝑜𝑝𝑞𝑟𝑠𝑡𝑢𝑣𝑤𝑥𝑦𝑧', 'italic'],
+    ['𝑨𝑩𝑪𝑫𝑬𝑭𝑮𝑯𝑰𝑱𝑲𝑳𝑴𝑵𝑶𝑷𝑸𝑹𝑺𝑻𝑼𝑽𝑾𝑿𝒀𝒁𝒂𝒃𝒄𝒅𝒆𝒇𝒈𝒉𝒊𝒋𝒌𝒍𝒎𝒏𝒐𝒑𝒒𝒓𝒔𝒕𝒖𝒗𝒘𝒙𝒚𝒛', 'bold italic'],
+    ['𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏', 'script'],
+    ['𝓐𝓑𝓒𝓓𝓔𝓕𝓖𝓗𝓘𝓙𝓚𝓛𝓜𝓝𝓞𝓟𝓠𝓡𝓢𝓣𝓤𝓥𝓦𝓧𝓨𝓩𝓪𝓫𝓬𝓭𝓮𝓯𝓰𝓱𝓲𝓳𝓴𝓵𝓶𝓷𝓸𝓹𝓺𝓻𝓼𝓽𝓾𝓿𝔀𝔁𝔂𝔃', 'bold script'],
+    ['𝔄𝔅ℭ𝔇𝔈𝔉𝔊ℌℑ𝔍𝔎𝔏𝔐𝔑𝔒𝔓𝔔ℜ𝔖𝔗𝔘𝔙𝔚𝔛𝔜ℨ𝔞𝔟𝔠𝔡𝔢𝔣𝔤𝔥𝔦𝔧𝔨𝔩𝔪𝔫𝔬𝔭𝔮𝔯𝔰𝔱𝔲𝔳𝔴𝔵𝔶𝔷', 'fraktur'],
+    ['𝔸𝔹ℂ𝔻𝔼𝔽𝔾ℍ𝕀𝕁𝕂𝕃𝕄ℕ𝕆ℙℚℝ𝕊𝕋𝕌𝕍𝕎𝕏𝕐ℤ𝕒𝕓𝕔𝕕𝕖𝕗𝕘𝕙𝕚𝕛𝕜𝕝𝕞𝕟𝕠𝕡𝕢𝕣𝕤𝕥𝕦𝕧𝕨𝕩𝕪𝕫', 'double-struck'],
+    ['𝕬𝕭𝕮𝕯𝕰𝕱𝕲𝕳𝕴𝕵𝕶𝕷𝕸𝕹𝕺𝕻𝕼𝕽𝕾𝕿𝖀𝖁𝖂𝖃𝖄𝖅𝖆𝖇𝖈𝖉𝖊𝖋𝖌𝖍𝖎𝖏𝖐𝖑𝖒𝖓𝖔𝖕𝖖𝖗𝖘𝖙𝖚𝖛𝖜𝖝𝖞𝖟', 'bold fraktur'],
+    ['𝖠𝖡𝖢𝖣𝖤𝖥𝖦𝖧𝖨𝖩𝖪𝖫𝖬𝖭𝖮𝖯𝖰𝖱𝖲𝖳𝖴𝖵𝖶𝖷𝖸𝖹𝖺𝖻𝖼𝖽𝖾𝖿𝗀𝗁𝗂𝗃𝗄𝗅𝗆𝗇𝗈𝗉𝗊𝗋𝗌𝗍𝗎𝗏𝗐𝗑𝗒𝗓', 'sans-serif'],
+    ['𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇', 'sans-serif bold'],
+    ['𝘈𝘉𝘊𝘋𝘌𝘍𝘎𝘏𝘐𝘑𝘒𝘓𝘔𝘕𝘖𝘗𝘘𝘙𝘚𝘛𝘜𝘝𝘞𝘟𝘠𝘡𝘢𝘣𝘤𝘥𝘦𝘧𝘨𝘩𝘪𝘫𝘬𝘭𝘮𝘯𝘰𝘱𝘲𝘳𝘴𝘵𝘶𝘷𝘸𝘹𝘺𝘻', 'sans-serif italic'],
+    ['𝘼𝘽𝘾𝘿𝙀𝙁𝙂𝙃𝙄𝙅𝙆𝙇𝙈𝙉𝙊𝙋𝙌𝙍𝙎𝙏𝙐𝙑𝙒𝙓𝙔𝙕𝙖𝙗𝙘𝙙𝙚𝙛𝙜𝙝𝙞𝙟𝙠𝙡𝙢𝙣𝙤𝙥𝙦𝙧𝙨𝙩𝙪𝙫𝙬𝙭𝙮𝙯', 'sans-serif bold italic'],
+    ['𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣', 'monospace'],
+  ]) {
+    assert.same(new URL(`https://${ letters }.example/`).hostname,
+      'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.example', name);
+  }
+
+  for (const [character, expected] of [
+    ['\u2107', 'xn--ab-0fb.example'], // Euler constant
+    ['\u210F', 'xn--ab-moa.example'], // Planck constant over two pi
+    ['\u2113', 'alb.example'], // script small l
+    ['\u2139', 'aib.example'], // information source
+    ['\u2145', 'adb.example'], // double-struck italic D
+    ['\u2146', 'adb.example'], // double-struck italic d
+    ['\u2147', 'aeb.example'], // double-struck italic e
+    ['\u2148', 'aib.example'], // double-struck italic i
+    ['\u2149', 'ajb.example'], // double-struck italic j
+    ['\uD835\uDEA4', 'xn--ab-hpa.example'], // mathematical italic dotless i
+    ['\uD835\uDEA5', 'xn--ab-xcb.example'], // mathematical italic dotless j
+    // Unicode 18 mathematical italic long s ligature, rejected by native Node 27,
+    // Chrome 156, Firefox 159, and Safari 18.
+    // https://www.unicode.org/Public/18.0.0/idna/IdnaMappingTable.txt
+    // ['\uD835\uDEA6', 'assb.example'],
+  ]) {
+    assert.same(new URL(`https://a${ character }b.example/`).hostname, expected, 'additional mathematical Latin letter');
+  }
+
+  for (const digits of [
+    '𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗',
+    '𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡',
+    '𝟢𝟣𝟤𝟥𝟦𝟧𝟨𝟩𝟪𝟫',
+    '𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵',
+    '𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿',
+  ]) {
+    assert.same(new URL(`https://${ digits }.example/`).hostname, '0123456789.example', 'mathematical digits');
+  }
+});
+
+// Native Firefox 57-93 accepts these unassigned positions; fixed in 94 and ESR 91.3.
+// The pure version uses the polyfill below Firefox 118.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
+QUnit.skip('URL domain unassigned mathematical Latin positions', assert => {
+  for (const character of [
+    '\uD835\uDC55', '\uD835\uDC9D', '\uD835\uDCA0', '\uD835\uDCA1',
+    '\uD835\uDCA3', '\uD835\uDCA4', '\uD835\uDCA7', '\uD835\uDCA8',
+    '\uD835\uDCAD', '\uD835\uDCBA', '\uD835\uDCBC', '\uD835\uDCC4',
+    '\uD835\uDD06', '\uD835\uDD0B', '\uD835\uDD0C', '\uD835\uDD15',
+    '\uD835\uDD1D', '\uD835\uDD3A', '\uD835\uDD3F', '\uD835\uDD45',
+    '\uD835\uDD47', '\uD835\uDD48', '\uD835\uDD49', '\uD835\uDD51',
+  ]) {
+    assert.throws(() => new URL(`https://a${ character }b.example/`), TypeError, 'unassigned position');
+  }
+});
+
+QUnit.test('URL domain mathematical mapping in parsing and setters', assert => {
+  const input = 'https://\uD835\uDE8D\uD835\uDE92\uD835\uDE9C\uD835\uDE8C\uD835\uDE98\uD835\uDE9B\uD835\uDE8D.gg/';
+  assert.same(new URL(input).hostname, 'discord.gg', '#1223');
+  assert.same(URL.parse(input).hostname, 'discord.gg', 'URL.parse');
+  assert.true(URL.canParse(input), 'URL.canParse');
+  assert.same(new URL(input.slice(6), 'https://example.com/').hostname, 'discord.gg', 'relative URL');
+  assert.same(new URL('https://%F0%9D%9A%8D%F0%9D%9A%92%F0%9D%9A%9C%F0%9D%9A%8C%F0%9D%9A%98%F0%9D%9A%9B%F0%9D%9A%8D.gg/').hostname,
+    'discord.gg', 'percent decoding before mapping');
+
+  const url = new URL('https://example.com/path?key=value#hash');
+  const params = url.searchParams;
+  for (const key of ['href', 'host', 'hostname']) {
+    url[key] = key === 'href' ? input : input.slice(8, -1);
+    assert.same(url.hostname, 'discord.gg', `${ key } setter`);
+    assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+    url.href = 'https://example.com/path?key=value#hash';
+  }
+
+  // Native Node 20.0.0 returns an empty hostname; Node 20.20.2 passes.
+  assert.same(new URL('http://\uD835\uDFD9\uD835\uDFDA\uD835\uDFDF.\uD835\uDFD8.\uD835\uDFD8.\uD835\uDFD9/').hostname,
+    '127.0.0.1', 'mathematical digits before IPv4 parsing');
 });
 
 QUnit.test('URL converts lone surrogates before removing tabs and newlines', assert => {
@@ -430,6 +598,7 @@ QUnit.test('URL#href', assert => {
     // fails in Chrome 92 (Windows), Firefox 157, Deno 2.9.8
     // url = new URL('https://example.com/path');
     // assert.throws(() => { url.href = 'http:'; }, TypeError);
+    // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url.protocol = 'file:';
     // assert.same(url.href, 'file://example.com/path', 'failed assignment cannot create a file URL with a null host');
 
@@ -662,6 +831,7 @@ QUnit.test('URL#host', assert => {
     // assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
     // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
 
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url = new URL('file:///var/log/system.log');
     // url.host = 'nnsc.nsf.net'; // does not work in FF
     // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
@@ -741,6 +911,7 @@ QUnit.test('URL#hostname', assert => {
     // assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
     // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
 
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url = new URL('file:///var/log/system.log');
     // url.hostname = 'nnsc.nsf.net'; // does not work in FF
     // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
@@ -834,6 +1005,8 @@ QUnit.test('URL#pathname', assert => {
 
     /*
     for (const [href, pathname, expected] of [
+      // Firefox discards nonempty file hosts when parsing these URLs.
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
       ['file://host/dir/file', 'C|', 'file://host/C:'], // fails in Chrome 95 (Windows), Chrome 155 (macOS), Firefox 157, Safari 27, Node 14.21.3, Deno 2.9.8, Bun 1.4.4
       ['file://host/dir/file', '/C:/path', 'file://host/C:/path'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
       ['file://host/dir/file?x#y', '///path', 'file://host///path?x#y'], // fails in Firefox 157, Node 14.21.3, Deno 2.9.8
@@ -1006,7 +1179,7 @@ QUnit.test('URL#hash', assert => {
     assert.same(url.hash, '#%D0%B0%D0%B1a');
 
     // url = new URL('http://zloirock.ru/');
-    // url.hash = '\udc01\ud802a';
+    // url.hash = '\uDC01\uD802a';
     // assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
   }
 });

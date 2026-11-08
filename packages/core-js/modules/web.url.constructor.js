@@ -81,6 +81,12 @@ var MAPPED_ONTO_FORBIDDEN = '\u00A8\u00AF\u00B4\u00B8\u02D8\u02D9\u02DA\u02DB\u0
   + '\u2100\u2101\u2105\u2106\u2A74\u309B\u309C\uFC5E\uFC5F\uFC60\uFC61\uFC62\uFC63\uFDFA\uFDFB\uFE13'
   + '\uFE16\uFE47\uFE48\uFE49\uFE4A\uFE4B\uFE4C\uFE55\uFE56\uFE5F\uFE64\uFE65\uFE68\uFE6A\uFE6B\uFE70'
   + '\uFE72\uFE74\uFE76\uFE78\uFE7A\uFE7C\uFE7E\uFFE3';
+// Mathematical Latin letters encoded in Letterlike Symbols, with their UTS#46 mappings.
+var MATH_LATIN_CHARACTERS = '\u2102\u2107\u210A\u210B\u210C\u210D\u210E\u210F\u2110\u2111\u2112\u2113\u2115'
+  + '\u2119\u211A\u211B\u211C\u211D\u2124\u2128\u212C\u212D\u212F\u2130\u2131'
+  + '\u2133\u2134\u2139\u2145\u2146\u2147\u2148\u2149';
+var MATH_LATIN_MAPPING = 'c\u025Bghhhh\u0127iillnpqrrrzzbceefmoiddeij';
+var CYRILLIC_MAPPING = '\u0432\u0434\u043E\u0441\u0442\u0442\u044A\u0463\uA64B';
 // eslint-disable-next-line no-unassigned-vars -- expected `undefined` value
 var EOF;
 
@@ -109,6 +115,18 @@ var isIgnoredCodePoint = function (code) {
 };
 
 var isDisallowedCodePoint = function (code) {
+  // Unassigned positions in the mathematical Latin alphabets must not map to letters.
+  if (code >= 0x1D455 && code <= 0x1D551) {
+    switch (code) {
+      case 0x1D455: case 0x1D49D: case 0x1D4A0: case 0x1D4A1:
+      case 0x1D4A3: case 0x1D4A4: case 0x1D4A7: case 0x1D4A8:
+      case 0x1D4AD: case 0x1D4BA: case 0x1D4BC: case 0x1D4C4:
+      case 0x1D506: case 0x1D50B: case 0x1D50C: case 0x1D515:
+      case 0x1D51D: case 0x1D53A: case 0x1D53F: case 0x1D545:
+      case 0x1D547: case 0x1D548: case 0x1D549: case 0x1D551:
+        return true;
+    }
+  }
   return code === 0xFFFD
     // lone surrogate - a matched pair is a single code point and never lands here
     || (code >= 0xD800 && code <= 0xDFFF)
@@ -123,38 +141,81 @@ var isDisallowedCodePoint = function (code) {
     || (code >= 0xE000 && code <= 0xF8FF) || (code >= 0xF0000 && code <= 0x10FFFD);
 };
 
-var mapCodePoint = function (code) {
+var mapCodePoint = function (code, character) {
+  // Mathematical Latin alphabets repeat A-Z / a-z; reserved positions are rejected above.
+  if (code >= 0x1D400 && code <= 0x1D6A3) return fromCharCode(0x61 + (code - 0x1D400) % 26);
+  // Mathematical bold, double-struck, sans-serif, sans-serif bold, and monospace digits.
+  if (code >= 0x1D7CE && code <= 0x1D7FF) return fromCharCode(0x30 + (code - 0x1D7CE) % 10);
+  // Additional mathematical Latin letters, including the missing alphabet positions.
+  if (code >= 0x2102 && code <= 0x2149) {
+    var index = stringIndexOf(MATH_LATIN_CHARACTERS, character);
+    if (index !== -1) return charAt(MATH_LATIN_MAPPING, index);
+  }
   // full-width forms
-  if (code >= 0xFF01 && code <= 0xFF5E) return code - 0xFEE0;
+  if (code >= 0xFF01 && code <= 0xFF5E) return toLowerCase(fromCharCode(code - 0xFEE0));
   // spaces and the listed code points collapse onto a forbidden domain code point; a space
   // stands in for the real mapping since either way the domain is rejected
-  if (code === 0xA0 || code === 0x1680 || code === 0x202F || code === 0x205F || code === 0x3000) return 0x20;
-  if (code >= 0x2000 && code <= 0x200A) return 0x20;
-  // the list holds no supplementary code point, and `fromCharCode` would truncate one
-  if (code <= 0xFFFF && stringIndexOf(MAPPED_ONTO_FORBIDDEN, fromCharCode(code)) > -1) return 0x20;
-  return code;
+  if (code === 0xA0 || code === 0x1680 || code === 0x202F || code === 0x205F || code === 0x3000) return ' ';
+  if (code >= 0x2000 && code <= 0x200A) return ' ';
+  // the list holds only BMP code points
+  if (code <= 0xFFFF && stringIndexOf(MAPPED_ONTO_FORBIDDEN, character) > -1) return ' ';
+  // Cherokee case folding uses capitals, unlike lowercasing
+  if (code >= 0x13A0 && code <= 0x13F5) return character;
+  if (code >= 0x13F8 && code <= 0x13FD) return fromCharCode(code - 8);
+  if (code >= 0xAB70 && code <= 0xABBF) return fromCharCode(code - 0x97D0);
+  // older engines do not lowercase supplementary Deseret letters
+  if (code >= 0x10400 && code <= 0x10427) return fromCharCode(0xD801, 0xDC28 + code - 0x10400);
+  // historic Cyrillic letters
+  if (code >= 0x1C80 && code <= 0x1C88) return charAt(CYRILLIC_MAPPING, code - 0x1C80);
+  // Greek ypogegrammeni / prosgegrammeni expands to a separate iota
+  if (code >= 0x1F80 && code <= 0x1FAF) {
+    return fromCharCode((code & 7) + (code < 0x1F90 ? 0x1F00 : code < 0x1FA0 ? 0x1F20 : 0x1F60)) + '\u03B9';
+  }
+  switch (code) {
+    // Mathematical italic dotless i / j and the Unicode 18 long s ligature.
+    case 0x1D6A4: return '\u0131';
+    case 0x1D6A5: return '\u0237';
+    case 0x1D6A6: return 'ss';
+    case 0x345: return '\u03B9';
+    // old V8 lowercases even an isolated capital sigma to final sigma
+    case 0x3A3: return '\u03C3';
+    case 0x1FB2: return '\u1F70\u03B9';
+    case 0x1FB3: case 0x1FBC: return '\u03B1\u03B9';
+    case 0x1FB4: return '\u03AC\u03B9';
+    case 0x1FB7: return '\u1FB6\u03B9';
+    case 0x1FC2: return '\u1F74\u03B9';
+    case 0x1FC3: case 0x1FCC: return '\u03B7\u03B9';
+    case 0x1FC4: return '\u03AE\u03B9';
+    case 0x1FC7: return '\u1FC6\u03B9';
+    case 0x1FF2: return '\u1F7C\u03B9';
+    case 0x1FF3: case 0x1FFC: return '\u03C9\u03B9';
+    case 0x1FF4: return '\u03CE\u03B9';
+    case 0x1FF7: return '\u1FF6\u03B9';
+  }
+  // Lowercase each code point independently, without the Final_Sigma context.
+  // Nontransitional deviations such as sharp s and final sigma stay unchanged.
+  return toLowerCase(character);
 };
 
 // https://url.spec.whatwg.org/#concept-domain-to-ascii
 // A subset of UTS#46 processing - the full mapping table is too large to ship. Covered are the
-// entries cheap to express: the ignored and disallowed code points, full-width forms, and the
-// code points mapping onto a forbidden domain code point. Not covered, so such domains are
-// punycoded rather than mapped or rejected: unassigned code points, half-width forms,
-// compatibility decompositions, NFC, CheckJoiners, CheckBidi, and labels that already arrive
-// punycoded - those are not decoded back for validation.
+// entries cheap to express: the ignored and disallowed code points, full-width forms,
+// per-code-point case mapping, mathematical Latin letters and digits, and code points mapping
+// onto a forbidden domain code point.
+// Not covered, so such domains are punycoded rather than mapped or rejected:
+// other unassigned code points and compatibility decompositions, half-width forms, NFC, CheckJoiners,
+// CheckBidi, and labels that already arrive punycoded - those are not decoded back for validation.
 var domainToASCII = function (domain) {
-  // every mapped, ignored and disallowed code point is non-ASCII, so an ASCII domain
-  // needs the punycode step only - this keeps the common case off the slow path
-  if (!exec(NON_ASCII, domain)) return domain === '' ? null : toASCII(domain);
+  // an ASCII domain only needs lowercasing - keep the common case off the slow path
+  if (!exec(NON_ASCII, domain)) return domain === '' ? null : toLowerCase(domain);
   var codePoints = stringToCodePoints(domain);
   var result = '';
-  var index, code, mapped;
+  var index, code;
   for (index = 0; index < codePoints.length; index++) {
     code = codeAt(codePoints[index], 0);
     if (isDisallowedCodePoint(code)) return null;
     if (isIgnoredCodePoint(code)) continue;
-    mapped = mapCodePoint(code);
-    result += mapped === code ? codePoints[index] : fromCharCode(mapped);
+    result += mapCodePoint(code, codePoints[index]);
   }
   return result === '' ? null : toASCII(result);
 };
