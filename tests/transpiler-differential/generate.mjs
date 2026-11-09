@@ -23807,4 +23807,18 @@ export function * generate() {
         try { assign(); patch(); return Array.from([1]); }
         finally { restoreProperty(Array, "from", descriptor); } })()`), ts };
   }
+  // The live call owns its plain continuation, even after a receiver guard or a combined dispatch.
+  // Keep grouping as an independent axis: it ends the chain and must retain the resulting throw.
+  for (const [name, expression] of [
+    ['instance', 'a?.at(0).foo?.(log.push("arg"))'],
+    ['combined', 'a.flat?.().at(0).foo?.(log.push("arg"))'],
+    ['defined-static', 'globalThis?.Array.from(a)[0].foo?.(log.push("arg"))'],
+    ['selected-static', '(a ? Array : null)?.from(a).foo?.(log.push("arg"))'],
+  ]) for (const sealed of [false, true]) {
+    const read = `${ sealed ? `(${ expression })` : expression }.bar`;
+    yield { ...snippet(`optional-call-continuation/${ name }/${ sealed }`,
+      `(() => { function read(a) { try { return ${ read }; } catch (error) { return error.name; } }
+        const item = { foo() { log.push(this === item ? "this" : "wrong"); return { bar: 23 }; } };
+        return [read(null), read([{}]), read([item])]; })()`), strip: true };
+  }
 }

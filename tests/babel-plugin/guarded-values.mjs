@@ -96,4 +96,41 @@ for (const expression of [
     check(`${ expression }/window=${ present }`, evaluate(body), evaluate(source.replace('export const', 'const')));
   }
 }
+// The binding can receive an already-resolved claim whose stored receiver contains a live
+// optional below plain members. Rehanging that receiver must not seal its optional subchain.
+{
+  const source = 'let held; const value = (held = globalThis.window?.self.Array.foo?.bar.baz)?.from([1]);';
+  const options = { configFile: false, babelrc: false, ast: true };
+  const { ast } = await transformAsync(source, options);
+  let target;
+  traverse(ast, { OptionalMemberExpression(p) { if (p.node.property.name === 'from') target = p; } });
+  const adapter = createBabelAdapter({ method: 'usage-pure' });
+  function resolve(name) {
+    return ['self', 'globalThis'].includes(name) ? { entry: name, hintName: name } : null;
+  }
+  const helpers = createASTHelpers(t, {
+    getAdapter: () => adapter,
+    resolvePureGlobalEntry: resolve,
+    injectPureGlobal: (entry, name) => t.identifier(`_${ name }`),
+  });
+  check('stored optional rehang/render', helpers.emitGuardedClaim({
+    path: target, replacePath: target, id: t.identifier('_served'), sideEffects: [], receiverEffectCount: 0,
+    guardObject: target.node.object, substituteGlobal: name => resolve(name) ? t.identifier(`_${ name }`) : null,
+  }), true);
+  const { code } = await transformFromAstAsync(ast, source, options);
+  for (const present of [false, true]) for (const property of [false, true]) {
+    function evaluate(body) {
+      return runInNewContext(`this._globalThis = this; this.self = this; this._self = this;
+        ${ present ? 'this.window = this;' : '' }
+        const effects = []; const _served = a => { effects.push('call'); return a[0]; };
+        Object.defineProperty(Array, 'foo', { get() { effects.push('get');
+          return ${ property ? '{ bar: { baz: { from: _served } } }' : 'null' }; } });
+        (() => { try { ${ body }
+          return JSON.stringify([value, typeof held, effects]);
+        } catch (error) { return JSON.stringify([error.name, effects]); } })();`);
+    }
+    check(`stored optional rehang/${ present }/${ property }`, evaluate(code), evaluate(source));
+  }
+}
+
 finish();

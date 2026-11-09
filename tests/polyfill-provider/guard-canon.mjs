@@ -2,6 +2,7 @@
 // them. Both were written twice - once per binding - and the corpus only proves the two agreed on
 // the shapes it happens to carry; these lock the rule itself, element-wise over its domain
 import {
+  callExpression,
   composeNullGuardTest,
   HOST_SLOT,
   hostSlot,
@@ -11,6 +12,7 @@ import {
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderInExpressionPlan,
+  renderGuardedChainTail,
   renderNavCollapseTail,
   renderNavGuardTestBase,
   renderKeptSequenceTail,
@@ -964,5 +966,21 @@ for (const [source, expected] of [
   check(`${ label }/route`, plan?.bail ? 'bail' : plan?.callInBranches ? 'call' : 'read', expected);
   check(`${ label }/no receiver capture`, !!plan?.captureReceiver, false);
 });
+
+// Babel's OptionalCallExpression can be a plain in-chain call. Only its optional bit
+// creates a new short-circuit; once created, that chain includes every subsequent step.
+for (const type of ['CallExpression', 'OptionalCallExpression']) for (const optional of [false, true]) {
+  const argument = identifier('argument');
+  const built = renderGuardedChainTail([
+    { type, optional, arguments: [argument] },
+    { type: 'MemberExpression', computed: false, property: identifier('value') },
+  ], identifier('method'), {
+    cloneCall: (step, callee) => callExpression(callee, step.arguments, { optional: step.optional }),
+  });
+  const body = optional ? built.expression : built;
+  check(`${ type }/${ optional }/chain`, built.type, optional ? 'ChainExpression' : 'MemberExpression');
+  check(`${ type }/${ optional }/call`, body.object.optional, optional);
+  check(`${ type }/${ optional }/argument`, body.object.arguments[0], argument);
+}
 
 finish();

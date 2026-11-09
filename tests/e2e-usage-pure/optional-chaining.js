@@ -1740,3 +1740,32 @@ QUnit.test('optional call: resumed and escaped writers preserve the selected rec
     assert.deepEqual(events, ['get', 'write', 'held']);
   }
 });
+
+QUnit.test('optional calls retain their plain continuation after an instance dispatch', assert => {
+  const log = [];
+  const item = { foo() {
+    log.push(this === item ? 'this' : 'wrong');
+    return { bar: 23 };
+  } };
+  function read(a) { return a?.at(0).foo?.(log.push('arg')).bar; }
+  function combined(a) { return a.flat?.().at(0).foo?.(log.push('arg')).bar; }
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the seal must retain its native throw
+  function sealed(a) { return (a?.at(0).foo?.()).bar; }
+  assert.same(read(null), undefined);
+  assert.same(read([{}]), undefined);
+  assert.same(read([item]), 23);
+  assert.same(combined([{}]), undefined);
+  assert.same(combined([item]), 23);
+  assert.throws(() => sealed(null), TypeError);
+  assert.throws(() => sealed([{}]), TypeError);
+  assert.deepEqual(log, ['arg', 'this', 'arg', 'this']);
+});
+
+QUnit.test('a defined constructor does not make its derived optional method defined', assert => {
+  function read(a) { return globalThis?.Array.from(a)[0].foo?.().bar; }
+  function selected(c) { return (c ? Array : null)?.from([1]).foo?.().length; }
+  assert.same(read([{}]), undefined);
+  assert.same(read([{ foo() { return { bar: 23 }; } }]), 23);
+  assert.same(selected(false), undefined);
+  assert.same(selected(true), undefined);
+});
