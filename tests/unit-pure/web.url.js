@@ -242,20 +242,21 @@ QUnit.test('URL domain Unicode validation: parsing and setters', assert => {
   }
 });
 
-QUnit.test('URL domain Punycode overflow', assert => {
-  // Native encoders can use larger integers, so a correct result or a TypeError is allowed.
-  // These inputs exercise both overflow guards in the polyfilled encoder.
-  for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
-    let basic = '';
-    for (let index = 0; index < length; index++) basic += 'a';
-    const label = `${ basic }\uD83D\uDE00`;
-    const encoded = `xn--${ basic }-${ suffix }`;
-    for (const [input, base, expected] of [
-      [`https://${ label }.example/path?a=1#hash`, undefined, `https://${ encoded }.example/path?a=1#hash`],
-      [`https://prefix.${ label }/path`, undefined, `https://prefix.${ encoded }/path`],
-      [`//${ label }.example/path`, 'https://example.org/', `https://${ encoded }.example/path`],
-      ['/path', `https://${ label }.example/base`, `https://${ encoded }.example/path`],
-    ]) {
+// Native encoders can use larger integers, so a correct result or a TypeError is allowed.
+// These inputs exercise both overflow guards in the polyfilled encoder.
+// Separate inputs let slow engines service Karma heartbeats between tests.
+for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
+  let basic = '';
+  for (let index = 0; index < length; index++) basic += 'a';
+  const label = `${ basic }\uD83D\uDE00`;
+  const encoded = `xn--${ basic }-${ suffix }`;
+  for (const [name, input, base, expected] of [
+    ['absolute', `https://${ label }.example/path?a=1#hash`, undefined, `https://${ encoded }.example/path?a=1#hash`],
+    ['last label', `https://prefix.${ label }/path`, undefined, `https://prefix.${ encoded }/path`],
+    ['relative', `//${ label }.example/path`, 'https://example.org/', `https://${ encoded }.example/path`],
+    ['base', '/path', `https://${ label }.example/base`, `https://${ encoded }.example/path`],
+  ]) {
+    QUnit.test(`URL domain Punycode overflow: ${ length }, ${ name }`, assert => {
       let url;
       let error;
       try {
@@ -268,26 +269,18 @@ QUnit.test('URL domain Punycode overflow', assert => {
       assert.same(URL.canParse(input, base), !error, 'canParse agrees with the constructor');
       const parsed = URL.parse(input, base);
       assert.same(parsed && parsed.href, error ? null : expected, 'parse agrees with the constructor');
-    }
+    });
   }
-});
 
-QUnit.test('URL domain Punycode overflow: setters', assert => {
-  // Native encoders can use larger integers, so a correct result or a TypeError is allowed.
-  // These inputs exercise both overflow guards in the polyfilled encoder.
-  for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
-    let basic = '';
-    for (let index = 0; index < length; index++) basic += 'a';
-    const label = `${ basic }\uD83D\uDE00`;
-    const encoded = `xn--${ basic }-${ suffix }`;
-    if (DESCRIPTORS) {
-      const accepts = URL.canParse(`https://${ label }/`);
-      const initial = 'https://user:pass@example.org:8080/path?a=1#hash';
-      for (const [key, value, expected] of [
-        ['host', `${ label }:9090`, `https://user:pass@${ encoded }:9090/path?a=1#hash`],
-        ['hostname', label, `https://user:pass@${ encoded }:8080/path?a=1#hash`],
-        ['href', `https://${ label }/new?b=2#new`, `https://${ encoded }/new?b=2#new`],
-      ]) {
+  for (const [key, value, expected] of [
+    ['host', `${ label }:9090`, `https://user:pass@${ encoded }:9090/path?a=1#hash`],
+    ['hostname', label, `https://user:pass@${ encoded }:8080/path?a=1#hash`],
+    ['href', `https://${ label }/new?b=2#new`, `https://${ encoded }/new?b=2#new`],
+  ]) {
+    QUnit.test(`URL domain Punycode overflow: ${ length }, ${ key } setter`, assert => {
+      if (DESCRIPTORS) {
+        const accepts = URL.canParse(`https://${ label }/`);
+        const initial = 'https://user:pass@example.org:8080/path?a=1#hash';
         const url = new URL(initial);
         const params = url.searchParams;
         let error;
@@ -304,9 +297,9 @@ QUnit.test('URL domain Punycode overflow: setters', assert => {
         params.set('next', '3');
         assert.same(url.search, accepts && key === 'href' ? '?b=2&next=3' : '?a=1&next=3', 'searchParams stays linked');
       }
-    }
+    });
   }
-});
+}
 
 QUnit.test('URL domain Unicode validation: allowed separators and ignored controls', assert => {
   for (const separator of ['.', '\u3002', '\uFF0E', '\uFF61']) {
