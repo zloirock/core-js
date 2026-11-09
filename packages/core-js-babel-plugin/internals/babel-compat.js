@@ -767,11 +767,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       });
       if (!step) return null;
       if (step.folded) return [p, body, 'tail'];
-      if (member) return [p, step.optional
-        ? t.optionalMemberExpression(body, t.cloneNode(p.node.property), p.node.computed, true)
+      // Babel marks every link above a live optional as Optional*, even a plain step.
+      const inChain = isOptionalNode(unwrapRuntimeExpr(body));
+      if (member) return [p, step.optional || inChain
+        ? t.optionalMemberExpression(body, t.cloneNode(p.node.property), p.node.computed, step.optional)
         : t.memberExpression(body, t.cloneNode(p.node.property), p.node.computed), 'tail'];
       const args = p.node.arguments.map(a => t.cloneNode(a));
-      return [p, step.optional ? t.optionalCallExpression(body, args, true) : t.callExpression(body, args), 'tail'];
+      return [p, step.optional || inChain ? t.optionalCallExpression(body, args, step.optional) : t.callExpression(body, args), 'tail'];
     }
     return null;
   }
@@ -815,8 +817,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     for (const [index, hop] of rehang.entries()) {
       // the key standing DIRECTLY on the landed binding reads a value that cannot be absent, so its
       // own `?.` is dead text - the shared vestigial verdict, applied where the landing creates it
-      value.node.alternate = hop.optional && index > 0
-        ? t.optionalMemberExpression(value.node.alternate, t.identifier(hop.name), false, true)
+      const optional = hop.optional && index > 0;
+      value.node.alternate = optional || isOptionalNode(value.node.alternate)
+        ? t.optionalMemberExpression(value.node.alternate, t.identifier(hop.name), false, optional)
         : t.memberExpression(value.node.alternate, t.identifier(hop.name));
     }
     store.outer.right = value.node;
@@ -1087,8 +1090,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   // strip Optional{Member,Call}Expression wrappers above a replaced node
-  // stripFirstOptional: also deoptionalize the first user-written ?. in the chain
-  // (used when the replacement is always defined, e.g., polyfill imports)
+  // stripFirstOptional: deoptionalize a ?. testing the replacement itself, never a
+  // derived value farther up the chain (an import exists, but its call result may not)
   function normalizeOptionalChain(path, stripFirstOptional) {
     // walk past TS / Paren / Chain wrappers between the replaced node and the optional
     // chain. without these peels, `(arr.includes)?.(1)` / ESTree-wrapped chains wouldn't
@@ -1096,7 +1099,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     let parentPath = peelParenAndTSParentPath(path, SKIPPABLE_WRAPPER_TYPES);
     if (!parentPath) return null;
     let topPath = null;
-    let seenOptional = false;
     // the node the climb came from. `isOptionalOperand` is asked at EVERY hop, not only at entry:
     // an optional ancestor reached through an ARGUMENT or a computed KEY belongs to a different
     // chain, and deoptionalizing it destroys the user's own short-circuit (`cb?.fn(Array?.from(x))`
@@ -1104,8 +1106,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     let cursor = path;
     for (;;) {
       if (!isOptionalNode(parentPath?.node) || !isOptionalOperand(cursor, parentPath)) break;
-      if (parentPath.node.optional && (!stripFirstOptional || seenOptional)) break;
-      if (parentPath.node.optional) seenOptional = true;
+      if (parentPath.node.optional && (!stripFirstOptional || cursor !== path)) break;
       topPath = parentPath;
       deoptionalizeNode(parentPath);
       cursor = parentPath;
@@ -2279,6 +2280,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       wrapPath = normalizeOptionalChain(replacePath) || replacePath;
       // no `check` when the receiver's `?.` was skipped as polyfillable: the replacement consumes it
       if (!check) return;
+      wrapPath = chainContinuationTip(wrapPath);
     }
     // a `delete` the continuation runs on into takes the whole operator into the guard: absorbed into
     // the alternate the member is evaluated and deleted from nothing (`delete a?.b.at.name`), and a
@@ -2657,19 +2659,20 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     let alternate = replacement;
     if (tipPath.node !== emitPath.node) {
       alternate = spliceChainInner(tipPath.node, emitPath.node, replacement);
-      // over a PLAIN dispatch root the spliced trailing links are DEAD Optional*-typed -
-      // retype them plain, else babel codegen parenthesizes the chain boundary. over a LIVE
-      // `?.call` root (optional outer call) they stay Optional*: they are genuine chain
-      // members and the retype would sever them from the short-circuit. a `!` between two
-      // links is stepped over like the climb that took it in
+      // Only links BELOW the innermost surviving ?. become plain over a plain dispatch.
+      // The optional call and every link above it must remain in the same Babel chain.
+      // A transparent `!` is stepped over just as in the continuation climb.
       if (replacement.type !== 'OptionalCallExpression') {
+        let deadTail = alternate;
         for (let link = alternate; link && link !== replacement;
           link = TS_EXPR_WRAPPERS.has(link.type) ? link.expression : link.object ?? link.callee) {
+          if (link.optional) deadTail = link.object ?? link.callee;
+        }
+        for (let link = deadTail; link && link !== replacement;
+          link = TS_EXPR_WRAPPERS.has(link.type) ? link.expression : link.object ?? link.callee) {
           if (TS_EXPR_WRAPPERS.has(link.type)) continue;
-          if (link.type === 'OptionalMemberExpression') link.type = 'MemberExpression';
-          else if (link.type === 'OptionalCallExpression') link.type = 'CallExpression';
-          else break;
-          delete link.optional;
+          if (!isOptionalNode(link)) break;
+          deoptionalizeAstNode(link);
         }
       }
     }

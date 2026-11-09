@@ -87,6 +87,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
+  callExpression,
   hostSlot,
   hostSlotNode,
   nullFirstGuardTest,
@@ -536,15 +537,15 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   function retypeDeadOptionalLinks(path) {
     for (let p = path; p && isOptionalNode(p.node) && !p.node.optional; p = p.parentPath) {
       deoptionalizeAstNode(p.node);
+      // An argument or computed key enters a different chain, even when its parent is Optional*.
+      if (p.parentPath?.node.object !== p.node && p.parentPath?.node.callee !== p.node) break;
     }
     for (let d = path.node.object; d && isOptionalNode(d) && !d.optional; d = d.object ?? d.callee) {
       deoptionalizeAstNode(d);
     }
   }
 
-  // is this member the OPERAND of a `delete`? transparent wrappers (parens as a NODE, TS casts) sit
-  // between them in one paren spelling and not the other, so the climb peels them - the same rule the
-  // shared write-host predicate applies to its own hosts
+  // Supply this file's mutation and class context to the shared optional-erasure decision.
   function skipPolyfillableOptional(node, scope, path) {
     return isPolyfillableOptional({
       node,
@@ -1047,9 +1048,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           }
           hoisted = estreeToBabel(renderGuardedChainTail(plan.chainTail, hostSlot(narrow), {
             cloneHost,
-            cloneCall: (step, built) => hostSlot(step.type === 'OptionalCallExpression' || step.optional
-              ? t.optionalCallExpression(estreeToBabel(built), step.arguments.map(argument => t.cloneNode(argument)), true)
-              : t.callExpression(estreeToBabel(built), step.arguments.map(argument => t.cloneNode(argument)))),
+            cloneCall: (step, built) => callExpression(built, step.arguments.map(argument => hostSlot(t.cloneNode(argument))), {
+              optional: step.optional === true,
+            }),
           }));
         }
         // the short-circuit tests the value the source's own `?.` guards: the hop's base where the

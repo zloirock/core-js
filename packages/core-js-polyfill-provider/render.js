@@ -1131,15 +1131,19 @@ export function renderNavCollapseTail(plan, base, { cloneHost = node => node, ow
 // the chain continuation a hoisted narrow guard absorbs, rebuilt over the guarded value. every step
 // lands PLAIN except a call, which keeps the `?.` the source wrote on it - the guard answers the
 // receiver's short-circuit, the call's own is still the source's. the host nodes are cloned by the
-// leg (`cloneHost`); a call's ARGUMENTS ride by identity, so their own claims stay live
+// leg (`cloneHost`); a call's ARGUMENTS keep their own claims live. A surviving optional call
+// starts a chain enclosing the entire tail, including subsequent plain steps. Its node TYPE
+// alone says nothing about optionality: Babel also uses OptionalCallExpression for plain steps.
 export function renderGuardedChainTail(tail, base, { cloneHost = node => node, cloneCall }) {
   let built = base;
+  let optional = false;
   for (const step of tail) {
     built = step.type === 'CallExpression' || step.type === 'OptionalCallExpression'
       ? cloneCall(step, built)
       : memberExpression(built, cloneHost(step.property), { computed: step.computed });
+    optional ||= step.optional === true;
   }
-  return built;
+  return optional ? chainExpression(built) : built;
 }
 
 // the guard TEST a resolvable base supplies (`navGuardTestBase` decides there IS one): the probe
