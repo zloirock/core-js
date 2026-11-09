@@ -10,7 +10,10 @@ import {
   pureImportEntryOfProgram,
   pureImportSourceEntry,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { symbolKeyFromSource } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { moduleDefaultSource, symbolKeyFromSource } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { importedStaticReadMeta } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { scanExistingCoreJSImports } from '../../packages/core-js-polyfill-provider/detect-usage/entries.js';
 import { ownOutputTests } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { createChecker } from './harness.mjs';
@@ -18,6 +21,76 @@ import { createChecker } from './harness.mjs';
 const { check, runBoth, finish } = createChecker('pure-import-sources');
 const packages = ['my-pure', '@vendor/pure'];
 const sourceTests = ownOutputTests({ pkg: 'my-pure', packages });
+
+// Source provenance follows only the selected value, with the usual alias write and availability proofs.
+for (const [label, prefix, expression, expected] of [
+  ['nullish aliases', 'const Q = P ?? Iterator; const C = Q ?? AggregateError;', 'C', true],
+  ['truthy aliases', 'const Q = P || Iterator; const C = Q || AggregateError;', 'C', true],
+  ['effectful left', 'const Q = (effect(), P) ?? Iterator; const C = Q ?? AggregateError;', 'C', true],
+  ['live fallback', 'const Q = maybe || P; const C = Q ?? AggregateError;', 'C', false],
+  ['reassigned alias', 'let Q = P; Q = other; const C = Q ?? AggregateError;', 'C', false],
+  ['captured before init', 'var C = Q ?? other; var Q = P;', 'C', false],
+  ['cycle', 'var Q = C ?? P; var C = Q ?? P;', 'C', false],
+  ['shadow', 'function read(P) { return P ?? other; }', 'read(other)', false],
+]) runBoth(`selected source/${ label }`, `import P from '@core-js/pure/actual/promise'; ${ prefix } ${ expression };`,
+  (parser, program, name) => {
+    const statement = program.get('body').at(-1);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const query = { node: statement.node.expression, scope: statement.scope, adapter, path: statement };
+    check(`${ name }/guard enumeration`, moduleDefaultSource(query), null);
+    check(name, moduleDefaultSource({ ...query, followFallback: true }),
+      expected ? '@core-js/pure/actual/promise' : null);
+  });
+
+for (const [source, key, carries] of [
+  ['@core-js/pure/actual/promise', 'try', true],
+  ['@core-js/pure/actual/promise/constructor', 'try', false],
+  ['@core-js/pure/es/promise', 'allKeyed', false],
+  ['@core-js/pure/full/promise', 'allKeyed', true],
+]) for (const declaration of [
+  `import P from '${ source }';`,
+  `import { default as P } from '${ source }';`,
+  `const P = require('${ source }');`,
+  `import * as ns from '${ source }'; const P = ns.default;`,
+]) runBoth(`namespace static/${ key }/${ declaration }`,
+  `${ declaration } const Q = P ?? Iterator; const C = Q ?? AggregateError; C;`, (parser, program, name) => {
+    const statement = program.get('body').at(-1);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const meta = { kind: 'property', object: null, key, placement: 'prototype' };
+    const result = importedStaticReadMeta({
+      node: statement.node.expression, scope: statement.scope, adapter, path: statement, meta,
+    });
+    check(`${ name }/namespace owns static`, result === null, carries);
+    if (!carries) check(`${ name }/keep guarded claim`, result?.object, null);
+  });
+
+for (const source of ['foreign/actual/promise', '@core-js/pure/actual/promise/try', '@core-js/pure/actual/instance/at']) {
+  runBoth(`fallback needs a constructor/${ source }`,
+    `import P from '${ source }'; const C = P ?? other; C;`, (parser, program, name) => {
+      const statement = program.get('body').at(-1);
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      check(name, moduleDefaultSource({
+        node: statement.node.expression, scope: statement.scope, adapter, path: statement, followFallback: true,
+      }), null);
+    });
+}
+
+for (const depth of [8, 32, 128]) runBoth(`fallback query stays linear/${ depth }`,
+  `import P0 from '@core-js/pure/actual/promise'; ${ Array.from({ length: depth },
+    (_, n) => `const P${ n + 1 } = P${ n } ?? other;`).join(' ') } P${ depth };`, (parser, program, name) => {
+    const statement = program.get('body').at(-1);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const { getBinding } = adapter;
+    let lookups = 0;
+    adapter.getBinding = query => {
+      lookups++;
+      return getBinding(query);
+    };
+    check(name, moduleDefaultSource({
+      node: statement.node.expression, scope: statement.scope, adapter, path: statement, followFallback: true,
+    }), '@core-js/pure/actual/promise');
+    check(`${ name }/bounded lookups`, lookups <= 2 * (depth + 1), true);
+  });
 
 for (const source of [
   '@core-js/pure/actual/map/constructor',

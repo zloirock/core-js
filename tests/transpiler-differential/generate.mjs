@@ -23851,4 +23851,18 @@ export function * generate() {
       strip: true,
     };
   }
+  for (const operator of ['||', '??']) for (const replace of [false, true]) {
+    yield {
+      name: `pure-import-fallback-chain/${ operator }/${ replace }`,
+      code: `const P = Iterator;
+        const log = [];
+        let first = (log.push('init'), P) ${ operator } AggregateError;
+        ${ replace ? 'first = { from() { log.push(this === C); return { next() { return { value: 17 }; } }; } };' : '' }
+        const C = first ${ operator } Array;
+        export const r = C[(log.push('key'), 'from')]([23]).next().value;
+        export const effects = log;`,
+      strip: true,
+      isolated: true,
+    };
+  }
 }
