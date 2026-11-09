@@ -3,8 +3,6 @@ on: [push, workflow_dispatch]
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   list-branches:
@@ -97,6 +95,10 @@ jobs:
   combine-pages-and-deploy:
     needs: build-compat-pages
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     # a push to any branch deploys the whole site, and Pages refuses a deployment while another one is in progress
     concurrency:
       group: pages
