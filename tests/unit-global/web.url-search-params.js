@@ -18,6 +18,10 @@ const USV_STRINGS = [
 ];
 
 const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
+// Deno 1.3.0-1.4.5 emits %0 instead of %00; updating a bound URL can then throw.
+// https://github.com/denoland/deno/issues/7888
+// Fixed in 1.4.6: https://github.com/denoland/deno/pull/7905
+const DENO_UNPADDED_ESCAPE = DENO_VERSION === 103 || DENO_VERSION === 104 && DENO_PATCH < 6;
 // Deno 1.2-1.11.1 lacks USVString conversion in sequence / record input and methods: https://github.com/denoland/deno/pull/11005
 const DENO_OLD_RECORD = DENO_VERSION >= 102 && (DENO_VERSION < 111 || DENO_VERSION === 111 && DENO_PATCH < 2);
 // Deno 1.2-1.10.2 leaves raw surrogates in string input or throws; fixed in 1.10.3.
@@ -582,8 +586,9 @@ QUnit.test('URLSearchParams#delete', assert => {
   const $delete = URLSearchParams.prototype.delete;
   assert.isFunction($delete);
   assert.arity($delete, 1);
-  // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'delete');
+  // Deno 1.2-1.11.1 methods are not enumerable; fixed in 1.11.2.
+  // https://github.com/denoland/deno/pull/11005
+  if (!DENO_OLD_RECORD) assert.enumerable(URLSearchParams.prototype, 'delete');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative($delete);
 
@@ -705,6 +710,71 @@ QUnit.test('URLSearchParams#delete with many duplicates', assert => {
     assert.same(url.search, `?${ afterValue.join('&') }`, 'URL updated after deleting by value');
     url.searchParams.delete('a');
     assert.same(url.search, `?${ afterName.join('&') }`, 'URL updated after deleting by name');
+  }
+});
+
+QUnit.test('URLSearchParams#delete with interleaved keys', assert => {
+  for (const [input, name, value, expected] of [
+    ['head=0&a=remove&b=1&a=keep&b=2&tail=3', 'a', 'remove', 'head=0&b=1&a=keep&b=2&tail=3'],
+    ['head=0&b=1&c=1&b=2&a=remove&a=keep&c=2', 'a', 'remove', 'head=0&b=1&c=1&b=2&a=keep&c=2'],
+    ['a=keep&head=0&a=remove&tail=1', 'a', 'remove', 'a=keep&head=0&tail=1'],
+    ['head=0&a=remove&tail=1&a=remove', 'a', 'remove', 'head=0&tail=1'],
+    ['a=remove&a=remove', 'a', 'remove', ''],
+    ['head=0&a=keep&a=keep&tail=1', 'a', 'remove', 'head=0&a=keep&a=keep&tail=1'],
+    ['a=keep&a%00=1&a%00%00=2', 'a', 'remove', 'a=keep&a%00=1&a%00%00=2'],
+    ['head=0&=remove&a=1&=keep', '', 'remove', 'head=0&a=1&=keep'],
+    ['__proto__=keep&constructor=0&__proto__=remove', '__proto__', 'remove', '__proto__=keep&constructor=0'],
+    ['hasOwnProperty=0&a=remove&a=keep&hasOwnProperty=1', 'a', 'remove', 'hasOwnProperty=0&a=keep&hasOwnProperty=1'],
+    ['a=1&b=2', 'missing', 'remove', 'a=1&b=2'],
+    ['', 'missing', 'remove', ''],
+  ]) {
+    const params = new URLSearchParams(input);
+    assert.same(params.delete(name, value), undefined, 'returns undefined');
+    if (!DENO_UNPADDED_ESCAPE || !input.includes('%00')) assert.same(String(params), expected, input || 'empty input');
+  }
+
+  const params = new URLSearchParams();
+  const expected = [];
+  for (let index = 0; index < 128; index++) {
+    params.append(`prefix${ index }`, index);
+    expected.push(`prefix${ index }=${ index }`);
+  }
+  params.append('a', 'remove');
+  params.append('b', 'keep');
+  params.append('a', 'keep');
+  const iterator = params.entries();
+  assert.deepEqual(iterator.next().value, ['prefix0', '0'], 'iterator before deletion');
+  params.delete('a', 'remove');
+  expected.push('b=keep', 'a=keep');
+  assert.same(String(params), expected.join('&'), 'preserves a long prefix and the remaining tail');
+  assert.deepEqual(iterator.next().value, ['prefix1', '1'], 'iterator after deletion');
+});
+
+if (DESCRIPTORS) QUnit.test('URLSearchParams#delete with value updates the URL', assert => {
+  for (const [query, name, value, expected] of [
+    ['a=~%20b&b=%20', 'a', 'missing', 'a=%7E+b&b=+'],
+    ['a=~%20b&b=%20', 'missing', 'value', 'a=%7E+b&b=+'],
+    ['a=remove&b=~%20x', 'a', 'remove', 'b=%7E+x'],
+    ['a=remove&a=keep&b=~%20x', 'a', 'remove', 'a=keep&b=%7E+x'],
+    ['a=remove&a=remove', 'a', 'remove', ''],
+    ['a=keep&a%00=1&a%00%00=2&b=~%20x', 'a', 'missing', 'a=keep&a%00=1&a%00%00=2&b=%7E+x'],
+  ]) {
+    if (DENO_UNPADDED_ESCAPE && query.includes('%00')) continue;
+    const url = new URL(`https://example.com/?${ query }`);
+    const params = url.searchParams;
+    params.delete(name, value);
+    // Deno 1.2.0-1.2.3 uses the wrong form encoding; fixed in 1.3.0.
+    // https://github.com/denoland/deno/issues/7001
+    // https://github.com/denoland/deno/pull/7017
+    if (DENO_VERSION !== 102 || !expected) {
+      assert.same(url.search, expected ? `?${ expected }` : '', query);
+      assert.same(String(params), expected, 'parameters match the updated URL');
+    }
+    // Deno 1.2-1.7.5 replaces searchParams after updates; fixed in 1.8.0.
+    // https://github.com/denoland/deno/issues/9383
+    // https://github.com/denoland/deno/pull/9276
+    // https://github.com/denoland/deno/pull/9639
+    if (DENO_VERSION < 102 || DENO_VERSION >= 108) assert.same(url.searchParams, params, 'preserves the searchParams object');
   }
 });
 

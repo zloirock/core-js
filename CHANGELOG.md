@@ -60,6 +60,7 @@
 - Fixed removal of ignored shorthand and musical format controls in `URL` domains
 - Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
 - Fixed decoding of invalid UTF-8 leading bytes in `URLSearchParams` and `URL` queries
+- Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
 - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
 - Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
 - Fixed the size of URL-bound `URLSearchParams` in engines without property descriptor support

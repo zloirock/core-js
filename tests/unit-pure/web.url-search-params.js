@@ -650,6 +650,61 @@ QUnit.test('URLSearchParams#delete with many duplicates', assert => {
   }
 });
 
+QUnit.test('URLSearchParams#delete with interleaved keys', assert => {
+  for (const [input, name, value, expected] of [
+    ['head=0&a=remove&b=1&a=keep&b=2&tail=3', 'a', 'remove', 'head=0&b=1&a=keep&b=2&tail=3'],
+    ['head=0&b=1&c=1&b=2&a=remove&a=keep&c=2', 'a', 'remove', 'head=0&b=1&c=1&b=2&a=keep&c=2'],
+    ['a=keep&head=0&a=remove&tail=1', 'a', 'remove', 'a=keep&head=0&tail=1'],
+    ['head=0&a=remove&tail=1&a=remove', 'a', 'remove', 'head=0&tail=1'],
+    ['a=remove&a=remove', 'a', 'remove', ''],
+    ['head=0&a=keep&a=keep&tail=1', 'a', 'remove', 'head=0&a=keep&a=keep&tail=1'],
+    ['a=keep&a%00=1&a%00%00=2', 'a', 'remove', 'a=keep&a%00=1&a%00%00=2'],
+    ['head=0&=remove&a=1&=keep', '', 'remove', 'head=0&a=1&=keep'],
+    ['__proto__=keep&constructor=0&__proto__=remove', '__proto__', 'remove', '__proto__=keep&constructor=0'],
+    ['hasOwnProperty=0&a=remove&a=keep&hasOwnProperty=1', 'a', 'remove', 'hasOwnProperty=0&a=keep&hasOwnProperty=1'],
+    ['a=1&b=2', 'missing', 'remove', 'a=1&b=2'],
+    ['', 'missing', 'remove', ''],
+  ]) {
+    const params = new URLSearchParams(input);
+    assert.same(params.delete(name, value), undefined, 'returns undefined');
+    assert.same(String(params), expected, input || 'empty input');
+  }
+
+  const params = new URLSearchParams();
+  const expected = [];
+  for (let index = 0; index < 128; index++) {
+    params.append(`prefix${ index }`, index);
+    expected.push(`prefix${ index }=${ index }`);
+  }
+  params.append('a', 'remove');
+  params.append('b', 'keep');
+  params.append('a', 'keep');
+  const iterator = params.entries();
+  assert.deepEqual(iterator.next().value, ['prefix0', '0'], 'iterator before deletion');
+  params.delete('a', 'remove');
+  expected.push('b=keep', 'a=keep');
+  assert.same(String(params), expected.join('&'), 'preserves a long prefix and the remaining tail');
+  assert.deepEqual(iterator.next().value, ['prefix1', '1'], 'iterator after deletion');
+});
+
+if (DESCRIPTORS) QUnit.test('URLSearchParams#delete with value updates the URL', assert => {
+  for (const [query, name, value, expected] of [
+    ['a=~%20b&b=%20', 'a', 'missing', 'a=%7E+b&b=+'],
+    ['a=~%20b&b=%20', 'missing', 'value', 'a=%7E+b&b=+'],
+    ['a=remove&b=~%20x', 'a', 'remove', 'b=%7E+x'],
+    ['a=remove&a=keep&b=~%20x', 'a', 'remove', 'a=keep&b=%7E+x'],
+    ['a=remove&a=remove', 'a', 'remove', ''],
+    ['a=keep&a%00=1&a%00%00=2&b=~%20x', 'a', 'missing', 'a=keep&a%00=1&a%00%00=2&b=%7E+x'],
+  ]) {
+    const url = new URL(`https://example.com/?${ query }`);
+    const params = url.searchParams;
+    params.delete(name, value);
+    assert.same(url.search, expected ? `?${ expected }` : '', query);
+    assert.same(String(params), expected, 'parameters match the updated URL');
+    assert.same(url.searchParams, params, 'preserves the searchParams object');
+  }
+});
+
 QUnit.test('URLSearchParams#get', assert => {
   const { get } = URLSearchParams.prototype;
   assert.isFunction(get);
