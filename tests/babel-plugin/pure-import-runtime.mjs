@@ -87,10 +87,19 @@ export const r = [7][key]().next().value;`, 7],
         stages.push(['pre+post', plugin.transform(pre, filename, 'post')?.code ?? pre]);
       }
       for (const [phase, output] of stages) {
-        const file = path.join(DIR, `${ count++ }.mjs`);
-        await fs.outputFile(file, output);
-        check(`${ name }/${ host }/${ phase }/full`, await runInWorker(file, { strip: false }), native);
-        check(`${ name }/${ host }/${ phase }/stripped`, await runInWorker(file), native);
+        // absoluteImports emits filesystem paths for bundlers, including Windows drive paths.
+        // Node's ESM loader treats a drive letter as a URL scheme; lower only for execution,
+        // after the untouched output has passed through the fresh-plugin and pre+post checks.
+        const script = options?.absoluteImports;
+        const executable = script ? (await transformAsync(output, {
+          configFile: false, babelrc: false,
+          plugins: [requireBabel('@babel/plugin-transform-modules-commonjs')],
+        })).code : output;
+        const file = path.join(DIR, `${ count++ }.${ script ? 'cjs' : 'mjs' }`);
+        await fs.outputFile(file, executable);
+        const sourceType = script ? 'script' : 'module';
+        check(`${ name }/${ host }/${ phase }/full`, await runInWorker(file, { strip: false, sourceType }), native);
+        check(`${ name }/${ host }/${ phase }/stripped`, await runInWorker(file, { sourceType }), native);
       }
       switch (name) {
         case 'other-flavor':

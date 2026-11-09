@@ -3,6 +3,7 @@ import createPlugin from './internals/plugin.js';
 import { moduleIdLanguage, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { esbuildSetup, webpackModuleType } from './internals/host-loading.js';
+import { externalRequireHooks, webpackExternalRequires } from './internals/external-requires.js';
 import {
   isHtmlProxyScript,
   isSfcScriptBlock,
@@ -70,6 +71,8 @@ const unplugin = createUnplugin((options, meta) => {
   }
   const resolvedPhase = fallbackToPost ? 'post' : effective;
   const plugin = createPlugin({ ...rest, bundler });
+  const webpackLike = bundler === 'webpack' || bundler === 'rspack' || bundler === 'rsbuild';
+  const externalESM = bundler === 'vite' || bundler === 'rolldown';
   let viteCacheRoot;
 
   function stage(enforce, pass, compiledOnly = false) {
@@ -89,10 +92,28 @@ const unplugin = createUnplugin((options, meta) => {
       // other host runs a single pipeline (webpack's loader passes no third argument at all) and
       // shares the default bucket
       const environment = this?.environment?.name ?? (hookOptions?.ssr ? 'ssr' : '');
-      const moduleType = bundler === 'webpack' || bundler === 'rspack' || bundler === 'rsbuild'
-        ? webpackModuleType(this) : undefined;
+      const moduleType = webpackLike ? webpackModuleType(this) : undefined;
       if (moduleType === null) return null;
-      return plugin.transform.call(this, code, id, pass, environment, { moduleType, loader: hookOptions?.loader });
+      let requires;
+      const onRequire = webpackLike || externalESM || hookOptions?.validateRequires
+        ? (source, value) => { (requires ??= []).push([source, value]); } : null;
+      const result = plugin.transform.call(this, code, id, pass, environment, { moduleType, loader: hookOptions?.loader, onRequire });
+      // Dependency metadata survives the host's module cache. Post adds to pre's obligations;
+      // a fresh source transform replaces them, including when it no longer injects anything.
+      const followsPre = resolvedPhase === 'pre+post' && pass === 'post';
+      if (webpackLike) {
+        const { _module: module } = this?.getNativeBuildContext?.().loaderContext ?? {};
+        const info = module?.buildInfo;
+        if (info) info.coreJSRequires = followsPre ? [...info.coreJSRequires ?? [], ...requires ?? []] : requires;
+      } else if (externalESM) {
+        const previous = this?.getModuleInfo?.(id)?.meta.coreJSRequires;
+        if (requires || previous) return {
+          ...result ?? { code, map: null },
+          meta: { coreJSRequires: followsPre ? [...previous ?? [], ...requires ?? []] : requires ?? [] },
+        };
+      }
+      // eslint-disable-next-line promise/prefer-await-to-then -- only esbuild is async; keep other transform hooks synchronous
+      return hookOptions?.validateRequires ? hookOptions.validateRequires(requires).then(() => result) : result;
     }
     return {
       name: `${ plugin.name }:${ enforce }`,
@@ -133,6 +154,11 @@ const unplugin = createUnplugin((options, meta) => {
   // Components reach pre as markup. Give only those ids a post slot after their compiler;
   // ordinary JS keeps its single pass and entry imports are still caught before siblings.
   if (resolvedPhase === 'pre' && !PRE_POST_UNSAFE_BUNDLERS.has(bundler)) subs.push(stage('post', 'single', true));
+  if (webpackLike) Object.assign(subs.at(-1), { webpack: webpackExternalRequires, rspack: webpackExternalRequires });
+  if (externalESM) {
+    const hooks = externalRequireHooks();
+    Object.assign(subs.at(-1), { rolldown: hooks, vite: { ...subs.at(-1).vite, ...hooks } });
+  }
   Object.assign(subs.at(-1), {
     buildEnd() { plugin.reset(); },
     watchChange(id) { plugin.invalidateSnapshot(id); },

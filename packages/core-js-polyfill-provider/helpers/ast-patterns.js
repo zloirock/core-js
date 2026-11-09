@@ -714,6 +714,19 @@ export function isCalleeReference(parent, node) {
   return unwrapRuntimeExpr(parent.callee) === node;
 }
 
+// Bundlers recognize this source spelling to emit an asset or a worker. Replacing its
+// constructor hides the dependency from them; ordinary URL construction still polyfills.
+export function isAssetURLCallee(path) {
+  if (path?.node?.type !== 'Identifier' || path.node.name !== 'URL') return false;
+  const call = peelParenAndTSParentPath(path)?.node;
+  if (call?.type !== 'NewExpression' || unwrapRuntimeExpr(call.callee) !== path.node || call.arguments.length !== 2) return false;
+  const source = unwrapRuntimeExpr(call.arguments[0]);
+  const base = unwrapRuntimeExpr(call.arguments[1]);
+  return (source?.type === 'TemplateLiteral' || typeof source?.value === 'string')
+    && base?.type === 'MemberExpression' && !base.computed && base.property.name === 'url'
+    && base.object.type === 'MetaProperty' && base.object.meta.name === 'import' && base.object.property.name === 'meta';
+}
+
 // AST parent shapes where an Identifier child IS the binding being introduced (declarator
 // id, function/class id, catch param, the id of a TS enum / namespace / import-equals
 // declaration), NOT a reference to a binding. complementary to `isNonReferencePosition` (which

@@ -3,6 +3,7 @@
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import {
   isCalleeReference,
+  isAssetURLCallee,
   MUTATED_MEMBERS_UNKNOWN,
   MUTATED_STATIC_PINNED,
   kebabToPascal,
@@ -374,6 +375,7 @@ export function createPolyfillResolver(options, {
   // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
   // the caller supplies step 3 (effectiveMeta construction); every other step is fixed
   function resolvePure(meta, path) {
+    if (meta.kind === 'global' && meta.name === 'URL' && isAssetURLCallee(path)) return null;
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
     const { kind, desc: { pure: desc } } = resolved;

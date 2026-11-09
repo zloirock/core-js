@@ -50,7 +50,7 @@ import {
   proxyWriteOriginsReducer,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { brand, tagError } from '@core-js/polyfill-provider/helpers/error-tag';
-import { isCoreJSFile, isDeclarationFile } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { isCoreJSFile, isDeclarationFile, resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   DISABLE_NEXT_LINE_DIRECTIVE,
   buildOffsetToLine,
@@ -85,7 +85,7 @@ import createAstDestructureEmitter from './destructure.js';
 import createAstUsagePureCallback from './usage-pure.js';
 import { markSubtreeSkipped } from './nav-spine.js';
 import { stampReplacementSpan } from './emit-shared.js';
-import { literal, sequenceExpression } from '@core-js/polyfill-provider/render';
+import { cloneNode, literal, sequenceExpression } from '@core-js/polyfill-provider/render';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -158,8 +158,8 @@ function blankPatternInterior(node) {
 // crawl before its own visitors run
 // `restorations`: the neutralization is a DETECTION convenience, but the print sees the
 // same tree, and a blanked rest argument or an
-// unwrapped parameter-property would print corrupted TS. every mutation pushes its undo;
-// `finalizeAst` replays them in reverse right before the print
+// unwrapped parameter-property would print corrupted TS. every mutation records its undo
+// and source position, so the print tail can also restore parameters cloned by a render
 export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
   if (!node || typeof node !== 'object') return;
   if (Array.isArray(node.params) && !PARAM_PATTERN_SCOPE_OWNERS.has(node.type)) {
@@ -198,9 +198,10 @@ function neutralizeSignatureParameters(node, restorations) {
     const original = node.params[i];
     const blanked = blankPatternInterior(original);
     if (blanked === original) continue;
-    restorations?.push(() => {
-      node.params[i] = original;
-    });
+    if (restorations) {
+      restorations.undo.push(() => { node.params[i] = original; });
+      restorations.copies.set(`${ blanked.type }:${ nodePositionKey(blanked) }`, { original });
+    }
     node.params[i] = blanked;
   }
 }
@@ -211,7 +212,7 @@ function unwrapParameterProperty(node, restorations) {
   const { decorators } = node;
   const inner = node.parameter;
   const saved = { ...node };
-  restorations?.push(() => {
+  restorations?.undo.push(() => {
     // the walk may have REWRITTEN inside the unwrapped parameter (a polyfillable default):
     // the wrapper restores around what it produced, never around the pre-walk snapshot -
     // that would silently drop the emission
@@ -224,6 +225,7 @@ function unwrapParameterProperty(node, restorations) {
   for (const key of Object.keys(node)) delete node[key];
   Object.assign(node, inner);
   if (decorators?.length) node.decorators = decorators;
+  restorations?.copies.set(`${ node.type }:${ nodePositionKey(node) }`, { original: saved, property: true });
 }
 
 // 1-based `line:col` from oxc's first label via shared offset->line+column helper.
@@ -652,12 +654,11 @@ export default function createPlugin(options) {
     // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
     if (pass === 'post') snapshots.take(id, environment);
 
-    // Only the usage lanes build estree-toolkit scopes, and only the TS parser languages can
-    // produce signatures whose patterns that crawler cannot walk. Use the same language passed
-    // to the parser, including SFC virtual ids; entry's raw census needs no neutralization.
+    // Usage builds scopes up front. Entry prepares only if its prefix extraction needs scopes.
+    // Only TS parser languages can produce signatures whose patterns the crawler cannot walk.
     const readsCensus = methodReadsUsageCensus(method);
-    const patternRestorations = [];
-    if (readsCensus && sourceDialect.lang !== 'jsx') neutralizeUnwalkedParamPatterns(ast, patternRestorations);
+    const patternRestorations = sourceDialect.lang === 'jsx' ? null : { undo: [], copies: new Map() };
+    if (readsCensus && patternRestorations) neutralizeUnwalkedParamPatterns(ast, patternRestorations);
 
     // the format owner answers both halves at once, from the id, the body and the goal the parse
     // actually used. the write-back is load-bearing in BOTH directions - a CommonJS id can carry
@@ -1045,6 +1046,8 @@ export default function createPlugin(options) {
           pkg: injector.pkg,
           absoluteImports: injector.absoluteImports,
           adapter: estreeAdapter,
+          prepareScope: patternRestorations
+            ? () => neutralizeUnwalkedParamPatterns(ast, patternRestorations) : null,
         });
         outputDebug();
         return finalizeAst();
@@ -1058,12 +1061,34 @@ export default function createPlugin(options) {
       // ahead of its no-op bail, every other print here - the anchors are keyed by node, so they
       // are read off the RESTORED tree, never the neutralized one
       let directiveAnchors = null;
-      // undo the detection-convenience pattern neutralization (reverse order - the
-      // parameter-property unwrap nests blanking inside itself) so the print and the anchor
-      // walk see the author's tree; idempotent, so the pre paths may run it ahead of the print
+      // Restore originals before their clones, including nested signatures. Source positions
+      // survive cloning; only parameter slots can hold a neutralized copy. Parameter-property
+      // wrappers keep the clone's rewritten default, not the old initializer from the snapshot.
+      // No extra walk is needed when preparation did not change any parameters.
       function restoreNeutralizedPatterns() {
-        for (let i = patternRestorations.length - 1; i >= 0; i--) patternRestorations[i]();
-        patternRestorations.length = 0;
+        if (!patternRestorations) return;
+        const { undo, copies } = patternRestorations;
+        if (!undo.length) return;
+        for (let i = undo.length - 1; i >= 0; i--) undo[i]();
+        undo.length = 0;
+        walkAstNodes({ root: ast, visit(node) {
+          if (!Array.isArray(node.params)) return;
+          for (let i = 0; i < node.params.length; i++) {
+            const param = node.params[i];
+            const saved = copies.get(`${ param.type }:${ nodePositionKey(param) }`);
+            if (!saved || param === saved.original) continue;
+            const restored = cloneNode(saved.original);
+            if (saved.property) {
+              restored.parameter = { ...param };
+              if (param.decorators?.length) {
+                restored.decorators = param.decorators;
+                delete restored.parameter.decorators;
+              }
+            }
+            node.params[i] = restored;
+          }
+        } });
+        copies.clear();
       }
       // the anchors, off the restored tree: a property of a PARAMETER pattern is blanked for the
       // crawl, and an anchor keyed on the blanked copy would never meet its node in the printer
@@ -1073,6 +1098,19 @@ export default function createPlugin(options) {
       }
       function finalizeAst() {
         if (!directiveAnchors) computeDirectiveAnchors();
+        // Report only the finalized dependency registry, after pure-import pruning. The host
+        // validates external require protocols against its actual resolution and output format.
+        if (hostOptions.onRequire && importStyle === 'require') {
+          for (const moduleName of injector.globalImports) {
+            hostOptions.onRequire(resolveImportPath(injector.globalImportPackages.get(moduleName) ?? injector.pkg,
+              `modules/${ moduleName }`, injector.absoluteImports), false);
+          }
+          for (const source of injector.pureImports.keys()) {
+            if (!injector.existingPureImports.has(source)) {
+              hostOptions.onRequire(resolveImportPath(injector.pkg, source, injector.absoluteImports), true);
+            }
+          }
+        }
         const printed = printProgram({
           program: ast,
           comments: directiveAnchors ? comments.filter(comment => !directiveAnchors.removed.has(comment)) : comments,
