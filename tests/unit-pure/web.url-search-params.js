@@ -958,6 +958,53 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
 
+// Safari 17.6 / 26.6.2 and Bun 1.0.31 / 1.4.4 keep exhausted iterators done.
+// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
+QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
+  for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
+    const params = new URLSearchParams();
+    const iterator = params[method]();
+    const name = String(method);
+    const done = { value: undefined, done: true };
+    const result = (key, value) => ({ value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false });
+
+    assert.deepEqual(iterator.next(), done, `${ name }: empty`);
+    assert.deepEqual(iterator.next(), done, `${ name }: empty, repeated`);
+    params.append('a', '1');
+    assert.deepEqual(iterator.next(), result('a', '1'), `${ name }: append to empty`);
+    assert.deepEqual(iterator.next(), done, `${ name }: exhausted`);
+    assert.deepEqual(iterator.next(), done, `${ name }: exhausted, repeated`);
+    params.append('b', '2');
+    assert.deepEqual(iterator.next(), result('b', '2'), `${ name }: append after exhaustion`);
+    assert.deepEqual(iterator.next(), done, `${ name }: exhausted again`);
+  }
+});
+
+// Safari 17.6 / 26.6.2 and Bun 1.0.31 / 1.4.4 keep exhausted iterators done.
+// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
+if (DESCRIPTORS) QUnit.skip('URLSearchParams iterators after exhaustion and query replacement', assert => {
+  for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
+    const url = new URL('https://example.com/?a=1');
+    const iterator = url.searchParams[method]();
+    const name = String(method);
+    const done = { value: undefined, done: true };
+    const result = (key, value) => ({ value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false });
+
+    assert.deepEqual(iterator.next(), result('a', '1'), `${ name }: first entry`);
+    assert.deepEqual(iterator.next(), done, `${ name }: exhausted`);
+    assert.deepEqual(iterator.next(), done, `${ name }: exhausted, repeated`);
+    url.search = 'x=3&b=2';
+    assert.deepEqual(iterator.next(), result('b', '2'), `${ name }: replaced search`);
+    url.search = '';
+    assert.deepEqual(iterator.next(), done, `${ name }: shortened search`);
+    url.search = 'x=3&y=4&c=5';
+    assert.deepEqual(iterator.next(), result('c', '5'), `${ name }: regrown search`);
+    assert.deepEqual(iterator.next(), done, `${ name }: exhausted again`);
+    url.href = 'https://example.org/?x=3&y=4&c=5&d=6';
+    assert.deepEqual(iterator.next(), result('d', '6'), `${ name }: replaced href`);
+  }
+});
+
 QUnit.test('URLSearchParams#size', assert => {
   const params = new URLSearchParams('a=1&b=2&b=3');
   assert.true('size' in params);

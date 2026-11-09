@@ -93,11 +93,10 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
 }, URL_SEARCH_PARAMS, function next() {
   var state = getInternalIteratorState(this);
   var target = state.target;
-  var index = state.index++;
-  if (!target || index >= target.length) {
-    state.target = null;
-    return createIterResultObject(undefined, true);
-  }
+  var index = state.index;
+  // Web IDL iterators can yield new entries after returning done.
+  if (index >= target.length) return createIterResultObject(undefined, true);
+  state.index++;
   var entry = target[index];
   switch (state.kind) {
     case 'keys': return createIterResultObject(entry.key, false);
