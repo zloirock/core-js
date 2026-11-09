@@ -156,13 +156,14 @@ runBoth('minted alias between questions', 'held.from([]);', (parser, program, la
   const path = parser.pickPath(program, 'MemberExpression');
   let info = null;
   const host = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
-    method: 'usage-pure', getInjector: () => ({ getBindingInfo: () => info, hasAliasName: () => !!info }),
+    method: 'usage-pure', getInjector: () => ({ pkg: '@core-js/pure', getBindingInfo: () => info, hasAliasName: () => !!info }),
   });
   const input = { scope: path.scope, name: 'held', path };
   withCanonQuestion(() => check(`${ label }/initially absent`, host.getBinding(input), null));
   withCanonQuestion(() => check(`${ label }/initially not present`, host.hasBinding(input), false));
-  info = { source: '@core-js/pure/full/array', hint: 'Array' };
+  info = { source: 'full/array', hint: 'Array' };
   withCanonQuestion(() => check(`${ label }/new registry hint is live`, host.getBinding(input)?.polyfillHint, 'Array'));
+  withCanonQuestion(() => check(`${ label }/pending source is qualified`, host.getBinding(input)?.importSource, '@core-js/pure/full/array'));
   withCanonQuestion(() => check(`${ label }/new registry presence is live`, host.hasBinding(input), true));
 });
 

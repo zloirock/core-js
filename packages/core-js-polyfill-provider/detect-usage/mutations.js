@@ -1,3 +1,4 @@
+import { pureImportSubpath } from '../helpers/path-normalize.js';
 // Monkey-patch detection: canonicalizes patched receivers through the SAME resolution canons the
 // read side uses (`resolveObjectName` for names, `walkStaticReceiverChain` for static containers,
 // `reassignmentValueNodes` for the alias value union), so the mutation set and the substitution
@@ -969,7 +970,7 @@ function valueMayOwn(facts, value) {
   if (!node?.type) return false;
   if (CENSUS_CONTAINER_TYPES.has(node.type)) return containerMayOwn(facts, node);
   if (node.type === 'Identifier') {
-    return ownsStatics(node.name) || !!pureImportEntryOfProgram(scope.programNode, node.name) || nameMayOwn(facts, node.name);
+    return ownsStatics(node.name) || !!pureEntryOf(node) || nameMayOwn(facts, node.name);
   }
   const arms = forwardedValuePositions(node);
   if (arms) return arms.some(arm => valueMayOwn(facts, arm));
@@ -3060,7 +3061,7 @@ const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 
 // Per-file constructor escapes, resolved after every declaration and alias source is recorded.
 // eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
-export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits = null } = {}) {
+export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits = null, packages = null } = {}) {
   const optedOutNodes = isOptedOut ? new WeakSet() : null;
   let stamps = null;
   let programNode = null;
@@ -3356,10 +3357,10 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       const object = unwrapRuntimeExpr(bare.object);
       if (object?.type !== 'Identifier') return null;
       const values = aliasedValues(aliasInit, object, new Set());
-      const entries = new Set(values.map(value => pureImportSourceEntry(inlineInteropCallSource(value))));
+      const entries = new Set(values.map(value => pureImportSourceEntry(pureImportSubpath(inlineInteropCallSource(value), packages))));
       return values.length && entries.size === 1 && !entries.has(null) ? [...entries][0] : null;
     }
-    if (bare?.type !== 'Identifier') return pureImportSourceEntry(requireCallSource(bare));
+    if (bare?.type !== 'Identifier') return pureImportSourceEntry(pureImportSubpath(requireCallSource(bare), packages));
     // ... answered once per binding (`PURE_ENTRY_BY_BINDING`): every call through the name asks again, and what the
     // name holds grows with its writes. a name no declaration binds answers per occurrence
     const scopes = aliasReferenceScopes(aliasInit, bare);
@@ -3368,10 +3369,10 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     if (key && byBinding?.has(key)) return byBinding.get(key);
     // the leaf an import local resolves to is itself; a require binding resolves to its call
     const entries = new Set(aliasedValues(aliasInit, bare, new Set()).map(leaf => {
-      if (leaf?.type !== 'Identifier') return pureImportSourceEntry(requireCallSource(leaf));
+      if (leaf?.type !== 'Identifier') return pureImportSourceEntry(pureImportSubpath(requireCallSource(leaf), packages));
       const leafScopes = aliasReferenceScopes(aliasInit, leaf) ?? referenceScopes.get(leaf) ?? [];
       const owner = declarations.resolve(leaf.name, leafScopes);
-      return owner === programNode || owner === null ? pureImportEntryOfProgram(programNode, leaf.name) : null;
+      return owner === programNode || owner === null ? pureImportEntryOfProgram(programNode, leaf.name, packages) : null;
     }));
     const entry = entries.size === 1 && !entries.has(null) ? [...entries][0] : null;
     if (key) {
@@ -7093,7 +7094,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     if (root.calleeName === null) return false;
     if (functionBound.has(root.calleeName)) return true;
     const aliased = aliasClosure(root.calleeName, seen);
-    return !aliased || aliased.some(name => functionBound.has(name) || pureImportEntryOfProgram(programNode, name));
+    return !aliased || aliased.some(name => functionBound.has(name) || pureImportEntryOfProgram(programNode, name, packages));
   }
 
   // ONE rule for what a chain's VALUE stands for, asked by both consumers - the alias SOURCE
@@ -7913,7 +7914,7 @@ function mutatorPairFromEntry(entry) {
 // at the program root (`_Object$defineProperty` -> `Object.defineProperty`): the entry tail
 // past the flavor namespace spells the pair. null for anything else
 function mintedMutatorPair(name, ctx) {
-  return mutatorPairFromEntry(pureImportEntryOf(ctx.path, name));
+  return mutatorPairFromEntry(pureImportEntryOf(ctx.path, name, ctx.adapter.packages));
 }
 
 // a mutation whose KEY the canons cannot read could have hit any member of its receiver -

@@ -5,6 +5,7 @@
 // exists), and takes the `isPureImportSource` test bound to the active package via
 // `pureImportSourceTest`. semantics live here so both plugins' dispatchers gate on the
 // same family; the emitters only bind their injector state
+import { pureImportSubpath } from '../helpers/path-normalize.js';
 import { entryToGlobalHint, hasOwnStaticDefinition, resolve as resolveBuiltIn } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
 import { isSourcedSymbolIteratorMeta } from './globals.js';
@@ -69,7 +70,8 @@ export function ownOutputTests(injector) {
   if (!tests) {
     const shapeByProgram = new WeakMap();
     tests = {
-      isPureImportSource: pureImportSourceTest(injector.pkg),
+      packages: injector.packages ?? [injector.pkg],
+      isPureImportSource: pureImportSourceTest(injector.packages ?? [injector.pkg]),
       isOwnPassBinding: name => injector.isOwnPassPureBinding(name),
       isOwnPassName: name => injector.isOwnPassGeneratedName?.(name) === true,
       // may this program hold ANY own-output spelling? every census bottoms out in a
@@ -129,15 +131,10 @@ export function ownOutputTests(injector) {
   return tests;
 }
 
-// the source test every census takes, bound to the configured package root: our own
-// channels write the package's own specifier, and a PRIOR config's output (another package
-// alias or `mode` flavor) still reads as pure by its flavor segment - the same rule the
-// provider's binding resolution uses
-function pureImportSourceTest(pkg) {
-  return function isPureImportSource(source) {
-    // the package match stops at a segment boundary - `${pkg}-extras/...` is a foreign name
-    return source === pkg || source.startsWith(`${ pkg }/`) || pureImportSourceEntry(source) !== null;
-  };
+// Source ownership is package-based; a flavor directory inside a user module proves nothing.
+// Prior output may use another flavor or the resolved absolute root of a configured package.
+function pureImportSourceTest(packages) {
+  return source => pureImportSubpath(source, packages) !== null;
 }
 
 // is `name` bound by a DEFAULT import (or require binding) of the pure package at the
@@ -224,11 +221,11 @@ function guardedReadLeaf(node) {
 // under the same test alike. a test against ANOTHER global settles nothing: `h` may still be this
 // one, and the alternate keeps its claim. a call the guard absorbed is spelled in every branch
 // (`h === Ctor ? _X(a) : h.of(a)`), so the consequent names the static through its callee
-function ownGuardRenderShape(conditional, path) {
+function ownGuardRenderShape(conditional, path, packages) {
   let consequent = unwrapRuntimeExpr(conditional.consequent);
   if (consequent?.type === 'CallExpression') consequent = unwrapRuntimeExpr(consequent.callee);
   if (consequent?.type !== 'Identifier') return false;
-  const target = pureEntryTarget(pureImportEntryOf(path, consequent.name))
+  const target = pureEntryTarget(pureImportEntryOf(path, consequent.name, packages))
     ?? mintedNameTarget(consequent.name);
   if (target === null) return false;
   const read = guardedReadLeaf(conditional.alternate);
@@ -240,7 +237,7 @@ function ownGuardRenderShape(conditional, path) {
   // the render spells the receiver first, but the test is symmetric - take whichever side is it
   const against = left?.type === 'Identifier' && left.name === read.receiver ? right
     : right?.type === 'Identifier' && right.name === read.receiver ? left : null;
-  const compared = comparedGlobal(against, path);
+  const compared = comparedGlobal(against, path, packages);
   if (compared === null) return false;
   // A realm guard substitutes the GLOBAL itself rather than one of its statics.
   // Its raw branch still owes the selected object's property or nullish TypeError.
@@ -254,21 +251,21 @@ function ownGuardRenderShape(conditional, path) {
 // still belong to this injector, and the completed test protects its raw arm whichever pass allocated
 // the import - and one whose raw name is unsafe (a local shadow, a constructor the set does not carry)
 // against the realm entry's member of that name (`_globalThis.Promise`); null for any other spelling
-function comparedGlobal(against, path) {
+function comparedGlobal(against, path, packages) {
   if (against?.type === 'Identifier') {
-    const entry = pureImportEntryOf(path, against.name);
+    const entry = pureImportEntryOf(path, against.name, packages);
     return entry === null ? mintedNameTarget(against.name)?.global ?? against.name : pureEntryTarget(entry)?.global ?? null;
   }
   const realm = against?.type === 'MemberExpression' && !against.computed ? unwrapRuntimeExpr(against.object) : null;
   if (realm?.type !== 'Identifier' || against.property?.type !== 'Identifier') return null;
-  const entry = pureImportEntryOf(path, realm.name);
+  const entry = pureImportEntryOf(path, realm.name, packages);
   return entry !== null && POSSIBLE_GLOBAL_OBJECTS.has(pureEntryTarget(entry)?.global) ? against.property.name : null;
 }
 
 // the raw read OUR shadow-alias guard deliberately keeps (`h === Ctor ? _X : h.of` - the
 // alternate reads the shadowed value): a pass over our own output must not claim it again,
 // or the guard nests one level per pass
-function guardedAliasAlternateRead(path) {
+function guardedAliasAlternateRead(path, packages) {
   // the read may sit DEEPER in the alternate (`h === Ctor ? _X : h.from.bind(h)` claims
   // `h.from`): climb the expression composition to the guard, then ask whose arm we rode
   let cur = path;
@@ -278,7 +275,7 @@ function guardedAliasAlternateRead(path) {
       // A default's test reads the raw slot beneath the outer identity guard. Its user
       // fallback stays live; only the memoized read climbs through to that outer guard.
       if (parent.test === cur.node && guardedReadLeaf(parent)) continue;
-      return parent.alternate === cur.node && ownGuardRenderShape(parent, path);
+      return parent.alternate === cur.node && ownGuardRenderShape(parent, path, packages);
     }
     if (parent.type === 'AssignmentExpression' && parent.operator === '=' && parent.right === cur.node
       || parent.type === 'BinaryExpression' && parent.operator === '===' && parent.left === cur.node) continue;
@@ -622,7 +619,7 @@ function extractionSibling(path, { key, symbolIterator, injector, receiver = nul
   const list = paramsBody ?? statementListOf(p?.parentPath?.node);
   if (!Array.isArray(list)) return false;
   function extractsKey(name) {
-    const entry = injector?.getPureImport(name)?.entry ?? pureImportEntryOf(path, name);
+    const entry = injector?.getPureImport(name)?.entry ?? pureImportEntryOf(path, name, injector?.packages);
     if (!entry) return false;
     if (receiver) {
       const target = pureEntryTarget(entry);
@@ -829,7 +826,7 @@ function ownRenderedGuardClaim(path, tests) {
           if (served?.type === 'CallExpression') served = unwrapRuntimeExpr(served.callee);
           if (served?.type === 'Identifier' && pureDefaultImportBinding(path, served.name, tests)
             && (probe?.type === 'MemberExpression' || probe?.type === 'OptionalMemberExpression')
-            && pureEntryTarget(pureImportEntryOf(path, served.name))?.global === memberKeyName(probe)) return true;
+            && pureEntryTarget(pureImportEntryOf(path, served.name, tests?.packages))?.global === memberKeyName(probe)) return true;
         }
       }
     }
@@ -877,10 +874,10 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
   if (tests.programMayHoldOwnOutput) {
     const root = rootProgramOf(metaPath);
     if (!tests.programMayHoldOwnOutput(root)) {
-      return tests.programMayHoldOwnOutput(root, true) && guardedAliasAlternateRead(metaPath);
+      return tests.programMayHoldOwnOutput(root, true) && guardedAliasAlternateRead(metaPath, tests?.packages);
     }
   }
-  return guardedAliasAlternateRead(metaPath)
+  return guardedAliasAlternateRead(metaPath, tests?.packages)
     || computedKeyIsMintedImport(node, metaPath, tests, { readOfIteratorIsNotOurs: true, packages: adapter?.packages })
     || adoptedRefReceiverClaim(node.object, metaPath, tests)
     || ownDefaultedGuardFallbackClaim(metaPath, tests, adapter)
@@ -922,7 +919,7 @@ function nativeMirrorSlot(literal, key, path, tests, capture = null) {
     const receiver = unwrapRuntimeExpr(value.object);
     if (receiver?.type !== 'Identifier') return answer(null);
     if (capture ? receiver.name !== capture : !pureDefaultImportBinding(at, receiver.name, tests)
-      || !POSSIBLE_GLOBAL_OBJECTS.has(entryToGlobalHint(pureImportEntryOf(at, receiver.name)))) return answer(null);
+      || !POSSIBLE_GLOBAL_OBJECTS.has(entryToGlobalHint(pureImportEntryOf(at, receiver.name, tests?.packages)))) return answer(null);
     native.add(name);
   }
   return answer(served ? native : null);
@@ -1064,7 +1061,7 @@ function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, out
         if (bindingDeclarationPath(argumentPath?.scope?.getBinding(capture))?.node !== callee.params[0]) return false;
       }
       const getterPath = pathOfNode(sourcePath, node.callee);
-      const entry = pureImportEntryOf(getterPath, node.callee.name);
+      const entry = pureImportEntryOf(getterPath, node.callee.name, tests?.packages);
       const builtin = resolveBuiltIn({ kind: 'property', key: keys.at(-1), placement: null });
       if (builtin?.kind !== 'instance'
         || Object.values(builtin.desc.pure ?? {}).every(variant => variant?.dependencies?.[0] !== entry)) return false;

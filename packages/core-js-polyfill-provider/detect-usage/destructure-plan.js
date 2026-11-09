@@ -1,3 +1,4 @@
+import { pureImportSubpath } from '../helpers/path-normalize.js';
 // Nested-destructure flatten decisions, shared by both emitters: classify a declaration's
 // property occurrences and array positions into a parser-agnostic plan. Array branches
 // describe paired receiver reads and positional captures; the object branch describes
@@ -3734,7 +3735,8 @@ function mirrorServesLeaf({ prop, key, receivers, claim, resolvePure, ctx }) {
     // A statically imported value is already served on this branch. A user slot
     // still needs the ordinary relocation proof for any neighbouring builtin.
     const own = objectLevelPairedProperty(unwrapRuntimeExpr(receiver), key);
-    if (own && own.match.value === own.read && pureImportSourceEntry(moduleDefaultSource({ node: own.read, ...ctx }))) return true;
+    if (own && own.match.value === own.read
+      && pureImportSourceEntry(pureImportSubpath(moduleDefaultSource({ node: own.read, ...ctx }), ctx.adapter.packages))) return true;
     return !invocationNode(peelNestedSequenceExpressions(unwrapRuntimeExpr(receiver)).tail)
       && meta?.placement === 'static' && !!meta.object
       && !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure, keyName: key });

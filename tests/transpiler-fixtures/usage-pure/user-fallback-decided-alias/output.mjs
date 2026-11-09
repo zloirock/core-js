@@ -7,7 +7,6 @@ import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 // A `||` / `??` the build decides reads as its LEFT wherever the selection is held - an alias of it, a
 // realm alias, a receiver with a write in the left's own chain under `?.` - so pure claims the static off
@@ -25,7 +24,7 @@ export const viaRealm = _Array$of(1);
 export const viaStoredNav = (held = _globalThis, _Reflect$ownKeys)(value);
 const base = _Promise;
 const P = base;
-export const throughAlias = _Promise$withResolvers();
+export const throughAlias = P.withResolvers();
 const Q = base;
 const C = Q;
 export const throughChain = (C === _Promise ? _Promise$try : C.try.bind(C))(task);

@@ -10,10 +10,13 @@ import {
   bindsModuleDefault,
   extractStaticString,
   isTypeOnlyImportKind,
+  pureImportSourceEntry,
   requireCallSource,
   unwrapTransparentSeq,
 } from '../helpers/ast-patterns.js';
-import { normalizeImportSource, packageRootPrefix } from '../helpers/path-normalize.js';
+import { coreJSImportSubpath, matchEntrySubpath } from '../helpers/path-normalize.js';
+
+export { matchEntrySubpath } from '../helpers/path-normalize.js';
 
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
@@ -72,49 +75,6 @@ export function getEntrySource(node, adapter, scope) {
   return null;
 }
 
-// core-js ships only `.js` files; the trailing `/index` collapses when users reference a
-// directory-style entry path (`core-js/stable/array/index` === `core-js/stable/array`)
-function canonicalizeEntrySubpath(s) {
-  return s.replace(/\.js$/, '').replace(/\/index$/, '');
-}
-
-// `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path.
-// match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
-// returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty.
-// `normalizeImportSource` (shared with `getCoreJSEntry`) handles case / backslash / slash-
-// collapse uniformly so pre-pass dedup catches Vite-rewritten Windows imports and Farm's
-// doubled-slash artifact equally
-// `{ entry, pkg }` for the FIRST package this specifier belongs to, or null. the package travels
-// with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
-// own package would silently retarget a user's polyfill at another one
-export function matchEntrySubpath(source, pkgs, subPrefix) {
-  const clean = normalizeImportSource(source);
-  for (const pkg of pkgs) {
-    const afterPkg = subpathAfterPackage(clean, pkg);
-    // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
-    // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
-    // LATER package that IS a full match (`a/b/` over `a/b/modules/x`) must still be tried -
-    // bailing here would make matching order-dependent
-    if (afterPkg === null || !afterPkg.startsWith(subPrefix)) continue;
-    const entry = canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
-    if (entry) return { entry, pkg };
-  }
-  return null;
-}
-
-// what follows the package in an already-normalized specifier, or null. three spellings answer for
-// one package: the bare name the source writes, the RESOLVED ROOT the injector writes under
-// `absoluteImports` (whose directory need not be named after the package), and - for a layout
-// neither of those covers - the name as a path SEGMENT
-function subpathAfterPackage(clean, pkg) {
-  const pkgPrefix = `${ pkg }/`;
-  if (clean.startsWith(pkgPrefix)) return clean.slice(pkgPrefix.length);
-  const root = packageRootPrefix(pkg);
-  if (root && clean.startsWith(root)) return clean.slice(root.length);
-  const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
-  return segment === -1 ? null : clean.slice(segment + 1 + pkgPrefix.length);
-}
-
 function defaultSpecifierNames(node) {
   // `import X from` and `import { default as X } from` bind the same module export;
   // a user can legitimately stack both forms on one declaration (`import Def, { default as Alt }
@@ -153,7 +113,13 @@ export function scanExistingCoreJSImports(ast, {
   // `packages` is lowercased in the resolver; mirror that so config `package: '@My/Fork'`
   // still matches the user's source literal when they typed the lowercase canonical form
   const mainPkgs = pkg ? [pkg.toLowerCase()] : null;
-  const modePrefix = mode ? `${ mode }/` : null;
+  // All flavors carry type facts; the source flavor remains part of the dedup key.
+  function registerPureSource(source, name) {
+    const match = coreJSImportSubpath(source, mainPkgs) && matchEntrySubpath(source, mainPkgs, '');
+    const entry = pureImportSourceEntry(match?.entry);
+    const flavor = match?.entry.split('/', 1)[0];
+    if (entry && match.entry === `${ flavor }/${ entry }`) onPureImport(entry, name, flavor);
+  }
   const requireShadowed = declaresRequireBinding(ast);
   // ... and the shadow is POSITIONAL wherever the host's own loader is what the name starts out
   // holding: inside the leading region an injection writes into, a `require('core-js/...')` is a
@@ -169,7 +135,7 @@ export function scanExistingCoreJSImports(ast, {
     // it, and that is the reading the file-level `core-js-disable-file` has always had
     if (isDisabled?.(node)) continue;
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
-      if (!onPureImport || !mainPkgs || !modePrefix) continue;
+      if (!onPureImport || !mainPkgs || !mode) continue;
       // two shapes of type-only imports: `import type X from '...'` (Flow `import typeof X`) sets
       // declaration-level `importKind`; `import { type X } from '...'` sets it per-specifier. both
       // parsers follow the same rule. defaultSpecifierNames already filters per-specifier, so here
@@ -182,8 +148,7 @@ export function scanExistingCoreJSImports(ast, {
       if (typeof source !== 'string') continue;
       const names = defaultSpecifierNames(node);
       if (!names.length) continue;
-      const match = matchEntrySubpath(source, mainPkgs, modePrefix);
-      if (match) for (const name of names) onPureImport(match.entry, name);
+      for (const name of names) registerPureSource(source, name);
       continue;
     }
     // TS `import X = require('<pkg>/<mode>/...')` - the same pure require-import shape tsc/esbuild
@@ -193,9 +158,8 @@ export function scanExistingCoreJSImports(ast, {
     // non-pure one is left where the author wrote it, its binding intact
     const declaration = unwrapExportedDeclaration(node);
     if (declaration?.type === 'TSImportEqualsDeclaration') {
-      const required = onPureImport && mainPkgs && modePrefix ? tsImportEqualsRequireSource(declaration, adapter) : null;
-      const match = typeof required === 'string' ? matchEntrySubpath(required, mainPkgs, modePrefix) : null;
-      if (match) onPureImport(match.entry, declaration.id.name);
+      const required = onPureImport && mainPkgs && mode ? tsImportEqualsRequireSource(declaration, adapter) : null;
+      if (typeof required === 'string') registerPureSource(required, declaration.id.name);
       continue;
     }
     // `var X = require('<pkg>/<mode>/...')` - the require import style emits this for pure
@@ -204,13 +168,12 @@ export function scanExistingCoreJSImports(ast, {
     // var is never a global side-effect entry (those are bare ExpressionStatements), so this
     // branch always `continue`s
     if (declaration?.type === 'VariableDeclaration') {
-      if (onPureImport && mainPkgs && modePrefix) {
+      if (onPureImport && mainPkgs && mode) {
         for (const decl of declaration.declarations ?? []) {
           if (decl.id?.type !== 'Identifier') continue;
           const required = requireCallSource(decl.init, { adapter, scope: shadowScope });
           if (required === null) continue;
-          const match = matchEntrySubpath(required, mainPkgs, modePrefix);
-          if (match) onPureImport(match.entry, decl.id.name);
+          registerPureSource(required, decl.id.name);
         }
       }
       continue;

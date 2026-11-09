@@ -408,7 +408,8 @@ export default function createDestructureDrains(ctx) {
     function value() {
       return identifier(id);
     }
-    value.moduleSource = injectorState.getBindingInfo(id)?.source;
+    const source = injectorState.getBindingInfo(id)?.source;
+    value.moduleSource = source && `${ injectorState.pkg }/${ source }`;
     return value;
   }
 

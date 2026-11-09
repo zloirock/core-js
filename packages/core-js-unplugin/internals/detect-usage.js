@@ -623,7 +623,7 @@ export function createEstreeAdapter(options = {}) {
               scope,
               // the stored hint is the UID spelling (`Symbol$iterator`); the polyfillHint
               // contract is the source spelling (`Symbol.iterator`, `Promise`)
-              importSource: minted.source,
+              importSource: `${ getInjector().pkg }/${ minted.source }`,
               importKind: 'value',
               polyfillHint: minted.hint.replaceAll('$', '.'),
               mintedAlias: minted.minted === true,
@@ -642,7 +642,7 @@ export function createEstreeAdapter(options = {}) {
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
           info: synthInfo, binding: synth, scope, adapter, injector: getInjector(), boundName: name,
           keyCtx: { resolveKey: sharedResolveKey, path },
-        }) ? synthInfo.source : null;
+        }) ? `${ getInjector().pkg }/${ synthInfo.source }` : null;
         // babel hoists the nested-block `var` natively and reports the declarator's own scope for
         // it; opt the synthesized twin into the same key or the const-alias walkers would resolve
         // this binding's init at the USE site instead. lazily: only a walker that follows the init
@@ -714,7 +714,7 @@ export function createEstreeAdapter(options = {}) {
       // whose RHS is not Symbol (the name-keyed injector info is flat)
       const aliasSymbolSource = isSymbolDestructureAliasBinding({
         info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
-      }) ? info.source : null;
+      }) ? `${ getInjector().pkg }/${ info.source }` : null;
       return {
         node: b.path.node,
         kind: b.kind === 'hoisted' && b.path.node?.type === 'ClassDeclaration' ? 'let' : b.kind,

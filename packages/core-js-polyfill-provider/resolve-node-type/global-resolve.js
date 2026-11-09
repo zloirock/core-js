@@ -357,8 +357,8 @@ export function createGlobalResolve({
   function polyfillHintGlobalName(path) {
     const aliasPath = peelSkippableWrapperPath(path);
     const hint = t.isIdentifier(aliasPath?.node)
-      && babelBindingAdapter.getBindingPolyfillHint?.(aliasPath.scope, aliasPath.node.name);
-    return hint && resolveKnownConstructor(hint) ? hint : null;
+      && babelBindingAdapter.getBindingPolyfillHint?.(aliasPath.scope, aliasPath.node.name, aliasPath);
+    return hint && resolvePrototypeInstance(hint) ? hint : null;
   }
 
   // `isGlobalProxy` / `knownConstructorAt` stay cluster-private

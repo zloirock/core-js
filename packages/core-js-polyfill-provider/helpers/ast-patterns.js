@@ -11,8 +11,10 @@ import {
   PATTERN_WRAPPERS,
 } from '../resolve-node-type/base.js';
 import { NESTED_BINDING_INTRODUCERS, nodeAlwaysReaches } from '../resolve-node-type/exit-analysis.js';
-import { moduleIdLanguage } from './path-normalize.js';
+import { coreJSImportSubpath, moduleIdLanguage, pureImportSourceEntry, pureImportSubpath } from './path-normalize.js';
 import { pushMultimap } from './pattern-matching.js';
+
+export { pureImportSourceEntry } from './path-normalize.js';
 
 // the escape census, keyed by PROGRAM node -> the NAMES a value handed out (a call argument, a
 // member-assignment RHS, a throw / yield / export-default), alias hops followed. written by the
@@ -10836,11 +10838,6 @@ export function mutatedGlobalSlotNames(mutatedSet) {
   return names;
 }
 
-// a `<global>.<key>` navigation step is transparent only while the slot is unmutated: once user
-// code writes the slot (`globalThis.Map = Shim`, `window.self = fake`), reads THROUGH the global
-// object see the replacement, so canon walks must stop resolving the pristine built-in behind it.
-// the host is canonical by construction - every proxy alias names the ONE global object. bare
-// references stay on the ponyfill canon and never consult this
 // --- Global-proxy import recognition ---
 
 // the pure GLOBAL-PROXY entries (`global-this` / `self` - the only proxy globals shipped as pure
@@ -10850,27 +10847,15 @@ export function mutatedGlobalSlotNames(mutatedSet) {
 // walk - in modules with a one-way import between them; a copy in either drifts, and the drift is
 // silent: a write through such an import fails to taint the slot while reads through the SAME
 // binding resolve, so the ponyfill is substituted over the user's runtime patch
-const CORE_JS_IMPORT_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
-const GLOBAL_PROXY_ENTRY_SOURCE = /(?:^|\/)(?<name>global-this|self)(?:\/index)?(?:\.js)?$/;
-
-// match `<pkg>/...` for any pkg in the user's resolved `packages` array (main + additional). allows
-// aliased / monorepo polyfill packages to participate in detection alongside the built-in core-js
-// prefix. lowercased prefix comparison mirrors `packages` already being lowercased at construction
-export function importSourceMatchesUserPackage(source, packages) {
-  if (!packages?.length) return false;
-  const lower = source.toLowerCase();
-  for (const pkg of packages) if (lower.startsWith(`${ pkg }/`)) return true;
-  return false;
-}
+const GLOBAL_PROXY_ENTRY_SOURCE = /^(?<name>global-this|self)$/;
 
 // `<pkg>/<mode>/global-this` module source -> `globalThis` (same for `self`), or null when the
 // source is absent / unrelated. SOURCE-based rather than polyfillHint-based on purpose: the mutation
 // prepass runs BEFORE the injector registers user pure imports, so hint-only recognition left the
 // WRITE channel blind to a receiver the READ channel resolves
 export function globalProxyNameFromImportSource(source, packages = null) {
-  if (!source) return null;
-  if (!CORE_JS_IMPORT_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
-  const match = GLOBAL_PROXY_ENTRY_SOURCE.exec(source);
+  const subpath = pureImportSourceEntry(pureImportSubpath(source, packages)) ?? coreJSImportSubpath(source, packages);
+  const match = subpath && GLOBAL_PROXY_ENTRY_SOURCE.exec(subpath);
   return match ? match.groups.name.replaceAll(/-(?<letter>[a-z])/g, (...args) => args.at(-1).letter.toUpperCase()) : null;
 }
 
@@ -10880,15 +10865,14 @@ export function globalProxyNameFromImportSource(source, packages = null) {
 // prepass runs BEFORE the injector registers user pure imports, so a second-pass patch through
 // the minted ctor binding (`_Map.groupBy = patched`) must still register the mutated static -
 // hint-only recognition left the WRITE channel blind while the READ channel substitutes
-const PURE_CTOR_ENTRY_SOURCE = /(?:^|\/)(?<ns>[a-z][\w-]*)\/constructor(?:\.js)?$/;
+const PURE_CTOR_ENTRY_SOURCE = /^(?<ns>[a-z][\w-]*)\/constructor$/;
 // `toGlobalHint` is `entryToGlobalHint`, injected rather than imported: it lives in the package
 // entry, which imports THIS module. without it the kebab segment is only capitalized, and the
 // namespaces whose capitals do not start a word (`url` -> `URL`, `regexp` -> `RegExp`) resolve to
 // a name no table knows
 export function pureCtorNameFromImportSource(source, packages = null, toGlobalHint = null) {
-  if (!source) return null;
-  if (!CORE_JS_IMPORT_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
-  const match = PURE_CTOR_ENTRY_SOURCE.exec(source);
+  const subpath = pureImportSourceEntry(pureImportSubpath(source, packages)) ?? coreJSImportSubpath(source, packages);
+  const match = subpath && PURE_CTOR_ENTRY_SOURCE.exec(subpath);
   if (!match) return null;
   const name = kebabToCamel(match.groups.ns);
   return toGlobalHint?.(match.groups.ns) ?? name.charAt(0).toUpperCase() + name.slice(1);
@@ -10979,6 +10963,11 @@ export function boundModuleDefaultSource(binding, adapter = null) {
 
 // is the realm's slot `key` - `globalThis.<key>`, the one slot every realm name reads - written by the file, as the
 // read at its position (`read`) sees it
+// a `<global>.<key>` navigation step is transparent only while the slot is unmutated: once user
+// code writes the slot (`globalThis.Map = Shim`, `window.self = fake`), reads THROUGH the global
+// object see the replacement, so canon walks must stop resolving the pristine built-in behind it.
+// the host is canonical by construction - every proxy alias names the ONE global object. bare
+// references stay on the ponyfill canon and never consult this
 export function isMutatedGlobalSlot(adapter, key, read = null) {
   return !!key && !!adapter?.isMutatedStatic?.('globalThis', key, read);
 }
@@ -11883,23 +11872,6 @@ function isInImplementsHeritage(path) {
   return false;
 }
 
-// shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
-// the pure-package ENTRY a name is bound to by a program-root DEFAULT import (or require
-// binding): `_Iterator` from '.../actual/iterator/constructor' -> 'iterator/constructor'.
-// injector-FREE (a plain program walk), so census prepasses that run before any injector
-// exists resolve a prior pass's minted bindings the same way the live registry would
-const PURE_IMPORT_FLAVOR_SEGMENTS = new Set(['actual', 'es', 'features', 'full', 'stable']);
-// the source-level half of the recognition: the entry a pure-package specifier names, or null
-// when no flavor segment with an entry tail is present. package-alias agnostic - a scoped or
-// aliased package's specifier still reads as pure by its flavor segment, mirroring the binding
-// resolution below
-export function pureImportSourceEntry(source) {
-  if (typeof source !== 'string') return null;
-  const segments = source.split('/');
-  const at = segments.findIndex(segment => PURE_IMPORT_FLAVOR_SEGMENTS.has(segment));
-  return at === -1 || at === segments.length - 1 ? null : segments.slice(at + 1).join('/');
-}
-
 // the root path of the tree `path` stands in: the climb ends where no parent path holds a node
 function rootPathOf(path) {
   let root = path;
@@ -12164,13 +12136,13 @@ export function defaultImportSourcesOf(root) {
 
 // the pure entry a name at the program root is bound to (`_Object$defineProperty` from
 // `@core-js/pure/actual/object/define-property`), asked of a PATH by the traversal stages
-export function pureImportEntryOf(path, name) {
-  return pureImportEntryOfProgram(rootProgramOf(path), name);
+export function pureImportEntryOf(path, name, packages = null) {
+  return pureImportEntryOfProgram(rootProgramOf(path), name, packages);
 }
 
 // the same question asked of the program NODE, for the censuses that run before any path exists
-export function pureImportEntryOfProgram(root, name) {
-  return pureImportSourceEntry(defaultImportSourcesOf(root).get(name) ?? null);
+export function pureImportEntryOfProgram(root, name, packages = null) {
+  return pureImportSourceEntry(pureImportSubpath(defaultImportSourcesOf(root).get(name), packages));
 }
 
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';

@@ -2115,12 +2115,13 @@ for (const [name, prefix, pattern, suffix, expected] of [
 // Prior output can come from another flavor, outside this pass's import registry.
 // Recognition still needs a runtime binding for the same key, in the same scope.
 // The type-only negative deliberately uses an erased binding, which TypeScript rejects.
-for (const [name, prefix, params, key, expression, expected] of [
+for (const [name, prefix, params, key, expression, expected, packages] of [
   ['actual iterator', 'import method from "@core-js/pure/actual/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
   ['full iterator', 'import method from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
   ['named default', 'import {default as method} from "@core-js/pure/full/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
   ['required iterator', 'const method=require("@core-js/pure/stable/get-iterator-method");', '', '[Symbol.iterator]', 'method(globalThis)', true],
-  ['aliased package', 'import method from "@vendor/pure/features/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true],
+  ['aliased package', 'import method from "@vendor/pure/features/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', true, ['@vendor/pure']],
+  ['unconfigured package', 'import method from "@vendor/pure/features/get-iterator-method";', '', '[Symbol.iterator]', 'method(globalThis)', false],
   ['static', 'import method from "@core-js/pure/es/array/from";', '', 'from', 'method', true],
   ['namespace', 'import method from "@core-js/pure/full/array/from";', '', 'Array', 'method', true],
   ['realm', 'import method from "@core-js/pure/actual/array/from";', '', 'window', 'method', true],
@@ -2145,7 +2146,7 @@ for (const [name, prefix, params, key, expression, expected] of [
     const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
     const original = JSON.stringify(program.node);
     check(label, sentinelAlreadyProcessed(path, {
-      node: path.node, meta: null, adapter, injector: injectorFor({ generated: ['_unused'], adopted: ['_unused'] }),
+      node: path.node, meta: null, adapter, injector: { ...injectorFor({ generated: ['_unused'], adopted: ['_unused'] }), packages },
     }), expected);
     check(`${ label }/read only`, JSON.stringify(program.node), original);
   });

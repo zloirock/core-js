@@ -1,5 +1,4 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
 import _Error$isError from "@core-js/pure/actual/error/is-error";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
@@ -73,4 +72,4 @@ function g7() {
   a7 = ns === _globalThis ? _Map : ns.Map;
 }
 use(g1, g2, g3, g4, g5, g6, g7);
-use(a1 === Array ? _Array$from : a1.from, a2 === _Iterator ? _Iterator$concat : _concatMaybeArray(a2), a3 === _Promise ? _Promise$try : a3.try, a4 === Object ? _Object$fromEntries : a4.fromEntries, a5 === Math ? _Math$sumPrecise : a5.sumPrecise, a6 === Error ? _Error$isError : a6.isError, a7 === _Map ? _Map$groupBy : a7.groupBy);
+use(a1 === Array ? _Array$from : a1.from, a2 === _Iterator ? _Iterator$concat : a2.concat, a3 === _Promise ? _Promise$try : a3.try, a4 === Object ? _Object$fromEntries : a4.fromEntries, a5 === Math ? _Math$sumPrecise : a5.sumPrecise, a6 === Error ? _Error$isError : a6.isError, a7 === _Map ? _Map$groupBy : a7.groupBy);

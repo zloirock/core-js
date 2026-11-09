@@ -82,7 +82,8 @@ function pickNamed(parser, program, types, name) {
 // the same lookup
 function registryOf(entries) {
   return () => ({
-    getBindingInfo: name => entries[name] ? { source: `@core-js/pure/actual/${ entries[name] }`, hint: name, userNamed: true } : null,
+    pkg: '@core-js/pure',
+    getBindingInfo: name => entries[name] ? { source: `actual/${ entries[name] }`, hint: name, userNamed: true } : null,
     getBindingAliasInfo: () => null,
   });
 }

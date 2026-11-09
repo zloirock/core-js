@@ -23836,4 +23836,19 @@ export function * generate() {
     } return result; })()`), strip: true };
   for (const prefixed of [false, true]) yield { ...snippet(`realm-pattern-anchor/sealed/${ prefixed }`,
     `(${ prefixed ? '(log.push("prefix"), globalThis)' : 'globalThis' }?.window).window === window`, { rig: true }), strip: true };
+  // Append source-provenance cases without changing existing IDs or their cached evaluations.
+  const foreignImports = new URL('../transpiler-fixtures/usage-pure/pure-import-sources/foreign/features/', import.meta.url);
+  for (const binder of ['default', 'named']) {
+    function binding(name) { return binder === 'default' ? name : `{ default as ${ name } }`; }
+    yield {
+      name: `foreign-import-path/${ binder }`,
+      code: `import ${ binding('array') } from ${ JSON.stringify(new URL('./array.mjs', foreignImports).href) };
+        import ${ binding('getList') } from ${ JSON.stringify(new URL('./list.mjs', foreignImports).href) };
+        const log = [];
+        function read(items = (log.push('default'), getList())) { return items.at(-1); }
+        export const r = [array.from([7]), getList().at(-1), read(), read([11])];
+        export const effects = log;`,
+      strip: true,
+    };
+  }
 }

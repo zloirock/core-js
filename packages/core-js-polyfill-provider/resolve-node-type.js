@@ -141,7 +141,7 @@ const { hasOwn } = Object;
 // string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
 // `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
 // from the resolver path (destructure-leaf -> proxy-global)
-function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic) {
+function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic, getDecisionAdapter) {
   return {
     packages: null,
     // the shared proxy-nav walks (`globalProxyMemberName` hop/leaf gates) consult
@@ -170,8 +170,12 @@ function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScope
     // `POSSIBLE_GLOBAL_OBJECTS` (so a constructor hint resolves to null there, unchanged), while
     // `walkStaticReceiverStep` wants the ungated constructor name to recover a sibling-rewritten
     // stub. gating here stripped the constructor hints and left that recovery dead on babel only
-    getBindingPolyfillHint(scope, name) {
-      return getPolyfillBindingHint(scope, name) ?? null;
+    getBindingPolyfillHint(scope, name, path = null) {
+      const hint = getPolyfillBindingHint(scope, name) ?? null;
+      const adapter = hint && path && getDecisionAdapter();
+      // Before following a require initializer, validate the same binding the claim side sees.
+      // A name-only import registry must not type a local parameter or a shadowing declaration.
+      return adapter ? adapter.getBinding({ scope, name, path })?.polyfillHint ?? null : hint;
     },
     isStringLiteral: node => babelNodeType(node) === 'StringLiteral',
     getStringValue: node => babelNodeType(node) === 'StringLiteral' ? node.value : null,
@@ -216,7 +220,9 @@ function createResolveNodeType(babelNodeType, t, {
   // the canonical AST scan (the native scope models mis-attribute e.g. switch-DISCRIMINANT
   // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
   getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations);
-  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic);
+  const babelBindingAdapter = makeBabelBindingAdapter(
+    getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic, getDecisionAdapter,
+  );
 
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
@@ -3008,7 +3014,7 @@ function createResolveNodeType(babelNodeType, t, {
     { unionHints = false, depth = 0 } = {}) {
     if (depth > MAX_DEPTH) return null;
     if (keyPath.length && keyPath.at(-1) !== 'prototype') return null;
-    const init = resolveRuntimeExpression(initPath);
+    const init = polyfillHintGlobalName(initPath) ? peelSkippableWrapperPath(initPath) : resolveRuntimeExpression(initPath);
     const descended = descendLiteralKeyPrefix(realmSelectingBranch(init) ?? init, keyPath);
     if (!descended || descended.keys.at(-1) !== 'prototype') return null;
     const { receiver: inner, keys } = descended;
@@ -3030,14 +3036,14 @@ function createResolveNodeType(babelNodeType, t, {
     // where the leg re-anchoring it on the global narrowed
     const rootName = resolveGlobalName(resolved)
       ?? (resolved?.node?.type === 'Identifier'
-        ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null)
+        ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name, resolved) : null)
       ?? (isGlobalProxy(resolved) ? 'globalThis' : null);
     // The same projection serves member and pattern spellings of a mutable container.
     // Its own leaf fallback asks only for a pristine surface, so cycles stay in that walk.
     if (!rootName) return projectValues ? resolveObjectMemberPath(resolved, keys, resolved, unionHints, { projectValues: true }) : null;
     const aliased = resolved?.node?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(rootName)
       && !resolveKnownConstructor(rootName)
-      ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name) : null;
+      ? babelBindingAdapter.getBindingPolyfillHint?.(resolved.scope, resolved.node.name, resolved) : null;
     const root = aliased ?? rootName;
     // A recognized surface whose slot was replaced is an unknown answer, not permission
     // to retry the less restrictive member walk and infer the original constructor again.
@@ -3477,7 +3483,7 @@ function createResolveNodeType(babelNodeType, t, {
         const parameter = resolveParameterReceiver(objectPattern);
         if (parameter) return parameter.hints?.size ? parameter.hints : null;
         const initPath = getPatternInit(objectPattern.parentPath);
-        if (initPath?.node) hints = unionReceiverHints(resolveRuntimeExpression(initPath), 0);
+        if (initPath?.node) hints = unionReceiverHints(initPath, 0);
         else hints = nestedReceiverUnionHints(objectPattern, path);
       }
     }
@@ -3534,9 +3540,11 @@ function createResolveNodeType(babelNodeType, t, {
     const flow = withCanonQuestion(() => resolveLocalFlowValue(path));
     if (flow) return flow.hints;
     const read = path;
+    const importedHint = polyfillHintGlobalName(path);
     // A mutable binding owns the pairing of pattern writes. Following it before that pairing
     // can mistake the whole RHS container for the field assigned to the receiver.
-    if (!t.isIdentifier(path.node) || !getScopeBinding({ scope: path.scope, name: path.node.name, path })?.constantViolations?.length) {
+    if (!importedHint && (!t.isIdentifier(path.node)
+      || !getScopeBinding({ scope: path.scope, name: path.node.name, path })?.constantViolations?.length)) {
       path = resolveRuntimeExpression(path);
     }
     const { type } = path.node;
@@ -3565,7 +3573,7 @@ function createResolveNodeType(babelNodeType, t, {
     }) ? null : path.node.name
       : isMemberLike(path) ? resolveGlobalName(path) : null;
     const globalHint = POSSIBLE_GLOBAL_OBJECTS.has(realmName) ? null
-      : staticReceiverHint('static', realmName) ?? staticReceiverHint('static', polyfillHintGlobalName(path));
+      : staticReceiverHint('static', realmName) ?? staticReceiverHint('static', importedHint ?? polyfillHintGlobalName(path));
     if (globalHint) return new Set([globalHint]);
     if (type === 'CallExpression' || type === 'OptionalCallExpression') {
       const callee = peelSkippableWrapperPath(path.get('callee'));

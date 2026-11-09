@@ -1,3 +1,4 @@
+import { coreJSImportSubpath, pureImportSubpath } from '../helpers/path-normalize.js';
 // AST-pattern resolvers shared across detect-usage submodules. covers the core walk
 // primitives (`unwrapTransparentSeq`, `unwrapParensCollectingEffects`, `isStaticPlacement`),
 // binding-to-global resolution (`resolveBindingToGlobal` and friends), and the high-level
@@ -51,7 +52,6 @@ import {
   IMPORT_SPECIFIER_TYPES,
   importBindingIsTypeOnly,
   importedGlobalProxyName,
-  importSourceMatchesUserPackage,
   inCallerCorrectFallbackSlot,
   installedWriteValue,
   invocationNode,
@@ -1176,12 +1176,9 @@ export const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
 // `.js` suffix is tolerated (explicit-extension import style) - `.js` ONLY: the packages ship
 // no `.cjs` / `.mjs` files, so those spellings can never resolve and must not be recognized.
-// path must EITHER start with a known core-js package prefix OR with an internal core-js
-// namespace (`actual/`, `es/`, etc.). babel's injector stores importSource without the
-// package prefix (`actual/symbol/iterator`); unplug stores the full path. without this
-// constraint, `my-lib/symbol/iterator` would be misclassified as Symbol.iterator
-const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
-const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.js)?$/;
+// Both adapters expose full source specifiers, including
+// pending imports; the package-source canon checks their ownership before this suffix is read.
+const SYMBOL_IMPORT_SOURCE = /^symbol\/(?<name>[\w-]+)$/;
 
 // shared Identifier-binding gate for key-resolution walks: cycle guard via the hop's `seen`, fork
 // before recurse, reject reassigned bindings. takes the hop standing on the identifier and returns
@@ -1232,7 +1229,7 @@ function enterIdentifierBindingFollow(hop) {
 // static exports that static as its default - only default bindings count as Symbol.X refs, and
 // only for the leaves SYMBOL_STATIC_KEYS lists (the plugin's OWN `symbol/constructor` import binds
 // the constructor, not a `Symbol.constructor` value).
-// CORE_JS_SOURCE_PREFIX filter rejects unrelated user imports like `my-lib/symbol/iterator`
+// The package-source canon rejects unrelated imports like `my-lib/symbol/iterator`
 // whose `*/symbol/X` suffix would otherwise match the regex and route through Symbol.X polyfill.
 // optional `packages` array extends the prefix check to user-aliased polyfill packages
 // (`additionalPackages` config) so monorepo / vendor-fork imports are recognised
@@ -1267,19 +1264,17 @@ export function bindingSymbolKey(binding, packages = null, ctx = null) {
     scope: aliasDeclScope(binding, ctx.scope),
     path: binding.declarationPath ?? binding.path ?? ctx.path,
   }) ? `Symbol.${ keys[0] }` : null;
-  if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
-  const entry = pureImportSourceEntry(source)?.replace(/\/index(?:\.js)?$|\.js$/u, '');
+  const entry = pureImportSourceEntry(pureImportSubpath(source, packages));
   return entry === 'symbol' ? `Symbol.${ keys[0] }` : null;
 }
 
 // `<pkg>/.../symbol/<name>` module source -> `Symbol.<name>`, or null when the source is absent /
-// unrelated. CORE_JS_SOURCE_PREFIX (+ user `packages`) rejects a coincidental `my-lib/symbol/X`;
+// unrelated. The package-source canon rejects a coincidental `my-lib/symbol/X`;
 // SYMBOL_STATIC_KEYS then rejects the `symbol/` leaves that are NOT a `Symbol.<name>` value
 // (`constructor` exports the constructor itself, `description` nothing, `index` the namespace)
 export function symbolKeyFromSource(source, packages) {
-  if (!source) return null;
-  if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
-  const match = SYMBOL_IMPORT_SOURCE.exec(source);
+  const subpath = pureImportSourceEntry(pureImportSubpath(source, packages)) ?? coreJSImportSubpath(source, packages);
+  const match = subpath && SYMBOL_IMPORT_SOURCE.exec(subpath);
   if (!match) return null;
   const key = kebabToCamel(match.groups.name);
   return SYMBOL_STATIC_KEYS.has(key) ? `Symbol.${ key }` : null;
@@ -1352,6 +1347,7 @@ export function inlineInteropCallSource(node) {
 // The same source walk serves proxy-global reads and pure invoker pairing.
 // A caller may share its binding lookup without copying the adapter's other facts.
 // Committed deferred extractions carry the same source before their initializer is inserted.
+// Pending and deferred imports use the same package-qualified source as a written import.
 export function moduleDefaultSource({ node, scope, adapter, path, namespace = false, getBinding = null }) {
   const seen = new Set();
   const followed = [];
@@ -1714,7 +1710,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     // ... or the require-style pure binding: THIS binding's own declarator holds the
     // require call (a shadowed local of the same name has a different node and stays out)
     || (binding?.node?.type === 'VariableDeclarator' && requireCallSource(binding.node.init) !== null))) {
-    const entry = pureImportEntryOf(path, name);
+    const entry = pureImportEntryOf(path, name, adapter.packages);
     if (entry) hint = entryToGlobalHint(entry) ?? null;
   }
   // the pristine gate the twin recogniser (`proxyGlobalRootName`) applies: a hint naming a proxy
@@ -2278,7 +2274,7 @@ function pureImportedStatic(node, ctx) {
   const source = node?.type === 'Identifier' && MINTED_STATIC_NAME.test(node.name)
     ? ctx.adapter?.getBinding?.({ scope: ctx.scope, name: node.name, path: ctx.path })?.importSource
     : null;
-  const target = source ? pureEntryTarget(pureImportSourceEntry(source)) : null;
+  const target = source ? pureEntryTarget(pureImportSourceEntry(pureImportSubpath(source, ctx.adapter?.packages))) : null;
   return target?.member ? target : null;
 }
 
@@ -3436,7 +3432,9 @@ function pairedCallView(node, { scope, adapter, path }, getBinding = null) {
   const pairing = callPairing(node, null, {
     nameIsShadowed: (name, read) => adapter.hasBinding({ scope, name, path, read }),
     staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic ?? null,
-    getCalleeEntry: callee => pureImportSourceEntry(moduleDefaultSource({ node: callee, scope, adapter, path, getBinding })),
+    getCalleeEntry: callee => pureImportSourceEntry(pureImportSubpath(
+      moduleDefaultSource({ node: callee, scope, adapter, path, getBinding }), adapter.packages,
+    )),
   });
   if (!pairing?.callee) return null;
   if (!pairing.argsUnknown && node.type !== 'TaggedTemplateExpression' && pairing.args === node.arguments) return null;
