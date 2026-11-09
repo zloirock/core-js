@@ -121,6 +121,7 @@
   - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
   - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments
   - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
+  - `URL`, `URLSearchParams` and `URL.prototype.toJSON` marked as supported from [Deno 1.2](https://github.com/denoland/deno/releases/tag/v1.2.0) instead of 1.0
   - Fixed [Deno 1.1.1](https://github.com/denoland/deno/releases/tag/v1.1.1) compat data mapping: `AggregateError`, `Promise.any` and `String.prototype.replaceAll` are available from this version
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)

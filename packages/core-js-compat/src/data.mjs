@@ -3213,7 +3213,9 @@ export const data = {
   'web.url.constructor': {
     bun: '0.1.1',
     chrome: '67',
-    deno: '1.0',
+    // Deno 1.1.3 still fails hostname and fragment encoding checks.
+    // https://github.com/denoland/deno/releases/tag/v1.2.0
+    deno: '1.2',
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -3244,7 +3246,7 @@ export const data = {
   'web.url.to-json': {
     bun: '0.1.1',
     chrome: '71',
-    deno: '1.0',
+    deno: '1.2', // shared URL constructor detection
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
@@ -3257,7 +3259,7 @@ export const data = {
   'web.url-search-params.constructor': {
     bun: '0.1.1',
     chrome: '67',
-    deno: '1.0',
+    deno: '1.2', // shared URL constructor detection
     firefox: '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
