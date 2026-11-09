@@ -6579,7 +6579,8 @@ export function unbackedProxyHopKey(node, resolveHere) {
 // (`globalThis.self.window` -> `_self.window`), where folding it would answer the environment
 // probe with an always-defined ponyfill. a backed hop above RESETS the run (deep-nav folds), and
 // a claimable member above navigates it - both belong to the collapse, not here
-export function unbackedTailRidesAbove(path, resolvePure) {
+// A collapse that proved an optional dead passes that verdict without editing the source first.
+export function unbackedTailRidesAbove(path, resolvePure, deadOptionalHop = null) {
   let sawUnbacked = false;
   let cur = path;
   for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
@@ -6603,7 +6604,7 @@ export function unbackedTailRidesAbove(path, resolvePure) {
         && [up.node.left, up.node.right].some(isNullLiteralNode)) return sawUnbacked;
       break;
     }
-    if (up.node.optional && sawUnbacked) return true;
+    if (up.node.optional && sawUnbacked && !deadOptionalHop?.(up.node)) return true;
     const key = memberProxyHopName(up.node);
     // a real member READ above NAVIGATES the run - the deep-nav collapse owns it
     // (`globalThis.self.window.k` collapses whole); this walk answers for a run whose

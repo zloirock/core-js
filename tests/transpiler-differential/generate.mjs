@@ -23821,4 +23821,19 @@ export function * generate() {
         const item = { foo() { log.push(this === item ? "this" : "wrong"); return { bar: 23 }; } };
         return [read(null), read([{}]), read([item])]; })()`), strip: true };
   }
+  // A realm pattern owns its anchor even when no global-identifier visit drives that host.
+  // Append families so existing case IDs and cached runtime results remain stable.
+  for (const [name, source] of [
+    ['alias', 'const realm = globalThis; const { globalThis: { Array: { prototype: { at, includes } } } } = realm;'],
+    ['prefixed-alias', 'const realm = globalThis; const { globalThis: { Array: { prototype: { at, includes } } } } = (log.push("prefix"), realm);'],
+    ['assignment', 'const realm = globalThis; let at, includes; ({ globalThis: { Array: { prototype: { at, includes } } } } = realm);'],
+  ]) yield { ...snippet(`realm-pattern-anchor/${ name }`,
+    `(() => { ${ source } return [at.call([3, 4], -1), includes.call([3], 3)]; })()`), strip: true };
+  yield { ...snippet('realm-pattern-anchor/loop',
+    `(() => { const result = []; for (const realm of [globalThis]) {
+      const { globalThis: { Array: { prototype: { at, includes } } } } = realm;
+      result.push(at.call([3, 4], -1), includes.call([3], 3));
+    } return result; })()`), strip: true };
+  for (const prefixed of [false, true]) yield { ...snippet(`realm-pattern-anchor/sealed/${ prefixed }`,
+    `(${ prefixed ? '(log.push("prefix"), globalThis)' : 'globalThis' }?.window).window === window`, { rig: true }), strip: true };
 }

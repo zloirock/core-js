@@ -784,8 +784,7 @@ export default function createProxySpineChannel(ctx) {
       const liveRootGuard = navValueCanShortCircuit(leafPath.node, resolveHere, aliasCtx,
         { throughChainAssign: true });
       if (!liveRootGuard && !spineHoldsKeptWrite(leafPath.node) && !storedUserAssignmentOf(metaPath)) {
-        for (const hop of vestigialNavOptionals(leafPath.node, resolveHere, aliasCtx)) hop.optional = false;
-        dropChainMarkerWithoutOptional(leafPath);
+        // A declined route must leave source slots attached for the ordinary collapse.
         continue;
       }
       const plan = planProvenNavGuardCollapse({

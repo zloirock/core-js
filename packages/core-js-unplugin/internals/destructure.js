@@ -884,6 +884,9 @@ export default function createAstDestructureEmitter({
         markRewrite();
         return true;
       }
+      // The pattern owns its anchor even when no global-root claim drives this host.
+      // Apply it after its leaves: anchoring first can change a verbatim symbol's route.
+      if (plan?.anchor) noteCtorHopHost(restHost, meta.key, metaPath, plan);
     }
     const restPlan = (restHost?.node?.type === 'VariableDeclarator' || assignment) && planRetainedObjectCapture({
       pattern: assignment ? restHost.node.left : restHost.node.id,
@@ -3178,11 +3181,11 @@ export default function createAstDestructureEmitter({
 
   // Queue only work accepted by the common source plan, including real extractions
   // without an explicit anchor. A constructor name or realm import alone is not an obligation.
-  function noteCtorHopHost(hostPath, keyName, metaPath) {
+  function noteCtorHopHost(hostPath, keyName, metaPath, sourcePlan = null) {
     const declarator = hostPath.node;
     if (hopHosts.has(declarator)) return;
     const assignHost = declarator.type === 'AssignmentExpression';
-    const plan = buildNestedDestructurePlan({
+    const plan = sourcePlan ?? buildNestedDestructurePlan({
       declarator: assignHost ? { id: declarator.left, init: declarator.right } : declarator,
       scope: hostPath.scope,
       path: hostPath,
@@ -3194,6 +3197,7 @@ export default function createAstDestructureEmitter({
     });
     if (plan) hopHosts.set(declarator, {
       sourceAnchor: plan.anchor ?? keyName, assignHost, metaPath,
+      source: { init: assignHost ? declarator.right : declarator.init, receiver: plan.receiver },
     });
   }
 
