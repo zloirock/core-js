@@ -1,6 +1,7 @@
 /* eslint-disable unicorn/relative-url-style -- required for testing */
 import { DESCRIPTORS, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
 import urlTestData from '../wpt-url-resources/urltestdata.js';
+import javascriptURLTestData from '../wpt-url-resources/urltestdata-javascript-only.js';
 import settersTestData from '../wpt-url-resources/setters.js';
 import toASCIITestData from '../wpt-url-resources/toascii.js';
 
@@ -1471,19 +1472,42 @@ QUnit.test('URL.sham', assert => {
   assert.same(URL.sham, DESCRIPTORS ? undefined : true);
 });
 
-// `core-js` URL implementation pass all (exclude some encoding-related) tests
-// from the next 3 test cases, but URLs from all of popular browsers fail a serious part of tests.
-// Replacing all of them does not looks like a good idea, so next test cases disabled by default.
+QUnit.test('WPT URL resources', assert => {
+  const actual = {};
+  for (const test of urlTestData) {
+    if (typeof test == 'string') continue;
+    if (test.input === 'http://example.org/test?a#b\u0000c') actual.fragment = test.hash;
+    if (test.input === 'file://spider///') actual.file = test.href;
+    if (test.href === 'wow:%EF%BF%BF') actual.noncharacter = test.input;
+  }
+  for (const { href, new_value: newValue, expected } of settersTestData.hostname) {
+    if (href === 'http://example.net/path' && newValue === 'example.com:8080') actual.hostname = expected.href;
+  }
+  for (const test of toASCIITestData) {
+    if (typeof test == 'string') continue;
+    if (test.input === 'xn--a') actual.ascii = test.output;
+  }
+
+  assert.same(actual.fragment, '#b%00c', 'NUL in a fragment is percent-encoded');
+  assert.same(actual.file, 'file://spider///', 'empty file path segments are preserved');
+  assert.same(actual.noncharacter, 'wow:\uFFFF', 'noncharacter input survives script decoding');
+  assert.same(actual.hostname, 'http://example.net/path', 'a colon invalidates the hostname setter value');
+  assert.same(actual.ascii, 'xn--a', 'an ASCII domain is not validated as Punycode');
+});
+
+// Native URL implementations and the polyfill do not pass the complete WPT corpus,
+// including unsupported IDNA rules. These suites remain disabled by default.
 
 // see https://github.com/web-platform-tests/wpt/blob/master/url
 QUnit.skip('WPT URL constructor tests', assert => {
-  for (const expected of urlTestData) {
+  for (const expected of urlTestData.concat(javascriptURLTestData)) {
     if (typeof expected == 'string') continue;
+    const base = expected.base === null ? undefined : expected.base;
     const name = `Parsing: <${ expected.input }> against <${ expected.base }>`;
     if (expected.failure) {
-      assert.throws(() => new URL(expected.input, expected.base || 'about:blank'), name);
+      assert.throws(() => new URL(expected.input, base), TypeError, name);
     } else {
-      const url = new URL(expected.input, expected.base || 'about:blank');
+      const url = new URL(expected.input, base);
       assert.same(url.href, expected.href, `${ name }: href`);
       assert.same(url.protocol, expected.protocol, `${ name }: protocol`);
       assert.same(url.username, expected.username, `${ name }: username`);
@@ -1507,8 +1531,9 @@ QUnit.skip('WPT URL constructor tests', assert => {
 // see https://github.com/web-platform-tests/wpt/blob/master/url
 if (DESCRIPTORS) QUnit.skip('WPT URL setters tests', assert => {
   for (const setter in settersTestData) {
+    if (setter === 'comment') continue;
     const testCases = settersTestData[setter];
-    for (const { href, newValue, comment, expected } of testCases) {
+    for (const { href, new_value: newValue, comment, expected } of testCases) {
       let name = `Setting <${ href }>.${ setter } = '${ newValue }'.`;
       if (comment) name += ` ${ comment }`;
 
@@ -1523,11 +1548,13 @@ if (DESCRIPTORS) QUnit.skip('WPT URL setters tests', assert => {
 
 // see https://github.com/web-platform-tests/wpt/blob/master/url
 QUnit.skip('WPT conversion to ASCII tests', assert => {
-  for (const { comment, input, output } of toASCIITestData) {
+  for (const test of toASCIITestData) {
+    if (typeof test == 'string') continue;
+    const { comment, input, output } = test;
     let name = `Parsing: <${ input }>`;
     if (comment) name += ` ${ comment }`;
     if (output === null) {
-      assert.throws(() => new URL(`https://${ input }/x`), name);
+      assert.throws(() => new URL(`https://${ input }/x`), TypeError, name);
     } else {
       const url = new URL(`https://${ input }/x`);
       assert.same(url.host, output, name);
