@@ -29,6 +29,8 @@ Keep the emitter dependency graph acyclic. `proxy-spine`, `optional-dispatch` an
 - Each phase parses its own tree. `pre+post` transfers injector state, never the AST; post re-scans imports inserted by siblings.
 - Snapshot identity includes the environment, query and fragment. Only numeric HMR timestamps are noise. Do not add eviction that can discard a pending pre-to-post handoff; build-end reset and watch invalidation own its lifetime. See `snapshot-cache.js` for path normalization.
 - Undo detection-only mutations such as `neutralizeUnwalkedParamPatterns` before printing.
+- Undo records must also cover source-position-preserving clones; restore parameter-property wrappers around the clone's live default and decorators.
+- A CJS injection reports its finalized dependency to the host. Diagnose incompatible external loading from the resolved dependency and output format, preserving module-cache metadata across pre/post. Never change the user's external configuration or silently drop a needed polyfill.
 - Normalize instantiated callees before optional calls in every method, except ordinary identifiers that need no protection. Downstream Babel transforms before 7.29.13 / 8.1.0 lose the receiver of `(obj.method<T>)?.(a)`.
 - Nodes acquired from another evaluation frame need `stampNodeSite`; scope-aware queries use `nodeSite`, and copies use `cloneStamped`. Do not substitute an unrelated `metaPath`.
 - A proxy collapse climbs through realm hops only while each is a read: it stops below a member the source writes (`isMemberWriteHost` - an assignment, `delete`, a pattern or a for-x head), whose receiver is the slot the operator lands on whether the write runs or not.

@@ -10,7 +10,7 @@ import { expressionStatement, renderInjectedImportNodes } from '@core-js/polyfil
 
 // Bind only removed entry statements carrying a comma prefix before body surgery. Plain entry
 // imports and direct requires need no scoped walk; decisions about observable reads stay shared.
-export function extractEntrySideEffectPrefixes(program, removed, adapter, programPath = null) {
+export function extractEntrySideEffectPrefixes(program, removed, adapter, programPath = null, prepareScope = null) {
   const candidates = new Set([...removed].filter(node => {
     const expression = unwrapRuntimeExpr(node.expression);
     const call = peelSequenceTail(expression, { step: unwrapRuntimeExpr });
@@ -27,7 +27,10 @@ export function extractEntrySideEffectPrefixes(program, removed, adapter, progra
   // statements, so their existing paths need neither another walk nor another scope crawl.
   if (programPath) {
     for (const path of programPath.get('body')) collect(path);
-  } else traverse(program, { $: { scope: true }, ExpressionStatement: collect });
+  } else {
+    prepareScope?.();
+    traverse(program, { $: { scope: true }, ExpressionStatement: collect });
+  }
   return prefixes;
 }
 
@@ -47,10 +50,10 @@ export function injectImportStatements({ program, modules, importStyle, pkg, abs
 // surgery - a removed entry vanishes (its observable indirect-require prefix survives as
 // standalone statements), a promotion-hazard slot becomes the `0;` terminator. seam ASI
 // needs no machinery here: the printer derives separators from structure
-export default function applyEntryProgram({ program, plan, modules, importStyle, pkg, absoluteImports, adapter }) {
+export default function applyEntryProgram({ program, plan, modules, importStyle, pkg, absoluteImports, adapter, prepareScope }) {
   const removed = new Set(plan.toRemove);
   const nooped = new Set(plan.toReplaceWithNoop);
-  const prefixes = extractEntrySideEffectPrefixes(program, removed.union(nooped), adapter);
+  const prefixes = extractEntrySideEffectPrefixes(program, removed.union(nooped), adapter, null, prepareScope);
   // the import anchor is computed on the ORIGINAL body: a removal can pull a
   // directive-shaped string up against the prologue, and an anchor computed on the rebuilt
   // body would slide past it - promoting it into a directive, exactly what the disposition

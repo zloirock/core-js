@@ -4,6 +4,7 @@ import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/m
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { hostBoundaries } from './host-boundaries.mjs';
+import { assetExternals } from './asset-externals.mjs';
 
 const { mkdtemp, readFile, rm, writeFile } = fs;
 const { dirname, join, resolve } = path;
@@ -28,7 +29,7 @@ function pluginOpts(method, phase) {
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 183;
+const CELL_FLOOR = 215;
 
 // `entry-global` rejects `phase`; everything else runs across all three.
 function phasesFor(method) {
@@ -743,6 +744,16 @@ for (const form of idFlowForms) {
 }
 
 await hostBoundaries(async (label, action) => {
+  try {
+    await runLeg(label, action);
+    echo(`${ cyan(label) } ${ green('passed') }`);
+  } catch (error) {
+    failures++;
+    echo(red(`${ label } failed: ${ error.message }`));
+  }
+});
+
+await assetExternals(async (label, action) => {
   try {
     await runLeg(label, action);
     echo(`${ cyan(label) } ${ green('passed') }`);

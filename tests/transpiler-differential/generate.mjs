@@ -23865,4 +23865,19 @@ export function * generate() {
       isolated: true,
     };
   }
+  // Receiver clones carry TS signature patterns and constructor parameter properties.
+  for (const [shape, receiver] of [
+    ['rest', '(handlers as Array<(...values: number[]) => number>)'],
+    ['array', '(make as ([a, b]: number[]) => number[])([3, 4])'],
+    ['object', '(object as ({ value }: { value: number }) => number[])({ value: 5 })'],
+    ['property', 'new (class { constructor(public readonly values: number[] = (effects.push("default"), Array.from([1, 2]))) {} })().values'],
+  ]) yield {
+    name: `cloned-typed-parameters/${ shape }`, ts: true, strip: true,
+    code: `export const effects = [];
+      const handlers = [(n: number) => n + 1];
+      const make = ([a, b]: number[]) => [a, b];
+      const object = ({ value }: { value: number }) => [value];
+      const value = ${ receiver }.at(-1);
+      export const r = typeof value === "function" ? value(2) : value;`,
+  };
 }

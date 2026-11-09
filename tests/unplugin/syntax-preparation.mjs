@@ -1,4 +1,4 @@
-// Crawler preparation belongs only to TypeScript usage transforms. Observe a harmless,
+// Crawler preparation belongs to scoped TypeScript walks. Observe a harmless,
 // non-enumerable Program slot: raw syntax walks and printing never need a parameter list there.
 // The TypeScript control proves that the parser observer reaches the preparation pass.
 import { registerHooks } from 'node:module';
@@ -81,6 +81,24 @@ try {
         checkTruthy(`${ label }/parameter property`, output.code.includes('public value ='));
       }
       checkTruthy(`${ label }/source map`, output.map.sourcesContent.includes(source));
+    }
+  }
+  for (const id of ['/input.ts', '/input.mts', '/input.cts', '/input.tsx', '/app.vue?vue&type=script&lang=ts']) {
+    for (const callee of ['require', '(0, require)', '(side(), require)', '((0, require) as any)']) {
+      const source = `${ callee }('core-js/actual/array/at');
+        type F = (...args: number[]) => void;
+        interface Box { read([a]: number[]): void; }
+        class Value { constructor(public value = 1) {} }`;
+      const plugin = createPlugin({ method: 'entry-global', version: '4.0', targets: { ie: 11 } });
+      reads = observed = 0;
+      const output = plugin.transform(source, id);
+      const label = `typed entry/${ id }/${ callee }`;
+      checkTruthy(`${ label }/parser observed`, observed > 0);
+      check(`${ label }/scoped preparation only`, reads > 0, callee !== 'require');
+      checkTruthy(`${ label }/injection`, output.code.includes('core-js/modules/es.array.at'));
+      checkTruthy(`${ label }/restored rest`, output.code.includes('...args: number[]'));
+      checkTruthy(`${ label }/restored property`, output.code.includes('public value ='));
+      check(`${ label }/prefix survives`, output.code.includes('side()'), callee.includes('side()'));
     }
   }
   // Both goals must still work if this host cannot reserve the parser's raw buffer.
