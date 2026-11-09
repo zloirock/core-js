@@ -364,9 +364,9 @@ export default class ImportInjectorState {
   // (plain first-write-wins dropped the later ones and lost their folds on the target engine).
   // `home` is the scope node of the user binding (`bindingHomeNode`), the identity a consumer that
   // resolved the use's binding is served by
-  #recordImportInfo(name, entry, { userNamed = false, scopeSpan = null, home = null } = {}) {
+  #recordImportInfo(name, entry, { userNamed = false, scopeSpan = null, home = null, mode = this.mode } = {}) {
     const record = {
-      source: `${ this.mode }/${ entry }`,
+      source: `${ mode }/${ entry }`,
       hint: entryToGlobalHint(entry) ?? name,
       entry,
       userNamed,
@@ -420,21 +420,21 @@ export default class ImportInjectorState {
     return best;
   }
 
-  registerUserPureImport(entry, name, { reassigned = false } = {}) {
+  registerUserPureImport(entry, name, { reassigned = false, mode = this.mode } = {}) {
     this.usedNames.add(name);
     // a REASSIGNED user binding (`var _from = require(...); _from = other;`) is poisoned:
     // deduping onto it would substitute a value that is no longer the polyfill, and an info
     // record would mislead the same narrowing - the name only reserves its spelling, and the
     // plugin mints its own import for the entry
     if (reassigned) return;
-    const source = `${ this.mode }/${ entry }`;
+    const source = `${ mode }/${ entry }`;
     // first-write-wins on existingPureImports - keeps dedup target stable when one
     // declaration mixes `import Def, { default as Alt }`. without it last-write-wins
     // would pick the alias as dedup target, asymmetric with `#importInfoByName` (also
     // first-write-wins via `#recordImportInfo`). hint feeds `resolveSuperImportName`
     // for `import MyPromise from '@core-js/pure/actual/promise'` -> `statics.Promise.try`
     if (!this.existingPureImports.has(source)) this.existingPureImports.set(source, name);
-    this.#recordImportInfo(name, entry);
+    this.#recordImportInfo(name, entry, { mode });
   }
 
   // body-extract emits `let <localName> = _<Constructor>$<method>;` shadowing a destructure

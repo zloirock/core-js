@@ -405,7 +405,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       lateEscapeProgram = null;
       const source = escapedCtorNames;
       const late = collectFileCensus({ ...program }, [
-        escapedCtorReferencesReducer({ isOptedOut: currentIsDisabled, selectedInits }),
+        escapedCtorReferencesReducer({ packages, isOptedOut: currentIsDisabled, selectedInits }),
       ]).escapedCtorNames;
       escapedCtorNames = {
         has: (name, held) => source?.has(name, held) === true || late.has(name, held),
@@ -1888,7 +1888,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // --- init: per-file state reset ---
 
       function initFile(path) {
-        const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename, packages);
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
         // `directives === true` signals `disable-file` - collapse both skip sources into one write.
@@ -1937,7 +1937,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             memberKeyNamesReducer(),
             ctorAliasShapesReducer(),
             mutationShapesReducer(packages, isPure),
-            escapedCtorReferencesReducer({ isOptedOut: disabledLines?.size ? isDisabled : null }),
+            escapedCtorReferencesReducer({ packages, isOptedOut: disabledLines?.size ? isDisabled : null }),
             restSentinelNamesReducer(),
             proxyWriteOriginsReducer(),
             nestedTSRuntimeDeclarationsReducer(),
@@ -2075,7 +2075,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             },
             // a user binding the file WRITES through is poisoned as a dedup target - the
             // pre-mutation scope's constantViolations carry the reassignment fact
-            onPureImport: (entry, name) => injector.registerUserPureImport(entry, name, {
+            onPureImport: (entry, name, sourceMode) => injector.registerUserPureImport(entry, name, {
+              mode: sourceMode,
               reassigned: (path.scope.getBinding(name)?.constantViolations.length ?? 0) > 0,
             }),
           });

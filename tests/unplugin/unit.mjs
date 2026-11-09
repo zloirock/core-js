@@ -1936,16 +1936,17 @@ function checkPhaseSnapshotFlow() {
         .transform(xpkgSrc, `${ process.cwd() }/sm-xpkg-abs.mjs`)?.code ?? xpkgSrc;
       check(`absolute-import output re-reads as own (${ engine })`,
         createPlugin(pureOpts).transform(absoluteOut, `${ process.cwd() }/sm-xpkg-abs.mjs`)?.code ?? absoluteOut, absoluteOut);
-      // a hand-written ALIASED pure import adopts by its flavor segment even without
-      // additionalPackages: the claim reuses it instead of re-importing
+      // a configured alias proves ownership; its flavor segment alone does not
       const aliasedSrc = 'import _flat from "my-alias/actual/array/instance/flat";\nlet m;'
         + '\n({ y: { flat: m } } = { y: [1, [2]] });\nm = _flat([1, [2]]);\nuse(m);\n';
-      const aliasedOut = createPlugin(pureOpts).transform(aliasedSrc, '/sm-xpkg-alias.mjs');
+      const aliasedOut = createPlugin({ ...pureOpts, additionalPackages: ['my-alias'] })
+        .transform(aliasedSrc, '/sm-xpkg-alias.mjs');
       check(`aliased pure import adopts, no re-import (${ engine })`,
         aliasedOut === null || aliasedOut === undefined || (aliasedOut.code.match(/instance\/flat/g) ?? []).length === 1, true);
       // the adoption stays SCOPED to pure-package sources: a FOREIGN default import in the
       // same sandwich shape (and one ending exactly at a flavor segment) must still claim
       for (const [foreignLabel, foreignSource] of [
+        ['unconfigured alias', 'my-alias/actual/array/instance/flat'],
         ['foreign package', 'lodash/flat-tools'],
         ['trailing flavor segment', 'locale-pkg/es'],
         ['prefix-similar package', '@core-js/pure-fake/array/flat-like'],

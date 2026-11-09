@@ -258,7 +258,7 @@ export function createBabelAdapter(options = {}) {
         // same-name binding whose RHS is not Symbol (the name-keyed injector info is flat)
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
           info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
-        }) ? info.source : null;
+        }) ? `${ getInjector().pkg }/${ info.source }` : null;
         return {
           node: b.path.node, kind: b.kind, name, constantViolations, importSource, importKind,
           // READ count of the binding (write positions excluded) - babel 7 counts, babel 8 keeps a Set
@@ -309,7 +309,7 @@ export function createBabelAdapter(options = {}) {
       const blindTrusted = info.source !== null || info.aliasTrusted || !!info.aliasWrite || !!info.aliasVerified;
       const blindHint = blindTrusted && aliasSpanDominatesUse({ info, useStart, usagePath: path }) ? info.hint : null;
       return {
-        node: null, constantViolations: null, importSource: info.source,
+        node: null, constantViolations: null, importSource: `${ getInjector().pkg }/${ info.source }`,
         polyfillHint: blindHint,
         aliasWrite: info.aliasWrite ?? null,
         // no scope binding at all - a user shadow would HAVE one, so the positional name view

@@ -560,7 +560,7 @@ export default function createPlugin(options) {
   function runTransformInner(code, id, pass, environment) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
-    if (isCoreJSFile(id)) return null;
+    if (isCoreJSFile(id, packages)) return null;
     // a declaration file emits nothing to polyfill - see `isDeclarationFile`
     if (isDeclarationFile(id)) return null;
     // entry-global resolves `import 'core-js'` once per file; neither defer-imports nor
@@ -724,7 +724,7 @@ export default function createPlugin(options) {
       }] : [],
       ...readsCensus ? [
         bindingNamesReducer(),
-        escapedCtorReferencesReducer({ isOptedOut: disabledLines?.size ? isDisabled : null }),
+        escapedCtorReferencesReducer({ packages, isOptedOut: disabledLines?.size ? isDisabled : null }),
         restSentinelNamesReducer(),
         memberKeyNamesReducer(),
         mutationShapesReducer(packages, method === 'usage-pure'),
@@ -911,7 +911,8 @@ export default function createPlugin(options) {
           // a user binding the file WRITES through is poisoned as a dedup target - the
           // census' assignedNames is the reassignment fact this leg has (babel reads its
           // scope's constantViolations for the same gate)
-          onPureImport: (entry, name) => injector.registerUserPureImport(entry, name, {
+          onPureImport: (entry, name, sourceMode) => injector.registerUserPureImport(entry, name, {
+            mode: sourceMode,
             reassigned: fileCensus.assignedNames?.has(name) ?? false,
           }),
           packages,

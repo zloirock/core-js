@@ -1,3 +1,4 @@
+import { pureImportSubpath } from './helpers/path-normalize.js';
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
   bindingDeclarationPath,
@@ -1250,7 +1251,7 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
         const callee = unwrapRuntimeExpr(call.callee);
         const imported = callee?.type === 'Identifier' && adapter.getBinding({ scope: ctx.scope, name: callee.name, path: propPath });
         const purePush = imported && !imported.constantViolations?.length
-          && pureImportSourceEntry(imported.importSource) === 'array/instance/push';
+          && pureImportSourceEntry(pureImportSubpath(imported.importSource, adapter.packages)) === 'array/instance/push';
         const object = purePush ? call.arguments[0] : callee?.object;
         const argumentsList = purePush ? call.arguments.slice(1) : call.arguments;
         const name = purePush ? 'push' : isMemberAccessNode(callee) && !callee.optional
@@ -1296,7 +1297,7 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
           const calledName = importedCallee?.type === 'Identifier'
             && adapter.getBinding({ scope: ref.scope, name: importedCallee.name, path: ref });
           const sourced = calledName && !calledName.constantViolations?.length
-            && pureImportSourceEntry(calledName.importSource) === `array/instance/${ key }`
+            && pureImportSourceEntry(pureImportSubpath(calledName.importSource, adapter.packages)) === `array/instance/${ key }`
             && invoked.arguments[0]?.type === 'Identifier' && invoked.arguments[0].name === object.name
             && (!dispatch || dispatch.arguments.length === 1 && dispatch.arguments[0].type === 'Identifier'
               && dispatch.arguments[0].name === object.name && !prototypeChainMayLend('call', ctx, ['Function', 'Object']));

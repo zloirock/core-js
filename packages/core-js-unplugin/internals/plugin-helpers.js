@@ -7,7 +7,7 @@ import {
   isDestructurePattern,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
-import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { coreJSImportSubpath, moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
 
 // oxc's own vocabulary for what a (query-stripped, SFC-lifted) module id names. The language FACT
 // is the provider's (`moduleIdLanguage`); this is its translation into the two knobs `parseSync`
@@ -221,7 +221,7 @@ function pureImportSource(node) {
 // pre-pass fingerprint - any top-level import from one of our configured packages marks the
 // source as our own output, not user code that happens to contain `_ref = ...` assignments.
 // `packages` is the resolver's already-normalised list (pkg + additionalPackages, lowercased);
-// bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us.
+// resolved absolute roots count too; a relative `./vendor/` copy would not be emitted by us.
 // matches a core-js import in either specifier shape - usage-pure default (`import _Map from
 // "@core-js/pure/..."`) or usage-global side-effect (`import "core-js/modules/..."`) - reading
 // `ImportDeclaration.source.value` regardless of shape. usage-pure emits its imports INLINE in
@@ -235,7 +235,7 @@ export function hasCoreJSImport(ast, packages) {
   for (const node of ast.body) {
     const source = pureImportSource(node);
     if (!source) continue;
-    for (const pkg of packages) if (source.startsWith(`${ pkg }/`)) return true;
+    if (coreJSImportSubpath(source, packages) !== null) return true;
   }
   return false;
 }

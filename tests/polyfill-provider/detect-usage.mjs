@@ -649,14 +649,18 @@ check('keySideEffectsOnly/no effects', keySideEffectsOnly(undefined, null), null
 // whole namespace, so none of the three is a `Symbol.<key>` VALUE
 for (const [source, expected] of [
   ['@core-js/pure/actual/symbol/iterator', 'Symbol.iterator'],
-  ['actual/symbol/async-iterator', 'Symbol.asyncIterator'],
+  ['@core-js/pure/actual/symbol/async-iterator', 'Symbol.asyncIterator'],
   ['core-js-pure/es/symbol/to-string-tag.js', 'Symbol.toStringTag'],
   // statics that are methods, not well-known symbols, still hold the named static as their value
-  ['actual/symbol/for', 'Symbol.for'],
-  ['actual/symbol/key-for', 'Symbol.keyFor'],
-  ['actual/symbol/constructor', null],
-  ['actual/symbol/description', null],
-  ['actual/symbol/index', null],
+  ['@core-js/pure/actual/symbol/for', 'Symbol.for'],
+  ['@core-js/pure/actual/symbol/key-for', 'Symbol.keyFor'],
+  ['@core-js/pure/actual/symbol/constructor', null],
+  ['@core-js/pure/actual/symbol/description', null],
+  ['@core-js/pure/actual/symbol/index', null],
+  // A source binding always carries its package; a short registry entry is not a source.
+  ['actual/symbol/async-iterator', null],
+  ['actual/symbol/for', null],
+  ['actual/symbol/key-for', null],
   // a coincidental third-party path is rejected by the package-prefix gate
   ['my-lib/symbol/iterator', null],
 ]) {

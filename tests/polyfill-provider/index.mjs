@@ -76,6 +76,7 @@ import './initializer-carrier.mjs';
 import './prototype-hop-receiver.mjs';
 import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';
+import './pure-import-sources.mjs';
 import './synth-wks-keys.mjs';
 import './synth-activation.mjs';
 import './nested-synth-admission.mjs';

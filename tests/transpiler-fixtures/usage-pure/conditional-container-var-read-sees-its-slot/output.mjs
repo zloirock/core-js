@@ -1,5 +1,4 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
 import _Iterator from "@core-js/pure/actual/iterator";
 import _Iterator$concat from "@core-js/pure/actual/iterator/concat";
 import _Promise from "@core-js/pure/actual/promise";
@@ -37,7 +36,7 @@ function g3() {
   }
   return () => {
     var _ref3;
-    return _ref3 = box.I, _ref3 === _Iterator ? _Iterator$concat : _concatMaybeArray(_ref3);
+    return _ref3 = box.I, _ref3 === _Iterator ? _Iterator$concat : _ref3.concat;
   };
 }
 function g4() {

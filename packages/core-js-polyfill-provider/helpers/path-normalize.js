@@ -115,17 +115,101 @@ export function packageRootPrefix(pkg) {
   return root;
 }
 
+// core-js ships only `.js` files; the trailing `/index` collapses when users reference a
+// directory-style entry path (`core-js/stable/array/index` === `core-js/stable/array`)
+export function canonicalizeEntrySubpath(s) {
+  return s.replace(/\.js$/, '').replace(/\/index$/, '');
+}
+
+// `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path.
+// match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
+// returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty.
+// `normalizeImportSource` (shared with `getCoreJSEntry`) handles case / backslash / slash-
+// collapse uniformly so pre-pass dedup catches Vite-rewritten Windows imports and Farm's
+// doubled-slash artifact equally
+// `{ entry, pkg }` for the FIRST package this specifier belongs to, or null. the package travels
+// with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
+// own package would silently retarget a user's polyfill at another one
+export function matchEntrySubpath(source, pkgs, subPrefix) {
+  const clean = normalizeImportSource(source);
+  for (const pkg of pkgs) {
+    const afterPkg = subpathAfterPackage(clean, pkg);
+    // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
+    // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
+    // LATER package that IS a full match (`a/b/` over `a/b/modules/x`) must still be tried -
+    // bailing here would make matching order-dependent
+    if (afterPkg === null || !afterPkg.startsWith(subPrefix)) continue;
+    const entry = canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
+    if (entry) return { entry, pkg };
+  }
+  return null;
+}
+
+// what follows the package in an already-normalized specifier, or null. three spellings answer for
+// one package: the bare name the source writes, the RESOLVED ROOT the injector writes under
+// `absoluteImports` (whose directory need not be named after the package), and - for a layout
+// neither of those covers - the name as a path SEGMENT
+function subpathAfterPackage(clean, pkg) {
+  const pkgPrefix = `${ pkg }/`;
+  if (clean.startsWith(pkgPrefix)) return clean.slice(pkgPrefix.length);
+  const root = packageRootPrefix(pkg);
+  if (root && clean.startsWith(root)) return clean.slice(root.length);
+  const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
+  return segment === -1 ? null : clean.slice(segment + 1 + pkgPrefix.length);
+}
+
+const CORE_JS_PACKAGES = ['core-js', 'core-js-pure', '@core-js/pure'];
+
+// A source specifier must name a known package or its resolved absolute tree. Relative
+// lookalikes are user modules; flavor segments alone never prove package ownership.
+export function coreJSImportSubpath(source, packages = null) {
+  if (typeof source !== 'string') return null;
+  const clean = normalizeImportSource(source);
+  const absolute = clean.startsWith('/') || /^(?:[a-z]:|file:)\//.test(clean);
+  if (!absolute && !packages?.some(pkg => clean.startsWith(`${ pkg }/`))
+    && CORE_JS_PACKAGES.every(pkg => !clean.startsWith(`${ pkg }/`))) return null;
+  return (packages && matchEntrySubpath(clean, packages, '')
+    || matchEntrySubpath(clean, CORE_JS_PACKAGES, ''))?.entry ?? null;
+}
+
+const PURE_IMPORT_FLAVOR_SEGMENTS = new Set(['actual', 'es', 'features', 'full', 'stable']);
+// the source-level half of the recognition: the entry a pure-package specifier names, or null
+// when no flavor segment with an entry tail is present. This extracts a trusted subpath;
+// callers reading source specifiers first prove package ownership with coreJSImportSubpath.
+export function pureImportSourceEntry(source) {
+  if (typeof source !== 'string') return null;
+  const segments = canonicalizeEntrySubpath(normalizeImportSource(source)).split('/');
+  const at = segments.findIndex(segment => PURE_IMPORT_FLAVOR_SEGMENTS.has(segment));
+  return at === -1 || at === segments.length - 1 ? null : segments.slice(at + 1).join('/');
+}
+
+// Only a flavor at the package root names a pure entry. A nested directory named
+// `features` in a user file below a checkout does not establish pure provenance.
+export function pureImportSubpath(source, packages = null) {
+  const subpath = coreJSImportSubpath(source, packages);
+  return subpath && PURE_IMPORT_FLAVOR_SEGMENTS.has(subpath.split('/', 1)[0]) ? subpath : null;
+}
+
 // skip core-js internals, root entry re-exports, and bundles - polyfilling them creates
-// circular dependencies. `(?:^|\/)` boundary covers Farm/Bun/esbuild-plugin bare ids too.
+// circular dependencies. The package boundary covers Farm/Bun/esbuild-plugin bare ids too.
 // patterns operate on canonical (normalizeImportSource-output) form: forward slashes only,
 // lowercase, no query/hash, no UNC prefix - back-slash alternation no longer needed
-const CORE_JS_INTERNAL_FILE = /(?:^|\/)(?:core-js|core-js-pure|@core-js\/pure)\/(?:(?:actual|es|features|full|internals|modules|proposals|stable|stage)\/|(?:configurator|index)\.js$)/;
+const CORE_JS_INTERNAL_FILE = /^(?:(?:actual|es|features|full|internals|modules|proposals|stable|stage)\/|(?:configurator|index)\.js$)/;
 const CORE_JS_BUNDLE = /(?:^|\/)(?:core-js-bundle|@core-js\/bundle)(?:\/|$)/;
 
-export function isCoreJSFile(filename) {
+export function isCoreJSFile(filename, packages = null) {
   if (typeof filename !== 'string') return false;
   const normalized = normalizeImportSource(filename);
-  return CORE_JS_INTERNAL_FILE.test(normalized) || CORE_JS_BUNDLE.test(normalized);
+  if (CORE_JS_BUNDLE.test(normalized)) return true;
+  for (const pkg of packages ?? []) {
+    const subpath = subpathAfterPackage(normalized, pkg);
+    if (subpath !== null && CORE_JS_INTERNAL_FILE.test(subpath)) return true;
+  }
+  for (const pkg of CORE_JS_PACKAGES) {
+    const subpath = subpathAfterPackage(normalized, pkg);
+    if (subpath !== null && CORE_JS_INTERNAL_FILE.test(subpath)) return true;
+  }
+  return false;
 }
 
 // the suffix family TypeScript gives a declaration file, anchored at the end so a DIRECTORY

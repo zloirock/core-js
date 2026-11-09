@@ -5,7 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { matchEntrySubpath } from './entries.js';
+import { pureImportSubpath } from '../helpers/path-normalize.js';
 import {
   CENSUS_CONTAINER_TYPES,
   argumentOverridesSlot,
@@ -348,7 +348,7 @@ export function aliasWriteCtorNames({ name, scope, adapter, path, binding = unde
       allDestructureValueBranches(node, leaf => {
         // An imported arm already carries its chosen namespace. Re-guarding it
         // would add a second static import when revisiting our own realm guard.
-        if (!pureImportSourceEntry(moduleDefaultSource({ node: leaf, ...hop.ctx }))) {
+        if (!pureImportSourceEntry(pureImportSubpath(moduleDefaultSource({ node: leaf, ...hop.ctx }), adapter.packages))) {
           const candidate = resolveObjectName({ objectNode: leaf, ...hop.ctx, usageNode: hop.readNode });
           if (candidate) hints.push(candidate);
         }
@@ -412,8 +412,7 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
   let directSource = null;
   if (meta && !meta.object && !objectPattern && !walkPath.length) {
     directSource = explicitSource(node, { scope, adapter, path });
-    const matched = directSource && matchEntrySubpath(directSource, ['@core-js/pure', 'core-js-pure'], '');
-    const entry = pureImportSourceEntry(matched?.entry);
+    const entry = pureImportSourceEntry(pureImportSubpath(directSource, adapter.packages));
     const object = entry && entryToGlobalHint(entry);
     if (object && !POSSIBLE_GLOBAL_OBJECTS.has(object)) meta = {
       ...meta, receiverHint: staticReceiverHint('static', object),
@@ -438,14 +437,14 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
     resolveLeaf: hop => explicitSource(hop.node, hop.ctx),
   }));
   if (!source) return meta;
-  const matched = matchEntrySubpath(source, ['@core-js/pure', 'core-js-pure'], '');
-  const entry = pureImportSourceEntry(matched?.entry ?? (adapter.method === 'usage-pure' && directSource ? source : null));
+  const subpath = pureImportSubpath(source, adapter.packages);
+  const entry = pureImportSourceEntry(subpath);
   if (!entry || entryToGlobalHint(entry) !== meta.object) return meta;
   // ... and an import of the whole namespace that carries the static at its own level reads it as written
   // (`es/promise` lacks `Promise.allKeyed`, which `actual/promise` ships)
   if (adapter.method === 'usage-pure' && hasOwnStaticDefinition(meta.object, meta.key)) {
     return hasConstructorEntry(meta.object) && !entry.includes('/')
-      && namespaceEntryCarriesStatic((matched?.entry ?? source).replace(/\/index(?:\.js)?$|\.js$/u, ''), meta.object, meta.key)
+      && namespaceEntryCarriesStatic(subpath, meta.object, meta.key)
       ? null : meta;
   }
   return { ...meta, object: null, placement: 'prototype', receiverHint: staticReceiverHint('static', meta.object) };
@@ -2692,7 +2691,7 @@ export function paramDefaultInstanceSynthAllowed({
   // A caller mirror can already carry pure imports. Those stable bindings are as safe
   // to repeat inside its literal as constants, without admitting arbitrary raw globals.
   if (isConstantLiteralNode(receiverNode, name => !!pureImportSourceEntry(
-    adapter.getBinding({ scope, name, path })?.importSource,
+    pureImportSubpath(adapter.getBinding({ scope, name, path })?.importSource, adapter.packages),
   ), running)) return true;
   // a SELECTING receiver (`nul || arr`, `cond ? a : b`) hands the destructure one of its parts, so it
   // is admissible exactly when EVERY part is - the same question asked of each. a raw global inside
@@ -4425,7 +4424,7 @@ function pluginRewrittenHopName(binding, hop) {
     // ... or the require-style pure binding: THIS binding's own declarator holds the
     // require call (a shadowed local of the same name has a different node and stays out)
     || (binding?.node?.type === 'VariableDeclarator' && requireCallSource(binding.node.init) !== null))) {
-    const entry = pureImportEntryOf(path, current.name);
+    const entry = pureImportEntryOf(path, current.name, adapter.packages);
     const hinted = entry ? entryToGlobalHint(entry) : null;
     if (hinted && hinted !== current.name) return hinted;
   }
@@ -6940,7 +6939,8 @@ function parameterArgumentSources(
     // Pending imports already have scoped binding metadata before the injector flushes them.
     getBindingEntry(scope, name, path, read = null) {
       const binding = adapter.getBinding({ scope, name, path, read });
-      return binding?.constantViolations?.length ? null : pureImportSourceEntry(binding?.importSource);
+      return binding?.constantViolations?.length ? null
+        : pureImportSourceEntry(pureImportSubpath(binding?.importSource, adapter.packages));
     },
   });
   const instanceDefaultOpen = includeFlatInstance && paramPath.node.type === 'AssignmentPattern'
@@ -7484,7 +7484,7 @@ export function buildNestedParamSynthPlan(options) {
       const suppliedInstance = !isNullLiteralNode(value) && (!invocationNode(value) || value.type === 'NewExpression')
         && (suppliedBinding || globalPrimitive || instanceSynthSpellsReceiver(value)
           || isConstantLiteralNode(value, bindingName => !!pureImportSourceEntry(
-            adapter.getBinding({ ...source.ctx, name: bindingName })?.importSource,
+            pureImportSubpath(adapter.getBinding({ ...source.ctx, name: bindingName })?.importSource, adapter.packages),
           ))
           || isMemberAccessNode(value)
           || !!instanceSynthReceiverPure(value, { ...source.ctx, resolvePure }))
