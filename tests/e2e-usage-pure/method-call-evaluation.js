@@ -431,27 +431,29 @@ QUnit.test('constructed receiver: an external array result retains findLast', as
   });
 });
 
-// eslint-disable-next-line es/no-proxy -- Proxy is an optional host capability, absent on IE11
-if (typeof Proxy === 'function') QUnit.test('constructed receiver: proxy methods retain polyfills and user overrides', assert => {
-  /* eslint-disable es/no-proxy -- the test is gated on host support */
-  assert.same(new Proxy([1, 2, 3], {}).findLast(value => value < 3), 2);
-  const held = new Proxy([1, 2, 3], {});
-  assert.same(held.at(-1), 3);
-  const Alias = Proxy;
-  assert.same(new Alias([4, 5], {}).at(-1), 5);
-  let reads = 0;
-  const own = new Proxy([], { get(target, key) {
-    if (key !== 'at') return target[key];
-    reads++;
-    return function (index) {
-      assert.same(this, own);
-      return index + 10;
-    };
-  } });
-  assert.same(own.at(-1), 9);
-  assert.same(reads, 1);
-  /* eslint-enable es/no-proxy -- end of host-dependent constructor checks */
-});
+// eslint-disable-next-line es/no-proxy -- Proxy is an optional host capability, absent on IE11, in FF27-39 works incorrectly
+if (typeof Proxy === 'function' && new Proxy([1, 2, 3], {}).length === 3) {
+  QUnit.test('constructed receiver: proxy methods retain polyfills and user overrides', assert => {
+    /* eslint-disable es/no-proxy -- the test is gated on host support */
+    assert.same(new Proxy([1, 2, 3], {}).findLast(value => value < 3), 2);
+    const held = new Proxy([1, 2, 3], {});
+    assert.same(held.at(-1), 3);
+    const Alias = Proxy;
+    assert.same(new Alias([4, 5], {}).at(-1), 5);
+    let reads = 0;
+    const own = new Proxy([], { get(target, key) {
+      if (key !== 'at') return target[key];
+      reads++;
+      return function (index) {
+        assert.same(this, own);
+        return index + 10;
+      };
+    } });
+    assert.same(own.at(-1), 9);
+    assert.same(reads, 1);
+    /* eslint-enable es/no-proxy -- end of host-dependent constructor checks */
+  });
+}
 
 QUnit.test('constructed receiver: Object preserves the wrapped value family', assert => {
   assert.same(new Object([1, 2, 3]).findLast(value => value < 3), 2);
