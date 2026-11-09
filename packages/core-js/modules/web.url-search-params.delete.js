@@ -25,15 +25,16 @@ if (params + '' !== 'a=2') {
     var length = arguments.length;
     var $value = length < 2 ? undefined : arguments[1];
     if (length && $value === undefined) return $delete(this, name);
-    var entries = [];
-    var firstIndexes = create(null);
-    forEach(this, function (v, k) { // also validates `this`
-      if (!hasOwn(firstIndexes, k)) firstIndexes[k] = entries.length;
-      push(entries, { key: k, value: v });
-    });
+    has(this, ''); // validates `this`
     validateArgumentsLength(length, 1);
     var key = toUSVString(name);
     var value = toUSVString($value);
+    var entries = [];
+    var firstIndexes = create(null);
+    forEach(this, function (v, k) {
+      if (!hasOwn(firstIndexes, k)) firstIndexes[k] = entries.length;
+      push(entries, { key: k, value: v });
+    });
     var entriesLength = entries.length;
     var start = firstIndexes[key];
     var index = start;
@@ -49,8 +50,8 @@ if (params + '' !== 'a=2') {
     }
     if (!retained) return $delete(this, key);
     if (!matched) {
-      // Use a key absent after conversion to trigger the URL update without a match.
-      while (hasOwn(firstIndexes, key) || has(this, key)) key += '\0';
+      // Even without a match, deleting must run the URL update steps.
+      while (hasOwn(firstIndexes, key)) key += '\0';
       return $delete(this, key);
     }
     // Keep the prefix, extending the tail back over keys shared with it.

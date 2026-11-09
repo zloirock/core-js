@@ -43,6 +43,13 @@ const NODE_RECORD_COLLISIONS = NODE_VERSION >= 1000 && (NODE_VERSION < 1617 || N
 // Fixed in 18.17 and 20.0: https://github.com/nodejs/node/pull/47415
 const NODE_RECORD_PROTOTYPE = NODE_VERSION >= 1617 && NODE_VERSION < 1700
   || NODE_VERSION >= 1704 && NODE_VERSION < 1817 || NODE_VERSION >= 1900 && NODE_VERSION < 2000;
+// Node 18.18-18.20.8, 20.2-20.11.1 and 21.0-21.6.2 lose deletions after coercion updates a bound URL.
+// Fixed in 20.12 and 21.7: https://github.com/nodejs/node/pull/51520
+const NODE_DELETE_BOUND = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION < 1900
+  || NODE_VERSION >= 2002 && NODE_VERSION < 2012 || NODE_VERSION >= 2100 && NODE_VERSION < 2107);
+// Node 24.16+ (24.x) and 26.1+ capture the list length before converting value; also fails in 27 alpha.
+// Regression introduced by https://github.com/nodejs/node/pull/62266
+const NODE_DELETE_VALUE = !DENO_VERSION && (NODE_VERSION >= 2416 && NODE_VERSION < 2500 || NODE_VERSION >= 2601);
 const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Chrome 67-115 / Edge 79-115 corrupt U+10FFFF in string input; fixed in Chromium 116.
 // https://crbug.com/1416021
@@ -668,6 +675,74 @@ QUnit.test('URLSearchParams#delete', assert => {
   assert.throws(() => {
     return new URLSearchParams('').delete();
   }, 'throws w/o arguments');
+});
+
+for (const argument of ['name', 'value']) QUnit.test(`URLSearchParams#delete converts ${ argument } before reading the list`, assert => {
+  for (const [input, method, values, expected, brokenBound, brokenValue] of [
+    ['a=1&a=2&b=2', 'append', ['a', '3'], 'a=2&b=2&a=3', true, true],
+    ['a=1&a=2&b=2', 'append', ['b', '9'], 'a=2&b=2&b=9', true, true],
+    ['a=1&a=2&b=2', 'append', ['c', '3'], 'a=2&b=2&c=3', true, true],
+    ['a=1&a=2&b=2', 'append', ['a', '1'], 'a=2&b=2', true, false],
+    ['a=1&a=2&b=2', 'delete', ['b'], 'a=2', true, true],
+    ['a=1&a=2&b=2', 'delete', ['a'], 'b=2', false, false],
+    ['a=1&a=2&b=2', 'set', ['a', '2'], 'a=2&b=2', false, false],
+    ['a=1&a=2&b=2', 'set', ['a', '1'], 'b=2', true, true],
+    ['a=1&a=2&b=2', 'delete', ['a', '1'], 'a=2&b=2', false, false],
+    ['b=2', 'append', ['a', '3'], 'b=2&a=3', false, false],
+    ['', 'append', ['a', '1'], '', true, true],
+    ['a=1&b=2', 'append', ['a', '2'], 'b=2&a=2', true, true],
+  ]) {
+    for (const bound of [false, true]) {
+      if (bound && !DESCRIPTORS) continue;
+      // These mutations can make native delete throw while updating the bound URL.
+      if (bound && argument === 'value' && NODE_DELETE_VALUE && brokenValue && method !== 'append') continue;
+      const url = bound ? new URL(`https://example.com/?${ input }`) : undefined;
+      const params = bound ? url.searchParams : new URLSearchParams(input);
+      let calls = 0;
+      const converted = {
+        toString() {
+          calls++;
+          params[method](...values);
+          return argument === 'name' ? 'a' : '1';
+        },
+      };
+      params.delete(argument === 'name' ? converted : 'a', argument === 'value' ? converted : '1');
+      const message = `${ input }: ${ method }(${ values }) during ${ argument } conversion${ bound ? ', bound' : '' }`;
+      const broken = bound && NODE_DELETE_BOUND && brokenBound || argument === 'value' && NODE_DELETE_VALUE && brokenValue;
+      if (!broken) assert.same(String(params), expected, message);
+      assert.same(calls, 1, 'converts the argument once');
+      if (bound && !broken) assert.same(url.search, expected ? `?${ expected }` : '', 'updates the URL');
+    }
+  }
+});
+
+QUnit.test('URLSearchParams#delete conversion order and errors', assert => {
+  const params = new URLSearchParams('a=1&a=2&b=2');
+  const log = [];
+  const name = {
+    toString() {
+      log.push('name');
+      params.append('c', '3');
+      return 'a';
+    },
+  };
+  const error = new Error('conversion');
+  const value = {
+    toString() {
+      log.push('value');
+      params.append('d', '4');
+      throw error;
+    },
+  };
+  assert.throws(() => URLSearchParams.prototype.delete.call({}, name, value), TypeError, 'validates the receiver first');
+  assert.deepEqual(log, [], 'invalid receiver does not convert arguments');
+  assert.throws(() => params.delete(name, value), error, 'propagates the conversion error');
+  assert.deepEqual(log, ['name', 'value'], 'converts name before value');
+  assert.same(String(params), 'a=1&a=2&b=2&c=3&d=4', 'does not delete entries when conversion throws');
+  log.length = 0;
+  assert.throws(() => params.delete(value, name), error, 'propagates the name conversion error');
+  assert.deepEqual(log, ['value'], 'does not convert value after name conversion throws');
+  assert.same(String(params), 'a=1&a=2&b=2&c=3&d=4&d=4', 'preserves side effects of the throwing conversion');
 });
 
 QUnit.test('URLSearchParams#delete with many duplicates', assert => {
