@@ -212,6 +212,28 @@ for (const adapter of adapters) {
   check(`${ adapter.name }: caller sources are scanned linearly`, censusReads.Math < size * 40, true);
   check(`${ adapter.name }: the held family adds a linear pass over the sources`, censusReads.Reflect - censusReads.Math <= size * 4, true);
 }
+// A terminal-name shortcut must not hide repeated scans of the whole caller fan.
+// Count names as well as node kinds: the shortcut can avoid every kind read while
+// still revisiting all names for every static read.
+for (const adapter of adapters) {
+  const counts = [];
+  for (const size of [64, 256]) {
+    const program = adapter.parseAndScope(`function read(ns) {
+      ${ 'ns.ownKeys({});'.repeat(size) }
+    } ${ 'read(Reflect);'.repeat(size) }`);
+    let names = 0;
+    for (const { node } of adapter.collectPaths(program, 'Identifier', candidate => candidate.node.name === 'Reflect')) {
+      Object.defineProperty(node, 'name', { configurable: true, get() {
+        names++;
+        return 'Reflect';
+      } });
+    }
+    collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+    check(`${ adapter.name }: caller-name query is live/${ size }`, names > size, true);
+    counts.push(names);
+  }
+  check(`${ adapter.name }: four times the callers and reads stays linear`, counts[1] < counts[0] * 6, true);
+}
 // Alias answers can forward the same source read through many stores. A receiver query
 // must not redispatch that read per answer, or expose its private facts as real escapes.
 for (const adapter of adapters) for (const size of [16, 64]) for (const reversed of [false, true]) {

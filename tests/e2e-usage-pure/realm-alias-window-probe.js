@@ -146,3 +146,50 @@ QUnit.test('realm alias: a later write keeps the optional receiver and argument 
     });
   });
 });
+
+QUnit.test('a stored nullable alias keeps plain reads and optional guards distinct', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const saved = globalThis.window;
+    const events = [];
+    let first, second;
+    const box = { set value(value) { events.push('set'); } };
+    function read(callback) {
+      try {
+        return callback();
+      } catch (error) {
+        return error.name;
+      }
+    }
+    assert.same(read(() => (first = second = saved).self?.box), live ? undefined : 'TypeError');
+    // eslint-disable-next-line @stylistic/no-extra-parens -- keep the computed sequence visible
+    assert.same(read(() => typeof (first = saved).self[(events.push('key'), 'Array')]), live ? 'function' : 'TypeError');
+    assert.same(read(() => typeof (box.value = saved.self)), live ? 'object' : 'TypeError');
+    assert.deepEqual(events, live ? ['key', 'set'] : []);
+    assert.same(typeof (first = saved)?.self.Array, live ? 'function' : 'undefined');
+    assert.same(first, saved);
+    assert.true(delete (first = saved)?.self.Array.e2eMissingStoredAliasKey);
+    assert.same(first, saved);
+    assert.same(second, saved);
+    const carrier = { set value(value) {
+      events.push('store');
+      assert.same(value, saved);
+    } };
+    assert.deepEqual(read(() => (carrier.value = first = saved).self.Array.of(23)), live ? [23] : 'TypeError');
+    assert.deepEqual(events, live ? ['key', 'set', 'store'] : ['store']);
+    assert.same(first, saved);
+  });
+});
+
+QUnit.test('an IIFE static mirror retains a nullable alias read before later arguments', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const w = globalThis.window;
+    const events = [];
+    function read() {
+      // eslint-disable-next-line sonarjs/no-extra-arguments -- the later argument checks effect ordering
+      return (({ resolve: { length } }) => typeof length)(w.Promise, events.push('argument'));
+    }
+    if (live) assert.same(read(), 'number');
+    else assert.throws(read, TypeError);
+    assert.deepEqual(events, live ? ['argument'] : []);
+  });
+});

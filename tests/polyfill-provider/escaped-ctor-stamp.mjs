@@ -466,7 +466,6 @@ const NAME_ROWS = [
       'new K().groupBy([], x => x);',
       'const { groupBy } = new K();',
       'const list = [new K()]; list[0].groupBy([], x => x);',
-      'for (const { groupBy } of [new K()]) groupBy([], x => x);',
     ].map((read, index) => [`constructor return ${ index }`,
       `class K { constructor() { return Map; } } ${ read }`]),
     ['awaited async call', 'async function f() { return Map; } export async function run() { return (await f()).groupBy([], x => x); }'],
@@ -490,8 +489,13 @@ const NAME_ROWS = [
     ['destructured result', 'function f() { return flag ? Map : Set; } const { groupBy } = f();'],
     ['destructured result with a default', 'function f() { return flag ? Map : Set; } const { groupBy = null } = f();'],
     ['result in an array slot', 'function f() { return flag ? Map : Set; } const list = [f()]; list[0].groupBy([], x => x);'],
-    ['result as a for-of element', 'function f() { return flag ? Map : Set; } for (const { groupBy } of [f()]) groupBy([], x => x);'],
   ].map(([name, code]) => ({ name: `unsupported selecting return: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  // A native loop pattern reads the substituted constructor, even when the return
+  // cannot be extracted. Its family is retained for pure without creating a global escape.
+  ...[
+    ['constructor return', 'class K { constructor() { return Map; } } for (const { groupBy } of [new K()]) groupBy([], x => x);'],
+    ['selecting return', 'function f() { return flag ? Map : Set; } for (const { groupBy } of [f()]) groupBy([], x => x);'],
+  ].map(([name, code]) => ({ name: `retained for-of result: ${ name }`, code, heldInSlot: ['Map'], withContainerCensus: true })),
   // ... and where the constructor stays home - read by name off its class or literal, constructed,
   // discarded, read for a key no static has - the census owes nothing either
   ...[

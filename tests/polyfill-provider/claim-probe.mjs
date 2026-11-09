@@ -8,6 +8,7 @@ import {
   effectfulClaimReadProbe,
   destructureProbePlan,
   discardedInitProbePlan,
+  planProvenNavGuardCollapse,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { identifier, renderClaimProbe } from '../../packages/core-js-polyfill-provider/render.js';
@@ -252,5 +253,31 @@ for (const [init, needsRead] of [
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   check(`${ label }/plain read`, aliasRootedReadMayThrow(path.node.init.object, resolvePure, { scope: path.scope, path, adapter }), needsRead);
 });
+
+for (const [receiver, needsRead] of [
+  ['(first = held).self', true],
+  ['(first = second = held).self', true],
+  ['(tick(), first = held).self', true],
+  ['(first = held)?.self', false],
+  ['(first = globalThis).self', false],
+]) runBoth(`stored alias read/${ receiver }`,
+  `const held = globalThis.window; let first, second; const value = ${ receiver };`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    check(`${ label }/owes read`, aliasRootedReadMayThrow(path.node.init, resolvePure, { scope: path.scope, path, adapter }), needsRead);
+  });
+
+for (const [receiver, accepted] of [['held.self', false], ['globalThis.self', true]]) {
+  runBoth(`stored navigation/${ receiver }`,
+    `const held = globalThis.window; let saved; const value = saved = ${ receiver };`, (parser, program, label) => {
+      const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const before = JSON.stringify(path.node.init);
+      check(`${ label }/plan owns the stored value`, !!planProvenNavGuardCollapse({
+        rootNode: path.node.init, scope: path.scope, path, adapter, resolvePure,
+      }), accepted);
+      check(`${ label }/query does not change the source`, JSON.stringify(path.node.init), before);
+    });
+}
 
 finish();

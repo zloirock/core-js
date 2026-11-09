@@ -23942,4 +23942,38 @@ export function * generate() {
       code: `export const effects = []; const C = Map; ${ reads.join(' ') } export const r = true;`,
     };
   }
+
+  // Append namespace-sensitive rows: each output needs a fresh realm, and earlier cache
+  // prefixes stay intact. A saved environment value is initialized before the read's try.
+  for (const rig of [false, true]) for (const [shape, read] of [
+    ['plain-store', '(saved = held).self?.box'],
+    ['computed-store', 'typeof (saved = held).self[(log.push("key"), "Array")]'],
+    ['kept-store', 'typeof (saved = second = held.self)'],
+    ['nested-store', '((saved = second = held).self.Array.of(3))[0]'],
+    ['optional-store', 'typeof (saved = held)?.self.Array'],
+    ['optional-delete', 'delete (saved = held)?.self.Array.realmCensusMissing'],
+    ['literal', '(() => { const [{ resolve }] = [held.Promise]; return typeof resolve; })()'],
+    ['nested-IIFE', '(({ resolve: { length } }) => typeof length)(held.Promise)'],
+  ]) yield {
+    ...snippet(`retained-realm-read/${ shape }/${ rig }`, `(() => {
+      const held = globalThis.window; let saved, second;
+      try { return ${ read }; } catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
+  for (const [shape, body] of [
+    ['selected', 'var root = typeof window !== "undefined" ? window : undefined; return typeof root.Promise.resolve;'],
+    ['parameter-default', 'function f({ Promise } = globalThis) { return typeof Promise.resolve; } return f();'],
+    ['parameter-alias', 'function f({ Promise: P } = globalThis) { const C = P; return typeof C.resolve; } return f();'],
+    ['parameter-IIFE', 'return (({ Promise }) => typeof Promise.resolve)(globalThis);'],
+    ['parameter-caller', 'function f({ Promise }) { return typeof Promise.resolve; } return f(globalThis);'],
+    ['parameter-custom', 'function f({ Promise: P } = globalThis) { return P.resolve(3); } return f({ Promise: { resolve: x => x + 4 } });'],
+    ['optional-element', 'for (const { resolve } of [globalThis.window?.Promise]) return typeof resolve;'],
+    ['head-assignment', 'let P; for ({ Promise: P } of [globalThis]) return typeof P.allSettled;'],
+    ['catch', 'try { throw Promise; } catch ({ resolve }) { return typeof resolve; }'],
+    ['nested-default', 'let length, other; ({ groupBy: { length = 9 }, other } = Map); return typeof length;'],
+    ['for-init', 'let allSettled, i; for (i = 0, { Promise: { allSettled } = {} } = (undefined || globalThis); i < 1; i++) return typeof allSettled;'],
+    ['field', 'let allSettled; class C { field = ({ Promise: { allSettled } = {} } = (undefined || globalThis)); } new C(); return typeof allSettled;'],
+  ]) yield {
+    ...snippet(`retained-constructor/${ shape }`, `(() => { ${ body } })()`, { rig: true }), strip: true, isolated: true,
+  };
 }

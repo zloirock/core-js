@@ -68,6 +68,7 @@ export function * proxyRootCollapseRoutes({
   // onto the surviving leaf. A different carrier has no such landing for a live guard.
   const keptStore = keptProbeStore(node.object, resolvePure, aliasCtx);
   if ((!deleteHosted && navValueCanShortCircuit(node, resolvePure, aliasCtx, { throughChainAssign: !keptStore }))
+    || deleteHosted && !keptStore && deleteGuardKeepingHop(node, resolvePure, aliasCtx)
     || runSwallowsStoreProbe(node, resolvePure, aliasCtx)
     || sealedClaimDisposition(node, resolvePure, aliasCtx, node)?.kind === 'throw') return;
   if (valueConsumer) {
@@ -338,10 +339,16 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
     return;
   }
   const effects = resolvedClaimEffects(node, meta, aliasCtx);
-  const probe = isMemberAccessNode(node) && (directClaimProbePlan(node, resolvePure, aliasCtx)
-    ?? (!realm && effects.length ? effectfulClaimReadProbe(node, effects, resolvePure, aliasCtx) : null));
-  if (!probe && isMemberAccessNode(node) && !node.optional
-    && aliasRootedReadMayThrow(node.object, resolvePure, aliasCtx)) return;
+  const member = isMemberAccessNode(node);
+  let probe = member && directClaimProbePlan(node, resolvePure, aliasCtx);
+  const aliasRead = !probe && member && !node.optional
+    && aliasRootedReadMayThrow(node.object, resolvePure, aliasCtx);
+  // A non-realm claim consumes its nullable alias receiver, including its store.
+  // Keep an existing sealed probe first: the read above its holder must still throw.
+  // Inline realm probes retain their ordinary collapse and effect ownership.
+  if (aliasRead && !realm) probe = directClaimProbePlan(node, resolvePure, aliasCtx, { allowStoreHolder: true });
+  probe ||= member && !realm && effects.length && effectfulClaimReadProbe(node, effects, resolvePure, aliasCtx);
+  if (!probe && aliasRead) return;
   const base = deleted || { pure: { entry, hintName } };
   const proxyRoot = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName);
   const deletedRun = proxyRoot && !isMemberAccessNode(node) && !!deleteHostAboveCarriedChain(path);

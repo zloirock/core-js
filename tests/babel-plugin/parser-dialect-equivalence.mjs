@@ -72,6 +72,16 @@ function imports(code) {
 // the effect-bearing sequence around a nav, the same inside a store, and the seal shapes whose
 // decisions were already dialect-aware (they stay in the list as the negative half of the gate)
 const CASES = [
+  ['nullable alias through a nested store',
+    'const held = globalThis.window; let first, second; export const value = (((first = (second = held)))).self.Array.of(1);'],
+  ['optional nullable alias through a stored value',
+    'const held = globalThis.window; let first; export const value = ((first = held))?.self.Array;'],
+  ['delete through an optional stored alias',
+    'const held = globalThis.window; let first; export const value = delete ((first = held))?.self.Array.realmTemporary;'],
+  ['nested static pattern on an aliased IIFE argument',
+    'const held = globalThis.window; export const value = (({ resolve: { length } }) => length)(((held.Promise)));'],
+  ['retained static through a parameter default',
+    'function read({ Promise: P } = ((globalThis))) { return typeof ((P)).resolve; } export const value = read();'],
   ['unknown constructor in wrappers', 'export const value = (new ((External))()).at(-1);'],
   ['own constructor in a captured parameter', 'function f({ keys: { at } = [] } = (new Map())) { return at; } f();'],
   ['typed constructor in wrappers', 'export const value = (new ((External as any)!)()).at(-1);', ['typescript']],
