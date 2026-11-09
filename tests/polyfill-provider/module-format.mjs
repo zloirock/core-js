@@ -361,4 +361,17 @@ runBoth('spellable: var require in a module asked to spell it', 'var require = f
       { importStyle: 'import', requireDeclined: true });
   });
 
+// Webpack-family module kinds override filename heuristics without inventing a realm global.
+for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/esm']) {
+  for (const source of ['this.value = 1;', 'typeof module;', 'export const value = 1;']) {
+    runBoth(`host format/${ moduleType }/${ source }`, source, (adapter, prog, label) => {
+      const format = resolveModuleFormat({ id: '/probe.mjs', program: prog.node, moduleType });
+      const esm = moduleType === 'javascript/esm' || source.startsWith('export');
+      check(`${ label }/goal`, format.sourceType, esm ? 'module' : 'script');
+      check(`${ label }/injection`, format.importStyle, esm ? 'import' : 'require');
+      check(`${ label }/wrapper`, programTopLevelIsRealm(prog.node), false);
+    });
+  }
+}
+
 finish();

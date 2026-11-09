@@ -24,7 +24,7 @@ const SFC_STYLE_TYPES = new Set(['style']);
 const SFC_COMPILED_TO_JS_TYPES = new Set(['template']);
 // framework SFC source extensions. the bare id (no marker params) is the whole file, markup on
 // `pre` and the compiled module on `post`
-const SFC_EXT_RE = /\.(?:astro|svelte|vue)$/i;
+const SFC_EXT_RE = /\.(?:astro|gjs|gts|md|mdx|svelte|svx|vue)$/i;
 // Vite asset-import query params whose resolved body is not user-authored JS (`?url` / `?raw` /
 // `?inline` / ...). matched at ANY param position (the prior regex used `[&?]`), so a
 // structured key check is order-neutral by construction
@@ -44,9 +44,10 @@ const HTML_PROXY_JS_INDEX_RE = /^\d+\.js$/;
 // Split a bundler module id into its path and query params. Each decoded param key + value is lowercased
 // so every structured lookup stays case-insensitive (markers / types / langs were matched case-
 // insensitively by the prior `/i` regexes - some pipelines preserve author casing like `lang=TS`); the
-// path keeps its original case (extension matching is independently case-insensitive). The hash is cut
+// path keeps its original case (extension matching is independently case-insensitive). Snapshot keys
+// request preserveQueryCase: decoding is shared, but identity must never fold case. The hash is cut
 // before parsing because URLSearchParams treats `#` as a literal, so a `lang=ts#L10` tail would leak in.
-export function parseModuleId(id) {
+export function parseModuleId(id, preserveQueryCase = false) {
   const path = stripQueryHash(id);
   // `rest` begins at the first `#` or `?` (the path boundary). only a LEADING `?` opens a query; a
   // leading `#` means the remainder is a fragment, so a `?` inside it (`path#frag?key`) is fragment
@@ -68,7 +69,9 @@ export function parseModuleId(id) {
   // it - so structured lang / type lookups missed it. lowercasing post-decode keeps them case-insensitive;
   // the path keeps its original case (extension matching is independently case-insensitive)
   const params = new URLSearchParams();
-  for (const [key, value] of new URLSearchParams(query)) params.append(key.toLowerCase(), value.toLowerCase());
+  for (const [key, value] of new URLSearchParams(query)) {
+    params.append(preserveQueryCase ? key : key.toLowerCase(), preserveQueryCase ? value : value.toLowerCase());
+  }
   return { path, params, hash };
 }
 

@@ -1,7 +1,8 @@
 import { createUnplugin } from 'unplugin';
 import createPlugin from './internals/plugin.js';
-import { moduleIdLanguage } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { moduleIdLanguage, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
+import { esbuildSetup, webpackModuleType } from './internals/host-loading.js';
 import {
   isHtmlProxyScript,
   isSfcScriptBlock,
@@ -34,17 +35,9 @@ export function shouldTransform(id, enforce = 'pre') {
 
 const VALID_PHASES = new Set(['pre', 'post', 'pre+post']);
 
-// bundlers where `phase: 'pre+post'` doesn't reliably enforce pre-then-post ordering against
-// sibling plugins. upstream unplugin's `enforce` field is dropped silently on bun (no
-// priority concept; bun processes Bun.plugin() registrations in declaration order without
-// inter-plugin interleaving slots). esbuild chains transform hooks but exposes no enforce /
-// priority for ordering them against sibling plugins, so a guaranteed pre-then-post interleave
-// can't be expressed and the two passes may not straddle a sibling. on farm
-// `enforce` IS honored via priority mapping (pre->102 / post->98), so sibling default-priority
-// 100 lands BETWEEN our pre and post - that's the design intent for pre+post. rollup /
-// rolldown also ignore `enforce`, but there the ordering IS expressible - `stage` emits the
-// per-hook `order` form for them, so they stay off this list. fall back to single-mode 'post'
-// only where the ordering truly breaks; user gets a one-time warn
+// Bun and esbuild have no interleaving slot around a sibling component compiler.
+// Their pre+post request therefore becomes one pass, with a warning; even at post,
+// raw component ids remain excluded. Ordered hosts keep separate pre/post hooks.
 const PRE_POST_UNSAFE_BUNDLERS = new Set(['bun', 'esbuild']);
 
 // `phase` controls when the plugin runs. See index.d.ts for the full trade-off matrix.
@@ -67,13 +60,8 @@ const unplugin = createUnplugin((options, meta) => {
     throw new TypeError(brand(`invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`));
   }
 
-  // bundler-specific phase fallback. on bun the upstream sibling-ordering machinery doesn't
-  // honor `enforce` (no priority concept; Bun.plugin hosts process transformHooks in array
-  // order without inter-plugin interleaving slots). configured `pre+post` would silently
-  // produce single-host concatenation without sibling intervention - downgrade to single-mode
-  // 'post' (safer: runs after all siblings, sees their helper output) and surface a one-time
-  // warn so user can correlate the cadence shift. entry-global is pinned to 'pre' upstream
-  // regardless of bundler - this fallback only affects the explicit `pre+post` opt-in
+  // A phase label cannot turn esbuild/Bun's raw onLoad input into compiled code.
+  // Keep the single-pass fallback observable without broadening its admission.
   const bundler = meta?.framework;
   const fallbackToPost = effective === 'pre+post' && PRE_POST_UNSAFE_BUNDLERS.has(bundler);
   if (fallbackToPost) {
@@ -82,8 +70,14 @@ const unplugin = createUnplugin((options, meta) => {
   }
   const resolvedPhase = fallbackToPost ? 'post' : effective;
   const plugin = createPlugin({ ...rest, bundler });
+  let viteCacheRoot;
 
-  function stage(enforce, pass) {
+  function stage(enforce, pass, compiledOnly = false) {
+    const admissionPhase = PRE_POST_UNSAFE_BUNDLERS.has(bundler) ? 'pre' : enforce;
+    function include(id) {
+      return (!viteCacheRoot || !stripQueryHash(id).replaceAll('\\', '/').startsWith(viteCacheRoot))
+        && shouldTransform(id, admissionPhase) && (!compiledOnly || !shouldTransform(id, 'pre'));
+    }
     // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
     // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
     // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
@@ -95,21 +89,29 @@ const unplugin = createUnplugin((options, meta) => {
       // other host runs a single pipeline (webpack's loader passes no third argument at all) and
       // shares the default bucket
       const environment = this?.environment?.name ?? (hookOptions?.ssr ? 'ssr' : '');
-      return plugin.transform.call(this, code, id, pass, environment);
+      const moduleType = bundler === 'webpack' || bundler === 'rspack' || bundler === 'rsbuild'
+        ? webpackModuleType(this) : undefined;
+      if (moduleType === null) return null;
+      return plugin.transform.call(this, code, id, pass, environment, { moduleType, loader: hookOptions?.loader });
     }
     return {
       name: `${ plugin.name }:${ enforce }`,
       enforce,
-      transformInclude: id => shouldTransform(id, enforce),
+      transformInclude: include,
+      // Optimized dependency chunks can contain core-js itself. Their generated paths no
+      // longer carry package ownership, and Vite owns their already-bundled dependency graph.
+      vite: { configResolved(config) { viteCacheRoot = `${ config.cacheDir.replaceAll('\\', '/').replace(/\/$/, '') }/`; } },
       // rollup / rolldown ignore the vite-style top-level `enforce` (upstream maps it for
       // webpack-family rules, farm priorities and vite's plugin sorting, but its rollup
       // conversion leaves the field foreign) - without ordering, `pre+post` degenerates to two
       // adjacent passes that never straddle sibling plugins. express the ordering there with
       // the per-hook object form (`transform: { order, handler }`), which rollup >= 3 /
       // rolldown honor natively and upstream's hook normalization passes through
-      transform: bundler === 'rollup' || bundler === 'rolldown'
-        ? { order: enforce, handler: transform }
-        : transform,
+      ...bundler === 'esbuild' ? { esbuild: { setup: esbuildSetup(include, transform) } } : {
+        transform: bundler === 'rollup' || bundler === 'rolldown'
+          ? { order: enforce, handler: transform }
+          : transform,
+      },
     };
   }
 
@@ -128,6 +130,9 @@ const unplugin = createUnplugin((options, meta) => {
   const subs = resolvedPhase === 'pre+post'
     ? [stage('pre', 'pre'), stage('post', 'post')]
     : [stage(resolvedPhase, resolvedPhase === 'post' ? 'post' : 'single')];
+  // Components reach pre as markup. Give only those ids a post slot after their compiler;
+  // ordinary JS keeps its single pass and entry imports are still caught before siblings.
+  if (resolvedPhase === 'pre' && !PRE_POST_UNSAFE_BUNDLERS.has(bundler)) subs.push(stage('post', 'single', true));
   Object.assign(subs.at(-1), {
     buildEnd() { plugin.reset(); },
     watchChange(id) { plugin.invalidateSnapshot(id); },

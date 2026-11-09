@@ -47,14 +47,15 @@ interface BaseOptions {
 
 interface EntryGlobalOptions extends BaseOptions {
   method: 'entry-global';
-  /** `entry-global` runs at pre; explicit non-`'pre'` value is rejected at runtime */
+  /** Entry imports run at pre; compiled components have a narrow post stage on ordered hosts. */
   phase?: 'pre' | null;
 }
 
 interface UsageOptions extends BaseOptions {
   method: 'usage-global' | 'usage-pure';
   /** Where in the bundler plugin chain to run:
-   *  - `'pre'` (default): before siblings - full semantic context; misses helper polyfills.
+   *  - `'pre'` (default): before siblings; compiled components alone also run after their compiler.
+   *    Ordinary JS keeps one pass, so sibling-generated helpers are not covered.
    *  - `'post'`: after siblings - covers helpers; stripped type info may over-polyfill.
    *  - `'pre+post'`: pre handles user code, post catches helpers (inherits post's risk).
    */

@@ -20,8 +20,13 @@ function uncPrefixOffset(id) {
 // purely string normalization on a module-id string - no AST awareness needed
 export function stripQueryHash(id) {
   const offset = uncPrefixOffset(id);
-  const at = id.slice(offset).search(/[#?]/);
-  return at === -1 ? id : id.slice(0, offset + at);
+  const query = id.indexOf('?', offset);
+  const end = query === -1 ? id.length : query;
+  // Bundlers pass filesystem paths: a hash in a directory name is not a fragment.
+  // Query values may themselves contain slashes, so inspect only the path before `?`.
+  const separator = Math.max(id.lastIndexOf('/', end - 1), id.lastIndexOf('\\', end - 1));
+  const hash = id.indexOf('#', Math.max(offset, separator + 1));
+  return id.slice(0, hash === -1 ? end : Math.min(end, hash));
 }
 
 // Windows long-path / device-path prefixes in their canonical (post-`\\`->`/`) form.
@@ -127,11 +132,14 @@ export function canonicalizeEntrySubpath(s) {
 // `normalizeImportSource` (shared with `getCoreJSEntry`) handles case / backslash / slash-
 // collapse uniformly so pre-pass dedup catches Vite-rewritten Windows imports and Farm's
 // doubled-slash artifact equally
-// `{ entry, pkg }` for the FIRST package this specifier belongs to, or null. the package travels
+// `{ entry, pkg }` for the most specific package boundary, or null. A checkout directory can
+// itself be called `core-js` and contain a different polyfill package. The package travels
 // with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
 // own package would silently retarget a user's polyfill at another one
 export function matchEntrySubpath(source, pkgs, subPrefix) {
   const clean = normalizeImportSource(source);
+  let match = null;
+  let length = Infinity;
   for (const pkg of pkgs) {
     const afterPkg = subpathAfterPackage(clean, pkg);
     // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
@@ -140,9 +148,12 @@ export function matchEntrySubpath(source, pkgs, subPrefix) {
     // bailing here would make matching order-dependent
     if (afterPkg === null || !afterPkg.startsWith(subPrefix)) continue;
     const entry = canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
-    if (entry) return { entry, pkg };
+    if (entry && afterPkg.length < length) {
+      match = { entry, pkg };
+      length = afterPkg.length;
+    }
   }
-  return null;
+  return match;
 }
 
 // what follows the package in an already-normalized specifier, or null. three spellings answer for
@@ -155,8 +166,15 @@ function subpathAfterPackage(clean, pkg) {
   const root = packageRootPrefix(pkg);
   if (root && clean.startsWith(root)) return clean.slice(root.length);
   const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
-  return segment === -1 ? null : clean.slice(segment + 1 + pkgPrefix.length);
+  if (segment !== -1) return clean.slice(segment + 1 + pkgPrefix.length).replace(PACKAGE_CACHE_VERSION, '');
+  const versioned = clean.lastIndexOf(`/${ pkg }@`);
+  if (versioned === -1) return null;
+  const tail = clean.slice(versioned + pkg.length + 2);
+  return PACKAGE_CACHE_VERSION.test(tail) ? tail.replace(PACKAGE_CACHE_VERSION, '') : null;
 }
+
+// Bun puts @version@@@revision after the package name; Deno uses a version directory.
+const PACKAGE_CACHE_VERSION = /^\d+\.\d+\.\d+(?:[+-][\w+\-.]+)?(?:@@@\d+)?\//;
 
 const CORE_JS_PACKAGES = ['core-js', 'core-js-pure', '@core-js/pure'];
 
@@ -168,8 +186,7 @@ export function coreJSImportSubpath(source, packages = null) {
   const absolute = clean.startsWith('/') || /^(?:[a-z]:|file:)\//.test(clean);
   if (!absolute && !packages?.some(pkg => clean.startsWith(`${ pkg }/`))
     && CORE_JS_PACKAGES.every(pkg => !clean.startsWith(`${ pkg }/`))) return null;
-  return (packages && matchEntrySubpath(clean, packages, '')
-    || matchEntrySubpath(clean, CORE_JS_PACKAGES, ''))?.entry ?? null;
+  return matchEntrySubpath(clean, packages ? [...packages, ...CORE_JS_PACKAGES] : CORE_JS_PACKAGES, '')?.entry ?? null;
 }
 
 const PURE_IMPORT_FLAVOR_SEGMENTS = new Set(['actual', 'es', 'features', 'full', 'stable']);
@@ -201,6 +218,8 @@ export function isCoreJSFile(filename, packages = null) {
   if (typeof filename !== 'string') return false;
   const normalized = normalizeImportSource(filename);
   if (CORE_JS_BUNDLE.test(normalized)) return true;
+  if (subpathAfterPackage(normalized, 'core-js-bundle') !== null
+    || subpathAfterPackage(normalized, '@core-js/bundle') !== null) return true;
   for (const pkg of packages ?? []) {
     const subpath = subpathAfterPackage(normalized, pkg);
     if (subpath !== null && CORE_JS_INTERNAL_FILE.test(subpath)) return true;
