@@ -419,7 +419,7 @@ export function * staticClaimNavigationRoutes({ node, kind, hintName, meta, alia
     const { run, deadOptionalHop } = rootRun(rootDelete);
     const pure = run && proxyRunLandingPure({ navNode: run.child, ctx: aliasCtx, resolvePure,
       rootName: node.name, deleteFold: rootDelete });
-    if (run && (rootDelete || !unbackedTailRidesAbove(aliasCtx.path, resolvePure))) {
+    if (run && (rootDelete || !unbackedTailRidesAbove(aliasCtx.path, resolvePure, deadOptionalHop))) {
       yield { kind: 'root-collapse', run, pure, deleteFold: rootDelete, deadOptionalHop };
     }
   }

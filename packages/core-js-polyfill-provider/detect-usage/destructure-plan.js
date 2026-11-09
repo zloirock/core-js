@@ -2670,7 +2670,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
 // source conditional is not that proof.
 // A dead chain marker is transparent here, while a live optional chain retains its source.
 // Calls carry a pure descriptor and their ordered prefix until an anchor is actually applied.
-export function residualAnchorSurface(initNode, { adapter, injectorState, path = null, resolveGlobalPolyfill }) {
+export function residualAnchorSurface(initNode, { adapter, injectorState, path = null, resolveGlobalPolyfill, source = null }) {
   let init = peelTransparentExpr(initNode);
   if (init?.type === 'ChainExpression' && !receiverCarriesLiveOptional(init.expression)) {
     init = peelTransparentExpr(init.expression);
@@ -2707,7 +2707,13 @@ export function residualAnchorSurface(initNode, { adapter, injectorState, path =
       return { init, tail: proven, pure, prefix, shape: shape === 'assign' ? shape : prefix.length ? 'seq' : 'ident' };
     }
   }
-  return shape && proxySurfaceIdentifier(tail, ctx) ? { init, tail, shape, prefix: sequence.prefix } : null;
+  if (shape && proxySurfaceIdentifier(tail, ctx)) return { init, tail, shape, prefix: sequence.prefix };
+  // A source plan already proved this alias (including loop bindings). The proof belongs
+  // to that initializer only; a capture that replaced it must supply its own surface.
+  if (shape && tail?.type === 'Identifier' && source?.init === initNode && POSSIBLE_GLOBAL_OBJECTS.has(source.receiver)) {
+    return { init, tail, shape, prefix: sequence.prefix, pure: resolveGlobalPolyfill(source.receiver), sourceAlias: true };
+  }
+  return null;
 }
 
 // A default whose own claims remain live can authorize a residual member anchor. This is

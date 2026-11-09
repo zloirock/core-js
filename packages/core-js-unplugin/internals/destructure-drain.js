@@ -1756,17 +1756,17 @@ export default function createDestructureDrains(ctx) {
 
   // Bind the common surface query to this file's scope and import registry. No import or
   // source edit occurs until a residual hop has accepted the result.
-  function surfaceInitInfo(declarator, metaPath = null) {
+  function surfaceInitInfo(declarator, metaPath = null, source = null) {
     return residualAnchorSurface(declarator.init, {
-      adapter, injectorState, path: metaPath, resolveGlobalPolyfill,
+      adapter, injectorState, path: metaPath, resolveGlobalPolyfill, source,
     });
   }
 
   // Apply common hop decisions to the live residual. The drain owns source nodes and
   // detached clones; constructor/member admission and effect spelling belong to the provider.
   function reanchorSoleCtorHopResidual(declarator,
-    { sourceAnchor = null, metaPath = null } = {}) {
-    const info = surfaceInitInfo(declarator, metaPath);
+    { sourceAnchor = null, metaPath = null, source = null } = {}) {
+    const info = surfaceInitInfo(declarator, metaPath, source);
     if (!info) return false;
     let changed = false;
     for (;;) {
@@ -1782,8 +1782,9 @@ export default function createDestructureDrains(ctx) {
       declarator.id = hop.pattern;
       if (hop.kind === 'proxy') {
         if (info.init !== declarator.init) declarator.init = info.init;
-        if (info.shape === 'assign') {
-          declarator.init = renderResidualAnchorInit(declarator.init, info, null, { injectImport: injectPureImport });
+        if (info.shape === 'assign' || info.sourceAlias && info.pure) {
+          const replacement = info.sourceAlias && info.pure ? identifier(injectPureImport(info.pure.entry, info.pure.hintName)) : null;
+          declarator.init = renderResidualAnchorInit(declarator.init, info, replacement, { injectImport: injectPureImport });
           // A detached clone made before traversal still needs native root substitution.
           if (metaPath) declarator.init = substituteProxyRootsInClone(declarator.init, metaPath,
             { adapter, resolveGlobalPolyfill, injectPureImport });

@@ -16,6 +16,7 @@ import './discarded-call-types.mjs';
 import './deferred-probe-sources.mjs';
 import './guarded-values.mjs';
 import './optional-continuation-runtime.mjs';
+import './realm-claim-runtime.mjs';
 import './excluded-residual-runtime.mjs';
 import './excluded-kept-store-runtime.mjs';
 import './realm-selection-directives.mjs';

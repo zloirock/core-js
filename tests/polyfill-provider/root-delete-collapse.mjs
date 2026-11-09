@@ -2,7 +2,9 @@
 // refreshes may renew children, but retained writes and effects keep their identity.
 import { proxyRootCollapseRoutes } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
 import { planDeletedProxyClaim, planInnerProxyCollapse } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { collectChainAssignsThroughMemberChain } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import {
+  collectChainAssignsThroughMemberChain, isVestigialOptionalHop, unbackedTailRidesAbove,
+} from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -67,6 +69,22 @@ for (const key of ['self', '[key]']) for (const receiver of [
     check(`${ label }/refresh retains assignment`, routes[0]?.store, write);
     check(`${ label }/landing retains assignment`, routes[1]?.plan.rootBinding.keep, write);
   });
+
+for (const [expression, terminal] of [
+  ['globalThis.self?.window.custom', false], ['globalThis.self?.self.custom', false],
+  ['globalThis.window?.self.custom', true], ['globalThis.self?.window', true],
+]) runBoth(`dead optional tail/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'Identifier', item => item.node.name === 'globalThis');
+  const ctx = context(parser, path);
+  const before = JSON.stringify(program.node);
+  function rootOnly(meta) {
+    return meta.name === 'globalThis' ? resolvePure(meta) : null;
+  }
+  check(`${ label }/unproved optional keeps the source tail`, unbackedTailRidesAbove(path, rootOnly), true);
+  check(`${ label }/proven optional does not create a live probe`,
+    unbackedTailRidesAbove(path, rootOnly, node => isVestigialOptionalHop(node, rootOnly, ctx)), terminal);
+  check(`${ label }/query does not erase markers`, JSON.stringify(program.node), before);
+});
 
 runBoth('whole source consumer', 'const { custom } = globalThis.window.self;', (parser, program, label) => {
   const path = member(parser, program, 'self');

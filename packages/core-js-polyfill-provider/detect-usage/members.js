@@ -90,6 +90,7 @@ import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-no
 import { planCaptureSiblings, planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   aliasRootedReadMayThrow,
+  undefinableOptionalGuard,
   pristineRealmHopKey,
   callValueCanBeUndefined,
   proxyCollapseConsumer,
@@ -1964,12 +1965,6 @@ export function handleMemberExpressionNode({
     // already walked the `unwrapTransparentSeq` chain and confirmed the binding guard
     handledObjects.add(symbolKey.ref.raw);
     handledObjects.add(symbolKey.ref.unwrapped);
-    // usage-pure rewrites the WHOLE member-expression (`obj[globalThis.Symbol.iterator]` ->
-    // `_getIteratorMethod(obj)`), so a proxy-global root inside the computed key must be
-    // subsumed too - otherwise the inner identifier visitor queues a parallel `globalThis ->
-    // _globalThis` rewrite that overlaps the outer text replacement and crashes the queue.
-    // usage-global keeps the member-expression, so the proxy-global stays visible and earns
-    // its own polyfill (same mode split as `handleBinaryIn`)
     // the receiver is KEPT as the polyfill argument (`_getIteratorMethod(<receiver>)`). a proxy-global hop
     // in it (`globalThis.self[Symbol.iterator]`) must collapse to the proxy ROOT the SAME way on both
     // emitters - a kept leaf hop diverges (babel `_self`, dead `_globalThis.self.window`; unplugin crash /
@@ -1992,10 +1987,12 @@ export function handleMemberExpressionNode({
     const iteratorEntry = resolveSymbolIteratorEntry(node, peelParenAndTSParentPath(path, SKIPPABLE_WRAPPER_TYPES)?.node);
     const iteratorStrandLive = symbolKey.key === 'Symbol.iterator'
       && (!isEntryAvailable || isEntryAvailable(iteratorEntry));
-    if (suppressProxyGlobals) {
-      // the KEY is a read in every context (a computed key evaluates even in a write host), so its
-      // proxy chain always subsumes - else the identifier visitor queues a parallel rewrite inside
-      // the `Symbol.iterator -> _Symbol$iterator` span. the RECEIVER side below is gated instead
+    if (suppressProxyGlobals && resolveMeta?.({
+      kind: 'property', object: 'Symbol', key: symbolKey.key.slice(7), placement: 'static',
+    }, path)) {
+      // A helper retires its key only when it renders; super and tags can still decline it.
+      // Only the key's own Symbol entry may consume its realm root here. A native symbol
+      // leaves that root to its independent global claim, as usage-global does.
       markSubsumedProxyChain({ node: symbolKey.ref.unwrapped, handledObjects, scope, adapter, path });
     }
     // the ROOT RESOLUTION below is substrate-neutral (it reads the chain, it does not touch the
@@ -2030,6 +2027,7 @@ export function handleMemberExpressionNode({
           node, receiverChain, receiverValueName: receiverName, scope, adapter, path, resolvePure,
         });
       } else if (suppressProxyGlobals && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
+        && (!resolvePure || realmRootIsSpellable(receiverChain, resolvePure))
         && (receiverChain.type === 'MemberExpression' || receiverChain.type === 'OptionalMemberExpression')) {
         // NON-collapsing strand (a non-iterator well-known key): the member-chain receiver stays
         // in the output, and its redundant hop collapses through the ROOT identifier's hop-collapse
@@ -2234,6 +2232,8 @@ export function handleMemberExpressionNode({
     // key can still resolve to an INSTANCE helper (`Array.name` -> `function/instance/name`), whose
     // render takes the receiver as its argument. the call-rooted twin below already asks it this way
     const collapsesReceiver = subsumesReceiver && resolveMeta?.(meta, path)?.kind !== 'instance'
+      && (!suppressProxyGlobals || !resolvePure || ownChainOptionalCount(node) < 2
+        || undefinableOptionalGuard(node, spec => resolvePure(spec, path), { scope, adapter, path }).kind !== 'standdown')
       && (!resolveMeta || meta.placement === 'static'
         || !!resolveMeta({ kind: 'global', name: meta.object }, path));
     // a hop suppressed under a meta whose own OBJECT is an ordinary name (`bx.arr`) belongs to the

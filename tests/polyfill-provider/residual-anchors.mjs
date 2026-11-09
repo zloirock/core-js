@@ -81,6 +81,26 @@ for (const [name, source, expected] of [
   }
 });
 
+for (const [name, init, shape] of [
+  ['plain', 'realm', 'ident'], ['prefix', '(effect(), realm)', 'seq'], ['stored', '(held = realm)', 'assign'],
+]) runBoth(`source alias ${ name }`, `const realm = globalThis; let held; const { self: { value } } = ${ init };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.type === 'ObjectPattern');
+  const adapter = makeAdapter(parser);
+  const options = { adapter, path, resolveGlobalPolyfill };
+  check(`${ label }/alias alone is not a residual surface`, residualAnchorSurface(path.node.init, options), null);
+  const source = { init: path.node.init, receiver: 'globalThis' };
+  const before = JSON.stringify(path.node.init);
+  const surface = residualAnchorSurface(path.node.init, { ...options, source });
+  check(`${ label }/source plan owns this alias`, surface?.sourceAlias, true);
+  check(`${ label }/initializer role`, surface?.shape, shape);
+  check(`${ label }/pure receiver`, surface?.pure?.entry, 'actual/global-this');
+  check(`${ label }/query does not rewrite`, JSON.stringify(path.node.init), before);
+  check(`${ label }/replacement invalidates the proof`, residualAnchorSurface(cloneNode(path.node.init), { ...options, source }), null);
+  check(`${ label }/ordinary receiver is not a realm`, residualAnchorSurface(path.node.init, {
+    ...options, source: { ...source, receiver: 'Map' },
+  }), null);
+});
+
 runBoth('guard provenance', 'const { Map: { name } } = test() ? void 0 : globalThis;', (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator');
   const adapter = makeAdapter(parser);
