@@ -53,7 +53,6 @@ var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
 var shift = uncurryThis([].shift);
-var splice = uncurryThis([].splice);
 var split = uncurryThis(''.split);
 var stringSlice = uncurryThis(''.slice);
 
@@ -210,12 +209,12 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var $value = length < 2 ? undefined : arguments[1];
     var value = $value === undefined ? $value : $toString($value);
     var index = 0;
+    var writeIndex = 0;
     while (index < entries.length) {
-      var entry = entries[index];
-      if (entry.key === key && (value === undefined || entry.value === value)) {
-        splice(entries, index, 1);
-      } else index++;
+      var entry = entries[index++];
+      if (entry.key !== key || (value !== undefined && entry.value !== value)) entries[writeIndex++] = entry;
     }
+    entries.length = writeIndex;
     if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
@@ -269,17 +268,18 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var key = $toString(name);
     var val = $toString(value);
     var index = 0;
+    var writeIndex = 0;
     var entry;
     for (; index < entries.length; index++) {
       entry = entries[index];
       if (entry.key === key) {
-        if (found) splice(entries, index--, 1);
-        else {
-          found = true;
-          entry.value = val;
-        }
+        if (found) continue;
+        found = true;
+        entry.value = val;
       }
+      entries[writeIndex++] = entry;
     }
+    entries.length = writeIndex;
     if (!found) push(entries, { key: key, value: val });
     if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();

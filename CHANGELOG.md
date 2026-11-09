@@ -61,6 +61,7 @@
 - Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
 - Fixed decoding of invalid UTF-8 leading bytes in `URLSearchParams` and `URL` queries
 - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
+- Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
 - Added a workaround for [`URL.parse` depending on its receiver in Deno](https://github.com/denoland/deno/issues/37104)
 - Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity
 - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)

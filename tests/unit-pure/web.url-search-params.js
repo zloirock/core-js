@@ -370,6 +370,49 @@ QUnit.test('URLSearchParams#delete', assert => {
   }, 'throws w/o arguments');
 });
 
+QUnit.test('URLSearchParams#delete with many duplicates', assert => {
+  const params = new URLSearchParams('head=0');
+  const afterValue = ['head=0'];
+  const afterName = ['head=0'];
+  for (let index = 0; index < 128; index++) {
+    params.append('a', 'remove');
+    params.append('a', 'keep');
+    params.append('item', index);
+    afterValue.push('a=keep', `item=${ index }`);
+    afterName.push(`item=${ index }`);
+  }
+  params.append('tail', 'end');
+  afterValue.push('tail=end');
+  afterName.push('tail=end');
+  const input = String(params);
+  const iterator = params.entries();
+  assert.deepEqual(iterator.next().value, ['head', '0']);
+
+  params.delete('a', 'remove');
+  assert.same(String(params), afterValue.join('&'), 'delete by value preserves the remaining entries in order');
+  assert.same(params.size, 258, 'size after deleting by value');
+  assert.deepEqual(iterator.next().value, ['a', 'keep'], 'existing iterator sees deletion by value');
+
+  params.delete('a');
+  assert.same(String(params), afterName.join('&'), 'delete by name preserves the remaining entries in order');
+  assert.same(params.size, 130, 'size after deleting by name');
+  assert.deepEqual(iterator.next().value, ['item', '1'], 'existing iterator keeps its position after deletion by name');
+
+  params.delete('item');
+  params.delete('head');
+  params.delete('tail');
+  assert.same(String(params), '', 'all entries removed');
+  assert.same(params.size, 0, 'empty size');
+
+  if (DESCRIPTORS) {
+    const url = new URL(`https://example.com/?${ input }`);
+    url.searchParams.delete('a', 'remove');
+    assert.same(url.search, `?${ afterValue.join('&') }`, 'URL updated after deleting by value');
+    url.searchParams.delete('a');
+    assert.same(url.search, `?${ afterName.join('&') }`, 'URL updated after deleting by name');
+  }
+});
+
 QUnit.test('URLSearchParams#get', assert => {
   const { get } = URLSearchParams.prototype;
   assert.isFunction(get);
@@ -540,6 +583,41 @@ QUnit.test('URLSearchParams#set', assert => {
   assert.throws(() => new URLSearchParams('').set(), 'throws w/o arguments');
 
   assert.throws(() => new URLSearchParams('').set('a'), 'throws with only 1 argument');
+});
+
+QUnit.test('URLSearchParams#set with many duplicates', assert => {
+  const params = new URLSearchParams('head=0');
+  const expected = ['head=0', 'a=new'];
+  for (let index = 0; index < 128; index++) {
+    params.append('a', index);
+    params.append('item', index);
+    expected.push(`item=${ index }`);
+  }
+  params.append('tail', 'end');
+  expected.push('tail=end');
+  const input = String(params);
+  const iterator = params.entries();
+  assert.deepEqual(iterator.next().value, ['head', '0']);
+
+  params.set('a', 'new');
+  assert.same(String(params), expected.join('&'), 'first matching entry keeps its position, later matches are removed');
+  assert.same(params.size, 131, 'size after replacing duplicates');
+  assert.deepEqual(iterator.next().value, ['a', 'new'], 'existing iterator sees the replacement');
+
+  params.set('missing', 'added');
+  assert.same(String(params), `${ expected.join('&') }&missing=added`, 'absent key appended');
+  assert.same(params.size, 132, 'size after appending');
+  params.set('a', 'updated');
+  assert.same(String(params), `${ expected.join('&').replace('a=new', 'a=updated') }&missing=added`, 'single matching entry keeps its position');
+  assert.deepEqual(iterator.next().value, ['item', '0'], 'existing iterator sees the remaining entries');
+
+  if (DESCRIPTORS) {
+    const url = new URL(`https://example.com/?${ input }`);
+    url.searchParams.set('a', 'new');
+    assert.same(url.search, `?${ expected.join('&') }`, 'URL updated after replacing duplicates');
+    url.searchParams.set('missing', 'added');
+    assert.same(url.search, `?${ expected.join('&') }&missing=added`, 'URL updated after appending');
+  }
 });
 
 QUnit.test('URLSearchParams#sort', assert => {
