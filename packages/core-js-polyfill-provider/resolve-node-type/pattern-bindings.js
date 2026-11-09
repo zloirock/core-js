@@ -1373,7 +1373,9 @@ export function createPatternBindings({
           if (CLASS_NODE_TYPES.has(host?.node.type) && unwrapRuntimeExpr(host.node.superClass) === ref.node) {
             const subclass = classReachesItselfUnnamed(host.node) ? null : classOuterName(host);
             if (!subclass) return null;
-            if (!classStaticSlotMember(host.node, key)) sources.push({ ...subclass, key });
+            const member = classStaticSlotMember(host.node, key);
+            if (member === undefined) return null;
+            if (member === null) sources.push({ ...subclass, key });
             continue;
           }
           const member = peelTransparentExprAncestorPath(ref)?.parentPath;

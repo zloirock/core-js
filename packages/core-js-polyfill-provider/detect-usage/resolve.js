@@ -184,7 +184,7 @@ import { argIndexForParam, dropLeadingThisParam, nodeRangeContains } from '../re
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains. the bound
 // every alias-chain walk of this file shares: the key walks (`isSymbolSourcedKey` among them) and the
 // object-name and binding walks (`withinAliasWalkBudget`)
-const MAX_KEY_DEPTH = 64;
+export const MAX_KEY_DEPTH = 64;
 
 // the most hop sources one union of alias values follows (`reachableAliasValues`): a ring of aliases copying one
 // another holds a source per copy, and every claim on the ring walks them all, so a source past the ceiling is not

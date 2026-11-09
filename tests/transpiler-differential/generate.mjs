@@ -23880,4 +23880,66 @@ export function * generate() {
       const value = ${ receiver }.at(-1);
       export const r = typeof value === "function" ? value(2) : value;`,
   };
+
+  // Keep these families at the tail: earlier runtime groups retain their cache addresses.
+  // Isolated realms prevent a neighboring map/group-by import from populating map/constructor.
+  for (const [shape, members] of [
+    ['block', 'static M = Map; static {}'],
+    ['unknown-key', 'static M = Map; static [key] = 1;'],
+    ['getter-block', 'static get M() { effects.push("get"); return Map; } static {}'],
+    ['getter-setter', 'static get M() { effects.push("get"); return Map; } static set M(value) { effects.push("set"); }'],
+    ['setter-getter', 'static set M(value) { effects.push("set"); } static get M() { effects.push("get"); return Map; }'],
+  ]) for (const [read, body] of [
+    ['member', 'const r = C.M.groupBy([3], value => value).get(3);'],
+    ['pattern', 'const { M: { groupBy } } = C; const r = groupBy([3], value => value).get(3);'],
+  ]) yield {
+    name: `constructor-census-class/${ shape }/${ read }`, strip: true, isolated: true,
+    code: `export const effects = []; const key = String('other'); class C { ${ members } } ${ body } export { r };`,
+  };
+  for (const [shape, body] of [
+    ['loop', "for (const key of ['groupBy']) r = typeof Map[key];"],
+    ['object', "const { key } = { key: 'groupBy' }; r = typeof Map[key];"],
+    ['catch', "try { throw 'groupBy'; } catch (key) { r = typeof Map[key]; }"],
+    ['parameter', "function f(key, C) { return typeof Map[key]; } r = f('groupBy', Set);"],
+    ['equal-writes', "let key = 'groupBy'; if (Date.now()) key = 'groupBy'; r = typeof Map[key];"],
+    ['conditional-write', "let key; if (Date.now()) key = 'groupBy'; r = typeof Map[key];"],
+    ['conditional-init', "if (Date.now()) var key = 'groupBy'; r = typeof Map[key];"],
+    ['deferred-writer', "let key; function init() { key = 'groupBy'; } init(); r = typeof Map[key];"],
+    ['depth', `const k0 = 'groupBy'; ${ Array.from({ length: 66 }, (_, i) => `const k${ i + 1 } = k${ i };`).join(' ') } r = typeof Map[k66];`],
+    ['array-depth', `const k0 = 'groupBy'; ${ Array.from({ length: 66 }, (_, i) => `const k${ i + 1 } = k${ i };`).join(' ') } const [key] = [k66]; r = typeof Map[key];`],
+    ['native-literal-key', "r = typeof Object[['hasOwn'][0]];"],
+    ['native-presence', "const key = String('hasOwn'); r = key in Object;"],
+    ['native-callback-presence', "const keys = ['isInteger']; r = keys.every(key => key in Number);"],
+  ]) yield {
+    // Native owners have no pure replacement for an opaque key; global's stripped oracle
+    // still checks every row. The runtime matrix also locks pure's unchanged native read.
+    name: `constructor-census-key/${ shape }`, strip: !shape.startsWith('native-'), isolated: true,
+    code: `export let r; ${ body }`,
+  };
+  for (const [shape, store] of [
+    ['method', "Object.defineProperty(api, 'M', { get() { effects.push('get'); return Map; } });"],
+    ['reflect-arrow', "Reflect.defineProperty(api, 'M', { get: () => (effects.push('get'), Map) });"],
+    ['descriptors', "Object.defineProperties(api, { M: { get() { effects.push('get'); return Map; } } });"],
+    ['bound', "const M = Map; Object.defineProperty(api, 'M', { enumerable: true, get: function () { effects.push('get'); return M; } });"],
+    ['branched', "Object.defineProperty(api, 'M', { get() { effects.push('get'); if (Date.now()) return Map; return Set; } });"],
+  ]) yield {
+    name: `constructor-census-export/${ shape }`, strip: true, isolated: true,
+    code: `export const effects = [], api = {}; ${ store } export const r = typeof api.M.groupBy;`,
+  };
+  for (const key of ['P', 'other']) for (const nested of [false, true]) yield {
+    name: `constructor-census-guard/${ key }/${ nested }`, strip: true, isolated: true,
+    code: `export const effects = []; const key = String('${ key }');
+      class C { static P = ${ nested ? '{ M: Map }' : 'Map' }; static [key] = ${ nested ? '{ M: Object }' : 'Object' }; }
+      const { P: ${ nested ? '{ M: { groupBy } }' : '{ groupBy }' } } = C;
+      const grouped = groupBy([3], value => value);
+      export const r = typeof grouped.get === 'function' ? grouped.get(3) : grouped[3];`,
+  };
+  for (const reverse of [false, true]) {
+    const reads = ["for (const key of ['groupBy']) effects.push(key in C);", 'effects.push(String("groupBy") in C);'];
+    if (reverse) reads.reverse();
+    yield {
+      name: `constructor-census-presence-order/${ reverse }`, strip: true, isolated: true,
+      code: `export const effects = []; const C = Map; ${ reads.join(' ') } export const r = true;`,
+    };
+  }
 }

@@ -4,6 +4,7 @@ import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import { hasRange, nodeRangeContains } from '../resolve-node-type/base.js';
 import {
   CLASS_DATA_FIELD_TYPES,
+  classStaticSlotMember,
   privateNameSpelling,
   CLASS_FIELD_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
@@ -44,11 +45,7 @@ import {
   varInitDominatesUsage,
   pureReturnBodyValue,
   singleReturnBodyExpression,
-  staticEvaluationReaderIndex,
   subtreeContainsNode,
-  isMemberAccessNode,
-  memberKeyName,
-  walkAstNodes,
   withCanonicalViolations,
   writesPastCeiling,
 } from './ast-patterns.js';
@@ -1178,21 +1175,6 @@ function staticMemberReadValue(member, { preservesRead = false, returnSink = nul
   return preservesRead ? singleReturnBodyExpression(body, { preservesBody: true, returnSink }) : pureReturnBodyValue(body, ctx);
 }
 
-// does `root` write the key `key` of some receiver - an assignment, an update or a `delete` spelling it -
-// anywhere ahead of `readNode`?
-function writesKeyBefore(root, key, readNode) {
-  let writes = false;
-  walkAstNodes({ root, visit: node => {
-    if (writes || !(node.start < readNode.start)) return false;
-    const target = node.type === 'AssignmentExpression' ? node.left
-      : node.type === 'UpdateExpression' || (node.type === 'UnaryExpression' && node.operator === 'delete') ? node.argument : null;
-    const member = target && unwrapRuntimeExpr(target);
-    if (member && isMemberAccessNode(member) && memberKeyName(member) === key) writes = true;
-    return !writes;
-  } });
-  return writes;
-}
-
 // the value a namespace-shaped container binds to `propName`, scanning its members in REVERSE so the
 // LAST member with the key wins, matching JS runtime semantics: `{ Base: Promise, Base: Object }`
 // evaluates `NS.Base` to Object. what a winning member HANDS BACK is `staticMemberReadValue`'s to
@@ -1230,54 +1212,21 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
     return settled;
   }
   if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
-    let members = container.body?.body ?? [];
-    // a read the class's own static evaluation performs sees only the static elements run before it
-    const readerAt = staticEvaluationReaderIndex(container, readNode);
-    if (readerAt >= 0) {
-      // ... and the reader's OWN block counts where it writes the key ahead of the read: that write, not
-      // the field, is what the read sees there
-      const ownWrite = members[readerAt].type === 'StaticBlock' && writesKeyBefore(members[readerAt], propName, readNode);
-      members = members.filter((m, index) => index < readerAt || (ownWrite && index === readerAt)
-        || !(m.type === 'StaticBlock' || (m.static && CLASS_DATA_FIELD_TYPES.has(m.type))));
-    }
-    // the class DEFINES its static methods and accessors first and runs its static data fields and
-    // blocks after, in source order: a FIELD spelling the key wins over any method or accessor
-    // wherever it stands, so the fields and blocks are scanned first and the methods only where no
-    // field spells the key
-    const late = members.filter(m => m.type === 'StaticBlock' || (m.static && CLASS_DATA_FIELD_TYPES.has(m.type)));
-    const early = members.filter(m => m.static && !CLASS_DATA_FIELD_TYPES.has(m.type));
-    // ... and a static setter keeps the getter of its pair, which is what a read runs - asked where the
-    // caller wants to know whether the read runs an accessor (`rescueSink`), as the object twin below
-    let setterSeen = false;
-    for (const phase of [late, early]) {
-      // every block runs after the methods are defined, and any of them may redefine the key
-      if (phase === early && late.some(m => m.type === 'StaticBlock')) return null;
-      for (let i = phase.length - 1; i >= 0; i--) {
-        const m = phase[i];
-        // a static block runs in source order and may reassign any static via `NS.field = ...`; one at
-        // a LATER position than the matched field could redefine its value (the class analog of a
-        // trailing object spread) - bail. an earlier block is overridden by the field, so it is
-        // reached only after the field already returned and stays irrelevant
-        if (m.type === 'StaticBlock') return null;
+    const member = classStaticSlotMember(container, propName, {
+      readNode,
+      keyOf(m) {
         const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
-        if (verdict === 'bail') {
-          const candidate = candidateSink ? staticMemberReadValue(m, { preservesRead: true }) : null;
-          if (candidate) candidateSink.push(candidate);
-          if (spreadVetoes) return null;
-          continue;
-        }
-        if (verdict === 'skip') continue;
-        if (phase === early && rescueSink && m.kind === 'set') {
-          setterSeen = true;
-          continue;
-        }
-        if (setterSeen && m.kind !== 'get') return null;
-        // a static method / setter winning the key is dynamic - bail; a static field returns its init,
-        // and a static GETTER of one pure return names its value the same way (the object twin below)
-        return phase === late ? m.value ?? null : readValue(m);
-      }
-    }
-  } else if (container?.type === 'ObjectExpression') {
+        return verdict === 'match' ? propName : verdict === 'bail' ? null : undefined;
+      },
+      ignoreUnknown: !spreadVetoes,
+      unknown(m) {
+        const candidate = candidateSink ? staticMemberReadValue(m, { preservesRead: true }) : null;
+        if (candidate) candidateSink.push(candidate);
+      },
+    });
+    return member ? CLASS_DATA_FIELD_TYPES.has(member.type) ? member.value ?? null : readValue(member) : null;
+  }
+  if (container?.type === 'ObjectExpression') {
     const props = container.properties ?? [];
     let setterSeen = false;
     for (let i = props.length - 1; i >= 0; i--) {
