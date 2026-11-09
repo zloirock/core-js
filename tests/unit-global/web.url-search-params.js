@@ -5,9 +5,44 @@ const { create, defineProperty, getPrototypeOf, getOwnPropertyDescriptor } = Obj
 
 const { Proxy } = GLOBAL;
 
+const USV_STRINGS = [
+  ['\uD800', '\uFFFD'],
+  ['\uDBFF', '\uFFFD'],
+  ['\uDC00', '\uFFFD'],
+  ['\uDFFF', '\uFFFD'],
+  ['a\uD800b', 'a\uFFFDb'],
+  ['\uDC00\uD800', '\uFFFD\uFFFD'],
+  ['\uD800\uD800\uDC00', '\uFFFD\uD800\uDC00'],
+  ['\uD800\uDC00', '\uD800\uDC00'],
+  ['\uDBFF\uDFFF', '\uDBFF\uDFFF'],
+];
+
 const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
-// Deno 1.2-1.11.1: https://github.com/denoland/deno/pull/11005
+// Deno 1.2-1.11.1 lacks USVString conversion in sequence / record input and methods: https://github.com/denoland/deno/pull/11005
 const DENO_OLD_RECORD = DENO_VERSION >= 102 && (DENO_VERSION < 111 || DENO_VERSION === 111 && DENO_PATCH < 2);
+// Deno 1.2-1.10.2 leaves raw surrogates in string input or throws; fixed in 1.10.3.
+// https://github.com/denoland/deno/pull/10156
+const DENO_OLD_STRING = DENO_VERSION >= 102 && (DENO_VERSION < 110 || DENO_VERSION === 110 && DENO_PATCH < 3);
+// Deno 1.11.2 incorrectly uses ByteString for sequence and record initializers; fixed in 1.11.3.
+// https://github.com/denoland/deno/pull/11101
+const DENO_BYTE_STRING = DENO_VERSION === 111 && DENO_PATCH === 2;
+// Deno 1.14.3 reads and converts record values twice; fixed in 1.15.0.
+// https://github.com/denoland/deno/pull/12286
+// https://github.com/denoland/deno/pull/12336
+const DENO_RECORD_DOUBLE_READ = DENO_VERSION === 114 && DENO_PATCH === 3;
+const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
+const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
+// Node 10-16.16 and 17.0-17.3 do not merge converted record keys; fixed in 16.17 and 17.4.
+// https://github.com/nodejs/node/pull/41197
+const NODE_RECORD_COLLISIONS = NODE_VERSION >= 1000 && (NODE_VERSION < 1617 || NODE_VERSION >= 1700 && NODE_VERSION < 1704);
+// Node 16.17-16.20, 17.4-18.16 and 19 drop own keys shadowing Object.prototype.
+// Fixed in 18.17 and 20.0: https://github.com/nodejs/node/pull/47415
+const NODE_RECORD_PROTOTYPE = NODE_VERSION >= 1617 && NODE_VERSION < 1700
+  || NODE_VERSION >= 1704 && NODE_VERSION < 1817 || NODE_VERSION >= 1900 && NODE_VERSION < 2000;
+const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Chrome 67-115 / Edge 79-115 corrupt U+10FFFF in string input; fixed in Chromium 116.
+// https://crbug.com/1416021
+const CHROMIUM_UTF8_NONCHARACTERS = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 116;
 // Deno 1.15.0-2.7.14: https://github.com/denoland/deno/pull/12336
 // Fixed in 2.8.0: https://github.com/denoland/deno/pull/34119
 const DENO_RECORD_SYMBOLS = DENO_OLD_RECORD || DENO_VERSION >= 115 && DENO_VERSION < 208;
@@ -156,21 +191,27 @@ QUnit.test('URLSearchParams', assert => {
     assert.same(String(new URLSearchParams('%F4%90')), '%EF%BF%BD%EF%BF%BD=', 'incomplete out-of-range 4-byte: F4 90');
   }
 
+  const nonASCIIKey = 'd\u1234';
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
     { input: { c: 'x', a: '?' }, output: [['c', 'x'], ['a', '?']], name: 'object with two keys' },
     { input: [['c', 'x'], ['a', '?']], output: [['c', 'x'], ['a', '?']], name: 'array with two keys' },
-    // eslint-disable-next-line @stylistic/max-len -- ignore
-    // !!! { input: { 'a\0b': '42', 'c\uD83D': '23', dሴ: 'foo' }, output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']], name: 'object with NULL, non-ASCII, and surrogate keys' },
+    {
+      input: { 'a\0b': '42', 'c\uD83D': '23', [nonASCIIKey]: 'foo' },
+      output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']],
+      name: 'object with NULL, non-ASCII, and surrogate keys',
+      skip: DENO_BYTE_STRING,
+    },
   ];
 
-  for (const { input, output, name } of testData) {
+  for (const { input, output, name, skip } of testData) {
+    if (skip) continue;
     params = new URLSearchParams(input);
     let i = 0;
     params.forEach((value, key) => {
       const [reqKey, reqValue] = output[i++];
-      assert.same(key, reqKey, `construct with ${ name }`);
+      if (!DENO_OLD_RECORD || reqKey !== 'c\uFFFD') assert.same(key, reqKey, `construct with ${ name }`);
       assert.same(value, reqValue, `construct with ${ name }`);
     });
   }
@@ -197,9 +238,132 @@ QUnit.test('URLSearchParams', assert => {
   }, 'sequence elements must be pairs #4');
 });
 
+QUnit.test('URLSearchParams USVString initializers', assert => {
+  for (const [input, expected] of USV_STRINGS) {
+    for (const init of [`${ input }=${ input }`, [[input, input]], { [input]: input }]) {
+      if (typeof init === 'string') {
+        if (DENO_OLD_STRING && input !== expected || CHROMIUM_UTF8_NONCHARACTERS && input === '\uDBFF\uDFFF') continue;
+      } else if (DENO_BYTE_STRING || DENO_OLD_RECORD && input !== expected) continue;
+      const entries = [];
+      new URLSearchParams(init).forEach((value, key) => entries.push([key, value]));
+      assert.arrayEqual(entries, [[expected, expected]], 'initializer keys and values are well-formed');
+    }
+  }
+  if (!DENO_OLD_RECORD && !DENO_BYTE_STRING) {
+    const sequence = new URLSearchParams([['\uD800', 'first'], ['\uDC00', 'last']]);
+    assert.arrayEqual(sequence.getAll('\uFFFD'), ['first', 'last'], 'sequence entries are not merged');
+  }
+
+  const params = new URLSearchParams();
+  params.append('\uD800', '\uDC00');
+  params.append('\uE000', 'keep');
+  params.sort();
+  const entries = [];
+  params.forEach((value, key) => entries.push([key, value]));
+  if (!DENO_OLD_RECORD) assert.arrayEqual(entries, [['\uE000', 'keep'], ['\uFFFD', '\uFFFD']], 'sort uses converted keys');
+});
+
+if (!DENO_BYTE_STRING) QUnit.test('URLSearchParams USVString record collisions', assert => {
+  for (const record of [
+    { '\uD800': 'first', middle: 'keep', '\uDC00': 'last' },
+    { '\uFFFD': 'first', middle: 'keep', '\uDFFF': 'last' },
+  ]) {
+    const entries = [];
+    new URLSearchParams(record).forEach((value, key) => entries.push([key, value]));
+    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD) {
+      assert.arrayEqual(entries, [['\uFFFD', 'last'], ['middle', 'keep']], 'record collision preserves the first position and last value');
+    }
+  }
+
+  if (DESCRIPTORS) {
+    const log = [];
+    const record = {};
+    for (const key of ['\uD800', '\uDC00']) defineProperty(record, key, {
+      enumerable: true,
+      get() {
+        log.push(key);
+        return {
+          toString() {
+            log.push('value');
+            return key;
+          },
+        };
+      },
+    });
+    const params = new URLSearchParams(record);
+    if (!DENO_RECORD_DOUBLE_READ) assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
+    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD) assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
+  }
+});
+
+QUnit.test('URLSearchParams USVString methods', assert => {
+  for (const [input, expected] of USV_STRINGS) {
+    const wellFormed = !DENO_OLD_RECORD || input === expected;
+    let params = new URLSearchParams();
+    params.append(input, input);
+    if (wellFormed) assert.same(params.get(expected), expected, 'append converts both arguments');
+    if (wellFormed) assert.same(params.get(input), expected, 'get converts its name');
+    if (wellFormed) assert.arrayEqual(params.getAll(input), [expected], 'getAll converts its name');
+    assert.true(params.has(input), 'has converts its name');
+    if (wellFormed) assert.true(params.has(expected, input), 'has converts its value');
+    assert.true(params.has(input, undefined), 'has ignores an undefined value');
+    if (wellFormed) assert.same(params.keys().next().value, expected, 'keys yields converted names');
+    if (wellFormed) assert.same(params.values().next().value, expected, 'values yields converted values');
+    if (wellFormed) assert.arrayEqual(params.entries().next().value, [expected, expected], 'entries yields converted strings');
+
+    params = new URLSearchParams();
+    params.append(expected, 'old');
+    params.append(expected, 'duplicate');
+    params.append('tail', 'keep');
+    params.set(input, input);
+    if (wellFormed) assert.arrayEqual(params.getAll(expected), [expected], 'set converts both arguments before matching entries');
+    assert.same(params.get('tail'), 'keep', 'set preserves unrelated entries');
+
+    params = new URLSearchParams();
+    params.append(expected, expected);
+    params.append(expected, 'other');
+    params.delete(input, input);
+    assert.arrayEqual(params.getAll(expected), ['other'], 'delete converts both arguments');
+    params.delete(input);
+    if (wellFormed) assert.false(params.has(expected), 'delete converts its name without a value');
+
+    params = new URLSearchParams();
+    params.append(expected, expected);
+    params.append(expected, 'other');
+    params.delete(input, undefined);
+    if (wellFormed) assert.false(params.has(expected), 'delete ignores an undefined value');
+  }
+});
+
+QUnit.test('URLSearchParams USVString coercion', assert => {
+  for (const method of ['append', 'set']) {
+    const log = [];
+    const params = new URLSearchParams();
+    params[method]({
+      toString() {
+        log.push('name');
+        return '\uD800';
+      },
+    }, {
+      toString() {
+        log.push('value');
+        return '\uDC00';
+      },
+    });
+    assert.arrayEqual(log, ['name', 'value'], 'arguments are converted once in order');
+    if (!DENO_OLD_RECORD) assert.same(params.get('\uFFFD'), '\uFFFD', 'object arguments are well-formed');
+    const error = new Error('key conversion');
+    const throwingName = { toString() { throw error; } };
+    const unreadValue = { toString() { assert.avoid(); } };
+    assert.throws(() => params[method](throwingName, unreadValue), error, 'abrupt name conversion');
+    if (!DENO_OLD_RECORD) assert.throws(() => params[method](Symbol('key'), unreadValue), TypeError, 'symbol names throw before value conversion');
+    if (!DENO_OLD_RECORD) assert.throws(() => params[method]('key', Symbol('value')), TypeError, 'symbol values throw');
+  }
+});
+
 QUnit.test('URLSearchParams record keys', assert => {
   for (const key of ['constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString', 'toString', 'valueOf']) {
-    assert.same(String(new URLSearchParams({ [key]: 'value' })), `${ key }=value`, 'own key shadowing Object.prototype');
+    if (!NODE_RECORD_PROTOTYPE) assert.same(String(new URLSearchParams({ [key]: 'value' })), `${ key }=value`, 'own key shadowing Object.prototype');
   }
 
   const inherited = create({ inherited: 'ignored' });

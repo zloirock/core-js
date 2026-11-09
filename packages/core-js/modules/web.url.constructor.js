@@ -1,11 +1,8 @@
 'use strict';
-// TODO: in core-js@4, replace the direct /modules/ require with an implicit dependency
-require('../modules/es.string.to-well-formed');
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var globalThis = require('../internals/global-this');
-var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -18,6 +15,7 @@ var multibyte = require('../internals/string-multibyte');
 var toASCII = require('../internals/string-punycode-to-ascii');
 var percentCoding = require('../internals/url-percent-coding');
 var $toString = require('../internals/to-string');
+var toUSVString = require('../internals/to-usv-string');
 var setToStringTag = require('../internals/set-to-string-tag');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var URLSearchParamsModule = require('../modules/web.url-search-params.constructor');
@@ -49,7 +47,6 @@ var split = uncurryThis(''.split);
 var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
 var toLowerCase = uncurryThis(''.toLowerCase);
-var toWellFormed = uncurryThis(getBuiltInPrototypeMethod('String', 'toWellFormed'));
 var unshift = uncurryThis([].unshift);
 
 var INVALID_AUTHORITY = 'Invalid authority';
@@ -541,7 +538,7 @@ URLState.prototype = {
     var codePoints, chr, bufferCodePoints, failure;
 
     // Normalize lone surrogates before removing tabs and newlines can join them.
-    input = toWellFormed($toString(input));
+    input = toUSVString(input);
 
     if (!stateOverride) {
       url.scheme = '';

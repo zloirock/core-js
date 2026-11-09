@@ -1,7 +1,7 @@
 'use strict';
 var defineBuiltIn = require('../internals/define-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
-var toString = require('../internals/to-string');
+var toUSVString = require('../internals/to-usv-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
 var $URLSearchParams = URLSearchParams;
@@ -27,8 +27,8 @@ if (params + '' !== 'a=2') {
       push(entries, { key: k, value: v });
     });
     validateArgumentsLength(length, 1);
-    var key = toString(name);
-    var value = toString($value);
+    var key = toUSVString(name);
+    var value = toUSVString($value);
     var index = 0;
     var entriesLength = entries.length;
     var entry;

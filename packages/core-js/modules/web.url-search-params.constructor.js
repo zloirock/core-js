@@ -20,12 +20,14 @@ var createIteratorConstructor = require('../internals/iterator-create-constructo
 var InternalStateModule = require('../internals/internal-state');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
+var hasOwn = require('../internals/has-own-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var bind = require('../internals/function-bind-context');
 var classof = require('../internals/classof');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var $toString = require('../internals/to-string');
+var toUSVString = require('../internals/to-usv-string');
 var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getIterator = require('../internals/get-iterator-internal');
@@ -112,7 +114,10 @@ var URLSearchParamsState = function (init) {
 
   if (init !== undefined) {
     if (isObject(init)) this.parseObject(init);
-    else this.parseQuery(typeof init == 'string' ? charAt(init, 0) === '?' ? stringSlice(init, 1) : init : $toString(init));
+    else {
+      var query = toUSVString(init);
+      this.parseQuery(charAt(query, 0) === '?' ? stringSlice(query, 1) : query);
+    }
   }
 };
 
@@ -138,16 +143,21 @@ URLSearchParamsState.prototype = {
           (second = anObject(call(entryNext, entryIterator))).done ||
           !anObject(call(entryNext, entryIterator)).done
         ) throw new TypeError('Expected sequence with length 2');
-        push(entries, { key: $toString(first.value), value: $toString(second.value) });
+        push(entries, { key: toUSVString(first.value), value: toUSVString(second.value) });
       }
     } else {
       var keys = ownKeys(object);
+      var record = create(null);
       var index = 0;
-      var key;
+      var key, value, stringKey;
       while (keys.length > index) {
         key = keys[index++];
         if (call(propertyIsEnumerableModule.f, object, key)) {
-          push(entries, { key: $toString(key), value: $toString(object[key]) });
+          stringKey = toUSVString(key);
+          value = toUSVString(object[key]);
+          // different property keys can become the same USVString
+          if (hasOwn(record, stringKey)) record[stringKey].value = value;
+          else push(entries, record[stringKey] = { key: stringKey, value: value });
         }
       }
     }
@@ -207,7 +217,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   append: function append(name, value) {
     var state = getInternalParamsState(this);
     validateArgumentsLength(arguments.length, 2);
-    push(state.entries, { key: $toString(name), value: $toString(value) });
+    push(state.entries, { key: toUSVString(name), value: toUSVString(value) });
     if (!DESCRIPTORS) this.size = state.entries.length;
     state.updateURL();
   },
@@ -217,9 +227,9 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var state = getInternalParamsState(this);
     var length = validateArgumentsLength(arguments.length, 1);
     var entries = state.entries;
-    var key = $toString(name);
+    var key = toUSVString(name);
     var $value = length < 2 ? undefined : arguments[1];
-    var value = $value === undefined ? $value : $toString($value);
+    var value = $value === undefined ? $value : toUSVString($value);
     var index = 0;
     var writeIndex = 0;
     while (index < entries.length) {
@@ -235,7 +245,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   get: function get(name) {
     var entries = getInternalParamsState(this).entries;
     validateArgumentsLength(arguments.length, 1);
-    var key = $toString(name);
+    var key = toUSVString(name);
     var index = 0;
     for (; index < entries.length; index++) {
       if (entries[index].key === key) return entries[index].value;
@@ -247,7 +257,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   getAll: function getAll(name) {
     var entries = getInternalParamsState(this).entries;
     validateArgumentsLength(arguments.length, 1);
-    var key = $toString(name);
+    var key = toUSVString(name);
     var result = [];
     var index = 0;
     for (; index < entries.length; index++) {
@@ -260,9 +270,9 @@ defineBuiltIns(URLSearchParamsPrototype, {
   has: function has(name /* , value */) {
     var entries = getInternalParamsState(this).entries;
     var length = validateArgumentsLength(arguments.length, 1);
-    var key = $toString(name);
+    var key = toUSVString(name);
     var $value = length < 2 ? undefined : arguments[1];
-    var value = $value === undefined ? $value : $toString($value);
+    var value = $value === undefined ? $value : toUSVString($value);
     var index = 0;
     while (index < entries.length) {
       var entry = entries[index++];
@@ -277,8 +287,8 @@ defineBuiltIns(URLSearchParamsPrototype, {
     validateArgumentsLength(arguments.length, 2);
     var entries = state.entries;
     var found = false;
-    var key = $toString(name);
-    var val = $toString(value);
+    var key = toUSVString(name);
+    var val = toUSVString(value);
     var index = 0;
     var writeIndex = 0;
     var entry;

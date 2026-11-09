@@ -11,6 +11,18 @@ import URLSearchParams from 'core-js-pure/stable/url-search-params';
 
 const { Proxy } = GLOBAL;
 
+const USV_STRINGS = [
+  ['\uD800', '\uFFFD'],
+  ['\uDBFF', '\uFFFD'],
+  ['\uDC00', '\uFFFD'],
+  ['\uDFFF', '\uFFFD'],
+  ['a\uD800b', 'a\uFFFDb'],
+  ['\uDC00\uD800', '\uFFFD\uFFFD'],
+  ['\uD800\uD800\uDC00', '\uFFFD\uD800\uDC00'],
+  ['\uD800\uDC00', '\uD800\uDC00'],
+  ['\uDBFF\uDFFF', '\uDBFF\uDFFF'],
+];
+
 // Native record conversion is used from Deno 1.35; fixed in 2.8.0.
 // https://github.com/denoland/deno/pull/34119
 const DENO_RECORD_BUG = DENO_VERSION >= 135 && DENO_VERSION < 208;
@@ -144,13 +156,17 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams('%F0%80%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'incomplete overlong 4-byte: F0 80 80');
   assert.same(String(new URLSearchParams('%F4%90')), '%EF%BF%BD%EF%BF%BD=', 'incomplete out-of-range 4-byte: F4 90');
 
+  const nonASCIIKey = 'd\u1234';
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
     { input: { c: 'x', a: '?' }, output: [['c', 'x'], ['a', '?']], name: 'object with two keys' },
     { input: [['c', 'x'], ['a', '?']], output: [['c', 'x'], ['a', '?']], name: 'array with two keys' },
-    // eslint-disable-next-line @stylistic/max-len -- ignore
-    // !!! { input: { 'a\0b': '42', 'c\uD83D': '23', dሴ: 'foo' }, output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']], name: 'object with NULL, non-ASCII, and surrogate keys' },
+    {
+      input: { 'a\0b': '42', 'c\uD83D': '23', [nonASCIIKey]: 'foo' },
+      output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']],
+      name: 'object with NULL, non-ASCII, and surrogate keys',
+    },
   ];
 
   for (const { input, output, name } of testData) {
@@ -184,6 +200,121 @@ QUnit.test('URLSearchParams', assert => {
   assert.throws(() => {
     new URLSearchParams([createIterable([createIterable([1])])]);
   }, 'sequence elements must be pairs #4');
+});
+
+QUnit.test('URLSearchParams USVString initializers', assert => {
+  for (const [input, expected] of USV_STRINGS) {
+    for (const init of [`${ input }=${ input }`, [[input, input]], { [input]: input }]) {
+      const entries = [];
+      new URLSearchParams(init).forEach((value, key) => entries.push([key, value]));
+      assert.arrayEqual(entries, [[expected, expected]], 'initializer keys and values are well-formed');
+    }
+  }
+  const sequence = new URLSearchParams([['\uD800', 'first'], ['\uDC00', 'last']]);
+  assert.arrayEqual(sequence.getAll('\uFFFD'), ['first', 'last'], 'sequence entries are not merged');
+
+  const params = new URLSearchParams();
+  params.append('\uD800', '\uDC00');
+  params.append('\uE000', 'keep');
+  params.sort();
+  const entries = [];
+  params.forEach((value, key) => entries.push([key, value]));
+  assert.arrayEqual(entries, [['\uE000', 'keep'], ['\uFFFD', '\uFFFD']], 'sort uses converted keys');
+});
+
+QUnit.test('URLSearchParams USVString record collisions', assert => {
+  for (const record of [
+    { '\uD800': 'first', middle: 'keep', '\uDC00': 'last' },
+    { '\uFFFD': 'first', middle: 'keep', '\uDFFF': 'last' },
+  ]) {
+    const entries = [];
+    new URLSearchParams(record).forEach((value, key) => entries.push([key, value]));
+    assert.arrayEqual(entries, [['\uFFFD', 'last'], ['middle', 'keep']], 'record collision preserves the first position and last value');
+  }
+
+  if (DESCRIPTORS) {
+    const log = [];
+    const record = {};
+    for (const key of ['\uD800', '\uDC00']) defineProperty(record, key, {
+      enumerable: true,
+      get() {
+        log.push(key);
+        return {
+          toString() {
+            log.push('value');
+            return key;
+          },
+        };
+      },
+    });
+    const params = new URLSearchParams(record);
+    assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
+    assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
+  }
+});
+
+QUnit.test('URLSearchParams USVString methods', assert => {
+  for (const [input, expected] of USV_STRINGS) {
+    let params = new URLSearchParams();
+    params.append(input, input);
+    assert.same(params.get(expected), expected, 'append converts both arguments');
+    assert.same(params.get(input), expected, 'get converts its name');
+    assert.arrayEqual(params.getAll(input), [expected], 'getAll converts its name');
+    assert.true(params.has(input), 'has converts its name');
+    assert.true(params.has(expected, input), 'has converts its value');
+    assert.true(params.has(input, undefined), 'has ignores an undefined value');
+    assert.same(params.keys().next().value, expected, 'keys yields converted names');
+    assert.same(params.values().next().value, expected, 'values yields converted values');
+    assert.arrayEqual(params.entries().next().value, [expected, expected], 'entries yields converted strings');
+
+    params = new URLSearchParams();
+    params.append(expected, 'old');
+    params.append(expected, 'duplicate');
+    params.append('tail', 'keep');
+    params.set(input, input);
+    assert.arrayEqual(params.getAll(expected), [expected], 'set converts both arguments before matching entries');
+    assert.same(params.get('tail'), 'keep', 'set preserves unrelated entries');
+
+    params = new URLSearchParams();
+    params.append(expected, expected);
+    params.append(expected, 'other');
+    params.delete(input, input);
+    assert.arrayEqual(params.getAll(expected), ['other'], 'delete converts both arguments');
+    params.delete(input);
+    assert.false(params.has(expected), 'delete converts its name without a value');
+
+    params = new URLSearchParams();
+    params.append(expected, expected);
+    params.append(expected, 'other');
+    params.delete(input, undefined);
+    assert.false(params.has(expected), 'delete ignores an undefined value');
+  }
+});
+
+QUnit.test('URLSearchParams USVString coercion', assert => {
+  for (const method of ['append', 'set']) {
+    const log = [];
+    const params = new URLSearchParams();
+    params[method]({
+      toString() {
+        log.push('name');
+        return '\uD800';
+      },
+    }, {
+      toString() {
+        log.push('value');
+        return '\uDC00';
+      },
+    });
+    assert.arrayEqual(log, ['name', 'value'], 'arguments are converted once in order');
+    assert.same(params.get('\uFFFD'), '\uFFFD', 'object arguments are well-formed');
+    const error = new Error('key conversion');
+    const throwingName = { toString() { throw error; } };
+    const unreadValue = { toString() { assert.avoid(); } };
+    assert.throws(() => params[method](throwingName, unreadValue), error, 'abrupt name conversion');
+    assert.throws(() => params[method](Symbol('key'), unreadValue), TypeError, 'symbol names throw before value conversion');
+    assert.throws(() => params[method]('key', Symbol('value')), TypeError, 'symbol values throw');
+  }
 });
 
 QUnit.test('URLSearchParams record keys', assert => {
