@@ -19,7 +19,9 @@ What the application can reach for - its **scope** - is decided by the build, no
 `@core-js/unplugin` and its relatives already work it out, and the list is passed in as it is.
 
 The Express middleware below is the current integration, including for applications that run in
-many instances. For a proposed separate HTTP container, a set-aside one-off container builder, and
+many instances. Set `delivery: 'fixed'` to give every browser the same tag,
+`<script src="/__core-js/polyfills.js">`, and pick the bundle when the browser requests the script:
+see [One address for every browser](#one-address-for-every-browser). For a proposed separate HTTP container, a set-aside one-off container builder, and
 the trade-offs between bundle URLs, a fixed script URL, and a redirect, see
 [Integration concepts](integration-concepts.md). Those alternatives are not available as package
 options today.
@@ -66,6 +68,8 @@ app.use(polyfillService({
   // compression: { identity: true, gzip: true },
   // where the bundles are mounted
   // route: '/__core-js',
+  // what the tag points at: 'bundle' (default) or 'fixed' - see "One address for every browser"
+  // delivery: 'bundle',
   // where developer-facing warnings go, `console.warn` by default
   // warn: message => logger.warn(message),
 }));
@@ -119,6 +123,33 @@ not ready yet is redirected to the baseline for that one request.
 A bundle is named by the hash of everything that decides its bytes, so its address is answered with
 `Cache-Control: public, max-age=31536000, immutable`.
 
+## One address for every browser
+
+By default the tag points at the bundle chosen for the visitor, so the page differs by browser and
+carries `Vary: User-Agent, Accept-Encoding`. With `delivery: 'fixed'`, every page gets the same
+tag, and the bundle is chosen when the browser requests the script:
+
+```html
+<script src="/__core-js/polyfills.js"></script>
+```
+
+- The page no longer varies by browser, and the middleware adds nothing to its `Vary`.
+- The script is answered with `Cache-Control: private, no-cache` and
+  `Vary: User-Agent, Accept-Encoding`. The browser keeps the bytes and revalidates them on every
+  page load; an unchanged script costs a `304` without a body. A shared cache or a CDN must not
+  keep this address.
+- A bundle that is not built yet is answered with the baseline at the same address, without a
+  redirect. The next page load after it is built gets the visitor's own bundle.
+- The `ETag` changes with every deploy, so a browser never confirms the previous deploy's bytes.
+- Until the baseline is ready, the address answers `503` with `Cache-Control: no-store`.
+
+The bundle addresses keep working in this mode, so pages cached before the switch still load
+their scripts. In the default mode, nothing answers `polyfills.js`.
+
+Choose the default when your bundles should be cached by a CDN for a year. Choose `'fixed'` when
+one copy of the page has to serve every browser, and a revalidation request on each page load is
+acceptable.
+
 ## Without Express
 
 The middleware carries the service it runs on, for a status endpoint or a second router:
@@ -148,8 +179,11 @@ const { ready } = service.start();
 
 await ready;
 
-// request headers -> the address of the bundle for that visitor
-const src = service.urlOf(service.chooseBundle(request.headers));
+// request headers -> what the tag points at: the visitor's own bundle, or the fixed address
+const src = service.srcFor(request.headers);
+
+// with `delivery: 'fixed'`, one address for everyone and a handler that picks the bundle
+// router.get(service.scriptUrl, (request, response) => service.serveScript(request, response));
 // the beginning of the page -> the same beginning, with the tag where it runs first
 const markup = service.scriptTag(prefix, { src, csp: null });
 ```

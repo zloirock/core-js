@@ -13,7 +13,8 @@ import trafficShares from './internals/infrastructure/traffic-shares.js';
 import parseUserAgent from './internals/infrastructure/ua-bowser.js';
 import createWarn from './internals/infrastructure/warn.js';
 import createScriptTag from './internals/ui/script-tag.js';
-import createServe from './internals/ui/serve.js';
+import createServe, { createServeScript } from './internals/ui/serve.js';
+import { SCRIPT_NAME } from './config.js';
 
 async function warmAndPrune(ready, warm, bundles) {
   await ready;
@@ -56,6 +57,8 @@ export default function createService({ warn: warnSink, ...options } = {}) {
   const identify = createResolver({ parseUserAgent });
   const warm = createWarm(plan, { bundles, build: createBuilder(config), warn });
   const getBundle = createGetBundle(plan, { bundles });
+  const chooseBundle = createChooseBundle(plan, { resolve: identify });
+  const scriptUrl = `${ config.route }/${ SCRIPT_NAME }`;
   function urlOf(bundleId) {
     return `${ config.route }/${ bundleId }.js`;
   }
@@ -68,17 +71,32 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     bundles,
     warn,
     urlOf,
+    // the fixed address, the same for every browser - answered by `serveScript`
+    scriptUrl,
+    // what the tag points at: the bundle's own address, or the fixed one, which the HTML then no
+    // longer varies by
+    srcFor(headers) {
+      return config.delivery === 'fixed' ? scriptUrl : urlOf(chooseBundle(headers));
+    },
     // who the service takes the visitor for, which is the whole of what decides their bundle. it is
     // public because the answer is otherwise unobservable: a page can be told which bundle it got,
     // and no more than that
     identify,
-    chooseBundle: createChooseBundle(plan, { resolve: identify }),
+    chooseBundle,
     scriptTag: createScriptTag({ warn }),
     serve: createServe({
       getBundle,
       encodings: bundles.encodings,
       baselineId: plan.baseline.bundleId,
       urlOf,
+      warn,
+    }),
+    serveScript: createServeScript({
+      getBundle,
+      encodings: bundles.encodings,
+      baselineId: plan.baseline.bundleId,
+      chooseBundle,
+      generation: plan.generation,
       warn,
     }),
 

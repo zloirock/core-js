@@ -1,5 +1,5 @@
 import targetsParser from '@core-js/compat/targets-parser';
-import { COMPRESSION, ENCODING_PREFERENCE, RETAIN, ROUTE } from '../../config.js';
+import { COMPRESSION, DELIVERY_DEFAULT, DELIVERY_MODES, ENCODING_PREFERENCE, RETAIN, ROUTE } from '../../config.js';
 
 // which representations of every bundle are stored, and with what. an encoding is named by the
 // token it carries on the wire, so what a developer writes here is what a client asks for and what
@@ -18,10 +18,10 @@ function resolveCompression(option) {
     }
 
     // the uncompressed form is the bytes themselves, so there is nothing to configure about it
-    const settingsAllowed = encoding !== 'identity'
+    const areSettingsAllowed = encoding !== 'identity'
       && settings !== null && typeof settings == 'object' && !Array.isArray(settings);
 
-    if (typeof settings != 'boolean' && !settingsAllowed) {
+    if (typeof settings != 'boolean' && !areSettingsAllowed) {
       throw new TypeError(`[core-js] \`compression.${ encoding }\` has to be ${
         encoding === 'identity' ? 'a boolean' : 'a boolean or zlib options' }`);
     }
@@ -62,6 +62,7 @@ export default function configure(options, { warn, resolveVersions }) {
     retain = RETAIN,
     compression = COMPRESSION,
     route = ROUTE,
+    delivery = DELIVERY_DEFAULT,
     ...unknown
   } = options;
 
@@ -84,6 +85,10 @@ export default function configure(options, { warn, resolveVersions }) {
 
   if (typeof route != 'string' || !route.startsWith('/')) {
     throw new TypeError('[core-js] `route` has to be a path starting with `/`');
+  }
+
+  if (!DELIVERY_MODES.includes(delivery)) {
+    throw new TypeError(`[core-js] \`delivery\` has to be one of ${ DELIVERY_MODES.map(mode => `'${ mode }'`).join(', ') }`);
   }
 
   if (directory !== null && typeof directory != 'string') {
@@ -125,6 +130,7 @@ export default function configure(options, { warn, resolveVersions }) {
     retain,
     compression: resolveCompression(compression),
     route: withoutTrailingSlashes(route),
+    delivery,
     versions: resolveVersions(version),
   };
 }

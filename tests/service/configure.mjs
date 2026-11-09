@@ -69,6 +69,11 @@ strictEqual(resolve({ scope: [], route: '/a/b/' }).config.route, '/a/b', 'config
 strictEqual(resolve({ scope: [] }).config.route, '/__core-js', 'configure #11');
 throws(() => resolve({ scope: [], route: 'core-js' }), /`route`/, 'configure #12');
 
+strictEqual(resolve({ scope: [] }).config.delivery, 'bundle', 'configure #20');
+strictEqual(resolve({ scope: [], delivery: 'fixed' }).config.delivery, 'fixed', 'configure #21');
+throws(() => resolve({ scope: [], delivery: 'single' }), /`delivery` has to be one of 'bundle', 'fixed'/, 'configure #22');
+throws(() => resolve({ scope: [], delivery: null }), /`delivery`/, 'configure #23');
+
 // with no declaration the project browserslist config becomes one, and it is resolved HERE:
 // compat left to find it on its own would find it while building the baseline alone, leaving a
 // baseline narrower than the plan around it

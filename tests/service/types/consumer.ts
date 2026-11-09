@@ -14,6 +14,7 @@ const service = createService({
   retain: 1,
   compression: { identity: true, gzip: { level: 9 }, br: false },
   route: '/__core-js',
+  delivery: 'fixed',
   warn: (message: string) => console.warn(message),
 });
 
@@ -27,6 +28,9 @@ const visitorEngine: string | undefined = visitor?.engine;
 // the other row the visitor could be on, where the string leaves two open
 const visitorBase: string | undefined = visitor?.alternate?.version;
 const markup: string = service.scriptTag('<head>', { src: url, csp: null });
+const delivery: 'bundle' | 'fixed' = service.config.delivery;
+const fixedUrl: string = service.scriptUrl;
+const src: string = service.srcFor({ 'user-agent': 'x' });
 const versions: string = service.config.versions.coreJS;
 const builderVersion: string = service.config.versions.builder;
 
@@ -38,6 +42,8 @@ async function run(): Promise<void> {
   const list = await service.bundles.modules(id);
   const pruned = await service.bundles.prune();
   console.log(built.length, failed.length, bytes?.length, list?.length, pruned.length, engine, share, chosen, markup, versions, url);
+  await service.serveScript({ headers: { 'user-agent': 'x' } }, {});
+  console.log(delivery, fixedUrl, src);
 }
 
 const middleware = polyfillService({ scope: ['es.array.at'] });

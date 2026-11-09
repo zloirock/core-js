@@ -1,6 +1,6 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import createGetBundle from '../../packages/core-js-service/internals/application/get-bundle.js';
-import createServe, { negotiate } from '../../packages/core-js-service/internals/ui/serve.js';
+import createServe, { createServeScript, negotiate } from '../../packages/core-js-service/internals/ui/serve.js';
 
 const STORED = ['identity', 'gzip'];
 const WITH_BROTLI = ['identity', 'gzip', 'br'];
@@ -225,3 +225,101 @@ await serve(already.request, already.response, 'warm');
 strictEqual(already.response.headers.vary, 'Origin, Accept-Encoding', 'serve #29');
 
 ok(reported.length === 0, 'serve #27');
+
+// the fixed address: one URL for every browser, the bundle chosen when the script is requested
+function fixed({
+  ready = ['base identity', 'base gzip', 'warm identity', 'warm gzip'],
+  chosen = 'warm',
+  generation = 'g1',
+} = {}) {
+  const warnings = [];
+  const serveScript = createServeScript({
+    getBundle: createGetBundle(plan, { bundles: store(new Set(ready)) }),
+    encodings: STORED,
+    baselineId: 'base',
+    chooseBundle: () => chosen,
+    generation,
+    warn(condition) { warnings.push(condition); return true; },
+  });
+
+  return {
+    serveScript,
+    reported: warnings,
+    choose(bundleId) { chosen = bundleId; },
+  };
+}
+
+const script = fixed();
+const first = answer({ 'accept-encoding': 'gzip', 'user-agent': 'any' });
+
+await script.serveScript(first.request, first.response);
+strictEqual(first.response.statusCode, 200, 'serve-4 #1');
+strictEqual(first.response.body, BYTES, 'serve-4 #2');
+// the bytes behind this address change with the browser, the warm-up and the deploy: the browser may
+// keep them, but has to ask before using them again, and no shared cache keeps them at all
+strictEqual(first.response.headers['cache-control'], 'private, no-cache', 'serve-4 #3');
+strictEqual(first.response.headers.vary, 'user-agent, accept-encoding', 'serve-4 #4');
+strictEqual(first.response.headers['content-type'], 'text/javascript; charset=utf-8', 'serve-4 #5');
+strictEqual(first.response.headers['x-content-type-options'], 'nosniff', 'serve-4 #6');
+strictEqual(first.response.headers['content-encoding'], 'gzip', 'serve-4 #7');
+strictEqual(first.response.headers.etag, '"g1-warm-gzip"', 'serve-3 #1');
+
+const again = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip"' });
+
+await script.serveScript(again.request, again.response);
+strictEqual(again.response.statusCode, 304, 'serve-3 #2');
+strictEqual(again.response.body, undefined, 'serve-3 #3');
+
+// the identifier names the module list, not the targets it was built for: after a deploy the same
+// identifier can carry another syntax level, so a tag without the generation would confirm the
+// previous deploy's bytes with a 304
+const next = fixed({ generation: 'g2' });
+const redeployed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip"' });
+
+await next.serveScript(redeployed.request, redeployed.response);
+strictEqual(redeployed.response.statusCode, 200, 'serve-3 #4');
+strictEqual(redeployed.response.headers.etag, '"g2-warm-gzip"', 'serve-3 #5');
+
+// a bucket that is not warm yet is the baseline's bytes under this same address, not a redirect:
+// the address promises nothing about which bundle it holds
+const warming = fixed({ chosen: 'cold' });
+const early = answer({ 'accept-encoding': 'gzip' });
+
+await warming.serveScript(early.request, early.response);
+strictEqual(early.response.statusCode, 200, 'serve-4 #8');
+strictEqual(early.response.body, BYTES, 'serve-4 #9');
+strictEqual(early.response.headers.location, undefined, 'serve-4 #10');
+strictEqual(early.response.headers.etag, '"g1-base-gzip"', 'serve-3 #6');
+
+// and once the bucket is warm, the baseline's tag no longer matches: the browser gets its own bundle
+// on the next page load, with nothing to tell it to
+warming.choose('warm');
+
+const warmed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-base-gzip"' });
+
+await warming.serveScript(warmed.request, warmed.response);
+strictEqual(warmed.response.statusCode, 200, 'serve-3 #7');
+strictEqual(warmed.response.headers.etag, '"g1-warm-gzip"', 'serve-3 #8');
+
+// no baseline, nothing to send: a failure nobody may cache, rather than a 404 a cache could keep
+const missing = fixed({ ready: [], chosen: 'cold' });
+const empty = answer({ 'accept-encoding': 'gzip' });
+
+await missing.serveScript(empty.request, empty.response);
+strictEqual(empty.response.statusCode, 503, 'serve-4 #11');
+strictEqual(empty.response.headers['cache-control'], 'no-store', 'serve-4 #12');
+strictEqual(empty.response.body, undefined, 'serve-4 #13');
+deepStrictEqual(missing.reported, ['serve:cold-baseline'], 'serve-4 #14');
+
+const declined = answer({ 'accept-encoding': '*;q=0' });
+
+await script.serveScript(declined.request, declined.response);
+strictEqual(declined.response.statusCode, 406, 'serve-4 #15');
+
+// both fields are added to what the rest of the stack already varies by
+const merged = answer({ 'accept-encoding': 'gzip' }, { vary: 'Origin' });
+
+await script.serveScript(merged.request, merged.response);
+strictEqual(merged.response.headers.vary, 'origin, user-agent, accept-encoding', 'serve-4 #16');
+
+ok(script.reported.length === 0, 'serve-4 #17');

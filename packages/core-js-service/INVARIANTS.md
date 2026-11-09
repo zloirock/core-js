@@ -310,6 +310,16 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   the best representation the store actually HOLDS, never `identity` on the assumption it is there
 - **The ETag carries the encoding.** The gzip copy and the uncompressed one are different bytes
   under one identifier, and a shared tag lets a cache hand one to a client that asked for the other
+- **serve-3** - on the fixed address, the tag carries the generation as well. The identifier names
+  the module list, not the targets it was built for, so across a deploy one identifier can carry
+  another syntax level - and a tag of identifier and encoding alone confirms the previous deploy's
+  bytes with a 304, at every client that kept them. The tag of a bucket also differs from the
+  baseline's, which is what moves a client off the baseline once the bucket is warm
+- **serve-4** - the fixed address promises no particular bundle, so it is revalidated rather than
+  kept: `private, no-cache`, varying by `User-Agent` as well as `Accept-Encoding`. A shared cache
+  that kept it would hand one browser's bundle to another. A bucket still warming is the
+  baseline's bytes under the same address, not a redirect; no baseline at all is a `503` with
+  `no-store`, a statement about the moment, where a 404 would be one about the address
 - **script-tag-1** - the tag runs before the code that counts on it; arriving late is
   indistinguishable from not arriving
 - **script-tag-2** - and never before the charset declaration, which is why that one is found by
@@ -338,8 +348,9 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   browser to a HOST named after the bundle instead of to us. The writer of the address (`urlOf`)
   and its reader (the adapter's pattern) have to agree on that form, and they agree because the
   form is decided in one place
-- **A request for the bundle route is answered whatever its method is**, and `next()` is not
-  called for it. Accepted: the route is ours, and a POST to a static asset is not worth a branch
+- **A request for the bundle route, or for the fixed address in its mode, is answered whatever its
+  method is**, and `next()` is not called for it. Accepted: the route is ours, and a POST to a
+  static asset is not worth a branch
 - **adapter-1** - the body has to be seen before it is compressed, so this middleware is
   registered AFTER `compression`. That reads backwards and is not: both replace `res.write`, and
   the one that replaces it later ends up on the outside and sees the body first. The failure is
@@ -383,6 +394,11 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   the baseline - carry the prefix back. It is read while the request is still inside the middleware:
   a router puts back what it stripped the moment the request is handed on, and by the time the
   application writes the body it is gone
+- **adapter-6** - with `delivery: 'fixed'` the tag carries `${route}/polyfills.js` for every
+  browser, so the page no longer varies by `User-Agent` or `Accept-Encoding` and the middleware adds
+  neither to `Vary` - adding them would split a shared cache of the page for nothing. The length and
+  the `ETag` of the page are still removed: the body changed all the same. The fixed address is
+  answered only in that mode; in the default one it stays the application's path
 - **adapter-3** - nothing on the HTML path waits. `res.write` cannot be made to, and making it wait
   would mean buffering the whole response and taking over its backpressure, which is the
   interception undone. The plan and the baseline are awaited BEFORE the interception is installed

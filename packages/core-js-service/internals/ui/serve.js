@@ -78,24 +78,64 @@ export default function createServe({ getBundle, encodings, baselineId, urlOf, w
 
     // the encoding is part of the identity of what is being sent, so it is part of the tag:
     // the gzip copy and the uncompressed one are different bytes under one identifier
-    const etag = `"${ bundleId }-${ encoding }"`;
-
     response.setHeader('cache-control', CACHE_CONTROL);
-    response.setHeader('content-type', CONTENT_TYPE);
-    response.setHeader('x-content-type-options', 'nosniff');
     // always, because at least two encodings are stored and the answer therefore depends on the
     // header by construction - and added to what the rest of the stack already said it varies by
     varyBy(response, 'accept-encoding');
-    response.setHeader('etag', etag);
-
-    if (encoding !== 'identity') response.setHeader('content-encoding', encoding);
-
-    if (matches(request.headers['if-none-match'], etag)) return end(response, 304);
-
-    response.statusCode = 200;
-    response.setHeader('content-length', bundle.bytes.length);
-    response.end(bundle.bytes);
+    send(request, response, bundle.bytes, encoding, `"${ bundleId }-${ encoding }"`);
   };
+}
+
+// the other handler: one address for every browser, the bundle chosen when the script is asked
+// for. what sits behind it changes with the browser, the warm-up and the deploy
+export function createServeScript({ getBundle, encodings, baselineId, chooseBundle, generation, warn }) {
+  return async function serveScript(request, response) {
+    const encoding = negotiate(request.headers['accept-encoding'], encodings);
+
+    if (encoding === null) return end(response, 406);
+
+    let bundleId = chooseBundle(request.headers);
+    let bundle = await getBundle(bundleId, encoding);
+
+    // a bucket still warming is the baseline's bytes under this same address: the address promises
+    // no particular bundle, so there is nothing to redirect to
+    if (bundle.state !== 'ready' && bundleId !== baselineId) {
+      bundleId = baselineId;
+      bundle = await getBundle(bundleId, encoding);
+    }
+
+    if (bundle.state !== 'ready') {
+      warn('serve:cold-baseline', 'the baseline bundle is missing while requests are being served');
+      // a 404 here is a statement about the address a cache may keep; this is a statement about the
+      // moment, and nothing keeps it
+      response.setHeader('cache-control', 'no-store');
+      return end(response, 503);
+    }
+
+    // the browser may keep the bytes but has to ask before using them again, and a shared cache
+    // keeps nothing: the answer depends on who is asking
+    response.setHeader('cache-control', 'private, no-cache');
+    varyBy(response, 'user-agent');
+    varyBy(response, 'accept-encoding');
+    // the identifier names the module list, not the targets it was built for: across a deploy one
+    // identifier can carry another syntax level, and a tag without the generation would confirm the
+    // previous deploy's bytes with a 304
+    send(request, response, bundle.bytes, encoding, `"${ generation }-${ bundleId }-${ encoding }"`);
+  };
+}
+
+function send(request, response, bytes, encoding, etag) {
+  response.setHeader('content-type', CONTENT_TYPE);
+  response.setHeader('x-content-type-options', 'nosniff');
+  response.setHeader('etag', etag);
+
+  if (encoding !== 'identity') response.setHeader('content-encoding', encoding);
+
+  if (matches(request.headers['if-none-match'], etag)) return end(response, 304);
+
+  response.statusCode = 200;
+  response.setHeader('content-length', bytes.length);
+  response.end(bytes);
 }
 
 function matches(header, etag) {

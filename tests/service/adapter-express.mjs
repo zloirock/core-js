@@ -292,6 +292,72 @@ try {
   }
 }
 
+// the fixed address: one tag for every browser, the bundle chosen when the script is asked for.
+// mounted under a path, so that the tag has to carry the mount point here as well
+const fixed = await serve((app, middleware) => {
+  app.use('/app', middleware({ delivery: 'fixed' }));
+  app.get('/app', (request, response) => response.type('html').send(PAGE));
+});
+
+try {
+  const chromePage = await fixed.get('/app', { 'user-agent': CHROME });
+  const ieMarkup = await (await fixed.get('/app', { 'user-agent': IE })).text();
+  const src = srcOf(await chromePage.text());
+
+  strictEqual(src, '/app/__core-js/polyfills.js', 'adapter-6 #1');
+  strictEqual(srcOf(ieMarkup), src, 'adapter-6 #2');
+  // the page no longer depends on who asks for it, so it says it varies by nothing of ours - and a
+  // shared cache may keep one copy of it for every browser
+  strictEqual(chromePage.headers.get('vary'), null, 'adapter-6 #3');
+  strictEqual(chromePage.headers.get('content-length'), null, 'adapter-6 #4');
+
+  const chrome = await fixed.get(src, { 'user-agent': CHROME, 'accept-encoding': 'gzip' });
+  const ie = await fixed.get(src, { 'user-agent': IE, 'accept-encoding': 'gzip' });
+
+  strictEqual(chrome.status, 200, 'serve-4 #18');
+  strictEqual(chrome.headers.get('cache-control'), 'private, no-cache', 'serve-4 #19');
+  strictEqual(chrome.headers.get('vary'), 'user-agent, accept-encoding', 'serve-4 #20');
+  strictEqual(ie.status, 200, 'serve-4 #21');
+  // one address, two browsers, two bundles
+  notStrictEqual(chrome.headers.get('etag'), ie.headers.get('etag'), 'serve-3 #9');
+  notStrictEqual((await chrome.arrayBuffer()).byteLength, (await ie.arrayBuffer()).byteLength, 'serve-3 #10');
+
+  const again = await fixed.get(src, {
+    'user-agent': CHROME,
+    'accept-encoding': 'gzip',
+    'if-none-match': chrome.headers.get('etag'),
+  });
+
+  strictEqual(again.status, 304, 'serve-3 #11');
+  deepStrictEqual(fixed.reported, [], 'adapter-6 #5');
+} finally {
+  try {
+    await fixed.close();
+  } catch (error) {
+    console.warn(`could not close the test server: ${ error.message }`);
+  }
+}
+
+// in the default mode nothing points at the fixed address, so nothing answers it: the path is the
+// application's
+const unfixed = await serve((app, middleware) => {
+  app.use(middleware());
+  app.get('/', (request, response) => response.type('html').send(PAGE));
+});
+
+try {
+  const script = await unfixed.get('/__core-js/polyfills.js', { 'user-agent': CHROME });
+
+  strictEqual(script.status, 404, 'adapter-6 #6');
+  strictEqual(script.headers.get('cache-control'), null, 'adapter-6 #7');
+} finally {
+  try {
+    await unfixed.close();
+  } catch (error) {
+    console.warn(`could not close the test server: ${ error.message }`);
+  }
+}
+
 // and the arrangement that reads right and is wrong: registered BEFORE `compression`, we are
 // handed bytes that are already gzip. nothing can be inserted, and without the check the failure
 // is completely silent - a site with no polyfills anywhere and no error to show for it
@@ -326,8 +392,7 @@ const broken = createAdapter({
   config: { route: '/__core-js' },
   warn(condition) { reported.push(condition); return true; },
   start: () => ({ ready: Promise.reject(new Error('rolldown said no')) }),
-  chooseBundle: () => { throw new Error('the tag must not be built at all'); },
-  urlOf: id => `/__core-js/${ id }.js`,
+  srcFor: () => { throw new Error('the tag must not be built at all'); },
   scriptTag: () => { throw new Error('the tag must not be built at all'); },
   async serve() { /* the bundle route is not what this case is about */ },
 });
@@ -361,8 +426,7 @@ const bare = createAdapter({
   config: { route: '/__core-js' },
   warn(condition) { undeclared.push(condition); return true; },
   start: () => ({ ready: Promise.resolve() }),
-  chooseBundle: () => 'deadbeef',
-  urlOf: id => `/__core-js/${ id }.js`,
+  srcFor: () => '/__core-js/deadbeef.js',
   scriptTag: () => { throw new Error('nothing is declared HTML, so no tag is ever built'); },
   async serve() { /* the bundle route is not what this case is about */ },
 });
@@ -392,9 +456,8 @@ const failing = createAdapter({
   config: { route: '/__core-js' },
   warn(condition) { said.push(condition); return true; },
   start: () => ({ ready: Promise.resolve(true) }),
-  chooseBundle: () => { throw new Error('the plan is gone'); },
-  urlOf: id => `/__core-js/${ id }.js`,
-  scriptTag: () => { throw new Error('unreachable: the bundle is chosen first'); },
+  srcFor: () => { throw new Error('the plan is gone'); },
+  scriptTag: () => { throw new Error('unreachable: the address is chosen first'); },
   async serve() { /* not this case */ },
 });
 
@@ -426,8 +489,7 @@ const collapsing = createAdapter({
   config: { route: '/__core-js' },
   warn(condition) { failures.push(condition); return true; },
   start() { throw new Error('the plan never built'); },
-  chooseBundle: () => 'abc0000000000001',
-  urlOf: id => `/__core-js/${ id }.js`,
+  srcFor: () => '/__core-js/abc0000000000001.js',
   scriptTag: beginning => beginning,
   async serve() { throw new Error('the disk went away'); },
 });
@@ -445,8 +507,7 @@ const serving = createAdapter({
   config: { route: '/__core-js' },
   warn(condition) { failures.push(condition); return true; },
   start: () => ({ ready: Promise.resolve(true) }),
-  chooseBundle: () => 'abc0000000000001',
-  urlOf: id => `/__core-js/${ id }.js`,
+  srcFor: () => '/__core-js/abc0000000000001.js',
   scriptTag: beginning => beginning,
   async serve() { throw new Error('the disk went away'); },
 });

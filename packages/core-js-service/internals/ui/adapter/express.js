@@ -30,7 +30,7 @@ function looksLikeHTML(chunk) {
 
 // everything on this path is synchronous. `res.write` cannot be made to wait, and waiting would
 // mean buffering the whole response and taking over its backpressure
-function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, warn }) {
+function intercept(request, response, base, { config, srcFor, scriptTag, warn }) {
   const original = { end: response.end, write: response.write };
   const head = [];
   let size = 0;
@@ -83,7 +83,7 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
         // the address is written from where the MIDDLEWARE is mounted, not from the root: a router
         // that mounts it under a path strips that path from everything it hands on, so a route
         // matched against `/__core-js/<id>.js` is reached at `/app/__core-js/<id>.js` from outside
-        src: `${ base }${ urlOf(chooseBundle(request.headers)) }`,
+        src: `${ base }${ srcFor(request.headers) }`,
         csp: response.getHeader('content-security-policy') ?? null,
       });
     } catch (error) {
@@ -93,7 +93,8 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
 
     // the headers the insertion made wrong: the length and the `ETag` were computed before the edit,
     // and the tag is chosen by `User-Agent` and `Accept-Encoding` - the latter is ours to name too,
-    // since on iOS one string comes from 15 and from 26, and only `zstd` tells them apart
+    // since on iOS one string comes from 15 and from 26, and only `zstd` tells them apart. the fixed
+    // address is the same for everyone, so with it the page varies by neither (adapter-6)
     if (patched !== beginning) {
       // with the headers already sent by `res.writeHead` none of it can be repaired, and a stale
       // `Content-Length` cuts the page off at the client - half a page is worse than no tag
@@ -105,8 +106,11 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
 
       response.removeHeader('content-length');
       response.removeHeader('etag');
-      varyBy(response, 'user-agent');
-      varyBy(response, 'accept-encoding');
+
+      if (config.delivery !== 'fixed') {
+        varyBy(response, 'user-agent');
+        varyBy(response, 'accept-encoding');
+      }
     }
 
     original.write.call(response, Buffer.from(patched, 'latin1'));
@@ -117,7 +121,7 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
   // everything past the beginning leaves as it arrived: never decoded, never copied
   function writeOut(from) {
     let skip = from;
-    let written = true;
+    let isWritten = true;
 
     for (const chunk of head) {
       if (skip >= chunk.length) {
@@ -125,11 +129,11 @@ function intercept(request, response, base, { chooseBundle, scriptTag, urlOf, wa
         continue;
       }
 
-      written = original.write.call(response, skip ? chunk.subarray(skip) : chunk);
+      isWritten = original.write.call(response, skip ? chunk.subarray(skip) : chunk);
       skip = 0;
     }
 
-    return written;
+    return isWritten;
   }
 
   function collect(chunk, encoding) {
@@ -204,38 +208,44 @@ export default function createAdapter(service) {
   const { config, warn } = service;
   const bundleRoute = new RegExp(`^${ config.route.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&') }/(?<bundleId>[\\da-f]{1,64})\\.js$`);
 
+  // the fixed address is answered only in its own mode: in the other one nothing points at it
+  const isFixed = config.delivery === 'fixed';
+
   return async function middleware(request, response, next) {
     const path = request.path ?? request.url.split('?', 1)[0];
     const found = bundleRoute.exec(path);
+    const isScriptRoute = isFixed && path === service.scriptUrl;
 
     // Express before 5 does not await a middleware, and an unheard rejection ends the process - so
     // nothing leaves: a page goes out as without us, the bundle route to the framework's error handling
     try {
-      return await answer(request, response, next, found);
+      return await answer(request, response, next, found, isScriptRoute);
     } catch (error) {
       warn('adapter:failed', `the polyfill middleware could not answer ${ path } (${ error.message })`);
-      return found === null ? next() : next(error);
+      return found === null && !isScriptRoute ? next() : next(error);
     }
   };
 
-  async function answer(request, response, next, found) {
+  async function answer(request, response, next, found, isScriptRoute) {
     const { ready } = service.start();
-    let baselineReady = true;
+    let isBaselineReady = true;
 
     // the waiting happens HERE, before the interception is installed: by the time there is
     // traffic the baseline is long ready, and the wait removes a whole "not there yet" branch
     try {
       await ready;
     } catch {
-      baselineReady = false;
+      isBaselineReady = false;
     }
 
     if (found !== null) return service.serve(request, response, found.groups.bundleId);
+    // without a baseline it answers `503` itself - a statement about the moment, not about the page
+    if (isScriptRoute) return service.serveScript(request, response);
 
     // a baseline that could not be built takes the page out of OUR hands, not the visitor's: it
     // is served exactly as it would be without this middleware. failing the request instead would
     // turn a missing bundle into a site-wide outage
-    if (!baselineReady) {
+    if (!isBaselineReady) {
       warn('adapter:no-baseline', 'the baseline bundle could not be built, so no polyfill tag is being '
         + 'inserted - the pages are served exactly as they would be without this middleware');
       return next();

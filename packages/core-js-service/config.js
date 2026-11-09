@@ -7,6 +7,13 @@ export const CONTENT_TYPE = 'text/javascript; charset=utf-8';
 // with somebody else's
 export const ROUTE = '/__core-js';
 
+// how the page reaches its bundle: `bundle` puts the bundle's own address into the tag, `fixed`
+// puts one address there for every browser and picks the bundle when the script is asked for
+export const DELIVERY_MODES = ['bundle', 'fixed'];
+export const DELIVERY_DEFAULT = 'bundle';
+// the fixed address, under the route. not a hex identifier, so it cannot name a bundle
+export const SCRIPT_NAME = 'polyfills.js';
+
 // how much of an HTML response is scanned for the place to put the tag. everything that decides
 // the place is at the very beginning, and the bound is what lets the rest of the response stream
 // through untouched
