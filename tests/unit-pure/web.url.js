@@ -55,6 +55,7 @@ QUnit.test('URL constructor', assert => {
   assert.same(String(new URL('http://0300.168.0xG0')), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
 
   // Native Firefox 115-118 accepts these invalid numeric hosts.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1723456
   /*
   assert.throws(() => new URL('http://1.2.3.4.5/'), 'IPv4 with > 4 parts');
   assert.throws(() => new URL('http://a.b.c.d.5/'), 'host ending in number with non-numeric parts');
@@ -94,7 +95,8 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('http://a\uFE00b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
   assert.same(new URL('http://a\uFEFFb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
   assert.same(new URL('http://a\uDB40\uDD00b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  // an older UTS#46 table rejects the entries below instead of ignoring them - Node < 24 ships one
+  // Older UTS#46 tables reject these entries, including Node 20.20.2 / 22.23.4; Node 23.11.1 passes.
+  // https://github.com/nodejs/node/pull/57429
   if (URL.canParse('http://a\u180Eb.example.com/')) {
     assert.same(new URL('http://a\u115Fb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
     assert.same(new URL('http://a\u17B4b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
