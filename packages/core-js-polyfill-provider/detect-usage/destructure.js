@@ -407,18 +407,20 @@ export function renderedGlobalHint(node, ctx) {
 export function importedStaticReadMeta({ node, meta, scope, adapter, path, objectPattern = null, walkPath = [] }) {
   function explicitSource(sourceNode, ctx) {
     if (renderedGlobalHint(unwrapRuntimeExpr(sourceNode), ctx)) return null;
-    return moduleDefaultSource({ node: sourceNode, ...ctx });
+    return moduleDefaultSource({ node: sourceNode, ...ctx, followFallback: adapter.method === 'usage-pure' });
   }
   let directSource = null;
+  let object = meta?.object;
   if (meta && !meta.object && !objectPattern && !walkPath.length) {
     directSource = explicitSource(node, { scope, adapter, path });
     const entry = pureImportSourceEntry(pureImportSubpath(directSource, adapter.packages));
-    const object = entry && entryToGlobalHint(entry);
+    object = entry && entryToGlobalHint(entry);
     if (object && !POSSIBLE_GLOBAL_OBJECTS.has(object)) meta = {
       ...meta, receiverHint: staticReceiverHint('static', object),
     };
   }
-  if (meta?.placement !== 'static' || !meta.object || POSSIBLE_GLOBAL_OBJECTS.has(meta.object)) return meta;
+  // Proven imported aliases share the namespace test, without promoting a narrow import's guarded claim.
+  if ((meta?.placement !== 'static' && !directSource) || !object || POSSIBLE_GLOBAL_OBJECTS.has(object)) return meta;
   if (objectPattern) {
     const walked = destructureHostThroughWrappers(objectPattern, adapter);
     node = walked && destructureReceiverNode(walked.host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
@@ -439,15 +441,15 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
   if (!source) return meta;
   const subpath = pureImportSubpath(source, adapter.packages);
   const entry = pureImportSourceEntry(subpath);
-  if (!entry || entryToGlobalHint(entry) !== meta.object) return meta;
+  if (!entry || entryToGlobalHint(entry) !== object) return meta;
   // ... and an import of the whole namespace that carries the static at its own level reads it as written
   // (`es/promise` lacks `Promise.allKeyed`, which `actual/promise` ships)
-  if (adapter.method === 'usage-pure' && hasOwnStaticDefinition(meta.object, meta.key)) {
-    return hasConstructorEntry(meta.object) && !entry.includes('/')
-      && namespaceEntryCarriesStatic(subpath, meta.object, meta.key)
+  if (adapter.method === 'usage-pure' && hasOwnStaticDefinition(object, meta.key)) {
+    return hasConstructorEntry(object) && !entry.includes('/')
+      && namespaceEntryCarriesStatic(subpath, object, meta.key)
       ? null : meta;
   }
-  return { ...meta, object: null, placement: 'prototype', receiverHint: staticReceiverHint('static', meta.object) };
+  return { ...meta, object: null, placement: 'prototype', receiverHint: staticReceiverHint('static', object) };
 }
 
 // build meta for a destructuring property given its resolved init node + key.

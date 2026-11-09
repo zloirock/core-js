@@ -116,6 +116,37 @@ export const r = [7][key]().next().value;`, 7],
   const controls = [
     ['promise-alias', `const base = Promise; const P = base ?? AggregateError;
 export const r = typeof P.withResolvers().resolve;`, 'function'],
+    ['promise-chain-nullish', `const base = Promise; const Q = base ?? Iterator; const C = Q ?? AggregateError;
+export const r = await C.try(() => 17);`, 17],
+    ['promise-chain-truthy', `const base = Promise; const Q = base || Iterator; const C = Q || AggregateError;
+export const r = await C.try(() => 19);`, 19],
+    ['promise-chain-import', `import base from '@core-js/pure/actual/promise';
+const Q = base ?? Iterator; const C = Q ?? AggregateError;
+export const r = await C.try(() => 23);`, 23],
+    ['promise-chain-effects', `const order = [];
+const base = Promise; const Q = (order.push('base'), base) ?? Iterator; const C = Q ?? AggregateError;
+export const r = [await C[(order.push('key'), 'try')]?.((order.push('arg'), () => 29)), order];`,
+    [29, ['base', 'key', 'arg']]],
+    ['promise-reassigned', `const base = Promise; let Q = base ?? Iterator;
+Q = { try(fn) { return [this === Q, fn()]; } }; const C = Q ?? AggregateError;
+export const r = C.try(() => 31);`, [true, 31]],
+    ['promise-captured-before-init', `var C = Q ?? { try() { return 37; } }; var Q = Promise;
+export const r = C.try(() => 0);`, 37],
+    ['promise-patched', `const base = Promise; const Q = base ?? Iterator; const C = Q ?? AggregateError;
+C.try = function (fn) { return [this === C, fn()]; };
+export const r = C.try(() => 41);`, [true, 41]],
+    ['promise-shadow', `const base = Promise; const Q = base ?? Iterator;
+function read(Q) { const C = Q ?? AggregateError; return C.try(() => 43); }
+export const r = read({ try(fn) { return fn(); } });`, 43],
+    ['promise-narrow', `import base from '@core-js/pure/actual/promise/constructor';
+const Q = base ?? Iterator; const C = Q ?? AggregateError;
+export const r = await C.try(() => 47);`, 47],
+    ['map-selected', `const M = Map ?? Object;
+export const r = M.groupBy([1, 2], value => value % 2).get(0);`, [2]],
+    ['iterator-selected', `const I = Iterator || Array;
+export const r = I.from([53]).next().value;`, 53],
+    ['reassigned-static-owner', `let Q = Iterator ?? Object; Q = Array;
+const C = Q ?? AggregateError; export const r = C.from([59])[0];`, 59],
     ['conditional-container', `function read(on) {
   if (on) { var box = { I: Iterator }; }
   return () => box.I.concat;
@@ -134,6 +165,11 @@ export const r = [before, missing, typeof held.concat];`, ['undefined', 'TypeErr
   for (const [name, source, expected] of controls) {
     for (const host of ['babel', 'unplugin']) {
       const output = await transform(`${ source }\nexport const effects = [];`, host);
+      if (name.startsWith('promise-chain-')) {
+        check(`${ name }/${ host }/full index owns try`, /promise\/try/.test(output), false);
+        check(`${ name }/${ host }/no identity guard`, /===/.test(output), false);
+      }
+      if (name === 'promise-narrow') check(`${ name }/${ host }/narrow index needs try`, /promise\/try/.test(output), true);
       const file = path.join(DIR, `${ count++ }.mjs`);
       await fs.outputFile(file, output);
       for (const strip of [false, true]) {

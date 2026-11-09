@@ -8,7 +8,7 @@ import { coreJSImportSubpath, pureImportSubpath } from '../helpers/path-normaliz
 // proxy-global recogniser (`proxyGlobalRootName` and its member twin) - asking which realm
 // name a binding stands for is asking this module what the binding holds and keeping the
 // realm names off the answer, so the narrow lives with the canon instead of forking it
-import { entryToGlobalHint, resolve as resolveBuiltInMeta } from '../index.js';
+import { entryToGlobalHint, hasConstructorEntry, resolve as resolveBuiltInMeta } from '../index.js';
 import {
   argumentOverridesSlot,
   ALWAYS_TRUTHY_OBJECT_NODES,
@@ -1348,13 +1348,21 @@ export function inlineInteropCallSource(node) {
 // A caller may share its binding lookup without copying the adapter's other facts.
 // Committed deferred extractions carry the same source before their initializer is inserted.
 // Pending and deferred imports use the same package-qualified source as a written import.
-export function moduleDefaultSource({ node, scope, adapter, path, namespace = false, getBinding = null }) {
+// Namespace-read proofs may follow a fallback after proving a truthy imported constructor.
+// Guard enumeration keeps selections visible; this proof never re-enters the build's decisions.
+export function moduleDefaultSource({ node, scope, adapter, path, namespace = false, getBinding = null, followFallback = false }) {
   const seen = new Set();
   const followed = [];
   let source = null;
+  let fallbackLeft = false;
   while (node) {
     node = peelReceiverSequenceTail(node);
     if (!node) return null;
+    if (followFallback && node.type === 'LogicalExpression' && node.operator !== '&&') {
+      fallbackLeft = true;
+      node = node.left;
+      continue;
+    }
     if (!namespace) {
       source = requireCallSource(node, { scope, adapter, path });
       if (source) break;
@@ -1391,6 +1399,8 @@ export function moduleDefaultSource({ node, scope, adapter, path, namespace = fa
     path = bindingDeclarationPath(binding) ?? path;
   }
   if (!source) return null;
+  if (fallbackLeft
+    && !hasConstructorEntry(entryToGlobalHint(pureImportSourceEntry(pureImportSubpath(source, adapter.packages))))) return null;
   // Only a module-valued chain owes availability and write proofs. Ordinary local
   // callees reach this speculative query too; their bodies cannot name a module.
   for (const followedBinding of followed) {
