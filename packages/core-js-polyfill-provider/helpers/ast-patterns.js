@@ -4544,7 +4544,7 @@ function isLogicalAssignReassignment(node, ownerNode) {
 // wrapper node) record the parent as the guard, object-valued ones the branch node itself; an
 // expression edge that runs on some evaluations only (`conditionalEvaluationEdge` - a slot under
 // an optional spine, a decorator) records the child standing in it
-const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
+export const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
   const parents = ownerParentIndexLocating(ownerNode, target);
   if (target !== ownerNode && !parents.has(target)) return null;
   const guards = [];
@@ -7197,12 +7197,60 @@ function slotParamIndex(callee, params) {
   return paramReboundInBody(callee.body, new Set(index.keys())) ? null : index;
 }
 
-// the class's own STATIC member one key reads, or null. the class DEFINES its methods and accessors
+// does `root` write the key `key` of some receiver - an assignment, an update or a `delete` spelling it -
+// anywhere ahead of `readNode`?
+function writesKeyBefore(root, key, readNode) {
+  let writes = false;
+  walkAstNodes({ root, visit: node => {
+    if (writes || !(node.start < readNode.start)) return false;
+    const target = node.type === 'AssignmentExpression' ? node.left
+      : node.type === 'UpdateExpression' || (node.type === 'UnaryExpression' && node.operator === 'delete') ? node.argument : null;
+    const member = target && unwrapRuntimeExpr(target);
+    if (member && isMemberAccessNode(member) && memberKeyName(member) === key) writes = true;
+    return !writes;
+  } });
+  return writes;
+}
+
+// the class's own STATIC member one key reads. The class DEFINES its methods and accessors
 // first and initializes its data fields after, each kind in source order: a FIELD spelling the key
-// wins over any method or accessor wherever it stands, and the last one of a kind over the ones before
-export function classStaticSlotMember(classNode, key) {
-  const members = (classNode?.body?.body ?? []).filter(member => member.static && foldedPropertyKeyName(member) === key);
-  return members.findLast(member => CLASS_DATA_FIELD_TYPES.has(member.type)) ?? members.at(-1) ?? null;
+// wins over any method or accessor wherever it stands. A setter preserves its paired getter.
+// `undefined` means a block or unknown key may have replaced the slot; `null` means no own slot.
+// A setter without a getter still owns the key. Injecting readers may collect unknown-key candidates.
+export function classStaticSlotMember(classNode, key, {
+  keyOf = foldedPropertyKeyName, unknown = null, ignoreUnknown = false, readNode = null,
+} = {}) {
+  let members = classNode?.body?.body ?? [];
+  // a read the class's own static evaluation performs sees only the static elements run before it
+  const readerAt = staticEvaluationReaderIndex(classNode, readNode);
+  if (readerAt >= 0) {
+    // ... and the reader's OWN block counts where it writes the key ahead of the read: that write, not
+    // the field, is what the read sees there
+    const ownWrite = members[readerAt].type === 'StaticBlock' && writesKeyBefore(members[readerAt], key, readNode);
+    members = members.filter((m, index) => index < readerAt || (ownWrite && index === readerAt)
+      || !(m.type === 'StaticBlock' || (m.static && CLASS_DATA_FIELD_TYPES.has(m.type))));
+  }
+  let setter = null;
+  for (const late of [true, false]) for (let i = members.length - 1; i >= 0; i--) {
+    const member = members[i];
+    if (member.type === 'StaticBlock') {
+      if (late) return undefined;
+      continue;
+    }
+    if (!member.static || CLASS_DATA_FIELD_TYPES.has(member.type) !== late) continue;
+    const name = keyOf(member);
+    if (name === null && member.computed) {
+      unknown?.(member);
+      if (!ignoreUnknown) return undefined;
+    } else if (name === key) {
+      if (!late && member.kind === 'set') {
+        setter ??= member;
+        continue;
+      }
+      return setter && member.kind !== 'get' ? setter : member;
+    }
+  }
+  return setter;
 }
 
 // ... and the one a CALL through that key reaches, where a caller census keyed on the class's binding

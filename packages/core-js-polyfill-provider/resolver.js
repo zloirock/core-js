@@ -340,7 +340,7 @@ export function createPolyfillResolver(options, {
     // An opaque native static owner owes its own statics alongside its global patch entry;
     // a whole namespace also carries unrelated prototype methods (`Number#toFixed`, `RegExp#test`).
     // A replacement constructor keeps its whole entry, including the methods its instances carry.
-    if (resolved.kind !== 'global' || !ctorNameIsOpaque(resolved.name)) return dependencies;
+    if (resolved.kind !== 'global' || !ctorNameIsOpaque(resolved.name) && readsUnnamedStatic?.(resolved.name) !== true) return dependencies;
     return NATIVE_STATIC_OWNERS.has(resolved.name)
       ? [...dependencies, ...staticGlobalDependencies(resolved.name).filter(ctx.isEntryNeeded)]
       : dependencies.map(ctorFamilyEntry);

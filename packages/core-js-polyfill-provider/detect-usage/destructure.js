@@ -1816,7 +1816,8 @@ export function attachMemberUnionExtras(meta, options) {
 // usage-global only, for the key shapes whose written names are enumerable without a primary: a
 // BRANCHING key (`[cond ? "flat" : "at"]`, or a name bound to one - `const k = c && "at"` - each arm is
 // reachable), a REASSIGNED alias with no dominating value (a pattern slot default, `[k = "from"] = []`,
-// is default-or-runtime) and any key the census folds to several names (`const k = c ? "a" : "b"`).
+// is default-or-runtime) and any key the census can enumerate, even a single name whose binding
+// shape the claim cannot serve (`for (const k of ['groupBy']) Map[k]`).
 // the member producer and the destructure producer ask this ONE question - the carrier is dropped
 // again when the enumeration yields nothing
 export function unionKeyedCarrierRides({ computedKeyNode, scope, adapter, path }) {
@@ -1825,7 +1826,7 @@ export function unionKeyedCarrierRides({ computedKeyNode, scope, adapter, path }
   const keyCore = unwrapRuntimeExpr(computedKeyNode);
   if (keyCore?.type === 'Identifier'
     && isReassignedBeyondDeclarator(adapter.getBinding({ scope, name: keyCore.name, path }) ?? {})) return true;
-  return (CENSUS_KEY_NAMES.get(rootProgramOf(path))?.(computedKeyNode)?.length ?? 0) > 1;
+  return (CENSUS_KEY_NAMES.get(rootProgramOf(path))?.(computedKeyNode)?.length ?? 0) > 0;
 }
 
 // the selection whose arms a computed key may take, with the scope its arms resolve in: the key itself

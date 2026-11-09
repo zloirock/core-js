@@ -127,6 +127,7 @@ import './alias-class-complexity.mjs';
 // the escape STAMP's node identity: the census writes a stamp and the pure claim reads one, and a
 // spelling only one half knows is a silently dropped widening, not a failure
 import './escaped-ctor-stamp.mjs';
+import './census-static-reads.mjs';
 // ... and the walk's caching layer, whose contract is not the answer but TERMINATION and a key that
 // keeps two different reads apart - both of which become answers on a cyclic alias graph
 import './escape-walk-memo-domain.mjs';
