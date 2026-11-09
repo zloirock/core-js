@@ -86,6 +86,18 @@ runBoth('current receiver after settling', 'let held; const replacement = (held 
     check(`${ label }/one effect`, product.effects.length, 1);
   });
 
+for (const [receiver, expected] of [
+  ['(held = alias).self.Array', 'alias'],
+  ['(held = globalThis.window?.self).Array', 'read'],
+  ['(held = globalThis.window).self.Array', null],
+]) runBoth(`stored receiver probe priority/${ receiver }`,
+  `const alias = globalThis.window; let held; const result = ${ receiver }.from;`, (parser, program, label) => {
+    const path = resultPath(parser, program);
+    const plan = [...resolvedStaticClaimRoutes(facts(parser, path))].at(-1);
+    check(`${ label }/probe owns the right read`, plan?.probe?.kind ?? null, expected);
+    if (expected === 'read') check(`${ label }/keeps the sealed reader`, plan.probe.test.source.source, path.node.object);
+  });
+
 for (const [source, tail, folds] of [
   ['held = globalThis.window', '.self.slot', true],
   ['before(), held = globalThis.window', '.self.slot', true],

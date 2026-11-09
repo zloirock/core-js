@@ -124,6 +124,7 @@ import {
   parameterStaticSource,
   paramReturnsTheValue,
   patternBindsName,
+  patternHasAnyDefault,
   patternMemberTargetPairs,
   patternReceiverSlotNodes,
   patternSlotHasDefault,
@@ -1549,14 +1550,50 @@ function realmGlobalName(programNode, node) {
 // whose values include a proven realm proxy (`const g = globalThis; g.Map`, `g.self.Map`)? `cache` holds
 // the root expansions of the walk asking, by default the alias graph's own once the census finalized it
 // (`realmRoots`): every read off one binding asks it, so the answer is kept per value set (`VALUE_SET_ANSWERS`)
-function readsOffRealm(programNode, aliases, chain, cache = ALIAS_SCOPE_FACTS.get(aliases)?.realmRoots ?? new Map()) {
+function readsOffRealm(programNode, aliases, chain, cache = ALIAS_SCOPE_FACTS.get(aliases)?.realmRoots ?? new Map(), seen = null) {
   const { root, keys } = memberChainKeys(chain, staticMemberKeyName);
   if (keys.slice(0, -1).some(part => !POSSIBLE_GLOBAL_OBJECTS.has(part))) return false;
   const values = chainRootValues(aliases, root, new Set(), cache);
   const answers = valueSetAnswers(values);
-  answers.realmProxy ??= values.some(value => value?.type === 'Identifier'
-    && POSSIBLE_GLOBAL_OBJECTS.has(value.name) && REALM_CTOR_REFS.get(programNode)?.(value) === 'proven');
-  return answers.realmProxy;
+  if (answers.realmProxy !== undefined) return answers.realmProxy;
+  const visited = seen ?? new Set();
+  if (visited.has(values)) return false;
+  visited.add(values);
+  // An alias can hold a realm probe, not only a bare realm name. A recursive miss
+  // may still reach the realm through its ancestor's next edge: cache negatives
+  // only after the complete root walk, never while cutting a cycle.
+  const found = values.some(value => value?.type === 'Identifier'
+    ? POSSIBLE_GLOBAL_OBJECTS.has(value.name) && REALM_CTOR_REFS.get(programNode)?.(value) === 'proven'
+    : isMemberAccessNode(value) && POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(value))
+      && withinAliasWalkBudget(() => readsOffRealm(programNode, aliases, value, cache, visited)));
+  if (found || !seen) answers.realmProxy = found;
+  return found;
+}
+
+// A caller-paired parameter, assignment loop head or catch binds a value whose later reads stay native.
+// The census can follow its source without promising that the claim resolver substitutes
+// the read. Plain aliases of that binding carry the same obligation, in their own scope.
+function readsRetainedPatternBinding(aliases, node, cache, seen = null) {
+  // An unbound name cannot forward a pattern. Callers often repeat that terminal
+  // constructor argument; do not unwrap it again while inspecting their binding.
+  if (node?.name && !aliases.has(node.name)) return false;
+  const value = peelReceiverSequenceTail(node);
+  if (value?.type !== 'Identifier') return false;
+  const scopes = aliasReferenceScopes(aliases, value);
+  const key = aliasBindingKey(aliases, value.name, scopes);
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  const visited = seen ?? new Set();
+  if (visited.has(key)) return false;
+  visited.add(key);
+  const found = aliasEntriesInScope(aliases, value.name, scopes).some(({ value: held, paired, at, target }) => held?.pattern
+    ? paired || target && at?.type === 'ForOfStatement' || at?.type === 'CatchClause'
+    : withinAliasWalkBudget(() => readsRetainedPatternBinding(aliases, held, cache, visited)) ?? true);
+  // The completed census is stable across reads. Only a root miss is conclusive
+  // in a cyclic graph; a recursive positive is reusable as soon as it is found.
+  // Exhausting the alias budget cannot prove that the read is served: retain its family.
+  if (found || !seen) cache.set(key, found);
+  return found;
 }
 
 // does a read of `key` off this value land on a static a local CLASS only INHERITS? pure names no such
@@ -1603,13 +1640,16 @@ function collectHeldReceivers({
 }) {
   const opaqueFamilies = new WeakMap();
   const receiverFamilies = new WeakMap();
-  // Guarded pattern aliases need their synthesized realm reads named without stamping the
-  // borrowed source span. Ordinary resolved aliases keep the existing named-static plan.
+  // Pattern aliases need synthesized realm reads named without stamping the borrowed
+  // source span. Whether that read is served is decided separately from its provenance.
   const syntheticReceiverFamilies = new WeakMap();
   const returnReads = new WeakMap();
   const retainedReads = new WeakMap();
+  const retainedPatternBindings = new Map();
   const ambiguousReads = new WeakMap();
+  const syntheticAmbiguousReads = new WeakMap();
   const receiverRoots = new WeakMap();
+  const selectingRealmRoots = new Map();
   // Candidate queries share the escape walk without publishing escape or position facts.
   // Iteration keys are provenance records; receiver keys are source callees. Calls to one
   // callee share its return graph, so neither that graph nor its completeness is scanned per use.
@@ -1720,6 +1760,7 @@ function collectHeldReceivers({
     }
     for (const name of answeredKeys?.get(readKey) ?? []) heldNames.add(name);
     if (typeof readKey !== 'string' || !hasNarrowEntryStaticKey(readKey)) return;
+    rawRead ||= readsRetainedPatternBinding(aliasInit, target, retainedPatternBindings);
     // the chains the read stands for (`readChains`), each walked as the slot it reads
     const chains = member ? readChains(aliasInit, target) : null;
     const slots = chains?.map(chain => chainSlotValues(aliasInit, chain, heldState, WRITTEN_SLOT_VALUES.get(programNode)));
@@ -1727,12 +1768,12 @@ function collectHeldReceivers({
     const reached = !slots ? new Set() : slots.length > 1 ? new Set(slots.flatMap(each => [...each.reached])) : slot.reached;
     const values = !slots ? chainRootValues(aliasInit, root, reached, heldState.roots)
       : slots.length > 1 ? slots.flatMap(each => each.values) : slot.values;
-    // ... a member off the REALM no container of this file holds names the global its key spells: a
-    // key folding to several of its statics reads through the binding pure mints for it
-    const realm = member && !values.length ? realmGlobalName(programNode, target) : null;
+    // A member off a proven realm names the global its key spells, even when the alias
+    // graph also holds values for it. A retained static reads through the binding pure mints.
+    const realm = member ? realmGlobalName(programNode, target) : null;
     if (realm) {
       if ((!keyNamed || rawRead) && hasNarrowEntry(realm) && hasOwnStaticDefinition(realm, readKey)) heldNames.add(realm);
-      return;
+      if (!values.length) return;
     }
     const reassigned = [...reached].some(name => guardedAliases.has(name));
     // an OPEN union (`openSource`) serves a bare name through the identity guard its candidates
@@ -1760,8 +1801,10 @@ function collectHeldReceivers({
         && standsForGuardedName(aliasInit, guardedAliases, unwrapRuntimeExpr(target).name)
         || patternRead && open && !rawSlot && values.every(value => !value.openSource || value.guardedRead));
     if (!known.length || served || guarded) return;
-    let answered = ambiguousReads.get(values);
-    if (!answered) ambiguousReads.set(values, answered = new Map());
+    const syntheticNames = rawRead || reassigned;
+    const answers = syntheticNames ? syntheticAmbiguousReads : ambiguousReads;
+    let answered = answers.get(values);
+    if (!answered) answers.set(values, answered = new Map());
     if (!answered.has(readKey)) {
       const names = new Set();
       answered.set(readKey, names);
@@ -1770,7 +1813,7 @@ function collectHeldReceivers({
         const leaf = unwrapRuntimeExpr(value);
         // An alias initialized under opt-out carries the native constructor as well.
         if (isOptedOut?.(leaf) && realmGlobalName(programNode, leaf)) continue;
-        for (const name of leaf?.type === 'Identifier' ? [leaf.name] : familiesFrom(value, null, true, value, reassigned).names) {
+        for (const name of leaf?.type === 'Identifier' ? [leaf.name] : familiesFrom(value, null, true, value, syntheticNames).names) {
           if (hasNarrowEntry(name) && hasOwnStaticDefinition(name, readKey)) names.add(name);
         }
       }
@@ -1934,9 +1977,15 @@ function collectHeldReceivers({
       });
     }
     if (opaqueOnly && !hasOpaqueIteration) continue;
-    const selectingRealm = !!getFallbackBranchSlots(peelFallbackReceiver(root))
-      && !allProxySelectingInit(root, { adapter: null, injectorState: null, allowEffectfulTest: true })
-      && typeof readKey === 'string' && hasOwnStaticDefinition(escapeStampedName(receiver, censusKey), readKey);
+    let selectingRealm = typeof readKey === 'string' && hasOwnStaticDefinition(escapeStampedName(receiver, censusKey), readKey);
+    if (selectingRealm) {
+      // Selection belongs to the binding's completed source graph, not each of its reads.
+      const key = root?.type === 'Identifier' ? aliasBindingKey(aliasInit, root.name, aliasReferenceScopes(aliasInit, root)) : root;
+      if (!selectingRealmRoots.has(key)) selectingRealmRoots.set(key,
+        aliasedValues(aliasInit, root, new Set()).some(value => getFallbackBranchSlots(peelFallbackReceiver(value))
+          && !allProxySelectingInit(value, { adapter: null, injectorState: null, allowEffectfulTest: true })));
+      selectingRealm = selectingRealmRoots.get(key);
+    }
     if (!selectingRealm) {
       const reached = new Set();
       // An opaque iteration can leave a static read on the substituted constructor. Only that
@@ -4076,6 +4125,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
           unwrapRuntimeExpr(type === 'VariableDeclarator' ? node.init : node.right), {
             guardsIdentity: true,
             keepsSelectedReceiver: type === 'AssignmentExpression' && frame?.parentType !== 'ExpressionStatement',
+            assignment: type === 'AssignmentExpression',
             frame,
           });
         break;
@@ -4085,7 +4135,9 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
         const iterated = unwrapRuntimeExpr(node.right);
         if (isDestructurePattern(head) && iterated?.type === 'ArrayExpression') {
           for (const element of iterated.elements) {
-            if (element?.type !== 'SpreadElement') recordPatternReceivers(head, unwrapRuntimeExpr(element), { belowSource: true, frame });
+            if (element?.type !== 'SpreadElement') {
+              recordPatternReceivers(head, unwrapRuntimeExpr(element), { rawRead: true, belowSource: true, frame });
+            }
           }
         }
         break;
@@ -4176,7 +4228,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   // holds their source to the entry carrying the static. `belowSource`: the source is a
   // DEFAULT or a for-of element, which stands below the host's own source (`rawReads`)
   function recordPatternReceivers(pattern, source, {
-    guardsIdentity = false, keepsCallRead = false, keepsSelectedReceiver = false, belowSource = false, frame = null,
+    guardsIdentity = false, keepsCallRead = false, keepsSelectedReceiver = false, belowSource = false,
+    rawRead = false, assignment = false, frame = null,
   } = {}) {
     if (source?.type === 'Identifier' && isDestructurePattern(pattern) && patternNamesEverySlot(pattern)) {
       memberObjects.add(source);
@@ -4234,7 +4287,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
         !thisClass && guardsIdentity && slot.value?.type !== 'AssignmentPattern' && hostGuardsSlot(slot),
         null,
         keepsCallRead,
-        rawReads.has(slot),
+        rawRead || rawReads.has(slot) || assignment && isDestructurePattern(slot.value) && patternHasAnyDefault(slot.value),
         slot,
         positionalReads.has(slot),
         defaultKey,
@@ -4531,8 +4584,10 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       // indexes, and the only container shape no declarator init records
 
       case 'ThrowStatement':
-        if (frame.throwHandler) recordPatternAlias(frame.throwHandler.param, node.argument, frame.throwHandler);
-        else escaped.add(node.argument);
+        if (frame.throwHandler) {
+          recordPatternAlias(frame.throwHandler.param, node.argument, frame.throwHandler);
+          recordPatternReceivers(frame.throwHandler.param, node.argument, { rawRead: true, belowSource: true, frame });
+        } else escaped.add(node.argument);
         break;
       // a yield hands the value to the iterator's consumer
       case 'YieldExpression': escaped.add(node.argument); break;

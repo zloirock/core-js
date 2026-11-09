@@ -66,8 +66,8 @@ for (const host of ['parameter', 'declaration']) {
       ['no caller census', 'global', false, false, true, false, true, ['prime', 'array', 'mirror']],
       ['direct mirror', 'global', false, false, false, true, true, ['mirror']],
       ['all routes decline', 'global', false, false, true, false, false, ['prime', 'array', 'mirror']],
-      ['static parameter refuses', 'static', true, false, false, false, true,
-        host === 'parameter' ? [] : ['mirror']],
+      ['nested static follows callers', 'static', true, false, false, false, true,
+        host === 'parameter' ? ['callers', 'mirror'] : ['mirror']],
     ]) {
       const meta = { key: 'globalThis', fromFallback };
       const parameterCallSites = callers ? () => [] : null;
@@ -107,13 +107,23 @@ for (const host of ['parameter', 'declaration']) {
   });
 }
 
+// Flat static parameter bindings keep their ordinary extraction route.
+runBoth('flat static parameter mirror refusal', 'function read({ from } = Array) {}', (parser, program, label) => {
+  const [prop] = parser.pickPath(program, 'ObjectPattern').get('properties');
+  check(label, applyPatternClaimMirror(prop, { key: 'from' }, {
+    resolvePure: () => ({ kind: 'static' }),
+    parameterCallSites: () => [],
+    renderMirror() { throw new Error('a flat static parameter does not ask for a mirror'); },
+  }), false);
+});
+
 // The ordinary dispatch shares caller/default/deferred priority with both bindings.
-for (const kind of ['instance', 'static', 'global']) for (const callers of [false, true]) {
+for (const kind of ['instance', 'static', 'global']) for (const nested of [false, true]) for (const callers of [false, true]) {
   for (const argumentsOnly of [false, true]) for (const settles of ['none', 'callers', 'default', 'deferred']) {
-    const prop = {};
+    const prop = { node: { value: nested ? { type: 'ObjectPattern', properties: [] } : { type: 'Identifier', name: 'value' } } };
     const meta = { parameterArgumentsOnly: argumentsOnly };
     const parameterCallSites = callers ? () => [] : null;
-    const label = `parameter mirror/${ kind }/${ callers }/${ argumentsOnly }/${ settles }`;
+    const label = `parameter mirror/${ kind }/${ nested }/${ callers }/${ argumentsOnly }/${ settles }`;
     const events = [];
     const applied = applyParameterClaimMirror(prop, meta, kind, {
       parameterCallSites,
@@ -127,7 +137,8 @@ for (const kind of ['instance', 'static', 'global']) for (const callers of [fals
         return route === settles;
       },
     });
-    const attempts = [...callers ? ['callers'] : [], ...kind === 'instance' ? ['default', 'deferred'] : []];
+    const attempts = [...callers ? ['callers'] : [], ...kind === 'instance' ? ['default', 'deferred']
+      : kind === 'static' && nested && !argumentsOnly ? ['default'] : []];
     const settledAt = attempts.indexOf(settles);
     checkDeep(`${ label } priority`, events, settledAt === -1 ? attempts : attempts.slice(0, settledAt + 1));
     check(`${ label } ends dispatch`, applied, settledAt !== -1 || argumentsOnly);
@@ -1494,6 +1505,27 @@ runBoth('body capture argument census lifetime', 'function read(value) { return 
     check(`${ label } positional census is complete`, reads.length, 2);
     check(`${ label } retains source identities`, reads.includes(first) && reads.includes(second), true);
   });
+});
+
+// A nested instance read must not capture a static hop before that hop's own mirror.
+// Unknown and excluded hops still need the ordinary receiver capture.
+for (const [name, source, enabled, capture] of [
+  ['realm static', 'function read({ Array: { of: { name } } } = globalThis) { return name; } read();', true, false],
+  ['static default', 'function read({ from: { name } = {} } = Array) { return name; } read();', true, false],
+  ['excluded static', 'function read({ from: { name } = {} } = Array) { return name; } read();', false, true],
+  ['unknown receiver', 'export function read({ from: { name } }) { return name; }', true, true],
+]) runBoth(`parameter receiver static hop/${ name }`, source, (parser, program, label) => {
+  const pattern = parser.pickPath(program, 'ObjectPattern', path => path.node.properties.some(prop => prop.key?.name === 'name'));
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const before = JSON.stringify(program.node);
+  const plan = planParameterInstanceExtraction({
+    propPath: pattern.get('properties')[0], adapter,
+    resolvePure: meta => enabled && meta.object === 'Array' && ['from', 'of'].includes(meta.key)
+      ? { kind: 'static', entry: `array/${ meta.key }` }
+      : meta.key === 'name' ? { kind: 'instance', entry: 'function/instance/name' } : null,
+  });
+  check(`${ label } capture admission`, !!plan, capture);
+  check(`${ label } leaves the source intact`, JSON.stringify(program.node), before);
 });
 
 // Claimed siblings stay native when a still-live instance read captures the whole receiver.

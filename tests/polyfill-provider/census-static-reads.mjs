@@ -12,6 +12,57 @@ function census(parser, source, sourceType = 'module') {
 }
 
 for (const parser of adapters) {
+  for (const [name, source, full = true] of [
+    ['selected realm', 'var root = typeof window !== "undefined" ? window : undefined; root.Promise.resolve;'],
+    ['literal realm alias', 'const w = globalThis.window; const [{ resolve }] = [w.Promise];'],
+    ['optional loop element', 'for (const { resolve } of [globalThis.window?.Promise]) use(resolve);'],
+    ['parameter default', 'function f({ Promise } = globalThis) { return Promise.resolve; } f();'],
+    ['renamed parameter', 'function f({ Promise: P } = globalThis) { return P.resolve; } f();'],
+    ['parameter alias', 'function f({ Promise: P } = globalThis) { const C = P; return C.resolve; } f();'],
+    ['IIFE parameter', '(({ Promise }) => Promise.resolve)(globalThis);'],
+    ['closed caller', 'function f({ Promise }) { return Promise.resolve; } f(globalThis);'],
+    ['literal parameter', 'function f({ P } = { P: Promise }) { return P.resolve; } f();'],
+    ['loop assignment', 'let P; for ({ Promise: P } of [globalThis]) P.resolve;'],
+    ['loop declaration served', 'for (const { Promise: P } of [globalThis]) P.resolve;', false],
+    ['catch binding', 'try { throw Promise; } catch ({ resolve }) { use(resolve); }'],
+    ['nested assignment default', 'let length, other; ({ resolve: { length = 9 }, other } = Promise);'],
+    ['for init residual', 'let resolve; for ({ Promise: { resolve } = {} } = (undefined || globalThis); false;) {}'],
+    ['field residual', 'let resolve; class C { value = ({ Promise: { resolve } = {} } = (undefined || globalThis)); }'],
+    ['direct alias served', 'const P = Promise; P.resolve;', false],
+    ['direct pattern served', 'const { resolve } = Promise;', false],
+    ['no static read', 'function f({ Promise } = globalThis) { return Promise.name; } f();', false],
+    ['unrelated shadow', 'function f({ Promise } = globalThis) { { const Promise = {}; use(Promise.resolve); } } f();', false],
+    ['custom parameter', 'function f({ P } = { P: {} }) { return P.resolve; } f();', false],
+  ]) check(`${ parser.name }/retained constructor/${ name }`, census(parser, source).has('Promise', true), full);
+
+  for (const reverse of [false, true]) {
+    const reads = ['const [{ groupBy }] = [a.Map];', 'const [{ resolve }] = [b.Promise];'];
+    if (reverse) reads.reverse();
+    const facts = census(parser, `var a, b; if (unknown) { a = b.self; b = a.self; } a = globalThis.window; ${ reads.join(' ') }`);
+    check(`${ parser.name }/cyclic realm/Promise/${ reverse }`, facts.has('Promise', true), true);
+    check(`${ parser.name }/cyclic realm/Map/${ reverse }`, facts.has('Map', true), true);
+  }
+  check(`${ parser.name }/cycle without realm`, census(parser,
+    'var a, b; a = b.self; b = a.self; const [{ resolve }] = [b.Promise];').has('Promise', true), false);
+
+  for (const reverse of [false, true]) {
+    const readers = [
+      'function direct() { const C = Map; return C.groupBy; } direct();',
+      'function retained({ M: C } = { M: Map }) { return C.groupBy; } retained();',
+    ];
+    if (reverse) readers.reverse();
+    check(`${ parser.name }/retained bindings keep their scope/${ reverse }`, census(parser, readers.join(' ')).has('Map', true), true);
+  }
+
+  for (const [hop, source, read] of [
+    ['', 'Promise', 'C3000.resolve;'],
+    ['.self', 'globalThis.window', 'const [{ resolve }] = [C3000.Promise];'],
+  ]) {
+    const aliases = Array.from({ length: 3000 }, (_, i) => `const C${ i + 1 } = C${ i }${ hop };`).join(' ');
+    const deep = census(parser, `const C0 = ${ source }; ${ aliases } ${ read }`);
+    check(`${ parser.name }/a deep retained-binding query completes/${ hop }`, typeof deep.has, 'function');
+  }
+
   for (const [name, members] of [
     ['late block', 'static P = Promise; static {}'],
     ['late unknown field', 'static P = Promise; static [key] = 1;'],

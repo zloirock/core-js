@@ -647,7 +647,7 @@ export default function createAstUsagePureCallback({
       // (`ga.window.self?.window.k` -> `ga.k`)
       const optionalFolds = deleteHostForClaim(metaPath, node, { forFold: true })
         || !navValueCanShortCircuit(node, m => resolvePure(m, metaPath),
-          { scope: metaPath.scope, adapter, path: metaPath });
+          { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true });
       // the node that is ITSELF a pristine hop (`g.self.window`, `.window` claimless)
       // collapses whole; a dead leaf (`.Array`) collapses its object spine under it - asked
       // through the wrappers a SEAL puts between them (`((f().self.window)).customUserSlot`),

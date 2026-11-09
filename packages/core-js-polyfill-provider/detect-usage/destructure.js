@@ -191,6 +191,7 @@ import {
 } from '../helpers/class-walk.js';
 import {
   CAPITALISED_IDENT,
+  aliasRootedReadMayThrow,
   chainSealsAShortCircuit,
   computedKeyWellKnownSymbolName,
   consumableHopSlotName,
@@ -857,6 +858,10 @@ export function applyPatternClaimMirror(propPath, meta, {
     if (isProcessedPattern?.(value.node.type === 'AssignmentPattern' ? value.get('left') : value)) return true;
   }
   const kind = resolvePure(meta, propPath)?.kind;
+  if (kind === 'static' && isDestructurePattern(patternSlotTarget(propPath.node.value))
+    && isFunctionParamDestructureParent(propPath.parentPath)) {
+    return applyParameterClaimMirror(propPath, meta, kind, { parameterCallSites, renderMirror });
+  }
   if (!patternClaimOwesMirror(kind, propPath, meta)) return false;
   if (kind === 'global' && parameterCallSites && isFunctionParamDestructureParent(propPath.parentPath)
     && renderMirror(propPath, meta, { parameterCallSites, fallbackOnBail: true })) return true;
@@ -872,6 +877,10 @@ export function applyPatternClaimMirror(propPath, meta, {
 // stays native: replacing only its default would lose absent supplied properties.
 export function applyParameterClaimMirror(propPath, meta, kind, { parameterCallSites, renderMirror }) {
   if (parameterCallSites && renderMirror(propPath, meta, { parameterCallSites, fallbackOnBail: true })) return true;
+  // A nested static slot cannot use the flat binding extraction. After the caller
+  // census declines, its exact IIFE argument or default still admits the shared mirror.
+  if (!meta?.parameterArgumentsOnly && kind === 'static' && isDestructurePattern(patternSlotTarget(propPath.node.value))
+    && renderMirror(propPath, meta, { fallbackOnBail: true })) return true;
   if (kind === 'instance') {
     if (renderMirror(propPath, meta, { fallbackOnBail: true })) return true;
     if (renderMirror(propPath, meta, { allowFlatInstanceDefault: true, deferredOnly: true })) return true;
@@ -2419,8 +2428,16 @@ export function planParameterInstanceExtraction({
       if (target.node.type === 'Identifier') {
         observed.push({ path: target, index: properties.length, moved: true });
         properties.push(prop);
-      } else if (isDestructurePattern(target.node)) patterns.push(target);
-      else return null;
+      } else if (isDestructurePattern(target.node)) {
+        // A static hop owns its mirror before a deeper instance leaf can move the
+        // whole parameter to the body and leave that hop reading a native method.
+        const sourceMeta = buildDestructureLeafMeta({
+          descriptor: classifyDestructureLeafHost({ objectPattern: prop.parentPath }),
+          key: propertyKeyName(prop.node), adapter, resolvePure, parameterCallSites,
+        });
+        if (sourceMeta && resolvePure(sourceMeta, prop)?.kind === 'static') return null;
+        patterns.push(target);
+      } else return null;
     }
     if (!patternComputedKeysSynthSafe({
       objectPatternNode: pattern.node, scope: pattern.scope, adapter, path: pattern, distinctReads: true,
@@ -8038,7 +8055,8 @@ export function buildNestedParamSynthPlan(options) {
       const fallbackCall = isCallShape(leaf) && host?.node.type === 'AssignmentPattern'
         && inCallerCorrectFallbackSlot(receiverPath, leaf);
       const defaultCall = defaultLeaves.has(leaf) && !!invocationNode(leaf);
-      const canKeepPrefix = ((!!headElements || host?.node.type === 'VariableDeclarator' || host?.node.type === 'AssignmentExpression'
+      const canKeepPrefix = ((!!headElements || isCallShape(host?.node)
+        || host?.node.type === 'VariableDeclarator' || host?.node.type === 'AssignmentExpression'
         || fallbackCall || callArgument) && !defaultLeaves.has(leaf) || defaultCall || selectedReceiver) && !valueSelectingLeaves.has(leaf);
       const leafContext = rootContext(leaf);
       const selectedReceiverNode = leafContext?.decidedReceiver ? decidedRunningOperand(leaf, receiverCtx) : leaf;
@@ -8060,9 +8078,10 @@ export function buildNestedParamSynthPlan(options) {
       const coerceReceiver = canKeepPrefix && !fallbackCall && !preserveNullishReceiver && !preserveFalsyReceiver
         && destructureReceiverOwesAThrow(leaf,
           { scope: receiverPath.scope, adapter, path: receiverPath });
-      // a getter read counts as the leaf's work (the scoped predicate): the literal replacing the leaf keeps it
-      // as a prefix where it can, and the leaf stays where it cannot, like any other effect
-      const keepPrefix = coerceReceiver || mayHaveSideEffects(leaf, receiverCtx) && canKeepPrefix;
+      // A getter or throwing alias read stays at the receiver's turn. The read itself
+      // supplies the exception; only a possibly nullish value needs pattern coercion.
+      const keepPrefix = coerceReceiver || canKeepPrefix && (mayHaveSideEffects(leaf, receiverCtx)
+        || aliasRootedReadMayThrow(leaf, resolvePure, receiverCtx));
       if (mayHaveSideEffects(leaf, receiverCtx) && !keepPrefix) continue;
       // a leaf that can be NULLISH must not become an always-defined literal, and the reason holds
       // wherever it stands: under `||` / `??` the swap would flip which branch runs (`globalThis

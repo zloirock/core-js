@@ -3,7 +3,11 @@
 import { proxyRootCollapseRoutes } from '../../packages/core-js-polyfill-provider/detect-usage/proxy-navigation.js';
 import { planDeletedProxyClaim, planInnerProxyCollapse } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import {
-  collectChainAssignsThroughMemberChain, isVestigialOptionalHop, unbackedTailRidesAbove,
+  collectChainAssignsThroughMemberChain,
+  isVestigialOptionalHop,
+  unbackedTailRidesAbove,
+  deleteGuardKeepingHop,
+  keptProbeStore,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -31,6 +35,7 @@ for (const [expression, writes, deleted, kinds] of [
   ['globalThis.self.custom', true, true, ['receiver']],
   ['globalThis.window?.self.custom', false, false, []],
   ['(held = globalThis.window).self.custom', true, false, ['refresh', 'receiver']],
+  ['(held = globalThis.window)?.self.custom', true, true, []],
   ['(held = globalThis).self.custom', true, false, []],
   ['(held = globalThis).self.custom', false, false, ['receiver']],
   ['((held = globalThis.window)?.self).self[custom]', false, false, []],
@@ -158,6 +163,26 @@ for (const prefix of ['', 'effect(), ']) runBoth(`store boundary/${ prefix }`,
     checkDeep(`${ label }/harvestable sequence`, collectChainAssignsThroughMemberChain(path.node), [write]);
     checkDeep(`${ label }/effect boundary`, collectChainAssignsThroughMemberChain(path.node, { throughEffects: false }),
       prefix ? [] : [write]);
+  });
+
+for (const value of ['held', '(first = held)', '(first = second = held)']) {
+  runBoth(`stored optional delete/${ value }`,
+    `const held = globalThis.window; let first, second; delete ${ value }?.self.Array.custom;`, (parser, program, label) => {
+      const path = member(parser, program, 'self');
+      checkDeep(`${ label }/guard survives the root drive`, [...proxyRootCollapseRoutes({
+        path, aliasCtx: context(parser, path), resolvePure, writeTarget: true, deleteHosted: true,
+      })], []);
+    });
+}
+
+runBoth('inline probe store carries the delete guard',
+  'let held; delete (held = globalThis.window)?.self.custom;', (parser, program, label) => {
+    const path = member(parser, program, 'self');
+    const aliasCtx = context(parser, path);
+    check(`${ label }/has an existing carrier`, keptProbeStore(path.node.object, resolvePure, aliasCtx)?.left.name, 'held');
+    check(`${ label }/does not erase the delete guard`, !!deleteGuardKeepingHop(path.node, resolvePure, aliasCtx), true);
+    const routes = [...proxyRootCollapseRoutes({ path, aliasCtx, resolvePure, writeTarget: true, deleteHosted: true })];
+    checkDeep(`${ label }/raw source still defers to its claim`, routes, []);
   });
 
 finish();

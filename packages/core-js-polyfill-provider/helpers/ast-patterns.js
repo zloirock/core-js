@@ -6958,7 +6958,9 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       if (source) {
         const slots = patternReceiverSlotNodes(slot, source, name, ctx);
         out.push(...slots);
-        if (paired && pairedProperty?.kind !== 'get') for (const read of slots) ctx?.rawReads?.add(read);
+        if (paired && pairedProperty?.kind !== 'get' || ctx?.keepsSelectedReceiver && prop.value.type === 'AssignmentPattern') {
+          for (const read of slots) ctx?.rawReads?.add(read);
+        }
       }
       if (prop.value.type === 'AssignmentPattern') {
         out.push(...patternReceiverSlotNodes(slot, prop.value.right, name, ctx));

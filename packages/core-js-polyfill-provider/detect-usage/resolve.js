@@ -1021,7 +1021,7 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   if (!store && object?.type !== 'Identifier') return null;
   const key = memberKeyName(member);
   if (key === null) return null;
-  if (store ? !proxyReceiverValueCanBeUndefined(store.right, resolvePure, aliasCtx)
+  if (store ? !proxyReceiverValueCanBeUndefined(peelChainRootValue(store.right), resolvePure, aliasCtx)
     : !aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return null;
   // a read the source already guards against the nullish branch (an enclosing null-test or a
   // truthy `if` on the binding) cannot see the void - no probe is owed there, and the plain
@@ -1038,9 +1038,9 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
 // down instead, the pure bias: declining only degrades, erasing loses the throw. an optional testing a nullable receiver
 // hands the question to the guard routes; a backed hop still owes the earlier alias read
 export function aliasRootedReadMayThrow(node, resolvePure, aliasCtx) {
-  let cur = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
+  let cur = unwrapRuntimeExpr(peelChainRootValue(node));
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    const receiver = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
+    const receiver = unwrapRuntimeExpr(peelChainRootValue(cur.object));
     if (cur.optional && aliasOptionalKeepsGuard(cur, receiver, resolvePure, aliasCtx)) return false;
     cur = receiver;
   }
@@ -1114,14 +1114,15 @@ function aliasHeldValueStep(node, aliasCtx) {
   }
   if (!held || aliasCtx.enteredValues?.has(held)) return null;
   let value = unwrapTransparentSeq(held);
-  // A lowered temporary can hold a write to the primary realm's environment
-  // probe. Follow that value without moving either effect. A store reached
-  // through another realm hop keeps the ordinary navigation's collapse.
+  // A store can forward another alias or the primary realm's environment probe.
+  // Follow its value without moving the write. A stored multi-hop navigation
+  // keeps the ordinary collapse rather than gaining a new environment probe.
   const tail = peelReceiverSequenceTail(held);
   if (isChainAssignment(tail)) {
     const stored = peelChainRootValue(tail);
     const base = isMemberAccessNode(stored) && peelReceiverSequenceTail(stored.object);
-    if (base?.type === 'Identifier' && proxyGlobalRootName({ node: base, ...aliasCtx }) === 'globalThis') value = stored;
+    if (stored?.type === 'Identifier'
+      || base?.type === 'Identifier' && proxyGlobalRootName({ node: base, ...aliasCtx }) === 'globalThis') value = stored;
   }
   return {
     value,
@@ -4356,10 +4357,13 @@ export function storedNavHopClaimSuppressed(path, { scope, adapter, resolvePure 
   if (!memberProxyHopName(path.node)) return false;
   const stored = storedUserAssignmentOf(path, { throughReads: false });
   if (!stored) return false;
+  const ctx = { scope, adapter, path };
+  // A throwing alias read belongs to its ordinary claim probe. The stored-nav
+  // plan declines it, so suppressing that claim would leave nobody to serve it.
+  if (aliasRootedReadMayThrow(path.node, resolvePure, ctx)) return false;
   // the write IS the proof the canon asks for: a stored read observes the whole proxy spine
   // below the probe hop, so a deeper unresolvable hop guards here where a plain nav collapses
-  return proxyReceiverValueCanBeUndefined(path.node.object, resolvePure, { scope, adapter, path },
-    { observableRead: true }) ? stored : false;
+  return proxyReceiverValueCanBeUndefined(path.node.object, resolvePure, ctx, { observableRead: true }) ? stored : false;
 }
 
 // a computed STRING-LITERAL key (`globalThis['self']`) navigates like the dotted spelling
@@ -4619,6 +4623,9 @@ export function planProvenNavGuardCollapse({
   const seqAroundPrefix = dug?.seqAroundPrefix ?? null;
   if (topAssign) core = unwrapTransparentSeq(storedValueCore(dug.value, storedValueSequenceTail).node);
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return null;
+  // A kept write observes a nullable alias's read. Leave it to the claim's throw
+  // probe; the navigation-only render has no slot for that read before the value.
+  if (topAssign && aliasRootedReadMayThrow(core, resolvePure, { scope, adapter, path })) return null;
   const hops = [];
   // one hop of the descent: record it and hand back the object below, or null when the key is not
   // a pristine proxy-global. both descents below take their steps through here
