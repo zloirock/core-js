@@ -18,6 +18,12 @@ for that in bytes.
 What the application can reach for - its **scope** - is decided by the build, not by this service:
 `@core-js/unplugin` and its relatives already work it out, and the list is passed in as it is.
 
+The Express middleware below is the current integration, including for applications that run in
+many instances. For a proposed separate HTTP container, a set-aside one-off container builder, and
+the trade-offs between bundle URLs, a fixed script URL, and a redirect, see
+[Integration concepts](integration-concepts.md). Those alternatives are not available as package
+options today.
+
 ```js
 import express from 'express';
 import compression from 'compression';
