@@ -9,6 +9,12 @@ import isIterable from 'core-js-pure/es/is-iterable';
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
+// Karma buffers 50 results over HTTP polling. Report completed tests so slow batches do not time out.
+const { __karma__: karma } = GLOBAL;
+if (karma) {
+  QUnit.testDone(() => karma.info({}));
+}
+
 // for Babel template transform
 // eslint-disable-next-line es/no-object-create -- safe
 if (!Object.create) Object.create = create;
