@@ -53,8 +53,8 @@ function normalizePath(path) {
 }
 // Vite's HMR timestamp (`?t=<ms>` / `&t=<ms>`) is the one query parameter that is NOISE: it changes
 // on every re-fire of the same logical module, and a re-fire whose post never ran must be
-// overwritten by the next pre rather than accumulate. `parseModuleId` already decodes and
-// lowercases, so the marker is a TOKEN here rather than a string scan - which is why this file needs
+// overwritten by the next pre rather than accumulate. `parseModuleId` decodes without folding
+// case for identity, so the marker is a TOKEN rather than a string scan - this file needs
 // no id parser of its own. only a NUMERIC value is the marker; `?t=abc` is somebody's own param.
 // EVERYTHING ELSE IS IDENTITY, a parameter nothing here recognises included: a MISSED snapshot
 // degrades to the supported standalone-`post` path, while a WRONG one silently rewrites another
@@ -74,7 +74,7 @@ const ENVIRONMENT_SEPARATOR = '\0';
 // one plugin instance serves several of them (Vite's client and ssr passes over one file), each with a
 // pipeline of its own
 function normalizeKey(id, environment = '') {
-  const { path, params, hash } = parseModuleId(id);
+  const { path, params, hash } = parseModuleId(id, true);
   const ownTimestamps = params.getAll('t').filter(value => !HMR_TIMESTAMP_VALUE_RE.test(value));
   params.delete('t');
   for (const value of ownTimestamps) params.append('t', value);
@@ -148,8 +148,7 @@ export default class SnapshotCache {
     let removed = false;
     for (const key of this.#snapshots.keys()) {
       const module = key.slice(key.indexOf(ENVIRONMENT_SEPARATOR) + 1);
-      // `?` and `#` are the only sub-key boundaries - `normalizePath` leaves neither in a path
-      if (module === base || module.startsWith(`${ base }?`) || module.startsWith(`${ base }#`)) {
+      if (parseModuleId(module, true).path === base) {
         this.#snapshots.delete(key);
         removed = true;
       }

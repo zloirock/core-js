@@ -4166,4 +4166,12 @@ runBoth('wrapScopeBindingLookup/emptied tracker path',
     check(`${ label }/repeated lookup preserves identity`, lookup(options), live);
   });
 
+for (const [id, expected] of [
+  ['/app/C#/main.js?t=1#frag', '/app/C#/main.js'],
+  ['C:\\app\\C#\\main.ts#frag', 'C:\\app\\C#\\main.ts'],
+  ['/app/#2024/C#/main.js', '/app/#2024/C#/main.js'],
+  ['/app/main.js?file=/elsewhere/file#fragment', '/app/main.js'],
+  ['/app/main.js#fragment?file=/elsewhere/file', '/app/main.js'],
+]) check(`filesystem hash/${ id }`, stripQueryHash(id), expected);
+
 finish();

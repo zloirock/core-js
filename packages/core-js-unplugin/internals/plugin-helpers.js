@@ -20,17 +20,18 @@ import { coreJSImportSubpath, moduleIdLanguage } from '@core-js/polyfill-provide
 // `await (import(x))` becoming a CALL of something named `await`. `script` is reached instead by
 // the retry the parse makes when the module goal is PROVEN wrong by a fatal error. a CommonJS
 // id whose Script goal rejects ESM can retry Module too; a successful initial parse always stays
-export function sourceDialectOf(cleanId) {
-  const language = moduleIdLanguage(cleanId);
-  const jsx = language?.jsx ?? false;
+export function sourceDialectOf(cleanId, loader) {
+  const filename = moduleIdLanguage(cleanId);
+  const language = loader ? moduleIdLanguage(`input.${ loader }`) : filename;
+  const jsx = language?.jsx ?? true;
   return {
     jsx,
     // `.mjs` / `.mts` are Modules by extension whatever the body says, which is what makes the
     // parse's own goal non-evidence there: a module parse that fails on one of them means a broken
     // file, not a script
-    esm: language?.esm ?? false,
+    esm: filename?.esm ?? false,
     lang: language?.ts ? (jsx ? 'tsx' : 'ts') : 'jsx',
-    parseGoal: language?.script ? 'script' : 'module',
+    parseGoal: filename?.script ? 'script' : 'module',
   };
 }
 

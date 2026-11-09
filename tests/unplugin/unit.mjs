@@ -9,6 +9,7 @@ import './destructure-products.mjs';
 import './receiver-effects.mjs';
 import './fixture-output-normalization.mjs';
 import './syntax-preparation.mjs';
+import './host-loading.mjs';
 import { builders, traverse } from 'estree-toolkit';
 import { Traverser } from 'estree-toolkit/dist-es/traverse';
 import { Scope } from 'estree-toolkit/dist-es/scope';
@@ -1185,19 +1186,14 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/App.vue?type=template&vue#L2', { tag: 'tail-marker-template' });
   check('SnapshotCache/tail marker + hash script distinct', cache.take('/src/App.vue?type=script&vue#L1')?.tag, 'tail-marker-script');
   check('SnapshotCache/tail marker + hash template distinct', cache.take('/src/App.vue?type=template&vue#L2')?.tag, 'tail-marker-template');
-  // detection and key construction share ONE parse, so a sub-block whose query differs only in CASE or
-  // PERCENT-ENCODING between the pre and post passes still round-trips - the key inherits the lowercase +
-  // decode the detection predicate applies, instead of keeping raw bytes (`type=SCRIPT` <-> `type=script`,
-  // `%76%75%65` <-> `vue`). drive-letter case was already folded; the query is the dimension this closes
+  // Admission ignores language case; snapshot identity must preserve every query token.
   cache.store('/src/Case.vue?vue&type=SCRIPT&lang=TS', { tag: 'sfc-xcase' });
-  check('SnapshotCache/sfc query case canonical across passes',
-    cache.take('/src/Case.vue?vue&type=script&lang=ts')?.tag, 'sfc-xcase');
+  check('SnapshotCache/sfc query case is identity', cache.take('/src/Case.vue?vue&type=script&lang=ts'), null);
+  check('SnapshotCache/sfc original query survives',
+    cache.take('/src/Case.vue?vue&type=SCRIPT&lang=TS')?.tag, 'sfc-xcase');
   cache.store('/src/Enc.vue?%76%75%65&type=script', { tag: 'sfc-xenc' });
   check('SnapshotCache/sfc query percent-encoding canonical across passes',
     cache.take('/src/Enc.vue?vue&type=script')?.tag, 'sfc-xenc');
-  // percent-encoded UPPERCASE marker (`%56ue` -> `Vue`): the case-fold runs AFTER percent-decode, so the
-  // decoded `V` folds to `v` and the marker still registers - a pre-decode fold would leave `Vue`, miss
-  // the marker, and key on the bare path, breaking the round-trip with the plain `?vue` post-pass id
   // Windows UNC prefixes embed `?` at index 2 - the HMR-timestamp strip must scan for the
   // query past the prefix (shared offset with stripQueryHash). with a raw indexOf the strip
   // consumed the REAL `?` together with a first-token `?t=N`, gluing the remaining query onto
@@ -1219,7 +1215,7 @@ function checkSnapshotKeyNormalization() {
     cache.take('//?/C:/src/Frag.vue?t=7&vue&type=script#L5')?.tag, 'unc-frag');
   cache.store('/src/Up.vue?%56ue&type=script', { tag: 'sfc-upenc' });
   check('SnapshotCache/sfc percent-encoded uppercase marker canonical',
-    cache.take('/src/Up.vue?vue&type=script')?.tag, 'sfc-upenc');
+    cache.take('/src/Up.vue?Vue&type=script')?.tag, 'sfc-upenc');
   // an in-HASH `?t=N` (after `#`) is opaque fragment text, NOT an HMR marker: stripping it (the old
   // `indexOf('?')` matched the in-fragment `?`) collapsed two sub-blocks differing only in the fragment
   cache.store('/src/Frag.vue?vue&type=script#L1?t=1', { tag: 'frag-a' });
@@ -3238,8 +3234,8 @@ checkEntryGlobalPhaseGate();
 // `unplugin.raw` -> sub-plugin.transform asserts the phase doesn't break injection
 function checkEntryGlobalTransformWithPhasePre() {
   const subs = unplugin.raw({ method: 'entry-global', phase: 'pre', targets: { ie: '11' } }, { framework: 'vite' });
-  // entry-global with phase:'pre' should produce a single sub-plugin (collapses to single stage)
-  check('entry-global phase: pre yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  // Ordinary entry imports run at pre; compiled components get a separate post slot.
+  check('entry-global phase: pre adds a component stage', Array.isArray(subs) && subs.length === 2, true);
   // bind a stub bundler context (`this` carries `warn` / `error` for diagnostic routing)
   // and call the transform hook; entry-global expands `import 'core-js/es/array/at';` to
   // granular module imports filtered by IE 11 targets - the rewrite must produce a non-null
@@ -3272,7 +3268,7 @@ checkUsagePurePhasePostWrapperEmitsImports();
 // emits zero imports silently. mirrors the phase:'post' lock above on the pre side
 function checkUsagePurePhasePreWrapperEmitsImports() {
   const subs = unplugin.raw({ method: 'usage-pure', phase: 'pre', targets: { ie: '11' } }, { framework: 'vite' });
-  check('usage-pure phase: pre yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  check('usage-pure phase: pre adds a component stage', Array.isArray(subs) && subs.length === 2, true);
   const result = subs[0]?.transform?.call({ warn: msg => msg }, 'export var x = "test".at(-1);', '/pre-probe.mjs');
   const importLines = (result?.code ?? '').split('\n').filter(l => l.startsWith('import '));
   check('usage-pure phase: pre wrapper emits pure imports (pass=single, not deferred)', importLines.length > 0, true);
@@ -4183,7 +4179,7 @@ checkRefusedModuleGoalTopLevelBindingsLeaveTheFile();
 
 // The admission table is asked with an `enforce`, and the WIRING that hands each stage its own is
 // what makes the phase-dependent half real: with `phase: 'pre+post'` the two stages must disagree
-// about a compiled SFC id, and the single-phase default must never admit one at all
+// about a compiled SFC id; the default runs such ids only in its narrow post slot.
 function checkEnforceReachesAdmission() {
   const IDS = ['/src/App.vue', '/src/App.vue?vue&type=template&lang.js', '/src/App.vue?vue&type=script&lang.ts'];
   function stagesFor(phase) {
@@ -4197,7 +4193,8 @@ function checkEnforceReachesAdmission() {
   function flat(phase) {
     return stagesFor(phase).map(([enforce, admits]) => `${ enforce }: ${ admits }`).join(' | ');
   }
-  check('enforce/the default phase is pre and admits no compiled id', flat(), `pre: ${ scriptOnly }`);
+  check('enforce/the default only runs compiled ids at post', flat(),
+    `pre: ${ scriptOnly } | post: /src/App.vue /src/App.vue?vue&type=template&lang.js`);
   check('enforce/an explicit post stage admits them', flat('post'), `post: ${ compiledOnly }`);
   check('enforce/pre+post gives each stage its own answer',
     flat('pre+post'), `pre: ${ scriptOnly } | post: ${ compiledOnly }`);
@@ -5072,6 +5069,7 @@ function checkRestParameterDecorators() {
         let code = source;
         let reprinted = false;
         for (const plugin of plugins) {
+          if (!plugin.transformInclude(id)) continue;
           const result = plugin.transform.call({ warn(message) { throw new Error(message); } }, code, id);
           if (result) {
             code = result.code;
@@ -5102,6 +5100,7 @@ function checkParameterDecoratorDestructures() {
   for (const phase of ['pre', 'post', 'pre+post']) {
     let code = source;
     for (const plugin of unplugin.raw({ method: 'usage-pure', phase, version: '4.0', targets: { ie: 11 } }, { framework: 'vite' })) {
+      if (!plugin.transformInclude('/decorated.ts')) continue;
       const result = plugin.transform.call({ warn(message) { throw new Error(message); } }, code, '/decorated.ts');
       if (result) code = result.code;
     }
@@ -5550,12 +5549,14 @@ function checkPrePostBundlerDowngrade() {
 }
 checkPrePostBundlerDowngrade();
 
-// single-stage enforce values: the default phase runs at 'pre'; an explicit standalone `phase: 'post'`
+// phase enforce values: the default source stage runs at 'pre'; an explicit standalone `phase: 'post'`
 // runs at 'post'; `phase: 'pre'` stays 'pre'. only the pre+post downgrade case (above) had coverage
 function checkSingleStageEnforce() {
   for (const fw of ['vite', 'webpack']) {
     const def = unplugin.raw({ method: 'usage-global', version: '4.0' }, { framework: fw });
-    check(`default phase is a single stage on ${ fw }`, def.length, 1);
+    check(`default phase adds a component stage on ${ fw }`, def.length, 2);
+    check(`default post refuses ordinary JS on ${ fw }`, def[1].transformInclude('/source.js'), false);
+    check(`default post admits compiled components on ${ fw }`, def[1].transformInclude('/view.mdx'), true);
     check(`default phase enforce is 'pre' on ${ fw }`, def[0].enforce, 'pre');
     const post = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'post' }, { framework: fw });
     check(`phase post is a single stage on ${ fw }`, post.length, 1);

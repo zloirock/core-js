@@ -14672,9 +14672,9 @@ export function isConsumedEntryImport(node, getCoreJSEntry) {
 // half: reading it there let a caller who asked for `require` output silently turn an ES module
 // into a sloppy script, and every polyfill under an Annex-B shadow went with it.
 // precedence for the language fact, top wins: live module evidence in the body (proof - a script
-// parse rejects it); a host that declared it parsed a SCRIPT (a declared `module` is babel's
-// default, not a statement, so only the script half speaks); the id's extension; CommonJS
-// evidence; else a module.
+// parse rejects it); an explicit bundler module type; a host that declared it parsed a SCRIPT
+// (a declared `module` is babel's default, not a statement, so only the script half speaks);
+// the id's extension; CommonJS evidence; else a module.
 // a script's SCOPE is the function body of the wrapper every consumer resolving the injection puts around it (a
 // bundler, Node's own loader); what a top-level `var` or function of a script spelling no CommonJS HOLDS may
 // still land in the realm's own slot, as an engine running it bare puts it there (`programTopLevelIsRealm`)
@@ -14685,6 +14685,7 @@ export function resolveModuleFormat({
   importStyleOption = null,
   consumesESM = null,
   moduleFormat = null,
+  moduleType = null,
 }) {
   const markers = moduleFormatMarkers(program, moduleFormat);
   // a caller with no program at all gets the same degradation the census gives it - a module with
@@ -14699,13 +14700,13 @@ export function resolveModuleFormat({
     };
   }
   const extensionGoal = moduleExtensionGoal(id);
-  const sourceType = markers.hasLiveESM ? 'module'
-    : declaredSourceType === 'script' ? 'script'
+  const sourceType = markers.hasLiveESM || moduleType === 'javascript/esm' ? 'module'
+    : moduleType === 'javascript/auto' || moduleType === 'javascript/dynamic' || declaredSourceType === 'script' ? 'script'
       : extensionGoal ?? (markers.hasCJS ? 'script' : 'module');
   // ... and a script no CommonJS wrapper is known to host - its body spells no CommonJS, its id no CommonJS
   // extension - may run its top level in the realm itself, where a top-level `var` or function IS the global
-  // object's slot
-  const realmTopLevel = sourceType === 'script' && !markers.hasCJS && extensionGoal !== 'script';
+  // object's slot. Webpack-family modules always have a module wrapper.
+  const realmTopLevel = sourceType === 'script' && !moduleType && !markers.hasCJS && extensionGoal !== 'script';
   PROGRAM_FORMAT.set(program, { sourceType, realmTopLevel });
   // does the file's own live ESM OUTLIVE this pass? Only a caller knows: `entry-global` removes the
   // entry imports it recognises and nothing else does, so it hands in the test and everyone else
@@ -14721,7 +14722,8 @@ export function resolveModuleFormat({
   // Where the AUTHOR spelled both, no spelling saves the file - a bundler takes either and Node
   // takes neither - so the tie goes to the ESM markers, which is what the source says it is, and
   // `sourceIsMixed` reports the mixture rather than letting the choice pass for a fix
-  const derived = sourceType === 'script' || (markers.hasCJS && !keptESM) ? 'require' : 'import';
+  // An explicit javascript/esm host also keeps imports: it does not interpret require as a dependency.
+  const derived = moduleType !== 'javascript/esm' && (sourceType === 'script' || (markers.hasCJS && !keptESM)) ? 'require' : 'import';
   const requested = importStyleOption ?? derived;
   // `require` is not a spelling this program HAS when it binds the name itself: our call lands at
   // the top of the body, where a hoisted `function require` already carries its body and a lexical

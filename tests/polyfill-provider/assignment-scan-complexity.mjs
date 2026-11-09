@@ -93,7 +93,10 @@ for (const [shape, lines] of Object.entries(SHAPES)) for (const method of ['usag
 for (const host of ['babel', 'unplugin']) for (const size of [32, 128]) {
   const code = scenarioSource(`function f(receiverMarker, i) { ${ 'receiverMarker[i >> 2];'.repeat(size) } return Map; }`);
   const options = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
-  const stages = host === 'unplugin' ? unplugin.raw({ ...options, phase: 'pre' }, { framework: 'vite' }) : null;
+  const stages = host === 'unplugin'
+    ? unplugin.raw({ ...options, phase: 'pre' }, { framework: 'vite' }) : null;
+  const admitted = stages?.filter(stage => stage.transformInclude('/input.js'));
+  if (admitted) checkTruthy(`ordinary JS runs once/${ size }`, admitted.length === 1);
   const original = Map.prototype.get;
   let lookups = 0;
   let output;
@@ -111,7 +114,7 @@ for (const host of ['babel', 'unplugin']) for (const size of [32, 128]) {
       output = transformSync(code, { plugins: [[plugin, options]], configFile: false, babelrc: false, filename: '/input.js' }).code;
     } else {
       output = code;
-      for (const stage of stages) output = stage.transform?.(output, '/input.js')?.code ?? output;
+      for (const stage of admitted) output = stage.transform?.(output, '/input.js')?.code ?? output;
     }
   } finally {
     // eslint-disable-next-line no-extend-native -- Restore the exact original lookup.

@@ -538,13 +538,13 @@ export default function createPlugin(options) {
   // `isChunkLoaderBundler` for the bundler set + rationale)
   const isWebpack = isChunkLoaderBundler(bundler);
 
-  function runTransform(code, id, pass = 'single', environment = '') {
+  function runTransform(code, id, pass = 'single', environment = '', hostOptions = {}) {
     try {
       // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
       // to runTransformInner so internal warnings reach the bundler's diagnostic channel.
       // injector save/restore happens INSIDE runTransformInner so early-returns before
       // its installation point don't disturb a re-entrant outer transform's slot
-      return runTransformInner.call(this, code, id, pass, environment);
+      return runTransformInner.call(this, code, id, pass, environment, hostOptions);
     } catch (error) {
       tagError(error, id);
       throw error;
@@ -557,7 +557,7 @@ export default function createPlugin(options) {
   // state. mode bodies kept as inner functions for closure sharing - extracting them to
   // top-level would force passing 12+ closures explicitly with no readability gain
   // eslint-disable-next-line max-statements -- pipeline orchestrator + mode dispatcher
-  function runTransformInner(code, id, pass, environment) {
+  function runTransformInner(code, id, pass, environment, hostOptions) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id, packages)) return null;
@@ -592,10 +592,10 @@ export default function createPlugin(options) {
     // INSIDE the query (`?vue&type=script&lang=ts`); `liftSfcLangSuffix` recovers it onto
     // the post-strip id so the right parser fires
     const cleanId = liftSfcLangSuffix(id);
-    // what the ID alone says about the PARSE - the goal and the syntax dialect, nothing more. what
-    // the file IS, and how the injection is spelled, are the format owner's below, and they read
-    // the body this parse produces
-    const sourceDialect = sourceDialectOf(cleanId);
+    // The id supplies the parse goal; a host loader can override its syntax dialect. What the
+    // file IS, and how the injection is spelled, are the format owner's below, and they read
+    // the body this parse produces.
+    const sourceDialect = sourceDialectOf(cleanId, hostOptions.loader);
     // strip leading BOM(s) before parsing - oxc rejects BOM-prefixed shebangs, and
     // offsetting positions by 1 would corrupt every transform. the output does NOT carry a
     // BOM (babel alignment - bundlers strip it anyway); `hasBOM` survives only so
@@ -668,6 +668,7 @@ export default function createPlugin(options) {
       id: cleanId,
       program: ast,
       declaredSourceType: ast.sourceType,
+      moduleType: hostOptions.moduleType,
       importStyleOption,
       // only this method removes an ESM statement, and only the entry shape it recognises; a
       // statement the author opted out of is not removed either, so it still holds the spelling

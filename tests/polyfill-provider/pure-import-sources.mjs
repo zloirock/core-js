@@ -98,6 +98,10 @@ for (const source of [
   'my-pure/actual/map/constructor/index.js?version=2',
   '/app/node_modules/@vendor/pure/actual/map/constructor.js#hash',
   'C:\\app\\node_modules\\my-pure\\actual\\map\\constructor.js',
+  '/home/runner/work/core-js/core-js/packages/core-js-pure/actual/map/constructor.js',
+  '/app/core-js/node_modules/@core-js/pure/actual/map/constructor.js',
+  '/app/my-pure/node_modules/@core-js/pure/actual/map/constructor.js',
+  'C:\\core-js\\node_modules\\@vendor\\pure\\actual\\map\\constructor.js',
   resolveImportPath('@core-js/pure', 'actual/map/constructor', true),
 ]) {
   check(`entry/${ source }`, pureImportSourceEntry(coreJSImportSubpath(source, packages)), 'map/constructor');
@@ -170,6 +174,14 @@ for (const source of ['./vendor/my-pure/actual/map/constructor', 'foreign/my-pur
     });
     check(label, found.length, 0);
   });
+}
+
+for (const pkg of ['core-js', 'core-js-pure', '@core-js/pure', 'my-pure', '@vendor/pure', 'core-js-bundle', '@core-js/bundle']) {
+  for (const id of [
+    `/app/.bun/install/cache/${ pkg }@4.0.0-alpha.1@@@1/internals/check.js`,
+    `/app/deno/npm/registry.npmjs.org/${ pkg }/4.0.0/internals/check.js`,
+  ]) check(`versioned cache/${ id }`, isCoreJSFile(id, packages), true);
+  check(`cache package boundary/${ pkg }`, isCoreJSFile(`/app/${ pkg }@local/internals/check.js`, packages), false);
 }
 
 finish();
