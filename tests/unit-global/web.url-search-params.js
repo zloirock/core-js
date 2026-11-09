@@ -1025,6 +1025,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
 });
 
 // Safari 14.1 / 17.6 / 26.6.2 and Bun 0.1.1 / 1.0.31 / 1.4.4 keep exhausted iterators done.
+// Bun: https://github.com/oven-sh/bun/issues/48347
 // Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
 // Deno 1.2-1.11.1; fixed in 1.11.2: https://github.com/denoland/deno/pull/11005
 QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
@@ -1048,6 +1049,7 @@ QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
 });
 
 // Safari 14.1 / 17.6 / 26.6.2 and Bun 0.1.1 / 1.0.31 / 1.4.4 keep exhausted iterators done.
+// Bun: https://github.com/oven-sh/bun/issues/48347
 // Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
 // Deno 1.2-1.11.1; fixed in 1.11.2: https://github.com/denoland/deno/pull/11005
 if (DESCRIPTORS) QUnit.skip('URLSearchParams iterators after exhaustion and query replacement', assert => {

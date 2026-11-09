@@ -959,6 +959,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
 });
 
 // Safari 17.6 / 26.6.2 and Bun 1.0.31 / 1.4.4 keep exhausted iterators done.
+// Bun: https://github.com/oven-sh/bun/issues/48347
 // Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
 QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
@@ -981,6 +982,7 @@ QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
 });
 
 // Safari 17.6 / 26.6.2 and Bun 1.0.31 / 1.4.4 keep exhausted iterators done.
+// Bun: https://github.com/oven-sh/bun/issues/48347
 // Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
 if (DESCRIPTORS) QUnit.skip('URLSearchParams iterators after exhaustion and query replacement', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
