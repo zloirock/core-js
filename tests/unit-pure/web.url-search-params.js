@@ -1102,3 +1102,45 @@ QUnit.test('URLSearchParams#size', assert => {
     assert.throws(() => get.call([]));
   }
 });
+
+QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
+  const url = new URL('https://example.com/?a=1&a=2&b=3');
+  const params = url.searchParams;
+  assert.same(params.size, 3, 'initial URL-bound size');
+
+  params.append('c', 4);
+  assert.same(params.size, 4, 'size after append');
+  params.append('a', 5);
+  assert.same(params.size, 5, 'size after appending a duplicate name');
+  params.sort();
+  assert.same(params.size, 5, 'sort preserves size');
+  params.delete('a', '2');
+  assert.same(params.size, 4, 'size after deleting by value');
+  params.set('a', 'new');
+  assert.same(params.size, 3, 'size after replacing duplicates');
+  params.set('d', 6);
+  assert.same(params.size, 4, 'size after setting an absent name');
+  params.delete('a');
+  assert.same(params.size, 3, 'size after deleting by name');
+  params.delete('missing');
+  assert.same(params.size, 3, 'deleting an absent name preserves size');
+  params.delete('b');
+  params.delete('c');
+  params.delete('d');
+  assert.same(params.size, 0, 'size after deleting all entries');
+  params.append('a', 1);
+  assert.same(params.size, 1, 'size after appending to an emptied list');
+
+  assert.same(new URL('https://example.com/').searchParams.size, 0, 'empty URL-bound size');
+
+  if (DESCRIPTORS) {
+    url.search = '?x=1&y=2&z=3';
+    assert.same(params.size, 3, 'size after replacing search');
+    params.append('w', 4);
+    assert.same(params.size, 4, 'size after append following search replacement');
+    url.href = 'https://example.org/?x=1&x=2&x=3';
+    assert.same(params.size, 3, 'size after replacing href');
+    url.search = '';
+    assert.same(params.size, 0, 'size after clearing search');
+  }
+});

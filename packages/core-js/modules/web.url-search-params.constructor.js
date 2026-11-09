@@ -172,6 +172,7 @@ URLSearchParamsState.prototype = {
   update: function () {
     this.entries.length = 0;
     this.parseQuery(this.url.query);
+    if (!DESCRIPTORS) this.facade.size = this.entries.length;
   },
   updateURL: function () {
     if (this.url) this.url.update();
@@ -196,7 +197,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var state = getInternalParamsState(this);
     validateArgumentsLength(arguments.length, 2);
     push(state.entries, { key: $toString(name), value: $toString(value) });
-    if (!DESCRIPTORS) this.size++;
+    if (!DESCRIPTORS) this.size = state.entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.delete` method
