@@ -761,7 +761,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array-buffer.transfer-to-fixed-length': function () {
     return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
   },
-  'es.data-view.constructor': ARRAY_BUFFER_SUPPORT,
+  'es.data-view.constructor': [ARRAY_BUFFER_SUPPORT, function () {
+    // NodeJS 0.11.4 and iOS Safari 7.x truncate large values incorrectly.
+    var view = new DataView(new ArrayBuffer(2));
+    view.setInt8(0, 2147483648);
+    view.setInt8(1, 2147483649);
+    return !(view.getInt8(0) || !view.getInt8(1));
+  }],
   'es.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.getFloat16;
   }],

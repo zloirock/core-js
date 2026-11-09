@@ -343,6 +343,8 @@ export const data = {
     chrome: '66',
     edge: '15',
     firefox: '60',
+    // Array.prototype.values is still disabled in NodeJS 10.8.
+    node: '10.9',
     rhino: '1.8.0',
     safari: '10.0',
   },
@@ -392,7 +394,7 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    node: '6.0', // ^^^
+    node: '0.11.0', // the Chrome 80-82 regression does not affect NodeJS
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -401,7 +403,7 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    node: '6.0', // ^^^
+    node: '0.11.0', // the Chrome 80-82 regression does not affect NodeJS
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -511,6 +513,8 @@ export const data = {
     edge: '14',
     firefox: '44',
     hermes: '0.1',
+    // NodeJS 0.11.4 switched to V8 typed arrays.
+    node: '0.11.4',
     rhino: '1.8.0',
     safari: '12.0',
   },
@@ -527,6 +531,7 @@ export const data = {
     firefox: '46',
     hermes: '0.1',
     ie: '11',
+    node: '0.11.4',
     rhino: '1.7.13',
     safari: '12.1',
   },
@@ -537,6 +542,8 @@ export const data = {
     firefox: '15',
     hermes: '0.1',
     ie: '10',
+    // setInt8 truncates 2147483649 to 0 in NodeJS 0.11.4.
+    node: '0.11.5',
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -676,7 +683,8 @@ export const data = {
     safari: '5.1',
   },
   'es.function.has-instance': {
-    chrome: '51',
+    // https://github.com/v8/v8/blob/3c6783109ce9167345ebcf5858e794b3a913b9ef/src/bootstrapper.cc#L1152-L1166
+    chrome: '50',
     edge: '15',
     firefox: '50',
     hermes: '0.1',
@@ -1027,6 +1035,8 @@ export const data = {
     edge: '13',
     firefox: '20',
     hermes: '0.1',
+    // NodeJS 0.11.1 uses V8 3.18.0, before Math.imul was added.
+    node: '0.11.2',
     rhino: '1.7.13',
     safari: '9.0',
   },
@@ -1190,6 +1200,7 @@ export const data = {
     edge: '18',
     firefox: '87',
     hermes: '0.1',
+    node: '0.11.0',
     rhino: '1.7.13',
     safari: '11',
   },
@@ -2394,6 +2405,8 @@ export const data = {
     firefox: '15',
     hermes: '0.1',
     ie: '11',
+    // Uint8ClampedArray is missing in NodeJS 0.11.0-0.11.3.
+    node: '0.11.4',
     rhino: '1.7.13',
     safari: '7.1',
   },
@@ -3130,7 +3143,9 @@ export const data = {
     // wrong arity in Bun <= 1.3.14, https://github.com/oven-sh/bun/issues/9249
     bun: '1.4.0', // '0.1.1',
     chrome: '71',
-    deno: '1.0',
+    // queueMicrotask.length is 0 through Deno 1.24.2.
+    // https://github.com/denoland/deno/blob/v1.24.3/core/01_core.js
+    deno: '1.24.3',
     firefox: '69',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     node: '12.0', // '11.0',
