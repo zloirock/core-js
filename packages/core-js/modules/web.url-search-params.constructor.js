@@ -1,9 +1,11 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
+// TODO: in core-js@4, replace the direct /modules/ requires with implicit dependencies
 require('../modules/es.array.iterator');
+require('../modules/es.reflect.own-keys');
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var globalThis = require('../internals/global-this');
+var getBuiltIn = require('../internals/get-built-in');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -18,7 +20,7 @@ var createIteratorConstructor = require('../internals/iterator-create-constructo
 var InternalStateModule = require('../internals/internal-state');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
-var hasOwn = require('../internals/has-own-property');
+var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var bind = require('../internals/function-bind-context');
 var classof = require('../internals/classof');
 var anObject = require('../internals/an-object');
@@ -45,6 +47,7 @@ var percentEncode = percentCoding.encode;
 var nativeFetch = safeGetBuiltIn('fetch');
 var NativeRequest = safeGetBuiltIn('Request');
 var Headers = safeGetBuiltIn('Headers');
+var ownKeys = getBuiltIn('Reflect', 'ownKeys');
 var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
 var TypeError = globalThis.TypeError;
@@ -137,8 +140,16 @@ URLSearchParamsState.prototype = {
         ) throw new TypeError('Expected sequence with length 2');
         push(entries, { key: $toString(first.value), value: $toString(second.value) });
       }
-    } else for (var key in object) if (hasOwn(object, key)) {
-      push(entries, { key: key, value: $toString(object[key]) });
+    } else {
+      var keys = ownKeys(object);
+      var index = 0;
+      var key;
+      while (keys.length > index) {
+        key = keys[index++];
+        if (call(propertyIsEnumerableModule.f, object, key)) {
+          push(entries, { key: $toString(key), value: $toString(object[key]) });
+        }
+      }
     }
   },
   parseQuery: function (query) {

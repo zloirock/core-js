@@ -1,11 +1,19 @@
-import { DESCRIPTORS, BUN } from '../helpers/constants.js';
+import { GLOBAL, DESCRIPTORS, BUN, DENO_VERSION } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
+import create from 'core-js-pure/es/object/create';
+import defineProperty from 'core-js-pure/es/object/define-property';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import Symbol from 'core-js-pure/es/symbol';
 import URL from 'core-js-pure/stable/url';
 import URLSearchParams from 'core-js-pure/stable/url-search-params';
+
+const { Proxy } = GLOBAL;
+
+// Native record conversion is used from Deno 1.35; fixed in 2.8.0.
+// https://github.com/denoland/deno/pull/34119
+const DENO_RECORD_BUG = DENO_VERSION >= 135 && DENO_VERSION < 208;
 
 QUnit.test('URLSearchParams', assert => {
   assert.isFunction(URLSearchParams);
@@ -176,6 +184,104 @@ QUnit.test('URLSearchParams', assert => {
   assert.throws(() => {
     new URLSearchParams([createIterable([createIterable([1])])]);
   }, 'sequence elements must be pairs #4');
+});
+
+QUnit.test('URLSearchParams record keys', assert => {
+  for (const key of ['constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString', 'toString', 'valueOf']) {
+    assert.same(String(new URLSearchParams({ [key]: 'value' })), `${ key }=value`, 'own key shadowing Object.prototype');
+  }
+
+  const inherited = create({ inherited: 'ignored' });
+  inherited.own = 'value';
+  assert.same(String(new URLSearchParams(inherited)), 'own=value', 'inherited keys are ignored');
+  const nullPrototype = create(null);
+  nullPrototype.a = 1;
+  assert.same(String(new URLSearchParams(nullPrototype)), 'a=1', 'null prototype');
+
+  const symbol = Symbol('key');
+  if (!DENO_RECORD_BUG) assert.throws(() => new URLSearchParams({ [symbol]: 'value' }), TypeError, 'enumerable symbol key');
+  assert.throws(() => new URLSearchParams({ [Symbol.iterator]: null, a: 1 }), TypeError, 'enumerable null iterator key');
+
+  if (DESCRIPTORS) {
+    let reads = 0;
+    const record = { a: 1 };
+    defineProperty(record, 'hidden', {
+      get() {
+        reads++;
+        return 'ignored';
+      },
+    });
+    defineProperty(record, symbol, {
+      configurable: true,
+      get() {
+        reads++;
+        return 'ignored';
+      },
+    });
+    assert.same(String(new URLSearchParams(record)), 'a=1', 'non-enumerable string and symbol keys are ignored');
+    assert.same(reads, 0, 'non-enumerable values are not read');
+    defineProperty(record, symbol, { enumerable: true });
+    if (!DENO_RECORD_BUG) {
+      assert.throws(() => new URLSearchParams(record), TypeError, 'symbol key conversion throws');
+      assert.same(reads, 0, 'key conversion precedes value access');
+    }
+  }
+});
+
+if (DESCRIPTORS && !DENO_RECORD_BUG) QUnit.test('URLSearchParams record property changes', assert => {
+  const record = {};
+  defineProperty(record, 'a', {
+    enumerable: true,
+    get() {
+      defineProperty(record, 'b', { enumerable: true });
+      defineProperty(record, 'c', { enumerable: false });
+      delete record.d;
+      record.e = 5;
+      return 1;
+    },
+  });
+  defineProperty(record, 'b', { configurable: true, value: 2 });
+  defineProperty(record, 'c', { configurable: true, enumerable: true, value: 3 });
+  record.d = 4;
+  assert.same(String(new URLSearchParams(record)), 'a=1&b=2', 'keys are snapshotted, enumerability and values are read in order');
+});
+
+if (typeof Proxy == 'function') QUnit.test('URLSearchParams record proxy traps', assert => {
+  const log = [];
+  const target = { a: 1, b: 2 };
+  defineProperty(target, 'hidden', { value: 3 });
+  const record = new Proxy(target, {
+    ownKeys() {
+      log.push('ownKeys');
+      return ['b', 'hidden', 'gone', 'a'];
+    },
+    getOwnPropertyDescriptor(object, key) {
+      log.push(`descriptor ${ key }`);
+      return getOwnPropertyDescriptor(object, key);
+    },
+    get(object, key) {
+      if (key === 'a' || key === 'b' || key === 'hidden' || key === 'gone') log.push(`get ${ key }`);
+      return object[key];
+    },
+    getPrototypeOf(object) {
+      log.push('getPrototypeOf');
+      return getPrototypeOf(object);
+    },
+  });
+  assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
+  assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
+
+  const error = new Error('record enumeration');
+  assert.throws(() => new URLSearchParams(new Proxy({}, {
+    ownKeys() {
+      throw error;
+    },
+  })), error, 'ownKeys error is propagated');
+  assert.throws(() => new URLSearchParams(new Proxy({ a: 1 }, {
+    getOwnPropertyDescriptor() {
+      throw error;
+    },
+  })), error, 'descriptor error is propagated');
 });
 
 QUnit.test('URLSearchParams rejects non-object iterator results', assert => {
