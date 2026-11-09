@@ -37,6 +37,9 @@ module.exports = config => config.set({
   basePath: '.',
   // PhantomJS can hang on the IPv6 address of localhost, while the server listens on IPv4
   hostname: '127.0.0.1',
+  // Synchronous URL tests exceed the default 5s heartbeat timeout in PhantomJS on Windows.
+  // Match the 30s browser no-activity timeout while the browser cannot answer pings.
+  pingTimeout: 30000,
   customLaunchers,
   browsers,
   logLevel: config.LOG_ERROR,
