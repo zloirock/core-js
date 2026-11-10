@@ -902,10 +902,10 @@ export function planConsumedInitializerCarrier(init, reads, ctx) {
   return { carrier: guarded ? 'guard' : carrier, receiver: stored || null, prefix: parts?.prefix, tail, pure, guarded };
 }
 
-// A sole pattern-valued static/global read becomes the residual's receiver. Its source
-// probe supplies the value, not just a throwing effect ahead of an unconditional pure.
+// A sole pattern-valued global read becomes the residual's receiver. A static read must
+// still supply the extracted method, not the constructor tested by its source probe.
 export function residualReadOwnsValue(reads) {
-  return reads.length === 1 && reads[0].kind !== 'instance' && reads[0].prop.value?.type === 'ObjectPattern';
+  return reads.length === 1 && reads[0].kind === 'global' && reads[0].prop.value?.type === 'ObjectPattern';
 }
 
 // A whole-init capture whose residual has died may release its sequence prefix and let

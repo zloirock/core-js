@@ -23976,4 +23976,39 @@ export function * generate() {
   ]) yield {
     ...snippet(`retained-constructor/${ shape }`, `(() => { ${ body } })()`, { rig: true }), strip: true, isolated: true,
   };
+  // Appended write-origin/static-probe axis keeps prior evaluation-cache prefixes intact.
+  for (const rig of [false, true]) for (const [shape, body] of [
+    ['fallback-sealed', 'const { resolve } = (globalThis.window?.self).Promise ?? {}; r = typeof resolve;'],
+    ['nested-length', 'const { of: { length } } = (globalThis.window?.self).Array; r = length;'],
+    ['nested-name', 'const { allSettled: { name } } = (globalThis.window?.self).Promise; r = name;'],
+    ['direct-name', 'const { allSettled: { name } } = globalThis.window?.Promise; r = name;'],
+    ['for-init-length', 'for (const { of: { length } } = (globalThis.window?.self).Array; !r;) { r = [length]; break; }'],
+    ['for-init-name', 'for (const { allSettled: { name } } = (globalThis.window?.self).Promise; !r;) { r = name; break; }'],
+    ['nested-map', 'const { groupBy: { length } } = (globalThis.window?.self).Map; r = length;'],
+    ['stored-root', 'let held; const { Array: { of: { length } } } = (held = globalThis.window); r = [length,held === globalThis];'],
+    ['custom-receiver', 'const source = { of: { length: 23 } }; const { of: { length } } = source; r = length;'],
+    ['grouped-iterator', "const a = Iterator.from, b = Iterator[(log.push('key'), 'from')]; r = [typeof a,typeof b];"],
+    ['grouped-promise', "const a = Promise.resolve, b = Promise[(log.push('key'), 'reject')]; r = [typeof a,typeof b];"],
+    ['flow-string', "function f(c) { let x = [1]; if (c) x = 'ab'.padStart(3); else x = [2]; return x.at(-1); } r = [f(true),f(false)];"],
+    ['flow-array', "function f(c) { let x = ''; if (c) x = [1,[7]].flat(); else x = 'str'; return x.at(-1); } r = [f(true),f(false)];"],
+    ['flow-join', "function f(c) { let x = []; if (c) x = [1,2].join('-'); else x = []; return x.includes('1'); } r = [f(true),f(false)];"],
+    ['flow-iterator', 'function f(c) { let x = []; if (c) x = [1,7].values(); else x = [2]; return Array.from(x.map(v => v)); } r = [f(true),f(false)];'],
+    ['flow-ternary', "function f(c,d) { let x; if (c) x = d ? [1,[7]].flat() : 'ab'.padStart(3); else x = 'str'; return x.at(-1); }"
+      + ' r = [f(true,true),f(true,false),f(false,false)];'],
+    ['flow-stale', "function f(c) { let x = [9].flat(); if (c) x = 'ab'; else x = 'cd'; return x.at(-1); } r = [f(true),f(false)];"],
+    ['flow-partial', "function f(c) { let x = [9].flat(); if (c) x = 'ab'.padStart(3); return x.at(-1); } r = [f(true),f(false)];"],
+    ['for-init-source-order', 'try { for (const before = (log.push("before"), 0), { groupBy: { length } } = (globalThis.window?.self).Map; !r;)'
+      + ' { r = length; break; } } catch (error) { r = error.name; }'],
+    ['source-prefix-once', 'try { const { groupBy: { length } } = (log.push("source"), (globalThis.window?.self).Map); r = length; } catch (error) { r = error.name; }'],
+    ['key-after-seal', 'try { const { [(log.push("key"), "groupBy")]: { length } } = (globalThis.window?.self).Map; r = length; } catch (error) { r = error.name; }'],
+    ['residual-sibling', 'const { groupBy: { length }, size } = (globalThis.window?.self).Map; r = [length,typeof size];'],
+    ['assignment-length', 'let length; ({ of: { length } } = (globalThis.window?.self).Array); r = length;'],
+    ['grouped-alias', 'const C = Iterator; const a = C.from, b = C[(log.push("key"), "from")]; r = [typeof a,typeof b];'],
+    ['live-fallback', 'const { resolve } = globalThis.window?.Promise ?? { resolve: "fallback" }; r = typeof resolve;'],
+    ['mutated-static', 'Promise.resolve = function own() {}; const { resolve: { name } } = (globalThis.window?.self).Promise; r = name;'],
+    ['shadowed-realm', 'const globalThis = { window: { self: { Map: { groupBy: { length: 23 } } } } }; const { groupBy: { length } } = (globalThis.window?.self).Map; r = length;'],
+  ]) yield {
+    ...snippet(`static-flow/${ shape }/${ rig }`, `(() => { let r; ${ body } return r; })()`, { rig }),
+    strip: true, isolated: true,
+  };
 }

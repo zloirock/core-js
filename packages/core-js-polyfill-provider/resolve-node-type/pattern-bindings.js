@@ -1669,9 +1669,9 @@ export function createPatternBindings({
       const adapter = getDecisionAdapter();
       const ctx = { adapter, path: usagePath, scope: usagePath.scope, liveArmsOnly: true };
       const replaced = settled || reassignmentDominatesUsage({ reassignmentNodes: writes, usagePath, adapter, climb: true });
-      const enumeration = reassignmentValueEnumeration({ binding, usagePath, name, ctx });
+      const enumeration = reassignmentValueEnumeration({ binding, usagePath, name, ctx, since: settled });
       if (!enumeration.complete || enumeration.callSites.length) return null;
-      const nodes = enumeration.nodes.filter(node => !settled || node.start >= settled.start);
+      const { nodes } = enumeration;
       if (!replaced && local.init) nodes.unshift(...flattenBranchingValueNodes([local.init], { ctx }));
       const types = [];
       if (!replaced && !local.init) types.push({ type: new $Primitive('undefined') });

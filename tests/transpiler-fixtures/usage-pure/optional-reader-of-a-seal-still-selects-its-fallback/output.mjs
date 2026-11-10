@@ -7,4 +7,4 @@ export const {
 } = (null == _globalThis.window ? void 0 : {
   from: _Array$from
 }) ?? {};
-export const plain = ((null == _globalThis.window ? void 0 : _self).Array.from, _Array$from);
+export const plain = ((null == _globalThis.window ? void 0 : _self).Array, _Array$from);

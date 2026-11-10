@@ -155,15 +155,19 @@ runBoth('member store target is not re-read', 'const box = { held: undefined }; 
     check(`${ label }/store retained`, plans[0]?.kind, 'written-store');
     check(`${ label }/no second getter`, plans[0]?.effects, null);
   });
-for (const [source, ordered, spent] of [
+for (const [source, ordered, spent, owner] of [
   ['const a = Array.from, b = Array[(key(), "of")];', true, false],
   ['const a = (Array.from, imported), b = Array[(key(), "of")];', true, true],
   ['const a = Array.from, b = Array["of"];', false, false],
   ['const a = Array.from, b = other[(key(), "of")];', false, false],
   ['const a = Array.from; const b = Array[(key(), "of")];', false, false],
+  ['const a = Iterator.from, b = Iterator[(key(), "from")];', false, false],
+  ['const C = Iterator; const a = C.from, b = C[(key(), "from")];', false, false, 'Iterator'],
 ]) runBoth('a lowered static group retains exactly its observable Gets', source, (parser, program, label) => {
   const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'from');
-  const plans = [...resolvedStaticClaimRoutes(facts(parser, path, { kind: 'static', entry: 'array/from', hintName: 'Array$from' }))];
+  const plans = [...resolvedStaticClaimRoutes(facts(parser, path, { kind: 'static', entry: 'array/from', hintName: 'Array$from',
+    meta: { object: owner ?? path.node.object.name },
+    resolvePure: ({ name }) => name === 'Iterator' ? { entry: name, hintName: name } : null }))];
   check(`${ label }/already served`, plans.length === 0, spent);
   check(`${ label }/raw read`, plans.some(plan => plan.effects?.includes(path.node)), ordered && !spent);
 });

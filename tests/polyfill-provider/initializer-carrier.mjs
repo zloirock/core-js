@@ -129,10 +129,10 @@ checkDeep('receiver-less claims keep only effects', planConsumedInitializerCarri
   { carrier: 'effects' });
 checkDeep('an empty read group keeps only effects', planConsumedInitializerCarrier(null, [], {}), { carrier: 'effects' });
 
-// A sole nested static/global extraction owns the value needed by its residual pattern.
+// A constructor probe supplies a global residual; a static residual still needs its method.
 for (const [pattern, kind, expected] of [
   ['{ Map: { missing } }', 'global', true],
-  ['{ from: { name } }', 'static', true],
+  ['{ from: { name } }', 'static', false],
   ['{ at: { name } }', 'instance', false],
   ['{ Map: value }', 'global', false],
   ['{ Map: [value] }', 'global', false],

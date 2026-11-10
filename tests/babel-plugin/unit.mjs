@@ -51,3 +51,4 @@ import './entry-directive-promotion.mjs';
 import './entry-getter-prefix.mjs';
 import './injection-spelling-domain.mjs';
 import './proxy-global-invariant.mjs';
+import './static-flow-runtime.mjs';

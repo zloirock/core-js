@@ -6110,11 +6110,11 @@ export function destructureProbePlan(source, resolvePure, ctx, { mirror = false 
   }
   const value = probedDestructureInitValue(source, resolvePure, ctx);
   if (!value) return null;
-  // A dead fallback still evaluates its left value before reading the pattern's first key.
-  // Its seal is a guarded VALUE here, not the complete destructure read.
+  // A dead fallback still evaluates its left value. Preserve the seal's read ownership:
+  // reading another key through a backed constructor would reach the native constructor.
   if (value !== source) {
     const left = directClaimProbePlan(value, resolvePure, ctx);
-    if (left) return { ...left, readsSource: false };
+    if (left) return left;
     source = value;
   }
   const navPlan = planProvenNavGuardCollapse({ rootNode: source, ...ctx, resolvePure });
