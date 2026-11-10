@@ -91,6 +91,7 @@
 - Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
 - Fixed defining unpolyfillable `Object.setPrototypeOf` as `undefined` in IE10-
 - Fixed property descriptors of `Symbol.prototype[@@toPrimitive]` and `Date.prototype[@@toPrimitive]` polyfills
+- Fixed an extra own property check of non-symbol keys in `Object.prototype.propertyIsEnumerable` from the `Symbol` polyfill, observable with proxies in FF33-35
 - Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
 - Fixed `Number.prototype.toExponential` polyfill accuracy with decimals close to a rounding half, values next to powers of ten and big fraction digits - it generates exact digits now, for some decimals it's a regression since 3.49.0
 - Added missed detection of imprecise native `Math.log2` on powers of two in [V8 ~ Chrome < 41](https://issues.chromium.org/issues/42206893), [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257) and [Rhino < 1.9.2](https://github.com/mozilla/rhino/pull/2522), the polyfill is also exact on them now

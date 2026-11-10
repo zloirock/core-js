@@ -30,6 +30,12 @@ const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1
 // Firefox 25-32 proxies call the legacy `getOwnPropertyNames` trap instead of `ownKeys`; fixed in Firefox 33.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
 const FIREFOX_LEGACY_PROXY = FIREFOX_VERSION >= 25 && FIREFOX_VERSION < 33;
+// Firefox 33-41 has no `Reflect.ownKeys`, so the fallback calls the `ownKeys` trap twice - for names and for symbols.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=987514
+const FIREFOX_SPLIT_OWN_KEYS = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 42;
+// Firefox 33-34 `propertyIsEnumerable` skips the `getOwnPropertyDescriptor` trap of proxies for missing keys; fixed in Firefox 35.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1066834
+const FIREFOX_PROXY_ENUMERABLE = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 35;
 
 const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
@@ -592,7 +598,10 @@ if (typeof Proxy == 'function') QUnit.test('URLSearchParams record proxy traps',
   });
   if (!FIREFOX_LEGACY_PROXY) {
     assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
-    assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
+    if (!FIREFOX_PROXY_ENUMERABLE) {
+      if (FIREFOX_SPLIT_OWN_KEYS) assert.same(log.shift(), 'ownKeys', 'record enumeration traps, extra ownKeys');
+      assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
+    }
   }
 
   const error = new Error('record enumeration');

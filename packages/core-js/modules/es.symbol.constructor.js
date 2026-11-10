@@ -126,7 +126,8 @@ var $propertyIsEnumerable = function propertyIsEnumerable(V) {
   var P = toPropertyKey(V);
   var enumerable = call(nativePropertyIsEnumerable, this, P);
   if (this === ObjectPrototype && hasOwn(AllSymbols, P) && !hasOwn(ObjectPrototypeSymbols, P)) return false;
-  return enumerable || !hasOwn(this, P) || !hasOwn(AllSymbols, P) || hasOwn(this, HIDDEN) && this[HIDDEN][P]
+  // check the symbol registry first - for other keys, an own property check is an extra observable proxy trap call
+  return enumerable || !hasOwn(AllSymbols, P) || !hasOwn(this, P) || hasOwn(this, HIDDEN) && this[HIDDEN][P]
     ? enumerable : true;
 };
 
