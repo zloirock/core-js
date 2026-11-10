@@ -24966,4 +24966,46 @@ export function * generate() {
       try { return (() => { ${ body } })(); } catch (error) { return error.name; }
     })()`, { rig }), strip: true, isolated: true, ts,
   };
+  yield * generatePrivateNamespaceCaptures();
+}
+
+// Private capture declarations must not become observable namespace members after
+// TS lowering. Native source keys and effect logs are independent of both emitters.
+function * generatePrivateNamespaceCaptures() {
+  for (const flag of [false, true]) for (const [shape, body] of [
+    ['guarded', `const flag = JSON.parse('${ flag }'); const user = { entries: () => 19 };
+      namespace N { export const { w: { entries } } = { w: flag ? Object : user }; }
+      return [Object.keys(N).join(','), N.entries({ a: 2 })];`],
+    ['default', `function select() { log.push('select'); return ${ flag ? '{ k: { of: x => x + 7 } }' : '{}' }; }
+      namespace N { export const { k: { of, [(log.push('key'), 'unknown')]: value } = Array } = select(); }
+      return [Object.keys(N).sort().join(','), N.of(3), typeof N.value];`],
+    ['array', `function pick() { log.push('pick'); return ${ flag ? '[4, 9]' : '"xy"' }; }
+      namespace N { export const before = log.push('before'), [{ at }] = [pick()], after = log.push('after'); }
+      return [Object.keys(N).sort().join(','), N.at.call(${ flag ? '[4, 9]' : '"xy"' }, -1)];`],
+  ]) yield { ...snippet(`private-namespace-capture/${ shape }/${ flag }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  // Babel's TS lowering accepts only const namespace exports. The mutable variants
+  // run through SWC in private-destructure-bindings.mjs, with the same runtime checks.
+  yield {
+    ...snippet('private-namespace-symbol/const', `(() => {
+      namespace N { export const before = log.push('before'),
+        { Set: { [(log.push('key'), Symbol.iterator)]: method } } = globalThis as any,
+        { WeakMap: { [(log.push('default-key'), Symbol.iterator)]: fallback = null } } = globalThis as any; }
+      return [Object.keys(N).sort().join(','), typeof N.method, N.fallback];
+    })()`), ts: true, strip: true,
+  };
+  yield { ...snippet('private-namespace-after-dispatch', `(() => {
+    namespace N { export const { array: { at: first }, realm: { WeakSet: Value }, tail } = {
+      array: [41], get realm() { log.push(typeof first); return globalThis; },
+      get tail() { log.push(typeof Value); return 3; },
+    }; }
+    return [Object.keys(N).sort().join(','), N.first.call([41], -1), typeof N.Value, N.tail];
+  })()`), ts: true, strip: true };
+  for (const kind of ['const', 'let', 'var']) for (const rig of [false, true]) yield {
+    ...snippet(`partial-assignment-probe/${ kind }/${ rig }`, `(() => {
+      ${ kind } held = globalThis.window?.Array;
+      let from, other;
+      try { ({ from, other } = held); return [from([3])[0], typeof other]; }
+      catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
 }

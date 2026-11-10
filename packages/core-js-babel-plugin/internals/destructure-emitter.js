@@ -54,6 +54,7 @@ import {
   forOfHeadIterableElements,
   hasRestSiblingExcept,
   hostsExportList,
+  patternBindsOnlyGeneratedNames,
   invalidateScopeVarIndex,
   invocationCalleeOf,
   isChainAssignment,
@@ -111,6 +112,7 @@ import {
   discardRescueNodesWithReads,
   observablePrefixElements,
   destructurePatternHostPath,
+  canExtractDestructureExport,
   destructureRetainsLiteralWrapper,
   fallbackDestructureHasPolyfillableBranch,
   firstPatternProp,
@@ -2215,6 +2217,12 @@ export default function createDestructureEmitter({
       if (plan.array.splitDeclaration) flatTouchedMultiDecls.add(host);
       const bindings = releaseMovedBindings(target, Object.keys(t.getBindingIdentifiers(target.node.id)));
       const [first, ...following] = rendered.flatMap(node => node.declarations);
+      if (host.parentPath.isExportNamedDeclaration()) {
+        for (const node of [first, ...following]) {
+          if (patternBindsOnlyGeneratedNames(node.id, injector)) memoDeclarators.add(node);
+        }
+        flatTouchedMultiDecls.add(host);
+      }
       target.replaceWith(first);
       const paths = [target, ...target.insertAfter(following)];
       rebindMovedBindings(paths, host.node.kind, bindings);
@@ -3196,12 +3204,16 @@ export default function createDestructureEmitter({
   // the pattern text the later declarators took would place their reads of the capture ahead of its init
   function installCaptureDeclarators(declarator, nodes) {
     const { kind } = declarator.parentPath.node;
+    const privateNodes = declarator.parentPath.parentPath?.isExportNamedDeclaration()
+      ? nodes.filter(node => patternBindsOnlyGeneratedNames(node.id, injector)) : [];
     const writes = releaseMovedBindings(declarator, Object.keys(t.getBindingIdentifiers(declarator.node.id)));
     declarator.get('id').replaceWith(nodes[0].id);
     declarator.get('init').replaceWith(nodes[0].init);
     for (const key of ['start', 'end', 'loc', 'range']) delete declarator.node[key];
     forgetDestructurePlan(adapter, declarator.node);
     const paths = [declarator, ...declarator.insertAfter(nodes.slice(1))];
+    for (const node of privateNodes) memoDeclarators.add(node === nodes[0] ? declarator.node : node);
+    if (privateNodes.length) flatTouchedMultiDecls.add(declarator.parentPath);
     rebindMovedBindings(paths, kind, writes);
     revisitNext(paths.slice(1));
   }
@@ -3375,7 +3387,6 @@ export default function createDestructureEmitter({
       mintRef: () => generateLocalRef(prop.scope).name,
       embed: hostSlot,
     });
-    const sourceNames = t.getBindingIdentifiers(declarator.node.id);
     const capture = estreeToBabel(rendered.capture);
     const nodes = rendered.elements.flatMap(element => element.declarator ? [estreeToBabel(element.declarator)] : []);
     const leafAlias = capturedLeafCtorAlias({
@@ -3384,13 +3395,6 @@ export default function createDestructureEmitter({
     if (leafAlias) injector.registerGlobalAlias(leafAlias.ref, leafAlias.ctorName, { trusted: true, minted: true });
     installCaptureDeclarators(declarator, [t.variableDeclarator(capture.id, declarator.node.init), ...nodes]);
     joinHopStaticsIntoCapture(declaration, declarator);
-    if (declaration.parentPath?.isExportNamedDeclaration()) {
-      memoDeclarators.add(declarator.node);
-      for (const node of nodes) {
-        if (Object.keys(t.getBindingIdentifiers(node.id)).every(name => !Object.hasOwn(sourceNames, name))) memoDeclarators.add(node);
-      }
-      flatTouchedMultiDecls.add(declaration);
-    }
     return true;
   }
 
@@ -4454,7 +4458,7 @@ export default function createDestructureEmitter({
     const ref = renderResidualProbeWrites(original.properties, left, path.node.right, original.writes, {
       mintRef: () => generateRef(path.scope, path.node), embed: hostSlot, toHost: estreeToBabel,
     });
-    if (ref) path.node.right = ref;
+    if (ref) path.node.right = t.cloneNode(ref);
   }
 
   // the enclosing destructure SOURCE expression (declarator init / assignment right) for a
@@ -5371,6 +5375,7 @@ export default function createDestructureEmitter({
   function handleDestructuredProperty(prop, value, kind) {
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
+    if (!canExtractDestructureExport(prop, aliasCtxFromPath(prop))) return;
     const sourceProp = prop.node;
     const propValue = sourceProp.value;
     // captured before default-value processing turns Identifier into ConditionalExpression.
@@ -5669,7 +5674,8 @@ export default function createDestructureEmitter({
     const groups = groupNativeDeclarators(decls, { keepPatterns: true });
     return groups.flatMap(g => {
       // a receiver memo is an internal temp: standalone `const`, never export-wrapped
-      const memo = g.length === 1 && memoDeclarators.has(g[0]);
+      const memo = g.length === 1 && (memoDeclarators.has(g[0])
+        || isExport && patternBindsOnlyGeneratedNames(g[0].id, injector));
       return renderDestructureStatements([g], {
         kind: memo ? 'const' : kind, exported: !memo && isExport, embed: hostSlot,
       }).map(node => estreeToBabel(node));
@@ -6074,7 +6080,8 @@ export default function createDestructureEmitter({
         const entry = splitLiftedPrefixes.get(g[0]?.id);
         // a memo is its own `const`, but in a bodyless slot it takes the host's `var`, so the block
         // the split braces joins back into one `var`
-        const privateMemo = g.length === 1 && memoDeclarators.has(g[0]);
+        const privateMemo = g.length === 1 && (memoDeclarators.has(g[0])
+          || isExport && patternBindsOnlyGeneratedNames(g[0].id, injector));
         const [statement] = renderDestructureStatements(
           [g],
           {

@@ -27,6 +27,7 @@ import {
   isCapturedKeyedPattern,
   markCapturedKeyedPattern,
   peelLabeledStatementPath,
+  patternBindsOnlyGeneratedNames,
   SINGLE_STATEMENT_SLOTS,
   unwrapRuntimeExpr,
   walkAstNodes,
@@ -35,6 +36,7 @@ import {
   buildDestructuringInitMeta,
   destructureKeyReadPlan,
   destructurePatternHostPath,
+  canExtractDestructureExport,
   noteRelocation,
   orderedClaimCapture,
   resolveNestedDestructureReceiver,
@@ -2808,5 +2810,30 @@ runBoth('retained array head with a static default', `function f([{ from, [(effe
   });
   check(`${ label }/retains native head`, plan?.defaultCapture?.retainedHead, true);
 });
+
+for (const [source, expected] of [
+  ['namespace N { export const { Map, ...rest } = globalThis; }', false],
+  ['namespace N { export const { Array: { from }, ...rest } = globalThis; }', false],
+  ['namespace N { export const { from, [(effect(), "of")]: of } = Array; }', false],
+  ['namespace N { export const { from } = Array; }', true],
+  ['namespace N { const { Map, ...rest } = globalThis; }', true],
+  ['export const { Map, ...rest } = globalThis;', true],
+]) runBoth('namespace sentinel admission', source, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(`${ label }/${ source }`, canExtractDestructureExport(prop, { adapter, scope: prop.scope, path: prop }), expected);
+});
+runBoth('private captures use allocator ownership, not generated-looking names',
+  'var memo = source, _ref = source, _unused = source, { value, _hidden } = source, {} = source;',
+  (parser, program, label) => {
+    const declarations = parser.collectPaths(program, 'VariableDeclarator').map(item => item.node);
+    const owned = new Set(['memo', '_hidden']);
+    const injectorState = { isOwnPassGeneratedName: name => owned.has(name) };
+    const privateNodes = declarations.filter(node => patternBindsOnlyGeneratedNames(node.id, injectorState));
+    check(`${ label }/private captures`, privateNodes.map(node => declarations.indexOf(node)).join(','), '0,4');
+    const clone = structuredClone(declarations[0]);
+    check(`${ label }/replacement retains ownership`, patternBindsOnlyGeneratedNames(clone.id, injectorState), true);
+    check(`${ label }/mixed binding stays public`, patternBindsOnlyGeneratedNames(declarations[3].id, injectorState), false);
+  });
 
 finish();

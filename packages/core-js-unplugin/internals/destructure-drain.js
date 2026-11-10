@@ -733,10 +733,12 @@ export default function createDestructureDrains(ctx) {
   function drainSplit(declaration, body) {
     // A live native capture keeps its group. User bindings extracted from a fully
     // consumed capture do not keep the retired receiver's declaration joined.
+    // A namespace export must separate private captures even while they still bind.
     if (declaration.declarations.every(node => !capturedSiblingHosts.has(node)
       || !patternBindingCount(node.id)
-      || node.id.type === 'Identifier' && !injectorState.isOwnPassGeneratedName(node.id.name))) {
-      splitMultiDeclaratorHost({ declaration, body, markRewrite });
+      || node.id.type === 'Identifier' && !injectorState.isOwnPassGeneratedName(node.id.name))
+      || body?.some(node => node.type === 'ExportNamedDeclaration' && node.declaration === declaration)) {
+      splitMultiDeclaratorHost({ declaration, body, markRewrite, injectorState });
     }
   }
 

@@ -43,6 +43,7 @@ import {
   mayHaveSideEffects,
   observableSequenceElements,
   patternBindingCount,
+  patternBindsOnlyGeneratedNames,
   patternFullyConsumed,
   pathOfNode,
   patternHasSeveralSeKeys,
@@ -1392,7 +1393,7 @@ export function markMemoDeclarators(declarators) {
 
 // a re-anchored declarator standing beside siblings takes its own statement: the flatten
 // rebuilds the declaration, and every sibling keeps its own slot (babel's split)
-export function splitMultiDeclaratorHost({ program, declarator, declaration, body, markRewrite }) {
+export function splitMultiDeclaratorHost({ program, declarator, declaration, body, markRewrite, injectorState = null }) {
   let target = declaration && body ? { declaration, body } : null;
   if (!target) walkAstNodes({
     root: program,
@@ -1407,13 +1408,24 @@ export function splitMultiDeclaratorHost({ program, declarator, declaration, bod
   // A sibling drain can replace the statement while retaining its declarators. Follow
   // those same nodes in their current statement list.
   const source = new Set(target.declaration.declarations);
-  const statements = target.body.filter(statement => statement.type === 'VariableDeclaration'
-    && statement.declarations.some(item => source.has(item)));
+  const statements = target.body.filter(statement => {
+    const current = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+    return current?.type === 'VariableDeclaration' && current.declarations.some(item => source.has(item)
+      || statement.type === 'ExportNamedDeclaration' && injectorState && patternBindsOnlyGeneratedNames(item.id, injectorState));
+  });
   for (const statement of statements) {
-    if (statement.declarations.length <= 1) continue;
+    const exported = statement.type === 'ExportNamedDeclaration';
+    const current = exported ? statement.declaration : statement;
+    function privateExport(item) {
+      return exported && injectorState && patternBindsOnlyGeneratedNames(item.id, injectorState);
+    }
+    if (current.declarations.length <= 1 && !privateExport(current.declarations[0])) continue;
     const at = target.body.indexOf(statement);
-    target.body.splice(at, 1, ...statement.declarations.flatMap(
-      item => renderDestructureStatements([item], { kind: memoDeclarators.has(item) ? 'const' : statement.kind }),
+    target.body.splice(at, 1, ...current.declarations.flatMap(
+      item => renderDestructureStatements([item], {
+        kind: memoDeclarators.has(item) ? 'const' : current.kind,
+        exported: exported && !memoDeclarators.has(item) && !privateExport(item),
+      }),
     ));
     markRewrite();
   }

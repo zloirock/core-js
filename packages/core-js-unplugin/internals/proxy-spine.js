@@ -350,6 +350,7 @@ export default function createProxySpineChannel(ctx) {
         if (element.guarded) markSubtreeSkipped(skippedNodes, extracted[index]);
       }
       destructureEmit.retireDeclaratorJobs(nested.host);
+      destructureEmit.notePrivateExportCaptures(nested.host, [rendered.capture, ...extracted]);
       const [captured] = nested.host.replaceWithMultiple([rendered.capture, ...extracted]);
       captured.scope.registerBinding(captured.parentPath.node.kind, captured.get('id'), captured);
       markRewrite();

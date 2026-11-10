@@ -100,3 +100,56 @@ QUnit.test('a computed namespace capture exports only its source names', assert 
   assert.same(KeyedPublic.infinity, Infinity);
   assert.deepEqual(computedKeys, ['key']);
 });
+
+const privateCaptureEffects: string[] = [];
+function privateCaptureArray(): number[] {
+  privateCaptureEffects.push('array');
+  return [3, 7];
+}
+namespace ArrayPublic {
+  export const before = privateCaptureEffects.push('before'),
+    [{ at, keys }] = [privateCaptureArray()], after = privateCaptureEffects.push('after');
+}
+const guardedObject = JSON.parse('true') ? Object : { entries: () => [['custom', 19]] };
+namespace GuardedPublic {
+  export const { w: { entries } } = { w: guardedObject };
+}
+function defaultCaptureSource(): any { return {}; }
+namespace DefaultPublic {
+  export const { k: { of, [(privateCaptureEffects.push('key'), 'unknown')]: value } = Array } = defaultCaptureSource();
+}
+QUnit.test('namespace captures remain private across array, guarded and default routes', assert => {
+  assert.deepEqual(Object.keys(ArrayPublic).sort(), ['after', 'at', 'before', 'keys']);
+  assert.same(ArrayPublic.at.call([3, 7], -1), 7);
+  assert.same(ArrayPublic.keys.call([3, 7]).next().value, 0);
+  assert.deepEqual(Object.keys(GuardedPublic), ['entries']);
+  assert.deepEqual(GuardedPublic.entries({ a: 2 }), [['a', 2]]);
+  assert.deepEqual(Object.keys(DefaultPublic).sort(), ['of', 'value']);
+  assert.deepEqual(DefaultPublic.of(5), [5]);
+  assert.same(DefaultPublic.value, undefined);
+  assert.deepEqual(privateCaptureEffects, ['before', 'array', 'after', 'key']);
+});
+
+const privateReplacementEffects: string[] = [];
+namespace SymbolPublic {
+  export const before = privateReplacementEffects.push('before'),
+    { Set: { [(privateReplacementEffects.push('key'), Symbol.iterator)]: method } } = globalThis as any,
+    { WeakMap: { [(privateReplacementEffects.push('default-key'), Symbol.iterator)]: fallback = null } } = globalThis as any;
+}
+namespace DispatchedPublic {
+  export const { array: { at: first }, realm: { WeakSet: Value }, tail } = {
+    array: [41],
+    get realm() { privateReplacementEffects.push(typeof first); return globalThis; },
+    get tail() { privateReplacementEffects.push(typeof Value); return 3; },
+  };
+}
+QUnit.test('replaced namespace captures retain their private role', assert => {
+  assert.deepEqual(Object.keys(SymbolPublic).sort(), ['before', 'fallback', 'method']);
+  assert.same(SymbolPublic.method, undefined);
+  assert.same(SymbolPublic.fallback, null);
+  assert.deepEqual(Object.keys(DispatchedPublic).sort(), ['Value', 'first', 'tail']);
+  assert.same(DispatchedPublic.first.call([41], -1), 41);
+  assert.same(typeof DispatchedPublic.Value, 'function');
+  assert.same(DispatchedPublic.tail, 3);
+  assert.deepEqual(privateReplacementEffects, ['before', 'key', 'default-key', 'function', 'function']);
+});

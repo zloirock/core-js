@@ -9,6 +9,7 @@ import {
   receiverPerformsEveryInitEffect,
   destructureKeyReadPlan,
   destructurePatternHostPath,
+  canExtractDestructureExport,
   destructureRetainsLiteralWrapper,
   liftedPrefixSplit,
   flattenArrayWrapperInits,
@@ -103,8 +104,7 @@ import {
   forOfHeadIterableElements,
   hasRestSiblingExcept,
   hostsExportList,
-  canSplitDestructureExport,
-  patternKeepsEffectfulKey,
+  patternBindsOnlyGeneratedNames,
   isForXStatement,
   isPristineProxyGlobal,
   isSynthSimpleObjectPattern,
@@ -803,6 +803,18 @@ export default function createAstDestructureEmitter({
     return live;
   }
 
+  // Namespace declarations export only source bindings. Split private captures after
+  // queued sibling claims have landed, preserving their original evaluation slots.
+  function notePrivateExportCaptures(host, declarations) {
+    const declaration = host.parentPath;
+    const owner = declaration.parentPath;
+    if (owner?.node?.type !== 'ExportNamedDeclaration') return;
+    const privateNodes = declarations.filter(node => patternBindsOnlyGeneratedNames(node.id, injectorState));
+    if (!privateNodes.length) return;
+    markMemoDeclarators(privateNodes);
+    pendingSplits.set(declaration.node, statementListOf(owner.parentPath.node));
+  }
+
   // Bind the shared ordered capture before a host-specific route can consume its pattern.
   // eslint-disable-next-line max-statements -- apply default, retained and ordinary plans to their native hosts
   function capturePatternForExtraction({ metaPath, meta, kind, entry, hintName }) {
@@ -1006,6 +1018,7 @@ export default function createAstDestructureEmitter({
         });
         // The re-detected siblings resolve statics through the newly inserted bindings - every
         // declarator's, as the other leg registers them.
+        notePrivateExportCaptures(restHost, rendered.declarations);
         for (const capture of restHost.replaceWithMultiple(rendered.declarations)) registerDeclaratorBindings(capture);
       }
       markRewrite();
@@ -1124,9 +1137,13 @@ export default function createAstDestructureEmitter({
       const host = unwrapExportedHost(declaration) ?? declaration;
       const liveDeclarator = host === declaration ? declarator
         : host.get('declarations')[host.node.declarations.indexOf(declarator.node)];
-      const replacements = liveDeclarator.replaceWithMultiple(rendered.flatMap(node => node.declarations));
+      const nodes = rendered.flatMap(node => node.declarations);
+      notePrivateExportCaptures(liveDeclarator, nodes);
+      const replacements = liveDeclarator.replaceWithMultiple(nodes);
       for (const replacement of replacements) registerDeclaratorBindings(replacement);
-      if (plan.array.splitDeclaration) pendingSplits.set(host.node, statementListOf(host.parentPath?.node));
+      if (plan.array.splitDeclaration) pendingSplits.set(host.node, statementListOf(
+        host.parentPath.node.type === 'ExportNamedDeclaration' ? host.parentPath.parentPath.node : host.parentPath.node,
+      ));
     } else if (plan.array.positional && !exported) {
       declarator.get('id').replaceWith(rendered[0].declarations[0].id);
       registerDeclaratorBindings(declarator);
@@ -1245,6 +1262,7 @@ export default function createAstDestructureEmitter({
       const declarations = rendered.elements.flatMap(element => element.declarator ? [element.declarator] : []);
       capturedSiblingHosts.add(rendered.capture);
       for (const declaration of declarations) capturedSiblingHosts.add(declaration);
+      notePrivateExportCaptures(restHost, [rendered.capture, ...declarations]);
       for (const replacement of restHost.replaceWithMultiple([rendered.capture, ...declarations])) {
         registerDeclaratorBindings(replacement);
       }
@@ -2353,9 +2371,7 @@ export default function createAstDestructureEmitter({
       metaPath,
     });
     const { declarator, declarationPath, declaration, forInit, exported } = host;
-    // A keyed residual needs a private binding. A namespace cannot export the
-    // original names by a list, so keep the same native declaration as the shared flatten.
-    if (exported && !canSplitDestructureExport(hostParent) && patternKeepsEffectfulKey(declarator.id, keyCtx)) return;
+    if (!canExtractDestructureExport(metaPath, keyCtx)) return;
     // the guard canon's context, asked once for this claim: the pure-nav predicates and the value
     // builder all owe the same verdict about the receiver's `?.`
     const guardCtx = navGuardCtx(metaPath);
@@ -3224,6 +3240,7 @@ export default function createAstDestructureEmitter({
     queuedJobsFor,
     recordJob,
     unwrapExportedHost,
+    notePrivateExportCaptures,
     drain,
     sentinelAlreadyProcessed({ metaPath, meta }) {
       return sentinelAlreadyProcessed(metaPath, { node: metaPath.node, meta, injector: injectorState });

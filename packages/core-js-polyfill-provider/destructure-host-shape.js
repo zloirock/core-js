@@ -1033,7 +1033,7 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
   let receiverCallers = null;
   switch (host?.node?.type) {
     case 'VariableDeclarator':
-      if (host.node.id !== root) return null;
+      if (host.node.id !== root || !canSplitDestructureExport(host)) return null;
       kind = host.parentPath.node.kind;
       if (host.node.init) {
         receiverSources = [host.node.init];
@@ -1358,8 +1358,10 @@ function renderRetainedDefaultCapture(plan, {
   claimProperties = null,
 }) {
   if (plan.retainedHead) {
-    const statements = plan.target.staticBindings.entries().map(([prop, entry]) => expressionStatement(assignmentExpression('=',
-      embed(prop.value), identifier(injectImport(entry, propBindingIdentifier(prop.value).name))))).toArray();
+    const statements = plan.target.staticBindings.entries().map(([prop, entry]) => {
+      const { name } = propBindingIdentifier(prop.value);
+      return expressionStatement(assignmentExpression('=', identifier(name), identifier(injectImport(entry, name))));
+    }).toArray();
     // The claims are spent; the original property keys still run in the native head.
     claimProperties?.(plan.target.staticBindings.keys().toArray(), false);
     return { statements };
