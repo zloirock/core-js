@@ -42,3 +42,18 @@ QUnit.test('Array#splice', assert => {
   } };
   assert.same(splice(array).foo, 1, '@@species');
 });
+
+QUnit.test('Array#splice, zero-length species', assert => {
+  for (const args of [[], [0], [-0], [0, 0], [0, -0], [0, -0.5], [0, -1]]) {
+    const array = [];
+    let calls = 0;
+    function Species(length) {
+      calls++;
+      assert.same(length, 0, 'species receives positive zero');
+      return [];
+    }
+    array.constructor = { [Symbol.species]: Species };
+    splice(array, ...args);
+    assert.same(calls, 1, 'species is called once');
+  }
+});

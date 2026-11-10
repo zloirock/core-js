@@ -251,7 +251,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
 
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
     return C === PromiseConstructor || C === PromiseWrapper
-      ? new OwnPromiseCapability(C)
+      ? new OwnPromiseCapability()
       : newGenericPromiseCapability(C);
   };
 
