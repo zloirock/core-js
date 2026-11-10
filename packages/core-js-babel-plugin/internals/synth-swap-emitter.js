@@ -88,13 +88,9 @@ export default function createSynthSwapEmitter({
   let pendingSwapCount = 0;
   const refreshedStores = new WeakSet();
 
-  // path-iteration with inline-spread expansion + `unwrapSafeSequenceTailPath`. accepts both
-  // ArrowFunctionExpression and FunctionExpression IIFE: arrow lacks `arguments`, function
-  // has its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
-  // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
-  // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
-  // locating the argument is the shared `findIifeArgPath` (call site + spread-expanding
-  // coordinates); the shared trailing peel retains every prefix outside the replaced slot
+  // The shared argument locator preserves inline-spread coordinates and rejects replacement
+  // when an ordinary callee observes arguments. Such parameters use body extraction; arrows
+  // have no own arguments object. The trailing peel keeps every prefix at its source slot.
   function detectIifeArgPath(wrapper, objectPattern) {
     const argPath = findIifeArgPath(wrapper, objectPattern.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
     return argPath ? unwrapSafeSequenceTailPath(argPath) : null;

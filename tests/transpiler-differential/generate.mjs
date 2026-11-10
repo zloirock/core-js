@@ -23275,6 +23275,139 @@ function * generateUnknownConstructorReceivers() {
   }
 }
 
+// Private capture declarations must not become observable namespace members after
+// TS lowering. Native source keys and effect logs are independent of both emitters.
+function * generatePrivateNamespaceCaptures() {
+  for (const flag of [false, true]) for (const [shape, body] of [
+    ['guarded', `const flag = JSON.parse('${ flag }'); const user = { entries: () => 19 };
+      namespace N { export const { w: { entries } } = { w: flag ? Object : user }; }
+      return [Object.keys(N).join(','), N.entries({ a: 2 })];`],
+    ['default', `function select() { log.push('select'); return ${ flag ? '{ k: { of: x => x + 7 } }' : '{}' }; }
+      namespace N { export const { k: { of, [(log.push('key'), 'unknown')]: value } = Array } = select(); }
+      return [Object.keys(N).sort().join(','), N.of(3), typeof N.value];`],
+    ['array', `function pick() { log.push('pick'); return ${ flag ? '[4, 9]' : '"xy"' }; }
+      namespace N { export const before = log.push('before'), [{ at }] = [pick()], after = log.push('after'); }
+      return [Object.keys(N).sort().join(','), N.at.call(${ flag ? '[4, 9]' : '"xy"' }, -1)];`],
+  ]) yield { ...snippet(`private-namespace-capture/${ shape }/${ flag }`, `(() => { ${ body } })()`), ts: true, strip: true };
+  // Babel's TS lowering accepts only const namespace exports. The mutable variants
+  // run through SWC in private-destructure-bindings.mjs, with the same runtime checks.
+  yield {
+    ...snippet('private-namespace-symbol/const', `(() => {
+      namespace N { export const before = log.push('before'),
+        { Set: { [(log.push('key'), Symbol.iterator)]: method } } = globalThis as any,
+        { WeakMap: { [(log.push('default-key'), Symbol.iterator)]: fallback = null } } = globalThis as any; }
+      return [Object.keys(N).sort().join(','), typeof N.method, N.fallback];
+    })()`), ts: true, strip: true,
+  };
+  yield { ...snippet('private-namespace-after-dispatch', `(() => {
+    namespace N { export const { array: { at: first }, realm: { WeakSet: Value }, tail } = {
+      array: [41], get realm() { log.push(typeof first); return globalThis; },
+      get tail() { log.push(typeof Value); return 3; },
+    }; }
+    return [Object.keys(N).sort().join(','), N.first.call([41], -1), typeof N.Value, N.tail];
+  })()`), ts: true, strip: true };
+  for (const kind of ['const', 'let', 'var']) for (const rig of [false, true]) yield {
+    ...snippet(`partial-assignment-probe/${ kind }/${ rig }`, `(() => {
+      ${ kind } held = globalThis.window?.Array;
+      let from, other;
+      try { ({ from, other } = held); return [from([3])[0], typeof other]; }
+      catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
+  // Seals and stored receivers keep the branch and the read observed by consumers.
+  for (const rig of [false, true]) for (const [shape, root, ts] of [
+    ['plain', '(globalThis.window?.self).self'],
+    ['store', '((held = globalThis.window)?.self).self'],
+    ['sequence-inside', '(note(), globalThis.window?.self).self'],
+    ['sequence-outside', '(note(), (globalThis.window?.self).self)'],
+    ['cast', '(globalThis.window?.self as any).self', true],
+    ['non-null', '(globalThis.window?.self)!.self', true],
+  ]) for (const [consumer, body] of [
+    ['static', `return typeof ${ root }?.Promise.resolve;`],
+    ['instance', `return typeof ${ root }?.Array.prototype.at;`],
+    ['for-of', `for (const { resolve } of [${ root }?.Promise]) return typeof resolve;`],
+  ]) yield {
+    ...snippet(`kept-seal/${ shape }/${ consumer }/${ rig }`, `(() => {
+      let held;
+      function note() { log[log.length] = 'prefix'; }
+      try { ${ body } } catch (error) { return error.name; }
+    })()`, { rig }), ts: !!ts, strip: true, isolated: true,
+  };
+  for (const rig of [false, true]) for (const operator of ['||', '??']) for (const assignment of [false, true]) yield {
+    ...snippet(`kept-fallback/${ operator }/${ assignment }/${ rig }`, `(() => {
+      let held, resolve;
+      ${ assignment ? '({ resolve } =' : 'const { resolve: value } =' }
+        (held = (log[log.length] = 'store', globalThis.window))?.Promise ${ operator }
+        (log[log.length] = 'fallback', {})${ assignment ? ')' : '' };
+      return typeof ${ assignment ? 'resolve' : 'value' };
+    })()`, { rig }), strip: true, isolated: true,
+  };
+  for (const rig of [false, true]) for (const reverse of [false, true]) yield {
+    ...snippet(`kept-conditional/${ reverse }/${ rig }`, `(() => {
+      try { return typeof (${ reverse ? 'globalThis.window != null ? globalThis : void 0'
+        : 'globalThis.window == null ? void 0 : globalThis' }).self.Promise.resolve; }
+      catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
+  for (const rig of [false, true]) for (const hop of ['', '.self']) yield {
+    ...snippet(`kept-mirror/${ hop || 'direct' }/${ rig }`, `(() => {
+      let memo;
+      try {
+        const ref = (log[log.length] = 'source', ((memo = globalThis.window) == null ? void 0 : memo.self)${ hop }.Map);
+        return ref[(log[log.length] = 'key', 'groupBy')].length;
+      } catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
+}
+
+// Source slots and observed arguments are independent axes. Invocation shapes share
+// one effect policy; each row checks the live static and any unresolved sibling read.
+function * generateIifeSynthReceivers() {
+  for (const setup of ['const list = Array;', 'var list = Array;', 'let list; list = Array;']) yield {
+    ...snippet(`iife-live-argument/${ setup }`, `(() => {
+      ${ setup } return (({ of } = Object) => of(3)[0])(list);
+    })()`), strip: true,
+  };
+  for (const fallback of ['', ' = Object']) {
+    for (const invocation of ['make()', 'make?.()', 'new make()', 'make`tag`']) yield {
+      ...snippet(`iife-invocation/${ invocation }/${ fallback }`, `(() => {
+        function make() { log[log.length] = 'make'; return Array; }
+        return (({ from, length }${ fallback }) => [from([4])[0], length])(${ invocation });
+      })()`), strip: true,
+    };
+    for (const argument of ['Array', '(log[log.length] = "argument", Array)', '...[Array]']) yield {
+      ...snippet(`iife-observed/${ argument }/${ fallback }`, `(() => {
+        return (function ({ from }${ fallback }) {
+          return [from([5])[0], arguments[0] === Array];
+        })(${ argument });
+      })()`), strip: true,
+    };
+    for (const argument of ['pick ? Array : Iterator', 'pick && Array', 'pick ? Array : undefined']) yield {
+      ...snippet(`iife-observed-selection/${ argument }/${ fallback }`, `(() => {
+        const pick = JSON.parse('true');
+        return (function ({ from }${ fallback }) { void from; return arguments[0] === Array; })(${ argument });
+      })()`), strip: true,
+    };
+  }
+  for (const value of ['[4, 15]', '"ab"']) {
+    for (const observe of ['arguments[0] === value', 'arguments.length', '(() => arguments[0] === value)()']) yield {
+      ...snippet(`iife-instance-observed/${ value }/${ observe }`, `(() => {
+        const value = ${ value };
+        return (function ({ at } = []) { return [at.call(value, -1), ${ observe }]; })(value);
+      })()`), strip: true,
+    };
+  }
+  for (const prefix of ['arguments[1].row = "ab"', 'change(arguments)']) yield {
+    ...snippet(`iife-instance-before-pattern/${ prefix }`, `(() => {
+      const box = { row: [4, 15] };
+      function change(args) { args[1].row = "ab"; }
+      return (function (first = (${ prefix }), { row: { at } }) {
+        return [at.call(box.row, -1), arguments[1] === box];
+      })(undefined, box);
+    })()`), strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -24967,89 +25100,5 @@ export function * generate() {
     })()`, { rig }), strip: true, isolated: true, ts,
   };
   yield * generatePrivateNamespaceCaptures();
-}
-
-// Private capture declarations must not become observable namespace members after
-// TS lowering. Native source keys and effect logs are independent of both emitters.
-function * generatePrivateNamespaceCaptures() {
-  for (const flag of [false, true]) for (const [shape, body] of [
-    ['guarded', `const flag = JSON.parse('${ flag }'); const user = { entries: () => 19 };
-      namespace N { export const { w: { entries } } = { w: flag ? Object : user }; }
-      return [Object.keys(N).join(','), N.entries({ a: 2 })];`],
-    ['default', `function select() { log.push('select'); return ${ flag ? '{ k: { of: x => x + 7 } }' : '{}' }; }
-      namespace N { export const { k: { of, [(log.push('key'), 'unknown')]: value } = Array } = select(); }
-      return [Object.keys(N).sort().join(','), N.of(3), typeof N.value];`],
-    ['array', `function pick() { log.push('pick'); return ${ flag ? '[4, 9]' : '"xy"' }; }
-      namespace N { export const before = log.push('before'), [{ at }] = [pick()], after = log.push('after'); }
-      return [Object.keys(N).sort().join(','), N.at.call(${ flag ? '[4, 9]' : '"xy"' }, -1)];`],
-  ]) yield { ...snippet(`private-namespace-capture/${ shape }/${ flag }`, `(() => { ${ body } })()`), ts: true, strip: true };
-  // Babel's TS lowering accepts only const namespace exports. The mutable variants
-  // run through SWC in private-destructure-bindings.mjs, with the same runtime checks.
-  yield {
-    ...snippet('private-namespace-symbol/const', `(() => {
-      namespace N { export const before = log.push('before'),
-        { Set: { [(log.push('key'), Symbol.iterator)]: method } } = globalThis as any,
-        { WeakMap: { [(log.push('default-key'), Symbol.iterator)]: fallback = null } } = globalThis as any; }
-      return [Object.keys(N).sort().join(','), typeof N.method, N.fallback];
-    })()`), ts: true, strip: true,
-  };
-  yield { ...snippet('private-namespace-after-dispatch', `(() => {
-    namespace N { export const { array: { at: first }, realm: { WeakSet: Value }, tail } = {
-      array: [41], get realm() { log.push(typeof first); return globalThis; },
-      get tail() { log.push(typeof Value); return 3; },
-    }; }
-    return [Object.keys(N).sort().join(','), N.first.call([41], -1), typeof N.Value, N.tail];
-  })()`), ts: true, strip: true };
-  for (const kind of ['const', 'let', 'var']) for (const rig of [false, true]) yield {
-    ...snippet(`partial-assignment-probe/${ kind }/${ rig }`, `(() => {
-      ${ kind } held = globalThis.window?.Array;
-      let from, other;
-      try { ({ from, other } = held); return [from([3])[0], typeof other]; }
-      catch (error) { return error.name; }
-    })()`, { rig }), strip: true, isolated: true,
-  };
-  // Seals and stored receivers keep the branch and the read observed by consumers.
-  for (const rig of [false, true]) for (const [shape, root, ts] of [
-    ['plain', '(globalThis.window?.self).self'],
-    ['store', '((held = globalThis.window)?.self).self'],
-    ['sequence-inside', '(note(), globalThis.window?.self).self'],
-    ['sequence-outside', '(note(), (globalThis.window?.self).self)'],
-    ['cast', '(globalThis.window?.self as any).self', true],
-    ['non-null', '(globalThis.window?.self)!.self', true],
-  ]) for (const [consumer, body] of [
-    ['static', `return typeof ${ root }?.Promise.resolve;`],
-    ['instance', `return typeof ${ root }?.Array.prototype.at;`],
-    ['for-of', `for (const { resolve } of [${ root }?.Promise]) return typeof resolve;`],
-  ]) yield {
-    ...snippet(`kept-seal/${ shape }/${ consumer }/${ rig }`, `(() => {
-      let held;
-      function note() { log[log.length] = 'prefix'; }
-      try { ${ body } } catch (error) { return error.name; }
-    })()`, { rig }), ts: !!ts, strip: true, isolated: true,
-  };
-  for (const rig of [false, true]) for (const operator of ['||', '??']) for (const assignment of [false, true]) yield {
-    ...snippet(`kept-fallback/${ operator }/${ assignment }/${ rig }`, `(() => {
-      let held, resolve;
-      ${ assignment ? '({ resolve } =' : 'const { resolve: value } =' }
-        (held = (log[log.length] = 'store', globalThis.window))?.Promise ${ operator }
-        (log[log.length] = 'fallback', {})${ assignment ? ')' : '' };
-      return typeof ${ assignment ? 'resolve' : 'value' };
-    })()`, { rig }), strip: true, isolated: true,
-  };
-  for (const rig of [false, true]) for (const reverse of [false, true]) yield {
-    ...snippet(`kept-conditional/${ reverse }/${ rig }`, `(() => {
-      try { return typeof (${ reverse ? 'globalThis.window != null ? globalThis : void 0'
-        : 'globalThis.window == null ? void 0 : globalThis' }).self.Promise.resolve; }
-      catch (error) { return error.name; }
-    })()`, { rig }), strip: true, isolated: true,
-  };
-  for (const rig of [false, true]) for (const hop of ['', '.self']) yield {
-    ...snippet(`kept-mirror/${ hop || 'direct' }/${ rig }`, `(() => {
-      let memo;
-      try {
-        const ref = (log[log.length] = 'source', ((memo = globalThis.window) == null ? void 0 : memo.self)${ hop }.Map);
-        return ref[(log[log.length] = 'key', 'groupBy')].length;
-      } catch (error) { return error.name; }
-    })()`, { rig }), strip: true, isolated: true,
-  };
+  yield * generateIifeSynthReceivers();
 }
