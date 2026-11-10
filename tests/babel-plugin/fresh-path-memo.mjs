@@ -12,7 +12,7 @@ import { createBabelAdapter, freshPathOfNode, rebuildLaggedScopeBinding } from '
 import { rangePreservingTypes, removePatternSlot } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import ImportInjectorState from '../../packages/core-js-polyfill-provider/injector-base.js';
 import {
-  ancestorChainDetached, bindingNodeType, buildOwnerWritePathIndex, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup,
+  withCanonQuestion, ancestorChainDetached, bindingNodeType, buildOwnerWritePathIndex, liveBindingWrites, ownerWritePathIndex, wrapScopeBindingLookup,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
@@ -90,16 +90,18 @@ async function parseProgram(code, parserPlugins = []) {
   const [usePath] = useStatement.get('expression').get('arguments');
   switchPath.scope.removeBinding('S');
   check('switch recovery starts from a native miss', usePath.scope.getBinding('S'), undefined);
-  const rebuilt = rebuildLaggedScopeBinding(usePath, 'S');
-  checkTruthy('switch recovery returns the live declaration', rebuilt?.path === declarationPath);
-  checkTruthy('switch recovery uses the case-block owner', rebuilt?.scope === switchPath.scope);
-  check('switch recovery keeps same-case, sibling-case and closure writes', rebuilt?.constantViolations.length, 3);
-  checkTruthy('switch recovery excludes discriminant and nested-shadow writes', rebuilt?.constantViolations.every(write => {
-    return write.node.right?.name !== 'outer' && write.node.right?.name !== 'inner';
-  }));
-  checkTruthy('switch owner anchor sees its own declaration', rebuilt && rebuildLaggedScopeBinding(switchPath, 'S') === rebuilt);
-  check('switch discriminant cannot see its case declaration', rebuildLaggedScopeBinding(switchPath.get('discriminant'), 'S'), null);
-  check('outside lookup cannot see the case declaration', rebuildLaggedScopeBinding(programPath, 'S'), null);
+  withCanonQuestion(() => {
+    const rebuilt = rebuildLaggedScopeBinding(usePath, 'S');
+    checkTruthy('switch recovery returns the live declaration', rebuilt?.path === declarationPath);
+    checkTruthy('switch recovery uses the case-block owner', rebuilt?.scope === switchPath.scope);
+    check('switch recovery keeps same-case, sibling-case and closure writes', rebuilt?.constantViolations.length, 3);
+    checkTruthy('switch recovery excludes discriminant and nested-shadow writes', rebuilt?.constantViolations.every(write => {
+      return write.node.right?.name !== 'outer' && write.node.right?.name !== 'inner';
+    }));
+    checkTruthy('switch owner anchor sees its own declaration', rebuilt && rebuildLaggedScopeBinding(switchPath, 'S') === rebuilt);
+    check('switch discriminant cannot see its case declaration', rebuildLaggedScopeBinding(switchPath.get('discriminant'), 'S'), null);
+    check('outside lookup cannot see the case declaration', rebuildLaggedScopeBinding(programPath, 'S'), null);
+  });
 }
 
 // The nearest lexical declaration wins over a hoisted outer variable, including when
@@ -124,12 +126,14 @@ async function parseProgram(code, parserPlugins = []) {
   const [useStatement] = firstCase.get('consequent');
   const [usePath] = useStatement.get('expression').get('arguments');
   switchPath.scope.removeBinding('S');
-  const rebuilt = rebuildLaggedScopeBinding(usePath, 'S');
-  checkTruthy('case lexical shadow wins over outer var', rebuilt?.path === declarationPath);
-  checkTruthy('case test sees the case-block declaration', rebuilt && rebuildLaggedScopeBinding(firstCase.get('test'), 'S') === rebuilt);
-  check('conditional later write remains a violation', rebuilt?.constantViolations.length, 1);
-  checkTruthy('discriminant resolves the outer var', rebuildLaggedScopeBinding(switchPath.get('discriminant'), 'S')?.path.node === outerPath.node.declarations[0]);
-  checkTruthy('outside use resolves the outer var', rebuildLaggedScopeBinding(outsidePath, 'S')?.path.node === outerPath.node.declarations[0]);
+  withCanonQuestion(() => {
+    const rebuilt = rebuildLaggedScopeBinding(usePath, 'S');
+    checkTruthy('case lexical shadow wins over outer var', rebuilt?.path === declarationPath);
+    checkTruthy('case test sees the case-block declaration', rebuilt && rebuildLaggedScopeBinding(firstCase.get('test'), 'S') === rebuilt);
+    check('conditional later write remains a violation', rebuilt?.constantViolations.length, 1);
+    checkTruthy('discriminant resolves the outer var', rebuildLaggedScopeBinding(switchPath.get('discriminant'), 'S')?.path.node === outerPath.node.declarations[0]);
+    checkTruthy('outside use resolves the outer var', rebuildLaggedScopeBinding(outsidePath, 'S')?.path.node === outerPath.node.declarations[0]);
+  });
 }
 
 // Asked in a scope above the use - an alias read, resolved where the alias is declared - the recovery
@@ -149,6 +153,38 @@ async function parseProgram(code, parserPlugins = []) {
   checkTruthy('a use-scope recovery finds the block var', rebuildLaggedScopeBinding(usePath, 'Array')?.path === declarationPath);
   checkTruthy('the declaring function scope asked finds it too', rebuildLaggedScopeBinding(usePath, 'Array', functionPath.scope)?.path === declarationPath);
   checkTruthy('a scope above the declaring function finds none', rebuildLaggedScopeBinding(usePath, 'Array', programPath.scope) === null);
+}
+
+// A miss cannot freeze a container before a render inserts or replaces its declaration.
+{
+  const programPath = await parseProgram('use(x);');
+  const use = programPath.get('body.0.expression.arguments.0');
+  withCanonQuestion(() => check('pre-insertion lookup misses', rebuildLaggedScopeBinding(use, 'x'), null));
+  const first = t.variableDeclarator(t.identifier('x'), t.arrayExpression([]));
+  programPath.node.body.unshift(t.variableDeclaration('const', [first]));
+  withCanonQuestion(() => checkTruthy('post-insertion lookup sees the live slot', rebuildLaggedScopeBinding(use, 'x')?.path.node === first));
+  const replacement = t.variableDeclarator(t.identifier('x'), t.stringLiteral('new'));
+  programPath.node.body[0] = t.variableDeclaration('const', [replacement]);
+  withCanonQuestion(() => checkTruthy('same-length replacement invalidates the slot', rebuildLaggedScopeBinding(use, 'x')?.path.node === replacement));
+}
+
+// A crawl publishes our prepended require binding without giving it a source span.
+// Only that exact emitted declaration, with no writes, owns the placement guarantee.
+for (const own of [false, true]) for (const shape of ['read', 'written', 'shadowed']) {
+  const program = await parseProgram(`
+    var _Symbol = require('@core-js/pure/actual/symbol');
+    ${ shape === 'written' ? '_Symbol = other;' : '' }
+    function read(${ shape === 'shadowed' ? '_Symbol' : '' }) { return _Symbol; }
+  `);
+  const [declaration] = program.node.body;
+  const use = program.get('body').at(-1).get('body.body.0.argument');
+  const adapter = createBabelAdapter({ getInjector: () => ({
+    pkg: '@core-js/pure',
+    getBindingInfo: () => ({ source: 'actual/symbol', entry: 'symbol', hint: 'Symbol' }),
+    survivingEmittedNodes: body => own ? body.filter(node => node === declaration) : [],
+  }) });
+  check(`require placement/own=${ own }/${ shape }`,
+    adapter.getBinding({ scope: use.scope, name: '_Symbol', path: use }).mintedAlias, own && shape === 'read');
 }
 
 // A binding babel's scope no longer holds is served by the alias registry's NAME view alone. A

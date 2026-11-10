@@ -9,6 +9,7 @@ import './fixture-output-normalization.mjs';
 import './estree-to-babel.mjs';
 import './spanless-co-transform.mjs';
 import './removed-write-co-transform.mjs';
+import './scope-lifecycle.mjs';
 import './import-injector.mjs';
 import './catch-extractor-mode.mjs';
 import './fresh-path-memo.mjs';

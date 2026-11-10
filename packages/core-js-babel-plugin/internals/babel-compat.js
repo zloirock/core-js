@@ -48,6 +48,7 @@ import {
 import { decidedReusableReceiver } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   classifyReceiverSE,
+  isDeclaratorSelfViolation,
   chainValueCarrier,
   createTypeAnnotationChecker,
   deleteHostAboveChain,
@@ -133,6 +134,81 @@ export function removePatternSlot(slot) {
   slot.remove();
   for (const [name, binding] of kept) {
     if (!binding.scope.hasOwnBinding(name)) binding.scope.bindings[name] = binding;
+  }
+}
+
+// scope.push caches a declaration path on its body. A removed or raw-replaced declaration
+// must not receive the next sibling's variable; keep live cache entries and other path data.
+export function clearRemovedDeclarationCache(path) {
+  if (!path?.data) return;
+  for (const [key, declaration] of Object.entries(path.data)) {
+    if (key.startsWith('declaration:') && declaration
+      && (!declaration.node || !path.node?.body?.includes(declaration.node))) delete path.data[key];
+  }
+}
+
+// minted USER-binding writes REPLACE positioned originals: carry the original span so the
+// positional flow gates (mutation intervals, guard dominance) see the write where the
+// source wrote it. the estree emitter keeps the original node, so span parity keeps the
+// narrowing decisions aligned across substrates - a span-less minted write fails every
+// positional interval and conservatively drops narrows the unplugin emitter keeps
+export function inheritSpan(node, from) {
+  if (typeof from?.start === 'number') {
+    node.start = from.start;
+    node.end = from.end;
+    node.loc = from.loc;
+    node.range = from.range;
+  }
+  return node;
+}
+
+// Release a source binding before removing or cloning its identifier. Keep the Binding itself:
+// sibling lowerings need its referencePaths to capture loop locals, not just its writes. The
+// source declarator's self-violation moves with the declaration; other initialized var declarations
+// remain writes. A parameter redeclared by var follows the same rule.
+export function releaseMovedBindings(declarator, names, bindings = new Map()) {
+  const span = inheritSpan({}, declarator.node);
+  for (const name of names) {
+    const binding = declarator.scope.getBinding(name);
+    if (!binding && bindings.has(name)) continue;
+    const kept = (binding?.constantViolations ?? []).filter(write => !isDeclaratorSelfViolation(write, declarator.node));
+    const otherDeclaration = binding?.path?.node !== declarator.node && binding?.path?.isVariableDeclarator?.()
+      && binding.path.node.init ? [binding.path] : [];
+    bindings.set(name, { binding, writes: [...otherDeclaration, ...kept], span });
+    declarator.scope.removeBinding(name);
+  }
+  return bindings;
+}
+
+// Install the retained records on live declarators, including statement/block products.
+// A fresh declarator inherits the source position used by alias and mutation ordering proofs.
+// Registration still owns fresh names and Babel's reference bags; an existing record already
+// points at its new identifier, so registering it neither collides nor discards its references.
+export function rebindMovedBindings(paths, kind, bindings) {
+  for (let path of [paths].flat()) {
+    if (!path?.node) continue;
+    if (path.isExportNamedDeclaration()) path = path.get('declaration');
+    if (path.isBlockStatement() || path.isVariableDeclaration()) {
+      rebindMovedBindings(path.get(path.isBlockStatement() ? 'body' : 'declarations'), path.node.kind ?? kind, bindings);
+      continue;
+    }
+    if (!path.isVariableDeclarator()) continue;
+    const owner = kind === 'var' ? path.scope.getFunctionParent() ?? path.scope.getProgramParent() : path.scope;
+    for (const [name, identifier] of Object.entries(path.get('id').getBindingIdentifiers())) {
+      const record = bindings.get(name);
+      if (!record?.binding) continue;
+      const { binding, writes, span } = record;
+      if (path.node.start === undefined) inheritSpan(path.node, span);
+      binding.identifier = identifier;
+      binding.path = path;
+      binding.scope = owner;
+      binding.kind = kind;
+      binding.clearValue();
+      binding.constantViolations = [];
+      for (const write of writes) binding.reassign(write);
+      owner.bindings[name] = binding;
+    }
+    owner.registerBinding(kind, path);
   }
 }
 
