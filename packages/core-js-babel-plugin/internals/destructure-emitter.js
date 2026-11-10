@@ -94,7 +94,6 @@ import {
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
   peelChainAssignment,
-  isDeclaratorSelfViolation,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   applyNestedParamSynthPlan,
@@ -232,7 +231,9 @@ import {
   renderNestedKeyedPatternCapture,
   renderOrderedRealmKeys,
 } from '@core-js/polyfill-provider/destructure-host-shape';
-import { cloneReceiverForEmit, cloneWriteTarget, landInSequenceTail, removePatternSlot } from './babel-compat.js';
+import {
+  cloneReceiverForEmit, cloneWriteTarget, inheritSpan, landInSequenceTail, rebindMovedBindings, releaseMovedBindings, removePatternSlot,
+} from './babel-compat.js';
 import { planDestructureEmission, groupNativeDeclarators, STRATEGIES } from './destructure-emission-plan.js';
 
 // when a residual destructure keeps a proxy-global member-chain receiver in the output (a
@@ -1491,21 +1492,6 @@ export default function createDestructureEmitter({
     }
     declarator.get('id').replaceWith(t.cloneNode(declarator.node.id));
     rebindMovedBindings([declarator, ...inserted], kind, bindings);
-  }
-
-  // minted USER-binding writes REPLACE positioned originals: carry the original span so the
-  // positional flow gates (mutation intervals, guard dominance) see the write where the
-  // source wrote it. the estree emitter keeps the original node, so span parity keeps the
-  // narrowing decisions aligned across substrates - a span-less minted write fails every
-  // positional interval and conservatively drops narrows the unplugin emitter keeps
-  function inheritSpan(node, from) {
-    if (typeof from?.start === 'number') {
-      node.start = from.start;
-      node.end = from.end;
-      node.loc = from.loc;
-      node.range = from.range;
-    }
-    return node;
   }
 
   // A statement rewrite that reuses declarator nodes leaves each of them on a new path: babel keys
@@ -3185,8 +3171,9 @@ export default function createDestructureEmitter({
       if (!element) break;
       const next = prev.getPrevSibling();
       const extracted = prev.node;
+      const bindings = releaseMovedBindings(prev, Object.keys(prev.getBindingIdentifiers()));
       prev.remove();
-      element.insertBefore(extracted);
+      rebindMovedBindings(element.insertBefore(extracted), declaration.node.kind, bindings);
       prev = next;
     }
     for (let prev = declaration.getPrevSibling(); prev.node?.type === 'VariableDeclaration'
@@ -3195,61 +3182,12 @@ export default function createDestructureEmitter({
       const element = ownElement(extracted);
       if (!element) break;
       const next = prev.getPrevSibling();
+      const bindings = releaseMovedBindings(prev.get('declarations.0'), Object.keys(prev.getBindingIdentifiers()));
       prev.remove();
-      element.insertBefore(extracted);
+      rebindMovedBindings(element.insertBefore(extracted), declaration.node.kind, bindings);
       prev = next;
     }
     rebindLiveDeclarators(declaration, declaration.scope);
-  }
-
-  // Release a source binding before removing or cloning its identifier. Keep the Binding itself:
-  // sibling lowerings need its referencePaths to capture loop locals, not just its writes. The
-  // source declarator's self-violation moves with the declaration; other initialized var declarations
-  // remain writes. A parameter redeclared by var follows the same rule.
-  function releaseMovedBindings(declarator, names, bindings = new Map()) {
-    const span = inheritSpan({}, declarator.node);
-    for (const name of names) {
-      const binding = declarator.scope.getBinding(name);
-      if (!binding && bindings.has(name)) continue;
-      const kept = (binding?.constantViolations ?? []).filter(write => !isDeclaratorSelfViolation(write, declarator.node));
-      const otherDeclaration = binding?.path?.node !== declarator.node && binding?.path?.isVariableDeclarator?.()
-        && binding.path.node.init ? [binding.path] : [];
-      bindings.set(name, { binding, writes: [...otherDeclaration, ...kept], span });
-      declarator.scope.removeBinding(name);
-    }
-    return bindings;
-  }
-
-  // Install the retained records on live declarators, including statement/block products.
-  // A fresh declarator inherits the source position used by alias and mutation ordering proofs.
-  // Registration still owns fresh names and Babel's reference bags; an existing record already
-  // points at its new identifier, so registering it neither collides nor discards its references.
-  function rebindMovedBindings(paths, kind, bindings) {
-    for (let path of [paths].flat()) {
-      if (!path?.node) continue;
-      if (path.isExportNamedDeclaration()) path = path.get('declaration');
-      if (path.isBlockStatement() || path.isVariableDeclaration()) {
-        rebindMovedBindings(path.get(path.isBlockStatement() ? 'body' : 'declarations'), path.node.kind ?? kind, bindings);
-        continue;
-      }
-      if (!path.isVariableDeclarator()) continue;
-      const owner = kind === 'var' ? path.scope.getFunctionParent() ?? path.scope.getProgramParent() : path.scope;
-      for (const [name, identifier] of Object.entries(t.getBindingIdentifiers(path.node.id))) {
-        const record = bindings.get(name);
-        if (!record?.binding) continue;
-        const { binding, writes, span } = record;
-        if (path.node.start === undefined) inheritSpan(path.node, span);
-        binding.identifier = identifier;
-        binding.path = path;
-        binding.scope = owner;
-        binding.kind = kind;
-        binding.clearValue();
-        binding.constantViolations = [];
-        for (const write of writes) binding.reassign(write);
-        owner.bindings[name] = binding;
-      }
-      owner.registerBinding(kind, path);
-    }
   }
 
   // Install a capture's rendered declarators in the source declarator's place. The first keeps that
@@ -5011,9 +4949,18 @@ export default function createDestructureEmitter({
       if (next.node === behind.node) break;
     }
     const nodes = chain.map(item => item.node);
-    for (const item of chain) item.remove();
+    const bindings = new Map();
+    for (const item of chain) {
+      const declaration = item.isExportNamedDeclaration() ? item.get('declaration') : item;
+      if (declaration.isVariableDeclaration()) {
+        for (const declarator of declaration.get('declarations')) {
+          releaseMovedBindings(declarator, Object.keys(declarator.getBindingIdentifiers()), bindings);
+        }
+      }
+      item.remove();
+    }
     hostLastAfterInsert.delete(statementHost.node);
-    return nodes;
+    return { nodes, bindings };
   }
 
   // plant `<ref> = <value>` for a memoized receiver, ahead of the host but never ahead of what the
@@ -5037,7 +4984,8 @@ export default function createDestructureEmitter({
         capture: { name: ref.name, value, kind: declarationPath?.node.kind ?? 'const' }, embed: hostSlot,
       })[0]));
       const { scope } = statementHost;
-      const inserted = statementHost.insertBefore(nodes);
+      const inserted = statementHost.insertBefore(nodes.nodes);
+      rebindMovedBindings(inserted, null, nodes.bindings);
       rebindLiveDeclarators(inserted, scope);
       recordHostInsert(statementHost.node, inserted[0]);
       return;
@@ -5069,8 +5017,14 @@ export default function createDestructureEmitter({
       const trailing = (hostTrailingDeclarators.get(host.node) ?? []).filter(item => item.node && !item.removed);
       if (trailing.length) {
         const moved = trailing.map(item => item.node);
-        for (const item of trailing) item.remove();
-        lead = host.insertBefore(moved).at(-1);
+        const bindings = new Map();
+        for (const item of trailing) {
+          releaseMovedBindings(item, Object.keys(item.getBindingIdentifiers()), bindings);
+          item.remove();
+        }
+        const inserted = host.insertBefore(moved);
+        rebindMovedBindings(inserted, declarationPath.node.kind, bindings);
+        lead = inserted.at(-1);
         rebindLiveDeclarators(host.parentPath, host.parentPath.scope);
         hostTrailingDeclarators.delete(host.node);
       }
@@ -5656,7 +5610,7 @@ export default function createDestructureEmitter({
         plantSideEffect(declaration, parent.node.init, probe);
         const statement = declaration.parentPath?.isExportNamedDeclaration() ? declaration.parentPath : declaration;
         const trailing = moveTrailingInsertsAhead(statement);
-        if (trailing) rebindLiveDeclarators(statement.insertBefore(trailing), statement.scope);
+        if (trailing) rebindMovedBindings(statement.insertBefore(trailing.nodes), null, trailing.bindings);
         return bound(declaration.replaceWith(extractedDeclaration), null);
       }
       case STRATEGIES.SPLICE_AND_SPLIT:
@@ -5899,7 +5853,7 @@ export default function createDestructureEmitter({
       case STRATEGIES.LIFT_SE_AND_REPLACE_ASSIGN: {
         plantSideEffect(assignmentTarget, parent.node.right, probe);
         const trailing = moveTrailingInsertsAhead(assignmentTarget);
-        if (trailing) rebindLiveDeclarators(assignmentTarget.insertBefore(trailing), assignmentTarget.scope);
+        if (trailing) rebindMovedBindings(assignmentTarget.insertBefore(trailing.nodes), null, trailing.bindings);
         return assignmentTarget.replaceWith(assignment);
       }
       case STRATEGIES.REPLACE_ASSIGNMENT:

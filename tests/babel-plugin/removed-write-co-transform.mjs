@@ -39,6 +39,19 @@ for (const method of ['usage-global', 'usage-pure']) {
 // A declaration move must retain the original Binding. Printing and reparsing before
 // block-scoping would rebuild referencePaths and conceal a lost loop capture.
 for (const [name, source, names] of [
+  ['call-static', 'function mk() { effect(); return Array; } function read() { const { from, of } = mk(); return () => [from, of]; }', ['from', 'of']],
+  ['call-native', 'function mk() { effect(); return Array; } function read() { const { from, name } = mk(); return () => [from, name]; }', ['from', 'name']],
+  ['call-multiple',
+    'function mk() { effect(); return Array; } function read() { const z = 1, { from, name } = mk(); return () => [z, from, name]; }', ['z', 'from', 'name']],
+  ['guarded-detach',
+    'let M = Map; if (flag) M = other; function read() { let { groupBy: method, at, name } = M; method = 1; return () => [method, at, name]; }', ['method', 'at', 'name']],
+  ['guarded-split', 'let M = pickConstructor(); if (!M) M = Array; const { from, of, isArray } = M; use(() => [from, of, isArray]);', ['from', 'of', 'isArray']],
+  ['statement-moves', await readFile(new URL('../transpiler-fixtures/usage-pure/running-init-extractions-keep-source-order/input.mjs', import.meta.url), 'utf8'),
+    ['a1', 'b1', 'a4', 'b4', 'a5', 'b5', 'a7', 'b7']],
+  ['bodyless-moves', await readFile(new URL('../transpiler-fixtures/usage-pure/bodyless-var-discarded-init-live-prefix/input.mjs', import.meta.url), 'utf8'),
+    ['groupBy', 'from', 'allSettled', 'of', 'entries', 'fromEntries', 'values', 'hasOwn']],
+  ['loop-call-moves', await readFile(new URL('../transpiler-fixtures/usage-pure/call-init-memo-ahead-of-every-read/input.mjs', import.meta.url), 'utf8'),
+    ['fromIterator', 'iteratorName', 'fromObject', 'objectName', 'fromPromise', 'promiseName']],
   ['residual', 'function read(row) { const { name, find } = row; return () => [name, find()]; }', ['name', 'find']],
   ['last', 'function read(row) { const { at, flat } = row; return () => [at(), flat()]; }', ['at', 'flat']],
   ['rest', 'function read(row) { const { at: Map, ...rest } = row; return () => [Map(), rest]; }', ['Map', 'rest']],

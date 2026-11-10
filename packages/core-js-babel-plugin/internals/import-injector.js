@@ -14,6 +14,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { hostSlot, renderInjectedImportNodes, renderMemoActivation } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './estree-to-babel.js';
+import { clearRemovedDeclarationCache } from './babel-compat.js';
 import ImportInjectorState, {
   buildCanonicalRenameMap,
   canDropUnusedMemo,
@@ -172,7 +173,7 @@ export default class ImportInjector extends ImportInjectorState {
 
   // declarator registry for the same refs: the memo-dense append path below skips babel's
   // per-ref binding registration (quadratic), so a MID-PASS scope lookup misses those refs -
-  // the registry serves a synthetic binding view until the programExit re-crawl
+  // the registry serves a synthetic binding view until programExit publishes the live bindings
   #memoDeclarators = new Map();
 
   getMemoDeclarator(name) {
@@ -248,8 +249,8 @@ export default class ImportInjector extends ImportInjectorState {
       // was handed. NO per-ref `registerBinding`: the path it needs re-materializes every
       // sibling declarator (`get('declarations.N')` walks the whole list - quadratic on
       // memo-dense files), name collisions are guarded by the injector's own `usedNames`
-      // (not scope lookups), and `pruneUnusedRefs` re-crawls the scope at programExit
-      // before anything reads these bindings
+      // (not scope lookups). At programExit `pruneUnusedRefs` publishes surviving appends
+      // on its fast path, or rebuilds scope on the pruning/renaming path
       const declarator = appendMemoDeclarator(host.node, this.#t.variableDeclarator(id));
       this.#memoDeclarators.set(id.name, declarator);
       return;
@@ -395,8 +396,10 @@ export default class ImportInjector extends ImportInjectorState {
         continue;
       }
       const block = declPath.parentPath;
-      if (declPath.node.declarations.length === 1) declPath.remove();
-      else binding.path.remove();
+      if (declPath.node.declarations.length === 1) {
+        declPath.remove();
+        clearRemovedDeclarationCache(block);
+      } else binding.path.remove();
       const call = block?.parentPath?.parentPath;
       const returned = emptyMemoActivationValue(call?.node, this.#memoActivations);
       if (returned) call.replaceWith(returned);
@@ -518,12 +521,22 @@ export default class ImportInjector extends ImportInjectorState {
     return census;
   }
 
+  // The fast append postpones path construction. Materialize each host's list once
+  // before returning without a crawl, so sibling lowerings see all surviving memos.
+  #registerAppendedRefs() {
+    for (const host of this.#declaredRefHosts.values()) {
+      if (!host.node || host.removed) continue;
+      for (const path of host.get('declarations')) {
+        if (!path.scope.getBinding(path.node.id.name)) path.scope.registerBinding('var', path);
+      }
+    }
+  }
+
   // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
   // emission but kept the scope.push), then renumber survivors so the output matches unplugin.
-  // `scope.crawl()` is O(program size) but runs once per file at programExit - amortized
-  // over all in-file polyfill rewrites it's negligible vs the O(N) traversal that already
-  // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
-  // out of sync with the live AST
+  // The pruning/renaming path rebuilds scope because sibling replacements can detach binding
+  // paths. The canonical fast path only publishes path-less appends; both paths leave the live
+  // bindings and UID names available to later lowerings.
   pruneUnusedRefs() {
     const families = [...this.generatedRefFamilies()].filter(([, names]) => names.size);
     if (!families.length) return;
@@ -558,7 +571,7 @@ export default class ImportInjector extends ImportInjectorState {
       // state routes to the crawl below, where the taken-aware canonical renumber decides
       if (!hasDead && printRank.length === allGenerated.size
         && families.every(([prefix]) => isCanonicalSlotOrder(
-          prefix, printRank.filter(name => this.generatedRefFamilies().get(prefix).has(name))))) return;
+          prefix, printRank.filter(name => this.generatedRefFamilies().get(prefix).has(name))))) return this.#registerAppendedRefs();
     }
     this.#programPath.scope.crawl();
     const { byName, taken } = this.#indexBindingsAndTakenNames();
@@ -647,7 +660,20 @@ export default class ImportInjector extends ImportInjectorState {
         renameNodes.set(p.node, to);
       },
     });
+    this.#renameBindings(renameMap, byName, renameNodes);
+  }
+
+  // Rekey retained bindings together: a swap must not overwrite the other record.
+  // Reserve the final nested names before a sibling allocates its own program UIDs.
+  #renameBindings(renameMap, byName, renameNodes) {
     for (const [node, to] of renameNodes) node.name = to;
+    for (const [from] of renameMap) for (const binding of byName.get(from) ?? []) delete binding.scope.bindings[from];
+    const program = this.#programPath.scope.getProgramParent();
+    for (const [from, to] of renameMap) {
+      for (const binding of byName.get(from) ?? []) binding.scope.bindings[to] = binding;
+      this.#scopeReferences.add(program, to);
+      this.#scopeUids.add(program, to);
+    }
   }
 
   // base returns a string; babel consumers need an Identifier - cache one per name so
@@ -759,6 +785,8 @@ export default class ImportInjector extends ImportInjectorState {
   // node-identity match (== check on `body[i] === entry.node`) avoids touching user-side
   // imports or sibling-plugin emissions interleaved in the same region
   reorderImportRegion() {
+    // A requeued exit may have added helpers after the previous pruning census.
+    this.#exitCensus = null;
     // set the precondition flag at the end so a caller-side guard (`#assertSorted` in
     // `reorderRefsAfterImports`) reflects "this method ran" rather than "we entered and may
     // have early-returned". flag is observed by downstream methods that REQUIRE the sort to
@@ -940,5 +968,13 @@ export default class ImportInjector extends ImportInjectorState {
     const merged = this.#t.variableDeclaration('var', pulledDeclarators);
     kept.splice(importEnd, 0, merged);
     this.#programPath.node.body = kept;
+    clearRemovedDeclarationCache(this.#programPath);
+    // The declarators themselves survived the merge; point their records at live paths.
+    const declaration = this.#programPath.get(`body.${ importEnd }`);
+    for (const path of declaration.get('declarations')) {
+      const binding = declaration.scope.getBinding(path.node.id.name);
+      if (binding?.identifier === path.node.id) binding.path = path;
+      else declaration.scope.registerBinding('var', path);
+    }
   }
 }

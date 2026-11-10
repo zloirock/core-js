@@ -30,6 +30,7 @@ import {
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   buildOwnerWritePathIndex,
+  canonAnswerTable,
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
   getDirectStatementBody,
@@ -138,7 +139,7 @@ export function createBabelAdapter(options = {}) {
       ? null : LEGACY_PARAMETER_PROPERTY_VISITORS,
     hasBinding({ scope, name, path = null, read = null }) {
       // a plugin-minted memo ref appended on the memo-dense fast path is scope-invisible
-      // until the programExit re-crawl - the injector's declarator registry is authoritative
+      // until programExit publishes its bindings - the injector's declarator registry is authoritative
       if (getInjector?.()?.getMemoDeclarator?.(name)) return true;
       // user-declared runtime bindings (var/let/const/function/class/import/TSImportEquals).
       // `getBindingIdentifier` is narrow - `scope.hasBinding` would also fire for free-variable
@@ -277,6 +278,10 @@ export function createBabelAdapter(options = {}) {
           // declaration to point at - a minted memo, a scope-lag name view
           declarationPath: b.path,
           polyfillHint, aliasSymbolSource, aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
+          // Our prepended require has no source span. A late crawl must not turn its
+          // published binding into an unproven initializer; user imports and writes stay gated.
+          mintedAlias: isRequireBinding && !constantViolations.length
+            && !!getInjector()?.survivingEmittedNodes?.([b.path.parent]).length,
           // the hint of a registration whose static narrow did NOT apply at this use - a REFUSED
           // (guarded) registration or a use textually before its trusted write (dominance).
           // IDENTITY view first: a resolved binding with no per-binding entry is provably a
@@ -393,14 +398,11 @@ function replacedDeclSlotInfo(bindingNode, info) {
   return span && bindingNode?.start >= span.start && bindingNode?.end <= span.end ? info : null;
 }
 
-const laggedBindingCache = new WeakMap();
-// name -> first declaring declarator for a block-like container's OWN statement level, built
-// once per container: the flat per-call scan this replaces re-walked every statement of the
-// container (a several-thousand-statement Program body) on every lagged lookup - quadratic on
-// large flat scopes. export wrappers unwrap the same way the scan did; first declaration wins
-const lexicalDeclIndexCache = new WeakMap();
+// Declaration and write indexes belong to one read-only question, never to the mutable
+// container's lifetime: a preceding lookup must not hide a later emitted declaration.
 function lexicalDeclIndex(containerNode) {
-  let index = lexicalDeclIndexCache.get(containerNode);
+  const cache = canonAnswerTable(lexicalDeclIndex, []);
+  let index = cache?.get(containerNode);
   if (index) return index;
   index = new Map();
   for (const stmt of getDirectStatementBody(containerNode) ?? []) {
@@ -412,7 +414,7 @@ function lexicalDeclIndex(containerNode) {
       });
     }
   }
-  lexicalDeclIndexCache.set(containerNode, index);
+  cache?.set(containerNode, index);
   return index;
 }
 
@@ -448,11 +450,13 @@ export function rebuildLaggedScopeBinding(path, name, scope = null) {
     ownerPath = varOwner.owner;
   }
   if (!declaratorNode || !ownerPath || (scope && synthOwnerStrictlyInsideScope(scope, { ownerScope: ownerPath.scope }))) return null;
-  // memoized per (owner PATH, name): the recovery is re-asked for the same lagged binding at
-  // every use site. keyed on the traversal-scoped path object, so the cache dies with the
-  // traversal; member rewrites do not add or remove the USER writes this collects
-  let ownerCache = laggedBindingCache.get(ownerPath);
-  if (!ownerCache) laggedBindingCache.set(ownerPath, ownerCache = { byName: new Map(), reassignIndex: null, writeIndex: null });
+  // Writes are stable within this question too, but not across a pure render or sibling pass.
+  const cache = canonAnswerTable(rebuildLaggedScopeBinding, []);
+  let ownerCache = cache?.get(ownerPath);
+  if (!ownerCache) {
+    ownerCache = { byName: new Map(), reassignIndex: null, writeIndex: null };
+    cache?.set(ownerPath, ownerCache);
+  }
   if (ownerCache.byName.has(name)) return ownerCache.byName.get(name);
   // canonical write set mapped onto live paths - the same scan / owner index the estree
   // twin (`synthHoistedBinding`) reads, so the recovery mirrors a NATIVE binding's shape:

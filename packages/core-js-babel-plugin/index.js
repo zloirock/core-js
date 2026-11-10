@@ -159,6 +159,8 @@ import createASTHelpers, {
   isOptionalNode,
   proxyHopSwapSlotPath,
   removePatternSlot,
+  releaseMovedBindings,
+  rebindMovedBindings,
 } from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
@@ -219,6 +221,9 @@ export default function plugin(api, options) {
   const stateKey = Symbol('core-js-file');
   let idle = createFilePlugin(api, options, getBabelTargets, isWebpack);
   const spares = [];
+  // Re-entered AST nodes carry answers and rendered marks from their earlier file.
+  // Keep the warm context for ordinary fresh trees, but give the same Program a fresh one.
+  const usedPrograms = new WeakSet();
 
   // Babel prints the value of a shorthand default, skipping comments on its key.
   // Share those comment objects with the value before the final generator runs.
@@ -236,6 +241,8 @@ export default function plugin(api, options) {
       let state = idle;
       idle = null;
       while (!state && spares.length) state = spares.pop().deref();
+      if (usedPrograms.has(this.file.path.node)) state = null;
+      usedPrograms.add(this.file.path.node);
       state ??= createFilePlugin(api, options, getBabelTargets, isWebpack);
       this[stateKey] = state;
       return state.pre.apply(this, args);
@@ -311,11 +318,12 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       return usableAliasInfo(injector?.getBindingInfo?.(name, useStart, useBinding))?.hint ?? null;
     },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
-    // a declaration the plugin's own render inserted is in the AST but not in babel's scope; without
-    // the recovery the resolver's reassignment follow degrades to generic where the estree side keeps
-    // the narrow
+    // A rendered declaration can outlive its native binding. Babel keeps source binding names
+    // in its reference registry; the injector also knows memos appended without registration.
+    // Unbound globals are in neither set and must not trigger a scan of every enclosing body.
     getScopeBinding(scope, name, path = null) {
-      return scope?.getBinding(name) ?? (path ? rebuildLaggedScopeBinding(path, name, scope) : null);
+      return scope?.getBinding(name) ?? (path && (scope?.hasReference(name) || injector?.getMemoDeclarator(name))
+        ? rebuildLaggedScopeBinding(path, name, scope) : null);
     },
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
     // traversal, after init, so the deferred reference is safe
@@ -575,6 +583,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // did a claim stand where its value is discarded? its render may then leave as a fold's answer does
       let discardedClaims = false;
       let originalBodyNodes = new WeakSet();
+      let exitedBodyNodes = null;
       let sourceGlobalUses = new WeakMap();
       // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
       // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
@@ -1169,6 +1178,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               : estreeToBabel(renderCapturedReceiver(hostSlot(t.cloneNode(plan.recvIdent)),
                 hostSlot(captureSource), hostSlot(t.cloneNode(plan.recvIdent))));
           }
+          const bindings = hostKind === 'declarator' ? releaseMovedBindings(host, [bindingName]) : null;
           removePatternSlot(prop);
           if (hostKind === 'assignment-value') {
             host.replaceWith(estreeToBabel(renderDestructureAssignments([{ name: bindingName, value: hostSlot(value) }], {
@@ -1179,8 +1189,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           const placed = hostKind === 'declarator'
             ? t.variableDeclarator(t.identifier(bindingName), value)
             : t.expressionStatement(t.assignmentExpression('=', t.identifier(bindingName), value));
-          if (detach === 'before') anchor.insertBefore(placed);
-          else anchor.insertAfter(placed);
+          const inserted = detach === 'before' ? anchor.insertBefore(placed) : anchor.insertAfter(placed);
+          if (bindings) rebindMovedBindings(inserted, host.parentPath.node.kind, bindings);
           return true;
         }
         // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
@@ -1198,11 +1208,13 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           if (hostKind === 'declarator') {
             const declaration = host.parentPath;
             const at = declaration.node.declarations.indexOf(host.node);
+            const bindings = releaseMovedBindings(host, Object.keys(host.getBindingIdentifiers()));
             declaration.node.declarations.splice(at, 1,
               ...split.map((item, index) => t.variableDeclarator(t.identifier(item.name), reads[index])),
               // the REST reads the same receiver BEHIND the reads, with every consumed key renamed
               // to a sentinel so it still gathers exactly what the source left it
               ...restResidual ? [restResidualDeclarator(pattern.node, plan)] : []);
+            rebindMovedBindings(declaration, declaration.node.kind, bindings);
             if (split.some(item => item.defaultValue)) declaration.requeue();
           } else {
             host.replaceWith(estreeToBabel(renderDestructureAssignments(
@@ -1213,8 +1225,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           return true;
         }
         if (hostKind === 'declarator') {
+          const bindings = releaseMovedBindings(host, Object.keys(host.getBindingIdentifiers()));
           host.node.id = keepPatternLive ? prop.node.value : t.identifier(bindingName);
           host.node.init = value;
+          rebindMovedBindings(host, host.parentPath.node.kind, bindings);
         } else if (hostKind === 'assignment-statement') {
           host.node.left = keepPatternLive ? prop.node.value : t.identifier(bindingName);
           host.node.right = value;
@@ -2293,7 +2307,11 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // `null.has(...)` throws TypeError on every body child here
       function reTraverseHelperBodies(path) {
         if (!originalBodyNodes) return;
-        const helpers = path.get('body').filter(child => !originalBodyNodes.has(child.node));
+        const known = exitedBodyNodes ?? originalBodyNodes;
+        const helpers = path.get('body').filter(child => !known.has(child.node));
+        // A sibling lowering can replace a user loop as well as add helpers. Its removed
+        // binding paths cannot answer the late walk; no crawl is needed without new nodes.
+        if (helpers.length) path.scope.crawl();
         // The late escape census runs on the first introduced global. A preceding helper can
         // trigger it before we visit a later helper's `typeof Symbol === "function" ? Symbol : {}`.
         // Record the live initializer for the census. Keep the original tree for static detection.
@@ -2470,11 +2488,6 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       }
 
       function programExit(path) {
-        // postHook nulls `injector` after a clean pre/programExit/post cycle; a SECOND
-        // Program.exit firing on the same file (sibling plugin re-walking, or a multi-file
-        // batch where this file's pre() bailed early but Program.exit still fires)
-        // would crash inside `injector?.flush()` / `reorderImportRegion()` etc. on the
-        // method calls of a null receiver. symmetric with postHook's own `if (!injector) return`
         if (!injector) return;
         // kept nav-collapse mutations land after every claim resolver has seen the source chain
         flushKeptNavCollapses();
@@ -2516,6 +2529,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         restoreIdleRelocations(path.node);
         // a file that injected nothing prints as written: the wrapper splices are undone
         if (injector && !injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(path.node);
+        exitedBodyNodes = new WeakSet(path.node.body);
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
         // late-CJS detection (`postHook`'s diagnostic warn) can add to
         // debug output before format(). siblings' programExit + post may run AFTER ours;
@@ -2562,7 +2576,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // source reference lists again. Its own pre-pass answers are still reset after census.
       function releaseFile() {
         typeResolvers.reset();
-        injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
+        injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = exitedBodyNodes = debugOutput = null;
         // The census holds written value nodes, the directive candidates hold paths,
         // and a selection without a source span is keyed by the node itself.
         lateEscapeProgram = sourceGlobalUses = null;
@@ -2584,6 +2598,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         entryDirectiveCandidates = [];
         importStyle = format = null;
         originalBodyNodes = null;
+        exitedBodyNodes = null;
         sourceGlobalUses = new WeakMap();
         lateEscapeProgram = null;
         parensPending = true;
