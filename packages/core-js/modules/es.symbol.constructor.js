@@ -220,7 +220,7 @@ if (!NATIVE_SYMBOL) {
   }
 }
 
-$({ global: true, constructor: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, {
+$({ global: true, constructor: true, wrap: true, arity: 0, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, {
   Symbol: $Symbol
 });
 

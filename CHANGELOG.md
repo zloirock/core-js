@@ -73,7 +73,7 @@
 - Fixed record key enumeration in the `URLSearchParams` polyfill, including symbol keys and properties changed during conversion
 - Fixed `USVString` conversion in `URLSearchParams`, including lone surrogates and record keys that become equal after conversion
 - Added a workaround for [`URL.parse` depending on its receiver in Deno](https://github.com/denoland/deno/issues/37104)
-- Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity
+- Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity, with a fix of the incorrect native `Symbol` arity in FF37-42
 - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
 - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
 - Fixed the pure version marking the native `Error.isError` as `.sham`
