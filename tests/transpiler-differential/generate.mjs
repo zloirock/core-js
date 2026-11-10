@@ -25008,4 +25008,48 @@ function * generatePrivateNamespaceCaptures() {
       catch (error) { return error.name; }
     })()`, { rig }), strip: true, isolated: true,
   };
+  // Seals and stored receivers keep the branch and the read observed by consumers.
+  for (const rig of [false, true]) for (const [shape, root, ts] of [
+    ['plain', '(globalThis.window?.self).self'],
+    ['store', '((held = globalThis.window)?.self).self'],
+    ['sequence-inside', '(note(), globalThis.window?.self).self'],
+    ['sequence-outside', '(note(), (globalThis.window?.self).self)'],
+    ['cast', '(globalThis.window?.self as any).self', true],
+    ['non-null', '(globalThis.window?.self)!.self', true],
+  ]) for (const [consumer, body] of [
+    ['static', `return typeof ${ root }?.Promise.resolve;`],
+    ['instance', `return typeof ${ root }?.Array.prototype.at;`],
+    ['for-of', `for (const { resolve } of [${ root }?.Promise]) return typeof resolve;`],
+  ]) yield {
+    ...snippet(`kept-seal/${ shape }/${ consumer }/${ rig }`, `(() => {
+      let held;
+      function note() { log[log.length] = 'prefix'; }
+      try { ${ body } } catch (error) { return error.name; }
+    })()`, { rig }), ts: !!ts, strip: true, isolated: true,
+  };
+  for (const rig of [false, true]) for (const operator of ['||', '??']) for (const assignment of [false, true]) yield {
+    ...snippet(`kept-fallback/${ operator }/${ assignment }/${ rig }`, `(() => {
+      let held, resolve;
+      ${ assignment ? '({ resolve } =' : 'const { resolve: value } =' }
+        (held = (log[log.length] = 'store', globalThis.window))?.Promise ${ operator }
+        (log[log.length] = 'fallback', {})${ assignment ? ')' : '' };
+      return typeof ${ assignment ? 'resolve' : 'value' };
+    })()`, { rig }), strip: true, isolated: true,
+  };
+  for (const rig of [false, true]) for (const reverse of [false, true]) yield {
+    ...snippet(`kept-conditional/${ reverse }/${ rig }`, `(() => {
+      try { return typeof (${ reverse ? 'globalThis.window != null ? globalThis : void 0'
+        : 'globalThis.window == null ? void 0 : globalThis' }).self.Promise.resolve; }
+      catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
+  for (const rig of [false, true]) for (const hop of ['', '.self']) yield {
+    ...snippet(`kept-mirror/${ hop || 'direct' }/${ rig }`, `(() => {
+      let memo;
+      try {
+        const ref = (log[log.length] = 'source', ((memo = globalThis.window) == null ? void 0 : memo.self)${ hop }.Map);
+        return ref[(log[log.length] = 'key', 'groupBy')].length;
+      } catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true,
+  };
 }

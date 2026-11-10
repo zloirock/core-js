@@ -4467,18 +4467,21 @@ export function isConditionalExpressionSlot(parent, child) {
   return !!child && !!CONDITIONAL_BRANCH_FIELDS[parent?.type]?.some(field => parent[field] === child);
 }
 
-// does the member/call chain contain an optional hop AT `node` or on its spine BELOW it (toward
-// the chain root)? guards non-spine slot evaluation, and answers the same question for a span a
-// render is about to SWALLOW - a `?.` written inside one is a branch the swap has no spelling for.
+// Does the member/call value contain an optional hop on its spine? Seals and sequence
+// tails count when a render swallows the value, even though they end propagation to
+// an outer key or argument. Conditional evaluation asks receiverCarriesLiveOptional.
 // both parser spellings covered: babel names every post-`?.` node Optional* with per-hop
 // `optional` flags; estree keeps plain Member/Call with `optional: true` on the hop itself under
 // a ChainExpression wrapper
 export function spineHasOptionalHop(node) {
-  for (let cur = node; cur;) {
+  for (let cur = unwrapRuntimeExpr(node); cur; cur = unwrapRuntimeExpr(cur)) {
     if (cur.optional === true) return true;
-    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
-    else if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') cur = cur.callee;
-    else break;
+    switch (cur.type) {
+      case 'MemberExpression': case 'OptionalMemberExpression': cur = cur.object; break;
+      case 'CallExpression': case 'OptionalCallExpression': cur = cur.callee; break;
+      case 'SequenceExpression': cur = cur.expressions.at(-1); break;
+      default: return false;
+    }
   }
   return false;
 }
@@ -4496,7 +4499,7 @@ export function conditionalEvaluationEdge(parent, child) {
     || type === 'MemberExpression' || type === 'CallExpression';
   if (!isMemberOrCall) return false;
   const spineSlot = parent.object === child || parent.callee === child;
-  return !spineSlot && spineHasOptionalHop(parent);
+  return !spineSlot && (parent.optional === true || receiverCarriesLiveOptional(parent.object ?? parent.callee));
 }
 
 // logical-assignment operators write the LHS only on the short-circuit path (`A ||= x` assigns just
@@ -15093,11 +15096,16 @@ export function isRenderedStoredValue(node) {
 // the branch a GUARD-shaped conditional (`test == null ? void 0 : X`, either arm order) can
 // actually define - X when exactly one arm is statically undefined, null otherwise (a plain
 // ternary, or one with both arms undefined, classifies as nothing). the shape every stored
-// kept-nav render emits, so the follows that classify an alias's held value read through it
-export function definedBranchOfGuardConditional(node) {
+// kept-nav render emits, so the follows that classify an alias's held value read through it.
+// Source classification supplies its context: a local `undefined` can hold another value.
+export function definedBranchOfGuardConditional(node, ctx = null) {
   if (node?.type !== 'ConditionalExpression') return null;
   const consequentUndefined = isUndefinedNode(node.consequent);
   if (consequentUndefined === isUndefinedNode(node.alternate)) return null;
+  const absent = consequentUndefined ? node.consequent : node.alternate;
+  if (absent.type === 'Identifier' && ctx?.adapter?.hasBinding({
+    scope: ctx.scope, name: absent.name, path: ctx.path, read: absent,
+  })) return null;
   return consequentUndefined ? node.alternate : node.consequent;
 }
 

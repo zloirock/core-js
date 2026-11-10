@@ -23,6 +23,7 @@ import {
   createGuardTailPlanner,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
+  chainReadsThroughSeal,
   proxyHopLacksPureEntry,
   peelReceiverSequenceTail,
   inlineCallProxyGlobalRoot,
@@ -57,6 +58,8 @@ import {
   memberChainEndPath,
   isMemberWriteHost,
   isMemberAccessNode,
+  isRenderedProbeRead,
+  markRenderedProbeRead,
   mayHaveSideEffects,
   calleeParenWrapped,
   memberKeyName,
@@ -356,6 +359,9 @@ export function cloneReceiverForEmit({ t, collapse, node, path, types = null }) 
   let at = 0;
   t.traverseFast(clone, inner => {
     const origin = originals[at++];
+    // A copied throw probe keeps its ownership; re-entering it as a fresh claim
+    // would replace the source read that the surrounding receiver still owes.
+    if (isRenderedProbeRead(origin)) markRenderedProbeRead(inner);
     if (inner.type === 'AssignmentExpression' && spine.has(origin)) collapse(inner, path);
     if (inner.type === 'Identifier' && seeded.has(inner.name)) types.set(inner, seeded.get(inner.name));
   });
@@ -1317,6 +1323,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         cloneHost: item => t.cloneWithoutRetiring(item), embed: hostSlot, own: item => item,
       })));
     }
+    // This source still owes its sealed-read probe and backed hops. Let the claim
+    // channel render those; marking the whole spine here freezes native `self`.
+    if (chainReadsThroughSeal(node, resolvePure, ctx)) return t.cloneNode(node, true);
     const clone = t.cloneNode(node, true);
     const dead = vestigialNavOptionals(clone, resolvePure, ctx);
     // a nav that still owes its own collapse - one BURIED in a call root, or one the landing canon

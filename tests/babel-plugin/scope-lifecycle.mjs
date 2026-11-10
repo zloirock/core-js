@@ -148,4 +148,19 @@ for (const source of ['result = receiver().at(0);', 'result = globalThis.window?
   check(`late scope.push/${ source }`, execute(code, { xs: [1], receiver: () => [1] }).result, 23);
 }
 
+// Reserved imports have no declaration before flush; user bindings still take priority.
+// These are the three selection slots from the decided-selections complexity case.
+{
+  const source = `const _Map = 17;
+const m = typeof Map !== 'undefined' ? Map : Legacy;
+const p = typeof Promise !== 'undefined' ? Promise.resolve(1) : Iterator.from([]);
+const call = (typeof Symbol === 'function' && box.run)(3);
+function shadow(_Map) { return _Map.groupBy; }
+result = [_Map, m.groupBy([1], x => x).get(1)[0], typeof p.then, call, shadow({ groupBy: 23 })];`;
+  const { code } = await transformAsync(source, { ...base, plugins: [[plugin, options], lowering('modules-commonjs')] });
+  checkDeep('pending imports retain hints and user shadows', execute(code, {
+    Map: undefined, Promise: undefined, Symbol: undefined, box: { run: value => value + 2 },
+  }).result, [17, 1, 'function', 5, 23]);
+}
+
 finish();

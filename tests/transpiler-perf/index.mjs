@@ -364,6 +364,8 @@ function syntheticWrittenSlotReads(slots) {
 // Decided user selections - a presence test over a served global, as a value, in a callee slot and as
 // the init of an alias: every one folds once the claims rendered, and the folds must not each search the
 // tree from its root
+// Pending import UIDs must use their registered hints, without looking for a not-yet-flushed
+// declaration in the entire body for each alias read.
 function syntheticDecidedSelections(selections) {
   return [
     syntheticLines(selections, i => `export const v${ i } = typeof Promise !== 'undefined' ? Promise.resolve(${ i }) : Iterator.from(x${ i });`),

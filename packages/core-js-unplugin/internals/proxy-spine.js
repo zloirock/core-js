@@ -632,6 +632,9 @@ export default function createProxySpineChannel(ctx) {
     let navRoot = planNode ?? node.object;
     let plan;
     for (;;) {
+      // This render guards the whole claim. A plain read through a sealed optional
+      // must stay outside it, even when the navigation alone has a valid plan.
+      if (chainReadsThroughSeal(navRoot, resolveHere, { scope: metaPath.scope, adapter, path: metaPath })) return false;
       plan = planProvenNavGuardCollapse({
         rootNode: navRoot,
         scope: metaPath.scope,

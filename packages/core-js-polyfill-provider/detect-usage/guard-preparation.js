@@ -163,6 +163,7 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
   const readAboveStore = optional.kind === 'guard' && isMemberAccessNode(unwrapRuntimeExpr(optional.object))
     && guardAssigns.some(assignment => subtreeContainsNode(optional.object, assignment));
   let guard = !readAboveStore && guardAssigns.length === 1 && effects.length === 1
+    && !chainReadsThroughSeal(node, resolvePure, ctx)
     && !staticMayEraseReceiver(node, resolveGlobal, ctx) ? guardAssigns[0] : null;
   if (!guard) {
     if (optional.kind === 'standdown' && effects.length <= 1) return { kind: 'retain' };
@@ -415,7 +416,7 @@ function ownOptionalProbe(probe, ctx) {
     inner = unwrapRuntimeExpr(seq.expressions.at(-1));
     seq = inner;
   }
-  if (!sealed && inner === null) return null;
+  if (!sealed && inner === null || chainReadsThroughSeal(inner, ctx.resolvePure, ctx)) return null;
   for (let hop = inner; isMemberAccessNode(hop); hop = unwrapRuntimeExpr(hop.object)) {
     if (hop.optional) return guardProbeUndefinable(hop.object, ctx) ? hop.object : null;
   }
@@ -509,6 +510,8 @@ export function planOptionalProbe(node, ctx, {
       source = unwrapRuntimeExpr(source.expressions.at(-1));
       continue;
     }
+    // The probe owns a plain read above a sealed optional, including its throw.
+    if (chainReadsThroughSeal(source, ctx.resolvePure, ctx)) break;
     const peeled = peelPristineProxyHops(source, { adapter: ctx.adapter, resolveGlobalPolyfill: resolveGlobal });
     if (peeled === source) break;
     source = peeled;
@@ -552,6 +555,7 @@ export function planGuardComposition(value, ctx, { readThrough = true, readerKey
 export function prepareMemoReceiver(node, ctx, bindings) {
   if (!ctx?.adapter || !ctx.path || !ctx.resolvePure) return node;
   if (bindings.renderKeptTail) prepareKeptMemoTail(node, ctx, bindings);
+  if (chainReadsThroughSeal(node, ctx.resolvePure, ctx)) return node;
   const nav = planProvenNavGuardCollapse({
     rootNode: node, ...ctx, allowSequenceRoot: true, descendSequenceTail: true,
   });
@@ -703,9 +707,10 @@ function backedMemoHop(node, ctx) {
 // Unbacked hops are probes themselves and keep the whole receiver. Source wrappers
 // and sequence prefixes belong to the captured slot; this query never rewrites it.
 export function planGuardRootMemo(node, ctx) {
-  if (!ctx?.adapter || !ctx.scope || !isMemberAccessNode(node)) return null;
+  if (!ctx?.adapter || !ctx.scope || !ctx.resolvePure || !isMemberAccessNode(node)) return null;
   if (maximalProxyGlobalPrefix(node, ctx, { throughChainAssign: true }) !== node
-    || (ctx.resolvePure && navHasUnresolvableProxyHop(node, ctx.resolvePure, ctx))) return null;
+    || chainReadsThroughSeal(node, ctx.resolvePure, ctx)
+    || navHasUnresolvableProxyHop(node, ctx.resolvePure, ctx)) return null;
   const spine = [];
   let holder = null;
   let root = node;
@@ -744,7 +749,9 @@ export function prepareGuardReceiver(objectNode, ctx, bindings, {
   }
   const surface = memoReceiverGlobalName(objectNode, ctx);
   let memoSource = mutatedLeaf ? objectNode : prepareMemoReceiver(objectNode, ctx, { renderNav: bindings.renderNav });
-  if (memoSource === objectNode && surface) {
+  // Peeling cannot cross a sealed read. Prove this once for the whole spine,
+  // not once per hop of the same shrinking source.
+  if (memoSource === objectNode && surface && !chainReadsThroughSeal(memoSource, ctx.resolvePure, ctx)) {
     const rootMemo = planGuardRootMemo(objectNode, ctx);
     if (rootMemo) memoSource = rootMemo.source;
     for (let hop = unwrapRuntimeExpr(memoSource), pure; pure = backedMemoHop(hop, ctx);

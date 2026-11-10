@@ -12,6 +12,7 @@ import {
   findNodeSlot,
   pathOfNode,
   deleteHostAboveChain,
+  definedBranchOfGuardConditional,
   getFallbackBranchSlots,
   isMemberAccessNode,
   isDestructurePattern,
@@ -1288,8 +1289,11 @@ export function readStandsOverAbsentableStore(inner, { scope, adapter, path, res
   if (!read.computed && isPristineProxyGlobal(adapter, memberKeyName(read))) return null;
   const { root } = descendToChainRoot(read);
   const store = root?.type === 'AssignmentExpression' && root.operator === '=' ? root : null;
-  return store && proxyReceiverValueCanBeUndefined(store.right, resolvePure, { scope, adapter, path })
-    ? read : null;
+  if (!store || !proxyReceiverValueCanBeUndefined(store.right, resolvePure, { scope, adapter, path })) return null;
+  // A continuous optional chain skips the read on absence. Its kept write is an
+  // effect, but it does not require replaying the replaced constructor's value.
+  return !chainReadsThroughSeal(read, resolvePure, { scope, adapter, path })
+    && navValueCanShortCircuit(read, resolvePure, { scope, adapter, path }, { throughChainAssign: true }) ? null : read;
 }
 
 // COMPLETE side-effect harvest of a fully-discarded receiver, in source eval order: sequence
@@ -1451,6 +1455,14 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
         conditionalSink: conditionalCalls,
         selectionSink: selectionArms,
       });
+    // Lowering spells an optional value as a conditional. A plain realm read above
+    // it still names the defined arm, but owes the nullable source's throw probe.
+    if (!objectName && classifyTarget.type === 'ConditionalExpression' && isPristineProxyGlobal(adapter, key)
+      && !isMemberWriteHost(path)) {
+      const branch = definedBranchOfGuardConditional(classifyTarget, { scope, adapter, path });
+      const name = branch && resolveObjectName({ objectNode: branch, scope, adapter, path: pathOfNode(path, branch) ?? path });
+      if (POSSIBLE_GLOBAL_OBJECTS.has(name)) objectName = name;
+    }
     // ... and a `||` / `??` selection of a plain realm read and a right naming no global takes the decision of its
     // destructure twin (`const { groupBy } = globalThis.Map || Fallback`): a left naming a constructor whose
     // static the build serves names the read whatever that constructor's own entry. a selection the member

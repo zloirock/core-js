@@ -135,6 +135,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   isAliasProxyHopChain,
+  chainReadsThroughSeal,
   canCollapseDeletedNavigation,
   receiverSequenceTailKeys,
   storedUserAssignmentOf,
@@ -322,7 +323,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     // in its reference registry; the injector also knows memos appended without registration.
     // Unbound globals are in neither set and must not trigger a scan of every enclosing body.
     getScopeBinding(scope, name, path = null) {
+      // Our reserved import UIDs have no declaration until flush. Their injector hint
+      // is already authoritative; rebuilding one would rescan the whole body per use.
       return scope?.getBinding(name) ?? (path && (scope?.hasReference(name) || injector?.getMemoDeclarator(name))
+        && !injector?.isOwnPassPureBinding(name)
         ? rebuildLaggedScopeBinding(path, name, scope) : null);
     },
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
@@ -1597,7 +1601,13 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
                 // spelling of that key collapses, and a stripped realm has no such slot to read
                 resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
               })
-                && recvRoot.isSequenceExpression()) collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
+                // A read outside the root sequence belongs to the dispatch's probe.
+                // A read already inside that sequence must settle before capture.
+                && recvRoot.isSequenceExpression()
+                && (!chainReadsThroughSeal(path.node.object, m => resolvePure(m, path), { scope: path.scope, adapter, path })
+                  || chainReadsThroughSeal(recvRoot.node, m => resolvePure(m, path), { scope: path.scope, adapter, path }))) {
+                collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
+              }
             }
             const innerChain = findInnerPolyChain(path);
             if (innerChain) {

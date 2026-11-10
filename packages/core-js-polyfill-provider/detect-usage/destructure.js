@@ -706,7 +706,8 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
     }) ?? {})?.kind === 'static'
     && !decidesForLeft();
   if (primaryMeta?.object && !sharedStaticFallback && (primaryPure || branchingProxySurfacePrimary(primaryMeta, adapter))) {
-    if (node.operator === '||' && !selectionLeftAlwaysTruthy({ node: node.left, scope, adapter, path }) && !decidesForLeft()) {
+    if (node.operator === '||' && !selectionLeftAlwaysTruthy({ node: node.left, scope, adapter, path, throughChainAssign: true })
+      && !decidesForLeft()) {
       const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path, resolveStaticKey, paramDefault });
       return fallbackDestructureMeta(primaryMeta, fallbackMeta, adapter);
     }
@@ -718,7 +719,7 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path, reso
     // renders no arm, flags as well a left owning the key as a STATIC that the build does not decide for
     // (`deadFallbackRight`: a slot the census sees written, a read it does not serve), so the right's own
     // static is injected too; an instance answer is the key's common dispatch, shared above
-    return fallbackValueCanBeNullish(node.left, { scope, adapter, path }) || adapter.isOptedOut?.(node)
+    return fallbackValueCanBeNullish(node.left, { scope, adapter, path }, { throughChainAssign: true }) || adapter.isOptedOut?.(node)
       || (adapter.method === 'usage-global' && primaryPure?.kind === 'static' && !decidesForLeft())
       ? { ...primaryMeta, fromFallback: true } : primaryMeta;
   }
@@ -755,7 +756,7 @@ function fallbackBranchWalk(node, ctx) {
 // which runs unconditionally and throws on the very path the selection rescues. collapsing the two
 // looks right and is not - it was tried, and the corpus caught it on a `??` left
 export function fallbackBranchSwapKeepsSelection({ branchNode, scope, adapter, path, resolvePure }) {
-  if (!fallbackValueCanBeNullish(branchNode, { scope, adapter, path })) return true;
+  if (!fallbackValueCanBeNullish(branchNode, { scope, adapter, path }, { throughChainAssign: true })) return true;
   if (inCallerCorrectFallbackSlot(path, branchNode)) return true;
   return !!planSynthReceiverGuard({ receiver: branchNode, scope, adapter, path, resolvePure });
 }
@@ -5637,11 +5638,9 @@ function walkStaticReceiverTerminal({ hop, walk }) {
       && !isMutatedGlobalSlot(adapter, walkPath.at(-1), liftRead)) {
     return walkPath.at(-1);
   }
-  // intermediate MemberExpression value (`wrapper = {a: globalThis.Array}` walking key `a`
-  // lands on `globalThis.Array`). resolve the chain to its constructor name and return it
-  // as the receiver - caller pairs it with the remaining destructured key for polyfill
-  // lookup. only single-hop remaining walkPath is mappable (multi-hop would need
-  // descend-through-resolved-constructor which has no AST anchor here)
+  // A named member with a key still to consume is not the result of that key:
+  // walking `groupBy` on `globalThis.Map` must not name Map again. Only a realm's
+  // constructor slot can lift here; a fully consumed member reaches the leaf above.
   if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
     // A prototype hop names the instance surface, so it must remain in the receiver walk.
     const named = walkPath.length === 1 && walkPath[0] !== 'prototype'
@@ -5652,7 +5651,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
     // answered the realm, no module matched, and only the leg that re-visits its own collapse claimed
     if (named && POSSIBLE_GLOBAL_OBJECTS.has(named) && isKnownStaticGlobal(walkPath[0], adapter)
       && !isMutatedGlobalSlot(adapter, walkPath[0])) return walkPath[0];
-    if (named) return named;
+    if (named) return null;
     // ... and a nav the name channel cannot follow folds into the walk (an alias of a wrapper slot:
     // `const a = box[0]; a.w.values`) - the same fold the consumed-path arm takes
     return foldNavIntoWalk({ hop, walk }, current);
