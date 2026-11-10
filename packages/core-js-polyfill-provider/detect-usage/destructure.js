@@ -185,7 +185,6 @@ import {
 import { canonicalArrayIndex, literalNodeValue, PATTERN_WRAPPERS, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { ORPHAN_REF_PATTERN } from '../injector-base.js';
 import {
-  isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   findNamespaceMemberValue,
   isUsableFallbackReceiverArg,
@@ -946,7 +945,7 @@ function fallbackDestructureMeta(resolved, other, adapter) {
 // the SE is `rescueSe`-d ahead of the literal instead (`(<receiver>, literal)`); a pure receiver folds
 // away. returns { callBranch, rescueSe }
 export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
-  if (isCallShape(inner)) {
+  if (invocationNode(inner)) {
     return { callBranch: true, rescueSe: seBearingChainRootCall({ node: inner, scope, adapter, path }) };
   }
   // a member receiver whose discarded chain hides observable setup: a buried SE anywhere along the
@@ -2026,17 +2025,10 @@ function nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure
     .some(branchMeta => { const pure = resolvePure(branchMeta); return pure && pure.kind !== 'instance'; });
 }
 
-// a resolvable non-Identifier IIFE call-arg (a proxy-global member `globalThis.Array`, an inline-resolvable
-// call `(() => Array)()`) supersedes the wrapper param-default ONLY when the default is a polyfill DEAD-END
-// for every destructured key (`Object.from` resolves to nothing) AND the arg itself carries a polyfill:
-// then the live arg is the only receiver that polyfills. when the default resolves a polyfill for some key
-// it stays the synth target - it is the live fallback for the undefined-arg runtime path
-// (`globalThis.AsyncIterator` absent on the target -> default `Array` -> `Array.from`). bare Identifiers go
-// through `isClassifiableReceiverArg`; conditional / logical args through the per-branch synth (reached
-// before this). a CALL arg is NOT excluded: when it inline-resolves to a constructor the synth injects the
-// polyfill and the emitter rescues the call's side effect AHEAD of the literal (`(<call>(), { from: _$ })`)
-// - excluding it MISSED the polyfill on a live, statically-known receiver. an opaque (non-resolvable) call
-// yields nothing and keeps the default. detection and synth planning use this same receiver choice
+// A resolvable member or invocation argument supersedes a default only when no destructured
+// key can polyfill through that default. A viable default stays available for an undefined
+// argument. Bare aliases and selections use isUsableFallbackReceiverArg instead. Detection,
+// replacement and body extraction ask this same choice, in each value's evaluation frame.
 function resolvableArgSupersedesDeadDefault({
   argNode,
   defaultNode,
@@ -2094,6 +2086,7 @@ function chooseFallbackReceiverNode({
 // default for an undefined argument. Each value is proved in its own evaluation frame. Rest declines.
 // Defaults keep a whole ||/?? for left-collapse, but peel decided ternaries/&& and sequence tails;
 // prefixes stay at their source slots. Without a default, an expanded classifiable argument suffices.
+// An observed argument cannot be replaced and must not redirect the swap to a dead default.
 // The returned native path carries identity and scope; this decision never rewrites or clones it.
 export function findSynthSwapReceiverPath(wrapperPath, objectPattern, adapter, resolvePure) {
   if (objectPattern?.properties?.some(isRestProperty)) return null;
@@ -2107,21 +2100,29 @@ export function findSynthSwapReceiverPath(wrapperPath, objectPattern, adapter, r
       defaultPath = unwrapSafeSequenceTailPath(defaultPath.get(key));
     }
   }
-  const rawArgument = findIifeArgPath(hasDefault ? wrapperPath.parentPath : wrapperPath,
-    hasDefault ? wrapper : objectPattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
+  const fnPath = hasDefault ? wrapperPath.parentPath : wrapperPath;
+  const param = hasDefault ? wrapper : objectPattern;
+  const rawArgument = findIifeArgPath(fnPath, param, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic, false);
   const argument = rawArgument
     && unwrapSafeSequenceTailPath(decidedRunningOperandPath(unwrapSafeSequenceTailPath(rawArgument), adapter));
   if (!defaultPath) {
     return argument && isExpandedClassifiableReceiver({
       node: argument.node, scope: argument.scope, path: argument, adapter,
-    }) ? argument : null;
+    }) && findIifeCallSite(fnPath, param, { replacesArgument: true }) ? argument : null;
   }
-  if (argument && (isClassifiableReceiverArg(argument.node, argument.scope, adapter)
-    || resolvableArgSupersedesDeadDefault({
-      argNode: argument.node, defaultNode: defaultPath.node, objectPattern,
-      scope: defaultPath.scope, path: defaultPath, adapter, resolvePure,
-      argScope: argument.scope, argPath: argument,
-    }))) return argument;
+  if (argument && chooseFallbackReceiverNode({
+    argNode: argument.node,
+    defaultNode: defaultPath.node,
+    objectPattern,
+    scope: defaultPath.scope,
+    path: defaultPath,
+    adapter,
+    resolvePure,
+    argScope: argument.scope,
+    argPath: argument,
+  }) === argument.node) {
+    return findIifeCallSite(fnPath, param, { replacesArgument: true }) ? argument : null;
+  }
   const fallback = defaultPath.node.type === 'LogicalExpression' && defaultPath.node.operator !== '&&';
   const left = fallback ? unwrapSafeSequenceTailPath(decidedRunningPath(defaultPath.get('left'), adapter))?.node : null;
   return (fallback && (isReceiverShapedNode(left) || invocationNode(left)))
@@ -2340,9 +2341,9 @@ export function conditionalDestructureLeftUntouchedWarning(key) {
 
 // A body extraction needs a parameter binding and no parameter-scope reads or body
 // redeclaration of that binding. A whole receiver capture can also wrap a concise arrow body.
-// Receiver-less static extraction separately proves that every call uses the parameter default;
+// Receiver-less static extraction proves the default or the same known argument as detection;
 // whole-receiver extraction checks all moved names together before asking this binding-local gate.
-export function qualifiesForParamBodyExtract({ propPath, localId, receiverCapture = false }) {
+export function qualifiesForParamBodyExtract({ propPath, localId, receiverCapture = false, adapter, resolvePure }) {
   const patternParentType = propPath.parentPath?.parentPath?.node?.type;
   if (!receiverCapture && (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
     || patternParentType === 'ArrayPattern')) return null;
@@ -2359,7 +2360,20 @@ export function qualifiesForParamBodyExtract({ propPath, localId, receiverCaptur
     && top.node !== propPath.parentPath.parentPath.node) return null;
   const site = !receiverCapture && top.node.type === 'AssignmentPattern' ? findIifeCallSite(fnPath, top.node) : null;
   if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
-    () => !!site.callPath.scope?.getBinding?.('undefined'))) return null;
+    () => !!site.callPath.scope?.getBinding?.('undefined'), adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic)) {
+    const argument = findIifeArgPath(fnPath, top.node, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic, false);
+    if (!argument || !adapter || !resolvePure || chooseFallbackReceiverNode({
+      argNode: argument.node,
+      defaultNode: top.node.right,
+      objectPattern: propPath.parentPath.node,
+      scope: top.scope,
+      path: top,
+      adapter,
+      resolvePure,
+      argScope: argument.scope,
+      argPath: argument,
+    }) !== argument.node) return null;
+  }
   if (!receiverCapture && paramListReadsName(fnPath.node.params, localId.name)) return null;
   if (functionScopeBindsVarOrFunction(fnPath, localId.name)) return null;
   return { fnPath };

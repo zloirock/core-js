@@ -1340,7 +1340,7 @@ export default function createDestructureEmitter({
     // the qualification chain (caller-lossiness containment / foreign-binding redeclare /
     // block body / param-scope reads / var-redeclare) lives in the shared provider gate so
     // both emitters bail on exactly the same shapes
-    const qualified = qualifiesForParamBodyExtract({ propPath: prop, localId: valueNode });
+    const qualified = qualifiesForParamBodyExtract({ propPath: prop, localId: valueNode, adapter, resolvePure });
     if (!qualified) return false;
     const { fnPath } = qualified;
     const id = injectPureImport(entry, hintName);

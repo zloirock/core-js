@@ -6,6 +6,7 @@ import {
   allProxySelectingInit,
   argumentOverridesSlot,
   cachedContainerPaths,
+  climbTransparentWrapperPath,
   collectParamBindingNames,
   containerSlotWritten,
   findVarOwnerDeclaring,
@@ -16,6 +17,7 @@ import {
   hoistedDeclarationInScope,
   hopAnchorStart,
   isDestructurePattern,
+  isMemberMutationContext,
   isSloppyAtPath,
   initializerReachesRead,
   isNullLiteralNode,
@@ -40,6 +42,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   staleVarRedeclNodes,
   unwrapRuntimeExpr,
+  valueIsDroppedAt,
   varInitStaleByRedecl,
   wrapScopeBindingLookup,
   isBareUndefinedIdentifier,
@@ -3213,6 +3216,30 @@ function createResolveNodeType(babelNodeType, t, {
     });
   }
 
+  const parameterArgumentObservations = new WeakMap();
+
+  // Numeric argument reads may observe identity without exposing or mutating the source.
+  // Length is a scalar; unknown keys, callees, handouts and writes keep the caller set open.
+  // This proves a type only: even an identity observation still forbids replacing an argument.
+  // Like the receiver facts below, capture this source fact once, before parameter mirrors.
+  function parameterArgumentsOnlyObserved(fn) {
+    if (parameterArgumentObservations.has(fn.node)) return parameterArgumentObservations.get(fn.node);
+    const reads = [];
+    referencesArgumentsObject(fn.node, reads);
+    const observed = reads.every(read => {
+      const path = pathOfNode(fn, read);
+      if (!path || getScopeBinding({ scope: path.scope, name: 'arguments', path, read })) return false;
+      const member = peelParenAndTSParentPath(path);
+      if (!member?.node || !isMemberLike(member) || unwrapRuntimeExpr(member.node.object) !== read) return false;
+      const key = getMemberProperty(member.node);
+      const outer = climbTransparentWrapperPath(member);
+      return !isMemberMutationContext(outer.node, outer.parentPath?.node, outer.parentPath?.parentPath?.node)
+        && (key === 'length' || canonicalArrayIndex(key) !== null && valueIsDroppedAt(outer));
+    });
+    parameterArgumentObservations.set(fn.node, observed);
+    return observed;
+  }
+
   // A closed parameter has one source receiver per proven invocation. Keep that source
   // fact before pure mirrors replace arguments; both the scalar and family queries read it.
   // Defaults select undefined alone, and nested defaults change the remaining member path.
@@ -3231,7 +3258,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (!t.isFunction(fn?.node) || !fn.node.params.includes(parameter.node)) return null;
     parameterReceiverFacts.set(objectPattern.node, null);
     const parameterAnnotation = findBindingAnnotation(parameter);
-    if (!parameterAnnotation && referencesArgumentsObject(fn.node)) return null;
+    if (!parameterAnnotation && !parameterArgumentsOnlyObserved(fn)) return null;
     if (!parameterCallerSites.has(parameter.node)) {
       parameterCallerSites.set(parameter.node, patternBindingsCluster.parameterCallSites(parameter, {
         staticIsMutated: isMutatedStatic,

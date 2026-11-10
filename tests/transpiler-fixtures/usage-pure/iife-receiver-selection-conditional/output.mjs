@@ -1,0 +1,12 @@
+import _Iterator from "@core-js/pure/actual/iterator";
+// An observed branching argument keeps its identity and native parameter reads.
+export const effects = [];
+export const r = (() => {
+  const pick = Math.random() < 2;
+  return function ({
+    from
+  }) {
+    void from;
+    return arguments[0] === Array;
+  }(pick ? Array : _Iterator);
+})();

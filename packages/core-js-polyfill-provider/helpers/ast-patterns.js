@@ -9144,9 +9144,10 @@ export function positionalElementPath(arrayPath, index, staticIsMutated = null) 
 // coordinate `resolveCallArgumentCoords` addresses it by, materialised as a path. the ONE locator
 // both emitters use - a consumer that re-derives the position by an identity scan over the
 // arguments diverges from the node form exactly where the two peel differently (a wrapped spread
-// array), and silently loses the receiver this resolver found
-export function findIifeArgPath(fnParentPath, paramNode, staticIsMutated = null) {
-  const site = findIifeCallSite(fnParentPath, paramNode, { replacesArgument: true });
+// array), and silently loses the receiver this resolver found. Selection may inspect an observed
+// argument with replacesArgument=false; replacing that slot must still pass the call-site gate.
+export function findIifeArgPath(fnParentPath, paramNode, staticIsMutated = null, replacesArgument = true) {
+  const site = findIifeCallSite(fnParentPath, paramNode, { replacesArgument });
   if (!site) return null;
   const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex, staticIsMutated);
   return coords ? callArgumentPathAt(site.callPath.get('arguments'), coords) : null;
@@ -9557,8 +9558,10 @@ export function arrayWrapSlotBindsName(slot, name, ctx = null) {
 // Find a destructure receiver in an initializer/default slot, IIFE argument, paired literal
 // wrapper or sole inline loop element. Return `{ rhsNode, slot, callPath, paramIndex }`;
 // wrapped/loop answers add `hostPath` and `descend` for live path recovery.
+// Replacement callers must also preserve the value visible through a callee's arguments object.
+// An observed selection retains its native parameter read instead of mirroring its branches.
 // Null means no supported source; the caller decides whether to warn or try another route.
-export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated = null) {
+export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated = null, replacesArgument = false) {
   const wrapperNode = wrapperPath?.node;
   if (!wrapperNode) return null;
   // a WRAPPED pattern names no slot of its own: the host's literal pairs its element with the
@@ -9569,7 +9572,7 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
   if (wrapperNode.type === 'ArrayPattern' || isPatternPropertyOf(wrapperNode, paramNode)
     || (wrapperNode.type === 'AssignmentPattern' && wrapperNode.left === paramNode
       && (wrapperPath.parentPath?.node?.type === 'ArrayPattern' || isPatternPropertyOf(wrapperPath.parentPath?.node, wrapperNode)))) {
-    return resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated);
+    return resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated, replacesArgument);
   }
   // an AssignmentPattern that is a function PARAM (`(({p} = D) => body)(R)`) carries the DEFAULT in
   // its `right` slot, but the live call-arg R is the real receiver (the default applies only when no
@@ -9579,7 +9582,8 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
   if (wrapperNode.type === 'AssignmentPattern' && FN_NODE_TYPES.has(wrapperPath.parentPath?.node?.type)) {
     const site = findIifeCallSite(wrapperPath.parentPath, wrapperNode);
     const rhsNode = site ? findIifeArgForParam(wrapperPath.parentPath, wrapperNode, staticIsMutated) : null;
-    if (rhsNode) return { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex };
+    if (rhsNode) return !replacesArgument || findIifeCallSite(wrapperPath.parentPath, wrapperNode, { replacesArgument })
+      ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
     if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
       () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
     return { rhsNode: wrapperNode.right, slot: 'right', callPath: null, paramIndex: -1 };
@@ -9598,7 +9602,7 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
     };
   }
   if (slot && wrapperNode[slot]) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
-  const site = findIifeCallSite(wrapperPath, paramNode);
+  const site = findIifeCallSite(wrapperPath, paramNode, { replacesArgument });
   const rhsNode = site ? findIifeArgForParam(wrapperPath, paramNode, staticIsMutated) : null;
   return rhsNode ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
 }
@@ -9633,7 +9637,7 @@ function isPatternPropertyOf(node, valueNode) {
 // there, or a slot no literal spells (a spread, a computed key, a getter, an opaque host) - so the
 // default is the receiver wherever the pairing fails: rewriting a default's own arms is sound whatever
 // the host holds (a present slot never runs it, an outer level read as `undefined` throws before it)
-function resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated = null) {
+function resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated = null, replacesArgument = false) {
   const steps = [];
   let cur = wrapperPath;
   let slotNode = paramNode;
@@ -9664,7 +9668,7 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
     slotNode = node;
     cur = cur.parentPath;
   }
-  const host = steps.length ? resolveFallbackReceiver(cur, slotNode, staticIsMutated) : null;
+  const host = steps.length ? resolveFallbackReceiver(cur, slotNode, staticIsMutated, replacesArgument) : null;
   const unpaired = ownDefault
     ? { rhsNode: ownDefault.node.right, slot: 'right', callPath: null, paramIndex: -1, hostPath: ownDefault } : null;
   // a host with no receiver of its own (a for-x HEAD, whose elements the iterated literal holds)
@@ -9710,7 +9714,7 @@ function resolveWrappedFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
 // synth-swap registers via NodePath). adapter-agnostic - both babel NodePath and
 // estree-toolkit Path expose `.get(key)` / `.get('arguments')[index]`
 export function resolveFallbackReceiverPath(wrapperPath, paramNode, staticIsMutated = null) {
-  const desc = resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated);
+  const desc = resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated, true);
   if (!desc) return null;
   const hostReceiverPath = desc.slot ? (desc.hostPath ?? wrapperPath).get(desc.slot) : fallbackCallArgumentPath(desc, staticIsMutated);
   let path = hostReceiverPath;

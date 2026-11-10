@@ -4,6 +4,7 @@ import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internal
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { findSynthSwapReceiver } from '../../packages/core-js-unplugin/internals/destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from '../../packages/core-js-unplugin/internals/nav-spine.js';
+import { resolveFallbackReceiver, resolveFallbackReceiverPath } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { findSynthSwapReceiverPath } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { createChecker } from './harness.mjs';
 
@@ -15,6 +16,18 @@ function resolvePure(meta) {
 }
 
 const cases = [
+  ['var argument before dead default', 'var list = Array; (({ from } = Object) => from)(list);', 'list', 'argument'],
+  ['assigned argument before dead default', 'let list; list = Array; (({ from } = Object) => from)(list);', 'list', 'argument'],
+  ['observed argument declines dead default', '(function ({ from } = Object) { return arguments[0]; })(Array);', null, null],
+  ['observed argument without default', '(function ({ from }) { return arguments[0]; })(Array);', null, null],
+  ['observed missing argument keeps default', '(function ({ from } = Array) { return arguments[0]; })();', 'Array', 'default'],
+  ['observed undefined keeps default', '(function ({ from } = Array) { return arguments[0]; })(undefined);', 'Array', 'default'],
+  ['observed sequence keeps default', '(function ({ from } = Array) { return arguments[0]; })(void effect());', 'Array', 'default'],
+  ['observed arrow still replaces', 'function outer() { return (({ from }) => arguments[0])(Array); }', 'Array', 'argument'],
+  ['constructed argument', 'function make() { return Array; } (({ from }) => from)(new make());', 'new make()', 'argument'],
+  ['constructed argument before dead default', 'function make() { return Array; } (({ from } = Object) => from)(new make());', 'new make()', 'argument'],
+  ['tagged argument', 'function make() { return Array; } (({ from }) => from)(make`tag`);', 'make`tag`', 'argument'],
+  ['tagged argument before dead default', 'function make() { return Array; } (({ from } = Object) => from)(make`tag`);', 'make`tag`', 'argument'],
   ['plain default', 'function f({ from } = Array) {}', 'Array', 'default'],
   ['argument before opaque default', '(({ from } = []) => from)(Array);', 'Array', 'argument'],
   ['undefined uses default', '(({ from } = Array) => from)(undefined);', 'Array', 'default'],
@@ -76,5 +89,29 @@ for (const [name, source, spelling, owner] of cases) {
     checkDeep(`${ label }/read only`, JSON.stringify(program.node), original);
   });
 }
+
+// Detection may inspect an observed argument; replacing any branch of it may not.
+for (const [name, source, expected, replaceable] of [
+  ['direct', '(({ from }) => from)(pick ? Array : Iterator);', 'pick ? Array : Iterator', true],
+  ['observed', '(function ({ from }) { return arguments[0]; })(pick ? Array : Iterator);', 'pick ? Array : Iterator', false],
+  ['observed identity', 'const rows = [1]; (function ({ at } = []) { return arguments[0] === rows; })(rows);', 'rows', false],
+  ['observed length', '(function ({ from }) { return arguments.length; })(Array);', 'Array', false],
+  ['observed default', '(function ({ from } = Object) { return arguments[0]; })(pick ? Array : Iterator);', 'pick ? Array : Iterator', false],
+  ['observed spread', '(function ({ from }) { return arguments[0]; })(...[pick ? Array : Iterator]);', 'pick ? Array : Iterator', false],
+  ['observed default runs', '(function ({ from } = Array) { return arguments[0]; })(undefined);', 'Array', true],
+  ['observed wrapped', '(function ([{ from }]) { return arguments[0]; })([pick ? Array : Iterator]);', 'pick ? Array : Iterator', false],
+  ['wrapped direct', '(([{ from }]) => from)([pick ? Array : Iterator]);', 'pick ? Array : Iterator', true],
+  ['declaration', 'const { from } = pick ? Array : Iterator;', 'pick ? Array : Iterator', true],
+  ['loop', 'for (const { from } of [pick ? Array : Iterator]) use(from);', 'pick ? Array : Iterator', true],
+]) runBoth(`fallback ${ name }`, source, (parser, program, label) => {
+  const pattern = parser.pickPath(program, 'ObjectPattern');
+  const wrapper = pattern.parentPath;
+  const detected = resolveFallbackReceiver(wrapper, pattern.node);
+  check(`${ label }/read`, source.slice(detected.rhsNode.start, detected.rhsNode.end), expected);
+  const replacement = resolveFallbackReceiver(wrapper, pattern.node, null, true);
+  check(`${ label }/replace`, replacement?.rhsNode ?? null, replaceable ? detected.rhsNode : null);
+  const target = resolveFallbackReceiverPath(wrapper, pattern.node);
+  check(`${ label }/path`, target?.node ?? null, replacement?.rhsNode ?? null);
+});
 
 finish();

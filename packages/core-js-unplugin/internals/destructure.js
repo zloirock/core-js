@@ -649,7 +649,8 @@ export default function createAstDestructureEmitter({
     flattenArrayWrapperInits(metaPath, replaceSpread);
     // the receiver the pattern reads: its host's slot, the IIFE argument, or - under an ARRAY
     // WRAPPER - the element the host's literal pairs it with, the shared resolver's own climb
-    const desc = resolveFallbackReceiver(patternPath.parentPath, pattern, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
+    const desc = resolveFallbackReceiver(patternPath.parentPath, pattern,
+      adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic, true);
     if (!desc?.rhsNode) return;
     // the SECOND way a foreign-frame receiver enters the channel (the first is the arg detector):
     // the shared resolver hands back the call-ARG plus the site it evaluates at, so the subtree
@@ -1657,7 +1658,7 @@ export default function createAstDestructureEmitter({
     // the qualification chain (caller-lossiness containment / foreign-binding redeclare /
     // block body / param-scope reads / var-redeclare) lives in the shared provider gate so
     // both emitters bail on exactly the same shapes
-    const qualified = qualifiesForParamBodyExtract({ propPath: metaPath, localId });
+    const qualified = qualifiesForParamBodyExtract({ propPath: metaPath, localId, adapter, resolvePure });
     if (!qualified) return false;
     const { fnPath } = qualified;
     const body = fnPath.node.body?.body;

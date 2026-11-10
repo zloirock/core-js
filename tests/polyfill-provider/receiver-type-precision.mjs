@@ -224,6 +224,34 @@ for (const [label, source, expected, hints] of [
   ['named expression', 'const read = function inner({ at }) {}; read("ab");', [true, 'string'], ['string']],
   ['recursive caller', 'function read({ at } = [1]) { read("ab"); } read();', null, ['array', 'string']],
   ['arguments object', 'function read({ at }) { return arguments[0]; } read([1]);', null, null],
+  ['observed array argument', 'const rows = [1]; (function ({ at } = []) { return arguments[0] === rows; })(rows);', [false, 'Array'], ['array']],
+  ['observed string argument', '(function ({ at } = []) { return arguments[0] === "ab"; })("ab");', [true, 'string'], ['string']],
+  ['observed omitted argument', '(function ({ at } = []) { return arguments[0] === undefined; })();', [false, 'Array'], ['array']],
+  ['observed arguments length', '(function ({ at } = []) { return arguments.length; })([1]);', [false, 'Array'], ['array']],
+  ['observed wrapped argument', '(function ({ at }) { return ((arguments)["0"]!) === null; })([1]);', [false, 'Array'], ['array']],
+  ['observed argument type', '(function ({ at }) { return typeof arguments[0]; })([1]);', [false, 'Array'], ['array']],
+  ['dropped argument', '(function ({ at }) { void arguments[0]; })([1]);', [false, 'Array'], ['array']],
+  ['arrow observes argument', '(function ({ at }) { return (() => arguments[0] === null)(); })([1]);', [false, 'Array'], ['array']],
+  ['observed mixed callers', 'function read({ at } = []) { return arguments.length; } read(); read("ab");', null, ['array', 'string']],
+  ['observed nested receiver', '(function ({ row: { at } }) { return arguments.length; })({ row: [1] });', [false, 'Array'], ['array']],
+  ['arguments escape', '(function ({ at }) { leak(arguments); })([1]);', null, null],
+  ['argument escape', '(function ({ at }) { leak(arguments[0]); })([1]);', null, null],
+  ['argument alias', '(function ({ at }) { const alias = arguments[0]; })([1]);', null, null],
+  ['argument callee', '(function ({ at }) { arguments[0](); })([1]);', null, null],
+  ['unknown argument key', '(function ({ at }) { void arguments[key]; })([1]);', null, null],
+  ['arguments callee escapes', '(function ({ at }) { return arguments.callee; })([1]);', null, null],
+  ['arguments slot write', '(function ({ at }) { arguments[0] = "ab"; })([1]);', null, null],
+  ['arguments slot update', '(function ({ at }) { arguments[0]++; })([1]);', null, null],
+  ['arguments slot delete', '(function ({ at }) { delete arguments[0]; })([1]);', null, null],
+  ['arguments nested write', '(function ({ row: { at } }) { arguments[0].row = "ab"; })({ row: [1] });', null, null],
+  ['arguments length write', '(function ({ at }) { arguments.length = 0; })([1]);', null, null],
+  ['wrapped arguments write', '(function ({ at }) { (arguments[0]!) = "ab"; })([1]);', null, null],
+  ['arguments pattern write', '(function ({ at }) { ({ value: arguments[0] } = other); })([1]);', null, null],
+  ['arguments loop write', '(function ({ at }) { for (arguments[0] of other) {} })([1]);', null, null],
+  ['arguments read then write', '(function ({ at }) { void arguments[0]; arguments[0] = "ab"; })([1]);', null, null],
+  ['argument coercion', '(function ({ at }) { return +arguments[0]; })([1]);', null, null],
+  ['earlier default writes receiver', '(function (first = (arguments[1].row = "ab"), { row: { at } }) {})(undefined, { row: [1] });', null, null],
+  ['earlier default exposes arguments', '(function (first = leak(arguments), { row: { at } }) {})(undefined, { row: [1] });', null, null],
   ['later argument replaces a binding', 'let value = [1]; function read({ at }) {} read(value, value = "ab");', [false, 'Array'], ['array']],
   ['later argument writes a slot', 'const box = { row: [1] }; function read({ row: { at } }) {} read(box, box.row = "ab");', null, null],
   ['pattern key writes a slot', 'const box = { row: [1] }; function read({ [(box.row = "ab", "row")]: { at } }) {} read(box);', null, null],
@@ -237,6 +265,35 @@ for (const [label, source, expected, hints] of [
   check(`${ name } hints`, resolver.resolvePropertyUnionHints(property)?.size
     ? [...resolver.resolvePropertyUnionHints(property)].sort().join(',') : null, hints?.join(',') ?? null);
 });
+
+runBoth('a shadowed arguments binding is not an arguments object',
+  'function read(arguments, { at }) { return arguments.length; } read(other, [1]);',
+  (adapter, program, name) => {
+    const property = adapter.pickPath(program, 'ObjectProperty', p => p.node.value?.name === 'at')
+      ?? adapter.pickPath(program, 'Property', p => p.node.value?.name === 'at');
+    const resolver = adapter.makeResolver();
+    check(`${ name } receiver`, resolver.resolvePropertyObjectType(property), null);
+    check(`${ name } hints`, resolver.resolvePropertyUnionHints(property), null);
+  }, undefined, 'script');
+
+// Sibling receiver facts share one source observation census, before caller mirrors.
+// Otherwise each parameter rescans the whole function and a wide list becomes quadratic.
+runBoth('argument observations are shared by sibling parameters',
+  `(function (${ Array.from({ length: 24 }, (_, i) => `{ at: value${ i } }`).join(', ') }) {
+    return arguments.length;
+  })(${ Array.from({ length: 24 }, () => '[1]').join(', ') });`, (adapter, program, name) => {
+    const observation = adapter.pickPath(program, 'Identifier', p => p.node.name === 'arguments').node;
+    const properties = adapter.collectPaths(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property');
+    const resolver = adapter.makeResolver();
+    let reads = 0;
+    Object.defineProperty(observation, 'name', {
+      configurable: true,
+      get() { reads++; return 'arguments'; },
+    });
+    for (const property of properties) check(`${ name }/${ property.node.value.name }`,
+      resolver.resolvePropertyObjectType(property)?.constructor, 'Array');
+    check(`${ name } one observation census`, reads > 0 && reads < 12, true);
+  });
 
 // The same source facts reach the dependency decision. A constructor is a Function value,
 // and the plain fallback does not authorize a RegExp patch; a real or unknown arm still does.
@@ -1223,10 +1280,10 @@ for (const [label, source, expected, expectedHints] of [
     ['string'],
   ],
   [
-    'untyped arguments remain open',
+    'arguments length retains closed caller type',
     'function read({row:{at}}){return[at,arguments.length]}read({row:"ab"});',
-    null,
-    null,
+    'string',
+    ['string'],
   ],
   [
     'open union default',
