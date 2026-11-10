@@ -6,6 +6,7 @@
 - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
 - Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object
 - Replaced an unused export option in the `self` fallback for IE8-
+- Fixed an ordinary assignment to `self` with the polyfilled setter in FF < 12, where it left `undefined` instead of the assigned value
 - Stopped replacing the native `Promise` in [Deno < 1.24](https://github.com/denoland/deno/pull/15211) solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
 - Fixed falsely detected `ArrayBuffer` transfer support in [Deno 1.13](https://github.com/denoland/deno/pull/11840), preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
 - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
