@@ -16053,6 +16053,15 @@ export function canSplitDestructureExport(declarator) {
   return owner?.node?.type !== 'ExportNamedDeclaration' || hostsExportList(owner.parentPath?.node);
 }
 
+// Only allocator-owned bindings may lose an export wrapper. Names remain owned after
+// a sibling extraction replaces their declarator; source-written lookalikes do not.
+// This classifies bindings only: an empty pattern still keeps all its native effects.
+export function patternBindsOnlyGeneratedNames(pattern, injectorState) {
+  let privateBindings = true;
+  walkPatternIdentifiers(pattern, id => { privateBindings &&= injectorState.isOwnPassGeneratedName(id.name); });
+  return privateBindings;
+}
+
 // an exported declaration whose residual binds a minted sentinel would hand that private name out:
 // the declaration leaves its export, and the names the source bound are exported by a list. An
 // export LIST an unwrap wrote names it the same way: there the sentinel leaves the list, and

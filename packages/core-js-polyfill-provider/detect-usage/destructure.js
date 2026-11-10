@@ -53,6 +53,7 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   functionScopeBindsVarOrFunction,
   hasObjectRestAncestor,
+  canSplitDestructureExport,
   getFallbackBranchSlots,
   identifierDeclaratorInit,
   isBareUndefinedIdentifier,
@@ -4298,6 +4299,14 @@ export function destructurePatternHostPath(leafPath) {
   let path = leafPath.parentPath;
   while (path && PATTERN_CHAIN_TYPES.has(path.node?.type)) path = path.parentPath;
   return path ?? null;
+}
+
+// A per-property extraction must not publish a rest/key sentinel from a namespace.
+// Mirrors and captures that preserve the source bindings answer before this gate.
+export function canExtractDestructureExport(path, ctx) {
+  const host = destructurePatternHostPath(path);
+  return canSplitDestructureExport(host) || !hasObjectRestAncestor(path)
+    && !patternKeepsEffectfulKey(host.node.id, ctx);
 }
 
 // The computed keys on the route to one destructured read, in source order. Only the
