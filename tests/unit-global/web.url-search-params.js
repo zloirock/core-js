@@ -1850,19 +1850,23 @@ const NODE_FETCH_ORDER = NODE && !DENO && (NODE_VERSION < 2414 || NODE_VERSION =
 const DENO_FETCH_LEGACY = DENO_VERSION >= 102 && (DENO_VERSION < 109 || DENO_VERSION === 109 && DENO_PATCH === 0);
 // Deno 1.15.0-2.9.7 regressed ResponseInit getter order and single reads.
 // https://github.com/denoland/deno/pull/12285
+// https://github.com/denoland/deno/issues/37158
 const RESPONSE_INIT_ORDER = NODE_FETCH_ORDER || DENO_FETCH_LEGACY || DENO_VERSION >= 115;
 // Chrome 67-68 converts method before headers; fixed in Chrome 69.
 // https://chromium-review.googlesource.com/c/chromium/src/+/1116418
 const REQUEST_INIT_ORDER = NODE_FETCH_ORDER || DENO_FETCH_LEGACY || CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 69;
 // Node 18-27 alpha and Deno 1.2-2.9.7 call overridden URLSearchParams#toString.
 // Bun 0.1.1-0.5.6 has the same bug; fixed in 0.5.7.
-// No matching upstream report found: https://fetch.spec.whatwg.org/#concept-bodyinit-extract
+// Node: https://github.com/nodejs/undici/issues/6195
+// Deno: https://github.com/denoland/deno/issues/37157
+// https://fetch.spec.whatwg.org/#concept-bodyinit-extract
 const BODY_STRINGIFIER = NODE || DENO || BUN_VERSION > 0 && BUN_VERSION < 5007;
 // Bun 0.1.1-0.1.8 ignores dictionary getters; 0.1.9 reads them.
 // https://webidl.spec.whatwg.org/#es-dictionary
 const BUN_INIT_GETTERS = BUN_VERSION > 0 && BUN_VERSION < 1009;
 // Bun 0.2.0-0.5.6 and 0.5.8-1.4.4 extracts Request bodies before dictionary conversion; 0.5.7 passes.
-// No matching upstream report found: https://fetch.spec.whatwg.org/#dom-request
+// https://github.com/oven-sh/bun/issues/48468
+// https://fetch.spec.whatwg.org/#dom-request
 const BUN_REQUEST_BODY = BUN_VERSION >= 2000 && BUN_VERSION !== 5007;
 // Bun before 1.0.7 ignores statusText: https://github.com/oven-sh/bun/pull/6151
 const BUN_RESPONSE_INIT = BUN_VERSION > 0 && BUN_VERSION < 1000007;
@@ -1881,7 +1885,8 @@ const BUN_BODY_LEGACY = BUN_VERSION > 0 && BUN_VERSION < 5007;
 // https://webidl.spec.whatwg.org/#internally-create-a-new-object-implementing-the-interface
 const BODY_SUBCLASS_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 69;
 // Safari 14.1-27.0.1 keeps a reference to URLSearchParams instead of snapshotting its list.
-// No matching upstream report found; https://fetch.spec.whatwg.org/#concept-bodyinit-extract
+// https://bugs.webkit.org/show_bug.cgi?id=330906
+// https://fetch.spec.whatwg.org/#concept-bodyinit-extract
 const BODY_SNAPSHOT_BUG = SAFARI_VERSION >= 14 && !SAFARI_14_0 || DENO_FETCH_LEGACY;
 // Firefox 39-43 appends a charset to explicit Content-Type headers; fixed in Firefox 44.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=918742
