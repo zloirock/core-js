@@ -945,9 +945,11 @@ export function assignmentNeedsReceiverMemo(assignment, reads, ctx = null) {
 // generated guard; analyzing that guard again would discard the read the source still owes.
 // Conversely, a source-proven dropped receiver stays dropped after its root is rewritten;
 // only its live effects survive. Re-proving that drop from a minted alias invents a read.
-// Reads declaring ownership already perform the initializer; a rescue must not replay it.
+// Receiver reads own the initializer. A carried prefix owns only the sequence before its tail;
+// a quiet tail can still owe a getter read after that prefix.
 export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null, reads = null) {
-  if (reads?.some(read => read.seCarried || read.readsReceiver)) return { effects: [], replay: false };
+  if (reads?.some(read => read.readsReceiver)) return { effects: [], replay: false };
+  if (reads?.some(read => read.seCarried)) init = peelNestedSequenceExpressions(init).tail;
   if (init && sourceFacts?.readWhole && !probe) return { effects: [unwrapRuntimeExpr(init)], replay: true };
   if (init && sourceFacts?.dropReceiver && !probe) {
     return { effects: harvestDiscardedReceiverSE(unwrapRuntimeExpr(init), ctx), replay: false, dropReceiver: true };

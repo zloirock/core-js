@@ -389,6 +389,9 @@ export default function createAstDestructureEmitter({
       const init = job.declarator?.init ?? job.assignment?.right;
       const probe = job.initProbePlan ?? planDiscardedInitProbe(init, job.metaPath, probeRenderCtx);
       facts.probe = captureProbePlan(probe, job.metaPath, probeRenderCtx);
+      // A consumed alias keeps its holder live, but its outer prefix can leave that holder.
+      // Claim the prefix here, where the host owns discarding it, not in speculative capture.
+      if (probe?.kind === 'alias') claimLive(facts.probe.residual.map(({ node }) => node).filter(Boolean), job.metaPath);
     }
     job.initProbePlan = facts.probe;
   }

@@ -295,4 +295,21 @@ for (const [receiver, accepted] of [['held.self', false], ['globalThis.self', tr
     });
 }
 
+// Call and store roots keep a served constructor leaf on stripped targets too.
+for (const source of [
+  'function getWin() { return globalThis.window; } const value = getWin()?.Promise;',
+  'let held; const value = (held = globalThis.window)?.Promise;',
+]) runBoth(source, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  const plan = discardedInitProbePlan(path.node.init, resolvePure, ctx);
+  check(`${ label }/served leaf`, plan.leafPlan.leafPure?.entry, 'Promise');
+  const excluded = discardedInitProbePlan(path.node.init, meta => meta.name === 'Promise' ? null : resolvePure(meta), ctx);
+  check(`${ label }/excluded leaf`, excluded.leafPlan.leafPure, null);
+  adapter.isMutatedStatic = (object, key) => object === 'globalThis' && key === 'Promise';
+  const written = discardedInitProbePlan(path.node.init, resolvePure, ctx);
+  check(`${ label }/written slot is not served`, written?.leafPlan?.leafPure ?? null, null);
+});
+
 finish();

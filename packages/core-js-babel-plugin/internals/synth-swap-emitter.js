@@ -441,7 +441,7 @@ export default function createSynthSwapEmitter({
     return result;
   }
 
-  // walk the program and swap each registered receiver with its synth literal. lookup
+  // Settle nested synths before copying their enclosing receiver. Lookup
   // is by node identity (WeakMap), so sibling plugins that MOVE the receiver
   // (`transform-parameters` extracts `function f({from} = R)` defaults to
   // `var _ref = ... : R; var {from} = _ref` - same R node, new path) keep it findable.
@@ -451,7 +451,7 @@ export default function createSynthSwapEmitter({
   function apply(programPath) {
     if (!programPath?.node || !pendingSwapCount) return;
     programPath.traverse({
-      enter(path) {
+      exit(path) {
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
         // Registration already admitted this source receiver. A native move changes

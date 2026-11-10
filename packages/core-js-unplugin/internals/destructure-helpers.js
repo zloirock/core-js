@@ -625,6 +625,23 @@ export function duplicateReceiver(node, injector) {
   return clone;
 }
 
+// A guard owns its captured spine; only its independent child slots follow deferred edits.
+// Refresh those slots just before the renderer makes the final, independently owned copy.
+function renderCapturedProbe(plan, ctx) {
+  const capturedSource = plan.test?.source;
+  for (const { keys, slot, node } of plan.liveChildren ?? []) {
+    const live = slot?.container[slot.key] ?? node;
+    if (!keys.length) capturedSource.source = live;
+    else {
+      const parent = keys.slice(0, -1).reduce((value, key) => value[key], capturedSource.source);
+      parent[keys.at(-1)] = live;
+    }
+  }
+  return renderClaimProbe(plan, {
+    injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
+  });
+}
+
 // A retained native subtree is cloned at drain time. Its free realm names still need the
 // binding's substitution walk; the common renderer owns the guard, tail and sealed read.
 function renderPassthroughProbe(plan, metaPath, ctx) {
@@ -659,9 +676,7 @@ export function captureSealedNavProbe(receiver, metaPath, ctx) {
 export function renderSealedNavProbe(plan, metaPath, ctx) {
   if (!plan) return null;
   let node;
-  if (plan.kind !== 'passthrough') node = renderClaimProbe(plan, {
-    injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
-  });
+  if (plan.kind !== 'passthrough') node = renderCapturedProbe(plan, ctx);
   else {
     const passthrough = guardedNavPassthroughPlan(plan.boundary.inner, ({ name }) => ctx.resolveGlobalPolyfill(name),
       { ...nodeSite(plan.boundary.inner, metaPath), adapter: ctx.adapter });
@@ -680,14 +695,18 @@ export function planDiscardedInitProbe(initNode, metaPath, ctx, options) {
 }
 
 // Retain native slots before accepting children: a replacement updates the container, not
-// the old node or path. Guard/holder proofs stay pristine; their source children settle before
-// the snapshot, and source-spine edit paths are then bound to that actual captured spelling.
+// the old node or path. Guard/holder proofs stay pristine while independently claimable
+// children stay live until nested deferred hosts have drained.
 // Deferred callers register their pristine host facts before accepting this plan.
 export function captureProbePlan(plan, metaPath, ctx) {
   if (!plan) return plan;
   const remaining = directClaimProbeEffects({ decision: plan, node: null }, harvestDiscardedReceiverSE(plan.source,
     { ...nodeSite(plan.source, metaPath), adapter: ctx.adapter }));
   const residual = remaining.map(node => ({ node, slot: node && pathOfNode(metaPath, node) }));
+  const prefix = plan.prefix ?? [];
+  const prefixSlots = prefix.map(node => pathOfNode(metaPath, node));
+  if (prefix.length) ctx.claimLive?.(prefix, metaPath);
+  plan = { ...plan, prefix: prefix.map((node, index) => prefixSlots[index]?.container[prefixSlots[index].key] ?? node) };
   // Walk only the children of a retained holder. Walking the holder itself could
   // collapse the enclosing receiver before its original property read is captured.
   if (plan.kind === 'alias') {
@@ -711,14 +730,29 @@ export function captureProbePlan(plan, metaPath, ctx) {
   ctx.claimLive?.([...effects, ...plan.test?.source?.children ?? []], metaPath);
   const live = nodes.map((node, index) => slots[index]?.container[slots[index].key] ?? node);
   let index = effects.length;
+  const liveChildren = [];
   function capture(source) {
-    return source && claimProbeSourceSlot(cloneStamped(live[index++]), meta => ctx.resolvePure(meta, metaPath),
+    if (!source) return source;
+    const sourceSlot = slots[index];
+    const captured = claimProbeSourceSlot(live[index++], meta => ctx.resolvePure(meta, metaPath),
       { ...nodeSite(source.source, metaPath), adapter: ctx.adapter });
+    for (const node of captured.children) {
+      const wholeSource = node === captured.source;
+      const slot = wholeSource ? sourceSlot : pathOfNode(metaPath, node);
+      const keys = [];
+      let path = slot;
+      if (!wholeSource) for (; path && path.node !== captured.source; path = path.parentPath) {
+        keys.unshift(...path.listKey ? [path.listKey, path.key] : [path.key]);
+      }
+      if (wholeSource || path) liveChildren.push({ keys, slot, node });
+    }
+    return { ...captured, source: cloneStamped(captured.source) };
   }
   const test = capture(plan.test?.source);
   return {
     ...plan,
     residual,
+    liveChildren,
     alternateEffects: live.slice(0, effects.length),
     test: test ? { ...plan.test, source: test } : plan.test,
   };
@@ -761,9 +795,7 @@ export function renderConsumedProbe(plan, key, prop, metaPath, ctx) {
   // source-spelling paths to that live value; the read decision remains the pristine one.
   const captured = plan.kind === 'alias' ? { ...plan, object: claimProbeSourceSlot(plan.aliasProbe.object,
     meta => ctx.resolvePure(meta, metaPath), { ...nodeSite(plan.aliasProbe.object, metaPath), adapter: ctx.adapter }) } : plan;
-  const guarded = renderClaimProbe(captured, {
-    injectImport: ctx.injectPureImport, cloneHost: source => duplicateReceiver(source, ctx.injector),
-  });
+  const guarded = renderCapturedProbe(captured, ctx);
   const read = plan.readsSource ? guarded : renderAliasHeldProbeRead({ key, computed: !isValidIdentifierName(key),
     property: prop?.computed && prop.key?.type === 'Identifier' ? cloneNode(prop.key) : null }, guarded);
   if (plan.residual) probeFacts.set(read, plan.residual);
@@ -1010,11 +1042,10 @@ function liftLeadingSequenceElements(program, hostNode) {
   return sequence.expressions.splice(0, at).map(expr => expressionStatement(expr));
 }
 
-// every SEQUENCE-element assignment in the ledger, drained before the hosts whose inits hold
-// them: that drain lifts the sequence prefix into statements of its own and the slot they fold
-// back into stops existing
-export function drainSequenceAssignments(ledger, ctx) {
-  for (const entry of ledger.values()) {
+// Drain each supplied host's sequence assignments before its remaining jobs. The sequence
+// drain lifts prefixes into statements, so their original slots can disappear in that host.
+export function drainSequenceAssignments(entries, ctx) {
+  for (const entry of entries.values()) {
     // by the SLOT the job named, not by its kind: every job carrying one lands in a sequence
     // element, and the kinds that do so differ only in which inner drain shapes the statements
     const seqJobs = entry.jobs.filter(job => job.seqHostStatement);

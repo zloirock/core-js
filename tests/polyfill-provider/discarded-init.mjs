@@ -200,10 +200,13 @@ runBoth('effect ownership and placement', 'let held; const result = (effect(), h
   check(`${ label }/nothing to place`, planDiscardedInitPlacement([], { forInit: true, readCount: 2 }).placement, 'none');
   const ctx = { scope: path.scope, path,
     adapter: (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' }) };
-  for (const read of [{ readsReceiver: true }, { seCarried: true }]) {
+  for (const read of [{ readsReceiver: true }, { seCarried: true, readsReceiver: true }]) {
     checkDeep(`${ label }/owned ${ Object.keys(read)[0] }`, planDiscardedInit(path.node.init, ctx, null, null, [read]),
       { effects: [], replay: false });
   }
+  const prefixOnly = planDiscardedInit(path.node.init, ctx, null, null, [{ seCarried: true }]);
+  check(`${ label }/prefix leaves tail write`, prefixOnly.effects[0], effects[1]);
+  check(`${ label }/prefix does not replay itself`, prefixOnly.effects.length, 1);
   check(`${ label }/unowned effects survive`, planDiscardedInit(path.node.init, ctx, null, null, [{}]).effects.length > 0, true);
   check(`${ label }/query preserves source`, JSON.stringify(program.node), before);
 });
@@ -273,6 +276,22 @@ runBoth('missing facts cannot drop a stored receiver', 'let held; const value = 
     check(`${ label }/missing resolver`, shouldDropRescueReceiver(source, frame), false);
     check(`${ label }/missing frame`, shouldDropRescueReceiver(source), false);
     check(`${ label }/absence proved`, shouldDropRescueReceiver(source, { ...frame, resolvePure }), false);
+  });
+
+// A carried prefix is not ownership of the quiet getter after it.
+runBoth('carried prefix with a getter', 'const box = { get value() { return Array; } }; const result = (effect(), box.value);',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, path, adapter, resolvePure };
+    const tail = unwrapRuntimeExpr(path.node.init).expressions.at(-1);
+    const before = JSON.stringify(path.node.init);
+    const plan = planDiscardedInit(path.node.init, ctx, null, { readWhole: true }, [{ seCarried: true }]);
+    check(`${ label }/getter once`, plan.effects.length, 1);
+    check(`${ label }/borrowed tail`, plan.effects[0], tail);
+    check(`${ label }/source unchanged`, JSON.stringify(path.node.init), before);
+    check(`${ label }/receiver owns tail`, planDiscardedInit(path.node.init, ctx, null, null,
+      [{ seCarried: true, readsReceiver: true }]).effects.length, 0);
   });
 
 finish();
