@@ -64,6 +64,9 @@ const SAFARI_14_0 = /Version\/14\.0(?: |$)|(?:iPad|iPhone|iPod).*OS 14_0(?:_| )/
 // Safari 14.0.1-14.1.2 ignores symbol keys; fixed in Safari 15.
 // https://bugs.webkit.org/show_bug.cgi?id=223231
 const SAFARI_14 = !SAFARI_14_0 && /Version\/14(?:\.\d+)* Safari\/|(?:iPad|iPhone|iPod).*OS 14_/.test(GLOBAL.navigator?.userAgent);
+// Native Safari on iOS 14.3-14.4 does not merge converted record keys; fixed in iOS 14.5.
+// https://bugs.webkit.org/show_bug.cgi?id=217612
+const SAFARI_RECORD_COLLISIONS = /(?:iPad|iPhone|iPod).*OS 14_[34](?:_| )/.test(GLOBAL.navigator?.userAgent);
 
 // Deno 1.2.0-1.11.1 rejects custom inner iterables; fixed in 1.11.2.
 // https://github.com/denoland/deno/pull/11005
@@ -474,7 +477,7 @@ if (!DENO_BYTE_STRING) QUnit.test('URLSearchParams USVString record collisions',
   ]) {
     const entries = [];
     new URLSearchParams(record).forEach((value, key) => entries.push([key, value]));
-    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD) {
+    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD && !SAFARI_RECORD_COLLISIONS) {
       assert.arrayEqual(entries, [['\uFFFD', 'last'], ['middle', 'keep']], 'record collision preserves the first position and last value');
     }
   }
@@ -496,7 +499,7 @@ if (!DENO_BYTE_STRING) QUnit.test('URLSearchParams USVString record collisions',
     });
     const params = new URLSearchParams(record);
     if (!DENO_RECORD_DOUBLE_READ) assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
-    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD) assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
+    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD && !SAFARI_RECORD_COLLISIONS) assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
   }
 });
 

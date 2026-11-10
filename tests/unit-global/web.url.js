@@ -7,6 +7,12 @@ import toASCIITestData from '../wpt-url-resources/toascii.js';
 
 const { hasOwnProperty } = Object.prototype;
 
+const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Native Firefox 94-105 checks the UTF-16 label length before IDNA mapping; fixed in 106.
+// The pure version uses the polyfill below Firefox 118.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1788115
+const FIREFOX_IDNA_LENGTH = FIREFOX_VERSION >= 94 && FIREFOX_VERSION < 106;
+
 // Native Deno 1.2.0 keeps the base host in network-path references; fixed in 1.2.1.
 // https://github.com/denoland/deno/pull/6807
 const DENO_BROKEN_RELATIVE_URL = DENO && GLOBAL.Deno.version.deno === '1.2.0';
@@ -567,7 +573,7 @@ QUnit.test('URL domain mathematical Latin letters and digits', assert => {
     ['𝘼𝘽𝘾𝘿𝙀𝙁𝙂𝙃𝙄𝙅𝙆𝙇𝙈𝙉𝙊𝙋𝙌𝙍𝙎𝙏𝙐𝙑𝙒𝙓𝙔𝙕𝙖𝙗𝙘𝙙𝙚𝙛𝙜𝙝𝙞𝙟𝙠𝙡𝙢𝙣𝙤𝙥𝙦𝙧𝙨𝙩𝙪𝙫𝙬𝙭𝙮𝙯', 'sans-serif bold italic'],
     ['𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣', 'monospace'],
   ]) {
-    assert.same(new URL(`https://${ letters }.example/`).hostname,
+    if (!FIREFOX_IDNA_LENGTH) assert.same(new URL(`https://${ letters }.example/`).hostname,
       'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.example', name);
   }
 
