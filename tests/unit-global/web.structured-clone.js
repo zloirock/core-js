@@ -6,6 +6,11 @@ import { bufferToArray, fromSource } from '../helpers/helpers.js';
 const { from } = Array;
 const { assign, create: objectCreate, defineProperty, getPrototypeOf, keys } = Object;
 
+const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 4-6 report an inherited non-configurable accessor as own after deleting the shadowing property; fixed in Firefox 7.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=637994
+const FIREFOX_INHERITED_AS_OWN = FIREFOX_VERSION >= 4 && FIREFOX_VERSION < 7;
+
 QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {
     assert.isFunction(structuredClone, 'structuredClone is a function');
@@ -585,8 +590,7 @@ QUnit.module('structuredClone', () => {
 
   if (DESCRIPTORS) {
     QUnit.test('Object properties changed during cloning', assert => {
-      // Firefox 4-6 report the inherited getter as own after deleting the shadowing property.
-      for (const inherited of [false, true]) {
+      for (const inherited of FIREFOX_INHERITED_AS_OWN ? [false] : [false, true]) {
         const prototype = {};
         let inheritedReads = 0;
         let reads = 0;
