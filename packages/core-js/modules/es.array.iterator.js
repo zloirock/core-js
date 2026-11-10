@@ -2,6 +2,7 @@
 var defineIterator = require('../internals/iterator-define');
 var normalizeIteratorMethod = require('../internals/iterator-normalize-method');
 var ArrayIterator = require('../internals/array-iterator-constructor');
+var IS_PURE = require('../internals/is-pure');
 var Iterators = require('../internals/iterators');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
@@ -15,6 +16,6 @@ defineIterator('Array', normalizeIteratorMethod(Array, 'Array') || function valu
 
 // engines with native array iterator, but without arguments iterator (Firefox < 46)
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1067049
-if (!Iterators.Array && !function () { return arguments[ITERATOR]; }()) {
+if (IS_PURE && !Iterators.Array && !function () { return arguments[ITERATOR]; }()) {
   Iterators.Array = Array.prototype[ITERATOR];
 }

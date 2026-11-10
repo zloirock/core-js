@@ -22,7 +22,7 @@ var getTypedArrayMetadata = function (it, key) {
   var proto = getPrototypeOf(it);
   if (!isObject(proto)) return;
   var state = getInternalState(proto);
-  return (state && hasOwn(state, key)) ? state[key] : getTypedArrayMetadata(proto, key);
+  return hasOwn(state, key) ? state[key] : getTypedArrayMetadata(proto, key);
 };
 
 if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {

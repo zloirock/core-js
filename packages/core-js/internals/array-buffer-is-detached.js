@@ -2,9 +2,7 @@
 var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
-var getNativePrototype = require('../internals/array-buffer-native-prototype');
 var getInternalState = require('../internals/internal-state').get;
-var classof = require('../internals/classof-raw');
 var fails = require('../internals/fails');
 var postMessage = require('../internals/message-channel-post');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
@@ -34,17 +32,23 @@ var throwsOnDetached = function (O, slice) {
 module.exports = function (O) {
   if (getInternalState(O).detached) return true;
   if (CHECK_BY_CLONING === false) return throwsOnDetached(O);
-  if (classof(getNativePrototype(O, true)) === 'SharedArrayBuffer') return false;
+  var byteLength;
+  try {
+    // callers pass ArrayBuffer or SharedArrayBuffer; the getter rejects shared buffers
+    byteLength = arrayBufferByteLength(O);
+  } catch (error) {
+    return false;
+  }
   if (CHECK_BY_CLONING === undefined && postMessage) {
     // old WebKit accepts detached buffers in both view constructors and slice
-    // The probe must actually detach: Deno 1.13 rejects ArrayBuffer transfer.
+    // the probe must actually detach: Deno 1.13 rejects ArrayBuffer transfer
     CHECK_BY_CLONING = !fails(function () {
       var buffer = new Uint8Array(1).buffer;
       postMessage(null, [buffer]);
       return arrayBufferByteLength(buffer) !== 0 || throwsOnDetached(buffer, nativeSlice);
     });
   }
-  return throwsOnDetached(O, nativeSlice) || !!CHECK_BY_CLONING && arrayBufferByteLength(O) === 0 && fails(function () {
+  return throwsOnDetached(O, nativeSlice) || !!CHECK_BY_CLONING && byteLength === 0 && fails(function () {
     postMessage(O);
   });
 };

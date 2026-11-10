@@ -15,6 +15,10 @@ QUnit.test('ArrayBuffer#detached', assert => {
     const nonEmptyBuffer = memory.buffer;
     memory.grow(1);
     assert.true(nonEmptyBuffer.detached, 'growing WebAssembly memory detaches the old buffer');
+    Object.defineProperty(nonEmptyBuffer, Symbol.toStringTag, { value: 'SharedArrayBuffer', configurable: true });
+    assert.true(nonEmptyBuffer.detached, 'detached buffer with a SharedArrayBuffer tag');
+    Object.defineProperty(nonEmptyBuffer, Symbol.toStringTag, { get() { throw new Error('Unexpected toStringTag access'); } });
+    assert.true(nonEmptyBuffer.detached, 'detached buffer with a throwing tag');
   }
 
   const detached = new ArrayBuffer(8);

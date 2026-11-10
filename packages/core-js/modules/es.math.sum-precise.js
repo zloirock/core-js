@@ -33,7 +33,6 @@ var FINITE = {};
 // https://bugs.webkit.org/show_bug.cgi?id=315450
 var FORCED = fails(function () {
   if ($sumPrecise([-1]) !== -1 || $sumPrecise([-MAX_DOUBLE]) !== -MAX_DOUBLE) return true;
-  if (!setPrototypeOf) return false;
   // https://issues.chromium.org/issues/500536164
   try {
     $sumPrecise(setPrototypeOf([1], {}));

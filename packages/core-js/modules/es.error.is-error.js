@@ -8,15 +8,13 @@ var fails = require('../internals/fails');
 
 var ERROR = 'Error';
 var DOM_EXCEPTION = 'DOMException';
-// eslint-disable-next-line es/no-object-setprototypeof, no-proto -- safe
-var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || {}.__proto__;
 
 var DOMException = getBuiltIn(DOM_EXCEPTION);
 var $Error = Error;
 // eslint-disable-next-line es/no-error-iserror -- safe
 var $isError = $Error.isError;
 
-var FORCED = !$isError || !PROTOTYPE_SETTING_AVAILABLE || fails(function () {
+var FORCED = !$isError || fails(function () {
   // Bun, isNativeError-based implementations, some buggy structuredClone-based implementations, etc.
   // https://github.com/oven-sh/bun/issues/15821
   return (DOMException && !$isError(new DOMException(DOM_EXCEPTION))) ||
