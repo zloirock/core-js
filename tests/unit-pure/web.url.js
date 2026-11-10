@@ -244,6 +244,53 @@ QUnit.test('URL domain Unicode validation: parsing and setters', assert => {
   }
 });
 
+QUnit.test('URL domain Punycode encoding: repeated and reordered code points', assert => {
+  for (const [label, encoded] of [
+    ['a\u4E02b\u4E00c\u4E01d\u4E00e\u4E02f', 'xn--abcdef-cn7ichgh'],
+    ['\u4E02\u4E01\u4E00\u4E02\u4E01\u4E00', 'xn--4gqabbcc'],
+    ['\u4E00a\u4E00b\u4E00', 'xn--ab-uu2cbb'],
+    ['a\u00E9b\u4E00c\uD83D\uDE00d\u4E00e\uD83D\uDE00f\u00E9g', 'xn--abcdefg-byaf9548qca04631kda'],
+  ]) {
+    const input = `https://${ label }.example/path?a=1#hash`;
+    const expected = `https://${ encoded }.example/path?a=1#hash`;
+    const url = new URL(input);
+    assert.same(url.href, expected, 'absolute URL');
+    assert.same(new URL(`//${ label }.example/path?a=1#hash`, 'https://example.org/').href, expected, 'relative URL');
+    assert.same(new URL(url.href).href, expected, 'serialization round trip');
+    if (DESCRIPTORS) {
+      const assigned = new URL('https://example.org/path?a=1#hash');
+      assigned.host = `${ label }.example:8080`;
+      assert.same(assigned.host, `${ encoded }.example:8080`, 'host setter');
+      assigned.hostname = `${ label }.test`;
+      assert.same(assigned.host, `${ encoded }.test:8080`, 'hostname setter preserves the port');
+      assigned.href = input;
+      assert.same(assigned.href, expected, 'href setter');
+    }
+  }
+});
+
+QUnit.test('URL domain Punycode encoding: many distinct code points', assert => {
+  let distinct = '';
+  for (let index = 0; index < 128; index++) distinct += String.fromCharCode(0x4E00 + (index * 67 % 128));
+  const encodedDistinct = 'xn--4gqccdefgnhijklymnopq9arstuv0cwxyz0a1d1a2a3a4a5a2e6a7a8a9azb9etb1b1b2b3b4fxb5b6b6b7bxg1b9bxcycxc2g5bzc0c1c2c1c9goc3c'
+    + '4c5c6cyhrc6c7c8c9c9hwc9ctdudvdwizcxdydzdxdzi4czd0d1d2dsj7c4d5d6d4dujnd6d7d8d9d5jpdseteuere7judteueveweykzdyeze0e1e';
+  const input = `https://${ distinct }.example/path?a=1#hash`;
+  const expected = `https://${ encodedDistinct }.example/path?a=1#hash`;
+  const url = new URL(input);
+  assert.same(url.href, expected, 'absolute URL');
+  assert.same(new URL(`//${ distinct }.example/path?a=1#hash`, 'https://example.org/').href, expected, 'relative URL');
+  assert.same(new URL(url.href).href, expected, 'serialization round trip');
+  if (DESCRIPTORS) {
+    const assigned = new URL('https://example.org/path?a=1#hash');
+    assigned.host = `${ distinct }.example:8080`;
+    assert.same(assigned.host, `${ encodedDistinct }.example:8080`, 'host setter');
+    assigned.hostname = `${ distinct }.test`;
+    assert.same(assigned.host, `${ encodedDistinct }.test:8080`, 'hostname setter preserves the port');
+    assigned.href = input;
+    assert.same(assigned.href, expected, 'href setter');
+  }
+});
+
 // Native encoders can use larger integers, so a correct result or a TypeError is allowed.
 // These inputs exercise both overflow guards in the polyfilled encoder.
 // Separate inputs let slow engines service Karma heartbeats between tests.

@@ -62,6 +62,7 @@
 - Fixed rejection of disallowed Unicode format controls, tags, ideographic description characters, and compatibility characters containing label separators in `URL` domains
 - Fixed removal of ignored shorthand and musical format controls in `URL` domains
 - Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
+- Avoided quadratic Punycode encoding in the `URL` polyfill for labels with many distinct Unicode code points
 - Fixed decoding of invalid UTF-8 leading bytes in `URLSearchParams` and `URL` queries
 - Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
 - Fixed `URLSearchParams.prototype.delete(name, value)` patch arguments conversion order
