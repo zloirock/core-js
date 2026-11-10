@@ -9,6 +9,7 @@ import {
   planDiscardedInitProbe,
   captureSealedNavProbe,
   planSealedNavProbe,
+  renderSealedNavProbe,
   renderDiscardedInitProbe,
   probeResidualEffects,
   probeEffectNodes,
@@ -82,6 +83,40 @@ for (const input of [
   check(`${ input }/old child left behind`, snapshot.includes(input.includes('stored') ? '"prepare"' : '"at"'), false);
   at.node.init = { type: 'Identifier', name: 'later' };
   check(`${ input }/capture survives another rewrite`, JSON.stringify(renderClaimProbe(plan, { injectImport: name => `_${ name }` })), snapshot);
+}
+// A queued child can replace its root after acceptance. Only that slot is refreshed;
+// a later rewrite of the guard's own realm spine cannot alter the captured read.
+for (const input of [
+  'function getWin() { return globalThis.window; } const value = getWin()?.Promise;',
+  'function getWin() { return globalThis.window; } const value = (getWin())?.Promise;',
+  'const value = globalThis[(prepare(), "window")]?.Promise;',
+  'const value = (prepare(), globalThis).window?.Promise;',
+]) {
+  const tree = parser.parseAndScope(input);
+  const at = parser.pickPath(tree, 'VariableDeclarator');
+  let child = parser.pickPath(tree, 'CallExpression');
+  const root = parser.pickPath(tree, 'Identifier', path => path.node.name === 'globalThis');
+  const ctx = {
+    adapter: createEstreeAdapter({ method: 'usage-pure' }),
+    resolvePure: ({ name }) => ['globalThis', 'Promise'].includes(name) ? { entry: name, hintName: name } : null,
+    injectPureImport: name => `_${ name }`,
+    claimLive() {
+      // A completed early claim can mint a root without source offsets. Its native slot
+      // still receives the later deferred replacement, just like a source-spelled root.
+      if (input.includes('(getWin())')) child = child.replaceWith({
+        type: 'CallExpression', callee: { type: 'Identifier', name: 'getWin' }, arguments: [],
+      });
+    },
+  };
+  const plan = captureProbePlan(planDiscardedInitProbe(at.node.init, at, ctx), at, ctx);
+  child = child.replaceWith({ type: 'Identifier', name: 'settledChild' });
+  if (root) root.node.name = 'changedGuard';
+  const rendered = renderSealedNavProbe(plan, at, ctx);
+  const snapshot = JSON.stringify(rendered);
+  checkTruthy(`${ input }/queued replacement reaches the read`, snapshot.includes('settledChild'));
+  check(`${ input }/captured guard ignores the later spine rewrite`, snapshot.includes('changedGuard'), false);
+  child.node.name = 'afterRender';
+  check(`${ input }/rendered child owns its copy`, JSON.stringify(rendered), snapshot);
 }
 // Alias holders retain the natural child traversal; accepting one cannot eagerly rebase its
 // enclosing receiver. Drain binds source paths after a child has replaced the stored value.

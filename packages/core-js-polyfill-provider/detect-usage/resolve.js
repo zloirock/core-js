@@ -6206,7 +6206,8 @@ function proxyRunLeafPure(node, aliasCtx, resolvePure) {
   if (direct) return direct;
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   const leafName = realmHopKeyName(node, aliasCtx);
-  if (!leafName || !POSSIBLE_GLOBAL_OBJECTS.has(leafName) || !navProxyRooted(unwrapRuntimeExpr(node.object), aliasCtx)) return null;
+  if (!leafName || isMutatedGlobalSlot(aliasCtx?.adapter, leafName, aliasCtx?.path && { node, path: aliasCtx.path })
+    || !navProxyRooted(unwrapRuntimeExpr(node.object), aliasCtx)) return null;
   const pure = resolvePure({ kind: 'global', name: leafName });
   return pure && pure.kind !== 'instance' ? pure : null;
 }

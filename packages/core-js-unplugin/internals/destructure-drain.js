@@ -553,19 +553,21 @@ export default function createDestructureDrains(ctx) {
       { adapter, resolveGlobalPolyfill, injectPureImport }) : rendered;
   }
 
-  // Mark only landed rewrites; a declined render must leave the engine's abstain intact.
-  function drainSynthLiterals() {
-    for (const [, pending] of [...synthLedger, ...pendingBranchSynths]) {
-      const { receiver } = pending;
-      const rendered = renderRegisteredSynth(pending);
-      if (!rendered) continue;
-      if (replaceNodeInTree(program, receiver, rendered)) {
-        markRewrite();
-        markSubtreeSkipped(skippedNodes, receiver);
-      }
+  // Mark only landed rewrites; nested work has settled before this receiver is copied.
+  function drainSynth(pending) {
+    const { receiver } = pending;
+    const rendered = renderRegisteredSynth(pending);
+    if (!rendered) return;
+    let landed = replaceNodeInTree(program, receiver, rendered);
+    // A retained source probe can own the old subtree after its live spelling changed.
+    // Its native ancestor slots remain the target until that probe is copied at drain.
+    for (let path = pending.metaPath; !landed && path; path = path.parentPath) {
+      landed = path.node !== program && replaceNodeInTree(path.node, receiver, rendered);
     }
-    synthLedger.clear();
-    pendingBranchSynths.clear();
+    if (landed) {
+      markRewrite();
+      markSubtreeSkipped(skippedNodes, receiver);
+    }
   }
 
   // Land the shared sole-key template in each original declarator slot. The source
@@ -600,112 +602,120 @@ export default function createDestructureDrains(ctx) {
     }
   }
 
-  // Apply each host's jobs on its final tree. Remove consumed props and emptied hosts,
-  // then place extractions and surviving residuals in source property order.
-  // eslint-disable-next-line max-statements -- one flush pass dispatches every host kind
-  function drain() {
-    drainSynthLiterals();
-    drainSequenceAssignments(ledger, { program, drainAssignment, drainAssignOverwrite, markRewrite, seqDrainedSlots });
-    for (const [, { hostPath, jobs }] of ledger) {
-      const hostNode = hostPath.node;
-      // one host may collect jobs of DIFFERENT kinds (a plain destructure declarator next
-      // to an opaque-init one) - each drain sees only its own, and the body index is
-      // re-taken between them (each splices)
-      const declNode = hostNode.type === 'ExportNamedDeclaration' ? hostNode.declaration : hostNode;
-      const kinds = new Map();
-      for (const job of jobs) {
-        if (!kinds.has(job.host)) kinds.set(job.host, []);
-        kinds.get(job.host).push(job);
-      }
-      // memo-decl and plain declaration jobs drain TOGETHER, per declarator in source
-      // order - separate passes lost the statement order across sibling declarators
-      if (kinds.has('memo-decl')) {
-        const merged = [...kinds.get('declaration') ?? [], ...kinds.get('memo-decl')];
-        kinds.delete('memo-decl');
-        kinds.set('declaration', merged);
-      }
-      // These reads replace declarators in place. Land them before another kind splits the
-      // host into new declarations; afterwards declNode may no longer belong to the program.
-      if (kinds.has('key-read')) {
-        drainKeyedReads(declNode, kinds.get('key-read'));
-        kinds.delete('key-read');
-      }
-      for (const [kind, kindJobs] of kinds) {
-        if (kind === 'for-init') {
-          drainForInit({ hostNode: declNode, jobs: kindJobs });
-          continue;
-        }
-        if (kind === 'assignment' && kindJobs[0]?.bodyless) {
-          drainAssignment({ hostNode, body: null, at: -1, jobs: kindJobs });
-          continue;
-        }
-        if (kind === 'bodyless-decl') {
-          drainBodylessDeclaration({ hostNode: declNode, jobs: kindJobs });
-          continue;
-        }
-        if (drainBodylessWrapKinds({ kind, kindJobs, hostNode }, { program, consumedAssignmentRemains })) continue;
-        const body = statementListOf(hostPath.parentPath?.node);
-        if (!body) continue;
-        // the statement this kind was recorded against may be GONE - another kind's drain rewrote
-        // the declaration around its own declarator - so the jobs land on whatever now holds theirs
-        const live = liveHostStatement(body, hostNode, kindJobs[0]?.declarator);
-        if (!live) throw new Error('Missing destructuring job host');
-        const { at } = live;
-        switch (kind) {
-          case 'assign-overwrite':
-            drainAssignOverwrite({ body, at, jobs: kindJobs });
-            break;
-
-          case 'declaration':
-            drainDeclaration({ hostNode: live.declaration ?? declNode, body, at, jobs: kindJobs });
-            break;
-          default: drainAssignment({ hostNode, body, at, jobs: kindJobs });
-        }
-      }
+  // Settle sequence slots before the rest of their own host can consume them.
+  function drainHost(entry) {
+    drainSequenceAssignments([entry], { program, drainAssignment, drainAssignOverwrite, markRewrite, seqDrainedSlots });
+    const { hostPath, jobs } = entry;
+    const hostNode = hostPath.node;
+    // one host may collect jobs of DIFFERENT kinds (a plain destructure declarator next
+    // to an opaque-init one) - each drain sees only its own, and the body index is
+    // re-taken between them (each splices)
+    const declNode = hostNode.type === 'ExportNamedDeclaration' ? hostNode.declaration : hostNode;
+    const kinds = new Map();
+    for (const job of jobs) {
+      if (!kinds.has(job.host)) kinds.set(job.host, []);
+      kinds.get(job.host).push(job);
     }
-    // Keep shared declaration nodes alive until every sibling's queued job has drained.
-    for (const [declaration, body] of pendingSplits) {
-      // A live native capture keeps its group. User bindings extracted from a fully
-      // consumed capture do not keep the retired receiver's declaration joined.
-      if (declaration.declarations.every(node => !capturedSiblingHosts.has(node)
-        || !patternBindingCount(node.id)
-        || node.id.type === 'Identifier' && !injectorState.isOwnPassGeneratedName(node.id.name))) {
-        splitMultiDeclaratorHost({ declaration, body, markRewrite });
-      }
+    // memo-decl and plain declaration jobs drain TOGETHER, per declarator in source
+    // order - separate passes lost the statement order across sibling declarators
+    if (kinds.has('memo-decl')) {
+      const merged = [...kinds.get('declaration') ?? [], ...kinds.get('memo-decl')];
+      kinds.delete('memo-decl');
+      kinds.set('declaration', merged);
     }
-    pendingSplits.clear();
-    const jobHostSiblings = jobHostSiblingDeclarators(ledger);
-    // the hop-host notes drain AFTER the jobs: a host an extraction entered leaves a RESIDUAL
-    // behind (`{ Array: { junk } } = _globalThis` beside the claims it consumed), and that residual
-    // can use the source plan's accepted anchor (`{ junk } = _globalThis.Array`) -
-    // asked first, the note would anchor a pattern the drain still has to prune, and asked only
-    // of hosts no job owned, the leftover stayed on the proxy root where the other leg anchors.
-    // a residual the drain anchored itself no longer reads as a surface hop, so the note is inert there
-    for (const [host, options] of hopHosts) {
-      // an ASSIGNMENT host holds the same shape under different field names - the re-anchor
-      // reads a view of it and the result writes back
-      if (!options.assignHost) {
-        if (reanchorSoleCtorHopResidual(host, options) && !jobHostSiblings.has(host) && !capturedSiblingHosts.has(host)) {
-          splitMultiDeclaratorHost({ program, declarator: host, markRewrite });
-        }
+    // These reads replace declarators in place. Land them before another kind splits the
+    // host into new declarations; afterwards declNode may no longer belong to the program.
+    if (kinds.has('key-read')) {
+      drainKeyedReads(declNode, kinds.get('key-read'));
+      kinds.delete('key-read');
+    }
+    for (const [kind, kindJobs] of kinds) {
+      if (kind === 'for-init') {
+        drainForInit({ hostNode: declNode, jobs: kindJobs });
         continue;
       }
-      const view = { id: host.left, init: host.right };
-      // the prefix a lift may take is the SOURCE's own sequence: a kept-write re-read the
-      // re-anchor synthesises stays INSIDE the assignment, where the value it stored is what
-      // the pattern reads (`({ cr } = (q2 = _globalThis, _globalThis))`). asked before the
-      // re-anchor rewrites the init - after it, the two spellings are the same node type
-      // ... and a CALL init the re-anchor turned into one: the prefix it minted is the source's own
-      // call, which belongs ahead of the assignment as its own statement (the other leg's flatten),
-      // not inside the value the pattern reads
-      const sourceSeqInit = peelTransparentExpr(host.right)?.type === 'SequenceExpression'
-        || isCallShape(peelTransparentExpr(host.right));
-      if (reanchorSoleCtorHopResidual(view, options)) {
-        host.left = view.id;
-        host.right = view.init;
-        if (sourceSeqInit) liftAssignInitPrefix(host, options.metaPath, program);
+      if (kind === 'assignment' && kindJobs[0]?.bodyless) {
+        drainAssignment({ hostNode, body: null, at: -1, jobs: kindJobs });
+        continue;
+      }
+      if (kind === 'bodyless-decl') {
+        drainBodylessDeclaration({ hostNode: declNode, jobs: kindJobs });
+        continue;
+      }
+      if (drainBodylessWrapKinds({ kind, kindJobs, hostNode }, { program, consumedAssignmentRemains })) continue;
+      const body = statementListOf(hostPath.parentPath?.node);
+      if (!body) continue;
+      // the statement this kind was recorded against may be GONE - another kind's drain rewrote
+      // the declaration around its own declarator - so the jobs land on whatever now holds theirs
+      const live = liveHostStatement(body, hostNode, kindJobs[0]?.declarator);
+      if (!live) throw new Error('Missing destructuring job host');
+      const { at } = live;
+      switch (kind) {
+        case 'assign-overwrite':
+          drainAssignOverwrite({ body, at, jobs: kindJobs });
+          break;
+
+        case 'declaration':
+          drainDeclaration({ hostNode: live.declaration ?? declNode, body, at, jobs: kindJobs });
+          break;
+        default: drainAssignment({ hostNode, body, at, jobs: kindJobs });
       }
     }
+  }
+
+  // Every source subtree finishes its queued work before an enclosing render copies it.
+  // Collect positions first: draining may splice statement lists or move their children.
+  // Jobs, splits and residual notes sharing a declaration keep that local order.
+  function drain() {
+    const jobHostSiblings = jobHostSiblingDeclarators(ledger);
+    const owners = new Map();
+    const work = [];
+    for (const [node, entry] of ledger) {
+      const declaration = node.type === 'ExportNamedDeclaration' ? node.declaration : node;
+      if (declaration.type === 'VariableDeclaration') {
+        owners.set(declaration, node);
+        for (const item of declaration.declarations) owners.set(item, node);
+      }
+      for (const job of entry.jobs) {
+        for (let path = job.metaPath; path; path = path.parentPath) {
+          if (path.node?.type === 'AssignmentExpression') {
+            owners.set(path.node, node);
+            break;
+          }
+          if (path.node === node) break;
+        }
+      }
+    }
+    for (const pending of [...synthLedger.values(), ...pendingBranchSynths.values()]) {
+      work.push({ node: pending.receiver, path: pending.metaPath, apply: () => drainSynth(pending) });
+    }
+    for (const [node, entry] of ledger) work.push({ node, path: entry.hostPath, apply: () => drainHost(entry) });
+    for (const [node, body] of pendingSplits) work.push({ node: owners.get(node) ?? node, apply: () => drainSplit(node, body) });
+    for (const [host, options] of hopHosts) work.push({
+      node: owners.get(host) ?? host, apply: () => drainHop(host, options, jobHostSiblings),
+    });
+    if (work.length) {
+      const wanted = new Set(work.map(item => item.node));
+      for (const item of work) for (let { path } = item; path; path = path.parentPath) wanted.add(path.node);
+      const positions = new Map();
+      walkAstNodes({ root: program, visit: () => true, leave(node) {
+        if (wanted.has(node)) positions.set(node, positions.size);
+      } });
+      for (const item of work) {
+        item.position = positions.get(item.node);
+        // A sequence job may have lost its original slot to a live rewrite. Its enclosing
+        // host still owns the effect, so land it before that host consumes its initializer.
+        for (let { path } = item; item.position === undefined && path; path = path.parentPath) {
+          item.position = positions.get(path.node);
+        }
+      }
+      work.sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
+      for (const item of work) item.apply();
+    }
+    synthLedger.clear();
+    pendingBranchSynths.clear();
+    pendingSplits.clear();
+    hopHosts.clear();
     ledger.clear();
     // the shared sentinel-export rule, applied to the finished program: a private sentinel stays local
     for (let index = program.body.length - 1; index >= 0; index--) {
@@ -716,6 +726,44 @@ export default function createDestructureDrains(ctx) {
       program.body.splice(index, 1, ...split.declaration ? [split.declaration] : [], ...list.length ? [{
         type: 'ExportNamedDeclaration', declaration: null, source: null, attributes: [], specifiers: list,
       }] : []);
+    }
+  }
+
+  // A shared declaration cannot split until every sibling extraction has landed.
+  function drainSplit(declaration, body) {
+    // A live native capture keeps its group. User bindings extracted from a fully
+    // consumed capture do not keep the retired receiver's declaration joined.
+    if (declaration.declarations.every(node => !capturedSiblingHosts.has(node)
+      || !patternBindingCount(node.id)
+      || node.id.type === 'Identifier' && !injectorState.isOwnPassGeneratedName(node.id.name))) {
+      splitMultiDeclaratorHost({ declaration, body, markRewrite });
+    }
+  }
+
+  // Residual notes run after their host's jobs, on the still-live pruned pattern.
+  function drainHop(host, options, jobHostSiblings) {
+    // an ASSIGNMENT host holds the same shape under different field names - the re-anchor
+    // reads a view of it and the result writes back
+    if (!options.assignHost) {
+      if (reanchorSoleCtorHopResidual(host, options) && !jobHostSiblings.has(host) && !capturedSiblingHosts.has(host)) {
+        splitMultiDeclaratorHost({ program, declarator: host, markRewrite });
+      }
+      return;
+    }
+    const view = { id: host.left, init: host.right };
+    // the prefix a lift may take is the SOURCE's own sequence: a kept-write re-read the
+    // re-anchor synthesises stays INSIDE the assignment, where the value it stored is what
+    // the pattern reads (`({ cr } = (q2 = _globalThis, _globalThis))`). asked before the
+    // re-anchor rewrites the init - after it, the two spellings are the same node type
+    // ... and a CALL init the re-anchor turned into one: the prefix it minted is the source's own
+    // call, which belongs ahead of the assignment as its own statement (the other leg's flatten),
+    // not inside the value the pattern reads
+    const sourceSeqInit = peelTransparentExpr(host.right)?.type === 'SequenceExpression'
+      || isCallShape(peelTransparentExpr(host.right));
+    if (reanchorSoleCtorHopResidual(view, options)) {
+      host.left = view.id;
+      host.right = view.init;
+      if (sourceSeqInit) liftAssignInitPrefix(host, options.metaPath, program);
     }
   }
 
@@ -1012,32 +1060,14 @@ export default function createDestructureDrains(ctx) {
       removeConsumedProps(declJobs);
       const initBeforeReanchor = declarator.init;
       if (surface) reanchorSoleCtorHopResidual(declarator, { metaPath: declJobs[0]?.metaPath ?? null });
-      // the prefix lifts FIRST - source order, the init runs and then the extractions bind
-      // (`log(); const from = _Array$from; ...`) - but only off a RE-READABLE identifier
-      // tail: a residual left on a NAV keeps the sequence, where its effect runs
-      // (`(se(), _globalThis.Array)`)
-      const peeledInit = peelTransparentExpr(declarator.init);
-      const seqTail = peeledInit?.type === 'SequenceExpression'
-        ? peelTransparentExpr(peeledInit.expressions.at(-1)) : null;
-      // ... a residual that evaluates its own KEY effects keeps the read those effects were
-      // written around, prefix included - the source ordered the two inside that one read
-      // (`{ Promise: { resolve }, other } = globalThis[(d++, 'self')]` keeps `(d++, _self)`)
-      // ... and not off a RE-ANCHORED residual: that init is one the drain rebuilt onto the hop's
-      // own pure, and the prefix rides the rebuild where the source wrote it
-      // (`{ Promise: { try: tryFn, customP } } = (eff(), globalThis)` -> `const tryFn =
-      // _Promise$try; const { customP } = (eff(), _Promise);`). a residual left at the SOURCE
-      // level re-reads the receiver the prefix fed, and there the lift is the single run
-      // ... and not off a residual whose init RUNS code: the extractions follow it, and its prefix
-      // stays with it (the shared residual canon)
-      const init = seqTail && declarator.init === initBeforeReanchor && !residualRuns(declarator)
-        && declJobs.every(job => !(job.buriedKeyEffect && job.chain?.length))
-        ? peeledInit : null;
-      // ... every prefix that runs before the value, a decided selection's live arm's own included (`liftedPrefixSplit`)
-      if (init?.type === 'SequenceExpression') {
-        const frame = { scope: declJobs[0]?.metaPath?.scope, adapter, path: declJobs[0]?.metaPath };
-        const { prefix, tail } = liftedPrefixSplit(init, frame);
-        statements.push(...observablePrefixElements(prefix, frame).map(expr => expressionStatement(expr)));
-        declarator.init = tail;
+      // Only the source prefix lifts. A re-anchored value keeps its rebuilt sequence,
+      // and a residual with key effects keeps the read those effects were written around.
+      // Nested extractions lift before their outer residual; a flat running receiver
+      // keeps its own read together. The common lift rejects synthesized sequences.
+      if (declarator.init === initBeforeReanchor
+        && (!residualRuns(declarator) || declJobs.some(job => job.chain?.length))
+        && declJobs.every(job => !(job.buriedKeyEffect && job.chain?.length))) {
+        statements.push(...liftSurvivingInitPrefix(declarator, declJobs, patternFrame(declJobs[0].metaPath)));
       }
       // ... and a residual whose init RUNS code leads its extractions: natively that init evaluates
       // before the pattern binds anything (the shared residual canon)
@@ -1649,7 +1679,6 @@ export default function createDestructureDrains(ctx) {
       // separates "we emptied it" from "it came that way"
       const emptied = declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0
         && (declJobsHere.length > 0 || (sourceProps.get(declarator) ?? []).length > 0);
-      const emptiedAt = statements.length;
       // a LITERAL CONTAINER's discarded siblings evaluate BEFORE the slot the extraction
       // read, so they ride the value as a sequence prefix (`{ 1: { keys } } = [bump(),
       // Object]` -> `const keys = (bump(), _Object$keys)`); every other rescued init lifts
@@ -1679,7 +1708,7 @@ export default function createDestructureDrains(ctx) {
       const carryIntoFirst = initPlacement.placement === 'value';
       for (const job of jobsHere) {
         const leading = extractedHere.length !== 0 ? []
-          : [...containerPrefix.map(expr => cloneNode(expr)), ...probeRead ? [probeRead] : []];
+          : [...containerPrefix.map(expr => cloneNode(expr)), ...probeRead ? probeEffectNodes(probeRead) : []];
         const carried = extractedHere.length !== 0 || !carryIntoFirst ? [] : initPrefix;
         const carriedValue = renderDestructurePrefix(firstValue || job.value(refName), carried, firstProduct?.receiver);
         const value = leading.length ? sequenceExpression([...leading, carriedValue]) : carriedValue;
@@ -1732,14 +1761,13 @@ export default function createDestructureDrains(ctx) {
           residual, residualAt: before ? 0 : standalone.length,
         }));
       } else {
-        statements.push(
-          ...initPrefix.length && !carryIntoFirst
-            ? observablePrefixElements(initPrefix, { scope: declJobsHere[0].metaPath?.scope, adapter, path: declJobsHere[0].metaPath })
-              .map(expr => expressionStatement(expr)) : [],
-          ...extractedHere,
+        if (initPrefix.length && !carryIntoFirst) statements.push(
+          ...observablePrefixElements(initPrefix, patternFrame(declJobsHere[0].metaPath)).map(expressionStatement),
         );
-        if (declJobsHere.length && !containerPrefix.length) {
-          rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements, insertAt: emptiedAt });
+        const extractionAt = statements.length;
+        statements.push(...extractedHere);
+        if (declJobsHere.length && !containerPrefix.length && !probeRead) {
+          rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements, insertAt: extractionAt });
         }
         // Only a sole defaulted consume retains the untouched tail of this source host.
         if (jobs.length === 1 && jobsHere[0]?.defaulted && extractedHere.length === 1

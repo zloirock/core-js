@@ -24011,4 +24011,926 @@ export function * generate() {
     ...snippet(`static-flow/${ shape }/${ rig }`, `(() => { let r; ${ body } return r; })()`, { rig }),
     strip: true, isolated: true,
   };
+  // Append deferred source ownership cases without changing earlier cache keys.
+  for (const rig of [false, true]) for (const [shape, body] of [
+    ['callback-inner-static', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        values
+      } = useMemo(() => {
+        const {
+          fromEntries
+        } = Object;
+        return fromEntries([['a', 1]]);
+      });
+      sink(typeof values);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['callback-inner-static-assign', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      let values;
+      ({
+        values
+      } = useMemo(() => {
+        const {
+          fromEntries
+        } = Object;
+        return fromEntries([['a', 1]]);
+      }));
+      sink(typeof values);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['callback-inner-instance', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        at
+      } = call(() => {
+        const {
+          includes
+        } = [1];
+        sink(includes.call([1], 1));
+      });
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['callback-inner-default', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        at = 0
+      } = call(() => {
+        const {
+          includes
+        } = [1];
+        sink(includes.call([1], 1));
+      });
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['for-init-inner', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      for (const {
+          at
+        } = call(() => {
+          const {
+            includes
+          } = [1];
+          sink(includes.call([1], 1));
+        }), i = 0; i < 1;) {
+        sink(at.call([1, 2], -1));
+        break;
+      }
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['bodyless-inner', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      if (R) var {
+        at
+      } = call(() => {
+        const {
+          includes
+        } = [1];
+        sink(includes.call([1], 1));
+      });
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['nested-outer-inner', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        w: {
+          at
+        }
+      } = {
+        w: call(() => {
+          const {
+            includes
+          } = [1];
+          sink(includes.call([1], 1));
+        })
+      };
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['iife-inner-instance', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        at
+      } = (() => {
+        const {
+          flat
+        } = [[1], [2]];
+        sink(flat.call([[1], [2]]).length);
+        return [1, 2];
+      })();
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['realistic-filter', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const items = [{
+        tags: ['a']
+      }, {
+        tags: ['b']
+      }];
+      const {
+        find
+      } = items.filter(item => {
+        const {
+          includes
+        } = item.tags;
+        return includes.call(item.tags, 'a');
+      });
+      sink(find.call([1, 2], x => x > 1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['inner-hop-host', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        at
+      } = call(() => {
+        const {
+          Iterator: {
+            customI
+          }
+        } = globalThis;
+        sink(typeof customI);
+      });
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['depth2', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        at
+      } = call(() => {
+        const {
+          includes
+        } = call(() => {
+          const {
+            flat
+          } = [[1], [2]];
+          sink(flat.call([[1], [2]]).length);
+        });
+        sink(includes.call([1], 1));
+      });
+      sink(at.call([1, 2], -1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['control-two-outer-claims', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function useMemo(fn) {
+        return fn();
+      }
+      function call(fn) {
+        fn();
+        return [1, 2];
+      }
+      const {
+        at,
+        includes
+      } = call(() => {
+        const {
+          flat
+        } = [[1], [2]];
+        sink(flat.call([[1], [2]]).length);
+      });
+      sink(at.call([1, 2], -1));
+      sink(includes.call([1], 1));
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['push-wrapper-control', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const out = [];
+      out.push(1);
+      sink(out.length);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['iife-static-inner-synth', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const res = (({
+        of
+      }) => typeof of)(getA(() => {
+        function g({
+          from
+        } = Array) {
+          return from([1]).length;
+        }
+        sink(g());
+      }));
+      sink(res);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['iife-static-arrow-inner-synth', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const res = (({
+        of
+      }) => typeof of)(getA(() => {
+        const g = ({
+          from
+        } = Array) => from([1]).length;
+        sink(g());
+      }));
+      sink(res);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['iife-static-inner-iife-synth', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const res = (({
+        of
+      }) => typeof of)(getA(() => {
+        sink((({
+          from
+        }) => from([1]).length)(Array));
+      }));
+      sink(res);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['partial-synth-inner-synth', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const res = (({
+        of,
+        isArray
+      }) => typeof of + typeof isArray)(getA(() => {
+        function g({
+          from
+        } = Array) {
+          return from([1]).length;
+        }
+        sink(g());
+      }));
+      sink(res);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['fallback-receiver', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const U = undefined;
+      const res = (({
+        of
+      }) => typeof of)(U || getA(() => {
+        function g({
+          from
+        } = Array) {
+          return from([1]).length;
+        }
+        sink(g());
+      }));
+      sink(res);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['control-walk-claim-inside', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      const res = (({
+        of
+      }) => typeof of)(getA(() => {
+        sink([7].at(0));
+      }));
+      sink(res);
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['control-param-default-seq', `
+      const R = [];
+      function sink(value) {
+        R[R.length] = value;
+      }
+      function getA(fn) {
+        fn();
+        return Array;
+      }
+      function f({
+        of
+      } = (sink(0), Array)) {
+        return typeof of;
+      }
+      sink(f());
+      const r = R;
+      const effects = log;
+      return r;
+    `],
+    ['call-root', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function getWin() {
+        return globalThis.window;
+      }
+      const {
+        resolve
+      } = getWin()?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['stored-root', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      let held;
+      const {
+        resolve
+      } = (held = globalThis.window)?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['prefix-at', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const list = [1];
+      const {
+        resolve
+      } = (list.at(0), globalThis.window)?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['prefix-has-own', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const list = [1];
+      const {
+        resolve
+      } = (Object.hasOwn(list, 0), globalThis.window)?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['prefix-alias', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const list = [1];
+      const w = globalThis.window;
+      const {
+        resolve
+      } = (list.flat(), eff("p"), w).Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['assignment-nested', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      let name;
+      ({
+        resolve: {
+          name
+        }
+      } = (globalThis.window?.self).Promise);
+      r = name;
+      return r;
+    `],
+    ['fallback-prefix', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const {
+        resolve
+      } = ((eff("p"), globalThis.window)?.self).Promise ?? {};
+      r = typeof resolve;
+      return r;
+    `],
+    ['quiet-tail', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const holder = {
+        get box() {
+          eff("box");
+          return {
+            A: Array
+          };
+        }
+      };
+      const {
+        A: {
+          from
+        }
+      } = (eff("p"), holder.box);
+      r = typeof from;
+      return r;
+    `],
+    ['quiet-tail-let', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const holder = {
+        get box() {
+          eff("box");
+          return {
+            A: Array
+          };
+        }
+      };
+      let {
+        A: {
+          from
+        }
+      } = (eff("p"), holder.box);
+      r = typeof from;
+      return r;
+    `],
+    ['quiet-tail-throw', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const holder = {
+        get box() {
+          eff("box");
+          throw new RangeError();
+        }
+      };
+      try {
+        const {
+          A: {
+            from
+          }
+        } = (eff("p"), holder.box);
+        r = typeof from;
+      } catch (error) {
+        r = error.name;
+      }
+      return r;
+    `],
+    ['quiet-tail-two-prefixes', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const holder = {
+        get box() {
+          eff("box");
+          return {
+            A: Array
+          };
+        }
+      };
+      const {
+        A: {
+          from
+        }
+      } = (eff("p"), eff("q"), holder.box);
+      r = typeof from;
+      return r;
+    `],
+    ['quiet-tail-instance-control', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const holder = {
+        get box() {
+          eff("box");
+          return [7];
+        }
+      };
+      const {
+        at
+      } = (eff("p"), holder.box);
+      r = at.call([7], 0);
+      return r;
+    `],
+    ['quiet-tail-residual-control', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      const holder = {
+        get box() {
+          eff("box");
+          return {
+            A: Array,
+            other: 3
+          };
+        }
+      };
+      const {
+        A: {
+          from
+        },
+        other
+      } = (eff("p"), holder.box);
+      r = [typeof from, other];
+      return r;
+    `],
+    ['nested-synth-in-declaration', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function source(cb) {
+        cb();
+        return [3];
+      }
+      const {
+        at
+      } = source(() => {
+        function f({
+          from
+        } = Array) {
+          return from([7])[0];
+        }
+        eff(f());
+      });
+      r = at.call([3], 0);
+      return r;
+    `],
+    ['nested-declaration-in-synth', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function source(cb) {
+        cb();
+        return Array;
+      }
+      const value = (({
+        of,
+        isArray
+      }) => [typeof of, typeof isArray])(source(() => {
+        const {
+          fromEntries
+        } = Object;
+        eff(fromEntries([["x", 7]]).x);
+      }));
+      r = value;
+      return r;
+    `],
+    ['sequence-assignment-inner', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      let at;
+      function source(cb) {
+        cb();
+        return [3];
+      }
+      const result = ({
+        at
+      } = source(() => {
+        const {
+          fromEntries
+        } = Object;
+        eff(fromEntries([["x", 7]]).x);
+      }), at.call([3], 0));
+      r = result;
+      return r;
+    `],
+    ['sibling-callback-hosts', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function source(cb) {
+        cb();
+        return [3];
+      }
+      const {
+        at
+      } = source(() => {
+        const {
+          fromEntries
+        } = Object;
+        const {
+          includes
+        } = [7];
+        eff(fromEntries([["x", includes.call([7], 7)]]).x);
+      });
+      r = at.call([3], 0);
+      return r;
+    `],
+    ['throwing-inner-host', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function source(cb) {
+        cb();
+        return [3];
+      }
+      try {
+        const {
+          at
+        } = source(() => {
+          const {
+            fromEntries
+          } = Object;
+          eff(fromEntries(null));
+        });
+        r = at;
+      } catch (error) {
+        r = error.name;
+      }
+      return r;
+    `],
+    ['probe-nested-host', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function getWin(cb) {
+        cb();
+        return globalThis.window;
+      }
+      const {
+        resolve
+      } = getWin(() => {
+        const {
+          fromEntries
+        } = Object;
+        eff(fromEntries([["x", 7]]).x);
+      })?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['probe-nested-synth', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function getWin(cb) {
+        cb();
+        return globalThis.window;
+      }
+      const {
+        resolve
+      } = getWin(() => {
+        function f({
+          from
+        } = Array) {
+          return from([7])[0];
+        }
+        eff(f());
+      })?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['prefix-nested-host', `
+      let r;
+      const effects = log;
+      function eff(x) {
+        effects[effects.length] = x;
+      }
+      function call(cb) {
+        cb();
+      }
+      const {
+        resolve
+      } = (call(() => {
+        const {
+          fromEntries
+        } = Object;
+        eff(fromEntries([["x", 7]]).x);
+      }), globalThis.window)?.Promise;
+      r = typeof resolve;
+      return r;
+    `],
+    ['flat-guarded-residual-prefix', `
+      let r;
+      const effects = log;
+      function record(value) {
+        effects[effects.length] = value;
+      }
+      class Box {
+        static get value() {
+          record('get');
+          return globalThis;
+        }
+      }
+      const { groupBy, other } = (record('prefix'), Box.value.Map);
+      r = [typeof groupBy, typeof other];
+      return r;
+    `],
+  ]) yield {
+    ...snippet(`deferred-receiver/${ shape }/${ rig }`, `(() => { ${ body } })()`, { rig }),
+    strip: true, isolated: true,
+  };
 }
