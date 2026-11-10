@@ -7,6 +7,6 @@ import _self from "@core-js/pure/actual/self";
 // re-emits the same read - what its missing `?.` changes is where the throw lands, not whether one
 let v, w;
 const ga = _globalThis;
-const trunc = ((null == (v = null == ga.window ? void 0 : _self) ? void 0 : Math).trunc, _Math$trunc);
+const trunc = (((v = null == ga.window ? void 0 : _self)?.Math).trunc, _Math$trunc);
 const plainTwin = ((w = null == ga.window ? void 0 : _self).window, _Math$trunc);
 export { trunc, plainTwin, v, w };

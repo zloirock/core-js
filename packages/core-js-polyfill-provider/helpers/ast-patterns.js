@@ -1082,6 +1082,17 @@ export function runtimeChainRoot(node, cache = null) {
   return root;
 }
 
+// One step down a retained receiver's value spine. Keys, sequence prefixes, write
+// targets and call arguments are independent children, never continuation steps.
+// Source facts and their cloned render walk the same slots after nested rewrites.
+export function receiverSpineChild(node) {
+  if (unwrapRuntimeExpr(node) !== node) return node.expression;
+  if (isMemberAccessNode(node)) return node.object;
+  if (node?.type === 'SequenceExpression') return node.expressions.at(-1);
+  if (node?.type === 'AssignmentExpression') return node.right;
+  return null;
+}
+
 // Source-shape consumers peel parens + chain wrappers while retaining TypeScript syntax.
 // Runtime receiver proofs use unwrapRuntimeExpr separately from this source-shape peel.
 export function peelMemoizeWrappers(node) {

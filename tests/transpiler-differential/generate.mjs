@@ -24933,4 +24933,37 @@ export function * generate() {
     ...snippet(`deferred-receiver/${ shape }/${ rig }`, `(() => { ${ body } })()`, { rig }),
     strip: true, isolated: true,
   };
+  // Source probes retain their realm, key identity and sealed exception after rewriting.
+  for (const rig of [false, true]) for (const [shape, body, ts] of [
+    ['wrapped-root-cast', 'return (({ entries, other }) => [typeof entries, typeof other])((globalThis as any).window?.self.Object);', true],
+    ['wrapped-root-nonnull', 'return (({ entries, other }) => [typeof entries, typeof other])((globalThis!).window?.self.Object);', true],
+    ['wrapped-root-satisfies', 'return (({ entries, other }) => [typeof entries, typeof other])((globalThis satisfies any).window?.self.Object);', true],
+    ['wrapped-root-parens', 'return (({ entries, other }) => [typeof entries, typeof other])((globalThis).window?.self.Object);', false],
+    ['wrapped-root-sequence', 'return (({ entries, other }) => [typeof entries, typeof other])((note(), globalThis as any).window?.self.Object);', true],
+    ['alias-dotted', 'const w = globalThis.window; return typeof w.Promise.resolve;', false],
+    ['alias-literal', 'const w = globalThis.window; return typeof w["Promise"].resolve;', false],
+    ['alias-const', 'const P = "Promise"; const w = globalThis.window; return typeof w[P].resolve;', false],
+    ['alias-hop-literal', 'const w = globalThis.window; return typeof w["self"]["Promise"].resolve;', false],
+    ['alias-hop-template', 'const w = globalThis.window; return typeof w[`self`][`Promise`].resolve;', false],
+    ['alias-hop-const', 'const S = "self", P = "Promise"; const w = globalThis.window; return typeof w[S][P].resolve;', false],
+    ['sealed-native-const', 'const A = "Array"; const { from } = globalThis.window?.[A]; return from([3])[0];', false],
+    ['sealed-const-leaf', 'const P = "Promise"; return typeof (globalThis.window?.[P]).resolve;', false],
+    ['sealed-const-reader', 'const P = "Promise"; return typeof (globalThis.window?.self)[P]?.resolve;', false],
+    ['sealed-literal-reader', 'return typeof (globalThis.window?.self)["Promise"]?.resolve;', false],
+    ['shadowed-array', 'function f(Array) { return (globalThis.window?.Array).from([3])[0]; } return f();', false],
+    ['shadowed-number', 'let Number; return (globalThis.window?.Number).isInteger(3);', false],
+    ['shadowed-math', 'function f(Math) { return (globalThis.window?.Math).trunc(3.5); } return f();', false],
+    ['shadowed-destructure', 'function f(Array) { const { from } = globalThis.window?.Array; return from([3])[0]; } return f();', false],
+    ['shadowed-prefix', 'function f(Array) { return ((note(), globalThis.window)?.Array).from([3])[0]; } return f();', false],
+    ['shadowed-constructor-control', 'function f(Promise) { return typeof (globalThis.window?.Promise).resolve; } return f();', false],
+    ['shadowed-hop', 'function f(Array) { return (globalThis.window?.self.Array).from([3])[0]; } return f();', false],
+    ['effectful-key', 'function f(Array) { const { from } = globalThis.window?.[(note(), "Array")]; return from([3])[0]; } return f();', false],
+    ['literal-line-separator', 'const { Array: { from, "x\\u2028y": other } } = globalThis.window; return [from([3])[0], typeof other];', false],
+    ['literal-paragraph-separator', 'const { Array: { from, "x\\u2029y": other } } = globalThis.window; return [from([3])[0], typeof other];', false],
+  ]) yield {
+    ...snippet(`realm-probe-spine/${ shape }/${ rig }`, `(() => {
+      function note() { log[log.length] = 'prefix'; }
+      try { return (() => { ${ body } })(); } catch (error) { return error.name; }
+    })()`, { rig }), strip: true, isolated: true, ts,
+  };
 }

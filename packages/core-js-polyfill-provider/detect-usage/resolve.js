@@ -65,6 +65,7 @@ import {
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isNullLiteralNode,
+  receiverSpineChild,
   receiverCarriesLiveOptional,
   isPristineProxyGlobal,
   isRestProperty,
@@ -513,8 +514,8 @@ function walkGuardSourceHops(value, aliasCtx, resolvePure) {
 // does the PLAIN read through a seal name a polyfillable global - the claim's own ctor? then it is
 // no source of undefined for the guard above it: testing that read asks whether the HOST has the
 // ctor, which answers `void 0` on exactly the engines the ponyfill exists for
-function sealedReadIsClaimCtor(sealedAt, resolvePure) {
-  return !sealedAt.optional && !!resolvePure({ kind: 'global', name: staticMemberKeyName(sealedAt) });
+function sealedReadIsClaimCtor(sealedAt, resolvePure, aliasCtx) {
+  return !sealedAt.optional && !!resolvePure({ kind: 'global', name: realmHopKeyName(sealedAt, aliasCtx, { allowSideEffectKeys: true }) });
 }
 
 // does the SE-key fold have a surviving KEY to migrate the dropped hop's effect into? the harvest
@@ -705,7 +706,7 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
       // the ponyfill exists for, where the unsealed twin answers the ponyfill. the `?.` above it is
       // the claim's (its leaf is always defined), and the read rides as the throw probe - the shape
       // the PLAIN-claim twin of the same source already spells
-      if (sealedAt && !objAssign && sealedReadIsClaimCtor(sealedAt, resolvePure)) continue;
+      if (sealedAt && !objAssign && sealedReadIsClaimCtor(sealedAt, resolvePure, aliasCtx)) continue;
       const sealedSource = sealedAt && !objAssign ? sealedAt : null;
       if (proven || sealedSource) {
         // the hop-level source criterion depends on the ROOT proof: an opaque-but-proven CALL
@@ -1004,8 +1005,8 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
       innerKeys.length = 0;
       computed = false;
     } else if (link !== member) {
-      const name = memberKeyName(link);
-      if (link.computed || name === null) computed = true;
+      const name = realmHopKeyName(link, aliasCtx);
+      if (name === null) computed = true;
       else innerKeys.unshift(name);
     }
     if (!isMemberAccessNode(object)) break;
@@ -1019,7 +1020,7 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   // not replay a prefix inside that write beside the accepted read.
   const store = allowStoreHolder && object?.type === 'AssignmentExpression' && object.operator === '=' ? object : null;
   if (!store && object?.type !== 'Identifier') return null;
-  const key = memberKeyName(member);
+  const key = realmHopKeyName(member, aliasCtx);
   if (key === null) return null;
   if (store ? !proxyReceiverValueCanBeUndefined(peelChainRootValue(store.right), resolvePure, aliasCtx)
     : !aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return null;
@@ -4366,13 +4367,6 @@ export function storedNavHopClaimSuppressed(path, { scope, adapter, resolvePure 
   return proxyReceiverValueCanBeUndefined(path.node.object, resolvePure, ctx, { observableRead: true }) ? stored : false;
 }
 
-// a computed STRING-LITERAL key (`globalThis['self']`) navigates like the dotted spelling
-function plainNavHopKey(node) {
-  if (!node.computed) return node.property?.name ?? null;
-  const key = peelTransparentExpr(node.property);
-  return key?.type === 'TemplateLiteral' ? null : extractStaticString(key);
-}
-
 // A source navigation query may cross ESTree's chain marker only after proving its guard
 // dead. Babel has no such marker; both dialects must expose the same hop keys under that proof.
 // Live short circuits keep their boundary. The node is borrowed and never changed.
@@ -4400,11 +4394,11 @@ export function navHopChain(node, guardCtx = null, opts = null) {
   let computed = false;
   let wrapped = false;
   function hopIsNav(hop) {
-    return isMemberAccessNode(hop) && (deadOptionals || !hop.optional) && plainNavHopKey(hop) !== null;
+    return isMemberAccessNode(hop) && (deadOptionals || !hop.optional) && realmHopKeyName(hop, guardCtx?.aliasCtx) !== null;
   }
   let cur = core;
   while (hopIsNav(cur)) {
-    keys.push(plainNavHopKey(cur));
+    keys.push(realmHopKeyName(cur, guardCtx?.aliasCtx));
     computed ||= !!cur.computed;
     const object = throughSequenceTails ? peelReceiverSequenceTail(cur.object) : cur.object;
     cur = peelTransparentExpr(object);
@@ -4424,12 +4418,12 @@ export function isPureNavReceiver(node, guardCtx = null, opts = null) {
 // the backed-hop peel a kept sequence's guard test reads through: pristine possible-global hops
 // navigate into the SAME surface, so above a PROBE they drop and the test reads at most the probe
 // hop itself, never dereferencing past it. the ROOT is proved separately (`realmRootKind` below)
-export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) {
+export function peelPristineProxyHops(node, { adapter, aliasCtx = null, resolveGlobalPolyfill }) {
   let base = node;
-  while (base?.type === 'MemberExpression' && !base.computed
-    && POSSIBLE_GLOBAL_OBJECTS.has(base.property?.name)
-    && isPristineProxyGlobal(adapter, base.property.name)
-    && resolveGlobalPolyfill(base.property.name)) {
+  const ctx = { ...aliasCtx, adapter };
+  for (;;) {
+    const key = pristineRealmHopKey(base, ctx, { allowOptional: false });
+    if (!key || !resolveGlobalPolyfill(key)) break;
     base = unwrapRuntimeExpr(base.object);
   }
   return base;
@@ -5409,7 +5403,7 @@ function proxyNavSpellsClaimPure({ navigated }) {
 export function proxyCollapseConsumer({
   node, source = node, host, writeTarget = false, deleted = false, deleteAbove = false,
   keptWrite = null, hasKeptTail = false, deadOptional = false, storeHoldsProbe = false,
-  keyName = isMemberAccessNode(host) && !host.computed ? host.property?.name : null,
+  keyName = isMemberAccessNode(host) ? realmHopKeyName(host) : null,
 }, { adapter, resolvePure }) {
   const member = isMemberAccessNode(host) && host.object === node;
   const pattern = (host?.type === 'VariableDeclarator' && host.init === node && isDestructurePattern(host.id))
@@ -5803,7 +5797,7 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   return aliasPlan();
 }
 
-// A source slot carried by a claim or pattern probe. The paths describe only its value spine: computed
+// A source slot carried by a claim or pattern probe. The facts name only its value spine: computed
 // keys, sequence prefixes, assignment targets and call arguments remain live child slots.
 // Decide deopts and root substitution BEFORE cloning; rendering applies these facts verbatim.
 export function claimProbeSourceSlot(source, resolvePure, ctx) {
@@ -5813,34 +5807,24 @@ export function claimProbeSourceSlot(source, resolvePure, ctx) {
   const children = [];
   let visitChildren = true;
   let root = null;
-  let path = [];
-  for (let node = source, depth = 0; node && depth++ < MAX_KEY_DEPTH;) {
-    const peeled = unwrapRuntimeExpr(node);
-    if (peeled !== node) {
-      path = [...path, 'expression'];
-      node = node.expression;
-    } else if (isMemberAccessNode(node)) {
+  for (let node = source, depth = 0; node && depth++ < MAX_KEY_DEPTH; node = receiverSpineChild(node)) {
+    if (unwrapRuntimeExpr(node) !== node) continue;
+    if (isMemberAccessNode(node)) {
       if (visitChildren && node.computed) children.push(node.property);
-      if (visitChildren) served.push(path);
-      if (dead.has(node)) deopt.push(path);
-      path = [...path, 'object'];
-      node = node.object;
+      if (visitChildren) served.push(node);
+      if (dead.has(node)) deopt.push(node);
     } else if (node.type === 'SequenceExpression') {
       if (visitChildren) children.push(...node.expressions.slice(0, -1));
-      path = [...path, 'expressions', node.expressions.length - 1];
-      node = node.expressions.at(-1);
     } else if (node.type === 'AssignmentExpression') {
       // A stored RHS computes a value of its own, including navigation below the write.
       // Visit that value once, rather than separately accepting each of its descendants.
       if (visitChildren) children.push(node.left, node.right);
       visitChildren = false;
-      path = [...path, 'right'];
-      node = node.right;
     } else {
       if (node.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
         && isProxyGlobalIdentifierNode({ node, ...ctx })) {
         const pure = resolvePure({ kind: 'global', name: node.name });
-        if (pure) root = { path, pure };
+        if (pure) root = { node, name: node.name, pure };
       }
       if (visitChildren && node.type !== 'Identifier' && node.type !== 'ThisExpression') children.push(node);
       break;
@@ -6004,7 +5988,7 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
     // legacy engines it serves. Keep the read BELOW each substituted value, not through it.
     let member = unwrapRuntimeExpr(peelReceiverSequenceTail(source));
     for (let receiver = unwrapRuntimeExpr(peelReceiverSequenceTail(member?.object));
-      isMemberAccessNode(receiver) && proxyGlobalMemberCtorPure({ receiver, aliasCtx: ctx, resolvePure });
+      isMemberAccessNode(receiver) && proxyRunLeafPure(receiver, ctx, resolvePure);
       receiver = unwrapRuntimeExpr(peelReceiverSequenceTail(member.object))) {
       const shorter = aliasHeldClaimProbe(receiver, resolvePure, ctx, options);
       if (!shorter) break;
@@ -6152,9 +6136,9 @@ export function probedNavGuardValuePlan(source, resolvePure, ctx) {
 // the guarded VALUE of a sealed nav that ENDS AT a claim, as a shared decision: the
 // nav plan has no ponyfillable hop leaf to build a guard from there, so the erase
 // verdict names the `?.` object to test and the claim's own leaf supplies the always-defined
-// alternate. `leafPure` when core-js ponyfills that leaf as a constructor; otherwise `leafName` -
-// the source's own global name, which IS that value (the probe reads a property off it exactly as
-// written, and the claim beside it still carries the polyfill). null when no single `?.` expresses
+// alternate. `leafPure` when core-js ponyfills that leaf as a constructor; otherwise `leafName`
+// names the retained property on the realm. A leaf with no backed base keeps its source read,
+// never a bare global identifier that a local could shadow. null when no single `?.` expresses
 // the short-circuit, or the leaf is neither ponyfilled nor a plain name
 function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf = false } = {}) {
   const verdict = undefinableOptionalGuard(nav, resolvePure, aliasCtx);
@@ -6177,7 +6161,7 @@ function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf
   }
   const leafPure = proxyRunLeafPure(nav, aliasCtx, resolvePure);
   if (leafPure) return { guardObject: verdict.object, leafPure, leafName: null };
-  const leafName = staticMemberKeyName(nav);
+  const leafName = realmHopKeyName(nav, aliasCtx, { allowSideEffectKeys: true });
   if (!leafName) return null;
   if (POSSIBLE_GLOBAL_OBJECTS.has(leafName) && !realmHopKeyName(nav, aliasCtx)) return null;
   // an UNBACKED realm leaf (`window`) over a ponyfill BASE folds onto that base: it names the realm

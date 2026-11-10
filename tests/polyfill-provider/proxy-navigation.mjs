@@ -138,6 +138,8 @@ for (const source of ['held = globalThis.window', 'before(), held = globalThis.w
 
 for (const [expression, expected] of [
   ['(held = globalThis.window)?.self.Array', ['stored-probe']],
+  ['(held = globalThis["window"])?.self.Array', ['stored-probe']],
+  ['(held = globalThis[`window`])?.self.Array', ['stored-probe']],
   ['(before(), held = (effect(), globalThis.window))?.self.Array', ['stored-probe']],
   ['(() => globalThis)()?.window?.self.window', ['root-guard', 'static-guard']],
 ]) runBoth(`hop priority/${ expression }`, `let held; const result = ${ expression };`, (parser, program, label) => {
@@ -184,7 +186,7 @@ for (const [expression, key, expected, mutated = false, rootAvailable = true] of
   ['(globalThis.window).self?.box', 'self', 'collapse'],
   ['(effect(), globalThis.window).self[key]', 'self', 'collapse'],
   ['(globalThis.window?.self).self', 'self', null],
-  ['(globalThis.window?.self)["self"].box', 'self', null],
+  ['(globalThis.window?.self)["self"].box', 'self', 'collapse'],
   ['(globalThis.window?.self).self.box', 'self', 'throw', true],
   ['(globalThis.window).self.box', 'self', null, false, false],
 ]) runBoth(`sealed disposition/${ expression }/${ mutated }/${ rootAvailable }`, `const result = ${ expression };`,

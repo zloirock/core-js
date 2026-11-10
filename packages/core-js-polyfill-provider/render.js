@@ -15,6 +15,7 @@ import {
   observableSequenceElements,
   peelNestedSequenceExpressions,
   propertyKeyName,
+  receiverSpineChild,
   subtreeContainsNode,
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
@@ -41,7 +42,9 @@ export function identifier(name) {
 // composition, never smuggled through a Literal - and `-0` both printers would derive from
 // the value as `"0"`, a wrong VALUE, so minting any of them throws
 export function literal(value) {
-  if (typeof value === 'string') return { type: 'Literal', value, raw: JSON.stringify(value) };
+  if (typeof value === 'string') return {
+    type: 'Literal', value, raw: JSON.stringify(value).replaceAll('\u2028', '\\u2028').replaceAll('\u2029', '\\u2029'),
+  };
   if (typeof value === 'number' && (value < 0 || Object.is(value, -0))) {
     throw new TypeError(`[builders] negative number outside the canonical Literal domain: ${ value }`);
   }
@@ -1010,20 +1013,33 @@ export function renderAliasHeldProbeRead(probe, object, own = markRenderedProbeR
     : memberExpression(base, identifier(probe.key)));
 }
 
-// Apply source-spine facts without re-resolving a cloned or already rewritten tree.
+// Carry facts onto a source clone without re-resolving it. Nested claims may erase
+// wrappers or replace a spine segment: only surviving source identities own facts.
+// Independent child slots remain the host's live source, outside this snapshot.
+export function cloneProbeSourceSlot(slot, cloneHost = cloneNode) {
+  const source = cloneHost(slot.source);
+  const served = [];
+  const deopt = [];
+  let root = null;
+  for (let original = slot.source, copy = source; original && copy;
+    original = receiverSpineChild(original), copy = receiverSpineChild(copy)) {
+    if (slot.served.includes(original)) served.push(copy);
+    if (slot.deopt.includes(original)) deopt.push(copy);
+    if (original === slot.root?.node && original.name === slot.root.name) root = { ...slot.root, node: copy };
+  }
+  return { ...slot, source, served, deopt, root };
+}
+
+// Apply the decided root and optional facts to an independently owned source spine.
 function renderProbeSource(slot, { injectImport, cloneHost = cloneNode, embed = node => node, own = markRenderedProbeRead }) {
-  const node = cloneHost(slot.source);
-  function at(path) {
-    return path.reduce((value, key) => value[key], node);
+  const { source, served, deopt, root } = cloneProbeSourceSlot(slot, cloneHost);
+  for (const node of served) own(node);
+  for (const node of deopt) {
+    if (node.type === 'OptionalMemberExpression') node.type = 'MemberExpression';
+    node.optional = false;
   }
-  for (const path of slot.served) own(at(path));
-  for (const path of slot.deopt) {
-    const hop = at(path);
-    if (hop.type === 'OptionalMemberExpression') hop.type = 'MemberExpression';
-    hop.optional = false;
-  }
-  if (slot.root) at(slot.root.path).name = injectImport(slot.root.pure.entry, slot.root.pure.hintName);
-  return embed(node);
+  if (root) root.node.name = injectImport(root.pure.entry, root.pure.hintName);
+  return embed(source);
 }
 
 // The common guard-test spelling. Hosts clone/embed source slots and own their traversal marks;
@@ -1076,13 +1092,22 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
   }
   const { test, navPlan, leafPlan } = plan;
   const probe = renderNavGuardTest(test, context);
-  let alternate = plan.kind === 'nav' ? renderNavCollapseValue(navPlan, pure(navPlan.leafPure), { cloneHost: clone, own })
-    : leafPlan.leafPure ? pure(leafPlan.leafPure)
-    : leafPlan.leafBasePure ? (plan.foldLeafOntoBase ? pure(leafPlan.leafBasePure)
-      : own(memberFromKeyName(pure(leafPlan.leafBasePure), leafPlan.leafName)))
-    : identifier(leafPlan.leafName);
-  if (plan.alternateEffects?.length) alternate = sequence(plan.alternateEffects.map(clone), alternate);
-  const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
+  let guarded;
+  if (plan.kind !== 'nav' && !leafPlan.leafPure && !leafPlan.leafBasePure) {
+    // Read an unbacked leaf on the tested receiver once, without a shadowable global
+    // name. Its key effects run only in the reached branch; backed hops stay folded.
+    const effects = plan.alternateEffects ?? [];
+    guarded = chainExpression(own(effects.length
+      ? memberExpression(probe, sequence(effects.map(clone), literal(leafPlan.leafName)), { computed: true, optional: true })
+      : memberFromKeyName(probe, leafPlan.leafName, { optional: true })));
+  } else {
+    let alternate = plan.kind === 'nav' ? renderNavCollapseValue(navPlan, pure(navPlan.leafPure), { cloneHost: clone, own })
+      : leafPlan.leafPure ? pure(leafPlan.leafPure)
+      : plan.foldLeafOntoBase ? pure(leafPlan.leafBasePure)
+      : own(memberFromKeyName(pure(leafPlan.leafBasePure), leafPlan.leafName));
+    if (plan.alternateEffects?.length) alternate = sequence(plan.alternateEffects.map(clone), alternate);
+    guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
+  }
   const read = plan.boundary.member ? own(plan.boundary.member.computed
     ? memberExpression(guarded, literal(plan.key), { computed: true }) : memberFromKeyName(guarded, plan.key)) : guarded;
   return sequence(plan.prefix.map(clone), read);

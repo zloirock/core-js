@@ -6,6 +6,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // alone and never throws - its debt.
 const K = 'of';
 
-const f = ((null == _globalThis.window ? void 0 : Array)[K], _Array$of);
+const f = ((_globalThis.window?.Array)[K], _Array$of);
 
 export { f };

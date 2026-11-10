@@ -249,7 +249,8 @@ runBoth('one probe above nested stores', `let saved; const box = {};
   check(`${ label }/receiver cannot erase its probe`, planProxyReceiver(unwrapRuntimeExpr(node.object),
     { aliasCtx, resolvePure, throughChainAssign: true }), null);
   const slot = claimProbeSourceSlot(probe, resolvePure, aliasCtx);
-  checkDeep(`${ label }/only the outer probe is served`, slot.served, [[]]);
+  check(`${ label }/only one probe is served`, slot.served.length, 1);
+  check(`${ label }/served probe identity`, slot.served[0], probe);
   const write = parser.pickPath(program, 'AssignmentExpression', item => item.node.left.type === 'MemberExpression').node;
   check(`${ label }/stored value remains a live child`, slot.children.includes(write.right), true);
 });

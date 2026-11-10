@@ -1288,12 +1288,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // The replaced source spine can still be held by a sibling receiver. Apply its decided
     // root binding in that live slot before requeue, while rendering clones the retained read.
     if (testPlan.source?.root) {
-      const { path, pure } = testPlan.source.root;
-      path.reduce((node, key) => node[key], testPlan.source.source).name = injectPureGlobal(pure.entry, pure.hintName).name;
+      const { node, name, pure } = testPlan.source.root;
+      if (node.name === name) node.name = injectPureGlobal(pure.entry, pure.hintName).name;
     }
-    if (testPlan.source) for (const path of testPlan.source.served) {
-      renderedGuardTests.add(path.reduce((node, key) => node[key], testPlan.source.source));
-    }
+    if (testPlan.source) for (const node of testPlan.source.served) renderedGuardTests.add(node);
     const test = renderNavGuardTest(testPlan, {
       injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
       cloneHost: source => t.cloneWithoutRetiring(source), embed: hostSlot, own: source => source,
