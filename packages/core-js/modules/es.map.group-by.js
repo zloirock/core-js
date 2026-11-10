@@ -25,7 +25,7 @@ var DOES_NOT_WORK_WITH_PRIMITIVES = IS_PURE || fails(function () {
 
 // `Map.groupBy` method
 // https://tc39.es/ecma262/#sec-map.groupby
-$({ target: 'Map', stat: true, forced: IS_PURE || DOES_NOT_WORK_WITH_PRIMITIVES }, {
+$({ target: 'Map', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
   groupBy: function groupBy(items, callbackfn) {
     requireObjectCoercible(items);
     aCallable(callbackfn);

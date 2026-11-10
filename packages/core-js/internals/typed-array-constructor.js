@@ -30,10 +30,10 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
   var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
   var NativeTypedArrayConstructor = globalThis[CONSTRUCTOR_NAME];
   var TypedArrayConstructor = NativeTypedArrayConstructor;
-  var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
   var exported = {};
 
   if (TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS) {
+    var TypedArrayConstructorPrototype = NativeTypedArrayConstructor.prototype;
     TypedArrayConstructor = wrapper(function (dummy, data, typedArrayOffset, length) {
       anInstance(dummy, TypedArrayConstructorPrototype);
       return inheritIfRequired(function () {

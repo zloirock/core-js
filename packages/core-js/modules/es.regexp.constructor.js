@@ -191,7 +191,7 @@ if (FORCED) {
 
     if (pattern !== rawPattern) try {
       // fails in old engines, but we have no alternatives for unsupported regex syntax
-      createNonEnumerableProperty(result, 'source', rawPattern === '' ? '(?:)' : rawPattern);
+      createNonEnumerableProperty(result, 'source', rawPattern);
     } catch (error) { /* empty */ }
 
     return result;

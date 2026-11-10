@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var IS_NODE = require('../internals/environment-is-node');
 var globalThis = require('../internals/global-this');
-var path = require('../internals/path');
 var call = require('../internals/function-call');
 var defineBuiltIn = require('../internals/define-built-in');
 var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
@@ -48,7 +47,7 @@ var REJECTED = 2;
 var HANDLED = 1;
 var UNHANDLED = 2;
 
-var Internal, OwnPromiseCapability, PromiseWrapper, nativeThen;
+var Internal, OwnPromiseCapability, nativeThen;
 
 // helpers
 var isThenable = function (it) {
@@ -250,8 +249,8 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
   };
 
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
-    return C === PromiseConstructor || C === PromiseWrapper
-      ? new OwnPromiseCapability(C)
+    return C === PromiseConstructor
+      ? new OwnPromiseCapability()
       : newGenericPromiseCapability(C);
   };
 
@@ -284,8 +283,6 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
 $({ global: true, constructor: true, wrap: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
   Promise: PromiseConstructor,
 });
-
-PromiseWrapper = path.Promise;
 
 setToStringTag(PromiseConstructor, PROMISE, false, true);
 setSpecies(PROMISE);

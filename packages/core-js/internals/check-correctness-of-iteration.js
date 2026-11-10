@@ -23,9 +23,7 @@ try {
 } catch (error) { /* empty */ }
 
 module.exports = function (exec, SKIP_CLOSING) {
-  try {
-    if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
-  } catch (error) { return false; } // workaround of old WebKit + `eval` bug
+  if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
   var ITERATION_SUPPORT = false;
   try {
     var object = {};

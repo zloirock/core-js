@@ -614,8 +614,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && !('cause' in Error.prototype);
   },
   'es.error.is-error': function () {
-    return PROTOTYPE_SETTING_AVAILABLE &&
-      (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
+    return (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
       Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
       !Error.isError(Object.create(Error.prototype));
   },

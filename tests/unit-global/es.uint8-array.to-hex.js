@@ -17,6 +17,10 @@ QUnit.test('Uint8Array.prototype.toHex', assert => {
     shared.set([65, 66]);
     assert.same(shared.toHex(), '4142', 'shared buffer');
     assert.same(new Uint8Array(new GLOBAL.SharedArrayBuffer(0)).toHex(), '', 'empty shared buffer');
+    Object.defineProperty(shared.buffer, Symbol.toStringTag, { value: 'ArrayBuffer', configurable: true });
+    assert.same(shared.toHex(), '4142', 'shared buffer with an ArrayBuffer tag');
+    Object.defineProperty(shared.buffer, Symbol.toStringTag, { get() { throw new Error('Unexpected toStringTag access'); } });
+    assert.same(shared.toHex(), '4142', 'shared buffer with a throwing tag');
   }
 
   if (ArrayBuffer.prototype.transfer) {

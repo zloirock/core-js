@@ -94,7 +94,7 @@ var internalizeProperty = function (object, key, value, original) {
   var descriptor = getOwnPropertyDescriptor(object, key);
   if (descriptor && !descriptor.configurable) return;
   if (!descriptor && value !== undefined) {
-    if (isExtensible && !isExtensible(object)) return;
+    if (!isExtensible(object)) return;
     if (isArray(object) && key >= object.length && !getOwnPropertyDescriptor(object, 'length').writable) return;
   }
   if (value === undefined) delete object[key];

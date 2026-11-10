@@ -27,7 +27,7 @@ var STRICT_METHOD = arrayMethodIsStrict('sort');
 var STABLE_SORT = !fails(function () {
   // feature detection can be too slow, so check engines versions
   if (V8) return V8 < 70;
-  if (FF && FF > 3) return;
+  if (FF) return;
   if (IE_OR_EDGE) return true;
   if (WEBKIT) return WEBKIT < 603;
 
