@@ -27,6 +27,7 @@ import {
   peelParenAndTSSlotChild,
   peelParenAndTSSlotPath,
   POSSIBLE_GLOBAL_OBJECTS,
+  spineHasOptionalHop,
   SKIPPABLE_WRAPPER_TYPES,
   stepOverChainWrappers,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -46,23 +47,19 @@ import { receiverCarriesOptional } from './emit-shared.js';
 
 export { foldSeqKeyLiteralTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 
-// clone a receiver with source parens peeled off its member/call SPINE: babel holds parens
-// as printer trivia, so a memo respells without them, while TS casts stay - babel memoizes
-// `(x satisfies string)?.includes(y)` as `_ref = x satisfies string`
-export function cloneSpinePeeled(node, inCallee = false) {
+// Clone a receiver without redundant spine parens. A seal around an optional chain
+// remains semantic for later rewrites of both member objects and callees; TS casts stay.
+export function cloneSpinePeeled(node) {
   let cur = node;
   while (cur?.type === 'ParenthesizedExpression') {
-    // a paren around a CHAIN in CALLEE position is the seal that closes it, not printer trivia:
-    // peeled, the short-circuit runs past the seal, where the source calls `undefined` and
-    // throws (`(recv.m?.()?.n)(args)`). anywhere else the same paren is trivia the reprint drops
-    if (inCallee && cur.expression?.type === 'ChainExpression') break;
+    if (spineHasOptionalHop(cur.expression)) break;
     cur = cur.expression;
   }
   if (cur?.type === 'MemberExpression') {
     return { ...cloneNode(cur), object: cloneSpinePeeled(cur.object) };
   }
   if (cur?.type === 'CallExpression') {
-    return { ...cloneNode(cur), callee: cloneSpinePeeled(cur.callee, true) };
+    return { ...cloneNode(cur), callee: cloneSpinePeeled(cur.callee) };
   }
   return cloneNode(cur ?? node);
 }

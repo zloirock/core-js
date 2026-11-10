@@ -490,7 +490,8 @@ function walkGuardSourceHops(value, aliasCtx, resolvePure) {
     // object. one source, two guard shapes, and the two emitters disagreed on whether the read still
     // throws. a seal over a PLAIN nav stops nothing: the value canon says such a nav IS the proxy
     // global, so the walk continues into it and the chain erases like its unsealed twin
-    if (sealedLayerBetween(rawNext, next) && navValueCanShortCircuit(next, resolvePure, aliasCtx)) {
+    if (sealedLayerBetween(rawNext, next)
+      && navValueCanShortCircuit(next, resolvePure, aliasCtx, { throughChainAssign: true })) {
       // the source is the sealed VALUE as the source spells it - this member INCLUDING the read it
       // performs off the sealed object. naming the sealed object alone drops that read, and a guard
       // built on it answers where the source throws
@@ -960,8 +961,8 @@ export function probedDestructureInitValue(initNode, resolvePure, aliasCtx) {
   for (let guard = 0; guard < 8; guard++) {
     const core = unwrapRuntimeExpr(peelReceiverSequenceTail(value));
     if (core?.type !== 'LogicalExpression' || core.operator === '&&') break;
-    if (proxyReceiverValueCanBeUndefined(core.left, resolvePure, aliasCtx)
-      && !chainSealsAShortCircuit(core.left, resolvePure, aliasCtx)) return null;
+    if (proxyReceiverValueCanBeUndefined(core.left, resolvePure, aliasCtx, { throughChainAssign: true })
+      && !chainSealsAShortCircuit(core.left, resolvePure, aliasCtx, { throughChainAssign: true })) return null;
     value = core.left;
   }
   return proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { throughChainAssign: true }) ? value : null;
@@ -1019,15 +1020,17 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   // The stored value's child claims stay in the source slot. The effect channel must
   // not replay a prefix inside that write beside the accepted read.
   const store = allowStoreHolder && object?.type === 'AssignmentExpression' && object.operator === '=' ? object : null;
-  if (!store && object?.type !== 'Identifier') return null;
+  // A lowered optional holds the same nullable value directly in a conditional.
+  const conditional = definedBranchOfGuardConditional(object, aliasCtx);
+  if (!store && !conditional && object?.type !== 'Identifier') return null;
   const key = realmHopKeyName(member, aliasCtx);
   if (key === null) return null;
   if (store ? !proxyReceiverValueCanBeUndefined(peelChainRootValue(store.right), resolvePure, aliasCtx)
-    : !aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return null;
+    : !conditional && !aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return null;
   // a read the source already guards against the nullish branch (an enclosing null-test or a
   // truthy `if` on the binding) cannot see the void - no probe is owed there, and the plain
   // erase keeps the guarded branch byte-clean
-  if (!store && aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, object.name)) return null;
+  if (!store && !conditional && aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, object.name)) return null;
   const navStart = peelReceiverSequenceTail(member.object).start ?? member.object.start ?? null;
   return { object, key, computed: member.computed, innerKeys, navStart };
 }
@@ -1038,6 +1041,7 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
 // (`aliasHeldClaimProbe` answers null there: an SE computed key, a bare alias receiver) stands
 // down instead, the pure bias: declining only degrades, erasing loses the throw. an optional testing a nullable receiver
 // hands the question to the guard routes; a backed hop still owes the earlier alias read
+// A guard-shaped conditional spells that nullable value directly after lowering.
 export function aliasRootedReadMayThrow(node, resolvePure, aliasCtx) {
   let cur = unwrapRuntimeExpr(peelChainRootValue(node));
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
@@ -1045,6 +1049,7 @@ export function aliasRootedReadMayThrow(node, resolvePure, aliasCtx) {
     if (cur.optional && aliasOptionalKeepsGuard(cur, receiver, resolvePure, aliasCtx)) return false;
     cur = receiver;
   }
+  if (definedBranchOfGuardConditional(cur, aliasCtx)) return isMemberAccessNode(unwrapRuntimeExpr(peelChainRootValue(node)));
   if (cur?.type !== 'Identifier') return false;
   if (!aliasHeldValueCanBeUndefined(cur, resolvePure, aliasCtx)) return false;
   // the same guarded-read refinement the probe decision takes: a branch the source already
@@ -2943,9 +2948,12 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
     // A constructor reached through a selecting realm receiver still owns statics above it.
     // Ask the same selection proof as the direct receiver so a constructor-only claim cannot
     // strand a later static read on an entry that does not install that method.
+    // A member over a guard-shaped conditional names the defined receiver;
+    // the claim's probe retains the plain read through its absent arm.
     if (obj.type === 'ConditionalExpression' || obj.type === 'LogicalExpression') {
       return isPristineProxyGlobal(adapter, resolveObjectName({
-        objectNode: obj, scope, adapter, seen, path, usageNode, resolveStaticKey,
+        objectNode: definedBranchOfGuardConditional(obj, { scope, adapter, path }) || obj,
+        scope, adapter, seen, path, usageNode, resolveStaticKey,
       }), path && { node: obj, path });
     }
     // mutated-root gating (direct name AND alias-resolved) lives inside the recognizer.
@@ -4494,6 +4502,9 @@ export function composableNavGuardPlan(navNode, {
   scope, adapter, path, resolvePure, readThrough = false, readerKey = null,
 }) {
   if (!adapter || !scope || !resolvePure) return null;
+  // Composition moves the reader into the live branch. A sealed plain read owns
+  // an earlier exception and cannot be absorbed by that branch.
+  if (chainReadsThroughSeal(navNode, resolvePure, { scope, adapter, path })) return null;
   // never under a reader naming a slot the source writes AND a ponyfill serves: the read must reach
   // the user's patch through the memoized surface, where a composed base reads the pristine ponyfill.
   // a slot no ponyfill serves reads the realm either way, and composes like any other
@@ -4617,9 +4628,10 @@ export function planProvenNavGuardCollapse({
   const seqAroundPrefix = dug?.seqAroundPrefix ?? null;
   if (topAssign) core = unwrapTransparentSeq(storedValueCore(dug.value, storedValueSequenceTail).node);
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return null;
-  // A kept write observes a nullable alias's read. Leave it to the claim's throw
+  // A kept write observes a nullable alias or sealed read. Leave it to the claim's throw
   // probe; the navigation-only render has no slot for that read before the value.
-  if (topAssign && aliasRootedReadMayThrow(core, resolvePure, { scope, adapter, path })) return null;
+  if (topAssign && (aliasRootedReadMayThrow(core, resolvePure, { scope, adapter, path })
+    || chainReadsThroughSeal(core, resolvePure, { scope, adapter, path }))) return null;
   const hops = [];
   // one hop of the descent: record it and hand back the object below, or null when the key is not
   // a pristine proxy-global. both descents below take their steps through here
@@ -6006,7 +6018,9 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
     if (test.source) retained.push(test.source.source);
     if (test.prefix) retained.push(...test.prefix.map(item => item.source));
   }
-  const navPrefix = navHopSequencePrefixes(boundary.inner, ctx);
+  // The boundary's object can wrap the inner navigation in an effectful sequence.
+  // Start at its reader so peeling the value does not lose that prefix.
+  const navPrefix = navHopSequencePrefixes(boundary.member ?? boundary.inner, ctx);
   const prefix = navPrefix.filter(effect => retained.every(node => !subtreeContainsNode(node, effect)));
   // navComputedKeyEffects also includes the root sequence. That sequence runs
   // before the test, while keys of the guarded hops run inside its live branch.

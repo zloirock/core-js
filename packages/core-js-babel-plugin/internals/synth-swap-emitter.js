@@ -50,7 +50,6 @@ import {
 import {
   collapseRootHoldsItsGlobal,
   planProxyReceiver,
-  shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   descendToChainRoot,
@@ -87,6 +86,7 @@ export default function createSynthSwapEmitter({
   // against the WeakMap, so a file with nothing pending must skip it outright (the walk
   // runs twice per file - end of pre-traverse and programExit)
   let pendingSwapCount = 0;
+  const refreshedStores = new WeakSet();
 
   // path-iteration with inline-spread expansion + `unwrapSafeSequenceTailPath`. accepts both
   // ArrowFunctionExpression and FunctionExpression IIFE: arrow lacks `arguments`, function
@@ -151,7 +151,7 @@ export default function createSynthSwapEmitter({
       // a receiver over a literal or a name keeps its own inner claims live; one over the realm is
       // rendered through the proxy collapse whole, as the unplugin twin renders it
       skippedNodes.add(receiver);
-    } else if (!rescueSe || shouldDropRescueReceiver(receiver)) {
+    } else if (!rescueSe || activation.dropRescueReceiver) {
       // case 3 (plain replace) + case 1 (rescue-drop): the synth literal supplants the receiver value
       // (a drop re-emits only its harvested SE ahead). skip the WHOLE receiver - a spine-only skip stops
       // at a sequence and leaves the prefix's dropped globals visible, injecting a dead `_globalThis`
@@ -287,7 +287,10 @@ export default function createSynthSwapEmitter({
   // A collapse can retain a store after subsuming its children. Fresh child nodes let
   // their claims fire again. Keep the assignment itself: binding-write records still
   // point at it, including when the retained value is read or deleted through.
+  // Refresh once per surviving store: revisiting a refused receiver must not clone
+  // its children forever and keep requeueing the same root-driven collapse.
   function refreshKeptStore(runPath, store) {
+    if (refreshedStores.has(store)) return;
     let storePath = runPath.get('object');
     while (storePath.node !== store) {
       const { node } = storePath;
@@ -296,6 +299,7 @@ export default function createSynthSwapEmitter({
       else if (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') storePath = storePath.get('object');
       else return;
     }
+    refreshedStores.add(store);
     // replaceWith inherits the old slot's comments; the clone must not supply a second copy.
     storePath.get('left').replaceWith(t.removeComments(cloneWriteTarget(t, store.left)));
     storePath.get('right').replaceWith(t.removeComments(t.cloneWithoutRetiring(store.right)));

@@ -1107,8 +1107,8 @@ function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfil
 function collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalPolyfill }) {
   const left = unwrapExpressionChain(init.left);
   const aliasCtx = { scope, adapter, path };
-  if (!proxyReceiverValueCanBeUndefined(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)
-    || chainSealsAShortCircuit(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) {
+  if (!proxyReceiverValueCanBeUndefined(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx, { throughChainAssign: true })
+    || chainSealsAShortCircuit(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx, { throughChainAssign: true })) {
     return { value: left, dropped: false };
   }
   // ... and a probed left is still no reason to keep the selection when EVERY value it can yield is
@@ -4301,7 +4301,7 @@ export function planSynthReceiverActivation({ receiver, entries = null, callBran
     memoRead: callBranch || entries && !fullyCovered ? planMemoReadTarget(
       source, { aliasCtx, resolvePure },
     ) : null,
-    dropRescueReceiver: shouldDropRescueReceiver(source),
+    dropRescueReceiver: shouldDropRescueReceiver(source, { ...aliasCtx, resolvePure }),
     guardedReceiverPlan: synthGuard ? planProxyReceiver(unwrapRuntimeExpr(synthGuard.fallback?.left ?? receiver), {
       aliasCtx, guardedProbe: synthGuard.probe, resolvePure,
     }) : null,

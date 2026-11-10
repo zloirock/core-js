@@ -5,6 +5,7 @@
 import './babel-compat.mjs';
 import './destructure-groups.mjs';
 import './private-destructure-bindings.mjs';
+import './kept-store-seals.mjs';
 import './fixture-size.mjs';
 import './fixture-output-normalization.mjs';
 import './estree-to-babel.mjs';
