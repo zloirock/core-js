@@ -113,9 +113,9 @@ export function createTypeofGuards({
     for (let live = hostPath && decidedLiveNode(node, hostPath); live; live = decidedLiveNode(node, hostPath)) {
       node = unwrapRuntimeExpr(live);
     }
-    if (node.type !== 'Identifier') return globalProxyMemberName({ node, scope, adapter: babelBindingAdapter, path: null });
-    if (!scope || !babelBindingAdapter.hasBinding({ scope, name: node.name })) return node.name;
-    return babelBindingAdapter.getBindingPolyfillHint(scope, node.name);
+    if (node.type !== 'Identifier') return globalProxyMemberName({ node, scope, adapter: babelBindingAdapter, path: hostPath });
+    if (!scope || !babelBindingAdapter.hasBinding({ scope, name: node.name, path: hostPath, read: node })) return node.name;
+    return babelBindingAdapter.getBindingPolyfillHint(scope, node.name, hostPath);
   }
 
   // the `{ constructor, method }` a static-guard CALLEE names, or null: the source's member spelling

@@ -222,7 +222,7 @@ function createResolveNodeType(babelNodeType, t, {
   // every type-layer binding lookup routes through this wrap: the violation list is merged with
   // the canonical AST scan (the native scope models mis-attribute e.g. switch-DISCRIMINANT
   // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
-  getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations);
+  getScopeBinding = wrapScopeBindingLookup(getScopeBinding, nestedTSRuntimeDeclarations, () => currentLookupPath());
   const babelBindingAdapter = makeBabelBindingAdapter(
     getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic, getDecisionAdapter,
   );
@@ -667,17 +667,16 @@ function createResolveNodeType(babelNodeType, t, {
       // A local, unwritten function returning a literal proves the key even with effects.
       // Inspect only its retained body; an opaque return still leaves explicit slots intact.
       if (key?.type === 'CallExpression' && key.callee?.type === 'Identifier') {
-        const binding = getScopeBinding({ scope, name: key.callee.name });
+        const binding = getScopeBinding({ scope, name: key.callee.name, path: readPath, read: key.callee });
         const fn = binding && !binding.constantViolations?.length && binding.path?.node;
         const ret = fn?.type === 'FunctionDeclaration' && !fn.async && !fn.generator
           && singleReturnBodyExpression(fn.body);
         if (ret) return literalValue(ret) ?? singleQuasiString(ret);
       }
       if (key?.type === 'Identifier') {
-        // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
-        // does not surface here for a use outside its block; no use-path at this site, so the
-        // estree hook drops the twin conservatively (generic dispatch) rather than mis-resolving
-        const binding = getScopeBinding({ scope, name: key.name, path: readPath });
+        // The key's own read anchors declaration walks, even when a surrounding type
+        // query supplies the path. A namespace/static-block twin outside it stays hidden.
+        const binding = getScopeBinding({ scope, name: key.name, path: readPath, read: key });
         if (!binding || binding.constantViolations?.length) return null;
         const decl = binding.path;
         const fn = decl.parentPath;
@@ -2293,6 +2292,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveArrayLiteralElement,
     resolveArrayLiteralCommonType,
     findBindingAnnotation,
+    bindingAnnotationPath,
     bindingDestructuringPattern,
     findNameAnnotation,
     isOwnBindingWrite,
@@ -2408,6 +2408,7 @@ function createResolveNodeType(babelNodeType, t, {
     getTypeMembers: (...args) => getTypeMembers(...args),
     keyMatchesName,
     findBindingAnnotation,
+    bindingAnnotationPath,
     findPatternKeyPath,
     annotationAtKeyPath,
     findTupleElement,
@@ -2580,6 +2581,7 @@ function createResolveNodeType(babelNodeType, t, {
     getTypeMembers,
     keyMatchesName,
     findNameAnnotation,
+    bindingAnnotationPath,
     withLookupPath,
     findExpressionAnnotation,
     functionTypeReturnAnnotation,
@@ -3095,7 +3097,7 @@ function createResolveNodeType(babelNodeType, t, {
     // host supplies - the slot fold of a for-x head is exactly that, and a leg that RELOCATES the
     // head then re-detects the pattern against a minted name nothing types
     const verdict = { perIteration: true };
-    const answer = resolvePropertyObjectTypeUncached(path, verdict);
+    const answer = withLookupPath(path, () => resolvePropertyObjectTypeUncached(path, verdict));
     if (cacheKey && (!verdict.perIteration || fixedReceiverHost(path))) destructureReceiverTypes.set(cacheKey, answer);
     return answer;
   }

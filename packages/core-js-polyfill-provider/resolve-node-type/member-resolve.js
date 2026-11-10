@@ -72,6 +72,7 @@ export function createMemberResolve({
   keyMatchesName,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   findNameAnnotation,
+  bindingAnnotationPath,
   findExpressionAnnotation,
   withLookupPath,
   functionTypeReturnAnnotation,
@@ -157,14 +158,14 @@ export function createMemberResolve({
     // answer in whatever container the USE happens to sit in - a namespace-local namesake of a
     // type declared outside it is the wrong family, not a missed narrowing. the scope beside it
     // already comes from the declaration for the same reason
-    return withLookupPath(binding.path, () => resolveMemberChainFrom(binding, props));
+    return withLookupPath(bindingAnnotationPath(binding.path), () => resolveMemberChainFrom(binding, props));
   }
 
   // the walk itself, split out so the caller can anchor the WHOLE of it on the declaration rather
   // than only the annotation read - see the anchor note at the call site
   function resolveMemberChainFrom(binding, props) {
     let annotation = unwrapTypeAnnotation(findNameAnnotation(binding.path));
-    const scopeRef = binding.path.scope;
+    const scopeRef = bindingAnnotationPath(binding.path).scope;
     // props collected leaf-first; consume from the end to walk root-down. last entry stays
     // for the leaf-member lookup below (its raw signature is what callers need).
     // intermediate hops delegate to `findTypeMember` which handles alias-chain follow,
@@ -425,8 +426,8 @@ export function createMemberResolve({
       // `rest[0]` the source's element 0). `findNameAnnotation` reads none there, and the
       // `findExpressionAnnotation` fallback below walks the destructure key path to the binding's own slot
       annotation = unwrapTypeAnnotation(findNameAnnotation(binding.path));
-      scope = binding.path.scope;
-      anchorPath = binding.path;
+      anchorPath = bindingAnnotationPath(binding.path);
+      scope = anchorPath.scope;
       // identifier without explicit annotation: route through findExpressionAnnotation so
       // binding init chains get traversed (`const obj = wrap('a')` -> wrap's substituted
       // return -> TSTypeLiteral). without this, `obj.foo()` where obj has no `: T` annotation

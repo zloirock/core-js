@@ -114,6 +114,7 @@ export function createCallResolution({
   getTypeMembers,
   keyMatchesName,
   findBindingAnnotation,
+  bindingAnnotationPath,
   narrowUnionByAssignmentLiteral,
   buildSubstMap,
   typeParamName,
@@ -813,10 +814,11 @@ export function createCallResolution({
         // shape: TS treats `let f: Foo = init; f = { kind: 'b', ... }` as narrowing `f`
         // to FooB after the assignment. without this `f.data` after the assignment
         // resolves on the declared union and emits the generic polyfill
-        const narrowed = narrowUnionByAssignmentLiteral(path, annotation, binding.path.scope);
+        const annotationPath = bindingAnnotationPath(binding.path);
+        const narrowed = narrowUnionByAssignmentLiteral(path, annotation, annotationPath.scope);
         // the annotation of a destructured binding describes its CONTAINER (`function f({ m }: I)`),
         // so the same key-path descent the initializer lane needs applies here too
-        return destructuredMemberAnnotation(annotationAt(narrowed ?? annotation, binding.path), binding.path, path.node.name);
+        return destructuredMemberAnnotation(annotationAt(narrowed ?? annotation, annotationPath), binding.path, path.node.name);
       }
       if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
         const init = binding.path.get('init');

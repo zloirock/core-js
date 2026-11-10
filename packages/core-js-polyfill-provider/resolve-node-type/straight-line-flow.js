@@ -21,6 +21,7 @@ import {
   writeRunsPastRanked,
   declaratorInitRunsWithin,
   sortedPrefixLength,
+  varScopeBlockOfBinding,
 } from '../helpers/ast-patterns.js';
 
 // statement wrappers `reachesStraightLine` treats as forward-transparent.
@@ -256,7 +257,9 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
 
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
-    const bindingScopeNode = scopeNode(bindingScope);
+    // A tracker can file namespace/static-block locals on the surrounding scope.
+    // Their straight-line writes are bounded by the declaration's own body.
+    const bindingScopeNode = varScopeBlockOfBinding(binding) ?? scopeNode(bindingScope);
     // Program / Block / StaticBlock host statements at `.body` directly; functions wrap in
     // BlockStatement. ancestor walk compares `p.node === endNode` - array-bodied scopes
     // must compare against the scope node itself, not its `.body` array

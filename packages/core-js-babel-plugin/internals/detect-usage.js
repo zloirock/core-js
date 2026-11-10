@@ -262,8 +262,7 @@ export function createBabelAdapter(options = {}) {
         }) ? `${ getInjector().pkg }/${ info.source }` : null;
         return {
           node: b.path.node, kind: b.kind, name, constantViolations, importSource, importKind,
-          // READ count of the binding (write positions excluded) - babel 7 counts, babel 8 keeps a Set
-          references: b.references ?? b.referencesSet?.size ?? 0,
+          references: b.references,
           // the scope the DECLARATOR is written in - the const-alias walkers advance to it per hop
           // so a later hop reading an outer-declared name resolves it there, not against the
           // receiver-use scope where an inner shadow of that name would swallow the value.

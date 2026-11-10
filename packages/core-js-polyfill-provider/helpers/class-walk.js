@@ -1039,13 +1039,14 @@ export function isClassifiableReceiverArg(node, scope, adapter, path = null) {
   if (node?.type !== 'Identifier') return false;
   if (node.name === 'undefined') {
     if (!scope || !adapter) return false;
-    return adapter.hasBinding({ scope, name: 'undefined' });
+    return adapter.hasBinding({ scope, name: 'undefined', path, read: node });
   }
   if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return true;
   // ... and a capitalised name is classifiable as a BINDING the class walk reads; unbound, it reads a
   // realm slot, which only a known built-in proves present - a user global may hold `undefined`
   if (node.name[0] >= 'A' && node.name[0] <= 'Z') {
-    return !scope || !adapter || adapter.hasBinding({ scope, name: node.name }) || isKnownStaticGlobal(node.name, adapter);
+    return !scope || !adapter || adapter.hasBinding({ scope, name: node.name, path, read: node })
+      || isKnownStaticGlobal(node.name, adapter);
   }
   if (!scope || !adapter) return false;
   const held = resolveObjectName({ objectNode: node, scope, adapter, path });
@@ -1370,8 +1371,8 @@ export function createClassHelpers({
       // polyfillHint wins: `handleDestructuredProperty` rewrites destructure-with-default
       // shapes in-place, so `binding.path.init` is unrecoverable. plugin adapters expose
       // via binding object; resolver-tier adapter via side-channel
-      const hintBinding = adapter.getBinding?.({ scope, name });
-      const hint = bindingPolyfillHint({ binding: hintBinding, scope, name, adapter });
+      const hintBinding = adapter.getBinding?.({ scope, name, path, read });
+      const hint = bindingPolyfillHint({ binding: hintBinding, scope, name, adapter, path });
       if (hint) {
         // usage-pure must not trust an assignment-form hint whose write ENDS after the capture read
         // (`let P; class C extends P {...}; ({ Promise: P } = globalThis)` - the class captures P
@@ -1383,7 +1384,8 @@ export function createClassHelpers({
           && !assignmentAliasHintSoundAtRead({ binding: hintBinding, adapter, readNode })) return null;
         return hint;
       }
-      const binding = scope?.getBinding?.(name);
+      const binding = hintBinding?.declarationPath ? { ...hintBinding, path: hintBinding.declarationPath }
+        : adapter.getBinding ? hintBinding : scope?.getBinding?.(name);
       // no binding: TS-runtime fallback (`enum X` / `namespace X` / `import X = require()`)
       // anchored on `path` - estree-toolkit's scope tracker misses these
       if (!binding) {
@@ -1478,10 +1480,10 @@ export function createClassHelpers({
 
   // Identifier -> reachable static container (ClassDeclaration / ClassExpression /
   // ObjectExpression via `const X = ...`). seen guards alias cycles
-  function bindingContainerValue(name, scope, seen, classAnchor = null) {
+  function bindingContainerValue(name, scope, seen, classAnchor = null, read = null) {
     if (seen.has(name)) return null;
     seen.add(name);
-    const binding = scope?.getBinding?.(name);
+    const binding = adapter.getBinding ? adapter.getBinding({ scope, name, path: classAnchor, read }) : scope?.getBinding?.(name);
     // method-aware reassignment bail. usage-global resolves the static container regardless (over-
     // inject-safe; its anchor stays null, so dominance can't be proven and the inject-if-maybe-needed
     // bias wins). usage-pure resolves only when no reassignment reaches the class-definition capture
@@ -1499,7 +1501,7 @@ export function createClassHelpers({
         }) : null;
       return reaching ? resolveToContainer(reaching, scope, seen, classAnchor) : null;
     }
-    const declNode = binding.path?.node;
+    const declNode = binding.declarationPath?.node ?? binding.path?.node;
     if (declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression') return declNode;
     // destructured container: `const { sub: NS } = lib` -> NS is `lib.sub`. resolve that member
     // access to its container so a later `NS.X` indexes the inner object. mirrors
@@ -1539,7 +1541,7 @@ export function createClassHelpers({
       // the binding's value may be another alias or member hop rather than the container itself
       // (`const NS0 = { Base: Map }; const NS = NS0`) - re-enter, exactly like the member arm
       // below. handing the init back verbatim left every such value indexed as nothing
-      const value = bindingContainerValue(peeled.name, scope, seen, classAnchor);
+      const value = bindingContainerValue(peeled.name, scope, seen, classAnchor, peeled);
       return !value || isNamespaceContainer(value) ? value : resolveToContainer(value, scope, seen, classAnchor);
     }
     if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
