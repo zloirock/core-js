@@ -23408,6 +23408,66 @@ function * generateIifeSynthReceivers() {
   };
 }
 
+// Binding lookup must preserve the lexical read and the captured class base.
+function * generateBindingReadPositions() {
+  for (const receiver of ['super', 'this']) yield {
+    ...snippet(`binding-read/container-base/${ receiver }`, `(() => {
+      { var NS = { Base: Array }; }
+      class List extends NS.Base { static read() { return ${ receiver }.from([9]); } }
+      return [List.read()[0], List.read() instanceof List];
+    })()`), strip: true,
+  };
+  for (const kind of ['block', 'try', 'label']) {
+    const declaration = kind === 'block' ? '{ var Base = Array; }'
+      : kind === 'try' ? 'try { var Base = Array; } finally {}' : 'label: { var Base = Array; }';
+    for (const receiver of ['super', 'this']) yield {
+      ...snippet(`binding-read/base/${ kind }/${ receiver }`, `(() => {
+        ${ declaration }
+        class List extends Base { static read() { return ${ receiver }.from([9]); } }
+        Base = String;
+        return [List.read()[0], List.read() instanceof List];
+      })()`), strip: true,
+    };
+    yield {
+      ...snippet(`binding-read/iife/${ kind }`, `(() => {
+        ${ declaration }
+        return (({ from } = Object) => from([10])[0])(Base);
+      })()`), strip: true,
+    };
+  }
+  yield {
+    ...snippet('binding-read/local-undefined', `(() => {
+      { var undefined = Array; }
+      return (({ from } = Object) => from([11])[0])(undefined);
+    })()`), strip: true,
+  };
+  for (const value of ['[1, 2]', '"ab"']) for (const outside of [false, true]) yield {
+    ...snippet(`binding-read/key/${ value }/${ outside }`, `(() => {
+      let result;
+      const key = 'items';
+      class Box { static {
+        const key = 'items';
+        const box = { [key]: ${ value } };
+        { const key = 'other'; result = box.items.at(-1); }
+      } }
+      ${ outside ? `const box = { [key]: ${ value }, other: {} }; result = box.items.at(-1);` : '' }
+      return result;
+    })()`), strip: true,
+  };
+  for (const init of ['', ' = void 0']) yield {
+    ...snippet(`binding-read/undefined-default/${ init || 'empty' }`, `(() => {
+      { var undefined${ init }; }
+      return (({ from } = Array) => from([4])[0])(undefined);
+    })()`), strip: true,
+  };
+  yield {
+    ...snippet('binding-read/undefined-tdz', `(() => {
+      try { (({ from } = Array) => from([4])[0])(undefined); let undefined; }
+      catch (error) { return error.name; }
+    })()`), strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -25101,4 +25161,5 @@ export function * generate() {
   };
   yield * generatePrivateNamespaceCaptures();
   yield * generateIifeSynthReceivers();
+  yield * generateBindingReadPositions();
 }

@@ -3894,11 +3894,14 @@ function parameterPropertyTwin(synthCache, path, name, native = null, lookupScop
 // level (`nestedTSRuntimeDeclarationsReducer`) - the only kind of file where the climb asking for
 // one runs. `read` is the node the name is read at where the caller resolves it for a deeper `path`
 // (an alias's initializer, read where the alias is declared): that climb starts there
-export function wrapScopeBindingLookup(lookup, nestedTSRuntimeDeclarations = () => true) {
+export function wrapScopeBindingLookup(lookup, nestedTSRuntimeDeclarations = () => true, currentPath = () => null) {
   // native binding -> its view (`wrapped`) and the render-note epoch its record was last judged at
   const cache = new WeakMap();
   const synthCache = new WeakMap();
   return ({ scope, name, path = null, read = null }) => {
+    // Type-only walks can inherit the resolver's synchronous declaration/read anchor.
+    // An explicit path always wins; no context leaves the native conservative lookup intact.
+    path ??= lookupReadPath(currentPath(), read);
     const native = catchParameterOwnBinding(lookup, scope, name) ?? lookup(scope, name, path);
     // a binding that does not cover the use is not the use's binding - the same question both
     // detection gates ask, asked once here so the resolver cannot narrow THROUGH a shadow they
@@ -9042,8 +9045,8 @@ function directCallPairing(node, programNode, { nameIsShadowed = null, staticIsM
 // paren dialect and "the default" for the other on one source, and costs the narrow on both TS
 // spellings. a spread at or before the slot can supply the param from the spread iterable, so it
 // counts as an override, matching the arg->param spread guard in resolveDirectParam /
-// paramHasOverridingArg. `undefinedShadowed` answers whether a binding hides the global `undefined`
-// at the call - a shadowed name is a real value. one answer for the type resolver's call-site scan
+// paramHasOverridingArg. `undefinedShadowed` answers whether the name cannot be treated as absent
+// at the call - a binding can supply a value or throw before the default. one answer for the type resolver's call-site scan
 // and the destructure dispatches' caller-lossiness gate
 export function argumentOverridesSlot(args, argIndex, undefinedShadowed, staticIsMutated = null) {
   const arg = resolveCallArgument(args, argIndex, staticIsMutated);
@@ -9090,9 +9093,25 @@ function findIifeArgForParam(fnParentPath, paramNode, staticIsMutated = null) {
   const site = findIifeCallSite(fnParentPath, paramNode);
   if (!site) return null;
   const args = site.callPath.node.arguments ?? [];
-  if (paramNode.type === 'AssignmentPattern'
-    && !argumentOverridesSlot(args, site.paramIndex, () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
+  if (paramNode.type === 'AssignmentPattern' && !iifeArgumentOverridesDefault(site, staticIsMutated)) return null;
   return resolveCallArgument(args, site.paramIndex, staticIsMutated);
+}
+
+// A local `undefined` can supply a value, including a var kept inside its block by the
+// host tracker. An unwritten empty/void var still runs the default. Lexical declarations
+// can be in the TDZ; loop heads and writes likewise prove no absence.
+function iifeArgumentOverridesDefault({ callPath, paramIndex }, staticIsMutated) {
+  return argumentOverridesSlot(callPath.node.arguments ?? [], paramIndex, () => {
+    const binding = wrapScopeBindingLookup((scope, name) => scope?.getBinding?.(name))({
+      scope: callPath.scope, name: 'undefined', path: callPath,
+    });
+    if (!binding) return false;
+    const decl = binding.path?.node;
+    return binding.kind !== 'var' || decl?.type !== 'VariableDeclarator' || decl.id.type !== 'Identifier'
+      || isForXStatement(binding.path.parentPath?.parentPath?.node)
+      || (decl.init && !isVoidExpression(unwrapRuntimeExpr(decl.init)))
+      || !Array.isArray(binding.constantViolations) || binding.constantViolations.length > 0;
+  }, staticIsMutated);
 }
 
 // the argument PATH a `resolveCallArgumentCoords` coordinate names among a call's argument paths:
@@ -9485,8 +9504,7 @@ export function destructureReceiverNode(host, patternNode = null, staticIsMutate
   }
   if (host?.node?.type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type)) {
     const site = findIifeCallSite(host.parentPath, host.node);
-    if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
-      () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
+    if (site && iifeArgumentOverridesDefault(site, staticIsMutated)) return null;
   }
   const slot = destructureReceiverSlot(host?.node);
   if (!slot) return null;
@@ -9584,8 +9602,7 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
     const rhsNode = site ? findIifeArgForParam(wrapperPath.parentPath, wrapperNode, staticIsMutated) : null;
     if (rhsNode) return !replacesArgument || findIifeCallSite(wrapperPath.parentPath, wrapperNode, { replacesArgument })
       ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
-    if (site && argumentOverridesSlot(site.callPath.node.arguments ?? [], site.paramIndex,
-      () => !!site.callPath.scope?.getBinding?.('undefined'), staticIsMutated)) return null;
+    if (site && iifeArgumentOverridesDefault(site, staticIsMutated)) return null;
     return { rhsNode: wrapperNode.right, slot: 'right', callPath: null, paramIndex: -1 };
   }
   const slot = destructureReceiverSlot(wrapperNode);
@@ -15821,8 +15838,8 @@ export function isAliasProxyRoot(rootNode, aliasCtx) {
 // where an injector-managed alias has no scope entry at all - so both are always asked together.
 // the binding is the CALLER's to resolve - the lookup is guarded against re-entry at some sites
 // and skipped entirely at others, so this only joins the two spellings
-export function bindingPolyfillHint({ binding, scope, name, adapter }) {
-  return binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, name) ?? null;
+export function bindingPolyfillHint({ binding, scope, name, adapter, path = null }) {
+  return binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, name, path) ?? null;
 }
 
 // a GUARDED registration is one whose flow-trust the injector REFUSED - none of its fields may

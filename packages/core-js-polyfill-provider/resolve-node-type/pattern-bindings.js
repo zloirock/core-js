@@ -364,7 +364,7 @@ export function createPatternBindings({
         arms,
         type: foldUnionTypes(arms, arm => arm),
         hints: !open && hints.size ? hints : null,
-        annotated: annotation ? withLookupPath(binding.path, () => resolveTypeAnnotation(annotation, binding.path.scope)) : null,
+        annotated: annotation ? resolveBindingAnnotation(binding.path, annotation) : null,
       };
       projectLocalFlowValue(path, value);
       if (cycleGuardCuts() === cuts) {
@@ -690,6 +690,21 @@ export function createPatternBindings({
       || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
   }
 
+  // Parameter annotations see the function's body declarations in TypeScript's lexical
+  // scope, even when the parser gives their defaults a separate runtime environment.
+  // Only annotation lookup moves; evaluating the default keeps its original path/scope.
+  function bindingAnnotationPath(bindingPath) {
+    const parameter = bindingPath.parentPath?.node.type === 'TSParameterProperty' ? bindingPath.parentPath : bindingPath;
+    const parent = parameter.parentPath;
+    return t.isFunction(parent?.node) && parent.node.params.includes(parameter.node) && parent.node.body
+      ? parent.get('body') : bindingPath;
+  }
+
+  function resolveBindingAnnotation(bindingPath, annotation) {
+    const path = bindingAnnotationPath(bindingPath);
+    return withLookupPath(path, () => resolveTypeAnnotation(annotation, path.scope));
+  }
+
   // classify a rest binding at any depth of an array OR object destructuring: an array-rest (`[...v]`,
   // `[[...v]]`) always yields Array, an object-rest (`{...v}`, `[{...v}]`) always yields Object -
   // independent of the source type. recurses through BOTH pattern kinds symmetrically, so a rest
@@ -735,9 +750,10 @@ export function createPatternBindings({
     const index = findPatternIndex(arrayPattern, varName);
     // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
     if (arrayPattern.typeAnnotation) {
-      const result = resolveArrayPatternBinding({
-        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: bindingPath.scope, index,
-      });
+      const path = bindingAnnotationPath(bindingPath);
+      const result = withLookupPath(path, () => resolveArrayPatternBinding({
+        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: path.scope, index,
+      }));
       if (result) return result;
     }
     // annotation on the init expression: const [a] = typedArr
@@ -1116,7 +1132,8 @@ export function createPatternBindings({
     if (!keyPath) return null;
     // annotation on the pattern: const { items }: { items: number[] } = ...
     if (objectPattern.typeAnnotation) {
-      const result = resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, bindingPath.scope);
+      const path = bindingAnnotationPath(bindingPath);
+      const result = withLookupPath(path, () => resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, path.scope));
       if (result) return result;
     }
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
@@ -1547,7 +1564,7 @@ export function createPatternBindings({
     // generic polyfill instead of the array-specific helper
     if (restBindsNameDirectly(node, name)) {
       const annotated = findBindingAnnotation(bindingPath);
-      if (annotated) return resolveTypeAnnotation(annotated, bindingPath.scope);
+      if (annotated) return resolveBindingAnnotation(bindingPath, annotated);
       return structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(bindingPath, name)) ? null : new $Object('Array');
     }
     // destructured object / array: for (const { a } of ...) / const [a] = ...
@@ -1569,7 +1586,7 @@ export function createPatternBindings({
     // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
     // must NOT be reached for destructured bindings - their pattern-level annotation
     // describes the container type, not the element type.
-    // `withLookupPath(bindingPath, ...)` registers the binding's NodePath as anchor for
+    // The declaration lookup registers the binding's lexical path as anchor for
     // downstream `findTypeDeclaration` calls - lets parsers without TSModuleDeclaration
     // scope (estree-toolkit) fall back to walking ancestors for namespace-local type decls
     const typeAnnotation = findBindingAnnotation(bindingPath);
@@ -1580,7 +1597,7 @@ export function createPatternBindings({
       // not on the annotation, so it has to be re-applied here; `findBindingAnnotation` itself hands
       // back a raw slot that several callers pattern-match by node type
       const marked = withMemberModifiers(typeAnnotation, { optional: Boolean(node?.optional) });
-      return withLookupPath(bindingPath, () => resolveTypeAnnotation(marked, bindingPath.scope));
+      return resolveBindingAnnotation(bindingPath, marked);
     }
     // unannotated arrow / function param passed as a call argument: infer from the callee's
     // matching parameter slot. without this, `Holder<number>.use(items => items.X)` resolves
@@ -1809,6 +1826,7 @@ export function createPatternBindings({
     resolveRuntimeIterableElement,
     annotationAtKeyPath,
     findBindingAnnotation,
+    bindingAnnotationPath,
     bindingDestructuringPattern,
     findNameAnnotation,
     isOwnBindingWrite,
