@@ -49,6 +49,9 @@
 - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
+- Fixed subclassing of the `Request` wrapper used with polyfilled `URLSearchParams`
+- Added integration of polyfilled `URLSearchParams` with native `Response`, `XMLHttpRequest` and `navigator.sendBeacon`, and fixed installation of the native body wrappers in Deno
+- Preserved option getter receivers, conversions and signal subscriptions in the native body wrappers for polyfilled `URLSearchParams`; serialized the internal parameter list after option conversion
 - Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
 - Updated `URL` polyfill handling of `file:` hosts and empty path segments, `blob:` origins, and empty `pathname` assignments to the current URL Standard, [#1586](https://github.com/zloirock/core-js/issues/1586)
 - Fixed failed `URL#href` assignments corrupting the URL and its `searchParams`, and URL parsing depending on replaced string iterator methods

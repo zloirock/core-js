@@ -1,6 +1,7 @@
 'use strict';
 const { chromium, firefox, webkit } = require('playwright');
 const { sync: which } = require('which');
+const createEchoMiddleware = require('./echo');
 
 Object.assign(process.env, {
   CHROMIUM_BIN: chromium.executablePath(),
@@ -31,8 +32,10 @@ module.exports = config => config.set({
   plugins: [
     'karma-*',
     '@onslip/karma-playwright-launcher',
+    { 'middleware:echo': ['factory', createEchoMiddleware] },
   ],
   files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
+  middleware: ['echo'],
   frameworks: ['qunit'],
   basePath: '.',
   // PhantomJS can hang on the IPv6 address of localhost, while the server listens on IPv4

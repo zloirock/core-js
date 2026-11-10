@@ -1,9 +1,9 @@
 import { GLOBAL, DESCRIPTORS, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
-import { createIterable } from '../helpers/helpers.js';
+import { createIterable, nativeSubclass, timeLimitedPromise } from '../helpers/helpers.js';
 
 const { create, defineProperty, getPrototypeOf, getOwnPropertyDescriptor } = Object;
 
-const { Proxy } = GLOBAL;
+const { Proxy, __karma__: karma } = GLOBAL;
 
 const USV_STRINGS = [
   ['\uD800', '\uFFFD'],
@@ -84,8 +84,8 @@ const FIREFOX_SEQUENCE_DOM_EXCEPTION = FIREFOX_VERSION >= 57 && FIREFOX_VERSION 
 // Deno 2.8.0-2.9.7 copies inner iterables before conversion and validates each pair too early.
 // Regression introduced by https://github.com/denoland/deno/pull/34119
 const DENO_SEQUENCE_COPY = DENO_VERSION >= 208;
-const safariVersion = /Version\/(\d+)/.exec(GLOBAL.navigator?.userAgent)
-  || /(?:iPad|iPhone|iPod).*OS (\d+)_/.exec(GLOBAL.navigator?.userAgent);
+const safariVersion = /Version\/(\d+)(?:\.(\d+))?/.exec(GLOBAL.navigator?.userAgent)
+  || /(?:iPad|iPhone|iPod).*OS (\d+)(?:_(\d+))?/.exec(GLOBAL.navigator?.userAgent);
 const SAFARI_VERSION = +(safariVersion?.[1] || 0);
 const bunVersion = GLOBAL.process?.versions?.bun?.split('.') || [];
 const BUN_VERSION = bunVersion.length ? bunVersion[0] * 1e6 + bunVersion[1] * 1e3 + +bunVersion[2] : 0;
@@ -1841,12 +1841,533 @@ QUnit[DENO_VERSION === 110 ? 'skip' : 'test']('URLSearchParams#@@toStringTag', a
   assert.same({}.toString.call(params), '[object URLSearchParams]');
 });
 
+// Node 18-23, 24.0-24.14.0 and 25.0-25.8.1 use declaration order for RequestInit / ResponseInit.
+// Fixed in 24.14.1, 25.8.2 and 26: https://github.com/nodejs/undici/pull/4841
+const NODE_FETCH_ORDER = NODE && !DENO && (NODE_VERSION < 2414 || NODE_VERSION === 2414 && +nodeVersion[2] < 1
+  || NODE_VERSION >= 2500 && (NODE_VERSION < 2508 || NODE_VERSION === 2508 && +nodeVersion[2] < 2));
+// Deno 1.2-1.9.0 repeats getters, misses implicit types / Response.error / Request.signal and retains live bodies.
+// Fixed in 1.9.1: https://github.com/denoland/deno/pull/10203
+const DENO_FETCH_LEGACY = DENO_VERSION >= 102 && (DENO_VERSION < 109 || DENO_VERSION === 109 && DENO_PATCH === 0);
+// Deno 1.15.0-2.9.7 regressed ResponseInit getter order and single reads.
+// https://github.com/denoland/deno/pull/12285
+const RESPONSE_INIT_ORDER = NODE_FETCH_ORDER || DENO_FETCH_LEGACY || DENO_VERSION >= 115;
+// Chrome 67-68 converts method before headers; fixed in Chrome 69.
+// https://chromium-review.googlesource.com/c/chromium/src/+/1116418
+const REQUEST_INIT_ORDER = NODE_FETCH_ORDER || DENO_FETCH_LEGACY || CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 69;
+// Node 18-27 alpha and Deno 1.2-2.9.7 call overridden URLSearchParams#toString.
+// Bun 0.1.1-0.5.6 has the same bug; fixed in 0.5.7.
+// No matching upstream report found: https://fetch.spec.whatwg.org/#concept-bodyinit-extract
+const BODY_STRINGIFIER = NODE || DENO || BUN_VERSION > 0 && BUN_VERSION < 5007;
+// Bun 0.1.1-0.1.8 ignores dictionary getters; 0.1.9 reads them.
+// https://webidl.spec.whatwg.org/#es-dictionary
+const BUN_INIT_GETTERS = BUN_VERSION > 0 && BUN_VERSION < 1009;
+// Bun 0.2.0-0.5.6 and 0.5.8-1.4.4 extracts Request bodies before dictionary conversion; 0.5.7 passes.
+// No matching upstream report found: https://fetch.spec.whatwg.org/#dom-request
+const BUN_REQUEST_BODY = BUN_VERSION >= 2000 && BUN_VERSION !== 5007;
+// Bun before 1.0.7 ignores statusText: https://github.com/oven-sh/bun/pull/6151
+const BUN_RESPONSE_INIT = BUN_VERSION > 0 && BUN_VERSION < 1000007;
+// Bun before 1.4.0 throws synchronously for fetch option errors.
+// https://github.com/oven-sh/bun/pull/33649
+const BUN_FETCH_ERRORS = BUN_VERSION > 0 && BUN_VERSION < 1004000;
+// Bun 0.1.1-0.6.5 does not send the implicit form Content-Type; fixed in 0.6.6.
+// https://fetch.spec.whatwg.org/#concept-bodyinit-extract
+const BUN_FETCH_TYPE = BUN_VERSION > 0 && BUN_VERSION < 6006;
+// Bun before 0.5.7 omits the constructor's implicit form type and Request.signal.
+// https://github.com/oven-sh/bun/pull/2051
+// https://github.com/oven-sh/bun/pull/2097
+const BUN_BODY_LEGACY = BUN_VERSION > 0 && BUN_VERSION < 5007;
+
+// Chrome 67-68 ignores newTarget for native Request / Response; fixed in Chrome 69.
+// https://webidl.spec.whatwg.org/#internally-create-a-new-object-implementing-the-interface
+const BODY_SUBCLASS_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 69;
+// Safari 14.1-27.0.1 keeps a reference to URLSearchParams instead of snapshotting its list.
+// No matching upstream report found; https://fetch.spec.whatwg.org/#concept-bodyinit-extract
+const BODY_SNAPSHOT_BUG = SAFARI_VERSION >= 14 && !SAFARI_14_0 || DENO_FETCH_LEGACY;
+// Firefox 39-43 appends a charset to explicit Content-Type headers; fixed in Firefox 44.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=918742
+const XHR_ADDED_CHARSET = FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44;
+// Safari 15-27.0.1 adds a form Content-Type to GET; Playwright WebKit 27.2 passes.
+// https://bugs.webkit.org/show_bug.cgi?id=320791
+const XHR_GET_CONTENT_TYPE = SAFARI_VERSION >= 15 && (SAFARI_VERSION < 27 || SAFARI_VERSION === 27 && +(safariVersion?.[2] || 0) < 2);
+const IE_XHR = !!GLOBAL.document?.documentMode;
+
+const createTrackedSignal = () => {
+  const controller = new GLOBAL.AbortController();
+  const { signal } = controller;
+  const { addEventListener } = signal;
+  const calls = [];
+  signal.addEventListener = function (...args) {
+    calls.push(this);
+    return addEventListener.apply(this, args);
+  };
+  return { controller, calls };
+};
+
 if (typeof Request == 'function') {
   QUnit.test('URLSearchParams with Request', assert => {
-    const async = assert.async();
-    new Request('http://zloirock.ru', { body: new URLSearchParams({ foo: 'baz' }), method: 'POST' }).text().then(text => {
-      assert.same(text, 'foo=baz');
-      async();
+    const body = new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
+    const headers = new Headers({ 'X-Test': 'preserved' });
+    const init = { body, headers, method: 'POST' };
+    const request = new Request('http://example.com/', init);
+    if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.same(request.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+    assert.same(request.headers.get('x-test'), 'preserved');
+    assert.false(headers.has('content-type'), 'does not mutate author headers');
+    assert.same(init.body, body, 'does not replace the author body');
+    return request.text().then(text => {
+      // Deno 1.2.0-1.2.3 re-encodes spaces; fixed in 1.3.0: https://github.com/denoland/deno/pull/7017
+      if (DENO_VERSION !== 102) assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
     });
   });
+
+  QUnit.test('URLSearchParams with Request, preserved options', assert => {
+    const init = {
+      method: 'POST', body: 'a=1', referrer: '', referrerPolicy: 'no-referrer',
+      cache: 'no-store', credentials: 'include', mode: 'cors', redirect: 'manual',
+    };
+    const stringRequest = new Request('http://example.com/', init);
+    init.body = new URLSearchParams('a=1');
+    const paramsRequest = new Request('http://example.com/', init);
+    for (const key of ['url', 'method', 'referrer', 'referrerPolicy', 'cache', 'credentials', 'mode', 'redirect']) {
+      assert.same(paramsRequest[key], stringRequest[key], key);
+    }
+    const copiedRequest = new Request(paramsRequest);
+    assert.same(copiedRequest.url, paramsRequest.url, 'copied URL');
+    assert.same(copiedRequest.method, paramsRequest.method, 'copied method');
+  });
+
+  if (typeof GLOBAL.AbortController == 'function') QUnit.test('URLSearchParams with Request, signal', assert => {
+    const subscriptions = value => {
+      const { controller, calls } = createTrackedSignal();
+      const { signal } = controller;
+      const request = new Request('http://example.com/', { body: value, method: 'POST', signal });
+      controller.abort();
+      if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.true(request.signal.aborted, 'propagates abort');
+      return calls.length;
+    };
+    assert.same(subscriptions(new URLSearchParams('a=1')), subscriptions('a=1'), 'preserves signal subscription count');
+  });
+
+  // Bun before 0.5.8 accepts a missing input: https://github.com/oven-sh/bun/pull/2427
+  QUnit[BUN_VERSION > 0 && BUN_VERSION < 5008 ? 'skip' : 'test']('URLSearchParams with Request, required argument', assert => {
+    assert.throws(() => new Request(), 'requires an input');
+  });
+
+  if (DESCRIPTORS) QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Request, dictionary conversion', assert => {
+    const body = new URLSearchParams('a=1');
+    const calls = [];
+    const method = { toString() {
+      assert.same(this, method, 'method conversion receiver');
+      calls.push('convert method');
+      body.append('converted', '1');
+      return 'POST';
+    } };
+    const init = defineProperty({ body }, 'headers', { get() {
+      assert.same(this, init, 'headers getter receiver');
+      calls.push('headers');
+      body.append('headers', '1');
+      return [['X-Test', 'preserved']];
+    } });
+    defineProperty(init, 'method', { get() {
+      assert.same(this, init, 'method getter receiver');
+      calls.push('method');
+      body.append('method', '1');
+      return method;
+    } });
+    const request = new Request('http://example.com/', init);
+    if (!REQUEST_INIT_ORDER) assert.deepEqual(calls, ['headers', 'method', 'convert method'], 'reads and converts each member once');
+    assert.same(request.headers.get('x-test'), 'preserved');
+    return request.text().then(text => {
+      if (!REQUEST_INIT_ORDER && !BUN_REQUEST_BODY) assert.same(text, 'a=1&headers=1&method=1&converted=1', 'extracts the body after dictionary conversion');
+    });
+  });
+
+  QUnit[BODY_STRINGIFIER ? 'skip' : 'test']('URLSearchParams with Request, internal serialization', assert => {
+    const body = new URLSearchParams('a=1');
+    body.toString = () => 'wrong';
+    return new Request('http://example.com/', { body, method: 'POST' }).text().then(text => {
+      assert.same(text, 'a=1', 'does not call an overridden toString');
+    });
+  });
+
+  QUnit[BODY_SNAPSHOT_BUG ? 'skip' : 'test']('URLSearchParams with Request, body snapshot', assert => {
+    const body = new URLSearchParams('a=1');
+    const request = new Request('http://example.com/', { body, method: 'POST' });
+    body.append('later', 'ignored');
+    return request.text().then(text => { assert.same(text, 'a=1'); });
+  });
+
+  QUnit.test('URLSearchParams with Request, explicit content type', assert => {
+    const request = new Request('http://example.com/', {
+      body: new URLSearchParams('a=1'), method: 'POST', headers: [['cOnTeNt-TyPe', 'application/custom']],
+    });
+    assert.same(request.headers.get('content-type'), 'application/custom');
+    return request.text().then(text => { assert.same(text, 'a=1'); });
+  });
+
+  QUnit[BODY_SUBCLASS_BUG ? 'skip' : 'test']('URLSearchParams with Request, subclassing', assert => {
+    const Subclass = nativeSubclass ? nativeSubclass(Request) : function (input, init) {
+      return Reflect.construct(Request, [input, init], Subclass);
+    };
+    if (!nativeSubclass) Subclass.prototype = create(Request.prototype, { constructor: { value: Subclass } });
+    Subclass.prototype.tag = () => 42;
+    const request = new Subclass('http://example.com/', { method: 'POST', body: new URLSearchParams('a=1') });
+    assert.true(request instanceof Subclass);
+    assert.true(request instanceof Request);
+    assert.same(getPrototypeOf(request), Subclass.prototype);
+    assert.same(request.tag(), 42);
+    if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.same(request.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+    return request.text().then(text => { assert.same(text, 'a=1'); });
+  });
+}
+
+if (typeof Response == 'function') {
+  QUnit.test('URLSearchParams with Response', assert => {
+    const body = new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
+    const headers = new Headers({ 'X-Test': 'preserved' });
+    const init = { headers, status: 201, statusText: 'Created' };
+    const response = new Response(body, init);
+    if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.same(response.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+    assert.same(response.headers.get('x-test'), 'preserved');
+    assert.same(response.status, 201);
+    if (!BUN_RESPONSE_INIT) assert.same(response.statusText, 'Created');
+    assert.false(headers.has('content-type'), 'does not mutate author headers');
+    return response.text().then(text => {
+      // Deno 1.2.0-1.2.3 re-encodes spaces; fixed in 1.3.0: https://github.com/denoland/deno/pull/7017
+      if (DENO_VERSION !== 102) assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
+    });
+  });
+
+  if (DESCRIPTORS) QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Response, dictionary conversion', assert => {
+    const body = new URLSearchParams('a=1');
+    const calls = [];
+    const init = defineProperty({}, 'headers', { get() {
+      assert.same(this, init, 'headers getter receiver');
+      calls.push('headers');
+      body.append('headers', '1');
+      return [['X-Test', 'preserved']];
+    } });
+    defineProperty(init, 'status', { get() {
+      assert.same(this, init, 'status getter receiver');
+      calls.push('status');
+      body.append('status', '1');
+      return 201;
+    } });
+    defineProperty(init, 'statusText', { get() {
+      assert.same(this, init, 'statusText getter receiver');
+      calls.push('statusText');
+      body.append('statusText', '1');
+      return 'Created';
+    } });
+    const response = new Response(body, init);
+    if (!RESPONSE_INIT_ORDER && !BUN_RESPONSE_INIT) assert.deepEqual(calls, ['headers', 'status', 'statusText'], 'reads each member once');
+    assert.same(response.status, 201);
+    if (!BUN_RESPONSE_INIT) assert.same(response.statusText, 'Created');
+    assert.same(response.headers.get('x-test'), 'preserved');
+    return response.text().then(text => {
+      if (!RESPONSE_INIT_ORDER && !BUN_RESPONSE_INIT) assert.same(text, 'a=1&headers=1&status=1&statusText=1', 'extracts the body after dictionary conversion');
+    });
+  });
+
+  QUnit[BODY_STRINGIFIER ? 'skip' : 'test']('URLSearchParams with Response, internal serialization', assert => {
+    const body = new URLSearchParams('a=1');
+    body.toString = () => 'wrong';
+    return new Response(body).text().then(text => {
+      assert.same(text, 'a=1', 'does not call an overridden toString');
+    });
+  });
+
+  QUnit[BODY_SNAPSHOT_BUG ? 'skip' : 'test']('URLSearchParams with Response, body snapshot', assert => {
+    const body = new URLSearchParams('a=1');
+    const response = new Response(body);
+    body.append('later', 'ignored');
+    return response.text().then(text => { assert.same(text, 'a=1'); });
+  });
+
+  QUnit.test('URLSearchParams with Response, defaults and explicit content type', assert => {
+    if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) {
+      assert.same(new Response(new URLSearchParams()).headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+      assert.same(new Response(new URLSearchParams(), null).headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+    }
+    const response = new Response(new URLSearchParams('a=1'), { headers: [['cOnTeNt-TyPe', 'application/custom']] });
+    assert.same(response.headers.get('content-type'), 'application/custom');
+    // Bun 0.1.1-1.4.4 does not expose the implicit string Content-Type.
+    // https://github.com/oven-sh/bun/issues/8530
+    if (!BUN_VERSION && !DENO_FETCH_LEGACY) assert.same(new Response('plain').headers.get('content-type'), 'text/plain;charset=UTF-8', 'other bodies');
+    assert.same(new Response().headers.get('content-type'), null, 'absent body');
+    // Bun before 1.3.4 allows Response without new; https://webidl.spec.whatwg.org/#es-interface-call
+    if (!BUN_VERSION || BUN_VERSION >= 1003004) assert.throws(() => Response(new URLSearchParams()), TypeError, 'requires new');
+    return response.text().then(text => { assert.same(text, 'a=1'); });
+  });
+
+  // Firefox 39-58 treats null as a string body; fixed in Firefox 59.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1303025
+  QUnit[FIREFOX_VERSION > 0 && FIREFOX_VERSION < 59 ? 'skip' : 'test']('URLSearchParams with Response, null body', assert => {
+    assert.same(new Response(null).headers.get('content-type'), null, 'null body');
+  });
+
+  // Firefox 39-43 and Bun 0.1.1-1.4.4 accept a body with status 204; fixed in Firefox 44.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1187011
+  // https://github.com/oven-sh/bun/issues/42499
+  // Deno 1.2-1.9.0 also accepts it; fixed in 1.9.1: https://github.com/denoland/deno/pull/10203
+  QUnit[BUN_VERSION || DENO_FETCH_LEGACY || FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44 ? 'skip' : 'test']('URLSearchParams with Response, null body status', assert => {
+    assert.throws(() => new Response(new URLSearchParams(), { status: 204 }), TypeError, 'null body status');
+  });
+
+  QUnit[BODY_SUBCLASS_BUG ? 'skip' : 'test']('URLSearchParams with Response, subclassing and statics', assert => {
+    const Subclass = nativeSubclass ? nativeSubclass(Response) : function (body) {
+      return Reflect.construct(Response, [body], Subclass);
+    };
+    if (!nativeSubclass) Subclass.prototype = create(Response.prototype, { constructor: { value: Subclass } });
+    Subclass.prototype.tag = () => 42;
+    const response = new Subclass(new URLSearchParams('a=1'));
+    assert.true(response instanceof Subclass);
+    assert.true(response instanceof Response);
+    assert.same(getPrototypeOf(response), Subclass.prototype);
+    assert.same(response.tag(), 42);
+    if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.same(response.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8');
+    return response.text().then(text => { assert.same(text, 'a=1'); });
+  });
+
+  // Deno 1.2-1.7.0 lacks error() and requires redirect status; fixed in 1.7.1:
+  // https://github.com/denoland/deno/pull/9305 (error() followed in 1.9.1, #10203).
+  QUnit[DENO_VERSION >= 102 && (DENO_VERSION < 107 || DENO_VERSION === 107 && DENO_PATCH === 0) ? 'skip' : 'test']('URLSearchParams with Response, statics', assert => {
+    if (!DENO_FETCH_LEGACY) assert.same(Response.error().type, 'error');
+    assert.same(Response.redirect('https://example.com/').headers.get('location'), 'https://example.com/');
+  });
+}
+
+// Bun before 0.5.7 rejects with Error instead of TypeError.
+if (typeof fetch == 'function') QUnit[BUN_VERSION > 0 && BUN_VERSION < 5007 ? 'skip' : 'test']('URLSearchParams with fetch, required argument', assert => {
+  return fetch().then(() => {
+    assert.true(false, 'must reject');
+  }, error => {
+    assert.same(error.name, 'TypeError', 'requires an input');
+  });
+});
+
+if (typeof fetch == 'function' && DESCRIPTORS) QUnit[BUN_FETCH_ERRORS ? 'skip' : 'test']('URLSearchParams with fetch, dictionary errors', assert => {
+  const error = new Error('body getter');
+  const init = defineProperty({}, 'body', { get() { throw error; } });
+  return fetch('http://example.com/', init).then(() => {
+    assert.true(false, 'must reject');
+  }, error_ => {
+    assert.same(error_, error, 'rejects instead of throwing synchronously');
+  });
+});
+
+if (GLOBAL.navigator?.sendBeacon) QUnit.test('URLSearchParams with sendBeacon, receiver', assert => {
+  const input = { toString() { assert.avoid('must validate the receiver first'); } };
+  const params = new URLSearchParams('a=1');
+  for (const receiver of [{}, create(getPrototypeOf(GLOBAL.navigator)), null]) {
+    assert.throws(() => GLOBAL.navigator.sendBeacon.call(receiver, input, params));
+  }
+});
+
+const TEST_SERVER = GLOBAL.TEST_SERVER || (karma ? '/core-js-echo' : undefined);
+if (TEST_SERVER) {
+  const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded;charset=utf-8';
+  const body = () => new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
+  const expectedBody = 'a=1&a=2&space=hello+world&unicode=%D0%B0';
+  const checkEcho = (assert, result, contentType, checkContentType = true) => {
+    if (DENO_VERSION !== 102) assert.same(result.body, expectedBody, 'serialized body');
+    if (checkContentType && (!(DENO_FETCH_LEGACY || BUN_FETCH_TYPE) || contentType === 'application/custom')) assert.same(result.contentType.toLowerCase().replaceAll(/;\s+/g, ';'), contentType, 'content type');
+    assert.same(result.method, 'POST', 'method');
+  };
+
+  if (typeof fetch == 'function') QUnit.test('URLSearchParams with fetch', assert => {
+    return timeLimitedPromise(10000, Promise.all([undefined, 'application/custom'].map(contentType => {
+      return fetch(TEST_SERVER, {
+        method: 'POST', body: body(), headers: contentType ? { 'Content-Type': contentType } : {},
+      }).then(response => response.json()).then(result => {
+        checkEcho(assert, result, contentType || FORM_CONTENT_TYPE);
+      });
+    })));
+  });
+
+  if (typeof fetch == 'function' && typeof Request == 'function') QUnit.test('URLSearchParams with fetch, Request input', assert => {
+    const request = new Request(TEST_SERVER, { method: 'POST', body: body(), headers: { 'Content-Type': 'application/custom' } });
+    return timeLimitedPromise(10000, fetch(request).then(response => response.json()).then(result => {
+      checkEcho(assert, result, 'application/custom');
+    }));
+  });
+
+  if (typeof fetch == 'function' && typeof GLOBAL.AbortController == 'function') QUnit.test('URLSearchParams with fetch, signal', assert => {
+    const subscriptions = value => {
+      const { controller, calls } = createTrackedSignal();
+      const { signal } = controller;
+      return fetch(TEST_SERVER, { body: value, method: 'POST', signal }).then(response => response.json()).then(result => {
+        assert.same(result.body, 'a=1');
+        return calls.length;
+      });
+    };
+    return timeLimitedPromise(10000, Promise.all([subscriptions(new URLSearchParams('a=1')), subscriptions('a=1')]).then(([params, string]) => {
+      assert.same(params, string, 'preserves signal subscription count');
+    }));
+  });
+
+  if (typeof fetch == 'function' && DESCRIPTORS) QUnit.test('URLSearchParams with fetch, dictionary conversion', assert => {
+    const params = new URLSearchParams('a=1');
+    let calls = 0;
+    const init = defineProperty({ body: params }, 'method', { get() {
+      assert.same(this, init, 'method getter receiver');
+      calls++;
+      params.append('method', '1');
+      return 'POST';
+    } });
+    return timeLimitedPromise(10000, fetch(TEST_SERVER, init).then(response => response.json()).then(result => {
+      // Deno 1.5.0-1.9.0 reads method twice; fixed by #10203.
+      if (!(DENO_FETCH_LEGACY && DENO_VERSION >= 105)) assert.same(calls, 1, 'reads the getter once');
+      if (!(DENO_FETCH_LEGACY && DENO_VERSION >= 105)) assert.same(result.body, 'a=1&method=1', 'extracts the body after dictionary conversion');
+    }));
+  });
+
+  if (typeof XMLHttpRequest == 'function') {
+    const send = (xhr, data) => new Promise((resolve, reject) => {
+      xhr.onload = () => { resolve(JSON.parse(xhr.responseText)); };
+      xhr.onerror = reject;
+      xhr.send(data);
+    });
+
+    QUnit.test('URLSearchParams with XMLHttpRequest', assert => {
+      const cases = [
+        [undefined, FORM_CONTENT_TYPE],
+        ['application/custom', 'application/custom'],
+        ['application/custom;charset=iso-8859-1', 'application/custom;charset=utf-8'],
+      ];
+      return timeLimitedPromise(10000, Promise.all(cases.map(([contentType, expected]) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', TEST_SERVER);
+        if (contentType) xhr.setRequestHeader('cOnTeNt-TyPe', contentType);
+        return send(xhr, body()).then(result => {
+          // Safari 14.1 sends the default form body as text/plain; Safari 15.1 passes.
+          // https://bugs.webkit.org/show_bug.cgi?id=227477
+          // IE11 does not rewrite an explicit charset for string bodies.
+          // https://xhr.spec.whatwg.org/#the-send()-method
+          checkEcho(assert, result, expected, !(SAFARI_14 && !contentType)
+            && !(XHR_ADDED_CHARSET && contentType === 'application/custom')
+            && !(IE_XHR && contentType === 'application/custom;charset=iso-8859-1'));
+        });
+      })));
+    });
+
+    // Safari 14.1 stringifies URLSearchParams; fixed in 15.1 (WebKit #227477).
+    QUnit[SAFARI_14 ? 'skip' : 'test']('URLSearchParams with XMLHttpRequest, internal serialization', assert => {
+      const xhr = new XMLHttpRequest();
+      const params = new URLSearchParams('a=1');
+      params.toString = () => { throw new Error('must not call toString'); };
+      xhr.open('POST', TEST_SERVER);
+      return timeLimitedPromise(10000, send(xhr, params).then(result => {
+        assert.same(result.body, 'a=1', 'serializes the internal list');
+        xhr.open('GET', TEST_SERVER);
+        return send(xhr, params);
+      }).then(result => {
+        assert.same(result.body, '', 'GET ignores the body without converting it');
+      }));
+    });
+
+    QUnit.test('URLSearchParams with XMLHttpRequest, reopening and reentrancy', assert => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', TEST_SERVER);
+      xhr.setRequestHeader('Content-Type', 'application/custom');
+      xhr.open('POST', TEST_SERVER);
+      return timeLimitedPromise(10000, send(xhr, body()).then(result => {
+        // Safari 14.1 default XHR content type: WebKit #227477 (above).
+        checkEcho(assert, result, FORM_CONTENT_TYPE, !SAFARI_14);
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 1) {
+            xhr.onreadystatechange = null;
+            xhr.setRequestHeader('Content-Type', 'application/reentrant');
+          }
+        };
+        xhr.open('POST', TEST_SERVER);
+        return send(xhr, body());
+      }).then(result => {
+        checkEcho(assert, result, 'application/reentrant', !XHR_ADDED_CHARSET);
+      }));
+    });
+
+    QUnit.test('URLSearchParams with XMLHttpRequest, GET and header conversion', assert => {
+      const xhr = new XMLHttpRequest();
+      let conversions = 0;
+      xhr.open('POST', TEST_SERVER);
+      xhr.setRequestHeader({ toString() {
+        conversions++;
+        return 'Content-Type';
+      } }, 'application/custom');
+      assert.same(conversions, 1, 'converts header names once');
+      return timeLimitedPromise(10000, send(xhr, body()).then(result => {
+        checkEcho(assert, result, 'application/custom', !XHR_ADDED_CHARSET);
+        xhr.open('GET', TEST_SERVER);
+        return send(xhr, body());
+      }).then(result => {
+        assert.same(result.body, '', 'GET ignores the body');
+        if (!XHR_GET_CONTENT_TYPE) assert.same(result.contentType, null, 'GET does not add a body content type');
+      }));
+    });
+
+    // IE11 and Firefox 39-43 discard the previous request after an invalid open().
+    // Firefox 44 preserves it; https://xhr.spec.whatwg.org/#the-open()-method
+    QUnit[IE_XHR || FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44 ? 'skip' : 'test']('URLSearchParams with XMLHttpRequest, failed open', assert => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', TEST_SERVER);
+      xhr.setRequestHeader('Content-Type', 'application/custom');
+      assert.throws(() => xhr.open('invalid method', TEST_SERVER), 'invalid open');
+      return timeLimitedPromise(10000, send(xhr, body()).then(result => {
+        checkEcho(assert, result, 'application/custom', !XHR_ADDED_CHARSET);
+      }));
+    });
+
+    QUnit.test('URLSearchParams with XMLHttpRequest, open argument conversion', assert => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', TEST_SERVER);
+      xhr.setRequestHeader('Content-Type', 'application/custom');
+      const error = new Error('conversion');
+      let response;
+      const method = { toString() {
+        response = send(xhr, body());
+        throw error;
+      } };
+      assert.throws(() => xhr.open(method, TEST_SERVER), error, 'propagates the conversion error');
+      return timeLimitedPromise(10000, response.then(result => {
+        checkEcho(assert, result, 'application/custom', !XHR_ADDED_CHARSET);
+      }));
+    });
+
+    // Chrome 67-87 / Edge 79-87 sends form bodies as text/plain; fixed in Chrome / Edge 88.
+    // https://issues.chromium.org/issues/41335051
+    // Safari 14.1 has the same limitation; Safari 15.1 passes (WebKit #227477).
+    const BEACON_BODY_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 88 || SAFARI_14;
+    if (GLOBAL.navigator?.sendBeacon) QUnit[BEACON_BODY_BUG ? 'skip' : 'test']('URLSearchParams with sendBeacon', assert => {
+      const id = `${ Math.random() }-${ Date.now() }`;
+      const deadline = Date.now() + 10000;
+      const url = `${ TEST_SERVER }?beacon=${ id }`;
+      assert.throws(() => GLOBAL.navigator.sendBeacon(), 'requires a URL');
+      const params = body();
+      params.toString = () => { throw new Error('must not call toString'); };
+      const input = { toString() {
+        params.set('space', 'hello world');
+        params.append('converted', '1');
+        return url;
+      } };
+      assert.true(GLOBAL.navigator.sendBeacon(input, params), 'queued');
+      return timeLimitedPromise(10000, new Promise((resolve, reject) => {
+        const poll = () => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', url);
+          xhr.onerror = reject;
+          xhr.onload = () => {
+            if (xhr.status === 204 && Date.now() < deadline) setTimeout(poll, 20);
+            else if (xhr.status === 204) reject(new Error('Beacon was not received'));
+            else resolve(JSON.parse(xhr.responseText));
+          };
+          xhr.send();
+        };
+        poll();
+      })).then(result => {
+        assert.same(result.body, `${ expectedBody }&converted=1`, 'converts the URL before extracting the body');
+        assert.same(result.contentType.toLowerCase().replaceAll(/;\s+/g, ';'), FORM_CONTENT_TYPE, 'content type');
+        assert.same(result.method, 'POST', 'method');
+      });
+    });
+  }
 }

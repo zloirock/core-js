@@ -3,14 +3,13 @@
 require('../modules/es.array.iterator');
 require('../modules/es.reflect.own-keys');
 var $ = require('../internals/export');
-var IS_PURE = require('../internals/is-pure');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
-var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
+var patchBody = require('../internals/url-search-params-body');
 var percentCoding = require('../internals/url-percent-coding');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
@@ -19,17 +18,13 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var InternalStateModule = require('../internals/internal-state');
 var anInstance = require('../internals/an-instance');
-var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has-own-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var bind = require('../internals/function-bind-context');
-var classof = require('../internals/classof');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var $toString = require('../internals/to-string');
 var toUSVString = require('../internals/to-usv-string');
 var create = require('../internals/object-create');
-var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getIterator = require('../internals/get-iterator-internal');
 var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -46,12 +41,7 @@ var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_I
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 
-var nativeFetch = safeGetBuiltIn('fetch');
-var NativeRequest = safeGetBuiltIn('Request');
-var Headers = safeGetBuiltIn('Headers');
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
-var RequestPrototype = NativeRequest && NativeRequest.prototype;
-var HeadersPrototype = Headers && Headers.prototype;
 var TypeError = globalThis.TypeError;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
@@ -367,55 +357,12 @@ if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
 
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
+// Initialize lazy native BodyInit consumers before replacing the constructor they use for brand checks.
+if (!USE_NATIVE_URL) patchBody();
+
 $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
   URLSearchParams: URLSearchParamsConstructor
 });
-
-// Wrap `fetch` and `Request` for correct work with polyfilled `URLSearchParams`; not in the pure version: nothing there
-// reads the wrappers, and the `Request` one would rewrite the native `Request.prototype.constructor`
-if (!IS_PURE && !USE_NATIVE_URL && isCallable(Headers)) {
-  var headersHas = uncurryThis(HeadersPrototype.has);
-  var headersSet = uncurryThis(HeadersPrototype.set);
-
-  var wrapRequestOptions = function (init) {
-    if (isObject(init)) {
-      var body = init.body;
-      var headers;
-      if (classof(body) === URL_SEARCH_PARAMS) {
-        headers = init.headers ? new Headers(init.headers) : new Headers();
-        if (!headersHas(headers, 'content-type')) {
-          headersSet(headers, 'content-type', 'application/x-www-form-urlencoded;charset=UTF-8');
-        }
-        return create(init, {
-          body: createPropertyDescriptor(0, $toString(body)),
-          headers: createPropertyDescriptor(0, headers)
-        });
-      }
-    } return init;
-  };
-
-  if (isCallable(nativeFetch)) {
-    $({ global: true, enumerable: true, dontCallGetSet: true, forced: true }, {
-      fetch: function fetch(input /* , init */) {
-        return nativeFetch(input, arguments.length > 1 ? wrapRequestOptions(arguments[1]) : {});
-      }
-    });
-  }
-
-  if (isCallable(NativeRequest)) {
-    var RequestConstructor = function Request(input /* , init */) {
-      anInstance(this, RequestPrototype);
-      return new NativeRequest(input, arguments.length > 1 ? wrapRequestOptions(arguments[1]) : {});
-    };
-
-    RequestPrototype.constructor = RequestConstructor;
-    RequestConstructor.prototype = RequestPrototype;
-
-    $({ global: true, constructor: true, dontCallGetSet: true, forced: true }, {
-      Request: RequestConstructor
-    });
-  }
-}
 
 module.exports = {
   URLSearchParams: URLSearchParamsConstructor,
