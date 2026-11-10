@@ -293,7 +293,9 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
   const { path } = aliasCtx;
   if (kind === 'static') {
     const ordered = groupedStaticRead(path, aliasCtx);
-    if (ordered) {
+    // A backed constructor (including an alias) is replaced as a whole in pure.
+    // Only native receivers retain these Gets; ask after the cheap group filter.
+    if (ordered && !resolvePure({ kind: 'global', name: meta.object })) {
       if (ordered === 'read') yield {
         kind: 'replace', base: { pure: { entry, hintName } }, effects: [path.node], live: [path.node],
       };

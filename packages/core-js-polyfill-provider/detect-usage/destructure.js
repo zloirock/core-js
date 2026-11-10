@@ -7225,11 +7225,10 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
   // for-x head over such a receiver reading its statics raw off the element, where the declaration
   // twin extracts them; `isKnownGlobalName` is what keeps an alias resolving to its own unbacked
   // name (`const shim = globalThis.shim`) out, exactly as it does for the bare spelling
-  // ... but only where that spelling is ALWAYS DEFINED: a hop pure cannot back is the environment
-  // PROBE, and its read is the one the source may fail on - a literal standing in for it binds the
-  // ponyfill where native throws, and the throw is the answer the consuming position owes
-  if (resolved && isKnownGlobalName(resolved)
-    && !destructureReceiverOwesAThrow(node, { scope, adapter, path })) return { kind: 'ctor', name: resolved, builtin: true };
+  // A receiver-replacing host keeps its read and coercion in the target builder. Other
+  // consumers still need an always-defined source before replacing it with a literal.
+  if (resolved && isKnownGlobalName(resolved) && (rescuesReceiverRead
+    || !destructureReceiverOwesAThrow(node, { scope, adapter, path }))) return { kind: 'ctor', name: resolved, builtin: true };
   // ... and a receiver written IN PLACE (`({ w: Array }).w`, `[Array][0]`) is a CONTAINER, which the
   // name resolver above declines by contract - it walks proxy chains. the meta reads it through the
   // container canon, so the mirror was refusing a receiver its own detection had already named

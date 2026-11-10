@@ -111,6 +111,21 @@ runBoth('alias probe above a served constructor',
     check(`${ label }/unserved intermediate read`, denied?.aliasProbe.innerKeys.join('.'), 'Promise');
   });
 
+// Selecting away a fallback must not turn a complete throwing read into a constructor value.
+for (const name of ['Array', 'Promise']) runBoth(`fallback source read/${ name }`,
+  `const value = (globalThis.window?.self).${ name } ?? {};`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, adapter, path };
+    const before = JSON.stringify(path.node.init);
+    const direct = directClaimProbePlan(path.node.init.left, resolvePure, ctx);
+    destructureProbePlan(path.node.init, resolvePure, ctx);
+    const plan = destructureProbePlan(path.node.init, resolvePure, ctx);
+    check(`${ label }/complete read`, plan?.readsSource, true);
+    check(`${ label }/same source key`, plan?.key, direct.key);
+    check(`${ label }/query leaves source intact`, JSON.stringify(path.node.init), before);
+  });
+
 // An outer seal ending at a claim does not hide the inner throwing boundary.
 runBoth('nested seal source facts',
   'const value = (before(), (globalThis.window?.self).Array).of(after());', (parser, program, label) => {

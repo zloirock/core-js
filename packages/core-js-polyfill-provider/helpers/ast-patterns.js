@@ -6190,9 +6190,11 @@ function handOnCallSite(callSite, callSites) {
 // a write in an arm the build never takes installs nothing (`writeNeverRuns`), and neither does one a
 // later write overwrites before the read (`supersededWrites`); the mutation census still counts both
 // (`countDeadWrites`): the decisions read the census, so it cannot read them. `everyWrite` counts each write
-// wherever it stands against the read too - the census answering once for every read of a binding
+// wherever it stands against the read too - the census answering once for every read of a binding.
+// `since` excludes writes before a complete branch join by their write site, never by the position
+// of their value: a transformed RHS may have no source span. Unknown write positions remain live.
 export function reassignmentValueEnumeration({
-  binding, usagePath, name = null, ctx = null, usageNode = null, countDeadWrites = false, everyWrite = false,
+  binding, usagePath, name = null, ctx = null, usageNode = null, countDeadWrites = false, everyWrite = false, since = null,
 }) {
   if (!binding?.constantViolations?.length) return { nodes: [], complete: true, callSites: [] };
   if (!usagePath || (!countDeadWrites && writesPastCeiling(binding.constantViolations))) {
@@ -6200,7 +6202,7 @@ export function reassignmentValueEnumeration({
   }
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return { nodes: [], complete: false, callSites: [] };
-  return reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites, everyWrite });
+  return reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites, everyWrite, since });
 }
 
 // ... the value nodes alone, for a consumer that needs no completeness verdict
@@ -6326,7 +6328,7 @@ function supersededWrites({ writes, usagePath, owner, usageNode, adapter, bindin
   return superseded;
 }
 
-function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites, everyWrite }) {
+function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode, countDeadWrites, everyWrite, since }) {
   // `name` is a pure OVERRIDE for callers that already know the alias; the accessor covers both
   // binding shapes on its own, so pattern-LHS pairing no longer depends on the caller passing it
   const bindingName = name ?? bindingDeclaratorName(binding);
@@ -6360,7 +6362,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // and an iterable the head cannot enumerate leaves the set open
   const own = bindingDeclaratorNode(binding);
   const ownHead = own ? enclosingForXStatement(own, violationSearchRoot, bindingDeclarationPath(binding)) : null;
-  if (ownHead) {
+  if (ownHead && !(since && typeof ownHead.start === 'number' && ownHead.start < since.start)) {
     const head = forXHeadValueNodes(ownHead, bindingName, ctx);
     if (!head.nodes.length) complete = false;
     out.push(...head.nodes);
@@ -6372,6 +6374,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
     writes, usagePath, owner, usageNode, adapter: ctx?.adapter, bindingScopeNode: violationSearchRoot, name: bindingName,
   });
   for (const node of writes) {
+    if (since && typeof node.start === 'number' && node.start < since.start) continue;
     if (superseded?.has(node)) continue;
     // Exclude ordinary later writes before walking the read's branch ancestry for each
     // candidate. Loops, deferred reads and early-evaluated slots still need the full proof.

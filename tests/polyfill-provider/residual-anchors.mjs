@@ -281,4 +281,27 @@ const { [${ key }]: { name } } = globalThis;`, (parser, program, label) => {
   check(`${ label }/query retains the source`, JSON.stringify(path.node), before);
 });
 
+// A constructor name and its nullish rejection belong to separate mirror facts.
+for (const source of [
+  'const { groupBy: { length: method } } = (globalThis.window?.self).Map;',
+  'for (const { groupBy: { length: method } } = globalThis.window?.Map; test; ) {}',
+  'const { [(key(), "groupBy")]: { length: method } } = (globalThis.window?.self).Map;',
+  'const { groupBy: { length: method }, size } = (globalThis.window?.self).Map;',
+]) runBoth('nullable constructor mirror', source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'ObjectPattern', p => p.node.properties.some(prop => prop.value.type === 'ObjectPattern'));
+  const before = JSON.stringify(program.node);
+  const options = {
+    leafPatternPath: path, adapter: makeAdapter(parser),
+    meta: { kind: 'property', object: 'Map', key: 'groupBy', placement: 'static' },
+    resolvePure: meta => meta.key === 'groupBy' ? { kind: 'static', entry: 'actual/map/group-by', hintName: 'groupBy' }
+      : meta.kind === 'global' ? resolveGlobalPolyfill(meta.name) : null,
+  };
+  const plan = buildNestedParamSynthPlan(options);
+  check(`${ label }/one source mirror`, plan?.targets?.length, 1);
+  check(`${ label }/retains the throwing receiver`, plan?.targets?.[0]?.keepPrefix, true);
+  check(`${ label }/coercion before keys`, plan?.targets?.[0]?.coerceReceiver, true);
+  check(`${ label }/one plan owns the pattern`, buildNestedParamSynthPlan(options)?.done, true);
+  checkDeep(`${ label }/query preserves source`, JSON.stringify(program.node), before);
+});
+
 finish();

@@ -22,7 +22,7 @@ export const {
 }) ?? {
   of: _Array$of
 };
-export const viaFallbackSealed = ((null == _globalThis.window ? void 0 : _self).Array.of, _Array$of);
+export const viaFallbackSealed = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
 export const {
   self: {
     Array: {
