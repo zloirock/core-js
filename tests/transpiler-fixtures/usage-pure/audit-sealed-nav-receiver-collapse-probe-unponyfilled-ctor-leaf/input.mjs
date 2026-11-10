@@ -1,3 +1,3 @@
-// a leaf core-js ponyfills no constructor for has no binding to stand in as the always-defined
-// alternate, so the guard reads off the global's own name - the claim beside it still polyfills
+// A leaf without a pure constructor is read from the tested realm, never a local global-name binding.
+// The sealed read must still throw on absence; its static claim still gets the polyfill.
 export const unponyfilledCtorLeaf = (globalThis.window?.Array).of(1);

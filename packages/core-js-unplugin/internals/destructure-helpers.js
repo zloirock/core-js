@@ -87,6 +87,7 @@ import {
   variableDeclaration,
   variableDeclarator,
   renderClaimProbe,
+  cloneProbeSourceSlot,
   renderAliasHeldProbeRead,
   renderInstanceDefaultGuard,
   exportDeclaration,
@@ -746,7 +747,7 @@ export function captureProbePlan(plan, metaPath, ctx) {
       }
       if (wholeSource || path) liveChildren.push({ keys, slot, node });
     }
-    return { ...captured, source: cloneStamped(captured.source) };
+    return cloneProbeSourceSlot(captured, cloneStamped);
   }
   const test = capture(plan.test?.source);
   return {

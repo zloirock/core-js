@@ -106,8 +106,9 @@ runBoth('wrapped navigation root', 'const result = realm.self;', (parser, progra
 for (const [expression, nav, keys, computed] of [
   ['realm.self', true, ['self'], false],
   ['realm["self"]', true, ['self'], true],
-  ['realm[0]', false, [], false],
-  ['realm[`self`]', false, [], false],
+  ['realm[0]', true, ['0'], true],
+  ['realm["0"]', true, ['0'], true],
+  ['realm[`self`]', true, ['self'], true],
   ['realm[(effect(), "self")]', false, [], false],
   ['realm?.self', false, [], false],
   ['(effect(), realm).self', false, ['self'], false],

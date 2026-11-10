@@ -6,7 +6,7 @@ var _ref;
 // The loop header's probe already owns the initializer's key effect.
 const log = [];
 let result;
-for (const of = ((null == _globalThis.window ? void 0 : ((_pushMaybeArray(log) || 0).call(log, _atMaybeArray(_ref = [7]).call(_ref, 0)), Array)).of, _Array$of);;) {
+for (const of = ((_globalThis.window?.[(_pushMaybeArray(log) || 0).call(log, _atMaybeArray(_ref = [7]).call(_ref, 0)), "Array"]).of, _Array$of);;) {
   result = of(3);
   break;
 }

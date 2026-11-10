@@ -46,7 +46,14 @@ for (const [expression, kind, leaf, boundary = false] of [
     },
   });
   const conditional = findNode(built, node => node.type === 'ConditionalExpression');
-  if (leaf) {
+  const nativeLeaf = leaf === 'Array' && findNode(built, node => node.type === 'MemberExpression' && node.optional);
+  if (leaf === 'Array') {
+    check(`${ label }/sealed native optional`, built.type, 'ChainExpression');
+    checkTruthy(`${ label }/native read short circuits`, nativeLeaf);
+    check(`${ label }/native leaf uses the tested receiver`, hostSlotNode(nativeLeaf.object).property?.name, 'window');
+    const key = nativeLeaf.computed ? nativeLeaf.property.expressions.at(-1).value : nativeLeaf.property.name;
+    check(`${ label }/native property name`, key, 'Array');
+  } else if (leaf) {
     checkTruthy(`${ label }/short circuit`, conditional);
     check(`${ label }/absent value`, conditional.consequent.operator, 'void');
     checkTruthy(`${ label }/present leaf`, findNode(conditional.alternate,
@@ -62,7 +69,7 @@ for (const [expression, kind, leaf, boundary = false] of [
   check(`${ label }/render purity`, JSON.stringify(source), before);
   if (expression.includes('effect')) {
     check(`${ label }/leaf effect`, plan.alternateEffects.length, 1);
-    check(`${ label }/effect stays after guard`, conditional.alternate.type, 'SequenceExpression');
+    check(`${ label }/effect stays after guard`, (nativeLeaf ? nativeLeaf.property : conditional.alternate).type, 'SequenceExpression');
   }
 });
 // A discarded value can fold the terminal realm hop; a sealed read must retain it.

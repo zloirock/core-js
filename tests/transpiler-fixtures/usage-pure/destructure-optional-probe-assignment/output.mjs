@@ -6,5 +6,5 @@ var _ref;
 // A consumed assignment keeps its key below the optional test.
 const log = [];
 let of;
-of = ((null == _globalThis.window ? void 0 : ((_pushMaybeArray(log) || 0).call(log, _atMaybeArray(_ref = [7]).call(_ref, 0)), Array)).of, _Array$of);
+of = ((_globalThis.window?.[(_pushMaybeArray(log) || 0).call(log, _atMaybeArray(_ref = [7]).call(_ref, 0)), "Array"]).of, _Array$of);
 export const result = [of(3), log];

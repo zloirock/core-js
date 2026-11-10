@@ -8,7 +8,6 @@ import {
   climbTransparentWrapperPath,
   claimDeleteOperand,
   isMemberWriteHost,
-  memberKeyName,
   computedKeyStaticName,
   memberKeepsReceiverThrow,
   mayHaveSideEffects,
@@ -34,6 +33,7 @@ import {
   sealedChainBoundary,
   proxyReceiverValueCanBeUndefined,
   realmRootIsSpellable,
+  realmHopKeyName,
   directClaimProbePlan,
   effectfulClaimReadProbe,
   carriesRealmAlias,
@@ -160,7 +160,7 @@ export function * proxyHopClaimRoutes({
 }) {
   const { path, adapter } = aliasCtx;
   function aboveReads() { return isMemberAccessNode(above) && unwrapRuntimeExpr(above.object) === node; }
-  const aboveKey = aboveReads() && !above.computed ? above.property?.name : null;
+  const aboveKey = aboveReads() ? realmHopKeyName(above, aliasCtx) : null;
   const sealedAbove = !!aboveKey && POSSIBLE_GLOBAL_OBJECTS.has(aboveKey)
     && !isPristineProxyGlobal(adapter, aboveKey, { node: above, path });
   const sealedRead = (sealed && navValueCanShortCircuit(node, resolvePure, aliasCtx)) || stored;
@@ -190,9 +190,10 @@ export function * proxyHopClaimRoutes({
     if (probeStore?.type === 'SequenceExpression') probeStore = unwrapRuntimeExpr(probeStore.expressions.at(-1));
     const assignedValue = peelChainAssignmentDeep(probeStore);
     const storeValue = peelChainRootValue(assignedValue);
+    const storeKey = isMemberAccessNode(storeValue) && realmHopKeyName(storeValue, aliasCtx);
     if (assignedValue !== probeStore && isMemberAccessNode(storeValue)
-      && !storeValue.computed && POSSIBLE_GLOBAL_OBJECTS.has(storeValue.property?.name)
-      && !resolvePure({ kind: 'global', name: storeValue.property.name })) yield { kind: 'stored-probe' };
+      && POSSIBLE_GLOBAL_OBJECTS.has(storeKey)
+      && !resolvePure({ kind: 'global', name: storeKey })) yield { kind: 'stored-probe' };
   }
   const guardedReceiver = (node.optional && !deadOwnOptional)
     || callRootProbeStaysGuarded(node.object, resolvePure, aliasCtx)
@@ -234,11 +235,11 @@ export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx
 // Source slots belong to this query only; it never edits the tree or allocates host state.
 export function sealedClaimDisposition(node, resolvePure, aliasCtx, retainedReader = null) {
   const boundary = sealedChainBoundary(node);
-  const key = boundary && memberKeyName(boundary.member);
+  const key = boundary && realmHopKeyName(boundary.member, aliasCtx);
   if (key === null || retainedReader === boundary.member) return null;
   const realmHop = POSSIBLE_GLOBAL_OBJECTS.has(key) && isPristineProxyGlobal(aliasCtx?.adapter, key);
   const above = retainedReader ?? boundary.reader ?? aliasCtx?.path?.parentPath?.node;
-  const dropsHop = realmHop && boundary.member === node && !node.computed && !node.optional
+  const dropsHop = realmHop && boundary.member === node && !node.optional
     && isMemberAccessNode(above) && unwrapRuntimeExpr(above.object) === node;
   const heldRead = realmHop && aliasRootedReadMayThrow(boundary.inner, resolvePure, aliasCtx);
   // Plain realm navigation keeps its established pure collapse. A live short
