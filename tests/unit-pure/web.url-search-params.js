@@ -26,6 +26,10 @@ const USV_STRINGS = [
 // Native record conversion is used from Deno 1.35; fixed in 2.8.0.
 // https://github.com/denoland/deno/pull/34119
 const DENO_RECORD_BUG = DENO_VERSION >= 135 && DENO_VERSION < 208;
+const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 25-32 proxies call the legacy `getOwnPropertyNames` trap instead of `ownKeys`; fixed in Firefox 33.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
+const FIREFOX_LEGACY_PROXY = FIREFOX_VERSION >= 25 && FIREFOX_VERSION < 33;
 
 const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
@@ -586,11 +590,13 @@ if (typeof Proxy == 'function') QUnit.test('URLSearchParams record proxy traps',
       return getPrototypeOf(object);
     },
   });
-  assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
-  assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
+  if (!FIREFOX_LEGACY_PROXY) {
+    assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
+    assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
+  }
 
   const error = new Error('record enumeration');
-  assert.throws(() => new URLSearchParams(new Proxy({}, {
+  if (!FIREFOX_LEGACY_PROXY) assert.throws(() => new URLSearchParams(new Proxy({}, {
     ownKeys() {
       throw error;
     },

@@ -67,6 +67,10 @@ const SAFARI_14 = !SAFARI_14_0 && /Version\/14(?:\.\d+)* Safari\/|(?:iPad|iPhone
 // Native Safari on iOS 14.3-14.4 does not merge converted record keys; fixed in iOS 14.5.
 // https://bugs.webkit.org/show_bug.cgi?id=217612
 const SAFARI_RECORD_COLLISIONS = /(?:iPad|iPhone|iPod).*OS 14_[34](?:_| )/.test(GLOBAL.navigator?.userAgent);
+const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 25-32 proxies call the legacy `getOwnPropertyNames` trap instead of `ownKeys`; fixed in Firefox 33.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
+const FIREFOX_LEGACY_PROXY = FIREFOX_VERSION >= 25 && FIREFOX_VERSION < 33;
 
 // Deno 1.2.0-1.11.1 rejects custom inner iterables; fixed in 1.11.2.
 // https://github.com/denoland/deno/pull/11005
@@ -80,7 +84,6 @@ const NODE_SEQUENCE_EARLY = !DENO_VERSION && (NODE_VERSION >= 1817 && NODE_VERSI
 // Chrome 67-76 ignores elements appended during conversion; fixed in Chrome 77.
 // https://crbug.com/977305
 const CHROMIUM_SEQUENCE_GROWTH = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 77;
-const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Firefox 57-73 throws a DOMException named TypeError; fixed in Firefox 74.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1609866
 const FIREFOX_SEQUENCE_DOM_EXCEPTION = FIREFOX_VERSION >= 57 && FIREFOX_VERSION < 74;
@@ -650,13 +653,13 @@ if (typeof Proxy == 'function') QUnit.test('URLSearchParams record proxy traps',
       return getPrototypeOf(object);
     },
   });
-  assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
-  if (!DENO_OLD_RECORD) {
+  if (!FIREFOX_LEGACY_PROXY) assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
+  if (!DENO_OLD_RECORD && !FIREFOX_LEGACY_PROXY) {
     assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
   }
 
   const error = new Error('record enumeration');
-  assert.throws(() => new URLSearchParams(new Proxy({}, {
+  if (!FIREFOX_LEGACY_PROXY) assert.throws(() => new URLSearchParams(new Proxy({}, {
     ownKeys() {
       throw error;
     },
