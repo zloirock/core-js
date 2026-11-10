@@ -2170,6 +2170,7 @@ if (GLOBAL.navigator?.sendBeacon) QUnit.test('URLSearchParams with sendBeacon, r
 
 const TEST_SERVER = GLOBAL.TEST_SERVER || (karma ? '/core-js-echo' : undefined);
 if (TEST_SERVER) {
+  // QUnit 3 defaults to 3 seconds; network tests need the same 10s limit as timeLimitedPromise.
   const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded;charset=utf-8';
   const body = () => new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
   const expectedBody = 'a=1&a=2&space=hello+world&unicode=%D0%B0';
@@ -2180,6 +2181,7 @@ if (TEST_SERVER) {
   };
 
   if (typeof fetch == 'function') QUnit.test('URLSearchParams with fetch', assert => {
+    assert.timeout?.(10000);
     return timeLimitedPromise(10000, Promise.all([undefined, 'application/custom'].map(contentType => {
       return fetch(TEST_SERVER, {
         method: 'POST', body: body(), headers: contentType ? { 'Content-Type': contentType } : {},
@@ -2190,6 +2192,7 @@ if (TEST_SERVER) {
   });
 
   if (typeof fetch == 'function' && typeof Request == 'function') QUnit.test('URLSearchParams with fetch, Request input', assert => {
+    assert.timeout?.(10000);
     const request = new Request(TEST_SERVER, { method: 'POST', body: body(), headers: { 'Content-Type': 'application/custom' } });
     return timeLimitedPromise(10000, fetch(request).then(response => response.json()).then(result => {
       checkEcho(assert, result, 'application/custom');
@@ -2197,6 +2200,7 @@ if (TEST_SERVER) {
   });
 
   if (typeof fetch == 'function' && typeof GLOBAL.AbortController == 'function') QUnit.test('URLSearchParams with fetch, signal', assert => {
+    assert.timeout?.(10000);
     const subscriptions = value => {
       const { controller, calls } = createTrackedSignal();
       const { signal } = controller;
@@ -2211,6 +2215,7 @@ if (TEST_SERVER) {
   });
 
   if (typeof fetch == 'function' && DESCRIPTORS) QUnit.test('URLSearchParams with fetch, dictionary conversion', assert => {
+    assert.timeout?.(10000);
     const params = new URLSearchParams('a=1');
     let calls = 0;
     const init = defineProperty({ body: params }, 'method', { get() {
@@ -2234,6 +2239,7 @@ if (TEST_SERVER) {
     });
 
     QUnit.test('URLSearchParams with XMLHttpRequest', assert => {
+      assert.timeout?.(10000);
       const cases = [
         [undefined, FORM_CONTENT_TYPE],
         ['application/custom', 'application/custom'],
@@ -2257,6 +2263,7 @@ if (TEST_SERVER) {
 
     // Safari 14.1 stringifies URLSearchParams; fixed in 15.1 (WebKit #227477).
     QUnit[SAFARI_14 ? 'skip' : 'test']('URLSearchParams with XMLHttpRequest, internal serialization', assert => {
+      assert.timeout?.(10000);
       const xhr = new XMLHttpRequest();
       const params = new URLSearchParams('a=1');
       params.toString = () => { throw new Error('must not call toString'); };
@@ -2271,6 +2278,7 @@ if (TEST_SERVER) {
     });
 
     QUnit.test('URLSearchParams with XMLHttpRequest, reopening and reentrancy', assert => {
+      assert.timeout?.(10000);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', TEST_SERVER);
       xhr.setRequestHeader('Content-Type', 'application/custom');
@@ -2292,6 +2300,7 @@ if (TEST_SERVER) {
     });
 
     QUnit.test('URLSearchParams with XMLHttpRequest, GET and header conversion', assert => {
+      assert.timeout?.(10000);
       const xhr = new XMLHttpRequest();
       let conversions = 0;
       xhr.open('POST', TEST_SERVER);
@@ -2313,6 +2322,7 @@ if (TEST_SERVER) {
     // IE11 and Firefox 39-43 discard the previous request after an invalid open().
     // Firefox 44 preserves it; https://xhr.spec.whatwg.org/#the-open()-method
     QUnit[IE_XHR || FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44 ? 'skip' : 'test']('URLSearchParams with XMLHttpRequest, failed open', assert => {
+      assert.timeout?.(10000);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', TEST_SERVER);
       xhr.setRequestHeader('Content-Type', 'application/custom');
@@ -2323,6 +2333,7 @@ if (TEST_SERVER) {
     });
 
     QUnit.test('URLSearchParams with XMLHttpRequest, open argument conversion', assert => {
+      assert.timeout?.(10000);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', TEST_SERVER);
       xhr.setRequestHeader('Content-Type', 'application/custom');
@@ -2343,6 +2354,7 @@ if (TEST_SERVER) {
     // Safari 14.1 has the same limitation; Safari 15.1 passes (WebKit #227477).
     const BEACON_BODY_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 88 || SAFARI_14;
     if (GLOBAL.navigator?.sendBeacon) QUnit[BEACON_BODY_BUG ? 'skip' : 'test']('URLSearchParams with sendBeacon', assert => {
+      assert.timeout?.(10000);
       const id = `${ Math.random() }-${ Date.now() }`;
       const deadline = Date.now() + 10000;
       const url = `${ TEST_SERVER }?beacon=${ id }`;
