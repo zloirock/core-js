@@ -37,6 +37,23 @@ const NODE_DELETE_BOUND = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION
 // Regression introduced by https://github.com/nodejs/node/pull/62266
 const NODE_DELETE_VALUE = !DENO_VERSION && (NODE_VERSION >= 2416 && NODE_VERSION < 2500 || NODE_VERSION >= 2601);
 
+// Native construction is used in Node 18.18+ (18.x) and 20.2+; it validates pair lengths too early.
+// https://github.com/nodejs/node/pull/47190
+const NODE_SEQUENCE_EARLY = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION < 1900 || NODE_VERSION >= 2002);
+// Deno 2.8.0-2.9.7 copies inner iterables before conversion and validates each pair too early.
+// Regression introduced by https://github.com/denoland/deno/pull/34119
+const DENO_SEQUENCE_COPY = DENO_VERSION >= 208;
+const safariVersion = /Version\/(\d+)/.exec(GLOBAL.navigator?.userAgent)
+  || /(?:iPad|iPhone|iPod).*OS (\d+)_/.exec(GLOBAL.navigator?.userAgent);
+const SAFARI_VERSION = +(safariVersion?.[1] || 0);
+const bunVersion = GLOBAL.process?.versions?.bun?.split('.') || [];
+const BUN_VERSION = bunVersion.length ? bunVersion[0] * 1e6 + bunVersion[1] * 1e3 + +bunVersion[2] : 0;
+// Native Node, Bun 1.0.31-1.4.4 and Safari 17.6-26.6.2 close iterators on conversion errors.
+// Current Web IDL does not close them; changing this is discussed in:
+// https://github.com/whatwg/webidl/issues/895
+// https://github.com/whatwg/webidl/pull/1662
+const SEQUENCE_ITERATOR_CLOSE = NODE_SEQUENCE_EARLY || BUN_VERSION >= 1000031 || SAFARI_VERSION >= 17;
+
 QUnit.test('URLSearchParams', assert => {
   assert.isFunction(URLSearchParams);
   assert.arity(URLSearchParams, 0);
@@ -210,6 +227,166 @@ QUnit.test('URLSearchParams', assert => {
   assert.throws(() => {
     new URLSearchParams([createIterable([createIterable([1])])]);
   }, 'sequence elements must be pairs #4');
+});
+
+QUnit.test('URLSearchParams sequence element conversion order', assert => {
+  for (const length of [0, 1, 2, 3, 4]) {
+    const log = [];
+    const expected = [];
+    let index = 0;
+    let returnCalls = 0;
+    const pair = createIterable([], {
+      next() {
+        const current = index++;
+        log.push(`next ${ current }`);
+        return {
+          done: current === length,
+          value: {
+            toString() {
+              log.push(`string ${ current }`);
+              return String(current);
+            },
+          },
+        };
+      },
+      return() {
+        returnCalls++;
+        return {};
+      },
+    });
+    if (length === 2) assert.same(String(new URLSearchParams([pair])), '0=1', 'constructs a pair');
+    else assert.throws(() => new URLSearchParams([pair]), TypeError, `rejects length ${ length }`);
+    for (let i = 0; i < length; i++) expected.push(`next ${ i }`, `string ${ i }`);
+    expected.push(`next ${ length }`);
+    if (!DENO_SEQUENCE_COPY || length === 0) assert.arrayEqual(log, expected, `converts each element before advancing, length ${ length }`);
+    assert.same(returnCalls, 0, 'exhausts the inner sequence without closing it');
+  }
+});
+
+QUnit.test('URLSearchParams sequence conversion before pair validation', assert => {
+  for (const length of [0, 1, 3]) {
+    const log = [];
+    const first = [];
+    const expected = [];
+    let returnCalls = 0;
+    for (let i = 0; i < length; i++) {
+      first.push({
+        toString() {
+          log.push(i);
+          return String(i);
+        },
+      });
+      expected.push(i);
+    }
+    const second = [{
+      toString() {
+        log.push('later');
+        return 'key';
+      },
+    }, 'value'];
+    const init = createIterable([createIterable(first), createIterable(second)], {
+      return() {
+        returnCalls++;
+        return {};
+      },
+    });
+    assert.throws(() => new URLSearchParams(init), TypeError, 'rejects a malformed pair');
+    expected.push('later');
+    if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY)) assert.arrayEqual(log, expected, 'converts later pairs before checking lengths');
+    if (!NODE_SEQUENCE_EARLY) assert.same(returnCalls, 0, 'exhausts the outer sequence without closing it');
+  }
+
+  const error = new Error('conversion');
+  let calls = 0;
+  const later = {
+    toString() {
+      calls++;
+      throw error;
+    },
+  };
+  if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY)) {
+    assert.throws(() => new URLSearchParams([[], [later, 'value']]), error, 'conversion error precedes pair length validation');
+    assert.same(calls, 1, 'converts a later pair even after an empty pair');
+  }
+});
+
+QUnit.test('URLSearchParams sequence array element conversion', assert => {
+  for (const length of [1, 2, 3]) {
+    const pair = [];
+    const log = [];
+    const expected = [];
+    for (let i = 0; i < length; i++) {
+      pair.push({
+        toString() {
+          log.push(i);
+          return String(i);
+        },
+      });
+      expected.push(i);
+    }
+    if (length === 2) assert.same(String(new URLSearchParams([pair])), '0=1', 'constructs an array pair');
+    else assert.throws(() => new URLSearchParams([pair]), TypeError, 'rejects a malformed array pair');
+    if (!NODE_SEQUENCE_EARLY || length === 2) assert.arrayEqual(log, expected, 'converts all array elements before checking the length');
+  }
+
+  const pair = [{
+    toString() {
+      pair[1] = 'changed';
+      return 'key';
+    },
+  }, 'old'];
+  if (!DENO_SEQUENCE_COPY) assert.same(String(new URLSearchParams([pair])), 'key=changed', 'reads the next element after converting the previous one');
+  let calls = 0;
+  const extra = {
+    toString() {
+      calls++;
+      return 'extra';
+    },
+  };
+  const growing = [{
+    toString() {
+      growing.push(extra);
+      return 'key';
+    },
+  }, 'value'];
+  if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY)) {
+    assert.throws(() => new URLSearchParams([growing]), TypeError, 'observes elements appended during conversion');
+    assert.same(calls, 1, 'converts an appended element before checking the length');
+  }
+});
+
+QUnit.test('URLSearchParams sequence conversion errors', assert => {
+  for (const stage of ['next', 'done', 'value', 'string']) {
+    if (!DESCRIPTORS && (stage === 'done' || stage === 'value')) continue;
+    const error = new Error(stage);
+    let nextCalls = 0;
+    let innerReturns = 0;
+    let outerReturns = 0;
+    const fail = () => { throw error; };
+    const pair = createIterable([], {
+      next() {
+        nextCalls++;
+        if (stage === 'next') throw error;
+        const step = { done: nextCalls > 2, value: stage === 'string' ? { toString: fail } : 'value' };
+        if (stage === 'done' || stage === 'value') defineProperty(step, stage, { get: fail });
+        return step;
+      },
+      return() {
+        innerReturns++;
+        return {};
+      },
+    });
+    const init = createIterable([pair], {
+      return() {
+        outerReturns++;
+        return {};
+      },
+    });
+    assert.throws(() => new URLSearchParams(init), error, `propagates ${ stage } error`);
+    if (!DENO_SEQUENCE_COPY || stage !== 'string') assert.same(nextCalls, 1, 'does not advance after an error');
+    if (!SEQUENCE_ITERATOR_CLOSE || stage !== 'string') assert.same(innerReturns, 0, 'does not close the inner iterator');
+    if (!SEQUENCE_ITERATOR_CLOSE) assert.same(outerReturns, 0, 'does not close the outer iterator');
+  }
 });
 
 QUnit.test('URLSearchParams USVString initializers', assert => {

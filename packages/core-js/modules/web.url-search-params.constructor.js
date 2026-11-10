@@ -130,25 +130,31 @@ URLSearchParamsState.prototype = {
   parseObject: function (object) {
     var entries = this.entries;
     var iteratorMethod = getIteratorMethod(object);
-    var iterator, next, step, entryIterator, entryNext, first, second;
+    var index = 0;
+    var iterator, next, step, entryIterator, entryNext, pair;
 
     if (iteratorMethod !== undefined) {
+      var sequence = [];
       iterator = getIterator(object, iteratorMethod);
       next = iterator.next;
       while (!(step = anObject(call(next, iterator))).done) {
+        pair = [];
         entryIterator = getIterator(anObject(step.value));
         entryNext = entryIterator.next;
-        if (
-          (first = anObject(call(entryNext, entryIterator))).done ||
-          (second = anObject(call(entryNext, entryIterator))).done ||
-          !anObject(call(entryNext, entryIterator)).done
-        ) throw new TypeError('Expected sequence with length 2');
-        push(entries, { key: toUSVString(first.value), value: toUSVString(second.value) });
+        while (!(step = anObject(call(entryNext, entryIterator))).done) {
+          push(pair, toUSVString(step.value));
+        }
+        push(sequence, pair);
+      }
+      // Web IDL converts the entire sequence before URLSearchParams checks pair lengths.
+      while (index < sequence.length) {
+        pair = sequence[index++];
+        if (pair.length !== 2) throw new TypeError('Expected sequence with length 2');
+        push(entries, { key: pair[0], value: pair[1] });
       }
     } else {
       var keys = ownKeys(object);
       var record = create(null);
-      var index = 0;
       var key, value, stringKey;
       while (keys.length > index) {
         key = keys[index++];
