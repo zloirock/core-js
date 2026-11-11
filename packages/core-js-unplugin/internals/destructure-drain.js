@@ -1960,11 +1960,12 @@ export default function createDestructureDrains(ctx) {
       && jobs[0].seqPrefix.every((node, index) => spellsSameSource(rhsPrefix[index], node));
     const rhsExprs = !wholeRhsLift && jobs[0].seqPrefix?.length && rhsPrefix.length > 0
       && (Number.isInteger(peeledRhs.start) || rebuiltSeqPrefix) ? [...rhsPrefix, rhsTail] : null;
-    // a hop ANCHOR re-emits the receiver as its extraction's own RHS, and inside a SEQUENCE
-    // slot there is no statement ahead of it to lift into: the prefix rides that RHS, where the
-    // source wrote it (`({ customW } = (c++, _Map))`)
+    // An anchor inside a sequence carries its discarded source effects on its RHS.
+    // That owns the getter after a prefix too; the later rescue must not replay either.
     const anchorRhsPrefix = inSequence && !wholeRhsLift && rhsExprs && jobs.length === 1
-      && jobs[0].prop?.value?.type === 'ObjectPattern' ? rhsExprs.slice(0, -1) : null;
+      && jobs[0].prop?.value?.type === 'ObjectPattern'
+      ? planDiscardedInit(assignment.right, patternFrame(jobs[0].metaPath), null,
+        { dropReceiver: pristineInitFacts.get(assignment)?.dropReceiver }).effects : null;
     const frame = patternFrame(jobs[0].metaPath);
     // a SOLE flat extraction that READS the receiver carries the source's prefix INSIDE its dispatch
     // argument (`at = _atMaybeArray((eff(), arr))`), the declaration hosts' shape and the other leg's:
@@ -1986,13 +1987,15 @@ export default function createDestructureDrains(ctx) {
         // Preserve that source proof while asking the common plan for its live effects.
         : liftedPrefixStatements(planDiscardedInit(assignment.right, frame, null,
           { dropReceiver: pristineInitFacts.get(assignment)?.dropReceiver }).effects, frame))
-      // a FULLY consumed FLAT pattern discards its receiver, and what stays of it is ONE expression -
+      // A fully consumed pattern without a receiver reader discards its source, whose
+      // getter can still own the whole expression, including the lifted prefix.
+      // A flat pattern's remaining effects stay in one expression -
       // the shape the other leg's defer-SE route prints there (`eff(), eff2(); d = _WeakSet;`); a
       // SURVIVING residual and a NESTED claim take the per-element prefix both legs print for the
       // nested flatten (`f(); g(); m = _Array$from;`). a receiver READ the tail performs replays
       // with the whole right, which the rescue canon answers with the right itself - unless an
       // extraction reads the receiver again, which performs that read where the source did
-      : rhsExprs ? (assignment.left.properties?.length === 0 && jobs.every(job => !job.chain?.length && !job.readsReceiver)
+      : rhsExprs ? (assignment.left.properties?.length === 0 && jobs.every(job => !job.readsReceiver)
         ? discardRescueNodesWithReads({ node: assignment.right, ...frame })[0] === assignment.right
           ? [expressionStatement(assignment.right)] : liftedPrefixStatements(rhsExprs.slice(0, -1), frame)
         : observablePrefixElements(rhsExprs.slice(0, -1), frame).map(expr => expressionStatement(expr))) : [];
@@ -2028,9 +2031,8 @@ export default function createDestructureDrains(ctx) {
       // value is discarded here, so this channel queries that live value, not a whole-read
       // proof captured before the inner assignment was consumed.
       const rhsFrame = patternFrame(jobs[0].metaPath);
-      const owesInit = !memoDecl.length && !stmtSeqPrefix.length && !discardedRead && !probeLead
-        && ((!inSequence && jobs.every(job => !job.readsReceiver && job.prop?.value?.type !== 'ObjectPattern'))
-          || !mayHaveSideEffects(assignment.right, rhsFrame));
+      const owesInit = !memoDecl.length && !stmtSeqPrefix.length && !anchorRhsPrefix && !discardedRead && !probeLead
+        && jobs.every(job => !job.readsReceiver);
       const owed = owesInit ? planDiscardedInit(assignment.right, rhsFrame, null,
         { dropReceiver: pristineInitFacts.get(assignment)?.dropReceiver }) : null;
       // Source comma expressions keep one statement and their span. A sequence minted by

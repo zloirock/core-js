@@ -2610,8 +2610,9 @@ export function renderRetainedObjectCapture(plan, {
   // ... and an init nothing reads and nothing coerces is owed only what discarding it runs - the discard
   // rescue the statement host lifts: its effects and a read only a getter answers, of a selection its left
   // decides the live left's (a TS wrapper leaves with the value it wraps)
-  // ... and so is a declaration's coercion of it: a proven receiver never throws there, and the coercion
-  // binds nothing - the reads re-read the reused name - so what discarding it runs leads the next declarator
+  // A surviving pattern can still lose children to later claims. Keep its source
+  // initializer so those claims recognize and place the prefix before their bindings;
+  // a minted sequence would look like a completed receiver render and escape that lift.
   const coercedOnly = !plan.assignment && coerceReuse && declarations.length > 1;
   const discarded = (plan.assignment ? !receiverRead : coercedOnly) && plan.provenReceiver && ctx
     ? discardRescueNodesWithReads({ node: unwrapRuntimeExpr(plan.init), ...ctx }).map(embed) : null;
@@ -2619,7 +2620,8 @@ export function renderRetainedObjectCapture(plan, {
     declarations.shift();
     const [{ id, init: next }] = declarations;
     const spelled = next.type === 'SequenceExpression' ? next.expressions : [next];
-    if (discarded.length) declarations[0] = variableDeclarator(id, sequenceExpression([...discarded, ...spelled]));
+    if (discarded.length) declarations[0] = variableDeclarator(id, hostSlotNode(id)?.type === 'Identifier'
+      ? sequenceExpression([...discarded, ...spelled]) : init);
   }
   // A fully consumed assignment still rejects a nullish source before writing its first target.
   const unreadInit = !receiverRead && !plan.provenReceiver ? assignmentExpression('=', objectPattern([]), init) : init;

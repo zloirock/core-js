@@ -1857,7 +1857,7 @@ export default function createDestructureEmitter({
     }
     const seFree = !peeled.sequencePrefix.length
       && !peelNestedSequenceExpressions(assignPath.node.right).prefix.length
-      && !mayHaveSideEffects(assignPath.node.right);
+      && !mayHaveSideEffects(assignPath.node.right) && !plan.discardSe?.length;
     // zero extractions imply zero consumed props, so the prune emits no rest sentinels -
     // a rest element is harmless in the anchored single-statement shape
     const singleStatement = seFree
@@ -1885,6 +1885,10 @@ export default function createDestructureEmitter({
     // `(<inner'> = <ctorBinding>)` - same rebuild as the declarator render
     if (plan.anchor && plan.pattern.properties.length > 0) {
       applyAnchoredAssignmentRebuild(plan, assignPath);
+      // A rebuilt binding store stays inside its anchor; unowned reads can lift.
+      if (!plan.guarded && !consumedInitSink(assignPath.node.right).writes) {
+        liftSEPrefixSwap(t, assignPath.node, 'right', exprStmt, adapter);
+      }
     }
     if (plan.pattern.properties.length === 0 && !plan.restKeepsLevel) {
       const remains = emptiedCascadeRemains(assignPath, sourceProbe);
@@ -1971,19 +1975,17 @@ export default function createDestructureEmitter({
 
   // anchored residual rebuild for an assignment host: swap the LHS to the (pruned) inner
   // pattern and the RHS to the ctor binding / raw member; the detached proxy read is
-  // skip-seeded so it doesn't earn a dead import. an SE-bearing replaced tail (a chain
-  // assignment - the prefix lift has already peeled plain sequence effects) replays WHOLE
-  // ahead of the anchor read, exactly once; rebuilding from the dropped NODE itself keeps
-  // the replay alive for deferred-drain clones, whose re-planned harvest is empty (clones
-  // are traversed on insertion, earning their own substitutions). A stored guard already
-  // reads that whole value in its identity narrow and must not replay it separately.
+  // skip-seeded so it doesn't earn a dead import. Ask the discarded-init plan of the
+  // replaced node, including quiet getter reads: deferred clones can have no harvest.
+  // A stored guard already reads that value and must not replay it separately.
   function applyAnchoredAssignmentRebuild(plan, assignPath) {
     anchoredRebuiltAssignments.add(assignPath.node);
     const oldRight = assignPath.node.right;
     assignPath.node.left = plan.pattern;
-    assignPath.node.right = !plan.guarded && mayHaveSideEffects(oldRight)
-      ? t.sequenceExpression([t.cloneNode(oldRight, true), anchorInitNode(plan, assignPath, oldRight)])
-      : anchorInitNode(plan, assignPath, oldRight);
+    const effects = plan.guarded ? [] : planDiscardedInit(oldRight, aliasCtxFromPath(assignPath)).effects;
+    const receiver = anchorInitNode(plan, assignPath, oldRight);
+    assignPath.node.right = effects.length
+      ? t.sequenceExpression([...effects.map(node => t.cloneNode(node, true)), receiver]) : receiver;
     t.traverseFast(oldRight, node => { skippedNodes.add(node); });
     // Host-exit rebuilding changes the receiver after its original children ran.
     // Revisit the live residual so its newly exposed instance/static slots dispatch.
@@ -2950,13 +2952,17 @@ export default function createDestructureEmitter({
       convertForInitSESink(declarator, forInitSE, extracted, bindings);
       return !!prop && planConsumedProp(prop);
     }
-    // multi-decl FULL consume splits the declaration around the consumed slot so sibling
-    // evaluation order survives (pre-sibling inits with inline SEs must run BEFORE the lifted
-    // SE); the split takes the no-SE case too - it just contributes an empty prefix. a PARTIAL
-    // consume falls through to the statement lift below
+    // Lift at this declarator's slot, after its earlier siblings. A partial consume
+    // keeps its residual beside the extractions; an anchored residual owns its prefix.
     const split = trySplitAroundConsumedDeclarator({
-      declaration, declarator, extractedDeclarators: extracted, willRemoveDeclarator: patternEmpties, declCount, isForInit,
+      declaration,
+      declarator,
+      extractedDeclarators: extracted,
+      willRemoveDeclarator: patternEmpties,
+      declCount,
+      isForInit,
       between: liftedSetup,
+      anchored: !!plan.anchor,
     });
     if (split) {
       bound(split);
@@ -5696,22 +5702,27 @@ export default function createDestructureEmitter({
     });
   }
 
-  // nested-proxy cascade split gate: fires on multi-decl + willRemove + non-for-init.
-  // peels the consumed declarator's SE prefix (empty array when no SE) and delegates
-  // to the shared `splitDeclarationAtSlot`. for-init / single-decl take legacy paths
-  // (loop-header shape / no siblings to reorder)
+  // A cascade's lifted initializer stays after earlier declarators. Fully consumed
+  // slots also lift their discarded setup; a surviving slot gives up only its prefix
+  // and keeps the residual in the common read order. Anchored residuals own their prefix.
+  // A loop header cannot lift statements; a sole declarator has no siblings to cross.
   function trySplitAroundConsumedDeclarator({
-    declaration, declarator, extractedDeclarators, willRemoveDeclarator, declCount, isForInit, between = [],
+    declaration, declarator, extractedDeclarators, willRemoveDeclarator, declCount, isForInit, between = [], anchored = false,
   }) {
-    if (!willRemoveDeclarator || declCount <= 1 || isForInit) return false;
+    if (declCount <= 1 || isForInit || !willRemoveDeclarator && anchored) return false;
     const idx = declaration.node.declarations.indexOf(declarator.node);
     if (idx === -1) return false;
-    // descend a transparent array wrapper so a nested-element SE lifts too - the wrapper dies
-    // with the consumed declarator, so its trailing neighbours and the handed-back setup lift
-    // along; the split drops the declarator outright, so no element swap is needed (unlike the
-    // single-decl lift). non-wrapper inits fall back to the bare top-level prefix
-    const { prefix } = descendArrayWrapperToSE(declarator.node, { liftTrailing: true, includeTrailing: true, between })
-      ?? peelNestedSequenceExpressions(declarator.node.init);
+    const descended = descendArrayWrapperToSE(declarator.node, {
+      liftTrailing: true, includeTrailing: willRemoveDeclarator, between, strip: !willRemoveDeclarator,
+    });
+    const { prefix } = descended
+      ?? { prefix: [...peelNestedSequenceExpressions(declarator.node.init).prefix, ...between] };
+    if (!willRemoveDeclarator) {
+      if (!prefix.length) return false;
+      if (!descended) declarator.node.init = peelNestedSequenceExpressions(declarator.node.init).tail;
+      const after = destructureResidualFirst([], { init: declarator.node.init, scope: declarator.scope, adapter, path: declarator });
+      extractedDeclarators = after ? [declarator.node, ...extractedDeclarators] : [...extractedDeclarators, declarator.node];
+    }
     return splitDeclarationAtSlot({ declaration, idx, sePrefix: prefix, extractedDeclarators });
   }
 
