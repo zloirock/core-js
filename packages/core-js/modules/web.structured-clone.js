@@ -285,6 +285,8 @@ var structuredCloneInternal = function (value, map) {
     case 'WeakMap':
     case 'WeakSet':
     case 'MessagePort':
+    case 'URL':
+    case 'URLSearchParams':
       throwUncloneable(type);
       break;
     case 'Array':

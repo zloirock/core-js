@@ -19,6 +19,8 @@ import WeakMap from 'core-js-pure/es/weak-map';
 import WeakSet from 'core-js-pure/es/weak-set';
 import AggregateError from 'core-js-pure/es/aggregate-error';
 import DOMException from 'core-js-pure/stable/dom-exception';
+import URL from 'core-js-pure/stable/url';
+import URLSearchParams from 'core-js-pure/stable/url-search-params';
 
 const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Firefox 4-6 report an inherited non-configurable accessor as own after deleting the shadowing property; fixed in Firefox 7.
@@ -1229,6 +1231,8 @@ QUnit.module('structuredClone', () => {
       ['global object', GLOBAL],
       ['WeakMap', new WeakMap()],
       ['WeakSet', new WeakSet()],
+      ['URL', new URL('https://example.com/')],
+      ['URLSearchParams', new URLSearchParams('a=1')],
     ];
 
     const event = fromSource('new Event("")');

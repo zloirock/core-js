@@ -21,6 +21,7 @@
 - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
 - Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
 - Fixed lost error messages in the `structuredClone` polyfill in old Firefox
+- Fixed `structuredClone` cloning `URL` and `URLSearchParams` as empty objects instead of throwing a `DataCloneError`: polyfilled instances and native ones in NodeJS <= 20 and Deno <= 2.8
 - Fixed detection of detached WebAssembly buffers in [old V8](https://issues.chromium.org/issues/42209506) without `MessageChannel`, including incorrect `structuredClone` errors in NodeJS 8
 - Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer
 - Fixed `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills losing the source on allocation failure, using species, ignoring changes during length coercion, and accepting non-detachable buffers; `transfer` preserves the original maximum length

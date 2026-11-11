@@ -1198,6 +1198,8 @@ QUnit.module('structuredClone', () => {
       ['global object', GLOBAL],
       ['WeakMap', new WeakMap()],
       ['WeakSet', new WeakSet()],
+      ['URL', new URL('https://example.com/')],
+      ['URLSearchParams', new URLSearchParams('a=1')],
     ];
 
     const event = fromSource('new Event("")');
