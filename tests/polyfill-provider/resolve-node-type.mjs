@@ -8957,6 +8957,16 @@ runBoth('a recovered write of another value costs the binding its constancy',
   check('class-walk: remapInheritedStaticMeta no SE no split point',
     noSE?.receiverEffectCount, undefined);
 
+  const receiver = { type: 'Identifier', name: 'Subclass' };
+  const named = remapInheritedStaticMeta(mockInjector, original, { ...inherited, inheritedReceiver: receiver });
+  check('class-walk: named read retains its receiver before key effects', named.inheritedReadEffects[0], receiver);
+  check('class-walk: named read retains its key effect', named.inheritedReadEffects[1], sideEffect);
+  check('class-walk: named call checks its receiver before the key', named.inheritedCallEffects[0], receiver);
+  check('class-walk: ordinary named call needs no repeated receiver read',
+    remapInheritedStaticMeta(mockInjector, null, { ...inherited, inheritedReceiver: receiver }).inheritedCallEffects, undefined);
+  check('class-walk: a tag cannot use ordinary inherited dispatch',
+    remapInheritedStaticMeta(mockInjector, original, { ...inherited, inheritedTag: true }), null);
+
   // buildSuperStaticMeta: ClassDeclaration with superClass resolved by resolveSuperType
   function fakeResolver(id) { return id?.type === 'Identifier' ? id.name : null; }
   const classWithSuper = {

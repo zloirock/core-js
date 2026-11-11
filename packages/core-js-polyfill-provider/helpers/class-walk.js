@@ -1,4 +1,6 @@
 import { subsume } from './subsumption.js';
+import { hasConstructorEntry, hasOwnStaticDefinition, hasStaticDefinitionKey, namespaceEntryCarriesStatic } from '../index.js';
+import { pureImportSubpath } from './path-normalize.js';
 import { isKnownGlobalName, isSourcedSymbolIteratorMeta } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import { hasRange, nodeRangeContains } from '../resolve-node-type/base.js';
@@ -11,6 +13,9 @@ import {
   FUSED_METHOD_TYPES,
   LET_SCOPE_HOST_TYPES,
   patternSlotTarget,
+  pathOfNode,
+  memberChainKeys,
+  followConstIdentifierInit,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
   STATEMENT_HOST_TYPES,
@@ -20,12 +25,14 @@ import {
   bindingDeclaratorNode,
   bindingPolyfillHint,
   collectFileCensus,
+  containerSlotWritten,
   findVarOwnerDeclaring,
   cleanDestructureAliasWrites,
   definitionTimeSlotOf,
   conditionalEvaluationEdge,
   isDestructurePattern,
   isGuardedAliasingWrite,
+  isMemberAccessNode,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
@@ -38,6 +45,8 @@ import {
   peelIifeReturnTarget,
   propertyKeyName,
   invocationNode,
+  isTaggedTemplateTagPosition,
+  peelParenAndTSParentPath,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
   unwrapRuntimeExpr,
@@ -55,10 +64,14 @@ import {
 // the Symbol.X alias walk below looks its bindings up through that canon's in-flight guard: the
 // adapters run it from inside their own `getBinding`
 import {
+  MAX_KEY_DEPTH,
   globalProxyMemberName,
   resolveObjectName,
   isKnownStaticGlobal,
   isProxyGlobalIdentifierNode,
+  pureEntryTarget,
+  moduleDefaultSource,
+  servedRead,
   withBindingLookupGuard,
 } from '../detect-usage/resolve.js';
 
@@ -1109,13 +1122,20 @@ export function resolveSuperImportName(injector, superMeta) {
 // `receiverEffectCount` travels WITH `sideEffects` - it is the recorded receiver/key split of
 // that very list, and a remap that carries one without the other leaves the emit side splitting
 // the list at an unrecorded point. `chainAssignInsertAt` / `protoCtorReceiverSE` have no
-// counterpart here: the original receiver of an inherited static is `super` / `this`, which can
-// carry neither a chain-assignment nor a buried prototype-ctor sub-receiver
+// counterpart here: the original receiver is `super`, `this` or a stable class identifier,
+// none carrying a chain-assignment or a buried prototype-ctor sub-receiver
 export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) {
-  if (!inheritedMeta) return null;
+  if (!inheritedMeta || inheritedMeta.inheritedTag) return null;
   let remapped = resolveSuperImportName(injector, inheritedMeta);
   if (remapped && originalMeta?.sideEffects?.length) {
     remapped = { ...remapped, sideEffects: originalMeta.sideEffects, receiverEffectCount: originalMeta.receiverEffectCount ?? 0 };
+  }
+  if (remapped?.inheritedReceiver) {
+    const effects = [remapped.inheritedReceiver, ...remapped.sideEffects ?? []];
+    // A named receiver can throw in TDZ before an effectful key. Calls already
+    // evaluate it, but their leading key effects must not run before that first read.
+    remapped = { ...remapped, inheritedReadEffects: effects,
+      inheritedCallEffects: remapped.sideEffects?.length ? effects : undefined };
   }
   if (remapped && originalMeta?.symbolSourced) remapped = { ...remapped, symbolSourced: true };
   return remapped;
@@ -1131,8 +1151,8 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType, staticIsM
   const superClass = peelProxyGlobalObject(classNode.superClass, staticIsMutated);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
-  // `inheritedStatic` marks this as a SYNTHETIC static meta for `super.X()` / `this.X()` in a static
-  // method - the key is assumed static against the super class. when resolution finds it is actually
+  // `inheritedStatic` marks a synthetic lookup through super, static this or a class identifier.
+  // The key belongs to the base's static surface. When resolution finds it is actually
   // an INSTANCE-only member (`super.at()` -> Array#at), the consumer bails rather than inject the
   // instance polyfill (over-injection); a real inherited static (`super.from()`) resolves and injects
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static', inheritedStatic: true } : null;
@@ -1279,7 +1299,7 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
 // - `getInjector`: lazy accessor for the per-file ImportInjector (factory may run before pre())
 // caches on the closure - call once per file
 export function createClassHelpers({
-  t, adapter, resolveKey, getInjector = null, attachUnionExtras = null, containerReceiverName = null,
+  t, adapter, resolveKey, getInjector = null, attachUnionExtras = null, containerReceiverName = null, resolvePure = null,
 }) {
   function isClassMember(node) {
     return t.isClassMethod(node) || t.isClassPrivateMethod(node)
@@ -1364,8 +1384,8 @@ export function createClassHelpers({
   // `seen` is shared with `resolveBindingToGlobalName` so namespace-cycle detection survives.
   // `start` is the identifier read first; each hop's name is read at the value naming it
   function resolveSuperClassName(start, scope, seen = new Set(), path = null, classAnchor = null) {
-    let { name } = start;
-    let read = start;
+    let { name } = start,
+        read = start;
     while (!seen.has(name)) {
       seen.add(name);
       // polyfillHint wins: `handleDestructuredProperty` rewrites destructure-with-default
@@ -1444,6 +1464,11 @@ export function createClassHelpers({
       // gap: `super.race` dropped `promise.race` under a shadow). mirrors the canonical resolver's
       // `initScope` hop-threading in detect-usage/resolve.js
       const declScope = aliasDeclScope(binding, scope);
+      if (decl.id?.type === 'ArrayPattern') {
+        const followed = followConstIdentifierInit({ node: read, ctx: { scope, adapter, path: classAnchor ?? path } });
+        return followed.node === read ? null
+          : resolveBindingToGlobalName(followed.node, followed.ctx.scope, seen, captureAnchor, captureAnchor);
+      }
       // ObjectPattern: `const { Promise: MyP } = R` -> `const MyP = R.Promise`. unplugin
       // keeps raw destructure; babel-plugin already rewrites it
       if (decl.id?.type === 'ObjectPattern') {
@@ -1529,7 +1554,8 @@ export function createClassHelpers({
     if (!propName) return null;
     const outer = resolveToContainer(memberNode.object, scope, seen, classAnchor);
     if (!outer) return null;
-    return findNamespaceMemberValue(outer, propName, scope, adapter, resolveKey);
+    const at = pathOfNode(classAnchor, outer);
+    return findNamespaceMemberValue(outer, propName, at?.scope ?? scope, adapter, resolveKey);
   }
 
   // any expression -> namespace container that `findNamespaceMemberValue` can index by name.
@@ -1564,43 +1590,188 @@ export function createClassHelpers({
     if (proxyKey !== null) return proxyKey;
     // namespace-member: feed leaf value back through self so deeper chains compose
     const value = resolveMemberAccess(peeled, scope, seen, classAnchor);
-    return value ? resolveBindingToGlobalName(value, scope, seen, path, classAnchor) : null;
+    const at = value && pathOfNode(classAnchor ?? path, value);
+    return value ? resolveBindingToGlobalName(value, at?.scope ?? scope, seen, at ?? path, at ?? classAnchor) : null;
   }
 
-  // `super.X` and `this.X`-in-static both look up `<SuperClass>.X` on the parent's static
+  // A named class uses the same captured heritage as this/super. Only a stable
+  // identifier is admitted here; arbitrary receiver expressions still own their reads.
+  // Global only injects: writes can keep a possible base without proving a pure rewrite.
+  function namedClassReceiver(path, key = null, object = path.node.object) {
+    const receiver = unwrapRuntimeExpr(object);
+    if (receiver?.type !== 'Identifier') return null;
+    key ??= resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter, path });
+    if (!hasStaticDefinitionKey(key)) return null;
+    if (adapter.method !== 'usage-global'
+      && containerSlotWritten(receiver, [key], { scope: path.scope, adapter, path }, path.node, inheritedCallPreserves)) return null;
+    const value = resolveToContainer(receiver, path.scope, new Set(), path);
+    return value?.type === 'ClassDeclaration' || value?.type === 'ClassExpression' ? value : null;
+  }
+
+  // A user class between the read and a built-in can shadow the inherited key. Ask
+  // the class-slot canon at the read position, including static initialization order.
+  function classStaticIsShadowed(classNode, key, path, callProof = false) {
+    const needsValue = callProof || adapter.method !== 'usage-global';
+    if (classNode.decorators?.length && needsValue) return true;
+    const anchor = pathOfNode(path, classNode);
+    const scope = anchor?.scope ?? path.scope;
+    const holder = anchor?.parentPath?.node;
+    const owner = holder?.type === 'VariableDeclarator' ? holder : classNode;
+    const own = classStaticSlotMember(classNode, key, {
+      readNode: path.node,
+      keyOf: member => privateNameSpelling(member.key) ?? resolveKey({
+        node: member.key, computed: member.computed, scope, adapter, path: anchor,
+      }),
+    });
+    return (needsValue ? own !== null : !!own)
+      || !!(needsValue && owner.id && adapter.isWrittenContainerSlot?.(
+        owner.id.name, [key], owner, path, path.node, inheritedCallPreserves));
+  }
+
+  // The extends expression captures its value at the class definition. A local
+  // superclass is followed only through unshadowed slots, within the common alias-depth budget.
+  function inheritedBaseName(classNode, key, path, onBase, callProof = false) {
+    const seen = new Set();
+    while (classNode && !seen.has(classNode) && seen.size < MAX_KEY_DEPTH) {
+      seen.add(classNode);
+      const anchor = pathOfNode(path, classNode) ?? path;
+      const { scope } = anchor;
+      const superClass = peelProxyGlobalObject(classNode.superClass, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
+      let base;
+      if (superTypeCache.has(classNode)) base = superTypeCache.get(classNode);
+      else {
+        base = resolveBindingToGlobalName(superClass, scope, new Set(), anchor, anchor);
+        superTypeCache.set(classNode, base);
+      }
+      onBase?.(superClass, { scope, adapter, path: anchor }, base, classNode);
+      if (base) return base;
+      // A base captured through a container alias still observes writes to that
+      // class's static slots. Resolve the recorded owner at the alias's own scope.
+      const followed = followConstIdentifierInit({ node: superClass, ctx: { scope, adapter, path: anchor } });
+      const spine = memberChainKeys(followed.node, member => resolveKey({
+        node: member.property, computed: member.computed, ...followed.ctx,
+      }));
+      if ((callProof || adapter.method !== 'usage-global')
+        && containerSlotWritten(spine.root, [...spine.keys, key], followed.ctx, path.node, inheritedCallPreserves)) return null;
+      const parent = resolveToContainer(superClass, scope, new Set(), anchor);
+      if ((parent?.type !== 'ClassDeclaration' && parent?.type !== 'ClassExpression')
+        || classStaticIsShadowed(parent, key, path, callProof)) return null;
+      classNode = parent;
+    }
+    return null;
+  }
+
+  // A static already carried by the captured pure base stays an inherited read.
+  // Ask the entry's data, not merely whether some import for that constructor exists.
+  function inheritedStaticCarried(node, ctx, name, key) {
+    if (!hasConstructorEntry(name)) return false;
+    let followed = followConstIdentifierInit({ node, ctx });
+    const seen = new Set();
+    while (isMemberAccessNode(followed.node) && !seen.has(followed.node) && seen.size < MAX_KEY_DEPTH) {
+      seen.add(followed.node);
+      const spine = memberChainKeys(followed.node, member => resolveKey({
+        node: member.property, computed: member.computed, ...followed.ctx,
+      }));
+      if (containerSlotWritten(spine.root, spine.keys, followed.ctx, followed.node, inheritedCallPreserves)) return false;
+      const value = resolveMemberAccess(followed.node, followed.ctx.scope, new Set(), followed.ctx.path);
+      if (!value) break;
+      const at = pathOfNode(followed.ctx.path, value);
+      // Source slots use their own scope; freshly emitted imports have no indexed path yet.
+      followed = followConstIdentifierInit({ node: value,
+        ctx: { ...followed.ctx, scope: at?.scope ?? followed.ctx.scope, path: at ?? followed.ctx.path } });
+    }
+    const source = moduleDefaultSource({ node: followed.node, ...followed.ctx });
+    const imported = source && pureImportSubpath(source, adapter.packages);
+    if (imported) return namespaceEntryCarriesStatic(imported, name, key);
+    if (!servedRead(followed.node, followed.ctx)?.substituted) return false;
+    const entry = resolvePure?.({ kind: 'global', name }, followed.ctx.path, { node: followed.node, path: followed.ctx.path })?.entry;
+    return !!entry && namespaceEntryCarriesStatic(`${ getInjector().mode }/${ entry }`, name, key);
+  }
+
+  // Only the current proof chain is retained; cyclic captures remain unknown.
+  const activeInheritedCalls = new Set();
+  // A captured inherited builtin invoked with a class receiver has the same escape
+  // policy as a direct builtin call. Resolve at the capture, never from its spelling.
+  function inheritedCallPreserves(escape, pairing, path) {
+    if (!path || !pairing || pairing.thisArg !== escape?.argument || !escape.call
+      || activeInheritedCalls.has(escape.call) || activeInheritedCalls.size >= MAX_KEY_DEPTH) return false;
+    const callPath = pathOfNode(path, escape.call);
+    if (!callPath) return false;
+    activeInheritedCalls.add(escape.call);
+    try {
+      const followed = followConstIdentifierInit({ node: pairing.callee, ctx: { scope: callPath.scope, adapter, path: callPath } });
+      const injector = getInjector?.();
+      const imported = followed.node?.type === 'Identifier' && injector?.getPureImport(followed.node.name);
+      if (imported && (injector.isOwnPassPureBinding(followed.node.name)
+        || adapter.getBinding({ ...followed.ctx, name: followed.node.name })?.importSource === imported.source)) {
+        // An earlier emission may have replaced the capture with its pure import.
+        const target = pureEntryTarget(imported.entry);
+        return !!target && hasOwnStaticDefinition(target.global, target.member);
+      }
+      const memberPath = pathOfNode(callPath, followed.node);
+      if (!memberPath || !isInheritedStaticLookup(memberPath)) return false;
+      const key = resolveKey({ node: memberPath.node.property, computed: memberPath.node.computed,
+        scope: memberPath.scope, adapter, path: memberPath });
+      if (adapter.method === 'usage-global'
+        && containerSlotWritten(memberPath.node.object, [key], { scope: memberPath.scope, adapter, path: memberPath },
+          memberPath.node, inheritedCallPreserves)) return false;
+      const meta = resolveSuperImportName(getInjector?.(), resolveStaticInheritedMember(memberPath, key, memberPath.node.object, true));
+      return !!meta && hasOwnStaticDefinition(meta.object, meta.key)
+        && !adapter.isMutatedStaticSlot?.(meta.object, meta.key, { node: memberPath.node, path: memberPath });
+    } finally {
+      activeInheritedCalls.delete(escape.call);
+    }
+  }
+
+  // `super.X`, static `this.X`, and a stable class name look up the captured base's static
   // surface. provider's `resolveKey` (not staticKeyName) so `super[CONST]` / aliased Symbol.X
   // still resolve
   // `explicitKey` lets a caller resolve `super.<key>` from a path that is INSIDE the static method
   // but is not the `super.<key>` member itself (e.g. the optional-chain deopt check anchors on the
   // trailing instance member's path, which shares the enclosing class + scope). when omitted the key
   // is read off `path.node.property` as usual
-  function resolveStaticInheritedMember(path, explicitKey = null) {
+  // A call proof requires an intact method even in global mode, where injection may keep possible owners.
+  function resolveStaticInheritedMember(path, explicitKey = null, receiver = path.node.object, callProof = false) {
     const key = explicitKey
       ?? resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter });
     if (!key) return null;
-    const info = findEnclosingClassMember(path);
-    if (!info?.isStatic) return null;
+    const namedClass = namedClassReceiver(path, key, receiver);
+    const info = namedClass ? { classNode: namedClass, isStatic: true } : findEnclosingClassMember(path);
+    if (!info?.isStatic || (namedClass && classStaticIsShadowed(namedClass, key, path, callProof))) return null;
     // anchor the reassignment proof at the class node (where `extends` captures the base), not the
     // method-nested super site. the extends clause is the sole evaluation point of the superclass
     // alias, so a reassignment after capture - even one textually before the super call inside a
     // method - cannot change super.X resolution. both modes anchor here: anchoring at the super
     // site instead would wrongly bail on an in-method pre-super reassign (missed polyfill)
-    const classAnchor = ancestorPathOf(path, info.classNode);
+    const classAnchor = pathOfNode(path, info.classNode);
     // resolve the `extends` superclass in the CLASS scope, not the method-body scope: the extends
     // clause is evaluated where the class is defined, so a method-local shadow (`static m() { const
     // Array = Object; super.from() }`) must not be seen - using the method scope follows the wrong
     // binding and drops the inherited-static polyfill (ie:11). classAnchor is the class node path
     const classScope = classAnchor?.scope ?? path.scope;
-    // the superclass resolution is independent of `key`, so it is answered once per class instead
-    // of once per `super.X` / `this.X` site - it is a binding chase plus a global classification,
-    // and a static-heavy class asks it for every member it reads. same per-file WeakMap lifetime
-    // (and `reset()` entry) as the own-name cache below
-    const meta = buildSuperStaticMeta(info.classNode, key, superClass => {
-      if (superTypeCache.has(info.classNode)) return superTypeCache.get(info.classNode);
-      const resolved = resolveBindingToGlobalName(superClass, classScope, new Set(), classAnchor ?? path, classAnchor);
-      superTypeCache.set(info.classNode, resolved);
-      return resolved;
-    }, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
+    let carried = false;
+    let open = false;
+    const meta = buildSuperStaticMeta(info.classNode, key,
+      () => inheritedBaseName(info.classNode, key, path, (node, ctx, name, owner) => {
+        if (adapter.method === 'usage-pure') carried = !!name && inheritedStaticCarried(node, ctx, name, key);
+        else open ||= !!namedClass && (!!owner.decorators?.length || classStaticSlotMember(owner, key) === undefined)
+          || containerSlotWritten(node, [key], ctx, path.node, inheritedCallPreserves, true);
+      }, callProof),
+      adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
+    // The escape belongs to the class even when its base has only union candidates.
+    if (adapter.method === 'usage-global' && namedClass) open ||= containerSlotWritten(
+      receiver, [key], { scope: path.scope, adapter, path }, path.node, inheritedCallPreserves, true,
+    );
+    if (meta) {
+      if (carried) meta.inheritedStaticCarried = true;
+      if (namedClass) meta.inheritedReceiver = receiver;
+      // An opaque handout can expose any inherited static. A captured builtin's
+      // `.call(Subclass)` is accounted for by the same proof used by pure reads.
+      if (adapter.method === 'usage-global') meta.unnamedStaticOwner = open ? meta.object : null;
+      // A tag also binds the subclass, but neither plain replacement nor call dispatch
+      // represents that invocation. Pure keeps it native; global still injects its static.
+      if (isTaggedTemplateTagPosition(peelParenAndTSParentPath(path)?.node, path.node)) meta.inheritedTag = true;
+    }
     // a base the class may have captured under ANOTHER value - a conditional or closure write the
     // dominance proof cannot settle - unions its written constructors' statics beside the primary,
     // exactly as a member read off the same slot does (usage-global over-inject-safe; the union
@@ -1630,6 +1801,10 @@ export function createClassHelpers({
         objectNode: superClass, computedKeyNode: null, primaryObject: carrier.object, primaryKey: key,
         scope: classScope, adapter, path: classAnchor ?? path, containerWalkObjects,
       });
+      for (const extra of carrier.extraCandidates ?? []) {
+        extra.inheritedStatic = true;
+        if (open) extra.unnamedStaticOwner = extra.object;
+      }
       if (!meta) return carrier.extraCandidates?.length ? carrier : null;
     }
     return meta;
@@ -1691,16 +1866,17 @@ export function createClassHelpers({
     const obj = unwrapRuntimeExpr(path.node.object);
     const objType = obj?.type;
     if (objType === 'Super') return true;
-    return objType === 'ThisExpression' && !(meta && isSourcedSymbolIteratorMeta(meta)) && isInStaticContext(path);
+    return objType === 'ThisExpression' ? !(meta && isSourcedSymbolIteratorMeta(meta)) && isInStaticContext(path)
+      : (!meta?.object || meta.inheritedStatic || !isKnownGlobalName(meta.object)) && !!namedClassReceiver(path, meta?.key);
   }
 
-  // `const { X } = this` in a static method reads the inherited static surface: the shared
-  // destructure funnel resolves it through this hook (same gate + shadow rules as the member
-  // remap). the two emitters build this factory differently - unplugin per transform, babel ONCE
+  // Patterns over static `this`, and global patterns/tests over named classes, read the same
+  // inherited surface as members. The two emitters build this factory differently - unplugin per transform, babel ONCE
   // per plugin instance with `reset()` doing the per-file isolation - so the hook MUTATES the
   // shared per-instance adapter. unplugin saves/restores the hook with its other per-transform
   // slots: leaving this closure installed would retain the last transform's injector and AST
-  adapter.resolveThisStaticHost = function (path, key) {
+  adapter.resolveClassStaticHost = function (path, key, receiver = null) {
+    if (receiver) return namedClassReceiver(path, key, receiver) ? resolveStaticInheritedMember(path, key, receiver) : null;
     if (!isInStaticContext(path) || isShadowedByClassOwnMember(path, key)) return null;
     return resolveStaticInheritedMember(path, key);
   };

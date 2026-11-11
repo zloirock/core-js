@@ -46,6 +46,12 @@ function unpluginImports(source, options, filename = 'input.mjs') {
   return polyfillImports(createUnplugin(options).transform(scenarioSource(source), filename)?.code ?? source);
 }
 
+function unpluginPhaseImports(source, options) {
+  const plugin = createUnplugin(options);
+  const pre = plugin.transform(scenarioSource(source), 'input.mjs', 'pre')?.code ?? source;
+  return polyfillImports(plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre);
+}
+
 // the modules a WIDE pure entry carries beyond its constructor sibling - the statics an escaped
 // reference has to bring with it. null for an entry that is not wide (`actual/set` adds nothing over
 // `actual/set/constructor`, so an escaping `Set` owes no more than a home one)
@@ -222,7 +228,8 @@ const NARROW = {
 // A native constructor core-js defines no module for owes nothing when handed out: its statics and
 // prototype methods load where a read names them. A static read of a locally returned constructor
 // exposes only that static's result, while a static read the claim side does not name - by a key
-// nothing names, or through a subclass inheriting it - may land on any own static. Prototype
+// nothing names, or through an opaque subclass - may land on any own static. A local subclass
+// uses the same named-key coverage as its base. Prototype
 // methods require their own usage even when a static returns an instance or the prototype itself.
 for (const [label, source, used, wide] of [
   ['local IIFE', 'export const value = (() => { if (flag) return Array; return custom; })().of(3);', true, false],
@@ -236,7 +243,36 @@ for (const [label, source, used, wide] of [
   ['exported function', 'export function pick() { if (flag) return Array; return custom; }', false, false],
   ['exported subclass', 'export class Derived extends (() => { if (flag) return Array; return custom; })() {}', false, false],
   ['unnamed key', 'export const value = Array[key](3);', true, true],
-  ['inherited static', 'class Sub extends Array {} export const value = Sub.of(3);', true, true],
+  ['inherited static', 'class Sub extends Array {} export const value = Sub.of(3);', true, false],
+  ['inherited alias', 'class Sub extends Array {} const C = Sub; export const value = C.of(3);', true, false],
+  ['inherited captured call', 'class Sub extends Array {} const of = Sub.of; export const value = of.call(Sub, 3);', true, false],
+  ['inherited captured apply', 'class Sub extends Array {} const of = Sub.of; export const value = of.apply(Sub, [3]);', true, false],
+  ['inherited captured reflect', 'class Sub extends Array {} const of = Sub.of; export const value = Reflect.apply(of, Sub, [3]);', true, false],
+  ['inherited aliased base capture', 'const Base = Array; class Sub extends Base {} const of = Sub.of; export const value = of.call(Sub, 3);', true, false],
+  ['inherited wrapped base capture', 'class Sub extends (effect(), Array) {} const of = Sub.of; export const value = of.call(Sub, 3);', true, false],
+  ['inherited escaped base capture', 'const Base = Array; hand(Base); class Sub extends Base {} const of = Sub.of; export const value = of.call(Sub, 3);', true, true],
+  ['inherited chain', 'class Base extends Array {} class Sub extends Base {} export const value = Sub.of(3);', true, false],
+  ['inherited optional', 'class Sub extends Array {} export const value = Sub?.of?.(3);', true, false],
+  ['inherited key effects', 'class Sub extends Array {} export const value = Sub[(effect(), "of")](3);', true, false],
+  ['inherited unknown key', 'class Sub extends Array {} export const value = Sub[key](3);', true, true],
+  ['inherited escape', 'class Sub extends Array {} hand(Sub); export const value = Sub.of(3);', true, true],
+  ['inherited exported class', 'export class Sub extends Array {} export const value = Sub.of(3);', true, true],
+  ['inherited later escape', 'class Sub extends Array {} export const value = Sub.of(3); hand(Sub);', true, true],
+  ['inherited parent escape', 'class Base extends Array {} hand(Base); class Sub extends Base {} export const value = Sub.of(3);', true, true],
+  ['inherited native base escape', 'const Base = Array; hand(Base); class Sub extends Base {} export const value = Sub.of(3);', true, true],
+  ['inherited native base store', 'const Base = Array; sink.held = Base; class Sub extends Base {} export const value = Sub.of(3);', true, true],
+  ['inherited native base realm store', 'const Base = Array; globalThis.held = Base; class Sub extends Base {} export const value = Sub.of(3);', true, true],
+  ['inherited captured before escape', 'class Sub extends Array {} const of = Sub.of; hand(Sub); export const value = of.call(Sub, 3);', true, true],
+  ['inherited pattern', 'class Sub extends Array {} const { of } = Sub; export const value = of(3);', true, false],
+  ['inherited escaped pattern', 'class Sub extends Array {} hand(Sub); const { of } = Sub; export const value = of(3);', true, true],
+  ['inherited pattern alias', 'class Sub extends Array {} const C = Sub; const { of } = C; export const value = of(3);', true, false],
+  ['inherited unknown own key', 'class Sub extends Array { static [key] = 4; } export const value = Sub.of(3);', true, true],
+  ['inherited static block', 'class Sub extends Array { static { effect(this); } } export const value = Sub.of(3);', true, true],
+  ['named own write', 'class Sub extends Array {} Sub.of = () => 3; export const value = Sub.of();', true, false],
+  ['inherited mutated callee', 'class Sub extends Array {} Sub.of = hand; const of = Sub.of; of.call(Sub); Sub.from([]);', true, true],
+  ['inherited parent callee write', 'class Base extends Array {} Base.of = hand; class Sub extends Base {} const of = Sub.of; of.call(Sub); Sub.from([]);', true, true],
+  ['own static', 'class Sub extends Array { static of() { return 3; } } export const value = Sub.of();', false, false],
+  ['local namesake', 'class Array {} class Sub extends Array {} export const value = Sub.of(3);', false, false],
 ]) {
   for (const [emitter, imports] of [
     ['babel', await babelImports(source, GLOBAL)],
@@ -244,8 +280,66 @@ for (const [label, source, used, wide] of [
   ]) {
     check(`${ emitter }: ${ label }: of obligation`, imports.has('core-js/modules/es.array.of'), used);
     check(`${ emitter }: ${ label }: other statics`, imports.has('core-js/modules/es.array.from'), wide);
+    check(`${ emitter }: ${ label }: unused async static`, imports.has('core-js/modules/es.array.from-async'), wide);
     check(`${ emitter }: ${ label }: instance methods`, imports.has('core-js/modules/es.array.find'), false);
   }
+}
+
+// A carried pure namespace already supplies the inherited method. Native bases and
+// explicit narrow imports still need the standalone method; unrelated imports prove nothing.
+for (const [label, source, module, needed] of [
+  ['scoped container base', 'const ns = { Base: Map }; function read(Map) { class Bag extends ns.Base {} return Bag.groupBy; } read(null);', 'es.map.group-by', true],
+  ['scoped container key', 'const key = "Base"; const ns = { [key]: Map };'
+    + ' function read(key) { class Bag extends ns.Base {} return Bag.groupBy; } read(null);', 'es.map.group-by', true],
+  ['escaped array base', 'const [Base] = [Array]; hand(Base); class Bag extends Base {} Bag.of(3);', 'es.array.from-async', true],
+  ['closed array base', 'const [Base] = [Array]; class Bag extends Base {} Bag.of(3);', 'es.array.from-async', false],
+  ['escaped array subclass', 'const [Base] = [Array]; class Bag extends Base {} hand(Bag); Bag.of(3);', 'es.array.from-async', true],
+  ['escaped union subclass', 'const Base = flag ? Array : Object; class Bag extends Base {} hand(Bag); Bag.of(3);', 'es.array.from-async', true],
+]) {
+  for (const [emitter, collect] of [['babel', babelImports], ['unplugin', unpluginImports]]) {
+    const imports = await collect(source, GLOBAL);
+    check(`${ emitter }: ${ label }`, imports.has(`core-js/modules/${ module }`), needed);
+  }
+}
+
+for (const [label, source, namespace, separate, options = PURE] of [
+  ['carried Map', 'class Bag extends Map {} export const method = Bag.groupBy;', true, false],
+  ['carried alias', 'const Base = Map; class Bag extends Base {} export const method = Bag.groupBy;', true, false],
+  ['carried chain', 'class Base extends Map {} class Bag extends Base {} export const method = Bag.groupBy;', true, false],
+  ['carried container', 'const ns = { Base: Map }; class Bag extends ns.Base {} export const method = Bag.groupBy;', true, false],
+  ['carried nested container', 'const ns = { inner: { Base: Map } }; class Bag extends ns.inner.Base {} export const method = Bag.groupBy;', true, false],
+  ['carried container alias', 'const ns = { Base: Map }; const alias = ns; class Bag extends alias.Base {} export const method = Bag.groupBy;', true, false],
+  ['carried container alias scope', 'const ns = { Base: Map }; function make(Map) { class Bag extends ns.Base {} return Bag.groupBy; }'
+    + ' export const method = make(other);', true, false],
+  ['captured container base', 'const ns = { Base: Map }; const Base = ns.Base; ns.Base = Object;'
+    + ' class Bag extends Base {} export const method = Bag.groupBy;', true, false],
+  ['carried write', 'let Base; Base = Map; class Bag extends Base {} export const method = Bag.groupBy;', true, false],
+  ['carried chained write', 'let Base = Object, B; Base = B = Map; class Bag extends Base {} export const method = Bag.groupBy;', true, false],
+  ['explicit namespace', 'import M from "@core-js/pure/actual/map"; class Bag extends M {} export const method = Bag.groupBy;', true, false],
+  ['explicit constructor', 'import M from "@core-js/pure/actual/map/constructor"; class Bag extends M {} export const method = Bag.groupBy;', false, true],
+  ['explicit narrow container', 'import M from "@core-js/pure/actual/map/constructor"; const ns = { Base: M };'
+    + ' class Bag extends ns.Base {} export const method = Bag.groupBy;', false, true],
+  ['disabled container', '// core-js-disable-next-line\nconst ns = { Base: Map };\nclass Bag extends ns.Base {} export const method = Bag.groupBy;', false, true],
+  ['replaced container base', '// core-js-disable-next-line\nconst Native = Map;\nconst ns = { Base: Map }; ns.Base = Native;'
+    + ' class Bag extends ns.Base {} export const method = Bag.groupBy;', true, true],
+  ['replaced nested container base', '// core-js-disable-next-line\nconst native = { Base: Map };\nconst ns = { inner: { Base: Map } }; ns.inner = native;'
+    + ' class Bag extends ns.inner.Base {} export const method = Bag.groupBy;', true, true],
+  ['excluded constructor', 'class Bag extends Map {} export const method = Bag.groupBy;', false, true, { ...PURE, exclude: ['map/constructor'] }],
+  ['disabled base', '// core-js-disable-next-line\nclass Bag extends Map {}\nexport const method = Bag.groupBy;', false, true],
+  ['disabled alias beside a namespace', 'export const M = Map;\n// core-js-disable-next-line\nconst Base = Map;\n'
+    + 'class Bag extends Base {} export const method = Bag.groupBy;', true, true],
+]) {
+  for (const [emitter, collect] of [['babel', babelImports], ['unplugin', unpluginImports], ['pre+post', unpluginPhaseImports]]) {
+    const imports = await collect(source, options);
+    check(`${ emitter }: ${ label }: namespace`, imports.has('@core-js/pure/actual/map'), namespace);
+    check(`${ emitter }: ${ label }: separate static`, imports.has('@core-js/pure/actual/map/group-by'), separate);
+  }
+}
+
+// Namespace coverage is checked at the import layer, not inferred from its bare name.
+for (const [emitter, collect] of [['babel', babelImports], ['unplugin', unpluginImports], ['pre+post', unpluginPhaseImports]]) {
+  const imports = await collect('import P from "@core-js/pure/es/promise"; class Bag extends P { static read() { return super.allKeyed({ a: 1 }); } }', PURE);
+  check(`${ emitter }: an es namespace does not carry an actual-only static`, imports.has('@core-js/pure/actual/promise/all-keyed'), true);
 }
 
 // Explicit prototype usage remains an independent obligation, even after a static returns it.

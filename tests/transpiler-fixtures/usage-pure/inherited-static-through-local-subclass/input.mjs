@@ -1,6 +1,5 @@
-// pure names no static a local class only inherits: the read stays on the class - through `super`
-// over a local base class or through an alias of the subclass - so the constructor at the end of
-// the heritage takes its whole entry. a static the local class defines itself answers the read
+// Inherited statics resolve through local class chains and aliases of the subclass.
+// Calls preserve the subclass receiver; a local own static still wins.
 class GroupedBase extends Map {}
 class Grouped extends GroupedBase {
   static group(items) {

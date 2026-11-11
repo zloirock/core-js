@@ -324,6 +324,11 @@ export function createPolyfillResolver(options, {
     // the synthetic super-meta has no member path for `enhanceMeta` to narrow the receiver type, so
     // this explicit gate stands in for that narrowing
     if (kind === 'instance' && meta.inheritedStatic) return null;
+    // A class or its captured base handed to an opaque use can expose every static.
+    // The base's own escape is already recorded by the census; neither case implies prototype usage.
+    if (meta.unnamedStaticOwner || kind === 'static' && meta.inheritedStatic && isEscapedCtor?.(meta.object, false, true)) {
+      return staticGlobalDependencies(meta.unnamedStaticOwner ?? meta.object).filter(ctx.isEntryNeeded);
+    }
     if (kind === 'instance') {
       const enhanced = enhanceMeta(meta, path, desc);
       if (!enhanced) return null;
@@ -375,6 +380,8 @@ export function createPolyfillResolver(options, {
   // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
   // the caller supplies step 3 (effectiveMeta construction); every other step is fixed
   function resolvePure(meta, path) {
+    // The captured base already supplies this inherited slot through its namespace entry.
+    if (meta.inheritedStaticCarried) return null;
     if (meta.kind === 'global' && meta.name === 'URL' && isAssetURLCallee(path)) return null;
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;

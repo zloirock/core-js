@@ -355,7 +355,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     // type layer's twin above
     isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
     // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
-    isEscapedCtor: (name, heldInSlot) => escapedCtorNames?.has(name, heldInSlot) === true,
+    isEscapedCtor: (name, heldInSlot, own) => escapedCtorNames?.has(name, heldInSlot, own) === true,
     readsUnnamedStatic: name => escapedCtorNames?.readsUnnamedStatic(name) === true,
     astPredicates: {
       isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
@@ -420,7 +420,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         escapedCtorReferencesReducer({ packages, isOptedOut: currentIsDisabled, selectedInits }),
       ]).escapedCtorNames;
       escapedCtorNames = {
-        has: (name, held) => source?.has(name, held) === true || late.has(name, held),
+        has: (name, held, own) => source?.has(name, held, own) === true || late.has(name, held, own),
         readsUnnamedStatic: name => source?.readsUnnamedStatic(name) === true || late.readsUnnamedStatic(name),
       };
       // Earlier source reads already share one minted binding. Widen its entry in place,
@@ -735,6 +735,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         getInjector: () => injector,
         attachUnionExtras: attachMemberUnionExtras,
         containerReceiverName: staticContainerReceiverName,
+        resolvePure,
       });
       // wire the forward references so the top-level optional-chain deopt check can resolve
       // supers and reject own-static shadows of `this.X`
@@ -886,23 +887,23 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         if (innerCallee.property) skippedNodes.add(innerCallee.property);
       }
 
-      // inherited-static dispatch -- super.method(args) or this.method(args) in static ctx
-      // (plain / ! / ?.()) -> id.call(this, args). the subclass constructor must stay the
+      // Inherited-static calls bind super/static-this or a stable class identifier
+      // (plain / ! / ?.()) to the helper. The subclass constructor must stay the
       // receiver, else the pure static result downgrades to the base class.
       // sideEffects channel covers computed-key SE: `super[(fn(),'X')](args)` collected fn()
       // into meta.sideEffects via members.js; emit wraps the call in SequenceExpression
-      function replaceInheritedStatic(path, id, sideEffects) {
+      function replaceInheritedStatic(path, id, meta) {
         const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
         if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node) {
           const callExpr = estreeToBabel(renderMethodCall(planMethodCall({
-            receiver: t.thisExpression(), prepared: true, methodGuarded: true, args: callParent.node.arguments,
+            receiver: meta.inheritedReceiver ?? t.thisExpression(), prepared: true, methodGuarded: true, args: callParent.node.arguments,
           }), { lookup: hostSlot(id), embed: node => hostSlot(t.cloneNode(node)) }));
           // The host wrapper retains minted-effect identity and marks the generated sequence.
-          callParent.replaceWith(withSideEffects(callExpr, sideEffects));
+          callParent.replaceWith(withSideEffects(callExpr, meta.inheritedCallEffects ?? meta.sideEffects));
         } else {
-          peelParenAndTSSlotPath(path).replaceWith(withSideEffects(id, sideEffects));
+          peelParenAndTSSlotPath(path).replaceWith(withSideEffects(id, meta.inheritedReadEffects ?? meta.sideEffects));
         }
       }
 
@@ -1345,10 +1346,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
             // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
             if (isThisReceiver(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
-            // `super.X` and unshadowed `this.X` in static ctx resolve against the super
-            // class's static surface via the same path - `this` in static ctx is the
-            // constructor, so inherited static lookup behaves exactly like `super.X`.
-            // cache the predicate so the instance-fallback bail below doesn't re-walk
+            // Named classes and unshadowed super/static-this share the captured base
+            // lookup. Cache the verdict so the instance-fallback bail does not re-walk.
             inheritedStatic = isInheritedStaticLookup(path, meta);
             const inheritedMeta = inheritedStatic ? resolveStaticInheritedMember(path) : null;
             // `extends MyPromise` (user-aliased pure import) - map binding to global hint.
@@ -1636,9 +1635,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             });
             reattachInstanceCallType(captured);
           } else if (inheritedStatic) {
-            // super.X and unshadowed this.X in static ctx (this = subclass ctor): emit
-            // id.call(this, ...) so the receiver is preserved, else the result downgrades to base
-            replaceInheritedStatic(path, id, meta.sideEffects);
+            // Bind inherited calls to their subclass; extracted reads stay unbound.
+            replaceInheritedStatic(path, id, meta);
           } else {
             const wasOptional = path.node.optional;
             const proxyHopClaim = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)

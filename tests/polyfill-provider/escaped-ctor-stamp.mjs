@@ -912,9 +912,9 @@ const NAME_ROWS = [
   // ... and the second stamper: the container census stamps an opaque container and an inherited
   // static from its OWN result, so the narrow has to reach a walk this reducer never starts
   {
-    name: 'an inherited static off a realm base is the realm constructor',
+    name: 'a named inherited static keeps the realm base for pure without handing it out',
     code: 'class C extends Map {}\nuse(C.groupBy);',
-    realm: ['Map'],
+    heldInSlot: ['Map'],
     local: [],
     withContainerCensus: true,
   },

@@ -565,7 +565,7 @@ function buildDestructuringInitMetaCore({
   // and own-static-member shadow gate as the member remap); non-static / shadowed /
   // unresolved supers fall through to the untyped default
   if (unwrapped.type === 'ThisExpression' && path) {
-    const inherited = adapter.resolveThisStaticHost?.(path, key);
+    const inherited = adapter.resolveClassStaticHost?.(path, key);
     if (inherited) return { ...inherited, receiverHint: staticReceiverHint(inherited.placement, inherited.object) };
   }
   // `const { from } = Array` or `const { from } = globalThis.Array`; a member init that names
@@ -1682,7 +1682,10 @@ export function collectMemberUnionCandidates(options) {
     // "b"`), a literal read in place - is every name the census folds it to
     if (!keys.length) keys.push(...CENSUS_KEY_NAMES.get(rootProgramOf(path))?.(computedKeyNode) ?? []);
   }
-  const extras = [];
+  // Patterns and membership tests read the same inherited static as a member access.
+  // Keep its scoped escape verdict; a census candidate alone cannot distinguish handout from capture.
+  const extras = !isMemberAccessNode(path?.node) && objectNode?.type === 'Identifier' && !isKnownGlobalName(primaryObject)
+    ? keys.map(key => adapter.resolveClassStaticHost?.(path, key, objectNode)).filter(Boolean) : [];
   for (const object of objects) for (const key of keys) {
     if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
     // `placementOverride`: a prototype-navigated producer (`C.prototype[k]`) dispatches EVERY
@@ -4534,7 +4537,8 @@ function blockedHopContinuation({ hop, binding, name, walk }) {
 
 // ClassDeclaration hop of the receiver walk: a reassigned class binding follows the reaching
 // continuation exactly like a variable hop (the enumerable replacement keeps the global walk
-// alive); a clean one returns its own name at the leaf, or descends its STATIC fields - the
+// alive); a clean one keeps its local constructor hint unless that spelling would impersonate
+// a built-in. A remaining path descends its STATIC fields - the
 // class declaration is where those fields captured their values, so it becomes the read site
 // for the descent's reassignment checks (a field-value write after the class definition can't
 // change the captured static). null = dead end
@@ -4545,7 +4549,7 @@ function classBindingHop({ hop, binding, name, walk }) {
     const reaching = blockedHopContinuation({ hop, binding, name, walk });
     return reaching ? { follow: reaching } : null;
   }
-  if (walk.walkPath.length === 0) return { leaf: name };
+  if (walk.walkPath.length === 0) return isKnownGlobalName(name) ? null : { leaf: name };
   return { descend: binding.path?.node ?? binding.node };
 }
 

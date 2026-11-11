@@ -1542,7 +1542,7 @@ function superStaticMeta(adapter, prog, method = 'usage-global') {
   return resolveStaticInheritedMember(read);
 }
 function staticExtra(object) {
-  return { kind: 'property', object, key: 'from', placement: 'static', receiverHint: 'function' };
+  return { kind: 'property', object, key: 'from', placement: 'static', receiverHint: 'function', inheritedStatic: true };
 }
 // one class shape throughout, so a row differs only in how its base is spelled
 function staticRead(base) {
@@ -1617,6 +1617,19 @@ for (const [name, code, object, extras] of SUPER_BASE_BOUNDARIES) {
     checkDeep(`${ lbl }/extras`, meta?.extraCandidates ?? null, extras);
   });
 }
+
+// Inheritance uses the same finite analysis budget as aliases, including cyclic inputs.
+for (const [depth, expected] of [[3, 'Array'], [64, 'Array'], [65, null]]) {
+  const code = Array.from({ length: depth }, (_, index) => `class C${ index } extends ${ index ? `C${ index - 1 }` : 'Array' } {
+    ${ index === depth - 1 ? 'static read() { return super.from([]); }' : '' }
+  }`).join('\n');
+  runBoth(`resolveStaticInheritedMember/depth ${ depth }`, code, (adapter, prog, lbl) => {
+    check(lbl, superStaticMeta(adapter, prog, 'usage-pure')?.object ?? null, expected);
+  });
+}
+runBoth('resolveStaticInheritedMember/cyclic class', 'class C extends C { static read() { return super.from([]); } }', (adapter, prog, lbl) => {
+  check(lbl, superStaticMeta(adapter, prog, 'usage-pure'), null);
+});
 
 // the destructure twin anchors at the ObjectProperty: the declarator host supplies the receiver
 // alias, the prop key supplies the key alias; a non-global method or a fallback meta yields none
@@ -1857,7 +1870,7 @@ runBoth('destructure init meta resolves this-in-static through the adapter hook'
       key: 'from', scope: prop.scope, path: prop,
       adapter: {
         ...adapter,
-        resolveThisStaticHost: () => ({ kind: 'property', object: 'Array', key: 'from', placement: 'static', inheritedStatic: true }),
+        resolveClassStaticHost: () => ({ kind: 'property', object: 'Array', key: 'from', placement: 'static', inheritedStatic: true }),
       },
     });
     check(lbl, meta?.object, 'Array');

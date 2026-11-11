@@ -488,7 +488,7 @@ export default function createPlugin(options) {
     // the per-file mutation census the ENTRY choice consults - see the babel twin
     isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
     // ... and its escape twin, one file-wide answer per ctor NAME, off the same census
-    isEscapedCtor: (name, heldInSlot) => currentEscapedCtorNames?.has(name, heldInSlot) === true,
+    isEscapedCtor: (name, heldInSlot, own) => currentEscapedCtorNames?.has(name, heldInSlot, own) === true,
     readsUnnamedStatic: name => currentEscapedCtorNames?.readsUnnamedStatic(name) === true,
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
@@ -834,7 +834,7 @@ export default function createPlugin(options) {
     const previousContainerSlotIndex = currentContainerSlotIndex;
     const previousMemberKeyNames = currentMemberKeyNames;
     const previousNestedTSRuntimeDeclarations = currentNestedTSRuntimeDeclarations;
-    const previousThisStaticHost = estreeAdapter.resolveThisStaticHost;
+    const previousClassStaticHost = estreeAdapter.resolveClassStaticHost;
     currentInjector = injector;
     currentIsOptedOut = isDisabled;
     currentMutatedStatics = mutatedStatics;
@@ -1154,6 +1154,7 @@ export default function createPlugin(options) {
         getInjector: () => injector,
         attachUnionExtras: attachMemberUnionExtras,
         containerReceiverName: staticContainerReceiverName,
+        resolvePure,
       });
 
       // Reuse an existing scoped pre-pass only while its tree is intact. Import surgery
@@ -1586,7 +1587,7 @@ export default function createPlugin(options) {
       currentContainerSlotIndex = previousContainerSlotIndex;
       currentMemberKeyNames = previousMemberKeyNames;
       currentNestedTSRuntimeDeclarations = previousNestedTSRuntimeDeclarations;
-      estreeAdapter.resolveThisStaticHost = previousThisStaticHost;
+      estreeAdapter.resolveClassStaticHost = previousClassStaticHost;
     }
   }
 

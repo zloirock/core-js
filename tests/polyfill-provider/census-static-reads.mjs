@@ -12,6 +12,33 @@ function census(parser, source, sourceType = 'module') {
 }
 
 for (const parser of adapters) {
+  for (const [name, source, own, constructor = 'Map'] of [
+    ['base', 'const M = Map; hand(M); class Sub extends M {} Sub.groupBy;', true],
+    ['subclass', 'class Sub extends Map {} hand(Sub); Sub.groupBy;', false],
+    ['captured call', 'class Sub extends Array {} const of = Sub.of; of.call(Sub, 1);', false, 'Array'],
+    ['wrapped base', 'class Sub extends (effect(), Map) {} hand(Sub); Sub.groupBy;', false],
+    ['public slot', 'class Sub extends Array { static M = Map; } hand(Sub);', true],
+    ['private slot', 'class Sub extends Array { static #M = Map; } hand(Sub);', false],
+    ['namesake', 'class Map {} class Sub extends Map {} hand(Map); Sub.groupBy;', false],
+    ['returned base', 'function base() { return Map; } hand(base()); class Sub extends Map {} Sub.groupBy;', true],
+  ]) for (const reverse of [false, true]) {
+    const program = parser.parseAndScope(source, 'module');
+    const reducers = [mutationShapesReducer(null), escapedCtorReferencesReducer()];
+    const facts = collectFileCensus(program.node, reverse ? reducers.reverse() : reducers).escapedCtorNames;
+    check(`${ parser.name }/own escape/${ name }/${ reverse }`, facts.has(constructor, false, true), own);
+  }
+  for (const [name, source, held, unnamed] of [
+    ['named', 'class Sub extends Map {} Sub.groupBy;', true, false],
+    ['own', 'class Sub extends Map { static groupBy() {} } Sub.groupBy;', false, false],
+    ['unknown', 'class Sub extends Map {} Sub[key];', true, true],
+    ['shadowed', 'class Map {} class Sub extends Map {} Sub.groupBy;', false, false],
+  ]) for (const reverse of [false, true]) {
+    const program = parser.parseAndScope(source, 'module');
+    const reducers = [mutationShapesReducer(null), escapedCtorReferencesReducer()];
+    const facts = collectFileCensus(program.node, reverse ? reducers.reverse() : reducers).escapedCtorNames;
+    check(`${ parser.name }/inherited/${ name }/${ reverse }/held`, facts.has('Map', true), held);
+    check(`${ parser.name }/inherited/${ name }/${ reverse }/unnamed`, facts.readsUnnamedStatic('Map'), unnamed);
+  }
   for (const [name, source, full = true] of [
     ['selected realm', 'var root = typeof window !== "undefined" ? window : undefined; root.Promise.resolve;'],
     ['literal realm alias', 'const w = globalThis.window; const [{ resolve }] = [w.Promise];'],

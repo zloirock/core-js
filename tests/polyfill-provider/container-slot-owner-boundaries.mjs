@@ -6,7 +6,8 @@ import { staticContainerReceiverName } from '../../packages/core-js-polyfill-pro
 import { resolveObjectName } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import {
-  bindingLoopAnchor, collectFileCensus, ownerSourceWritePath, reachingContainerValueNode, usageCrossesLoopBackEdgeReassign,
+  bindingLoopAnchor, collectFileCensus, ownerSourceWritePath, reachingContainerValueNode, resolveModuleFormat,
+  usageCrossesLoopBackEdgeReassign,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -371,5 +372,89 @@ for (const parser of adapters) for (const [name, body, source, keyPath, expected
     check(`${ parser.name }: ${ name }`,
       adapter.isWrittenContainerSlot('box', keyPath, declaration.node, read, read.node), expected);
   }
+}
+// Aliased escapes retain invocation provenance for a scoped proof, without making
+// the existing direct-container proofs assume that an alias is the original name.
+for (const parser of adapters) for (const before of [false, true]) {
+  const source = `const box = { k: Object }; const alias = box;
+    ${ before ? 'const value = box.k; opaque(alias);' : 'opaque(alias); const value = box.k;' }`;
+  const program = parser.parseAndScope(source);
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  const owner = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'box').node;
+  const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'box');
+  const label = `${ parser.name }: aliased escape/${ before }`;
+  function ask(proof) {
+    return adapter.isWrittenContainerSlot('box', ['k'], owner, read, read.node, proof);
+  }
+  check(`${ label }: default stays conservative`, ask(null), true);
+  check(`${ label }: scoped timing precedes only the later call`, ask(() => false), !before);
+  let paired = false;
+  check(`${ label }: scoped proof`, ask((escape, pairing) => {
+    paired = escape.aliased && pairing.args.includes(escape.argument);
+    return paired;
+  }), false);
+  check(`${ label }: canonical argument reaches the proof`, paired, !before);
+  check(`${ label }: ignoring the proof does not change later queries`, ask(null), true);
+}
+
+// A captured leaf is not a fresh read of its owner's slot. Invocation provenance
+// retained for class proofs must not change the ordinary dead-initializer proof.
+for (const parser of adapters) for (const [name, source, expected] of [
+  ['captured before write', 'const box = { C: Array }; const alias = box.C; box.C = {}; opaque(alias);', false],
+  ['captured after write', 'const box = { C: Array }; box.C = {}; const alias = box.C; opaque(alias);', false],
+  ['direct read', 'const box = { C: Array }; box.C = {}; opaque(box.C);', true],
+]) {
+  const program = parser.parseAndScope(source);
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  const owner = parser.pickPath(program, 'VariableDeclarator', p => p.node.id.name === 'box').node;
+  const read = parser.pickPath(program, 'CallExpression', p => p.node.callee.name === 'opaque');
+  check(`${ parser.name }: leaf escape/${ name }`,
+    adapter.containerSlotWriteDominatesUsage(['C'], owner, read, read.node.arguments[0]), expected);
+}
+// Constructor-only writes start at an exposure of the class, not at its definition.
+// An unknown caller, re-entered read or definition-time exposure keeps the slot written.
+for (const parser of adapters) for (const [name, body, expected, sourceType = 'module'] of [
+  ['capture first', 'const capture = Bag.of; new Bag();', false],
+  ['construct first', 'new Bag(); const capture = Bag.of;', true],
+  ['method first', 'Bag.make(); const capture = Bag.of;', true],
+  ['alias first', 'const Alias = Bag; const capture = Bag.of;', true],
+  ['opaque first', 'use(Bag); const capture = Bag.of;', true],
+  ['loop read', 'for (let i = 0; i < 2; i++) { const capture = Bag.of; new Bag(); }', true],
+  ['deferred read', 'function read() { const capture = Bag.of; return capture; } read(); new Bag(); read();', true],
+  ['argument capture first', 'use(Bag.of, Bag);', false],
+  ['argument exposure first', 'use(Bag, Bag.of);', true],
+  ['script lexical binding is exposed', 'external(); const capture = Bag.of;', true, 'script'],
+  ['exported class is exposed', 'export { Bag }; const capture = Bag.of;', true],
+  ['within the caller budget', `const capture = Bag.of; ${ 'Bag.name;'.repeat(60) }`, false],
+  ['past the caller budget', `const capture = Bag.of; ${ 'Bag.name;'.repeat(65) }`, true],
+]) {
+  const source = `class Bag extends Array {
+    constructor(...xs) { super(...xs); Bag.of = () => 31; }
+    static make() { return new Bag(); }
+  } ${ body }`;
+  const program = parser.parseAndScope(source, sourceType);
+  resolveModuleFormat({ program: program.node, id: sourceType === 'script' ? 'input.js' : 'input.mjs', declaredSourceType: sourceType });
+  const census = collectFileCensus(program.node, [mutationShapesReducer()]);
+  const resolver = parser.makeResolver();
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure',
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+    collectBindingReferences: resolver.collectBindingReferences,
+  });
+  const owner = parser.pickPath(program, 'ClassDeclaration', p => p.node.id.name === 'Bag').node;
+  const read = parser.collectPaths(program, 'MemberExpression', p => p.node.object.name === 'Bag' && p.node.property.name === 'of').at(-1);
+  check(`${ parser.name }: constructor timing/${ name }`,
+    adapter.isWrittenContainerSlot('Bag', ['of'], owner, read, read.node), expected);
 }
 finish();

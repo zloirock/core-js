@@ -93,9 +93,11 @@ import {
   isMutatedStaticPair,
   isNonReferencePosition,
   isQuietLiteralOperand,
+  isReassignedBeyondDeclarator,
   isUndefinedNode,
   isReceiverShapedNode,
   isTopLevelThisContext,
+  isTSTypeOnlyIdentifierPath,
   isVarScopeBoundary,
   CENSUS_KEY_NAMES,
   CENSUS_ENUM_RECEIVERS,
@@ -123,6 +125,7 @@ import {
   PARAMETER_STATIC_SOURCES,
   parameterStaticSource,
   paramReturnsTheValue,
+  pathOfNode,
   patternBindsName,
   patternHasAnyDefault,
   patternMemberTargetPairs,
@@ -579,8 +582,6 @@ const ALIAS_SCOPE_FACTS = new WeakMap();
 const GLOBAL_ONLY_CTOR_NAMES = new WeakMap();
 // Retained pure values share one name set across both census reducers, regardless of result order.
 const HELD_CTOR_NAMES = new WeakMap();
-// ... and so do the names a static read the claim side does not name may land on (`readsUnnamedStatic`)
-const UNNAMED_READ_CTOR_NAMES = new WeakMap();
 
 // ... and the same file's `reference -> is this the REALM's value` verdict, for the leaves the
 // escape walk lands on. an escaping leaf spelling a name this file BOUND hands out the binding, not
@@ -1596,8 +1597,8 @@ function readsRetainedPatternBinding(aliases, node, cache, seen = null) {
   return found;
 }
 
-// does a read of `key` off this value land on a static a local CLASS only INHERITS? pure names no such
-// static off the class: the read stays raw there, and the heritage it reaches owes that static
+// Does a read of `key` land on a static a local class only inherits? Before scoped
+// claims rewrite proven reads, the census retains that static on the captured heritage.
 function inheritedClassStatic(value, key) {
   const node = unwrapRuntimeExpr(value);
   return CLASS_NODE_TYPES.has(node?.type) && !!node.superClass && !classStaticSlotMember(node, key);
@@ -3070,7 +3071,7 @@ function stampEscapingLeaves(node, stamps, work, receiverOnly = false, ownStatic
   if (CENSUS_CONTAINER_TYPES.has(target.type)) {
     // A subclass exposes its base statics too. Queue the base first so the stack still visits
     // member values in source order before heritage.
-    // ... unless the walk asks what a WRITE lands on: a write on a subclass shadows the base
+    // An own-slot query stops at the class: neither its writes nor its own value are the base.
     if (CLASS_NODE_TYPES.has(target.type) && !ownStatics) work.push(target.superClass);
     // A static receiver query observes the value and its base, not namespaces stored in fields.
     if (receiverOnly) return;
@@ -3118,12 +3119,23 @@ function stampEscapingLeaves(node, stamps, work, receiverOnly = false, ownStatic
 // closes over is the name sets and nothing else. taken from inside the walk it would capture
 // that scope's context - the escape list, the deferred writes, the alias graph, all of them holding
 // the file's own nodes - and a plugin instance keeping the answer would keep the tree with it
-function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames }) {
+function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames, ownEscapes }) {
   return {
-    has: (name, held = false) => names.has(name)
-      || (held ? heldInSlot.has(name) : globalOnly.has(name)),
+    // `own` separates an escape of the constructor itself from one through a subclass.
+    has: (name, held = false, own = false) => own ? ownEscapes.has(name)
+      : names.has(name) || (held ? heldInSlot.has(name) : globalOnly.has(name)),
     readsUnnamedStatic: name => unnamedReadNames.has(name),
   };
+}
+
+// A scoped class read can discharge a subclass handout (a captured builtin call),
+// but not a separate handout of its base. Reuse the escape walk's own-slot policy:
+// the latter reaches the constructor itself without following class heritage.
+function ownEscapedCtorNames(programNode, escaped) {
+  const names = new Set();
+  const channel = { names, stamps: new Set(), containers: new Set(), ownStatics: true };
+  for (const node of escaped) stampEscapesFrom(programNode, node, channel);
+  return names;
 }
 
 // the known return hint of calling a global's member chain: a static method's, or the global's own
@@ -3248,6 +3260,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   // the STATIC members of each class with a heritage, by member: a static context reads `super.X` off
   // that heritage, and `this.X` too where the class defines no own static X (`heritageStaticReceiver`)
   const heritageStaticMembers = new WeakMap();
+  let hasHeritage = false;
   const passthrough = new Map();
   const callCallees = new WeakMap();
   const callNodes = [];
@@ -4365,7 +4378,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     });
     GLOBAL_ONLY_CTOR_NAMES.set(node, globalOnly);
     HELD_CTOR_NAMES.set(node, heldInSlot);
-    UNNAMED_READ_CTOR_NAMES.set(node, unnamedReadNames);
     WRITTEN_SLOT_VALUES.set(node, written);
     storedGlobalFacts(written).scope = { programNode: node, aliases: aliasInit };
     UNROOTED_WRITE_KEYS.set(node, unrootedKeys);
@@ -4482,6 +4494,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       // call it. the same standing a JSX tag gives its component
       case 'ClassDeclaration':
       case 'ClassExpression':
+        hasHeritage ||= !!node.superClass;
         if (node.id?.type === 'Identifier') recordAliasInit(node.id.name, node, declarationScopesOf(node, frame).named);
         noteTopLevelNames(node, frame);
         if (classCarriesDecorators(node)) escaped.add(node);
@@ -5275,7 +5288,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     // read at QUERY time, when every reducer of this census has stamped: ONE answer object rather
     // than two census fields, since the flavor doing the asking is what picks the half
     return {
-      escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames }),
+      escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames,
+        ownEscapes: hasHeritage ? ownEscapedCtorNames(programNode, escaped) : ctorNames }),
     };
   }
   return { visit, result: withContainerProofs(result) };
@@ -7331,17 +7345,11 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     // a write or reposition alone does not hand every constructor member to an outside reader.
     // Actual escapes are stamped by the escape census, a read through an unfoldable key among them.
     // Iteration alone only invalidates the container pairing; its head's reads decide the statics.
-    // ... and a class whose OWN NAME is a static receiver here (`class C extends Map {}` then
-    // `C.groupBy`) reads a static it INHERITS: the read lands on the base, through a binding the
-    // reaching-value walk does not connect back to it, so the base owes its statics for the same
-    // reason. a base whose statics are read through `super` inside the class body is not stamped - the
-    // escalation costs the whole namespace entry: the read side names a static of one constructor by
-    // name, and the receiver census holds a base it cannot name (`heritageStaticReceiver`)
+    // A named inherited static keeps the base's pure family when its read stays native.
+    // Global resolves the selected key through the captured heritage; a known key is not
+    // an unnamed read. Unknown keys and actual escapes retain their separate obligations.
     const heldNames = HELD_CTOR_NAMES.get(programNode);
     const held = heldNames && { names: heldNames, state: escapeWalkStateFor(heldNames), heldInSlot: true };
-    // ... the inherited read is one the claim side does not name, so its base is filed as that too, in the same
-    // walk (`unnamedReadChannel`)
-    const unnamedRead = unnamedReadChannel(programNode, UNNAMED_READ_CTOR_NAMES.get(programNode));
     for (const [key, { name, literals, container }] of containers) {
       if (!container) continue;
       for (const { literal: node } of literals) {
@@ -7349,9 +7357,8 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
           && !containerSlotIndex.escapes.get(`${ key }.*`)?.every(escape => escape?.iteration)) {
           stampEscapesFrom(programNode, node, held);
         }
-        if (CLASS_NODE_TYPES.has(node.type) && readsInheritedStaticOf(node, name)) {
-          if (unnamedRead) stampEscapesFrom(programNode, node.superClass, unnamedRead);
-          stampEscapesFrom(programNode, node.superClass);
+        if (held && CLASS_NODE_TYPES.has(node.type) && readsInheritedStaticOf(node, name)) {
+          stampEscapesFrom(programNode, node.superClass, held);
         }
       }
     }
@@ -7602,8 +7609,10 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         const entry = containers.get(root);
         if (!entry?.container && !(entry?.arrayLiteral && value && canHoldBuiltIn(value))) continue;
         // Keep exact write sites for the dominance query; an aliased site also owes a receiver proof.
+        // Keep an aliased invocation for scoped builtin proofs, but not for proofs
+        // that assume its argument is the queried container's direct spelling.
         const values = writtenSlot([root, ...path ?? ['*']].join('.'), path && !path.includes('*') ? write : null,
-          root === key || escape?.iteration ? escape : null);
+          root === key || escape?.iteration ? escape : escape?.call ? { ...escape, aliased: true } : null);
         if (write && (root !== key || selectedWrites.has(write))) containerSlotIndex.aliasedWrites.add(write);
         if (value) recordWrittenValue(values, installedWriteValue(value), { unknownSlot: !path || path.includes('*'), scopes, qualify });
         // ... and a container a write installs makes the slot a wrapper of it (`propagateWrapperWrites`)
@@ -8430,6 +8439,42 @@ export function createDetectionAdapter({
   const agreedSlotWriteNames = new WeakMap();
   // ... and a slot's writes as that owner's source spells them (`liveWrites`), one list per slot
   const liveSlotWrites = new WeakMap();
+
+  // A private class cannot be constructed or handed out before it first leaves its definition.
+  // Count every external reference, not only `new`: an alias, method call or opaque handout can
+  // construct it too. Deferred class bodies stay private until then; definition-time slots do not.
+  // Potential callers use the shared write-proof budget, avoiding a reference scan at every read of a large class.
+  function classExposureFollowsRead(declaration, usagePath, usageNode, binding) {
+    const classNode = CLASS_NODE_TYPES.has(declaration?.type) ? declaration : unwrapRuntimeExpr(declaration?.init);
+    const bindingOwner = binding.scope?.block ?? binding.scope?.path?.node;
+    if (!CLASS_NODE_TYPES.has(classNode?.type) || isReassignedBeyondDeclarator(binding)
+      || bindingOwner?.type === 'Program' && programTopLevelIsRealm(bindingOwner)) return false;
+    const anchor = pathOfNode(usagePath, declaration);
+    const refs = anchor && collectBindingReferences?.(anchor, declaration.id.name, { closed: true });
+    if (!refs || writesPastCeiling(refs)) return false;
+    const read = usageNode ?? usagePath.node;
+    const receiver = isMemberAccessNode(read) ? unwrapRuntimeExpr(read.object) : null;
+    for (const ref of refs) {
+      if (!ref.node) return false;
+      if (ref.node === receiver || isTSTypeOnlyIdentifierPath(ref)) continue;
+      let member = ref;
+      for (; member.parentPath?.node && member.parentPath.node !== classNode.body; member = member.parentPath) { /* class member */ }
+      if (member.parentPath?.node === classNode.body && member.node.type !== 'StaticBlock'
+        && !(member.node.static && CLASS_FIELD_TYPES.has(member.node.type))) {
+        let slot = ref;
+        for (; slot.parentPath && slot.parentPath !== member; slot = slot.parentPath) { /* member slot */ }
+        if (!definitionTimeSlotOf(member.node, slot.node)) continue;
+      }
+      if (!noReassignmentReachesUsage({
+        reassignmentNodes: [ref.node],
+        usagePath,
+        usageNode,
+        bindingScopeNode: bindingOwner,
+        bindingAnchor: bindingLoopAnchor(binding),
+      })) return false;
+    }
+    return !classCarriesDecorators(classNode) && !classReachesItselfUnnamed(classNode);
+  }
   // the constructor every write of the slot `slotKey` names at its own write (`nameValue`), or null where a write
   // names none or another: what each write installs and where it stands are the same for every read of the slot
   // in one var-scope owner, so they answer once there
@@ -8594,7 +8639,10 @@ export function createDetectionAdapter({
     // (`containerSlotRecordWritten`), separately from builtin mutations, with this side's proofs that a record
     // cannot reach the read: proven later writes and escapes cannot affect an earlier capture; a closed parameter
     // pattern or the argument read itself may also preserve the selected container identity.
-    isWrittenContainerSlot(object, keyPath, ownerNode = null, usagePath = null, usageNode = null) {
+    // `escapeOnly` keeps later handouts but ignores named writes for global family coverage.
+    isWrittenContainerSlot(
+      object, keyPath, ownerNode = null, usagePath = null, usageNode = null, escapePreserves = null, escapeOnly = false,
+    ) {
       const slots = getWrittenContainerSlots?.();
       if (!slots) return false;
       const index = getContainerSlotIndex?.();
@@ -8606,20 +8654,30 @@ export function createDetectionAdapter({
           if (keyPath.length === 1 && keyPath[0] === 'Symbol.iterator' && escapes?.length
             && index.nonIterationEscapes && !index.nonIterationEscapes.has(`${ prefix }.*`)) return true;
           const binding = usagePath && adapter.getBinding({ scope: usagePath.scope, name: object, path: usagePath });
-          const calls = escapes?.map(escape => escape?.call);
+          const declaration = binding?.path?.node ?? binding?.node;
+          const classNode = CLASS_NODE_TYPES.has(declaration?.type) ? declaration : unwrapRuntimeExpr(declaration?.init);
+          const calls = escapes?.map(escape => !escape?.aliased || escapePreserves ? escape?.call : null);
           // A later handout cannot change a value already read from this container.
-          const later = calls?.length && calls.every(Boolean) && binding && noReassignmentReachesUsage({
+          const later = !escapeOnly && calls?.length && calls.every(Boolean) && binding && noReassignmentReachesUsage({
             reassignmentNodes: calls,
             usagePath,
             usageNode,
             bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
             bindingAnchor: bindingLoopAnchor(binding),
+            deferredWriteFollows: CLASS_NODE_TYPES.has(classNode?.type)
+              ? () => classExposureFollowsRead(declaration, usagePath, usageNode, binding) : null,
           });
+          if (later) return true;
+          // The scoped consumer can identify a captured builtin after the census.
+          // Query at its capture, where this later invocation cannot change that value.
+          if (prefix === key && escapePreserves && escapes?.length
+            && escapes.every(escape => escape?.call && escapePreserves(escape, censusCallPairing(escape.call), usagePath))) return true;
           // A pattern or a local property reader hands its leaves to the body,
           // not the container above them.
           // Reads no deeper than a named leaf retain their container identity; deeper
           // reads, rest-only captures and arguments-object access keep the escape.
           const selected = prefix === key && escapes?.length && escapes.every(escape => {
+            if (escape?.aliased) return false;
             const callee = escape?.call && CALL_CALLEES.get(index.programNode)?.get(escape.call);
             if (!callee) return false;
             // The indexed callee owns its syntax proof; each invocation only pairs
@@ -8652,11 +8710,13 @@ export function createDetectionAdapter({
           });
           // Passing a member captures its identity before that invocation can write it.
           const captured = prefix === [key, ...keyPath].join('.') && isMemberAccessNode(usageNode)
-            && escapes?.length && escapes.every(escape => escape?.argument === usageNode && escape.call === usagePath?.node);
-          return !!(later || selected || captured);
+            && escapes?.length && escapes.every(escape => !escape?.aliased
+              && escape?.argument === usageNode && escape.call === usagePath?.node);
+          return !!(selected || captured);
         },
-        // ... and a write the read runs before, every one of the slot's writes live in the read's own owner
+        // ... and writes the read precedes, including a private constructor first exposed after capture.
         write(key, prefix) {
+          if (escapeOnly) return true;
           const writes = index?.writes.get(prefix);
           const binding = usagePath && adapter.getBinding({ scope: usagePath.scope, name: object, path: usagePath });
           const declaration = binding?.path?.node ?? binding?.node;
@@ -8667,12 +8727,16 @@ export function createDetectionAdapter({
           if (owner && !bySlot) liveSlotWrites.set(owner.node, bySlot = new Map());
           if (bySlot && !bySlot.has(prefix)) bySlot.set(prefix, writes.map(write => ownerSourceWritePath(owner, write)?.node));
           const liveWrites = bySlot?.get(prefix);
+          const classNode = CLASS_NODE_TYPES.has(declaration.type) ? declaration : unwrapRuntimeExpr(declaration.init);
+          const constructor = CLASS_NODE_TYPES.has(classNode?.type) && classConstructorFunction(classNode);
           return !!liveWrites?.every(Boolean) && noReassignmentReachesUsage({
             reassignmentNodes: liveWrites,
             usagePath,
             usageNode,
             bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
             bindingAnchor: bindingLoopAnchor(binding),
+            deferredWriteFollows: constructor ? node => nodeRangeContains(constructor, node)
+              && classExposureFollowsRead(declaration, usagePath, usageNode, binding) : null,
           });
         },
       });
@@ -8701,7 +8765,7 @@ export function createDetectionAdapter({
         const sources = heldContainers(ownerNode, usagePath);
         const binding = adapter.getBinding({ scope: usagePath?.scope, name: ownerNode.id?.name, path: usagePath });
         const owner = findNearestVarScopeOwner(usagePath);
-        if (!escapes?.length || escapes.some(escape => !escape?.call) || slots.has(`${ slotKey }.*`)
+        if (!escapes?.length || escapes.some(escape => !escape?.call || escape.aliased) || slots.has(`${ slotKey }.*`)
           || sources.some(source => (source?.type !== 'ObjectExpression' && source?.type !== 'ArrayExpression')
             || literalHasUnnameableSlot(source))
           || (binding?.path?.node ?? binding?.node) !== ownerNode || binding.constantViolations?.length || !owner) return false;
@@ -8745,7 +8809,7 @@ export function createDetectionAdapter({
           // Passing the selected value to this very reader cannot restore its old identity.
           // Earlier handouts and writes through the enclosing container remain unknown.
           && (nameValue || prefix !== slotKey || !index.escapes?.get(`${ prefix }.*`)
-            ?.every(escape => escape?.call === usagePath?.node && escape.argument === usageNode)))
+            ?.every(escape => !escape?.aliased && escape?.call === usagePath?.node && escape.argument === usageNode)))
         || keyPath.slice(0, -1).some((part, at) => slots.has([key, ...keyPath.slice(0, at + 1)].join('.')))) return false;
       // Only a pristine, unshadowed assign guarantees these stores. Duplicate or unknown
       // source keys cannot pair one recorded call with one installed value per slot.

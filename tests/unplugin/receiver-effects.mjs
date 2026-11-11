@@ -27,6 +27,7 @@ for (const mutate of [false, true]) {
     isDisabled: () => false,
     isInTypeAnnotation: () => false,
     isThisReceiver: () => false,
+    isInheritedStaticLookup: () => false, // The receiver under test is an array, not a class constructor.
     isMutatedStatics: () => false,
     memberWritePositionBails: () => false,
     resolvePure: () => null,
