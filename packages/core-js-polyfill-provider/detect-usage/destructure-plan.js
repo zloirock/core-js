@@ -634,7 +634,9 @@ export function planNestedDeclarationReceiver({
   }) : { path: keys };
   if (!base) return null;
   const capture = captured || (named && injectorState?.isOwnPassGeneratedName?.(root.name));
-  const keepsRoot = (aliased && (base.name === root.name || capture && !base.pure)) || (POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName)
+  // An explicit whole-init capture keeps its realm value even when a global entry exists.
+  const keepsRoot = (captured && POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName))
+    || (aliased && (base.name === root.name || capture && !base.pure)) || (POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName)
     && aliased && typedChain && !isBuiltInSurfaceNav(nav, surfaceOptions));
   const host = aliased && !keepsRoot ? destructurePatternHostPath(path) : null;
   const realmAtRead = host && resolveObjectName({ objectNode: root, scope: host.scope, adapter, path: host }) === alias;
@@ -1857,10 +1859,12 @@ function positionalArrayRoot(path, { adapter, resolvePure }) {
     return !!meta && !!resolvePure(meta, leaf);
   }
   const keyed = new Set();
+  let keyedCapture = null;
   let level = path.get(assignment ? 'left' : 'id');
   if (level.node.type === 'ObjectPattern') {
     const chain = planNestedKeyedPatternCapture({ pattern: level.node, init, allowArray: true, ctx: { scope: path.scope, adapter, path } });
     if (chain?.leafPattern?.type !== 'ArrayPattern') return null;
+    keyedCapture = chain;
     for (const { pattern, prop, defaultValue } of chain.ancestors) {
       keyed.add(pattern);
       const siblings = level.get('properties').filter(item => item.node !== prop);
@@ -1877,7 +1881,7 @@ function positionalArrayRoot(path, { adapter, resolvePure }) {
       }
     }
   }
-  return { init, level, keyed };
+  return { init, level, keyed, keyedCapture };
 }
 
 // A closed keyed literal can serve a first-yield instance claim without moving the later
@@ -1926,14 +1930,32 @@ function interleavedIteratorClaimPlan({ assignment, position, arrayRoot, element
   };
 }
 
+// Split a keyed assignment before its first claimed array read, using the same ordered
+// capture as keyed declarations. Requeue owns the positional claim on the rebuilt host.
+function keyedArrayAssignmentPlan(path, arrayRoot, keyedCapture, { adapter, resolvePure, isDisabledProp, isClaimedProp }) {
+  if (!keyedCapture?.splitCapture) return null;
+  const statement = peelToExpressionStatement(path)?.exprStmt;
+  const bodyless = statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node);
+  const claim = statement && (bodyless || statementListOf(statement.parentPath?.node))
+    && firstPatternProp(arrayRoot, candidate => arrayReadingPropPlan(candidate, {
+      adapter, resolvePure, isDisabledProp, isClaimedProp, defaults: false,
+    })?.kind === 'consumed');
+  return claim ? {
+    pattern: path.node.left, extractions: [], array: { assignment: true, statement: statement.node, bodyless, keyedCapture },
+  } : null;
+}
+
 // Decide positional siblings on the original host, from the last slot backwards.
 // A planned capture releases earlier slots without mutating or requeueing the tree.
 // The selected slots then render in source order through the same native capture.
 function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp }) {
   const assignment = path.node.type === 'AssignmentExpression';
   const pattern = assignment ? path.node.left : path.node.id;
-  const { init, level: arrayRoot, keyed } = positionalArrayRoot(path, { adapter, resolvePure }) ?? {};
+  const { init, level: arrayRoot, keyed, keyedCapture } = positionalArrayRoot(path, { adapter, resolvePure }) ?? {};
   if (!arrayRoot) return null;
+  const capture = assignment && keyedArrayAssignmentPlan(path, arrayRoot, keyedCapture,
+    { adapter, resolvePure, isDisabledProp, isClaimedProp });
+  if (capture) return capture;
   const slots = [];
   const capturedSlots = new Set();
   const lastReadingSlots = new Map();
@@ -3414,6 +3436,7 @@ export function buildNestedDestructurePlan({
         // carry claims, but a live inner default or rest keeps that level's source route.
         function residualClaim(leaf, prototype = false) {
           if (leafDisabled(leaf)) return false;
+          if (isSymbolIteratorComputedKey(leaf, { scope, adapter, path })) return true;
           const leafKey = propKeyNameScoped(leaf, true);
           const object = anchorSlotMutated ? undefined : key;
           const placement = prototype || anchorSlotMutated ? 'prototype' : 'static';

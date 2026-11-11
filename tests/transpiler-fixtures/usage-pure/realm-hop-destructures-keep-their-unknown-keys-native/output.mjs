@@ -1,3 +1,4 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
@@ -8,9 +9,9 @@ const {
   [k]: z
 } = _globalThis.Array;
 const {
-  from: {
-    length
-  },
+  length
+} = _Array$from;
+const {
   [k2]: z2
 } = _globalThis.Array;
 const {

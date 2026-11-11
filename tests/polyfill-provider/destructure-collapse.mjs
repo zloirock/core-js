@@ -15,6 +15,8 @@ import {
   destructureRetainsLiteralWrapper,
   destructureSourceIsLiteralWrapper,
   isReReferenceableAcrossReads,
+  patternStaticNeedsExtraction,
+  patternClaimIsRealmHop,
   residualInitRunsEffects,
   resolveNestedReceiverChain,
   resolvePositionalElementSlot,
@@ -200,6 +202,58 @@ for (const [name, declaration, reusable] of [
   check(`${ label } shared source requires a reusable root`, !!resolveNestedReceiverChain(prop, { soleSlots: true, adapter }), reusable);
   checkTruthy(`${ label } explicit root capture retains the claim`, resolveNestedReceiverChain(prop, { soleSlots: true, rootMemoized: true, adapter }));
   check(`${ label } shared memo owns an unstable root`, !!computedRootMemoChain(prop, adapter), !reusable);
+});
+
+for (const effect of ['', 'effect(); ']) runBoth(
+  'nested receiver root/realm call memo retains its spelling',
+  `function get() { ${ effect }return globalThis; } const { Array: { prototype: { flat }, isArray } } = get();`,
+  (parser, program, label) => {
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'flat');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const original = JSON.stringify(host.node);
+    const chain = computedRootMemoChain(prop, adapter);
+    check(`${ label }/call retained`, chain?.root.type, 'CallExpression');
+    checkDeep(`${ label }/receiver keys`, chain?.keys, ['Array', 'prototype']);
+    check(`${ label }/source unchanged`, JSON.stringify(host.node), original);
+  },
+);
+
+for (const pattern of ['{ list: [{ at }], y }', '{ y, list: [{ at }] }', '{ outer: { list: [{ at }] }, y }']) runBoth(
+  'array plan/keyed assignment keeps its sibling slots',
+  `let at, y; (${ pattern } = source);`,
+  (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'AssignmentExpression');
+    const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+    const original = JSON.stringify(arrayPath.node);
+    const plan = buildNestedDestructurePlan({ arrayPath, adapter,
+      resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null });
+    check(`${ label }/ordered capture`, plan?.array.keyedCapture?.splitCapture, true);
+    check(`${ label }/one source evaluation`, plan?.array.keyedCapture?.init, arrayPath.node.right);
+    check(`${ label }/claims wait for the captured array`, plan?.extractions.length, 0);
+    check(`${ label }/source unchanged`, JSON.stringify(arrayPath.node), original);
+  },
+);
+
+for (const [receiver, globalEntry, expected] of [
+  ['Map', 'map', false], ['Map', 'map/constructor', true], ['Array', null, true], ['this', null, false],
+]) runBoth('pattern-valued static/namespace ownership', `const { groupBy: { length } } = ${ receiver };`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'groupBy');
+  function resolvePure(meta) {
+    return meta.kind === 'global' ? globalEntry && { kind: 'global', entry: globalEntry }
+      : { kind: 'static', entry: 'map/group-by' };
+  }
+  check(label, patternStaticNeedsExtraction(prop, { kind: 'property', object: receiver, key: 'groupBy' }, { resolvePure, mode: 'actual' }), expected);
+});
+
+for (const [pattern, kind, expected] of [
+  ['{ self: { value } }', 'global', true], ['{ self: { value } = {} }', 'global', true],
+  ['{ self: value }', 'global', false], ['{ [key()]: { value } }', 'global', false],
+  ['{ self: { value } }', 'instance', false],
+]) runBoth('pattern-valued realm hop/anchor ownership', `const ${ pattern } = globalThis;`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(label, patternClaimIsRealmHop(prop, { key: 'self' }, { adapter, resolvePure: () => ({ kind }) }), expected);
 });
 
 // Mirror ownership depends on the key's scoped effects, the constructor hop and the root's throw.
