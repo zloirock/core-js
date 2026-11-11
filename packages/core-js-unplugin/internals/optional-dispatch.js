@@ -688,24 +688,22 @@ export default function createOptionalDispatchChannel(ctx) {
     return true;
   }
 
-  // `this.from(x)` / `super.of(x)` in static context resolve against the super class's
-  // static surface: `_Array$from.call(this, x)` - the receiver stays the live constructor
+  // Inherited statics resolve against the captured base. Calls keep the live subclass
+  // receiver; a named value read preserves the class lookup and its possible TDZ throw.
   function emitInheritedStatic(meta, metaPath) {
     const callerPath = climbToCallerPath(metaPath);
     const parent = callerPath?.node;
-    if (metaPath.node.optional) return;
-    // a VALUE-position read swaps the member for the binding itself, dropping the `this`
-    // bind with the read - babel's shape (`const f = this.from` -> `const f = _Array$from`);
-    // a harvested effect has no slot in the bare swap, and `super`'s dispatch spelling
-    // stays with the call form
-    if (parent?.type !== 'CallExpression') {
-      if (meta.receiverEffectCount || meta.sideEffects?.length
-        || metaPath.node.object?.type === 'Super') return;
+    if (metaPath.node.optional && !meta.inheritedReceiver) return;
+    // A value read does not bind its receiver, including `super.from`. Preserve its
+    // computed-key effects around the imported binding, just as for a named class.
+    if (parent?.type !== 'CallExpression' || unwrapRuntimeExpr(parent.callee) !== metaPath.node) {
+      if (meta.receiverEffectCount) return;
       const { result: valueResult } = resolvePureOrGlobalFallback(meta, metaPath);
       if (!valueResult) return;
       markRewrite();
       if (metaPath.node.computed) markSubtreeSkipped(skippedNodes, metaPath.node.property);
-      metaPath.replaceWith(identifier(injectPureImport(valueResult.entry, valueResult.hintName)));
+      metaPath.replaceWith(withSideEffects(identifier(injectPureImport(valueResult.entry, valueResult.hintName)),
+        meta.inheritedReadEffects ?? meta.sideEffects));
       return;
     }
     // a harvested KEY effect rides as a sequence prefix around the whole dispatch - the swap
@@ -723,8 +721,8 @@ export default function createOptionalDispatchChannel(ctx) {
     const target = parent.optional && callerPath.parentPath?.node?.type === 'ChainExpression'
       ? callerPath.parentPath : callerPath;
     target.replaceWith(renderMethodCall(planMethodCall({
-      receiver: { type: 'ThisExpression' }, prepared: true, methodGuarded: true, args: parent.arguments,
-    }), { lookup: identifier(id), leadingEffects: meta.sideEffects, embed: cloneNode }));
+      receiver: meta.inheritedReceiver ?? { type: 'ThisExpression' }, prepared: true, methodGuarded: true, args: parent.arguments,
+    }), { lookup: identifier(id), leadingEffects: meta.inheritedCallEffects ?? meta.sideEffects, embed: cloneNode }));
   }
 
   return {

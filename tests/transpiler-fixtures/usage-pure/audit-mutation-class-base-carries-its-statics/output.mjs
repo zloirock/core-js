@@ -1,10 +1,9 @@
 import _Map from "@core-js/pure/actual/map";
 import _Set from "@core-js/pure/actual/set";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-// a subclass whose OWN NAME is a static receiver reads a static it INHERITS, through a binding no
-// reaching-value walk connects back to the base - so the base carries its statics itself and the
-// bare constructor entry will not do. the negatives keep that entry: a base whose statics are read
-// through `super` inside the body resolves on its own, and a key the subclass DECLARES is its own
+// A subclass can hand its inherited statics out through its own binding.
+// The base keeps its whole entry, so the inherited read needs no separate static import.
+// An own static is not inherited, and an instance-only method is not a class static.
 class Inherits extends _Map {}
 use(Inherits.groupBy);
 class ViaSuper extends _Set {

@@ -1,9 +1,8 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise";
-// pure names no static a local class only inherits: the read stays on the class - through `super`
-// over a local base class or through an alias of the subclass - so the constructor at the end of
-// the heritage takes its whole entry. a static the local class defines itself answers the read
+// Inherited statics resolve through local class chains and aliases of the subclass.
+// Calls preserve the subclass receiver; a local own static still wins.
 class GroupedBase extends _Map {}
 class Grouped extends GroupedBase {
   static group(items) {

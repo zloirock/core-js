@@ -1,4 +1,3 @@
-import _Promise$try from "@core-js/pure/actual/promise/try";
 // user imports the same core-js entry twice with different local names. first-write-wins
 // in registerUserPureImport means only `_Promise` is registered; `MyPromise` ends up as
 // a distinct local binding. `class extends MyPromise { static foo() { super.withResolvers(); } }`
@@ -8,7 +7,7 @@ import _Promise from '@core-js/pure/actual/promise';
 import MyPromise from '@core-js/pure/actual/promise';
 class Foo extends MyPromise {
   static run() {
-    return _Promise$try.call(this, () => 1);
+    return super.try(() => 1);
   }
 }
 new _Promise(r => r(1));

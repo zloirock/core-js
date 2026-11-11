@@ -3,7 +3,7 @@
 //   - skip dispatch (TS type-only / disabled / for-x write target)
 //   - `key in obj` (Symbol.X -> static module via symbolKeyToEntry)
 //   - regular usage resolution
-//   - `super.X` / `this.X` in static context (inherited-static lookup)
+//   - inherited statics through super, static this or a class identifier
 //   - `cond ? Array : Iterator` destructure (per-branch fallback)
 // also handles `class extends Array { foo() { this.at(0) } }` shadow check
 import {
@@ -19,7 +19,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
-import { symbolKeyToEntry } from '../detect-usage/globals.js';
+import { isKnownGlobalName, symbolKeyToEntry } from '../detect-usage/globals.js';
 import { hasOwnStaticDefinition } from '../index.js';
 
 // bail when the usage is syntactically present but carries no runtime read - polyfilling
@@ -39,16 +39,18 @@ function shouldSkipUsageDispatch(meta, path, isDisabled, adapter) {
 
 // `super.X(...)` / `this.X(...)` in a static method of `extends KnownGlobal { ... }`:
 // regular MemberExpression resolution produces `{object: null, placement: 'prototype'}` which
-// never matches `Array.from` etc. retry with a synthetic static meta against the parent class.
-// covers both Super and ThisExpression-in-static-context via `isInheritedStaticLookup`.
+// never matches `Array.from` etc. A class alias may instead carry its local constructor name.
+// Retry those unresolved hints with a synthetic static meta against the captured parent class.
+// Covers super, static this and stable class identifiers via `isInheritedStaticLookup`.
 // the key comes from the META, not re-read off the member: a reachable-union EXTRA
 // (`this[k]` with a reassigned `k`) carries its own alternative key, which a node re-read
 // would collapse back to the primary and drop the alternative's static injection
 function tryResolveSuperStaticMeta({ meta, path, resolveStaticInheritedMember, isInheritedStaticLookup }) {
   if (!resolveStaticInheritedMember || !isInheritedStaticLookup) return null;
-  if (meta.kind !== 'property' || meta.placement !== 'prototype' || meta.object !== null) return null;
+  if (meta.kind !== 'property'
+    || (meta.object === null ? meta.placement !== 'prototype' : isKnownGlobalName(meta.object))) return null;
   if (path?.node?.type !== 'MemberExpression' && path?.node?.type !== 'OptionalMemberExpression') return null;
-  if (!isInheritedStaticLookup(path)) return null;
+  if (!isInheritedStaticLookup(path, meta)) return null;
   return resolveStaticInheritedMember(path, meta.key ?? null);
 }
 

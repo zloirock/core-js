@@ -1,5 +1,4 @@
 import _Promise from "@core-js/pure/actual/promise";
-import _Promise$try from "@core-js/pure/actual/promise/try";
 // a spread AFTER a matched namespace key can REDEFINE it at runtime with statically-unknown
 // contents, so super-static resolution through that key must BAIL and stay native. `A` spreads
 // after `Promise: Promise` -> super.try stays native; `B` spreads before the key (explicit key
@@ -20,7 +19,7 @@ const beforeNS = {
 };
 class B extends beforeNS.Promise {
   static bar() {
-    return _Promise$try.call(this, () => 2);
+    return super.try(() => 2);
   }
 }
 const bothNS = {

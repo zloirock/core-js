@@ -5354,8 +5354,10 @@ function nodeFollowsUsageInScope({ node, readNode, owner }) {
 // when the init is provably DEAD; pure resolves only when it is provably the LIVE value). `usageNode`
 // overrides the read position like in the mirror: an alias hop / destructure CAPTURE reads the value
 // there, so a same-scope write between the capture and the eventual use cannot reach the captured value
+// A consumer may prove a deferred write follows this read; the frame and back-edge gates still apply.
 export function noReassignmentReachesUsage({
   reassignmentNodes, usagePath, usageNode = null, bindingScopeNode = null, bindingAnchor = null,
+  deferredWriteFollows = null,
 }) {
   if (!usagePath) return false;
   if (!reassignmentNodes?.length) return true;
@@ -5396,7 +5398,8 @@ export function noReassignmentReachesUsage({
     || nodeFollowsUsageInScope({ node, readNode, owner })
     || (writeHoldsRead(node, readNode, owner.node) && collectVarGuardsToDeclarator(owner.node, node) !== null)
     || (writeIsInOppositeBranch(node, usagePath, readNode)
-      && collectVarGuardsToDeclarator(owner.node, node) !== null)));
+      && collectVarGuardsToDeclarator(owner.node, node) !== null)
+    || deferredWriteFollows?.(node)));
 }
 
 // the value a reassignment site INSTALLS (`installedWriteValue` of its `=` RHS), normalized across
@@ -5749,11 +5752,15 @@ function patternContainerOwner(init, ctx) {
 // global unions the written values in, typing reads no type off the literal. only a write that may
 // reach the capture counts; a later one cannot change the captured value. `usageNode` overrides
 // that position for a consumer re-reading the slot rather than using its captured value.
-export function containerSlotWritten(init, keys, ctx, usageNode = init) {
+// A consumer with a scoped callee proof may discharge an otherwise unknown escape.
+// `escapeOnly` asks for whole-lifetime exposure: later handouts count, named writes do not.
+export function containerSlotWritten(init, keys, ctx, usageNode = init, escapePreserves = null, escapeOnly = false) {
   const adapter = ctx?.adapter;
   if (!adapter?.isWrittenContainerSlot) return false;
   const owner = patternContainerOwner(init, ctx);
-  return !!owner && adapter.isWrittenContainerSlot(owner.ownerName, keys, owner.ownerNode, ctx.path, usageNode);
+  return !!owner && adapter.isWrittenContainerSlot(
+    owner.ownerName, keys, owner.ownerNode, ctx.path, usageNode, escapePreserves, escapeOnly,
+  );
 }
 
 // ... at the slot a pattern binds `name` to - a declarator's and a pattern write's alike, `ctx` the

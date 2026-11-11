@@ -1,5 +1,4 @@
 import _Promise from "@core-js/pure/actual/promise";
-import _Promise$race from "@core-js/pure/actual/promise/race";
 // usage-pure resolves an inherited super-static only when the super-class alias is unconditionally
 // the global at the capture point. a conditional-var base (init may be dead) or an assignment-form
 // alias written AFTER the class captures it would, if resolved, replace `super.<m>` with a pure
@@ -7,7 +6,7 @@ import _Promise$race from "@core-js/pure/actual/promise/race";
 // resolver applies the canonical dominance / hint-soundness gates
 class Sound extends _Promise {
   static run() {
-    return _Promise$race.call(this, []);
+    return super.race([]);
   }
 }
 if (cond) {

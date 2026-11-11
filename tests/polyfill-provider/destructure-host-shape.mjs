@@ -2574,9 +2574,9 @@ for (const [name, declarations, literal, claimed, expected] of [
     check(`${ label }/${ name }/capture`, !!plan, expected);
   });
 
-for (const [returned, expected] of [['Array', 'Array'], ['Custom', 'Custom'], ['flag ? Array : Custom', null]]) {
+for (const [returned, expected] of [['Array', 'Array'], ['Custom', 'Custom'], ['flag ? Array : Custom', null], ['Iterator', null], ['Map', null]]) {
   runBoth('an ordered capture retains a getter constructor for later statics',
-    `class Custom {} class K { static get value() { effect(); return ${ returned }; } }
+    `class Custom {} class Iterator {} class Map {} class K { static get value() { effect(); return ${ returned }; } }
       let at, of; ({ prototype: { at }, of } = K.value);`, (parser, program, label) => {
       const host = parser.pickPath(program, 'AssignmentExpression', path => path.node.left.type === 'ObjectPattern');
       const census = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);

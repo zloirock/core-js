@@ -644,3 +644,53 @@ QUnit.test('class: static presence differs between the key and parameter body', 
   assert.same(new Box()[1](receiver), 12);
   assert.deepEqual(effects, ['key', 'body', 'argument', 'user']);
 });
+
+QUnit.test('class: named inherited statics preserve the subclass receiver', assert => {
+  class Base extends Array {}
+  class Bag extends Base {
+    static fromBase(values) { return super.from(values); }
+    read() { return Bag.of(5); }
+  }
+  const copied = Bag.from([3]);
+  assert.same(copied[0], 3);
+  assert.true(copied instanceof Bag);
+  assert.true(Bag.fromBase([4]) instanceof Bag);
+  assert.true(new Bag().read() instanceof Bag);
+  const of = Bag.of; // eslint-disable-line prefer-destructuring -- Keep the member-value read under test.
+  assert.true(of.call(Bag, 6) instanceof Bag);
+});
+
+QUnit.test('class: aliases keep local methods and written static slots', assert => {
+  // eslint-disable-next-line unicorn/no-static-only-class -- This must be a shadowing class binding.
+  class Iterator { static from() { return 'user'; } }
+  const I = Iterator;
+  assert.same(I.from([]), 'user');
+  const Base = class extends Array {};
+  Base.from = function () { return this; };
+  class Bag extends Base {}
+  assert.same(Bag.from([]), Bag);
+});
+
+QUnit.test('class: named inherited optional key effects run once', assert => {
+  const effects = [];
+  class Bag extends Array {}
+  // eslint-disable-next-line no-sequences -- Observe the optional key and argument evaluation order.
+  const result = Bag?.[effects.push('key'), 'from']?.((effects.push('argument'), [7]));
+  assert.true(result instanceof Bag);
+  assert.deepEqual(effects, ['key', 'argument']);
+});
+
+QUnit.test('class: a captured static precedes the constructor replacing it', assert => {
+  class Bag extends Array {
+    constructor(...values) {
+      super(...values);
+      Bag.of = () => 31;
+    }
+    static read() { return Bag.of(5); }
+  }
+  const of = Bag.of; // eslint-disable-line prefer-destructuring -- Capture the inherited member before construction.
+  const value = of.call(Bag, 6);
+  assert.true(value instanceof Bag);
+  assert.same(value[0], 6);
+  assert.same(Bag.read(), 31);
+});

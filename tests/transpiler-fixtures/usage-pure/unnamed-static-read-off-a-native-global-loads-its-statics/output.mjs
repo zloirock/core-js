@@ -1,9 +1,10 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 // An unnamed static read may select any own static of its native global.
 // Global usage loads those statics and their dependencies; prototype methods need separate usage.
 // Member, destructured, inherited and parameter reads retain the same static obligation.
 export const picked = Object[name](source);
 class List extends Array {}
-export const made = List.from(items);
+export const made = _Array$from.call(List, items);
 export function format(S) {
   return S.raw(parts);
 }

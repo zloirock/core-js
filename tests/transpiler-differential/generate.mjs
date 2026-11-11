@@ -23468,6 +23468,93 @@ function * generateBindingReadPositions() {
   };
 }
 
+// Named class receivers and user inheritance chains keep the same method ownership.
+function * generateClassStaticAliases() {
+  for (const depth of [0, 1, 2]) for (const receiver of ['Bag', 'this', 'super']) for (const own of [false, true]) {
+    const parent = depth ? `Base${ depth }` : 'Array';
+    const bases = Array.from({ length: depth }, (_, index) => `class Base${ index + 1 } extends ${ index ? `Base${ index }` : 'Array' } {
+      ${ own && index === 0 ? 'static from() { log.push("own"); return new this(9); }' : '' }
+    }`).join('\n');
+    yield {
+      ...snippet(`class-static/${ depth }/${ receiver }/${ own }`, `(() => {
+        ${ bases }
+        class Bag extends ${ parent } {
+          ${ own && !depth ? 'static from() { log.push("own"); return new this(9); }' : '' }
+          static read() { return ${ receiver }.from([3]); }
+        }
+        const value = Bag.read();
+        return [value.length, value[0], value instanceof Bag];
+      })()`), strip: true, isolated: true,
+    };
+  }
+  for (const receiver of ['this', 'super']) yield {
+    ...snippet(`class-static/extracted/${ receiver }`, `(() => {
+      class Base extends Array {}
+      class Bag extends Base {
+        static read() { const from = ${ receiver }[(log.push("key"), "from")]; return from.call(this, [3]); }
+      }
+      return Bag.read() instanceof Bag;
+    })()`), strip: true, isolated: true,
+  };
+  for (const [shape, body, strip = true] of [
+    ['class-alias', 'class Bag extends Array {} const B = Bag; return B.of(3) instanceof Bag;'],
+    ['argument-read', 'class Bag extends Array {} function read(from) { return typeof from; } return read(Bag.from);'],
+    // Tags preserve their native subclass receiver; pure substitution stays declined.
+    ['tagged-read', 'class Bag extends Array {} return Bag.from`x` instanceof Bag;', false],
+    ['container-base-written', 'const ns = { Base: class extends Array {} }; const Base = ns.Base; ns.Base.from = () => 17; class Bag extends Base {} return Bag.from([]);'],
+    ['named-optional-result', 'class Base extends Array {} class Bag extends Base {} return Bag.from?.([3]).at(-1);'],
+    ['key-tdz', 'try { Bag[(log.push("key"), "from")]([]); class Bag extends Array {} } catch (error) { return error.name; }'],
+    ['local-alias', 'class Iterator { static from() { return "user"; } } const I = Iterator; return I.from([3]);'],
+    ['local-container', 'class Map { static groupBy() { return "user"; } } const box = { C: Map }; return box.C.groupBy([3], x => x);'],
+    ['extracted-tdz', 'try { const from = Bag.from; class Bag extends Array {} return 0; } catch (error) { return error.name; }'],
+    ['written-expression', 'const Base = class extends Array {}; Base.from = function () { return this; }; class Bag extends Base {} return Bag.from([]) === Bag;'],
+    ['optional-key', 'class Bag extends Array {} return Bag?.[(log.push("key"), "of")]?.((log.push("arg"), 3)) instanceof Bag;'],
+    ['extracted-and-method', `class Base extends Array {}
+      class Bag extends Base { static fromBase(xs) { return super.from(xs); } read() { return Bag.of(5); } }
+      const of = Bag.of; return [new Bag().read()[0], of.call(Bag, 6)[0]];`],
+    ['extracted-before-reader', 'class Bag extends Array {} const of = Bag.of; function read() { return Bag.of(5); } return [read()[0], of.call(Bag, 6)[0]];'],
+    ['extracted-before-write', 'class Bag extends Array { read() { return Bag.of(5); } } const of = Bag.of; Bag.of = () => 19; return [new Bag().read(), of.call(Bag, 6)[0]];'],
+    ['extracted-own-method', `class Bag extends Array { static of() { this.from = () => 23; } read() { return Bag.from([]); } }
+      const of = Bag.of; of.call(Bag); return new Bag().read();`],
+    ['extracted-parent-alias', `class Base extends Array {} const B = Base; class Bag extends B { read() { return Bag.of(5); } }
+      const of = B.of; return [new Bag().read()[0], of.call(B, 6)[0]];`],
+    ['extracted-parent-alias-write', `class Base extends Array {} const B = Base; class Bag extends B { read() { return Bag.of(5); } }
+      const of = function () { this.of = () => 29; }; of.call(B); return new Bag().read();`],
+  ]) yield { ...snippet(`class-static/${ shape }`, `(() => {\n${ body }\n})()`), strip, isolated: true };
+  for (const before of [false, true]) for (const [kind, capture, invoke] of [
+    ['direct', '', 'Bag.of(6)'],
+    ['call', 'const of = Bag.of;', 'of.call(Bag, 6)'],
+    ['apply', 'const of = Bag.of;', 'of.apply(Bag, [6])'],
+    ['reflect', 'const of = Bag.of;', 'Reflect.apply(of, Bag, [6])'],
+  ]) yield {
+    ...snippet(`class-static/constructor/${ kind }/${ before }`, `(() => {
+      class Bag extends Array {
+        constructor(...xs) { super(...xs); log.push("construct"); Bag.of = () => 31; }
+        static read() { return Bag.of(7); }
+      }
+      ${ before ? 'new Bag();' : '' }
+      ${ capture }
+      const value = ${ invoke };
+      return [typeof value === "number" ? value : value[0], Bag.read()];
+    })()`), strip: true, isolated: true,
+  };
+  for (const [shape, body] of [
+    ['namespace', 'class Bag extends Map {} const groupBy = Bag.groupBy; return [groupBy === Bag.groupBy, groupBy([3], x => x).get(3)[0]];'],
+    ['namespace-chain-key', 'class Base extends Map {} class Bag extends Base {} return Bag[(log.push("key"), "groupBy")]([3], x => x).get(3)[0];'],
+    ['opaque-key', 'class Bag extends Array {} const key = String("of"); return Bag[key](3)[0];'],
+    ['namespace-container',
+      `const ns = { inner: { Base: Map } }; const alias = ns.inner;
+       function read(Map) { class Bag extends alias[(log.push("base"), "Base")] {}
+         return Bag[(log.push("key"), "groupBy")]([3], x => x).get(3)[0]; }
+       return read(null);`],
+    ['namespace-computed-key',
+      `const key = "Base"; const ns = { [key]: Map };
+       function read(key) { class Bag extends ns.Base {} return Bag.groupBy([3], x => x).get(3)[0]; }
+       return read(null);`],
+    ['array-pattern-base', 'const [Base] = [Array]; class Bag extends Base {} return Bag.of(3)[0];'],
+  ]) yield { ...snippet(`class-static/precision/${ shape }`, `(() => { ${ body } })()`), strip: shape !== 'opaque-key', isolated: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -25162,4 +25249,5 @@ export function * generate() {
   yield * generatePrivateNamespaceCaptures();
   yield * generateIifeSynthReceivers();
   yield * generateBindingReadPositions();
+  yield * generateClassStaticAliases();
 }

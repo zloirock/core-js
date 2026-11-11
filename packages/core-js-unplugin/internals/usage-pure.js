@@ -501,18 +501,15 @@ export default function createAstUsagePureCallback({
       }
       if (node.type !== 'MemberExpression') return;
       if (memberWritePositionBails(metaPath)) return spellLogicalPatchDetect(meta, metaPath);
-      if (isThisReceiver(node.object) || node.object?.type === 'Super') {
-        if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
-        if (isInheritedStaticLookup(metaPath, meta)) {
-          meta = remapInheritedStaticMeta(injectorState, meta, resolveStaticInheritedMember(metaPath));
-          if (!meta || isMutatedStatics(meta, metaPath)) return;
-          return emitInheritedStatic(meta, metaPath);
-        }
-        // outside a static lookup `this` is an ordinary INSTANCE receiver, reusable like a
-        // name (`this.at(0)` -> `_at(this).call(this, 0)`); `super` never is - its dispatch
-        // has its own spelling and stays staged
-        if (node.object?.type === 'Super') return;
+      if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
+      if (isInheritedStaticLookup(metaPath, meta)) {
+        meta = remapInheritedStaticMeta(injectorState, meta, resolveStaticInheritedMember(metaPath));
+        if (!meta || isMutatedStatics(meta, metaPath)) return;
+        return emitInheritedStatic(meta, metaPath);
       }
+      // Outside a static lookup `this` is an ordinary instance receiver. `super`
+      // has its own dispatch spelling and cannot take the instance rewrite below.
+      if (node.object?.type === 'Super') return;
       // a TAGGED-TEMPLATE tag is a plain binding swap for a STATIC claim (`String.raw\`x\``
       // -> `_String$raw\`x\``); an INSTANCE one would need a `.call` dispatch the tag position
       // has no room for, so that stays raw - through the wrappers the tag may wear

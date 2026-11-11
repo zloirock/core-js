@@ -8,6 +8,7 @@ import './private-destructure-bindings.mjs';
 import './kept-store-seals.mjs';
 import './iife-synth-receivers.mjs';
 import './binding-read-runtime.mjs';
+import './class-static-runtime.mjs';
 import './fixture-size.mjs';
 import './fixture-output-normalization.mjs';
 import './estree-to-babel.mjs';
