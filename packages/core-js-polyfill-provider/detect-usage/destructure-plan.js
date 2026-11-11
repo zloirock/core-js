@@ -1032,6 +1032,10 @@ export function planForInitSink(init, ctx, { probe = null, dropReceiver = false,
     }
     if (reads.some(read => read.chain?.length)) {
       const sink = consumedInitSink(init);
+      if (!sink.writes && reads.every(read => !read.readsReceiver)) {
+        return planDiscardedInitPlacement(planDiscardedInit(init, ctx, probe, { dropReceiver }, reads).effects,
+          { readCount: reads.length, forInit: true });
+      }
       const prefix = sink.writes ? sink.effects : reads.length === 1 && reads[0].carriesPrefix
         ? observablePrefixElements(forInitSESinkParts({ init, id: reads[0].declarator?.id }, true)?.prefix ?? [], ctx) : [];
       const placed = planDiscardedInitPlacement(prefix, { readCount: reads.length, forInit: true });
@@ -3347,9 +3351,8 @@ export function buildNestedDestructurePlan({
     // `resolveObjectName` follows PROXY-GLOBAL chains only, so a receiver read off a static CONTAINER
     // (`({ w: Array }).w`, `[Array][0]`) names nothing there and the plan fell through to the static
     // descent, which plans only ObjectPattern-valued props - a peeled FLAT prop stayed verbatim and its
-    // leaf lost the ponyfill its flat twin extracts. a PROXY name is not this fallback's to give: the
-    // name resolver declines those deliberately (a mutated `globalThis.self` holds the user's own
-    // object) and handing one back would open the proxy branch on the receiver it refused
+    // leaf lost the ponyfill its flat twin extracts. A proxy returned by a rescued getter can
+    // name the same realm, but a mutated proxy slot must not reopen a declined navigation.
     const proxyReceiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
     // ... asked with the SAME rescue permission the static descent below gets: a declaration and an
     // assignment host both replay a receiver read they discard - the harvest above already names this
@@ -3359,7 +3362,8 @@ export function buildNestedDestructurePlan({
     const containerReceiver = init && !proxyReceiver
       ? staticContainerReceiverName({ node: init, scope, adapter, path, rescuesReceiverRead }) : null;
     const receiver = proxyReceiver
-      ?? (containerReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(containerReceiver) ? containerReceiver : null);
+      ?? (containerReceiver && (!POSSIBLE_GLOBAL_OBJECTS.has(containerReceiver)
+        || rescuesReceiverRead && isPristineProxyGlobal(adapter, containerReceiver, { node: init, path })) ? containerReceiver : null);
     planReceiverName = receiver;
     // an UNDEFINABLE probe nav as the init (`globalThis.window?.self`, `globalThis.window?.Array`,
     // their sealed paren spellings): destructuring THROWS where the probe yields undefined, so an

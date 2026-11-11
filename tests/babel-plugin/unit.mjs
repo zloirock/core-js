@@ -5,6 +5,7 @@
 import './babel-compat.mjs';
 import './destructure-groups.mjs';
 import './destructure-plan-runtime.mjs';
+import './initializer-effects-runtime.mjs';
 import './private-destructure-bindings.mjs';
 import './kept-store-seals.mjs';
 import './iife-synth-receivers.mjs';

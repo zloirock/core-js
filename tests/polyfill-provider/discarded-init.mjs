@@ -294,4 +294,24 @@ runBoth('carried prefix with a getter', 'const box = { get value() { return Arra
       [{ seCarried: true, readsReceiver: true }]).effects.length, 0);
   });
 
+// A nested static consumes no receiver read. The header still owns its getter.
+for (const expression of ['holder.box', 'holder?.box', '(effect(), holder.box)']) {
+  const source = `const holder = { get box() { effect(); return { A: Array }; } }; const result = ${ expression };`;
+  runBoth(`nested header getter/${ expression }`, source, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { scope: path.scope, path, adapter, resolvePure };
+    const before = JSON.stringify(path.node.init);
+    const read = { chain: [{}], sinkKeep: true };
+    const expected = planDiscardedInit(path.node.init, ctx).effects;
+    check(`${ label }/live control`, expected.length > 0, true);
+    for (const count of [1, 2]) {
+      const actual = planForInitSink(path.node.init, ctx, { reads: count === 1 ? [read] : [read, read] });
+      checkDeep(`${ label }/${ count }/effects`, actual.effects, expected);
+      check(`${ label }/${ count }/placement`, actual.placement, count === 1 ? 'value' : 'sink');
+    }
+    check(`${ label }/source unchanged`, JSON.stringify(path.node.init), before);
+  });
+}
+
 finish();

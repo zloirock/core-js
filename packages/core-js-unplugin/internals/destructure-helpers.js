@@ -390,11 +390,12 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
-  // an SE-bearing init has no slot in this shape (the extractions drop it) - staged
-  if (jobs.length > 1 && !seqPrefix?.length && mayHaveSideEffects(bodylessAssign.right)) return;
+  // The consumed source can still owe a getter after its lifted prefix. Receiver
+  // readers own that work themselves, as in the declaration and statement drains.
+  const { effects } = planDiscardedInit(liveSeq ? liveSeq.at(-1) : bodylessAssign.right, liftCtx, null, null, jobs);
   // several extractions wrap the bodyless slot in a block (babel's scope.push shape);
   // a single one keeps the bare statement
-  const replacement = bodylessSlotReplacement(hostNode, [...prefixStatements, ...orderedStatements()]);
+  const replacement = bodylessSlotReplacement(hostNode, [...prefixStatements, ...effects.map(expressionStatement), ...orderedStatements()]);
   if (replaceNodeInTree(program, hostNode, replacement)) markRewrite();
 
   function orderedStatements(residuals = []) {

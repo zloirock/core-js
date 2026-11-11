@@ -23600,6 +23600,90 @@ function * generateDestructurePlanLifecycle() {
   };
 }
 
+// Initializer effects precede every extracted binding, including a surviving rest.
+function * generateInitializerEffects() {
+  for (const prefixed of [false, true]) for (const [shape, body] of [
+    ['declaration', 'const { A: { from } } = INIT; return from([7])[0];'],
+    ['siblings', 'const before = note("before"), { A: { from } } = INIT, after = note("after"); return from([7])[0];'],
+    ['header', 'for (const { A: { from } } = INIT; ;) return from([7])[0];'],
+    ['two-header', 'for (const { A: { from }, O: { keys } } = INIT; ;) return from([keys({ a: 1 })[0]])[0];'],
+    ['bodyless', 'let from; if (true) ({ A: { from } } = INIT); return from([7])[0];'],
+    ['two-bodyless', 'let from, keys; if (true) ({ A: { from }, O: { keys } } = INIT); return from([keys({ a: 1 })[0]])[0];'],
+    ['false-bodyless', 'let from; if (false) ({ A: { from } } = INIT); return typeof from;'],
+    ['sequence', 'let from; (note("before"), ({ A: { from } } = INIT), note("after")); return from([7])[0];'],
+  ]) yield {
+    ...snippet(`initializer-effects/${ shape }/${ prefixed }`, `(() => {
+      function note(value) { log.push(value); return value; }
+      const holder = { get box() { note('get'); return { A: Array, O: Object }; } };
+      ${ body.replace('INIT', prefixed ? '(note("prefix"), holder.box)' : 'holder.box') }
+    })()`), strip: true,
+  };
+  for (const kind of ['const', 'let', 'var']) for (const rest of [false, true]) yield {
+    ...snippet(`initializer-effects/binding/${ kind }/${ rest }`, `(() => {
+      let seen;
+      function observe() { try { seen = typeof isInteger; } catch (error) { seen = error.name; } }
+      ${ kind } first = (log.push('first'), 1), {
+        Number: { isInteger${ rest ? ', ...numbers' : '' } }, WeakMap: W
+      } = (observe(), globalThis), last = (log.push('last'), 2);
+      return [first, seen, isInteger(7), typeof W, last];
+    })()`), strip: true, isolated: true,
+  };
+  // Partial realm patterns under array wrappers retain native statics.
+  for (const wrapper of [false, true]) for (const key of [false, true]) yield {
+    ...snippet(`initializer-effects/partial/${ wrapper }/${ key }`, `(() => {
+      const first = (log.push('first'), 1), ${ wrapper ? '[' : '' }{
+        ${ key ? '[(log.push("key"), "Array")]' : 'Array' }: { from }, other
+      }${ wrapper ? ']' : '' } = ${ wrapper ? '[' : '' }(log.push('prefix'), globalThis)${ wrapper ? ']' : '' }, last = (log.push('last'), 2);
+      return [first, from([7])[0], typeof other, last];
+    })()`), strip: !wrapper,
+  };
+  for (const sequence of [false, true]) yield {
+    ...snippet(`initializer-effects/reanchor/${ sequence }`, `(() => {
+      const realm = { get value() { log.push('get'); return globalThis; } };
+      let custom;
+      ${ sequence ? '(log.push("before"), ({ Map: { custom } } = realm.value), log.push("after"));' : '({ Map: { custom } } = realm.value);' }
+      return typeof custom;
+    })()`), strip: true, isolated: true,
+  };
+  for (const [name, setup, value, throwing = '', pattern = 'custom', init = 'realm.value', disabled = false, mutate = ''] of [
+    ['mutated-global', 'globalThis.self = { Map: { custom: 23 } };', 'self'],
+    ['mutated-ctor', 'globalThis.Map = { custom: 23 };', 'globalThis'],
+    ['shadow-global', 'const globalThis = { Map: { custom: 23 } };', 'globalThis'],
+    ['unknown', 'const input = JSON.parse(\'{"Map":{"custom":23}}\');', 'input'],
+    ['null', '', 'null'],
+    ['throw', '', 'globalThis', 'throw new RangeError();'],
+    ['default', '', 'globalThis', '', 'custom = 7'],
+    ['stored', '', 'globalThis', '', 'custom', 'held = realm.value'],
+    ['disabled', '', 'globalThis', '', 'custom', 'realm.value', true],
+    ['mutated-source', '', 'globalThis', '', 'custom', 'realm.value', false,
+      'Object.defineProperty(realm, "value", { value: { Map: { custom: 23 } } });'],
+  ]) yield {
+    ...snippet(`initializer-effects/reanchor-control/${ name }`, `(() => {
+      ${ setup }
+      const realm = { get value() { log.push('get'); ${ throwing } return ${ value }; } };
+      ${ mutate }
+      let custom, held;
+      try {
+        ${ disabled ? '// core-js-disable-next-line' : '' }
+        ({ Map: { ${ pattern } } } = ${ init });
+        return custom;
+      } catch (error) { return error.name; }
+    })()`), strip: true, isolated: true,
+  };
+  for (const [name, body] of [
+    ['header', 'for (const { A: { from } } = INIT; ;) return from([7])[0];'],
+    ['siblings', 'const before = note("before"), { A: { from } } = INIT, after = note("after"); return from([7])[0];'],
+    ['bodyless', 'let from; if (true) ({ A: { from } } = INIT); return from([7])[0];'],
+    ['sequence', 'let from; (note("before"), ({ A: { from } } = INIT), note("after")); return from([7])[0];'],
+  ]) for (const wrapper of ['(note("prefix"), (holder.box as any))', '((note("prefix"), holder.box) satisfies any)', '(note("prefix"), holder.box!)']) yield {
+    ...snippet(`initializer-effects/typed/${ name }/${ wrapper }`, `(() => {
+      function note(value: string) { log.push(value); return value; }
+      const holder = { get box() { note('get'); return { A: Array }; } };
+      ${ body.replace('INIT', wrapper) }
+    })()`), ts: true, strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -25296,4 +25380,5 @@ export function * generate() {
   yield * generateBindingReadPositions();
   yield * generateClassStaticAliases();
   yield * generateDestructurePlanLifecycle();
+  yield * generateInitializerEffects();
 }
