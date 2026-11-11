@@ -171,6 +171,7 @@
   - Fixed [Opera 120](https://blogs.opera.com/desktop/2025/07/opera-120/) compat data mapping: `RegExp.escape`, `SuppressedError`, `DisposableStack`, `AsyncDisposableStack` and `Iterator.prototype[@@dispose]` are no longer marked as supported
   - Fixed Electron [0.21](https://github.com/electron/electron/blob/v0.21.0/atom/common/chrome_version.h), [0.30](https://github.com/electron/electron/blob/v0.30.0/atom/common/chrome_version.h), [0.31](https://github.com/electron/electron/blob/v0.31.0/atom/common/chrome_version.h) and [1.4](https://github.com/electron/electron/blob/v1.4.0/atom/common/chrome_version.h) compat data mapping
   - [Updated Electron 46 and added 47](https://releases.electronjs.org/) compat data mapping
+  - Updated Opera 140+ compat data mapping
   - Added [Opera for Android 103](https://forums.opera.com/topic/89817/opera-for-android-103) compat data mapping
 
 ### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
