@@ -23555,6 +23555,51 @@ function * generateClassStaticAliases() {
   ]) yield { ...snippet(`class-static/precision/${ shape }`, `(() => { ${ body } })()`), strip: shape !== 'opaque-key', isolated: true };
 }
 
+// Rebuilt keyed hosts expose the same child claims in either binding dialect.
+function * generateDestructurePlanLifecycle() {
+  for (const assignment of [false, true]) for (const before of [false, true]) for (const deep of [false, true]) {
+    const slot = deep ? 'outer: { list: [{ at }] }' : 'list: [{ at }]';
+    const pattern = `{ ${ before ? 'y, ' : '' }${ slot }${ before ? '' : ', y' } }`;
+    yield {
+      ...snippet(`destructure-plan/array/${ assignment }/${ before }/${ deep }`, `(() => {
+        function read(obj) {
+          ${ assignment ? `let at, y; (${ pattern } = obj);` : `const ${ pattern } = obj;` }
+          return [at.call([7, 8], -1), y];
+        }
+        const list = { get list() { log.push('list'); return [[7, 8]]; } };
+        const obj = { ${ deep ? 'outer: list' : 'get list() { return list.list; }' }, get y() { log.push('y'); return 1; } };
+        return read(obj);
+      })()`), strip: true, isolated: true,
+    };
+  }
+  for (const assignment of [false, true]) for (const iterator of [false, true]) yield {
+    ...snippet(`destructure-plan/realm/${ assignment }/${ iterator }`, `(() => {
+      ${ assignment ? 'let method, o;' : '' }
+      ${ assignment ? '(' : 'const ' }{ globalThis: { Array: { prototype: {
+        ${ iterator ? '[Symbol.iterator]' : 'at' }: method
+      } }, Object: o } } = globalThis${ assignment ? ')' : '' };
+      return [${ iterator ? 'method.call([7]).next().value' : 'method.call([7, 8], -1)' }, typeof o];
+    })()`), strip: true, isolated: true,
+  };
+  for (const [name, body] of [
+    ['fallback-param', 'function read({ w: { Array: { from } } = choose() ? globalThis : {} } = {}) { return from([7])[0]; } return read();'],
+    ['fallback-iife', 'return (({ w: { Array: { from } } = choose() ? globalThis : {} }) => from([7])[0])({});'],
+    ['static-pattern', 'let length; ({ from: { length = 9 } } = Array); return length;'],
+    ['static-member', 'const box = {}; ({ from: { length: box.length = 9 } } = Array); return box.length;'],
+    ['static-default', 'let value; ({ from: { absent: value = (log.push("default"), 9) } } = Array); return value;'],
+    ['call-root', 'const get = () => globalThis; const { Array: { prototype: { flat }, isArray } } = get(); return [flat.call([[7]])[0], isArray([])];'],
+    ['call-effects',
+      'function get() { log.push("call"); return globalThis; } const { Array: { prototype: { flat }, isArray } } = get(); return [flat.call([[7]])[0], isArray([])];'],
+    ['static-sibling', 'const { from: { length }, missing } = globalThis.Array; return [length, missing];'],
+    ['static-for-init', 'for (const { from: { length }, missing } = globalThis.Array; ;) return [length, missing];'],
+    ['stored-realm-iterator',
+      'let held; const { globalThis: { Array: { prototype: { [Symbol.iterator]: it } }, Object: o } } = (log.push("init"), held = globalThis); '
+      + 'return [it.call([7]).next().value, typeof o, held === globalThis];'],
+  ]) yield {
+    ...snippet(`destructure-plan/${ name }`, `(() => { function choose() { return true; } ${ body } })()`), strip: true, isolated: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -25250,4 +25295,5 @@ export function * generate() {
   yield * generateIifeSynthReceivers();
   yield * generateBindingReadPositions();
   yield * generateClassStaticAliases();
+  yield * generateDestructurePlanLifecycle();
 }

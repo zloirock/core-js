@@ -848,6 +848,26 @@ export function patternClaimOwesMirror(kind, propPath, meta = null) {
       && patternSlotTarget(propPath.node.value)?.type === 'ObjectPattern');
 }
 
+// After the mirror declines, a static-valued pattern can destructure its imported value.
+// A constructor namespace already carrying that static needs no second import. A bare
+// class `this` keeps its source pattern: its nested fields are not the static surface.
+export function patternStaticNeedsExtraction(propPath, meta, { resolvePure, mode }) {
+  if (resolvePure(meta, propPath)?.kind !== 'static'
+    || unwrapRuntimeExpr(destructureHostInitNode(propPath))?.type === 'ThisExpression') return false;
+  const global = meta.object && resolvePure({ kind: 'global', name: meta.object }, propPath);
+  return !global || !namespaceEntryCarriesStatic(`${ mode }/${ global.entry }`, meta.object, meta.key);
+}
+
+// A pristine realm hop binds no value when its slot holds a pattern. The host anchor
+// peels that hop, including its dead default, after the nested claims have dispatched.
+export function patternClaimIsRealmHop(propPath, meta, { adapter, resolvePure }) {
+  const prop = propPath.node;
+  return !prop.computed && POSSIBLE_GLOBAL_OBJECTS.has(meta?.key)
+    && patternSlotTarget(prop.value)?.type === 'ObjectPattern'
+    && resolvePure(meta, propPath)?.kind === 'global'
+    && isPristineProxyGlobal(adapter, meta.key, { node: prop, path: propPath });
+}
+
 // Apply the admitted mirror before a competing extraction. Known callers own their
 // arguments before the parameter default changes. Source receiver types are primed
 // before an array fallback moves its reads; only a declined array route reaches the mirror.
@@ -3305,7 +3325,8 @@ export function resolveNestedReceiverChain(leafPath, {
         || (headOf?.type === 'ForStatement' && headOf.init === owner.parentPath.node)
         || provenRealmCallRoot(rawRoot, leafPath, adapter, { allowEffects: true }))) return null;
       // a call the inline canon proves to yield a proxy global reads as that global (its spelling too)
-      const root = prefixes.length ? unwrapRuntimeExpr(init) : provenRealmCallRoot(rawRoot, leafPath, adapter) ?? rawRoot;
+      const root = prefixes.length ? unwrapRuntimeExpr(init)
+        : provenRealmCallRoot(rawRoot, leafPath, adapter, { allowEffects: rootMemoized }) ?? rawRoot;
       // A reusable identifier lets a host-level sibling keep its own read beside the extraction.
       // A root the source COMPUTES - a call, a `new`, a member
       // off the user's own object - it evaluates exactly once, so the extraction may spell it only
@@ -3349,7 +3370,9 @@ export function resolveNestedReceiverChain(leafPath, {
           climbed,
         };
       }
-      return { root, keys, slotDefault, leafPattern, declarator: owner, rootSpelling: root === rawRoot ? init : root, climbed };
+      return {
+        root, keys, slotDefault, leafPattern, declarator: owner, rootSpelling: rootMemoized || root === rawRoot ? init : root, climbed,
+      };
     }
     // an ARRAY WRAPPER over a literal init is a PAIRING, not a hop: the element the pattern matches
     // is the value the leaf reads through, and the element must be a bare identifier for the
@@ -3581,9 +3604,10 @@ export function typedNavClaimChain(leafPath, options = undefined) {
 // own that element, and a memo of the whole literal would bind every later slot ahead of the
 // claim's read (`[{ y: { at } }, { z }] = [mk(), box]` read `z` before `y`)
 export function computedRootMemoChain(leafPath, adapter = null) {
-  const chain = typedNavClaimChain(leafPath, { rootMemoized: true, adapter });
-  return chain?.root && !chain.wrapper && (chain.root.type !== 'Identifier'
-    || !isReReferenceableAcrossReads(chain.root, { scope: leafPath.scope, adapter, path: leafPath })) ? chain : null;
+  const chain = typedNavClaimChain(leafPath, { rootMemoized: true, allowSurfaceBase: true, adapter });
+  const root = chain?.rootSpelling;
+  return root && !chain.wrapper && (root.type !== 'Identifier'
+    || !isReReferenceableAcrossReads(root, { scope: leafPath.scope, adapter, path: leafPath })) ? { ...chain, root } : null;
 }
 
 // the declaration a REST-bearing host hangs off, and the value that host pulls from: the

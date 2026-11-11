@@ -42,6 +42,7 @@ import { firstSpelledOffset, ownedLeadingComments } from '@core-js/polyfill-prov
 import estreeToBabel from './estree-to-babel.js';
 import { freshPathOfNode } from './detect-usage.js';
 import {
+  POSSIBLE_GLOBAL_OBJECTS,
   ancestorChainDetached,
   assignmentInStatementPosition,
   assignmentValueDiscarded,
@@ -2545,10 +2546,20 @@ export default function createDestructureEmitter({
       forgetDestructurePlan(adapter, path.node);
       plan = buildFlattenPlan({ declaratorNode, scope: path.scope, path });
     }
-    // Anchors and symbol extractions own receiver reads that child visitors can replace.
-    // Settle those while the source is intact; ordinary hosts wait for their leaf claims.
-    if (beforeChildren && !plan?.anchor && !plan?.outerProps.some(row => row.kind === 'anchored'
-      || row.extractions?.some(extraction => extraction.synth === 'symbol-iterator'))) return;
+    // A stored realm source only exposes its inner pattern here. Requeue that pattern
+    // without retiring verbatim child claims, as the deferred binding does before capture.
+    if (beforeChildren && isDecl && !plan?.guarded && plan?.discardSe?.length
+      && POSSIBLE_GLOBAL_OBJECTS.has(plan.anchor) && plan.outerProps.every(row => row.kind === 'verbatim')) {
+      const anchoredInit = anchorInitNode({ ...plan, prefix: [...plan.anchorSe ?? [], ...plan.discardSe, ...plan.prefix ?? []] }, path);
+      forgetDestructurePlan(adapter, path.node);
+      path.replaceWith({ ...path.node, id: plan.pattern, init: anchoredInit });
+      return;
+    }
+    // Constructor anchors and symbol extractions own reads that children can replace.
+    // A peeled realm hop only exposes its inner pattern; let those claims resolve first.
+    if (beforeChildren && (!plan?.anchor || POSSIBLE_GLOBAL_OBJECTS.has(plan.anchor))
+      && !plan?.outerProps.some(row => row.kind === 'anchored'
+        || row.extractions?.some(extraction => extraction.synth === 'symbol-iterator'))) return;
     // The shared mirror has first claim on the original receiver. A successful mirror
     // also settles this host for its queued exit visit, whose flatten plan is now stale.
     if (tryMirrorFlattenPlan(path, plan)) return;
@@ -3211,6 +3222,7 @@ export default function createDestructureEmitter({
     declarator.get('init').replaceWith(nodes[0].init);
     for (const key of ['start', 'end', 'loc', 'range']) delete declarator.node[key];
     forgetDestructurePlan(adapter, declarator.node);
+    arrayPlanHosts.delete(declarator.node);
     const paths = [declarator, ...declarator.insertAfter(nodes.slice(1))];
     for (const node of privateNodes) memoDeclarators.add(node === nodes[0] ? declarator.node : node);
     if (privateNodes.length) flatTouchedMultiDecls.add(declarator.parentPath);
@@ -4189,19 +4201,21 @@ export default function createDestructureEmitter({
         // Treating it as an opaque root first would replace that route with a whole-init memo.
         const prefixedSurface = !typedChain
           && resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter });
-        if (!typedChain && !isInstanceSurfaceNav(prefixedSurface, surfaceOptions) && computedRootMemoChain(prop, adapter)) {
+        const memoChain = !typedChain && !isInstanceSurfaceNav(prefixedSurface, surfaceOptions)
+          && computedRootMemoChain(prop, adapter);
+        if (memoChain) {
           const hostDeclarator = prop.findParent(item => item.isVariableDeclarator());
           const hostDeclaration = hostDeclarator?.parentPath;
           if (hostDeclarator?.node?.init && hostDeclaration?.isVariableDeclaration()
             && statementListOf(hostDeclaration.parentPath?.node)
             && !isForInitDeclaration(hostDeclaration.parentPath?.node, hostDeclaration.node)) {
-            memoizeWholeInit(hostDeclarator, prop.scope, null);
+            const ref = memoizeWholeInit(hostDeclarator, prop.scope, null);
             noteWholeInitMemoHost(hostDeclarator);
             flatTouchedMultiDecls.add(hostDeclaration);
-            typedChain = typedNavClaimChain(prop, { adapter });
+            typedChain = { ...memoChain, root: ref, rootSpelling: ref };
           }
         }
-        const typedReceiver = typedChain && declarationReceiver(typedChain.root, typedChain.keys, typedChain);
+        const typedReceiver = typedChain && declarationReceiver(typedChain.root, typedChain.keys, typedChain, !!memoChain);
         if (typedReceiver) {
           objectNode = typedReceiver.node;
           typedNavReceiver = true;
@@ -6108,6 +6122,7 @@ export default function createDestructureEmitter({
   }
 
   return {
+    captureParameterInstance,
     capturePatternForExtraction({ prop, meta }) {
       if (anchoredCtorResidualLeaf(prop) || retainedClaimProps.has(prop.node)) return true;
       const pure = isSourcedSymbolIteratorMeta(meta) ? SYMBOL_ITERATOR_PURE_RESULT : resolvePure(meta, prop);

@@ -447,6 +447,11 @@ export function renderArrayDestructurePlan(plan, {
   mintUnused,
   decorate = node => node,
 }) {
+  if (plan.array.keyedCapture) {
+    const rendered = renderNestedKeyedPatternCapture(plan.array.keyedCapture, { mintRef, embed });
+    return [rendered.capture, ...rendered.elements.map(element => element.declarator)]
+      .map(declarator => expressionStatement(assignmentExpression('=', declarator.id, declarator.init)));
+  }
   function extract(extraction, receiver) {
     let value = read(extraction, receiver);
     if (extraction.defaultNode) {

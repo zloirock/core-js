@@ -807,8 +807,9 @@ export function renderConsumedProbe(plan, key, prop, metaPath, ctx) {
 // the SE prefix of a RE-ANCHORED assignment init lifts to its own statement: the anchored read
 // is not the expression the source wrote, and babel spells the effect once, ahead of it
 // (`({ self: { k: v } } = (eff(), globalThis))` -> `eff(); ({ k: v } = _globalThis);`). an
-// unbraced control body takes a block for the pair
-export function liftAssignInitPrefix(host, metaPath, program) {
+// unbraced control body takes a block for the pair. During traversal, replaceStatement
+// requeues the moved prefix through live paths; the final drain edits its settled lists.
+export function liftAssignInitPrefix(host, metaPath, program, replaceStatement = null) {
   const init = peelTransparentExpr(host.right);
   if (init?.type !== 'SequenceExpression' || !metaPath) return;
   let stmtPath = metaPath;
@@ -819,6 +820,10 @@ export function liftAssignInitPrefix(host, metaPath, program) {
   if (!prefix.length) return;
   host.right = init.expressions.at(-1);
   const statements = [...prefix.map(expr => expressionStatement(expr)), stmtNode];
+  if (replaceStatement) {
+    replaceStatement(stmtPath, statements);
+    return;
+  }
   const parentNode = stmtPath.parentPath?.node;
   const parentList = statementListOf(parentNode);
   const at = parentList ? parentList.indexOf(stmtNode) : -1;
@@ -927,7 +932,7 @@ export function withoutCtorHopJobsWithLiveSiblings(jobs) {
   // `from` job owns the `Array:` hop)
   const consumedProps = new Set(jobs.flatMap(job => [job.prop, ...(job.chain ?? []).map(level => level.hopProp)]));
   function isHopAnchor(job) {
-    return job.prop?.value?.type === 'ObjectPattern' && !job.chain?.length && !job.symbolPattern;
+    return job.kind === 'global' && job.prop?.value?.type === 'ObjectPattern' && !job.chain?.length;
   }
   // a MULTI-hop pattern whose jobs are ALL anchors has nothing consumed to re-home around, so
   // the residual stays native - babel splits the declarator only beside a consumed sibling. a

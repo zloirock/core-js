@@ -4,6 +4,7 @@
 // failures surface as load-time errors here, then `test-babel-plugin-unit` exits non-zero
 import './babel-compat.mjs';
 import './destructure-groups.mjs';
+import './destructure-plan-runtime.mjs';
 import './private-destructure-bindings.mjs';
 import './kept-store-seals.mjs';
 import './iife-synth-receivers.mjs';

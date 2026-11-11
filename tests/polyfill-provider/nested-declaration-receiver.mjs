@@ -97,6 +97,18 @@ for (const [name, minted] of [['_ref', false], ['captured', true]]) {
     });
 }
 
+runBoth('captured realm keeps its read', 'const held = globalThis; const { Array: { prototype: { at: method } } } = held;',
+  (parser, program, label) => {
+    const path = leafPath(parser, program);
+    const ctx = context(parser);
+    const chain = resolveNestedReceiverChain(path, { adapter: ctx.adapter });
+    const plan = planNestedDeclarationReceiver({ path, receiver: chain.root, keys: chain.keys,
+      entry: 'instance/at', captured: true }, ctx);
+    check(`${ label }/no replacement import`, plan.pure, null);
+    check(`${ label }/captured identity`, plan.node.name, 'held');
+    checkDeep(`${ label }/captured navigation`, plan.keys, ['Array', 'prototype']);
+  });
+
 runBoth('live default', 'const { data: { at: method } = fallback() } = source;', (parser, program, label) => {
   const path = leafPath(parser, program);
   const ctx = context(parser);

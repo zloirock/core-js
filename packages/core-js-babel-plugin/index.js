@@ -57,6 +57,8 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   nodePositionKey,
   propBindingIdentifier,
+  patternSlotTarget,
+  isFunctionParamDestructureParent,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   ownEmittedNavClaim,
@@ -123,6 +125,8 @@ import {
   attachMemberUnionExtras,
   destructureHostInitNode,
   enumerateFallbackDestructureBranches,
+  patternStaticNeedsExtraction,
+  patternClaimIsRealmHop,
   renameSplitPropsToSentinels,
   restoreIdleRelocations,
   restoreUnclaimedFlattens,
@@ -1279,19 +1283,17 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         let inheritedStatic = false;
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
-            if (destructureEmit.tryPatternMirror({ prop: path, meta })
+            if (meta.fromFallback && patternSlotTarget(path.node.value)?.type === 'ObjectPattern'
+              && isFunctionParamDestructureParent(path.parentPath) && destructureEmit.captureParameterInstance(path)
+              || destructureEmit.tryPatternMirror({ prop: path, meta })
               || destructureEmit.capturePatternForExtraction({ prop: path, meta })) return;
-            // a pattern-valued `[Symbol.iterator]` prop still dispatches: its extraction
-            // destructures the get-iterator-method result (helper canon, matching the
-            // identifier-valued form); every other pattern-valued prop stays native
-            // ... a pattern-valued prop is turned away with ONE route still owed it: a for-x HEAD
-            // hosts no statement for the shared plan's extraction, so its static is served by the
-            // mirror of the iterated element or by nothing at all. the emitter's narrow entry asks
-            // exactly that and returns - the routes below own a binding value, never a pattern
-            // a binding the source parenthesizes is a binding too: the node dialect keeps its paren as a node;
-            // a slot the source spells (a member, an asserted binding) is written as spelled
+            if (patternClaimIsRealmHop(path, meta, { adapter, resolvePure })) return;
+            // Static and iterator claims can destructure the imported/helper value;
+            // a fallback must reach its per-branch mirror even without a resolved entry.
+            // Other pattern-valued hops leave their claims to the children.
             if (!propBindingIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
-              && !spelledWriteSlot(path.node.value)
+              && !spelledWriteSlot(path.node.value) && !meta.fromFallback
+              && !patternStaticNeedsExtraction(path, meta, { resolvePure, mode })
               && !isSymbolIteratorPatternClaim(path.node,
                 isSourcedSymbolIteratorMeta(meta) ? SYMBOL_ITERATOR_PURE_RESULT.entry : null)) {
               return;
