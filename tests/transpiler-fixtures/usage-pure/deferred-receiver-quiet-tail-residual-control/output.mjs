@@ -14,9 +14,12 @@ const holder = {
     };
   }
 };
-eff("p");
-const {
-  other
-} = holder.box;
-const from = _Array$from;
+const _ref = (eff("p"), holder.box),
+  {
+    A: {}
+  } = _ref,
+  from = _Array$from,
+  {
+    other
+  } = _ref;
 r = [typeof from, other];

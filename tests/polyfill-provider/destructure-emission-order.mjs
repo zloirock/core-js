@@ -9,7 +9,10 @@ import {
   releasedDestructureCaptureTail,
   symbolIteratorMemberTarget,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
-import { destructureResidualFirst } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  destructureDefaultAfterResidual, destructureResidualFirst, orderedClaimCapture, planNestedKeyedPatternCapture,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import { renderNestedKeyedPatternCapture } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { peelTransparentExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
@@ -97,6 +100,10 @@ runBoth('declaration groups retain initializer, capture and source-slot prerequi
     check(`${ label } a slot capture still runs in its residual`,
       destructureResidualFirst(reads, { ...ctx, init: host.node.init, captured: true }), true);
     delete reads[0].captureInResidual;
+    reads[0].defaultAfterResidual = true;
+    check(`${ label } a live default follows its preceding residual`,
+      destructureResidualFirst(reads, { ...ctx, init: host.node.init, captured: true }), true);
+    delete reads[0].defaultAfterResidual;
     const anchor = { anchored: true, pattern: { type: 'ObjectPattern', properties: [keep] }, sourceProps, initRuns: false };
     check(`${ label } earlier anchored source slot`, destructureResidualFirst(reads, anchor), true);
     anchor.pattern.properties = [last];
@@ -246,5 +253,147 @@ for (const [keys, servesName, servesFrom, ctor, anchored] of [
     if (plan) check(`${ label }/original leaf pattern`, plan.pattern, host.node.id.properties[0].value);
     check(`${ label }/source and order unchanged`, JSON.stringify(host.node), original);
   });
+
+for (const [pattern, expected] of [
+  ['{ at = fallback() }', true],
+  ['{ y: { at = fallback() } }', false],
+  ['{ y: { other, at = fallback() } }', true],
+  ['{ other, y: { at = fallback() } }', true],
+]) runBoth(`default order/${ pattern }`, `const ${ pattern } = source;`, (parser, program, label) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'at');
+  check(label, destructureDefaultAfterResidual(prop), expected);
+  check(`${ label }/key read first`, destructureDefaultAfterResidual(prop, true), true);
+});
+
+for (const sibling of ['u: { x } = fallback()', 'other']) for (const defaulted of [false, true]) runBoth(`ordered leaf/${ sibling }/${ defaulted }`,
+  `const { y: { ${ sibling }, at${ defaulted ? ' = fallback()' : '' }, after = at } } = { y: source };`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key.name === 'at');
+    const before = JSON.stringify(host.node);
+    const args = { pattern: host.node.id, init: host.node.init, prop: prop.node, kind: 'instance', entry: 'instance/at',
+      hostPath: host, adapter: context(parser, host).adapter };
+    orderedClaimCapture(args);
+    const capture = orderedClaimCapture(args);
+    check(`${ label }/own level`, capture?.leafPattern, prop.parentPath.node);
+    check(`${ label }/single outer hop`, capture?.ancestors.length, 1);
+    check(`${ label }/no speculative source edits`, JSON.stringify(host.node), before);
+  });
+
+for (const assignment of [false, true]) for (const symbol of [false, true]) {
+  const pattern = `{ y: { before = note(), ${ symbol ? '[Symbol.iterator]' : 'at' }: read = fallback(), after = read } }`;
+  runBoth(`ordered default/${ assignment }/${ symbol }`,
+    assignment ? `let before, read, after; (${ pattern } = { y: source });` : `const ${ pattern } = { y: source };`,
+    (parser, program, label) => {
+      const host = parser.pickPath(program, assignment ? 'AssignmentExpression' : 'VariableDeclarator');
+      const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+        item => item.node.value?.left?.name === 'read');
+      const before = JSON.stringify(host.node);
+      const capture = orderedClaimCapture({
+        pattern: assignment ? host.node.left : host.node.id,
+        init: assignment ? host.node.right : host.node.init,
+        prop: prop.node,
+        kind: 'instance',
+        entry: symbol ? 'get-iterator-method' : 'instance/at',
+        assignment,
+        hostPath: host,
+        adapter: context(parser, host).adapter,
+      });
+      check(`${ label }/own level`, capture?.leafPattern, prop.parentPath.node);
+      check(`${ label }/single outer hop`, capture?.ancestors.length, 1);
+      check(`${ label }/no speculative source edits`, JSON.stringify(host.node), before);
+    });
+}
+
+for (const [source, direct] of [
+  ['const { y: { other: { q }, at } } = box;', true],
+  ['const { y: { at, other: { q } } } = box;', true],
+  ['const { y: { other: { q }, at } = fallback } = box;', false],
+  ['const { [(effect(), "y")]: { other: { q }, at } } = box;', false],
+  ['const { y: { other: { q }, at } } = (effect(), box);', false],
+  ['const { y: { other: { q }, at } } = { y: source };', false],
+  ['const { y: { other, at } } = box;', false],
+]) runBoth('a native nested sibling uses the quiet hop memo of its flat twin', source, (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const before = JSON.stringify(host.node);
+  const { id: pattern, init } = host.node;
+  const [{ value }] = pattern.properties;
+  const leaf = value.type === 'AssignmentPattern' ? value.left : value;
+  const plan = planNestedKeyedPatternCapture({
+    pattern, init, prop: leaf.properties.find(prop => prop.key.name === 'at'), plansLeaf: true, holdsReceiver: true,
+  });
+  const rendered = renderNestedKeyedPatternCapture(plan, { mintRef: () => 'memo', embed: node => ({ type: 'Wrapped', node }) });
+  check(`${ label }/direct read`, rendered.capture.init.type === 'MemberExpression', direct);
+  if (direct) {
+    check(`${ label }/named receiver crosses the boundary once`, rendered.capture.init.object.node, init);
+    check(`${ label }/quiet source key`, rendered.capture.init.property.name, 'y');
+    check(`${ label }/memo keeps its target`, rendered.capture.id.node.name, 'memo');
+  } else check(`${ label }/original initializer remains captured`, rendered.capture.init.node, init);
+  check(`${ label }/source is unchanged`, JSON.stringify(host.node), before);
+});
+
+for (const leading of [false, true]) runBoth(`a native leaf captures after an earlier root claim/${ leading }`,
+  `let q, at, inc; ({ ${ leading ? 'includes: inc, ' : '' }y: { other: { q }, at } } = box);`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression');
+    const before = JSON.stringify(host.node);
+    const { left: pattern, right: init } = host.node;
+    const leaf = pattern.properties.at(-1).value;
+    const plan = planNestedKeyedPatternCapture({ pattern, init, prop: leaf.properties[1], plansLeaf: true });
+    check(`${ label }/native leaf owns the capture`, plan?.leafPattern, leaf);
+    check(`${ label }/single outer hop`, plan?.ancestors.length, 1);
+    check(`${ label }/no speculative source edits`, JSON.stringify(host.node), before);
+  });
+
+for (const claimed of [false, true]) runBoth(`a split capture keeps its native sibling in source order/${ claimed }`,
+  'const { before, y: { other: { q }, at }, after } = box;', (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const before = JSON.stringify(host.node);
+    const { id: pattern, init } = host.node;
+    const leaf = pattern.properties[1].value;
+    const plan = planNestedKeyedPatternCapture({
+      pattern, init, prop: leaf.properties[1], plansLeaf: true, holdsReceiver: true,
+    });
+    if (claimed) plan.claimedProps = new Set([pattern.properties[0]]);
+    let refs = 0;
+    const rendered = renderNestedKeyedPatternCapture(plan, {
+      mintRef: () => `memo${ ++refs }`, embed: node => ({ type: 'Wrapped', node }),
+    });
+    check(`${ label }/split selected`, plan.splitCapture, true);
+    check(`${ label }/initializer evaluated once`, rendered.capture.init.node, init);
+    checkDeep(`${ label }/source reads stay ordered`, rendered.elements.map(({ declarator }) => declarator.init.type === 'MemberExpression'
+      ? declarator.init.property.name : 'leaf'),
+    claimed ? ['y', 'leaf', 'after'] : ['before', 'y', 'leaf', 'after']);
+    const capture = rendered.elements[claimed ? 0 : 1].declarator;
+    check(`${ label }/hop reads shared root`, capture.init.object.name, 'memo2');
+    check(`${ label }/hop binds leaf memo`, capture.id.node.name, 'memo1');
+    check(`${ label }/native sibling stays in the leaf`, rendered.elements[claimed ? 1 : 2].declarator.id.node, leaf);
+    check(`${ label }/source is unchanged`, JSON.stringify(host.node), before);
+  });
+
+for (const preserveResult of [false, true]) runBoth(`a quiet assignment capture keeps its observed RHS/${ preserveResult }`,
+  'let q, at; ({ y: { other: { q }, at } } = box);', (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression');
+    const { left: pattern, right: init } = host.node;
+    const leaf = pattern.properties[0].value;
+    const plan = planNestedKeyedPatternCapture({ pattern, init, prop: leaf.properties[1], plansLeaf: true });
+    let refs = 0;
+    const rendered = renderNestedKeyedPatternCapture(plan, {
+      mintRef: () => `memo${ ++refs }`, embed: node => ({ type: 'Wrapped', node }), assignment: true, preserveResult,
+    });
+    const [first] = rendered.expression.expressions;
+    const capture = preserveResult ? first.right : first;
+    check(`${ label }/capture target`, capture.left.node.type, preserveResult ? 'ObjectPattern' : 'Identifier');
+    check(`${ label }/capture source`, capture.right.type, preserveResult ? 'Wrapped' : 'MemberExpression');
+    if (preserveResult) check(`${ label }/yield the whole receiver`, rendered.expression.expressions.at(-1).name, first.left.name);
+  });
+
+runBoth('an array leaf keeps its native capture', 'const { y: [first] } = box;', (parser, program, label) => {
+  const host = parser.pickPath(program, 'VariableDeclarator');
+  const before = JSON.stringify(host.node);
+  const plan = planNestedKeyedPatternCapture({ pattern: host.node.id, init: host.node.init, allowArray: true });
+  const rendered = renderNestedKeyedPatternCapture(plan, { mintRef: () => 'memo', embed: node => ({ type: 'Wrapped', node }) });
+  check(`${ label }/array capture`, rendered.capture.id.node.type, 'ObjectPattern');
+  check(`${ label }/array leaf`, rendered.elements[0].declarator.id.node.type, 'ArrayPattern');
+  check(`${ label }/source is unchanged`, JSON.stringify(host.node), before);
+});
 
 finish();

@@ -1049,6 +1049,22 @@ export default function createDestructureDrains(ctx) {
   // one eval, the residual re-anchors on it (`export const { at, other } = getArr()` ->
   // `const _ref = getArr(); export const at = _at(_ref); export const { other } = _ref;`)
   function emitPartialMemo({ hostNode, declarator, declJobs, consumed, statements, exported }) {
+    const sourceProps = [...declarator.id.properties];
+    // Preserve source slots around the surviving pattern, even after the receiver memo
+    // has discharged the initializer. Group only adjacent extractions on the same side.
+    function emitOrdered(extracted, pattern, captured) {
+      const before = [];
+      const after = [];
+      for (const item of extracted) {
+        (destructureResidualFirst([item.job], {
+          anchored: true, captured, pattern, sourceProps, initRuns: residualRuns(declarator),
+        }) ? after : before).push(item);
+      }
+      statements.push(...groupMemoExtractions(before, exported),
+        exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported),
+        ...groupMemoExtractions(after, exported));
+      return 'consumed';
+    }
     // the receiver-LESS half: each claim extracts its own pure, the leftover residual keeps the init
     // (its SE runs there once) and re-anchors when ctor hops remain
     function emitPartialStaticMemo() {
@@ -1056,10 +1072,11 @@ export default function createDestructureDrains(ctx) {
       const extracted = [];
       for (const job of declJobs) {
         const extractedId = job.value ? job.value() : identifier(injectPureImport(job.entry, job.hintName));
-        extracted.push(...jobStatements({ job, value: extractedId, kind: hostNode.kind, exported }));
+        extracted.push({ job, list: jobStatements({ job, value: extractedId, kind: hostNode.kind, exported }) });
         markSubtreeSkipped(skippedNodes, job.prop);
       }
       removeConsumedProps(declJobs);
+      const residualPattern = declarator.id;
       const initBeforeReanchor = declarator.init;
       if (surface) reanchorSoleCtorHopResidual(declarator, { metaPath: declJobs[0]?.metaPath ?? null });
       // Only the source prefix lifts. A re-anchored value keeps its rebuilt sequence,
@@ -1071,14 +1088,7 @@ export default function createDestructureDrains(ctx) {
         && declJobs.every(job => !(job.buriedKeyEffect && job.chain?.length))) {
         statements.push(...liftSurvivingInitPrefix(declarator, declJobs, patternFrame(declJobs[0].metaPath)));
       }
-      // ... and a residual whose init RUNS code leads its extractions: natively that init evaluates
-      // before the pattern binds anything (the shared residual canon)
-      if (destructureResidualFirst([], { initRuns: residualRuns(declarator) })) {
-        statements.push(exportDeclaration(variableDeclaration(hostNode.kind, [declarator]), exported), ...extracted);
-        return 'consumed';
-      }
-      statements.push(...extracted);
-      return true;
+      return emitOrdered(extracted, residualPattern, false);
     }
     // ... and the reading half: the memo holds one eval, the residual re-anchors on it
     function emitPartialInstanceMemo() {
@@ -1097,7 +1107,6 @@ export default function createDestructureDrains(ctx) {
         });
         markSubtreeSkipped(skippedNodes, job.prop);
       }
-      statements.push(...groupMemoExtractions(extracted, exported));
       // a CHAINED leaf LEAVES with its claim and takes the levels it empties with it, whatever its
       // hops name: a user key may be a getter the source fires once, and a built-in surface hop left
       // as a sentinel would only re-read for nothing (`{ other } = _ref`, the other leg's shape). a
@@ -1110,7 +1119,7 @@ export default function createDestructureDrains(ctx) {
       }
       declarator.id.properties = declarator.id.properties.filter(item => !consumed.has(item));
       declarator.init = identifier(refName);
-      return true;
+      return emitOrdered(extracted, declarator.id, true);
     }
     // receiverless STATICS need no memo: each extracts pure, the leftover residual keeps
     // the init (its SE runs there once) and re-anchors when a sole ctor hop remains
@@ -1378,7 +1387,7 @@ export default function createDestructureDrains(ctx) {
         declarators.push(...seKeySegmentedDeclarators(declarator, orderDeclaratorJobs(declJobs), refName, adapter));
         continue;
       }
-      const emptiedHere = declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0;
+      const emptiedHere = declJobs.length > 0 && declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0;
       for (const job of orderDeclaratorJobs(declJobs)) {
         declarators.push(variableDeclarator(job.bindingTarget, job.value()));
       }
@@ -1524,13 +1533,13 @@ export default function createDestructureDrains(ctx) {
   // splits its extractions and following declarators into statements; captured siblings keep
   // their shared declaration group until the sibling drain finishes.
   function drainSiblingAppend({ hostNode, body, at, jobs, jobsByDeclarator, sourceProps, memoDeclJobs }) {
-    if (jobs.every(job => !job.siblingAppend)
-      || memoDeclJobs.keys().some(declarator => jobsByDeclarator.has(declarator))) return false;
-    const appendExported = jobs.some(job => job.exported);
-    const appendStatements = [];
     const capturedGroup = hostNode.declarations.some(declarator => capturedSiblingHosts.has(declarator)
       && patternBindingCount(declarator.id) > 0
       && (declarator.id.type !== 'Identifier' || injectorState.isOwnPassGeneratedName(declarator.id.name)));
+    if (!capturedGroup && jobs.every(job => !job.siblingAppend)
+      || memoDeclJobs.keys().some(declarator => jobsByDeclarator.has(declarator))) return false;
+    const appendExported = jobs.some(job => job.exported);
+    const appendStatements = [];
     let group = [];
     let splitRemaining = false;
     function flushGroup() {
@@ -1572,8 +1581,18 @@ export default function createDestructureDrains(ctx) {
       // a declarator the extraction consumed WHOLE splits off as its own statement, its
       // emptied residual dropped (`const { Array: { from } } = globalThis, <rest>` ->
       // `const from = _Array$from;` ahead of the rest) - babel's shape
-      if (declarator.id.type === 'ObjectPattern' && !declarator.id.properties.length) {
-        if (capturedGroup && declJobsHere.some(job => job.capturedSibling)) {
+      if (declJobsHere.length > 0 && declarator.id.type === 'ObjectPattern' && !declarator.id.properties.length) {
+        if (capturedGroup) {
+          // Later source declarators remain in this group too. Preserve any effects
+          // their own initializer still owes before joining their extracted bindings.
+          const effects = [];
+          if (declJobsHere.every(job => !job.capturedSibling)) {
+            rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements: effects });
+          }
+          if (effects.length) {
+            flushGroup();
+            appendStatements.push(...effects);
+          }
           group.push(...extractions.flat());
           continue;
         }
@@ -1649,6 +1668,7 @@ export default function createDestructureDrains(ctx) {
       // the node that memo HOLDS: a literal-receiver plan naming the same read joins this
       // binding instead of declaring a second copy of it
       const refName = memoByDeclarator.get(declarator);
+      const sourceInit = declarator.init;
       const memoisedInit = emitDeclaratorMemo({
         refName,
         declarator,
@@ -1692,6 +1712,7 @@ export default function createDestructureDrains(ctx) {
       // ? void 0 : _globalThis.window).Array`)
       const probeRead = emptied && !containerPrefix.length ? renderDiscardedInitProbe(declJobsHere, probeRenderCtx) : null;
       const extractedHere = [];
+      const extractionJobs = new Map();
       // the init's own prefix is placed ONCE per declarator: it rides the FIRST extraction's value
       // where that claim spells a dispatch to hold it, and lifts to a statement ahead otherwise.
       // A nested source receiver also carries it for an iterator helper; a substituted
@@ -1714,7 +1735,9 @@ export default function createDestructureDrains(ctx) {
         const carried = extractedHere.length !== 0 || !carryIntoFirst ? [] : initPrefix;
         const carriedValue = renderDestructurePrefix(firstValue || job.value(refName), carried, firstProduct?.receiver);
         const value = leading.length ? sequenceExpression([...leading, carriedValue]) : carriedValue;
-        extractedHere.push(...jobStatements({ job, value, kind: hostNode.kind, exported }));
+        const rendered = jobStatements({ job, value, kind: hostNode.kind, exported });
+        for (const statement of rendered) extractionJobs.set(statement, job);
+        extractedHere.push(...rendered);
       }
       if (!emptied) {
         // the re-anchor serves a residual the extraction LEFT BEHIND; an untouched
@@ -1750,17 +1773,24 @@ export default function createDestructureDrains(ctx) {
           joined.declarations.splice(job.guardDetach === 'before' ? 0 : joined.declarations.length, 0, ...guard.declarations);
           extractedHere[index] = null;
         }
-        const standalone = extractedHere.filter(Boolean);
         // The grouped guards are applied; order the remaining statements from the source
         // slots and the live residual's capture and initializer obligations.
-        const before = destructureResidualFirst(declJobsHere, {
-          anchored,
+        const facts = {
+          anchored: true,
+          captured: !!refName && memoisedInit === sourceInit
+            || declJobsHere.some(job => job.memoRecv?.node === sourceInit && !job.memoRecv.inSlot),
           pattern: residualPattern,
           sourceProps: sourceProps.get(declarator),
           initRuns: declJobsHere.length > 0 && residualRuns(declarator),
-        });
-        statements.push(...renderDestructureStatements(standalone.map(statement => ({ statement })), {
-          residual, residualAt: before ? 0 : standalone.length,
+        };
+        const before = [];
+        const after = [];
+        for (const statement of extractedHere) {
+          if (!statement) continue;
+          (destructureResidualFirst([extractionJobs.get(statement)], facts) ? after : before).push({ statement });
+        }
+        statements.push(...renderDestructureStatements([...before, ...after], {
+          residual, residualAt: before.length,
         }));
       } else {
         if (initPrefix.length && !carryIntoFirst) statements.push(

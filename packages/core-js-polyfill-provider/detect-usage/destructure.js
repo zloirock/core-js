@@ -4874,6 +4874,14 @@ export function residualInitRunsEffects({ init, scope, adapter, path }) {
     && discardRescueNodes({ node: value, scope, adapter, path }).length > 0;
 }
 
+// A live default cannot overtake the native reads preceding its leaf. A direct leaf
+// keeps its key read first; the first nested leaf may lead its outer residual siblings.
+// Ask before replacing the source leaf with its sentinel.
+export function destructureDefaultAfterResidual(propPath, keyFirst = false) {
+  return keyFirst || propPath.parentPath?.parentPath?.node?.type === 'VariableDeclarator'
+    || firstPatternProp(destructurePatternHostPath(propPath)?.get('id'))?.node !== propPath.node;
+}
+
 // Does this live residual have to run before the extraction group? A kept key or a capture
 // written IN the residual is a prerequisite. An uncaptured initializer runs before binding
 // writes. Re-anchored source slots keep their original order. `reads` are the still-pending
@@ -4891,17 +4899,15 @@ export function destructureResidualFirst(reads, {
   pattern = null,
   sourceProps = null,
 } = {}) {
-  return keyFirst || reads.some(read => read.captureInResidual)
+  return keyFirst || reads.some(read => read.captureInResidual || read.defaultAfterResidual)
     || (!captured && (initRuns ?? residualInitRunsEffects({ init, scope, adapter, path })))
     || (anchored && residualPrecedesExtractions(pattern,
       reads.map(read => read.source ?? read.chain?.at(-1)?.hopProp ?? read.prop), sourceProps));
 }
 
-// does the surviving residual sit ahead of every extraction in SOURCE order? `sharedHop`
-// admits the extraction's own hop as "ahead": a DECLARATION splits the hop into its own
-// statement and the extraction leads it, while an ASSIGNMENT cascade keeps the nested
-// extraction behind the residual it came out of - babel's own asymmetry between the two
-export function residualPrecedesExtractions(pattern, claimedProps, sourceProps, { sharedHop = false } = {}) {
+// Does every surviving residual property precede the extraction group in source order?
+// A residual sharing the extraction's own hop is not an earlier source slot.
+export function residualPrecedesExtractions(pattern, claimedProps, sourceProps) {
   const props = pattern?.type === 'ObjectPattern' ? pattern.properties : null;
   if (!props?.length || !sourceProps || !claimedProps.length) return false;
   const consumedAt = Math.min(...claimedProps.map(outer => {
@@ -4910,7 +4916,7 @@ export function residualPrecedesExtractions(pattern, claimedProps, sourceProps, 
   }));
   return props.every(item => {
     const index = sourceProps.indexOf(item);
-    return index !== -1 && (sharedHop ? index <= consumedAt : index < consumedAt);
+    return index !== -1 && index < consumedAt;
   });
 }
 
@@ -10607,7 +10613,9 @@ function inertPairedLiteralRead(value, ctx) {
 // lets a retained capture delegate an array level to the positional capture planner.
 // `plansLeaf`: the caller plans every leaf property on its own (one it cannot plan stays a
 // native fragment), so a forced capture also admits a computed key, a defaulted binding or a
-// member target beside the claim there; a nested pattern in the leaf level still declines.
+// member target beside the claim there; a forced capture still declines a nested pattern.
+// An ordinary planned leaf level stops at its claim, retaining native nested siblings
+// beside it instead of descending into a sibling's pattern.
 // `leafKeyRuns` also splits where a leaf-level item runs code - a default, a member target - which
 // an extraction behind its residual would overtake.
 // A rest level captures whatever leads it - only an instance's inline leaf reads `leaf` - so a member
@@ -10661,6 +10669,7 @@ export function planNestedKeyedPatternCapture({
     }
   }
   while (inner?.type === 'ObjectPattern') {
+    if (plansLeaf && inner.properties.includes(claim)) break;
     if (force && inner.properties.length !== 1) break;
     if (inner.properties.some(prop => prop.type === 'RestElement') && !(hostRest && inner === pattern)) break;
     let nested = inner.properties.filter(prop => {
@@ -10689,18 +10698,21 @@ export function planNestedKeyedPatternCapture({
   }
   const leaf = inner?.properties?.[0];
   const rest = !force && inner?.properties?.at(-1)?.type === 'RestElement';
+  // A leading native pattern needs the ordered receiver even after an earlier root claim was consumed.
+  const nativeLeaf = plansLeaf && !force && inner?.properties?.includes(claim)
+    && patternSlotTarget(leaf?.value)?.type === 'ObjectPattern';
   // a member target beside the claim: one more native fragment of a forced capture
   function fragmentMember(item) {
     return force && plansLeaf && item !== claim && !!memberTargetTakesExtraction(item.value);
   }
   if (!ancestors.length || inner?.type !== 'ObjectPattern' || !inner.properties.length
     || (leaf?.type !== 'Property' && leaf?.type !== 'ObjectProperty')
-    || !(rest || propBindingIdentifier(leaf.value) || fragmentMember(leaf)
+    || !(rest || propBindingIdentifier(leaf.value) || fragmentMember(leaf) || nativeLeaf
       || (holdsReceiver && !force && memberTargetTakesExtraction(leaf.value)))
     || (force && inner.properties.some(prop => (prop.type !== 'Property' && prop.type !== 'ObjectProperty')
       || (plansLeaf ? patternSlotTarget(prop.value)?.type !== 'Identifier' && !fragmentMember(prop)
         : prop.computed || prop.value?.type !== 'Identifier')))
-    || (!force && !rest && !hostRest && !(holdsReceiver
+    || (!force && !rest && !hostRest && !(holdsReceiver || nativeLeaf
       || ((storedValue || (sharedLeaf && inner.properties.length > 1)) && ancestors.every(level => level.pattern.properties.length === 1)))
       && [...ancestors.flatMap(level => level.pattern.properties), ...inner.properties]
         .every(prop => !computedKeyHasSideEffects(prop, ctx))
@@ -10740,19 +10752,22 @@ export function planNestedKeyedPatternCapture({
 // The ordered capture a nested claim takes (`planRetainedObjectCapture` renders it), or null: a static
 // claim under a rest in its leaf level, on an assignment whose value is read (the capture yields it),
 // under a guarded realm selection in any host (`guardedRealmSelection`: the capture keeps the read the
-// guard throws at), or on a discarded assignment wherever a leaf-level item runs code and no leaf-level
+// guard throws at), after a running initializer or before a rest copy beside another root property, or on a discarded
+// assignment wherever a leaf-level item runs code and no leaf-level
 // item is claimed yet (`isClaimedProp`); an instance claim where the chain splits. It writes the leaf
 // level in source order, after every level above it. Under a guarded realm selection a hop's default is
 // live - the guard reads it instead of the constructor - so a chain with one takes no capture.
-// A declaration's static claim takes it off a constructor the build may inject: one the build is told
-// not to inject is read like a constructor-less global, its statics extracted beside the rest.
+// Otherwise a declaration's static claim takes it off a constructor the build may inject: one the build
+// is told not to inject is read like a constructor-less global, its statics extracted beside the rest.
 // A flat instance key/default takes the ordered read without moving its forward references;
 // every leaf binds a plain name, with no rest. Other flat targets keep their bound route.
+// A nested iterator default beside native siblings follows the same ordered read as an ordinary default.
 // An instance capture over sole hops also takes a host whose value is read, a literal init whose
 // effects no carried receiver performs, an init storing a value no
 // global names whose slot no overwrite re-spells (`= kw = box`), and - unless it runs without its own
 // var slot - a leaf level of several properties in a declaration or where the host holds no statement
-// for the flat twin (a discarded sequence element, a bodyless slot).
+// for the flat twin (a discarded sequence element, a bodyless slot). A leading native nested pattern
+// also needs the capture after an earlier root claim has been removed.
 export function orderedClaimCapture({
   pattern,
   init,
@@ -10774,13 +10789,18 @@ export function orderedClaimCapture({
       names: pattern.properties.slice(pattern.properties.indexOf(prop) + 1).map(item => propBindingIdentifier(item.value).name) })
     ? { flat: true } : null;
   const guardedRealm = kind === 'static' && guardedRealmSelection(init, { scope: hostPath?.scope, adapter, path: hostPath });
-  if (kind === 'static' ? !(assignment || guardedRealm || hasConstructorEntry(meta?.object)
+  const orderedSiblings = kind === 'static' && pattern.properties.length > 1
+    && (residualInitRunsEffects({ init, scope: hostPath?.scope, adapter, path: hostPath })
+      || hostPath && pathOfNode(hostPath, prop)?.parentPath?.node?.properties?.some(isRestProperty)
+        && pattern.properties.slice(0, -1).some(item => subtreeContainsNode(item, prop)))
+    && !destructureSourceIsLiteralWrapper(init, { scope: hostPath?.scope, adapter, path: hostPath }, pattern);
+  if (kind === 'static' ? !(assignment || guardedRealm || orderedSiblings || hasConstructorEntry(meta?.object)
     && adapter?.available?.({ kind: 'global', name: meta.object }) !== false) || !meta?.object || meta.guardedAliasHint
-    : kind !== 'instance' || entry === 'get-iterator-method'
+    : kind !== 'instance' || entry === 'get-iterator-method' && prop.value?.type !== 'AssignmentPattern'
       || (!assignment && hostPath?.node?.type !== 'VariableDeclarator')) return null;
   if (kind === 'static') {
     const discarded = assignment && !!hostPath && assignmentValueDiscarded(hostPath);
-    const holdsReceiver = (assignment && !!hostPath && !discarded) || guardedRealm;
+    const holdsReceiver = (assignment && !!hostPath && !discarded) || guardedRealm || orderedSiblings;
     const capture = planNestedKeyedPatternCapture({
       pattern,
       init,
@@ -10796,7 +10816,8 @@ export function orderedClaimCapture({
   }
   const retainsResult = assignment && !!hostPath && !assignmentValueDiscarded(hostPath);
   const statement = hostPath ? peelToExpressionStatement(hostPath)?.exprStmt : null;
-  const sharedLeaf = !!hostPath && (!assignment || retainsResult || discardedSequenceElement(hostPath)
+  const sharedLeaf = !!hostPath && (!assignment || retainsResult || prop.value?.type === 'AssignmentPattern'
+    || discardedSequenceElement(hostPath)
     || !!statement && isBodylessStatementSlot(statement.parentPath?.node, statement.node)) && !runsWithoutOwnVarSlot(hostPath);
   const ctx = { scope: hostPath?.scope, adapter, path: hostPath, injectorState };
   // A store in the init (`= kw = box`, behind a prefix too) keeps the value it installs; the hop is read
@@ -10919,7 +10940,8 @@ export function orderedClaimCapture({
         path: hostPath,
         adapter,
       }) === 'iterator'))) return null;
-  return capture?.leafPattern.properties.includes(prop) ? capture : null;
+  return capture?.leafPattern.properties.includes(prop)
+    && (entry !== 'get-iterator-method' || capture.splitCapture || capture.leafPattern.properties.length > 1) ? capture : null;
 }
 
 const claimOrderVerdicts = createInstanceNodeCache();

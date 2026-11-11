@@ -1,7 +1,5 @@
-// a default on the hop a nested leaf hangs off folds into the twin's one read: the memo holds the slot's
-// value or the default, and the leaf binds off it in source order. an unbraced `var` takes a block for the
-// memo; a loop head and a shared declaration take it as a declarator, and a shared declaration split per
-// statement declares it `const` whatever the host's kind
+// A defaulted nested receiver is captured once before its siblings and methods.
+// Preserve source order and declaration kind in bodyless vars, loop heads and shared declarations.
 const { y: { other: { q }, at } = dflt } = box;
 const z = 1, { y: { more: { r }, flat } = dflt } = box;
 var v = 2, { y: { next: { n }, find } = dflt } = box;

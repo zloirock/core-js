@@ -11,13 +11,14 @@ function observe() {
     seen = _nameMaybeFunction(error);
   }
 }
-observe();
-const isInteger = _Number$isInteger;
-const W = _WeakMap;
 const {
-  Number: {
-    isInteger: _unused,
-    ...numbers
-  }
-} = _globalThis;
+  Number: _ref
+} = (observe(), _globalThis);
+const {} = _ref;
+const isInteger = _Number$isInteger;
+const {
+  isInteger: _unused,
+  ...numbers
+} = _ref;
+const W = _WeakMap;
 use(seen, isInteger, numbers, W);

@@ -1,6 +1,6 @@
-// a residual whose init RUNS code - a call, a getter, an effect inside the read - evaluates it
-// before the pattern binds anything: every extraction follows that residual, which keeps its own
-// prefix - on a sole or sibling declarator, in a loop head, behind an assignment, when exported
+// A call, getter or buried effect in the initializer runs once before any binding.
+// Capturing that value lets extracted bindings precede their following native siblings
+// in declarations, loop heads, assignments and exports.
 function load() { log(); return globalThis; }
 class Src { static get realm() { log(); return globalThis; } }
 var { from: f1, other: o1 } = load().Array;

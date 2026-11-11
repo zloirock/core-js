@@ -20,8 +20,8 @@ const seKey = _structuredClone;
 const {
   [(c += 1, "structuredClone")]: _unused
 } = null == _globalThis.window ? void 0 : _self;
-const beside = _structuredClone;
 const {
   ["a-b"]: notBare
 } = null == _globalThis.window ? void 0 : _self;
+const beside = _structuredClone;
 export { dotted, computed, template, seKey, notBare, beside, c };

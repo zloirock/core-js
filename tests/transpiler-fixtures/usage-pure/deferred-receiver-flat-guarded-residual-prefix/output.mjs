@@ -14,8 +14,9 @@ class Box {
     return _globalThis;
   }
 }
-const {
-  other
-} = (record('prefix'), _ref = Box.value, _ref === _globalThis ? _Map : _ref.Map);
-const groupBy = _Map$groupBy;
+const _ref2 = (record('prefix'), _ref = Box.value, _ref === _globalThis ? _Map : _ref.Map),
+  groupBy = _Map$groupBy,
+  {
+    other
+  } = _ref2;
 r = [typeof groupBy, typeof other];

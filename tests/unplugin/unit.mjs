@@ -8015,7 +8015,7 @@ module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(
 {
   const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
   for (const [fixture, name, expected] of [
-    ['literal-hop-effect-keyed-claim-ahead-of-another-declarator', 'g', ['pattern', 'cc', 'g']],
+    ['literal-hop-effect-keyed-claim-ahead-of-another-declarator', 'g', ['pattern', 'pattern', 'cc', 'g']],
     ['sequence-and-bodyless-hosts-drain-in-place', 'm', ['m', 'zTail']],
     ['se-init-defaulted-leaf-beside-sibling', 'm6', ['m6']],
   ]) {
@@ -8050,6 +8050,39 @@ module.exports = [collect(callback => callbacks.push(callback)), callbacks[0]()(
       && node.declarations.some(item => ['m', 'zTail', 'g', 'after'].includes(item.id.name)))
       .map(node => node.declarations.map(item => item.id.name));
     checkDeep(`source declarator groups/${ label }`, grouped ? groups : groups.flat(), expected);
+  }
+}
+
+// A captured native sibling does not split the next source declarator away. Its
+// initializer still runs once, after the capture's reads and before its own binding.
+for (const instance of [false, true]) for (const throws of [false, true]) {
+  const source = `
+    function run(held) {
+      try {
+        var { y: { other: { value }, [(events.push('key'), 'at')]: at } } = { y: held },
+          { ${ instance ? 'at' : 'from' }: read } = (events.push('tail:' + typeof read), ${ instance ? 'tail' : 'Array' });
+        return [value, at(), ${ instance ? 'read()' : 'read([23])[0]' }];
+      } catch (error) { return error.name; }
+    }
+    module.exports = run(held);
+  `;
+  const code = createPlugin({ method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } })
+    .transform(source, '/capture-following-declarator.cjs')?.code ?? source;
+  for (const [leg, program] of [['native', source], ['unplugin', code]]) {
+    const events = [];
+    const held = {
+      get other() {
+        events.push('other');
+        if (throws) throw new RangeError();
+        return { value: 7 };
+      },
+      get at() { events.push('at'); return () => 11; },
+    };
+    const module = { exports: null };
+    runInNewContext(program, { module, held, tail: { at: () => 23 }, events, require: createRequire(import.meta.url) });
+    checkDeep(`capture following declarator/${ instance }/${ throws }/${ leg }/value`, module.exports, throws ? 'RangeError' : [7, 11, 23]);
+    checkDeep(`capture following declarator/${ instance }/${ throws }/${ leg }/effects`, events,
+      throws ? ['other'] : ['other', 'key', 'at', 'tail:undefined']);
   }
 }
 

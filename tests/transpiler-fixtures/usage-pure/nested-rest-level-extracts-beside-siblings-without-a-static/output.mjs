@@ -29,9 +29,7 @@ o.e = _Object$entries, {
   [k]: c,
   ...rest2
 } = _ref2;
-({
-  Object: _ref3
-} = _globalThis);
+_ref3 = _globalThis.Object;
 o.f = _Object$fromEntries, {
   custom: {
     a

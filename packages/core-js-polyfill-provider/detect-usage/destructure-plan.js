@@ -4275,7 +4275,7 @@ export function planLiteralResidual({
     memoizeReceiver = !surfaceReRead && (relaxedMemoizable || branchingReceiver
       || isConstantLiteralReceiver(literalReceiver) || !!slotMemo || !isReReferenceableReceiver(literalReceiver))
       // ... and a sibling join over a receiver it cannot spell twice memoizes it like a slot memo
-      && (!siblingAppend || !!slotMemo || !isReReferenceableReceiver(literalReceiver)) && !forInit;
+      && (!siblingAppend || !!slotMemo || !reReadable) && !forInit;
     if (!memoizeReceiver && !reReadable && !surfaceReRead) return null;
   }
   const consumeResidualRead = memoizeReceiver && !!planSideEffectKeyStrategy({

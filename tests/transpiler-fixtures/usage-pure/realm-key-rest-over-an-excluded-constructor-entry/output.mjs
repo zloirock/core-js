@@ -11,7 +11,7 @@ import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers"
 import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set";
 import _Symbol from "@core-js/pure/actual/symbol";
-var _ref, _unused9;
+var _ref2, _unused9;
 // A realm key whose constructor entry the build excludes has no whole index for the rest under it to
 // take: its claimed statics extract as off a constructor-less key and the rest keeps the realm's own,
 // whatever spells the realm - itself, `self`, an alias, behind an effect - beside a nested level, a
@@ -72,20 +72,22 @@ const {
     ...grouped
   }
 } = _globalThis;
-const resolve = _Promise$resolve;
-const Sym = _Symbol;
 const {
-  Promise: {
-    resolve: _unused8,
-    ...resolved
-  }
+  Promise: _ref
 } = _globalThis;
+const {} = _ref;
+const resolve = _Promise$resolve;
+const {
+  resolve: _unused8,
+  ...resolved
+} = _ref;
+const Sym = _Symbol;
 let all, allRest;
 ({
-  Promise: _ref
+  Promise: _ref2
 } = _globalThis);
 all = _Promise$all, {
   all: _unused9,
   ...allRest
-} = _ref;
+} = _ref2;
 use(attempt, tried, allSettled, settled, any, anyRest, race, then, raced, reject, rejected, S, groupBy, grouped, resolve, resolved, Sym, all, allRest);
