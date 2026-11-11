@@ -19,6 +19,7 @@
     "prepare": "npm run zxi scripts/prepare.mjs",
     "prepare-monorepo": "node scripts/prepare-monorepo.mjs",
     "build-compat": "npm run zxi scripts/build-compat/index.mjs",
+    "build-url-idna-data": "npm run zxi scripts/build-url-idna-data.mjs",
     "build-website": "npm run zxi time website/index.mjs",
     "build-website-local": "npm run zxi time website/build-local.mjs",
     "bundle": "run-s bundle-package bundle-tests",

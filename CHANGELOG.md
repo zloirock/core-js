@@ -49,32 +49,39 @@
 - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
 - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
-- Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
-- Fixed subclassing of the `Request` wrapper used with polyfilled `URLSearchParams`
-- Added integration of polyfilled `URLSearchParams` with native `Response`, `XMLHttpRequest` and `navigator.sendBeacon`, and fixed installation of the native body wrappers in Deno
-- Preserved option getter receivers, conversions and signal subscriptions in the native body wrappers for polyfilled `URLSearchParams`; serialized the internal parameter list after option conversion
-- Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
-- Updated `URL` polyfill handling of `file:` hosts and empty path segments, `blob:` origins, and empty `pathname` assignments to the current URL Standard, [#1586](https://github.com/zloirock/core-js/issues/1586)
-- Fixed failed `URL#href` assignments corrupting the URL and its `searchParams`, and URL parsing depending on replaced string iterator methods
-- Fixed `URL` polyfill joining lone surrogates separated by tabs or newlines instead of replacing them with `U+FFFD` before parsing
-- Fixed `URL` setters skipping value conversion on early returns and changing state before value conversion
-- Fixed `URL` domain case folding for Greek, Cherokee, historic Cyrillic, and Deseret letters
-- Fixed mapping of mathematical Latin letters and digits in `URL` domains, [#1223](https://github.com/zloirock/core-js/issues/1223)
-- Fixed rejection of disallowed Unicode format controls, tags, ideographic description characters, and compatibility characters containing label separators in `URL` domains
-- Fixed removal of ignored shorthand and musical format controls in `URL` domains
-- Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
-- Avoided quadratic Punycode encoding in the `URL` polyfill for labels with many distinct Unicode code points
-- Fixed decoding of invalid UTF-8 leading bytes in `URLSearchParams` and `URL` queries
-- Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
-- Fixed `URLSearchParams.prototype.delete(name, value)` patch arguments conversion order
-- Fixed the element conversion order and pair length validation in the `URLSearchParams` sequence initializer
-- Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
-- Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
-- Fixed the size of URL-bound `URLSearchParams` in engines without property descriptor support
-- Fixed record key enumeration in the `URLSearchParams` polyfill, including symbol keys and properties changed during conversion
-- Fixed `USVString` conversion in `URLSearchParams`, including lone surrogates and record keys that become equal after conversion
-- Added a workaround for [`URL.parse` depending on its receiver in Deno](https://github.com/denoland/deno/issues/37104)
-- Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity, with a fix of the incorrect native `Symbol` arity in FF37-42
+- `URL` and `URLSearchParams` improvements and fixes:
+  - Added Unicode normalization and compatibility mapping of `URL` polyfill domains through the native `String.prototype.normalize`, where it's available
+  - Fixed mapping of mathematical Latin letters and digits in `URL` domains, [#1223](https://github.com/zloirock/core-js/issues/1223)
+  - Fixed `URL` polyfill joining lone surrogates separated by tabs or newlines instead of replacing them with `U+FFFD` before parsing
+  - Fixed `URL` setters skipping value conversion on early returns and changing state before value conversion
+  - Fixed `URL` domain case folding for Greek, Cherokee, historic Cyrillic, and Deseret letters
+  - Added validation of `URL` polyfill domains against the Unicode 18 IDNA mapping table: a domain with an unassigned, disallowed, or unmapped code point is rejected instead of being converted to another host
+  - Fixed rejection of disallowed Unicode format controls, tags, ideographic description characters, and compatibility characters containing label separators in `URL` domains
+  - Fixed removal of ignored shorthand and musical format controls in `URL` domains
+  - Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
+  - Avoided quadratic Punycode encoding in the `URL` polyfill for labels with many distinct Unicode code points
+  - Fixed `URL` polyfill accepting domain labels that begin with a combining mark
+  - Added validation of zero width joiners and the Bidi rule in `URL` polyfill domains
+  - Added decoding and validation of Punycode labels in non-ASCII `URL` polyfill domains
+  - Fixed `URL` polyfill domain case mapping for Georgian, Osage, Old Hungarian, Warang Citi, and Adlam capitals, `U+0130`, and `U+018E` in old engines
+  - Updated `URL` polyfill handling of `file:` hosts and empty path segments, `blob:` origins, and empty `pathname` assignments to the current URL Standard, [#1586](https://github.com/zloirock/core-js/issues/1586)
+  - Fixed failed `URL#href` assignments corrupting the URL and its `searchParams`, and URL parsing depending on replaced string iterator methods
+  - Fixed decoding of invalid UTF-8 leading bytes in `URLSearchParams` and `URL` queries
+  - Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
+  - Added a workaround for [`URL.parse` depending on its receiver in Deno](https://github.com/denoland/deno/issues/37104)
+  - Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity, with a fix of the incorrect native `Symbol` arity in FF37-42
+  - Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
+  - Fixed `URLSearchParams.prototype.delete(name, value)` patch arguments conversion order
+  - Fixed the element conversion order and pair length validation in the `URLSearchParams` sequence initializer
+  - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
+  - Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
+  - Fixed the size of URL-bound `URLSearchParams` in engines without property descriptor support
+  - Fixed record key enumeration in the `URLSearchParams` polyfill, including symbol keys and properties changed during conversion
+  - Fixed `USVString` conversion in `URLSearchParams`, including lone surrogates and record keys that become equal after conversion
+  - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
+  - Fixed subclassing of the `Request` wrapper used with polyfilled `URLSearchParams`
+  - Added integration of polyfilled `URLSearchParams` with native `Response`, `XMLHttpRequest` and `navigator.sendBeacon`, and fixed installation of the native body wrappers in Deno
+  - Preserved option getter receivers, conversions and signal subscriptions in the native body wrappers for polyfilled `URLSearchParams`; serialized the internal parameter list after option conversion
 - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
 - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
 - Fixed the pure version marking the native `Error.isError` as `.sham`

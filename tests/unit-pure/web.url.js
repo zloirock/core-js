@@ -11,6 +11,11 @@ import URLSearchParams from 'core-js-pure/stable/url-search-params';
 
 const { hasOwnProperty } = Object.prototype;
 
+// Engines without `String.prototype.normalize` use the polyfill, which does not normalize domains there
+// and rejects the compatibility characters it does not map itself.
+// eslint-disable-next-line es/no-string-prototype-normalize -- detection
+const NORMALIZE = typeof String.prototype.normalize == 'function';
+
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
   if (!NODE) assert.arity(URL, 1);
@@ -468,6 +473,8 @@ QUnit.test('URL domain case mapping', assert => {
     ['a\u0345b.gr', 'xn--ab-09b.gr', 'combining Greek ypogegrammeni'],
     ['\u1C80\u1C81\u1C82\u1C83\u1C84\u1C85\u1C86\u1C87\u1C88.ru', 'xn--b1ae4amfa0dylk164l.ru', 'historic Cyrillic letters'],
     ['\u041F\u0420\u0418\u041C\u0415\u0420.\u0420\u0424', 'xn--e1afmkfd.xn--p1ai', 'ordinary Cyrillic capitals'],
+    ['\u0130.com', 'xn--i-9bb.com', 'capital I with dot above'],
+    ['\u018E.com', 'xn--8ja.com', 'capital reversed E'],
     ['\uFF21\uFF22\uFF23.\uFF23\uFF2F\uFF2D', 'abc.com', 'full-width capitals'],
     ['\uD801\uDC00\uD801\uDC27.com', 'xn--hj8cuc.com', 'supplementary capitals'],
     ['EXAMPLE.COM', 'example.com', 'ASCII capitals'],
@@ -477,6 +484,8 @@ QUnit.test('URL domain case mapping', assert => {
     assert.same(new URL(`http://${ domain }/`).hostname, expected, message);
   }
 
+  // Native Node 20.20.2 and 22.23.4 reject Georgian capitals; Node 24.22.2 passes.
+  // assert.same(new URL('http://\u10A0\u10C5.ge/').hostname, 'xn--rkj0d.ge', 'Georgian capitals');
   assert.same(new URL('http://%CE%A3%CE%91%CE%A3/').hostname, 'xn--mxa9ab', 'case mapping after percent decoding');
   assert.same(new URL('http://%E1%8F%A3%E1%8E%B3%E1%8E%A9.com/').hostname, 'xn--f9dt7l.com', 'Cherokee after percent decoding');
   // Native Firefox < 122 and Chrome / Edge < 130 parse this as an opaque path.
@@ -605,6 +614,225 @@ QUnit.test('URL domain mathematical mapping in parsing and setters', assert => {
   // Native Node 20.0.0 returns an empty hostname; Node 20.20.2 passes.
   assert.same(new URL('http://\uD835\uDFD9\uD835\uDFDA\uD835\uDFDF.\uD835\uDFD8.\uD835\uDFD8.\uD835\uDFD9/').hostname,
     '127.0.0.1', 'mathematical digits before IPv4 parsing');
+});
+
+if (NORMALIZE) QUnit.test('URL domain normalization', assert => {
+  for (const [domain, expected, message] of [
+    ['a\u0308.com', 'xn--4ca.com', 'canonical composition'],
+    ['A\u0308.com', 'xn--4ca.com', 'canonical composition after case mapping'],
+    ['q\u0301\u0323.com', 'xn--q-xbb5h.com', 'canonical reordering'],
+    ['\u1100\u1161\u11A8.kr', 'xn--p39a.kr', 'Hangul composition'],
+    ['a\u00AD\u0308.com', 'xn--4ca.com', 'composition through a removed ignored code point'],
+    ['look\u0341out.net', 'xn--looout-kp7b.net', 'canonical singleton'],
+    ['%61%CC%88.com', 'xn--4ca.com', 'composition after percent decoding'],
+  ]) {
+    assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
+  }
+  // Native Chrome / Edge <= 110 percent-encode the equals sign instead; Chrome 119 passes.
+  // assert.same(new URL('https://=\u0338.com/').hostname, 'xn--1ch.com', 'composition replacing a forbidden code point');
+  // Native Chrome <= 132, Edge <= 110, Firefox <= 128, Safari 14-18, Node 20.20.2 and 22.23.4 reject it;
+  // Chrome 143, Firefox 141, Safari 26 and Node 24.22.2 pass.
+  // assert.same(new URL('https://\uD87E\uDC68.com/').hostname, 'xn--snl.com', 'supplementary canonical singleton');
+  assert.same(new URL('https://example.com/a\u0308?a\u0308#a\u0308').href, 'https://example.com/a%CC%88?a%CC%88#a%CC%88', 'other components are not normalized');
+  // Native Chrome / Edge <= 119 and Firefox <= 128 fail; Chrome 132 and Firefox 141 pass.
+  // assert.same(new URL('nonspecial://a\u0308/').hostname, 'a%CC%88', 'opaque host is not normalized');
+});
+
+if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
+  for (const [domain, expected, message] of [
+    ['\uFF76\uFF9E.jp', 'xn--mck.jp', 'half-width katakana with a voiced sound mark'],
+    ['\uFB03.com', 'ffi.com', 'Latin ligature'],
+    ['\u2460.com', '1.com', 'circled digit'],
+    ['\u2126.com', 'xn--bya.com', 'ohm sign'],
+    ['\u00B2.com', '2.com', 'superscript digit'],
+    ['\u00BD.com', 'xn--12-c6t.com', 'vulgar fraction'],
+    ['\u33A1.com', 'm2.com', 'square unit'],
+    ['\u03F2.gr', 'xn--4xa.gr', 'lunate sigma symbol'],
+    ['\uD835\uDFC2.gr', 'xn--bya.gr', 'mathematical final sigma'],
+    ['%EF%BC%A1.com', 'a.com', 'full-width letter after percent decoding'],
+  ]) {
+    assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
+  }
+  // Native Chrome / Edge <= 110 percent-encode the parentheses; Chrome 119 passes.
+  // assert.same(new URL('https://\u2477.com/').hostname, '(4).com', 'parenthesized digit');
+  // Native Chrome <= 119, Edge <= 110, Firefox <= 128, Safari 14-17, Node 20.20.2 and 22.23.4 map it to `ss`,
+  // as before Unicode 15.1; Chrome 132, Firefox 141, Safari 18 and Node 24.22.2 pass.
+  // assert.same(new URL('https://\u1E9E.de/').hostname, 'xn--zca.de', 'capital sharp s');
+  assert.same(new URL('http://\u2460\u2461\u2466.\u24EA.\u24EA.\u2460/').hostname, '127.0.0.1', 'circled digits before IPv4 parsing');
+});
+
+// Native Chrome / Edge < 110 use transitional processing.
+// https://crbug.com/694157
+QUnit.skip('URL domain deviation characters', assert => {
+  assert.same(new URL('https://fa\u00DF.de/').hostname, 'xn--fa-hia.de', 'sharp s');
+  assert.same(new URL('https://\u03C3\u03C2.gr/').hostname, 'xn--3xab.gr', 'final sigma');
+});
+
+// Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
+QUnit.skip('URL domain unassigned and disallowed code points', assert => {
+  for (const [domain, message] of [
+    ['a\uD900\uDC00b.com', 'unassigned plane'],
+    ['a\uFFFDb.com', 'replacement character'],
+    ['a\uE000b.com', 'private use'],
+    ['a\uFDD0b.com', 'noncharacter'],
+    ['a\u2028b.com', 'line separator'],
+    ['%F2%80%80%80.com', 'percent-encoded unassigned plane'],
+  ]) {
+    assert.throws(() => new URL(`https://${ domain }/`), TypeError, message);
+  }
+  // assert.throws(() => new URL('https://a\u00A0b.com/'), TypeError, 'no-break space'); // 'a%20b.com' in Chrome / Edge 67-156
+});
+
+// Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
+QUnit.skip('URL domain labels beginning with a combining mark', assert => {
+  for (const [domain, message] of [
+    ['\u0301a.example', 'nonspacing mark'],
+    ['\u093Fa.example', 'spacing mark'],
+    ['\u20DDa.example', 'enclosing mark'],
+    ['\uD834\uDD65a.example', 'supplementary spacing mark'],
+    ['a.\u0301b.example', 'second label'],
+    ['a\u3002\u0301b.example', 'after an ideographic full stop'],
+    ['a\uFF0E\u0301b.example', 'after a full-width full stop'],
+    ['a\uFF61\u0301b.example', 'after a half-width ideographic full stop'],
+    ['\u00AD\u0301a.example', 'after a removed ignored code point'],
+    ['%CC%81a.example', 'percent-encoded'],
+    ['a.%CC%81b.example', 'percent-encoded in the second label'],
+  ]) {
+    assert.throws(() => new URL(`https://${ domain }/`), TypeError, message);
+  }
+});
+
+QUnit.test('URL domain combining marks that do not begin a label', assert => {
+  for (const [domain, expected, message] of [
+    ['q\u0301.example', 'xn--q-xbb.example', 'mark after a base letter'],
+    ['\u034Fa.example', 'a.example', 'removed combining grapheme joiner'],
+    ['\uFE0Fa.example', 'a.example', 'removed variation selector'],
+    ['\u0345a.example', 'xn--a-fmb.example', 'mapped ypogegrammeni'],
+  ]) {
+    assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
+  }
+  assert.same(new URL('https://example.com/\u0301a?\u0301a#\u0301a').href, 'https://example.com/%CC%81a?%CC%81a#%CC%81a', 'other components');
+  // Native Chrome / Edge <= 119 and Firefox <= 128 fail; Chrome 132 and Firefox 141 pass.
+  // assert.same(new URL('nonspecial://\u0301a/').hostname, '%CC%81a', 'opaque host');
+});
+
+// Native Chrome / Edge < 110 remove the joiners, as transitional processing does: https://crbug.com/694157
+// Native Chrome <= 147, Edge <= 110 and Firefox 57-93 accept a joiner without a context; Chrome 150 and Firefox 94 pass.
+QUnit.skip('URL domain joiners', assert => {
+  for (const [domain, expected, message] of [
+    ['\u0915\u094D\u200D\u0937.example', 'xn--11b2ezcw70k.example', 'zero width joiner after a virama'],
+    ['\u0915\u094D\u200C\u0937.example', 'xn--11b2ezcs70k.example', 'zero width non-joiner after a virama'],
+    ['\u0646\u0627\u0645\u0647\u200C\u0627\u06CC.ir', 'xn--mgba3gch31f060k.ir', 'zero width non-joiner between joining letters'],
+  ]) {
+    assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
+  }
+  for (const [domain, message] of [
+    ['a\u200Db.example', 'zero width joiner between Latin letters'],
+    ['a\u200Cb.example', 'zero width non-joiner between Latin letters'],
+    ['\u200Da.example', 'leading zero width joiner'],
+    ['\u0915\u200D\u0937.example', 'zero width joiner without a virama'],
+    ['\u0646\u200D\u0627.ir', 'zero width joiner between joining letters'],
+    ['a%E2%80%8Db.example', 'percent-encoded zero width joiner'],
+    ['xn--ab-m1t.\u00E9', 'Punycode label'],
+  ]) {
+    assert.throws(() => new URL(`https://${ domain }/`), TypeError, message);
+  }
+});
+
+QUnit.test('URL domain Punycode labels in non-ASCII domains', assert => {
+  for (const [domain, expected, message] of [
+    ['xn--maana-pta.\u00E9', 'xn--maana-pta.xn--9ca', 'valid label'],
+    ['XN--MAANA-PTA.\u00E9', 'xn--maana-pta.xn--9ca', 'valid label in capitals'],
+    ['\uFF58\uFF4E\uFF0D\uFF0Dmaana-pta.com', 'xn--maana-pta.com', 'valid label after mapping'],
+    ['xn--zca.\u00E9', 'xn--zca.xn--9ca', 'deviation'],
+    ['xn--4db.\u05D0', 'xn--4db.xn--4db', 'right-to-left label'],
+  ]) {
+    assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
+  }
+});
+
+// Native Firefox 57-105 accepts these labels; Firefox 106 rejects them.
+QUnit.skip('URL domain invalid Punycode labels in non-ASCII domains', assert => {
+  for (const [domain, message] of [
+    ['xn--a.\u00E9', 'disallowed code point'],
+    ['xn--a-qib.\u00E9', 'unassigned code point'],
+    ['xn--.\u00E9', 'empty label'],
+    ['xn--\u00E9.\u00E9', 'non-ASCII label'],
+    ['xn--\u00E9-eha.com', 'non-ASCII label with a delimiter'],
+    ['xn--a-wbb.\u00E9', 'label beginning with a combining mark'],
+    ['xn--99999999.\u00E9', 'overflow'],
+    ['\uFF58\uFF4E\uFF0D\uFF0Da.com', 'invalid label after mapping'],
+    ['%78n--a.%C3%A9', 'percent-encoded invalid label'],
+  ]) {
+    assert.throws(() => new URL(`https://${ domain }/`), TypeError, message);
+  }
+  if (NORMALIZE) assert.throws(() => new URL('https://xn--u-ccb.\u00E9/'), TypeError, 'label not in NFC');
+});
+
+// Labels decoded to ASCII: native Chrome 67-80, Edge 79, Firefox 57-105, Safari 14, Node 20.20.2 and 22.23.4
+// accept them; Chrome 100, Firefox 106, Safari 15 and Node 24.22.2 pass.
+// The label beginning with the prefix: native Chrome 100-132, Edge 109-110, Firefox 57-159, Safari 15-18,
+// Node 20.20.2, 22.23.4 and Deno 2.9.7 accept it; Chrome 143, Safari 26 and Node 24.22.2 pass.
+QUnit.skip('URL domain Punycode labels decoded to ASCII or to the prefix', assert => {
+  assert.throws(() => new URL('https://xn--abc-.\u00E9/'), TypeError, 'ASCII label');
+  assert.throws(() => new URL('https://xn--a-.\u00E9/'), TypeError, 'ASCII label with a delimiter');
+  assert.throws(() => new URL('https://xn--xn---epa.\u00E9/'), TypeError, 'label beginning with the prefix');
+});
+
+QUnit.test('URL domain Bidi rule', assert => {
+  for (const [domain, expected, message] of [
+    ['\u05D0\u05D1.com', 'xn--4dbc.com', 'right-to-left label'],
+    ['\u05D0\u05B0.com', 'xn--7cb7d.com', 'right-to-left label ending with a nonspacing mark'],
+    ['\u05D01.com', 'xn--1-zhc.com', 'right-to-left label ending with a digit'],
+    ['\u0627\u0661.com', 'xn--mgb0j.com', 'right-to-left label ending with an Arabic digit'],
+    ['%D7%900.com', 'xn--0-zhc.com', 'percent-encoded right-to-left label'],
+  ]) {
+    assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
+  }
+});
+
+// Native Firefox 57-93 accepts all of these domains: https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
+// Native Node 20.20.2, 22.23.4 and 25.9.0 accept the third, the fourth and the fifth one.
+// The last two, labels without right-to-left characters: native Firefox <= 128, Node 24.22.2 and 26.13.0
+// accept them; Chrome 67-156, Firefox 141, Safari 14-26, Bun 1.4.4 and Deno 2.9.7 reject them.
+// https://github.com/whatwg/url/issues/543
+QUnit.skip('URL domain Bidi rule: rejected labels', assert => {
+  for (const [domain, message] of [
+    ['\u05D0a.com', 'right-to-left label ending with a left-to-right letter'],
+    ['\u05D0\u06611.com', 'European and Arabic digits'],
+    ['a\u05D0.com', 'left-to-right label with a right-to-left letter'],
+    ['1\u05D0.com', 'label beginning with a digit'],
+    ['\u0661\u05D0.com', 'label beginning with an Arabic digit'],
+    ['a-.\u05D0', 'left-to-right label ending with a hyphen'],
+    ['0a.\u05D0', 'left-to-right label beginning with a digit'],
+  ]) {
+    assert.throws(() => new URL(`https://${ domain }/`), TypeError, message);
+  }
+});
+
+// Native Firefox 57-105 accepts these hosts; Firefox 106 rejects them.
+QUnit.skip('URL domain label validation in parsing and setters', assert => {
+  for (const hostname of ['\u0301a.example', '\u05D0a.example', 'xn--a.\u00E9']) {
+    const input = `https://${ hostname }/`;
+    assert.same(URL.parse(input), null, 'URL.parse rejects an invalid label');
+    assert.false(URL.canParse(input), 'URL.canParse rejects an invalid label');
+    assert.throws(() => new URL(`//${ hostname }/`, 'https://example.com/'), TypeError, 'relative URL');
+
+    const original = 'https://example.com:8080/path?key=value#hash';
+    const url = new URL(original);
+    const params = url.searchParams;
+    assert.throws(() => { url.href = input; }, TypeError, 'href setter');
+    assert.same(url.href, original, 'failed href setter preserves the URL');
+    assert.same(url.searchParams, params, 'failed href setter preserves searchParams identity');
+    for (const key of ['host', 'hostname']) {
+      url[key] = hostname;
+      assert.same(url.href, original, `${ key } setter rejects the host without changing the URL`);
+      assert.same(url.searchParams, params, `${ key } setter preserves searchParams identity`);
+      assert.same(String(params), 'key=value', `${ key } setter preserves searchParams contents`);
+    }
+  }
 });
 
 QUnit.test('URL converts lone surrogates before removing tabs and newlines', assert => {
@@ -1482,8 +1710,8 @@ QUnit.test('WPT URL resources', assert => {
   assert.same(actual.ascii, 'xn--a', 'an ASCII domain is not validated as Punycode');
 });
 
-// Native URL implementations and the polyfill do not pass the complete WPT corpus,
-// including unsupported IDNA rules. These suites remain disabled by default.
+// Native URL implementations do not pass the complete WPT corpus, and neither does the polyfill
+// in engines without `String.prototype.normalize`. These suites remain disabled by default.
 
 // see https://github.com/web-platform-tests/wpt/blob/master/url
 QUnit.skip('WPT URL constructor tests', assert => {

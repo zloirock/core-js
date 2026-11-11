@@ -66,6 +66,14 @@ engine            | how to run tests | base data inherits from    | mandatory ch
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
 
+## How to update the Unicode data of the `URL` polyfill
+
+The `URL` polyfill validates domains against tables generated from the [Unicode Character Database](https://www.unicode.org/ucd/). After a release of a new Unicode version:
+
+- Set the new version in [`scripts/build-url-idna-data.mjs`](./scripts/build-url-idna-data.mjs) and run `npm run build-url-idna-data`: it rebuilds [`packages/core-js/internals/url-idna-data.js`](./packages/core-js/internals/url-idna-data.js) and stops if the new data breaks an assumption of the polyfill.
+- Compare the manual mapping rules in [`packages/core-js/internals/url-domain-to-ascii.js`](./packages/core-js/internals/url-domain-to-ascii.js) with the new [IDNA mapping table](https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table).
+- Update the [Web Platform Tests resources](./tests/wpt-url-resources) to a revision with the tests of this Unicode version.
+
 ## Style and standards
 
 The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:

@@ -16,18 +16,14 @@ var damp = 700;
 var initialBias = 72;
 var initialN = 128; // 0x80
 var delimiter = '-'; // '\x2D'
-var regexNonASCII = /[^\0-\u007E]/; // non-ASCII chars
-var regexSeparators = /[.\u3002\uFF0E\uFF61]/g; // RFC 3490 separators
 var baseMinusTMin = base - tMin;
 
-var exec = uncurryThis(regexSeparators.exec);
 var floor = Math.floor;
 var fromCharCode = String.fromCharCode;
 var charCodeAt = uncurryThis(''.charCodeAt);
 var join = uncurryThis([].join);
+var lastIndexOf = uncurryThis(''.lastIndexOf);
 var push = uncurryThis([].push);
-var replace = uncurryThis(''.replace);
-var split = uncurryThis(''.split);
 
 /**
  * Creates an array containing the numeric code points of each Unicode
@@ -58,6 +54,16 @@ var ucs2decode = function (string) {
     }
   }
   return output;
+};
+
+/**
+ * Creates a string of a Unicode code point, a pair of surrogate halves
+ * for a code point of a supplementary plane.
+ */
+var ucs2encode = function (codePoint) {
+  return codePoint < 0x10000
+    ? fromCharCode(codePoint)
+    : fromCharCode(0xD7C0 + (codePoint >> 10), 0xDC00 + (codePoint & 0x3FF));
 };
 
 /**
@@ -211,18 +217,90 @@ var encode = function (input) {
   return join(output, '');
 };
 
-module.exports = function (input) {
-  var encoded = [];
-  var labels = split(replace(input, regexSeparators, '\u002E'), '.');
-  var i, label;
-  for (i = 0; i < labels.length; i++) {
-    label = labels[i];
-    if (exec(regexNonASCII, label)) {
-      label = encode(label);
-      if (label === null) return null;
-      label = 'xn--' + label;
+/**
+ * Converts a basic code point into a digit/integer.
+ */
+var basicToDigit = function (code) {
+  return code > 0x2F && code < 0x3A ? code - 22
+    : code > 0x40 && code < 0x5B ? code - 0x41
+    : code > 0x60 && code < 0x7B ? code - 0x61
+    : base;
+};
+
+/**
+ * Converts a Punycode string of ASCII-only symbols to a string of Unicode symbols.
+ * Returns `null` on malformed input, overflow, or a result that is not a sequence of scalar values.
+ * https://datatracker.ietf.org/doc/html/rfc3492#section-6.2
+ */
+var decode = function (input) {
+  var inputLength = input.length;
+  var basicLength = lastIndexOf(input, delimiter);
+  // Decoded code points with their positions at the moment of insertion.
+  var codePoints = [];
+  var positions = [];
+  var output = [];
+  var tree = [0];
+  var n = initialN;
+  var i = 0;
+  var bias = initialBias;
+  var index, oldi, w, k, digit, t, length, step, slot, next;
+
+  if (basicLength < 0) basicLength = 0;
+  length = basicLength;
+
+  // Decode the generalized variable-length integers after the last delimiter, if there is one.
+  for (index = basicLength ? basicLength + 1 : 0; index < inputLength;) {
+    oldi = i;
+    w = 1;
+    for (k = base; ; k += base) {
+      if (index >= inputLength) return null;
+      digit = basicToDigit(charCodeAt(input, index++));
+      if (digit >= base || digit > floor((maxInt - i) / w)) return null;
+      i += digit * w;
+      t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+      if (digit < t) break;
+      if (w > floor(maxInt / (base - t))) return null;
+      w *= base - t;
     }
-    push(encoded, label);
+    length++;
+    bias = adapt(i - oldi, length, oldi === 0);
+    if (floor(i / length) > maxInt - n) return null;
+    n += floor(i / length);
+    i %= length;
+    if (n > 0x10FFFF || (n > 0xD7FF && n < 0xE000)) return null;
+    push(codePoints, n);
+    push(positions, i++);
   }
-  return join(encoded, '.');
+
+  // Place the code points from the last inserted one: each takes the free slot with the number
+  // of its position, so nothing is shifted. The tree counts the free slots.
+  for (index = 1; index <= length; index++) tree[index] = index & -index;
+  for (step = 1; step << 1 <= length;) step <<= 1;
+  for (index = codePoints.length - 1; index >= 0; index--) {
+    slot = 0;
+    k = positions[index];
+    for (w = step; w; w >>= 1) {
+      next = slot + w;
+      if (next <= length && tree[next] <= k) {
+        slot = next;
+        k -= tree[next];
+      }
+    }
+    output[slot] = ucs2encode(codePoints[index]);
+    for (slot++; slot <= length; slot += slot & -slot) tree[slot]--;
+  }
+
+  // The basic code points take the remaining slots in their order.
+  for (index = 0, slot = 0; index < basicLength; slot++) {
+    if (output[slot] === undefined) output[slot] = fromCharCode(charCodeAt(input, index++));
+  }
+
+  return join(output, '');
+};
+
+module.exports = {
+  decode: decode,
+  encode: encode,
+  ucs2decode: ucs2decode,
+  ucs2encode: ucs2encode
 };
