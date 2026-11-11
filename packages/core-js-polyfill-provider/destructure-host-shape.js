@@ -830,6 +830,16 @@ export function renderNestedKeyedPatternCapture(plan, {
   const inlineLeaf = plan.inlineLeaf && assignment && renderLeaf && !narrow && !anchorPure;
   const ref = coerceLeaf || inlineLeaf ? null : mintRef();
   let captured = coerceLeaf || inlineLeaf ? objectPattern([]) : capturedPatternRef(ref, plan.leafPattern);
+  const nativeSibling = plan.leafPattern.type === 'ObjectPattern'
+    && plan.leafPattern.properties.some(prop => patternSlotTarget(prop.value)?.type === 'ObjectPattern');
+  // A native nested sibling shares the quiet named hop with its flat twin. Normalize
+  // each capture before embedding, whether an earlier claim has already left the host.
+  function captureDeclarator(pattern, value, source = value) {
+    const hop = nativeSibling && source.type === 'Identifier' && pattern.type === 'ObjectPattern'
+      && pattern.properties.length === 1 && pattern.properties[0];
+    const direct = hop && !hop.computed && hop.key.type === 'Identifier' && hop.value.type === 'Identifier';
+    return variableDeclarator(embed(direct ? hop.value : pattern), direct ? memberFromKeyName(value, hop.key.name) : value);
+  }
   // a `hostRest` capture keeps the host level whole, so its rest still excludes the hop it reads once
   for (const level of plan.ancestors.toReversed()) {
     const hop = { ...level.prop, value: level.defaultValue ? { ...level.defaultValue, left: captured } : captured };
@@ -926,7 +936,7 @@ export function renderNestedKeyedPatternCapture(plan, {
           const pattern = pairedRoot ? source.value : { ...level.pattern, properties: [source] };
           // Only a root residual reads the capture source; an inner level has its own receiver.
           if (!pairedRoot && index === 0) markCapturedPatternSource(pattern, { node: plan.init, ctx: plan.ctx });
-          ordered.push({ guarded: !!sibling && !prop.computed, declarator: variableDeclarator(embed(pattern), init) });
+          ordered.push({ guarded: !!sibling && !prop.computed, declarator: captureDeclarator(pattern, init) });
         }
         receiverCoerced = true;
         if (prop === level.prop) ordered.push(...elements);
@@ -951,8 +961,10 @@ export function renderNestedKeyedPatternCapture(plan, {
         identifier(result),
       ]) };
     }
-    const capture = captured && !(splitCapture && (receiverRef || receiverNode))
-      && assignmentExpression('=', embed(captured), anchorNode ?? embed(plan.init));
+    const captureBinding = captured && !(splitCapture && (receiverRef || receiverNode))
+      && (preserveResult ? variableDeclarator(embed(captured), anchorNode ?? embed(plan.init))
+        : captureDeclarator(captured, anchorNode ?? embed(plan.init), anchorNode ?? plan.init));
+    const capture = captureBinding && assignmentExpression('=', captureBinding.id, captureBinding.init);
     const result = preserveResult ? splitCapture ? captured : identifier(mintRef()) : null;
     return {
       elements,
@@ -974,7 +986,7 @@ export function renderNestedKeyedPatternCapture(plan, {
     if (prefix.length) reusedCapture.init = sequenceExpression([...prefix.map(embed), reusedCapture.init]);
   }
   return {
-    capture: reusedCapture ?? variableDeclarator(embed(captured), anchorNode ?? embed(plan.init)),
+    capture: reusedCapture ?? captureDeclarator(captured, anchorNode ?? embed(plan.init), anchorNode ?? plan.init),
     elements,
   };
 }
@@ -1833,6 +1845,7 @@ function planRetainedObjectCaptureShape({
       resolveStaticProp,
       isClaimedProp,
       provenCtorName: resolvedMeta.object,
+      capturedElement: true,
     });
     if (innerPlan) return { capture: ordered, assignment, innerPlan: { ...innerPlan, coerceReceiver: true } };
   }
@@ -2074,6 +2087,12 @@ function planRetainedObjectCaptureShape({
     const crossed = pattern.properties.filter(item => item !== prop && pattern.properties.indexOf(item) < index === ahead
       && !isClaimedProp?.(item) && !isConsumedProp?.(item));
     if (!crossed.length) return false;
+    // A running initializer must be captured before binding the claim. Leaving the
+    // whole residual first would let a later default or getter read that binding in TDZ.
+    if (!ahead) return crossed.some(item => {
+      const siblingKind = siblingClaimKind(item);
+      return computedKeyHasSideEffects(item, ctx) || siblingKind !== 'static' && siblingKind !== 'global';
+    });
     const claimRuns = destructureKeyRunsCode(prop, ctx) || claimReadRunsCode();
     return crossed.some(item => {
       const runs = destructureKeyRunsCode(item, ctx);

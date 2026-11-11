@@ -18,43 +18,27 @@ function make() {
 }
 const _ref = make(),
   {
-    w: {
-      [(log('from'), 'from')]: from
-    }
-  } = {
-    w: {
-      from: _Array$from
-    }
-  },
+    w: {}
+  } = _ref,
+  from = (log('from'), _Array$from),
   {
     other
   } = _ref;
 let _ref2 = make(),
   {
-    v: {
-      [(log('entries'), 'entries')]: entries,
-      values
-    }
-  } = {
-    v: {
-      entries: _Object$entries,
-      values: _Object$values
-    }
-  },
+    v: {}
+  } = _ref2,
+  entries = (log('entries'), _Object$entries),
+  values = _Object$values,
   {
     other: second
   } = _ref2;
 export function inside() {
   var _ref3 = make(),
     {
-      n: {
-        [(log('isInteger'), 'isInteger')]: isInteger
-      }
-    } = {
-      n: {
-        isInteger: _Number$isInteger
-      }
-    },
+      n: {}
+    } = _ref3,
+    isInteger = (log('isInteger'), _Number$isInteger),
     {
       other: third
     } = _ref3;
@@ -62,27 +46,16 @@ export function inside() {
 }
 const _ref4 = make(),
   {
-    w: {
-      [(log('of'), 'of')]: of
-    }
-  } = {
-    w: {
-      of: _Array$of
-    }
-  },
+    w: {}
+  } = _ref4,
+  of = (log('of'), _Array$of),
   {
     other: fourth
   } = _ref4;
 export { of, fourth };
 for (const _ref5 = make(), {
-    v: {
-      [(log('assign'), 'assign')]: assign
-    }
-  } = {
-    v: {
-      assign: _Object$assign
-    }
-  }, {
+    v: {}
+  } = _ref5, assign = (log('assign'), _Object$assign), {
     other: fifth
   } = _ref5;;) {
   use(assign, fifth);

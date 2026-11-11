@@ -1,25 +1,27 @@
-// a nested leaf under a hop whose computed key runs an effect keeps its pattern: the effect runs where the source
-// wrote it, and the claim beneath stays native rather than reading off a twin that would drop the key
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
+// A computed hop evaluates its key once before capturing the nested receiver.
+// Native siblings and polyfilled method reads then follow in their original order.
 function rows(box, touch) {
   const {
-    [(touch(), 'y')]: {
+      [(touch(), 'y')]: _ref
+    } = null == box ? box[""] : box,
+    {
       other: {
         q
-      },
-      at
-    }
-  } = box;
-  const {
-      k
+      }
+    } = _ref,
+    at = _at(_ref);
+  const k = box.k,
+    {
+      [(touch(), 'z')]: _ref2
     } = box,
     {
-      [(touch(), 'z')]: {
-        more: {
-          r
-        },
-        flat
+      more: {
+        r
       }
-    } = box;
+    } = _ref2,
+    flat = _flatMaybeArray(_ref2);
   return [q, at, k, r, flat];
 }
 use(rows);

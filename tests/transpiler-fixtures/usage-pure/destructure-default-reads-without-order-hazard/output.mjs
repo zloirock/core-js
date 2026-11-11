@@ -7,13 +7,13 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 // closure shadowing the name. Every claim here extracts.
 const from = _Array$from;
 const of = _Array$of;
-const entries = _Object$entries;
 const {
   make = () => entries({})
 } = Object;
+const entries = _Object$entries;
 const _ref = [1, 2];
-const at = _atMaybeArray(_ref);
 const {
   mapper = at => at
 } = _ref;
+const at = _atMaybeArray(_ref);
 export { from, of, make, entries, mapper, at };

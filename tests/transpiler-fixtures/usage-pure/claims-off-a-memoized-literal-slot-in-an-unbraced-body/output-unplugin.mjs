@@ -6,31 +6,28 @@ import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _keys from "@core-js/pure/actual/instance/keys";
 
-var _ref3;
+var _ref4;
 
-// Several claims beside a nested pattern, in an object literal whose slot is memoized, as the first of the
-// declarators an unbraced body holds: the memo leads the declaration as a declarator of its own, and each
-// claim binds right after the residual, in the order the source wrote them - two under an `if`, three under
-// a `while`, a defaulted one among two under a `for`. Unplugin's drains bind them ahead of it (the sidecar).
-if (a) var _ref = box.y,
+// A native nested sibling reads before the following methods, once each, in a bodyless var host.
+// Capture the level that owns the methods instead of descending into the native sibling.
+// The remaining sidecar only moves an uninitialized guard var to its enclosing scope.
+if (a) var { y: _ref } = { y: box.y },
+	{ other: { q } } = _ref,
 	at = _at(_ref),
 	includes = _includes(_ref),
-	{ y: { other: { q }, at: _unused, includes: _unused2 } } = { y: _ref },
 	x1 = 1;
 
-while (b) var _ref2 = box.z,
+while (b) var { y: _ref2 } = { y: box.z },
+	{ more: { r } } = _ref2,
 	flat = _flatMaybeArray(_ref2),
 	fill = _fillMaybeArray(_ref2),
 	find = _findMaybeArray(_ref2),
-	{
-		y: { more: { r }, flat: _unused3, fill: _unused4, find: _unused5 }
-	} = { y: _ref2 },
 	x2 = 2;
 
-for (; ; ) var _ref4 = box.w,
-	findLast = (_ref3 = _findLastMaybeArray(_ref4)) === void 0 ? null : _ref3,
-	keys = _keys(_ref4),
-	{ y: { last: { t }, findLast: _unused6, keys: _unused7 } } = { y: _ref4 },
+for (; ; ) var { y: _ref3 } = { y: box.w },
+	{ last: { t } } = _ref3,
+	findLast = (_ref4 = _findLastMaybeArray(_ref3)) === void 0 ? null : _ref4,
+	keys = _keys(_ref3),
 	x3 = 3;
 
 use(q, at, includes, x1, r, flat, fill, find, x2, t, findLast, keys, x3);

@@ -16,9 +16,7 @@ const _ref = box.y,
     }
   } = _ref,
   at = _at(_ref);
-const {
-    k
-  } = box,
+const k = box.k,
   _ref2 = box.y,
   {
     more: {
@@ -53,11 +51,11 @@ try {
     keys = _keys(_ref7);
   use(t, keys);
 }
-const _ref8 = box.y;
-const values = _values(_ref8);
-const {
-  tail: {
-    u
-  }
-} = _ref8;
+const _ref8 = box.y,
+  values = _values(_ref8),
+  {
+    tail: {
+      u
+    }
+  } = _ref8;
 use(q, at, k, r, flat, z, s, includes, fill, kept, values, u);

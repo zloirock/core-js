@@ -5,64 +5,71 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _includes from "@core-js/pure/actual/instance/includes";
-var _ref, _ref3, _ref5, _ref7, _ref9, _ref11, _ref13;
-// a default on the hop a nested leaf hangs off folds into the twin's one read: the memo holds the slot's
-// value or the default, and the leaf binds off it in source order. an unbraced `var` takes a block for the
-// memo; a loop head and a shared declaration take it as a declarator, and a shared declaration split per
-// statement declares it `const` whatever the host's kind
-const _ref2 = (_ref = box.y) === void 0 ? dflt : _ref;
+// A defaulted nested receiver is captured once before its siblings and methods.
+// Preserve source order and declaration kind in bodyless vars, loop heads and shared declarations.
 const {
+    y: _ref = dflt
+  } = box,
+  {
     other: {
       q
     }
+  } = _ref,
+  at = _at(_ref);
+const z = 1,
+  {
+    y: _ref2 = dflt
+  } = box,
+  {
+    more: {
+      r
+    }
   } = _ref2,
-  at = _at(_ref2);
-const z = 1;
-const _ref4 = (_ref3 = box.y) === void 0 ? dflt : _ref3;
-const {
-  more: {
-    r
-  }
-} = _ref4;
-const flat = _flatMaybeArray(_ref4);
-var v = 2;
-const _ref6 = (_ref5 = box.y) === void 0 ? dflt : _ref5;
-var {
-  next: {
-    n
-  }
-} = _ref6;
-var find = _findMaybeArray(_ref6);
-let w = 3;
-const _ref8 = (_ref7 = box.y) === void 0 ? dflt : _ref7;
-let {
-  past: {
-    p
-  }
-} = _ref8;
-let findLast = _findLastMaybeArray(_ref8);
-if (c) {
-  const _ref10 = (_ref9 = box.y) === void 0 ? dflt : _ref9;
-  var {
-      last: {
-        s
-      }
-    } = _ref10,
-    includes = _includes(_ref10);
-}
-for (const _ref12 = (_ref11 = box.y) === void 0 ? dflt : _ref11, {
+  flat = _flatMaybeArray(_ref2);
+var v = 2,
+  {
+    y: _ref3 = dflt
+  } = box,
+  {
+    next: {
+      n
+    }
+  } = _ref3,
+  find = _findMaybeArray(_ref3);
+let w = 3,
+  {
+    y: _ref4 = dflt
+  } = box,
+  {
+    past: {
+      p
+    }
+  } = _ref4,
+  findLast = _findLastMaybeArray(_ref4);
+if (c) var {
+    y: _ref5 = dflt
+  } = box,
+  {
+    last: {
+      s
+    }
+  } = _ref5,
+  includes = _includes(_ref5);
+for (const {
+    y: _ref6 = dflt
+  } = box, {
     head: {
       h
     }
-  } = _ref12, entries = _entries(_ref12);;) break;
-const {
-  k
-} = box;
-const _ref14 = (_ref13 = box.y) === void 0 ? dflt : _ref13;
-const {
-  tail: {
-    u
-  }
-} = _ref14;
-const fill = _fillMaybeArray(_ref14);
+  } = _ref6, entries = _entries(_ref6);;) break;
+const k = box.k,
+  {
+    y: _ref7 = dflt
+  } = box,
+  {
+    tail: {
+      u
+    }
+  } = _ref7,
+  fill = _fillMaybeArray(_ref7);
 use(q, at, z, r, flat, v, n, find, w, p, findLast, s, includes, k, u, fill);

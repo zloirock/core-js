@@ -19,11 +19,9 @@ import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.math.sum-precise";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// a bodyless `var` destructure hosts its claims in the slot on the shared residual canon: extractions
-// lead a residual whose init runs no code and follow one whose init does, its prefix staying in it;
-// an emptied pattern keeps what its init runs - a getter read replayed whole, a realm call alone, a
-// read off an effectful sequence root whole - ahead of the binding. a ref any of them mints is
-// declared where the slot's owner stands, never in a block the slot was given
+// A bodyless var pattern evaluates its initializer before any binding, then keeps native
+// and extracted reads in source order. A capture stays in the same control slot; a fully
+// consumed initializer retains its effects, with no extra block scope for minted refs.
 class Src {
   static get realm() {
     log();

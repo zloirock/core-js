@@ -14,31 +14,31 @@ var _ref3;
 // and a claim written after the level follows it - one claim ahead, two ahead and one behind, a defaulted
 // claim in the level, and an iterator one.
 const includes = _includes(box);
-const _ref = box.y;
-const at = _at(_ref);
-const {
-  other: {
-    q
-  }
-} = _ref;
+const _ref = box.y,
+  at = _at(_ref),
+  {
+    other: {
+      q
+    }
+  } = _ref;
 const flat = _flatMaybeArray(box2);
 const fill = _fillMaybeArray(box2);
-const _ref2 = box2.z;
-const find = _findMaybeArray(_ref2);
-const {
-  more: {
-    r
-  }
-} = _ref2;
-const keys = _keys(box2);
+const _ref2 = box2.z,
+  find = _findMaybeArray(_ref2),
+  {
+    more: {
+      r
+    }
+  } = _ref2,
+  keys = _keys(box2);
 const values = _values(box3);
-const _ref4 = box3.w;
-const findLast = (_ref3 = _findLastMaybeArray(_ref4)) === void 0 ? null : _ref3;
-const {
-  last: {
-    t
-  }
-} = _ref4;
+const _ref4 = box3.w,
+  findLast = (_ref3 = _findLastMaybeArray(_ref4)) === void 0 ? null : _ref3,
+  {
+    last: {
+      t
+    }
+  } = _ref4;
 var entries = _entries(box4);
 const _ref5 = box4.v;
 var it = _getIteratorMethod(_ref5);

@@ -11,10 +11,10 @@ import _Object$hasOwn from "@core-js/pure/actual/object/has-own";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-var _ref;
-// a residual whose init RUNS code - a call, a getter, an effect inside the read - evaluates it
-// before the pattern binds anything: every extraction follows that residual, which keeps its own
-// prefix - on a sole or sibling declarator, in a loop head, behind an assignment, when exported
+var _ref2;
+// A call, getter or buried effect in the initializer runs once before any binding.
+// Capturing that value lets extracted bindings precede their following native siblings
+// in declarations, loop heads, assignments and exports.
 function load() {
   log();
   return _globalThis;
@@ -25,35 +25,38 @@ class Src {
     return _globalThis;
   }
 }
-var {
-  other: o1
-} = load().Array;
-var f1 = _Array$from;
-var a = 1;
-var {
-  other: o2
-} = (_ref = Src.realm, _ref === _globalThis ? _Map : _ref.Map);
-var g2 = _Map$groupBy;
-for (var i = 0, {
+var _ref = load().Array,
+  f1 = _Array$from,
+  {
+    other: o1
+  } = _ref;
+var a = 1,
+  _ref3 = (_ref2 = Src.realm, _ref2 === _globalThis ? _Map : _ref2.Map),
+  g2 = _Map$groupBy,
+  {
+    other: o2
+  } = _ref3;
+for (var i = 0, _ref4 = (log(), _globalThis).Array, f3 = _Array$of, {
     other: o3
-  } = (log(), _globalThis).Array, f3 = _Array$of; i < 1; i++);
-for (var j = 0, {
+  } = _ref4; i < 1; i++);
+for (var j = 0, _ref5 = (log(), load().Array), f8 = _Array$fromAsync, {
     other: o8
-  } = (log(), load().Array), f8 = _Array$fromAsync; j < 1; j++);
-for (var {
+  } = _ref5; j < 1; j++);
+for (var _ref6 = load().Object, f4 = _Object$fromEntries, {
     other: o4
-  } = load().Object, f4 = _Object$fromEntries; !f4;) break;
+  } = _ref6; !f4;) break;
 var f5, t5, o5;
-({
+log(), load(), f5 = _Promise$allSettled, t5 = _Promise$try, {
   other: o5
-} = (log(), load(), _Promise));
-f5 = _Promise$allSettled;
-t5 = _Promise$try;
-export var {
-  other: o6
-} = Src.realm.Object;
-export var f6 = _Object$hasOwn;
-var {
-  other: o7
-} = (load(), _Iterator);
-var f7 = _Iterator$concat;
+} = _Promise;
+var _ref7 = Src.realm.Object,
+  f6 = _Object$hasOwn,
+  {
+    other: o6
+  } = _ref7;
+export { f6, o6 };
+load();
+var f7 = _Iterator$concat,
+  {
+    other: o7
+  } = _Iterator;

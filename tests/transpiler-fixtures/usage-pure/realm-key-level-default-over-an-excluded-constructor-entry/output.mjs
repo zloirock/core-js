@@ -18,7 +18,7 @@ import _Symbol from "@core-js/pure/actual/symbol";
 import _URL from "@core-js/pure/actual/url";
 import _WeakMap from "@core-js/pure/actual/weak-map";
 import _WeakSet from "@core-js/pure/actual/weak-set";
-var _ref, _unused7;
+var _ref2, _unused7;
 // A static is decided by its own entry, never by its constructor's: excluding a constructor only stops injecting
 // it, so a static read off the realm under its key takes its polyfill whatever default stands on the level, bound
 // beside the rest the realm's own read keeps - whatever spells the realm, beside a nested level, a claimed sibling
@@ -63,22 +63,24 @@ const {
   } = _Symbol
 } = _globalThis;
 export { raced };
-const reject = _Promise$reject;
-const S = _Set;
 const {
-  Promise: {
-    reject: _unused6,
-    ...rejected
-  } = _Iterator
+  Promise: _ref = _Iterator
 } = _globalThis;
+const {} = _ref;
+const reject = _Promise$reject;
+const {
+  reject: _unused6,
+  ...rejected
+} = _ref;
+const S = _Set;
 let resolve, resolved;
 ({
-  Promise: _ref = _URL
+  Promise: _ref2 = _URL
 } = _globalThis);
 resolve = _Promise$resolve, {
   resolve: _unused7,
   ...resolved
-} = _ref;
+} = _ref2;
 const withResolvers = _Promise$withResolvers;
 const {
   Promise: {

@@ -144,8 +144,6 @@ runBoth('residual source order', 'const { first, second, third } = source;', (pa
     for (let claimed = 0; claimed < original.length; claimed++) {
       check(`${ label }/${ survivor } before ${ claimed }`,
         residualPrecedesExtractions(residual, [original[claimed]], original), survivor < claimed);
-      check(`${ label }/${ survivor } shares ${ claimed }`,
-        residualPrecedesExtractions(residual, [original[claimed]], original, { sharedHop: true }), survivor <= claimed);
     }
   }
   check(`${ label }/unknown residual position`, residualPrecedesExtractions(
@@ -259,6 +257,20 @@ for (const [receiver, sentinel, whole, expected] of [
     checkDeep(label, [!!plan.keepKey, !!plan.memoizeReceiver], expected);
     check(`${ label }/no speculative allocation or source edit`, JSON.stringify(host.node), before);
   });
+
+for (const prefix of ['import rows from "./rows.js";', 'let rows = []; export function rebind() { rows = []; }']) {
+  runBoth(`literal sibling capture/${ prefix }`, `${ prefix } const before = 1, { at, other } = rows;`, (parser, program, label) => {
+    const host = hostOf(parser, program);
+    const [prop] = host.node.id.properties;
+    const ctx = context(parser, host);
+    const before = JSON.stringify(host.node);
+    const plan = planLiteralResidual({ kind: 'instance', entry: 'instance/at', prop, pattern: host.node.id,
+      sentinel: false, declarator: host.node, declaration: host.parentPath.node,
+      literalReceiver: host.node.init, relaxedReceiver: true, ctx });
+    check(`${ label }/memoize non-repeatable name`, plan?.memoizeReceiver, true);
+    check(`${ label }/no speculative source edit`, JSON.stringify(host.node), before);
+  });
+}
 
 function resolvePure(meta) {
   return meta.kind === 'global' && meta.name === 'Map'

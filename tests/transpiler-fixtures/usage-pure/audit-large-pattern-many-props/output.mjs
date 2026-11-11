@@ -5,8 +5,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // declaration of its own, and the native key keeps the receiver in a residual pattern.
 const from = _Array$from;
 const of = _Array$of;
-const fromAsync = _Array$fromAsync;
 const {
   isArray
 } = Array;
+const fromAsync = _Array$fromAsync;
 export { from, of, isArray, fromAsync };

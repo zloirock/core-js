@@ -10,6 +10,7 @@ import {
   destructureAssignmentValueIsCaptured,
   receiverPerformsEveryInitEffect,
   destructureKeyReadPlan,
+  destructureDefaultAfterResidual,
   destructurePatternHostPath,
   canExtractDestructureExport,
   destructureRetainsLiteralWrapper,
@@ -963,12 +964,12 @@ export default function createAstDestructureEmitter({
       const pendingJobs = pending?.jobs ?? [];
       // Earlier queued reads can declare this same receiver in their original statement slot.
       // A split capture shares that declaration; only its inner refs need hoisted slots.
-      const deferredReceiver = restPlan.claimedProps?.size
+      const deferredReceiver = restPlan.claimedProps?.size && (!restPlan.reuseReceiver || restPlan.init.type !== 'Identifier')
         && (!restPlan.capture || restPlan.capture.splitCapture && assignmentInStatementPosition(restHost))
         && assignmentValueDiscarded(restHost)
         && pendingJobs.some(job => job.readsReceiver) && pendingJobs.every(job => !job.bodyless);
-      // The drain owns earlier reads. Give it a real holder even when the source name
-      // was reusable: its declaration will evaluate the initializer for this capture too.
+      // The drain owns earlier reads. A stable plain name needs no extra holder;
+      // other sources share a declaration that evaluates the initializer for the capture too.
       const rendered = renderRetainedObjectCapture(deferredReceiver ? {
         ...restPlan, receiverRef: null, receiverNode: null, reuseReceiver: false, inlineReceiver: false, preserveResult: true,
       } : restPlan, {
@@ -2678,6 +2679,8 @@ export default function createAstDestructureEmitter({
           ? planMemoArg(declarator.init, metaPath) : null,
         symbolPattern: isSymbolIteratorPatternClaim(prop, entry),
         defaulted: prop.value.type === 'AssignmentPattern',
+        defaultAfterResidual: keepKey && kind === 'instance' && prop.value.type === 'AssignmentPattern'
+          && destructureDefaultAfterResidual(metaPath, prop.computed && computedKeyHasSideEffects(prop, keyCtx)),
         // the shape of the read a full consume discards, planned on the PRISTINE tree: by drain
         // time the walk has collapsed the nav and the probe's own question is unanswerable
         seKey: prop.computed && computedKeyHasSideEffects(prop, keyCtx),

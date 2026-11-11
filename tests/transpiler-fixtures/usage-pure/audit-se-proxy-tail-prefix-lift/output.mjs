@@ -13,8 +13,8 @@ eff2();
 const of = _Array$of;
 of(2);
 eff3();
-const keys = _Object$keys;
 const {
   isArray
 } = _globalThis.Object;
+const keys = _Object$keys;
 isArray(keys);

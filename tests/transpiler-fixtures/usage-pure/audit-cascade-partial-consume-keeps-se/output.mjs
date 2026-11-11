@@ -14,8 +14,9 @@ effectRan = true, _self.Array, from = _Array$from, {
 let counted = 0,
   keep;
 let of;
-({
+counted++, {
+  Array: {}
+} = _self, of = _Array$of, {
   keep
-} = (counted++, _self));
-of = _Array$of;
+} = _self;
 export const r = [from, of, rest, keep, effectRan, counted];

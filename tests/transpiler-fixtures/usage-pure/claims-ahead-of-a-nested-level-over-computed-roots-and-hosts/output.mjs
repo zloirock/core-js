@@ -16,61 +16,61 @@ import _values from "@core-js/pure/actual/instance/values";
 // `let` and a `var` declaration, behind a declarator ahead of it and beside a second claim ahead.
 function own() {
   const _ref = this;
-  const includes = _includes(_ref);
-  const _ref2 = _ref.y;
-  const at = _at(_ref2);
-  const {
-    other: {
-      q
-    }
-  } = _ref2;
+  const includes = _includes(_ref),
+    _ref2 = _ref.y,
+    at = _at(_ref2),
+    {
+      other: {
+        q
+      }
+    } = _ref2;
   return [includes, at, q];
 }
 const _ref3 = src?.box;
-const keys = _keys(_ref3);
-const _ref4 = _ref3.w;
-const findLast = _findLastMaybeArray(_ref4);
-const {
-  last: {
-    t
-  }
-} = _ref4;
+const keys = _keys(_ref3),
+  _ref4 = _ref3.w,
+  findLast = _findLastMaybeArray(_ref4),
+  {
+    last: {
+      t
+    }
+  } = _ref4;
 const _ref5 = (e(), mk());
-let values = _values(_ref5);
-const _ref6 = _ref5.v;
-let flat = _flatMaybeArray(_ref6);
-let {
-  more: {
-    r
-  }
-} = _ref6;
+let values = _values(_ref5),
+  _ref6 = _ref5.v,
+  flat = _flatMaybeArray(_ref6),
+  {
+    more: {
+      r
+    }
+  } = _ref6;
 const _ref7 = mk2();
-var entries = _entries(_ref7);
-const _ref8 = _ref7.u;
-var find = _findMaybeArray(_ref8);
-var {
-  rest: {
-    s
-  }
-} = _ref8;
+var entries = _entries(_ref7),
+  _ref8 = _ref7.u,
+  find = _findMaybeArray(_ref8),
+  {
+    rest: {
+      s
+    }
+  } = _ref8;
 const n = count();
 const _ref9 = mk3();
-const fill = _fillMaybeArray(_ref9);
-const _ref10 = _ref9.x;
-const findIndex = _findIndexMaybeArray(_ref10);
-const {
-  deep: {
-    p
-  }
-} = _ref10;
+const fill = _fillMaybeArray(_ref9),
+  _ref10 = _ref9.x,
+  findIndex = _findIndexMaybeArray(_ref10),
+  {
+    deep: {
+      p
+    }
+  } = _ref10;
 const _ref11 = mk4();
-const copyWithin = _copyWithinMaybeArray(_ref11);
-const toSorted = _toSortedMaybeArray(_ref11);
-const _ref12 = _ref11.z;
-const flatMap = _flatMapMaybeArray(_ref12);
-const {
-  tail: {
-    o
-  }
-} = _ref12;
+const copyWithin = _copyWithinMaybeArray(_ref11),
+  toSorted = _toSortedMaybeArray(_ref11),
+  _ref12 = _ref11.z,
+  flatMap = _flatMapMaybeArray(_ref12),
+  {
+    tail: {
+      o
+    }
+  } = _ref12;
 use(own, keys, findLast, t, values, flat, r, entries, find, s, n, fill, findIndex, p, copyWithin, toSorted, flatMap, o);

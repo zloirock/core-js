@@ -2,46 +2,43 @@ import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _at from "@core-js/pure/actual/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// an object literal container whose nested leaf holds an effect-keyed claim beside a nested pattern,
-// written beside other declarators: the residual keeps the key where the source wrote it and the claim
-// joins after it, reading the value the slot holds - spelled again, or memoized when it is a literal
+// A literal container captures its nested receiver before reading native siblings.
+// Effectful method keys and their reads stay between the preceding and following bindings.
 const x0 = 1,
   {
-    y: {
-      other: {
-        q
-      },
-      [(e(), 'at')]: _unused
-    }
+    y: _ref
   } = {
     y: s
   },
-  a = _at(s);
-let {
-    y: {
-      more: {
-        r
-      },
-      [(e(), 'includes')]: _unused2
+  {
+    other: {
+      q
     }
+  } = _ref,
+  a = (e(), _at(_ref));
+let {
+    y: _ref2
   } = {
     y: 'ab'
   },
-  b = _includesMaybeString('ab'),
-  x1 = 2;
-var x2 = 3;
-const _ref = [1];
-var {
-    y: {
-      last: {
-        t
-      },
-      [(e(), 'fill')]: _unused3,
-      [(e(), 'flat')]: _unused4
+  {
+    more: {
+      r
     }
+  } = _ref2,
+  b = (e(), _includesMaybeString(_ref2)),
+  x1 = 2;
+var x2 = 3,
+  {
+    y: _ref3
   } = {
-    y: _ref
+    y: [1]
   },
-  c = _fillMaybeArray(_ref),
-  d = _flatMaybeArray(_ref);
+  {
+    last: {
+      t
+    }
+  } = _ref3,
+  c = (e(), _fillMaybeArray(_ref3)),
+  d = null == _ref3 ? _ref3[""] : (e(), _flatMaybeArray(_ref3));
 use(x0, q, a, r, b, x1, x2, t, c, d);

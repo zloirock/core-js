@@ -5,9 +5,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 let from, at, rest;
 for (const _ref2 of [_globalThis]) {
   var _ref, _unused;
-  ({
-    Array: _ref
-  } = _ref2);
+  _ref = _ref2.Array;
   ({} = _ref), from = _Array$from, {
     from: _unused,
     k: {

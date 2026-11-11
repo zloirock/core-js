@@ -8,11 +8,11 @@ let enabled = true;
 const key = String(Math.random() > 2);
 for (const _ref of [enabled && _globalThis]) {
   const of = _Array$of;
-  const keys = _Object$keys;
   const {
     Array: {
       [key]: extra
     }
   } = _ref;
+  const keys = _Object$keys;
   use(of, keys, extra);
 }

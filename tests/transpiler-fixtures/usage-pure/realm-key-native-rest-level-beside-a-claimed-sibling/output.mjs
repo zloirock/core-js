@@ -5,18 +5,18 @@ import _Symbol from "@core-js/pure/actual/symbol";
 // native - a rest under a key the build does not resolve - as the declaration's sole hop. The plan made of
 // the pattern before that rewrite is retired, so the sibling's binding lands once, a default on the level
 // or none.
-const S = _Set;
 const {
   Foo: {
     bar,
     ...rest
   }
 } = _globalThis;
-const Sym = _Symbol;
+const S = _Set;
 const {
   Deno: {
     env,
     ...others
   } = {}
 } = _globalThis;
+const Sym = _Symbol;
 use(bar, rest, S, env, others, Sym);

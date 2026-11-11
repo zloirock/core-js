@@ -23600,6 +23600,91 @@ function * generateDestructurePlanLifecycle() {
   };
 }
 
+// Native siblings and extracted reads keep their source slots around captures and defaults.
+function * generateResidualExtractionOrder() {
+  for (const kind of ['const', 'var', 'assign', 'header']) for (const nested of [false, true]) yield {
+    ...snippet(`residual-extraction-order/default/${ kind }/${ nested }`, `(() => {
+      const holder = { get value() { log.push('init'); return ${ nested ? 'globalThis' : 'Array' }; } };
+      ${ kind === 'assign' ? 'let from, make;' : '' }
+      ${ kind === 'header' ? 'for (const ' : kind === 'assign' ? '(' : `${ kind } ` }
+        { ${ nested ? 'Array: { from }' : 'from' }, make = from } = holder.value
+      ${ kind === 'header' ? ';;) return make([7])[0];' : `${ kind === 'assign' ? ')' : '' }; return make([7])[0];` }
+    })()`), strip: true,
+  };
+  for (const kind of ['const', 'var']) for (const trailing of [false, true]) yield {
+    ...snippet(`residual-extraction-order/interleave/${ kind }/${ trailing }`, `(() => {
+      function earlier() { log.push('earlier'); return { x: 7 }; }
+      function defaultAt(value) { log.push(value); return 8; }
+      function read(source) {
+        ${ kind } { y: { u: { x } = earlier(), at = defaultAt(typeof x)${ trailing ? ', after = at' : '' } } } = { y: source };
+        return [x, at${ trailing ? ', after' : '' }];
+      }
+      return read({});
+    })()`), strip: true,
+  };
+  for (const first of [false, true]) yield {
+    ...snippet(`residual-extraction-order/live-name/${ first }`, `(() => {
+      let rows = [];
+      function rebind() { rows = { at: () => 99 }; return {}; }
+      const ${ first ? '' : 'before = 1,' } { y: { 0: { value } = rebind(), at } } = { y: rows }${ first ? ', after = 1' : '' };
+      return [typeof value, at.call([8], 0)];
+    })()`), strip: true,
+  };
+  for (const kind of ['const', 'var', 'assign', 'header']) for (const trailing of [false, true]) yield {
+    ...snippet(`residual-extraction-order/symbol-default/${ kind }/${ trailing }`, `(() => {
+      function read(source) {
+        ${ kind === 'assign' ? 'let before, iterator, after;' : '' }
+        ${ kind === 'header' ? 'for (const ' : kind === 'assign' ? '(' : kind }
+          { y: { before = (log.push('before'), 1), [Symbol.iterator]: iterator = (log.push('default'), 7)${ trailing
+    ? ', after = (log.push(typeof iterator), iterator)' : '' } } } = { y: source }
+        ${ kind === 'header' ? ';;)' : kind === 'assign' ? ');' : ';' }
+        return [before, iterator${ trailing ? ', after' : '' }];
+      }
+      return read({});
+    })()`), strip: true,
+  };
+  for (const host of ['if', 'while', 'for']) for (const first of [false, true]) for (const mutate of [false, true]) yield {
+    ...snippet(`residual-extraction-order/native-sibling/${ host }/${ first }/${ mutate }`, `(() => {
+      const make = new Function('events', 'observe', 'mutate', ${ JSON.stringify(`
+        let value = 1;
+        return { y: {
+          get other() { events.push('other:' + observe()); if (mutate) value = 2; return { q: 7 }; },
+          get at() { events.push('at'); const saved = value; return () => saved; },
+          get includes() { events.push('includes'); return () => true; }
+        } };
+      `) });
+      const box = make(log, () => typeof at, ${ mutate });
+      let turns = 1;
+      ${ host === 'if' ? 'if (true)' : host === 'while' ? 'while (turns--)' : 'for (; turns--;)' }
+        var { y: { ${ first ? 'other: { q }, at, includes' : 'at, other: { q }, includes' } } } = { y: box.y }, end = log.push('end');
+      return [q, at(), includes(), end];
+    })()`), strip: true,
+  };
+  // A consumed outer claim must not make the next nested method lose its capture.
+  for (const wrapped of [false, true]) for (const leading of [false, true]) yield {
+    ...snippet(`residual-extraction-order/assignment-native-sibling/${ wrapped }/${ leading }`, `(() => {
+      const make = new Function('events', 'observe', ${ JSON.stringify(`
+        const row = [8];
+        Object.defineProperty(row, 'other', { get() {
+          events.push('other:' + observe());
+          return { q: 7 };
+        } });
+        return {
+          get includes() { events.push('includes'); return () => true; },
+          get y() { events.push('y'); return row; }
+        };
+      `) });
+      function read() {
+        let inc, q, at;
+        const box = make(log, () => typeof inc);
+        ${ wrapped ? '(' : '' }({ ${ leading ? 'includes: inc, ' : '' }y: { other: { q }, at } } = box)${ wrapped ? ')' : '' };
+        return [q, at.call([8], 0)];
+      }
+      return read();
+    })()`), strip: true,
+  };
+}
+
 // Initializer effects precede every extracted binding, including a surviving rest.
 function * generateInitializerEffects() {
   for (const prefixed of [false, true]) for (const [shape, body] of [
@@ -25381,4 +25466,5 @@ export function * generate() {
   yield * generateClassStaticAliases();
   yield * generateDestructurePlanLifecycle();
   yield * generateInitializerEffects();
+  yield * generateResidualExtractionOrder();
 }

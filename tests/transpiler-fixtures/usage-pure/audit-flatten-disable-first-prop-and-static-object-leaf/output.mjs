@@ -6,13 +6,13 @@ import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 // const-bound static-object receiver. the opt-out survives into the OUTPUT: the emitters keep
 // the user's comment on the residual pattern, so a later pass over the emitted text keeps
 // honoring it. A constructor substituted outside the opt-out still carries that static
-const og = _Object$groupBy;
 const {
   // core-js-disable-next-line
   Map: {
     groupBy
   }
 } = _globalThis;
+const og = _Object$groupBy;
 const wrapper = {
   a: _Iterator
 };
