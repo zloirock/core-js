@@ -123,12 +123,12 @@ function report({ platform, id, pages, error }) {
     return false;
   }
   const lines = [cyan(`${ platform.name }: ${ dashboard }/tests/${ id }`)];
-  for (const { page, passed, summary, details, error: pageError } of pages) {
+  for (const { page, passed, summary, details, error: pageError = summary } of pages) {
     if (passed) {
       lines.push(green(`  ${ page }: ${ summary }`));
       continue;
     }
-    lines.push(red(`  ${ page }: ${ pageError ?? summary }`));
+    lines.push(red(`  ${ page }: ${ pageError }`));
     for (const detail of details) lines.push(red(detail));
   }
   echo(lines.join('\n'));
