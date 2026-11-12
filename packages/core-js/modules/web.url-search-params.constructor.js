@@ -7,7 +7,9 @@ var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var DESCRIPTORS = require('../internals/descriptors');
+var fails = require('../internals/fails');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var patchBody = require('../internals/url-search-params-body');
 var percentCoding = require('../internals/url-percent-coding');
@@ -25,6 +27,8 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var toUSVString = require('../internals/to-usv-string');
 var create = require('../internals/object-create');
+var getPrototypeOf = require('../internals/object-get-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
 var getIterator = require('../internals/get-iterator-internal');
 var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -36,6 +40,7 @@ var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
 var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
 var setInternalState = InternalStateModule.set;
+var hasInternalState = InternalStateModule.has;
 var getInternalParamsState = InternalStateModule.getterFor(URL_SEARCH_PARAMS);
 var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_ITERATOR);
 var percentDecode = percentCoding.decode;
@@ -43,6 +48,9 @@ var percentEncode = percentCoding.encode;
 
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
 var TypeError = globalThis.TypeError;
+var NativeURL = globalThis.URL;
+var NativeURLSearchParams = globalThis.URLSearchParams;
+var NativeURLSearchParamsPrototype = NativeURLSearchParams && NativeURLSearchParams.prototype;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
@@ -50,6 +58,45 @@ var replace = uncurryThis(''.replace);
 var shift = uncurryThis([].shift);
 var split = uncurryThis(''.split);
 var stringSlice = uncurryThis(''.slice);
+
+// Native APIs that take `URLSearchParams`, like `fetch`, recognize only native objects. Where the engine has
+// a usable native `URLSearchParams`, an instance is a native object that inherits from the polyfill and whose
+// internal list follows the list of the polyfill.
+var nativeAppend, nativeDelete, nativeSet, nativeSort, NATIVE_DELETE_BY_VALUE;
+var NATIVE_CARRIER = !!setPrototypeOf && !fails(function () {
+  var params = new NativeURLSearchParams();
+  nativeAppend = uncurryThis(NativeURLSearchParamsPrototype.append);
+  nativeDelete = uncurryThis(NativeURLSearchParamsPrototype['delete']);
+  nativeSet = uncurryThis(NativeURLSearchParamsPrototype.set);
+  nativeAppend(params, 'a', '1');
+  nativeAppend(params, 'b', ' +');
+  nativeAppend(params, 'a', '2');
+  // `set` of Firefox 29-34 leaves the other entries of the name
+  nativeSet(params, 'a', '3');
+  // an object with an internal state is an instance of the polyfill of another copy of core-js
+  if (hasInternalState(params) || String(params) !== 'a=3&b=+%2B') return true;
+  // optional native methods: without them the native list is rewritten
+  nativeAppend(params, 'b', '4');
+  nativeDelete(params, 'b', '4');
+  NATIVE_DELETE_BY_VALUE = String(params) === 'a=3&b=+%2B';
+  if (NativeURLSearchParamsPrototype.sort) nativeSort = uncurryThis(NativeURLSearchParamsPrototype.sort);
+});
+
+// `searchParams` of a URL can be replaced as a whole, and a native list can be emptied only entry by entry.
+// Where a native `URL` keeps its `searchParams` in line with its query, the instance is `searchParams` of
+// an own native `URL`, and the whole list is written by the native `search` setter.
+var NATIVE_URL = 'http://a';
+var nativeGetSearchParams, nativeSetSearch;
+var NATIVE_URL_CARRIER = NATIVE_CARRIER && !fails(function () {
+  var url = new NativeURL(NATIVE_URL);
+  nativeGetSearchParams = uncurryThisAccessor(NativeURL.prototype, 'searchParams', 'get');
+  nativeSetSearch = uncurryThisAccessor(NativeURL.prototype, 'search', 'set');
+  var params = nativeGetSearchParams(url);
+  nativeSetSearch(url, 'b=1&a=+%2B');
+  if (hasInternalState(params) || String(params) !== 'b=1&a=+%2B') return true;
+  nativeSetSearch(url, '');
+  return String(params) !== '';
+});
 
 var plus = /\+/g;
 
@@ -116,6 +163,18 @@ URLSearchParamsState.prototype = {
   bindURL: function (url) {
     this.url = url;
     this.update();
+  },
+  // `searchParams` of a URL: the instance is made at the first access to it
+  getFacade: function () {
+    var that = this.facade;
+    if (!that) {
+      that = NATIVE_URL_CARRIER
+        ? setPrototypeOf(nativeGetSearchParams(this.carrier = new NativeURL(NATIVE_URL)), URLSearchParamsPrototype)
+        : create(URLSearchParamsPrototype);
+      setInternalState(that, this);
+      this.fill();
+      if (!DESCRIPTORS) that.size = this.entries.length;
+    } return that;
   },
   parseObject: function (object) {
     var entries = this.entries;
@@ -189,23 +248,70 @@ URLSearchParamsState.prototype = {
   update: function () {
     this.entries.length = 0;
     this.parseQuery(this.url.query);
-    if (!DESCRIPTORS) this.facade.size = this.entries.length;
+    if (!DESCRIPTORS && this.facade) this.facade.size = this.entries.length;
+    this.fill();
   },
+  // writes a change of the list to the native object of the instance and to the URL: a native `method`
+  // repeats the change on the native list, without it the native list is rewritten
+  commit: function (method, key, value) {
+    if (this.listed) {
+      // a native method could take an explicit `undefined` value for a string
+      if (method === nativeDelete && value === undefined) method(this.facade, key);
+      else if (method) method(this.facade, key, value);
+      else {
+        // after a removal by value, the native list still has the removed entries of `key`
+        if (key !== undefined) nativeDelete(this.facade, key);
+        this.clear();
+        this.fill();
+      }
+    }
+    this.updateURL();
+  },
+  // a list that a mutator left as it was still updates its URL
   updateURL: function () {
-    if (this.url) this.url.update();
+    if (this.url) {
+      this.url.update();
+      // the query of the URL is the serialized list
+      if (this.carrier) nativeSetSearch(this.carrier, this.url.query || '');
+    }
+  },
+  // empties the native list kept by its methods, it has the keys of the entries
+  clear: function () {
+    var entries = this.entries;
+    var index = 0;
+    while (index < entries.length) nativeDelete(this.facade, entries[index++].key);
+  },
+  // writes the entries to the native list: emptied, or of a native `URL`
+  fill: function () {
+    var entries = this.entries;
+    var index = 0;
+    var entry;
+    if (this.carrier) nativeSetSearch(this.carrier, this.serialize());
+    else if (this.listed) while (index < entries.length) {
+      entry = entries[index++];
+      nativeAppend(this.facade, entry.key, entry.value);
+    }
   }
 };
 
 // `URLSearchParams` constructor
 // https://url.spec.whatwg.org/#interface-urlsearchparams
 var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
-  anInstance(this, URLSearchParamsPrototype);
+  var that = anInstance(this, URLSearchParamsPrototype);
   var init = arguments.length > 0 ? arguments[0] : undefined;
-  var state = setInternalState(this, new URLSearchParamsState(init));
-  if (!DESCRIPTORS) this.size = state.entries.length;
+  var state = new URLSearchParamsState(init);
+  // the prototype of the created object is kept for subclasses
+  if (NATIVE_CARRIER) that = setPrototypeOf(new NativeURLSearchParams(), getPrototypeOf(that));
+  setInternalState(that, state);
+  state.listed = NATIVE_CARRIER;
+  state.fill();
+  if (!DESCRIPTORS) that.size = state.entries.length;
+  return that;
 };
 
 var URLSearchParamsPrototype = URLSearchParamsConstructor.prototype;
+// some engines look for the native prototype in the prototype chain of an object
+if (NATIVE_CARRIER) setPrototypeOf(URLSearchParamsPrototype, NativeURLSearchParamsPrototype);
 
 defineBuiltIns(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.append` method
@@ -213,9 +319,11 @@ defineBuiltIns(URLSearchParamsPrototype, {
   append: function append(name, value) {
     var state = getInternalParamsState(this);
     validateArgumentsLength(arguments.length, 2);
-    push(state.entries, { key: toUSVString(name), value: toUSVString(value) });
+    var key = toUSVString(name);
+    var val = toUSVString(value);
+    push(state.entries, { key: key, value: val });
     if (!DESCRIPTORS) this.size = state.entries.length;
-    state.updateURL();
+    state.commit(nativeAppend, key, val);
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
@@ -228,13 +336,20 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var value = $value === undefined ? $value : toUSVString($value);
     var index = 0;
     var writeIndex = 0;
+    var remains = false;
     while (index < entries.length) {
       var entry = entries[index++];
-      if (entry.key !== key || (value !== undefined && entry.value !== value)) entries[writeIndex++] = entry;
+      if (entry.key !== key || (value !== undefined && entry.value !== value)) {
+        entries[writeIndex++] = entry;
+        if (entry.key === key) remains = true;
+      }
     }
+    var changed = writeIndex < entries.length;
     entries.length = writeIndex;
     if (!DESCRIPTORS) this.size = entries.length;
-    state.updateURL();
+    if (!changed) state.updateURL();
+    // a removal by value that leaves no entry of the key is a removal by name
+    else state.commit(!remains || NATIVE_DELETE_BY_VALUE ? nativeDelete : undefined, key, remains ? value : undefined);
   },
   // `URLSearchParams.prototype.get` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-get
@@ -300,16 +415,21 @@ defineBuiltIns(URLSearchParamsPrototype, {
     entries.length = writeIndex;
     if (!found) push(entries, { key: key, value: val });
     if (!DESCRIPTORS) this.size = entries.length;
-    state.updateURL();
+    state.commit(nativeSet, key, val);
   },
   // `URLSearchParams.prototype.sort` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-sort
   sort: function sort() {
     var state = getInternalParamsState(this);
-    arraySort(state.entries, function (a, b) {
+    var entries = state.entries;
+    var index = 1;
+    // the sort is stable: it leaves a list that is already in order as it is
+    while (index < entries.length && entries[index - 1].key <= entries[index].key) index++;
+    if (index >= entries.length) return state.updateURL();
+    arraySort(entries, function (a, b) {
       return a.key > b.key ? 1 : -1;
     });
-    state.updateURL();
+    state.commit(nativeSort);
   },
   // `URLSearchParams.prototype.forEach` method
   forEach: function forEach(callback /* , thisArg */) {
@@ -358,13 +478,11 @@ if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
 // Initialize lazy native BodyInit consumers before replacing the constructor they use for brand checks.
-if (!USE_NATIVE_URL) patchBody();
+if (!USE_NATIVE_URL) patchBody(NATIVE_URL_CARRIER);
 
 $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
   URLSearchParams: URLSearchParamsConstructor
 });
 
-module.exports = {
-  URLSearchParams: URLSearchParamsConstructor,
-  getState: getInternalParamsState
-};
+// the state of `searchParams` of the `URL` polyfill
+module.exports = URLSearchParamsState;

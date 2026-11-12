@@ -1,5 +1,5 @@
 /* eslint-disable unicorn/relative-url-style -- required for testing */
-import { DESCRIPTORS, GLOBAL, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
+import { BUN, DESCRIPTORS, GLOBAL, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
 import urlTestData from '../wpt-url-resources/urltestdata.js';
 import javascriptURLTestData from '../wpt-url-resources/urltestdata-javascript-only.js';
 import settersTestData from '../wpt-url-resources/setters.js';
@@ -1758,6 +1758,43 @@ QUnit.test('URL#toString', assert => {
 QUnit[DENO_VERSION === 110 ? 'skip' : 'test']('URL#@@toStringTag', assert => {
   const url = new URL('http://zloirock.ru/');
   assert.same({}.toString.call(url), '[object URL]');
+});
+
+// Deno, Bun and Node take only their own `URL` objects in their APIs. Deno 1.0 file system APIs take none.
+const nodeFS = NODE && !DENO && GLOBAL.process.getBuiltinModule?.('fs');
+if (BUN || DENO_VERSION >= 101 || nodeFS) QUnit.test('URL in the APIs of the runtime', assert => {
+  // any existing file
+  const path = DENO ? GLOBAL.Deno.execPath() : BUN ? GLOBAL.Bun.main : GLOBAL.process.execPath;
+  // eslint-disable-next-line node/no-sync -- a synchronous API keeps the test synchronous
+  const size = file => DENO ? GLOBAL.Deno.statSync(file).size : BUN ? GLOBAL.Bun.file(file).size : nodeFS.statSync(file).size;
+  const expected = size(path);
+  const pathname = `${ path[0] === '/' ? '' : '/' }${ encodeURI(path.replaceAll('\\', '/')) }`;
+
+  let url = new URL(`file://${ pathname }`);
+  assert.same(size(url), expected, 'a new instance');
+  url.searchParams.set('a', 'b');
+  assert.same(size(url), expected, 'after a change of searchParams');
+
+  url = new URL('file:///core-js-missing-file');
+  url.pathname = pathname;
+  assert.same(size(url), expected, 'after the pathname setter');
+
+  url = new URL('https://example.com/');
+  url.href = `file://${ pathname }`;
+  assert.same(size(url), expected, 'after the href setter');
+
+  // a parser of the runtime can reject a URL that is valid by the standard
+  let other;
+  try {
+    url.href = 'https://xn--a/';
+    other = size(url);
+  } catch { /* the runtime takes no such URL */ }
+  assert.notSame(other, expected, 'a URL of another scheme after a file URL');
+
+  if (nodeFS) {
+    const { format } = GLOBAL.process.getBuiltinModule('url');
+    assert.same(format(new URL('https://example.com/path?query#hash'), { fragment: false }), 'https://example.com/path?query', 'url.format');
+  }
 });
 
 QUnit.test('URL.sham', assert => {

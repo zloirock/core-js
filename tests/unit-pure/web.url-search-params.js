@@ -1706,3 +1706,78 @@ QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
     assert.same(params.size, 0, 'size after clearing search');
   }
 });
+
+// Native request and response bodies take only native `URLSearchParams` objects.
+// Deno before 1.9.1 and Bun before 0.5.7 omit the implicit form type.
+// https://github.com/denoland/deno/pull/10203
+// https://github.com/oven-sh/bun/pull/2051
+const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
+const BODY_TYPE_LEGACY = DENO_VERSION > 0 && (DENO_VERSION < 109 || DENO_VERSION === 109 && DENO_PATCH === 0) || BUN_VERSION > 0 && BUN_VERSION < 5007;
+// Deno before 1.3 rejects `URLSearchParams` as a `Request` body.
+const BODY_UNSUPPORTED = DENO_VERSION > 0 && DENO_VERSION < 103;
+
+const NATIVE_BODIES = typeof GLOBAL.Request == 'function' && typeof GLOBAL.Response == 'function';
+
+if (NATIVE_BODIES) QUnit[BODY_UNSUPPORTED ? 'skip' : 'test']('URLSearchParams with native Request and Response', assert => {
+  const FORM = 'application/x-www-form-urlencoded;charset=UTF-8';
+  const body = params => new GLOBAL.Response(params).text();
+  // untouched after the construction
+  const created = new URLSearchParams('c=3&b=2&a=1');
+  // changed by the methods that add, replace and remove by name
+  const changed = new URLSearchParams('a=0&b=2');
+  changed.append('c', '3');
+  changed.set('a', '1');
+  changed.append('d', '4');
+  changed.delete('d');
+  // the only entry of a name removed by value
+  const removed = new URLSearchParams('c=3&x=1&b=2&__proto__=5&a=1');
+  removed.delete('x', '1');
+  // some entries of a name removed by value, then removals that find nothing
+  const partial = new URLSearchParams('x=1&b=2&x=2&a=1&x=1');
+  partial.delete('x', '1');
+  partial.delete('x', '3');
+  partial.delete('y');
+  // the second sort finds the list in order
+  const sorted = new URLSearchParams(removed);
+  sorted.sort();
+  sorted.sort();
+  // of a URL, changed through the URL and directly
+  const url = new URL('https://example.com/?z=0');
+  const bound = url.searchParams;
+  url.search = '?b=2&a=1';
+  bound.append('c', '3');
+  // of a URL, changed only through the URL
+  const moved = new URL('https://example.com/?z=0');
+  const movedParams = moved.searchParams;
+  moved.search = '?y=2&x=1';
+  const request = new GLOBAL.Request('https://example.com/', { body: changed, method: 'POST' });
+  const response = new GLOBAL.Response(bound);
+  if (!BODY_TYPE_LEGACY) {
+    assert.same(request.headers.get('content-type'), FORM, 'Request content type');
+    assert.same(response.headers.get('content-type'), FORM, 'Response content type');
+  }
+  return request.text().then(text => {
+    assert.same(text, 'a=1&b=2&c=3', 'after append, set and delete by name');
+    return response.text();
+  }).then(text => {
+    assert.same(text, 'b=2&a=1&c=3', 'of a URL');
+    return body(created);
+  }).then(text => {
+    assert.same(text, 'c=3&b=2&a=1', 'after the construction');
+    return body(removed);
+  }).then(text => {
+    assert.same(text, 'c=3&b=2&__proto__=5&a=1', 'after delete by value');
+    return body(partial);
+  }).then(text => {
+    assert.same(text, 'b=2&x=2&a=1', 'after delete of some entries of a name by value');
+    return body(sorted);
+  }).then(text => {
+    assert.same(text, '__proto__=5&a=1&b=2&c=3', 'after sort');
+    return body(movedParams);
+  }).then(text => {
+    assert.same(text, 'y=2&x=1', 'of a URL after a change of its query');
+    return body(new URL('https://example.com/?w=1').searchParams);
+  }).then(text => {
+    assert.same(text, 'w=1', 'of a new URL');
+  });
+});

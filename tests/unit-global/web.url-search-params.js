@@ -1889,18 +1889,24 @@ const BUN_FETCH_ERRORS = BUN_VERSION > 0 && BUN_VERSION < 1004000;
 // Bun 0.1.1-0.6.5 does not send the implicit form Content-Type; fixed in 0.6.6.
 // https://fetch.spec.whatwg.org/#concept-bodyinit-extract
 const BUN_FETCH_TYPE = BUN_VERSION > 0 && BUN_VERSION < 6006;
+// Bun before 0.5.8 stringifies a Request input when options are supplied.
+const BUN_REQUEST_INPUT = BUN_VERSION > 0 && BUN_VERSION < 5008;
 // Bun before 0.5.7 omits the constructor's implicit form type and Request.signal.
 // https://github.com/oven-sh/bun/pull/2051
 // https://github.com/oven-sh/bun/pull/2097
 const BUN_BODY_LEGACY = BUN_VERSION > 0 && BUN_VERSION < 5007;
 
+// Deno 1.0-1.1 has no usable native URLSearchParams: the Request wrapper serializes the body first
+// and passes the other options through an object that inherits from the dictionary.
+const REQUEST_INIT_WRAPPED = DENO_VERSION > 0 && DENO_VERSION < 102;
 // Chrome 67-68 ignores newTarget for native Request / Response; fixed in Chrome 69.
 // https://webidl.spec.whatwg.org/#internally-create-a-new-object-implementing-the-interface
-const BODY_SUBCLASS_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 69;
-// Safari 14.1-27.0.1 keeps a reference to URLSearchParams instead of snapshotting its list.
+// Firefox 39-44 has no class syntax, and native Request / Response are not constructed for a subclass without it.
+const BODY_SUBCLASS_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 69 || FIREFOX_VERSION > 0 && FIREFOX_VERSION < 45;
+// Safari 14.0-27.0.1 keeps a reference to URLSearchParams instead of snapshotting its list.
 // https://bugs.webkit.org/show_bug.cgi?id=330906
 // https://fetch.spec.whatwg.org/#concept-bodyinit-extract
-const BODY_SNAPSHOT_BUG = SAFARI_VERSION >= 14 && !SAFARI_14_0 || DENO_FETCH_LEGACY;
+const BODY_SNAPSHOT_BUG = SAFARI_VERSION >= 14 || DENO_FETCH_LEGACY;
 // Firefox 39-43 appends a charset to explicit Content-Type headers; fixed in Firefox 44.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=918742
 const XHR_ADDED_CHARSET = FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44;
@@ -1931,9 +1937,13 @@ if (typeof Request == 'function') {
     assert.same(request.headers.get('x-test'), 'preserved');
     assert.false(headers.has('content-type'), 'does not mutate author headers');
     assert.same(init.body, body, 'does not replace the author body');
+    const bound = new Request('http://example.com/', { body: new URL('http://example.com/?b=1').searchParams, method: 'POST' });
     return request.text().then(text => {
       // Deno 1.2.0-1.2.3 re-encodes spaces; fixed in 1.3.0: https://github.com/denoland/deno/pull/7017
       if (DENO_VERSION !== 102) assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
+      return bound.text();
+    }).then(text => {
+      assert.same(text, 'b=1', 'serialized `searchParams` of a URL');
     });
   });
 
@@ -1951,6 +1961,12 @@ if (typeof Request == 'function') {
     const copiedRequest = new Request(paramsRequest);
     assert.same(copiedRequest.url, paramsRequest.url, 'copied URL');
     assert.same(copiedRequest.method, paramsRequest.method, 'copied method');
+    const input = new Request('http://example.com/', { method: 'POST', headers: { 'X-Test': 'preserved' } });
+    const derived = new Request(input, { method: 'POST', body: new URLSearchParams('b=2') });
+    if (!BUN_REQUEST_INPUT) assert.same(derived.headers.get('x-test'), 'preserved', 'headers of the input Request');
+    if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY && !BUN_REQUEST_INPUT) {
+      assert.same(derived.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8', 'type with the input Request');
+    }
   });
 
   if (typeof GLOBAL.AbortController == 'function') QUnit.test('URLSearchParams with Request, signal', assert => {
@@ -1986,7 +2002,7 @@ if (typeof Request == 'function') {
       return [['X-Test', 'preserved']];
     } });
     defineProperty(init, 'method', { get() {
-      assert.same(this, init, 'method getter receiver');
+      if (!REQUEST_INIT_WRAPPED) assert.same(this, init, 'method getter receiver');
       calls.push('method');
       body.append('method', '1');
       return method;
@@ -1995,7 +2011,9 @@ if (typeof Request == 'function') {
     if (!REQUEST_INIT_ORDER) assert.deepEqual(calls, ['headers', 'method', 'convert method'], 'reads and converts each member once');
     assert.same(request.headers.get('x-test'), 'preserved');
     return request.text().then(text => {
-      if (!REQUEST_INIT_ORDER && !BUN_REQUEST_BODY) assert.same(text, 'a=1&headers=1&method=1&converted=1', 'extracts the body after dictionary conversion');
+      if (!REQUEST_INIT_ORDER && !BUN_REQUEST_BODY && !REQUEST_INIT_WRAPPED) {
+        assert.same(text, 'a=1&headers=1&method=1&converted=1', 'extracts the body after dictionary conversion');
+      }
     });
   });
 
@@ -2038,6 +2056,38 @@ if (typeof Request == 'function') {
   });
 }
 
+// native APIs of another realm are not wrapped and take only native `URLSearchParams` objects
+if (GLOBAL.document && typeof Request == 'function') QUnit.test('URLSearchParams with Request of another realm', assert => {
+  const iframe = GLOBAL.document.createElement('iframe');
+  GLOBAL.document.documentElement.appendChild(iframe);
+  const remove = () => GLOBAL.document.documentElement.removeChild(iframe);
+  const params = new URLSearchParams('c=3&b=2&a=0');
+  params.append('d', '4');
+  params.append('__proto__', '5');
+  params.append('b', '0');
+  params.set('a', '1');
+  params.delete('d');
+  params.delete('b', '0');
+  params.sort();
+  let request;
+  try {
+    request = new iframe.contentWindow.Request('https://example.com/', { body: params, method: 'POST' });
+    assert.same(request.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8', 'content type');
+  } catch (error) {
+    remove();
+    throw error;
+  }
+  // Firefox 40-49 stops running the promise jobs of a removed frame: the chain continues on a promise of this realm
+  return timeLimitedPromise(10000, new Promise((resolve, reject) => {
+    request.text().then(resolve, reject);
+  }).then(text => {
+    assert.same(text, '__proto__=5&a=1&b=2&c=3', 'serialized body');
+  })).then(remove, error => {
+    remove();
+    throw error;
+  });
+});
+
 if (typeof Response == 'function') {
   QUnit.test('URLSearchParams with Response', assert => {
     const body = new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
@@ -2049,9 +2099,13 @@ if (typeof Response == 'function') {
     assert.same(response.status, 201);
     if (!BUN_RESPONSE_INIT) assert.same(response.statusText, 'Created');
     assert.false(headers.has('content-type'), 'does not mutate author headers');
+    const bound = new Response(new URL('http://example.com/?b=1').searchParams);
     return response.text().then(text => {
       // Deno 1.2.0-1.2.3 re-encodes spaces; fixed in 1.3.0: https://github.com/denoland/deno/pull/7017
       if (DENO_VERSION !== 102) assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
+      return bound.text();
+    }).then(text => {
+      assert.same(text, 'b=1', 'serialized `searchParams` of a URL');
     });
   });
 

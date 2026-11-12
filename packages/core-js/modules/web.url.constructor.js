@@ -1,15 +1,20 @@
 'use strict';
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
+var fails = require('../internals/fails');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
+var ENVIRONMENT = require('../internals/environment');
 var globalThis = require('../internals/global-this');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
 var assign = require('../internals/object-assign');
+var getPrototypeOf = require('../internals/object-get-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
 var arraySlice = require('../internals/array-slice');
 var multibyte = require('../internals/string-multibyte');
 var domainToASCII = require('../internals/url-domain-to-ascii');
@@ -18,19 +23,19 @@ var $toString = require('../internals/to-string');
 var toUSVString = require('../internals/to-usv-string');
 var setToStringTag = require('../internals/set-to-string-tag');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
-var URLSearchParamsModule = require('../modules/web.url-search-params.constructor');
+var URLSearchParamsState = require('../modules/web.url-search-params.constructor');
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
+var hasInternalState = InternalStateModule.has;
 var getInternalURLState = InternalStateModule.getterFor('URL');
-var URLSearchParams = URLSearchParamsModule.URLSearchParams;
-var getInternalSearchParamsState = URLSearchParamsModule.getState;
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 var codeAt = multibyte.codeAt;
 var charAtMultibyte = multibyte.charAt;
 
 var NativeURL = globalThis.URL;
+var NativeURLPrototype = NativeURL && NativeURL.prototype;
 var TypeError = globalThis.TypeError;
 var parseInt = globalThis.parseInt;
 var floor = Math.floor;
@@ -70,6 +75,17 @@ var TAB_AND_NEW_LINE = /[\t\n\r]/g;
 /* eslint-enable regexp/no-control-character -- safe */
 // eslint-disable-next-line no-unassigned-vars -- expected `undefined` value
 var EOF;
+
+// the state of the native object for a URL that the native parser rejects
+var NATIVE_FALLBACK = 'about:blank';
+// Deno, Bun and Node take only native `URL` objects in their APIs: some of them look for the native prototype
+// in the prototype chain of an object, some read the internal state of a native object. There, an instance is
+// a native object that inherits from the polyfill and whose internal state follows the state of the polyfill.
+// Browsers have no APIs that tell a native `URL` object from any other one.
+var nativeSetHref = setPrototypeOf && (ENVIRONMENT === 'DENO' || ENVIRONMENT === 'BUN' || ENVIRONMENT === 'NODE') && !fails(function () {
+  // an object with an internal state is an instance of the polyfill of another copy of core-js
+  return hasInternalState(new NativeURL(NATIVE_FALLBACK));
+}) && uncurryThisAccessor(NativeURLPrototype, 'href', 'set');
 
 var stringToCodePoints = function (string) {
   var result = [];
@@ -372,7 +388,7 @@ var URLState = function (url, parseOnly, base) {
     if (base !== undefined) baseState = new URLState(base, true);
     failure = this.parse(urlString, null, baseState);
     if (failure) throw new TypeError(failure);
-    searchParams = getInternalSearchParamsState(new URLSearchParams());
+    searchParams = new URLSearchParamsState();
     searchParams.bindURL(this);
     this.searchParams = searchParams;
   }
@@ -976,7 +992,7 @@ URLState.prototype = {
   },
   // https://url.spec.whatwg.org/#dom-url-searchparams
   getSearchParams: function () {
-    return this.searchParams.facade;
+    return this.searchParams.getFacade();
   },
   // https://url.spec.whatwg.org/#dom-url-hash
   getHash: function () {
@@ -995,6 +1011,15 @@ URLState.prototype = {
   },
   update: function () {
     this.query = this.searchParams.serialize() || null;
+    this.sync();
+  },
+  // writes the state to the native object of the instance
+  sync: function () {
+    if (nativeSetHref) try {
+      nativeSetHref(this.facade, this.serialize());
+    } catch (error) {
+      nativeSetHref(this.facade, NATIVE_FALLBACK);
+    }
   }
 };
 
@@ -1003,7 +1028,11 @@ URLState.prototype = {
 var URLConstructor = function URL(url /* , base */) {
   var that = anInstance(this, URLPrototype);
   var base = validateArgumentsLength(arguments.length, 1) > 1 ? arguments[1] : undefined;
-  var state = setInternalState(that, new URLState(url, false, base));
+  var state = new URLState(url, false, base);
+  // the prototype of the created object is kept for subclasses
+  if (nativeSetHref) that = setPrototypeOf(new NativeURL(NATIVE_FALLBACK), getPrototypeOf(that));
+  setInternalState(that, state);
+  state.sync();
   if (!DESCRIPTORS) {
     that.href = state.serialize();
     that.origin = state.getOrigin();
@@ -1018,9 +1047,12 @@ var URLConstructor = function URL(url /* , base */) {
     that.searchParams = state.getSearchParams();
     that.hash = state.getHash();
   }
+  return that;
 };
 
 var URLPrototype = URLConstructor.prototype;
+
+if (nativeSetHref) setPrototypeOf(URLPrototype, NativeURLPrototype);
 
 var accessorDescriptor = function (getter, setter) {
   return {
@@ -1028,7 +1060,9 @@ var accessorDescriptor = function (getter, setter) {
       return getInternalURLState(this)[getter]();
     },
     set: setter && function (value) {
-      return getInternalURLState(this)[setter]($toString(value));
+      var state = getInternalURLState(this);
+      state[setter]($toString(value));
+      state.sync();
     },
     configurable: true,
     enumerable: true
