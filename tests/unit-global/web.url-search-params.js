@@ -35,6 +35,9 @@ const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.u
 // Fixed in 2.8.0: https://github.com/denoland/deno/pull/34119
 // The polyfill is used below Deno 1.25.2.
 const DENO_RECORD_SYMBOLS = (DENO_VERSION > 125 || DENO_VERSION === 125 && DENO_PATCH > 1) && DENO_VERSION < 208;
+// Native Deno 1.25.2-2.7.14 takes a primitive result of the iterator of an inner pair as an object,
+// except `undefined` and `null`; fixed in 2.8.0.
+const DENO_ITERATOR_RESULT = DENO_RECORD_SYMBOLS;
 const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Firefox 25-32 proxies call the legacy `getOwnPropertyNames` trap instead of `ownKeys`; fixed in Firefox 33.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
@@ -671,6 +674,7 @@ if (typeof Proxy == 'function') QUnit.test('URLSearchParams record proxy traps',
 QUnit.test('URLSearchParams rejects non-object iterator results', assert => {
   for (const position of [-1, 0, 1, 2]) {
     for (const primitive of [undefined, null, false, 1, 'foo']) {
+      if (DENO_ITERATOR_RESULT && position >= 0 && primitive !== undefined && primitive !== null) continue;
       let nextCalls = 0;
       let returnCalls = 0;
       const invalidIndex = Math.max(0, position);
@@ -1871,6 +1875,9 @@ const BUN_FETCH_ERRORS = BUN_VERSION > 0 && BUN_VERSION < 1004000;
 const BUN_FETCH_TYPE = BUN_VERSION > 0 && BUN_VERSION < 6006;
 // Bun before 0.5.8 stringifies a Request input when options are supplied.
 const BUN_REQUEST_INPUT = BUN_VERSION > 0 && BUN_VERSION < 5008;
+// Node 18.18.2, 20.8.1, 20.9.0 and 21.0.0 with undici 5.26.3 drop the headers of a Request input
+// when options without headers are supplied; fixed in undici 5.26.4.
+const UNDICI_REQUEST_INPUT = GLOBAL.process?.versions?.undici === '5.26.3';
 // Bun before 0.5.7 omits the constructor's implicit form type and Request.signal.
 // https://github.com/oven-sh/bun/pull/2051
 // https://github.com/oven-sh/bun/pull/2097
@@ -1944,7 +1951,7 @@ if (typeof Request == 'function') {
     assert.same(copiedRequest.method, paramsRequest.method, 'copied method');
     const input = new Request('http://example.com/', { method: 'POST', headers: { 'X-Test': 'preserved' } });
     const derived = new Request(input, { method: 'POST', body: new URLSearchParams('b=2') });
-    if (!BUN_REQUEST_INPUT) assert.same(derived.headers.get('x-test'), 'preserved', 'headers of the input Request');
+    if (!BUN_REQUEST_INPUT && !UNDICI_REQUEST_INPUT) assert.same(derived.headers.get('x-test'), 'preserved', 'headers of the input Request');
     if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY && !BUN_REQUEST_INPUT) {
       assert.same(derived.headers.get('content-type'), 'application/x-www-form-urlencoded;charset=UTF-8', 'type with the input Request');
     }
