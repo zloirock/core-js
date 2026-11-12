@@ -1,5 +1,6 @@
 import {
   isMemberAccessNode,
+  assignmentValueDiscarded,
   isPristineProxyGlobal,
   POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
@@ -352,6 +353,16 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
   if (aliasRead && !realm) probe = directClaimProbePlan(node, resolvePure, aliasCtx, { allowStoreHolder: true });
   probe ||= member && !realm && effects.length && effectfulClaimReadProbe(node, effects, resolvePure, aliasCtx);
   if (!probe && aliasRead) return;
+  // The alias read itself is the throw probe. With no value consumer it needs
+  // neither a replacement nor an import; its receiver's child claims stay live.
+  // A longer run still substitutes backed intermediate hops before the retained read.
+  if (realm && probe?.kind === 'alias'
+    && peelReceiverSequenceTail(node.object) === probe.aliasProbe.object) {
+    let slot = climbTransparentWrapperPath(path);
+    while (slot.parentPath?.node.type === 'SequenceExpression') slot = climbTransparentWrapperPath(slot.parentPath);
+    const parent = slot.parentPath?.node;
+    if (assignmentValueDiscarded(path) || parent?.type === 'UnaryExpression' && parent.operator === 'void') return;
+  }
   const base = deleted || { pure: { entry, hintName } };
   const proxyRoot = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(base.pure?.hintName ?? hintName);
   const deletedRun = proxyRoot && !isMemberAccessNode(node) && !!deleteHostAboveCarriedChain(path);

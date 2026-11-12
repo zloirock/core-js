@@ -25526,4 +25526,20 @@ export function * generate() {
         : `function read() { ${ body } } export const r = read(); export const effects = [];`,
     };
   }
+  // Reparsed alias probes retain their throw while discarding only unused values.
+  for (const rig of [false, true]) for (const [shape, read] of [
+    ['statement', 'w.self;'], ['void', 'void (0, w.self);'],
+    ['prefix', '(w.globalThis, 1);'], ['consumed', 'return (0, w.self) === w;'],
+  ]) yield {
+    ...snippet(`prior-output-probe/${ shape }/${ rig }`, `(() => {
+      const w = globalThis.window;
+      try { ${ read } return 1; } catch (error) { return error.name; }
+    })()`, { rig }), strip: true,
+  };
+  yield { ...snippet('prior-output-probe/mapped-iterator', `(() => {
+    const row = [[], 0];
+    Object.defineProperty(row, 1, { get() { log.push(typeof method); return 9; } });
+    const { w: [{ at: method }, tail] } = { w: row };
+    return [method.call([3, 7], -1), tail];
+  })()`), strip: true };
 }

@@ -37,6 +37,7 @@ import {
   destructureReceiverNode,
   singleReturnBodyExpression,
   foldedPropertyKeyName,
+  flattenBranchingValueNodes,
   FUNCTION_LIKE_NODE_TYPES,
   identifierDeclaratorInit,
   initializerReachesRead,
@@ -874,6 +875,12 @@ function ownRenderedPatternReceiver(path, tests) {
   const slot = destructureReceiverSlot(host?.node);
   const receiver = slot ? unwrapRuntimeExpr(host.node[slot]) : null;
   if (adoptedRefReceiverClaim(receiver, path, tests)) return true;
+  // The iterator-method extraction deliberately leaves its native function slots.
+  // A reparse must not turn those slots into a second instance extraction.
+  if (receiver?.type === 'CallExpression' && !receiver.optional && receiver.arguments.length === 1
+    && receiver.arguments[0].type !== 'SpreadElement' && receiver.callee.type === 'Identifier'
+    && pureImportEntryOf(path, receiver.callee.name, tests?.packages) === 'get-iterator-method'
+    && pureDefaultImportBinding(path, receiver.callee.name, tests)) return true;
   if (receiver?.type === 'LogicalExpression' && (receiver.operator === '||' || receiver.operator === '&&')) {
     return pureImportRootName(receiver.right) !== null
       && pureDefaultImportBinding(path, pureImportRootName(receiver.right), tests);
@@ -987,15 +994,17 @@ export function ownEmittedLogicalPatch(path, { host, operator }, tests) {
 
 // A reanchored residual reads the original constructor for its unserved keys;
 // the immediately following static extraction proves which constructor was served.
+// A rendered realm guard also settles that receiver, while its payload keeps independent leaf claims.
 // Replacing that residual receiver would discard user properties of the original.
-function ownResidualReceiverClaim(path) {
+function ownResidualReceiverClaim(path, tests, adapter) {
   let value = path;
   while (SKIPPABLE_WRAPPER_TYPES.has(value.parentPath?.node?.type)) value = value.parentPath;
   const host = value.parentPath?.node;
   const pattern = host?.type === 'VariableDeclarator' && host.init === value.node ? host.id
     : host?.type === 'AssignmentExpression' && host.operator === '=' && host.right === value.node ? host.left : null;
   const receiver = memberKeyName(path.node);
-  return pattern?.type === 'ObjectPattern' && !!receiver && extractionSibling(path, { receiver });
+  return pattern?.type === 'ObjectPattern' && !!receiver
+    && (navHoldsRenderedGuard(path.node, path, tests, adapter) || extractionSibling(path, { receiver }));
 }
 
 // the member funnel: every nav-position census in one gate, ahead of both emitters' member
@@ -1015,7 +1024,7 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
     || ownDefaultedGuardFallbackClaim(metaPath, tests, adapter)
     || ownRenderedGuardClaim(metaPath, tests)
     || ownNativeMirrorRead(metaPath, tests)
-    || ownResidualReceiverClaim(metaPath)
+    || ownResidualReceiverClaim(metaPath, tests, adapter)
     || navHoldsMintedSeCall(node.object, metaPath, tests)
     || ((meta?.placement !== 'prototype' || hasOwnStaticDefinition(meta.guardedAliasHint, meta.key))
       && navHoldsRenderedGuard(node.object, metaPath, tests, adapter));
@@ -1075,6 +1084,56 @@ function ownNativeMirrorRead(path, tests) {
     return nativeMirrorSlot(literal, memberKeyName(path.node), call, tests, fn.params[0].name);
   }
   return false;
+}
+
+// A mapped iterator's first step carries the exact literal its callback serves at index zero.
+// Require the adjacent map/next declarations and imported helpers; arbitrary iterator values,
+// later steps and user callbacks retain their own claims. The caller still proves each literal slot.
+function mappedIteratorPatternSource(receiver, path, tests) {
+  const value = unwrapRuntimeExpr(receiver);
+  if (value?.type !== 'ConditionalExpression') return null;
+  const done = unwrapRuntimeExpr(value.test);
+  const yielded = unwrapRuntimeExpr(value.alternate);
+  const empty = unwrapRuntimeExpr(value.consequent);
+  if (memberKeyName(done) !== 'done' || done.optional || done.object.type !== 'Identifier'
+    || memberKeyName(yielded) !== 'value' || yielded.optional || yielded.object.type !== 'Identifier'
+    || yielded.object.name !== done.object.name || empty?.type !== 'UnaryExpression' || empty.operator !== 'void') return null;
+  const { host, list, parameter } = patternExtractionContext(path);
+  const at = list?.indexOf(host?.node) ?? -1;
+  const declaration = unwrapExportedDeclaration(host?.node);
+  if (parameter || at < 2 || declaration?.type !== 'VariableDeclaration' || declaration.declarations.length !== 1
+    || unwrapRuntimeExpr(declaration.declarations[0].init) !== value) return null;
+  const stepStatement = list[at - 1];
+  const mapStatement = list[at - 2];
+  const step = stepStatement.type === 'VariableDeclaration' && stepStatement.declarations.length === 1
+    && stepStatement.declarations[0];
+  const mapped = mapStatement.type === 'VariableDeclaration' && mapStatement.declarations.length === 1
+    && mapStatement.declarations[0];
+  if (step?.id?.type !== 'Identifier' || step.id.name !== done.object.name || mapped?.id?.type !== 'Identifier'
+    || identifierDeclaratorInit(path.scope?.getBinding(step.id.name)) !== step.init
+    || identifierDeclaratorInit(path.scope?.getBinding(mapped.id.name)) !== mapped.init) return null;
+  const next = unwrapRuntimeExpr(step.init);
+  if (next?.type !== 'CallExpression' || next.optional || next.arguments.length || memberKeyName(next.callee) !== 'next'
+    || next.callee.optional || next.callee.object?.type !== 'Identifier' || next.callee.object.name !== mapped.id.name) return null;
+  const call = unwrapRuntimeExpr(mapped.init);
+  if (call?.type !== 'CallExpression' || call.optional || call.arguments.length !== 2 || call.callee.type !== 'Identifier'
+    || !pureDefaultImportBinding(path, call.callee.name, tests)
+    || pureImportEntryOf(path, call.callee.name, tests?.packages) !== 'iterator/map') return null;
+  const iterator = unwrapRuntimeExpr(call.arguments[0]);
+  if (iterator?.type !== 'CallExpression' || iterator.optional || iterator.arguments.length !== 1
+    || iterator.arguments[0].type === 'SpreadElement' || iterator.callee.type !== 'Identifier'
+    || !pureDefaultImportBinding(path, iterator.callee.name, tests)
+    || pureImportEntryOf(path, iterator.callee.name, tests?.packages) !== 'get-iterator') return null;
+  const mapper = unwrapRuntimeExpr(call.arguments[1]);
+  if (mapper?.type !== 'ArrowFunctionExpression' || mapper.async || mapper.params.length !== 2
+    || mapper.params.some(param => param.type !== 'Identifier')) return null;
+  const [item, index] = mapper.params;
+  const selected = unwrapRuntimeExpr(mapper.body);
+  const test = selected?.type === 'ConditionalExpression' && unwrapRuntimeExpr(selected.test);
+  if (test?.type !== 'BinaryExpression' || test.operator !== '===' || test.left.type !== 'Identifier'
+    || test.left.name !== index.name || test.right.value !== 0 || selected.alternate.type !== 'Identifier'
+    || selected.alternate.name !== item.name || selected.consequent.type !== 'ObjectExpression') return null;
+  return selected.consequent;
 }
 
 // the MIRROR's own literal read back: that render replaces the receiver with `{ <key>: { <member>:
@@ -1141,9 +1200,12 @@ function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, out
       sourcePath = declared;
     }
   }
-  const selecting = peelReceiverSequenceTail(init);
-  const arms = selecting?.type === 'LogicalExpression' ? [selecting.left, selecting.right]
-    : selecting?.type === 'ConditionalExpression' ? [selecting.consequent, selecting.alternate] : [selecting];
+  const mapped = mappedIteratorPatternSource(init, path, tests);
+  if (mapped) {
+    init = mapped;
+    sourcePath = pathOfNode(path, mapped) ?? sourcePath;
+  }
+  const arms = flattenBranchingValueNodes([init]);
   const pairings = canonAnswerTable(patternSlotHoldsPureImport, []);
   const owned = arms.some(arm => {
     let node = peelReceiverSequenceTail(arm);
