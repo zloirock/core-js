@@ -171,6 +171,7 @@ import {
   staticMemberKeyName,
   TS_EXPR_WRAPPERS,
   tsImportEqualsProxyName,
+  tsImportEqualsRequireSource,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   VALUE_FLOW_ASSIGN_OPS,
@@ -3133,7 +3134,15 @@ function escapedNameAnswer({ names, heldInSlot, globalOnly, unnamedReadNames, ow
 // the latter reaches the constructor itself without following class heritage.
 function ownEscapedCtorNames(programNode, escaped) {
   const names = new Set();
-  const channel = { names, stamps: new Set(), containers: new Set(), ownStatics: true };
+  // Value resolution is shared; the own/inherited distinction belongs to visitation only.
+  const channel = {
+    names,
+    stamps: new Set(),
+    containers: new Set(),
+    ownStatics: true,
+    state: escapeWalkStateFor(ESCAPED_CTOR_REFS.get(programNode)),
+    visit: { names: new Set(), expanded: new WeakSet() },
+  };
   for (const node of escaped) stampEscapesFrom(programNode, node, channel);
   return names;
 }
@@ -3264,6 +3273,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   const passthrough = new Map();
   const callCallees = new WeakMap();
   const callNodes = [];
+  let hasPureImports = null;
   const unreadCallResults = new WeakSet();
   const installedTargetRefs = new Set();
   // every call of the file as the invocation canon reads it, minted once the walk is over: the
@@ -3456,6 +3466,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   // name with the name itself, so an import local arrives here as its own leaf - and a require binding
   // with its call, which a position the value canon already followed (`readValues`) is itself
   function pureEntryOf(callee) {
+    if (hasPureImports === false) return null;
     const bare = peelToBareExpr(callee);
     if (isMemberAccessNode(bare) && memberKeyName(bare) === 'default') {
       const object = unwrapRuntimeExpr(bare.object);
@@ -4457,6 +4468,11 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     recordOuterEvaluatedRegion(node);
     recordNodeShapeFacts(node, frame, declared);
     switch (node.type) {
+      case 'ImportDeclaration':
+      case 'TSImportEqualsDeclaration':
+        // Availability is conservative; pureEntryOf still checks the actual binding.
+        if (pureImportSubpath(node.source?.value ?? tsImportEqualsRequireSource(node), packages)) hasPureImports = true;
+        break;
       case 'CallExpression':
       case 'OptionalCallExpression':
       case 'NewExpression':
@@ -5053,6 +5069,9 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   let keptArguments = null;
   function finalize() {
     if (!finalized) {
+      // The completed walk includes nested require calls. Without a source entry, no
+      // alias can name a pure import; do not expand ordinary bindings to prove it again.
+      hasPureImports ??= callNodes.some(node => !!pureImportSubpath(requireCallSource(node), packages));
       finalized = true;
       walked = true;
       const callableScope = sharedCallableScope();

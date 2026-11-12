@@ -1,6 +1,6 @@
 // A census may only call a static read served when the claim side can name the same slot.
 // Unknown keys, class barriers and accessor exports must retain the constructor's namespace.
-import { adapters, createChecker } from './harness.mjs';
+import { adapters, createChecker, findNode } from './harness.mjs';
 import { classStaticCallSlot, classStaticSlotMember, collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
@@ -12,6 +12,23 @@ function census(parser, source, sourceType = 'module') {
 }
 
 for (const parser of adapters) {
+  // An unrelated heritage does not make the own-escape query resolve the same slot again.
+  const inspections = [];
+  for (const heritage of ['', 'extends Error']) {
+    const program = parser.parseAndScope(`const box = { C: Map }; hand(box.C); class Sub ${ heritage } {}`).node;
+    const object = findNode(program, node => node.type === 'ObjectExpression');
+    const { properties } = object;
+    let reads = 0;
+    Object.defineProperty(object, 'properties', { configurable: true, get() {
+      reads++;
+      return properties;
+    } });
+    const { escapedCtorNames } = collectFileCensus(program, [mutationShapesReducer(null), escapedCtorReferencesReducer()]);
+    check(`${ parser.name }/${ heritage }: own escape retained`, escapedCtorNames.has('Map', false, true), true);
+    check(`${ parser.name }/${ heritage }: slot counter is live`, reads > 0, true);
+    inspections.push(reads);
+  }
+  check(`${ parser.name }: own query reuses the resolved slot`, inspections[1], inspections[0]);
   for (const [name, source, own, constructor = 'Map'] of [
     ['base', 'const M = Map; hand(M); class Sub extends M {} Sub.groupBy;', true],
     ['subclass', 'class Sub extends Map {} hand(Sub); Sub.groupBy;', false],
@@ -21,6 +38,12 @@ for (const parser of adapters) {
     ['private slot', 'class Sub extends Array { static #M = Map; } hand(Sub);', false],
     ['namesake', 'class Map {} class Sub extends Map {} hand(Map); Sub.groupBy;', false],
     ['returned base', 'function base() { return Map; } hand(base()); class Sub extends Map {} Sub.groupBy;', true],
+    ['base through member', 'const box = { C: Map }; class Sub extends box.C {} hand(box.C);', true],
+    ['inherited member', 'const box = { C: Map }; class Sub extends box.C {} hand(Sub);', false],
+    ['own member', 'const box = { C: Map }; class Sub extends Array { static value = box.C; } hand(Sub);', true],
+    ['written member', 'const box = {}; box.C = Map; class Sub extends Array { static value = box; } hand(Sub);', true],
+    ['separate visits', 'const box = { C: Map }; class Sub extends box.C {} hand(Sub); hand(box.C);', true],
+    ['shadowed member', 'function use(Map) { const box = { C: Map }; class Sub extends box.C {} hand(Sub); } use({});', false],
   ]) for (const reverse of [false, true]) {
     const program = parser.parseAndScope(source, 'module');
     const reducers = [mutationShapesReducer(null), escapedCtorReferencesReducer()];
