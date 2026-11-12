@@ -47,6 +47,7 @@ import './consumed-member-comments.mjs';
 import './owned-comment-complexity.mjs';
 import './post-sweep-introduced-global.mjs';
 import './late-paren-compensation-gate.mjs';
+import './optional-new-lowering.mjs';
 import './parser-dialect-equivalence.mjs';
 import './bodyless-array-capture.mjs';
 import './native-wrapper-preparation.mjs';

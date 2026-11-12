@@ -9,6 +9,7 @@ import './destructure-products.mjs';
 import './receiver-effects.mjs';
 import './fixture-output-normalization.mjs';
 import './syntax-preparation.mjs';
+import './printer-boundaries.mjs';
 import './parameter-restoration.mjs';
 import './host-loading.mjs';
 import './external-requires.mjs';

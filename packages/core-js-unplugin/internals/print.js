@@ -54,35 +54,60 @@ function parenthesize(expression) {
   return { type: 'ParenthesizedExpression', expression, loc: expression.loc };
 }
 
-// esrap 2.4.0 gaps, measured by the roundtrip gate over the fixture corpus; every override
+// esrap 2.4.0 gaps, held by the printer and roundtrip checks; every override
 // carries its reproducing shape and dies as upstream catches up
-function withCorpusGapOverrides(language, tails) {
-  // a concise arrow body whose LEFT EDGE is an object literal needs parens: bare, that `{`
-  // opens a BLOCK body. esrap handles a direct object operand, but misses nested left edges
-  // such as `() => ({ a: 1 } || x || y)`
-  function startsWithObjectLiteral(node) {
+function withCorpusGapOverrides(language, tails, script) {
+  // Grammar lookahead depends on the first expression, not only on precedence.
+  // `new`, unary operators and explicit parens already spell a safe leading token.
+  function expressionLeftEdge(node) {
     for (let cur = node; cur && typeof cur.type === 'string';) {
       switch (cur.type) {
-        case 'ObjectExpression': return true;
         case 'BinaryExpression': case 'LogicalExpression': case 'AssignmentExpression': cur = cur.left; break;
         case 'MemberExpression': cur = cur.object; break;
-        case 'CallExpression': case 'NewExpression': cur = cur.callee; break;
+        case 'CallExpression': cur = cur.callee; break;
         case 'ConditionalExpression': cur = cur.test; break;
         case 'SequenceExpression': [cur] = cur.expressions; break;
         case 'TaggedTemplateExpression': cur = cur.tag; break;
         case 'ChainExpression': case 'TSAsExpression': case 'TSSatisfiesExpression':
         case 'TSNonNullExpression': cur = cur.expression; break;
-        default: return false;
+        default: return cur;
       }
     }
-    return false;
+    return null;
   }
+  // An arrow's nested object left edge opens a block; esrap handles only the direct object.
   const baseArrow = language.ArrowFunctionExpression;
   language.ArrowFunctionExpression = (node, context) => {
     if (node.body?.type === 'BlockStatement' || node.body?.type === 'ObjectExpression'
-      || !startsWithObjectLiteral(node.body)) return baseArrow(node, context);
+      || expressionLeftEdge(node.body)?.type !== 'ObjectExpression') return baseArrow(node, context);
     baseArrow({ ...node, body: parenthesize(node.body) }, context);
   };
+  // An expression after `export default` must not become a hoisted declaration.
+  const baseExportDefault = language.ExportDefaultDeclaration;
+  language.ExportDefaultDeclaration = (node, context) => {
+    const edge = expressionLeftEdge(node.declaration);
+    if (edge?.type !== 'FunctionExpression' && edge?.type !== 'ClassExpression') return baseExportDefault(node, context);
+    baseExportDefault({ ...node, declaration: parenthesize(node.declaration) }, context);
+  };
+  // Sloppy `let[...]` statements need grouping. Modules forbid that identifier and skip this scan.
+  if (script) {
+    const baseExpressionStatement = language.ExpressionStatement;
+    language.ExpressionStatement = (node, context) => {
+      const edge = expressionLeftEdge(node.expression);
+      if (edge?.type !== 'Identifier' || edge.name !== 'let' || edge === node.expression) return baseExpressionStatement(node, context);
+      baseExpressionStatement({ ...node, expression: parenthesize(node.expression) }, context);
+    };
+  }
+  // `async` is also an identifier in modules; only `let` is confined to sloppy scripts.
+  for (const type of ['ForOfStatement', 'ForInStatement']) {
+    const baseFor = language[type];
+    language[type] = (node, context) => {
+      const edge = expressionLeftEdge(node.left);
+      if (edge?.type !== 'Identifier' || !(edge.name === 'let'
+        || type === 'ForOfStatement' && edge.name === 'async' && edge === node.left)) return baseFor(node, context);
+      baseFor({ ...node, left: parenthesize(node.left) }, context);
+    };
+  }
   // esrap handles casts and lower-precedence bases, but adjacent instantiations still
   // fuse into invalid `f<T><U>` without a boundary around the inner instantiation
   const baseInstantiation = language.TSInstantiationExpression;
@@ -164,6 +189,67 @@ function withCorpusGapOverrides(language, tails) {
     context.newline();
     context.write(')');
   };
+  // Intercept only this printer's writes; visiting children keeps their own context and mapping.
+  function withWrites(context, write) {
+    return new Proxy(context, {
+      get(target, key) {
+        if (key === 'write') return write;
+        return typeof target[key] === 'function' ? target[key].bind(target) : target[key];
+      },
+    });
+  }
+  // TypeScript orders access/static before abstract/override. Preserve the base printer's
+  // decorators, key, async/generator markers and body; change only the modifier prefix.
+  for (const type of ['MethodDefinition', 'TSAbstractMethodDefinition']) {
+    const baseMethod = language[type];
+    language[type] = (node, context) => {
+      const abstract = node.abstract || type === 'TSAbstractMethodDefinition';
+      if (!(abstract && node.accessibility || node.override && node.static)) return baseMethod(node, context);
+      const modifiers = [node.accessibility, node.static && 'static', abstract && 'abstract', node.override && 'override'].filter(Boolean);
+      let written = false;
+      baseMethod(node, withWrites(context, (text, at) => {
+        if (modifiers.every(modifier => !(text === `${ modifier } `))) return context.write(text, at);
+        if (!written) context.write(`${ modifiers.join(' ') } `, at);
+        written = true;
+      }));
+    };
+  }
+  // Import phases change evaluation, including on a dynamic import with unchanged options.
+  const baseImportExpression = language.ImportExpression;
+  language.ImportExpression = (node, context) => {
+    if (!node.phase) return baseImportExpression(node, context);
+    baseImportExpression(node, withWrites(context, (text, at) => {
+      context.write(text === 'import' ? `import.${ node.phase }` : text, at);
+    }));
+  };
+  const baseImportType = language.TSImportType;
+  language.TSImportType = (node, context) => {
+    if (!node.options) return baseImportType(node, context);
+    baseImportType(node, withWrites(context, (text, at) => {
+      if (text === ')') {
+        context.write(', ');
+        context.visit(node.options);
+      }
+      context.write(text, at);
+    }));
+  };
+  // esrap omits computed enum brackets and the static index-signature modifier.
+  const baseEnumMember = language.TSEnumMember;
+  language.TSEnumMember = (node, context) => {
+    if (!node.computed) return baseEnumMember(node, context);
+    context.write('[');
+    context.visit(node.id);
+    context.write(']');
+    if (node.initializer) {
+      context.write(' = ');
+      context.visit(node.initializer);
+    }
+  };
+  const baseIndexSignature = language.TSIndexSignature;
+  language.TSIndexSignature = (node, context) => {
+    if (node.static) context.write('static ');
+    baseIndexSignature(node, context);
+  };
   // a list's tail follows its last member, inside the list (`List tails` below)
   const baseVisit = language._;
   language._ = (node, context, visit) => {
@@ -178,22 +264,21 @@ function withCorpusGapOverrides(language, tails) {
     writeListTail(tail, context, 'code');
     tails.written.add(tail);
   };
-  // esrap writes a default or a namespace import's name without visiting its specifier, so a comment
-  // trailing that name rides the write instead - or it would print past `from`
+  // esrap writes a default or namespace name without visiting it. Keep its trailing comment
+  // before `from`; a namespace name also needs its own map anchor, beyond the `* as ` prefix.
   const baseImport = language.ImportDeclaration;
   language.ImportDeclaration = (node, context) => {
-    if (!node.specifiers?.some(specifier => tails.ownerEnds.has(specifier))) return baseImport(node, context);
-    baseImport(node, new Proxy(context, {
-      get(target, key) {
-        if (key !== 'write') return typeof target[key] === 'function' ? target[key].bind(target) : target[key];
-        return (text, at) => {
-          target.write(text, at);
-          const trailing = tails.byEnd.get(tails.ownerEnds.get(at));
-          if (!trailing || tails.written.has(trailing)) return;
-          writeListTail(trailing, target, 'code');
-          tails.written.add(trailing);
-        };
-      },
+    if (!node.phase && !node.specifiers?.some(specifier => specifier.type === 'ImportNamespaceSpecifier'
+      || tails.ownerEnds.has(specifier))) return baseImport(node, context);
+    baseImport(node, withWrites(context, (text, at) => {
+      if (at?.type === 'ImportNamespaceSpecifier') {
+        context.write('* as ', at);
+        context.write(at.local.name, at.local);
+      } else context.write(node.phase && text === 'import' ? `import ${ node.phase }` : text, at);
+      const trailing = tails.byEnd.get(tails.ownerEnds.get(at));
+      if (!trailing || tails.written.has(trailing)) return;
+      writeListTail(trailing, context, 'code');
+      tails.written.add(trailing);
     }));
   };
   // an empty list has no member to follow: a carrier stands in for one. an empty switch body breaks
@@ -790,7 +875,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     // Moved defaults and same-line statements have their own comment cursors. A receiver or
     // sibling must not flush their interiors, including annotations inside call arguments.
     function createLanguage(dialectComments) {
-      const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }), tails);
+      const dialect = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: dialectComments }), tails, program.sourceType === 'script');
       for (const type of new Set(anchors.keys().map(node => node.type))) {
         const base = dialect[type];
         if (typeof base !== 'function') continue;

@@ -111,6 +111,9 @@ for (const [release, instantiation, tag, write] of [
   const actual = generatorWorkarounds(release);
   checkTruthy(`workaround boundaries/${ release }`, actual.instantiation === instantiation && actual.tag === tag && actual.write === write);
 }
+for (const [release, pending] of [['7.29.11', true], ['7.29.12', false], ['8.0.9', true], ['8.0.10', false]]) {
+  checkTruthy(`optional constructor workaround/${ release }`, generatorWorkarounds(release).newCallee === pending);
+}
 for (const source of ['(o?.f)`x`', '(o?.f!)`x`']) {
   const { compensated, code } = await plant('in-existing-statement',
     `const tag = ${ source }; var seed = 0;`, ['typescript']);
