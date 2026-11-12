@@ -8,6 +8,7 @@ import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types
 import { pureImportSubpath } from '../helpers/path-normalize.js';
 import {
   CENSUS_CONTAINER_TYPES,
+  SOURCE_ORDER_STATEMENT_HOST_TYPES,
   argumentOverridesSlot,
   literalDestructureSource,
   isMemberAccessNode,
@@ -82,7 +83,6 @@ import {
   discardedSequenceElement,
   foldedPropertyKeyName,
   isBodylessStatementSlot,
-  peelToExpressionStatement,
   runsWithoutOwnVarSlot,
   isRestProperty,
   installedWriteValue,
@@ -97,6 +97,7 @@ import {
   objectLiteralPrototypeValue,
   objectPatternHasNestedValue,
   objectPropertyReadValue,
+  peelToExpressionStatement,
   pairedArrayWrapInitElement,
   paramListReadsName,
   stmtRebindNames,
@@ -274,6 +275,7 @@ import {
 } from '../index.js';
 import {
   KNOWN_NAMESPACE_GLOBALS,
+  NON_WRITABLE_VALUE_GLOBALS,
   implementsPrototypeMethod,
   isKnownGlobalName,
   NATIVE_STATIC_OWNERS,
@@ -872,13 +874,19 @@ export function patternClaimIsRealmHop(propPath, meta, { adapter, resolvePure })
 // arguments before the parameter default changes. Source receiver types are primed
 // before an array fallback moves its reads; only a declined array route reaches the mirror.
 export function applyPatternClaimMirror(propPath, meta, {
-  resolvePure, parameterCallSites, renderMirror, primeReceiverTypes, renderArrayFlatten, isProcessedPattern,
+  resolvePure, parameterCallSites, renderMirror, primeReceiverTypes, renderArrayFlatten, isProcessedPattern, isClaimedProperty,
 }) {
   if (patternSlotTarget(propPath.node.value)?.type === 'ObjectPattern') {
     const value = propPath.get('value');
     if (isProcessedPattern?.(value.node.type === 'AssignmentPattern' ? value.get('left') : value)) return true;
   }
   const kind = resolvePure(meta, propPath)?.kind;
+  // Mirror the still-complete relocated head before its first instance extraction
+  // removes a source slot that the element mirror must continue to provide.
+  if (kind === 'instance' && ownRelocatedHeadElement(destructurePatternHostPath(propPath))) {
+    renderMirror(propPath, meta, { fallbackOnBail: true });
+    return !!isClaimedProperty?.(propPath);
+  }
   if (kind === 'static' && isDestructurePattern(patternSlotTarget(propPath.node.value))
     && isFunctionParamDestructureParent(propPath.parentPath)) {
     return applyParameterClaimMirror(propPath, meta, kind, { parameterCallSites, renderMirror });
@@ -896,15 +904,19 @@ export function applyPatternClaimMirror(propPath, meta, {
 // Callers settle inner defaults before a leaf can use its own receiver. An instance
 // may then mirror the ordinary or deferred flat default. A declined caller-only claim
 // stays native: replacing only its default would lose absent supplied properties.
-export function applyParameterClaimMirror(propPath, meta, kind, { parameterCallSites, renderMirror }) {
-  if (parameterCallSites && renderMirror(propPath, meta, { parameterCallSites, fallbackOnBail: true })) return true;
+export function applyParameterClaimMirror(propPath, meta, kind, { parameterCallSites, renderMirror, captureInstance }) {
+  function finish(applied) {
+    if (applied && kind === 'instance') captureInstance?.(propPath);
+    return applied;
+  }
+  if (parameterCallSites && renderMirror(propPath, meta, { parameterCallSites, fallbackOnBail: true })) return finish(true);
   // A nested static slot cannot use the flat binding extraction. After the caller
   // census declines, its exact IIFE argument or default still admits the shared mirror.
   if (!meta?.parameterArgumentsOnly && kind === 'static' && isDestructurePattern(patternSlotTarget(propPath.node.value))
     && renderMirror(propPath, meta, { fallbackOnBail: true })) return true;
   if (kind === 'instance') {
-    if (renderMirror(propPath, meta, { fallbackOnBail: true })) return true;
-    if (renderMirror(propPath, meta, { allowFlatInstanceDefault: true, deferredOnly: true })) return true;
+    if (renderMirror(propPath, meta, { fallbackOnBail: true })) return finish(true);
+    if (renderMirror(propPath, meta, { allowFlatInstanceDefault: true, deferredOnly: true })) return finish(true);
   }
   return !!meta?.parameterArgumentsOnly;
 }
@@ -2545,8 +2557,7 @@ export function planParameterInstanceExtraction({
       if (!sourceMeta || sourceMeta.guardedAliasHint || sourceKind === 'static' || sourceKind === 'global') return null;
       const localId = propBindingIdentifier(prop.node.value);
       if (!qualifiesForParamBodyExtract({ propPath: prop, localId, receiverCapture: true })) return null;
-      const instance = resolvePure({ kind: 'property', object: null, key: propertyKeyName(prop.node), placement: null }, prop)
-        ?.kind === 'instance';
+      const instance = resolvePure(sourceMeta, prop)?.kind === 'instance';
       if (instance && prop.node.value.type === 'AssignmentPattern') return null;
       claim ||= instance;
     }
@@ -2688,7 +2699,8 @@ export function instanceSynthSpellsReceiver(node) {
 // qualify, rest does not. Each receiver branch must be safe to reproduce: names, this and constants
 // can serve several properties; a plain member is limited to one read unless a pure entry replaces
 // it whole, its root is an inert literal or it is a re-readable built-in surface nav, and an
-// invocation or a literal (`instanceSynthSpellsReceiver`) serves one property alone. Raw rewritable
+// invocation or a literal (`instanceSynthSpellsReceiver`) serves one property alone unless the
+// caller guarantees a capture shared by all slots (`memoized`). Raw rewritable
 // globals, live optional members, slots owned by typed navigation and inner defaults the host proves
 // dead decline. A selection the build decides is judged by the operand of it that runs
 // (`decidedRunningOperand`), wherever the receiver holds it: the literal spells it as written and the
@@ -2696,7 +2708,7 @@ export function instanceSynthSpellsReceiver(node) {
 // selection) spelling a pattern key as its own property hands that property to the read
 // (`{ at } = { at: [1] }`), never a method its prototype carries: there is nothing to dispatch
 export function paramDefaultInstanceSynthAllowed({
-  objectPatternNode, receiverNode, scope, adapter, path, resolvePure, whole = true,
+  objectPatternNode, receiverNode, scope, adapter, path, resolvePure, whole = true, memoized = false,
 }) {
   if (!receiverNode || !objectPatternNode?.properties?.length) return false;
   function running(node) {
@@ -2739,8 +2751,8 @@ export function paramDefaultInstanceSynthAllowed({
   if (receiverNode.type === 'ThisExpression') return true;
   if (receiverNode.type === 'Identifier') {
     // ... a name a getter of the pattern may rebind is read once per slot the mirror spells, so it is
-    // admissible for ONE slot only - the invocation's rule below
-    if (!isReReferenceableAcrossReads(receiverNode, { scope, adapter, path })) return objectPatternNode.properties.length === 1;
+    // admissible for ONE slot only unless the caller captures it - the invocation's rule below
+    if (!isReReferenceableAcrossReads(receiverNode, { scope, adapter, path })) return memoized || objectPatternNode.properties.length === 1;
     // ... and a BARE global the render RESOLVES leaks nothing after all: both emitters spell it
     // through the injected pure binding instead of re-emitting the name, so the raw read this gate
     // guards against has no spelling left. a proxy global with no entry of its own keeps the decline
@@ -2763,16 +2775,15 @@ export function paramDefaultInstanceSynthAllowed({
     // the parts are peeled the way every other receiver question peels: one parser keeps the source
     // parens as nodes and the other strips them, and an unpeeled arm answered no on that alone
     return parts.every(part => paramDefaultInstanceSynthAllowed({
-      objectPatternNode, receiverNode: unwrapRuntimeExpr(part), scope, adapter, path, resolvePure, whole: false,
+      objectPatternNode, receiverNode: unwrapRuntimeExpr(part), scope, adapter, path, resolvePure, whole: false, memoized,
     }));
   }
-  // ... and an INVOCATION is read exactly once by the ONE slot that spells it - the flat twin's
-  // `_atMaybeArray(f())` one level down, where the default fires; a second slot would run it twice.
-  // so is a literal whose evaluation runs code (`[eff()]`)
-  if (instanceSynthSpellsReceiver(receiverNode)) return objectPatternNode.properties.length === 1;
+  // An invocation or effectful literal runs once: either one slot spells it, or the
+  // caller captures it before serving several slots at their original binding positions.
+  if (instanceSynthSpellsReceiver(receiverNode)) return memoized || objectPatternNode.properties.length === 1;
   if (receiverNode.type !== 'MemberExpression' && receiverNode.type !== 'OptionalMemberExpression') return false;
   if (instanceSynthReceiverPure(receiverNode, { adapter, scope, path, resolvePure })) return true;
-  if (mayHaveSideEffects(receiverNode)) return false;
+  if (!memoized && mayHaveSideEffects(receiverNode)) return false;
   let root = receiverNode;
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') root = running(root.object);
   // a chain over a re-eval-inert literal root (plain keys below) is read once per key the mirror
@@ -2780,7 +2791,7 @@ export function paramDefaultInstanceSynthAllowed({
   const inertRoot = (root?.type === 'ArrayExpression' || root?.type === 'ObjectExpression')
     && isConstantLiteralNode(root, (name, read) => unboundPureGlobal(name, read) && !POSSIBLE_GLOBAL_OBJECTS.has(name), running);
   // ... and so is a built-in surface nav (`Array.prototype`): a re-read observes nothing
-  if (objectPatternNode.properties.length !== 1 && !inertRoot
+  if (!memoized && objectPatternNode.properties.length !== 1 && !inertRoot
     && !isReReadableSurfaceNav(receiverNode, null, { ctx: { scope, adapter, path } })) return false;
   // walk the chain: literal / plain keys only, Identifier / this root, root not a rewritable global.
   // an OPTIONAL link bails: `host?.x` may be `undefined` at runtime - native then THROWS destructuring
@@ -6028,6 +6039,9 @@ export function destructureRetainsLiteralWrapper({ propPath, kind, adapter, meta
   if (kind === 'instance' || meta?.fromFallback) return false;
   const walked = destructureHostThroughWrappers(propPath.parentPath, adapter, true);
   if (!walked?.host || walked.hostPatternPath === propPath.parentPath) return false;
+  // A rendered loop mirror is a literal too, but its pending claims still follow
+  // the original head's policy. It is not a user-written literal wrapper.
+  if (nestedParamSynthPlan.get(adapter, walked.pattern)?.headLiteralWrapper === false) return false;
   const { host, hops } = walked;
   const root = ownRelocatedHeadElement(host) ?? destructureReceiverNode(host, walked.hostPatternPath.node);
   const defaultNode = hops?.findLast(hop => hop.defaultNode)?.defaultNode;
@@ -6942,17 +6956,20 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDe
       const headElements = forOfIterableElements(parent.node);
       return headElements ? { host: parent, slot: 'right', node: parent.node.right, headElements } : null;
     }
+    // Recover a relocated binding or assignment head through its live element.
+    if ((parentType === 'VariableDeclarator' && parent.node.id === cur.node
+      || parentType === 'AssignmentExpression' && parent.node.left === cur.node)
+      && selfHostAllowed(cur, leafPatternPath)) {
+      const paired = ownRelocatedHeadElement(parent) && resolveFallbackReceiver(parent, cur.node, staticIsMutated);
+      if (paired?.hostPath) return {
+        host: paired.hostPath, slot: 'right', node: paired.hostPath.node.right, headElements: [paired.rhsNode], relocated: true,
+      };
+    }
     if (parentType === 'VariableDeclarator' && parent.node.id === cur.node && selfHostAllowed(cur, leafPatternPath)) {
       // a for-x HEAD declarator carries no init of its own: what it destructures is an ELEMENT of
       // the iterated literal. the mirror hosts on the LOOP and swaps that element in place INSIDE
       // the array, so every pass reads its own mirrored value - where a binding lifted out of the
       // head into the body is only ever right while the head runs once
-      // A native binding may have moved this head pattern into the loop body already.
-      // Recover its original sole element through the same source-slot canon as flat synths.
-      const paired = ownRelocatedHeadElement(parent) && resolveFallbackReceiver(parent, cur.node, staticIsMutated);
-      if (paired?.hostPath) return {
-        host: paired.hostPath, slot: 'right', node: paired.hostPath.node.right, headElements: [paired.rhsNode], relocated: true,
-      };
       if (parent.node.init) return { host: parent, slot: 'init', node: parent.node.init };
       const headElements = forOfHeadIterableElements(parent);
       const loop = headElements ? parent.parentPath?.parentPath : null;
@@ -7323,11 +7340,15 @@ export function buildNestedParamSynthPlan(options) {
   const planHost = callSite ?? mirrorPlanHost(leafPatternPath, !!constructorRestIndex({
     name: meta.object, patternNode: leafPatternPath.node, resolveGlobalPolyfill, isDisabledProp,
   }), allowFlatInstanceDefault && instanceClaim, adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
-  // A relocated head's ordinary claims belong to its body extraction. Only a fallback
-  // claim still owes a branch mirror on the original element before that extraction runs.
-  if (planHost?.relocated && !meta.fromFallback) return null;
+  // Relocated instances and realm hops still need the complete element mirror.
+  // Other ordinary claims belong to the body extraction; fallback claims keep their branches.
+  if (planHost?.relocated && !meta.fromFallback && !instanceClaim && !isPristineProxyGlobal(adapter, meta.key)) return null;
   const receiverPath = callSite?.host ?? leafPatternPath;
   const headElements = planHost?.headElements ?? null;
+  // A literal wrapper already keeps its native receiver for ordinary body extraction.
+  if (instanceClaim && headElements?.every(node => destructureSourceIsLiteralWrapper(node, {
+    scope: receiverPath.scope, adapter, path: receiverPath,
+  }))) return null;
   // no host spells the slot the leaf's inner default pairs with - a catch parameter binds the
   // thrown value, a function no caller census closes, a head over an iterable the source holds -
   // so that arm is open wherever the pattern stands, and the default alone is mirrored, hosted on
@@ -7339,7 +7360,7 @@ export function buildNestedParamSynthPlan(options) {
   // default. Other hosts keep their existing capture and extraction routes.
   const parameterInstance = !!callSite || host?.node.type === 'AssignmentPattern'
     && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type);
-  if (instanceClaim && !parameterInstance) return null;
+  if (instanceClaim && !parameterInstance && !headElements) return null;
   // A consumed assignment yields its original receiver, so replacing that receiver with a mirror
   // changes the expression's result. Leave it to a retaining route; a discarded assignment or
   // parameter default has no independent result identity to preserve.
@@ -7538,7 +7559,8 @@ export function buildNestedParamSynthPlan(options) {
       const name = surface ?? (node.type === 'ArrayExpression' ? 'Array' : adapter.isStringLiteral?.(node) ? 'String' : null);
       if (name) ctx = { kind: 'instance', name };
     }
-    if (parameterInstance && (!ctx || ctx.kind === 'ctor' && !ctx.builtin || ctx.kind === 'static' && bindingInstance)) {
+    if (parameterInstance && (!ctx || ctx.kind === 'ctor' && !ctx.builtin || ctx.kind === 'static' && bindingInstance
+      || instanceClaim && defaultBorn.has(node))) {
       const suppliedBinding = bindingInstance || ctx?.kind === 'ctor' && node.type === 'Identifier'
         && adapter.hasBinding({ ...receiverCtx, name: node.name, read: node });
       const source = followConstIdentifierInit({ node, readNode: node, ctx: receiverContext(node) });
@@ -7556,33 +7578,36 @@ export function buildNestedParamSynthPlan(options) {
         : PRIMITIVE_WRAPPERS[typeof literalNodeValue(value)] || globalPrimitive || constructedFamily || null;
       // Closed caller bindings use the default's receiver admission too. Unbound names
       // and call results retain their existing boundary.
-      const suppliedInstance = !isNullLiteralNode(value) && (!invocationNode(value) || value.type === 'NewExpression')
+      const suppliedInstance = !isNullLiteralNode(value)
+        && (!invocationNode(value) || value.type === 'NewExpression' || defaultBorn.has(node))
         && (suppliedBinding || globalPrimitive || instanceSynthSpellsReceiver(value)
           || isConstantLiteralNode(value, bindingName => !!pureImportSourceEntry(
             pureImportSubpath(adapter.getBinding({ ...source.ctx, name: bindingName })?.importSource, adapter.packages),
           ))
-          || isMemberAccessNode(value)
+          || isMemberAccessNode(value) || defaultBorn.has(node)
           || !!instanceSynthReceiverPure(value, { ...source.ctx, resolvePure }))
-        && paramDefaultInstanceSynthAllowed({
-          objectPatternNode: leafPatternPath.node, receiverNode: node,
-          ...receiverCtx, path: claimPath || receiverPath, resolvePure,
-        });
-      if (suppliedInstance) ctx = { kind: 'instance', name: name ?? null, sourceInstance: true };
+        && instanceReceiverAdmission(node, claimPath || receiverPath);
+      if (suppliedInstance) ctx = { kind: 'instance', name: name ?? null, sourceInstance: true, ...suppliedInstance };
     }
     if (instanceIife && (!ctx || ctx.kind === 'static')
       && (!isBareUndefinedIdentifier(node) || adapter.hasBinding({ ...receiverCtx, name: node.name, read: node }))
-      && (mirrored.patterns.get(node) ?? mirrored.patternNode ?? walked.pattern) === leafPatternPath.node
-      && paramDefaultInstanceSynthAllowed({
-        objectPatternNode: leafPatternPath.node, receiverNode: node,
-        ...receiverCtx, path: claimPath,
-        resolvePure,
-      })) ctx = { kind: 'instance', name: null, legacyIife: true };
+      && (mirrored.patterns.get(node) ?? mirrored.patternNode ?? walked.pattern) === leafPatternPath.node) {
+      const admission = instanceReceiverAdmission(node, claimPath);
+      if (admission) ctx = { kind: 'instance', name: null, legacyIife: true, ...admission };
+    }
     if (ctx?.kind === 'ctor') {
       ctx.receiverNode = node;
       ctx.walkPath = [];
     }
     rootContextByNode.set(node, ctx);
     return ctx;
+  }
+
+  // Keep the cheap replayable route; a wider admission must render a local capture.
+  function instanceReceiverAdmission(node, path) {
+    const admission = { objectPatternNode: leafPatternPath.node, receiverNode: node, ...receiverCtx, path, resolvePure };
+    if (paramDefaultInstanceSynthAllowed(admission)) return { memoized: false };
+    return paramDefaultInstanceSynthAllowed({ ...admission, memoized: true }) ? { memoized: true } : null;
   }
 
   function resolveRootContext(node) {
@@ -7644,6 +7669,39 @@ export function buildNestedParamSynthPlan(options) {
       : { key, deferred, child: { kind: 'passthrough', prop } };
   }
 
+  // An immediately preceding data definition can be read before plain lexical binding writes.
+  // Only the direct realm initializer has this window: arguments, iteration and
+  // sequence prefixes may run intervening code. The property walk still checks its own prefix.
+  function precedingMirrorDataKey(patternNode) {
+    if (parameterInstance || headElements || !host) return null;
+    const declaration = host.node.type === 'VariableDeclarator';
+    if (!declaration && host.node.type !== 'AssignmentExpression') return null;
+    if (patternNode !== (declaration ? host.node.id : host.node.left)) return null;
+    const expression = !declaration && peelToExpressionStatement(host);
+    const statement = declaration ? host.parentPath : expression?.exprStmt;
+    if (!statement || declaration && statement.node.declarations?.length !== 1 || expression?.sequencePrefix?.length) return null;
+    const parent = statement.parentPath?.node;
+    if (!SOURCE_ORDER_STATEMENT_HOST_TYPES.has(parent?.type) || parent.body[statement.key] !== statement.node) return null;
+    const previous = parent.body[statement.key - 1];
+    const call = previous?.type === 'ExpressionStatement' && unwrapRuntimeExpr(previous.expression);
+    if (call?.type !== 'CallExpression' || call.optional || call.arguments.length !== 3) return null;
+    const callee = unwrapRuntimeExpr(call.callee);
+    if (!isMemberAccessNode(callee) || callee.optional || staticMemberKeyName(callee) !== 'defineProperty'
+      || resolveObjectName({ objectNode: callee.object, ...receiverCtx }) !== 'Object'
+      || adapter.isMutatedStaticSlot?.('Object', 'defineProperty')) return null;
+    const receiver = unwrapRuntimeExpr(declaration ? host.node.init : host.node.right);
+    if (receiver?.type !== 'Identifier' || !guaranteedRealmObjectName(proxyGlobalRootName({ node: receiver, ...receiverCtx }))) return null;
+    const target = unwrapRuntimeExpr(call.arguments[0]);
+    if (target?.type !== 'Identifier' || !guaranteedRealmObjectName(proxyGlobalRootName({ node: target, ...receiverCtx }))) return null;
+    const descriptor = unwrapRuntimeExpr(call.arguments[2]);
+    if (descriptor?.type !== 'ObjectExpression' || descriptor.properties.some(prop => !isPropertyNode(prop)
+      || prop.computed || prop.kind === 'get' || prop.kind === 'set' || prop.method
+      || plainSynthKeyName(prop.key) === 'get' || plainSynthKeyName(prop.key) === 'set')) return null;
+    if (descriptor.properties.every(prop => plainSynthKeyName(prop.key) !== 'value')) return null;
+    const key = literalNodeValue(unwrapRuntimeExpr(call.arguments[1]));
+    return typeof key === 'string' ? key : null;
+  }
+
   // eslint-disable-next-line max-statements -- one ordered property walk shared by all mirror receiver kinds
   function mirrorPattern(patternNode, ctx) {
     // Literal-container mirrors remain available to instance/caller capture only.
@@ -7662,6 +7720,8 @@ export function buildNestedParamSynthPlan(options) {
     if (restIndex) return { ...restIndex, kind: 'polyfill', readProperties: patternNode.properties.filter(isPropertyNode) };
     const entries = [];
     const seenKeys = new Map();
+    const dataKey = ctx.kind === 'proxy' ? precedingMirrorDataKey(patternNode) : null;
+    let dataReads = 0;
     let defaultSeen = false;
     let effectfulKeySeen = false;
     let declinedRealm = false;
@@ -7685,6 +7745,7 @@ export function buildNestedParamSynthPlan(options) {
       const disabled = isDisabledProp?.(prop);
       if (disabled && ctx.kind !== 'ctor') return null;
       const key = mirrorAcceptedKey({ prop, ...keyCtx, seenKeys, instance: ctx.kind === 'instance' });
+      if (dataKey !== null && key === dataKey) dataReads++;
       if (key === null) {
         if (disabled) return null;
         // A well-known symbol has no string slot, but its stable imported key can carry the
@@ -7732,9 +7793,31 @@ export function buildNestedParamSynthPlan(options) {
         if (inner?.type === 'ObjectPattern') {
           // the key is read where the pattern stands, ahead of a write of its slot or not
           const proxy = isPristineProxyGlobal(adapter, key, { node: prop, path: leafPatternPath });
+          // Check a proxy subtree once; its nested hops share this admission below.
+          const nativeKeys = proxy && !ctx.checkedKeys && patternKeepsEffectfulKey(inner, keyCtx);
+          // A user slot is read at destructuring time, after all call arguments or
+          // earlier iterations. Capture it there once, then dispatch its own leaves.
+          if (!proxy && !isKnownGlobalName(key)) {
+            // Body extraction can retain the original slot. A parameter that cannot
+            // move its reads needs the nested activation instead.
+            if (!parameterInstance) {
+              entries.push({ key, deferred: true, child: { kind: 'passthrough' } });
+              continue;
+            }
+            const nativeChild = mirrorPattern(inner, { kind: 'instance', name: null, eagerInstance: false });
+            if (nativeChild && treeInjectionMetrics(nativeChild).hasInstance) {
+              entries.push({ key, deferred: true, child: {
+                kind: 'receiver', child: nativeChild, liveDefault: prop.value.type === 'AssignmentPattern',
+              } });
+              continue;
+            }
+          }
           const child = mirrorPattern(inner, proxy
-            ? { ...ctx, eagerInstance: eagerNestedInstance }
+            ? { ...ctx, checkedKeys: true, eagerInstance: eagerNestedInstance }
             : { kind: 'ctor', name: key, eagerInstance: eagerNestedInstance });
+          // A materialized subtree erases the hop's native read before its computed key.
+          // An unknown-key decline still needs its backed realm, with the child kept native.
+          if (nativeKeys && !child?.unknownKey) return null;
           // Keep native subtree reads in the pattern, after preceding binding writes.
           // A valid claim-free subtree does not veto its sibling's constructor mirror.
           const metrics = child && treeInjectionMetrics(child);
@@ -7834,8 +7917,9 @@ export function buildNestedParamSynthPlan(options) {
             kind: 'descended-pattern',
             prop,
             hop: !pure,
-            entries: slotLeaves.map(({ key: name, pure: dispatch }) => ({
-              key: name, child: dispatch ? { ...dispatch, kind: 'instance' } : { kind: 'passthrough' },
+            entries: slotLeaves.map(({ key: name, pure: dispatch }, index) => ({
+              key: name, child: dispatch ? { ...dispatch, kind: 'instance', prop: slotPattern.properties[index] }
+                : { kind: 'passthrough', prop: slotPattern.properties[index] },
             })),
           } }
           : !consumable ? { key, child: { kind: 'passthrough', bailed: true } } : !pure || pure.kind === 'instance'
@@ -7859,11 +7943,28 @@ export function buildNestedParamSynthPlan(options) {
         );
       }
     }
+    // A fresh data slot cannot call user code. Crossing lexical writes of imported values
+    // leaves it unchanged; script var bindings may write that same realm slot.
+    const dataAt = dataReads === 1 && !targetWriteSeen && !declinedRealm
+      ? patternNode.properties.findIndex(prop => !prop.computed && plainSynthKeyName(prop.key) === dataKey) : -1;
+    const eagerData = dataAt !== -1 && patternNode.properties.slice(0, dataAt).every(prop => !prop.computed
+      && prop.value?.type === 'Identifier'
+      && ['let', 'const', 'param', 'module', 'local'].includes(adapter.getBinding?.({ ...keyCtx, name: prop.value.name })?.kind)
+      && entries.some(entry => entry.key === plainSynthKeyName(prop.key)
+        && (entry.child.kind === 'polyfill' || entry.child.pure)));
     // Native siblings must not run ahead of the declined child's keys, defaults or TDZ.
     // Newly retained computed targets may run keys or setters. The existing getter
-    // mirror keeps native reads at their original slots, between those writes.
-    if (declinedRealm || targetWriteSeen) for (const entry of entries) {
-      if (entry.child.kind !== 'polyfill' && !entry.child.pure) entry.deferred = true;
+    // mirror keeps native reads at their original slots, between those writes. User
+    // slots and mutated realm globals keep that timing at parameter and loop entry too.
+    for (const entry of entries) {
+      if (eagerData && entry.key === dataKey && entry.child.kind === 'passthrough') {
+        entry.deferred = false;
+        continue;
+      }
+      const nativeTurn = ctx.kind === 'proxy' && entry.child.kind === 'passthrough' && !NON_WRITABLE_VALUE_GLOBALS.has(entry.key)
+        && (!isKnownGlobalName(entry.key) || isMutatedGlobalSlot(adapter, entry.key, ctx.receiverRead));
+      if ((declinedRealm || targetWriteSeen || nativeTurn)
+        && entry.child.kind !== 'polyfill' && !entry.child.pure) entry.deferred = true;
     }
     if (!retainNativeReads) {
       const native = entries.filter(({ child, deferred }) => child.kind === 'passthrough' && !child.pure && !deferred);
@@ -8183,11 +8284,16 @@ export function buildNestedParamSynthPlan(options) {
       // parameter default must first receive that original value to choose its own arm.
       const tree = mirrorPattern(targetPattern, context && { ...context,
         receiverRead: { node: leaf, path: receiverContext(leaf).path },
-        eagerInstance: !preserveFalsyReceiver && !(preserveNullishReceiver && valueSelectingLeaves.has(leaf))
+        eagerInstance: !context?.memoized && !preserveFalsyReceiver
+          && !(preserveNullishReceiver && (valueSelectingLeaves.has(leaf)
+            || !defaultLeaves.has(leaf) && walked.hops.some(hop => hop.pattern === targetPattern && hop.defaultNode)))
           && instanceReadsCanBeEager(leaf, targetPattern) });
       // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
       const metrics = tree && treeInjectionMetrics(tree);
-      if (!metrics?.hasPolyfill) continue;
+      if (!metrics?.hasPolyfill && !(headElements && metrics?.hasInstance)) continue;
+      // A plain instance-only head already has body extraction. It needs a whole
+      // mirror only when a static/global sibling would replace the shared source.
+      if (instanceClaim && headElements && !metrics.hasNonInstancePolyfill) continue;
       // ... a head element that is a bound CONTAINER (`of [w]` over `const w = [Array, 1]`) reads
       // its passthrough slots off its own name: the read is the identifier the source wrote at the
       // element, re-read at the same position, so `w[1]` is what the pattern read there
@@ -8202,9 +8308,11 @@ export function buildNestedParamSynthPlan(options) {
       // A sole native slot can consume a call directly. The mirror's other slots only read imports;
       // the existing key-order admission has already rejected effects preceding that native slot.
       // Several native slots share one capture, so the call still runs once before their reads.
-      // Deferred getters outlive construction of this literal. Their receiver belongs
-      // to this evaluation, even when a key effect reassigns a source-visible name.
-      const callReceiver = metrics.hasDeferred || !descriptor.receiverName && metrics.hasPassthrough
+      // Deferred getters keep this evaluation's receiver, unless every read is already
+      // anchored on a stable realm import. That mirror needs no capture activation.
+      const capturedDeferred = metrics.hasDeferred && !(descriptor.receiverIsProxy
+        && !descriptor.receiverKeys?.length && resolveGlobalPolyfill(descriptor.receiverName));
+      const callReceiver = capturedDeferred || !descriptor.receiverName && metrics.hasPassthrough
         && (canKeepPrefix && isCallShape(leaf) || parameterInstance && metrics.hasInstance);
       const reusableSurfaceReceiver = targetPattern?.properties?.length > 1
         && targetPattern === paramPath.node.left && !walked.hops?.length && metrics.hasInstance
@@ -8230,7 +8338,7 @@ export function buildNestedParamSynthPlan(options) {
         readProperties: metrics.readProperties,
         levelDefaults: metrics.levelDefaults,
         ...descriptor,
-        ...captureProxy ? { passthroughReceiver: descriptor } : {},
+        ...captureProxy || memo && descriptor.receiverIsProxy ? { passthroughReceiver: descriptor } : {},
         // the pattern reads each passthrough key once this receiver has evaluated: a realm key read
         // ahead of every write of its slot is the realm still, as the tree that mirrored it took it
         receiverRead: { node: leaf, path: receiverContext(leaf).path },
@@ -8241,7 +8349,8 @@ export function buildNestedParamSynthPlan(options) {
         ...receiverNode ? { receiverNode } : {},
         ...!receiverNode && (keepPrefix || memo) ? { keepPrefix: true } : {},
         ...memo ? { memo: true } : {},
-        ...metrics.hasDeferred ? { localMemo: true } : {},
+        ...metrics.hasDeferred ? { deferredReads: true } : {},
+        ...capturedDeferred ? { localMemo: true } : {},
         ...preserveNullishReceiver ? { preserveNullishReceiver: true } : {},
         ...preserveFalsyReceiver ? { preserveFalsyReceiver: true } : {},
         ...coerceReceiver ? { coerceReceiver: true } : {},
@@ -8351,7 +8460,16 @@ export function buildNestedParamSynthPlan(options) {
     const defaultPath = pathOfNode(leafPatternPath, node);
     return !!defaultPath && defaultDroppedAsDead(defaultPath, { adapter, resolvePure });
   });
-  if (!retainNativeReads) nestedParamSynthPlan.set(planOwner, planKey, { done: true, defaultArm, readProperties });
+  // Preserve only semantic receiver names before an element mirror replaces the
+  // source. Runtime extraction must continue to use the live relocated receiver.
+  if (headElements && !retainNativeReads) walked.hostPatternPath.traverse({ ObjectPattern(pattern) {
+    const descriptor = classifyDestructureLeafHost({ objectPattern: pattern });
+    if (descriptor.host === 'nested') resolveNestedDestructureReceiver(descriptor.outerProp, adapter, null, { leafPattern: pattern });
+  } });
+  if (!retainNativeReads) nestedParamSynthPlan.set(planOwner, planKey, {
+    done: true, defaultArm, readProperties,
+    ...headElements ? { headLiteralWrapper: headElements.every(node => destructureSourceIsLiteralWrapper(node, receiverCtx)) } : {},
+  });
   return {
     host, slot, targets, claimedProperties, readProperties, staticBindings, defaultArm, deadDefaults, patternHost: walked.hostPatternPath,
     ...parameterInstance && !callSite ? { claimsAlwaysDefined: false } : {},
@@ -8470,6 +8588,15 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
     ]);
   }
   if (tree.kind === 'polyfill') return identifier(ctx.injectImport(tree.entry, tree.hintName));
+  if (tree.kind === 'receiver') {
+    const receiver = renderSynthTree({ kind: 'passthrough' }, ctx, keyPath, receiverState);
+    const name = ctx.mintLocalRef();
+    const value = renderSynthTree(tree.child, {
+      ...ctx, receiverName: name, receiverIsProxy: false, receiverKeys: null, receiverRead: null,
+      receiverNode: null, receiverPrefix: null, memoActivation: null, passthroughCapture: null,
+    });
+    return renderMemoActivation(conditionalExpression(nullGuardTest(identifier(name)), identifier(name), value), [name], [receiver]);
+  }
   if (tree.kind === 'instance') {
     const receiver = renderSynthTree({ kind: 'passthrough' }, ctx, keyPath.slice(0, -1), receiverState);
     return callExpression(identifier(ctx.injectImport(tree.entry, tree.hintName)), [receiver]);
@@ -8533,6 +8660,17 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
 // polyfill and whether its retained reads need a nameable receiver.
 function collectTreeInjectionFlags(tree, m) {
   switch (tree.kind) {
+    case 'receiver': {
+      const claimed = m.claimedProperties.length;
+      m.deferred = true;
+      m.passthrough = true;
+      m.passthroughCount += 1;
+      collectTreeInjectionFlags(tree.child, m);
+      // A missing slot still reaches its own default. Let that arm's claims run
+      // independently until it has received its mirror too.
+      if (tree.liveDefault) m.claimedProperties.length = claimed;
+      break;
+    }
     case 'instance':
       m.instance = true;
       m.real = true;
@@ -8542,6 +8680,7 @@ function collectTreeInjectionFlags(tree, m) {
       break;
     case 'polyfill':
       m.real = true;
+      m.nonInstance = true;
       if (tree.readProperties) m.readProperties.push(...tree.readProperties);
       if (tree.prop) m.claimedProperties.push(tree.prop);
       if (tree.prop && tree.static) m.staticBindings.set(tree.prop, tree.entry);
@@ -8554,6 +8693,7 @@ function collectTreeInjectionFlags(tree, m) {
     // alive and never keeps one alive by itself
     case 'descended-pattern': {
       m.descended = true;
+      m.nonInstance ||= !tree.hop;
       const real = m.real || !tree.hop;
       for (const { child } of tree.entries) collectTreeInjectionFlags(child, m);
       m.real = real;
@@ -8562,7 +8702,7 @@ function collectTreeInjectionFlags(tree, m) {
     case 'passthrough':
       m.passthrough = true;
       m.passthroughCount += 1;
-      if (tree.pure) m.injecting = true;
+      if (tree.pure) m.injecting = m.nonInstance = true;
       if (tree.bailed) m.bailed = true;
       if (!tree.bailed && tree.readProperties) {
         m.readProperties.push(...tree.readProperties);
@@ -8601,6 +8741,7 @@ function treeInjectionMetrics(tree) {
       passthroughCount: 0,
       descended: false,
       instance: false,
+      nonInstance: false,
       deferred: false,
       claimedProperties: [],
       readProperties: [],
@@ -8613,6 +8754,7 @@ function treeInjectionMetrics(tree) {
   return {
     hasPolyfill: m.bailed ? m.real : m.real || m.injecting,
     hasInstance: m.instance,
+    hasNonInstancePolyfill: m.nonInstance,
     hasDeferred: m.deferred,
     hasDescendedClaim: m.descended,
     hasBailedSubtree: m.bailed,
@@ -9462,7 +9604,7 @@ export function resolveNestedReceiverBase({
 // Apply each mirror target and skip its discarded subtree only after replacement succeeds.
 // Probe, prefix and sole-expression targets keep their source live. Publish shared claims and static aliases
 // only after every target lands; `fallbackOnBail` controls whether a bailed plan ends dispatch.
-// Deferred-only application needs a local activation. Native bookkeeping observes the
+// Deferred-only application needs reads retained at their pattern slots. Native bookkeeping observes the
 // application verdict; a caller mirror separately reports whether its inner default is
 // settled for every caller, even when a successful rewrite leaves that default open.
 // `mintMemoRef`: the emitter allocates a ref in the MEMOIZED target's evaluation frame.
@@ -9483,13 +9625,14 @@ export function applyNestedParamSynthPlan({
   embed = cloneNode,
   mintMemoRef = null,
 }) {
-  if (deferredOnly && !plan?.targets?.some(target => target.localMemo)) return false;
+  if (deferredOnly && !plan?.targets?.some(target => target.deferredReads)) return false;
   function finishMirrorApplication(applied) {
     if (applied) onApplied?.();
     return callerMirror ? !!plan?.settled : applied;
   }
   if (!plan) return finishMirrorApplication(false);
-  if (plan.done) return finishMirrorApplication(true);
+  // A completed mirror may leave native siblings for their ordinary claim routes.
+  if (plan.done) return finishMirrorApplication(false);
   // un-mirrorable pattern with a non-proxy value branch: handled by leaving the destructure native
   // (no inline default that would corrupt the branch's legitimate undefined). nothing to render
   // A validated receiver capture can take over without assuming which branch supplied the value.
@@ -9512,6 +9655,7 @@ export function applyNestedParamSynthPlan({
     // boundary, after native target recovery. Replacing only the arm with an always-defined
     // literal would kill its fallback; dropping the probe would lose the source branch.
     if (!replaceTarget(node, renderTree(tree, {
+      mintLocalRef: () => mintMemoRef({ ...target, localMemo: true }),
       receiverName: memoRef ?? receiverName,
       receiverIsProxy: memoRef ? false : receiverIsProxy,
       receiverKeys: memoRef ? null : target.receiverKeys,

@@ -10,7 +10,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
     Array: {
       from: _Array$from
     },
-    z: _globalThis.z
+    get z() {
+      return _globalThis.z;
+    }
   };
   F(z);
 }

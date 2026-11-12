@@ -14,7 +14,9 @@ var {
   Array: {
     from: _Array$from
   },
-  names: _globalThis.names
+  get names() {
+    return _globalThis.names;
+  }
 };
 from([4]);
 names;

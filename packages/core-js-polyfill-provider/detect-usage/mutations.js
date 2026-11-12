@@ -210,7 +210,7 @@ import {
   withinAliasWalkBudget,
   writeTargetsReadSlot,
 } from './resolve.js';
-import { isKnownGlobalName, staticReceiverHint } from './globals.js';
+import { isKnownGlobalName, NON_WRITABLE_VALUE_GLOBALS, staticReceiverHint } from './globals.js';
 import { canonicalArrayIndex, dropLeadingThisParam, nodeRangeContains, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { findEnumMember } from '../resolve-node-type/enum-types.js';
 import {
@@ -7787,19 +7787,6 @@ function sourceKeysEntries(target, { keys, open }) {
   return entries;
 }
 
-// `{ targetNode, keys }` entries for a mutation-shaped node; the Object / Reflect callee name
-// resolves through the shadow-aware read canon, so a local `Object` twin classifies nothing.
-// a bare reassignment-shaped write of an UNBOUND global name (`Promise = Bluebird`,
-// `Promise++`, `[Promise] = arr` - sloppy scripts and modules both write the EXISTING global
-// slot) replaces the slot exactly like `globalThis.Promise = ...`; without the record
-// usage-pure substitutes the pristine ponyfill over the live override. a locally bound name
-// is an ordinary variable write (the read side resolves the local); the capitalized /
-// proxy-name heuristic mirrors the cheap gate so implicit sloppy-mode globals
-// (`counter = 1`) stay out of the set.
-// value-globals are non-writable (a bare write silently fails or TypeErrors) and their reads
-// are compile-time constants - recording or rerouting them buys nothing and only churns emit
-const NON_WRITABLE_VALUE_GLOBALS = new Set(['undefined', 'NaN', 'Infinity']);
-
 const MINTED_CAPITALIZED_NAME = /^_+[A-Z]/;
 
 function isGlobalSlotName(name) {
@@ -7810,6 +7797,13 @@ function isGlobalSlotName(name) {
   return isKnownGlobalName(name) || (name[0] >= 'A' && name[0] <= 'Z');
 }
 
+// a bare reassignment-shaped write of an UNBOUND global name (`Promise = Bluebird`,
+// `Promise++`, `[Promise] = arr` - sloppy scripts and modules both write the EXISTING global
+// slot) replaces the slot exactly like `globalThis.Promise = ...`; without the record
+// usage-pure substitutes the pristine ponyfill over the live override. a locally bound name
+// is an ordinary variable write (the read side resolves the local); the capitalized /
+// proxy-name heuristic mirrors the cheap gate so implicit sloppy-mode globals
+// (`counter = 1`) stay out of the set.
 function bareGlobalSlotEntry(node, ctx) {
   if (node?.type !== 'Identifier' || NON_WRITABLE_VALUE_GLOBALS.has(node.name)) return null;
   if (!isGlobalSlotName(node.name)) return null;
@@ -7908,6 +7902,8 @@ function isLogicalInstallOp(operator) {
   return operator === '||=' || operator === '??=';
 }
 
+// `{ targetNode, keys }` entries for a mutation-shaped node; the Object / Reflect callee name
+// resolves through the shadow-aware read canon, so a local `Object` twin classifies nothing.
 function classifyMutationSite(path, ctx) {
   const { node } = path;
   if (node.type === 'UnaryExpression') {

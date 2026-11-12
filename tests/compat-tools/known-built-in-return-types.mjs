@@ -231,6 +231,7 @@ deepEqual(Object.keys(knownBuiltInReturnTypes).sort(), [
   'instanceMethods',
   'instanceProperties',
   'namespaces',
+  'nonWritableValueGlobals',
   'staticMethods',
   'staticProperties',
   'staticTypeGuards',
@@ -432,6 +433,15 @@ ok(!('create' in knownBuiltInReturnTypes.staticMethods.Object), 'Object.create h
 ok(Array.isArray(knownBuiltInReturnTypes.globalProxies), 'globalProxies is array');
 for (const proxy of knownBuiltInReturnTypes.globalProxies) {
   ok(typeof proxy === 'string' && proxy, `globalProxy '${ proxy }' is non-empty string`);
+}
+
+// nonWritableValueGlobals
+deepEqual(knownBuiltInReturnTypes.nonWritableValueGlobals, ['undefined', 'NaN', 'Infinity']);
+for (const name of knownBuiltInReturnTypes.nonWritableValueGlobals) {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
+  ok(descriptor && hasOwn(descriptor, 'value'), `${ name } is an own global data property`);
+  ok(descriptor.writable === false && descriptor.configurable === false, `${ name } cannot be replaced`);
+  deepEqual(knownBuiltInReturnTypes.globalProperties[name], { type: typeof descriptor.value });
 }
 
 // namespaces

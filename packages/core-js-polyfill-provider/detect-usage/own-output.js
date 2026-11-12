@@ -953,7 +953,7 @@ function ownNativeMirrorRead(path, tests) {
 // render leaves in place names the slot its dotted twin names. A SELECTING receiver keeps its arms,
 // and one arm holding our import is enough: the other is the user's own value, which no render of
 // ours ever wrote into. A spread anywhere on the path makes the pairing unprovable
-// A nullable lazy mirror owns only the whole receiver: its activation returns the original
+// A nullable lazy mirror can occupy the receiver or a nested literal slot: its activation returns the original
 // nullish value or an imported dispatcher read through its own captured parameter. A served
 // activation beside a raw selecting arm cannot own that other arm's claim.
 function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, outerDefault = false } = {}) {
@@ -1015,28 +1015,36 @@ function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, out
   const pairings = canonAnswerTable(patternSlotHoldsPureImport, []);
   const owned = arms.some(arm => {
     let node = peelReceiverSequenceTail(arm);
-    const callee = node?.type === 'CallExpression' && !node.optional && node.arguments.length === 1
-      && node.arguments[0].type !== 'SpreadElement' ? unwrapRuntimeExpr(node.callee) : null;
-    const capture = FUNCTION_LIKE_NODE_TYPES.has(callee?.type) && !callee.async && !callee.generator
-      && callee.params.length === 1 && callee.params[0].type === 'Identifier'
-      && callee.body.type === 'BlockStatement' && callee.body.body.length === 1 && !callee.body.directives?.length
-      ? callee.params[0].name : null;
-    if (capture) {
-      if (arms.length !== 1) return false;
-      const returned = singleReturnBodyExpression(callee.body);
-      if (returned?.type === 'ObjectExpression') node = returned;
-      else {
-        if (callee.type !== 'ArrowFunctionExpression') return false;
-        const test = returned?.type === 'ConditionalExpression' ? unwrapRuntimeExpr(returned.test) : null;
-        if (test?.type !== 'BinaryExpression' || test.operator !== '==' || test.left.type !== 'Identifier'
-          || test.left.name !== capture || !isNullLiteralNode(test.right)
-          || returned.consequent.type !== 'Identifier' || returned.consequent.name !== capture) return false;
-        node = unwrapRuntimeExpr(returned.alternate);
-      }
-    }
+    let callee = null;
+    let capture = null;
+    let guardedCapture = false;
     for (const [index, key] of keys.entries()) {
+      const nestedCallee = node?.type === 'CallExpression' && !node.optional && node.arguments.length === 1
+        && node.arguments[0].type !== 'SpreadElement' ? unwrapRuntimeExpr(node.callee) : null;
+      const nestedCapture = FUNCTION_LIKE_NODE_TYPES.has(nestedCallee?.type) && !nestedCallee.async && !nestedCallee.generator
+        && nestedCallee.params.length === 1 && nestedCallee.params[0].type === 'Identifier'
+        && nestedCallee.body.type === 'BlockStatement' && nestedCallee.body.body.length === 1 && !nestedCallee.body.directives?.length
+        ? nestedCallee.params[0].name : null;
+      if (nestedCapture) {
+        callee = nestedCallee;
+        capture = nestedCapture;
+        if (arms.length !== 1) return false;
+        const returned = singleReturnBodyExpression(callee.body);
+        guardedCapture = returned?.type !== 'ObjectExpression';
+        if (!guardedCapture) node = returned;
+        else {
+          if (callee.type !== 'ArrowFunctionExpression') return false;
+          const test = returned?.type === 'ConditionalExpression' ? unwrapRuntimeExpr(returned.test) : null;
+          if (test?.type !== 'BinaryExpression' || test.operator !== '==' || test.left.type !== 'Identifier'
+            || test.left.name !== capture || !isNullLiteralNode(test.right)
+            || returned.consequent.type !== 'Identifier' || returned.consequent.name !== capture) return false;
+          node = unwrapRuntimeExpr(returned.alternate);
+        }
+      }
       if (node?.type !== 'ObjectExpression') return false;
-      if (!defined && nativeMirrorSlot(node, key, sourcePath, tests, capture)) return true;
+      // A deliberately native mirror owns its unchanged fallback too; that is not
+      // a proof that the slot is defined for a separate default-expression claim.
+      if ((!defined || outerDefault) && nativeMirrorSlot(node, key, sourcePath, tests, capture)) return true;
       let slots = pairings?.get(node);
       if (slots === undefined) {
         const entries = wrapperLiteralEntries(node, { propertyNodes: true, keyOf });
@@ -1046,16 +1054,21 @@ function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, out
       const prop = slots?.get(key);
       const getter = prop?.type === 'ObjectMethod' && prop.kind === 'get' ? prop : prop?.kind === 'get' ? prop.value : null;
       if (getter) {
-        if (!capture || index !== keys.length - 1 || getter.async || getter.generator || getter.params.length
+        if (!capture || getter.async || getter.generator || getter.params.length
           || getter.body.type !== 'BlockStatement' || getter.body.body.length !== 1 || getter.body.directives?.length) return false;
         node = unwrapRuntimeExpr(singleReturnBodyExpression(getter.body));
+        // A nested slot can return its own captured activation. The next key must
+        // prove that activation before reaching any imported dispatcher.
+        if (index !== keys.length - 1 && node?.type !== 'CallExpression') return false;
       } else node = peelReceiverSequenceTail(prop?.value);
     }
     const dispatch = node?.type === 'CallExpression' && !node.optional && node.callee.type === 'Identifier'
       && node.arguments.length === 1 && node.arguments[0].type !== 'SpreadElement';
     if (dispatch) {
       if (defined) return false;
-      if (capture) {
+      // A nullable activation must dispatch its guarded value. An unconditional
+      // data mirror already contains the served result, as a plain literal does.
+      if (guardedCapture) {
         if (node.arguments[0].type !== 'Identifier' || node.arguments[0].name !== capture) return false;
         const argumentPath = pathOfNode(sourcePath, node.arguments[0]);
         if (bindingDeclarationPath(argumentPath?.scope?.getBinding(capture))?.node !== callee.params[0]) return false;
@@ -1072,8 +1085,9 @@ function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, out
     return pureDefaultImportBinding(source, node.name, tests);
   });
   // An already rendered default owns its leaves without activating the untouched
-  // outer receiver. Only an unowned default asks about the enclosing mirror.
-  return owned || defaultBoundary && patternSlotHoldsPureImport(path, tests, adapter, { outerDefault: true });
+  // outer receiver. An unowned default is dead only if the enclosing mirror supplies
+  // a defined value, not merely a dispatcher over a possibly missing receiver.
+  return owned || defaultBoundary && patternSlotHoldsPureImport(path, tests, adapter, { defined: true, outerDefault: true });
 }
 
 // the pattern funnel: every destructure-prop census in one gate, ahead of both emitters'

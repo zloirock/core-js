@@ -17,8 +17,12 @@ var {
   Array: {
     from: _Array$from
   },
-  a: _globalThis.a,
-  b: _globalThis.b
+  get a() {
+    return _globalThis.a;
+  },
+  get b() {
+    return _globalThis.b;
+  }
 };
 from([3]);
 a;

@@ -8,12 +8,19 @@ const holder = {
     return _globalThis;
   }
 };
-const _ref = holder.realm,
-  {
-    Array: {}
-  } = _ref,
-  from = _Array$from,
-  {
-    make = from
-  } = _ref;
+const {
+  Array: {
+    from
+  },
+  make = from
+} = (_ref => {
+  return {
+    Array: {
+      from: _Array$from
+    },
+    get make() {
+      return _ref.make;
+    }
+  };
+})(holder.realm);
 use(make([7]));

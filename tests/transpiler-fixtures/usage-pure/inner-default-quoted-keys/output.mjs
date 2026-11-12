@@ -3,7 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Set from "@core-js/pure/actual/set";
 // A receiver mirror carries resolved string keys as literal names, including bracket-shaped keys.
-// Native passthroughs use ordinary data slots. A declined rest keeps native leaves.
+// Native passthroughs keep their read positions and repeats. A declined rest keeps native leaves.
 let ctor, dash, bracket, empty, prototype, of, rest;
 [{
   Set: ctor,
@@ -16,10 +16,18 @@ let ctor, dash, bracket, empty, prototype, of, rest;
   }
 } = {
   Set: _Set,
-  "with-dash": _globalThis["with-dash"],
-  "[key]": _globalThis["[key]"],
-  "": _globalThis[""],
-  ["__proto__"]: _globalThis.__proto__,
+  get "with-dash"() {
+    return _globalThis["with-dash"];
+  },
+  get "[key]"() {
+    return _globalThis["[key]"];
+  },
+  get ""() {
+    return _globalThis[""];
+  },
+  get ["__proto__"]() {
+    return _globalThis.__proto__;
+  },
   Array: {
     of: _Array$of
   }
@@ -41,7 +49,9 @@ export function read(source) {
     Array: {
       from: _Array$from
     },
-    "with-dash": _globalThis["with-dash"]
+    get "with-dash"() {
+      return _globalThis["with-dash"];
+    }
   }] = source;
   return [from, raw];
 }
@@ -56,6 +66,16 @@ export function readRepeated(source) {
     'with-dash': dash,
     late: first,
     late: second
-  } = _globalThis] = source;
+  } = {
+    Array: {
+      of: _Array$of
+    },
+    get "with-dash"() {
+      return _globalThis["with-dash"];
+    },
+    get late() {
+      return _globalThis.late;
+    }
+  }] = source;
   return [of, dash, first, second];
 }

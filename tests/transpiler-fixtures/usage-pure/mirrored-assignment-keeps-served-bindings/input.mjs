@@ -1,5 +1,5 @@
-// A mirror serves `from` without consuming its assignment target.
-// A later retained prototype capture still writes `from` in its source slot.
+// A mirror serves both methods without consuming their assignment targets.
+// Native pattern writes keep their source order without redispatching a served leaf.
 export function read(pick) {
   let from, at;
   ({ from, prototype: { at } } = pick() ? Array : Array);

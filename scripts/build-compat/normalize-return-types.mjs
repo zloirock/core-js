@@ -11,6 +11,7 @@ import {
   instanceMethods,
   instanceProperties,
   namespaces,
+  nonWritableValueGlobals,
   staticMethods,
   staticProperties,
   staticTypeGuards,
@@ -129,6 +130,7 @@ export function buildReturnTypesArtifact() {
     instanceProperties: normalizeNested(instanceProperties),
     staticTypeGuards: normalizeNested(staticTypeGuards),
     globalProxies,
+    nonWritableValueGlobals,
     namespaces,
     constructors: normalizeConstructors(constructors),
   };

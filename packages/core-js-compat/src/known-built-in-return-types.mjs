@@ -52,6 +52,9 @@ export const globalProxies = [
   'window',
 ];
 
+// Non-writable, non-configurable data properties of the realm's global object.
+export const nonWritableValueGlobals = ['undefined', 'NaN', 'Infinity'];
+
 // built-in namespace objects
 export const namespaces = [
   'Atomics',

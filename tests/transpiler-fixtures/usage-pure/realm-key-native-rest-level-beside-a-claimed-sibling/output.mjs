@@ -9,14 +9,24 @@ const {
   Foo: {
     bar,
     ...rest
-  }
-} = _globalThis;
-const S = _Set;
+  },
+  Set: S
+} = {
+  get Foo() {
+    return _globalThis.Foo;
+  },
+  Set: _Set
+};
 const {
   Deno: {
     env,
     ...others
-  } = {}
-} = _globalThis;
-const Sym = _Symbol;
+  } = {},
+  Symbol: Sym
+} = {
+  get Deno() {
+    return _globalThis.Deno;
+  },
+  Symbol: _Symbol
+};
 use(bar, rest, S, env, others, Sym);

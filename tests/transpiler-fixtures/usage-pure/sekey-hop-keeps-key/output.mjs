@@ -50,11 +50,19 @@ const {
     w: [1]
   },
   viaLiteralSlot = _includesMaybeArray(_ref3);
-const viaSibling = _Object$entries;
 const {
-  [(eff('sibling'), 'Object')]: _unused,
+  [(eff('sibling'), 'Object')]: {
+    entries: viaSibling
+  },
   z
-} = _globalThis;
+} = {
+  Object: {
+    entries: _Object$entries
+  },
+  get z() {
+    return _globalThis.z;
+  }
+};
 const {
   [(eff('pair'), 'Object')]: {
     keys: viaPairA,
@@ -68,7 +76,7 @@ const {
 };
 const viaRest = _Object$fromEntries;
 const {
-  [(eff('rest'), 'Object')]: _unused2,
+  [(eff('rest'), 'Object')]: _unused,
   ...rest
 } = _globalThis;
 let viaAssign;

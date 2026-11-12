@@ -1215,6 +1215,8 @@ export default function createDestructureEmitter({
   // Ask the shared mirror obligation before binding-only routes reject a pattern-valued
   // static. Its receiver may belong to a declaration, an assignment or a for-x head.
   const patternMirrorBinding = {
+    captureInstance: captureParameterInstance,
+    isClaimedProperty: path => skippedNodes.has(path.node),
     isProcessedPattern: path => patternHoldsOnlyProcessedSentinels(path, injector, adapter),
     resolvePure,
     parameterCallSites,
@@ -4645,11 +4647,8 @@ export default function createDestructureEmitter({
     primeDestructureReceiverTypes(prop);
     const objectPattern = prop.parentPath;
     // Caller mirrors replace their paired leaf in the original argument, before any wrapper flatten.
-    if (kind === 'instance' && isFunctionParamDestructureParent(objectPattern)) {
-      if (parameterCallSites
-        && renderNestedParamSynth({ prop, meta, parameterCallSites, deps: synthPlanDeps, fallbackOnBail: true })) return;
-      if (renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, fallbackOnBail: true })) return;
-    }
+    if (kind === 'instance' && isFunctionParamDestructureParent(objectPattern)
+      && applyParameterClaimMirror(prop, meta, kind, patternMirrorBinding)) return;
     // A native wrapper keeps its written iteration even when another host injects.
     const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter, meta });
     if (!retainsLiteralWrapper) flattenArrayWrapperInits(prop, replaceSpread);

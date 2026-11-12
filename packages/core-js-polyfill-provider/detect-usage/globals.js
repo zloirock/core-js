@@ -3,6 +3,9 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/ast-patterns.js';
 
+// The realm's value globals are non-writable data properties.
+export const NON_WRITABLE_VALUE_GLOBALS = new Set(knownBuiltInReturnTypes.nonWritableValueGlobals);
+
 export const KNOWN_FUNCTION_GLOBALS = new Set([
   ...Object.keys(knownBuiltInReturnTypes.constructors),
   ...Object.keys(knownBuiltInReturnTypes.globalMethods),

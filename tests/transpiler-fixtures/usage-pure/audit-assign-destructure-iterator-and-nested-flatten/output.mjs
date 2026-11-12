@@ -11,7 +11,9 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
     from
   }
 } = {
-  [_Symbol$iterator]: _getIteratorMethod(_globalThis),
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_globalThis);
+  },
   Array: {
     from: _Array$from
   }

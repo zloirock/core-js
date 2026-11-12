@@ -99,8 +99,14 @@ for (const embedded of [false, true]) runBoth(`synth reads/${ embedded }`, 'cons
       { key: 'at', child: { kind: 'instance', entry: 'array/instance/at', hintName: 'at' } },
       { key: 'flat', child: { kind: 'instance', entry: 'array/instance/flat', hintName: 'flat' } },
       { key: 'other', deferred: true, child: { kind: 'array', elements: [null, { kind: 'passthrough' }] } },
+      { key: 'lazy', deferred: true, child: { kind: 'receiver', child: { kind: 'object', entries: [
+        { key: 'at', deferred: true, child: { kind: 'instance', entry: 'instance/at', hintName: 'at' } },
+      ] } } },
     ] };
-    const ctx = { receiverNode: source, injectImport: (entry, hint) => `_${ hint }` };
+    const ctx = {
+      receiverNode: source, injectImport: (entry, hint) => `_${ hint }`,
+      mintLocalRef: () => 'captured', resolveGlobalPolyfill: () => null,
+    };
     const before = JSON.stringify(ctx);
     const result = renderSynthTree(tree, ctx);
     checkDeep(`${ label }/owned positions`, sharedNodes(result), []);

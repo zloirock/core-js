@@ -12,7 +12,9 @@ const {
   Array: {
     from: _Array$from
   },
-  "with-dash": _globalThis["with-dash"]
+  get "with-dash"() {
+    return _globalThis["with-dash"];
+  }
 } : userObj;
 export const r = from([1]);
 export const r2 = w;
@@ -28,7 +30,9 @@ const {
   Map: {
     groupBy: _Map$groupBy
   },
-  "a-b": _globalThis["a-b"]
+  get "a-b"() {
+    return _globalThis["a-b"];
+  }
 } : otherObj;
 export const r3 = groupBy;
 export const r4 = v;

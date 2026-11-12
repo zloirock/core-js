@@ -16,7 +16,9 @@ for (var {
   Array: {
     from: _Array$from
   },
-  seed: _globalThis.seed
+  get seed() {
+    return _globalThis.seed;
+  }
 }; seed; seed--) {
   from([seed]);
 }

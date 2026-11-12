@@ -39,7 +39,9 @@ function read({
     of
   }
 } = {
-  Set: _globalThis.Set,
+  get Set() {
+    return _globalThis.Set;
+  },
   Array: {
     of: _Array$of
   }

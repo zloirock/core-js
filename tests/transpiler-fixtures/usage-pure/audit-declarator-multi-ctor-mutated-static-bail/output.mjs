@@ -15,6 +15,8 @@ const {
   Array: {
     from: _Array$from
   },
-  Map: _globalThis.Map
+  get Map() {
+    return _globalThis.Map;
+  }
 };
 export const out = [from, customY];

@@ -1,5 +1,5 @@
 // A receiver mirror carries resolved string keys as literal names, including bracket-shaped keys.
-// Native passthroughs use ordinary data slots. A declined rest keeps native leaves.
+// Native passthroughs keep their read positions and repeats. A declined rest keeps native leaves.
 let ctor, dash, bracket, empty, prototype, of, rest;
 [{ Set: ctor, 'with-dash': dash, '[key]': bracket, '': empty, __proto__: prototype, Array: { of } } = globalThis] = [];
 [{ Set: ctor, Array: { of }, ...rest } = globalThis] = [];

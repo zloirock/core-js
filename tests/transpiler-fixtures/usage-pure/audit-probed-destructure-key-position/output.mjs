@@ -54,7 +54,9 @@ export const {
     of: viaSymbolSibling
   }
 } = ({} = null == _globalThis.window ? void 0 : _self, {
-  [_Symbol$iterator]: _getIteratorMethod(_self),
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_self);
+  },
   Array: {
     of: _Array$of
   }

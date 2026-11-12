@@ -10,8 +10,8 @@ import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // An opaque iterator keeps inner-default reads inside its step, before IteratorClose.
-// Its pattern stays native in pure mode; global mode still injects the named static.
-// This also covers a body declaration whose outer array receiver is an unknown parameter.
+// Global mode keeps the pattern and injects the named static.
+// The local iterable yields undefined, selecting the receiver default.
 const events = [];
 const iterable = {
   [Symbol.iterator]() {

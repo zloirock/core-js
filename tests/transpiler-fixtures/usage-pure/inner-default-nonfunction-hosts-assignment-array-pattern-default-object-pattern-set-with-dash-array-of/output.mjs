@@ -10,7 +10,9 @@ let S, M, alias, of, rest, race, d;
   }
 } = {
   Set: _Set,
-  "with-dash": _globalThis["with-dash"],
+  get "with-dash"() {
+    return _globalThis["with-dash"];
+  },
   Array: {
     of: _Array$of
   }

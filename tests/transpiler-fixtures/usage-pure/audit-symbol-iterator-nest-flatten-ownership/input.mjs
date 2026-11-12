@@ -10,4 +10,4 @@ fe(y);
 r2;
 const { [Symbol.iterator]: it3, Map: { groupBy: g } } = (se(), globalThis);
 it3;
-g(z);
+g(z, value => value);

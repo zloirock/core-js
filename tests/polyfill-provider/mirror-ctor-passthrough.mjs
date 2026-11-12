@@ -168,7 +168,8 @@ for (const host of ['parameter', 'declaration']) for (const boundary of ['served
     check(`${ label } supplies the whole receiver`, target.tree.entries[0].child.kind, 'polyfill');
     check(`${ label } keeps its sibling import after memoization`, target.tree.entries[1].child.pure?.entry, 'map/constructor');
     check(`${ label } defers native siblings`, target.tree.entries[2].deferred, true);
-    check(`${ label } keeps one receiver per evaluation`, target.localMemo, true);
+    check(`${ label } uses its stable realm import without capture`, !!target.localMemo, false);
+    check(`${ label } retains the deferred application route`, target.deferredReads, true);
     check(`${ label } leaves unknown child claims live`, plan.claimedProperties.includes(prop.node), false);
     check(`${ label } keeps parameter defaults conditional`, plan.claimsAlwaysDefined === false, host === 'parameter');
   });
@@ -232,13 +233,14 @@ for (const calls of ['read([[]]);', 'read([[]]); read([[]]);', 'read([[]]); read
     });
 }
 
-// An ordinary data literal cannot advance native reads across keys or merge repeated getters.
-for (const [pattern, safe] of [
-  ['Array: { of }, nativeSlot: value', true],
-  ['Array: { of }, [(hit(), "with-dash")]: other, nativeSlot: value', false],
-  ['nativeSlot: value, [(hit(), "Array")]: { of }', true],
-  ['Array: { [(hit(), "of")]: of }, nativeSlot: value', false],
-  ['Array: { of }, nativeSlot: value, nativeSlot: again', false],
+// Live native slots admit these mirrors without advancing or merging their getter reads.
+// nested-mirror-runtime checks their exact key/getter order against the native source.
+for (const [pattern, slots] of [
+  ['Array: { of }, nativeSlot: value', 1],
+  ['Array: { of }, [(hit(), "with-dash")]: other, nativeSlot: value', 2],
+  ['nativeSlot: value, [(hit(), "Array")]: { of }', 1],
+  ['Array: { [(hit(), "of")]: of }, nativeSlot: value', 1],
+  ['Array: { of }, nativeSlot: value, nativeSlot: again', 1],
 ]) runBoth(`native mirror read order/${ pattern }`,
   `const [{ ${ pattern } } = globalThis] = [];`, (parser, program, label) => {
     const leafPatternPath = parser.pickPath(program, 'ObjectPattern', node => node.node.properties[0]?.value?.name === 'of');
@@ -257,10 +259,53 @@ for (const [pattern, safe] of [
         ? { kind: 'static', entry: 'array/of', hintName: 'Array$of' } : null,
     };
     const ordinary = buildNestedParamSynthPlan(options);
-    check(`${ label } data literal admission`, !!ordinary?.targets?.length, safe);
+    check(`${ label } admits the deferred mirror`, ordinary?.targets?.length, 1);
+    const native = ordinary?.targets?.[0]?.tree.entries.filter(entry => entry.child.kind === 'passthrough');
+    check(`${ label } keeps every native slot`, native?.length, slots);
+    check(`${ label } reads each slot at binding time`, native?.every(entry => entry.deferred), true);
     const retained = buildNestedParamSynthPlan({ ...options, retainNativeReads: true });
     check(`${ label } retained capture keeps the claim`, retained?.targets?.length, 1);
     check(`${ label } retained proof does not own the ordinary plan`, !!buildNestedParamSynthPlan(options)?.targets?.length, false);
+  });
+
+// A data definition immediately before a mirror needs no wrapper getter. Crossing
+// effects, repeated reads or a script var write must keep the native read deferred.
+for (const [name, definition, use, deferred] of [
+  ['assignment', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '({ Set: S, nativeSlot: value } = globalThis);', false],
+  ['declaration', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", 'const { Set: C, nativeSlot: value } = globalThis;', false],
+  ['accessor', "Object.defineProperty(globalThis, 'nativeSlot', { get() { return 17; } });", '({ Set: S, nativeSlot: value } = globalThis);', true],
+  ['intervening call', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 }); update();", '({ Set: S, nativeSlot: value } = globalThis);', true],
+  ['prefix', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '(update(), ({ Set: S, nativeSlot: value } = globalThis));', true],
+  ['duplicate', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '({ Set: S, nativeSlot: value, nativeSlot: again } = globalThis);', true],
+  ['nested prefix', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '({ Set: { size }, nativeSlot: value } = globalThis);', true],
+  ['dynamic descriptor', "Object.defineProperty(globalThis, 'nativeSlot', descriptor);", '({ Set: S, nativeSlot: value } = globalThis);', true],
+  ['spread descriptor', "Object.defineProperty(globalThis, 'nativeSlot', { ...descriptor, value: 17 });", '({ Set: S, nativeSlot: value } = globalThis);', true],
+  ['var prefix', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", 'var { Set: stored, nativeSlot: value } = globalThis;', true],
+  ['typed receiver', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '({ Set: S, nativeSlot: value } = (globalThis as any));', false],
+  ['quoted descriptor', 'Object["defineProperty"](globalThis, "nativeSlot", { "value": 17 });', '({ Set: S, nativeSlot: value } = globalThis);', false],
+  ['computed descriptor', 'Object.defineProperty(globalThis, "nativeSlot", { ["value"]: 17 });', '({ Set: S, nativeSlot: value } = globalThis);', true],
+  ['mutated defineProperty', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '({ Set: S, nativeSlot: value } = globalThis);', true],
+  ['stale statement', "Object.defineProperty(globalThis, 'nativeSlot', { value: 17 });", '({ Set: S, nativeSlot: value } = globalThis);', true],
+]) runBoth(`data mirror timing/${ name }`,
+  `let S, again, size; ${ definition } ${ use.replace('} = ', ', Array: { of } } = ') }`,
+  (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern', item => item.node.properties[0]?.key?.name === 'of');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    if (name === 'mutated defineProperty') adapter.isMutatedStaticSlot = (object, key) => object === 'Object' && key === 'defineProperty';
+    else if (name === 'stale statement') {
+      let statement = leafPatternPath;
+      while (statement.node.type !== 'ExpressionStatement') statement = statement.parentPath;
+      statement.key = -1;
+    }
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath, adapter, meta: { kind: 'property', object: 'Array', key: 'of', placement: 'static' },
+      resolvePure: meta => meta.kind === 'global' && meta.name === 'Set'
+      ? { kind: 'global', entry: 'set/constructor', hintName: 'Set' }
+      : meta.key === 'of' ? { kind: 'static', entry: 'array/of', hintName: 'of' } : null,
+    });
+    const entry = plan?.targets?.[0]?.tree.entries.find(item => item.key === 'nativeSlot');
+    check(`${ label } retains the data slot`, !!entry, true);
+    check(`${ label } selects its read window`, !!entry?.deferred, deferred);
   });
 
 // Instance-only parameter mirrors use the same caller/default receiver proof as statics.
@@ -789,6 +834,30 @@ for (const [name, source, deferred] of [
   check(`${ label } allocates an activation only for deferred reads`, !!plan?.targets?.[0].localMemo, deferred);
 });
 
+// Immutable realm data needs neither a getter nor an activation. User slots keep
+// their binding turn, but a backed realm import itself is already a stable receiver.
+for (const backed of [false, true]) for (const key of ['undefined', 'NaN', 'Infinity', 'nativeSlot']) runBoth(
+  `realm sibling read timing/${ backed }/${ key }`,
+  `const [{ Array: { of }, ${ key }: value } = globalThis] = [];`,
+  (parser, program, label) => {
+    const leafPatternPath = parser.pickPath(program, 'ObjectPattern', path => path.node.properties
+      .some(prop => prop.key?.name === 'of'));
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath, adapter, meta: { kind: 'property', object: 'Array', key: 'of', placement: 'static' },
+      resolvePure: meta => backed && meta.kind === 'global' && meta.name === 'globalThis'
+        ? { kind: 'global', entry: 'global-this', hintName: 'globalThis' }
+        : meta.key === 'of' ? { kind: 'static', entry: 'array/of', hintName: 'of' } : null,
+    });
+    const [target] = plan?.targets ?? [];
+    check(`${ label } retains the mirror`, !!target, true);
+    check(`${ label } keeps only the user read deferred`, !!target?.tree.entries.find(entry => entry.key === key)?.deferred,
+      key === 'nativeSlot');
+    check(`${ label } defers independently of capture`, !!target?.deferredReads, key === 'nativeSlot');
+    check(`${ label } captures only an unbacked receiver`, !!target?.localMemo, !backed && key === 'nativeSlot');
+  },
+);
+
 for (const [name, source] of [
   ['default prefix', 'let probe; export function read({ Array: { prototype: { at, flat } } } = (probe = () => at, globalThis)) {}'],
   ['earlier parameter', 'let probe; export function read(first = (probe = () => at), { Array: { prototype: { at, flat } } } = globalThis) {}'],
@@ -811,7 +880,8 @@ for (const [name, source] of [
     ?.child.entries.find(entry => entry.key === 'prototype')?.child;
   check(`${ label } keeps the nested default mirror`, !!prototype, true);
   check(`${ label } defers both nested reads`, prototype?.entries.every(entry => !!entry.deferred), true);
-  check(`${ label } allocates an activation for nested reads`, !!plan?.targets?.[0].localMemo, true);
+  check(`${ label } retains deferred reads`, plan?.targets?.[0].deferredReads, true);
+  check(`${ label } needs no activation for its realm import`, !!plan?.targets?.[0].localMemo, false);
 });
 
 for (const [method, ownDefault] of [['at', true], ['flat', false]]) runBoth(

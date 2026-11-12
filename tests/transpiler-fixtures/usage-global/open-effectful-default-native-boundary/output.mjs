@@ -9,8 +9,8 @@ import "core-js/modules/es.array.push";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// An open caller cannot move its parameter pattern into the body. A native sibling read
-// after a key effect keeps this default native; its static may lack a pure polyfill.
+// An open caller keeps its parameter pattern. A mirrored default serves the static
+// while its native sibling getter still runs after the computed key.
 const events = [];
 export function read([{
   Array: {

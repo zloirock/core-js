@@ -11,7 +11,9 @@ const {
     from: f
   }
 } = c ? {
-  [_Symbol$iterator]: _getIteratorMethod(_globalThis),
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_globalThis);
+  },
   Array: {
     from: _Array$from
   }
@@ -24,7 +26,9 @@ const {
     fromEntries: fe = fb
   }
 } = c && {
-  [_Symbol$iterator]: _getIteratorMethod(_globalThis),
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_globalThis);
+  },
   Object: {
     fromEntries: _Object$fromEntries
   }

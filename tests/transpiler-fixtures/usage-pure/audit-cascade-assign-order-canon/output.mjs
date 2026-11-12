@@ -31,7 +31,9 @@ let s, f, x;
   Array: {
     from: _Array$from
   },
-  deep: _globalThis.deep
+  get deep() {
+    return _globalThis.deep;
+  }
 });
 use(s, f, x);
 let g;

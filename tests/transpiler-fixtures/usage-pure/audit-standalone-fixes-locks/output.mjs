@@ -27,7 +27,9 @@ const {
   Object: {
     keys: _Object$keys
   },
-  other: _globalThis.other
+  get other() {
+    return _globalThis.other;
+  }
 };
 export const r2 = [keys({
   a: 1

@@ -14,6 +14,8 @@ export const {
   Array: {
     from: _Array$from
   },
-  includes: _globalThis.includes
+  get includes() {
+    return _globalThis.includes;
+  }
 };
 [from, arrIncludes];

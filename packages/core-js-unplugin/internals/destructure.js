@@ -288,9 +288,6 @@ export default function createAstDestructureEmitter({
   const hopHosts = new Map();
   const navMemoPlans = new Map();
   const sentinelMemoNames = new Map();
-  // leaf patterns whose param-default synth already applied (every consumable prop of the
-  // pattern fires its own meta, and the plan renders them all in one shot)
-  const synthDone = new WeakSet();
   // the SIMPLE synth-swap ledger (a classifiable receiver, `{ from } = Array`: per-prop metas
   // register their slots; the drain renders ONE literal per pattern over the receiver)
   const synthLedger = new Map();
@@ -416,7 +413,6 @@ export default function createAstDestructureEmitter({
     deferredOnly = false,
   }) {
     const leafPattern = metaPath.parentPath;
-    if (!argumentSites && synthDone.has(leafPattern.node)) return true;
     const plan = buildNestedParamSynthPlan({
       leafPatternPath: leafPattern,
       meta,
@@ -435,8 +431,6 @@ export default function createAstDestructureEmitter({
       fallbackOnBail,
       deferredOnly,
       callerMirror: !!argumentSites,
-      // Only a rendered default closes this leaf; a bail or a caller mirror does not.
-      onApplied: () => { if (!argumentSites && !plan?.bail) synthDone.add(leafPattern.node); },
       // Caller-argument mirrors own their memo in the caller's evaluation frame.
       mintMemoRef: target => target.localMemo ? mintRefName()
         : injector.generateDeclaredRef(target.host ?? plan.host ?? metaPath),
@@ -483,6 +477,8 @@ export default function createAstDestructureEmitter({
   // Ask the shared mirror obligation before competing extraction routes, provided this host
   // has no queued job already owning it. Declaration, assignment and loop receivers may qualify.
   const patternMirrorBinding = {
+    captureInstance: captureParameterInstance,
+    isClaimedProperty: path => skippedNodes.has(path.node),
     isProcessedPattern: path => patternHoldsOnlyProcessedSentinels(path, injectorState, adapter),
     resolvePure,
     parameterCallSites,
@@ -1211,8 +1207,8 @@ export default function createAstDestructureEmitter({
       propPath: metaPath, adapter, resolvePure, isDisabledProp: isDisabled, parameterCallSites,
       isClaimedProp: path => overwriteRebindEmitted({ metaPath: path, injectorState, adapter }),
     });
-    // A completed default mirror owns its pattern before remaining siblings revisit it.
-    if (!plan || synthDone.has(plan.pattern)) return false;
+    // The shared plan excludes served leaves; a sibling mirror can leave instance reads pending.
+    if (!plan) return false;
     for (const property of plan.claimedProperties) skippedNodes.add(property);
     for (const leaf of plan.bindingProperties) resolvePropertyObjectType(leaf);
     const rendered = renderParameterInstanceCapture(plan, {

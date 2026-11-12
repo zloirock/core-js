@@ -23769,6 +23769,38 @@ function * generateInitializerEffects() {
   };
 }
 
+// Relocated heads and parameter mirrors share the source receiver, its live defaults
+// and the timing of user reads. Appended so existing evaluation-cache prefixes stay stable.
+function * generateNestedMirrorReceivers() {
+  for (const assignment of [false, true]) for (const count of [1, 2]) yield {
+    ...snippet(`nested-mirror/head/${ assignment }/${ count }`, `(() => {
+      const out = [];
+      ${ assignment ? 'let at, from;' : '' }
+      for (${ assignment ? '' : 'const' } { globalThis: { Array: { prototype: { at }, from } } }
+        of [${ Array(count).fill('globalThis').join(', ') }]) out.push(at.call(from([7]), 0));
+      return out;
+    })()`), strip: true,
+  };
+  yield {
+    ...snippet('nested-mirror/dynamic-sibling', `(() => {
+      function read(key) {
+        for (const { globalThis: { [key]: value, Array: { from } } } of [globalThis]) return [typeof value, from([7])[0]];
+      }
+      return read('Object');
+    })()`), strip: true,
+  };
+  for (const value of ['undefined', 'null', '[9]']) for (const caller of [false, true]) yield {
+    ...snippet(`nested-mirror/default/${ value }/${ caller }`, `(() => {
+      function fallback() { log.push('default'); return [7]; }
+      function read(box) {
+        function use({ y: { at } = fallback() }${ caller ? '' : ' = { y: box.list }' }) { return at.call([11], 0); }
+        try { return use(${ caller ? '{ y: box.list }' : '' }); } catch (error) { return error.name; }
+      }
+      return read({ get list() { log.push('slot'); return ${ value }; } });
+    })()`), strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -25467,4 +25499,20 @@ export function * generate() {
   yield * generateDestructurePlanLifecycle();
   yield * generateInitializerEffects();
   yield * generateResidualExtractionOrder();
+  yield * generateNestedMirrorReceivers();
+  // Keep these after the existing families: the cache keys include each chunk prefix.
+  for (const assignment of [false, true]) for (const accessor of [false, true]) yield {
+    ...snippet(`nested-mirror/data-slot/${ assignment }/${ accessor }`, `(() => {
+      ${ assignment ? 'let C = 0, value;' : '' }
+      const slot = { get x() { log.push('inner'); return typeof C; } };
+      try {
+        Object.defineProperty(globalThis, 'mirrorDataSlot', { configurable: true,
+          ${ accessor ? 'get() { log.push(typeof C); return slot; }' : 'value: slot' }
+        });
+        ${ assignment ? '({ Set: C, mirrorDataSlot: { x: value } } = globalThis);'
+        : 'const { Set: C, mirrorDataSlot: { x: value } } = globalThis;' }
+        return [typeof C, value];
+      } finally { delete globalThis.mirrorDataSlot; }
+    })()`), strip: true,
+  };
 }

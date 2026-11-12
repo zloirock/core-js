@@ -12,7 +12,9 @@ export const caught = (() => {
     }
   } = {
     Set: _Set,
-    "with-dash": _globalThis["with-dash"],
+    get "with-dash"() {
+      return _globalThis["with-dash"];
+    },
     Array: {
       of: _Array$of
     }

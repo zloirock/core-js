@@ -9403,7 +9403,7 @@ function headElementThroughName(declaratorPath, ownOnly) {
   const init = node?.type === 'VariableDeclarator' ? node.init
     : node?.type === 'AssignmentExpression' && node.operator === '=' ? node.right : null;
   if (init?.type !== 'Identifier') return null;
-  const declaration = declaratorPath.parentPath;
+  const declaration = (node.type === 'AssignmentExpression' ? climbTransparentWrapperPath(declaratorPath) : declaratorPath).parentPath;
   const loop = declaration?.parentPath?.parentPath;
   const left = loop?.node?.left;
   if ((loop?.node?.type !== 'ForOfStatement' && loop?.node?.type !== 'ForInStatement')
@@ -9637,7 +9637,8 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
 function forOfHeadReceiverPair(declaratorPath) {
   // A pattern this pass moved into the body still owns its original element's mirror.
   const relocated = ownRelocatedHeadElement(declaratorPath);
-  const loopPath = relocated ? declaratorPath.parentPath?.parentPath?.parentPath : declaratorPath.parentPath?.parentPath;
+  const source = declaratorPath.node.type === 'AssignmentExpression' ? climbTransparentWrapperPath(declaratorPath) : declaratorPath;
+  const loopPath = relocated ? source.parentPath?.parentPath?.parentPath : source.parentPath?.parentPath;
   const headPath = relocated ? loopPath.get('left').get('declarations')[0] : declaratorPath;
   const elements = forOfHeadElements(headPath, { sameCallee: true });
   if (elements?.length !== 1) return null;

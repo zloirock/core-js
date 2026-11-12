@@ -17,7 +17,9 @@ const {
     from: f
   }
 } = {
-  [_Symbol$iterator]: _getIteratorMethod(_globalThis),
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_globalThis);
+  },
   Array: {
     from: _Array$from
   }
