@@ -30,6 +30,7 @@ export const data = {
     // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
+    safari: '27.3',
   },
   'es.symbol.async-iterator': {
     chrome: '63',
@@ -44,6 +45,7 @@ export const data = {
     // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
+    safari: '27.3',
   },
   'es.symbol.for': {
     chrome: '41',
@@ -167,6 +169,7 @@ export const data = {
     // https://github.com/nodejs/node/issues/58134
     node: '24.3',
     rhino: '1.9.0',
+    safari: '27.3',
   },
   'es.error.to-string': {
     chrome: '33',
@@ -205,6 +208,7 @@ export const data = {
     deno: '2.2.10',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1971000
     firefox: '141',
+    safari: '27.3',
   },
   'es.array.at': {
     chrome: '92',
@@ -663,6 +667,7 @@ export const data = {
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     firefox: '141',
+    safari: '27.3',
   },
   'es.escape': {
     chrome: '1',
@@ -717,6 +722,7 @@ export const data = {
   'es.iterator.chunks': {
     bun: '1.4.0',
     firefox: '154',
+    safari: '27.3',
   },
   'es.iterator.concat': {
     bun: '1.3.7',
@@ -733,6 +739,7 @@ export const data = {
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     firefox: '141',
+    safari: '27.3',
   },
   'es.iterator.drop': {
     // with changes related to the new iteration closing approach on early error
@@ -807,11 +814,13 @@ export const data = {
     bun: '1.4.0',
     chrome: '154',
     firefox: '154',
+    safari: '27.3',
   },
   'es.iterator.join': {
     bun: '1.4.0',
     chrome: '153',
     firefox: '154',
+    safari: '27.3',
   },
   'es.iterator.map': {
     // with changes related to the new iteration closing approach on early error
@@ -865,16 +874,19 @@ export const data = {
   'es.iterator.windows': {
     bun: '1.4.0',
     firefox: '154',
+    safari: '27.3',
   },
   'es.iterator.zip': {
     bun: '1.4.0',
     chrome: '153',
     firefox: '148',
+    safari: '27.3',
   },
   'es.iterator.zip-keyed': {
     bun: '1.4.0',
     chrome: '153',
     firefox: '148',
+    safari: '27.3',
   },
   'es.json.is-raw-json': {
     bun: '1.1.43',
@@ -1550,7 +1562,7 @@ export const data = {
     chrome: '154', // '128',
     firefox: '156', // '134',
     // rhino: '1.9.0',
-    // safari: '18.2',
+    safari: '27.3', // '18.2',
   },
   'es.promise.with-resolvers': {
     bun: '0.7.1',
@@ -1580,6 +1592,7 @@ export const data = {
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
     chrome: '136',
     firefox: '141',
+    safari: '27.3',
   },
   'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
@@ -1709,7 +1722,7 @@ export const data = {
     firefox: '134',
     // Fixed in Safari Technology Preview 253, no confirmed stable release yet
     // https://webkit.org/blog/18357/release-notes-for-safari-technology-preview-253/
-    // safari: '18.2',
+    safari: '27.3', // '18.2',
   },
   'es.regexp.dot-all': {
     chrome: '62',
@@ -3121,6 +3134,7 @@ export const data = {
     firefox: '37',
     ie: '10',
     node: '17.0',
+    safari: '27.3',
   },
   'web.dom-exception.to-string-tag': {
     bun: '0.1.1',

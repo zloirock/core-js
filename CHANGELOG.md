@@ -134,6 +134,15 @@
 - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`; it now behaves like an omitted option
 - Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
 - Compat data improvements:
+  - Added Safari 27.3 compat data:
+    - Shipped [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features
+    - Shipped [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration)
+    - Shipped [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking)
+    - Shipped [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes)
+    - Shipped [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join)
+    - `Promise.try` updated following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883)
+    - Fixed `Error.isError`
+    - Added `DOMException#stack`
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
   - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
   - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
