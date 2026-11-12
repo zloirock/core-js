@@ -46,6 +46,7 @@ import './write-ceiling.mjs';
 import './written-binding-complexity.mjs';
 import './assignment-scan-complexity.mjs';
 import './array-index-complexity.mjs';
+import './object-property-complexity.mjs';
 import './binding-reference-index.mjs';
 import './binding-query-cache.mjs';
 import './trusted-binding-hint.mjs';

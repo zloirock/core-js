@@ -2717,7 +2717,7 @@ export function paramDefaultInstanceSynthAllowed({
   receiverNode = running(receiverNode);
   if (whole && receiverNode.type === 'ObjectExpression' && objectPatternNode.properties.some(prop => {
     const name = spelledSlotName(prop);
-    return name !== null && !!findObjectKeyBeforeSpread(receiverNode.properties, own => spelledSlotName(own) === name);
+    return name !== null && !!findObjectKeyBeforeSpread(receiverNode.properties, own => spelledSlotName(own) === name, name);
   })) return false;
   if (!patternComputedKeysSynthSafe({ objectPatternNode, scope, adapter, path, distinctReads: true })) return false;
   if (objectPatternNode.properties.some(prop => computedKeyHasSideEffects(prop, { scope, adapter, path }))
@@ -3988,7 +3988,7 @@ export function resolveNestedReceiverNode(leafPath,
       // (duplicate keys), only data properties whose key SPELLS a slot resolve, and a trailing
       // spread that could override the matched key bails (canonical helper)
       const match = seg.index === undefined && node?.type === 'ObjectExpression'
-        ? findObjectKeyBeforeSpread(node.properties, p => spelledSlotName(p) === seg.key)
+        ? findObjectKeyBeforeSpread(node.properties, p => spelledSlotName(p) === seg.key, seg.key)
         : null;
       // ... and a key standing AFTER the match that nothing can name could BE this slot at runtime
       // (`{ w: globalThis, [k]: other }`) - the pairing's own rule, asked here too so no consumer
@@ -6836,7 +6836,7 @@ function mirrorReceiverNodes({
           literalSource = true;
           return true;
         }
-        const match = findObjectKeyBeforeSpread(literal.properties, prop => spelledSlotName(prop) === hop.key);
+        const match = findObjectKeyBeforeSpread(literal.properties, prop => spelledSlotName(prop) === hop.key, hop.key);
         if (match && literal.properties.slice(literal.properties.indexOf(match) + 1)
           .some(prop => spelledSlotName(prop) === null)) return false;
         // the claim funnel keeps such a leaf native (`claimUnderSharedHopSlot`); a plan asked anyway declines
@@ -10255,7 +10255,7 @@ export function descendReceiverPathByKeys(path, hops, adapter) {
       if (!cur) return null;
     } else {
       if (node?.type !== 'ObjectExpression') return null;
-      const match = findObjectKeyBeforeSpread(node.properties, prop => spelledSlotName(prop) === hop.key);
+      const match = findObjectKeyBeforeSpread(node.properties, prop => spelledSlotName(prop) === hop.key, hop.key);
       if (!match || node.properties.slice(node.properties.indexOf(match) + 1)
         .some(prop => spelledSlotName(prop) === null)) return null;
       cur = cur.get('properties')[node.properties.indexOf(match)]?.get('value');

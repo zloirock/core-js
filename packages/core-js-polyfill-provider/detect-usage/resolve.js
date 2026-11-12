@@ -3893,7 +3893,7 @@ function patternMethodSlot(declarator, name, ctx) {
   const keys = patternLiteralKeyPath(declarator?.id, name);
   const literal = keys?.length === 1 ? followConstLiteralAlias(unwrapTransparentSeq(declarator.init), ctx) : null;
   if (literal?.type !== 'ObjectExpression') return null;
-  const prop = findObjectKeyBeforeSpread(literal.properties, item => plainSynthKeyName(item.key) === keys[0] && !item.computed);
+  const prop = findObjectKeyBeforeSpread(literal.properties, item => plainSynthKeyName(item.key) === keys[0] && !item.computed, keys[0]);
   const value = prop?.type === 'ObjectMethod' ? prop : prop?.value;
   return (prop?.type === 'ObjectMethod' ? prop.kind === 'method' : prop?.kind !== 'get' && prop?.kind !== 'set')
     && (value?.type === 'ObjectMethod' || value?.type === 'FunctionExpression' || value?.type === 'ArrowFunctionExpression') ? value : null;

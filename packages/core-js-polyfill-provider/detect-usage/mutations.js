@@ -2534,10 +2534,10 @@ function objectLiteralSlotMember(container, key, accessor = null, cache = null) 
     }
     properties = slots.get(key) ?? [];
   }
-  let member = findObjectKeyBeforeSpread(properties, prop => cache || foldedPropertyKeyName(prop) === key);
+  let member = findObjectKeyBeforeSpread(properties, prop => cache || foldedPropertyKeyName(prop) === key, key);
   if (accessor && member?.kind === (accessor === 'get' ? 'set' : 'get')) {
     const preceding = findObjectKeyBeforeSpread(properties.slice(0, properties.indexOf(member)),
-      prop => (cache || foldedPropertyKeyName(prop) === key) && prop.kind !== member.kind);
+      prop => (cache || foldedPropertyKeyName(prop) === key) && prop.kind !== member.kind, key);
     member = preceding?.kind === accessor ? preceding : null;
   }
   return member;
@@ -5607,7 +5607,7 @@ function ownerCallSlot(container, member, scopeFacts, chain, depth = 0) {
   const slot = findObjectKeyBeforeSpread(container.properties, prop => {
     const name = foldedPropertyKeyName(prop);
     return name === key || name === null;
-  });
+  }, key);
   return slot && foldedPropertyKeyName(slot) === key && slot.kind !== 'get' && slot.kind !== 'set' ? slot : null;
 }
 

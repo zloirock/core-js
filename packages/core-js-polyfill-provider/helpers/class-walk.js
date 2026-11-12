@@ -37,6 +37,7 @@ import {
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
   isVarScopeBoundary,
+  objectPropertiesForKey,
   pairedArrayWrapInitElement,
   patternLiteralKeyPath,
   peelArrayWrapBindingLayers,
@@ -1248,7 +1249,7 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
     return member ? CLASS_DATA_FIELD_TYPES.has(member.type) ? member.value ?? null : readValue(member) : null;
   }
   if (container?.type === 'ObjectExpression') {
-    const props = container.properties ?? [];
+    const props = objectPropertiesForKey(container.properties, propName) ?? [];
     let setterSeen = false;
     for (let i = props.length - 1; i >= 0; i--) {
       const p = props[i];

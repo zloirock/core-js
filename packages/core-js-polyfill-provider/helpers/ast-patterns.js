@@ -2199,25 +2199,29 @@ export function isForInitDeclaration(declarationParent, declaration) {
 }
 
 // Member ancestry, the nearest var-scope owner of a path (`findNearestVarScopeOwner`) and the value
-// canon's per-node answers (`canonAnswerTable`) are reusable only inside a read-only traversal.
+// canon's per-node answers (`canonAnswerTable`) and plain object keys are reusable in a read-only traversal.
 // Replacing an interior ancestor can preserve both endpoint paths, so endpoint checks cannot validate a
 // cached run. Scope them to the synchronous walk; pure emission and later sibling passes stay live.
 let memberContextPaths = null;
 let varScopeOwners = null;
 let canonAnswers = null;
+let objectPropertyKeys = null;
 export function withTraversalCaches(readOnly, visit) {
   const previousPaths = memberContextPaths;
   const previousOwners = varScopeOwners;
   const previousAnswers = canonAnswers;
+  const previousKeys = objectPropertyKeys;
   memberContextPaths = readOnly ? new WeakMap() : null;
   varScopeOwners = readOnly ? new WeakMap() : null;
   canonAnswers = readOnly ? { tables: new Map(), spineRoots: new WeakMap(), cuts: 0 } : null;
+  objectPropertyKeys = readOnly ? new WeakMap() : null;
   try {
     return visit();
   } finally {
     memberContextPaths = previousPaths;
     varScopeOwners = previousOwners;
     canonAnswers = previousAnswers;
+    objectPropertyKeys = previousKeys;
   }
 }
 
@@ -6564,12 +6568,41 @@ export function objectPropertyReadValue(prop, { preservesBody = false } = {}) {
 // a caller keeping the original read may allow its getter body's effects via `preservesBody`.
 export function objectLevelPairedProperty(objectNode, key, nameLater = spelledSlotName, readOptions = {}) {
   if (objectNode?.type !== 'ObjectExpression') return null;
-  const match = findObjectKeyBeforeSpread(objectNode.properties, prop => spelledSlotName(prop) === key);
+  const properties = objectPropertiesForKey(objectNode.properties, key);
+  const match = findObjectKeyBeforeSpread(properties, prop => spelledSlotName(prop) === key);
   const read = objectPropertyReadValue(match, readOptions);
   if (!read) return null;
-  if (objectNode.properties.slice(objectNode.properties.indexOf(match) + 1)
-    .some(prop => nameLater(prop) === null)) return null;
+  if ((properties === objectNode.properties || nameLater !== spelledSlotName)
+    && objectNode.properties.slice(objectNode.properties.indexOf(match) + 1)
+      .some(prop => nameLater(prop) === null)) return null;
   return { match, read };
+}
+
+// Narrow a literal's plain named properties only during a read-only traversal. Keep every duplicate
+// in source order: the caller still decides which descriptor or value wins. A spread, computed key
+// or unnamed slot keeps the original list and its caller's conservative rules. Rewriting walks and
+// standalone questions do not retain this index, so later AST edits are observed immediately. Build
+// only on a repeated query: a single read or a one-property literal pays for no property map.
+export function objectPropertiesForKey(properties, key) {
+  if (!objectPropertyKeys || !properties || properties.length < 2 || typeof key !== 'string') return properties;
+  let index = objectPropertyKeys.get(properties);
+  if (index === undefined) {
+    objectPropertyKeys.set(properties, false);
+    return properties;
+  }
+  if (index === false) {
+    index = new Map();
+    for (const prop of properties) {
+      const name = prop && !prop.computed ? propertyKeyName(prop) : null;
+      if (name === null) {
+        index = null;
+        break;
+      }
+      pushMultimap(index, name, prop);
+    }
+    objectPropertyKeys.set(properties, index);
+  }
+  return index ? index.get(key) ?? [] : properties;
 }
 
 // find the LAST own property (`Property` / `ObjectProperty`, plus babel's `ObjectMethod`) satisfying `matches` in an
@@ -6577,8 +6610,10 @@ export function objectLevelPairedProperty(objectNode, key, nameLater = spelledSl
 // returns null when a SpreadElement sits AFTER a candidate (it could inject / override the key, so
 // the literal value is not authoritative) or when nothing matches. single source for the "object
 // key value, bail on an overriding spread" rule shared by patternSlotValues / resolveNestedReceiver
-// / walkStaticReceiverTerminal (the node-side mirror of findObjectLiteralKey's spread bail)
-export function findObjectKeyBeforeSpread(properties, matches) {
+// / walkStaticReceiverTerminal (the node-side mirror of findObjectLiteralKey's spread bail).
+// A known key narrows the candidates in a read-only walk; the matcher remains authoritative.
+export function findObjectKeyBeforeSpread(properties, matches, key = null) {
+  properties = objectPropertiesForKey(properties, key);
   for (let i = (properties?.length ?? 0) - 1; i >= 0; i--) {
     const prop = properties[i];
     if (prop?.type === 'SpreadElement') return null;
@@ -6843,7 +6878,7 @@ export function patternMemberTargetPairs(pattern, rhs, ctx = null, out = []) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
       const key = patternPropKey(prop, ctx, target);
       const paired = key !== null && rhs?.type === 'ObjectExpression'
-        ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, target) === key), ctx ?? {})
+        ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, target) === key, key), ctx ?? {})
         : null;
       patternMemberTargetPairs(prop.value, paired ?? (rhs && receiverSlotRead(rhs, key, key === null ? prop.key : null)), ctx, out);
     }
@@ -6968,7 +7003,7 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       continue;
     }
     const pairedProperty = rhs?.type === 'ObjectExpression'
-      ? findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key) : null;
+      ? findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key, key) : null;
     const paired = rhs?.type === 'ObjectExpression'
       ? objectPropertyReadValue(pairedProperty, ctx ?? {})
       : arrayLiteralSlotValue(rhs, key);
@@ -7434,7 +7469,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       const candidates = arrayIndex !== null ? arrayWrapSlotValueCandidates(rhs.elements, arrayIndex)
         : key !== null
           ? rhs?.type === 'ObjectExpression'
-            ? [objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key), ctx ?? {})]
+            ? [objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key, key), ctx ?? {})]
             : CLASS_NODE_TYPES.has(rhs?.type) ? [classStaticSlotValue(rhs, key)] : []
           : [];
       const paired = candidates.filter(Boolean);
@@ -7504,7 +7539,8 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
           ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic,
         )
           : key !== null && rhs?.type === 'ObjectExpression'
-            ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key)) : null;
+            ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties,
+              rp => patternPropKey(rp, ctx, pattern) === key, key)) : null;
         if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
       }
       if (prop.value.type === 'AssignmentPattern'
@@ -10798,15 +10834,22 @@ export function methodReadsUsageCensus(method) {
 // wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
 // classifier distinguishes emit positions by
 export function collectFileCensus(programNode, reducers) {
-  // The file's constructor-key answer rides the raw walk, then publishes before finalization.
-  const asksConstructorKey = !CONSTRUCTOR_KEY_READS.has(programNode);
-  const constructorKeyRead = walkFileCensus(programNode, reducers, asksConstructorKey);
-  if (asksConstructorKey) CONSTRUCTOR_KEY_READS.set(programNode, constructorKeyRead);
-  // Finalize shared facts before a result consumes another reducer's observations.
-  for (const reducer of reducers) reducer.prepare?.();
-  const census = {};
-  for (const reducer of reducers) Object.assign(census, reducer.result());
-  return census;
+  const previousKeys = objectPropertyKeys;
+  // Reducers build their facts in stages, but the source property lists stay unchanged throughout.
+  objectPropertyKeys = new WeakMap();
+  try {
+    // The file's constructor-key answer rides the raw walk, then publishes before finalization.
+    const asksConstructorKey = !CONSTRUCTOR_KEY_READS.has(programNode);
+    const constructorKeyRead = walkFileCensus(programNode, reducers, asksConstructorKey);
+    if (asksConstructorKey) CONSTRUCTOR_KEY_READS.set(programNode, constructorKeyRead);
+    // Finalize shared facts before a result consumes another reducer's observations.
+    for (const reducer of reducers) reducer.prepare?.();
+    const census = {};
+    for (const reducer of reducers) Object.assign(census, reducer.result());
+    return census;
+  } finally {
+    objectPropertyKeys = previousKeys;
+  }
 }
 
 // Keep the per-node loop separate from one-time cache publication and reducer finalization.
