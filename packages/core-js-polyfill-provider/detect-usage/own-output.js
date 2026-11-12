@@ -28,6 +28,7 @@ import {
   closestBindingVisibleAtUse,
   isPropertyNode,
   patternSlotTarget,
+  patternSlotHost,
   POSSIBLE_GLOBAL_OBJECTS,
   SKIPPABLE_WRAPPER_TYPES,
   blocksUidSlot,
@@ -39,6 +40,7 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   identifierDeclaratorInit,
   initializerReachesRead,
+  importBindingView,
   isNullLiteralNode,
   isReassignedBeyondDeclarator,
   kebabToCamel,
@@ -49,6 +51,7 @@ import {
   provablyPrecedes,
   walkAstNodes,
   reassignmentDominatesUsage,
+  receiverSpineChild,
   requireCallSource,
   resolveFallbackReceiver,
   rootProgramOf,
@@ -63,21 +66,45 @@ import {
 // the full test bag the censuses take, bound to a live injector: the source test plus the
 // own-pass exclusion (a name THIS pass minted is a sibling emission, not a prior pass's).
 // memoized per injector (one per file) - the bag also carries the per-program shape gate
-// below, so a raw file pays no census cost at all
+// below, so ordinary source skips the import-based censuses
 const TESTS_BY_INJECTOR = new WeakMap();
 export function ownOutputTests(injector) {
   let tests = TESTS_BY_INJECTOR.get(injector);
   if (!tests) {
     const shapeByProgram = new WeakMap();
+    const memoByScope = new WeakMap();
     tests = {
       packages: injector.packages ?? [injector.pkg],
       isPureImportSource: pureImportSourceTest(injector.packages ?? [injector.pkg]),
       isOwnPassBinding: name => injector.isOwnPassPureBinding(name),
       isOwnPassName: name => injector.isOwnPassGeneratedName?.(name) === true,
-      // may this program hold ANY own-output spelling? every census bottoms out in a
-      // prior-pass pure binding or an adopted `_refN` declaration at the program root -
-      // a file with neither answers every census false, so the funnels skip the family
-      // wholesale (the scan runs once per file, not per claim)
+      // Without imports, only a visible source memo can open the bundled-output proof.
+      // Scope names are shared by both parsers. Newly minted refs belong to this pass,
+      // so a cached absence stays valid; a prior-output pass gets fresh scope objects.
+      scopeMayHoldOwnMemo(scope) {
+        const cached = memoByScope.get(scope);
+        if (cached !== undefined) return cached;
+        const pending = [];
+        let may = false;
+        for (let cur = scope; cur; cur = cur.parent) {
+          const known = memoByScope.get(cur);
+          if (known !== undefined) {
+            may = known;
+            break;
+          }
+          pending.push(cur);
+          for (const name of Object.keys(cur.bindings ?? {})) if (ORPHAN_REF_PATTERN.test(name) && !tests.isOwnPassName(name)) {
+            may = true;
+            break;
+          }
+          if (may) break;
+        }
+        for (const cur of pending) memoByScope.set(cur, may);
+        return may;
+      },
+      // Most own-output proofs require a prior-pass pure binding. Scan once per file,
+      // not per claim. A bundled memo can instead prove ownership at its capture;
+      // checking that local shape needs no additional whole-program scan.
       programMayHoldOwnOutput(rootNode, includePendingImports = false) {
         // Requeued guards can precede insertion of this pass's import declarations.
         // Only their guard check needs pending imports; prior-output censuses keep
@@ -102,10 +129,6 @@ export function ownOutputTests(injector) {
             if (decl?.type !== 'VariableDeclaration') continue;
             for (const declarator of decl.declarations) {
               if (declarator.id?.type !== 'Identifier') continue;
-              if (!declarator.init && ORPHAN_REF_PATTERN.test(declarator.id.name)) {
-                may = true;
-                break;
-              }
               const required = requireCallSource(declarator.init);
               if (required !== null && tests.isPureImportSource(required)) {
                 may = true;
@@ -150,8 +173,14 @@ function pureDefaultImportBinding(path, name, { isPureImportSource, isOwnPassBin
   const binding = closestBindingVisibleAtUse(scope?.getBinding(name), path, {
     outer: hidden => hidden.scope?.parent?.getBinding(name),
   });
-  return !binding || (!isReassignedBeyondDeclarator(binding)
-    && aliasDeclScope(binding, scope)?.path?.node === root);
+  if (!binding) return true;
+  if (isReassignedBeyondDeclarator(binding) || aliasDeclScope(binding, scope)?.path?.node !== root) return false;
+  // Another transform may rewrite a source without changing the program's length.
+  // The name index is a candidate lookup; the live declaration proves ownership.
+  const declaration = bindingDeclarationPath(binding);
+  const liveSource = tsImportEqualsRequireSource(declaration?.node)
+    ?? importBindingView(declaration?.node, declaration?.parentPath?.node).importSource;
+  return liveSource !== null && isPureImportSource(liveSource);
 }
 
 // the SUBSTITUTED DEFAULT a prior pass left in place (`({ [(se, 'k')]: f = _X } = R)` -
@@ -285,19 +314,79 @@ function guardedAliasAlternateRead(path, packages) {
   return false;
 }
 
-// A member or pattern claim over an adopted GENERATED REF (`_ref.slice(1)` where `_ref` memoizes a
-// value the first pass already typed and adjudicated): the raw spelling IS the verdict -
-// re-claiming through the ref's unknown type would upgrade it to a maybe-dispatch
+// A generated receiver is owned only with a matching pure extraction in its capture's
+// expression. Babel also allocates initless `_refN` variables: the name and declaration
+// alone cannot suppress their claims. Resolve the visible binding, including function
+// locals, and require every write to belong to the same rendered expression.
 function adoptedRefReceiverClaim(node, path, tests = null) {
   const receiver = unwrapRuntimeExpr(node);
   if (receiver?.type !== 'Identifier' || !ORPHAN_REF_PATTERN.test(receiver.name)) return false;
   // a `_refN` THIS pass minted is a sibling emission's memo, not an adopted prior verdict
   if (tests?.isOwnPassName?.(receiver.name)) return false;
-  for (const stmt of rootProgramOf(path)?.body ?? []) {
-    if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'var') continue;
-    for (const declarator of stmt.declarations) {
-      if (declarator.id?.type === 'Identifier' && declarator.id.name === receiver.name && !declarator.init) return true;
+  const binding = closestBindingVisibleAtUse(path.scope?.getBinding(receiver.name), path, {
+    outer: hidden => hidden.scope?.parent?.getBinding(receiver.name),
+  });
+  const declaration = bindingDeclarationPath(binding);
+  if (declaration?.node?.type !== 'VariableDeclarator' || declaration.node.init
+    || declaration.node.id?.type !== 'Identifier' || declaration.parentPath?.node?.kind !== 'var') return false;
+  // Every read of this binding shares the proof only while the tree is read-only.
+  const answers = canonAnswerTable(adoptedRefReceiverClaim, [tests]);
+  const known = answers?.get(binding);
+  if (known !== undefined) return known;
+  function answer(value) {
+    answers?.set(binding, value);
+    return value;
+  }
+  const writes = binding.constantViolations ?? [];
+  let owned = false;
+  for (let write of writes) {
+    if (write.node?.type === 'Identifier') {
+      const host = patternSlotHost(write.node, write)?.host;
+      write = host && pathOfNode(write, host);
     }
+    if (write?.node?.type === 'VariableDeclarator' && !write.node.init) continue;
+    if (write?.node?.type !== 'AssignmentExpression' || write.node.operator !== '=') return answer(false);
+    if (write.node.left?.type === 'ArrayPattern' && arrayCaptureHasPureExtraction(write, receiver.name, tests)) {
+      owned = true;
+      continue;
+    }
+    if (write.node.left?.type !== 'Identifier' || write.node.left.name !== receiver.name) return answer(false);
+    let host = write;
+    while (host.parentPath && (SKIPPABLE_WRAPPER_TYPES.has(host.parentPath.node?.type)
+      || host.parentPath.node?.type === 'SequenceExpression'
+      || host.parentPath.node?.type === 'BinaryExpression'
+      || host.parentPath.node?.type === 'ConditionalExpression'
+      || host.parentPath.node?.type === 'CallExpression'
+      || host.parentPath.node?.type === 'MemberExpression'
+      || host.parentPath.node?.type === 'OptionalCallExpression'
+      || host.parentPath.node?.type === 'OptionalMemberExpression')) host = host.parentPath;
+    if (!navHoldsMintedSeCall(host.node, host, tests ?? {}, receiver.name)) return answer(false);
+    owned = true;
+  }
+  return answer(owned);
+}
+
+// A positional capture keeps a native neighbour beside an extracted instance slot.
+// Its hole still evaluates the named receiver; the next extraction reads that same
+// receiver through a pure import. A foreign array assignment alone proves nothing.
+function arrayCaptureHasPureExtraction(write, name, tests) {
+  const { left } = write.node;
+  const right = unwrapRuntimeExpr(write.node.right);
+  if (right?.type !== 'ArrayExpression' || right.elements.length !== left.elements.length
+    || right.elements.some(node => node?.type === 'SpreadElement')
+    || left.elements.every(node => node?.type !== 'Identifier' || node.name !== name)) return false;
+  const { host, container, list } = patternExtractionContext(write);
+  const index = list?.indexOf(host.node) ?? -1;
+  if (index === -1) return false;
+  const next = list[index + 1];
+  const reads = next?.type === 'VariableDeclaration' ? next.declarations.map(decl => decl.init)
+    : next?.type === 'ExpressionStatement' ? [next.expression] : [];
+  const at = next && pathOfNode(container, next);
+  if (!at) return false;
+  for (const [i, slot] of left.elements.entries()) {
+    const receiver = unwrapRuntimeExpr(right.elements[i]);
+    if (slot || receiver?.type !== 'Identifier') continue;
+    if (reads.some(node => navHoldsMintedSeCall(node, at, tests, receiver.name))) return true;
   }
   return false;
 }
@@ -442,7 +531,9 @@ function navHoldsRenderedGuard(objectNode, path, tests, adapter = null) {
 // prior pass's output: its pending claims are spent, and a fresh claim over it would
 // UPGRADE a verdict the first pass settled (`(push, _globalThis)[key]?.tail` collapsed on
 // the second pass where the first deliberately kept the source `?.`)
-function navHoldsMintedSeCall(objectNode, path, tests) {
+// For an adopted memo, the call must also read that memo as its receiver. An unrelated
+// pure call in the same expression cannot prove the capture belongs to our output.
+function navHoldsMintedSeCall(objectNode, path, tests, capturedName = null) {
   const stack = [objectNode];
   while (stack.length) {
     const cur = unwrapRuntimeExpr(stack.pop());
@@ -470,13 +561,39 @@ function navHoldsMintedSeCall(objectNode, path, tests) {
       continue;
     }
     if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') {
+      if (capturedName !== null) {
+        let used = false;
+        for (let [arg] = cur.arguments; arg; arg = receiverSpineChild(arg)) {
+          if (arg.type === 'Identifier' && arg.name === capturedName
+            || arg.type === 'AssignmentExpression' && arg.operator === '=' && arg.left?.name === capturedName) {
+            used = true;
+            break;
+          }
+        }
+        stack.push(cur.callee);
+        if (!used) continue;
+      }
       // the minted dispatch reads `_x(recv).call(recv, ...)` - the callee spells the import
       // one or two member hops in. an OPTIONAL dispatch (`_x(_ref = recv)?.call(_ref, ...)`) is the
       // same render, and babel spells its hops `Optional*` where estree flags a plain node: reading
       // one spelling alone made this census answer per LEG, re-claiming on pass 2 what pass 1 left
       let callee = unwrapRuntimeExpr(cur.callee);
+      const invoke = callee;
       if (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') {
         callee = unwrapRuntimeExpr(callee.object);
+      }
+      // Bundling may erase the import, but the dispatch still captures its first
+      // argument and invokes the returned method with exactly that receiver.
+      if (capturedName !== null && memberKeyName(invoke) === 'call'
+        && callee?.type === 'CallExpression' && callee.callee?.type === 'Identifier'
+        && callee.callee.name.startsWith('_')) {
+        const capture = unwrapRuntimeExpr(callee.arguments[0]);
+        const receiver = unwrapRuntimeExpr(cur.arguments[0]);
+        const helper = path.scope?.getBinding(callee.callee.name);
+        if (capture?.type === 'AssignmentExpression' && capture.operator === '='
+          && capture.left?.type === 'Identifier' && receiver?.type === 'Identifier'
+          && receiver.name === capture.left.name && (!helper || helper.kind !== 'param'
+            && !isReassignedBeyondDeclarator(helper))) return true;
       }
       if (callee?.type === 'CallExpression' || callee?.type === 'OptionalCallExpression') {
         callee = unwrapRuntimeExpr(callee.callee);
@@ -492,8 +609,9 @@ function navHoldsMintedSeCall(objectNode, path, tests) {
 // (`(_refN = _atMaybeArray(recv)) === void 0 ? kept : _refN`), and the STATIC form, which is the
 // import BINDING itself (`gb = _Map$groupBy`) - a value, with no call to recognize it by. a bare
 // binding is the one spelling a user could plausibly write beside their own destructure, so it
-// counts only where the name spells the PROP'S OWN key: `_Map$groupBy` beside `{ groupBy: gb }` is
-// our own overwrite, `_Array$from` beside it is somebody else's line
+// counts only where the entry names the PROP'S OWN key: an aliased map/group-by import beside
+// `{ groupBy: gb }` is our overwrite, an array/from import beside it is somebody else's line.
+// A null key checks an intervening rebind in the same run, not the selected property.
 function rebindReadsOurPolyfill(node, stmt, tests, key) {
   const stack = [node];
   while (stack.length) {
@@ -520,9 +638,11 @@ function rebindReadsOurPolyfill(node, stmt, tests, key) {
       if (callee?.type === 'Identifier' && pureDefaultImportBinding(stmt, callee.name, tests)) return true;
       continue;
     }
-    if (expr.type !== 'Identifier' || typeof key !== 'string') continue;
+    if (expr.type !== 'Identifier') continue;
     if (!pureDefaultImportBinding(stmt, expr.name, tests)) continue;
-    const target = mintedNameTarget(expr.name);
+    if (key === null) return true;
+    if (typeof key !== 'string') continue;
+    const target = pureEntryTarget(pureImportEntryOf(stmt, expr.name, tests.packages));
     if (target && (target.member ?? target.global) === key) return true;
   }
   return false;
@@ -532,28 +652,43 @@ function rebindReadsOurPolyfill(node, stmt, tests, key) {
 // (`({ y: { flat: m } } = obj);\nm = _flatMaybeArray(x);`): a re-transform of our own
 // output must not claim the pattern's prop again - the rebind already owns the binding,
 // and re-claiming appended one more rebind per pass. recognized by shape, ahead of the
-// claim routes in both emitters: the ASSIGNMENT-form host statement's NEXT sibling assigns
+// claim routes in both emitters: the ASSIGNMENT-form host statement's NEXT sibling, or
+// the start of a parameter's body, assigns
 // the prop's LOCAL from a call whose callee is a DEFAULT import (or require binding) of
 // the pure package - the spelling only our own overwrite channel writes there. a user
 // hand-writing that exact sandwich forfeits the claim with it (the sentinel census's
 // accepted adoption risk)
 function overwriteRebindSibling(path, { localName, key, ...tests }) {
   if (typeof localName !== 'string') return false;
-  let stmt = path;
-  while (stmt?.parentPath?.node && stmt.node.type !== 'ExpressionStatement') stmt = stmt.parentPath;
-  if (stmt?.node?.type !== 'ExpressionStatement') return false;
-  const list = statementListOf(stmt.parentPath?.node);
-  if (!Array.isArray(list)) return false;
+  const { host: stmt, container, list, parameter } = patternExtractionContext(path);
+  if (!Array.isArray(list) || !parameter && stmt?.node?.type !== 'ExpressionStatement') return false;
+  const index = parameter ? -1 : list.indexOf(stmt.node);
+  if (!parameter && index === -1) return false;
   // a multi-prop pattern appends ONE rebind per claimed prop - scan the following RUN of
   // rebind-shaped statements, not just the first
-  for (let at = list.indexOf(stmt.node) + 1; at < list.length; at++) {
+  for (let at = index + 1; at < list.length; at++) {
     const assign = list[at]?.type === 'ExpressionStatement' ? list[at].expression : null;
     if (assign?.type !== 'AssignmentExpression' || assign.operator !== '='
       || assign.left?.type !== 'Identifier') return false;
-    if (!rebindReadsOurPolyfill(assign.right, stmt, tests, key)) return false;
+    const assignPath = pathOfNode(container, assign);
+    if (!assignPath || !rebindReadsOurPolyfill(assign.right, assignPath, tests, assign.left.name === localName ? key : null)) return false;
     if (assign.left.name === localName) return true;
   }
   return false;
+}
+
+// Pattern extractions land beside their statement, or at the start of the body when
+// the pattern binds a parameter. A parameter is never a sibling in that body list.
+function patternExtractionContext(path) {
+  let host = path;
+  while (host?.parentPath && !statementListOf(host.parentPath.node)) {
+    if (host.parentPath.node?.params?.includes(host.node)) {
+      const container = host.parentPath.get('body');
+      return { host, container, list: statementListOf(container.node), parameter: true };
+    }
+    host = host.parentPath;
+  }
+  return { host, container: host?.parentPath, list: statementListOf(host?.parentPath?.node), parameter: false };
 }
 
 // a sentinel-valued prop a PRIOR pass printed (`{ key: _unusedN }`): ours outright, or an
@@ -602,22 +737,10 @@ export function patternHoldsOnlyProcessedSentinels(pattern, injector, adapter) {
 // A residual constructor uses the same proof against its immediately following static
 // extraction; unrelated earlier or later imports cannot own that native receiver.
 function extractionSibling(path, { key, symbolIterator, injector, receiver = null }) {
-  let p = path;
-  let paramsBody = null;
-  while (p?.parentPath && !statementListOf(p.parentPath.node)) {
-    // a sentinel standing in a function's PARAM pattern is answered by that function's BODY:
-    // the extraction our own pass wrote for it went to the top of the body, not beside the
-    // function (`function f({ from: _unused, ...rest } = R) { let from = _X; }`). without the
-    // hop the climb reaches the enclosing statement list, finds nothing, and the next pass
-    // re-extracts the sentinel as a live binding - the file grows per pass
-    if (Array.isArray(p.parentPath.node?.params) && p.parentPath.node.params.includes(p.node)) {
-      paramsBody = statementListOf(p.parentPath.node.body);
-      break;
-    }
-    p = p.parentPath;
-  }
-  const list = paramsBody ?? statementListOf(p?.parentPath?.node);
+  const { host: p, container, list, parameter } = patternExtractionContext(path);
   if (!Array.isArray(list)) return false;
+  const index = list.indexOf(p.node);
+  if (receiver && (parameter || index === -1)) return false;
   function extractsKey(name) {
     const entry = injector?.getPureImport(name)?.entry ?? pureImportEntryOf(path, name, injector?.packages);
     if (!entry) return false;
@@ -666,7 +789,7 @@ function extractionSibling(path, { key, symbolIterator, injector, receiver = nul
       if (symbolIterator && e.type !== 'CallExpression') continue;
       const callee = e.type === 'CallExpression' ? unwrapRuntimeExpr(e.callee) : e;
       if (callee?.type === 'Identifier' && extractsKey(callee.name)) {
-        const source = pathOfNode(p.parentPath, callee);
+        const source = pathOfNode(container, callee);
         if (!source) continue;
         const binding = closestBindingVisibleAtUse(source.scope?.getBinding(callee.name), source, {
           outer: hidden => hidden.scope?.parent?.getBinding(callee.name),
@@ -716,7 +839,15 @@ function extractionSibling(path, { key, symbolIterator, injector, receiver = nul
         break;
     }
   }
-  const siblings = receiver ? list.slice(list.indexOf(p.node) + 1, list.indexOf(p.node) + 2) : list;
+  // Expression-position drains put the extraction before the residual in its own
+  // sequence. Its outer host (call argument, loop test, literal, ...) is irrelevant.
+  if (!receiver) for (let cur = path; cur && cur !== p; cur = cur.parentPath) {
+    const sequence = cur.parentPath?.node;
+    if (sequence?.type !== 'SequenceExpression') continue;
+    const at = sequence.expressions.indexOf(cur.node);
+    for (let i = 0; i < at; i++) if (readsPureImport(sequence.expressions[i])) return true;
+  }
+  const siblings = receiver ? list.slice(index + 1, index + 2) : list;
   for (const stmt of siblings) for (const init of inits(stmt)) if (init && readsPureImport(init)) return true;
   return false;
 }
@@ -874,7 +1005,8 @@ export function ownEmittedNavClaim(node, metaPath, tests, adapter = null, meta =
   if (tests.programMayHoldOwnOutput) {
     const root = rootProgramOf(metaPath);
     if (!tests.programMayHoldOwnOutput(root)) {
-      return tests.programMayHoldOwnOutput(root, true) && guardedAliasAlternateRead(metaPath, tests?.packages);
+      return tests.scopeMayHoldOwnMemo?.(metaPath.scope) && adoptedRefReceiverClaim(node.object, metaPath, tests)
+        || tests.programMayHoldOwnOutput(root, true) && guardedAliasAlternateRead(metaPath, tests?.packages);
     }
   }
   return guardedAliasAlternateRead(metaPath, tests?.packages)
@@ -1093,7 +1225,9 @@ function patternSlotHoldsPureImport(path, tests, adapter, { defined = false, out
 // the pattern funnel: every destructure-prop census in one gate, ahead of both emitters'
 // destructure routes. `metaPath` is the prop's path
 export function ownEmittedPatternClaim(metaPath, tests, adapter = null) {
-  if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;
+  if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) {
+    return tests.scopeMayHoldOwnMemo?.(metaPath.scope) && ownRenderedPatternReceiver(metaPath, tests) || false;
+  }
   if (defaultHoldsPureImport(metaPath, tests)
     || patternDefaultHoldsPureImport(metaPath, tests)
     || patternSlotHoldsPureImport(metaPath, tests, adapter)

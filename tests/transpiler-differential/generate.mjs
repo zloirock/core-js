@@ -25515,4 +25515,15 @@ export function * generate() {
       } finally { delete globalThis.mirrorDataSlot; }
     })()`), strip: true,
   };
+  // Foreign temporary names survive other lowerings; no spelling proves prior ownership.
+  for (const scope of ['program', 'function']) for (const shape of ['member', 'pattern', 'lowered']) {
+    const body = `var _ref; const rows = [3, 7];
+      ${ shape === 'lowered' ? 'return (_ref = rows || []) === null || _ref === void 0 ? void 0 : _ref.at(-1);'
+        : `_ref = rows; ${ shape === 'pattern' ? 'const { at } = _ref; return at.call(_ref, -1);' : 'return _ref.at(-1);' }` }`;
+    yield {
+      name: `foreign-capture/${ scope }/${ shape }`, strip: true,
+      code: scope === 'program' ? `${ body.replace('return ', 'export const r = ') } export const effects = [];`
+        : `function read() { ${ body } } export const r = read(); export const effects = [];`,
+    };
+  }
 }
