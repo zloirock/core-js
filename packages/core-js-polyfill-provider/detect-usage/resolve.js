@@ -1057,21 +1057,23 @@ export function aliasRootedReadMayThrow(node, resolvePure, aliasCtx) {
   return !(aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, cur.name));
 }
 
-// OUR OWN render, read back: a claim whose probe fired leaves the source's read as a NON-FINAL element
-// of a sequence whose tail is the ponyfill binding it resolved to (`(held.of, _Array$of)`). both
-// emitters recognise a render inside one pass by its missing source span, but a RE-PARSE gives it a
-// real one - and the emitters run over each other's output in the sandwich, so without a shape-level
-// check the claim fires again on every pass. the `in` fold spells the same self-recognition for its
-// kept test, and declines a hand-written twin the same way: the shape already IS the answer
+// A retained read is followed by its imported answer, possibly inside a larger sequence.
+// Climb only transparent wrappers and sequence tails: a call, store or selected arm consumes
+// the value differently. Adjacent import provenance survives flattening and re-parsing.
 export function claimAlreadyRendered(node, { scope, adapter, path }) {
   if (!path || path.node !== node) return false;
-  const parent = path.parentPath?.node;
-  if (parent?.type !== 'SequenceExpression') return false;
-  const parts = parent.expressions ?? [];
-  const index = parts.indexOf(node);
-  if (index === -1 || index === parts.length - 1) return false;
-  const tail = parts.at(-1);
-  return tail?.type === 'Identifier' && !!adapter?.getBinding?.({ scope, name: tail.name, path, read: tail })?.polyfillHint;
+  for (let cur = climbTransparentWrapperPath(path), up = cur.parentPath; up?.node; up = cur.parentPath) {
+    if (up.node.type !== 'SequenceExpression') return false;
+    const parts = up.node.expressions;
+    const index = parts.indexOf(cur.node);
+    if (index === -1) return false;
+    if (index < parts.length - 1) {
+      const next = unwrapRuntimeExpr(parts[index + 1]);
+      return next?.type === 'Identifier' && !!adapter?.getBinding?.({ scope, name: next.name, path, read: next })?.polyfillHint;
+    }
+    cur = climbTransparentWrapperPath(up);
+  }
+  return false;
 }
 
 // the RECEIVER-position twin: a receiver spelled as our probe sequence (`(held.X, _Ponyfill)

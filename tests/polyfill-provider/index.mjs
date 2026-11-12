@@ -34,6 +34,7 @@ import './retained-getter-locals.mjs';
 import './retained-return-paths.mjs';
 import './selected-realm-receivers.mjs';
 import './own-output-captures.mjs';
+import './own-output-guards.mjs';
 import './proxy-chain-complexity.mjs';
 import './alias-chain-depth.mjs';
 import './wrapper-chain-depth.mjs';
