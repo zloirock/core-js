@@ -1,5 +1,5 @@
 import targetsParser from '@core-js/compat/targets-parser';
-import { COMPRESSION, DELIVERY_DEFAULT, DELIVERY_MODES, ENCODING_PREFERENCE, RETAIN, ROUTE } from '../../config.js';
+import { COMPRESSION_DEFAULT, DELIVERY_DEFAULT, DELIVERY_MODES, ENCODING_PREFERENCE, RETAIN_DEFAULT, ROUTE_DEFAULT } from '../../config.js';
 
 // which representations of every bundle are stored, and with what. an encoding is named by the
 // token it carries on the wire, so what a developer writes here is what a client asks for and what
@@ -59,9 +59,9 @@ export default function configure(options, { warn, resolveVersions }) {
     exclude = [],
     minify = true,
     directory = null,
-    retain = RETAIN,
-    compression = COMPRESSION,
-    route = ROUTE,
+    retain = RETAIN_DEFAULT,
+    compression = COMPRESSION_DEFAULT,
+    route = ROUTE_DEFAULT,
     delivery = DELIVERY_DEFAULT,
     ...unknown
   } = options;

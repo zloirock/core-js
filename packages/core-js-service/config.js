@@ -5,7 +5,7 @@ export const CONTENT_TYPE = 'text/javascript; charset=utf-8';
 
 // where the bundles are mounted. configurable, because a fixed path is a path that collides
 // with somebody else's
-export const ROUTE = '/__core-js';
+export const ROUTE_DEFAULT = '/__core-js';
 
 // how the page reaches its bundle: `bundle` puts the bundle's own address into the tag, `fixed`
 // puts one address there for every browser and picks the bundle when the script is asked for
@@ -24,12 +24,12 @@ export const ENCODING_PREFERENCE = ['br', 'gzip', 'identity'];
 
 // which representations of a bundle are stored. brotli is off by default: it saves little over gzip
 // and costs about as much as building the bundle again, a price every bundle of the warm-up pays
-export const COMPRESSION = { identity: true, gzip: true };
+export const COMPRESSION_DEFAULT = { identity: true, gzip: true };
 
 // how many generations of bundles stay on disk beside the one being served. one covers both cases
 // that matter: the page of the deploy just replaced is already in a browser and will ask for its
 // bundle in a moment, and a rollback finds its bundles where it left them
-export const RETAIN = 1;
+export const RETAIN_DEFAULT = 1;
 
 // how much of a header written by the CLIENT is read at all. past the bound it is not read AT
 // ALL, never truncated: a cut `;q=0` or a cut `Version/` changes what the header says rather than

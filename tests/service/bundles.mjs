@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { gunzip } from 'node:zlib';
 import createBundles from '../../packages/core-js-service/internals/infrastructure/bundles.js';
-import { COMPRESSION } from '../../packages/core-js-service/config.js';
+import { COMPRESSION_DEFAULT } from '../../packages/core-js-service/config.js';
 
 const decompress = promisify(gunzip);
 const SCRIPT = '!function () { \'use strict\'; var polyfilled = true; }();\n';
@@ -18,7 +18,7 @@ function warnings() {
 // bytes only, never a path, and asynchronous even where the store is not. a path would pin the
 // store to a local disk forever - not because Redis or S3 are hard to write, but because every
 // caller would already be built around a file
-const memory = createBundles({ generation: 'a1b2c3d4e5f60718', compression: COMPRESSION, warn: warnings().warn });
+const memory = createBundles({ generation: 'a1b2c3d4e5f60718', compression: COMPRESSION_DEFAULT, warn: warnings().warn });
 
 strictEqual(await memory.has('nothing'), false, 'bundles #1');
 strictEqual(await memory.get('nothing', 'identity'), null, 'bundles #2');
@@ -41,7 +41,7 @@ strictEqual((await decompress(await memory.get('abc', 'gzip'))).toString('utf8')
 strictEqual(await memory.get('abc', 'br'), null, 'bundles #8');
 
 const withBrotli = createBundles({ generation: 'a1b2c3d4e5f60718',
-  compression: { ...COMPRESSION, br: {} }, warn: warnings().warn });
+  compression: { ...COMPRESSION_DEFAULT, br: {} }, warn: warnings().warn });
 
 // and what is not asked for is not held: a representation kept in memory but never written would
 // make a restart serve less than the process that stored it
@@ -62,7 +62,7 @@ const GENERATION = 'a1b2c3d4e5f60718';
 const NEXT = '00112233445566aa';
 const THIRD = 'ffeeddccbbaa9988';
 function store(options = {}) {
-  return createBundles({ directory, generation: GENERATION, compression: COMPRESSION, retain: 1, warn: warnings().warn, ...options });
+  return createBundles({ directory, generation: GENERATION, compression: COMPRESSION_DEFAULT, retain: 1, warn: warnings().warn, ...options });
 }
 
 try {
@@ -147,7 +147,7 @@ try {
 
   const readOnly = warnings();
   const blocked = createBundles({
-    directory: join(directory, 'nested'), generation: GENERATION, compression: COMPRESSION, warn: readOnly.warn,
+    directory: join(directory, 'nested'), generation: GENERATION, compression: COMPRESSION_DEFAULT, warn: readOnly.warn,
   });
 
   await blocked.put('def', { modules: [], script: SCRIPT });
