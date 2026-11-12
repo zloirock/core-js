@@ -204,6 +204,7 @@ import {
   nestedAssignmentStatementOf,
   hopSplitPlan,
   proxyNavHead,
+  pristineProxyHopTail,
   typedNavClaimChain,
   resolveDestructureReceiverPlan,
   destructureHostThroughWrappers,
@@ -601,7 +602,7 @@ export function planNestedDeclarationReceiver({
     const base = resolvePassthroughRef({
       keyPath: headKeys, receiverName: rootName, receiverIsProxy: true, resolveGlobalPolyfill, adapter,
     });
-    const hops = keys.filter((key, index) => !(index === 0 && keys.length > 1 && isPristineProxyGlobal(adapter, key)));
+    const hops = pristineProxyHopTail(keys, adapter, null, true);
     if (!symbolLeaf && !typedChain && !isInstanceSurfaceNav(hops.reduce(memberFromKeyName, identifier('_')))) return null;
     return {
       pure: base.pure,
@@ -647,11 +648,12 @@ export function planNestedDeclarationReceiver({
   const selected = unwrapRuntimeExpr(decidedRunningOperand(receiver, ctx));
   const seq = selected?.type === 'SequenceExpression' ? selected : null;
   const tail = seq && unwrapRuntimeExpr(seq.expressions.at(-1));
-  const prefix = tail?.type === 'Identifier' || tail?.type === 'ThisExpression' ? seq.expressions.slice(0, -1) : [];
+  // Match initializer navigation: a carried member prefix runs before its entire hop read.
+  const prefix = tail && isPureNavReceiver(tail) ? seq.expressions.slice(0, -1) : [];
   return {
     pure: keepsRoot || prefix.length ? null : base.pure,
     node: prefix.length ? tail : named ? identifier(keepsRoot ? root.name : base.name ?? root.name) : receiver,
-    keys: keepsRoot ? keys : base.path,
+    keys: keepsRoot && base.name !== root.name ? keys : base.path,
     prefix,
     slotDefault: base.static ? null : typedChain?.slotDefault,
     defaultSlot: base.static ? null : defaultSlot,

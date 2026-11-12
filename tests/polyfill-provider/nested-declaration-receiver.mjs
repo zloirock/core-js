@@ -27,6 +27,13 @@ function leafPath(parser, program) {
 for (const [name, source, expected, keys, carries = false] of [
   ['user', 'const { data: { at: method } } = source;', 'source', ['data']],
   ['call', 'const { data: { at: method } } = source();', 'CallExpression', ['data'], true],
+  ['await', 'const { data: { at: method } } = await source;', 'AwaitExpression', ['data'], true],
+  ['yield', 'function* read() { const { data: { at: method } } = yield source; }', 'YieldExpression', ['data'], true],
+  ['tag', 'const { data: { at: method } } = tag`source`;', 'TaggedTemplateExpression', ['data'], true],
+  ['logical store', 'let held; const { data: { at: method } } = (held ||= source());', 'AssignmentExpression', ['data'], true],
+  ['compound store', 'let held; const { data: { at: method } } = (held += source());', 'AssignmentExpression', ['data'], true],
+  ['member prefix', 'const { data: { at: method } } = (effect(), source.value);', 'MemberExpression', ['data'], true],
+  ['await prefix', 'const { data: { at: method } } = (effect(), await source);', 'SequenceExpression', ['data'], true],
   ['new', 'const { data: { at: method } } = new Source();', 'NewExpression', ['data'], true],
   ['own this', 'function read() { const { data: { at: method } } = this; }', 'ThisExpression', ['data'], true],
   ['prefix', 'const { data: { at: method } } = (effect(), source);', 'source', ['data'], true],
@@ -34,6 +41,7 @@ for (const [name, source, expected, keys, carries = false] of [
   ['constructor', 'const { Map: { name: method } } = globalThis;', 'Map', []],
   ['loop function', 'for (const realm of [globalThis]) { const { Array: { name: method } } = realm; }', 'realm', ['Array']],
   ['loop prototype', 'for (const realm of [globalThis]) { const { Array: { prototype: { at: method } } } = realm; }', 'realm', ['Array', 'prototype']],
+  ['loop realm hops', 'for (const realm of [globalThis]) { const { globalThis: { self: { Array: { prototype: { at: method } } } } } = realm; }', 'realm', ['Array', 'prototype']],
   ['realm user key', 'const { data: { at: method } } = globalThis;', 'globalThis', ['data']],
   ['capitalized user key', 'const source = { Array: { prototype: rows } }; const { Array: { prototype: { at: method } } } = source;', 'source', ['Array', 'prototype']],
   ['shadowed realm', 'function read(globalThis) { const { data: { at: method } } = globalThis; }', 'globalThis', ['data']],
@@ -48,7 +56,11 @@ for (const [name, source, expected, keys, carries = false] of [
   check(`${ label }/selected base`, plan?.pure?.entry ?? plan?.node?.name ?? plan?.node?.type, expected);
   checkDeep(`${ label }/selected keys`, plan?.keys, keys);
   check(`${ label }/initializer ownership`, plan?.carriesInit, carries);
-  check(`${ label }/prefix ownership`, plan.prefix?.length ?? 0, name === 'prefix' ? 1 : 0);
+  check(`${ label }/prefix ownership`, plan.prefix?.length ?? 0, name === 'prefix' || name === 'member prefix' ? 1 : 0);
+  if (name === 'member prefix') {
+    check(`${ label }/original prefix`, plan.prefix[0], typedChain.root.expressions[0]);
+    check(`${ label }/original member`, plan.node, typedChain.root.expressions[1]);
+  }
   const again = planNestedDeclarationReceiver(input, ctx);
   checkDeep(`${ label }/repeat decision`, { keys: again.keys, pure: again.pure }, { keys: plan.keys, pure: plan.pure });
   check(`${ label }/discarded query preserves source`, JSON.stringify(program.node), before);
@@ -63,6 +75,20 @@ for (const [name, source, expected, keys, carries = false] of [
   check(`${ label }/one selected root`, roots, 1);
   check(`${ label }/source receiver role`, product.sourceReceiver, !plan.pure);
 });
+
+for (const expression of ['source?.()', 'owner.make?.()', '(effect(), owner.make?.())']) {
+  runBoth(`optional root/${ expression }`, `const { data: { at: method } } = ${ expression };`, (parser, program, label) => {
+    const path = leafPath(parser, program);
+    const ctx = context(parser);
+    const chain = typedNavClaimChain(path, { adapter: ctx.adapter });
+    check(`${ label }/admitted`, !!chain, true);
+    const plan = chain && planNestedDeclarationReceiver({ path, receiver: chain.root, keys: chain.keys,
+      typedChain: chain, entry: 'instance/at' }, ctx);
+    check(`${ label }/one original expression`, plan?.node, chain?.root);
+    checkDeep(`${ label }/keys`, plan?.keys, ['data']);
+    check(`${ label }/initializer ownership`, plan?.carriesInit, true);
+  });
+}
 
 for (const [name, source, symbol, expected] of [
   ['surface', 'const { Array: { prototype: { at: method } } } = globalThis;', false, true],
@@ -154,6 +180,9 @@ runBoth('live member root', 'const { prototype: { at: method } } = globalThis.Ar
 for (const [expression, keys] of [
   ['globalThis.Array', ['Array']],
   ['globalThis.self.Array', ['Array']],
+  ['globalThis.globalThis.self.Array', ['Array']],
+  ['globalThis.self.globalThis', ['globalThis']],
+  ['globalThis.data.self', ['data', 'self']],
   ['globalThis["self"]["Array"]', ['Array']],
   ['globalThis.self', ['self']],
   ['globalThis[key]', null],

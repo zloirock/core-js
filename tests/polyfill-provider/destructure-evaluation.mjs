@@ -220,6 +220,18 @@ for (const source of [
   check(`${ label }/an unknown receiver never denotes the root`, destructureHostThroughWrappers(path.parentPath, ctx.adapter, true).hops, null);
 });
 
+for (const source of [
+  'function read(...[{ Array: { from: method } } = globalThis]) {}',
+  'const [...[{ Array: { from: method } } = globalThis]] = [];',
+  'function read(...[{ w: { from: method } = Array } = {}]) {}',
+]) runBoth(`rest receiver default/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', prop => prop.node.value?.name === 'method');
+  const ctx = context(parser, path);
+  const walked = destructureHostThroughWrappers(path.parentPath, ctx.adapter, true);
+  check(`${ label }/stops below rest`, walked.host.node.type, 'RestElement');
+  check(`${ label }/keeps own default`, walked.hops.some(hop => hop.defaultNode), true);
+});
+
 for (const [tail, options, expected] of [
   ['', {}, true],
   [' = fallback', { typedNavChain: false }, true],

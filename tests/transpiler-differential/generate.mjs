@@ -25589,4 +25589,126 @@ export function * generate() {
     ['let-for-in', 'var let = []; for ((let)[0] in { value: 1 }) ; const r = let[0];'],
   ]) yield { name: `printer-script-lookahead/${ shape }`, sourceType: 'script', strip: true,
     code: `${ body } module.exports = { r, effects: [[7].at(0)] };` };
+  yield * generateNestedReceiverRoots();
+}
+
+// Nested instance roots retain their evaluation, while defaults below rest own only their arm.
+function * generateNestedReceiverRoots() {
+  for (const [shape, expression] of [
+    ['call', 'make()'], ['optional-call', 'owner.make?.()'], ['optional-base', 'owner?.make()'],
+    ['await', 'await make()'], ['await-value', 'await box'], ['tag', 'owner.tag`value`'],
+    ['or-store', '(held ||= make())'], ['nullish-store', '(held ??= make())'], ['and-store', '(held &&= make())'],
+    ['member', 'owner.value'], ['computed-member', 'owner["value"]'],
+  ]) for (const prefix of [false, true]) for (const assignment of [false, true]) {
+    const root = prefix ? `(effects.push('prefix'), ${ expression })` : expression;
+    yield {
+      name: `nested-receiver-root/${ shape }/${ prefix }/${ assignment }`, strip: true,
+      code: `export const effects = [];
+        const rows = [3, 7];
+        const box = { get list() { effects.push('list'); return rows; } };
+        let held = ${ shape === 'and-store' ? 'box' : 'null' };
+        function make() { effects.push('make'); return box; }
+        const owner = { make() { effects.push(this === owner); return make(); },
+          tag() { effects.push(this === owner); return make(); },
+          get value() { effects.push('value'); return box; } };
+        ${ assignment ? `let at; ({ list: { at } } = ${ root });` : `const { list: { at } } = ${ root };` }
+        export const r = at.call(rows, -1);`,
+    };
+  }
+  for (const prefix of [false, true]) yield {
+    name: `nested-receiver-root/yield/${ prefix }`, strip: true,
+    code: `export const effects = [];
+      function* read() {
+        const { list: { at } } = ${ prefix ? "(effects.push('prefix'), yield 1)" : '(yield 1)' };
+        return at.call([3, 7], -1);
+      }
+      const iterator = read(); iterator.next();
+      export const r = iterator.next({ get list() { effects.push('list'); return [3, 7]; } }).value;`,
+  };
+  for (const host of ['parameter', 'arrow', 'declaration', 'assignment']) for (const supplied of [false, true]) {
+    const pattern = '[{ Array: { from } } = (effects.push("default"), globalThis)]';
+    const input = supplied ? '{ Array: { from: () => [9] } }' : 'void 0';
+    const body = host === 'parameter' ? `function read(...${ pattern }) { return from([7])[0]; } const result = read(${ input });`
+      : host === 'arrow' ? `const read = (...${ pattern }) => from([7])[0]; const result = read(${ input });`
+        : host === 'declaration' ? `const [first, ...${ pattern }] = [0, ${ input }]; const result = from([7])[0];`
+          : `let from; [ignored, ...${ pattern }] = [0, ${ input }]; const result = from([7])[0];`;
+    yield { name: `nested-receiver-rest/${ host }/${ supplied }`, strip: true,
+      code: `export const effects = []; let ignored; ${ body } export const r = result;` };
+  }
+  for (const defaulted of [false, true]) yield {
+    name: `nested-receiver-realm/loop/${ defaulted }`, strip: true,
+    code: `export const effects = []; let result;
+      for (const realm of [globalThis]) {
+        const { ${ defaulted ? 'self' : 'globalThis' }: { Array: { prototype: { at } } }${ defaulted ? ' = globalThis' : '' } } = realm;
+        result = at.call([3, 7], -1);
+      }
+      export const r = result;`,
+  };
+  yield { name: 'nested-receiver-realm/multiple-hops', strip: true,
+    code: `const { globalThis: { self: { Array: { prototype: { at } } } = globalThis } } = globalThis.globalThis;
+      export const r = at.call([3, 7], -1); export const effects = [];` };
+  for (const [shape, body] of [
+    ['compound', 'let value = "a"; const { constructor: { prototype: { at } } } = (value += "b"); return [at.call(value, -1), value];'],
+    ['optional-null', 'const source = null; try { const { list: { at } } = (effects.push("prefix"), source?.value); return at; } catch (error) { return error.name; }'],
+    ['optional-tail-getters', `
+      const source = { get value() { effects.push("value");
+      return { get list() { effects.push("list");
+      return [3, 7];
+      } };
+      } };
+      const { list: { at } } = (effects.push("prefix"), source?.value);
+      return at.call([3,7], -1);
+    `],
+    ['user-leaf-getter', `
+      const rows = { get at() { effects.push("at");
+      return function () { return this === rows;
+      };
+      } };
+      const box = { get list() { effects.push("list");
+      return rows;
+      } };
+      const { list: { at } } = (effects.push("prefix"), box);
+      return at.call(rows);
+    `],
+    ['own-loop-root', `
+      const value = { get self() { effects.push("self");
+      return { Array: { prototype: [3,7] } };
+      } };
+      for (const root of [value]) { const { self: { Array: { prototype: { at } } } } = root;
+      return at.call([3,7], -1);
+      }
+    `],
+    ['rest-supplied-inner', 'function f(first, ...[{ w: { from } = Array } = {}]) { return from([first])[0]; } return f(7, {w: {from: () => [9]}});'],
+    ['rest-iterator', `
+      function* source() { effects.push("first");
+      yield 0;
+      effects.push("rest");
+      yield void 0;
+      effects.push("done");
+      } const [first, ...[{ Array: { from } } = (effects.push("default"), globalThis)]] = source();
+      return [first, from([7])[0]];
+    `],
+    ['rest-no-default', 'function f(first, ...[{ Array: { from } }]) { return from([first])[0]; } return f(7, {Array: {from: () => [9]}});'],
+    ['rest-prefix', 'function f(...[{ Array: { from } } = (effects.push("outer"), globalThis)]) { return from([7])[0]; } return f();'],
+    ['rest-throw', `
+      function f(...[{ Array: { from } } = (effects.push("default"), globalThis)]) { return from([7])[0];
+      } try { return f({ get Array() { effects.push("getter");
+      throw new RangeError();
+      } });
+      } catch (error) { return error.name;
+      }
+    `],
+    ['decl-default', 'function read(source) { const { list: { at } = (effects.push("default"), [3,7]) } = source; return at.call([3,7], -1); } return read({});'],
+    ['decl-sibling', `
+      function make() { effects.push("make");
+      return { get list() { effects.push("list");
+      return [3,7];
+      }, get other() { effects.push("other");
+      return 9;
+      } };
+      } const { list: { at }, other } = make();
+      return [at.call([3,7], -1), other];
+    `],
+  ]) yield { name: `nested-receiver-boundary/${ shape }`, strip: true,
+    code: `export const effects = []; export const r = (() => { ${ body } })();` };
 }
