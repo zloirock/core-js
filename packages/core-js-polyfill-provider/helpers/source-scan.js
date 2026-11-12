@@ -291,6 +291,33 @@ export function ownedLeadingComments({ comments, statementLine, codeLine = 0, of
   return comments.slice(at);
 }
 
+// JSX consumers may read only the comments before the first source token. Keep these file
+// pragmas ahead of injected imports; ordinary annotations still belong to their statement.
+// Read the source prefix, not the current AST: a preceding plugin may already have prepended
+// spanless helpers. The sticky whitespace scan stops at the first token without scanning a body.
+// Without source text, the binding supplies only its leading AST comments.
+export function leadingJsxPragmas(comments, source, hashbangEnd = 0) {
+  const pragmas = [];
+  const whitespace = /\s*/y;
+  let end = hashbangEnd;
+  for (const comment of comments ?? []) {
+    if (comment.end <= end) continue;
+    if (source) {
+      whitespace.lastIndex = end;
+      whitespace.test(source);
+      if (whitespace.lastIndex !== comment.start) break;
+    }
+    end = comment.end;
+    if (!/@jsx(?:Frag|ImportSource|Runtime)?\s/.test(comment.value)) continue;
+    // A mixed block still owns its opted-out statement. Copy only the JSX directives into
+    // the file header, leaving the original line-bound directive at its source site.
+    pragmas.push(isLineBoundDisableDirective(comment.value)
+      ? { ...comment, value: comment.value.matchAll(/@jsx(?:Frag|ImportSource|Runtime)?\s+[^\s*]+/g).map(match => match[0]).toArray().join('\n') }
+      : comment);
+  }
+  return pragmas;
+}
+
 // the source offset the first node under `root`, itself included, that carries a span opens at, or
 // null. a zero-width span counts: it is the place a rewrite stamped where its host stood
 export function firstSpelledOffset(root) {
