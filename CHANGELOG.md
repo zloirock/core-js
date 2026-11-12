@@ -31,6 +31,7 @@
 - Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
 - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
 - Throw a `TypeError` when a running polyfilled iterator helper is re-entered
+- Fixed `String` wrapper creation in `Iterator.from`, [#1589](https://github.com/zloirock/core-js/pull/1589)
 - Added detection of [native `Iterator.concat` closing the inner iterator on errors from `next` or getters of the iterator result in V8](https://issues.chromium.org/issues/580293064)
 - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
 - Fixed `Iterator.zip` closing the input iterator when reading an input result's `value` throws
