@@ -26,6 +26,7 @@ import {
   bindingHoldsNoGlobal,
   bindingLoopAnchor,
   bindingNodeType,
+  bodyRunsAtInvocation,
   bindingPolyfillHint,
   bindsModuleDefault,
   boundModuleDefaultSource,
@@ -40,6 +41,7 @@ import {
   collectParamBindingNames,
   definedBranchOfGuardConditional,
   deleteHostAboveChain,
+  findNodeSlot,
   firstProxyBranch,
   flattenBranchingValueNodes,
   followConstIdentifierInit,
@@ -2823,14 +2825,15 @@ export function realmSelectingHostCollapses(hostNode, ctx) {
   const sites = [];
   function consider(container, key) {
     const init = container[key];
-    if (init?.type !== 'LogicalExpression' && init?.type !== 'ConditionalExpression') return;
-    const operand = realmSelectionCollapseOperand(init, ctx);
-    if (operand && operand !== init) sites.push({ container, key, init, operand });
+    const core = unwrapRuntimeExpr(init);
+    if (core?.type !== 'LogicalExpression' && core?.type !== 'ConditionalExpression') return;
+    const operand = realmSelectionCollapseOperand(core, ctx);
+    if (operand && operand !== core) sites.push({ container, key, init, operand });
   }
   consider(hostNode, slot);
   // an ARRAY WRAPPER pairs each of its elements with the pattern's own, so a selection standing in
   // one IS that element's receiver and reads exactly as a bare host init would
-  const value = hostNode[slot];
+  const value = unwrapRuntimeExpr(hostNode[slot]);
   if (value?.type === 'ArrayExpression') {
     value.elements.forEach((element, at) => { if (element) consider(value.elements, at); });
   }
@@ -4066,9 +4069,15 @@ function isPairedCallShape(node) {
 // constructible at all - `new` over one throws - and a MEMBER callee hides which of those it holds
 function constructibleRealmCallee(node, ctx) {
   if (unwrapTransparentSeq(node.callee)?.type !== 'Identifier') return false;
-  const callee = resolveInlineCalleeFunction({ node, seen: new Set(), ctx }, { allowIdentityParam: true })?.node;
-  return (callee?.type === 'FunctionDeclaration' || callee?.type === 'FunctionExpression')
-    && !callee.async && !callee.generator;
+  const callee = resolveInlineCalleeFunction({ node, seen: new Set(), ctx }, { allowIdentityParam: true });
+  if (callee?.node.type !== 'FunctionDeclaration' && callee?.node.type !== 'FunctionExpression') return false;
+  // Declarations carry their own callable kind. An expression needs its owner to
+  // distinguish an ESTree method; AST input without spans uses the existing slot lookup.
+  if (callee.node.type === 'FunctionDeclaration') return bodyRunsAtInvocation(callee.node, node);
+  const owner = pathOfNode(ctx.path, callee.node)?.parentPath?.node
+    ?? (typeof callee.node.start !== 'number' || typeof callee.node.end !== 'number'
+      ? findNodeSlot(rootProgramOf(ctx.path), callee.node)?.owner : null);
+  return !!owner && bodyRunsAtInvocation(callee.node, node, owner);
 }
 
 // the value-transparent wrappers over a call, as the CALL the inline canon walks: `new` over a

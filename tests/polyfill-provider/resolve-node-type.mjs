@@ -14871,7 +14871,7 @@ for (const [label, code, runs] of [
     const fn = pickFunction(adapter, prog);
     const call = immediateInvocationOf(fn);
     checkTruthy(`${ lbl } (shape)`, call);
-    check(lbl, bodyRunsAtInvocation(fn.node, call.node), runs);
+    check(lbl, bodyRunsAtInvocation(fn.node, call.node, fn.parentPath?.node), runs);
     check(`${ lbl } (pair)`, runsAtImmediateInvocation(fn) !== null, runs);
   });
 }

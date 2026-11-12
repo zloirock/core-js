@@ -2034,7 +2034,7 @@ export default function createAstDestructureEmitter({
     const memoDeclaration = memo && variableDeclaration('const', [variableDeclarator(identifier(memo), fold)]);
     if (split) {
       const twin = variableDeclaration(declarationPath.node.kind, [variableDeclarator(leafTwin, twinInit)]);
-      splitHopOutOfHost({ declaratorPath, declarationPath, split, pair: memoDeclaration ? [memoDeclaration, twin] : [twin] });
+      splitHopOutOfHost({ metaPath, declaratorPath, declarationPath, split, pair: memoDeclaration ? [memoDeclaration, twin] : [twin] });
       return true;
     }
     if (memoDeclaration && bodyless && declarationPath.node.declarations.length === 1) {
@@ -2117,9 +2117,9 @@ export default function createAstDestructureEmitter({
   // where the hop led it, behind it otherwise. Keep the host nodes that queued jobs reference;
   // pruning can admit an earlier declined sibling, so revisit the residual without requeueing
   // committed claims. The removed hop stays skipped while its twin is detected independently.
-  function splitHopOutOfHost({ declaratorPath, declarationPath, split, pair }) {
+  function splitHopOutOfHost({ metaPath, declaratorPath, declarationPath, split, pair }) {
     markSubtreeSkipped(skippedNodes, split.hopProp);
-    pruneHopFromLevels(split);
+    pruneHopFromLevels(split, (pattern, at) => metaPath.find(item => item.node === pattern.properties[at]).remove());
     if (split.placeBefore) declarationPath.insertBefore(pair);
     else declarationPath.insertAfter(pair);
     for (const job of queuedJobsFor(declaratorPath)?.jobs ?? []) if (job.prop) skippedNodes.add(job.prop);

@@ -9870,11 +9870,12 @@ export function hopSplitPlan(walk, { builtInRoot }) {
   return null;
 }
 
-// the hop's prop leaves its level, which keeps the sibling the split was planned for (`hopSplitPlan`)
-export function pruneHopFromLevels({ hopProp, chain }) {
+// The hop leaves its level, which keeps the sibling the split was planned for (`hopSplitPlan`).
+// The binding removes the slot through its live paths or replaces the enclosing pattern.
+export function pruneHopFromLevels({ hopProp, chain }, removeProperty) {
   const [level] = chain;
   const at = level.pattern.properties.indexOf(hopProp);
-  if (at !== -1) level.pattern.properties.splice(at, 1);
+  if (at !== -1) removeProperty(level.pattern, at);
 }
 
 // shared branch-walk: do ALL reachable VALUE branches of a destructure receiver satisfy `isLeaf`? a

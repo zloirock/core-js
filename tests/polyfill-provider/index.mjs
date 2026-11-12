@@ -61,6 +61,7 @@ import './member-context-paths.mjs';
 import './ast-input-context.mjs';
 import './ast-context-complexity.mjs';
 import './destructure-host-shape.mjs';
+import './scoped-hosts.mjs';
 import './destructure-write-order.mjs';
 import './destructure-evaluation.mjs';
 import './destructure-emission-order.mjs';
