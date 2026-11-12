@@ -269,11 +269,16 @@ for (const [name, source, expected] of [
   check(`${ label }/realm proof`, alias, expected === null ? null : 'globalThis');
   if (!alias) return;
   const before = JSON.stringify(program.node);
-  for (const keys of [[], ['Array', 'prototype'], ['self', 'Array', 'prototype']]) {
+  for (const [keys, expectedKeys] of [
+    [[], []],
+    [['Array', 'prototype'], ['Array', 'prototype']],
+    [['self', 'Array', 'prototype'], ['Array', 'prototype']],
+    [['globalThis', 'self', 'Array', 'prototype'], ['Array', 'prototype']],
+  ]) {
     const options = { rootName: alias, keys, read, adapter };
     const resolved = base(options);
     check(`${ label }/${ keys }/selected root`, resolved.name ?? resolved.pure?.hintName, expected);
-    checkDeep(`${ label }/${ keys }/source navigation`, resolved.path, expected === 'realm' ? keys : keys.filter(key => key !== 'self'));
+    checkDeep(`${ label }/${ keys }/source navigation`, resolved.path, expectedKeys);
     checkDeep(`${ label }/${ keys }/repeat query`, base(options), resolved);
   }
   for (const [keys, entry] of [[['Map'], 'map/constructor'], [['Array', 'from'], 'array/from']]) {

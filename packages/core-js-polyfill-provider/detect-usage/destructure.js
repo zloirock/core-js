@@ -3147,8 +3147,17 @@ export function instanceHopDispatch({ ctorName, key, resolvePure }) {
   return pure?.kind === 'instance' ? pure : null;
 }
 
-// the ROOT a computed init hands the walk, and the keys it reads through. a call, a `new`, `this`
-// or a member chain off the user's own object is the value the source computes once - no other
+// An opaque nested receiver stays one source evaluation, including a suspended or stored
+// value. The same admission applies behind a sequence; literal pairing and namespace
+// navigation are separate decisions. Invocation syntax includes both optional-call dialects.
+function opaqueNestedReceiverRoot(node) {
+  return node?.type === 'Identifier' || node?.type === 'ThisExpression' || node?.type === 'AwaitExpression'
+    || node?.type === 'YieldExpression' || node?.type === 'AssignmentExpression' && node.operator !== '='
+    || !!invocationNode(node) || isMemberAccessNode(node);
+}
+
+// the ROOT a computed init hands the walk, and the keys it reads through. An opaque user
+// value (including await, yield and assignments) is the value the source computes once - no other
 // walk reads through it, so it is the root as written. a nav INTO the built-in namespace is one
 // more run of hops: it unfolds onto its own identifier root (`{ of: { name } } = globalThis.Array`
 // walks as `{ Array: { of: { name } } } = globalThis`), unless the whole nav still names a built-in
@@ -3163,8 +3172,7 @@ function unfoldNestedRoot(root, keys, ctx = null, captureReceiver = false) {
   // capture owns that read too; other built-in reads keep their existing prefix channels.
   if (root.type === 'SequenceExpression') {
     const tail = ctx?.adapter ? decidedRunningValue(root, ctx) : unwrapRuntimeExpr(root.expressions.at(-1));
-    const userValue = tail?.type === 'Identifier' || tail?.type === 'ThisExpression'
-      || tail?.type === 'CallExpression' || tail?.type === 'NewExpression';
+    const userValue = opaqueNestedReceiverRoot(tail);
     return userValue && (captureReceiver || !isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, tail), surfaceOptions))
       ? { root, keys } : null;
   }
@@ -3172,9 +3180,8 @@ function unfoldNestedRoot(root, keys, ctx = null, captureReceiver = false) {
   if (root.type === 'ConditionalExpression' || root.type === 'LogicalExpression') {
     return isKnownStaticGlobal(keys[0], ctx?.adapter) ? null : { root, keys };
   }
-  if (root.type === 'CallExpression' || root.type === 'NewExpression' || root.type === 'ThisExpression') return { root, keys };
+  if (!isMemberAccessNode(root)) return opaqueNestedReceiverRoot(root) ? { root, keys } : null;
   // An optional user root remains whole: the following pattern read seals its short-circuit.
-  if (!isMemberAccessNode(root)) return null;
   if (!isBuiltInSurfaceNav(root, surfaceOptions)) return { root, keys };
   if (root.optional) return null;
   if (!captureReceiver && isBuiltInSurfaceNav(keys.reduce(memberFromKeyName, root), surfaceOptions)) return null;
@@ -3327,12 +3334,12 @@ export function resolveNestedReceiverChain(leafPath, {
         ? decidedRunningValue(init, { scope: leafPath.scope, adapter, path: leafPath }, prefixes)
         : unwrapCollectingSePrefixes(init, prefixes);
       if (!rawRoot) return null;
-      // ... a DECLARATOR's init only, and not a loop head's: an assignment keeps its lift unless
-      // the whole-leaf capture will place that prefix; a head keeps its header sink
+      // The opaque root retains its own prefix in declarations and assignments; a loop head
+      // keeps its header sink.
       // ... nor under a DEFAULT, whose guard both legs place around a prefix differently; nor off a
       // call the realm canon owns
       const headOf = owner.parentPath?.parentPath?.node;
-      if (prefixes.length && ((ownerType !== 'VariableDeclarator' && !captureReceiver) || slotDefault
+      if (prefixes.length && ((ownerType !== 'VariableDeclarator' && !captureReceiver && !opaqueNestedReceiverRoot(rawRoot)) || slotDefault
         || (headOf?.type === 'ForStatement' && headOf.init === owner.parentPath.node)
         || provenRealmCallRoot(rawRoot, leafPath, adapter, { allowEffects: true }))) return null;
       // a call the inline canon proves to yield a proxy global reads as that global (its spelling too)
@@ -5970,7 +5977,8 @@ function isFilledContainerLiteral(node) {
 // descent picks the matching slot) AND transparent inner defaults. returns { pattern, indices, host }
 // or null. one source for the SE-key gate's receiver check and the mirror's array-wrapper descent
 // `hops` is every level the leaf pattern sits under, receiver-to-leaf: an array wrapper's `index`,
-// an object hop's `key`. An unknown key or rest boundary makes `hops` null; neither denotes the root.
+// an object hop's `key`. An unknown key makes `hops` null. Rest stops source pairing,
+// but a receiver default below it still owns an independent mirror arm.
 // Each known hop carries the `level` pattern it stands in, the `pattern` standing under it
 // and the receiver-bearing `defaultNode` of that level's element where it spells one; `indices` keeps
 // the array levels alone for the wrapper-only readers
@@ -6007,9 +6015,9 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
       cursor = owner;
       continue;
     }
-    // Rest creates a new container. A mirror above it cannot pair its leaves
-    // with the receiver supplying the original parameter or declaration.
-    if (ownerType === 'RestElement') hops = null;
+    // Rest creates a new container. Only its own receiver defaults can be mirrored;
+    // mirrorPlanHost stops here so no leaf is paired with a slot above this boundary.
+    if (ownerType === 'RestElement' && !hops?.some(hop => hop.defaultNode)) hops = null;
     break;
   }
   return { pattern: objectPattern?.node, indices, hops, host: cursor?.parentPath, hostPatternPath: cursor };
@@ -6918,12 +6926,14 @@ export function constructorRestIndex({ name, patternNode, resolveGlobalPolyfill,
 //   - a param-level AssignmentPattern (default slot)
 //   - a VariableDeclarator (init slot), or the LOOP of a for-x head declarator, which holds none
 //   - an AssignmentExpression cascade (`({ Array: { from } } = receiver)` - receiver in `.right`)
+// Rest begins a new container: stop before it and let a default below it own its mirror arm.
 function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDefault = false, staticIsMutated = null) {
   let cur = leafPatternPath;
   for (let depth = 0; depth < STATIC_WALK_DEPTH && cur?.node; depth++) {
     const parent = cur.parentPath;
     if (!parent?.node) return null;
     const parentType = parent.node.type;
+    if (parentType === 'RestElement') return null;
     // a transparent inner default (`[{ Array: { of } } = {}] = [globalThis]`) is see-through - fall
     // through (keep walking) to the value-bearing host above it (the param default), so the WHOLE
     // receiver is replaced by the mirror (`[{ Array: { of: _Array$of } }]`): a default on the leaf would
@@ -9527,18 +9537,26 @@ export function buildPatternRenderPlan(patternNode, { scope, path, adapter }) {
   return keys;
 }
 
+// Drop only leading pristine realm aliases. Navigation keeps its final key for entry
+// selection; a resolved base may consume the entire chain. Preserve the original array
+// when no hop was removed, and never treat a mutation as a redundant realm read.
+export function pristineProxyHopTail(keys, adapter, read = null, keepLast = false) {
+  let index = 0;
+  const end = keys.length - Number(keepLast);
+  while (index < end && isPristineProxyGlobal(adapter, keys[index], read)) index++;
+  return index ? keys.slice(index) : keys;
+}
+
 // The proxy root and named hops of a receiver navigation. Leading pristine realm hops
 // are redundant; the final hop remains available to the passthrough's entry selection.
 // Flat and nested declaration reads use the same scoped root and source/guard shape proof.
 export function proxyNavHead(receiver, {
   adapter, guardCtx = null, scope = guardCtx?.aliasCtx?.scope, path = guardCtx?.aliasCtx?.path,
 }) {
-  const { root, keys: navKeys } = navHopChain(receiver, guardCtx);
-  let keys = navKeys;
+  const { root, keys } = navHopChain(receiver, guardCtx);
   if (!keys.length || keys.some(key => !key) || root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)
     || !proxyGlobalRootName({ node: root, scope, adapter, path })) return null;
-  while (keys.length > 1 && isPristineProxyGlobal(adapter, keys[0])) keys = keys.slice(1);
-  return { rootName: root.name, keys };
+  return { rootName: root.name, keys: pristineProxyHopTail(keys, adapter, null, true) };
 }
 
 // the BASE a nested hop chain reads through, shared by both emitters' extraction renders:
@@ -9579,7 +9597,7 @@ export function resolveNestedReceiverBase({
   let hopKeys = keys;
   if (rootIsProxy) {
     if (isMutatedGlobalSlot(adapter, rootName, read)) return mintedGlobal ? raw : null;
-    while (hopKeys.length && isPristineProxyGlobal(adapter, hopKeys[0], read)) hopKeys = hopKeys.slice(1);
+    hopKeys = pristineProxyHopTail(hopKeys, adapter, read);
   }
   const rootPure = rootIsProxy && !hopKeys.length ? resolveGlobalPolyfill(rootName) : null;
   const resolved = rootIsProxy && !hopKeys.length ? rootPure ? { pure: rootPure, path: [] } : null : resolvePassthroughRef({
@@ -9596,7 +9614,7 @@ export function resolveNestedReceiverBase({
   if (rootIsProxy && source?.type === 'Identifier' && source.name !== rootName
     && (!hopKeys.length || POSSIBLE_GLOBAL_OBJECTS.has(resolved?.pure?.hintName ?? resolved?.name))
     && forOfHeadDeclarationOf(source.name, { scope: read.scope ?? read.path?.scope, path: read.path, adapter }, source)) {
-    return { name: source.name, path: keys };
+    return { name: source.name, path: hopKeys };
   }
   return resolved;
 }
