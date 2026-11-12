@@ -63,6 +63,10 @@ const BUN_VERSION = bunVersion.length ? bunVersion[0] * 1e6 + bunVersion[1] * 1e
 // https://github.com/whatwg/webidl/issues/895
 // https://github.com/whatwg/webidl/pull/1662
 const SEQUENCE_ITERATOR_CLOSE = NODE_SEQUENCE_EARLY || BUN_VERSION >= 1000031 || SAFARI_VERSION >= 17;
+// Native Safari 17.0-27.0.1 and Bun 1.0.31-1.4.4 keep exhausted iterators done.
+// Bun: https://github.com/oven-sh/bun/issues/48347
+// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
+const ITERATORS_STAY_DONE = BUN_VERSION >= 1000031 || SAFARI_VERSION >= 17;
 
 QUnit.test('URLSearchParams', assert => {
   assert.isFunction(URLSearchParams);
@@ -800,7 +804,7 @@ QUnit.test('URLSearchParams#delete', assert => {
 
     url = new URL('http://example.com/?');
     url.searchParams.delete('param1');
-    // assert.same(String(url), 'http://example.com/', 'url.href does not have ?'); // Safari bug
+    assert.same(String(url), 'http://example.com/', 'url.href does not have ?'); // old Safari bug
     assert.same(url.search, '', 'url.search does not have ?');
   }
 
@@ -1598,10 +1602,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
 
-// Safari 17.6 / 26.6.2 and Bun 1.0.31 / 1.4.4 keep exhausted iterators done.
-// Bun: https://github.com/oven-sh/bun/issues/48347
-// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
-QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
+QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
     const params = new URLSearchParams();
     const iterator = params[method]();
@@ -1621,10 +1622,7 @@ QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
   }
 });
 
-// Safari 17.6 / 26.6.2 and Bun 1.0.31 / 1.4.4 keep exhausted iterators done.
-// Bun: https://github.com/oven-sh/bun/issues/48347
-// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
-if (DESCRIPTORS) QUnit.skip('URLSearchParams iterators after exhaustion and query replacement', assert => {
+if (DESCRIPTORS) QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion and query replacement', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
     const url = new URL('https://example.com/?a=1');
     const iterator = url.searchParams[method]();

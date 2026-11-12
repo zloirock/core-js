@@ -52,6 +52,7 @@
 - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - `URL` and `URLSearchParams` improvements and fixes:
+  - **Raised the bar for native `URL` and `URLSearchParams`: the polyfills replace older native implementations that have dozens of bugs and fail hundreds of [WPT URL tests](https://github.com/web-platform-tests/wpt/blob/master/url/resources/urltestdata.json) - validation and parsing of hosts, IPv4 addresses, non-special URLs, percent-encoding, IDNA processing, lose `URLSearchParams` data, etc. It became reasonable only now, when the polyfills got integration with native APIs and proper Unicode support (see below). The new bar does not cover all those bugs: modern engines still have some of them, and they are left with native implementations to avoid slowing them down with the polyfills**
   - Integration with native APIs:
     - Added integration of polyfilled `URL` with NodeJS, Deno and Bun APIs that accept only native `URL` objects, like `Deno.readFile`, `Bun.file`, `node:fs` and `node:http` methods: instances of the `URL` polyfill are native `URL` objects there
     - Added integration of polyfilled `URLSearchParams` with native APIs that accept only native `URLSearchParams` objects, like `fetch`, `Request`, `Response` and APIs of another realm, including the pure version: where the engine has a usable native `URLSearchParams`, instances of the polyfill are native objects, and `fetch` and `Request` are no longer wrapped where they take such instances
@@ -147,6 +148,7 @@
     - `Promise.try` updated following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883)
     - Fixed `Error.isError`
     - Added `DOMException#stack`
+  - `URL` and `URLSearchParams` marked as properly supported from Chrome 130, Firefox 133, Safari 15.4, iOS 15.4, NodeJS 20.0 and Deno 1.25.2 because of hundreds bugs of older native implementations in validation and parsing of hosts, non-special URLs and IDNA processing, and data loss in `URLSearchParams`
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
   - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
   - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
@@ -156,7 +158,6 @@
   - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
   - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments
   - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
-  - `URL`, `URLSearchParams` and `URL.prototype.toJSON` marked as supported from [Deno 1.2](https://github.com/denoland/deno/releases/tag/v1.2.0) instead of 1.0
   - `queueMicrotask` marked as properly supported from Deno 1.24.3 instead of 1.0 because of incorrect arity
   - Fixed NodeJS compat data for array iterators, `Array.prototype.{ reduce, reduceRight }`, `ArrayBuffer`, `ArrayBuffer.prototype.slice`, `DataView`, `Math.imul`, `Number.prototype.toExponential` and `%TypedArray%.prototype.subarray`
   - `Function.prototype[@@hasInstance]` marked as supported from Chrome 50 instead of 51
@@ -174,7 +175,6 @@
   - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 because of the resizable buffer and `read` count bugs (see above)
   - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
   - `Set.prototype.union` marked as properly supported from [V8 ~ Chrome 133](https://issues.chromium.org/issues/352690887) where it gets the iterator record of a set-like object before cloning `this`
-  - `URL` and `URLSearchParams` marked as properly supported from Safari 14.0.1 and iOS 14.3 since [`new URL(url, undefined)` throws in Safari 14.0](https://bugs.webkit.org/show_bug.cgi?id=215734)
   - `self` marked as properly supported from Edge 87: unlike Chrome 86, Edge 86 has it as a data property
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from [1.9.0](https://github.com/mozilla/rhino/pull/1980), `Array.fromAsync` and `%TypedArray%.prototype.with` marked as not supported, `Error.prototype.toString`, `Number.prototype.toExponential`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, some, sort, toLocaleString }` - from [1.8.0](https://github.com/mozilla/rhino/commit/db117290720838a54126f6a27da117097f539353)
   - Fixed Firefox compat data: `Date.prototype.toISOString` marked as supported from [FF6](https://bugzilla.mozilla.org/show_bug.cgi?id=649575), `Object.getOwnPropertyNames` - from FF33, `Number` constructor - from [FF36](https://bugzilla.mozilla.org/show_bug.cgi?id=1079120), `Array.prototype.{ map, splice }` - from [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052), `Symbol.hasInstance` - from [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906), `DOMException.prototype[@@toStringTag]` - from [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799), `Iterator.prototype.{ drop, take }` - from [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666)

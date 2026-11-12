@@ -14,11 +14,19 @@ const { hasOwnProperty } = Object.prototype;
 // Engines without `String.prototype.normalize` use the polyfill, which does not normalize domains there
 // and rejects the compatibility characters it does not map itself.
 // eslint-disable-next-line es/no-string-prototype-normalize -- detection
-const NORMALIZE = typeof String.prototype.normalize == 'function';
+const NORMALIZE_EXISTS = typeof String.prototype.normalize == 'function';
+// the native method of Deno before 1.8 leaves a string as it is
+// eslint-disable-next-line es/no-string-prototype-normalize -- detection
+const NORMALIZE = NORMALIZE_EXISTS && 'A\u030A'.normalize('NFC') === '\u00C5';
+// 0 outside of NodeJS
+const NODE_MAJOR = NODE && !DENO ? +GLOBAL.process.versions.node.split('.')[0] : 0;
+const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 122 shipped the new parser of non-special URLs, Firefox 123 reverted it till 133
+const FIREFOX_122 = /Firefox\/122\./.test(GLOBAL.navigator?.userAgent);
 
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
-  if (!NODE) assert.arity(URL, 1);
+  assert.arity(URL, 1);
 
   if (typeof GLOBAL.URL == 'function') {
     assert.notSame(URL, GLOBAL.URL, 'static polyfills do not modify the native constructor');
@@ -55,8 +63,7 @@ QUnit.test('URL constructor', assert => {
 
   assert.same(String(new URL('http://0300.168.0xF0')), 'http://192.168.0.240/');
   assert.same(String(new URL('http://[20:0:0:1:0:0:0:ff]')), 'http://[20:0:0:1::ff]/');
-  // assert.same(String(new URL('http://257.168.0xF0')), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // TypeError in Chrome and Safari
-  // assert.throws(() => new URL('http://257.168.0xF0'), 'invalid IPv4: octet > 255'); // accepted by native Firefox 57-118
+  assert.throws(() => new URL('http://257.168.0xF0'), 'invalid IPv4: octet > 255'); // accepted by native Firefox 57-118
   assert.same(String(new URL('http://0300.168.0xG0')), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
 
   // Native Firefox 115-118 accepts these invalid numeric hosts.
@@ -83,13 +90,13 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http://a\uD800b.example.com/'), 'lone surrogate in a domain');
   // assert.throws(() => new URL('http://a\u00A0b.example.com/'), 'no-break space in a domain'); // 'a%20b.example.com' in Chromium
   // assert.throws(() => new URL('http://a\u3000b.example.com/'), 'ideographic space in a domain'); // 'a%20b.example.com' in Chromium
-  // assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point'); // accepted by native Chromium 118
+  assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point'); // accepted by native Chromium 118
   assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
 
   // the forbidden host code point set is smaller - an opaque host keeps them percent-encoded
   // Native Chromium 118-129 and Firefox 115-132 return an empty hostname.
-  // assert.same(new URL('nonspecial://a\u0001b/').hostname, 'a%01b', 'C0 control in an opaque host');
-  // assert.same(new URL('nonspecial://a\u007Fb/').hostname, 'a%7Fb', 'DELETE in an opaque host');
+  assert.same(new URL('nonspecial://a\u0001b/').hostname, 'a%01b', 'C0 control in an opaque host');
+  assert.same(new URL('nonspecial://a\u007Fb/').hostname, 'a%7Fb', 'DELETE in an opaque host');
 
   // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
   assert.same(new URL('http://a\u00ADb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
@@ -125,7 +132,7 @@ QUnit.test('URL constructor', assert => {
 
   // a code point whose UTS#46 mapping holds a forbidden domain code point is rejected too
   assert.throws(() => new URL('http://a\uFE6Ab.example.com/'), 'small percent sign in a domain');
-  // assert.throws(() => new URL('http://a\uFE5Fb.example.com/'), 'small number sign in a domain'); // accepted by native Chromium 118
+  assert.throws(() => new URL('http://a\uFE5Fb.example.com/'), 'small number sign in a domain'); // accepted by native Chromium 118
   assert.throws(() => new URL('http://a\uFE68b.example.com/'), 'small reverse solidus in a domain');
   assert.throws(() => new URL('http://a\u2100b.example.com/'), 'account-of sign in a domain');
   assert.throws(() => new URL('http://a\u2A74b.example.com/'), 'double colon equal in a domain');
@@ -141,7 +148,7 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('http://example.com/?a\uD800b').search, '?a%EF%BF%BDb', 'lone surrogate in a query');
   assert.same(new URL('http://example.com/#a\uD800b').hash, '#a%EF%BF%BDb', 'lone surrogate in a fragment');
   // Native Chromium 118-129 and Firefox 115-132 return an empty hostname.
-  // assert.same(new URL('nonspecial://a\uD800b/').hostname, 'a%EF%BF%BDb', 'lone surrogate in an opaque host');
+  assert.same(new URL('nonspecial://a\uD800b/').hostname, 'a%EF%BF%BDb', 'lone surrogate in an opaque host');
   assert.same(new URL('http://a\uD800b@example.com/').username, 'a%EF%BF%BDb', 'lone surrogate in a username');
   assert.same(new URL('http://example.com/\uDC00').pathname, '/%EF%BF%BD', 'trailing lone surrogate');
   assert.same(new URL('http://example.com/\uD83D\uDE00').pathname, '/%F0%9F%98%80', 'surrogate pair is kept');
@@ -166,7 +173,7 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL(''), 'TypeError: Failed to construct URL: Invalid URL');
   // Node 19.7
   // https://github.com/nodejs/node/issues/46755
-  // assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct URL: Invalid URL');
+  assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct URL: Invalid URL');
   assert.throws(() => new URL('abc'), 'TypeError: Failed to construct URL: Invalid URL');
   assert.throws(() => new URL('//abc'), 'TypeError: Failed to construct URL: Invalid URL');
   assert.throws(() => new URL('http:///www.domain.com/', 'abc'), 'TypeError: Failed to construct URL: Invalid base URL');
@@ -174,11 +181,11 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct URL: Invalid base URL');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:ff'), 'incorrect IPv6');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
-  // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
+  assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
   assert.throws(() => new URL('1http://zloirock.ru'), 'incorrect scheme');
   assert.throws(() => new URL('a,b://example.com'), 'comma in scheme');
   assert.same(String(new URL('a+b-c.d://example.com')), 'a+b-c.d://example.com', 'valid scheme with +, -, .');
-  // assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path'); // throws in native Chromium 118-129
+  assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path'); // throws in native Chromium 118-129
   assert.same(String(new URL('relative', 'https://example.com')), 'https://example.com/relative', 'relative URL with special base with empty path');
   assert.same(String(new URL('bar', 'foo://host/a/b')), 'foo://host/a/bar', 'relative URL with non-special base with path');
 
@@ -491,7 +498,7 @@ QUnit.test('URL domain case mapping', assert => {
   // Native Firefox < 122 and Chrome / Edge < 130 parse this as an opaque path.
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1603699
   // https://crbug.com/1416006
-  // assert.same(new URL('nonspecial://EXAMPLE.COM/').hostname, 'EXAMPLE.COM', 'opaque host keeps its case');
+  assert.same(new URL('nonspecial://EXAMPLE.COM/').hostname, 'EXAMPLE.COM', 'opaque host keeps its case');
   assert.same(new URL('http://EXAMPLE.COM/ABC').pathname, '/ABC', 'path keeps its case');
 });
 
@@ -629,13 +636,13 @@ if (NORMALIZE) QUnit.test('URL domain normalization', assert => {
     assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
   }
   // Native Chrome / Edge <= 110 percent-encode the equals sign instead; Chrome 119 passes.
-  // assert.same(new URL('https://=\u0338.com/').hostname, 'xn--1ch.com', 'composition replacing a forbidden code point');
+  assert.same(new URL('https://=\u0338.com/').hostname, 'xn--1ch.com', 'composition replacing a forbidden code point');
   // Native Chrome <= 132, Edge <= 110, Firefox <= 128, Safari 14-18, Node 20.20.2 and 22.23.4 reject it;
   // Chrome 143, Firefox 141, Safari 26 and Node 24.22.2 pass.
   // assert.same(new URL('https://\uD87E\uDC68.com/').hostname, 'xn--snl.com', 'supplementary canonical singleton');
   assert.same(new URL('https://example.com/a\u0308?a\u0308#a\u0308').href, 'https://example.com/a%CC%88?a%CC%88#a%CC%88', 'other components are not normalized');
   // Native Chrome / Edge <= 119 and Firefox <= 128 fail; Chrome 132 and Firefox 141 pass.
-  // assert.same(new URL('nonspecial://a\u0308/').hostname, 'a%CC%88', 'opaque host is not normalized');
+  assert.same(new URL('nonspecial://a\u0308/').hostname, 'a%CC%88', 'opaque host is not normalized');
 });
 
 if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
@@ -654,7 +661,7 @@ if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
     assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
   }
   // Native Chrome / Edge <= 110 percent-encode the parentheses; Chrome 119 passes.
-  // assert.same(new URL('https://\u2477.com/').hostname, '(4).com', 'parenthesized digit');
+  assert.same(new URL('https://\u2477.com/').hostname, '(4).com', 'parenthesized digit');
   // Native Chrome <= 119, Edge <= 110, Firefox <= 128, Safari 14-17, Node 20.20.2 and 22.23.4 map it to `ss`,
   // as before Unicode 15.1; Chrome 132, Firefox 141, Safari 18 and Node 24.22.2 pass.
   // assert.same(new URL('https://\u1E9E.de/').hostname, 'xn--zca.de', 'capital sharp s');
@@ -663,14 +670,14 @@ if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
 
 // Native Chrome / Edge < 110 use transitional processing.
 // https://crbug.com/694157
-QUnit.skip('URL domain deviation characters', assert => {
+QUnit.test('URL domain deviation characters', assert => {
   assert.same(new URL('https://fa\u00DF.de/').hostname, 'xn--fa-hia.de', 'sharp s');
   assert.same(new URL('https://\u03C3\u03C2.gr/').hostname, 'xn--3xab.gr', 'final sigma');
 });
 
 // Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain unassigned and disallowed code points', assert => {
+QUnit.test('URL domain unassigned and disallowed code points', assert => {
   for (const [domain, message] of [
     ['a\uD900\uDC00b.com', 'unassigned plane'],
     ['a\uFFFDb.com', 'replacement character'],
@@ -686,7 +693,7 @@ QUnit.skip('URL domain unassigned and disallowed code points', assert => {
 
 // Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain labels beginning with a combining mark', assert => {
+QUnit.test('URL domain labels beginning with a combining mark', assert => {
   for (const [domain, message] of [
     ['\u0301a.example', 'nonspacing mark'],
     ['\u093Fa.example', 'spacing mark'],
@@ -715,12 +722,15 @@ QUnit.test('URL domain combining marks that do not begin a label', assert => {
   }
   assert.same(new URL('https://example.com/\u0301a?\u0301a#\u0301a').href, 'https://example.com/%CC%81a?%CC%81a#%CC%81a', 'other components');
   // Native Chrome / Edge <= 119 and Firefox <= 128 fail; Chrome 132 and Firefox 141 pass.
-  // assert.same(new URL('nonspecial://\u0301a/').hostname, '%CC%81a', 'opaque host');
+  assert.same(new URL('nonspecial://\u0301a/').hostname, '%CC%81a', 'opaque host');
 });
 
 // Native Chrome / Edge < 110 remove the joiners, as transitional processing does: https://crbug.com/694157
 // Native Chrome <= 147, Edge <= 110 and Firefox 57-93 accept a joiner without a context; Chrome 150 and Firefox 94 pass.
-QUnit.skip('URL domain joiners', assert => {
+// Native Deno 2.0.6 accepts it as well; Deno 2.1.14 passes.
+const JOINERS_BUG = CHROMIUM_VERSION >= 130 && CHROMIUM_VERSION < 148 || DENO_VERSION >= 125 && DENO_VERSION < 201;
+
+QUnit[JOINERS_BUG ? 'skip' : 'test']('URL domain joiners', assert => {
   for (const [domain, expected, message] of [
     ['\u0915\u094D\u200D\u0937.example', 'xn--11b2ezcw70k.example', 'zero width joiner after a virama'],
     ['\u0915\u094D\u200C\u0937.example', 'xn--11b2ezcs70k.example', 'zero width non-joiner after a virama'],
@@ -754,11 +764,12 @@ QUnit.test('URL domain Punycode labels in non-ASCII domains', assert => {
 });
 
 // Native Firefox 57-105 accepts these labels; Firefox 106 rejects them.
-QUnit.skip('URL domain invalid Punycode labels in non-ASCII domains', assert => {
+QUnit.test('URL domain invalid Punycode labels in non-ASCII domains', assert => {
   for (const [domain, message] of [
     ['xn--a.\u00E9', 'disallowed code point'],
     ['xn--a-qib.\u00E9', 'unassigned code point'],
-    ['xn--.\u00E9', 'empty label'],
+    // Native Deno 1.30.0-2.0.6 accepts it; Deno 2.1.14 rejects it.
+    // ['xn--.\u00E9', 'empty label'],
     ['xn--\u00E9.\u00E9', 'non-ASCII label'],
     ['xn--\u00E9-eha.com', 'non-ASCII label with a delimiter'],
     ['xn--a-wbb.\u00E9', 'label beginning with a combining mark'],
@@ -798,7 +809,8 @@ QUnit.test('URL domain Bidi rule', assert => {
 // The last two, labels without right-to-left characters: native Firefox <= 128, Node 24.22.2 and 26.13.0
 // accept them; Chrome 67-156, Firefox 141, Safari 14-26, Bun 1.4.4 and Deno 2.9.7 reject them.
 // https://github.com/whatwg/url/issues/543
-QUnit.skip('URL domain Bidi rule: rejected labels', assert => {
+// The browsers pass except native Firefox 122.
+QUnit[NODE_MAJOR >= 18 || FIREFOX_122 ? 'skip' : 'test']('URL domain Bidi rule: rejected labels', assert => {
   for (const [domain, message] of [
     ['\u05D0a.com', 'right-to-left label ending with a left-to-right letter'],
     ['\u05D0\u06611.com', 'European and Arabic digits'],
@@ -813,7 +825,7 @@ QUnit.skip('URL domain Bidi rule: rejected labels', assert => {
 });
 
 // Native Firefox 57-105 accepts these hosts; Firefox 106 rejects them.
-QUnit.skip('URL domain label validation in parsing and setters', assert => {
+QUnit.test('URL domain label validation in parsing and setters', assert => {
   for (const hostname of ['\u0301a.example', '\u05D0a.example', 'xn--a.\u00E9']) {
     const input = `https://${ hostname }/`;
     assert.same(URL.parse(input), null, 'URL.parse rejects an invalid label');
@@ -856,7 +868,7 @@ QUnit.test('URL converts lone surrogates before removing tabs and newlines', ass
         ['hostname', input, 'example.com'],
         // Native Firefox 115-117 keeps tabs and newlines in pathname.
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1818374
-        // ['pathname', input, `/${ expected }`],
+        ['pathname', input, `/${ expected }`],
         ['search', input, `?${ expected }`],
         ['hash', input, `#${ expected }`],
       ]) {
@@ -933,28 +945,28 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before changing state',
   // Still fails in Node 26.13.0 and 27 alpha; introduced by the Ada integration:
   // https://github.com/nodejs/node/pull/46410
   // https://github.com/nodejs/node/issues/67345
-  // for (const [key, value, expected] of [
-  //   ['host', 'other.example:8080', 'https://other.example:8080/old'],
-  //   ['hostname', 'other.example', 'https://other.example/old'],
-  //   ['port', '8080', 'https://example.com:8080/old'],
-  //   ['pathname', '/new', 'https://example.com/new'],
-  // ]) {
-  //   const target = new URL('mailto:x');
-  //   target[key] = {
-  //     toString() {
-  //       target.href = 'https://example.com/old';
-  //       return value;
-  //     },
-  //   };
-  //   assert.same(target.href, expected, `${ key } uses the URL changed during conversion`);
-  //   target[key] = {
-  //     toString() {
-  //       target.href = 'mailto:x';
-  //       return value;
-  //     },
-  //   };
-  //   assert.same(target.href, 'mailto:x', `${ key } checks for an early return after conversion`);
-  // }
+  if (NODE_MAJOR < 18) for (const [key, value, expected] of [
+    ['host', 'other.example:8080', 'https://other.example:8080/old'],
+    ['hostname', 'other.example', 'https://other.example/old'],
+    ['port', '8080', 'https://example.com:8080/old'],
+    ['pathname', '/new', 'https://example.com/new'],
+  ]) {
+    const target = new URL('mailto:x');
+    target[key] = {
+      toString() {
+        target.href = 'https://example.com/old';
+        return value;
+      },
+    };
+    assert.same(target.href, expected, `${ key } uses the URL changed during conversion`);
+    target[key] = {
+      toString() {
+        target.href = 'mailto:x';
+        return value;
+      },
+    };
+    assert.same(target.href, 'mailto:x', `${ key } checks for an early return after conversion`);
+  }
 });
 
 QUnit.test('URL#href', assert => {
@@ -1000,11 +1012,6 @@ QUnit.test('URL#href', assert => {
     assert.same(url.href, 'http://[20:0:0:1::ff]/');
     assert.same(String(url), 'http://[20:0:0:1::ff]/');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.href = 'http://257.168.0xF0'; // TypeError and Safari
-    // assert.same(url.href, 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // `F` instead of `f` in Chrome
-    // assert.same(String(url), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // `F` instead of `f` in Chrome
-
     url = new URL('http://zloirock.ru/');
     url.href = 'http://0300.168.0xG0';
     assert.same(url.href, 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
@@ -1019,17 +1026,17 @@ QUnit.test('URL#href', assert => {
     url.href = 'http://0300.168.0xF0';
     // Node 19.7
     // https://github.com/nodejs/node/issues/46755
-    // assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
-    // assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
+    assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
+    assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
 
-    // assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
+    assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
 
     const href = 'https://user:pass@example.com:8080/path?q=1#fragment';
     url = new URL(href);
@@ -1053,30 +1060,31 @@ QUnit.test('URL#href', assert => {
     url.search = '?y=4';
     assert.same(String(params), 'y=4', 'URL still updates the same searchParams');
 
-    // fails in Chrome 92 (Windows), Firefox 157, Deno 2.9.8
-    // url = new URL('https://example.com/path');
-    // assert.throws(() => { url.href = 'http:'; }, TypeError);
+    // failed in native Chrome 92 (Windows)
+    url = new URL('https://example.com/path');
+    assert.throws(() => { url.href = 'http:'; }, TypeError);
+    // fails in native Firefox 122 and 133-159
     // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url.protocol = 'file:';
     // assert.same(url.href, 'file://example.com/path', 'failed assignment cannot create a file URL with a null host');
 
-    // fails in Chrome 92 (Windows), Deno 1.10.3
-    // url = new URL('https://example.com/path?q=1');
-    // assert.throws(() => {
-    //   url.href = {
-    //     toString() {
-    //       url.hash = 'changed';
-    //       return 'https://evil.com:abc';
-    //     },
-    //   };
-    // }, TypeError);
-    // assert.same(url.href, 'https://example.com/path?q=1#changed');
-    //
-    // const error = new Error('conversion');
-    // assert.throws(() => {
-    //   url.href = { toString() { throw error; } };
-    // }, error);
-    // assert.same(url.href, 'https://example.com/path?q=1#changed');
+    // failed in native Chrome 92 (Windows), Deno 1.10.3
+    url = new URL('https://example.com/path?q=1');
+    assert.throws(() => {
+      url.href = {
+        toString() {
+          url.hash = 'changed';
+          return 'https://evil.com:abc';
+        },
+      };
+    }, TypeError);
+    assert.same(url.href, 'https://example.com/path?q=1#changed');
+
+    const error = new Error('conversion');
+    assert.throws(() => {
+      url.href = { toString() { throw error; } };
+    }, error);
+    assert.same(url.href, 'https://example.com/path?q=1#changed');
   }
 
   // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
@@ -1110,9 +1118,9 @@ QUnit.test('URL#origin', assert => {
     // ['blob:ws://example.org/', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
     // ['blob:wss://example.org/', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
     // ['blob:blob:https://example.org/', 'null'], // fails in Chrome 67 (Windows), Firefox 127, Safari 16, Node 17.0.1, Deno 2.9.8
-    // ['blob://h/http:example.com', 'null'], // fails in Safari 15, Node 17.0.1
-    // ['blob:/https://example.org/', 'null'], // fails in Safari 15
-    // ['blob:', 'null'], // fails in Safari 15
+    ['blob://h/http:example.com', 'null'], // failed in native Safari 15, Node 17.0.1
+    ['blob:/https://example.org/', 'null'], // failed in native Safari 15
+    ['blob:', 'null'], // failed in native Safari 15
     ['blob:null/uuid', 'null'],
     // ['blob:file:///x', new URL('file:///x').origin], // fails in Node 20.0.0, Bun 1.4.4
     ['blob:https://example.org/uuid', 'https://example.org'],
@@ -1210,8 +1218,8 @@ QUnit.test('URL#password', assert => {
   url = new URL('http://username:password@zloirock.ru/');
   assert.same(url.password, 'password');
 
-  // url = new URL('http://:password@zloirock.ru/'); // TypeError in FF
-  // assert.same(url.password, 'password');
+  url = new URL('http://:password@zloirock.ru/'); // TypeError in FF
+  assert.same(url.password, 'password');
 
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/');
@@ -1220,10 +1228,10 @@ QUnit.test('URL#password', assert => {
     assert.same(url.password, 'password');
     assert.same(String(url), 'http://username:password@zloirock.ru/');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.password = 'password';
-    // assert.same(url.password, 'password'); // '' in FF
-    // assert.same(String(url), 'http://:password@zloirock.ru/'); // 'http://zloirock.ru/' in FF
+    url = new URL('http://zloirock.ru/');
+    url.password = 'password';
+    assert.same(url.password, 'password'); // '' in FF
+    assert.same(String(url), 'http://:password@zloirock.ru/'); // 'http://zloirock.ru/' in FF
   }
 });
 
@@ -1247,9 +1255,9 @@ QUnit.test('URL#host', assert => {
     assert.same(url.host, 'example.com:82');
     assert.same(String(url), 'http://example.com:82/path');
 
-    // url = new URL('http://zloirock.ru:81/path');
-    // url.host = 'other?domain.com';
-    // assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
+    url = new URL('http://zloirock.ru:81/path');
+    url.host = 'other?domain.com';
+    assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
 
     url = new URL('https://www.mydomain.com:8080/path/');
     url.host = 'www.otherdomain.com:80';
@@ -1279,10 +1287,10 @@ QUnit.test('URL#host', assert => {
     assert.same(url.host, '192.168.0.240');
     assert.same(String(url), 'http://192.168.0.240/foo');
 
-    // url = new URL('http://zloirock.ru/foo');
-    // url.host = '[20:0:0:1:0:0:0:ff]';
-    // assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
-    // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
+    url = new URL('http://zloirock.ru/foo');
+    url.host = '[20:0:0:1:0:0:0:ff]';
+    assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
+    assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
 
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url = new URL('file:///var/log/system.log');
@@ -1290,20 +1298,20 @@ QUnit.test('URL#host', assert => {
     // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
     // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.host = '[20:0:0:1:0:0:0:ff';
-    // assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.host = '[20:0:0:1:0:0:0:ff';
+    assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.host = '[20:0:0:1:0:0:0:fg]';
-    // assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.host = '[20:0:0:1:0:0:0:fg]';
+    assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.host = 'a%b';
-    // assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
-    // assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
+    url = new URL('http://zloirock.ru/');
+    url.host = 'a%b';
+    assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+    assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
   }
 });
 
@@ -1358,10 +1366,10 @@ QUnit.test('URL#hostname', assert => {
     assert.same(url.hostname, '192.168.0.240');
     assert.same(String(url), 'http://192.168.0.240/foo');
 
-    // url = new URL('http://zloirock.ru/foo');
-    // url.hostname = '[20:0:0:1:0:0:0:ff]';
-    // assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
-    // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
+    url = new URL('http://zloirock.ru/foo');
+    url.hostname = '[20:0:0:1:0:0:0:ff]';
+    assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
+    assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
 
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url = new URL('file:///var/log/system.log');
@@ -1369,20 +1377,20 @@ QUnit.test('URL#hostname', assert => {
     // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
     // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hostname = '[20:0:0:1:0:0:0:ff';
-    // assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.hostname = '[20:0:0:1:0:0:0:ff';
+    assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hostname = '[20:0:0:1:0:0:0:fg]';
-    // assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.hostname = '[20:0:0:1:0:0:0:fg]';
+    assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hostname = 'a%b';
-    // assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
-    // assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
+    url = new URL('http://zloirock.ru/');
+    url.hostname = 'a%b';
+    assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+    assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
   }
 });
 
@@ -1516,7 +1524,7 @@ QUnit.test('URL#search', assert => {
   // query percent-encode set
   assert.same(new URL('http://x/?a="<>').search, '?a=%22%3C%3E', 'query percent-encodes ", <, >');
   assert.same(new URL('http://x/?a=\'').search, '?a=%27', 'special query percent-encodes \'');
-  // fails in modern Chrome (~145)
+  // fails in native Chrome 130-157
   // assert.same(new URL('foo://x/?a=\'').search, '?a=\'', 'non-special query does not percent-encode \'');
 
   // space in opaque paths should not be percent-encoded
@@ -1647,9 +1655,9 @@ QUnit.test('URL#hash', assert => {
     url.hash = 'абa';
     assert.same(url.hash, '#%D0%B0%D0%B1a');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hash = '\uDC01\uD802a';
-    // assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
+    url = new URL('http://zloirock.ru/');
+    url.hash = '\uDC01\uD802a';
+    assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
   }
 });
 

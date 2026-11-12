@@ -7,25 +7,29 @@ import toASCIITestData from '../wpt-url-resources/toascii.js';
 
 const { hasOwnProperty } = Object.prototype;
 
-const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// --- Defects of the natives that the polyfill replaces ---
 // Native Firefox 94-105 checks the UTF-16 label length before IDNA mapping; fixed in 106.
-// The pure version uses the polyfill below Firefox 118.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1788115
-const FIREFOX_IDNA_LENGTH = FIREFOX_VERSION >= 94 && FIREFOX_VERSION < 106;
-
 // Native Deno 1.2.0 keeps the base host in network-path references; fixed in 1.2.1.
 // https://github.com/denoland/deno/pull/6807
-const DENO_BROKEN_RELATIVE_URL = DENO && GLOBAL.Deno.version.deno === '1.2.0';
 
 // Engines without `String.prototype.normalize` use the polyfill, which does not normalize domains there
 // and rejects the compatibility characters it does not map itself.
 // eslint-disable-next-line es/no-string-prototype-normalize -- detection
-const NORMALIZE = typeof String.prototype.normalize == 'function';
+const NORMALIZE_EXISTS = typeof String.prototype.normalize == 'function';
+// the native method of Deno before 1.8 leaves a string as it is
+// eslint-disable-next-line es/no-string-prototype-normalize -- detection
+const NORMALIZE = NORMALIZE_EXISTS && 'A\u030A'.normalize('NFC') === '\u00C5';
+// 0 outside of NodeJS
+const NODE_MAJOR = NODE && !DENO ? +GLOBAL.process.versions.node.split('.')[0] : 0;
+const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 122 shipped the new parser of non-special URLs, Firefox 123 reverted it till 133
+const FIREFOX_122 = /Firefox\/122\./.test(GLOBAL.navigator?.userAgent);
 
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
   // Deno 1.10 exposes arity 2.
-  if (!NODE && DENO_VERSION !== 110) assert.arity(URL, 1);
+  assert.arity(URL, 1);
   assert.name(URL, 'URL');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(URL);
@@ -59,32 +63,26 @@ QUnit.test('URL constructor', assert => {
 
   assert.same(String(new URL('http://0300.168.0xF0')), 'http://192.168.0.240/');
   assert.same(String(new URL('http://[20:0:0:1:0:0:0:ff]')), 'http://[20:0:0:1::ff]/');
-  // assert.same(String(new URL('http://257.168.0xF0')), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // TypeError in Chrome and Safari
-  // assert.throws(() => new URL('http://257.168.0xF0'), 'invalid IPv4: octet > 255'); // accepted by native Firefox 57-118
+  assert.throws(() => new URL('http://257.168.0xF0'), 'invalid IPv4: octet > 255'); // accepted by native Firefox 57-118
   assert.same(String(new URL('http://0300.168.0xG0')), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
 
   // no error in Chrome 67 and Safari 14
   // Firefox 57-118 also accepts these invalid numeric hosts.
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1723456
-  if (!URL.canParse('http://foo.1/')) {
-    assert.throws(() => new URL('http://1.2.3.4.5/'), 'IPv4 with > 4 parts');
-    assert.throws(() => new URL('http://a.b.c.d.5/'), 'host ending in number with non-numeric parts');
-    assert.throws(() => new URL('http://foo.1/'), 'host ending in number with non-IPv4');
-  }
+  assert.throws(() => new URL('http://1.2.3.4.5/'), 'IPv4 with > 4 parts');
+  assert.throws(() => new URL('http://a.b.c.d.5/'), 'host ending in number with non-numeric parts');
+  assert.throws(() => new URL('http://foo.1/'), 'host ending in number with non-IPv4');
 
   // https://url.spec.whatwg.org/#forbidden-domain-code-point
   // no error in Safari 14
   // https://bugs.webkit.org/show_bug.cgi?id=232034
-  if (!URL.canParse('http://a\u0001b.example.com/')) {
-    assert.throws(() => new URL('http://a\u0001b.example.com/'), 'C0 control in a domain');
-    assert.throws(() => new URL('https://a\u001Fb/'), 'C0 control in a domain');
-    assert.throws(() => new URL('ws://a\u000Bb/'), 'C0 control in a domain');
-    // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
-    // assert.throws(() => new URL('file://a\u000Cb/c'), 'C0 control in a file: domain'); // 'ab' in Chromium and WebKit, '' in FF
-    // assert.throws(() => new URL('http://a\u007Fb.example.com/'), 'DELETE in a domain'); // accepted by native Firefox 57-97
-  }
+  assert.throws(() => new URL('http://a\u0001b.example.com/'), 'C0 control in a domain');
+  assert.throws(() => new URL('https://a\u001Fb/'), 'C0 control in a domain');
+  assert.throws(() => new URL('ws://a\u000Bb/'), 'C0 control in a domain');
+  // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
+  // assert.throws(() => new URL('file://a\u000Cb/c'), 'C0 control in a file: domain'); // 'ab' in Chromium and WebKit, '' in FF
+  assert.throws(() => new URL('http://a\u007Fb.example.com/'), 'DELETE in a domain'); // accepted by native Firefox 57-97
   // Native Firefox 57-93 accepts these disallowed IDNA code points.
-  /*
   assert.throws(() => new URL('http://a\u0085b.example.com/'), 'C1 control in a domain');
   assert.throws(() => new URL('http://a\u202Eb.example.com/'), 'right-to-left override in a domain');
   assert.throws(() => new URL('http://a\uFFFDb.example.com/'), 'replacement character in a domain');
@@ -92,13 +90,12 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http://a\uFFFFb.example.com/'), 'noncharacter in a domain');
   assert.throws(() => new URL('http://a\uE000b.example.com/'), 'private use character in a domain');
   assert.throws(() => new URL('http://a\uD800b.example.com/'), 'lone surrogate in a domain');
-  */
   // assert.throws(() => new URL('http://a\u00A0b.example.com/'), 'no-break space in a domain'); // 'a%20b.example.com' in Chromium
   // assert.throws(() => new URL('http://a\u3000b.example.com/'), 'ideographic space in a domain'); // 'a%20b.example.com' in Chromium
-  // assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point'); // no error in Chrome 67 and 109
+  assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point'); // no error in Chrome 67 and 109
   // Native Node 10-14 accepts a domain mapped to an empty string; fixed in Node 15.0.0.
   // https://github.com/nodejs/node/pull/33770
-  // assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
+  assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
 
   // the forbidden host code point set is smaller - an opaque host keeps them percent-encoded
   // TypeError in Safari 16, '' in Chrome 67 and 109
@@ -136,8 +133,8 @@ QUnit.test('URL constructor', assert => {
   // a domain is percent-decoded first, https://url.spec.whatwg.org/#concept-host-parser
   assert.same(new URL('http://%41.example.com/').hostname, 'a.example.com', 'percent-decoded domain');
   assert.same(new URL('http://%D0%B1.com/').hostname, 'xn--90a.com', 'percent-decoded non-ASCII domain');
-  // assert.throws(() => new URL('http://%01.example.com/'), 'percent-decoded forbidden domain code point'); // no error in Safari 14
-  // assert.throws(() => new URL('http://a%b'), 'invalid percent sequence in a domain'); // accepted by native Firefox 57-66
+  assert.throws(() => new URL('http://%01.example.com/'), 'percent-decoded forbidden domain code point'); // no error in Safari 14
+  assert.throws(() => new URL('http://a%b'), 'invalid percent sequence in a domain'); // accepted by native Firefox 57-66
   // Native Node 20.0.0 returns an empty hostname; Node 20.20.2 passes.
   assert.same(new URL('http://%31%32%37.0.0.1/').hostname, '127.0.0.1', 'percent-decoded domain parsed as IPv4');
   assert.same(new URL('http://127.0.0.%31/').hostname, '127.0.0.1', 'percent-decoded IPv4 last part');
@@ -145,8 +142,8 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http://a%D0/'), 'percent sequence truncated by the end of a domain');
 
   // a code point whose UTS#46 mapping holds a forbidden domain code point is rejected too
-  // assert.throws(() => new URL('http://a\uFE6Ab.example.com/'), 'small percent sign in a domain'); // accepted by native Firefox 57-66
-  // assert.throws(() => new URL('http://a\uFE5Fb.example.com/'), 'small number sign in a domain'); // no error in Chrome 67 and 109
+  assert.throws(() => new URL('http://a\uFE6Ab.example.com/'), 'small percent sign in a domain'); // accepted by native Firefox 57-66
+  assert.throws(() => new URL('http://a\uFE5Fb.example.com/'), 'small number sign in a domain'); // no error in Chrome 67 and 109
   assert.throws(() => new URL('http://a\uFE68b.example.com/'), 'small reverse solidus in a domain');
   assert.throws(() => new URL('http://a\u2100b.example.com/'), 'account-of sign in a domain');
   assert.throws(() => new URL('http://a\u2A74b.example.com/'), 'double colon equal in a domain');
@@ -154,14 +151,14 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('http://a\u180Ab.example.com/').hostname, 'xn--ab-t0o.example.com', 'code point just outside the ignored range');
 
   // the mapping table holds no supplementary code point, and must not be probed with a truncated one
-  // assert.same(new URL('http://a\uD807\uDFC0b.example.com/').hostname, 'xn--ab-ed4p.example.com', 'supplementary code point sharing low units with the table'); // TypeError in Chrome 67
+  assert.same(new URL('http://a\uD807\uDFC0b.example.com/').hostname, 'xn--ab-ed4p.example.com', 'supplementary code point sharing low units with the table'); // TypeError in Chrome 67
   assert.same(new URL('http://a\uD808\uDD00b.example.com/').hostname, 'xn--ab-t44p.example.com', 'supplementary code point sharing low units with the table');
 
   // a lone surrogate is percent-encoded as U+FFFD, https://encoding.spec.whatwg.org/#utf-8-encoder
   assert.same(new URL('http://example.com/a\uD800b').pathname, '/a%EF%BF%BDb', 'lone surrogate in a path');
   assert.same(new URL('http://example.com/?a\uD800b').search, '?a%EF%BF%BDb', 'lone surrogate in a query');
   assert.same(new URL('http://example.com/#a\uD800b').hash, '#a%EF%BF%BDb', 'lone surrogate in a fragment');
-  // assert.same(new URL('nonspecial://a\uD800b/').hostname, 'a%EF%BF%BDb', 'lone surrogate in an opaque host'); // '' in Chrome 67 and 109
+  assert.same(new URL('nonspecial://a\uD800b/').hostname, 'a%EF%BF%BDb', 'lone surrogate in an opaque host'); // '' in Chrome 67 and 109
   assert.same(new URL('http://a\uD800b@example.com/').username, 'a%EF%BF%BDb', 'lone surrogate in a username');
   assert.same(new URL('http://example.com/\uDC00').pathname, '/%EF%BF%BD', 'trailing lone surrogate');
   assert.same(new URL('http://example.com/\uD83D\uDE00').pathname, '/%F0%9F%98%80', 'surrogate pair is kept');
@@ -186,7 +183,7 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL(''), 'TypeError: Failed to construct URL: Invalid URL');
   // Node 19.7
   // https://github.com/nodejs/node/issues/46755
-  // assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct URL: Invalid URL');
+  assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct URL: Invalid URL');
   assert.throws(() => new URL('abc'), 'TypeError: Failed to construct URL: Invalid URL');
   assert.throws(() => new URL('//abc'), 'TypeError: Failed to construct URL: Invalid URL');
   assert.throws(() => new URL('http:///www.domain.com/', 'abc'), 'TypeError: Failed to construct URL: Invalid base URL');
@@ -194,12 +191,12 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct URL: Invalid base URL');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:ff'), 'incorrect IPv6');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
-  // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
+  assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
   assert.throws(() => new URL('1http://zloirock.ru'), 'incorrect scheme');
   assert.throws(() => new URL('a,b://example.com'), 'comma in scheme');
   assert.same(String(new URL('a+b-c.d://example.com')), 'a+b-c.d://example.com', 'valid scheme with +, -, .');
-  // assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path'); // TypeError in Chrome 67 and 109
-  // assert.same(String(new URL('bar', 'foo://host/a/b')), 'foo://host/a/bar', 'relative URL with non-special base with path'); // throws in native Firefox 57-68
+  assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path'); // TypeError in Chrome 67 and 109
+  assert.same(String(new URL('bar', 'foo://host/a/b')), 'foo://host/a/bar', 'relative URL with non-special base with path'); // throws in native Firefox 57-68
   assert.same(String(new URL('bar', 'https://example.com/a/b')), 'https://example.com/a/bar', 'relative URL with special base with path');
 
   for (const [input, base, expected] of [
@@ -229,7 +226,7 @@ QUnit.test('URL constructor', assert => {
 // Native Firefox 57-93 replaces disallowed characters with U+FFFD instead of rejecting the domain.
 // Fixed in Firefox 94 and ESR 91.3; the pure version uses the polyfill below Firefox 118.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain Unicode validation: disallowed code points', assert => {
+QUnit.test('URL domain Unicode validation: disallowed code points', assert => {
   // https://www.unicode.org/Public/18.0.0/idna/IdnaMappingTable.txt
   for (const [first, last] of [
     [0x600, 0x605], [0x61C, 0x61C], [0x6DD, 0x6DD], [0x70F, 0x70F], [0x890, 0x891], [0x8E2, 0x8E2],
@@ -251,7 +248,7 @@ QUnit.skip('URL domain Unicode validation: disallowed code points', assert => {
 
 // Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain Unicode validation: parsing and setters', assert => {
+QUnit.test('URL domain Unicode validation: parsing and setters', assert => {
   for (const character of ['\u0600', '\u2024', '\uD80D\uDC30', '\uDB40\uDC41']) {
     const hostname = `a${ character }b.example`;
     const input = `https://${ hostname }/`;
@@ -285,9 +282,7 @@ QUnit.test('URL domain Punycode encoding: repeated and reordered code points', a
     const expected = `https://${ encoded }.example/path?a=1#hash`;
     const url = new URL(input);
     assert.same(url.href, expected, 'absolute URL');
-    if (!DENO_BROKEN_RELATIVE_URL) {
-      assert.same(new URL(`//${ label }.example/path?a=1#hash`, 'https://example.org/').href, expected, 'relative URL');
-    }
+    assert.same(new URL(`//${ label }.example/path?a=1#hash`, 'https://example.org/').href, expected, 'relative URL');
     assert.same(new URL(url.href).href, expected, 'serialization round trip');
     if (DESCRIPTORS) {
       const assigned = new URL('https://example.org/path?a=1#hash');
@@ -306,7 +301,7 @@ QUnit.test('URL domain Punycode encoding: repeated and reordered code points', a
 // https://crbug.com/804688
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1788115
 // https://bugs.webkit.org/show_bug.cgi?id=226912
-QUnit.skip('URL domain Punycode encoding: many distinct code points', assert => {
+QUnit.test('URL domain Punycode encoding: many distinct code points', assert => {
   let distinct = '';
   for (let index = 0; index < 128; index++) distinct += String.fromCharCode(0x4E00 + (index * 67 % 128));
   const encodedDistinct = 'xn--4gqccdefgnhijklymnopq9arstuv0cwxyz0a1d1a2a3a4a5a2e6a7a8a9azb9etb1b1b2b3b4fxb5b6b6b7bxg1b9bxcycxc2g5bzc0c1c2c1c9goc3c'
@@ -351,12 +346,10 @@ for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
         error = error_;
       }
       if (error) assert.true(error instanceof TypeError, 'constructor failure is a TypeError');
-      else if (!DENO_BROKEN_RELATIVE_URL || name !== 'relative') assert.same(url.href, expected, 'successful encoding');
+      else assert.same(url.href, expected, 'successful encoding');
       assert.same(URL.canParse(input, base), !error, 'canParse agrees with the constructor');
       const parsed = URL.parse(input, base);
-      if (!DENO_BROKEN_RELATIVE_URL || name !== 'relative') {
-        assert.same(parsed && parsed.href, error ? null : expected, 'parse agrees with the constructor');
-      }
+      assert.same(parsed && parsed.href, error ? null : expected, 'parse agrees with the constructor');
     });
   }
 
@@ -368,7 +361,7 @@ for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
     // Native Chrome 67-92 and Edge 79-92 corrupt the URL on rejected setter input; fixed in 93.
     // https://crbug.com/819342
     // https://crbug.com/1018721
-    QUnit.skip(`URL domain Punycode overflow: ${ length }, ${ key } setter`, assert => {
+    QUnit.test(`URL domain Punycode overflow: ${ length }, ${ key } setter`, assert => {
       if (DESCRIPTORS) {
         const accepts = URL.canParse(`https://${ label }/`);
         const initial = 'https://user:pass@example.org:8080/path?a=1#hash';
@@ -528,7 +521,7 @@ QUnit.test('URL domain case mapping', assert => {
   // Native Firefox < 122 and Chrome / Edge < 130 parse this as an opaque path.
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1603699
   // https://crbug.com/1416006
-  // assert.same(new URL('nonspecial://EXAMPLE.COM/').hostname, 'EXAMPLE.COM', 'opaque host keeps its case');
+  assert.same(new URL('nonspecial://EXAMPLE.COM/').hostname, 'EXAMPLE.COM', 'opaque host keeps its case');
   assert.same(new URL('http://EXAMPLE.COM/ABC').pathname, '/ABC', 'path keeps its case');
 });
 
@@ -582,7 +575,7 @@ QUnit.test('URL domain mathematical Latin letters and digits', assert => {
     ['𝘼𝘽𝘾𝘿𝙀𝙁𝙂𝙃𝙄𝙅𝙆𝙇𝙈𝙉𝙊𝙋𝙌𝙍𝙎𝙏𝙐𝙑𝙒𝙓𝙔𝙕𝙖𝙗𝙘𝙙𝙚𝙛𝙜𝙝𝙞𝙟𝙠𝙡𝙢𝙣𝙤𝙥𝙦𝙧𝙨𝙩𝙪𝙫𝙬𝙭𝙮𝙯', 'sans-serif bold italic'],
     ['𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣', 'monospace'],
   ]) {
-    if (!FIREFOX_IDNA_LENGTH) assert.same(new URL(`https://${ letters }.example/`).hostname,
+    assert.same(new URL(`https://${ letters }.example/`).hostname,
       'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz.example', name);
   }
 
@@ -620,7 +613,7 @@ QUnit.test('URL domain mathematical Latin letters and digits', assert => {
 // Native Firefox 57-93 accepts these unassigned positions; fixed in 94 and ESR 91.3.
 // The pure version uses the polyfill below Firefox 118.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain unassigned mathematical Latin positions', assert => {
+QUnit.test('URL domain unassigned mathematical Latin positions', assert => {
   for (const character of [
     '\uD835\uDC55', '\uD835\uDC9D', '\uD835\uDCA0', '\uD835\uDCA1',
     '\uD835\uDCA3', '\uD835\uDCA4', '\uD835\uDCA7', '\uD835\uDCA8',
@@ -669,13 +662,13 @@ if (NORMALIZE) QUnit.test('URL domain normalization', assert => {
     assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
   }
   // Native Chrome / Edge <= 110 percent-encode the equals sign instead; Chrome 119 passes.
-  // assert.same(new URL('https://=\u0338.com/').hostname, 'xn--1ch.com', 'composition replacing a forbidden code point');
+  assert.same(new URL('https://=\u0338.com/').hostname, 'xn--1ch.com', 'composition replacing a forbidden code point');
   // Native Chrome <= 132, Edge <= 110, Firefox <= 128, Safari 14-18, Node 20.20.2 and 22.23.4 reject it;
   // Chrome 143, Firefox 141, Safari 26 and Node 24.22.2 pass.
   // assert.same(new URL('https://\uD87E\uDC68.com/').hostname, 'xn--snl.com', 'supplementary canonical singleton');
   assert.same(new URL('https://example.com/a\u0308?a\u0308#a\u0308').href, 'https://example.com/a%CC%88?a%CC%88#a%CC%88', 'other components are not normalized');
   // Native Chrome / Edge <= 119 and Firefox <= 128 fail; Chrome 132 and Firefox 141 pass.
-  // assert.same(new URL('nonspecial://a\u0308/').hostname, 'a%CC%88', 'opaque host is not normalized');
+  assert.same(new URL('nonspecial://a\u0308/').hostname, 'a%CC%88', 'opaque host is not normalized');
 });
 
 if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
@@ -694,7 +687,7 @@ if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
     assert.same(new URL(`https://${ domain }/`).hostname, expected, message);
   }
   // Native Chrome / Edge <= 110 percent-encode the parentheses; Chrome 119 passes.
-  // assert.same(new URL('https://\u2477.com/').hostname, '(4).com', 'parenthesized digit');
+  assert.same(new URL('https://\u2477.com/').hostname, '(4).com', 'parenthesized digit');
   // Native Chrome <= 119, Edge <= 110, Firefox <= 128, Safari 14-17, Node 20.20.2 and 22.23.4 map it to `ss`,
   // as before Unicode 15.1; Chrome 132, Firefox 141, Safari 18 and Node 24.22.2 pass.
   // assert.same(new URL('https://\u1E9E.de/').hostname, 'xn--zca.de', 'capital sharp s');
@@ -703,14 +696,14 @@ if (NORMALIZE) QUnit.test('URL domain compatibility mapping', assert => {
 
 // Native Chrome / Edge < 110 use transitional processing.
 // https://crbug.com/694157
-QUnit.skip('URL domain deviation characters', assert => {
+QUnit.test('URL domain deviation characters', assert => {
   assert.same(new URL('https://fa\u00DF.de/').hostname, 'xn--fa-hia.de', 'sharp s');
   assert.same(new URL('https://\u03C3\u03C2.gr/').hostname, 'xn--3xab.gr', 'final sigma');
 });
 
 // Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain unassigned and disallowed code points', assert => {
+QUnit.test('URL domain unassigned and disallowed code points', assert => {
   for (const [domain, message] of [
     ['a\uD900\uDC00b.com', 'unassigned plane'],
     ['a\uFFFDb.com', 'replacement character'],
@@ -726,7 +719,7 @@ QUnit.skip('URL domain unassigned and disallowed code points', assert => {
 
 // Native Firefox 57-93 accepts these domains; fixed in Firefox 94 and ESR 91.3.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-QUnit.skip('URL domain labels beginning with a combining mark', assert => {
+QUnit.test('URL domain labels beginning with a combining mark', assert => {
   for (const [domain, message] of [
     ['\u0301a.example', 'nonspacing mark'],
     ['\u093Fa.example', 'spacing mark'],
@@ -755,12 +748,15 @@ QUnit.test('URL domain combining marks that do not begin a label', assert => {
   }
   assert.same(new URL('https://example.com/\u0301a?\u0301a#\u0301a').href, 'https://example.com/%CC%81a?%CC%81a#%CC%81a', 'other components');
   // Native Chrome / Edge <= 119 and Firefox <= 128 fail; Chrome 132 and Firefox 141 pass.
-  // assert.same(new URL('nonspecial://\u0301a/').hostname, '%CC%81a', 'opaque host');
+  assert.same(new URL('nonspecial://\u0301a/').hostname, '%CC%81a', 'opaque host');
 });
 
 // Native Chrome / Edge < 110 remove the joiners, as transitional processing does: https://crbug.com/694157
 // Native Chrome <= 147, Edge <= 110 and Firefox 57-93 accept a joiner without a context; Chrome 150 and Firefox 94 pass.
-QUnit.skip('URL domain joiners', assert => {
+// Native Deno 2.0.6 accepts it as well; Deno 2.1.14 passes.
+const JOINERS_BUG = CHROMIUM_VERSION >= 130 && CHROMIUM_VERSION < 148 || DENO_VERSION >= 125 && DENO_VERSION < 201;
+
+QUnit[JOINERS_BUG ? 'skip' : 'test']('URL domain joiners', assert => {
   for (const [domain, expected, message] of [
     ['\u0915\u094D\u200D\u0937.example', 'xn--11b2ezcw70k.example', 'zero width joiner after a virama'],
     ['\u0915\u094D\u200C\u0937.example', 'xn--11b2ezcs70k.example', 'zero width non-joiner after a virama'],
@@ -794,11 +790,12 @@ QUnit.test('URL domain Punycode labels in non-ASCII domains', assert => {
 });
 
 // Native Firefox 57-105 accepts these labels; Firefox 106 rejects them.
-QUnit.skip('URL domain invalid Punycode labels in non-ASCII domains', assert => {
+QUnit.test('URL domain invalid Punycode labels in non-ASCII domains', assert => {
   for (const [domain, message] of [
     ['xn--a.\u00E9', 'disallowed code point'],
     ['xn--a-qib.\u00E9', 'unassigned code point'],
-    ['xn--.\u00E9', 'empty label'],
+    // Native Deno 1.30.0-2.0.6 accepts it; Deno 2.1.14 rejects it.
+    // ['xn--.\u00E9', 'empty label'],
     ['xn--\u00E9.\u00E9', 'non-ASCII label'],
     ['xn--\u00E9-eha.com', 'non-ASCII label with a delimiter'],
     ['xn--a-wbb.\u00E9', 'label beginning with a combining mark'],
@@ -838,7 +835,8 @@ QUnit.test('URL domain Bidi rule', assert => {
 // The last two, labels without right-to-left characters: native Firefox <= 128, Node 24.22.2 and 26.13.0
 // accept them; Chrome 67-156, Firefox 141, Safari 14-26, Bun 1.4.4 and Deno 2.9.7 reject them.
 // https://github.com/whatwg/url/issues/543
-QUnit.skip('URL domain Bidi rule: rejected labels', assert => {
+// The browsers pass except native Firefox 122.
+QUnit[NODE_MAJOR >= 18 || FIREFOX_122 ? 'skip' : 'test']('URL domain Bidi rule: rejected labels', assert => {
   for (const [domain, message] of [
     ['\u05D0a.com', 'right-to-left label ending with a left-to-right letter'],
     ['\u05D0\u06611.com', 'European and Arabic digits'],
@@ -853,7 +851,7 @@ QUnit.skip('URL domain Bidi rule: rejected labels', assert => {
 });
 
 // Native Firefox 57-105 accepts these hosts; Firefox 106 rejects them.
-QUnit.skip('URL domain label validation in parsing and setters', assert => {
+QUnit.test('URL domain label validation in parsing and setters', assert => {
   for (const hostname of ['\u0301a.example', '\u05D0a.example', 'xn--a.\u00E9']) {
     const input = `https://${ hostname }/`;
     assert.same(URL.parse(input), null, 'URL.parse rejects an invalid label');
@@ -888,8 +886,8 @@ QUnit.test('URL converts lone surrogates before removing tabs and newlines', ass
     // assert.same(new URL(`data:${ input }`).pathname, expected, 'data: path');
     // Native Firefox 57-93 accepts U+FFFD in domains.
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1724233
-    // assert.throws(() => new URL(`http://${ input }/`), TypeError, 'invalid domain');
-    // assert.throws(() => new URL('b', `http://${ input }/`), TypeError, 'invalid base domain');
+    assert.throws(() => new URL(`http://${ input }/`), TypeError, 'invalid domain');
+    assert.throws(() => new URL('b', `http://${ input }/`), TypeError, 'invalid base domain');
 
     if (DESCRIPTORS) {
       for (const [property, value, result] of [
@@ -897,17 +895,17 @@ QUnit.test('URL converts lone surrogates before removing tabs and newlines', ass
         // Native Chrome 67-92 and Edge 79-92 invalidate the URL instead of ignoring the value.
         // https://crbug.com/819342
         // https://crbug.com/1018721
-        // ['host', input, 'example.com'],
-        // ['hostname', input, 'example.com'],
+        ['host', input, 'example.com'],
+        ['hostname', input, 'example.com'],
         // Native Chrome 67-92 and Edge 79-92 keep tabs and newlines in pathname, search and hash.
         // https://crbug.com/1214932
         // Native Firefox 57-117 also keeps them in pathname.
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1818374
-        // ['pathname', input, `/${ expected }`],
+        ['pathname', input, `/${ expected }`],
         // Native Firefox 57-83 keeps tabs and newlines in search and hash.
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1324247
-        // ['search', input, `?${ expected }`],
-        // ['hash', input, `#${ expected }`],
+        ['search', input, `?${ expected }`],
+        ['hash', input, `#${ expected }`],
       ]) {
         const target = new URL('http://example.com/');
         target[property] = value;
@@ -953,7 +951,7 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before an early return'
 // Native Node >= 20.0.0 regressed for href; confirmed in 26.13.0 and 27 alpha.
 // https://github.com/nodejs/node/pull/47339
 // https://github.com/nodejs/node/issues/67344
-if (DESCRIPTORS) QUnit.skip('URL setter value conversion after receiver validation', assert => {
+if (DESCRIPTORS) QUnit[NODE_MAJOR >= 20 ? 'skip' : 'test']('URL setter value conversion after receiver validation', assert => {
   for (const key of ['href', 'protocol', 'username', 'password', 'host', 'hostname', 'port', 'pathname', 'search', 'hash']) {
     const setter = Object.getOwnPropertyDescriptor(URL.prototype, key).set;
     let calls = 0;
@@ -981,28 +979,28 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before changing state',
   // Still fails in Node 26.13.0 and 27 alpha; introduced by the Ada integration:
   // https://github.com/nodejs/node/pull/46410
   // https://github.com/nodejs/node/issues/67345
-  // for (const [key, value, expected] of [
-  //   ['host', 'other.example:8080', 'https://other.example:8080/old'],
-  //   ['hostname', 'other.example', 'https://other.example/old'],
-  //   ['port', '8080', 'https://example.com:8080/old'],
-  //   ['pathname', '/new', 'https://example.com/new'],
-  // ]) {
-  //   const target = new URL('mailto:x');
-  //   target[key] = {
-  //     toString() {
-  //       target.href = 'https://example.com/old';
-  //       return value;
-  //     },
-  //   };
-  //   assert.same(target.href, expected, `${ key } uses the URL changed during conversion`);
-  //   target[key] = {
-  //     toString() {
-  //       target.href = 'mailto:x';
-  //       return value;
-  //     },
-  //   };
-  //   assert.same(target.href, 'mailto:x', `${ key } checks for an early return after conversion`);
-  // }
+  if (NODE_MAJOR < 18) for (const [key, value, expected] of [
+    ['host', 'other.example:8080', 'https://other.example:8080/old'],
+    ['hostname', 'other.example', 'https://other.example/old'],
+    ['port', '8080', 'https://example.com:8080/old'],
+    ['pathname', '/new', 'https://example.com/new'],
+  ]) {
+    const target = new URL('mailto:x');
+    target[key] = {
+      toString() {
+        target.href = 'https://example.com/old';
+        return value;
+      },
+    };
+    assert.same(target.href, expected, `${ key } uses the URL changed during conversion`);
+    target[key] = {
+      toString() {
+        target.href = 'mailto:x';
+        return value;
+      },
+    };
+    assert.same(target.href, 'mailto:x', `${ key } checks for an early return after conversion`);
+  }
 });
 
 QUnit.test('URL#href', assert => {
@@ -1012,7 +1010,7 @@ QUnit.test('URL#href', assert => {
     assert.false(hasOwnProperty.call(url, 'href'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'href');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1049,11 +1047,6 @@ QUnit.test('URL#href', assert => {
     assert.same(url.href, 'http://[20:0:0:1::ff]/');
     assert.same(String(url), 'http://[20:0:0:1::ff]/');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.href = 'http://257.168.0xF0'; // TypeError and Safari
-    // assert.same(url.href, 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // `F` instead of `f` in Chrome
-    // assert.same(String(url), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // `F` instead of `f` in Chrome
-
     url = new URL('http://zloirock.ru/');
     url.href = 'http://0300.168.0xG0';
     assert.same(url.href, 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
@@ -1068,17 +1061,17 @@ QUnit.test('URL#href', assert => {
     url.href = 'http://0300.168.0xF0';
     // Node 19.7
     // https://github.com/nodejs/node/issues/46755
-    // assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
-    // assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
+    assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
+    assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
 
-    // assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
+    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
+    assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
 
     const href = 'https://user:pass@example.com:8080/path?q=1#fragment';
     url = new URL(href);
@@ -1102,30 +1095,31 @@ QUnit.test('URL#href', assert => {
     url.search = '?y=4';
     assert.same(String(params), 'y=4', 'URL still updates the same searchParams');
 
-    // fails in Chrome 92 (Windows), Firefox 157, Deno 2.9.8
-    // url = new URL('https://example.com/path');
-    // assert.throws(() => { url.href = 'http:'; }, TypeError);
+    // failed in native Chrome 92 (Windows)
+    url = new URL('https://example.com/path');
+    assert.throws(() => { url.href = 'http:'; }, TypeError);
+    // fails in native Firefox 122 and 133-159
     // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url.protocol = 'file:';
     // assert.same(url.href, 'file://example.com/path', 'failed assignment cannot create a file URL with a null host');
 
-    // fails in Chrome 92 (Windows), Deno 1.10.3
-    // url = new URL('https://example.com/path?q=1');
-    // assert.throws(() => {
-    //   url.href = {
-    //     toString() {
-    //       url.hash = 'changed';
-    //       return 'https://evil.com:abc';
-    //     },
-    //   };
-    // }, TypeError);
-    // assert.same(url.href, 'https://example.com/path?q=1#changed');
-    //
-    // const error = new Error('conversion');
-    // assert.throws(() => {
-    //   url.href = { toString() { throw error; } };
-    // }, error);
-    // assert.same(url.href, 'https://example.com/path?q=1#changed');
+    // failed in native Chrome 92 (Windows), Deno 1.10.3
+    url = new URL('https://example.com/path?q=1');
+    assert.throws(() => {
+      url.href = {
+        toString() {
+          url.hash = 'changed';
+          return 'https://evil.com:abc';
+        },
+      };
+    }, TypeError);
+    assert.same(url.href, 'https://example.com/path?q=1#changed');
+
+    const error = new Error('conversion');
+    assert.throws(() => {
+      url.href = { toString() { throw error; } };
+    }, error);
+    assert.same(url.href, 'https://example.com/path?q=1#changed');
   }
 
   // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
@@ -1143,7 +1137,7 @@ QUnit.test('URL#origin', assert => {
     assert.false(hasOwnProperty.call(url, 'origin'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'origin');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
   }
@@ -1160,9 +1154,9 @@ QUnit.test('URL#origin', assert => {
     // ['blob:ws://example.org/', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
     // ['blob:wss://example.org/', 'null'], // fails in Chrome 155, Firefox 127, Safari 16, Node 20.0.0, Deno 2.9.8, Bun 1.4.4
     // ['blob:blob:https://example.org/', 'null'], // fails in Chrome 67 (Windows), Firefox 127, Safari 16, Node 17.0.1, Deno 2.9.8
-    // ['blob://h/http:example.com', 'null'], // fails in Safari 15, Node 17.0.1
-    // ['blob:/https://example.org/', 'null'], // fails in Safari 15
-    // ['blob:', 'null'], // fails in Safari 15
+    // ['blob://h/http:example.com', 'null'], // fails in native Bun 0.5.8-; failed in native Safari 15, Node 17.0.1
+    // ['blob:/https://example.org/', 'null'], // fails in native Bun 0.5.8-; failed in native Safari 15
+    // ['blob:', 'null'], // fails in native Bun 0.5.8-; failed in native Safari 15
     ['blob:null/uuid', 'null'],
     // ['blob:file:///x', new URL('file:///x').origin], // fails in Node 20.0.0, Bun 1.4.4
     ['blob:https://example.org/uuid', 'https://example.org'],
@@ -1179,7 +1173,7 @@ QUnit.test('URL#protocol', assert => {
     assert.false(hasOwnProperty.call(url, 'protocol'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'protocol');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1220,7 +1214,7 @@ QUnit.test('URL#username', assert => {
     assert.false(hasOwnProperty.call(url, 'username'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'username');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1252,7 +1246,7 @@ QUnit.test('URL#password', assert => {
     assert.false(hasOwnProperty.call(url, 'password'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'password');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1263,8 +1257,8 @@ QUnit.test('URL#password', assert => {
   url = new URL('http://username:password@zloirock.ru/');
   assert.same(url.password, 'password');
 
-  // url = new URL('http://:password@zloirock.ru/'); // TypeError in FF
-  // assert.same(url.password, 'password');
+  url = new URL('http://:password@zloirock.ru/'); // TypeError in FF
+  assert.same(url.password, 'password');
 
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/');
@@ -1273,10 +1267,10 @@ QUnit.test('URL#password', assert => {
     assert.same(url.password, 'password');
     assert.same(String(url), 'http://username:password@zloirock.ru/');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.password = 'password';
-    // assert.same(url.password, 'password'); // '' in FF
-    // assert.same(String(url), 'http://:password@zloirock.ru/'); // 'http://zloirock.ru/' in FF
+    url = new URL('http://zloirock.ru/');
+    url.password = 'password';
+    assert.same(url.password, 'password'); // '' in FF
+    assert.same(String(url), 'http://:password@zloirock.ru/'); // 'http://zloirock.ru/' in FF
   }
 });
 
@@ -1287,7 +1281,7 @@ QUnit.test('URL#host', assert => {
     assert.false(hasOwnProperty.call(url, 'host'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'host');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1301,9 +1295,9 @@ QUnit.test('URL#host', assert => {
     assert.same(url.host, 'example.com:82');
     assert.same(String(url), 'http://example.com:82/path');
 
-    // url = new URL('http://zloirock.ru:81/path');
-    // url.host = 'other?domain.com';
-    // assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
+    url = new URL('http://zloirock.ru:81/path');
+    url.host = 'other?domain.com';
+    assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
 
     url = new URL('https://www.mydomain.com:8080/path/');
     url.host = 'www.otherdomain.com:80';
@@ -1333,10 +1327,10 @@ QUnit.test('URL#host', assert => {
     assert.same(url.host, '192.168.0.240');
     assert.same(String(url), 'http://192.168.0.240/foo');
 
-    // url = new URL('http://zloirock.ru/foo');
-    // url.host = '[20:0:0:1:0:0:0:ff]';
-    // assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
-    // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
+    url = new URL('http://zloirock.ru/foo');
+    url.host = '[20:0:0:1:0:0:0:ff]';
+    assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
+    assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
 
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url = new URL('file:///var/log/system.log');
@@ -1344,28 +1338,28 @@ QUnit.test('URL#host', assert => {
     // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
     // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.host = '[20:0:0:1:0:0:0:ff';
-    // assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.host = '[20:0:0:1:0:0:0:ff';
+    assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.host = '[20:0:0:1:0:0:0:fg]';
-    // assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.host = '[20:0:0:1:0:0:0:fg]';
+    assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.host = 'a%b';
-    // assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
-    // assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
+    url = new URL('http://zloirock.ru/');
+    url.host = 'a%b';
+    assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+    assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
   }
 });
 
 QUnit.test('URL#hostname', assert => {
   // a value the domain parser rejects leaves the URL untouched
-  // const forbiddenMapped = new URL('http://example.com/p?q#h');
-  // forbiddenMapped.hostname = 'a\uFE6Ab.example.com';
-  // assert.same(forbiddenMapped.href, 'http://example.com/p?q#h', 'hostname setter is a no-op on a rejected domain'); // 'http://a%25b.example.com/p?q#h' in Chrome 67
+  const forbiddenMapped = new URL('http://example.com/p?q#h');
+  forbiddenMapped.hostname = 'a\uFE6Ab.example.com';
+  assert.same(forbiddenMapped.href, 'http://example.com/p?q#h', 'hostname setter is a no-op on a rejected domain'); // 'http://a%25b.example.com/p?q#h' in Chrome 67
 
   let url = new URL('http://zloirock.ru:81/');
 
@@ -1373,7 +1367,7 @@ QUnit.test('URL#hostname', assert => {
     assert.false(hasOwnProperty.call(url, 'hostname'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hostname');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1413,10 +1407,10 @@ QUnit.test('URL#hostname', assert => {
     assert.same(url.hostname, '192.168.0.240');
     assert.same(String(url), 'http://192.168.0.240/foo');
 
-    // url = new URL('http://zloirock.ru/foo');
-    // url.hostname = '[20:0:0:1:0:0:0:ff]';
-    // assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
-    // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
+    url = new URL('http://zloirock.ru/foo');
+    url.hostname = '[20:0:0:1:0:0:0:ff]';
+    assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
+    assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
 
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
     // url = new URL('file:///var/log/system.log');
@@ -1424,20 +1418,20 @@ QUnit.test('URL#hostname', assert => {
     // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
     // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hostname = '[20:0:0:1:0:0:0:ff';
-    // assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.hostname = '[20:0:0:1:0:0:0:ff';
+    assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hostname = '[20:0:0:1:0:0:0:fg]';
-    // assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
+    url = new URL('http://zloirock.ru/');
+    url.hostname = '[20:0:0:1:0:0:0:fg]';
+    assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hostname = 'a%b';
-    // assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
-    // assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
+    url = new URL('http://zloirock.ru/');
+    url.hostname = 'a%b';
+    assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+    assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
   }
 });
 
@@ -1448,7 +1442,7 @@ QUnit.test('URL#port', assert => {
     assert.false(hasOwnProperty.call(url, 'port'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'port');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1492,7 +1486,7 @@ QUnit.test('URL#pathname', assert => {
     assert.false(hasOwnProperty.call(url, 'pathname'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'pathname');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1560,7 +1554,7 @@ QUnit.test('URL#search', assert => {
     assert.false(hasOwnProperty.call(url, 'search'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'search');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1574,12 +1568,14 @@ QUnit.test('URL#search', assert => {
   // query percent-encode set
   assert.same(new URL('http://x/?a="<>').search, '?a=%22%3C%3E', 'query percent-encodes ", <, >');
   assert.same(new URL('http://x/?a=\'').search, '?a=%27', 'special query percent-encodes \'');
-  // fails in modern Chrome (~145)
+  // fails in native Chrome 130-157
   // assert.same(new URL('foo://x/?a=\'').search, '?a=\'', 'non-special query does not percent-encode \'');
 
   // Native Firefox 57-61 percent-encodes spaces in opaque paths.
-  // assert.same(new URL('javascript:void 0').href, 'javascript:void 0', 'space preserved in opaque path');
-  // assert.same(new URL('javascript:void 0').pathname, 'void 0', 'space preserved in opaque pathname');
+  // eslint-disable-next-line no-script-url -- required for testing
+  assert.same(new URL('javascript:void 0').href, 'javascript:void 0', 'space preserved in opaque path');
+  // eslint-disable-next-line no-script-url -- required for testing
+  assert.same(new URL('javascript:void 0').pathname, 'void 0', 'space preserved in opaque pathname');
   const opaque = new URL('data:text/plain,hello');
   assert.same(opaque.href, 'data:text/plain,hello', 'opaque path serialization');
   assert.same(opaque.pathname, 'text/plain,hello', 'opaque pathname');
@@ -1617,7 +1613,7 @@ QUnit.test('URL#searchParams', assert => {
     assert.false(hasOwnProperty.call(url, 'searchParams'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'searchParams');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
   }
@@ -1643,7 +1639,7 @@ QUnit.test('URL#searchParams', assert => {
 
 // Native Chrome 67-76 decodes invalid UTF-8 as Latin-1; fixed in 77.
 // https://chromium-review.googlesource.com/c/chromium/src/+/1669297
-QUnit.skip('URL query invalid UTF-8 lead bytes', assert => {
+QUnit.test('URL query invalid UTF-8 lead bytes', assert => {
   for (const lead of ['F5', 'F6', 'F7']) {
     for (const [tail, expected] of [['%80', '\uFFFD\uFFFD'], ['%BF%80', '\uFFFD\uFFFD\uFFFD']]) {
       const input = `%${ lead }${ tail }`;
@@ -1673,7 +1669,7 @@ QUnit.test('URL#hash', assert => {
     assert.false(hasOwnProperty.call(url, 'hash'));
     const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hash');
     // Deno 1.10 URL accessors are not enumerable.
-    if (DENO_VERSION !== 110) assert.true(descriptor.enumerable);
+    assert.true(descriptor.enumerable);
     assert.true(descriptor.configurable);
     assert.same(typeof descriptor.get, 'function');
     assert.same(typeof descriptor.set, 'function');
@@ -1710,9 +1706,9 @@ QUnit.test('URL#hash', assert => {
     url.hash = 'абa';
     assert.same(url.hash, '#%D0%B0%D0%B1a');
 
-    // url = new URL('http://zloirock.ru/');
-    // url.hash = '\uDC01\uD802a';
-    // assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
+    url = new URL('http://zloirock.ru/');
+    url.hash = '\uDC01\uD802a';
+    assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
   }
 });
 
@@ -1722,7 +1718,7 @@ QUnit.test('URL#toJSON', assert => {
   assert.arity(toJSON, 0);
   assert.name(toJSON, 'toJSON');
   // Deno 1.10 URL methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URL.prototype, 'toJSON');
+  assert.enumerable(URL.prototype, 'toJSON');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(toJSON);
 
@@ -1741,7 +1737,7 @@ QUnit.test('URL#toString', assert => {
   assert.arity(toString, 0);
   assert.name(toString, 'toString');
   // Deno 1.10 URL methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URL.prototype, 'toString');
+  assert.enumerable(URL.prototype, 'toString');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(toString);
 
@@ -1755,7 +1751,7 @@ QUnit.test('URL#toString', assert => {
 });
 
 // Deno 1.10 uses the Object tag for URL.
-QUnit[DENO_VERSION === 110 ? 'skip' : 'test']('URL#@@toStringTag', assert => {
+QUnit.test('URL#@@toStringTag', assert => {
   const url = new URL('http://zloirock.ru/');
   assert.same({}.toString.call(url), '[object URL]');
 });

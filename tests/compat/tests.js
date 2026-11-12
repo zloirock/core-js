@@ -118,7 +118,19 @@ var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
   return Symbol['for'] && Symbol.keyFor;
 }];
 
-var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
+var ACCEPTS_INVALID_URL = function (input) {
+  try {
+    return !!new URL(input);
+  } catch (error) { /* empty */ }
+};
+
+// The first part of the `URL` and `URLSearchParams` detection: what it was before the checks of hosts,
+// non-special URLs and record keys. The modules that only add a method to the native constructors keep
+// their compat data, so they are tested against this part alone
+// TODO: In `core-js@4`, merge it back into `URL_AND_URL_SEARCH_PARAMS_SUPPORT`: test those modules as
+// "the constructors are polyfilled or the method is supported" and set their compat data to the first versions
+// from which that always holds
+var URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY = function () {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
   var url = new URL('b?a=1&b=2&c=3', 'https://a');
   var searchParams = url.searchParams;
@@ -140,6 +152,21 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     && result === 'a1c3'
     // throws in Safari 14.0-: https://bugs.webkit.org/show_bug.cgi?id=215734
     && new URL('https://x', undefined).host === 'x';
+};
+
+var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
+  return URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY()
+    // forbidden host code points are accepted in Safari 15.3-, NodeJS 18.5- and Deno 1.25.1-
+    && !ACCEPTS_INVALID_URL('http://a\u0001b')
+    // hosts ending in an invalid number are accepted there, in Chrome 94- and Firefox 118-
+    && !ACCEPTS_INVALID_URL('http://foo.09')
+    // non-special URLs have no host in Chrome 129- and Firefox 132-
+    // eslint-disable-next-line unicorn/relative-url-style -- required for testing
+    && new URL('i', 'sc://ho/pa').host === 'ho'
+    // and accept forbidden host code points there
+    && !ACCEPTS_INVALID_URL('sc://a<b')
+    // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
+    && String(new URLSearchParams({ constructor: 1 })) === 'constructor=1';
 };
 
 // eslint-disable-next-line no-proto -- safe
@@ -2459,11 +2486,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var parse = URL.parse;
     return parse('https://example.com/').href === 'https://example.com/';
   }],
-  'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+  // TODO: Remove this module from `core-js@4`: every engine that passes the `URL` constructor detection
+  // has the native method, and the polyfill of the constructor defines its own
+  'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
     return URL.prototype.toJSON;
   }],
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
-  'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+  'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
     var params = new URLSearchParams('a=1&a=2&b=3');
     params['delete']('a', 1);
     // `undefined` case is a Chromium 117 bug
@@ -2471,13 +2500,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     params['delete']('b', undefined);
     return params + '' === 'a=2';
   }],
-  'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+  'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
     var params = new URLSearchParams('a=1');
     // `undefined` case is a Chromium 117 bug
     // https://issues.chromium.org/issues/40278437
     return params.has('a', 1) && !params.has('a', 2) && params.has('a', undefined);
   }],
-  'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+  'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
     return 'size' in URLSearchParams.prototype;
   }]
 };

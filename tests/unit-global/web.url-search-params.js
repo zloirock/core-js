@@ -18,31 +18,8 @@ const USV_STRINGS = [
 ];
 
 const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
-// Deno 1.3.0-1.4.5 emits %0 instead of %00; updating a bound URL can then throw.
-// https://github.com/denoland/deno/issues/7888
-// Fixed in 1.4.6: https://github.com/denoland/deno/pull/7905
-const DENO_UNPADDED_ESCAPE = DENO_VERSION === 103 || DENO_VERSION === 104 && DENO_PATCH < 6;
-// Deno 1.2-1.11.1 lacks USVString conversion in sequence / record input and methods: https://github.com/denoland/deno/pull/11005
-const DENO_OLD_RECORD = DENO_VERSION >= 102 && (DENO_VERSION < 111 || DENO_VERSION === 111 && DENO_PATCH < 2);
-// Deno 1.2-1.10.2 leaves raw surrogates in string input or throws; fixed in 1.10.3.
-// https://github.com/denoland/deno/pull/10156
-const DENO_OLD_STRING = DENO_VERSION >= 102 && (DENO_VERSION < 110 || DENO_VERSION === 110 && DENO_PATCH < 3);
-// Deno 1.11.2 incorrectly uses ByteString for sequence and record initializers; fixed in 1.11.3.
-// https://github.com/denoland/deno/pull/11101
-const DENO_BYTE_STRING = DENO_VERSION === 111 && DENO_PATCH === 2;
-// Deno 1.14.3 reads and converts record values twice; fixed in 1.15.0.
-// https://github.com/denoland/deno/pull/12286
-// https://github.com/denoland/deno/pull/12336
-const DENO_RECORD_DOUBLE_READ = DENO_VERSION === 114 && DENO_PATCH === 3;
 const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
-// Node 10-16.16 and 17.0-17.3 do not merge converted record keys; fixed in 16.17 and 17.4.
-// https://github.com/nodejs/node/pull/41197
-const NODE_RECORD_COLLISIONS = NODE_VERSION >= 1000 && (NODE_VERSION < 1617 || NODE_VERSION >= 1700 && NODE_VERSION < 1704);
-// Node 16.17-16.20, 17.4-18.16 and 19 drop own keys shadowing Object.prototype.
-// Fixed in 18.17 and 20.0: https://github.com/nodejs/node/pull/47415
-const NODE_RECORD_PROTOTYPE = NODE_VERSION >= 1617 && NODE_VERSION < 1700
-  || NODE_VERSION >= 1704 && NODE_VERSION < 1817 || NODE_VERSION >= 1900 && NODE_VERSION < 2000;
 // Node 18.18-18.20.8, 20.2-20.11.1 and 21.0-21.6.2 lose deletions after coercion updates a bound URL.
 // Fixed in 20.12 and 21.7: https://github.com/nodejs/node/pull/51520
 const NODE_DELETE_BOUND = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION < 1900
@@ -51,22 +28,10 @@ const NODE_DELETE_BOUND = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION
 // Regression introduced by https://github.com/nodejs/node/pull/62266
 const NODE_DELETE_VALUE = !DENO_VERSION && (NODE_VERSION >= 2416 && NODE_VERSION < 2500 || NODE_VERSION >= 2601);
 const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
-// Chrome 67-115 / Edge 79-115 corrupt U+10FFFF in string input; fixed in Chromium 116.
-// https://crbug.com/1416021
-const CHROMIUM_UTF8_NONCHARACTERS = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 116;
 // Deno 1.15.0-2.7.14: https://github.com/denoland/deno/pull/12336
 // Fixed in 2.8.0: https://github.com/denoland/deno/pull/34119
-const DENO_RECORD_SYMBOLS = DENO_OLD_RECORD || DENO_VERSION >= 115 && DENO_VERSION < 208;
-// Property changes also fail in Deno 1.14.3: https://github.com/denoland/deno/pull/12286
-const DENO_RECORD_CHANGES = DENO_RECORD_SYMBOLS || DENO_VERSION === 114 && DENO_PATCH >= 3;
-// Safari 14.0 and iOS 14.0.x still use the full polyfill: https://bugs.webkit.org/show_bug.cgi?id=215734
-const SAFARI_14_0 = /Version\/14\.0(?: |$)|(?:iPad|iPhone|iPod).*OS 14_0(?:_| )/.test(GLOBAL.navigator?.userAgent);
-// Safari 14.0.1-14.1.2 ignores symbol keys; fixed in Safari 15.
-// https://bugs.webkit.org/show_bug.cgi?id=223231
-const SAFARI_14 = !SAFARI_14_0 && /Version\/14(?:\.\d+)* Safari\/|(?:iPad|iPhone|iPod).*OS 14_/.test(GLOBAL.navigator?.userAgent);
-// Native Safari on iOS 14.3-14.4 does not merge converted record keys; fixed in iOS 14.5.
-// https://bugs.webkit.org/show_bug.cgi?id=217612
-const SAFARI_RECORD_COLLISIONS = /(?:iPad|iPhone|iPod).*OS 14_[34](?:_| )/.test(GLOBAL.navigator?.userAgent);
+// The polyfill is used below Deno 1.25.2.
+const DENO_RECORD_SYMBOLS = (DENO_VERSION > 125 || DENO_VERSION === 125 && DENO_PATCH > 1) && DENO_VERSION < 208;
 const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Firefox 25-32 proxies call the legacy `getOwnPropertyNames` trap instead of `ownKeys`; fixed in Firefox 33.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
@@ -78,34 +43,68 @@ const FIREFOX_SPLIT_OWN_KEYS = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 42;
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1066834
 const FIREFOX_PROXY_ENUMERABLE = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 35;
 
-// Deno 1.2.0-1.11.1 rejects custom inner iterables; fixed in 1.11.2.
-// https://github.com/denoland/deno/pull/11005
-const DENO_SEQUENCE_LEGACY = DENO_OLD_RECORD;
-// Deno 1.2.0-1.7.5 reads both array elements before converting the first one; fixed in 1.8.0.
-// https://github.com/denoland/deno/pull/9276
-const DENO_SEQUENCE_ARRAY_COPY = DENO_VERSION >= 102 && DENO_VERSION < 108;
 // Node 18.17+ (18.x), 19.9+ and 20+ validate pair lengths before completing conversion.
 // https://github.com/nodejs/node/pull/47190
-const NODE_SEQUENCE_EARLY = !DENO_VERSION && (NODE_VERSION >= 1817 && NODE_VERSION < 1900 || NODE_VERSION >= 1909);
-// Chrome 67-76 ignores elements appended during conversion; fixed in Chrome 77.
-// https://crbug.com/977305
-const CHROMIUM_SEQUENCE_GROWTH = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 77;
-// Firefox 57-73 throws a DOMException named TypeError; fixed in Firefox 74.
-// https://bugzilla.mozilla.org/show_bug.cgi?id=1609866
-const FIREFOX_SEQUENCE_DOM_EXCEPTION = FIREFOX_VERSION >= 57 && FIREFOX_VERSION < 74;
+// The polyfill is used in Node 19.
+const NODE_SEQUENCE_EARLY = !DENO_VERSION && (NODE_VERSION >= 1817 && NODE_VERSION < 1900 || NODE_VERSION >= 2000);
 // Deno 2.8.0-2.9.7 copies inner iterables before conversion and validates each pair too early.
 // Regression introduced by https://github.com/denoland/deno/pull/34119
 const DENO_SEQUENCE_COPY = DENO_VERSION >= 208;
 const safariVersion = /Version\/(\d+)(?:\.(\d+))?/.exec(GLOBAL.navigator?.userAgent)
   || /(?:iPad|iPhone|iPod).*OS (\d+)(?:_(\d+))?/.exec(GLOBAL.navigator?.userAgent);
 const SAFARI_VERSION = +(safariVersion?.[1] || 0);
+// The native `URLSearchParams` is used from Safari 15.4.
+const SAFARI_NATIVE = SAFARI_VERSION > 15 || SAFARI_VERSION === 15 && +(safariVersion?.[2] || 0) >= 4;
 const bunVersion = GLOBAL.process?.versions?.bun?.split('.') || [];
 const BUN_VERSION = bunVersion.length ? bunVersion[0] * 1e6 + bunVersion[1] * 1e3 + +bunVersion[2] : 0;
 // Node 10-27 alpha, Bun 0.1.1-1.4.4 and Safari 14.1-26.6.2 close iterators on conversion errors.
 // Current Web IDL does not close them; changing this is discussed in:
 // https://github.com/whatwg/webidl/issues/895
 // https://github.com/whatwg/webidl/pull/1662
-const SEQUENCE_ITERATOR_CLOSE = !DENO_VERSION && NODE_VERSION >= 1000 || BUN_VERSION >= 1001 || SAFARI_VERSION >= 14 && !SAFARI_14_0;
+// The polyfill is used below Node 18.17, in Node 19 and below Safari 15.4.
+const SEQUENCE_ITERATOR_CLOSE = NODE_SEQUENCE_EARLY || BUN_VERSION >= 1001 || SAFARI_NATIVE;
+// Native Safari 15.4-27.0.1 and Bun 0.1.1-1.4.4 keep exhausted iterators done.
+// Bun: https://github.com/oven-sh/bun/issues/48347
+// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
+// Native Deno 1.2-1.11.1 did the same; fixed in 1.11.2: https://github.com/denoland/deno/pull/11005
+const ITERATORS_STAY_DONE = BUN_VERSION > 0 || SAFARI_NATIVE;
+
+// --- Defects of the natives that the polyfill replaces ---
+// Safari 14.0 and iOS 14.0.x throw on `new URL(url, undefined)`: https://bugs.webkit.org/show_bug.cgi?id=215734
+// Safari 14.0.1-14.1.2 ignores symbol keys; fixed in Safari 15.
+// https://bugs.webkit.org/show_bug.cgi?id=223231
+// Safari 14.0.1-14.1 sends a native `URLSearchParams` body of `XMLHttpRequest` and `sendBeacon` as text/plain
+// and stringifies it; Safari 15.1 passes: https://bugs.webkit.org/show_bug.cgi?id=227477
+// Chrome 67-87 / Edge 79-87 sends a native `URLSearchParams` body of `sendBeacon` as text/plain; fixed in Chrome / Edge 88.
+// https://issues.chromium.org/issues/41335051
+// Deno 1.3.0-1.4.5 emits %0 instead of %00; updating a bound URL can then throw.
+// https://github.com/denoland/deno/issues/7888
+// Fixed in 1.4.6: https://github.com/denoland/deno/pull/7905
+// Deno 1.2-1.11.1 lacks USVString conversion in sequence / record input and methods: https://github.com/denoland/deno/pull/11005
+// Deno 1.2-1.10.2 leaves raw surrogates in string input or throws; fixed in 1.10.3.
+// https://github.com/denoland/deno/pull/10156
+// Deno 1.11.2 incorrectly uses ByteString for sequence and record initializers; fixed in 1.11.3.
+// https://github.com/denoland/deno/pull/11101
+// Deno 1.14.3 reads and converts record values twice; fixed in 1.15.0.
+// https://github.com/denoland/deno/pull/12286
+// https://github.com/denoland/deno/pull/12336
+// Node 10-16.16 and 17.0-17.3 do not merge converted record keys; fixed in 16.17 and 17.4.
+// https://github.com/nodejs/node/pull/41197
+// Node 16.17-16.20, 17.4-18.16 and 19 drop own keys shadowing Object.prototype.
+// Fixed in 18.17 and 20.0: https://github.com/nodejs/node/pull/47415
+// Chrome 67-115 / Edge 79-115 corrupt U+10FFFF in string input; fixed in Chromium 116.
+// https://crbug.com/1416021
+// Native Safari on iOS 14.3-14.4 does not merge converted record keys; fixed in iOS 14.5.
+// https://bugs.webkit.org/show_bug.cgi?id=217612
+// Deno 1.2.0-1.11.1 rejects custom inner iterables; fixed in 1.11.2.
+// https://github.com/denoland/deno/pull/11005
+// Deno 1.2.0-1.7.5 reads both array elements before converting the first one; fixed in 1.8.0.
+// https://github.com/denoland/deno/pull/9276
+// Chrome 67-76 ignores elements appended during conversion; fixed in Chrome 77.
+// https://crbug.com/977305
+// Firefox 57-73 throws a DOMException named TypeError; fixed in Firefox 74.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1609866
+// Property changes also fail in Deno 1.14.3: https://github.com/denoland/deno/pull/12286
 
 QUnit.test('URLSearchParams', assert => {
   assert.isFunction(URLSearchParams);
@@ -121,7 +120,7 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams([])), '');
   assert.same(String(new URLSearchParams([[1, 2], ['a', 'b']])), '1=2&a=b');
   // Deno 1.10 rejects custom iterable pairs; the pure implementation covers this case.
-  if (DENO_VERSION !== 110) assert.same(String(new URLSearchParams(createIterable([createIterable(['a', 'b']), createIterable(['c', 'd'])]))), 'a=b&c=d');
+  assert.same(String(new URLSearchParams(createIterable([createIterable(['a', 'b']), createIterable(['c', 'd'])]))), 'a=b&c=d');
   assert.same(String(new URLSearchParams({})), '');
   assert.same(String(new URLSearchParams({ 1: 2, a: 'b' })), '1=2&a=b');
 
@@ -133,7 +132,8 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams([['a\uD800b', 'v']])), 'a%EF%BF%BDb=v', 'lone surrogate in a key');
   assert.same(String(new URLSearchParams([['k', '\uDC00\uD800']])), 'k=%EF%BF%BD%EF%BF%BD', 'reversed surrogates');
   assert.same(String(new URLSearchParams([['k', '\uD83D\uDE00']])), 'k=%F0%9F%98%80', 'surrogate pair is kept');
-  // assert.same(new URLSearchParams('a=%ED%A0%80').get('a'), '\uFFFD\uFFFD\uFFFD', 'percent-encoded surrogate decodes to U+FFFD'); // '\u00ED\u00A0\u0080' in Chrome 67
+  // '\u00ED\u00A0\u0080' in native Chrome 67
+  assert.same(new URLSearchParams('a=%ED%A0%80').get('a'), '\uFFFD\uFFFD\uFFFD', 'percent-encoded surrogate decodes to U+FFFD');
   assert.same(String(new URLSearchParams('?')), '');
   assert.same(String(new URLSearchParams('??')), '%3F=');
 
@@ -217,8 +217,8 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(params.get('b'), '%2sf*', 'parse encoded %2sf%2a');
   // Native Node 10-11, 12 < 12.19.0, 13 and 14 < 14.10.0 mishandle the invalid percent prefix.
   // https://github.com/nodejs/node/pull/35013
-  // params = new URLSearchParams('b=%%2a');
-  // assert.same(params.get('b'), '%*', 'parse encoded b=%%2a');
+  params = new URLSearchParams('b=%%2a');
+  assert.same(params.get('b'), '%*', 'parse encoded b=%%2a');
 
   assert.same(String(new URLSearchParams('%25')), '%25=');
   assert.same(String(new URLSearchParams('%4')), '%254=');
@@ -256,17 +256,15 @@ QUnit.test('URLSearchParams', assert => {
       input: { 'a\0b': '42', 'c\uD83D': '23', [nonASCIIKey]: 'foo' },
       output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']],
       name: 'object with NULL, non-ASCII, and surrogate keys',
-      skip: DENO_BYTE_STRING,
     },
   ];
 
-  for (const { input, output, name, skip } of testData) {
-    if (skip) continue;
+  for (const { input, output, name } of testData) {
     params = new URLSearchParams(input);
     let i = 0;
     params.forEach((value, key) => {
       const [reqKey, reqValue] = output[i++];
-      if (!DENO_OLD_RECORD || reqKey !== 'c\uFFFD') assert.same(key, reqKey, `construct with ${ name }`);
+      assert.same(key, reqKey, `construct with ${ name }`);
       assert.same(value, reqValue, `construct with ${ name }`);
     });
   }
@@ -295,7 +293,6 @@ QUnit.test('URLSearchParams', assert => {
 
 QUnit.test('URLSearchParams sequence element conversion order', assert => {
   for (const length of [0, 1, 2, 3, 4]) {
-    if (DENO_SEQUENCE_LEGACY && length === 2) continue;
     const log = [];
     const expected = [];
     let index = 0;
@@ -320,10 +317,10 @@ QUnit.test('URLSearchParams sequence element conversion order', assert => {
       },
     });
     if (length === 2) assert.same(String(new URLSearchParams([pair])), '0=1', 'constructs a pair');
-    else assert.throws(() => new URLSearchParams([pair]), FIREFOX_SEQUENCE_DOM_EXCEPTION ? undefined : TypeError, `rejects length ${ length }`);
+    else assert.throws(() => new URLSearchParams([pair]), TypeError, `rejects length ${ length }`);
     for (let i = 0; i < length; i++) expected.push(`next ${ i }`, `string ${ i }`);
     expected.push(`next ${ length }`);
-    if (!DENO_SEQUENCE_LEGACY && (!DENO_SEQUENCE_COPY || length === 0)) assert.arrayEqual(log, expected, `converts each element before advancing, length ${ length }`);
+    if (!DENO_SEQUENCE_COPY || length === 0) assert.arrayEqual(log, expected, `converts each element before advancing, length ${ length }`);
     assert.same(returnCalls, 0, 'exhausts the inner sequence without closing it');
   }
 });
@@ -355,10 +352,10 @@ QUnit.test('URLSearchParams sequence conversion before pair validation', assert 
         return {};
       },
     });
-    assert.throws(() => new URLSearchParams(init), FIREFOX_SEQUENCE_DOM_EXCEPTION ? undefined : TypeError, 'rejects a malformed pair');
+    assert.throws(() => new URLSearchParams(init), TypeError, 'rejects a malformed pair');
     expected.push('later');
-    if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY || DENO_SEQUENCE_LEGACY)) assert.arrayEqual(log, expected, 'converts later pairs before checking lengths');
-    if (!NODE_SEQUENCE_EARLY && !DENO_SEQUENCE_LEGACY) assert.same(returnCalls, 0, 'exhausts the outer sequence without closing it');
+    if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY)) assert.arrayEqual(log, expected, 'converts later pairs before checking lengths');
+    if (!NODE_SEQUENCE_EARLY) assert.same(returnCalls, 0, 'exhausts the outer sequence without closing it');
   }
 
   const error = new Error('conversion');
@@ -369,7 +366,7 @@ QUnit.test('URLSearchParams sequence conversion before pair validation', assert 
       throw error;
     },
   };
-  if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY || DENO_SEQUENCE_LEGACY)) {
+  if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY)) {
     assert.throws(() => new URLSearchParams([[], [later, 'value']]), error, 'conversion error precedes pair length validation');
     assert.same(calls, 1, 'converts a later pair even after an empty pair');
   }
@@ -390,8 +387,8 @@ QUnit.test('URLSearchParams sequence array element conversion', assert => {
       expected.push(i);
     }
     if (length === 2) assert.same(String(new URLSearchParams([pair])), '0=1', 'constructs an array pair');
-    else assert.throws(() => new URLSearchParams([pair]), FIREFOX_SEQUENCE_DOM_EXCEPTION ? undefined : TypeError, 'rejects a malformed array pair');
-    if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_LEGACY) || length === 2) assert.arrayEqual(log, expected, 'converts all array elements before checking the length');
+    else assert.throws(() => new URLSearchParams([pair]), TypeError, 'rejects a malformed array pair');
+    if (!NODE_SEQUENCE_EARLY || length === 2) assert.arrayEqual(log, expected, 'converts all array elements before checking the length');
   }
 
   const pair = [{
@@ -400,7 +397,7 @@ QUnit.test('URLSearchParams sequence array element conversion', assert => {
       return 'key';
     },
   }, 'old'];
-  if (!DENO_SEQUENCE_COPY && !DENO_SEQUENCE_ARRAY_COPY) assert.same(String(new URLSearchParams([pair])), 'key=changed', 'reads the next element after converting the previous one');
+  if (!DENO_SEQUENCE_COPY) assert.same(String(new URLSearchParams([pair])), 'key=changed', 'reads the next element after converting the previous one');
   let calls = 0;
   const extra = {
     toString() {
@@ -414,8 +411,8 @@ QUnit.test('URLSearchParams sequence array element conversion', assert => {
       return 'key';
     },
   }, 'value'];
-  if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY || DENO_SEQUENCE_LEGACY || CHROMIUM_SEQUENCE_GROWTH)) {
-    assert.throws(() => new URLSearchParams([growing]), FIREFOX_SEQUENCE_DOM_EXCEPTION ? undefined : TypeError, 'observes elements appended during conversion');
+  if (!(NODE_SEQUENCE_EARLY || DENO_SEQUENCE_COPY)) {
+    assert.throws(() => new URLSearchParams([growing]), TypeError, 'observes elements appended during conversion');
     assert.same(calls, 1, 'converts an appended element before checking the length');
   }
 });
@@ -447,28 +444,23 @@ QUnit.test('URLSearchParams sequence conversion errors', assert => {
         return {};
       },
     });
-    assert.throws(() => new URLSearchParams(init), DENO_SEQUENCE_LEGACY ? undefined : error, `propagates ${ stage } error`);
-    if (!DENO_SEQUENCE_LEGACY && (!DENO_SEQUENCE_COPY || stage !== 'string')) assert.same(nextCalls, 1, 'does not advance after an error');
+    assert.throws(() => new URLSearchParams(init), error, `propagates ${ stage } error`);
+    if (!DENO_SEQUENCE_COPY || stage !== 'string') assert.same(nextCalls, 1, 'does not advance after an error');
     if (!SEQUENCE_ITERATOR_CLOSE || stage !== 'string') assert.same(innerReturns, 0, 'does not close the inner iterator');
-    if (!SEQUENCE_ITERATOR_CLOSE && !DENO_SEQUENCE_LEGACY) assert.same(outerReturns, 0, 'does not close the outer iterator');
+    if (!SEQUENCE_ITERATOR_CLOSE) assert.same(outerReturns, 0, 'does not close the outer iterator');
   }
 });
 
 QUnit.test('URLSearchParams USVString initializers', assert => {
   for (const [input, expected] of USV_STRINGS) {
     for (const init of [`${ input }=${ input }`, [[input, input]], { [input]: input }]) {
-      if (typeof init === 'string') {
-        if (DENO_OLD_STRING && input !== expected || CHROMIUM_UTF8_NONCHARACTERS && input === '\uDBFF\uDFFF') continue;
-      } else if (DENO_BYTE_STRING || DENO_OLD_RECORD && input !== expected) continue;
       const entries = [];
       new URLSearchParams(init).forEach((value, key) => entries.push([key, value]));
       assert.arrayEqual(entries, [[expected, expected]], 'initializer keys and values are well-formed');
     }
   }
-  if (!DENO_OLD_RECORD && !DENO_BYTE_STRING) {
-    const sequence = new URLSearchParams([['\uD800', 'first'], ['\uDC00', 'last']]);
-    assert.arrayEqual(sequence.getAll('\uFFFD'), ['first', 'last'], 'sequence entries are not merged');
-  }
+  const sequence = new URLSearchParams([['\uD800', 'first'], ['\uDC00', 'last']]);
+  assert.arrayEqual(sequence.getAll('\uFFFD'), ['first', 'last'], 'sequence entries are not merged');
 
   const params = new URLSearchParams();
   params.append('\uD800', '\uDC00');
@@ -476,19 +468,17 @@ QUnit.test('URLSearchParams USVString initializers', assert => {
   params.sort();
   const entries = [];
   params.forEach((value, key) => entries.push([key, value]));
-  if (!DENO_OLD_RECORD) assert.arrayEqual(entries, [['\uE000', 'keep'], ['\uFFFD', '\uFFFD']], 'sort uses converted keys');
+  assert.arrayEqual(entries, [['\uE000', 'keep'], ['\uFFFD', '\uFFFD']], 'sort uses converted keys');
 });
 
-if (!DENO_BYTE_STRING) QUnit.test('URLSearchParams USVString record collisions', assert => {
+QUnit.test('URLSearchParams USVString record collisions', assert => {
   for (const record of [
     { '\uD800': 'first', middle: 'keep', '\uDC00': 'last' },
     { '\uFFFD': 'first', middle: 'keep', '\uDFFF': 'last' },
   ]) {
     const entries = [];
     new URLSearchParams(record).forEach((value, key) => entries.push([key, value]));
-    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD && !SAFARI_RECORD_COLLISIONS) {
-      assert.arrayEqual(entries, [['\uFFFD', 'last'], ['middle', 'keep']], 'record collision preserves the first position and last value');
-    }
+    assert.arrayEqual(entries, [['\uFFFD', 'last'], ['middle', 'keep']], 'record collision preserves the first position and last value');
   }
 
   if (DESCRIPTORS) {
@@ -507,32 +497,31 @@ if (!DENO_BYTE_STRING) QUnit.test('URLSearchParams USVString record collisions',
       },
     });
     const params = new URLSearchParams(record);
-    if (!DENO_RECORD_DOUBLE_READ) assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
-    if (!NODE_RECORD_COLLISIONS && !DENO_OLD_RECORD && !SAFARI_RECORD_COLLISIONS) assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
+    assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
+    assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
   }
 });
 
 QUnit.test('URLSearchParams USVString methods', assert => {
   for (const [input, expected] of USV_STRINGS) {
-    const wellFormed = !DENO_OLD_RECORD || input === expected;
     let params = new URLSearchParams();
     params.append(input, input);
-    if (wellFormed) assert.same(params.get(expected), expected, 'append converts both arguments');
-    if (wellFormed) assert.same(params.get(input), expected, 'get converts its name');
-    if (wellFormed) assert.arrayEqual(params.getAll(input), [expected], 'getAll converts its name');
+    assert.same(params.get(expected), expected, 'append converts both arguments');
+    assert.same(params.get(input), expected, 'get converts its name');
+    assert.arrayEqual(params.getAll(input), [expected], 'getAll converts its name');
     assert.true(params.has(input), 'has converts its name');
-    if (wellFormed) assert.true(params.has(expected, input), 'has converts its value');
+    assert.true(params.has(expected, input), 'has converts its value');
     assert.true(params.has(input, undefined), 'has ignores an undefined value');
-    if (wellFormed) assert.same(params.keys().next().value, expected, 'keys yields converted names');
-    if (wellFormed) assert.same(params.values().next().value, expected, 'values yields converted values');
-    if (wellFormed) assert.arrayEqual(params.entries().next().value, [expected, expected], 'entries yields converted strings');
+    assert.same(params.keys().next().value, expected, 'keys yields converted names');
+    assert.same(params.values().next().value, expected, 'values yields converted values');
+    assert.arrayEqual(params.entries().next().value, [expected, expected], 'entries yields converted strings');
 
     params = new URLSearchParams();
     params.append(expected, 'old');
     params.append(expected, 'duplicate');
     params.append('tail', 'keep');
     params.set(input, input);
-    if (wellFormed) assert.arrayEqual(params.getAll(expected), [expected], 'set converts both arguments before matching entries');
+    assert.arrayEqual(params.getAll(expected), [expected], 'set converts both arguments before matching entries');
     assert.same(params.get('tail'), 'keep', 'set preserves unrelated entries');
 
     params = new URLSearchParams();
@@ -541,13 +530,13 @@ QUnit.test('URLSearchParams USVString methods', assert => {
     params.delete(input, input);
     assert.arrayEqual(params.getAll(expected), ['other'], 'delete converts both arguments');
     params.delete(input);
-    if (wellFormed) assert.false(params.has(expected), 'delete converts its name without a value');
+    assert.false(params.has(expected), 'delete converts its name without a value');
 
     params = new URLSearchParams();
     params.append(expected, expected);
     params.append(expected, 'other');
     params.delete(input, undefined);
-    if (wellFormed) assert.false(params.has(expected), 'delete ignores an undefined value');
+    assert.false(params.has(expected), 'delete ignores an undefined value');
   }
 });
 
@@ -567,19 +556,19 @@ QUnit.test('URLSearchParams USVString coercion', assert => {
       },
     });
     assert.arrayEqual(log, ['name', 'value'], 'arguments are converted once in order');
-    if (!DENO_OLD_RECORD) assert.same(params.get('\uFFFD'), '\uFFFD', 'object arguments are well-formed');
+    assert.same(params.get('\uFFFD'), '\uFFFD', 'object arguments are well-formed');
     const error = new Error('key conversion');
     const throwingName = { toString() { throw error; } };
     const unreadValue = { toString() { assert.avoid(); } };
     assert.throws(() => params[method](throwingName, unreadValue), error, 'abrupt name conversion');
-    if (!DENO_OLD_RECORD) assert.throws(() => params[method](Symbol('key'), unreadValue), TypeError, 'symbol names throw before value conversion');
-    if (!DENO_OLD_RECORD) assert.throws(() => params[method]('key', Symbol('value')), TypeError, 'symbol values throw');
+    assert.throws(() => params[method](Symbol('key'), unreadValue), TypeError, 'symbol names throw before value conversion');
+    assert.throws(() => params[method]('key', Symbol('value')), TypeError, 'symbol values throw');
   }
 });
 
 QUnit.test('URLSearchParams record keys', assert => {
   for (const key of ['constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString', 'toString', 'valueOf']) {
-    if (!NODE_RECORD_PROTOTYPE) assert.same(String(new URLSearchParams({ [key]: 'value' })), `${ key }=value`, 'own key shadowing Object.prototype');
+    assert.same(String(new URLSearchParams({ [key]: 'value' })), `${ key }=value`, 'own key shadowing Object.prototype');
   }
 
   const inherited = create({ inherited: 'ignored' });
@@ -590,8 +579,8 @@ QUnit.test('URLSearchParams record keys', assert => {
   assert.same(String(new URLSearchParams(nullPrototype)), 'a=1', 'null prototype');
 
   const symbol = Symbol('key');
-  if (!DENO_RECORD_SYMBOLS && !SAFARI_14) assert.throws(() => new URLSearchParams({ [symbol]: 'value' }), TypeError, 'enumerable symbol key');
-  if (!DENO_OLD_RECORD && !SAFARI_14) assert.throws(() => new URLSearchParams({ [Symbol.iterator]: null, a: 1 }), TypeError, 'enumerable null iterator key');
+  if (!DENO_RECORD_SYMBOLS) assert.throws(() => new URLSearchParams({ [symbol]: 'value' }), TypeError, 'enumerable symbol key');
+  assert.throws(() => new URLSearchParams({ [Symbol.iterator]: null, a: 1 }), TypeError, 'enumerable null iterator key');
 
   if (DESCRIPTORS) {
     let reads = 0;
@@ -612,14 +601,14 @@ QUnit.test('URLSearchParams record keys', assert => {
     assert.same(String(new URLSearchParams(record)), 'a=1', 'non-enumerable string and symbol keys are ignored');
     assert.same(reads, 0, 'non-enumerable values are not read');
     defineProperty(record, symbol, { enumerable: true });
-    if (!DENO_RECORD_SYMBOLS && !SAFARI_14) {
+    if (!DENO_RECORD_SYMBOLS) {
       assert.throws(() => new URLSearchParams(record), TypeError, 'symbol key conversion throws');
       assert.same(reads, 0, 'key conversion precedes value access');
     }
   }
 });
 
-if (DESCRIPTORS && !DENO_RECORD_CHANGES) QUnit.test('URLSearchParams record property changes', assert => {
+if (DESCRIPTORS && !DENO_RECORD_SYMBOLS) QUnit.test('URLSearchParams record property changes', assert => {
   const record = {};
   defineProperty(record, 'a', {
     enumerable: true,
@@ -660,7 +649,7 @@ if (typeof Proxy == 'function') QUnit.test('URLSearchParams record proxy traps',
     },
   });
   if (!FIREFOX_LEGACY_PROXY) assert.same(String(new URLSearchParams(record)), 'b=2&a=1', 'ownKeys order');
-  if (!DENO_OLD_RECORD && !FIREFOX_LEGACY_PROXY && !FIREFOX_PROXY_ENUMERABLE) {
+  if (!FIREFOX_LEGACY_PROXY && !FIREFOX_PROXY_ENUMERABLE) {
     if (FIREFOX_SPLIT_OWN_KEYS) assert.same(log.shift(), 'ownKeys', 'record enumeration traps, extra ownKeys');
     assert.arrayEqual(log, ['ownKeys', 'descriptor b', 'get b', 'descriptor hidden', 'descriptor gone', 'descriptor a', 'get a'], 'record enumeration traps');
   }
@@ -703,7 +692,7 @@ QUnit.test('URLSearchParams rejects non-object iterator results', assert => {
 
 // Native Chrome 67-76 decodes invalid UTF-8 as Latin-1; fixed in 77.
 // https://chromium-review.googlesource.com/c/chromium/src/+/1669297
-QUnit.skip('URLSearchParams invalid UTF-8 lead bytes', assert => {
+QUnit.test('URLSearchParams invalid UTF-8 lead bytes', assert => {
   // https://encoding.spec.whatwg.org/#utf-8-decoder
   for (const lead of ['80', 'BF', 'C0', 'C1', 'F5', 'F6', 'F7', 'F8', 'FF']) {
     let input = `%${ lead }`;
@@ -735,7 +724,7 @@ QUnit.test('URLSearchParams valid UTF-8 boundaries', assert => {
 // Native Chrome 67-115 and Edge 79-115 mishandle these UTF-8 noncharacters; fixed in 116.
 // https://crbug.com/1416021
 // https://chromium-review.googlesource.com/c/chromium/src/+/4567772
-QUnit.skip('URLSearchParams UTF-8 noncharacters', assert => {
+QUnit.test('URLSearchParams UTF-8 noncharacters', assert => {
   assert.same(new URLSearchParams('a=%EF%BF%BF').get('a'), '\uFFFF', 'U+FFFF');
   assert.same(new URLSearchParams('a=%F4%8F%BF%BF').get('a'), '\uDBFF\uDFFF', 'U+10FFFF');
 });
@@ -746,7 +735,7 @@ QUnit.test('URLSearchParams#append', assert => {
   assert.arity(append, 2);
   assert.name(append, 'append');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'append');
+  assert.enumerable(URLSearchParams.prototype, 'append');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(append);
 
@@ -801,7 +790,7 @@ QUnit.test('URLSearchParams#delete', assert => {
   assert.arity($delete, 1);
   // Deno 1.2-1.11.1 methods are not enumerable; fixed in 1.11.2.
   // https://github.com/denoland/deno/pull/11005
-  if (!DENO_OLD_RECORD) assert.enumerable(URLSearchParams.prototype, 'delete');
+  assert.enumerable(URLSearchParams.prototype, 'delete');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative($delete);
 
@@ -874,7 +863,8 @@ QUnit.test('URLSearchParams#delete', assert => {
 
     url = new URL('http://example.com/?');
     url.searchParams.delete('param1');
-    // assert.same(String(url), 'http://example.com/', 'url.href does not have ?'); // Safari bug
+    // fails in native Bun 0.3.0-0.5.8; it was a bug of old Safari too
+    // assert.same(String(url), 'http://example.com/', 'url.href does not have ?');
     assert.same(url.search, '', 'url.search does not have ?');
   }
 
@@ -1011,7 +1001,7 @@ QUnit.test('URLSearchParams#delete with interleaved keys', assert => {
   ]) {
     const params = new URLSearchParams(input);
     assert.same(params.delete(name, value), undefined, 'returns undefined');
-    if (!DENO_UNPADDED_ESCAPE || !input.includes('%00')) assert.same(String(params), expected, input || 'empty input');
+    assert.same(String(params), expected, input || 'empty input');
   }
 
   const params = new URLSearchParams();
@@ -1040,22 +1030,19 @@ if (DESCRIPTORS) QUnit.test('URLSearchParams#delete with value updates the URL',
     ['a=remove&a=remove', 'a', 'remove', ''],
     ['a=keep&a%00=1&a%00%00=2&b=~%20x', 'a', 'missing', 'a=keep&a%00=1&a%00%00=2&b=%7E+x'],
   ]) {
-    if (DENO_UNPADDED_ESCAPE && query.includes('%00')) continue;
     const url = new URL(`https://example.com/?${ query }`);
     const params = url.searchParams;
     params.delete(name, value);
     // Deno 1.2.0-1.2.3 uses the wrong form encoding; fixed in 1.3.0.
     // https://github.com/denoland/deno/issues/7001
     // https://github.com/denoland/deno/pull/7017
-    if (DENO_VERSION !== 102 || !expected) {
-      assert.same(url.search, expected ? `?${ expected }` : '', query);
-      assert.same(String(params), expected, 'parameters match the updated URL');
-    }
+    assert.same(url.search, expected ? `?${ expected }` : '', query);
+    assert.same(String(params), expected, 'parameters match the updated URL');
     // Deno 1.2-1.7.5 replaces searchParams after updates; fixed in 1.8.0.
     // https://github.com/denoland/deno/issues/9383
     // https://github.com/denoland/deno/pull/9276
     // https://github.com/denoland/deno/pull/9639
-    if (DENO_VERSION < 102 || DENO_VERSION >= 108) assert.same(url.searchParams, params, 'preserves the searchParams object');
+    assert.same(url.searchParams, params, 'preserves the searchParams object');
   }
 });
 
@@ -1065,7 +1052,7 @@ QUnit.test('URLSearchParams#get', assert => {
   assert.arity(get, 1);
   assert.name(get, 'get');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'get');
+  assert.enumerable(URLSearchParams.prototype, 'get');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(get);
 
@@ -1134,7 +1121,7 @@ QUnit.test('URLSearchParams#getAll', assert => {
   assert.arity(getAll, 1);
   assert.name(getAll, 'getAll');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'getAll');
+  assert.enumerable(URLSearchParams.prototype, 'getAll');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(getAll);
 
@@ -1168,7 +1155,7 @@ QUnit.test('URLSearchParams#has', assert => {
   assert.arity(has, 1);
   assert.name(has, 'has');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'has');
+  assert.enumerable(URLSearchParams.prototype, 'has');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(has);
 
@@ -1216,7 +1203,7 @@ QUnit.test('URLSearchParams#set', assert => {
   assert.arity(set, 2);
   assert.name(set, 'set');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'set');
+  assert.enumerable(URLSearchParams.prototype, 'set');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(set);
 
@@ -1288,7 +1275,7 @@ QUnit.test('URLSearchParams#sort', assert => {
   assert.arity(sort, 0);
   assert.name(sort, 'sort');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'sort');
+  assert.enumerable(URLSearchParams.prototype, 'sort');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(sort);
 
@@ -1483,10 +1470,10 @@ QUnit.test('URLSearchParams#forEach', assert => {
   const { forEach } = URLSearchParams.prototype;
   assert.isFunction(forEach);
   // Deno 1.10 exposes arity 2.
-  if (DENO_VERSION !== 110) assert.arity(forEach, 1);
+  assert.arity(forEach, 1);
   assert.name(forEach, 'forEach');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'forEach');
+  assert.enumerable(URLSearchParams.prototype, 'forEach');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(forEach);
 
@@ -1533,7 +1520,7 @@ QUnit.test('URLSearchParams#entries', assert => {
   assert.arity(entries, 0);
   assert.name(entries, 'entries');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'entries');
+  assert.enumerable(URLSearchParams.prototype, 'entries');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(entries);
 
@@ -1577,7 +1564,7 @@ QUnit.test('URLSearchParams#entries', assert => {
   assert.same(result, 'a1c3');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS && DENO_VERSION !== 110) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#keys', assert => {
@@ -1586,7 +1573,7 @@ QUnit.test('URLSearchParams#keys', assert => {
   assert.arity(keys, 0);
   assert.name(keys, 'keys');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'keys');
+  assert.enumerable(URLSearchParams.prototype, 'keys');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(keys);
 
@@ -1625,7 +1612,7 @@ QUnit.test('URLSearchParams#keys', assert => {
   assert.same(result, 'ac');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS && DENO_VERSION !== 110) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#values', assert => {
@@ -1634,7 +1621,7 @@ QUnit.test('URLSearchParams#values', assert => {
   assert.arity(values, 0);
   assert.name(values, 'values');
   // Deno 1.10 methods are not enumerable.
-  if (DENO_VERSION !== 110) assert.enumerable(URLSearchParams.prototype, 'values');
+  assert.enumerable(URLSearchParams.prototype, 'values');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(values);
 
@@ -1673,7 +1660,7 @@ QUnit.test('URLSearchParams#values', assert => {
   assert.same(result, '13');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS && DENO_VERSION !== 110) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#@@iterator', assert => {
@@ -1681,12 +1668,12 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   assert.isFunction(entries);
   assert.arity(entries, 0);
   // Deno 1.10 has a distinct unnamed @@iterator method.
-  if (DENO_VERSION !== 110) assert.name(entries, 'entries');
+  assert.name(entries, 'entries');
   // Deno 1.x implements this API in JavaScript without native-looking source strings.
   if (!NODE && !DENO) assert.looksNative(entries);
 
   // Deno 1.10 @@iterator is distinct from entries.
-  if (DENO_VERSION !== 110) assert.same(entries, URLSearchParams.prototype.entries);
+  assert.same(entries, URLSearchParams.prototype.entries);
 
   const expectedValues = { a: '1', b: '2', c: '3' };
   let params = new URLSearchParams('a=1&b=2&c=3');
@@ -1728,14 +1715,10 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   assert.same(result, 'a1c3');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS && DENO_VERSION !== 110) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
 
-// Safari 14.1 / 17.6 / 26.6.2 and Bun 0.1.1 / 1.0.31 / 1.4.4 keep exhausted iterators done.
-// Bun: https://github.com/oven-sh/bun/issues/48347
-// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
-// Deno 1.2-1.11.1; fixed in 1.11.2: https://github.com/denoland/deno/pull/11005
-QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
+QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
     const params = new URLSearchParams();
     const iterator = params[method]();
@@ -1755,11 +1738,7 @@ QUnit.skip('URLSearchParams iterators after exhaustion', assert => {
   }
 });
 
-// Safari 14.1 / 17.6 / 26.6.2 and Bun 0.1.1 / 1.0.31 / 1.4.4 keep exhausted iterators done.
-// Bun: https://github.com/oven-sh/bun/issues/48347
-// Related WebKit behavior: https://bugs.webkit.org/show_bug.cgi?id=157453
-// Deno 1.2-1.11.1; fixed in 1.11.2: https://github.com/denoland/deno/pull/11005
-if (DESCRIPTORS) QUnit.skip('URLSearchParams iterators after exhaustion and query replacement', assert => {
+if (DESCRIPTORS) QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion and query replacement', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
     const url = new URL('https://example.com/?a=1');
     const iterator = url.searchParams[method]();
@@ -1836,7 +1815,7 @@ QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
   // Deno 1.2-1.7.5 replaces the searchParams object when search or href changes.
   // Fixed in 1.8.0: https://github.com/denoland/deno/pull/9276
   // Regression tests: https://github.com/denoland/deno/pull/9639
-  if (DESCRIPTORS && !(DENO_VERSION >= 102 && DENO_VERSION < 108)) {
+  if (DESCRIPTORS) {
     url.search = '?x=1&y=2&z=3';
     assert.same(params.size, 3, 'size after replacing search');
     params.append('w', 4);
@@ -1849,7 +1828,7 @@ QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
 });
 
 // Deno 1.10 uses the Object tag for URLSearchParams.
-QUnit[DENO_VERSION === 110 ? 'skip' : 'test']('URLSearchParams#@@toStringTag', assert => {
+QUnit.test('URLSearchParams#@@toStringTag', assert => {
   const params = new URLSearchParams('a=b');
   assert.same({}.toString.call(params), '[object URLSearchParams]');
 });
@@ -1898,7 +1877,8 @@ const BUN_BODY_LEGACY = BUN_VERSION > 0 && BUN_VERSION < 5007;
 
 // Deno 1.0-1.1 has no usable native URLSearchParams: the Request wrapper serializes the body first
 // and passes the other options through an object that inherits from the dictionary.
-const REQUEST_INIT_WRAPPED = DENO_VERSION > 0 && DENO_VERSION < 102;
+// The native Request of Deno 1.2-1.9.0 does not set the form type, so the wrapper is used there too.
+const REQUEST_INIT_WRAPPED = DENO_VERSION > 0 && DENO_VERSION < 102 || DENO_FETCH_LEGACY;
 // Chrome 67-68 ignores newTarget for native Request / Response; fixed in Chrome 69.
 // https://webidl.spec.whatwg.org/#internally-create-a-new-object-implementing-the-interface
 // Firefox 39-44 has no class syntax, and native Request / Response are not constructed for a subclass without it.
@@ -1910,9 +1890,9 @@ const BODY_SNAPSHOT_BUG = SAFARI_VERSION >= 14 || DENO_FETCH_LEGACY;
 // Firefox 39-43 appends a charset to explicit Content-Type headers; fixed in Firefox 44.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=918742
 const XHR_ADDED_CHARSET = FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44;
-// Safari 15-27.0.1 adds a form Content-Type to GET; Playwright WebKit 27.2 passes.
+// Native Safari 15.4-27.0.1 adds a form Content-Type to GET; Playwright WebKit 27.2 passes.
 // https://bugs.webkit.org/show_bug.cgi?id=320791
-const XHR_GET_CONTENT_TYPE = SAFARI_VERSION >= 15 && (SAFARI_VERSION < 27 || SAFARI_VERSION === 27 && +(safariVersion?.[2] || 0) < 2);
+const XHR_GET_CONTENT_TYPE = SAFARI_NATIVE && (SAFARI_VERSION < 27 || SAFARI_VERSION === 27 && +(safariVersion?.[2] || 0) < 2);
 const IE_XHR = !!GLOBAL.document?.documentMode;
 
 const createTrackedSignal = () => {
@@ -1940,7 +1920,7 @@ if (typeof Request == 'function') {
     const bound = new Request('http://example.com/', { body: new URL('http://example.com/?b=1').searchParams, method: 'POST' });
     return request.text().then(text => {
       // Deno 1.2.0-1.2.3 re-encodes spaces; fixed in 1.3.0: https://github.com/denoland/deno/pull/7017
-      if (DENO_VERSION !== 102) assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
+      assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
       return bound.text();
     }).then(text => {
       assert.same(text, 'b=1', 'serialized `searchParams` of a URL');
@@ -2102,7 +2082,7 @@ if (typeof Response == 'function') {
     const bound = new Response(new URL('http://example.com/?b=1').searchParams);
     return response.text().then(text => {
       // Deno 1.2.0-1.2.3 re-encodes spaces; fixed in 1.3.0: https://github.com/denoland/deno/pull/7017
-      if (DENO_VERSION !== 102) assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
+      assert.same(text, 'a=1&a=2&space=hello+world&unicode=%D0%B0', 'serialized body');
       return bound.text();
     }).then(text => {
       assert.same(text, 'b=1', 'serialized `searchParams` of a URL');
@@ -2317,19 +2297,15 @@ if (TEST_SERVER) {
         xhr.open('POST', TEST_SERVER);
         if (contentType) xhr.setRequestHeader('cOnTeNt-TyPe', contentType);
         return send(xhr, body()).then(result => {
-          // Safari 14.1 sends the default form body as text/plain; Safari 15.1 passes.
-          // https://bugs.webkit.org/show_bug.cgi?id=227477
           // IE11 does not rewrite an explicit charset for string bodies.
           // https://xhr.spec.whatwg.org/#the-send()-method
-          checkEcho(assert, result, expected, !(SAFARI_14 && !contentType)
-            && !(XHR_ADDED_CHARSET && contentType === 'application/custom')
+          checkEcho(assert, result, expected, !(XHR_ADDED_CHARSET && contentType === 'application/custom')
             && !(IE_XHR && contentType === 'application/custom;charset=iso-8859-1'));
         });
       })));
     });
 
-    // Safari 14.1 stringifies URLSearchParams; fixed in 15.1 (WebKit #227477).
-    QUnit[SAFARI_14 ? 'skip' : 'test']('URLSearchParams with XMLHttpRequest, internal serialization', assert => {
+    QUnit.test('URLSearchParams with XMLHttpRequest, internal serialization', assert => {
       assert.timeout?.(10000);
       const xhr = new XMLHttpRequest();
       const params = new URLSearchParams('a=1');
@@ -2351,8 +2327,7 @@ if (TEST_SERVER) {
       xhr.setRequestHeader('Content-Type', 'application/custom');
       xhr.open('POST', TEST_SERVER);
       return timeLimitedPromise(10000, send(xhr, body()).then(result => {
-        // Safari 14.1 default XHR content type: WebKit #227477 (above).
-        checkEcho(assert, result, FORM_CONTENT_TYPE, !SAFARI_14);
+        checkEcho(assert, result, FORM_CONTENT_TYPE);
         xhr.onreadystatechange = () => {
           if (xhr.readyState === 1) {
             xhr.onreadystatechange = null;
@@ -2416,11 +2391,7 @@ if (TEST_SERVER) {
       }));
     });
 
-    // Chrome 67-87 / Edge 79-87 sends form bodies as text/plain; fixed in Chrome / Edge 88.
-    // https://issues.chromium.org/issues/41335051
-    // Safari 14.1 has the same limitation; Safari 15.1 passes (WebKit #227477).
-    const BEACON_BODY_BUG = CHROMIUM_VERSION >= 67 && CHROMIUM_VERSION < 88 || SAFARI_14;
-    if (GLOBAL.navigator?.sendBeacon) QUnit[BEACON_BODY_BUG ? 'skip' : 'test']('URLSearchParams with sendBeacon', assert => {
+    if (GLOBAL.navigator?.sendBeacon) QUnit.test('URLSearchParams with sendBeacon', assert => {
       assert.timeout?.(10000);
       const id = `${ Math.random() }-${ Date.now() }`;
       const deadline = Date.now() + 10000;

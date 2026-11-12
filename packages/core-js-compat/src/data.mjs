@@ -3241,37 +3241,46 @@ export const data = {
   'web.url': null,
   'web.url.constructor': {
     bun: '0.1.1',
-    chrome: '67',
+    // non-special URLs have no host in Chrome 129-
+    chrome: '130', // '67',
     // Deno 1.1.3 still fails hostname and fragment encoding checks.
     // https://github.com/denoland/deno/releases/tag/v1.2.0
-    deno: '1.2',
-    firefox: '57',
+    // forbidden host code points are accepted in Deno 1.25.1-
+    deno: '1.25.2', // '1.2',
+    // non-special URLs have no host in Firefox 132-
+    firefox: '133', // '57',
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
-    ios: '14.3', // need to clarify the release, >14.0 && <= 14.3
-    node: '10.0',
-    safari: '14.0.1', // '14.0',
+    // forbidden host code points are accepted in iOS 15.2 and rejected in iOS 15.4
+    // https://bugs.webkit.org/show_bug.cgi?id=232034
+    ios: '15.4', // '14.3', need to clarify the release, >15.2 && <= 15.4
+    // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
+    node: '20.0', // '10.0',
+    // forbidden host code points are accepted in Safari 15.1 and rejected in Safari 16.6, the release is taken from iOS
+    safari: '15.4', // '14.0.1', '14.0', need to clarify the release on macOS, >15.1 && <= 15.4
   },
   'web.url.can-parse': {
     // Bun < 1.1.0 bug
     // https://github.com/oven-sh/bun/issues/9250
     bun: '1.1.0', // '1.0.2',
-    chrome: '120',
+    chrome: '130', // '120', shared URL constructor detection
     deno: '1.33.2',
-    firefox: '115',
+    firefox: '133', // '115', shared URL constructor detection
     node: '20.1',
     safari: '17.0',
   },
   'web.url.parse': {
     bun: '1.1.4',
-    chrome: '126',
+    chrome: '130', // '126', shared URL constructor detection
     // The implementation still depends on `this` in Deno 2.9.8.
     // https://github.com/denoland/deno/issues/37104
     // deno: '1.43',
-    firefox: '126',
+    firefox: '133', // '126', shared URL constructor detection
     node: '22.1',
     safari: '18.0',
   },
+  // TODO: Remove this module from `core-js@4`: every engine that passes the `URL` constructor detection
+  // has the native method, and the polyfill of the constructor defines its own
   'web.url.to-json': {
     bun: '0.1.1',
     chrome: '71',
@@ -3287,15 +3296,19 @@ export const data = {
   'web.url-search-params': null,
   'web.url-search-params.constructor': {
     bun: '0.1.1',
-    chrome: '67',
-    deno: '1.2', // shared URL constructor detection
-    firefox: '57',
+    chrome: '130', // '67', shared URL constructor detection
+    deno: '1.25.2', // '1.2', shared URL constructor detection
+    firefox: '133', // '57', shared URL constructor detection
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
-    ios: '14.3', // need to clarify the release, >14.0 && <= 14.3
-    node: '10.0',
-    safari: '14.0.1', // '14.0',
+    ios: '15.4', // '14.3', need to clarify the release, >15.2 && <= 15.4, shared URL constructor detection
+    node: '20.0', // '10.0', shared URL constructor detection
+    safari: '15.4', // '14.0.1', '14.0', shared URL constructor detection
   },
+  // The three modules below only add a method to the native constructor,
+  // so their data does not follow the `URL` constructor detection
+  // TODO: In `core-js@4`, set them to the first versions from which "the constructor is polyfilled
+  // or the method is supported" always holds - the minimal versions for Chrome and Firefox
   'web.url-search-params.delete': {
     bun: '1.0.31',
     chrome: '118',
