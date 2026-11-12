@@ -122,7 +122,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare bundle test-unit-deno
   ```
-- Unit and end-to-end browser pages in the [Sauce Labs](https://saucelabs.com/) browsers that CI lacks: real Safari, iOS, and older Chromium and Firefox. The runner tests the pages already deployed to GitHub Pages, not a local build, and needs the `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` environment variables (it's not included in the default tests):
+- Unit browser pages in the [Sauce Labs](https://saucelabs.com/) browsers that CI lacks: real Safari, iOS, and older Chromium and Firefox. The runner tests the pages already deployed to GitHub Pages, not a local build, and needs the `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` environment variables (it's not included in the default tests):
   ```sh
   npm run test-saucelabs -- <URL of a branch directory on GitHub Pages>
   ```
