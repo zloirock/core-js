@@ -1,7 +1,12 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
 const { assign } = Object;
+
+const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 45- passes a wrapper as `this` to accessors of the prototypes of primitives; fixed in Firefox 46.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=603201
+const BOXED_ACCESSOR_RECEIVER = FIREFOX_VERSION > 0 && FIREFOX_VERSION < 46;
 
 QUnit.test('Iterator.from', assert => {
   const { from } = Iterator;
@@ -44,7 +49,7 @@ QUnit.test('Iterator.from', assert => {
       },
     });
     from('');
-    assert.same(observedType, 'string', 'string primitive receiver');
+    if (!BOXED_ACCESSOR_RECEIVER) assert.same(observedType, 'string', 'string primitive receiver');
     from(Object(''));
     assert.same(observedType, 'object', 'String object receiver');
     // eslint-disable-next-line no-extend-native -- required for testing
