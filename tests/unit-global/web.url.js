@@ -20,8 +20,10 @@ const NORMALIZE_EXISTS = typeof String.prototype.normalize == 'function';
 // the native method of Deno before 1.8 leaves a string as it is
 // eslint-disable-next-line es/no-string-prototype-normalize -- detection
 const NORMALIZE = NORMALIZE_EXISTS && 'A\u030A'.normalize('NFC') === '\u00C5';
-// 0 outside of NodeJS
-const NODE_MAJOR = NODE && !DENO ? +GLOBAL.process.versions.node.split('.')[0] : 0;
+const nodeVersion = NODE && !DENO ? GLOBAL.process.versions.node.split('.') : [0, 0];
+const NODE_VERSION = nodeVersion[0] * 100 + +nodeVersion[1];
+// The native `URL` is used in Node 18.20, 20.12+, 21.7+ and 22+.
+const NODE_NATIVE = NODE_VERSION >= 1820 && NODE_VERSION < 1900 || NODE_VERSION >= 2012 && NODE_VERSION < 2100 || NODE_VERSION >= 2107;
 const CHROMIUM_VERSION = +(/(?:Chrome|Chromium)\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Firefox 122 shipped the new parser of non-special URLs, Firefox 123 reverted it till 133
 const FIREFOX_122 = /Firefox\/122\./.test(GLOBAL.navigator?.userAgent);
@@ -836,7 +838,7 @@ QUnit.test('URL domain Bidi rule', assert => {
 // accept them; Chrome 67-156, Firefox 141, Safari 14-26, Bun 1.4.4 and Deno 2.9.7 reject them.
 // https://github.com/whatwg/url/issues/543
 // The browsers pass except native Firefox 122.
-QUnit[NODE_MAJOR >= 18 || FIREFOX_122 ? 'skip' : 'test']('URL domain Bidi rule: rejected labels', assert => {
+QUnit[NODE_NATIVE || FIREFOX_122 ? 'skip' : 'test']('URL domain Bidi rule: rejected labels', assert => {
   for (const [domain, message] of [
     ['\u05D0a.com', 'right-to-left label ending with a left-to-right letter'],
     ['\u05D0\u06611.com', 'European and Arabic digits'],
@@ -951,7 +953,7 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before an early return'
 // Native Node >= 20.0.0 regressed for href; confirmed in 26.13.0 and 27 alpha.
 // https://github.com/nodejs/node/pull/47339
 // https://github.com/nodejs/node/issues/67344
-if (DESCRIPTORS) QUnit[NODE_MAJOR >= 20 ? 'skip' : 'test']('URL setter value conversion after receiver validation', assert => {
+if (DESCRIPTORS) QUnit[NODE_NATIVE && NODE_VERSION >= 2000 ? 'skip' : 'test']('URL setter value conversion after receiver validation', assert => {
   for (const key of ['href', 'protocol', 'username', 'password', 'host', 'hostname', 'port', 'pathname', 'search', 'hash']) {
     const setter = Object.getOwnPropertyDescriptor(URL.prototype, key).set;
     let calls = 0;
@@ -979,7 +981,7 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before changing state',
   // Still fails in Node 26.13.0 and 27 alpha; introduced by the Ada integration:
   // https://github.com/nodejs/node/pull/46410
   // https://github.com/nodejs/node/issues/67345
-  if (NODE_MAJOR < 18) for (const [key, value, expected] of [
+  if (!NODE_NATIVE) for (const [key, value, expected] of [
     ['host', 'other.example:8080', 'https://other.example:8080/old'],
     ['hostname', 'other.example', 'https://other.example/old'],
     ['port', '8080', 'https://example.com:8080/old'],

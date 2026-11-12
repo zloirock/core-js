@@ -20,10 +20,13 @@ const USV_STRINGS = [
 const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
 const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
+// The native `URL` and `URLSearchParams` are used in Node 18.20, 20.12+, 21.7+ and 22+.
+const NODE_NATIVE = !DENO_VERSION
+  && (NODE_VERSION >= 1820 && NODE_VERSION < 1900 || NODE_VERSION >= 2012 && NODE_VERSION < 2100 || NODE_VERSION >= 2107);
 // Node 18.18-18.20.8, 20.2-20.11.1 and 21.0-21.6.2 lose deletions after coercion updates a bound URL.
 // Fixed in 20.12 and 21.7: https://github.com/nodejs/node/pull/51520
-const NODE_DELETE_BOUND = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION < 1900
-  || NODE_VERSION >= 2002 && NODE_VERSION < 2012 || NODE_VERSION >= 2100 && NODE_VERSION < 2107);
+// The polyfill is used in the affected releases of Node 20 and 21.
+const NODE_DELETE_BOUND = NODE_NATIVE && NODE_VERSION < 1900;
 // Node 24.16+ (24.x) and 26.1+ capture the list length before converting value; also fails in 27 alpha.
 // Regression introduced by https://github.com/nodejs/node/pull/62266
 const NODE_DELETE_VALUE = !DENO_VERSION && (NODE_VERSION >= 2416 && NODE_VERSION < 2500 || NODE_VERSION >= 2601);
@@ -45,8 +48,7 @@ const FIREFOX_PROXY_ENUMERABLE = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 35;
 
 // Node 18.17+ (18.x), 19.9+ and 20+ validate pair lengths before completing conversion.
 // https://github.com/nodejs/node/pull/47190
-// The polyfill is used in Node 19.
-const NODE_SEQUENCE_EARLY = !DENO_VERSION && (NODE_VERSION >= 1817 && NODE_VERSION < 1900 || NODE_VERSION >= 2000);
+const NODE_SEQUENCE_EARLY = NODE_NATIVE;
 // Deno 2.8.0-2.9.7 copies inner iterables before conversion and validates each pair too early.
 // Regression introduced by https://github.com/denoland/deno/pull/34119
 const DENO_SEQUENCE_COPY = DENO_VERSION >= 208;
@@ -61,7 +63,6 @@ const BUN_VERSION = bunVersion.length ? bunVersion[0] * 1e6 + bunVersion[1] * 1e
 // Current Web IDL does not close them; changing this is discussed in:
 // https://github.com/whatwg/webidl/issues/895
 // https://github.com/whatwg/webidl/pull/1662
-// The polyfill is used below Node 18.17, in Node 19 and below Safari 15.4.
 const SEQUENCE_ITERATOR_CLOSE = NODE_SEQUENCE_EARLY || BUN_VERSION >= 1001 || SAFARI_NATIVE;
 // Native Safari 15.4-27.0.1 and Bun 0.1.1-1.4.4 keep exhausted iterators done.
 // Bun: https://github.com/oven-sh/bun/issues/48347

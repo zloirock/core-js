@@ -3255,7 +3255,9 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=232034
     ios: '15.4', // '14.3', need to clarify the release, >15.2 && <= 15.4
     // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
-    node: '20.0', // '10.0',
+    // hosts that are IPv4 addresses only after percent-decoding break URLs in NodeJS 18.17 - 18.19, 20.0 - 20.11
+    // and 21.0 - 21.6
+    node: '20.12', // '20.0', '10.0',
     // forbidden host code points are accepted in Safari 15.1 and rejected in Safari 16.6, the release is taken from iOS
     safari: '15.4', // '14.0.1', '14.0', need to clarify the release on macOS, >15.1 && <= 15.4
   },
@@ -3266,7 +3268,7 @@ export const data = {
     chrome: '130', // '120', shared URL constructor detection
     deno: '1.33.2',
     firefox: '133', // '115', shared URL constructor detection
-    node: '20.1',
+    node: '20.12', // '20.1', shared URL constructor detection
     safari: '17.0',
   },
   'web.url.parse': {
@@ -3302,7 +3304,7 @@ export const data = {
     // `new URL(url, undefined)` throws in Safari 14.0
     // https://bugs.webkit.org/show_bug.cgi?id=215734
     ios: '15.4', // '14.3', need to clarify the release, >15.2 && <= 15.4, shared URL constructor detection
-    node: '20.0', // '10.0', shared URL constructor detection
+    node: '20.12', // '20.0', '10.0', shared URL constructor detection
     safari: '15.4', // '14.0.1', '14.0', shared URL constructor detection
   },
   // The three modules below only add a method to the native constructor,

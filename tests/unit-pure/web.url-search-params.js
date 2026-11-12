@@ -39,17 +39,20 @@ const FIREFOX_PROXY_ENUMERABLE = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 35;
 
 const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
+// The native `URL` and `URLSearchParams` are used in Node 18.20, 20.12+, 21.7+ and 22+.
+const NODE_NATIVE = !DENO_VERSION
+  && (NODE_VERSION >= 1820 && NODE_VERSION < 1900 || NODE_VERSION >= 2012 && NODE_VERSION < 2100 || NODE_VERSION >= 2107);
 // Node 18.18-18.20.8, 20.2-20.11.1 and 21.0-21.6.2 lose deletions after coercion updates a bound URL.
 // Fixed in 20.12 and 21.7: https://github.com/nodejs/node/pull/51520
-const NODE_DELETE_BOUND = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION < 1900
-  || NODE_VERSION >= 2002 && NODE_VERSION < 2012 || NODE_VERSION >= 2100 && NODE_VERSION < 2107);
+// The polyfill is used in the affected releases of Node 20 and 21.
+const NODE_DELETE_BOUND = NODE_NATIVE && NODE_VERSION < 1900;
 // Node 24.16+ (24.x) and 26.1+ capture the list length before converting value; also fails in 27 alpha.
 // Regression introduced by https://github.com/nodejs/node/pull/62266
 const NODE_DELETE_VALUE = !DENO_VERSION && (NODE_VERSION >= 2416 && NODE_VERSION < 2500 || NODE_VERSION >= 2601);
 
-// Native construction is used in Node 18.18+ (18.x) and 20.2+; it validates pair lengths too early.
+// Native Node validates pair lengths too early.
 // https://github.com/nodejs/node/pull/47190
-const NODE_SEQUENCE_EARLY = !DENO_VERSION && (NODE_VERSION >= 1818 && NODE_VERSION < 1900 || NODE_VERSION >= 2002);
+const NODE_SEQUENCE_EARLY = NODE_NATIVE;
 // Deno 2.8.0-2.9.7 copies inner iterables before conversion and validates each pair too early.
 // Regression introduced by https://github.com/denoland/deno/pull/34119
 const DENO_SEQUENCE_COPY = DENO_VERSION >= 208;

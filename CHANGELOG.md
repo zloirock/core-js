@@ -148,7 +148,7 @@
     - `Promise.try` updated following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883)
     - Fixed `Error.isError`
     - Added `DOMException#stack`
-  - `URL` and `URLSearchParams` marked as properly supported from Chrome 130, Firefox 133, Safari 15.4, iOS 15.4, NodeJS 20.0 and Deno 1.25.2 because of hundreds bugs of older native implementations in validation and parsing of hosts, non-special URLs and IDNA processing, and data loss in `URLSearchParams`
+  - `URL` and `URLSearchParams` marked as properly supported from Chrome 130, Firefox 133, Safari 15.4, iOS 15.4, NodeJS 20.12 and Deno 1.25.2 because of hundreds bugs of older native implementations in validation and parsing of hosts, non-special URLs and IDNA processing, and data loss in `URLSearchParams`
   - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
   - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
   - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers

@@ -55,6 +55,9 @@ module.exports = !fails(function () {
     || new URL('i', 'sc://ho/pa').host !== 'ho'
     // and accept forbidden host code points there
     || accepts('sc://a<b')
+    // hosts that are IPv4 addresses only after percent-decoding break URLs
+    // in NodeJS 18.17 - 18.19, 20.0 - 20.11 and 21.0 - 21.6
+    || new URL('http://127.0.0.%31').host !== '127.0.0.1'
     // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
     || String(new URLSearchParams({ constructor: 1 })) !== 'constructor=1';
 });
