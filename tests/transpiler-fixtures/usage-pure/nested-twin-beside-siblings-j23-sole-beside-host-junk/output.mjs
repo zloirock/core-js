@@ -14,7 +14,9 @@ const {
       name: _nameMaybeFunction(_Array$of)
     }
   },
-  junk: _globalThis.junk
+  get junk() {
+    return _globalThis.junk;
+  }
 };
 export { soleBesideHostJunk };
 export { j23 };

@@ -1,5 +1,5 @@
 // An opaque iterator keeps inner-default reads inside its step, before IteratorClose.
-// Its pattern stays native in pure mode; global mode still injects the named static.
+// Its pattern stays native; pure mirrors the default to supply the static at that step.
 // The receiver is a local iterable whose first step yields undefined.
 const events = [];
 const iterable = {

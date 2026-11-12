@@ -18,7 +18,9 @@ const {
     },
     junk: _globalThis.Array.junk
   },
-  more: _globalThis.more
+  get more() {
+    return _globalThis.more;
+  }
 };
 export { viaProxyTwoLevels };
 export { f9 };

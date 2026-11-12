@@ -15,11 +15,12 @@ const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('mirror
 
 // Admission and dispatch completion are shared; native bookkeeping sees actual application,
 // while a caller mirror can remain unsettled after a successful replacement.
-for (const shape of ['missing', 'done', 'bail', 'empty', 'applied', 'failed', 'partial', 'local']) {
+// A completed mirror does not consume a later native sibling or apply bookkeeping again.
+for (const shape of ['missing', 'done', 'bail', 'empty', 'applied', 'failed', 'partial', 'local', 'imported']) {
   for (const callerMirror of [false, true]) for (const deferredOnly of [false, true]) for (const settled of [false, true]) {
     const label = `mirror completion/${ shape }/${ callerMirror }/${ deferredOnly }/${ settled }`;
     const node = { type: 'Identifier', name: 'source' };
-    const target = { node, tree: {}, localMemo: shape === 'local', memo: shape === 'local' };
+    const target = { node, tree: {}, deferredReads: ['local', 'imported'].includes(shape), localMemo: shape === 'local', memo: shape === 'local' };
     const plan = shape === 'missing' ? null : {
       done: shape === 'done', bail: shape === 'bail', settled,
       targets: ['empty', 'done', 'bail'].includes(shape) ? [] : shape === 'partial' ? [target, target] : [target],
@@ -34,8 +35,8 @@ for (const shape of ['missing', 'done', 'bail', 'empty', 'applied', 'failed', 'p
       skipSubtree() { events.push('skip'); },
       onApplied() { events.push('applied'); },
     });
-    const admitted = !deferredOnly || shape === 'local';
-    const success = ['done', 'bail', 'applied', 'partial', 'local'].includes(shape);
+    const admitted = !deferredOnly || ['local', 'imported'].includes(shape);
+    const success = ['bail', 'applied', 'partial', 'local', 'imported'].includes(shape);
     check(`${ label } result`, applied, admitted && (callerMirror ? !!plan?.settled : success));
     const work = ['missing', 'done', 'bail', 'empty'].includes(shape) ? []
       : [...shape === 'local' ? ['memo'] : [], 'render', 'replace', ...shape === 'failed' ? [] : ['skip'],

@@ -15,7 +15,9 @@ do var {
     Array: {
       from: _Array$from
     },
-    keep9: _globalThis.keep9
+    get keep9() {
+      return _globalThis.keep9;
+    }
   },
   tail9 = 1; while (k < 0);
 if (k) var lead10 = pre(),

@@ -11,13 +11,11 @@ const {
   },
   Map: M,
   missing
-} = (key = 'Array', (_ref => {
-  return {
-    globalThis: _globalThis,
-    Map: _Map,
-    get missing() {
-      return _ref.missing;
-    }
-  };
-})(_globalThis));
+} = (key = 'Array', {
+  globalThis: _globalThis,
+  Map: _Map,
+  get missing() {
+    return _globalThis.missing;
+  }
+});
 new M();

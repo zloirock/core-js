@@ -1,5 +1,9 @@
 // A whole mirror owns disabled leaves, relocated source slots and nested dispatch together.
-import { buildNestedParamSynthPlan, renderSynthTree } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  buildNestedParamSynthPlan,
+  paramDefaultInstanceSynthAllowed,
+  renderSynthTree,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { noteRelocatedHeadName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -9,6 +13,7 @@ const { check, checkDeep, finish, runBoth } = createChecker('nested-synth-admiss
 
 function resolvePure(meta) {
   if (meta.kind === 'global' && meta.name === 'globalThis') return { kind: 'global', entry: 'global-this' };
+  if (meta.kind === 'global' && meta.name === 'Map') return { kind: 'global', entry: 'map' };
   if (meta.object === 'Array' && meta.placement === 'static' && ['from', 'of'].includes(meta.key)) {
     return { kind: 'static', entry: `array/${ meta.key }` };
   }
@@ -82,6 +87,88 @@ for (const marked of [false, true]) for (const fallback of [false, true]) {
       });
       checkDeep(`${ label } dispatch renders without another claim visit`, imports.sort(),
         ['array/instance/at', 'array/of', 'global-this']);
+    });
+}
+
+for (const assignment of [false, true]) runBoth(`realm head/${ assignment }`,
+  `for (const held of [globalThis]) { ${ assignment ? '({ globalThis: { Array: { prototype: { at } } } } = held)'
+    : 'const { globalThis: { Array: { prototype: { at } } } } = held' }; use(at); }`,
+  (parser, program, label) => {
+    const loop = parser.pickPath(program, 'ForOfStatement');
+    noteRelocatedHeadName(loop.node, 'held');
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const before = JSON.stringify(program.node);
+    // Asking for retained reads must not reserve the ordinary rendering route.
+    buildNestedParamSynthPlan({
+      leafPatternPath: pattern, adapter, resolvePure, retainNativeReads: true,
+      meta: { kind: 'property', object: 'globalThis', key: 'globalThis', placement: 'static' },
+    });
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath: pattern, adapter, resolvePure,
+      meta: { kind: 'property', object: 'globalThis', key: 'globalThis', placement: 'static' },
+    });
+    check(`${ label } owns the live iterable`, plan?.host?.node, loop.node);
+    check(`${ label } owns its instance leaf`, plan?.claimedProperties.some(prop => prop.key.name === 'at'), true);
+    check(`${ label } leaves the queried source intact`, JSON.stringify(program.node), before);
+  });
+
+runBoth('deferred user slot beside constructor',
+  'function read({ userList: { at }, Map: M } = globalThis, later = run()) { return [at, M]; }',
+  (parser, program, label) => {
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const plan = buildNestedParamSynthPlan({ leafPatternPath: pattern, adapter, resolvePure,
+      meta: { kind: 'property', object: 'globalThis', key: 'Map', placement: 'static' } });
+    const entry = plan?.targets[0].tree.entries[0];
+    check(`${ label } reads user slot at binding time`, entry?.deferred, true);
+    check(`${ label } captures its receiver once`, entry?.child.kind, 'receiver');
+    check(`${ label } owns the nested instance leaf`, plan?.claimedProperties.some(prop => prop.key.name === 'at'), true);
+  });
+
+runBoth('native literal head',
+  'for (const held of [{ w: Array }]) { const { w: { prototype: { at } } } = held; use(at); }',
+  (parser, program, label) => {
+    const loop = parser.pickPath(program, 'ForOfStatement');
+    noteRelocatedHeadName(loop.node, 'held');
+    const pattern = parser.pickPath(program, 'ObjectPattern', item => item.node.properties[0]?.key.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    check(`${ label } body extraction owns the literal receiver`, buildNestedParamSynthPlan({
+      leafPatternPath: pattern, adapter, resolvePure,
+      meta: { kind: 'property', key: 'at', object: null, placement: null },
+    }), null);
+  });
+
+runBoth('computed descendant retains its native realm hop',
+  'function key() { mark(); return "Array"; } var { self: { [key()]: { from } }, other } = globalThis;',
+  (parser, program, label) => {
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const plan = buildNestedParamSynthPlan({ leafPatternPath: pattern, adapter, resolvePure,
+      meta: { kind: 'property', object: 'globalThis', key: 'self', placement: 'static' } });
+    check(`${ label } leaves the key and hop to native capture`, !!plan?.targets?.length, false);
+  });
+
+runBoth('unknown descendant retains its backed realm',
+  'const { globalThis: { [unknownKey()]: { prototype } }, other } = globalThis;',
+  (parser, program, label) => {
+    const pattern = parser.pickPath(program, 'ObjectPattern');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+    const plan = buildNestedParamSynthPlan({ leafPatternPath: pattern, adapter, resolvePure,
+      meta: { kind: 'property', object: 'globalThis', key: 'globalThis', placement: 'static' } });
+    check(`${ label } supplies the realm without rewriting the unknown child`, !!plan?.targets?.length, true);
+  });
+
+for (const memoized of [false, true]) for (const receiver of ['make()', 'box.value', 'box?.value']) {
+  runBoth(`one captured receiver/${ memoized }/${ receiver }`,
+    `function read(box, make) { function use({ at, includes } = ${ receiver }) { return [at, includes]; } return use(); }`,
+    (parser, program, label) => {
+      const pattern = parser.pickPath(program, 'ObjectPattern');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure', resolvePure });
+      check(`${ label } only a capture relaxes repeated reads`, paramDefaultInstanceSynthAllowed({
+        objectPatternNode: pattern.node, receiverNode: pattern.parentPath.node.right,
+        scope: pattern.scope, path: pattern, adapter, resolvePure, memoized,
+      }), memoized && receiver !== 'box?.value');
     });
 }
 

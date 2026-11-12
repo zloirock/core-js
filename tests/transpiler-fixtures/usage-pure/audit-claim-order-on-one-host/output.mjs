@@ -48,6 +48,8 @@ let other;
   Object: {
     keys: _Object$keys
   },
-  other: _globalThis.other
+  get other() {
+    return _globalThis.other;
+  }
 }));
 export const r = [typeof staticFirst, typeof instanceSecond, typeof instanceFirst, typeof staticSecond, typeof other, eff];

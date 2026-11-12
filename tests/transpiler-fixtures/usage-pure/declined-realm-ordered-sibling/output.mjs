@@ -9,14 +9,12 @@ const {
     }
   },
   after
-} = (_ref => {
-  return {
-    get before() {
-      return _ref.before;
-    },
-    globalThis: _globalThis,
-    get after() {
-      return _ref.after;
-    }
-  };
-})(_globalThis);
+} = {
+  get before() {
+    return _globalThis.before;
+  },
+  globalThis: _globalThis,
+  get after() {
+    return _globalThis.after;
+  }
+};

@@ -20,7 +20,9 @@ function read({
   Array: {
     from: _Array$from
   },
-  Set: _globalThis.Set
+  get Set() {
+    return _globalThis.Set;
+  }
 }) {
   return [from([1]), new Set()];
 }

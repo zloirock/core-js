@@ -15,5 +15,7 @@ let from, x;
   Array: {
     from: _Array$from
   },
-  custom: _globalThis.custom
+  get custom() {
+    return _globalThis.custom;
+  }
 });

@@ -16,6 +16,8 @@ const {
   Array: {
     from: _Array$from
   },
-  [_Symbol$iterator]: _getIteratorMethod(_globalThis)
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_globalThis);
+  }
 };
 export { from, it };

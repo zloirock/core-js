@@ -15,7 +15,9 @@ var {
   Array: {
     from: _Array$from
   },
-  other: _globalThis.other
+  get other() {
+    return _globalThis.other;
+  }
 };
 from([2]);
 other;

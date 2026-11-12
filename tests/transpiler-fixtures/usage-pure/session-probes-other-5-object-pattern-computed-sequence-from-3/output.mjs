@@ -4,9 +4,17 @@ function eff() {
   return Object;
 }
 {
-  const f5 = _Array$from;
   const {
-    [(eff('k'), 'Array')]: _unused,
+    [(eff('k'), 'Array')]: {
+      from: f5
+    },
     z
-  } = _globalThis;
+  } = {
+    Array: {
+      from: _Array$from
+    },
+    get z() {
+      return _globalThis.z;
+    }
+  };
 }

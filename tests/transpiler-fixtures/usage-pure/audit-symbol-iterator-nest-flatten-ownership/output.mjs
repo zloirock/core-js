@@ -30,10 +30,12 @@ const {
     groupBy: g
   }
 } = (se(), {
-  [_Symbol$iterator]: _getIteratorMethod(_globalThis),
+  get [_Symbol$iterator]() {
+    return _getIteratorMethod(_globalThis);
+  },
   Map: {
     groupBy: _Map$groupBy
   }
 });
 it3;
-g(z);
+g(z, value => value);

@@ -14,7 +14,9 @@ let S, M, alias, of, rest, race, d;
   Array: {
     of: _Array$of
   },
-  "with-dash": _globalThis["with-dash"],
+  get "with-dash"() {
+    return _globalThis["with-dash"];
+  },
   Promise: {
     race: _Promise$race
   }

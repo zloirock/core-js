@@ -30,25 +30,24 @@ const viaWrapped = _nameMaybeFunction(_Array$of);
 const [{
   foo: f3
 }] = [_Array$of];
-const [,] = [Array],
-  {
-    of: _ref = {}
-  } = {
-    of: {
-      name: _nameMaybeFunction(_Array$of),
-      foo: _Array$of.foo
-    }
-  },
-  viaWrappedDefault = _nameMaybeFunction(_ref),
-  {
+const [,] = [Array];
+const {
+  of: {
+    name: viaWrappedDefault,
     foo: f4
-  } = _ref;
+  } = {}
+} = {
+  of: {
+    name: _nameMaybeFunction(_Array$of),
+    foo: _Array$of.foo
+  }
+};
 const viaWrappedSibling = _nameMaybeFunction(_Array$of);
 const [{
   foo: f5
 }, z1] = [_Array$of, 1];
-const [_ref2,,] = [eff(), Array];
-const z2 = _ref2;
+const [_ref,,] = [eff(), Array];
+const z2 = _ref;
 const viaWrappedBehindEffect = _nameMaybeFunction(_Array$of);
 const {
   foo: f6

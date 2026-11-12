@@ -28,7 +28,9 @@ if (log.length >= 0) ({
   Map: {
     groupBy: _Map$groupBy
   },
-  sibling: _globalThis.sibling
+  get sibling() {
+    return _globalThis.sibling;
+  }
 });
 // A receiver prefix keeps its own inner polyfills and executes once before the binding.
 if (log.length >= 0) {

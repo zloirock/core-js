@@ -454,8 +454,31 @@ for (const parser of adapters) for (const [name, code, expected] of [
   ['extra argument', 'const { at: out } = { at: At(input, effect()) };', false],
   ['optional call', 'const { at: out } = { at: At?.(input) };', false],
   ['spread argument', 'const { at: out } = { at: At(...input) };', false],
+  ['nested lazy slot', 'const { row: { at: out } } = { row: (r => { return r == null ? r : { get at() { return At(r); } }; })(input) };', true],
+  ['nested lazy getter', `const { row: { at: out } } = (r => { return {
+    get row() { return (v => { return v == null ? v : { get at() { return At(v); } }; })(r.row); },
+  }; })(input);`, true],
+  ['lazy foreign receiver', 'const { row: { at: out } } = { row: (r => { return r == null ? r : { get at() { return At(other); } }; })(input) };', false],
+  ['lazy effectful getter', 'const { row: { at: out } } = { row: (r => { return r == null ? r : { get at() { effect(); return At(r); } }; })(input) };', false],
+  ['lazy parameter shadow', 'const { row: { at: out } } = { row: (At => { return At == null ? At : { get at() { return At(At); } }; })(input) };', false],
+  ['data inside direct activation', `const { Array: { prototype: { at: out } } } = (r => { return {
+    Array: { prototype: { at: At(Realm.Array.prototype) } },
+  }; })(Realm);`, true],
+  ['foreign data inside guarded activation', `const { Array: { prototype: { at: out } } } = (r => { return r == null ? r : {
+    Array: { prototype: { at: At(Realm.Array.prototype) } },
+  }; })(input);`, false],
+  ['retained native level default', `const { Float16Array: { from: out } = Array, Map: M } = {
+    Float16Array: Realm.Float16Array, Map: PureMap,
+  };`, true],
+  ['foreign native level default', `const { Float16Array: { from: out } = Array, Map: M } = {
+    Float16Array: foreign.Float16Array, Map: PureMap,
+  };`, false],
+  ['live default below lazy slot', `function read({ row: { at: out } = { at: foreign } } = {
+    row: (r => { return r == null ? r : { get at() { return At(r); } }; })(input),
+  }) {}`, false],
 ]) for (const current of [false, true]) {
-  const program = parser.parseAndScope(`import At from '@core-js/pure/actual/instance/at'; ${ code }`);
+  const program = parser.parseAndScope(`import At from '@core-js/pure/actual/instance/at';
+    import Realm from '@core-js/pure/actual/global-this'; import PureMap from '@core-js/pure/actual/map'; ${ code }`);
   const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
     path => path.parentPath.node.type === 'ObjectPattern' && path.node.value?.name === 'out');
   const tests = { isPureImportSource: source => source.startsWith('@core-js/pure/'), isOwnPassBinding: () => current };

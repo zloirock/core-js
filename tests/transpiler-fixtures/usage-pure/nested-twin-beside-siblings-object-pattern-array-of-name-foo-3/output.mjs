@@ -16,7 +16,9 @@ const {
       foo: _Array$of.foo
     }
   },
-  junk: _globalThis.junk
+  get junk() {
+    return _globalThis.junk;
+  }
 };
 export { viaProxyHostSibling };
 export { f10 };

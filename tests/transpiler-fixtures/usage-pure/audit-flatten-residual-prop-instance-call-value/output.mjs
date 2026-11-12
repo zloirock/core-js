@@ -15,7 +15,9 @@ var {
   Array: {
     from: _Array$from
   },
-  tail: _globalThis.tail
+  get tail() {
+    return _globalThis.tail;
+  }
 };
 from([6]);
 tail;

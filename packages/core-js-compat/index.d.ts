@@ -52,6 +52,7 @@ type KnownBuiltInReturnTypes = {
   instanceProperties: {[className: string]: {[property: string]: ReturnTypeHintValue}},
   staticTypeGuards: {[className: string]: {[method: string]: ReturnTypeHintValue}},
   globalProxies: readonly string[],
+  nonWritableValueGlobals: readonly string[],
   namespaces: readonly string[],
   constructors: {[name: string]: { new: ConstructorReturnHint, call: ConstructorReturnHint }},
 };

@@ -9,14 +9,12 @@ const {
   },
   key,
   tail
-} = (_ref => {
-  return {
-    globalThis: _globalThis,
-    get key() {
-      return _ref.key;
-    },
-    get tail() {
-      return _ref.tail;
-    }
-  };
-})(_globalThis);
+} = {
+  globalThis: _globalThis,
+  get key() {
+    return _globalThis.key;
+  },
+  get tail() {
+    return _globalThis.tail;
+  }
+};
