@@ -2345,17 +2345,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // short-circuit path where native yields void 0 (matches unplugin once skipped)
     let wrapPath;
     if (result.type === 'OptionalCallExpression') {
-      if (!check) {
-        // an OptionalCallExpression standing in NewExpression.callee (`new (arr.flat?.())(z)`)
-        // mis-prints without parens under babel codegen: `new _X(arr)?.call(arr)(z)` round-trips
-        // to CONSTRUCT the helper instead of calling it. force the grouping so `new` applies to
-        // the call's result (oxc/unplugin preserves the source parens, so this is babel-only)
-        if (replacePath.parentPath?.isNewExpression()
-          && replacePath.parentPath.node.callee === replacePath.node) {
-          replacePath.replaceWith(t.parenthesizedExpression(replacePath.node));
-        }
-        return;
-      }
+      // Old generators need new-callee parens, but only in post(): an explicit wrapper
+      // here prevents regenerator from reaching an await/yield inside the optional call.
+      if (!check) return;
       // a receiver-level guard must wrap the whole SURVIVING chain, leaving the trailing links
       // optional-typed inside it so the live `?.` still short-circuits past them
       wrapPath = chainContinuationTip(replacePath);

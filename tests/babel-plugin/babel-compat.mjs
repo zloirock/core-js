@@ -17,7 +17,7 @@ const { transformAsync, transformSync } = requireBabel('@babel/core');
 const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
 import createASTHelpers, { cloneWriteTarget, rangePreservingTypes } from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
-import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createBabelAdapter, restoreParenCompensations } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { isValidIdentifierName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -1098,16 +1098,21 @@ for (const [name, code, receiverType] of [
     && callee.alternate.expressions[1].callee.name === '_includes');
 }
 
-// replaceAndWrap NewExpression paren-forcing: an OptionalCallExpression replacement standing in a
-// NewExpression callee (`new (arr.flat?.())(z)`) must be parenthesized so `new` applies to the
-// call result, not the helper. babel codegen would otherwise misprint `new _flat(arr)?.call(arr)(z)`
+// A replaced new-callee stays traversable for downstream lowering. Older generators still need
+// explicit parens in post so `new` constructs the call result, not the injected helper.
 {
   const { helpers, program } = setup('new (arr.flat?.())(z);');
   const member = pickMember(program, 'MemberExpression', 'flat');
   helpers.replaceInstanceLike({ path: member, id: t.identifier('_flat'), skipOptional: null, sideEffects: null });
   const stmt = firstExprStmt(program.node.body);
+  check('replaceAndWrap/OptionalCall in NewExpression stays open before post',
+    stmt.expression.callee.type, 'OptionalCallExpression');
+  restoreParenCompensations(program, null, { newCallee: false });
+  check('replaceAndWrap/current generator does not need explicit new-callee parens',
+    stmt.expression.callee.type, 'OptionalCallExpression');
+  restoreParenCompensations(program, null, { newCallee: true });
   // `new (_flat(arr)?.call(arr))(z)` - the new-callee is a ParenthesizedExpression around the optional call
-  checkTruthy('replaceAndWrap/OptionalCall in NewExpression callee is parenthesized',
+  checkTruthy('replaceAndWrap/OptionalCall in NewExpression callee is parenthesized for the legacy generator',
     stmt.expression.type === 'NewExpression'
     && stmt.expression.callee.type === 'ParenthesizedExpression'
     && stmt.expression.callee.expression.type === 'OptionalCallExpression');

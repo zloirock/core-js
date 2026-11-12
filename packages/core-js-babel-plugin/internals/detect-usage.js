@@ -557,6 +557,8 @@ export function generatorWorkarounds(version) {
     instantiation: before('7.29.12', '8.0.10'),
     // TODO: Remove the optional-chain tag fallback after dropping generators before 7.29.13 / 8.0.5.
     tag: before('7.29.13', '8.0.5'),
+    // TODO: Remove the optional-new fallback after dropping generators before 7.29.12 / 8.0.10.
+    newCallee: before('7.29.12', '8.0.10'),
     // TODO: Remove the write-target fallback after dropping Babel 7 and Babel 8 before 8.0.10.
     write: version.includes('-') || compare(core, '<', '8.0.10'),
   };
@@ -701,22 +703,23 @@ const OPTIONAL_CHAIN_PAREN_TYPES = new Set([
   'OptionalCallExpression',
   'ChainExpression',
 ]);
+const CHAIN_PAREN_KEYS = { TaggedTemplateExpression: 'tag', NewExpression: 'callee', TSNonNullExpression: 'expression' };
 
-// a tag always seals its optional chain; a non-null assertion seals only a parenthesized
+// A tag or constructor callee seals its optional chain; a non-null assertion seals only a parenthesized
 // operand. Even current generators drop this latter seal, including under further TS wrappers.
 // A real paren node already preserves the boundary. Counting and restoration share this test.
 function chainHostOwesRestoredParens(node) {
-  let core = node.type === 'TaggedTemplateExpression' ? node.tag : node.expression;
+  let core = node[CHAIN_PAREN_KEYS[node.type]];
   if (node.type === 'TSNonNullExpression' && !core.extra?.parenthesized) return false;
   while (CHAIN_HOP_WRAPPER_TYPES.has(core.type)) core = core.expression;
   return core.type !== 'ParenthesizedExpression' && OPTIONAL_CHAIN_PAREN_TYPES.has(core.type);
 }
 
-// Older generators print an optional-chain tag bare, which does not parse. Even newer
+// Older generators print optional-chain tags and constructor callees bare. Even newer
 // ones print `(a?.b)!()` as `a?.b!()`, letting the chain swallow a required call.
 function restoreOptionalChainParens(path) {
   if (chainHostOwesRestoredParens(path.node)) {
-    const key = path.node.type === 'TaggedTemplateExpression' ? 'tag' : 'expression';
+    const key = CHAIN_PAREN_KEYS[path.node.type];
     path.get(key).replaceWith({ type: 'ParenthesizedExpression', expression: path.node[key] });
   }
 }
@@ -738,7 +741,8 @@ export function foldInstantiationsPass(programPath, legacy, traverseFast, parame
   function count(node) {
     if (node.type === 'TSInstantiationExpression'
       || parameterPropertyVisitors && node.type === 'TSParameterProperty' && node.decorators?.length) needsPaths = true;
-    else if (!parensPending && (node.type === 'TSNonNullExpression' || legacy.tag && node.type === 'TaggedTemplateExpression')) {
+    else if (!parensPending && (node.type === 'TSNonNullExpression'
+      || legacy.tag && node.type === 'TaggedTemplateExpression' || legacy.newCallee && node.type === 'NewExpression')) {
       parensPending = chainHostOwesRestoredParens(node);
     } else if (!parensPending && legacy.write && assertedWriteKey(node)) parensPending = true;
   }
@@ -760,6 +764,7 @@ export function restoreParenCompensations(programPath, originalBodyNodes, legacy
     ...parameterPropertyVisitors,
     TSInstantiationExpression: legacy.instantiation ? restoreLegacyInstantiationParens : foldInstantiationTypeArguments,
     [legacy.tag ? 'TaggedTemplateExpression|TSNonNullExpression' : 'TSNonNullExpression']: restoreOptionalChainParens,
+    ...legacy.newCallee && { NewExpression: restoreOptionalChainParens },
     ...legacy.write && {
       'UpdateExpression|AssignmentExpression|AssignmentPattern'({ node }) {
         const key = assertedWriteKey(node);

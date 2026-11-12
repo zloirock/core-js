@@ -85,3 +85,21 @@ QUnit.test('async: nested await with destructured polyfill alias', assert => {
     async();
   })();
 });
+
+QUnit.test('generator: optional constructor call keeps yield lowerable', assert => {
+  function C(value) { this.value = value; }
+  // eslint-disable-next-line no-unsafe-optional-chaining -- The optional result is deliberately used as a constructor.
+  function * read(arr) { return new (arr.at?.(yield 0))(7); }
+  const iterator = read([C]);
+  assert.same(iterator.next().value, 0);
+  const last = iterator.next(0);
+  assert.same(last.value.value, 7);
+  assert.true(last.done);
+});
+
+QUnit.test('async: optional constructor call keeps await lowerable', async assert => {
+  function C(value) { this.value = value; }
+  // eslint-disable-next-line no-unsafe-optional-chaining -- The optional result is deliberately used as a constructor.
+  async function read(arr) { return new (arr.at?.(await Promise.resolve(0)))(7); }
+  assert.same((await read([C])).value, 7);
+});

@@ -25571,4 +25571,22 @@ export function * generate() {
     ${ callable }
     try { return typeof new A().Array.from; } catch (error) { return error.name; }
   })()`), strip: true };
+  // Printer grammar roles remain observable after both injection and a no-op print.
+  for (const [shape, expression] of [
+    ['function', 'function hidden() { return [7].at(0); }'],
+    ['class', 'class hidden { read() { return [7].at(0); } }'],
+    ['logical', '(function hidden() { return [7].at(0); }) || 0'],
+  ]) yield {
+    name: `printer-export-role/${ shape }`, strip: true,
+    code: `export default (${ expression }); export const r = typeof hidden; export const effects = [];`,
+  };
+  yield { name: 'printer-export-role/shadow', strip: true,
+    code: 'const same = 7; export default (function same() { return [7].at(0); }); export const r = same; export const effects = [];' };
+  for (const [shape, body] of [
+    ['let-member', 'var let = [0]; (let[0] = 7); const r = let[0];'],
+    ['let-for-of', 'var let; for ((let) of [7]) ; const r = let;'],
+    ['async-for-of', 'var async; for ((async) of [7]) ; const r = async;'],
+    ['let-for-in', 'var let = []; for ((let)[0] in { value: 1 }) ; const r = let[0];'],
+  ]) yield { name: `printer-script-lookahead/${ shape }`, sourceType: 'script', strip: true,
+    code: `${ body } module.exports = { r, effects: [[7].at(0)] };` };
 }

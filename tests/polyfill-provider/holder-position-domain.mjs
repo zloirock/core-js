@@ -8,19 +8,21 @@
 /* eslint-disable node/no-sync -- a one-shot corpus scan at test time: the async forms would buy
    nothing here and babel's parse / traverse are sync anyway */
 import { createRequire } from 'node:module';
-import { createChecker, scenarioSource } from './harness.mjs';
+import { adapters, createChecker, scenarioSource } from './harness.mjs';
 import { LITERAL, POSITIONS } from './holder-shape-equivalence.mjs';
+import { createTypeAnnotationChecker } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { parseSync, traverse } = createRequire(import.meta.url)('@babel/core');
 const { join, relative, resolve } = path;
 
-const { checkTruthy, finish } = createChecker('holder-position-domain');
+const { check, checkTruthy, finish } = createChecker('holder-position-domain');
 
 // every position an object literal can occupy, with the verdict the analyses owe it:
 //   consumes  - evaluated here and unreachable afterwards, so the field narrow stands
 //   forwards  - the value flows ON from here, and the position it lands in decides
 //   hands-out - a reference (or a copy of the own properties) reaches code the scan cannot see
 //   inspects  - the callee is a known static, and what it does with the slot is the registry's answer
+//   type-only - the literal belongs to erased type syntax and is never a runtime holder
 // a position missing from this table is the finding: it means the walks answer for it by default,
 // with nobody having said what the right answer is
 const DOMAIN = new Map(Object.entries({
@@ -58,6 +60,7 @@ const DOMAIN = new Map(Object.entries({
   'SwitchCase.test': 'consumes',
   'SwitchStatement.discriminant': 'consumes',
   'TSAsExpression.expression': 'forwards',
+  'TSImportType.options': 'type-only',
   'TSNonNullExpression.expression': 'forwards',
   'TSSatisfiesExpression.expression': 'forwards',
   'TemplateLiteral.expressions': 'consumes',
@@ -76,6 +79,26 @@ const CORPUS = [
   { root: resolve('../e2e-usage-pure'), takes: name => name.endsWith('.js') },
 ];
 const PARSER_PLUGINS = ['jsx', 'typescript', 'decorators'];
+
+// Import-type attributes require a literal: replacing it with a binding is not valid syntax, so
+// the named/inline equivalence cannot apply. Check erasure on both parsers instead, with the same
+// nested literal in a runtime import as the control for the ancestor predicate.
+const IMPORT_OPTIONS = [
+  ['type import', 'export type Value = typeof import("holder-types", { with: { "resolution-mode": "import" } }).default;', true],
+  ['runtime import', 'void import("holder-types", { with: { type: "json" } });', false],
+].map(([label, code, erased]) => [label, `// @ts-expect-error The external package is intentionally absent.\n${ code }`, erased]);
+
+for (const adapter of adapters) {
+  for (const [label, source, erased] of IMPORT_OPTIONS) {
+    const program = adapter.parseAndScope(source, 'module', PARSER_PLUGINS);
+    const objects = adapter.collectPaths(program, 'ObjectExpression');
+    const isInTypeAnnotation = createTypeAnnotationChecker();
+    check(`${ label } (${ adapter.name }) has both option literals`, objects.length, 2);
+    for (const [index, object] of objects.entries()) {
+      check(`${ label } (${ adapter.name }) option ${ index } erasure`, isInTypeAnnotation(object), erased);
+    }
+  }
+}
 
 function collectPositions(dir, takes, found) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -119,17 +142,17 @@ checkTruthy('the fixture corpus yields a position domain', found.size >= 25,
 for (const [position, file] of [...found].sort()) {
   checkTruthy(`${ position } is classified`, DOMAIN.has(position),
     `unclassified position, first seen in ${ relative(resolve('..'), file) }`
-    + ' - decide it and add it to DOMAIN as consumes | forwards | hands-out | inspects');
+    + ' - decide it and add it to DOMAIN as consumes | forwards | hands-out | inspects | type-only');
 }
 
 // the domain being written down is only half of it: a position nobody exercises is classified on
-// paper only. derive what the equivalence suite actually covers from its own shapes - a hand-kept
-// column would drift from the shapes it claims to describe
+// paper only. derive coverage from the equivalence shapes and the import-options probes above -
+// a hand-kept column would drift from the shapes it claims to describe
 const covered = new Set();
-for (const [, shape] of POSITIONS) {
+for (const source of [...POSITIONS.map(([, shape]) => shape.replace('@', LITERAL)), ...IMPORT_OPTIONS.map(([, code]) => code)]) {
   let ast;
   try {
-    ast = parseSync(scenarioSource(shape.replace('@', LITERAL), { extraPlugins: PARSER_PLUGINS }), {
+    ast = parseSync(scenarioSource(source, { extraPlugins: PARSER_PLUGINS }), {
       configFile: false,
       babelrc: false,
       filename: 'shape.jsx',
@@ -147,7 +170,7 @@ for (const [, shape] of POSITIONS) {
 }
 for (const position of found.keys().toArray().sort()) {
   checkTruthy(`${ position } is exercised`, covered.has(position),
-    'the corpus puts an object literal here but no equivalence row does - add a row for it');
+    'the corpus puts an object literal here but no position probe does - add a probe for it');
 }
 
 // --- Calling-convention convergence of `positionDisposition` ---
