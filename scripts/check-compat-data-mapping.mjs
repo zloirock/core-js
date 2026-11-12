@@ -42,7 +42,7 @@ function assert(condition, engine) {
 }
 
 const [
-  [{ v8 }],
+  node,
   electron,
   deno,
   oculus,
@@ -63,7 +63,7 @@ const [
   getLatestFromMDN('samsunginternet_android'),
 ]);
 
-assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
+assert(modernV8ToChrome(node.find(({ v8 }) => v8).v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
 assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0], 'Electron');
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
 // Quest Browser after 42 follows the Chromium version, so the build derives it without the mapping
