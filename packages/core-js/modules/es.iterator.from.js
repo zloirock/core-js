@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var toObject = require('../internals/to-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var createIteratorProxy = require('../internals/iterator-create-proxy');
@@ -27,7 +26,7 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://tc39.es/ecma262/#sec-iterator.from
 $({ target: 'Iterator', stat: true, forced: FORCED }, {
   from: function from(O) {
-    var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O, true);
+    var iteratorRecord = getIteratorFlattenable(O, true);
     return isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new IteratorProxy(iteratorRecord);
