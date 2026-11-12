@@ -105,7 +105,7 @@ jobs:
       cancel-in-progress: false
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - name: Download artifacts
@@ -122,11 +122,18 @@ jobs:
         with:
           path: pages
           name: github-pages-${{ github.run_attempt }}
+      # Pages deployments can remain queued until the action's timeout. A fresh deployment
+      # of the same artifact may succeed after the timed-out deployment is canceled.
+      # See https://github.com/actions/deploy-pages/issues/406.
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
-          # the Pages backend sometimes keeps a deployment in `syncing_files` for over the default 10 minutes;
-          # a delayed deployment finishes well within 15, while holding the slot keeps the queue blocked
-          timeout: 900000
+      - name: Deploy to GitHub Pages (retry)
+        id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
