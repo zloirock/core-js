@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
@@ -15,7 +16,7 @@ import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 const { check, checkDeep, checkTruthy, fail, finish } = createChecker('printer-boundaries');
 const requireIntegration = createRequire(new URL('../transpiler-integration/package.json', import.meta.url));
 const require = createRequire(import.meta.url);
-const { transform } = await import(requireIntegration.resolve('rolldown/experimental'));
+const { transform } = await import(pathToFileURL(requireIntegration.resolve('rolldown/experimental')).href);
 const options = { version: '4.0', targets: { ie: 11 } };
 const execute = promisify(execFile);
 const typed = [
