@@ -1106,7 +1106,7 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
         return !argument || !supplied && !patternSlotCertainDefault(root, argument, wrapper.node,
           { scope: callPath.scope, adapter, path: callPath });
       })) return null;
-      if (callers.some(({ callPath }) => !bodyRunsAtInvocation(host.node, callPath.node))) return null;
+      if (callers.some(({ callPath }) => !bodyRunsAtInvocation(host.node, callPath.node, host.parentPath?.node))) return null;
       receiverCallers = callers;
       if (arrayWrappers.length) receiverSources = callers.map(({ pairing, argIndex }) => resolveCallArgument(
         pairing.args ?? [],

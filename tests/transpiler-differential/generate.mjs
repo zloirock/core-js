@@ -25542,4 +25542,33 @@ export function * generate() {
     const { w: [{ at: method }, tail] } = { w: row };
     return [method.call([3, 7], -1), tail];
   })()`), strip: true };
+  // Scoped pattern hosts preserve invocation effects and captured realm identity.
+  for (const host of ['class', 'function', 'expression']) for (const supplied of [false, true]) {
+    const body = '([{ from, [(log.push("key"), "extra")]: extra } = Array]) { log.push(from([7])[0]); }';
+    const callable = host === 'class' ? `class A { constructor${ body } }`
+      : host === 'function' ? `function A${ body }` : `const A = function ${ body };`;
+    yield { ...snippet(`scoped-host/constructor/${ host }/${ supplied }`, `(() => {
+      ${ callable }
+      new A([${ supplied ? '{ from: () => [9] }' : 'void 0' }]);
+      return log.length;
+    })()`), strip: true };
+  }
+  for (const assignment of [false, true]) for (const flag of [false, true]) yield {
+    ...snippet(`scoped-host/realm-selection/${ assignment }/${ flag }`, `(() => {
+      const G = globalThis;
+      const flag = JSON.parse('${ flag }');
+      ${ assignment ? 'let a, g; const held = ({ Promise: { allSettled: a }, Map: { groupBy: g } } = (flag ? globalThis : G));'
+      : 'const { Promise: { allSettled: a }, Map: { groupBy: g } } = (flag ? globalThis : G); const held = G;' }
+      return [typeof a, typeof g, held === G];
+    })()`), strip: true, isolated: true,
+  };
+  for (const [shape, callable] of [
+    ['method', 'const owner = { make() { return globalThis; } }; const A = owner.make;'],
+    ['static-method', 'class Owner { static make() { return globalThis; } } const A = Owner.make;'],
+    ['function-property', 'const owner = { make: function () { return globalThis; } }; const A = owner.make;'],
+    ['declaration', 'function A() { return globalThis; }'],
+  ]) yield { ...snippet(`scoped-host/constructed-realm/${ shape }`, `(() => {
+    ${ callable }
+    try { return typeof new A().Array.from; } catch (error) { return error.name; }
+  })()`), strip: true };
 }

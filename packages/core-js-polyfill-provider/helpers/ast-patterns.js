@@ -1265,12 +1265,17 @@ export function immediateInvocationOf(fnPath) {
 
 // does the function's BODY run when `callNode` invokes it? a `function*` runs nothing at the call
 // (the body waits for `.next()`), an `async` body suspends at its first `await`, and `new` on a
-// non-constructible callee (an arrow) throws before the body - every statement after such a call
-// runs BEFORE the body does, so a read inside it is deferred and a write inside it lifts to no
-// straight-line position
-export function bodyRunsAtInvocation(fnNode, callNode) {
+// non-constructible callee throws before the body. ESTree places method identity on the parent,
+// while Babel fuses it into the function. Class constructors require `new`; ordinary methods,
+// accessors and arrows reject it. Bodies not run here supply no straight-line write position.
+export function bodyRunsAtInvocation(fnNode, callNode, parentNode) {
   if (fnNode.async || fnNode.generator) return false;
-  return callNode.type !== 'NewExpression' || fnNode.type === 'FunctionExpression';
+  const owner = FUSED_METHOD_TYPES.has(fnNode.type) ? fnNode : parentNode;
+  const method = owner?.type === 'MethodDefinition' || FUSED_METHOD_TYPES.has(owner?.type);
+  if (method && owner.kind === 'constructor') return callNode.type === 'NewExpression';
+  if (callNode.type !== 'NewExpression') return true;
+  return fnNode.type === 'FunctionDeclaration' || fnNode.type === 'FunctionExpression'
+    && !method && !(owner?.type === 'Property' && (owner.method || owner.kind !== 'init'));
 }
 
 // the invocation whose evaluation runs this function's body at its own source position, or null: the
@@ -1281,7 +1286,7 @@ export function bodyRunsAtInvocation(fnNode, callNode) {
 // exactly why it cannot disturb lifting a write OUT of that body
 export function runsAtImmediateInvocation(fnPath) {
   const call = immediateInvocationOf(fnPath);
-  if (!call || !bodyRunsAtInvocation(fnPath.node, call.node)) return null;
+  if (!call || !bodyRunsAtInvocation(fnPath.node, call.node, fnPath.parentPath?.node)) return null;
   return namedFunctionSelfReferences(fnPath) ? null : call;
 }
 
@@ -7869,7 +7874,7 @@ function callableMayExposeCaller(path, ctx, invocation = null) {
     if (param.type !== 'AssignmentPattern' || param.left.type !== 'Identifier') return true;
     values.push(param.right);
   }
-  if (!invocation || bodyRunsAtInvocation(path.node, invocation.node)) {
+  if (!invocation || bodyRunsAtInvocation(path.node, invocation.node, path.parentPath?.node)) {
     const { body } = path.node;
     const statements = body?.type === 'BlockStatement' ? body.body : [{ type: 'ExpressionStatement', expression: body }];
     for (const statement of statements) {

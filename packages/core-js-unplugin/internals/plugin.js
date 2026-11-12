@@ -1057,9 +1057,8 @@ export default function createPlugin(options) {
       // carries none and bundlers strip it before the final artifact), but `sourcesContent`
       // keeps the user's ORIGINAL bytes - BOM included - because devtools compare it to disk
       // the directive re-anchor result (see `anchorDisableDirectives`): the print emits the
-      // anchored texts verbatim and the loc-attached originals drop. a `pre` pass computes it
-      // ahead of its no-op bail, every other print here - the anchors are keyed by node, so they
-      // are read off the RESTORED tree, never the neutralized one
+      // anchored texts verbatim and the loc-attached originals drop. The anchors are keyed by
+      // node, so printing reads them after scope work and idle relocations have finished.
       let directiveAnchors = null;
       // Restore originals before their clones, including nested signatures. Source positions
       // survive cloning; only parameter slots can hold a neutralized copy. Parameter-property
@@ -1541,12 +1540,11 @@ export default function createPlugin(options) {
         // leg's rule, kept here for the reprint a surgery alone still triggers)
         if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);
         const collected = injector.pureImports.size || injector.globalImports.size || astRefNames.length;
-        // the re-anchor is computed BEFORE the no-op bail: a file whose only core-js-relevant
-        // content is the disabled claim still transforms, or the sibling lowering eats the
-        // in-pattern comment - or lays two covered siblings on separate lines - and post
-        // re-claims the very read the user opted out
-        if (pass === 'pre') computeDirectiveAnchors();
-        if (!astRewrote && !collected && !astNormalized && !astSweptImports && !directiveAnchors) {
+        // A disabled claim alone still needs reprinting before sibling lowering can drop its
+        // comment. Only test for anchors here: restoring parameters or retaining these node
+        // keys before the scope-building flush and relocation undo would invalidate them.
+        if (!astRewrote && !collected && !astNormalized && !astSweptImports
+          && !(pass === 'pre' && anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }))) {
           // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
           if (pass === 'pre') storeAstPreSnapshot(false);
           else outputDebug();

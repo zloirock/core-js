@@ -1478,7 +1478,7 @@ export default function createDestructureEmitter({
   // a removed prop would still be walked
   function splitHopOutOfHost({ declarator, declaration, kind, split, leafPattern, twinInit, memoDeclaration, bindings }) {
     t.traverseFast(split.hopProp, node => { skippedNodes.add(node); });
-    pruneHopFromLevels(split);
+    pruneHopFromLevels(split, (pattern, at) => pattern.properties.splice(at, 1));
     const twin = t.variableDeclaration(kind, [t.variableDeclarator(t.cloneNode(leafPattern), twinInit)]);
     let inserted;
     if (split.placeBefore) {
