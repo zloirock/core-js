@@ -37,6 +37,7 @@ import './anchor-activation-runtime.mjs';
 import './mutation-gate-superset.mjs';
 import './transform-idempotence.mjs';
 import './transform-idempotence-pure.mjs';
+import './own-output-runtime.mjs';
 import './phase-rewrite-runtime.mjs';
 import './census-static-runtime.mjs';
 import './realm-constructor-runtime.mjs';
