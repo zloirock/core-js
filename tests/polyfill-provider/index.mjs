@@ -22,6 +22,7 @@ import './literal-carrier-closure.mjs';
 import './container-wrapper-captures.mjs';
 import './container-slot-owner-boundaries.mjs';
 import './census-alias-writes.mjs';
+import './census-import-work.mjs';
 import './reassigned-alias-lexical-scopes.mjs';
 import './kept-container-slot-values.mjs';
 import './guarded-container-receiver-candidates.mjs';
