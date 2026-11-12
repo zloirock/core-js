@@ -10,6 +10,7 @@ import {
   ownedLeadingComments,
 } from '@core-js/polyfill-provider/helpers/source-scan';
 import { stampReplacementSpan } from './emit-shared.js';
+import { restoreSourceMapColumns } from './source-maps.js';
 import {
   sortedPrefixLength, STATEMENT_LIST_HOST_TYPES, TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -18,7 +19,7 @@ import {
 // emits sourcemap segments by `loc` - this module synthesizes the locs and owns the
 // esrap-facing quirks (hashbang, map field contract). the caller
 // passes BOM-free source - the plugin strips the BOM before parsing, and the output stays
-// BOM-free (babel alignment; `sourcesContent` alone keeps the original bytes)
+// BOM-free. The map keeps the original content and restores first-line BOM columns
 
 // the parse keeps `preserveParens` for detection, but the PRINT normalizes parens to the
 // minimal structural set, exactly like the babel leg: esrap re-derives every required paren
@@ -799,11 +800,13 @@ function followsOnLine(source, offset) {
 // the id-to-dialect decision, same as it owns it for the parse. the returned map keeps
 // the plugin's map contract: `sources[0]` keeps the full id (SFC sub-block
 // identity), `file` is the query-stripped basename, content rides only when requested
-export function printProgram({ program, comments, source, id, jsx = false, includeContent = true, anchoredComments = null }) {
+export function printProgram({ program, comments, source, id, jsx = false, includeContent = true,
+  anchoredComments = null, leadingPragmas = [], originalSource = source }) {
   // for a `.mjs`/`.cjs` parse oxc reports the hashbang BOTH as `program.hashbang` and as a
   // comment; printing both would double it - the re-emission below owns it
   const hashbangStart = program.hashbang?.start;
-  const ownComments = hashbangStart === undefined ? comments : comments.filter(comment => comment.start !== hashbangStart);
+  const ownComments = hashbangStart === undefined && !leadingPragmas.length ? comments
+    : comments.filter(comment => comment.start !== hashbangStart && !leadingPragmas.includes(comment));
   // a ChainExpression whose every `?.` an emission erased is a dead wrapper: esrap prints
   // it transparently, so an assignment left inside loses its required parens and the
   // output stops parsing - unwrap before printing (babel never emits the bare wrapper).
@@ -887,6 +890,13 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
       return dialect;
     }
     const language = createLanguage(printComments);
+    if (leadingPragmas.length) {
+      const base = language.Program;
+      language.Program = (node, context) => {
+        for (const comment of leadingPragmas) writeAnchoredComment(comment, context);
+        base(node, context);
+      };
+    }
     function visitLocalized(node, context, visit, base) {
       const frameComments = localized.get(node);
       if (!frameComments?.length) return base(node, context, visit);
@@ -911,7 +921,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
     return print(program, language, {
       sourceMapSource: id,
-      sourceMapContent: includeContent ? source : undefined,
+      sourceMapContent: includeContent ? originalSource : undefined,
     });
   }
   let printed = render();
@@ -927,5 +937,6 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     map.mappings = `;${ map.mappings }`;
   }
   if (id !== undefined) map.file = stripQueryHash(id).split(/[/\\]/).pop() || id;
+  restoreSourceMapColumns(map, code, originalSource.length - source.length);
   return { code, map };
 }

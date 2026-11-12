@@ -59,6 +59,7 @@ import {
   disableDirectiveAnchors,
   isLineBoundDisableDirective,
   isNextLineDisableDirective,
+  leadingJsxPragmas,
   mergeVisitors,
   parseDisableDirectives,
 } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -80,6 +81,7 @@ import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
 import applyEntryProgram, { extractEntrySideEffectPrefixes, injectImportStatements } from './entry.js';
 import { printProgram } from './print.js';
+import { composeInputSourceMap, readInputSourceMap } from './source-maps.js';
 import ImportInjector, { flushIntoProgram } from './import-injector.js';
 import createAstDestructureEmitter from './destructure.js';
 import createAstUsagePureCallback from './usage-pure.js';
@@ -599,12 +601,11 @@ export default function createPlugin(options) {
     // the body this parse produces.
     const sourceDialect = sourceDialectOf(cleanId, hostOptions.loader);
     // strip leading BOM(s) before parsing - oxc rejects BOM-prefixed shebangs, and
-    // offsetting positions by 1 would corrupt every transform. the output does NOT carry a
-    // BOM (babel alignment - bundlers strip it anyway); `hasBOM` survives only so
-    // `sourcesContent` can keep the user's original bytes. `stripLeadingBOMs` drops the whole
-    // leading run so a sibling plugin's per-pass prepend doesn't leave residual BOM bytes
-    // mid-prefix
-    const hasBOM = code.charCodeAt(0) === 0xFEFF;
+    // offsetting AST positions would corrupt every transform. The output does NOT carry a
+    // BOM (babel alignment); the map restores first-line columns and the exact input below.
+    // `stripLeadingBOMs` drops the whole leading run so a sibling plugin's per-pass prepend
+    // doesn't leave residual BOM bytes mid-prefix
+    const originalSource = code;
     code = stripLeadingBOMs(code);
 
     // peek-then-commit: read snapshot WITHOUT removing it so a sibling-plugin-injected
@@ -643,6 +644,7 @@ export default function createPlugin(options) {
       return null;
     }
     const { comments, program: ast } = parsed;
+    const leadingPragmas = leadingJsxPragmas(comments, code, ast.hashbang?.end);
 
     // the disable directives are read off the PRISTINE tree, ahead of the minifier split below:
     // a `-next-line` over a collapsed statement spans the whole statement the author wrote, so
@@ -1097,6 +1099,7 @@ export default function createPlugin(options) {
       }
       function finalizeAst() {
         if (!directiveAnchors) computeDirectiveAnchors();
+        const inputMap = readInputSourceMap(comments, id);
         // Report only the finalized dependency registry, after pure-import pruning. The host
         // validates external require protocols against its actual resolution and output format.
         if (hostOptions.onRequire && importStyle === 'require') {
@@ -1112,20 +1115,21 @@ export default function createPlugin(options) {
         }
         const printed = printProgram({
           program: ast,
-          comments: directiveAnchors ? comments.filter(comment => !directiveAnchors.removed.has(comment)) : comments,
+          comments: comments.filter(comment => !directiveAnchors?.removed.has(comment) && !inputMap?.comments.has(comment)),
           source: code,
+          originalSource,
           id,
           jsx: sourceDialect.jsx,
           anchoredComments: directiveAnchors?.anchored ?? null,
+          leadingPragmas,
         });
-        const { map } = printed;
+        let { map } = printed;
         const outCode = printed.code;
-        const content = map?.sourcesContent?.[0];
-        if (hasBOM && content !== null && content !== undefined) map.sourcesContent[0] = `\uFEFF${ content }`;
+        if (inputMap) map = composeInputSourceMap(map, inputMap.map);
         // pre+post chaining: the bundler chains through pre's content-bearing map, so the
         // post map omits sourcesContent - the `includeContent: !chainedFromPre` rule,
         // applied to the printer's map
-        if (map && pass === 'post' && inherit && inheritedPreRewrote) delete map.sourcesContent;
+        if (!inputMap && pass === 'post' && inherit && inheritedPreRewrote) delete map.sourcesContent;
         return { code: outCode, map };
       }
 

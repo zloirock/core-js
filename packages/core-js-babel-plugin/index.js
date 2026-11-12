@@ -114,6 +114,7 @@ import {
   disableDirectiveAnchors,
   directiveCoveredLine,
   isNextLineDisableDirective,
+  leadingJsxPragmas,
   mergeVisitors,
   parseDisableDirectives,
 } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -243,6 +244,10 @@ export default function plugin(api, options) {
   return {
     name: 'core-js@4',
     pre(...args) {
+      const { program, comments } = this.file.ast;
+      const leading = this.file.code ? comments : (program.directives?.[0] ?? program.body[0])?.leadingComments;
+      const pragmas = leadingJsxPragmas(leading, this.file.code, program.interpreter?.end);
+      if (pragmas.length) program.leadingComments = [...program.leadingComments ?? [], ...pragmas];
       let state = idle;
       idle = null;
       while (!state && spares.length) state = spares.pop().deref();
