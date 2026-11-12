@@ -71,4 +71,5 @@ export default [
   desktop('MicrosoftEdge', '79', 'Windows 10'),
   desktop('MicrosoftEdge', '93', 'Windows 10'),
   desktop('MicrosoftEdge', '118', 'Windows 10'),
+  legacy('internet explorer', '10', 'Windows 2012'),
 ];
