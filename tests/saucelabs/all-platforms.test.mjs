@@ -23,7 +23,7 @@ test('selects one configuration per browser version and excludes non-browser pla
     entry('electron', '22', 'Mac 13'),
     entry('chrome', '67', 'Windows 10', undefined, 'appium'),
   ]);
-  assert.equal(platforms.length, 10);
+  assert.equal(platforms.length, 9);
   assert.deepEqual(platforms.find(({ name }) => name.startsWith('chrome 67')), {
     name: 'chrome 67 (Windows 10)', w3c: false,
     capabilities: { browserName: 'chrome', version: '67', platform: 'Windows 10' },
@@ -41,22 +41,57 @@ test('selects one configuration per browser version and excludes non-browser pla
   assert.equal(platforms.find(({ name }) => name.startsWith('firefox 55')).w3c, true);
   assert.equal(platforms.find(({ name }) => name.startsWith('firefox beta')).w3c, true);
   assert.equal(platforms.find(({ name }) => name.startsWith('internet explorer')).w3c, false);
-  assert.equal(platforms.find(({ name }) => name.startsWith('ipad')).capabilities.browserName, 'Safari');
-  assert.equal(platforms.find(({ name }) => name.startsWith('ipad')).capabilities['appium:deviceName'], 'iPad Simulator');
   assert.equal(platforms.find(({ name }) => name.startsWith('android')).capabilities.browserName, 'Chrome');
   assert.equal(platforms.find(({ name }) => name.startsWith('android')).capabilities['appium:deviceName'], 'Google Nexus 6 Emulator');
+});
+
+test('supports iPad when the catalog has no iPhone for that iOS version', () => {
+  const platforms = fromCatalog([
+    { ...entry('ipad', '14.0', 'Mac 11', 'iPad Simulator', 'appium'), long_name: 'iPad Simulator' },
+  ]);
+  assert.equal(platforms[0].capabilities.browserName, 'Safari');
+  assert.equal(platforms[0].capabilities['appium:deviceName'], 'iPad Simulator');
+});
+
+test('selects one iOS simulator per version', () => {
+  const phone = { ...entry('iphone', '14.0', 'Mac 11', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' };
+  const tablet = { ...entry('ipad', '14.0', 'Mac 11', 'iPad Simulator', 'appium'), long_name: 'iPad Simulator' };
+  for (const catalog of [[phone, tablet], [tablet, phone]]) {
+    const platforms = fromCatalog(catalog);
+    assert.equal(platforms.length, 1);
+    assert.equal(platforms[0].capabilities['appium:deviceName'], 'iPhone Simulator');
+  }
+});
+
+test('prefers the manual matrix OS and emulator for matching versions', () => {
+  const platforms = fromCatalog([
+    entry('safari', '18', 'Mac 14'),
+    entry('safari', '18', 'Mac 15'),
+    { ...entry('android', '14', 'Linux', 'Google ARM Medium Phone', 'appium'), long_name: 'Google ARM Medium Phone Emulator' },
+    { ...entry('android', '14', 'Linux', 'Generic Medium Phone', 'appium'), long_name: 'Generic Medium Phone Emulator' },
+  ]);
+  assert.equal(platforms.find(({ name }) => name.startsWith('safari')).capabilities.platformName, 'macOS 15');
+  assert.equal(platforms.find(({ name }) => name.startsWith('android')).capabilities['appium:deviceName'], 'Generic Medium Phone Emulator');
 });
 
 test('fetches and validates the platform catalog', async () => {
   const previous = globalThis.fetch;
   try {
-    globalThis.fetch = async url => {
+    globalThis.fetch = async (url, options) => {
       assert.equal(url, 'https://api.us-west-1.saucelabs.com/rest/v1/info/platforms/all');
+      assert.ok(options.signal instanceof AbortSignal);
       return { ok: true, json: async () => [null] };
     };
     await assert.rejects(allPlatforms('us-west-1'), /invalid platform entry at index 0/);
     globalThis.fetch = async () => ({ ok: false, status: 503 });
     await assert.rejects(allPlatforms('us-west-1'), /HTTP 503/);
+    globalThis.fetch = async () => { throw new TypeError('fetch failed'); };
+    await assert.rejects(allPlatforms('us-west-1'), /Sauce Labs platform catalog: fetch failed/);
+    globalThis.fetch = async (url, { signal }) => {
+      assert.ok(signal instanceof AbortSignal);
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    };
+    await assert.rejects(allPlatforms('us-west-1'), /Sauce Labs platform catalog: The operation was aborted due to timeout/);
   } finally {
     globalThis.fetch = previous;
   }

@@ -40,9 +40,9 @@ function sessionCapabilities(suite, { name, w3c, capabilities: browser }) {
   const options = {
     name,
     build: `${ suite.name } ${ basename(base) }`,
-    // every page at its worst - the navigation, the run and the poll that finds it over: a session Sauce Labs
-    // ended before that would turn a hang, which is a result, into a broken session, which is retried
-    maxDuration: suite.pages.length * (2 * COMMAND_TIMEOUT + RUN_TIMEOUT) / 1e3,
+    // Include page context, navigation, and the final poll, plus job annotation and quit.
+    // Ending the session before these complete would turn a page timeout into a retried WebDriver error.
+    maxDuration: (suite.pages.length * (3 * COMMAND_TIMEOUT + RUN_TIMEOUT) + 2 * COMMAND_TIMEOUT) / 1e3,
   };
   return w3c ? { ...browser, 'sauce:options': options } : { ...browser, ...options };
 }
@@ -52,10 +52,11 @@ async function runPage({ reporter, evaluate }, session, page) {
   await session.navigate(`${ base }/${ page }`);
   const start = Date.now();
   for (;;) {
-    const state = await session.execute(`var results = window.${ reporter }; return results ? JSON.stringify(results) : null;`);
+    const state = await session.execute(`var results = window.${ reporter }; return results ? JSON.stringify({ url: window.location.href, results: results }) : null;`);
     const elapsed = Date.now() - start;
     if (state) {
-      const results = JSON.parse(state);
+      const { url, results } = JSON.parse(state);
+      if (url !== `${ base }/${ page }`) throw new WebDriverError(`unexpected page ${ url } instead of ${ base }/${ page }`);
       if (results.done) return { page, ...evaluate(results) };
       // a run that never ended still lists the failures it met before
       if (elapsed > RUN_TIMEOUT) {
@@ -94,6 +95,14 @@ async function runSession(suite, platform) {
     } catch (error) {
       echo(yellow(`${ platform.name }: could not report the Sauce Labs job result: ${ error.message }`));
     }
+  } catch (error) {
+    error.sessionId = session.id;
+    try {
+      await session.execute('sauce:job-result=failed');
+    } catch (reportError) {
+      echo(yellow(`${ platform.name }: could not report the Sauce Labs job result: ${ reportError.message }`));
+    }
+    throw error;
   } finally {
     // an abandoned session holds its concurrency slot until Sauce Labs times it out
     try {
@@ -110,7 +119,7 @@ async function runPlatform(suite, platform) {
     try {
       return await runSession(suite, platform);
     } catch (error) {
-      if (!(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error };
+      if (!(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
       echo(yellow(`${ platform.name }: ${ error.message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
     }
   }
@@ -118,7 +127,7 @@ async function runPlatform(suite, platform) {
 
 function report({ platform, id, pages, error }) {
   if (error) {
-    echo(red(`${ platform.name }: ${ error.message }`));
+    echo(red(`${ platform.name }: ${ id ? `${ dashboard }/tests/${ id }: ` : '' }${ error.message }`));
     return false;
   }
   const lines = [cyan(`${ platform.name }: ${ dashboard }/tests/${ id }`)];
@@ -145,10 +154,12 @@ export async function run(suite) {
 
   // Limit queued session requests as well as active sessions; the catalog can have hundreds of versions.
   const concurrency = Math.min(suite.concurrency, suite.platforms.length);
-  const workers = Array.from({ length: concurrency }, async (_, worker) => {
+  let nextPlatform = 0;
+  const workers = Array.from({ length: concurrency }, async () => {
     let workerPassed = true;
-    for (let index = worker; index < suite.platforms.length; index += concurrency) {
-      if (!report(await runPlatform(suite, suite.platforms[index]))) workerPassed = false;
+    while (nextPlatform < suite.platforms.length) {
+      const platform = suite.platforms[nextPlatform++];
+      if (!report(await runPlatform(suite, platform))) workerPassed = false;
     }
     return workerPassed;
   });

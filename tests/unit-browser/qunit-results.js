@@ -11,6 +11,7 @@
 
   function dump(value) {
     var text = QUnit.dump.parse(value);
+    if (typeof text !== 'string') text = String(value);
     return text.length > VALUE_LIMIT ? text.slice(0, VALUE_LIMIT) + '...' : text;
   }
 
