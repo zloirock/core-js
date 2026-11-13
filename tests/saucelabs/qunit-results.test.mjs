@@ -39,7 +39,6 @@ test('publishes the active QUnit test until it completes', () => {
   assert.equal(results.currentTest, null);
   callbacks.done({ failed: 0, total: 1 });
   assert.equal(results.done, false);
-  // the late global error of QUnit 1 restarts the wait instead of being lost after the first done
   callbacks.done({ failed: 1, total: 2 });
   assert.equal(timers.size, 1);
   for (const handler of timers) handler();

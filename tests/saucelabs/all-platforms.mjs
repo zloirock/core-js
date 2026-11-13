@@ -1,7 +1,6 @@
 import manualPlatforms, { android, desktop, ios } from './platforms.mjs';
 
-// Sauce Labs lists operating systems and devices separately for each browser version.
-// Keep one configuration per browser and version, preferring the manual matrix's OS and device where possible.
+// one configuration per browser version, preferring the OS and device of the manual matrix
 const browsers = new Set(['chrome', 'firefox', 'safari', 'MicrosoftEdge', 'internet explorer', 'iphone', 'ipad', 'android']);
 const mobile = new Set(['iphone', 'ipad', 'android']);
 

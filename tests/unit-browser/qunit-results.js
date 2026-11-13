@@ -1,13 +1,12 @@
 'use strict';
-// the outcome of the page for a WebDriver client to poll: the markup of the HTML reporter is not an
-// interface, and callbacks registered by the client after the navigation miss a run that already ended
+// published by the page, since callbacks added after the navigation miss a finished run
 (function () {
   var QUnit = window.QUnit;
-  // a polyfill broken at the root fails thousands of assertions, and the list travels in one response
+  // the list travels in one WebDriver response
   var LIMIT = 50;
-  // the dump of a big collection runs into megabytes, and it is read in a log line
+  // a big collection dumps into megabytes
   var VALUE_LIMIT = 1000;
-  // QUnit 1 reports a global error after the run as one more test and calls done again within milliseconds
+  // QUnit 1 calls done again for a global error after the run
   var SETTLE_TIME = 1000;
   var settle;
   var results = { done: false, failures: [] };
@@ -21,7 +20,6 @@
   QUnit.log(function (details) {
     if (details.result || results.failures.length === LIMIT) return;
     var failure = { module: details.module, test: details.name, message: details.message || '' };
-    // an error outside an assertion compares nothing
     if ('expected' in details) {
       failure.actual = dump(details.actual);
       failure.expected = dump(details.expected);
@@ -46,6 +44,6 @@
     }, SETTLE_TIME);
   });
 
-  // published last: without QUnit to attach to, the page has no reporter rather than a run that never ends
+  // published last, so a page without QUnit has no reporter
   window.qunitResults = results;
 })();

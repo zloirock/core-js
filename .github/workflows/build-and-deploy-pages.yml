@@ -86,10 +86,7 @@ jobs:
         with:
           path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
-      # written after the cache, so a branch restored from a cache older than this step gets it too: the
-      # sauce-labs job checks the deployed pages against the triggering commit. The Pages CDN can serve
-      # a cached bundle under an updated commit.txt: a commit query in the script URLs bypasses that cache,
-      # and a marker in each bundle reports which build the browser executed
+      # after the cache save, so a restored build is marked too; the query bypasses the Pages CDN cache
       - name: Mark the commit of the artifacts
         run: |
           sha=$(git rev-parse HEAD)
@@ -120,11 +117,9 @@ jobs:
       url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
     outputs:
       page-url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
-      # a failed build of the triggering branch leaves no pages of its commit to test
       testable: ${{ steps.built.outputs.built == 'true' && (steps.deployment.outcome == 'success' || steps.deployment-retry.outcome == 'success') }}
     steps:
       - uses: actions/checkout@v7
-      # Skip a run whose branch has advanced while it waited for the Pages slot.
       - name: Check the triggering branch before publishing
         id: current
         run: |
@@ -178,18 +173,15 @@ jobs:
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
 
-  # the browsers the CI runners lack, on the pages just deployed - see tests/saucelabs/AGENTS.md
   sauce-labs:
     needs: [list-branches, combine-pages-and-deploy]
-    # the credentials exist in this repository only, and pages exist for the branches listed above only
     if: needs.combine-pages-and-deploy.outputs.testable == 'true' && github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
     runs-on: ubuntu-latest
-    # reports without failing the workflow while the failures it found on the old engines are open
+    # the old engines still have open failures
     continue-on-error: true
     permissions:
       contents: read
-    # a newer push of the branch supersedes its run without holding the Pages deployment slot; runs of
-    # different branches share the ten session slots of the account, and Sauce Labs queues the excess
+    # not the Pages group, so a Sauce Labs run does not hold the deployment slot
     concurrency:
       group: sauce-labs-${{ github.ref }}
       cancel-in-progress: true
@@ -201,10 +193,7 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm run prepare-monorepo
-      # the pages are served over `http:`: Firefox before 27 speaks no TLS version the Pages CDN still
-      # accepts, and over `https:` it shows its own error page, which the runner reports as no reporter.
-      # The pages hold no API an insecure context hides, and all their resources are same-origin. The
-      # directory is named after the branch, and a branch name may hold `#` or `%`
+      # HTTP, since Firefox before 27 cannot negotiate the TLS of the Pages CDN; `@uri` for `#` and `%` in branch names
       - run: |
           url=${PAGE_URL/#https:/http:}
           npm run test-saucelabs -- "${url%/}/$(jq -rn --arg branch "${GITHUB_REF_NAME//\//-}" '$branch | @uri')" "$GITHUB_SHA"
@@ -213,8 +202,6 @@ jobs:
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
           SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
           SAUCE_SESSIONS_FILE: ${{ runner.temp }}/sauce-sessions
-      # a cancelled run is killed with its sessions open; a session created after the list was written
-      # ends after the 90 idle seconds of Sauce Labs
       - name: Close the Sauce Labs sessions of a cancelled run
         if: cancelled()
         run: |

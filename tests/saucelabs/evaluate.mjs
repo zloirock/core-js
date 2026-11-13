@@ -3,7 +3,6 @@ function indent(text, prefix) {
   return text.replaceAll(/^/gm, prefix);
 }
 
-// the results of `tests/unit-browser/qunit-results.js`
 export function evaluate({ done, failed, total, failures }, cyan = value => value) {
   // QUnit 1 ends a run without tests as a pass, and that is what a page whose bundle did not load runs
   if (done && !total) return { passed: false, summary: 'no assertions ran', details: [] };
