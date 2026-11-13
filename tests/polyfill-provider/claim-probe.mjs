@@ -33,6 +33,7 @@ for (const [source, kind, readKind] of [
   ['const held = {}; const value = held.Array;', null, null],
   ['function read(globalThis) { const value = (globalThis.window?.self).Array; }', null, null],
   ['const value = (globalThis.window?.self)[key()];', null, null],
+  ['const key = () => (effect(), "Array"); const value = (globalThis.window?.self)[key()];', 'nav', 'leaf'],
 ]) runBoth(source, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value');
   const sourceNode = path.node.init;

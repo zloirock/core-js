@@ -870,6 +870,31 @@ export function climbTransparentWrapperPath(path) {
   return target;
 }
 
+// the run of enclosing SEQUENCE levels a value tails, and the member READING that run:
+// `(c++, (d++, X)).window` answers `.window` for `X`, with `c++` ahead of `d++` - the climb
+// walks outward, so each level unshifts in front of the ones already collected. null when
+// nothing reads the run
+export function sequenceTailRunAbove(seqPath) {
+  const prefixes = [];
+  let cur = seqPath;
+  for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
+    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === cur.node) {
+      cur = up;
+      continue;
+    }
+    if (up.node.type === 'SequenceExpression' && up.node.expressions.at(-1) === cur.node) {
+      prefixes.unshift(...up.node.expressions.slice(0, -1));
+      cur = up;
+      continue;
+    }
+    if (isMemberAccessNode(up.node) && up.node.object === cur.node) {
+      return { top: cur, member: up.node, memberPath: up, prefixes };
+    }
+    return null;
+  }
+  return null;
+}
+
 // nodes a chain's VALUE flows THROUGH on its way to a consumer: a sequence hands on its last
 // expression, a `=` its right side, and a chain LOWERED to its guard scaffold (`null == (_ref = nav)
 // ? void 0 : _ref.x`) reaches the consumer through the memo write, the null test and the

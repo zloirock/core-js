@@ -236,8 +236,10 @@ export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx
 // Source slots belong to this query only; it never edits the tree or allocates host state.
 export function sealedClaimDisposition(node, resolvePure, aliasCtx, retainedReader = null) {
   const boundary = sealedChainBoundary(node);
-  const key = boundary && realmHopKeyName(boundary.member, aliasCtx);
-  if (key === null || retainedReader === boundary.member) return null;
+  const key = boundary && realmHopKeyName(boundary.member, aliasCtx, {
+    allowSideEffectKeys: boundary.member === node, keepsKeyNode: boundary.member === node,
+  });
+  if (!boundary || key === null || retainedReader === boundary.member) return null;
   const realmHop = POSSIBLE_GLOBAL_OBJECTS.has(key) && isPristineProxyGlobal(aliasCtx?.adapter, key);
   const above = retainedReader ?? boundary.reader ?? aliasCtx?.path?.parentPath?.node;
   const dropsHop = realmHop && boundary.member === node && !node.optional

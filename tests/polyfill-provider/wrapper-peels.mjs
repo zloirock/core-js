@@ -15,6 +15,7 @@ import {
   peelTransparentExpr,
   precedesOrUnordered,
   provablyPrecedes,
+  sequenceTailRunAbove,
   SKIPPABLE_WRAPPER_TYPES,
   unwrapRuntimeExpr,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -25,6 +26,28 @@ const { check, checkTruthy, finish, runBoth } = createChecker('wrapper-peels');
 
 function identPath(adapter, prog, name) {
   return adapter.pickPath(prog, 'Identifier', p => p.node.name === name);
+}
+
+// The sequence climb collects only value-tail prefixes, in execution order.
+for (const [source, prefixes] of [
+  ['(a(), (b(), root as any))?.window;', ['a()', 'b()']],
+  ['((root as any)).window;', []],
+  ['(root, other).window;', null],
+  ['(held = root).window;', null],
+  ['(a(), root)();', null],
+]) {
+  runBoth(`sequence reader/${ source }`, source, (adapter, program, label) => {
+    const path = identPath(adapter, program, 'root');
+    const before = JSON.stringify(program.node);
+    const result = sequenceTailRunAbove(path);
+    check(`${ label }/reader`, result?.member.property?.name ?? null, prefixes ? 'window' : null);
+    if (prefixes) {
+      check(`${ label }/slot`, result.top.node, result.member.object);
+      check(`${ label }/path`, result.memberPath.node, result.member);
+      check(`${ label }/order`, JSON.stringify(result.prefixes.map(node => source.slice(node.start, node.end))), JSON.stringify(prefixes));
+    }
+    check(`${ label }/read only`, JSON.stringify(program.node), before);
+  }, ['typescript']);
 }
 
 // --- the PARENT answer is dialect-independent ---
@@ -368,6 +391,10 @@ const FOLD_READER_FORMS = [
   ['deleted slot, cast', '// @ts-expect-error deleting through a cast is the shape under test\ndelete (globalThis.self.window as any);', false, true],
   // NEGATIVE: a hop the delete NAVIGATES rather than names still folds under the operator
   ['deleted slot one hop up', 'delete globalThis.self.window.deleteBox;', true, true],
+  ['deleted conditional is not a carrier', 'delete (choice ? globalThis.self : other).window.deleteBox;', false, true],
+  ['deleted null test is not a carrier', 'delete (globalThis.self == null).window.deleteBox;', false, true],
+  ['deleted optional above a sequence', 'delete (effect(), globalThis.self.window)?.deleteBox;', false, true],
+  ['deleted sequence navigates', 'delete (effect(), globalThis.self).window.deleteBox;', true, true],
 ];
 
 for (const [name, code, folds, deleted] of FOLD_READER_FORMS) {

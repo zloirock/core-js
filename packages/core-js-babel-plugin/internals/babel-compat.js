@@ -60,7 +60,6 @@ import {
   isMemberAccessNode,
   isRenderedProbeRead,
   markRenderedProbeRead,
-  mayHaveSideEffects,
   calleeParenWrapped,
   memberKeyName,
   memberProxyHopName,
@@ -78,7 +77,6 @@ import {
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
-  unwrapCollectingSePrefixes,
   unwrapParens,
   unwrapRuntimeExpr,
   noteRenderRetiredWrites,
@@ -971,7 +969,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // claim behind a throw probe, so a stand-down here never costs the polyfill
   function emitGuardedClaim({
     path, replacePath, id, sideEffects, receiverEffectCount, guardObject,
-    substituteGlobal = null, proxyRootClaim = false,
+    substituteGlobal = null, proxyRootClaim = false, probe = null,
   }) {
     if (!guardObject || !resolvePureGlobalEntry || !getAdapter?.()) return false;
     // a kept chain-assign VALUE with collapsible pony hops spells through the shared plan
@@ -980,38 +978,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the clone freezes whatever stands now, and the node a deferred flush keys on dies with the
     // rebuild - the raw spelling then stayed frozen inside the test
     collapseKeptNavValueNode(guardObject, path, { beforeClone: true });
-    // the probe is the VALUE that can be absent, not the effects the source spelled ahead of it:
-    // peel the guard object's own sequence prefix so the canon classifies those effects as
-    // LEADING (ahead of the whole ternary) and the test reads the bare probe - the spelling the
-    // unplugin nav walk lands on by construction (`(seq++, W)?.X` -> `(seq++, null == W ? ...)`).
-    // only a prefix the harvest already carries may peel: an unaccounted observable element keeps
-    // the source spelling, where the test still runs it exactly once
-    const harvestedSpans = new Set((sideEffects ?? [])
-      .map(se => nodeSpan(se)).filter(Boolean).map(span => `${ span.start }:${ span.end }`));
-    function prefixAccounted(node) {
-      if (!mayHaveSideEffects(node)) return true;
-      const span = nodeSpan(node);
-      return !!span && harvestedSpans.has(`${ span.start }:${ span.end }`);
-    }
-    // ... two carve-outs, both the other leg's kept-root canon: a KEPT WRITE anchors the prefix -
-    // the sequence stays whole inside the test beside it (`null == (seq++, q = W) ? ...`) - and a
-    // NESTED sequence keeps its whole spelling too, because the value canon stops there
-    const seqSource = unwrapRuntimeExpr(guardObject);
-    const seqTail = seqSource?.type === 'SequenceExpression'
-      ? unwrapRuntimeExpr(seqSource.expressions.at(-1)) : null;
-    const anchoredSeq = seqTail?.type === 'AssignmentExpression' || seqTail?.type === 'SequenceExpression';
-    const peeledPrefix = [];
-    let probeObject = anchoredSeq ? guardObject : unwrapCollectingSePrefixes(guardObject, peeledPrefix);
-    if (probeObject !== guardObject && !peeledPrefix.every(prefixAccounted)) probeObject = guardObject;
-    const claimSe = migratableClaimSe({
+    // Probe placement belongs to the shared plan: a realm sequence stays in the
+    // test, while a bare root can carry its effects before the guard.
+    const probeObject = probe?.source ?? guardObject;
+    const claimSe = probe ? { leading: probe.prefix, migrated: probe.keySe ?? [] } : migratableClaimSe({
       sideEffects, receiverEffectCount, rootNode: probeObject, end: nodeSpan(path.node)?.end, node: path.node,
     });
     if (!claimSe) return false;
     const { leading: leadingSe, migrated: migratedSe } = claimSe;
-    // the guard tests the OBJECT of the `?.` hop that guards the undefinable value (resolved by the
-    // caller via `undefinableOptionalGuard`): `globalThis.window?.self.X` -> `globalThis.window`, a
-    // hop the always-defined descended root does not cover. left in the AST so the identifier visitor
-    // substitutes its proxy-global root in place (`_globalThis.window`)
+    // The shared probe names the source value that can be absent: `globalThis.window?.self.X`
+    // tests `globalThis.window`. Its root is substituted below before the test is cloned.
     let rootNode = probeObject;
     // a run the canon hands to the COLLAPSE keeps no spelling of its own here: the test re-enters
     // the traversal on it (`reenter`) and the ordinary channels fold its backed hops
@@ -1027,9 +1003,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       if (landed) rootNode = landed;
       else collapseOwnsRun = landed === false;
     }
-    // the peeled probe rides both slots: a top-level prefix now has a slot of its own (leading),
-    // so the test-spelling exception must not re-freeze it - only hop-buried sequences remain
-    // inside the probe and keep riding the source spelling
+    // Leading effects already have their own slots. Source-owned sequences stay inside
+    // the probe; preparing its navigation must not replay the leading prefix.
     rootNode = navGuardTestNode(rootNode, path, null, { reenter: collapseOwnsRun });
     // the test is a RENDER, and which of the two shapes it takes is the shared seal
     // question: under a seal keep the navigation (its read throws where the source does) and
@@ -1089,7 +1064,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // a `delete` the climbed tail runs on into is an act on a member the source names: absorbed
     // into the alternate the member is evaluated and deleted from nothing, so the whole operator
     // takes the guard, and the leading effects run ahead of it, where the source ran them
-    const deleteHost = deleteOverOpenContinuation(target.node, target.parentPath);
+    const deleteHost = deleteOverOpenContinuation(target.node, target.parentPath,
+      node => !!node.extra?.parenthesized || node === target.node && isWrappedInParens(target));
     if (deleteHost) {
       target.replaceWith(claimBody);
       deleteHost.replaceWith(withSideEffects(estreeToBabel(renderDeleteShortCircuitGuard(

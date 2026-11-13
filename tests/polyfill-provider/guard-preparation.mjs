@@ -29,6 +29,9 @@ function resolvePure({ kind, name }) {
 for (const [expression, source, prefix = [], memo = null, keepSequence = false, prelude = '', hintName = null] of [
   ['globalThis?.Array.from', null],
   ['globalThis.window?.Array.from', 'globalThis.window'],
+  ['globalThis.self?.window?.window?.Array.from', 'globalThis.self?.window'],
+  ['globalThis.window?.window?.Array.from', 'globalThis.window'],
+  ['globalThis.window?.window?.window?.Array.from', 'globalThis.window'],
   ['globalThis.window?.self.Array', 'globalThis.window'],
   ['globalThis.window?.self[ctor].of', 'globalThis.window', [], null, false, 'const ctor = "Array";'],
   ['globalThis.window?.self[`Array`].of', 'globalThis.window'],
@@ -368,5 +371,19 @@ for (const [source, expected] of [
   else check(`${ label }/keeps the environment read`, guard.firstReceiver.property?.name, 'window');
   checkDeep(`${ label }/navigation render calls`, calls, expected);
 });
+
+runBoth('supplied probe keeps the realm sequence slot', 'const result = (effect(), globalThis.window)?.self;',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const source = unwrapRuntimeExpr(node.object);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { path, scope: path.scope, adapter, resolvePure };
+    const before = JSON.stringify(program.node);
+    const plan = planOptionalProbe(node, ctx, { hintName: 'self', guardObject: source.expressions.at(-1) });
+    check(`${ label }/source`, plan.source, source);
+    check(`${ label }/prefix stays in test`, plan.prefix.length, 0);
+    check(`${ label }/read only`, JSON.stringify(program.node), before);
+  });
 
 finish();

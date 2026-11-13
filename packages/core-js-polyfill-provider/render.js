@@ -1111,7 +1111,8 @@ export function renderClaimProbe(plan, { injectImport, cloneHost = cloneNode, em
     guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
   }
   const read = plan.boundary.member ? own(plan.boundary.member.computed
-    ? memberExpression(guarded, literal(plan.key), { computed: true }) : memberFromKeyName(guarded, plan.key)) : guarded;
+    ? memberExpression(guarded, plan.keyNode ? clone(plan.keyNode) : literal(plan.key), { computed: true })
+    : memberFromKeyName(guarded, plan.key)) : guarded;
   return sequence(plan.prefix.map(clone), read);
 }
 
