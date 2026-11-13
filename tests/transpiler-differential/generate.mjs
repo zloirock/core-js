@@ -25912,4 +25912,28 @@ function * generateNestedReceiverRoots() {
       catch (error) { return error.name; }
       function read({ Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis) { return it; }
     })();` };
+  // Naming a constructor through an alias cannot erase absence, read errors or argument order.
+  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const [name, body] of [
+    ['keyed', 'const held = globalThis.window?.Array; const { [(effects.push("key"), "from")]: from } = held; return typeof from;'],
+    ['used', 'const held = globalThis.window?.Array; let from; const value = ({ from } = held); return [typeof from, value === held];'],
+    ['prototype', 'const held = globalThis.window?.Array; const { [(effects.push("key"), "includes")]: includes } = held.prototype; return typeof includes;'],
+    ['stored-mirror', 'let saved; const { resolve: { length } } = (saved = globalThis.window)?.Promise; return typeof length;'],
+    ['stored-loop', 'let saved; for (const { resolve } of [(saved = globalThis.window)?.Promise]) return typeof resolve;'],
+    ['stored-argument', 'let saved; return (({ resolve }) => typeof resolve)((saved = globalThis.window)?.Promise);'],
+    ['read-mirror', 'const held = globalThis.window; const { resolve: { length } } = held.Promise; return typeof length;'],
+    ['read-argument', 'const held = globalThis.window; return (({ resolve }, last) => typeof resolve)(held.Promise, effects.push("last"));'],
+    ['held-argument', 'const held = globalThis.window?.Array; return (({ from }, last) => typeof from)(held, effects.push("last"));'],
+    ['nested-argument', 'return (({ Array: { from } }, last) => typeof from)(globalThis.window?.self, effects.push("last"));'],
+    ['keyed-argument', 'const held = globalThis.window?.Array; return (({ [(effects.push("key"), "from")]: from }, last) => typeof from)(held, effects.push("last"));'],
+    ['named-argument', 'const held = globalThis.window?.Array; function read({ from }) { return typeof from; } return read(held);'],
+    ['selected-pattern', 'const { from } = typeof Symbol !== "undefined" ? globalThis.window?.Array : Set; return typeof from;'],
+    ['selected-read', 'return typeof (typeof Symbol !== "undefined" ? globalThis.window?.Array : Set).from;'],
+    ['selected-optional', 'return typeof (typeof Symbol !== "undefined" ? globalThis.window?.Array : Set)?.from;'],
+    ['fallback', 'const held = globalThis.window?.Array; return (({ from }) => typeof from)(held ?? Array);'],
+  ]) for (const present of [false, true]) yield { name: `nullable-capture-sources/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+      export const effects = []; export const r = withWindowPresence(${ present }, () => {
+        try { ${ body } } catch (error) { return error.name; }
+      });` };
 }

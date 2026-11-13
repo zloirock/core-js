@@ -916,6 +916,10 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     // hop collapses with its backed leaf, and only a source optional can short-circuit it.
     // following an alias reaches the same nav here as spelling it inside an assignment.
     value = unwrapRuntimeExpr(peelReceiverSequenceTail(value));
+    // A selection resolved by claims carries the same selected value into guard queries.
+    if (aliasCtx && (value?.type === 'ConditionalExpression' || value?.type === 'LogicalExpression')) {
+      value = unwrapRuntimeExpr(decidedSelectionValue(value, aliasCtx));
+    }
     if (isMemberAccessNode(value)) {
       return proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { observableRead: true });
     }
@@ -6200,6 +6204,8 @@ export function probedNavGuardValuePlan(source, resolvePure, ctx) {
 // never a bare global identifier that a local could shadow. null when no single `?.` expresses
 // the short-circuit, or the leaf is neither ponyfilled nor a plain name
 function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf = false } = {}) {
+  // A decided selection seals its live operand just as source parentheses do.
+  nav = aliasCtx ? unwrapRuntimeExpr(decidedSelectionValue(nav, aliasCtx)) : nav;
   const verdict = undefinableOptionalGuard(nav, resolvePure, aliasCtx);
   if (verdict.kind !== 'guard') {
     // a value that IS the environment probe carries no `?.` for the verdict to key on - the

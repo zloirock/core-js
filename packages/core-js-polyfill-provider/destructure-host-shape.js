@@ -75,6 +75,7 @@ import {
   walkAstNodes,
   walkPatternIdentifiers,
   valueMayBeNullish,
+  followConstIdentifierInit,
   noteRenderRetiredWrites,
   POSSIBLE_GLOBAL_OBJECTS,
 } from './helpers/ast-patterns.js';
@@ -2233,7 +2234,7 @@ function planRetainedObjectCaptureShape({
     // the receiver IS a constructor the read side names, on a spelling that cannot come out nullish
     // (no `?.`, no lowered short-circuit), or a value that never is: the null rejection the keyed read
     // would keep in front of the key's effects is dead there
-    provenReceiver: (!narrow && !!isStaticPlacement(initCtorName() ?? '') && !valueMayBeNullish(init)) || receiverNeverNullish,
+    provenReceiver: !narrow && keyedReadReceiverProven({ init, hostPath, adapter, nested: true }) || receiverNeverNullish,
     // A source receiver with a proven fallback cannot be nullish (`x || Object`). A moved leaf
     // reads a captured property instead; its constructor-name projection depends on hop relocation.
     receiverNeverNullish,
@@ -2267,23 +2268,36 @@ export function keyedReadReceiverProven({ init, hostPath, adapter, nested = fals
   const ctx = { scope: hostPath?.scope, adapter, path: hostPath };
   // ... a value the build decides is the value of it that runs, behind an effect prefix too (`decidedRunningValue`)
   const running = decidedRunningValue(init, ctx);
-  if (valueMayBeNullish(running)) return false;
-  function proven(node) {
-    let value = installedWriteValue(node);
+  const pending = [{ node: running, ctx }];
+  // An alias can lead back into a fallback; revisiting that source proves nothing.
+  const seen = new Set();
+  while (pending.length) {
+    const hop = pending.pop();
+    if (seen.has(hop.node)) return false;
+    seen.add(hop.node);
+    // A constructor name does not prove the value held by an alias is present.
+    const spelling = unwrapRuntimeExpr(installedWriteValue(hop.node));
+    const source = followConstIdentifierInit({ ...hop, node: spelling, readNode: spelling });
+    const value = unwrapRuntimeExpr(installedWriteValue(source.node));
+    if (valueMayBeNullish(value)) return false;
     // a `||` / `??` selection yields its LEFT only where that is truthy / non-nullish, so a right operand
     // proven here proves the whole value (`x || Object`): the null probe would guard a value never nullish
-    for (let selection = unwrapRuntimeExpr(value); selection?.type === 'LogicalExpression' && selection.operator !== '&&';
-      selection = unwrapRuntimeExpr(value)) value = installedWriteValue(selection.right);
+    if (value?.type === 'LogicalExpression' && value.operator !== '&&') {
+      pending.push({ node: value.right, ctx: source.ctx });
+      continue;
+    }
     // a conditional yields one of its arms, so the two proven prove it
-    const branch = unwrapRuntimeExpr(value);
-    if (!nested && branch?.type === 'ConditionalExpression') return proven(branch.consequent) && proven(branch.alternate);
+    if (!nested && value?.type === 'ConditionalExpression') {
+      pending.push({ node: value.consequent, ctx: source.ctx }, { node: value.alternate, ctx: source.ctx });
+      continue;
+    }
     // ... and so does a value that names nothing: a literal, a literal binding, a built-in's prototype
-    if (!nested && receiverValueNeverNullish(value, ctx)) return true;
-    const name = resolveObjectName({ objectNode: value, ...ctx })
-      ?? staticContainerReceiverName({ node: value, ...ctx, rescuesReceiverRead: true });
-    return !!isStaticPlacement(name ?? '');
+    if (!nested && receiverValueNeverNullish(spelling, hop.ctx)) continue;
+    const name = resolveObjectName({ objectNode: spelling, ...hop.ctx })
+      ?? staticContainerReceiverName({ node: spelling, ...hop.ctx, rescuesReceiverRead: true });
+    if (!isStaticPlacement(name ?? '')) return false;
   }
-  return proven(running);
+  return true;
 }
 
 // what a sole keyed read owes a receiver nothing reads: proven, it takes no null rejection, and served

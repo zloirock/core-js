@@ -48,6 +48,7 @@ import {
   flattenBranchKeys,
   FN_NODE_TYPES,
   followConstIdentifierInit,
+  valueMayBeNullish,
   forOfHeadElements,
   forOfHeadIterableElements,
   forOfHeadDeclarationOf,
@@ -771,7 +772,8 @@ export function planSynthReceiverGuard({ receiver, scope, adapter, path, resolve
   const core = unwrapTransparentSeq(receiver);
   const node = core.type === 'LogicalExpression' ? core.left : core;
   const aliasCtx = { scope, adapter, path };
-  const probe = navShortCircuitSource(node, resolvePure, aliasCtx, { throughChainAssign: true });
+  const probe = node.type === 'Identifier' && proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx) ? node
+    : navShortCircuitSource(node, resolvePure, aliasCtx, { throughChainAssign: true });
   if (!probe || chainSealsAShortCircuit(node, resolvePure, aliasCtx, { throughChainAssign: true })) return null;
   if (inCallerCorrectFallbackSlot(path, receiver)) return null;
   const rootCall = seBearingChainRootCall({ node, ...aliasCtx });
@@ -989,7 +991,8 @@ export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
   // `collectFoldedReceiverSideEffects` descends the entire receiver (the spine-only prefix walk on
   // `.object` missed computed keys, dropping the effect from the param-default synth)
   if ((inner?.type === 'MemberExpression' || inner?.type === 'OptionalMemberExpression')
-    && discardRescueNodes({ node: inner, scope, adapter, path }).length) {
+    && (discardRescueNodes({ node: inner, scope, adapter, path }).length
+      || aliasRootedReadMayThrow(inner, meta => resolveBuiltIn(meta), { scope, adapter, path }))) {
     return { callBranch: true, rescueSe: inner };
   }
   // a fallback-logical receiver (`(eff(), Array) || Set`, `IIFE().Array || Set`) whose resolved LEFT
@@ -7268,9 +7271,12 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
       adapter,
       path,
     });
-    if (supplied && isKnownGlobalName(supplied)) return isPristineProxyGlobal(adapter, supplied)
-      ? { kind: 'proxy' } : primitiveGlobalReceiver(node, supplied, { scope, adapter, path })
-        ?? { kind: 'ctor', name: supplied, builtin: true };
+    if (supplied && isKnownGlobalName(supplied)) {
+      const context = isPristineProxyGlobal(adapter, supplied)
+        ? { kind: 'proxy' } : primitiveGlobalReceiver(node, supplied, { scope, adapter, path })
+          ?? { kind: 'ctor', name: supplied, builtin: true };
+      return { ...context, nullableArgument: destructureReceiverOwesAThrow(node, { scope, adapter, path }) };
+    }
   }
   let n = node;
   // a proxy hop is walked through only while it still stands for the pristine surface: a slot the
@@ -7318,7 +7324,8 @@ function mirrorRootContext({ node: leaf, scope, adapter, path, callSite = null, 
   // a bare-constructor root is only trusted because the visited leaf's identification
   // already resolved through this very default (meta gate above)
   // `builtin`: the name resolved to a global constructor - a value that is an object, so truthy
-  if (callSite && resolved) return { kind: 'ctor', name: resolved, builtin: true };
+  if (callSite && resolved) return { kind: 'ctor', name: resolved, builtin: true,
+    nullableArgument: destructureReceiverOwesAThrow(node, { scope, adapter, path }) };
   // `builtin` states that the name is a GLOBAL CONSTRUCTOR - an object, hence truthy - so the
   // resolved name has to BE one. a bare resolution is not that claim: an alias holding an unbacked
   // key off the realm (`const shim = globalThis.shim`) resolves to its own name and is undefined
@@ -8235,12 +8242,13 @@ export function buildNestedParamSynthPlan(options) {
     for (const leaf of targetLeaves) {
       if (!leaf) continue;
       const selectedReceiver = !!rootContext(leaf)?.selectedReceiver;
+      const nullableArgument = !defaultLeaves.has(leaf) && !!rootContext(leaf)?.nullableArgument;
       // A caller mirror replaces only a quiet, non-optional value leaf. Selection tests
       // and sequence prefixes remain outside that leaf, in their original argument slot.
       // ... a CALL argument whose returned literal the call canon proves is the one effectful leaf
       // it takes: the call keeps its turn ahead of the literal, in the argument slot where the
       // source evaluates it, and the destructure's own throw with it - the declarator's shape
-      const callArgument = !!callSite && (rootContext(leaf)?.sourceInstance || isCallShape(leaf)
+      const callArgument = !!callSite && (nullableArgument || rootContext(leaf)?.sourceInstance || isCallShape(leaf)
         && (rootContext(leaf)?.kind === 'static' || rootContext(leaf)?.legacyIife));
       if (callSite && !callArgument && !selectedReceiver && !defaultLeaves.has(leaf) && (mayHaveSideEffects(leaf, receiverCtx)
         || navValueCanShortCircuit(leaf, resolvePure, { scope: receiverPath.scope, adapter, path: receiverPath })
@@ -8272,7 +8280,7 @@ export function buildNestedParamSynthPlan(options) {
       // the native parameter rejects it after all arguments and before any computed key.
       // A source-known selection has already proved which operand supplies the value. Ask nullishness
       // of that operand, so a quiet non-nullish sole read can stay eager instead of gaining a getter.
-      const preserveNullishReceiver = (leafContext?.legacyIife || leafContext?.sourceInstance || selectedReceiver)
+      const preserveNullishReceiver = nullableArgument || (leafContext?.legacyIife || leafContext?.sourceInstance || selectedReceiver)
         && !receiverValueNeverNullish(unwrapRuntimeExpr(liveReceiver.node), liveReceiver.ctx);
       const preserveFalsyReceiver = leafContext?.kind === 'instance' && truthySelectingLeaves.has(leaf);
       // Evaluating a short-circuiting source as a prefix preserves its effects, but the
@@ -8369,7 +8377,7 @@ export function buildNestedParamSynthPlan(options) {
       // Coercion and surviving native keys belong to the same receiver evaluation.
       const captureProxy = coerceReceiver && metrics.hasPassthrough && descriptor.receiverIsProxy
         && !resolveGlobalPolyfill(descriptor.receiverName);
-      const memo = callReceiver && !receiverNode;
+      const memo = nullableArgument || callReceiver && !receiverNode;
       if (!descriptor.receiverName && metrics.hasPassthrough && !callReceiver) continue;
       // ... an EFFECT keeps a selection from collapsing whole, never its dead right: each one this leaf
       // stands in the left of gives way to that left, innermost first, its effects in place
@@ -8397,7 +8405,7 @@ export function buildNestedParamSynthPlan(options) {
         ...!receiverNode && (keepPrefix || memo) ? { keepPrefix: true } : {},
         ...memo ? { memo: true } : {},
         ...metrics.hasDeferred ? { deferredReads: true } : {},
-        ...capturedDeferred ? { localMemo: true } : {},
+        ...capturedDeferred || nullableArgument ? { localMemo: true } : {},
         ...preserveNullishReceiver ? { preserveNullishReceiver: true } : {},
         ...preserveFalsyReceiver ? { preserveFalsyReceiver: true } : {},
         ...coerceReceiver ? { coerceReceiver: true } : {},
@@ -8903,6 +8911,8 @@ export function receiverValueNeverNullish(node, { scope, adapter, path }) {
   if (ALWAYS_TRUTHY_OBJECT_NODES.has(storedCore?.type) || storedCore?.type === 'TemplateLiteral'
     || (PRIMITIVE_LITERAL_TYPES.has(storedCore?.type) && !isNullLiteralNode(storedCore))) return true;
   if (key !== 'prototype') return false;
+  const source = followConstIdentifierInit({ node: container, ctx: { scope, adapter, path }, readNode: container });
+  if (valueMayBeNullish(source.node)) return false;
   const ctor = resolveObjectName({ objectNode: core.object, scope, adapter, path });
   return !!ctor && isKnownStaticGlobal(ctor, adapter) && !KNOWN_NAMESPACE_GLOBALS.has(ctor) && !POSSIBLE_GLOBAL_OBJECTS.has(ctor)
     && !isMutatedGlobalSlot(adapter, ctor);
@@ -9703,11 +9713,12 @@ export function applyNestedParamSynthPlan({
     const { node, tree, receiverName, receiverIsProxy } = target;
     const memoRef = target.memo ? mintMemoRef?.(target) ?? null : null;
     if (target.memo && !memoRef || target.passthroughReceiver && !mintMemoRef) continue;
-    // A fully mirrored assignment replaces the source lookup. Its probe occupies the
-    // receiver's own prefix slot, so a stored receiver cannot be evaluated twice.
+    // A fully mirrored assignment or retained prefix replaces the source lookup. Its
+    // probe occupies that prefix slot, so a stored receiver cannot be evaluated twice.
     const firstKey = tree.kind === 'object' && tree.entries[0]?.key;
     const host = target.host ?? plan.host;
-    const probe = !memoRef && !target.coerceReceiver && !target.nullTestOn && host?.node?.type === 'AssignmentExpression'
+    const probe = !memoRef && !target.coerceReceiver && !target.nullTestOn
+      && (target.keepPrefix || host?.node?.type === 'AssignmentExpression')
       && typeof firstKey === 'string' && renderAssignmentProbe?.(node, firstKey, host);
     // A probe arm carries its original selection into renderMirrorTarget at the insertion
     // boundary, after native target recovery. Replacing only the arm with an always-defined
