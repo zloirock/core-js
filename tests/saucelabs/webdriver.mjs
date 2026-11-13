@@ -41,8 +41,16 @@ export async function createSession({ hub, username, accessKey, w3c, capabilitie
   const body = w3c ? { capabilities: { alwaysMatch: capabilities } } : { desiredCapabilities: capabilities };
   const payload = await request(hub, authorization, 'POST', '/session', body, SESSION_TIMEOUT);
   const id = w3c ? payload.value?.sessionId : payload.sessionId;
-  // a reply in the other dialect would send every command to /session/undefined
-  if (!id) throw new WebDriverError(`POST /session: no session id in ${ JSON.stringify(payload).slice(0, 200) }`);
+  // A reply in the other dialect may have created a session, but its id is in a different field.
+  if (!id) {
+    const orphan = w3c ? payload.sessionId : payload.value?.sessionId;
+    if (typeof orphan === 'string' && orphan) {
+      try {
+        await request(hub, authorization, 'DELETE', `/session/${ encodeURIComponent(orphan) }`);
+      } catch { /* Preserve the original protocol error. */ }
+    }
+    throw new WebDriverError(`POST /session: no session id in ${ JSON.stringify(payload).slice(0, 200) }`);
+  }
 
   function command(method, path, data) {
     return request(hub, authorization, method, `/session/${ id }${ path }`, data);

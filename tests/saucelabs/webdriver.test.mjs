@@ -15,6 +15,24 @@ async function responseTest(body, status = 200) {
   }
 }
 
+test('closes a created session returned in the wrong protocol dialect', async () => {
+  const previous = globalThis.fetch;
+  try {
+    for (const w3c of [false, true]) {
+      const paths = [];
+      globalThis.fetch = async (url, request) => {
+        paths.push([new URL(url).pathname, request.method]);
+        return { ok: true, status: 200, text: async () => JSON.stringify(request.method === 'DELETE' ? {}
+          : w3c ? { sessionId: 'orphan' } : { value: { sessionId: 'orphan' } }) };
+      };
+      await assert.rejects(createSession({ ...options, w3c }), /no session id/);
+      assert.deepEqual(paths, [['/wd/hub/session', 'POST'], ['/wd/hub/session/orphan', 'DELETE']]);
+    }
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
 test('rejects null WebDriver responses as retriable errors', async () => {
   await responseTest('null');
 });

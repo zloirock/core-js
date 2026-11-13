@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 // Exercise the runner against a fake WebDriver hub without starting Sauce Labs sessions.
-async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull = false } = {}) {
+async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
     accessKey: process.env.SAUCE_ACCESS_KEY,
@@ -17,6 +17,12 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
   let sessions = 0;
   let annotationRequests = 0;
   let markerRequests = 0;
+  const started = [];
+  let releaseSlow;
+  let releaseFast;
+  const slow = new Promise(resolve => { releaseSlow = resolve; });
+  const fast = new Promise(resolve => { releaseFast = resolve; });
+  let fastFinished = false;
   try {
     process.env.SAUCE_USERNAME = 'test';
     process.env.SAUCE_ACCESS_KEY = 'test';
@@ -34,20 +40,34 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
       let payload;
       if (path === '/wd/hub/session') {
         sessions++;
-        assert.doesNotMatch(JSON.parse(options.body).desiredCapabilities.build, /@a{40}/);
-        payload = sessionNull ? null : { sessionId: 'test-session' };
-      } else if (options.method === 'DELETE') payload = {};
-      else if (path.endsWith('/url')) payload = {};
-      else {
+        const capabilities = JSON.parse(options.body).desiredCapabilities;
+        assert.doesNotMatch(capabilities.build, /@a{40}/);
+        assert.equal(capabilities.maxDuration, 2400);
+        const { name } = capabilities;
+        if (dynamicQueue) started.push(name);
+        payload = sessionNull ? null : { sessionId: dynamicQueue ? name : 'test-session' };
+      } else if (options.method === 'DELETE') {
+        if (dynamicQueue && path.includes('/fast')) {
+          fastFinished = true;
+          releaseFast();
+        }
+        payload = {};
+      } else if (path.endsWith('/url')) {
+        payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
+      } else {
         const { script } = JSON.parse(options.body);
         if (script.startsWith('sauce:job-result=')) {
           annotationRequests++;
           payload = { status: 13, value: { message: 'annotation unavailable' } };
         } else if (script.startsWith('var results = ')) {
+          if (dynamicQueue && path.includes('/slow')) await slow;
           if (timeout) Date.now = () => start + 16 * 6e4;
-          payload = { value: JSON.stringify(timeout
-            ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
-            : { done: true, failed, total: 1, failures: [] }) };
+          payload = { value: JSON.stringify({
+            url: `http://example.test/branch/unit-browser/${ wrongPage ? 'other' : 'global' }.html`,
+            results: timeout
+              ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
+              : { done: true, failed, total: 1, failures: [] },
+          }) };
         } else payload = { value: null };
       }
       return { ok: true, text: async () => JSON.stringify(payload) };
@@ -60,7 +80,22 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
       concurrency: 1, reporter: 'qunitResults',
       evaluate: ({ failed: count }) => ({ passed: count === 0, summary: `${ count } failed`, details: [] }),
     };
-    if (failed || timeout || sessionNull) await assert.rejects(run(suite), /Sauce Labs run failed/);
+    if (dynamicQueue) {
+      suite.platforms = ['slow', 'fast', 'next', 'last'].map(name => ({
+        name, w3c: false, capabilities: { browserName: 'firefox', version: '7' },
+      }));
+      suite.concurrency = 2;
+      const running = run(suite);
+      await fast;
+      // After fast finishes, its worker must pick up the next waiting platform.
+      // The slow session stays open until that platform starts.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const nextStartedWhileSlow = started.includes('next');
+      releaseSlow();
+      await running;
+      return { started, nextStartedWhileSlow, fastFinished };
+    }
+    if (failed || timeout || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
     else await run(suite);
     return { output: output.join('\n'), sessions, annotationRequests, markerRequests };
   } finally {
@@ -96,6 +131,31 @@ test('retries an invalid WebDriver response for a platform', async () => {
   assert.equal(sessions, 3);
   assert.match(output, /invalid WebDriver response.*retrying \(2 of 3\)/);
   assert.match(output, /invalid WebDriver response.*retrying \(3 of 3\)/);
+});
+
+test('assigns the next waiting platform to the available worker', async () => {
+  const { started, nextStartedWhileSlow, fastFinished } = await runFake({ dynamicQueue: true });
+  assert.equal(fastFinished, true);
+  assert.equal(nextStartedWhileSlow, true);
+  assert.deepEqual(started, ['slow', 'fast', 'next', 'last']);
+});
+
+test('rejects results from a different page', async () => {
+  const { output, sessions } = await runFake({ wrongPage: true });
+  assert.equal(sessions, 3);
+  assert.match(output, /unexpected page.*other\.html/);
+});
+
+test('includes a session link when a page fails after session creation', async () => {
+  const { output, sessions } = await runFake({ navigationError: true });
+  assert.equal(sessions, 3);
+  assert.match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session.*navigation failed/);
+});
+
+test('marks a session failed when navigation fails', async () => {
+  const { sessions, annotationRequests } = await runFake({ navigationError: true });
+  assert.equal(sessions, 3);
+  assert.equal(annotationRequests, 3);
 });
 
 test('reports the active QUnit test when a page times out', async () => {
