@@ -396,7 +396,7 @@ for (const [source, kind, captured] of [
   ['for (const [{ y: { at } }, { other }] = [source, effect()]; test;) {}', 'instance', true],
   ['for (const [{ y: { at } }] = [source, source = other]; test;) {}', 'instance', true],
   ['export const [{ at, ...rest }] = [source];', 'instance', true],
-]) runBoth('array plan/native capture phase', source, (parser, program, label) => {
+]) runBoth(`array plan/native capture phase ${ source }`, source, (parser, program, label) => {
   const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
   const propPath = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property');
   const original = JSON.stringify(arrayPath.node);

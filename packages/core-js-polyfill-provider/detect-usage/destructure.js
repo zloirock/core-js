@@ -7954,7 +7954,12 @@ export function buildNestedParamSynthPlan(options) {
           { resolvePure, assignment: host?.node.type === 'AssignmentExpression',
             receiverObject: !pure && key === 'prototype' ? ctx.name : undefined },
         );
-        entries.push(slotLeaves
+        // The plain-key descent cannot spell a symbol slot. Reuse the instance mirror
+        // for a pristine prototype so its iterator read stays at the source key.
+        const prototype = !slotLeaves && !pure && key === 'prototype'
+          && isKnownGlobalName(ctx.name) && !isMutatedGlobalSlot(adapter, ctx.name)
+          && mirrorPattern(inner, { kind: 'instance', name: ctx.name, eagerInstance: eagerNestedInstance, pristinePrototype: true });
+        entries.push(prototype?.entries?.some(item => item.readPure) ? { key, child: prototype } : slotLeaves
           ? { key, child: {
             kind: 'descended-pattern',
             prop,

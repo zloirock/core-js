@@ -1576,7 +1576,6 @@ function planRetainedObjectCaptureShape({
   kind = 'instance',
   entry = null,
   patternPath = null,
-  probedInit = false,
   resolvePure = null,
   resolveStaticProp = null,
   planGuardedNarrow = null,
@@ -1628,9 +1627,25 @@ function planRetainedObjectCaptureShape({
     const capture = planNestedKeyedPatternCapture({ pattern, init, allowArray: true, ctx })
       ?? planNestedKeyedPatternCapture({ pattern, init, force: true, allowArray: true, ctx });
     if (capture && (capture.leafPattern.type === 'ArrayPattern' || capture.leafPattern.properties.includes(prop))) {
-      const innerPlan = planRetainedObjectCapture({ pattern: capture.leafPattern, init, assignment, prop,
-        hostPath, adapter, resolveNodeType, injectorState, kind, entry, patternPath,
-        probedInit, resolvePure, resolveStaticProp, planGuardedNarrow, isClaimedProp, isConsumedProp, meta: resolvedMeta });
+      const innerPlan = planRetainedObjectCapture({
+        pattern: capture.leafPattern,
+        init,
+        assignment,
+        prop,
+        hostPath,
+        adapter,
+        resolveNodeType,
+        injectorState,
+        kind,
+        entry,
+        patternPath,
+        resolvePure,
+        resolveStaticProp,
+        planGuardedNarrow,
+        isClaimedProp,
+        isConsumedProp,
+        meta: resolvedMeta,
+      });
       if (innerPlan) return { capture, innerPlan, assignment };
     }
   }
@@ -1698,7 +1713,6 @@ function planRetainedObjectCaptureShape({
         kind,
         entry,
         patternPath,
-        probedInit,
         resolvePure,
         resolveStaticProp,
         planGuardedNarrow,
@@ -1766,7 +1780,6 @@ function planRetainedObjectCaptureShape({
         kind,
         entry,
         patternPath,
-        probedInit,
         resolvePure,
         resolveStaticProp,
         planGuardedNarrow,
@@ -2136,7 +2149,7 @@ function planRetainedObjectCaptureShape({
     && pattern.properties.filter(item => !isConsumedProp || !(isConsumedProp(item)
       || !computedKeyHasSideEffects(item, ctx) && patternFullyConsumed(item.value, isConsumedProp, ctx))).length > 1
     && !pattern.properties.includes(prop)
-    && !(kind !== 'static' && adapter && !probedInit && initReReadsFree);
+    && !(kind !== 'static' && adapter && initReReadsFree);
   // a pattern-valued prop keyed by the real `Symbol.iterator`, asked of the key's scoped fold with its
   // provenance at this captured level, which may sit below the host's root pattern. An alias of the
   // symbol counts like its dotted spelling. A relocated root may lack source offsets but keeps its path.
@@ -2627,6 +2640,7 @@ export function renderRetainedObjectCapture(plan, {
   // there, once, in the slot the source gave it - this render performs it and no channel may lift
   // it a second time. reading the bare tail instead would take the prefix out of the tree before
   // the walk reaches it, and the claims INSIDE it go out unrendered
+  const readByClaims = receiverRead;
   if (plan.coerceReceiver && !plan.reuseReceiver) ref();
   const result = plan.assignment && plan.preserveResult !== false ? ref() : null;
   // ... and an init nothing reads and nothing coerces is owed only what discarding it runs - the discard
@@ -2646,13 +2660,14 @@ export function renderRetainedObjectCapture(plan, {
       ? sequenceExpression([...discarded, ...spelled]) : init);
   }
   // A fully consumed assignment still rejects a nullish source before writing its first target.
-  const unreadInit = !receiverRead && !plan.provenReceiver ? assignmentExpression('=', objectPattern([]), init) : init;
+  const unreadInit = !readByClaims && !plan.provenReceiver && !plan.coerceReceiver
+    ? assignmentExpression('=', objectPattern([]), init) : init;
   return plan.assignment ? {
     refName,
     expression: sequenceExpression([
       ...plan.receiverAlreadyEvaluated || plan.inlineReceiver ? [] : plan.reuseReceiver
         ? coerceReuse ? [assignmentExpression('=', objectPattern([]), init)] : prefixedReuse ? discarded ?? [init] : []
-        : plan.receiverRef ? [] : refName ? [assignmentExpression('=', ref(), init)] : discarded ?? [unreadInit],
+        : plan.receiverRef ? [] : refName ? [assignmentExpression('=', ref(), unreadInit)] : discarded ?? [unreadInit],
       ...plan.coerceReceiver && !plan.reuseReceiver ? [assignmentExpression('=', objectPattern([]), ref())] : [],
       ...assignments,
       ...result ? [result] : [],

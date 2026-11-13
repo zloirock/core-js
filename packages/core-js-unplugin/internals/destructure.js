@@ -52,6 +52,7 @@ import {
   planRetainedObjectCapture,
   keyedReadEvaluation,
   renderRetainedObjectCapture,
+  renderArrayWrapperCapture,
   renderNestedKeyedPatternCapture,
   renderOrderedRealmKeys,
   renderArrayDestructurePlan,
@@ -1253,7 +1254,11 @@ export default function createAstDestructureEmitter({
       && renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
     const restHost = destructurePatternHostPath(metaPath);
     if (renderArrayFlattenPlan(metaPath)) return;
-    const nestedRest = restHost?.node?.type === 'VariableDeclarator'
+    const arrayCapture = buildNestedDestructurePlan({
+      arrayPath: restHost, adapter, injectorState,
+      captureFor: { prop: metaPath.node, pattern: metaPath.parentPath.node, kind },
+    })?.array?.capture;
+    const nestedRest = arrayCapture ?? (restHost?.node?.type === 'VariableDeclarator'
       && planKeyedClaimCapture({
         pattern: restHost.node.id,
         init: restHost.node.init,
@@ -1266,10 +1271,11 @@ export default function createAstDestructureEmitter({
           declarator: restHost.node, scope: metaPath.scope, adapter, path: metaPath,
           resolvePure: value => resolvePure(value, metaPath), resolveGlobalPolyfill, isDisabledProp: isDisabled,
         })?.anchor,
-      });
+      }));
     if (nestedRest) {
       if (unwrapExportedHost(restHost.parentPath)) return;
-      const rendered = renderNestedKeyedPatternCapture(nestedRest, { mintRef: mintRefName });
+      const render = arrayCapture ? renderArrayWrapperCapture : renderNestedKeyedPatternCapture;
+      const rendered = render(nestedRest, { mintRef: mintRefName });
       const leafAlias = capturedLeafCtorAlias({
         capture: nestedRest,
         rendered,
