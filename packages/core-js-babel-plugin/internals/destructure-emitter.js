@@ -203,7 +203,6 @@ import {
   staticSlotTakesPonyfill,
   directClaimProbeEffects,
   patternBindingName,
-  probedDestructureInitValue,
   realmSelectingHostCollapses,
   realmSelectionCollapseOperand,
   resolveObjectName,
@@ -3345,13 +3344,6 @@ export default function createDestructureEmitter({
       isClaimedProp: item => (skippedNodes.has(item) && !retainedClaimProps.has(item) && !synthPlanDeps.mirroredHosts.has(declarator.node))
         || (!!item.value && skippedNodes.has(item.value))
         || injector.hasGeneratedUnusedName(propBindingIdentifier(item.value)?.name),
-      // A guarded source still owes its outer coercion before any nested key.
-      probedInit: !assignment && kind === 'static' && computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))
-        && !!probedDestructureInitValue(
-          declarator.node.init,
-          ({ name }) => resolveGlobalPure(name),
-          { scope: prop.scope, adapter, path: prop },
-        ),
     };
     const restPlan = planRetainedObjectCapture(input);
     if (restPlan?.keepsNative) return true;
@@ -4137,6 +4129,7 @@ export default function createDestructureEmitter({
       forInit: isForInit,
       adapter,
     }) : null;
+    if (literalRoute && !literalRoute.admitted) return true;
     const literalReceiverPlan = literalRoute && (literalRoute.capture
       ? { channel: 'object-slot-memo', ...literalRoute.capture }
       : { channel: 'resolved', node: literalRoute.literalReceiver, navigation: literalRoute.navigation });
@@ -4172,10 +4165,9 @@ export default function createDestructureEmitter({
     // other leg already extracts): the receiver renders as the member chain the pattern
     // descends (`_getIteratorMethod(obj.inner)`), spelled through the render canon and
     // converted at the boundary
-    // Sole binding of its declarator: the placement plan below keeps the extraction at
-    // that slot even when preceding declarators include the receiver's own memo.
-    if (kind === 'instance' && !objectNode && entry === SYMBOL_ITERATOR_PURE_RESULT.entry
-      && originalBindingCount(prop) === patternBindingCount(prop.node.value)) {
+    // Shared admission proves whether a sibling may retain the host; placement keeps
+    // the extraction in its declarator even after a preceding receiver memo.
+    if (kind === 'instance' && !objectNode && entry === SYMBOL_ITERATOR_PURE_RESULT.entry) {
       const chain = resolveNestedReceiverChain(prop, { adapter });
       if (chain) objectNode = declarationReceiver(chain.root, chain.keys)?.node ?? null;
     }
@@ -4373,7 +4365,6 @@ export default function createDestructureEmitter({
       && bindingCount === patternBindingCount(prop.node.value)) {
       slotDropsAlone = true;
     }
-    if (literalRoute && !literalRoute.admitted) return true;
     // The sole-key renderer owns the receiver's one evaluation. A residual-only
     // placement question must not decline it before that shared plan is asked.
     if (kind === 'instance' && keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan: null, objectNode,

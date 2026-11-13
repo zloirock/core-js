@@ -25882,4 +25882,34 @@ function * generateNestedReceiverRoots() {
         export function read({ ${ first ? `${ nested }, at` : `at, ${ nested }` } }) { return [at.call([3, 7], -1), value]; }
         export const r = read([3, 7]);` };
   }
+  // Shared captures retain nullish errors and serve effectful keys after native iteration.
+  for (const [host, spelling] of [
+    ['value', 'const value = ({ of } = globalThis.window?.Array); return value;'],
+    ['call', 'return ((value) => value)(({ of } = globalThis.window?.Array));'],
+    ['arrow', 'return (() => ({ of } = globalThis.window?.Array))();'],
+    ['statement', '({ of } = globalThis.window?.Array); return of;'],
+  ]) yield { name: `capture-ownership/nullish/${ host }`, strip: true,
+    code: `export const effects = []; let of = 'unchanged';
+      export const r = (() => { try { ${ spelling } } catch (error) { return [error.name, of]; } })();` };
+  for (const [name, pattern, source, receiver, expectedKey] of [
+    ['iterator', '[{ [key()]: method }]', 'values([7, 8])', '[7, 8]', 'at'],
+    ['second', '[, { [key()]: method }]', 'values(0, [7, 8])', '[7, 8]', 'at'],
+    ['nested', '[[{ [key()]: method }]]', 'values([[7, 8]])', '[7, 8]', 'at'],
+    ['sibling', '[{ [key()]: method, length }]', 'values([7, 8])', '[7, 8]', 'at'],
+    ['string', '[{ [key()]: method }]', 'values("ab")', '"ab"', 'at'],
+  ]) yield { name: `capture-ownership/array/${ name }`, strip: true,
+    code: `export const effects = []; function key() { effects.push('key'); return '${ expectedKey }'; }
+      function* values(...items) { yield* items; }
+      const ${ pattern } = ${ source }; export const r = method.call(${ receiver }, -1);` };
+  for (const assignment of [false, true]) yield { name: `capture-ownership/prototype/${ assignment }`, strip: true,
+    code: `export const effects = [];
+      ${ assignment ? 'let from, it; ({ Array: { from, prototype: { [Symbol.iterator]: it } } } = globalThis);'
+        : 'const { Array: { from, prototype: { [Symbol.iterator]: it } } } = globalThis;' }
+      export const r = [from([7])[0], it.call([8]).next().value];` };
+  for (const parameter of [false, true]) yield { name: `capture-ownership/namespace/${ parameter }`, strip: true,
+    code: `export const effects = []; export const r = (() => {
+      try { ${ parameter ? 'return read();' : 'const { Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis; return it;' } }
+      catch (error) { return error.name; }
+      function read({ Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis) { return it; }
+    })();` };
 }

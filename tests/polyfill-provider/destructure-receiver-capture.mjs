@@ -482,4 +482,24 @@ runBoth('an owned receiver leaves a quiet defaulted leaf on its ordinary route',
     check(`${ label } does not mutate source`, JSON.stringify(host.node), before);
   });
 
+// Merely returning a consumed source does not perform the pattern's nullish check.
+for (const preserveResult of [false, true]) for (const provenReceiver of [false, true]) {
+  runBoth(`consumed assignment coercion/${ preserveResult }/${ provenReceiver }`,
+    'let of; ({ of } = globalThis.window?.Array);', (parser, program, label) => {
+      const host = parser.pickPath(program, 'AssignmentExpression');
+      const [prop] = host.node.left.properties;
+      const result = renderRetainedObjectCapture({
+        pattern: host.node.left, init: host.node.right, prop, assignment: true, retainedStatic: true,
+        preserveResult, provenReceiver,
+      }, { entry: 'array/of', injectImport: () => 'ofImport', mintDeclaredRef: () => 'held' });
+      const coercion = findNode(result.expression, node => node.type === 'AssignmentExpression' && node.left.type === 'ObjectPattern');
+      check(`${ label }/coercion independent of returned value`, !!coercion, !provenReceiver);
+      if (coercion) check(`${ label }/coerces the source`, coercion.right, host.node.right);
+      const expressions = result.expression.expressions ?? [result.expression];
+      const write = findNode(result.expression, node => node.type === 'AssignmentExpression' && node.left.name === 'of');
+      check(`${ label }/claim still writes`, write.right.name, 'ofImport');
+      if (preserveResult) check(`${ label }/result is the captured source`, expressions.at(-1).name, 'held');
+    });
+}
+
 finish();

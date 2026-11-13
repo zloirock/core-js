@@ -663,4 +663,21 @@ runBoth('late synth symbol spelling', 'const { [Symbol.iterator]: iterator } = A
   check(`${ label }/native symbol stays computed`, native?.computed, true);
 });
 
+for (const [key, read] of [['Symbol.iterator', true], ['unknown', false], ['(effect(), Symbol.iterator)', false]]) {
+  runBoth(`mirror/prototype symbol beside static/${ key }`,
+    `let from, iterator; ({ Array: { from, prototype: { [${ key }]: iterator } } } = globalThis);`,
+    (parser, program, label) => {
+      const leafPatternPath = parser.pickPath(program, 'ObjectPattern');
+      const plan = buildNestedParamSynthPlan({ leafPatternPath, adapter: keyAdapter,
+        meta: { object: 'globalThis', key: 'Array', placement: 'static' },
+        resolvePure(meta) {
+          return meta.object === 'Symbol' || meta.object === 'Array' && meta.key === 'from'
+            ? { kind: 'static', entry: `${ meta.object }/${ meta.key }`, hintName: meta.key } : null;
+        } });
+      const array = plan?.targets?.[0]?.tree.entries.find(item => item.key === 'Array')?.child;
+      const prototype = array?.entries.find(item => item.key === 'prototype')?.child;
+      check(`${ label }/iterator read owner`, !!prototype?.entries?.some(item => item.readPure?.entry === 'get-iterator-method'), read);
+    });
+}
+
 finish();
