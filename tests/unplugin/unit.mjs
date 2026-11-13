@@ -1709,8 +1709,16 @@ function checkPhaseSnapshotFlow() {
     {
       const paramSrc = 'function f({\n  // core-js-disable-next-line\n  at, flat,\n  includes,\n}) { use(at, flat, includes); }\nuse(f, c.at(1));\n';
       const paramOut = createPlugin(pureOpts).transform(paramSrc, '/sm-directive-param.mjs')?.code ?? paramSrc;
+      check(`single pass anchors both moved native parameter slots (${ engine })`,
+        /\/\/ core-js-disable-next-line\n\s*let \{ at \} = \w+;/.test(paramOut)
+        && /\/\/ core-js-disable-next-line\n\s*let \{ flat \} = \w+;/.test(paramOut), true);
+      check(`single pass preserves both moved opt-outs on a second pass (${ engine })`,
+        createPlugin(pureOpts).transform(paramOut, '/sm-directive-param.mjs')?.code ?? paramOut, paramOut);
+      // An effectful later default keeps the original pattern in the parameter list.
+      const retainedSrc = paramSrc.replace('}) {', '}, later = effect()) {');
+      const retainedOut = createPlugin(pureOpts).transform(retainedSrc, '/sm-directive-param-retained.mjs')?.code ?? retainedSrc;
       check(`single pass leads the second property of a parameter pattern (${ engine })`,
-        /\/\/ core-js-disable-next-line\n\s*flat,/.test(paramOut), true);
+        /\/\/ core-js-disable-next-line\n\s*flat,/.test(retainedOut), true);
     }
     // a single pass is a fixed point over its own output on the same shapes, members included
     {

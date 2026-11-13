@@ -90,6 +90,7 @@ import {
   CENSUS_STATIC_RECEIVERS,
   memberChainKeys,
   mayHaveSideEffects,
+  callArgumentMayBeObserved,
   noReassignmentReachesUsage,
   objectLevelPairedProperty,
   objectLiteralHoldsObservable,
@@ -2420,7 +2421,8 @@ const parameterExtractionBarriers = createInstanceNodeCache();
 // substitution. Pattern levels can move together to the body entry; their inner defaults
 // must be literals, since a moved expression would resolve body declarations in a different scope.
 // Literal leaf defaults use the declaration guard; the whole receiver default stays in the parameter list.
-// Folded keys move as literals so body bindings cannot change their meaning.
+// Folded keys move as literals so body bindings cannot change their meaning. Later inert
+// defaults and a simple rest binding may initialize first, unless a parameter observes them.
 // eslint-disable-next-line max-statements -- nested pattern admission shares the parameter timing and binding proof
 export function planParameterInstanceExtraction({
   propPath, adapter, resolvePure, isDisabledProp, parameterCallSites = null, isClaimedProp = null,
@@ -2436,16 +2438,17 @@ export function planParameterInstanceExtraction({
     || rootPath.node.decorators?.length || patternPath.node.decorators?.length
     || paramIndex < 0
     || fn.params.some((param, index) => param !== rootPath.node && param.type !== 'Identifier'
-      && !(index < paramIndex && param.type === 'AssignmentPattern' && param.left.type === 'Identifier'))) return null;
+      && !(param.type === 'AssignmentPattern' && param.left.type === 'Identifier'
+        && (index < paramIndex || isConstantLiteralNode(unwrapRuntimeExpr(param.right)) && !callArgumentMayBeObserved(param.right)))
+      && !(param.type === 'RestElement' && param.argument.type === 'Identifier'))) return null;
   // A refusal keeps its live parameter-expression witness, never a permission to extract.
   // A rewrite or scope rebuild can retire that dependency while retaining this pattern and adapter.
   const blocked = parameterExtractionBarriers.get(adapter, patternPath.node);
   if (blocked && blocked.fn === fn && blocked.fnScope === fnPath.scope
     && blocked.root === rootPath.node && blocked.paramIndex === paramIndex
     && fn.params[blocked.sourceIndex] === blocked.sourceRoot && pathContainedBy(blocked.path, blocked.sourceRoot)
-    && (blocked.moved ? blocked.declarationPath.node === blocked.declaration
-      && !ancestorChainDetached(blocked.declarationPath)
-      && pathContainedBy(blocked.declarationPath, patternPath.node) : fn.params[blocked.index] === blocked.declaration)
+    && blocked.declarationPath.node === blocked.declaration && !ancestorChainDetached(blocked.declarationPath)
+    && pathContainedBy(blocked.declarationPath, blocked.moved ? patternPath.node : fn.params[blocked.index])
     && blocked.path.node === blocked.node
     && blocked.node.type === 'Identifier' && blocked.node.name === blocked.name
     && !ancestorChainDetached(blocked.path)
@@ -2467,7 +2470,7 @@ export function planParameterInstanceExtraction({
     }
     if (!pattern.node.properties.length) return null;
     for (const prop of pattern.get('properties')) {
-      if (!isPropertyNode(prop.node) || isDisabledProp?.(prop.node)) return null;
+      if (!isPropertyNode(prop.node)) return null;
       const key = resolveStringKey({
         node: prop.node.key, computed: prop.node.computed, scope: prop.scope, adapter, path: prop.get('key'), bailOnSideEffectKey: true,
       });
@@ -2501,10 +2504,14 @@ export function planParameterInstanceExtraction({
       objectPatternNode: pattern.node, scope: pattern.scope, adapter, path: pattern, distinctReads: true,
     })) return null;
   }
-  // A delayed property read crosses later bare parameter bindings too. A parameter closure
+  // A delayed property read crosses later parameter bindings too. A parameter closure
   // can observe their TDZ when the original getter runs, before those bindings initialize.
   for (const [index, path] of fnPath.get('params').entries()) {
-    if (index > paramIndex) observed.push({ path, index, moved: false });
+    if (index > paramIndex) {
+      const binding = path.node.type === 'AssignmentPattern' ? path.get('left')
+        : path.node.type === 'RestElement' ? path.get('argument') : path;
+      observed.push({ path: binding, index, moved: false });
+    }
   }
   const observedNames = new Set(observed.map(({ path }) => path.node.name));
   if (paramListReadsName(fn.params, observedNames)) {
@@ -2550,6 +2557,8 @@ export function planParameterInstanceExtraction({
     let claim = false;
     const claimedProperties = [];
     for (const prop of properties) {
+      // Opted-out leaves still move in source order, but cannot earn a capture or a polyfill.
+      if (isDisabledProp?.(prop.node)) continue;
       if (isClaimedProp?.(prop)) {
         if (prop.node.value.type === 'AssignmentPattern') return null;
         claimedProperties.push(prop.node);
@@ -2574,7 +2583,8 @@ export function planParameterInstanceExtraction({
     if (!claim) return null;
     // A simple parameter list maps a sloppy function's own arguments. A setter
     // cannot add a second parameter or change its length to keep that distinction.
-    const paddingRequired = fn.type !== 'ArrowFunctionExpression' && fn.params.every(param => param.type !== 'AssignmentPattern')
+    const paddingRequired = fn.type !== 'ArrowFunctionExpression'
+      && fn.params.every(param => param.type !== 'AssignmentPattern' && param.type !== 'RestElement')
       && isSloppyAtPath(fnPath) && referencesArgumentsObject(fn);
     if (paddingRequired && (fn.kind === 'set' || fnPath.parentPath?.node.kind === 'set')) return null;
     return {
@@ -7772,7 +7782,8 @@ export function buildNestedParamSynthPlan(options) {
       effectfulKeySeen ||= effectfulKey;
       const eagerNestedInstance = eagerInstance && prop.value?.type !== 'AssignmentPattern';
       const disabled = isDisabledProp?.(prop);
-      if (disabled && ctx.kind !== 'ctor') return null;
+      // Other hosts keep their residual extraction and its statement-level opt-out anchor.
+      if (disabled && ctx.kind !== 'ctor' && !parameterInstance) return null;
       const key = mirrorAcceptedKey({ prop, ...keyCtx, seenKeys, instance: ctx.kind === 'instance' });
       if (dataKey !== null && key === dataKey) dataReads++;
       if (key === null) {
@@ -7797,7 +7808,9 @@ export function buildNestedParamSynthPlan(options) {
       // A disabled sibling retains its native read and every claim below it. It can
       // ride a mirror earned by another slot, but never earns or claims that mirror.
       if (disabled) {
-        entries.push({ key, disabledProp: prop, child: { kind: 'passthrough', bailed: true } });
+        const deferred = ctx.kind !== 'ctor' || earlierDefault || effectfulKeySeen || targetWriteSeen
+          || entries.some(entry => entry.deferred);
+        entries.push({ key, disabledProp: prop, deferred, child: { kind: 'passthrough', bailed: true, disabled: true } });
         continue;
       }
       const inner = patternSlotTarget(prop.value);
@@ -8648,6 +8661,7 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
       resolveGlobalPolyfill: ctx.resolveGlobalPolyfill,
       adapter: ctx.adapter,
       raw: tree.bailed === true,
+      disabled: tree.disabled === true,
       read: ctx.receiverRead ?? null,
     });
     // A captured environment supplies native slots; a served slot still uses its own import.
@@ -9429,6 +9443,7 @@ function globalReceiverRead(name, { scope, adapter, path }) {
 // constructor's pure answer names it in `ctor`, the name a slot dispatching off it asks (`instanceHopDispatch`).
 // `read` (`{ node, path }`) is the read of the receiver's slots where the caller holds it: a slot it reads
 // before every write of it is the build's (`isMutatedStatic`)
+// An opted-out slot keeps every key and its native constructor, even when the root is polyfilled.
 export function resolvePassthroughRef({
   keyPath,
   receiverName,
@@ -9437,6 +9452,7 @@ export function resolvePassthroughRef({
   adapter = null,
   resolveStaticPolyfill = null,
   raw = false,
+  disabled = false,
   read = null,
 }) {
   // a leading run of PRISTINE PROXY-GLOBAL keys is pure navigation: each names the realm the level
@@ -9451,7 +9467,7 @@ export function resolvePassthroughRef({
   // replacement is the value, exactly as a mutated ctor slot keeps its raw proxy member below
   let anchorName = receiverName;
   let keys = keyPath;
-  if (receiverIsProxy) {
+  if (receiverIsProxy && !disabled) {
     while (resolveGlobalPolyfill(anchorName) && keys.length
       && POSSIBLE_GLOBAL_OBJECTS.has(keys[0]) && resolveGlobalPolyfill(keys[0])
       && !adapter?.isMutatedStatic?.(anchorName, keys[0], read)) {
@@ -9472,7 +9488,7 @@ export function resolvePassthroughRef({
   // and `Array.of` alike are `_Array$of`, never a raw read off the realm), with whatever the nav
   // spells BEYOND it read off that ponyfill - the member canon's own answer for the same spelling
   // (`globalThis.Object.keys.name`). a mutated slot keeps the user's own value on the raw read
-  if (resolveStaticPolyfill && !ctorMutated && !raw && path.length >= 2 && isStaticPlacement(path[0])
+  if (resolveStaticPolyfill && !ctorMutated && !raw && !disabled && path.length >= 2 && isStaticPlacement(path[0])
     && !adapter?.isMutatedStatic?.(path[0], path[1], read)) {
     const staticPure = resolveStaticPolyfill(path[0], path[1]);
     if (staticPure) return { pure: staticPure, path: path.slice(2), static: true };
@@ -9481,7 +9497,7 @@ export function resolvePassthroughRef({
   // the leaf and about the key BELOW the constructor - never about the constructor itself. where the
   // path IS that constructor the missing-able rule stands: the pure import is the value, and reading
   // it off the realm instead (`_self.Symbol`) is `undefined` in exactly the realms core-js supplies it
-  const ctorPure = ctorMutated || (raw && path.length > 1) ? null : resolveGlobalPolyfill(path[0]);
+  const ctorPure = ctorMutated || disabled || (raw && path.length > 1) ? null : resolveGlobalPolyfill(path[0]);
   if (ctorPure) return { pure: ctorPure, ctor: path[0], path: path.slice(1) };
   const proxyPure = receiverIsProxy && resolveGlobalPolyfill(anchorName);
   return proxyPure ? { pure: proxyPure, path } : { name: anchorName, path: keys };
