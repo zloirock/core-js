@@ -14,32 +14,26 @@ const stringKey = function (_ref2 = [1, 2]) {
   let f = _flatMaybeArray(_ref2);
   return f;
 }();
-const foldedComputedKey = function ({
-  ['flat' + 'Map']: fm
-} = {
-  flatMap: _flatMapMaybeArray([1, 2])
-}) {
+const foldedComputedKey = function (_ref3 = [1, 2]) {
+  let fm = _flatMapMaybeArray(_ref3);
   return fm;
 }();
-const templateKey = function ({
-  [`findLa${'st'}`]: fl
-} = {
-  findLast: _findLastMaybeArray([1, 2])
-}) {
+const templateKey = function (_ref4 = [1, 2]) {
+  let fl = _findLastMaybeArray(_ref4);
   return fl;
 }();
 // An effectful folded key runs once before the method lookup. This closed default caller
 // admits an ordered body capture, while the literal carries the key's stable spelling.
 let effects = 0;
-const sideEffectingKey = function (_ref3 = void 0) {
-  let _ref4 = false;
-  let _ref5 = _ref3 === void 0 ? (_ref4 = true, [1, 2]) : _ref3,
-    {} = _ref5,
+const sideEffectingKey = function (_ref5 = void 0) {
+  let _ref6 = false;
+  let _ref7 = _ref5 === void 0 ? (_ref6 = true, [1, 2]) : _ref5,
+    {} = _ref7,
     {
       ["findIndex"]: fi
-    } = (effects++, _ref4 ? {
-      "findIndex": _findIndexMaybeArray(_ref5)
-    } : _ref5);
+    } = (effects++, _ref6 ? {
+      "findIndex": _findIndexMaybeArray(_ref7)
+    } : _ref7);
   return fi;
 }();
 // NEGATIVE: a key that folds to no name cannot be replayed without re-evaluating it, so the

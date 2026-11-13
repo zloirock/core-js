@@ -162,6 +162,7 @@ import {
   realmSelectionLeafKind,
   proxyReceiverValueCanBeUndefined,
   resolveKey as sharedResolveKey,
+  resolveStringKey,
   memberTargetTakesExtraction,
   proxyGlobalRootName,
   resolveObjectName,
@@ -1761,11 +1762,14 @@ function arrayReadingPropPlan(propPath, {
     // would lose those siblings' bindings
     const hopLevels = walk.climbed.slice(1, walk.climbed.findIndex(level => level.prop === prop) + 1);
     if (hopLevels.some(level => level.pattern.properties.length !== 1)) return { kind: 'verbatim', prop };
-    const effectful = walk.climbed.some(level => level.prop && computedKeyHasSideEffects(level.prop, ctx));
+    // A folded name can still throw before initialization; a native capture retains that key read.
+    const keyNeedsCapture = walk.climbed.some(level => level.prop?.computed && resolveStringKey({
+      node: level.prop.key, computed: true, ...ctx, bailOnSideEffectKey: true,
+    }) === null);
     const sharedLeaf = capturedRoot && leaf.parentPath.node.properties.length > 1;
-    const keyedCapture = (effectful || sharedLeaf) && capturedRoot
+    const keyedCapture = (keyNeedsCapture || sharedLeaf) && capturedRoot
       && planNestedKeyedPatternCapture({ pattern: objectPattern([prop]), init: receiver, force: true, plansLeaf: true, ctx });
-    if ((effectful || sharedLeaf) && (!keyedCapture || keyedCapture.leafPattern !== leaf.parentPath.node)) {
+    if ((keyNeedsCapture || sharedLeaf) && (!keyedCapture || keyedCapture.leafPattern !== leaf.parentPath.node)) {
       return { kind: 'verbatim', prop };
     }
     const binding = walk.root.type === 'Identifier' && adapter.getBinding({
@@ -1805,7 +1809,8 @@ function arrayReadingPropPlan(propPath, {
     };
   }
   const iterator = isSymbolIteratorComputedKey(prop, ctx);
-  const nativeKey = prop.computed && (!iterator || prop.value.type !== 'Identifier') && !capturedKey;
+  const nativeKey = prop.computed && !capturedKey && (iterator ? prop.value.type !== 'Identifier'
+    : resolveStringKey({ node: prop.key, computed: true, ...ctx, bailOnSideEffectKey: true }) === null);
   const { meta } = destructurePropLeafMeta({
     prop,
     objectPattern: propPath.parentPath,
@@ -1822,7 +1827,6 @@ function arrayReadingPropPlan(propPath, {
   // Moving them onto an anonymous element first hides the source needed by that route.
   if (meta.guardedAliasHint) return { kind: 'unhandled', prop };
   if (nativeKey) return { kind: 'verbatim', prop };
-  if (prop.computed && !iterator && !capturedKey) return { kind: 'verbatim', prop };
   if (capturedKey && !computedKeyHasSideEffects(prop, ctx)) return { kind: 'verbatim', prop };
   if (rest) return { kind: 'verbatim', prop };
   if (!defaults && prop.value.type !== 'Identifier') return { kind: 'verbatim', prop };
@@ -2020,7 +2024,7 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
     });
     if (interleaved || resolveNestedReceiverNode(propPath, { adapter })) return interleaved;
     const surface = resolveNestedReceiverNode(propPath, { allowSePeeledFragment: true, allowNavSegments: true, adapter });
-    const positional = resolvePositionalElementSlot(propPath, adapter, { lastReadingSlots });
+    const positional = resolvePositionalElementSlot(propPath, adapter, { lastReadingSlots, declarationResidual: !assignment });
     if (!positional || positional.slot.node !== element.node) continue;
     const paired = !keyed.size && position.length === 1 && unwrapRuntimeExpr(init)?.type === 'ArrayExpression'
       ? pairedArrayWrapInitElement(unwrapRuntimeExpr(init).elements, position[0]) : null;

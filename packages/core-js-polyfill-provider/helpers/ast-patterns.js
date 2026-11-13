@@ -4993,8 +4993,8 @@ function hoistedFunctionRunsBefore({ closure, holder, node, readNode, usagePath,
 
 // may the function declaration `fn` run before `node`, a node of the frame `holder`: created when its scope
 // is entered, it runs as early as its first use - a reference to it, a call or a handout, outside its own
-// body, that may run before `node` (`codeMayRunBefore`). an export specifier is no use: an importer runs
-// once this module has. with no reference census, or a name the read sees bound elsewhere, it may
+// body, that may run before `node` (`codeMayRunBefore`). An export alone is no call: neither a specifier
+// nor Babel's declaration-wrapper reference runs the function. Without a reference census it may run.
 function functionMayRunBefore({ fn, holder, node, usagePath, adapter, seen }) {
   if (seen.has(fn)) return false;
   seen.add(fn);
@@ -5003,7 +5003,8 @@ function functionMayRunBefore({ fn, holder, node, usagePath, adapter, seen }) {
   if (!binding || bindingDeclaratorNode(binding) !== fn && (binding.path?.node ?? binding.node) !== fn) return true;
   const references = adapter.collectBindingReferences?.(usagePath, name);
   if (!references) return true;
-  return references.some(reference => reference.parentPath?.node?.type !== 'ExportSpecifier'
+  return references.some(reference => unwrapExportedDeclaration(reference.node) !== fn
+    && reference.parentPath?.node?.type !== 'ExportSpecifier'
     && !nodeRangeContains(fn, reference.node ?? reference)
     && codeMayRunBefore({ path: reference, holder, node, usagePath, adapter, seen }));
 }
@@ -5012,14 +5013,16 @@ function functionMayRunBefore({ fn, holder, node, usagePath, adapter, seen }) {
 // order, and code in a function below it runs when the function does - a declaration as early as its first
 // use (`functionMayRunBefore`), any other function once it is created, which happens where it stands in
 // the frame above it (`build` calling `create` ahead of a write lets `create` read before the write)
-function codeMayRunBefore({ path, holder, node, usagePath, adapter, seen }) {
+// An alias read can share its statement anchor with the initializer; readNode keeps its exact position.
+function codeMayRunBefore({ path, holder, node, usagePath, adapter, seen, readNode = path.node ?? path }) {
   for (let at = path; ;) {
     const frame = findNearestVarScopeOwner(at.parentPath);
-    if (!frame || frame.node === holder) return !provablyPrecedes(node, at.node ?? at);
+    if (!frame || frame.node === holder) return !provablyPrecedes(node, readNode);
     if (frame.node.type === 'FunctionDeclaration') {
       return functionMayRunBefore({ fn: frame.node, holder, node, usagePath, adapter, seen });
     }
     at = frame;
+    readNode = frame.node;
   }
 }
 
@@ -5296,7 +5299,16 @@ export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = n
 // initializer that may have run by the read and does not sit in the arm opposite it: the write
 // completes only on the paths where the names it reads through were initialized (`if (c) { var ns =
 // globalThis } a = ns.Array` throws on the other one)
-export function initializerReachesRead({ adapter, binding, declaratorNode, usagePath, usageNode = null }) {
+export function initializerReachesRead({ adapter, binding, declaratorNode, usagePath, usageNode = null, requireInitialized = false }) {
+  // Erasing a computed key must preserve an early lexical read's throw. Unlike an
+  // ordinary deferred value hint, it needs the actual invocation order of a closure.
+  if (requireInitialized) {
+    const at = lookupReadPath(usagePath, usageNode);
+    const owner = at && varScopeOwnerHolding(declaratorNode, at);
+    if (!owner || codeMayRunBefore({
+      path: at, holder: owner.node, node: declaratorNode, usagePath: at, adapter, seen: new Set(), readNode: usageNode ?? usagePath.node,
+    })) return false;
+  }
   if (adapter.method === 'usage-pure' && !adapter.keepsReads) {
     return varInitDominatesUsage({ declaratorNode, usagePath, usageNode, kind: binding?.kind ?? null, adapter });
   }

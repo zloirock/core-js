@@ -1,25 +1,19 @@
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _self from "@core-js/pure/actual/self";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// a single-property pattern takes the ctor-key ANCHOR route only when its key names a known
-// built-in. a computed key folds to an arbitrary string, so a capitalised NON-identifier
-// ('Symbol.iterator', 'App-Key', `A.b`) has to stay a residual read - splicing it after a dot
-// aborts the build on one emitter and reads a different property on the other
+// Constructor anchors require a known built-in name. Other keys retain their identity:
+// real symbols remain symbolic, and instance extraction uses brackets for punctuated strings.
 const iterName = _nameMaybeFunction(_getIteratorMethod(_globalThis));
 const {
   'App-Key': {
     assign
   }
 } = _globalThis;
-const {
-  [`A.b`]: {
-    flat
-  }
-} = null == _globalThis.window ? void 0 : _self;
-// an identifier-valid capitalised key (`$` and the Unicode continue classes are identifier
+const flat = _flatMaybeArray((null == _globalThis.window ? void 0 : _self)["A.b"]); // an identifier-valid capitalised key (`$` and the Unicode continue classes are identifier
 // characters) names no built-in either: a user global is an unknown realm slot and stays nested
 const {
   A$b: {

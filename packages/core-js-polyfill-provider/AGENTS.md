@@ -89,7 +89,7 @@ Each is a limit of the model, not a license to weaken the proofs above; its owne
 - core-js wins a self-guarded patch (`readFeedsOwnSlotWrite`, `slotReadPrecedesItsWrites`, `readDecidesWrite`): a patch the build never runs is no write (`settleCensusWrites`), and a read after a patch that may run is the user's.
 - Value flow past library callbacks or the composite-depth budget can keep pure substitution or a field narrow over a user write - a `JSON.stringify` replacer runs with the holder as `this`, unseen (the registry header lists those callbacks); a parameter holds only its own default in both censuses.
 - An unnamed receiver (a catch parameter, an opaque host) cannot prove a static.
-- A read deferred into a function body or default is taken as initialized (`initializerMayRunBeforeUsage`).
+- A read deferred into a function body or default is taken as initialized (`initializerMayRunBeforeUsage`). A source string key removed from a pattern or member read additionally proves that its initializer precedes the invocation (`resolveStringKey`, `initializerReachesRead` with `requireInitialized`), so an early key read still throws or sees hoisted `undefined`.
 - Partial assignment state after a throw can differ from native.
 - Top-level `this` is the realm (`isTopLevelThisContext`).
 - A visible replacement of `Array.prototype[Symbol.iterator]` keeps array destructuring native in pure.

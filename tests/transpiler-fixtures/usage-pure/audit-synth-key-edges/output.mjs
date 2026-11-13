@@ -35,16 +35,11 @@ export const h = function ({
 }();
 // a STRING spelling of a symbol's own name is an ordinary property, never the symbol: the
 // slot keeps the plain read (reading it through the symbol would substitute a different value)
-export const s2 = function ({
-  at,
-  ["Symbol.iterator"]: x
-} = (() => {
-  var _ref3;
-  return _ref3 = [1, 2], {
-    at: _atMaybeArray(_ref3),
-    "Symbol.iterator": _ref3["Symbol.iterator"]
-  };
-})()) {
+export const s2 = function (_ref3 = [1, 2]) {
+  let at = _atMaybeArray(_ref3);
+  let {
+    ["Symbol.iterator"]: x
+  } = _ref3;
   return [at, x];
 }();
 // a FOLDED computed key reads back COMPUTED with its own string, whatever produced the fold:
@@ -63,15 +58,10 @@ export const s3 = function (_ref4 = void 0) {
     } = _ref6;
   return [at, v];
 }();
-export const s4 = function ({
-  at,
-  ["z"]: z
-} = (() => {
-  var _ref7;
-  return _ref7 = [1, 2], {
-    at: _atMaybeArray(_ref7),
-    z: _ref7.z
-  };
-})()) {
+export const s4 = function (_ref7 = [1, 2]) {
+  let at = _atMaybeArray(_ref7);
+  let {
+    ["z"]: z
+  } = _ref7;
   return [at, z];
 }();

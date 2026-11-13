@@ -1,11 +1,8 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 // A const-bound computed key reads the string-valued parameter default.
-// Pure mirrors its typed helper into the default; supplied arguments retain their own properties.
+// Pure reads the actual receiver; supplied arguments retain their own methods.
 const KEY = 'at';
-export function read({
-  [KEY]: at
-} = {
-  [KEY]: _atMaybeString('abc')
-}) {
+export function read(_ref = 'abc') {
+  let at = _at(_ref);
   return at;
 }

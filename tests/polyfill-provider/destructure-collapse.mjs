@@ -2494,4 +2494,46 @@ for (const [label, key, ordered] of [['computed', "(effect(), 'Promise')", true]
   });
 }
 
+// A whole array plan can keep native residuals in one declaration, including for-init.
+// A standalone leaf still needs a statement slot; it cannot claim that capability itself.
+for (const key of ['at', "['at']", '[K]']) for (const loop of [false, true]) {
+  const head = `const [{ ${ key }: method, length }] = rows`;
+  const source = `const K = 'at'; ${ loop ? `for (${ head };;) use(method, length);` : `${ head };` }`;
+  runBoth(`folded positional keys/${ key }/${ loop }`, source, (parser, program, label) => {
+    const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+    const [prop] = arrayPath.get('id').get('elements')[0].get('properties');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    check(`${ label } standalone residual needs a statement slot`, !!resolvePositionalElementSlot(prop, adapter), !loop);
+    const plan = buildNestedDestructurePlan({
+      arrayPath, adapter,
+      resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'instance/at', hintName: 'at' } : null,
+    });
+    checkTruthy(`${ label } whole host captures the element`, plan?.array.positional);
+    check(`${ label } whole host keeps its declaration slot`, !!plan?.array.inDeclaration, loop);
+    check(`${ label } one claim`, plan?.extractions.length, 1);
+    check(`${ label } native sibling stays in order`, plan?.array.elements[0].children[1].prop.key.name, 'length');
+  });
+}
+for (const key of ['0', "'a-b'", '[K]']) {
+  runBoth(`nested receiver key spelling/${ key }`, `const K = 'a-b'; const { ${ key }: { at } } = source;`,
+    (parser, program, label) => {
+      const [prop] = parser.pickPath(program, 'ObjectPattern', item => item.node.properties[0]?.key.name === 'at').get('properties');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const chain = resolveNestedReceiverChain(prop, { adapter });
+      checkDeep(`${ label } string key remains renderable`, chain?.keys, [key === '0' ? '0' : 'a-b']);
+    });
+}
+
+for (const [key, expected] of [
+  ['row', ['row']],
+  ['0', ['0']],
+  ["['a-b']", ['a-b']],
+  ["['Symbol.iterator']", ['Symbol.iterator']],
+  ['[Symbol.iterator]', undefined],
+  ['[unknown]', undefined],
+]) runBoth(`structural nested receiver/${ key }`, `const { ${ key }: { at } } = source;`, (parser, program, label) => {
+  const [prop] = parser.pickPath(program, 'ObjectPattern', item => item.node.properties[0]?.key.name === 'at').get('properties');
+  checkDeep(`${ label } needs no scope for a spelled key`, resolveNestedReceiverChain(prop)?.keys, expected);
+});
+
 finish();

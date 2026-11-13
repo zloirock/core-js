@@ -1,11 +1,8 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 // A const-bound computed key reads the array-valued parameter default.
-// Pure mirrors its typed helper into the default; supplied arguments retain their own properties.
+// Pure reads the actual receiver; supplied arguments retain their own methods.
 const KEY = 'at';
-export function read({
-  [KEY]: at
-} = {
-  [KEY]: _atMaybeArray([1, 2])
-}) {
+export function read(_ref = [1, 2]) {
+  let at = _at(_ref);
   return at;
 }

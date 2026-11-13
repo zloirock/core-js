@@ -1215,6 +1215,7 @@ export default function createAstDestructureEmitter({
       receiverName: mintRefName(),
       unusedName: plan.paddingRequired ? mintUnusedName() : null,
     });
+    for (const { path, node } of rendered.keys) path.replaceWith(node);
     plan.rootPath.replaceWith(rendered.head);
     if (rendered.padding) plan.fnPath.pushContainer('params', [rendered.padding]);
     const { body } = plan.fnPath.node;

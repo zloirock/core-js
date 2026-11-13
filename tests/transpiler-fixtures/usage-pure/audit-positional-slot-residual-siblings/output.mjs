@@ -48,14 +48,12 @@ const {
   extra: extra2,
   0: first
 } = _ref6;
-const [_ref7] = pair,
-  {
-    y: _ref8
-  } = _ref7,
-  it = _getIteratorMethod(_ref8),
-  {
-    extra: extra3
-  } = _ref8;
+const [_ref7] = pair;
+const _ref8 = _ref7.y;
+const it = _getIteratorMethod(_ref8);
+const {
+  extra: extra3
+} = _ref8;
 let viaAssign, keptAssign;
 [_ref9] = pair, {
   y: _ref10

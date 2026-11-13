@@ -4427,16 +4427,22 @@ function checkSynthKeyEdges() {
   const bailed = out('export const f = (function ({ at, [window.k]: alias } = [1, 2]) { return [at, alias]; })();');
   check('synth keys/unresolvable computed key bails the synth', bailed.includes('@core-js/pure'), false);
   check('synth keys/bailed pattern stays native', bailed.includes('{ at, [window.k]: alias } = [1, 2]'), true);
-  // A lazy getter may supply the value, but the mirror still owns a computed string key.
-  // It must never reinterpret `__proto__` as the object-literal prototype setter.
-  const nativeProto = out('export const g = (function ({ __proto__: p, at } = [1, 2]) { return [p, at]; })();');
-  const nativeProtoProperties = [];
-  walkAstNodes({ root: programOf(nativeProto), visit(node, parent) {
-    if (parent?.type === 'ObjectPattern' && node.type === 'Property'
-      && (node.key?.name ?? node.key?.value) === '__proto__') nativeProtoProperties.push(node);
-  } });
-  check('synth keys/__proto__ flat capture keeps its native pattern slot', nativeProtoProperties.length, 1);
-  const proto = out('export const g = (function ({ __proto__: p, at, missing = 0 } = [1, 2]) { return [p, at, missing]; })();');
+  // Body captures keep the native read, including a literal leaf default.
+  for (const [name, source] of [
+    ['flat', 'export const g = (function ({ __proto__: p, at } = [1, 2]) { return [p, at]; })();'],
+    ['default', 'export const g = (function ({ __proto__: p, at, missing = 0 } = [1, 2]) { return [p, at, missing]; })();'],
+  ]) {
+    const properties = [];
+    walkAstNodes({ root: programOf(out(source)), visit(node, parent) {
+      if (parent?.type === 'ObjectPattern' && node.type === 'Property'
+        && (node.key?.name ?? node.key?.value) === '__proto__') properties.push(node);
+    } });
+    checkDeep(`synth keys/__proto__ ${ name } capture keeps its native pattern slot`,
+      properties.map(({ key, computed }) => [key.type, key.name, computed]), [['Identifier', '__proto__', false]]);
+  }
+  // An effectful default keeps the mirror route. Its lazy getter still owns a computed
+  // string key; it must never become the object-literal prototype setter.
+  const proto = out('export const g = (function ({ __proto__: p, at, missing = fallback() } = [1, 2]) { return [p, at, missing]; })();');
   const protoProperties = [];
   walkAstNodes({
     root: programOf(proto),

@@ -69,6 +69,7 @@ import {
   isValidIdentifierName,
   mayHaveSideEffects,
   memberKeyName,
+  nodeSpan,
   noteRenderRetiredWrites,
   observableSequenceElements,
   paramsHaveInvisibleCallers,
@@ -1116,13 +1117,13 @@ export default function createDestructureEmitter({
       unusedName: plan.paddingRequired ? generateUnusedId().name : null,
       embed: hostSlot,
     });
+    for (const { path, node } of rendered.keys) path.replaceWith(estreeToBabel(node));
     const writes = releaseMovedBindings(plan.rootPath, Object.keys(t.getBindingIdentifiers(plan.pattern)));
     plan.rootPath.replaceWith(estreeToBabel(rendered.head));
     if (rendered.padding) plan.fnPath.pushContainer('params', [estreeToBabel(rendered.padding)]);
     // A default parameter has its own initializer scope; its binding belongs to the function.
     for (const param of plan.fnPath.get('params')) plan.fnPath.scope.registerBinding('param', param);
     const declaration = estreeToBabel(rendered.declaration);
-    catchBornDeclarations.add(declaration);
     const body = plan.fnPath.get('body');
     let inserted;
     if (body.isBlockStatement()) inserted = insertBodyExtractDecl(plan.fnPath, declaration);
@@ -5404,6 +5405,7 @@ export default function createDestructureEmitter({
   // Handle defaults, then remove the source property or retain its rest exclusion sentinel.
   // Flat statics first try the shared nested-plan renderer. A computed key that runs code takes
   // its own route ahead of this one, which keeps the key in place (`handleSideEffectComputedKey`).
+  // eslint-disable-next-line max-statements -- one extraction owns the binding, default, comments and residual placement
   function handleDestructuredProperty(prop, value, kind) {
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
@@ -5446,7 +5448,14 @@ export default function createDestructureEmitter({
     // const { from, ...rest } = Array -> const from = _from; const { from: _, ...rest } = Array
     const hasRest = objectPattern.node.properties.some(p => isRestProperty(p));
     // A surviving rest exclusion owns its key; a consumed key hands its trivia to the binding.
-    if (!hasRest) t.inheritsComments(localBinding, prop.node.key);
+    if (!hasRest) {
+      t.inheritsComments(localBinding, prop.node.key);
+      // The removed default wrapper owns trivia between the key and binding, before any target trivia.
+      if (defaultPattern?.leadingComments) {
+        t.inheritTrailingComments(localBinding, { trailingComments: defaultPattern.leadingComments });
+        localBinding.trailingComments.sort((a, b) => nodeSpan(a)?.start - nodeSpan(b)?.start);
+      }
+    }
     // rest: rename property value to preserve rest semantics; otherwise remove property
     const isEmpty = hasRest ? false : (removePatternSlot(prop), objectPattern.node.properties.length === 0);
     // the static's departure can leave a NESTED leaf as the pattern's sole prop (`{ of: { name, foo },

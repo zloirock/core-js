@@ -102,6 +102,12 @@ for (const [label, source] of [
   ['computed key', `function read({['at' /* key */]: /* value */ method = /* right */ 7} = [1]) {
     /* body */ return method;
   } export const r = typeof read();`],
+  ['bound key', `const K = 'at'; function read({[K /* key */]: /* value */ method = /* right */ 7} = [1]) {
+    const K = 'length'; /* body */ return method;
+  } export const r = typeof read();`],
+  ['binding comment', `function read({at /* key */: /* value */ method /* binding */ = /* right */ 7} = [1]) {
+    /* body */ return method;
+  } export const r = typeof read();`],
   ['sibling defaults', `function read({at /* first key */ = /* first right */ 7,
     flat /* next key */ = /* next right */ 9} = [1]) {
     /* body */ return [typeof at, typeof flat];

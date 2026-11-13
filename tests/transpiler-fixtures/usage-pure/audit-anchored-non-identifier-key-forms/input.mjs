@@ -1,7 +1,5 @@
-// a single-property pattern takes the ctor-key ANCHOR route only when its key names a known
-// built-in. a computed key folds to an arbitrary string, so a capitalised NON-identifier
-// ('Symbol.iterator', 'App-Key', `A.b`) has to stay a residual read - splicing it after a dot
-// aborts the build on one emitter and reads a different property on the other
+// Constructor anchors require a known built-in name. Other keys retain their identity:
+// real symbols remain symbolic, and instance extraction uses brackets for punctuated strings.
 const { [Symbol.iterator]: { name: iterName } } = globalThis;
 const { 'App-Key': { assign } } = globalThis;
 const { [`A.b`]: { flat } } = globalThis.window?.self;

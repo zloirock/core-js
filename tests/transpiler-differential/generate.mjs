@@ -25754,4 +25754,76 @@ function * generateNestedReceiverRoots() {
     ['nested', "const { w: { inner: { groupBy } } } = { get w() { effects.push('get'); return { inner: Map }; } };"],
   ]) yield { name: `retained-literal-slots/${ shape }`, strip: true, isolated: true,
     code: `export const effects = []; ${ body } export const r = groupBy([1, 2, 3], value => value % 2).get(1);` };
+  // Folded keys cross parameter scopes and positional/capture hosts without losing their claims.
+  for (const bound of [false, true]) for (const fallback of [false, true]) {
+    const key = bound ? 'K' : "'at'";
+    yield { name: `computed-pattern-keys/parameter/${ bound }/${ fallback }`, strip: true,
+      code: `export const effects = []; const K = 'at';
+        export function read({ [${ key }]: at${ fallback ? ' = null' : '' } }) {
+          const K = 'length'; return ${ fallback ? "at === null ? 'default' : " : '' }at.call([3, 7], -1);
+        } export const r = ${ fallback ? '[read([3, 7]), read({})]' : 'read([3, 7])' };` };
+  }
+  for (const bound of [false, true]) for (const sibling of [false, true]) {
+    yield { name: `computed-pattern-keys/positional/${ bound }/${ sibling }`, strip: true,
+      code: `export const effects = []; const K = 'at';
+        function* source() { try { effects.push('next'); yield [3, 7]; } finally { effects.push('close'); } }
+        const [{ [${ bound ? 'K' : "'at'" }]: at${ sibling ? ', length' : '' } }] = source();
+        export const r = ${ sibling ? '[at.call([3, 7], -1), length]' : 'at.call([3, 7], -1)' };` };
+  }
+  for (const host of ['parameter', 'capture']) {
+    const pattern = '[{ [K]: { at }, marker }]';
+    const setup = host === 'parameter' ? `export function read(${ pattern }) {`
+      : `export function read(source) { const ${ pattern } = source;`;
+    yield { name: `computed-pattern-keys/nested/${ host }`, strip: true,
+      code: `export const effects = []; const K = 'row'; ${ setup }
+        return [at.call([3, 7], -1), marker];
+      } export const r = read([{ row: [3, 7], marker: 9 }]);` };
+  }
+  for (const bound of [false, true]) {
+    yield { name: `computed-pattern-keys/captured-assignment/${ bound }`, strip: true,
+      code: `export const effects = []; const K = 'row'; const source = [{ row: [3, 7] }]; let at;
+        [{ [${ bound ? 'K' : "'row'" }]: { at } }] = source;
+        export const r = at.call([3, 7], -1);` };
+  }
+  for (const kind of ['const', 'let', 'var']) for (const wrapped of [false, true]) {
+    yield { name: `computed-pattern-keys/early/${ kind }/${ wrapped }`, strip: true,
+      code: `export const effects = []; export let r;
+        const source = { at: () => 7, undefined: () => 11 };
+        try { r = ${ wrapped ? 'invoke()' : 'read(source)' }; } catch (error) { r = error.name; }
+        ${ kind } K = 'at';
+        function read({ [K]: at }) { return at(); }
+        function invoke() { return read(source); }` };
+  }
+  yield { name: 'computed-pattern-keys/early-array', strip: true,
+    code: `export const effects = []; export let r;
+      try { r = read([3, 7]); } catch (error) { r = error.name; }
+      const K = 'at'; function read({ [K]: at }) { return at.call([3, 7], -1); }` };
+  for (const sibling of [false, true]) yield { name: `computed-pattern-keys/early-positional/${ sibling }`, strip: true,
+    code: `export const effects = []; export let r;
+      try { r = read(); } catch (error) { r = error.name; } const K = 'at';
+      function* source() { yield [3, 7]; }
+      function read() { const [{ [K]: at${ sibling ? ', length' : '' } }] = source(); return at.call([3, 7], -1); }` };
+  yield { name: 'computed-pattern-keys/early-capture', strip: true,
+    code: `export const effects = []; export let r;
+      try { r = read([{ row: [3, 7], marker: 1 }]); } catch (error) { r = error.name; } const K = 'row';
+      function read(source) { const [{ [K]: { at }, marker }] = source; return at.call([3, 7], -marker); }` };
+  yield { name: 'computed-pattern-keys/lowered-member-key', strip: true,
+    code: `export const effects = []; const receiver = { at: () => 7, undefined: () => 11 };
+      const early = read(receiver); var key = 'at'; function read(value) { return value[key](); }
+    export const r = [early, read(receiver)];` };
+  for (const effect of [false, true]) yield { name: `computed-pattern-keys/lowered-call-key/${ effect }`, strip: true,
+    code: `export const effects = []; const receiver = { at: () => 7, undefined: () => 11 };
+    const early = read(receiver); var key = 'at';
+    function read(value) { return value[(() => { ${ effect ? "effects.push('key');" : '' } return key; })()](); }
+    export const r = [early, read(receiver)];` };
+  for (const exported of ['export', 'export default']) yield { name: `computed-pattern-keys/deferred-key/${ exported }`, strip: true,
+    code: `export const effects = []; ${ exported } function read(value) { return value[key](-1); }
+    const key = 'at'; export const r = read([3, 7]);` };
+  for (const [shape, setup, expression] of [
+    ['call', 'const hop = "map";', '[[3, 7]].flat?.()[hop](value => value)?.at(-1)'],
+    ['read', 'const arr = [[[3, 7]]]; const hop = "flat";', 'arr.at?.(0)[hop].name'],
+    ['early', `let early; try { early = read(); } catch (error) { early = error.name; }
+      var hop = 'map'; function read() { return [[3, 7]].flat?.()[hop](value => value)?.at(-1); }`, '[early, read()]'],
+  ]) yield { name: `computed-pattern-keys/combined-key/${ shape }`, strip: true,
+    code: `export const effects = []; ${ setup } export const r = ${ expression };` };
 }

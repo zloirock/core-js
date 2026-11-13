@@ -5084,7 +5084,7 @@ function resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStati
 // (`let K; K = 'of'`). `{ refused }` where usage-pure must not follow a conditionally-initialized alias
 // (`if (c) var K = 'fromEntries'` - substituting the literal masks the native TypeError on the skipped
 // path; usage-global over-injects and keeps following). null where nothing is followed
-function followKeyIdentifier({ node, seen, scope, adapter, path, usageNode }) {
+function followKeyIdentifier({ node, seen, scope, adapter, path, usageNode, requireInitialized = false }) {
   const entry = enterIdentifierBindingFollow({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
   if (entry) {
     // the registered alias runs BEFORE the init: following a destructure init resolves the WHOLE
@@ -5092,8 +5092,14 @@ function followKeyIdentifier({ node, seen, scope, adapter, path, usageNode }) {
     const symbolKey = bindingSymbolKey(entry.binding, adapter.packages, { name: node.name, scope, adapter, path, usageNode });
     if (symbolKey) return { symbolKey };
     if (!entry.node) return null;
+    // Initialization needs the key's own read position, even inside a rebuilt member.
+    // Reaching writes below keep the live path's phase, including early class keys.
     if (adapter.method === 'usage-pure' && !initializerReachesRead({
-      adapter, binding: entry.binding, declaratorNode: entry.binding.node, usagePath: path, usageNode,
+      adapter, requireInitialized,
+      binding: entry.binding,
+      declaratorNode: bindingDeclaratorNode(entry.binding),
+      usagePath: path,
+      usageNode: requireInitialized ? usageNode ?? node : usageNode,
     })) return { refused: true };
     // usage-global: an unconditional reassignment can kill the init before the use - including one
     // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
@@ -5139,9 +5145,17 @@ function iteratorOrFallbackKey({ binding, name, scope, adapter, path, usageNode,
 // concat of folds, an alias through its binding (`followKeyIdentifier`), the operand a selection the build
 // decides always yields, a `Symbol.X` spelling as `'Symbol.X'` (its provenance is `isSymbolSourcedKey`'s),
 // an enum member through the type layer. `usageNode` anchors the read an alias hop observes; a key whose
-// evaluation runs code bails under `bailOnSideEffectKey`
-export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false,
-  usageNode = null, resolveStaticKey = null, keepsKeyNode = false }) {
+// evaluation runs code bails under `bailOnSideEffectKey`. A moved key requests `requireInitialized`
+// as well: deferred reads then need their initializer before the actual invocation, not just a hint.
+export function resolveKey({
+  node, computed, scope, adapter, seen, path,
+  depth = 0,
+  bailOnSideEffectKey = false,
+  usageNode = null,
+  resolveStaticKey = null,
+  keepsKeyNode = false,
+  requireInitialized = false,
+}) {
   while (true) {
     // an over-deep chain and an ABSENT key answer alike: a mutator called with fewer arguments than it
     // takes (`Object.defineProperty(target)`) leaves the key slot empty - legal source that throws at
@@ -5181,8 +5195,11 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           // trip the cycle guard after the first interpolation mutates a shared Set.
           // mirrors the fork pattern in the BinaryExpression `+` branch below
           const part = resolveKey({
-            node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen),
-            path, depth: depth + 1, resolveStaticKey, usageNode, bailOnSideEffectKey,
+            scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized,
+            node: node.expressions[i],
+            computed: true,
+            seen: new Set(seen),
+            depth: depth + 1,
           });
           if (part === null) return null;
           out += part;
@@ -5191,7 +5208,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       return out;
     }
     if (node.type === 'Identifier' && computed) {
-      const hop = followKeyIdentifier({ node, seen, scope, adapter, path, usageNode });
+      const hop = followKeyIdentifier({ node, seen, scope, adapter, path, usageNode, requireInitialized });
       if (hop?.symbolKey) return hop.symbolKey;
       if (hop?.refused) return null;
       if (hop) {
@@ -5206,12 +5223,18 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
       // cycle guard on the right branch after the left added `a` to the shared Set
       const left = resolveKey({
-        node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
-        resolveStaticKey, usageNode, bailOnSideEffectKey,
+        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized,
+        node: node.left,
+        computed: true,
+        seen: new Set(seen),
+        depth: depth + 1,
       });
       const right = resolveKey({
-        node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
-        resolveStaticKey, usageNode, bailOnSideEffectKey,
+        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized,
+        node: node.right,
+        computed: true,
+        seen: new Set(seen),
+        depth: depth + 1,
       });
       if (left !== null && right !== null) return left + right;
     }
@@ -5227,13 +5250,26 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
       && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
       const name = resolveKey({
-        node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen),
-        path, depth: depth + 1, resolveStaticKey, usageNode, bailOnSideEffectKey,
+        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized,
+        node: node.property,
+        computed: node.computed,
+        seen: new Set(seen),
+        depth: depth + 1,
       });
       if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
     }
     return resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey);
   }
+}
+
+// A resolved string property name, excluding the labels used internally for real symbols.
+// Callers that move or erase the source key must also request bailOnSideEffectKey.
+export function resolveStringKey(options) {
+  // Structural callers have no bindings to follow; retain the key-shape canon and effect gate.
+  if (!options.adapter) return options.bailOnSideEffectKey && mayHaveSideEffects(options.node) ? null
+    : foldedPropertyKeyName({ key: options.node, computed: options.computed });
+  const key = resolveKey({ ...options, requireInitialized: options.bailOnSideEffectKey });
+  return options.computed && symbolSourcedFoldedKey({ ...options, key, keyNode: options.node }) ? null : key;
 }
 
 // which WELL-KNOWN SYMBOL a COMPUTED key names - spelled `[Symbol.iterator]`, aliased (`[s]`), or

@@ -1,5 +1,4 @@
-// a BOUND computed hop key folds through the consuming canon on the mirroring hosts too, and an IIFE
-// argument's sequence TAIL is what the instance synth types (the prefix stays where the call wrote it)
+// A bound computed hop key keeps its source meaning when the IIFE parameter moves to the body.
 const hopKey = 'w';
 const viaBoundKeyIife = (({ [hopKey]: { at: m } }) => m)({ w: [1, 2] });
 export default [viaBoundKeyIife];

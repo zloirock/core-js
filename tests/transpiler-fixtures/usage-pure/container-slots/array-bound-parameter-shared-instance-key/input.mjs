@@ -1,4 +1,4 @@
 // A const-bound computed key reads the array-valued parameter default.
-// Pure mirrors its typed helper into the default; supplied arguments retain their own properties.
+// Pure reads the actual receiver; supplied arguments retain their own methods.
 const KEY = 'at';
 export function read({ [KEY]: at } = [1, 2]) { return at; }
