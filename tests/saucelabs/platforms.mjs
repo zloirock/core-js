@@ -1,7 +1,4 @@
-// Cover older engines and mobile Safari/Chrome absent from CI, including versions on both sides of
-// native-feature and browser-test failures. Recent desktop Chromium and Firefox already run in CI.
-// ChromeDriver before 75 defaults to JSON Wire, and the Firefox driver before geckodriver knows nothing
-// else; Sauce Labs starts no W3C session for the early geckodriver Firefox either
+// Chrome before 75 and Firefox before 55 get no W3C session on Sauce Labs
 export function desktop(browserName, version, platform) {
   const legacy = browserName === 'internet explorer' || browserName === 'chrome' && +version < 75 ||
     browserName === 'firefox' && +version < 55;
@@ -28,7 +25,7 @@ export function ios(platformVersion, deviceName = 'iPhone Simulator') {
   };
 }
 
-// a full emulator name, unlike the catalog's short `device`, or Sauce Labs looks for a real device
+// a short device name makes Sauce Labs look for a real device
 export function android(deviceName, platformVersion) {
   return {
     name: `android ${ platformVersion }`,

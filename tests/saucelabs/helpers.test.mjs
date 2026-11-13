@@ -6,10 +6,9 @@ import { test } from 'node:test';
 
 const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions');
 
-// Exercise the runner against a fake WebDriver hub without starting Sauce Labs sessions.
 async function runFake({
   failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
-  pageUrl, commits,
+  pageUrl, commits, pages = ['unit-browser/global.html'],
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -27,11 +26,13 @@ async function runFake({
   let annotationRequests = 0;
   let markerRequests = 0;
   let listedWhileOpen;
+  const navigations = [];
+  let sessionStart;
   const started = [];
   let releaseSlow;
-  let releaseFast;
+  let nextStarted;
   const slow = new Promise(resolve => { releaseSlow = resolve; });
-  const fast = new Promise(resolve => { releaseFast = resolve; });
+  const next = new Promise(resolve => { nextStarted = resolve; });
   let fastFinished = false;
   try {
     process.env.SAUCE_USERNAME = 'test';
@@ -51,19 +52,19 @@ async function runFake({
       let payload;
       if (path === '/wd/hub/session') {
         sessions++;
+        sessionStart = navigations.length;
         const capabilities = JSON.parse(options.body).desiredCapabilities;
         assert.doesNotMatch(capabilities.build, /@a{40}/);
-        assert.equal(capabilities.maxDuration, 1680);
+        assert.equal(capabilities.maxDuration, pages.length * 1080 + 600);
         const { name } = capabilities;
         if (dynamicQueue) started.push(name);
+        if (name === 'next') nextStarted(true);
         payload = sessionNull ? null : { sessionId: dynamicQueue ? name : 'test-session' };
       } else if (options.method === 'DELETE') {
-        if (dynamicQueue && path.includes('/fast')) {
-          fastFinished = true;
-          releaseFast();
-        }
+        if (dynamicQueue && path.includes('/fast')) fastFinished = true;
         payload = {};
       } else if (path.endsWith('/url')) {
+        navigations.push(JSON.parse(options.body).url);
         listedWhileOpen = await readFile(sessionsFile, 'utf8');
         payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
       } else {
@@ -73,13 +74,14 @@ async function runFake({
           payload = { status: 13, value: { message: 'annotation unavailable' } };
         } else if (script.startsWith('var results = ')) {
           if (dynamicQueue && path.includes('/slow')) await slow;
-          // every hung session ends past the page timeout counted from the previous one
           if (sessions <= hangs) {
             const now = start + sessions * 16 * 6e4;
             Date.now = () => now;
           }
           payload = { value: JSON.stringify({
-            url: pageUrl || `http://example.test/branch/unit-browser/${ wrongPage ? 'other' : 'global' }.html`,
+            // a busy browser stays on its first page
+            url: pageUrl || (wrongPage ? 'http://example.test/branch/unit-browser/other.html'
+              : navigations[sessions <= hangs ? sessionStart : navigations.length - 1]),
             commits,
             results: sessions <= hangs
               ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
@@ -91,7 +93,7 @@ async function runFake({
     };
     const { run } = await import('./helpers.mjs');
     const suite = {
-      name: 'unit', pages: ['unit-browser/global.html'], platforms: [{
+      name: 'unit', pages, platforms: [{
         name: 'test browser', w3c: false, capabilities: { browserName: 'firefox', version: '7' },
       }],
       concurrency: 1, reporter: 'qunitResults',
@@ -103,18 +105,15 @@ async function runFake({
       }));
       suite.concurrency = 2;
       const running = run(suite);
-      await fast;
-      // After fast finishes, its worker must pick up the next waiting platform.
-      // The slow session stays open until that platform starts.
-      await new Promise(resolve => setTimeout(resolve, 0));
-      const nextStartedWhileSlow = started.includes('next');
+      // the runner writes the session list in between, so wait for the request, not a tick
+      const nextStartedWhileSlow = await Promise.race([next, new Promise(resolve => setTimeout(resolve, 5e3, false))]);
       releaseSlow();
       await running;
       return { started, nextStartedWhileSlow, fastFinished };
     }
     if (failed || hangs === 3 || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
     else await run(suite);
-    return { output: output.join('\n'), sessions, annotationRequests, markerRequests, listedWhileOpen, listedAfter: await readFile(sessionsFile, 'utf8') };
+    return { output: output.join('\n'), navigations, sessions, annotationRequests, markerRequests, listedWhileOpen, listedAfter: await readFile(sessionsFile, 'utf8') };
   } finally {
     Date.now = previous.now;
     for (const [name, value] of Object.entries({
@@ -211,4 +210,14 @@ test('warns when the browser executed bundles of another commit', async () => {
   assert.match(output, /all the browsers passed/);
   const { output: matching } = await runFake({ marker: commit, commits: [commit, commit] });
   assert.doesNotMatch(matching, /bundles of/);
+});
+
+test('restarts a hung platform without navigating the busy browser to the next page', async () => {
+  const pages = ['unit-browser/global.html', 'unit-browser/pure.html'];
+  const { output, sessions, navigations } = await runFake({ hangs: 1, pages });
+  assert.equal(sessions, 2);
+  assert.deepEqual(navigations.map(url => url.replace('http://example.test/branch/', '')), [pages[0], ...pages]);
+  assert.match(output, /global\.html: not finished in 3 minutes.*retrying \(2 of 3\)/);
+  assert.doesNotMatch(output, /unexpected page/);
+  assert.match(output, /all the browsers passed/);
 });

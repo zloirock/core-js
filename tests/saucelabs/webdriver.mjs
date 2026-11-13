@@ -1,5 +1,3 @@
-// the two dialects Sauce Labs speaks: the W3C protocol, and the JSON Wire protocol that the oldest
-// browsers of the matrix still need and the maintained clients have dropped
 export class WebDriverError extends Error {
   constructor(message, options) {
     super(message, options);
@@ -7,7 +5,7 @@ export class WebDriverError extends Error {
   }
 }
 
-// a session request waits in the Sauce Labs queue while the concurrency is used up
+// includes the wait in the Sauce Labs queue
 const SESSION_TIMEOUT = 15 * 6e4;
 export const COMMAND_TIMEOUT = 5 * 6e4;
 
@@ -20,7 +18,7 @@ async function request(hub, authorization, method, path, body, timeout = COMMAND
       body: body && JSON.stringify(body),
       signal: AbortSignal.timeout(timeout),
     });
-    // the JSON Wire side of Sauce Labs answers a navigation with an empty body
+    // JSON Wire answers a navigation with an empty body
     const text = await response.text();
     payload = text ? JSON.parse(text) : {};
   } catch (error) {
@@ -41,13 +39,13 @@ export async function createSession({ hub, username, accessKey, w3c, capabilitie
   const body = w3c ? { capabilities: { alwaysMatch: capabilities } } : { desiredCapabilities: capabilities };
   const payload = await request(hub, authorization, 'POST', '/session', body, SESSION_TIMEOUT);
   const id = w3c ? payload.value?.sessionId : payload.sessionId;
-  // A reply in the other dialect may have created a session, but its id is in a different field.
+  // a reply in the other dialect may still have created a session
   if (!id) {
     const orphan = w3c ? payload.sessionId : payload.value?.sessionId;
     if (typeof orphan === 'string' && orphan) {
       try {
         await request(hub, authorization, 'DELETE', `/session/${ encodeURIComponent(orphan) }`);
-      } catch { /* Preserve the original protocol error. */ }
+      } catch { /* keep the original error */ }
     }
     throw new WebDriverError(`POST /session: no session id in ${ JSON.stringify(payload).slice(0, 200) }`);
   }
