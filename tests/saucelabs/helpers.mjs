@@ -11,7 +11,8 @@ const ATTEMPTS = 3;
 const POLL_INTERVAL = 5e3;
 // the reporter is loaded by the page itself, so a page that has none by then is not the one expected
 const REPORTER_TIMEOUT = 6e4;
-const RUN_TIMEOUT = 15 * 6e4;
+// a whole session of the slowest emulator took under two minutes for both pages
+const RUN_TIMEOUT = 3 * 6e4;
 const MARKER_TIMEOUT = 15e3;
 
 if (!username || !accessKey) throw new Error('SAUCE_USERNAME and SAUCE_ACCESS_KEY are required');
@@ -66,7 +67,7 @@ async function runPage({ reporter, evaluate }, session, page) {
       if (elapsed > RUN_TIMEOUT) {
         const current = results.currentTest;
         const testName = current && `${ current.module ? `${ current.module } > ` : '' }${ current.test }`;
-        return { page, ...evaluate(results), passed: false,
+        return { page, ...evaluate(results), passed: false, unfinished: true,
           error: `not finished in ${ RUN_TIMEOUT / 6e4 } minutes${ testName ? `; current test: ${ testName }` : '' }` };
       }
     } else if (elapsed > REPORTER_TIMEOUT) return { page, passed: false, details: [], error: 'no results reporter on the page' };
@@ -120,12 +121,18 @@ async function runSession(suite, platform) {
 
 async function runPlatform(suite, platform) {
   for (let attempt = 1; ; attempt++) {
+    let message;
     try {
-      return await runSession(suite, platform);
+      const result = await runSession(suite, platform);
+      // a hung emulator looks the same as a test that never ends, so the last attempt reports it
+      const unfinished = result.pages.find(page => page.unfinished);
+      if (!unfinished || attempt === ATTEMPTS) return result;
+      message = `${ unfinished.page }: ${ unfinished.error }`;
     } catch (error) {
       if (!(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
-      echo(yellow(`${ platform.name }: ${ error.message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
+      ({ message } = error);
     }
+    echo(yellow(`${ platform.name }: ${ message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
   }
 }
 

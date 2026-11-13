@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 // Exercise the runner against a fake WebDriver hub without starting Sauce Labs sessions.
-async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false, pageUrl } = {}) {
+async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false, pageUrl } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
     accessKey: process.env.SAUCE_ACCESS_KEY,
@@ -42,7 +42,7 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
         sessions++;
         const capabilities = JSON.parse(options.body).desiredCapabilities;
         assert.doesNotMatch(capabilities.build, /@a{40}/);
-        assert.equal(capabilities.maxDuration, 2400);
+        assert.equal(capabilities.maxDuration, 1680);
         const { name } = capabilities;
         if (dynamicQueue) started.push(name);
         payload = sessionNull ? null : { sessionId: dynamicQueue ? name : 'test-session' };
@@ -61,10 +61,14 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
           payload = { status: 13, value: { message: 'annotation unavailable' } };
         } else if (script.startsWith('var results = ')) {
           if (dynamicQueue && path.includes('/slow')) await slow;
-          if (timeout) Date.now = () => start + 16 * 6e4;
+          // every hung session ends past the page timeout counted from the previous one
+          if (sessions <= hangs) {
+            const now = start + sessions * 16 * 6e4;
+            Date.now = () => now;
+          }
           payload = { value: JSON.stringify({
             url: pageUrl || `http://example.test/branch/unit-browser/${ wrongPage ? 'other' : 'global' }.html`,
-            results: timeout
+            results: sessions <= hangs
               ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
               : { done: true, failed, total: 1, failures: [] },
           }) };
@@ -95,7 +99,7 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
       await running;
       return { started, nextStartedWhileSlow, fastFinished };
     }
-    if (failed || timeout || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
+    if (failed || hangs === 3 || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
     else await run(suite);
     return { output: output.join('\n'), sessions, annotationRequests, markerRequests };
   } finally {
@@ -164,8 +168,16 @@ test('marks a session failed when navigation fails', async () => {
   assert.equal(annotationRequests, 3);
 });
 
-test('reports the active QUnit test when a page times out', async () => {
-  const { output, sessions } = await runFake({ timeout: true, marker: 'a'.repeat(40) });
-  assert.equal(sessions, 1);
-  assert.match(output, /unit-browser\/global\.html: not finished in 15 minutes; current test: Promises > pending callback/);
+test('restarts a platform whose page does not finish and passes if it recovers', async () => {
+  const { output, sessions } = await runFake({ hangs: 1 });
+  assert.equal(sessions, 2);
+  assert.match(output, /test browser: unit-browser\/global\.html: not finished in 3 minutes.*retrying \(2 of 3\)/);
+  assert.match(output, /all the browsers passed/);
+});
+
+test('reports the active QUnit test when every attempt times out', async () => {
+  const { output, sessions } = await runFake({ hangs: 3, marker: 'a'.repeat(40) });
+  assert.equal(sessions, 3);
+  assert.match(output, /retrying \(3 of 3\)/);
+  assert.match(output, /\n {2}unit-browser\/global\.html: not finished in 3 minutes; current test: Promises > pending callback/);
 });
