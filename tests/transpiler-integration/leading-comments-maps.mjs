@@ -1,9 +1,10 @@
 // A later compiler consumes file pragmas and composes the plugin's module maps.
 import { strict as assert } from 'node:assert';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
@@ -15,13 +16,14 @@ const methods = ['entry-global', 'usage-global', 'usage-pure'];
 function options(method) { return { method, version: '4.0', mode: 'full', targets: { ie: 11 } }; }
 function linesOf(source) { return source.split(/\r\n|[\n\r\u2028\u2029]/); }
 
-function markerPosition(code, map) {
+function markerPosition(code, map, mapUrl) {
   const prefix = linesOf(code.slice(0, code.indexOf('mapMarker')));
-  return originalPositionFor(new TraceMap(map), { line: prefix.length, column: prefix.at(-1).length });
+  return originalPositionFor(new TraceMap(map, mapUrl), { line: prefix.length, column: prefix.at(-1).length });
 }
 
 export async function leadingCommentsAndMaps(run) {
-  const dir = await mkdtemp(join(tmpdir(), 'core-js-leading-maps-'));
+  // A canonical directory keeps esbuild's relative sources comparable on symlinked temp roots too.
+  const dir = await mkdtemp(join(await realpath(tmpdir()), 'core-js-leading-maps-'));
   try {
     const esbuild = await import('esbuild');
     const vite = await import('vite');
@@ -44,11 +46,13 @@ export async function leadingCommentsAndMaps(run) {
           outfile: join(dir, 'output.js'), sourcemap: 'external', alias: aliases,
           plugins: [unplugin.esbuild(options(method))], logLevel: 'silent' });
         const output = built.outputFiles.find(item => item.path.endsWith('.js')).text;
-        const map = JSON.parse(built.outputFiles.find(item => item.path.endsWith('.map')).text);
+        const mapFile = built.outputFiles.find(item => item.path.endsWith('.map'));
+        const map = JSON.parse(mapFile.text);
         assert.equal(runInNewContext(`Array.prototype.at = undefined;\n${ output }\nresult;`), 7);
-        const position = markerPosition(output, map);
+        const position = markerPosition(output, map, pathToFileURL(mapFile.path).href);
         assert.deepEqual([position.line, position.column], [3, 6]);
-        assert.ok(position.source.endsWith('/src/original.ts'), position.source);
+        // External maps resolve sources from maps/, while inline maps resolve them from input.js.
+        assert.equal(position.source, pathToFileURL(resolve(dir, inline ? '../src/original.ts' : 'src/original.ts')).href);
         assert.ok(map.sourcesContent.includes(original));
       });
       const phases = method === 'entry-global' ? [null] : ['pre', 'post', 'pre+post'];
