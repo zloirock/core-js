@@ -79,7 +79,11 @@ let sessionsWritten;
 // serialized, so an older list never lands last
 async function writeSessions(previous) {
   await previous;
-  await writeFile(sessionsFile, [...openSessions].map(sessionId => `${ sessionId }\n`).join(''));
+  try {
+    await writeFile(sessionsFile, [...openSessions].map(sessionId => `${ sessionId }\n`).join(''));
+  } catch (error) {
+    echo(yellow(`could not list the open sessions: ${ error.message }`));
+  }
 }
 
 function trackSession(id, open) {
@@ -160,10 +164,10 @@ function report({ platform, id, pages, error }) {
     return false;
   }
   const lines = [cyan(`${ platform.name }: ${ dashboard }/tests/${ id }`)];
-  for (const { page, passed, summary, details, commits = [], error: pageError = summary } of pages) {
+  for (const { page, passed, summary, details, commits, error: pageError = summary } of pages) {
     // appended to each bundle by the Pages build
     const executed = [...new Set(commits)];
-    if (COMMIT && (executed.length !== 1 || executed[0] !== COMMIT)) {
+    if (COMMIT && commits && (executed.length !== 1 || executed[0] !== COMMIT)) {
       lines.push(yellow(`  ${ page }: bundles of ${ executed.join(', ') || 'no commit marker' } instead of ${ COMMIT }`));
     }
     if (passed) {
