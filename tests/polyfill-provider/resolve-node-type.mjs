@@ -8827,6 +8827,8 @@ runBoth('a recovered write of another value costs the binding its constancy',
   // user-bound member -> false
   check('class-walk: isExpandedClassifiableReceiver user member',
     isExpandedClassifiableReceiver({ node: userBound }), false);
+  check('class-walk: isExpandedClassifiableReceiver call without a resolver context',
+    isExpandedClassifiableReceiver({ node: { type: 'CallExpression', callee: { type: 'Identifier', name: 'source' }, arguments: [] } }), false);
 
   // symbolKeyToEntry: Symbol.X -> symbol/<kebab>
   check('globals: symbolKeyToEntry hasInstance',

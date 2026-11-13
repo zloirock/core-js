@@ -1083,11 +1083,12 @@ export function isUsableFallbackReceiverArg(node, scope, adapter, path = null) {
 }
 
 // Without a parameter default, a known argument is the receiver to synthesize.
-// Calls use the same value proof as member reads; an opaque call remains native.
+// Stored member bases and calls use the value proof too; an opaque source remains native.
 export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
   if (node?.type === 'Identifier') return true;
   return globalProxyMemberName({ node, scope, adapter, path }) !== null
-    || !!invocationNode(node) && !!resolveObjectName({ objectNode: node, scope, adapter, path });
+    || !!adapter && (isMemberAccessNode(node) || !!invocationNode(node))
+      && !!resolveObjectName({ objectNode: node, scope, adapter, path });
 }
 
 // mark a synth-swap receiver and all inner sub-nodes as owned by skippedNodes so the
