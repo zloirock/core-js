@@ -7,7 +7,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   receiverContainsOptional,
   staticMemberKeyName,
-  TS_EXPR_WRAPPERS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import {
@@ -146,7 +146,7 @@ export function planSplitMemberLanding(node, { proxySurface, provenKey }, ctx) {
 export function nestedOptionalClaim(node, ctx, { deleteHosted = false } = {}) {
   const sealed = chainReadsThroughSeal(node, meta => ctx.resolveGlobal(meta.name), ctx);
   for (let member = node.object; member;) {
-    while (member && TS_EXPR_WRAPPERS.has(member.type)) member = member.expression;
+    while (member && TRANSPARENT_EXPR_WRAPPER_TYPES.has(member.type)) member = member.expression;
     if (!isMemberAccessNode(member)) break;
     const key = staticMemberKeyName(member);
     if (POSSIBLE_GLOBAL_OBJECTS.has(key)) break;

@@ -26005,4 +26005,137 @@ function * generateNestedReceiverRoots() {
       export const effects = []; export const r = withWindowPresence(${ present }, () => {
         try { ${ body } } catch (error) { return error.name; }
       });` };
+  // Source probes survive delete, branch selection, sealed reads and mutation hosts.
+  for (const [name, body] of [
+    [
+      'sequence-delete',
+      'return delete (effects.push("prefix"), globalThis.window)?.window.slotD;',
+    ],
+    [
+      'declined-sequence',
+      'return delete (effects.push("prefix"), globalThis?.window)?.slotD;',
+    ],
+    [
+      'quiet-sequence',
+      'return delete (0, globalThis.window)?.slotD;',
+    ],
+    [
+      'nested-sequence',
+      'return delete (effects.push("a"), (effects.push("b"), globalThis.window))?.["slotD"];',
+    ],
+    [
+      'outer-guard',
+      'return delete globalThis.self.window?.window.slotD;',
+    ],
+    [
+      'outer-guard-sequence',
+      'return delete (effects.push("prefix"), globalThis.self.window)?.window.slotD;',
+    ],
+    [
+      'outer-guard-update',
+      'return (globalThis.self.window?.window).slotD++;',
+    ],
+    [
+      'outer-guard-write',
+      'return (globalThis.self.window?.window).slotD = (effects.push("rhs"), 31);',
+    ],
+    [
+      'outer-guard-pattern',
+      'let source = [31]; [ (globalThis.self.window?.window).slotD ] = source; return true;',
+    ],
+    [
+      'outer-guard-loop',
+      'for ((globalThis.self.window?.window).slotD of [31]) effects.push("body"); return true;',
+    ],
+    [
+      'branch-consequent',
+      'const x = { window: { slotD: 23 } }; const d = delete (choice ? globalThis : x).window.slotD; return [d, x.window.slotD];',
+    ],
+    [
+      'branch-alternate',
+      'const x = { window: { slotD: 23 } }; const d = delete (choice ? x : globalThis).window.slotD; return [d, x.window.slotD];',
+    ],
+    [
+      'null-test',
+      'return delete (globalThis == null).window.slotD;',
+    ],
+    [
+      'nonnull-test',
+      'return delete (globalThis != null).window.slotD;',
+    ],
+    [
+      'logical-control',
+      'return delete (choice && globalThis).window.slotD;',
+    ],
+    [
+      'stored-guard',
+      'let held; const d = delete (held = globalThis.window)?.slotD; return [d, typeof held];',
+    ],
+    [
+      'sealed-read',
+      'return typeof (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];',
+    ],
+    [
+      'sealed-delete',
+      'return delete (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];',
+    ],
+    [
+      'double-sealed',
+      'return typeof ((globalThis.window?.Promise))[(effects.push("key"), "noSuchStatic")];',
+    ],
+    [
+      'dynamic-key',
+      'const key = () => "resolve"; return typeof (globalThis.window?.Promise)[key()];',
+    ],
+    [
+      'effectful-key',
+      'const key = () => (effects.push("key"), "resolve"); return typeof (globalThis.window?.Promise)[key()];',
+    ],
+    [
+      'throwing-key',
+      'const key = () => { effects.push("key"); throw new RangeError(); }; return typeof (globalThis.window?.Promise)[key()];',
+    ],
+    [
+      'instance',
+      'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at(-1);',
+    ],
+    [
+      'optional-instance-call',
+      'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at?.(-1);',
+    ],
+    [
+      'terminal',
+      'return typeof (effects.push("prefix"), globalThis.window)?.self;',
+    ],
+    [
+      'claimed-delete',
+      'return delete globalThis.self?.window?.window?.Reflect.slot;',
+    ],
+    [
+      'claimless-delete',
+      'return delete globalThis.self?.window?.window?.self.slotD;',
+    ],
+    [
+      'vestigial-delete',
+      'const g = globalThis; return delete g.window?.Reflect?.slot;',
+    ],
+    [
+      'vestigial-read',
+      'const g = globalThis; return g.window?.Reflect?.slot;',
+    ],
+  ]) {
+    for (const present of [false, true]) yield {
+      name: `realm-collapse-delete/${ name }/${ present }`, strip: true, isolated: true,
+      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+        export const effects = []; const root = globalThis;
+        function read(choice) { ${ body } }
+        export const r = withWindowPresence(${ present }, () =>
+          withTemporaryProperty(root, 'slotD', 17, () => withTemporaryProperty(root, 'items', [1, 3], () => {
+            let value; try { value = read(false); } catch (error) { value = error.name; }
+            return [value, root.slotD];
+          })));
+      `,
+    };
+  }
 }

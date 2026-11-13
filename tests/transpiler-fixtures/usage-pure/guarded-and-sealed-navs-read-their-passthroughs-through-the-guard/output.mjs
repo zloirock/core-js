@@ -53,7 +53,7 @@ export function h({
   return [trunc, other];
 }
 const fromAsync = _Array$fromAsync;
-const groupBy = ((null == _globalThis.window ? void 0 : _self)["Map"], _Map$groupBy);
+const groupBy = ((null == _globalThis.window ? void 0 : _self)['Map'], _Map$groupBy);
 const n = ((null == _globalThis.window ? void 0 : _self)[_Symbol$iterator], _nameMaybeFunction(_getIteratorMethod(_self)));
 let stored;
 const {

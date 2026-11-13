@@ -1,7 +1,6 @@
 import { resolvedStaticClaimRoutes } from '@core-js/polyfill-provider/detect-usage/proxy-navigation';
 import { planSymbolReceiverRoot, planStaticFallbackReceiver } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import {
-  collectFoldedReceiverSideEffects,
   memberProxyHopName,
   deleteHostAboveChain,
   claimIsInert,
@@ -1607,11 +1606,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
                 // spelling of that key collapses, and a stripped realm has no such slot to read
                 resolveStaticKey: (node, scope, keyPath) => resolveClaimableComputedKeyName(node, scope, keyPath),
               })
-                // A read outside the root sequence belongs to the dispatch's probe.
-                // A read already inside that sequence must settle before capture.
+                // Ordinary sequences belong to the dispatch's receiver preparation.
+                // Only a read through a seal inside the sequence must settle before capture.
                 && recvRoot.isSequenceExpression()
-                && (!chainReadsThroughSeal(path.node.object, m => resolvePure(m, path), { scope: path.scope, adapter, path })
-                  || chainReadsThroughSeal(recvRoot.node, m => resolvePure(m, path), { scope: path.scope, adapter, path }))) {
+                && chainReadsThroughSeal(recvRoot.node, m => resolvePure(m, path), { scope: path.scope, adapter, path })) {
                 collapseShortCircuitNavInPlace(memberChainEndPath({ path, unwrap: unwrapRuntimeExpr }));
               }
             }
@@ -1671,7 +1669,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
                 if (emitGuardedClaim({
                   path, replacePath, id: guardedId, guardObject: product.object,
                   sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-                  proxyRootClaim: product.proxyRoot,
+                  proxyRootClaim: product.proxyRoot, probe: product.probe,
                   substituteGlobal(name) {
                     const resolved = resolvePure({ kind: 'global', name }, path);
                     return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
@@ -1697,9 +1695,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               if (product.foldAbove) {
                 const fold = unbackedRealmHopFoldAbove(replacePath, replacePath.node,
                   { adapter, resolvePure: m => resolvePure(m, path) }, { deleted: product.deletedRun });
-                const dropped = fold && product.deletedRun && !fold.carriesOwnEffects
-                  ? collectFoldedReceiverSideEffects(fold.path.node, { ctx: { scope: fold.path.scope, adapter, path: fold.path } }) : [];
-                if (fold) fold.path.replaceWith(dropped.length ? t.sequenceExpression([...dropped, fold.node]) : fold.node);
+                if (fold) fold.path.replaceWith(fold.effects.length
+                  ? t.sequenceExpression([...fold.effects.map(effect => t.cloneNode(effect)), t.cloneNode(fold.node)])
+                  : t.cloneNode(fold.node));
               }
               normalizeOptionalChain(replacePath, !wasOptional);
               if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);

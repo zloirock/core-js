@@ -188,9 +188,11 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
   }
   const boundary = sealedChainBoundary(node);
   const probe = directClaimProbePlan(node.object, resolveGlobal, ctx)
-    ?? (boundary?.member === node ? directClaimProbePlan(node, resolveGlobal, ctx) : null);
+    ?? (boundary?.member === node && (!node.computed || !mayHaveSideEffects(node.property))
+      ? directClaimProbePlan(node, resolveGlobal, ctx) : null);
   // An unnameable computed read cannot be replaced by a named throw probe. Keep
   // the source member: its key still runs before a null receiver throws, once.
+  // A fallback replaces only the receiver, so an effectful key is not its probe to replay.
   if (!probe && boundary?.member === node && chainReadsThroughSeal(node, resolveGlobal, ctx)) {
     return { kind: 'retain', release: boundary.inner };
   }
@@ -446,6 +448,7 @@ function callIsOptionalProbe(node, claimCtor, readNode, ctx) {
 // sequence prefix. It tests the CALL yield even if the enclosing realm hop is backed:
 // a claim's guard can erase there without proving that the captured call is defined.
 // A memo request declines non-realm/computed hops before asking the value resolver.
+// eslint-disable-next-line max-statements -- Source selection and effect ownership form one shared query.
 export function planOptionalProbe(node, ctx, {
   hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false, guardObject = null,
 } = {}) {
@@ -462,7 +465,11 @@ export function planOptionalProbe(node, ctx, {
   function resolveGlobal(name) {
     return ctx.resolvePure({ kind: 'global', name });
   }
-  let probe = guardObject ?? (node.optional ? node.object : null);
+  // A supplied guard names the value, but its source slot may also carry a
+  // sequence prefix. Keep that slot for the shared prefix-placement decision.
+  let probe = node.optional && (!guardObject
+    || unwrapRuntimeExpr(peelReceiverSequenceTail(node.object)) === unwrapRuntimeExpr(guardObject))
+    ? node.object : guardObject;
   let cur = unwrapRuntimeExpr(node.object);
   let plainHops = true;
   while (!probe && isMemberAccessNode(cur)) {
@@ -480,11 +487,21 @@ export function planOptionalProbe(node, ctx, {
   const instanceRead = navigated && isCallShape(call) && !call.optional
     && ctx.resolvePure({ kind: 'property', object: 'function', placement: 'prototype',
       key: reader.computed ? null : reader.property?.name })?.kind === 'instance';
-  const undefinable = !!guardObject || instanceRead || guardProbeUndefinable(probe, { ...ctx, nestedSeqUnproven: navigated });
+  let undefinable = !!guardObject || instanceRead || guardProbeUndefinable(probe, { ...ctx, nestedSeqUnproven: navigated });
   const claimCtor = hintName?.includes('$') ? hintName.split('$', 1)[0] : null;
-  for (let inner = unwrapRuntimeExpr(probe); isMemberAccessNode(inner) && inner.optional && !inner.computed
-    && (resolveGlobal(inner.property?.name) || inner.property?.name === claimCtor
-      || callIsOptionalProbe(inner.object, claimCtor, node, ctx)); inner = unwrapRuntimeExpr(probe)) probe = inner.object;
+  for (let inner = unwrapRuntimeExpr(probe); isMemberAccessNode(inner) && inner.optional && !inner.computed;
+    inner = unwrapRuntimeExpr(probe)) {
+    if (resolveGlobal(inner.property?.name) || inner.property?.name === claimCtor
+      || callIsOptionalProbe(inner.object, claimCtor, node, ctx)) probe = inner.object;
+    // Repeating the same realm probe adds no new absence condition. Different
+    // environment names and stores still own their independent source reads.
+    else if (pristineRealmHopKey(inner, ctx) === inner.property?.name
+      && realmHopKeyName(unwrapRuntimeExpr(inner.object), ctx) === inner.property.name
+      && guardProbeUndefinable(inner.object, { ...ctx, observableRead: true })) {
+      probe = inner.object;
+      undefinable = true;
+    } else break;
+  }
   const guarded = guardObject ?? undefinableOptionalGuard(node, ctx.resolvePure, ctx).object;
   const sourceSlot = guarded && optionalProbeSourceSlot(probe, guarded);
   if (sourceSlot) probe = sourceSlot.source;

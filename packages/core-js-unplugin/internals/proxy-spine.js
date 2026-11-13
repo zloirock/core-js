@@ -947,8 +947,6 @@ export default function createProxySpineChannel(ctx) {
       ? chainExpression(probeInner) : probeInner;
     const test = nullFirstGuardTest(instanceTailMemoTest(probeClone, metaPath, node, seKeyReadCtx));
     const tailAbove = climbTransparentWrapperPath(metaPath).parentPath?.node;
-    // a tail a `delete` runs on into is the operand the render hands the guard whole, kept as the
-    // source spelled it - `?.` and all, as every other guard render keeps it
     const tailDeleted = deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr) || deleteHostAboveCarriedChain(metaPath);
     // a REALM claim's alternate is the always-defined ponyfill the nav collapses onto, so its tail
     // takes the leaf pull the direct root's collapse takes: the `?.` reading the ponyfill folds in,
@@ -969,9 +967,9 @@ export default function createProxySpineChannel(ctx) {
       prefixSe: prefixSe.length ? prefixSe.map(effect => cloneNode(effect)) : null,
       leafKeySe: keySe?.length ? keySe.map(effect => cloneNode(effect)) : null,
     });
-    // ... and a READ tail answers the shared vestigial verdict like every other read off an
-    // always-defined leaf: the source's `?.` over the ponyfill the alternate landed is dead text
-    if (tailAbove?.type === 'MemberExpression' && !tailDeleted) {
+    // A constructor's alternate is defined under delete too. Realm alternates
+    // retain the guard-tail planner's optional spelling for that consumer.
+    if (tailAbove?.type === 'MemberExpression' && (!tailDeleted || !realmLeaf)) {
       for (const hop of vestigialNavOptionals(tailAbove, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
     }
@@ -1133,6 +1131,12 @@ export default function createProxySpineChannel(ctx) {
     if ((plan.kind === 'write' && !plan.readsOffWrite) || plan.deadOptional) {
       deoptionalizeOverSubstituted({ metaPath: plan.kind === 'write' ? target : replaceAt,
         node: consumed, replacement, proxyRoot: true });
+    }
+    // Once the plan proves the replacement defined, its unbacked continuation
+    // takes the ordinary fold too. Removing only the optional marker leaves a
+    // raw window read above the ponyfill in non-window realms.
+    if (plan.kind === 'value' && plan.deadOptional && !plan.tail.length) {
+      foldUnbackedRealmHopsAbove(replaceAt, replacement, { adapter, resolvePure: m => resolvePure(m, metaPath) });
     }
     if (plan.kind === 'value' && plan.valuePosition) {
       foldRealmHopOverCarriedValue(replaceAt, { adapter, resolvePure: m => resolvePure(m, metaPath) });
@@ -1329,7 +1333,8 @@ export default function createProxySpineChannel(ctx) {
       markSubtreeSkipped(skippedNodes, consumed, product.live ? new Set(product.live) : undefined);
       skippedNodes.add(replacement);
       if (product.live) return;
-      const substitutedAt = product.foldAbove ? foldRealmHopsAndLand({ target, consumed, replacement, metaPath }) : target;
+      const substitutedAt = product.foldAbove
+        ? foldRealmHopsAndLand({ target, consumed, replacement, metaPath, deleted: product.deletedRun }) : target;
       deoptionalizeOverSubstituted({ metaPath: substitutedAt, node, replacement, proxyRoot: product.proxyRoot });
       if (product.reread) {
         const id = replacement.type === 'SequenceExpression' ? replacement.expressions.at(-1).name : replacement.name;
@@ -1344,11 +1349,11 @@ export default function createProxySpineChannel(ctx) {
   // hop the fold had taken out of the tree, leaving a guard over a binding that cannot be absent.
   // only over a PROVEN root - an opaque call root is undefinable by its own canon, so the guard the
   // source wrote over it stands (`dh().self.window?.name` keeps its `?.`)
-  function foldRealmHopsAndLand({ target, consumed, replacement, metaPath }) {
+  function foldRealmHopsAndLand({ target, consumed, replacement, metaPath, deleted }) {
     function resolveHere(meta) {
       return resolvePure(meta, metaPath);
     }
-    const folded = foldUnbackedRealmHopsAbove(target, replacement, { adapter, resolvePure: resolveHere });
+    const folded = foldUnbackedRealmHopsAbove(target, replacement, { adapter, resolvePure: resolveHere }, { deleted });
     return folded && proxyRunValueIsProven(consumed, resolveHere, { scope: metaPath.scope, adapter, path: metaPath })
       ? folded : target;
   }

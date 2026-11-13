@@ -19,7 +19,7 @@ import {
 import {
   claimIsInert,
   POSSIBLE_GLOBAL_OBJECTS,
-  climbTransparentWrapperPath,
+  sequenceTailRunAbove,
   deleteHostAboveChain,
   isChainAssignment,
   isDeoptedGlobalSlotRead,
@@ -632,9 +632,8 @@ export default function createAstUsagePureCallback({
     // load-bearing read (`g.window?.self?.Map` tests `null == g.window`) - and it reads the hop
     // through whatever the source wrote between them, the canon climb: spelled as the chain marker
     // alone, a paren or a TS cast over the hop hid that reader and the drop ate its probe
-    const optionalReader = climbTransparentWrapperPath(metaPath).parentPath?.node;
-    if (optionalReader?.type === 'MemberExpression' && optionalReader.optional
-      && unwrapRuntimeExpr(optionalReader.object) === node) return;
+    const optionalReader = sequenceTailRunAbove(metaPath)?.member;
+    if (optionalReader?.optional) return;
     if (node.type === 'MemberExpression') {
       // an OPTIONAL hop joins the fold in two shapes. a `delete` reads nothing over its
       // navigation, so the hop the source wrote optionally folds with the spine below it, exactly

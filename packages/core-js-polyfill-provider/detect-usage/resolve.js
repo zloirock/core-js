@@ -140,6 +140,7 @@ import {
   spelledSlotName,
   staticMemberFromEntrySegment,
   staticMemberKeyName,
+  sequenceTailRunAbove,
   stepOverChainWrappers,
   synthSwapPropKey,
   trustedIdentifierAliasWrite,
@@ -596,7 +597,7 @@ export function mutationGuardKeepingHop(node, resolvePure, aliasCtx) {
   // the chain END above the run - the canon walk, which steps over a value CARRIER standing at its
   // start, so a store holding the run still reaches the act its value leads to (`delete (w = nav).slot`)
   if (!aliasCtx?.path
-    || !isMemberWriteHost(memberChainEndPath({ path: aliasCtx.path, unwrap: unwrapRuntimeExpr }))) return null;
+    || !isMemberWriteHost(memberChainEndPath({ path: aliasCtx.path, unwrap: unwrapRuntimeExpr, throughSequenceTail: true }))) return null;
   const hop = deleteGuardKeepingHop(node, resolvePure, aliasCtx);
   // ... and only where the VALUE canon does not already see that branch: a probe it calls
   // absent-able earns its guard through the ordinary channels, which keep the read the source wrote
@@ -5525,8 +5526,9 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   if (collapsed.carriesAlias && keptTail.some(hop => proxyHopLacksPureEntry(hop.name, resolvePure)) && !facts.deleteFold) return null;
   if (collapsed.aliasRoot && aliasRootedReadMayThrow(collapsed.aliasRoot, resolvePure, ctx)
     && !(memberKeepsReceiverThrow(consumer.host) && consumer.host.object === consumer.node)) return null;
+  let mutatedGuards;
   const deadOptional = facts.allowOptional
-    || (!facts.mutatedGuards && proxyRunValueIsProven(target.node, resolvePure, ctx));
+    || (!(mutatedGuards = facts.mutatedGuards) && proxyRunValueIsProven(target.node, resolvePure, ctx));
   const source = { ...consumer, keptWrite: collapsed.keptWrite ?? writeStep, hasKeptTail: !!keptTail.length };
   const navigation = proxyCollapseConsumer({ ...source, deadOptional,
     storeHoldsProbe: !!collapsed.keptWrite && !collapsed.writeStoreSpellable }, ctx);
@@ -5563,6 +5565,8 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
       optional: storeReadHopOptional(target.node),
     };
   }
+  // A value collapse cannot erase the probe deciding whether a write or delete happens.
+  if (mutatedGuards ?? facts.mutatedGuards) return null;
   const carriedStore = !!storedUserAssignmentOf(ctx.path, { throughReads: false }) && facts.parentInMemo;
   const sourceValue = valuePosition && !mutatedAbove && (carriedStore || !facts.inMemo);
   const forced = mutatedAbove && navHasUnresolvableProxyHop(ctx.path.node.object, resolvePure, ctx);
@@ -5585,11 +5589,12 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
 // one hop with two names, and the two emitters then folded one source two ways. `allowSideEffectKeys`
 // permits naming keys whose original reads the caller keeps; declining one never authorizes
 // a separate effectful realm-hop collapse
-export function realmHopKeyName(node, aliasCtx = null, { allowSideEffectKeys = false } = {}) {
+// A retained key also admits an effectful bound call's known result through the key canon.
+export function realmHopKeyName(node, aliasCtx = null, { allowSideEffectKeys = false, keepsKeyNode = false } = {}) {
   if (!node?.computed) return memberKeyName(node);
   if (!allowSideEffectKeys && mayHaveSideEffects(node.property)) return null;
   return staticMemberKeyName(node) ?? (aliasCtx
-    ? resolveKey({ node: node.property, computed: true, bailOnSideEffectKey: !allowSideEffectKeys, ...aliasCtx })
+    ? resolveKey({ node: node.property, computed: true, bailOnSideEffectKey: !allowSideEffectKeys, keepsKeyNode, ...aliasCtx })
     : null);
 }
 
@@ -5824,12 +5829,17 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   // An outer seal can end at a claim with no guard of its own. Keep descending the SOURCE
   // boundaries: that claim's value does not discharge a throwing read through an inner seal.
   for (let boundary = outerBoundary; boundary; boundary = sealedChainBoundary(boundary.inner)) {
-    const key = realmHopKeyName(boundary.member, aliasCtx);
+    const key = realmHopKeyName(boundary.member, aliasCtx, {
+      allowSideEffectKeys: boundary.member === sourceValue, keepsKeyNode: boundary.member === sourceValue,
+    });
     const stored = peelChainAssignment(peelReceiverSequenceTail(boundary.inner));
     const value = stored.outer ? peelChainRootValue(stored.value) : boundary.inner;
     if (key === null || !proxyReceiverValueCanBeUndefined(value,
       resolvePure, aliasCtx, { throughChainAssign: true })) continue;
-    const facts = { source, boundary, key, navStart: boundary.inner.start, effectsHost: boundary.inner, preserveRead };
+    // An erased computed read evaluates its original key before throwing on an
+    // absent receiver. The probe owns that key, including its live child claims.
+    const keyNode = boundary.member === sourceValue && sourceValue.computed ? sourceValue.property : null;
+    const facts = { source, boundary, key, keyNode, navStart: boundary.inner.start, effectsHost: boundary.inner, preserveRead };
     // The assignment owns its RHS and any prefix. Keep the plain read above it
     // as a unit so a short circuit stores undefined and throws before the next key or argument.
     if (stored.outer) {
@@ -6061,6 +6071,7 @@ function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
     return { ...decision, aliasProbe, object: slot(aliasProbe.object), retained, consumed: [], readsSource: true };
   }
   const { navPlan, leafPlan, boundary } = decision;
+  if (decision.keyNode) retained.push(decision.keyNode);
   let test;
   if (decision.kind === 'value' || decision.preserveRead || leafPlan?.leafIsProbe) {
     test = { source: slot(leafPlan.guardObject) };
@@ -6784,7 +6795,7 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
       // a value CARRIER holding the base ITSELF hands it on exactly as a paren does (`delete
       // (w = globalThis).self.k`): what the run reads is what the carrier stored, and the write
       // re-emits ahead of the base with the rest of the dropped span
-      || (deleted && !fold && chainValueCarrier(node, cursor.node))) {
+      || (deleted && !fold && node.type === 'AssignmentExpression' && node.operator === '=' && node.right === cursor.node)) {
       // a carrier is not peeled by the value walk the way a paren is, so what the level above reads
       // is the CARRIER's own node - the comparison follows it up, while what LANDS stays the value
       // the carrier stored: the carrier itself rides out as an effect of the dropped span
@@ -6803,7 +6814,9 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
     // below. read off a fixed parent step it is whatever wrapper the source wrote there, and every
     // one of them then answers "nothing reads this hop": the deleted slot folds away with the run,
     // a literal-keyed hop keeps a slot its dotted twin drops, and a live `?.` loses its refusal
-    const [readerInner, readerPath] = stepOverChainWrappers(node, up.parentPath);
+    const sequence = sequenceTailRunAbove(up);
+    const [readerInner, readerPath] = sequence
+      ? [sequence.top.node, sequence.memberPath] : stepOverChainWrappers(node, up.parentPath);
     const readerAbove = readerPath?.node;
     const readsThisHop = !!readerAbove && isMemberAccessNode(readerAbove)
       && unwrapRuntimeExpr(readerAbove.object) === unwrapRuntimeExpr(readerInner);
@@ -6820,7 +6833,8 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
       // and dropping the base out from under a kept hop rewrites what that hop reads off
       if (node.computed || node.optional
         || !isPristineProxyGlobal(ctx.adapter, staticMemberKeyName(node))) {
-        return memberProxyHopName(node) || node.computed || node.optional ? null : fold;
+        if (memberProxyHopName(node) || node.computed || node.optional) return null;
+        break;
       }
     } else if (!foldableRealmHop(node, { ...ctx, path: up })) {
       // a MUTATED slot holds the user's own object, and the read flavor owes the same verdict the
@@ -6837,7 +6851,7 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
     // (`dh().self.window?.name` reads `_self.window?.name`, not `_self?.name`). the delete flavor
     // already refuses a `?.` of the hop's own; the read owes the same verdict one member up, where
     // the short-circuit actually stands
-    if (readsThisHop && readerAbove.optional) return fold;
+    if (readsThisHop && readerAbove.optional) break;
     // what lands is the object's CORE: the wrapper layers the fold's own operand carried are the
     // erased read's, not the value's (`((eff(), g.self) as any).window` lands `(eff(), _self)` -
     // the other leg's plan rebuilds the value the same way), while the sequence stays, because its
@@ -6859,6 +6873,8 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
     carried = node;
     cursor = up;
   }
+  if (fold) fold.effects = deleted && !fold.carriesOwnEffects
+    ? collectFoldedReceiverSideEffects(fold.path.node, { ctx: { ...ctx, scope: fold.path.scope, path: fold.path } }) : [];
   return fold;
 }
 

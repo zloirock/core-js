@@ -45,6 +45,8 @@ import {
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional } from './emit-shared.js';
 
+export { sequenceTailRunAbove } from '@core-js/polyfill-provider/helpers/ast-patterns';
+
 export { foldSeqKeyLiteralTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 // Clone a receiver without redundant spine parens. A seal around an optional chain
@@ -175,11 +177,13 @@ export function dropChainMarkerWithoutOptional(path) {
   return true;
 }
 
-export function foldUnbackedRealmHopsAbove(basePath, baseNode, ctx) {
-  const fold = unbackedRealmHopFoldAbove(basePath, baseNode, ctx);
+// Apply the shared fold with its discarded effects, then return the surviving
+// live slot so optional cleanup never follows the detached source path.
+export function foldUnbackedRealmHopsAbove(basePath, baseNode, ctx, options) {
+  const fold = unbackedRealmHopFoldAbove(basePath, baseNode, ctx, options);
   if (!fold) return null;
   const landing = landingOverSubstitutedSpan(fold.path);
-  landing.replaceWith(fold.node);
+  landing.replaceWith(fold.effects.length ? sequenceExpression([...fold.effects, fold.node]) : fold.node);
   dropChainMarkerWithoutOptional(landing.parentPath);
   // where the base now LIVES: the fold detaches the levels it sat under, and the `?.` verdict the
   // caller runs next walks that parent chain - from the old path it read a hop out of the tree and
@@ -240,31 +244,6 @@ export function foldRealmHopOverCarriedValue(basePath, ctx) {
     }
     return;
   }
-}
-
-// the run of enclosing SEQUENCE levels a value tails, and the member READING that run:
-// `(c++, (d++, X)).window` answers `.window` for `X`, with `c++` ahead of `d++` - the climb
-// walks outward, so each level unshifts in front of the ones already collected. null when
-// nothing reads the run
-export function sequenceTailRunAbove(seqPath) {
-  const prefixes = [];
-  let cur = seqPath;
-  for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
-    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === cur.node) {
-      cur = up;
-      continue;
-    }
-    if (up.node.type === 'SequenceExpression' && up.node.expressions.at(-1) === cur.node) {
-      prefixes.unshift(...up.node.expressions.slice(0, -1));
-      cur = up;
-      continue;
-    }
-    if (up.node.type === 'MemberExpression' && up.node.object === cur.node) {
-      return { top: cur, member: up.node, prefixes };
-    }
-    return null;
-  }
-  return null;
 }
 
 // the call host reached through the transparent wrappers a callee may wear
