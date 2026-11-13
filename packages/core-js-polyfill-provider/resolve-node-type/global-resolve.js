@@ -29,7 +29,7 @@ import {
   isTopLevelThisContext,
   classSuperPath,
   getHeritageTypeArgs,
-  isAmbientBindingShape,
+  isAmbientBinding,
   patternLiteralKeyPath,
   peelArrayWrapBindingLayers,
   peelSkippableWrapperPath,
@@ -80,7 +80,7 @@ export function createGlobalResolve({
   function hasRuntimeBinding(scope, name, path = null) {
     const binding = getScopeBinding({ scope, name, path });
     if (!binding) return false;
-    return !isAmbientBindingShape(binding.path?.node, binding.path?.parent);
+    return !isAmbientBinding(binding);
   }
 
   // proxy-global chain link: `globalThis.self`, `globalThis.window`, etc. - each link's

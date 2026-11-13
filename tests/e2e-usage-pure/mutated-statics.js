@@ -51,6 +51,7 @@ import './mutation-cases/define-properties.js';
 import './mutation-cases/reflect-define-property.js';
 import './mutation-cases/extracted-define-property.js';
 import './mutation-cases/for-of-member-write.js';
+import './mutation-cases/iterated-constructor-write.js';
 import './mutation-cases/for-in-member-write.js';
 import './mutation-cases/update-member-write.js';
 import './mutation-cases/unknown-member-key.js';

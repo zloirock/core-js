@@ -52,6 +52,7 @@ import './parser-dialect-equivalence.mjs';
 import './bodyless-array-capture.mjs';
 import './native-wrapper-preparation.mjs';
 import './flow-class-members.mjs';
+import './ambient-binding-runtime.mjs';
 import './statement-order-independence.mjs';
 import './prepass-collection.mjs';
 import './per-file-teardown.mjs';

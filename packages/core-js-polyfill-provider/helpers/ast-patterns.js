@@ -1134,7 +1134,7 @@ export function isReusableReceiver(node, { interveningEffects = false, directCal
   const declaration = bindingDeclarationPath(binding);
   // A free or erased identifier follows the scoped write census across source effects.
   // A direct optional callee still needs one GetValue for its guard and call.
-  const ambient = isAmbientBindingShape(binding?.node ?? declaration?.node, declaration?.parentPath?.node)
+  const ambient = isAmbientBinding(binding)
     || nonEmittedExpressionAncestor(declaration);
   if (!binding || ambient) {
     if (ctx.adapter?.isMutatedStaticSlot?.('globalThis', inner.name)) return false;
@@ -3824,7 +3824,9 @@ function withoutPhantomWrites(binding) {
   const filtered = withoutFunctionSelfRecord(withoutValuelessDeclarationViolations(violations), binding?.path?.node);
   const constant = !cleanDestructureAliasWrites(binding).length;
   if (filtered === violations && constant === !!binding?.constant) return binding;
-  return { ...binding, constant, constantViolations: filtered };
+  // A valueless redeclaration still creates a runtime binding beside an ambient head.
+  // Keep declaration evidence separate from the value-write set consumed by flow analysis.
+  return { ...binding, constant, constantViolations: filtered, declarationViolations: binding.declarationViolations ?? violations };
 }
 
 // the parameter-PROPERTY twin: `constructor(private a: T = v)` binds `a` in the constructor's
@@ -3941,7 +3943,9 @@ export function wrapScopeBindingLookup(lookup, nestedTSRuntimeDeclarations = () 
     // record retirable after a lookup judged it, so a record still without a view is judged again after a note
     if (entry.wrapped === binding && entry.judged !== renderRetiredWritesEpoch) {
       entry.judged = renderRetiredWritesEpoch;
-      if (binding.constantViolations?.some(retirableWrite)) entry.wrapped = { ...binding };
+      if (binding.constantViolations?.some(retirableWrite)) {
+        entry.wrapped = { ...binding, declarationViolations: binding.constantViolations };
+      }
     }
     const { wrapped } = entry;
     // ... and a record still naming a write a render retired takes the live writes in place: a caller
@@ -7862,7 +7866,7 @@ function callableMayExposeCaller(path, ctx, invocation = null) {
   function lexicalName(name) {
     const binding = ctx?.adapter?.getBinding?.({ scope: path.scope, name, path });
     const declaration = bindingDeclarationPath(binding);
-    if (!binding || isAmbientBindingShape(binding.node ?? declaration?.node, declaration?.parentPath?.node)
+    if (!binding || isAmbientBinding(binding)
       || nonEmittedExpressionAncestor(declaration)) return false;
     return ['var', 'hoisted'].includes(binding.kind)
       ? FUNCTION_LIKE_NODE_TYPES.has(findNearestVarScopeOwner(binding.scope?.path)?.node?.type)
@@ -9260,7 +9264,8 @@ export function isTypeOnlyImportBinding(node, parent) {
   return node?.type === 'ImportSpecifier' && isTypeOnlyImportKind(node.importKind);
 }
 
-// shared "is this binding tsc-elided?" check used by both adapters' `hasBinding` paths.
+// Is this declaration erased by TypeScript or Flow? Binding-wide questions also need
+// the runtime redeclarations checked by `isAmbientBinding` below.
 // covers: ambient declarations (TSDeclareFunction, TSInterfaceDeclaration, etc., declare
 // modifier, type-only TSImportEquals), type-only ESM imports (3 forms), and
 // `declare const X` / `declare var X` whose `declare` flag lives on the parent
@@ -9271,6 +9276,33 @@ export function isAmbientBindingShape(node, parent) {
   if (isTypeOnlyImportBinding(node, parent)) return true;
   if (node.type === 'VariableDeclarator' && parent?.declare === true) return true;
   return false;
+}
+
+// A declaration recorded as a binding violation: Babel records the declaration itself,
+// estree-toolkit its bound identifier, including an identifier nested in a pattern.
+// Assignments and references inside a declaration do not introduce another binding.
+const VIOLATION_DECLARATION_TYPES = new Set(['VariableDeclarator', 'ClassDeclaration', 'FunctionDeclaration']);
+export function violationDeclarationOf(violation) {
+  if (VIOLATION_DECLARATION_TYPES.has(violation?.node?.type)) return violation;
+  for (let path = violation?.parentPath; path?.node; path = path.parentPath) {
+    if (VIOLATION_DECLARATION_TYPES.has(path.node.type)) return declaredIdentifierNodes(path.node)?.has(violation.node) ? path : null;
+  }
+  return null;
+}
+
+// An erased first declaration does not erase a same-name runtime declaration. Both trackers
+// retain merged declarations among constantViolations. Ordinary writes to an external global
+// are not declarations; removed paths and over-hoisted namespace/static-block declarations
+// cannot shadow it. Their block identity is owned by the same canon as the binding adapters.
+// Only an ambient head needs this scan; ordinary runtime bindings take the constant-time exit.
+export function isAmbientBinding(binding) {
+  const path = bindingDeclarationPath(binding);
+  if (!isAmbientBindingShape(binding?.node ?? path?.node, path?.parentPath?.node)) return false;
+  return !(binding.declarationViolations ?? binding.constantViolations)?.some(violation => {
+    const declaration = violationDeclarationOf(violation);
+    return declaration && !isAmbientBindingShape(declaration.node, declaration.parentPath?.node)
+      && varScopeBlockOfBinding({ path: declaration }) === varScopeBlockOfBinding({ path });
+  });
 }
 
 // branches of a runtime-conditional expression (returned as slot names so callers can
@@ -11297,12 +11329,14 @@ export function proxySelectingBranchKey(node, { truthyAnd = false } = {}) {
 // `declare module X`, `declare enum X`, TSDeclareFunction, TSDeclareMethod, type aliases,
 // interfaces) - elided by tsc before runtime; references resolve to the global. estree-toolkit
 // and babel scope trackers register the binding anyway; callers filter via this predicate.
-// Flow spells its ambient class and function as node types of their own rather than as a flag,
-// and the shape they name is the same one, so they answer here too
+// Flow uses distinct declaration node types instead of a `declare` flag, and its type-space
+// declarations are erased too. A same-name runtime declaration remains a separate binding fact.
 export function isAmbientTypeDeclaration(node) {
   if (!node) return false;
   if (node.type === 'TSDeclareFunction' || node.type === 'TSDeclareMethod') return true;
-  if (node.type === 'DeclareClass' || node.type === 'DeclareFunction') return true;
+  if (node.type === 'DeclareClass' || node.type === 'DeclareFunction' || node.type === 'DeclareVariable') return true;
+  if (node.type === 'TypeAlias' || node.type === 'OpaqueType' || node.type === 'InterfaceDeclaration'
+    || node.type === 'DeclareTypeAlias' || node.type === 'DeclareOpaqueType' || node.type === 'DeclareInterface') return true;
   if (node.type === 'TSInterfaceDeclaration' || node.type === 'TSTypeAliasDeclaration') return true;
   if (isTypeOnlyImportEquals(node)) return true;
   if (node.declare === true) return true;
