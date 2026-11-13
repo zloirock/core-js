@@ -8,6 +8,40 @@ here is a label nobody can read.
 The sections follow the layers, and every entry says what goes wrong rather than what the code
 does: a summary of the code is already in the code.
 
+## Standalone container settings
+
+- **container-settings-1** - without explicit network settings the container defaults to all
+  interfaces and port 3000; an explicit valid port is returned as a number. Defaults must not
+  replace a valid operator-supplied value
+- **container-settings-2** - a missing or invalid manifest path, host or port fails before the
+  container starts. Coercing or accepting a malformed port could bind an unintended address, while
+  an absent manifest cannot define the bundle scope
+
+## Standalone container manifest
+
+- **container-manifest-1** - an empty scope is valid, and repeated module names must not change its
+  meaning or reorder the first occurrence. Reordering it changes the manifest the container builds
+  from without a change to its contents
+- **container-manifest-2** - a missing, unreadable or malformed manifest fails at startup, as does
+  any field or module name outside the declared contract. Ignoring a typo would start a container
+  with a scope different from the one its operator supplied
+
+## Standalone container lifecycle
+
+- **container-lifecycle-1** - startup is initiated once and reports `started` until the baseline
+  exists; only successful completion of every bucket makes it fully warmed. Treating the baseline
+  as full warm-up would allow a deployer to switch traffic before its requested warm-up finishes
+- **container-lifecycle-2** - script requests reach the service only after baseline readiness,
+  including when later buckets fail. Before that point there are no safe bytes to serve; after
+  that point a bucket failure must not remove the working baseline
+- **container-lifecycle-3** - manifest, plan, baseline and later bundle failures have distinct,
+  persistent status codes, without exception details in status. Otherwise deployment cannot
+  distinguish invalid inputs from build failures or can leak local paths to visitors
+- **container-lifecycle-4** - each startup incident is logged once with its underlying error or
+  failed bucket identifiers, and preparation is never retried on request. Logging per request
+  floods diagnostics, while silently discarding failed buckets hides incomplete warm-up. A broken
+  logger falls back to stderr instead of rejecting an unawaited startup promise
+
 ## Across the layers
 
 - **layers-1** - `config.js` is imported by every layer, the domain included, so nothing in it may

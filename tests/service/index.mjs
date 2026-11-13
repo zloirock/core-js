@@ -1,3 +1,6 @@
+import './container-lifecycle.mjs';
+import './container-manifest.mjs';
+import './container-settings.mjs';
 import './target.mjs';
 import './user-agents.mjs';
 import './invariants.mjs';

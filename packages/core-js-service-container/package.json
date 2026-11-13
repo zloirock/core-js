@@ -1,0 +1,24 @@
+{
+  "name": "@core-js/service-container",
+  "version": "4.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Standalone core-js polyfill service container",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
+  "dependencies": {
+    "@core-js/compat": "4.0.0-alpha.1",
+    "@core-js/service": "4.0.0-alpha.1",
+    "fastify": "^5.12.8"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  }
+}
