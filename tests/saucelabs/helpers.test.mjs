@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions
 
 async function runFake({
   failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
-  pageUrl, commits, pages = ['unit-browser/global.html'],
+  pageUrl, commits, pages = ['unit-browser/global.html'], unwritableSessions = false, noReporter = false,
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -25,6 +25,7 @@ async function runFake({
   let sessions = 0;
   let annotationRequests = 0;
   let markerRequests = 0;
+  let quits = 0;
   let listedWhileOpen;
   const navigations = [];
   let sessionStart;
@@ -38,6 +39,10 @@ async function runFake({
     process.env.SAUCE_USERNAME = 'test';
     process.env.SAUCE_ACCESS_KEY = 'test';
     process.env.SAUCE_SESSIONS_FILE = sessionsFile;
+    if (unwritableSessions) {
+      await rm(sessionsFile, { force: true });
+      await mkdir(sessionsFile);
+    }
     globalThis.$ = {};
     globalThis.argv = { _: ['http://example.test/branch', 'a'.repeat(40)] };
     globalThis.chalk = { cyan: String, green: String, red: String, yellow: String };
@@ -61,17 +66,21 @@ async function runFake({
         if (name === 'next') nextStarted(true);
         payload = sessionNull ? null : { sessionId: dynamicQueue ? name : 'test-session' };
       } else if (options.method === 'DELETE') {
+        quits++;
         if (dynamicQueue && path.includes('/fast')) fastFinished = true;
         payload = {};
       } else if (path.endsWith('/url')) {
         navigations.push(JSON.parse(options.body).url);
-        listedWhileOpen = await readFile(sessionsFile, 'utf8');
+        if (!unwritableSessions) listedWhileOpen = await readFile(sessionsFile, 'utf8');
         payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
       } else {
         const { script } = JSON.parse(options.body);
         if (script.startsWith('sauce:job-result=')) {
           annotationRequests++;
           payload = { status: 13, value: { message: 'annotation unavailable' } };
+        } else if (noReporter && script.startsWith('var results = ')) {
+          Date.now = () => start + 2 * 6e4;
+          payload = { value: null };
         } else if (script.startsWith('var results = ')) {
           if (dynamicQueue && path.includes('/slow')) await slow;
           if (sessions <= hangs) {
@@ -111,10 +120,14 @@ async function runFake({
       await running;
       return { started, nextStartedWhileSlow, fastFinished };
     }
-    if (failed || hangs === 3 || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
+    if (failed || noReporter || hangs === 3 || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
     else await run(suite);
-    return { output: output.join('\n'), navigations, sessions, annotationRequests, markerRequests, listedWhileOpen, listedAfter: await readFile(sessionsFile, 'utf8') };
+    return {
+      output: output.join('\n'), navigations, sessions, quits, annotationRequests, markerRequests, listedWhileOpen,
+      listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
+    };
   } finally {
+    if (unwritableSessions) await rm(sessionsFile, { recursive: true });
     Date.now = previous.now;
     for (const [name, value] of Object.entries({
       SAUCE_USERNAME: previous.username, SAUCE_ACCESS_KEY: previous.accessKey, SAUCE_SESSIONS_FILE: previous.sessionsFile,
@@ -200,6 +213,20 @@ test('lists open sessions for the cleanup of a cancelled run', async () => {
   const { listedWhileOpen, listedAfter } = await runFake();
   assert.equal(listedWhileOpen, 'test-session\n');
   assert.equal(listedAfter, '');
+});
+
+test('tests and closes the session when the session list cannot be written', async () => {
+  const { output, sessions, quits } = await runFake({ unwritableSessions: true });
+  assert.equal(sessions, 1);
+  assert.equal(quits, 1);
+  assert.match(output, /could not list the open sessions/);
+  assert.match(output, /all the browsers passed/);
+});
+
+test('does not report bundle commits of a page whose reporter is missing', async () => {
+  const { output } = await runFake({ noReporter: true });
+  assert.match(output, /global\.html: no results reporter on the page/);
+  assert.doesNotMatch(output, /bundles of/);
 });
 
 test('warns when the browser executed bundles of another commit', async () => {
