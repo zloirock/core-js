@@ -24,11 +24,14 @@ async function request(hub, authorization, method, path, body, timeout = COMMAND
     const text = await response.text();
     payload = text ? JSON.parse(text) : {};
   } catch (error) {
-    throw new WebDriverError(`${ method } ${ path }: ${ error.message }`, { cause: error });
+    throw new WebDriverError(`${ method } ${ path }: ${ response && !response.ok ? `HTTP ${ response.status }: ` : '' }${ error.message }`, { cause: error });
+  }
+  if (payload === null || typeof payload !== 'object') {
+    throw new WebDriverError(`${ method } ${ path }: invalid WebDriver response (HTTP ${ response.status })`);
   }
   // W3C reports an error by the status code, JSON Wire by a non-zero `status` in a 200 response
   if (!response.ok || payload.status) {
-    throw new WebDriverError(`${ method } ${ path }: ${ payload.value?.message ?? response.status }`);
+    throw new WebDriverError(`${ method } ${ path }: ${ payload.value?.message ?? `HTTP ${ response.status }` }`);
   }
   return payload;
 }

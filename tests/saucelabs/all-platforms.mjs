@@ -7,8 +7,8 @@ function platformName(os) {
   return os === 'Mac 11' ? 'macOS 11.00' : os.startsWith('Mac ') ? `macOS ${ os.slice(4) }` : os;
 }
 
-function rank({ os, device }) {
-  if (device) return `${ device === 'iPhone Simulator' || device === 'iPad Simulator' ? 0 : 1 }${ device }/${ os }`;
+function rank({ os, device, long_name: deviceName }) {
+  if (device) return JSON.stringify([deviceName ? 0 : 1, device === 'iPhone Simulator' || device === 'iPad Simulator' ? 0 : 1, device, os, deviceName || '']);
   if (os === 'Windows 10') return '0';
   if (os === 'Windows 11') return '1';
   return `2${ os }`;
@@ -43,7 +43,8 @@ function platform({ api_name: browser, short_version: version, os, device, long_
 export function fromCatalog(catalog) {
   if (!Array.isArray(catalog)) throw new Error('Sauce Labs platform catalog is not an array');
   const selected = new Map();
-  for (const entry of catalog) {
+  for (const [index, entry] of catalog.entries()) {
+    if (!entry || typeof entry !== 'object') throw new Error(`Sauce Labs platform catalog: invalid platform entry at index ${ index }`);
     const { api_name: browser, short_version: version, automation_backend: backend, os, device } = entry;
     if (!browsers.has(browser) || backend !== (mobile.has(browser) ? 'appium' : 'webdriver')) continue;
     if (!version || !os || mobile.has(browser) && !device) continue;
