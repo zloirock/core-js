@@ -7,6 +7,9 @@
   var LIMIT = 50;
   // the dump of a big collection runs into megabytes, and it is read in a log line
   var VALUE_LIMIT = 1000;
+  // QUnit 1 reports a global error after the run as one more test and calls done again within milliseconds
+  var SETTLE_TIME = 1000;
+  var settle;
   var results = { done: false, failures: [] };
 
   function dump(value) {
@@ -37,7 +40,10 @@
   QUnit.done(function (details) {
     results.failed = details.failed;
     results.total = details.total;
-    results.done = true;
+    clearTimeout(settle);
+    settle = setTimeout(function () {
+      results.done = true;
+    }, SETTLE_TIME);
   });
 
   // published last: without QUnit to attach to, the page has no reporter rather than a run that never ends

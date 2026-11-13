@@ -1,10 +1,13 @@
+import { writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { COMMAND_TIMEOUT, createSession, WebDriverError } from './webdriver.mjs';
 
 // zx logs every fetch with its options, and those of the WebDriver requests carry the credentials
 $.verbose = false;
 
-const { SAUCE_USERNAME: username, SAUCE_ACCESS_KEY: accessKey, SAUCE_REGION: region = 'us-west-1' } = process.env;
+const {
+  SAUCE_USERNAME: username, SAUCE_ACCESS_KEY: accessKey, SAUCE_REGION: region = 'us-west-1', SAUCE_SESSIONS_FILE: sessionsFile,
+} = process.env;
 const [BASE_URL, COMMIT] = argv._;
 
 const ATTEMPTS = 3;
@@ -53,26 +56,44 @@ async function runPage({ reporter, evaluate }, session, page) {
   await session.navigate(`${ base }/${ page }`);
   const start = Date.now();
   for (;;) {
-    const state = await session.execute(`var results = window.${ reporter }; return results ? JSON.stringify({ url: window.location.href, results: results }) : null;`);
+    const state = await session.execute(`var results = window.${ reporter }; return results ? JSON.stringify({ url: window.location.href, results: results, commits: window.bundleCommits || [] }) : null;`);
     const elapsed = Date.now() - start;
     if (state) {
-      const { url, results } = JSON.parse(state);
+      const { url, results, commits } = JSON.parse(state);
       const expected = `${ base }/${ page }`;
       // GitHub Pages can upgrade HTTP to HTTPS on browsers that support its TLS version.
       if (url !== expected && !(expected.startsWith('http:') && url === expected.replace(/^http:/, 'https:'))) {
         throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
       }
-      if (results.done) return { page, ...evaluate(results) };
+      if (results.done) return { page, commits, ...evaluate(results) };
       // a run that never ended still lists the failures it met before
       if (elapsed > RUN_TIMEOUT) {
         const current = results.currentTest;
         const testName = current && `${ current.module ? `${ current.module } > ` : '' }${ current.test }`;
-        return { page, ...evaluate(results), passed: false, unfinished: true,
+        return { page, commits, ...evaluate(results), passed: false, unfinished: true,
           error: `not finished in ${ RUN_TIMEOUT / 6e4 } minutes${ testName ? `; current test: ${ testName }` : '' }` };
       }
     } else if (elapsed > REPORTER_TIMEOUT) return { page, passed: false, details: [], error: 'no results reporter on the page' };
     await sleep(POLL_INTERVAL);
   }
+}
+
+// GitHub Actions signals only the top process of a cancelled step, and npm does not pass that on, so the
+// open sessions are listed in a file for the step that closes them
+const openSessions = new Set();
+let sessionsWritten;
+
+// queued, so that a slower write of an older list never lands last
+async function writeSessions(previous) {
+  await previous;
+  await writeFile(sessionsFile, [...openSessions].map(sessionId => `${ sessionId }\n`).join(''));
+}
+
+function trackSession(id, open) {
+  if (open) openSessions.add(id);
+  else openSessions.delete(id);
+  if (sessionsFile) sessionsWritten = writeSessions(sessionsWritten);
+  return sessionsWritten;
 }
 
 async function runSession(suite, platform) {
@@ -83,6 +104,7 @@ async function runSession(suite, platform) {
     w3c: platform.w3c,
     capabilities: sessionCapabilities(suite, platform),
   });
+  await trackSession(session.id, true);
   const pages = [];
   try {
     for (const page of suite.pages) {
@@ -112,6 +134,7 @@ async function runSession(suite, platform) {
     // an abandoned session holds its concurrency slot until Sauce Labs times it out
     try {
       await session.quit();
+      await trackSession(session.id, false);
     } catch (error) {
       echo(yellow(`${ platform.name }: ${ error.message }`));
     }
@@ -142,7 +165,12 @@ function report({ platform, id, pages, error }) {
     return false;
   }
   const lines = [cyan(`${ platform.name }: ${ dashboard }/tests/${ id }`)];
-  for (const { page, passed, summary, details, error: pageError = summary } of pages) {
+  for (const { page, passed, summary, details, commits = [], error: pageError = summary } of pages) {
+    // the Pages build appends the commit to each bundle, so this is what the browser executed
+    const executed = [...new Set(commits)];
+    if (COMMIT && (executed.length !== 1 || executed[0] !== COMMIT)) {
+      lines.push(yellow(`  ${ page }: bundles of ${ executed.join(', ') || 'no commit marker' } instead of ${ COMMIT }`));
+    }
     if (passed) {
       lines.push(green(`  ${ page }: ${ summary }`));
       continue;

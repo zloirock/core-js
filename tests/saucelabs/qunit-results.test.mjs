@@ -30,12 +30,20 @@ test('publishes the active QUnit test until it completes', () => {
     done: listener => { callbacks.done = listener; },
   };
   const window = { QUnit };
-  runInNewContext(source, { window });
+  const timers = new Set();
+  runInNewContext(source, { window, setTimeout: handler => timers.add(handler) && handler, clearTimeout: handler => timers.delete(handler) });
   const { qunitResults: results } = window;
   callbacks.testStart({ module: 'Promises', name: 'pending callback' });
   assert.deepEqual({ ...results.currentTest }, { module: 'Promises', test: 'pending callback' });
   callbacks.testDone();
   assert.equal(results.currentTest, null);
   callbacks.done({ failed: 0, total: 1 });
+  assert.equal(results.done, false);
+  // the late global error of QUnit 1 restarts the wait instead of being lost after the first done
+  callbacks.done({ failed: 1, total: 2 });
+  assert.equal(timers.size, 1);
+  for (const handler of timers) handler();
   assert.equal(results.done, true);
+  assert.equal(results.failed, 1);
+  assert.equal(results.total, 2);
 });
