@@ -46,7 +46,6 @@ export default [
   desktop('safari', '18', 'macOS 15'),
   desktop('safari', '26', 'macOS 26'),
   desktop('safari', '27', 'macOS 27'),
-  ios('14.0'),
   ios('26.1'),
   ios('27.0'),
   android('Google Nexus 10 Tablet Emulator', '5.0'),
