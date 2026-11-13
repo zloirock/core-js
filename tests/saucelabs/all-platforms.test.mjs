@@ -16,9 +16,9 @@ test('selects one configuration per browser version and excludes non-browser pla
     entry('firefox', 'beta', 'Windows 11'),
     entry('internet explorer', '11', 'Windows 10'),
     entry('iphone', '14.0', 'Mac 11', 'iPhone 8', 'appium'),
-    entry('iphone', '14.0', 'Mac 11', 'iPhone Simulator', 'appium'),
+    { ...entry('iphone', '14.0', 'Mac 11', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' },
     { ...entry('android', '5.0', 'Linux', 'Nexus 6', 'appium'), long_name: 'Google Nexus 6 Emulator' },
-    entry('ipad', '14.0', 'Mac 11', 'iPad Simulator', 'appium'),
+    { ...entry('ipad', '14.0', 'Mac 11', 'iPad Simulator', 'appium'), long_name: 'iPad Simulator' },
     entry('safari', '14', 'Mac 11'),
     entry('electron', '22', 'Mac 13'),
     entry('chrome', '67', 'Windows 10', undefined, 'appium'),
@@ -42,6 +42,7 @@ test('selects one configuration per browser version and excludes non-browser pla
   assert.equal(platforms.find(({ name }) => name.startsWith('firefox beta')).w3c, true);
   assert.equal(platforms.find(({ name }) => name.startsWith('internet explorer')).w3c, false);
   assert.equal(platforms.find(({ name }) => name.startsWith('ipad')).capabilities.browserName, 'Safari');
+  assert.equal(platforms.find(({ name }) => name.startsWith('ipad')).capabilities['appium:deviceName'], 'iPad Simulator');
   assert.equal(platforms.find(({ name }) => name.startsWith('android')).capabilities.browserName, 'Chrome');
   assert.equal(platforms.find(({ name }) => name.startsWith('android')).capabilities['appium:deviceName'], 'Google Nexus 6 Emulator');
 });
@@ -54,4 +55,9 @@ test('rejects an empty or invalid catalog', () => {
     entry('android', '6.0', 'Linux', 'Nexus 5', 'appium'),
   ]), /android 6\.0.*emulator name/);
   assert.throws(() => fromCatalog([entry('android', '5.0', 'Linux', 'Nexus 5', 'appium')]), /emulator name/);
+  assert.throws(() => fromCatalog([entry('iphone', '27.1', 'Mac 15', 'iPhone Duo', 'appium')]), /emulator name/);
+  assert.deepEqual(fromCatalog([
+    entry('iphone', '27.1', 'Mac 15', 'iPhone Duo', 'appium'),
+    { ...entry('iphone', '27.1', 'Mac 15', 'iPhone Duo Simulator', 'appium'), long_name: 'iPhone Duo Simulator' },
+  ])[0].capabilities['appium:deviceName'], 'iPhone Duo Simulator');
 });
