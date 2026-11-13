@@ -112,18 +112,33 @@ jobs:
       url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
     outputs:
       page-url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
+      published: ${{ steps.current.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
+      # Skip a run whose branch has advanced while it waited for the Pages slot.
+      - name: Check the triggering branch before publishing
+        id: current
+        run: |
+          head=$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping stale deployment: $GITHUB_SHA is not the head of $GITHUB_REF_NAME"
+          fi
       - name: Download artifacts
+        if: steps.current.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
           path: pages
       # artifacts are shared by all attempts of a run, so a re-run downloads the Pages artifact of the previous attempt
       - name: Drop Pages artifacts of previous attempts
+        if: steps.current.outputs.publish == 'true'
         run: rm -rf pages/github-pages*
       - name: Setup Pages
+        if: steps.current.outputs.publish == 'true'
         uses: actions/configure-pages@v6
       - name: Upload GitHub Pages artifact
+        if: steps.current.outputs.publish == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: pages
@@ -133,13 +148,14 @@ jobs:
       # See https://github.com/actions/deploy-pages/issues/406.
       - name: Deploy to GitHub Pages
         id: deployment
+        if: steps.current.outputs.publish == 'true'
         continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
       - name: Deploy to GitHub Pages (retry)
         id: deployment-retry
-        if: steps.deployment.outcome == 'failure'
+        if: steps.current.outputs.publish == 'true' && steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
@@ -148,13 +164,16 @@ jobs:
   sauce-labs:
     needs: [list-branches, combine-pages-and-deploy]
     # the credentials exist in this repository only, and pages exist for the branches listed above only
-    if: github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
+    if: needs.combine-pages-and-deploy.outputs.published == 'true' && github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
     runs-on: ubuntu-latest
     # reports without failing the workflow while the failures it found on the old engines are open
     continue-on-error: true
     permissions:
       contents: read
-    # do not hold the deployment slot while browsers run: marker changes are reported as warnings
+    # the account has ten session slots; serialize Sauce runs without holding the Pages deployment slot
+    concurrency:
+      group: sauce-labs-${{ github.repository }}
+      cancel-in-progress: false
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
