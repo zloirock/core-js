@@ -154,7 +154,7 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
-    # do not hold the deployment slot while the browsers run: the commit marker detects a replaced site
+    # do not hold the deployment slot while browsers run: marker changes are reported as warnings
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
