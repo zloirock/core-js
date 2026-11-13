@@ -1,5 +1,5 @@
-// A parameter mirror serves two instance methods from a supplied prototype default.
-// Each method gets its own receiver node, and the original comment prints once.
+// Two instance methods retain the supplied prototype receiver.
+// Its source comment prints once even when both dispatchers use the captured value.
 function read(first = 0, { at, flat } = Array /* receiver */.prototype, last = 0) {
   return [at, flat];
 }

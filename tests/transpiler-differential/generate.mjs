@@ -25826,4 +25826,60 @@ function * generateNestedReceiverRoots() {
       var hop = 'map'; function read() { return [[3, 7]].flat?.()[hop](value => value)?.at(-1); }`, '[early, read()]'],
   ]) yield { name: `computed-pattern-keys/combined-key/${ shape }`, strip: true,
     code: `export const effects = []; ${ setup } export const r = ${ expression };` };
+
+  // Parameter boundaries: later inert bindings, opt-outs and their TDZ witnesses.
+  for (const tail of ['options = {}', 'options = { xs: [1, -2] }', '...options']) {
+    for (const nested of [false, true]) yield { name: `parameter-boundaries/tail/${ tail }/${ nested }`, strip: true,
+      code: `export const effects = [];
+        export function read(${ nested ? '{ row: { at } }' : '{ at }' }, ${ tail }) { return [at.call([3, 7], -1), options]; }
+        export const r = [read(${ nested ? '{ row: [3, 7] }' : '[3, 7]' }), read.length];` };
+  }
+  for (const first of [false, true]) {
+    const off = '// core-js-disable-next-line\n flat';
+    const pattern = first ? `${ off },\n at` : `at,\n ${ off }`;
+    yield { name: `parameter-boundaries/disabled/${ first }`, strip: true, isolated: true,
+      code: `export const effects = [];
+        export function read({ ${ pattern } }) { return [at.call([3, 7], -1), flat]; }
+        const source = [3, 7]; Object.defineProperty(source, 'flat', { get() { effects.push('flat'); return 9; } });
+        export const r = read(source);` };
+    yield { name: `parameter-boundaries/disabled-order/${ first }`, strip: true, isolated: true,
+      code: `export const effects = [];
+        export function read({ ${ pattern } }) { effects.push('body'); return [at(), flat]; }
+        export const r = read({ get at() { effects.push('at'); return () => 7; }, get flat() { effects.push('flat'); return 9; } });` };
+  }
+  for (const tail of ['tail = {}', '...tail']) for (const witness of ['tail', 'tail = []', '++tail']) {
+    yield { name: `parameter-boundaries/tdz/${ tail }/${ witness }`, strip: true,
+      code: `export const effects = [];
+        export function read(probe = () => (${ witness }), { at } = { get at() { effects.push('get'); return probe(); } }, ${ tail }) { return at; }
+        export let r; try { read(); } catch (error) { r = error.name; }` };
+  }
+  for (const nested of [false, true]) yield { name: `parameter-boundaries/coercion/${ nested }`, strip: true, isolated: true,
+    code: `export const effects = [];
+      Array.prototype.valueOf = function () { effects.push('coerce'); return 9; };
+      export function read({ at }, options = ${ nested ? '{ value: +[] }' : '+[]' }) { return [at(), options]; }
+      export const r = read({ get at() { effects.push('get'); return () => 7; } });` };
+  yield { name: 'parameter-boundaries/disabled-realm', strip: true, isolated: true,
+    code: `export const effects = []; const realm = globalThis;
+      // core-js-disable-next-line
+      const nativeSet = realm.Set;
+      export function read({ Array: { from },
+        // core-js-disable-next-line
+        Set: S
+      } = globalThis) { return [from([3]), S === nativeSet]; }
+      export const r = read();` };
+  yield { name: 'parameter-boundaries/rest-arguments', strip: true,
+    code: `export const effects = [];
+      export function read({ at }, value, ...tail) { value = 9; return [at.call([3, 7], -1), arguments[1], tail, read.length]; }
+      export const r = read([3, 7], 5, 11);` };
+  yield { name: 'parameter-boundaries/constructor-selection', strip: true, isolated: true,
+    code: `export const effects = [], r = [];
+      for (const C of [Array, String, null]) (function ({ W: { concat } } = { W: C || Array }) { r.push(typeof concat); })();` };
+  for (const first of [false, true]) {
+    const nested = 'row: { value } = { value: +[] }';
+    yield { name: `parameter-boundaries/nested-coercion/${ first }`, strip: true, isolated: true,
+      code: `export const effects = [];
+        Array.prototype.valueOf = function () { effects.push('coerce'); return 9; };
+        export function read({ ${ first ? `${ nested }, at` : `at, ${ nested }` } }) { return [at.call([3, 7], -1), value]; }
+        export const r = read([3, 7]);` };
+  }
 }

@@ -17,12 +17,27 @@ import {
   classifyDestructureLeafHost,
   patternClaimOwesMirror,
   planParameterInstanceExtraction,
+  resolvePassthroughRef,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('mirror-ctor-passthrough');
+
+for (const keys of [['Set'], ['self', 'Set'], ['Array', 'from']]) {
+  const options = {
+    keyPath: keys, receiverName: 'globalThis', receiverIsProxy: true, raw: true,
+    resolveGlobalPolyfill: name => ['globalThis', 'self', 'Set'].includes(name) ? { entry: name } : null,
+  };
+  checkDeep(`disabled native slot/${ keys }`, resolvePassthroughRef({ ...options, disabled: true }), {
+    pure: { entry: 'globalThis' }, path: keys,
+  });
+}
+checkDeep('a declined but enabled constructor still needs its pure entry', resolvePassthroughRef({
+  keyPath: ['Set'], receiverName: 'globalThis', receiverIsProxy: true, raw: true,
+  resolveGlobalPolyfill: name => ({ entry: name }),
+}), { pure: { entry: 'Set' }, ctor: 'Set', path: [] });
 
 for (const meta of [null, undefined]) check('an absent claim does not ask the resolver', buildParameterArgumentSynthPlan({
   meta,
@@ -912,11 +927,11 @@ for (const [method, ownDefault] of [['at', true], ['flat', false]]) runBoth(
 
 // Whole receiver capture keeps open callers and quiet closed callers on the ordinary body renderer.
 // Parameter reads and later binding work retain their original parameter environment.
-for (const [name, source, accepted, padding = false, goal = 'module'] of [
+for (const [name, source, accepted, padding = false, goal = 'module', siblingClaim = false] of [
   ['open declaration', 'export function read({ at }) { return at; }', true],
   ['escaped declaration', 'function read({ at }) { return at; } hand(read);', true],
   ['callback expression', 'subscribe(({ at }) => at);', true],
-  ['closed caller', 'function read({ at, flat }) { return [at, flat]; } read([1, [2]]);', true],
+  ['closed caller', 'function read({ at, flat }) { return [at, flat]; } read([1, [2]]);', true, false, 'module', true],
   ['later identifier', 'function read({ at }, value) { return [at, value]; } read([1], effect());', true],
   ['earlier default', 'export function read(value = effect(), { at }) { return [at, value]; }', true],
   ['whole default', 'export function read({ at } = [1]) { return at; }', true],
@@ -933,7 +948,18 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   ['typed receiver default', 'export function read({ at }: string = "ab") { return at; }', true],
   ['later default', 'export function read({ at }, value = effect()) { return at; }', false],
   ['later pattern', 'export function read({ at }, { value }) { return at; }', false],
-  ['later rest', 'export function read({ at }, ...values) { return at; }', false],
+  ['later rest', 'export function read({ at }, ...values) { return at; }', true],
+  ['later literal default', 'export function read({ at }, value = {}) { return [at, value]; }', true],
+  ['later nested literal default', 'export function read({ at }, value = { xs: [1, -2, null] }) { return [at, value]; }', true],
+  ['later lexical default', 'const X = {}; export function read({ at }, value = X) { return [at, value]; }', false],
+  ['later default getter', 'export function read({ at }, value = { get x() { return 1; } }) { return at; }', false],
+  ['later default spread', 'export function read({ at }, value = { ...X }) { return at; }', false],
+  ['later default coercion', 'export function read({ at }, value = +[]) { return at; }', false],
+  ['later rest pattern', 'export function read({ at }, ...[value]) { return at; }', false],
+  ['rest keeps arguments unmapped', 'function read({ at }, value, ...tail) { value = 9; return [at, arguments[1], tail]; }', true, false, 'script'],
+  ['later default TDZ', 'export function read(probe = () => tail, { at }, tail = {}) { return at; }', false],
+  ['later rest TDZ', 'export function read(probe = () => tail, { at }, ...tail) { return at; }', false],
+  ['later rest write', 'export function read(probe = () => tail = [], { at }, ...tail) { return at; }', false],
   ['leaf default', 'export function read({ at = custom }) { return at; }', false],
   ['computed key', 'export function read({ [key]: at }) { return at; }', false],
   ['folded literal key', "export function read({ ['at']: at }) { return at; }", true],
@@ -951,14 +977,15 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   ['rest property', 'export function read({ at, ...rest }) { return at; }', false],
   ['nested pattern', 'export function read({ row: { at } }) { return at; }', true],
   ['nested literal default', 'export function read({ row: { at } = "ab" }) { return at; }', true],
-  ['nested siblings', 'export function read({ first: { at }, last: { flat }, marker }) { return [at, flat, marker]; }', true],
+  ['nested default keeps coercion in order', 'export function read({ at, row: { value } = { value: +[] } }) { return [at, value]; }', true],
+  ['nested siblings', 'export function read({ first: { at }, last: { flat }, marker }) { return [at, flat, marker]; }', true, false, 'module', true],
   ['nested native hop sibling', 'export function read({ row: { inner: { at }, marker } }) { return [at, marker]; }', true],
-  ['nested claimed hop sibling', 'export function read({ row: { inner: { at }, flat } }) { return [at, flat]; }', true],
+  ['nested claimed hop sibling', 'export function read({ row: { inner: { at }, flat } }) { return [at, flat]; }', true, false, 'module', true],
   ['nested computed literal', 'export function read({ row: { ["at"]: at } }) { return at; }', true],
   ['empty nested level', 'export function read({ row: {}, at }) { return at; }', false],
   ['flat primitive leaf default', 'export function read({ marker = 0, at } = [2]) { return [marker, at]; }', true],
   ['raw leaf with an inert default', 'export function read({ row: { marker = -1, at } }) { return [marker, at]; }', true],
-  ['served leaf with a literal default', 'export function read({ row: { at = 3, flat } }) { return [at, flat]; }', true],
+  ['served leaf with a literal default', 'export function read({ row: { at = 3, flat } }) { return [at, flat]; }', true, false, 'module', true],
   ['raw leaf with effectful default', 'export function read({ row: { marker = effect(), at } }) { return [marker, at]; }', false],
   ['raw leaf coercing an object', 'export function read({ row: { marker = +[], at } }) { return [marker, at]; }', false],
   ['raw default binding observed in parameters', 'export function read(probe = () => marker, { row: { marker = 0, at } }) { return probe(); }', false],
@@ -1050,9 +1077,9 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   check(`${ label } disabled properties keep the source parameter`, planParameterInstanceExtraction({
     ...options, isDisabledProp: () => true,
   }), null);
-  check(`${ label } a disabled leaf keeps the whole parameter`, planParameterInstanceExtraction({
+  check(`${ label } a disabled leaf can ride only a sibling claim`, !!planParameterInstanceExtraction({
     ...options, isDisabledProp: node => node === property.node,
-  }), null);
+  }), siblingClaim);
 }, undefined, goal);
 
 for (const param of ['@dec { at }: number[]', '@dec { at }: number[] = []']) {
@@ -1070,10 +1097,10 @@ for (const param of ['@dec { at }: number[]', '@dec { at }: number[] = []']) {
 
 // A cached refusal follows the actual parameter-expression read/write, not the old pattern identity.
 // Both emitters revisit the same source pattern after replacing or removing earlier expressions.
-for (const expression of ['tail', 'tail = 7', '++tail', '({ x: tail } = { x: 7 })']) {
+for (const tail of ['tail', 'tail = {}', '...tail']) for (const expression of ['tail', 'tail = 7', '++tail', '({ x: tail } = { x: 7 })']) {
   for (const edit of ['replace body', 'remove default', 'rename target', 'move expression to body', 'reparent pattern']) {
-    runBoth(`parameter body receiver warm edit/${ expression }/${ edit }`,
-      `export function read(probe = () => (${ expression }), shadow = (tail => tail)(1), { at }, tail) { return at; } function other(a, b, replacement, tail) {}`,
+    runBoth(`parameter body receiver warm edit/${ tail }/${ expression }/${ edit }`,
+      `export function read(probe = () => (${ expression }), shadow = (tail => tail)(1), { at }, ${ tail }) { return at; } function other(a, b, replacement, tail) {}`,
       (parser, program, label) => {
         const pattern = parser.pickPath(program, 'ObjectPattern', path => path.node.properties.some(prop => prop.value?.name === 'at'));
         const arrow = parser.pickPath(program, 'ArrowFunctionExpression');
