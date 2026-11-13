@@ -3,4 +3,5 @@ await $`node --test \
   tests/saucelabs/evaluate.test.mjs \
   tests/saucelabs/helpers.test.mjs \
   tests/saucelabs/platforms.test.mjs \
-  tests/saucelabs/qunit-results.test.mjs`;
+  tests/saucelabs/qunit-results.test.mjs \
+  tests/saucelabs/webdriver.test.mjs`;

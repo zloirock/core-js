@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 // Exercise the runner against a fake WebDriver hub without starting Sauce Labs sessions.
-async function runFake({ failed = 0, marker = 404, timeout = false } = {}) {
+async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull = false } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
     accessKey: process.env.SAUCE_ACCESS_KEY,
@@ -35,7 +35,7 @@ async function runFake({ failed = 0, marker = 404, timeout = false } = {}) {
       if (path === '/wd/hub/session') {
         sessions++;
         assert.doesNotMatch(JSON.parse(options.body).desiredCapabilities.build, /@a{40}/);
-        payload = { sessionId: 'test-session' };
+        payload = sessionNull ? null : { sessionId: 'test-session' };
       } else if (options.method === 'DELETE') payload = {};
       else if (path.endsWith('/url')) payload = {};
       else {
@@ -60,7 +60,7 @@ async function runFake({ failed = 0, marker = 404, timeout = false } = {}) {
       concurrency: 1, reporter: 'qunitResults',
       evaluate: ({ failed: count }) => ({ passed: count === 0, summary: `${ count } failed`, details: [] }),
     };
-    if (failed || timeout) await assert.rejects(run(suite), /Sauce Labs run failed/);
+    if (failed || timeout || sessionNull) await assert.rejects(run(suite), /Sauce Labs run failed/);
     else await run(suite);
     return { output: output.join('\n'), sessions, annotationRequests, markerRequests };
   } finally {
@@ -89,6 +89,13 @@ test('passes served pages despite a missing deployment marker', async () => {
   assert.equal(markerRequests, 2);
   assert.match(output, /all the browsers passed/);
   assert.match(output, /commit\.txt shows HTTP 404.*after the run/);
+});
+
+test('retries an invalid WebDriver response for a platform', async () => {
+  const { output, sessions } = await runFake({ sessionNull: true });
+  assert.equal(sessions, 3);
+  assert.match(output, /invalid WebDriver response.*retrying \(2 of 3\)/);
+  assert.match(output, /invalid WebDriver response.*retrying \(3 of 3\)/);
 });
 
 test('reports the active QUnit test when a page times out', async () => {

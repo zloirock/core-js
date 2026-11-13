@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fromCatalog } from './all-platforms.mjs';
+import allPlatforms, { fromCatalog } from './all-platforms.mjs';
 
 function entry(browser, version, os, device, backend = 'webdriver') {
   return { api_name: browser, short_version: version, os, automation_backend: backend, device };
@@ -47,9 +47,25 @@ test('selects one configuration per browser version and excludes non-browser pla
   assert.equal(platforms.find(({ name }) => name.startsWith('android')).capabilities['appium:deviceName'], 'Google Nexus 6 Emulator');
 });
 
+test('fetches and validates the platform catalog', async () => {
+  const previous = globalThis.fetch;
+  try {
+    globalThis.fetch = async url => {
+      assert.equal(url, 'https://api.us-west-1.saucelabs.com/rest/v1/info/platforms/all');
+      return { ok: true, json: async () => [null] };
+    };
+    await assert.rejects(allPlatforms('us-west-1'), /invalid platform entry at index 0/);
+    globalThis.fetch = async () => ({ ok: false, status: 503 });
+    await assert.rejects(allPlatforms('us-west-1'), /HTTP 503/);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
 test('rejects an empty or invalid catalog', () => {
   assert.throws(() => fromCatalog([]), /no supported browsers/);
   assert.throws(() => fromCatalog({}), /not an array/);
+  assert.throws(() => fromCatalog([null]), /invalid platform entry at index 0/);
   assert.throws(() => fromCatalog([
     entry('chrome', '109', 'Windows 10'),
     entry('android', '6.0', 'Linux', 'Nexus 5', 'appium'),
@@ -60,4 +76,20 @@ test('rejects an empty or invalid catalog', () => {
     entry('iphone', '27.1', 'Mac 15', 'iPhone Duo', 'appium'),
     { ...entry('iphone', '27.1', 'Mac 15', 'iPhone Duo Simulator', 'appium'), long_name: 'iPhone Duo Simulator' },
   ])[0].capabilities['appium:deviceName'], 'iPhone Duo Simulator');
+  for (const browser of ['iphone', 'ipad', 'android']) {
+    const os = browser === 'android' ? 'Linux' : 'Mac 15';
+    const unnamed = entry(browser, '27.1', os, 'A Device', 'appium');
+    const named = { ...entry(browser, '27.1', os, 'Z Device', 'appium'), long_name: 'Z Device Emulator' };
+    assert.throws(() => fromCatalog([unnamed]), /emulator name/);
+    assert.equal(fromCatalog([unnamed, named])[0].capabilities['appium:deviceName'], named.long_name);
+    assert.equal(fromCatalog([named, unnamed])[0].capabilities['appium:deviceName'], named.long_name);
+    const sameDevice = { ...named, long_name: 'A Device Emulator' };
+    assert.equal(fromCatalog([named, sameDevice])[0].capabilities['appium:deviceName'], sameDevice.long_name);
+    assert.equal(fromCatalog([sameDevice, named])[0].capabilities['appium:deviceName'], sameDevice.long_name);
+  }
+  for (const browser of ['iphone', 'ipad', 'android']) {
+    const slashDevice = { ...entry(browser, '7.1', 'C', 'A/B', 'appium'), long_name: 'D Emulator' };
+    const slashOs = { ...entry(browser, '7.1', 'B/C', 'A', 'appium'), long_name: 'D Emulator' };
+    assert.equal(fromCatalog([slashDevice, slashOs])[0].name, fromCatalog([slashOs, slashDevice])[0].name);
+  }
 });
