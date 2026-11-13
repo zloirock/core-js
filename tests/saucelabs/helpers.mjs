@@ -56,7 +56,11 @@ async function runPage({ reporter, evaluate }, session, page) {
     const elapsed = Date.now() - start;
     if (state) {
       const { url, results } = JSON.parse(state);
-      if (url !== `${ base }/${ page }`) throw new WebDriverError(`unexpected page ${ url } instead of ${ base }/${ page }`);
+      const expected = `${ base }/${ page }`;
+      // GitHub Pages can upgrade HTTP to HTTPS on browsers that support its TLS version.
+      if (url !== expected && !(expected.startsWith('http:') && url === expected.replace(/^http:/, 'https:'))) {
+        throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
+      }
       if (results.done) return { page, ...evaluate(results) };
       // a run that never ended still lists the failures it met before
       if (elapsed > RUN_TIMEOUT) {
