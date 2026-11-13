@@ -17,7 +17,6 @@ import {
   closestBindingVisibleAtUse,
   lookupReadPath,
   cleanDestructureAliasWrites,
-  declaredIdentifierNodes,
   hoistedDeclarationInScope,
   findTSRuntimeBindingInPath,
   getDirectStatementBody,
@@ -25,7 +24,7 @@ import {
   hoistedBindingVisibleInScope,
   IMPORT_SPECIFIER_TYPES,
   importBindingView,
-  isAmbientBindingShape,
+  isAmbientBinding,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isNonReferencePosition,
@@ -44,6 +43,7 @@ import {
   useAnchorStart,
   unwrapTransparentSeq,
   varScopeBlockOfBinding,
+  violationDeclarationOf,
   wrapScopeBindingLookup,
   withOverlappingWriteScans,
   writesPastCeiling,
@@ -183,14 +183,6 @@ function findTSImportEqualsDeclaration(path, name) {
   return null;
 }
 
-// estree-toolkit's scope tracker registers `declare class X` / `declare const X` / `interface X`
-// / `import type X` as bindings even though they're tsc-elided. consult the binding before
-// declaring a shadow so ambient/type-only declarations don't suppress polyfill emission.
-// shared `isAmbientBindingShape` covers all tsc-elided binding forms uniformly with babel
-function isAmbientBinding(binding) {
-  return isAmbientBindingShape(binding?.path?.node, binding?.path?.parent);
-}
-
 // estree-toolkit over-hoists a binding declared inside `namespace N {}` / `declare global {}` (a
 // TSModuleBlock) - var/let/const, class, function alike - to the enclosing function / program
 // scope, and files one a class static block declares on the CLASS scope, so `scope.getBinding`
@@ -239,16 +231,6 @@ function isCaseBlockBindingOutsideCases(native, path) {
   const pos = path.node.start;
   const casesStart = switchNode.cases?.[0]?.start ?? switchNode.end;
   return typeof pos === 'number' && pos >= switchNode.start && pos < casesStart;
-}
-
-// the declaration estree-toolkit filed as a violation of a binding declares the violated Identifier: a
-// declarator, through any pattern, or a class or function declaration - null for a write
-const VIOLATION_DECLARATION_TYPES = new Set(['VariableDeclarator', 'ClassDeclaration', 'FunctionDeclaration']);
-function violationDeclarationOf(violation) {
-  for (let path = violation.parentPath; path?.node; path = path.parentPath) {
-    if (VIOLATION_DECLARATION_TYPES.has(path.node.type)) return declaredIdentifierNodes(path.node)?.has(violation.node) ? path : null;
-  }
-  return null;
 }
 
 // the loop a binding's declaration heads and the lexical declaration its body block redeclares the name
@@ -729,6 +711,7 @@ export function createEstreeAdapter(options = {}) {
         scope: b.path.node.type === 'ClassDeclaration' ? b.scope : b.path.scope ?? b.scope,
         // the declarator's own PATH - see the babel twin
         declarationPath: b.path,
+        declarationViolations: b.declarationViolations ?? b.constantViolations,
         polyfillHint,
         aliasSymbolSource,
         aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,

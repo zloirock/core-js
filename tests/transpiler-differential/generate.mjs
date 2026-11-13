@@ -25711,4 +25711,32 @@ function * generateNestedReceiverRoots() {
     `],
   ]) yield { name: `nested-receiver-boundary/${ shape }`, strip: true,
     code: `export const effects = []; export const r = (() => { ${ body } })();` };
+  // A lowercase head over several constructors carries every alternative into the write census.
+  // Restore from foreign code so cleanup cannot independently announce the slot being tested.
+  for (const kind of ['const', 'let', 'var']) for (const wrapped of [false, true]) for (const indexed of [false, true]) {
+    for (const write of ['c.from = () => "patched";', 'Object.defineProperty(c, "from", { configurable: true, value: () => "patched" });']) {
+      const elements = wrapped ? '[(Array), (Map)]' : '[Array, Map]';
+      const loop = indexed
+        ? `for (var i = 0, items = ${ elements }; i < items.length; i++) { ${ kind } c = items[i]; ${ write } }`
+        : `for (${ kind } c of ${ elements }) { ${ write } }`;
+      yield mutationSnippet(`iterated-constructor-write/${ kind }/${ wrapped }/${ indexed }/${ write.startsWith('c.') ? 'direct' : 'define' }`,
+        `(() => { const arrayDescriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+          const mapDescriptor = _nativeObject.getOwnPropertyDescriptor(Map, "from");
+          try { ${ loop }
+            return Array.from([1]); }
+          finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
+    }
+  }
+  for (const outer of [false, true]) for (const define of [false, true]) {
+    const write = define ? 'Object.defineProperty(c, "from", { configurable: true, value: () => "patched" });' : 'c.from = () => "patched";';
+    const loop = `for (var i = 0; i < items.length; i++) { const c = items[i]; ${ write } }`;
+    const setup = outer
+      ? `const items = [Array, Map]; (function (Array, Map) { ${ loop } })(function () {}, function () {});`
+      : `let items; (function (Array, Map) { items = [Array, Map]; })(function () {}, function () {}); ${ loop }`;
+    yield mutationSnippet(`iterated-constructor-write/scope/${ outer }/${ define }`,
+      `(() => { const arrayDescriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+        const mapDescriptor = _nativeObject.getOwnPropertyDescriptor(Map, "from");
+        try { ${ setup } return Array.from([1]); }
+        finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
+  }
 }

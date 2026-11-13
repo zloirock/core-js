@@ -80,6 +80,10 @@ const rows = [
   ['for heads', 'for (Array.from of values) {} for (Map.groupBy in values) {}'],
   ['pattern heads', 'for ([Array.from] of values) {} for ({ a: Map.groupBy } of values) {}'],
   ['iterated constructors', 'for (const C of [Array, Map]) C.from = replacement;'],
+  ['iterated lowercase constructors', 'for (const c of [Array, Map]) c.from = replacement;'],
+  ['iterated lowercase logical write', 'for (let c of [Array, Map]) c.from ||= replacement;'],
+  ['iterated lowercase delete', 'for (var c of [Array, Map]) delete c.from;'],
+  ['indexed constructors', 'for (var i = 0, items = [Array, Map]; i < items.length; i++) { const c = items[i]; c.from = replacement; }'],
   ['iterated containers', 'for (const { C } of [{ C: Array }, { C: Map }]) C.from = replacement;'],
   ['iterated alias', 'const values = [Array, Map]; for (const C of values) C.from = replacement;'],
   ['caught constructor', 'try { throw Array; } catch (C) { C.from = replacement; }'],
@@ -174,6 +178,42 @@ for (const parser of adapters) for (const [label, source, sourceType, plugins] o
   const original = collect(parser, code, false, sourceType, plugins);
   const indexed = collect(parser, code, true, sourceType, plugins);
   checkDeep(`${ parser.name }/${ label }`, indexed.keys, original.keys);
+}
+
+// No unrelated mutation opens the file gate. Every iterated constructor must still be reached.
+for (const parser of adapters) for (const kind of ['const', 'let', 'var']) {
+  for (const source of ['[Array, Map]', '[(Array), (Map)]', '[Array]']) for (const indexed of [false, true]) {
+    const code = indexed
+      ? `for (var i = 0, items = ${ source }; i < items.length; i++) { ${ kind } c = items[i]; c.from = replacement; }`
+      : `for (${ kind } c of ${ source }) c.from = replacement;`;
+    const result = collect(parser, code, true);
+    const label = `${ parser.name }/${ kind }/${ source }/${ indexed }`;
+    checkTruthy(`${ label }/Array write`, result.keys.includes('Array.from'));
+    if (source !== '[Array]') checkTruthy(`${ label }/Map write`, result.keys.includes('Map.from'));
+  }
+  const clean = collect(parser, `for (${ kind } c of [Array, Map]) c.extra = 1;`, true);
+  checkDeep(`${ parser.name }/${ kind }/unrelated key`, clean.keys.includes('Array.from'), false);
+}
+
+// A later hop changes the mutation receiver; instance fields are not constructor slots.
+for (const parser of adapters) for (const source of [
+  'const items = [Array]; const c = items[index].prototype; c.from = replacement;',
+  'class Items { value = Array; } const c = Items[index]; c.from = replacement;',
+]) {
+  checkDeep(`${ parser.name }/non-constructor slot/${ source }`, collect(parser, source, true).keys.includes('Array.from'), false);
+}
+
+for (const parser of adapters) {
+  const outer = collect(parser, 'const items = [Array, Map]; function patch(Array) { const c = items[index]; c.from = replacement; }', true);
+  checkTruthy(`${ parser.name }/indexed outer Array`, outer.keys.includes('Array.from'));
+  checkTruthy(`${ parser.name }/indexed outer Map`, outer.keys.includes('Map.from'));
+  const local = collect(parser, 'function patch(Array, Map) { const items = [Array, Map]; const c = items[index]; c.from = replacement; }', true);
+  checkDeep(`${ parser.name }/indexed local Array`, local.keys.includes('Array.from'), false);
+  checkDeep(`${ parser.name }/indexed local Map`, local.keys.includes('Map.from'), false);
+  const assigned = collect(parser,
+    'let items; function fill(Array, Map) { items = [Array, Map]; } const c = items[index]; c.from = replacement;', true);
+  checkDeep(`${ parser.name }/indexed assigned local Array`, assigned.keys.includes('Array.from'), false);
+  checkDeep(`${ parser.name }/indexed assigned local Map`, assigned.keys.includes('Map.from'), false);
 }
 
 for (const parser of adapters) for (const size of [16, 64]) {

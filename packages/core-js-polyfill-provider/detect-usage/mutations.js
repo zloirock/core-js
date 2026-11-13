@@ -6975,7 +6975,12 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         const value = unwrapRuntimeExpr(element);
         if (value?.type === 'ObjectExpression' || value?.type === 'ArrayExpression') {
           declareContainer(head.id.name, head, value, { kind: node.left.kind });
-        } else recordEscapedContainers([element], currentScopes, null, true);
+        } else {
+          recordEscapedContainers([element], currentScopes, null, true);
+          // Every alternative supplies a value and its alias roots, just as a single element.
+          valueBound.add(head.id.name);
+          recordAliasSource(head.id.name, sourceRoots(element));
+        }
       }
     }
     currentScopes = outerScopes;
@@ -9388,6 +9393,16 @@ function resolveMutationSite({
       for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath, ctx)) {
         const rootName = resolveLeafName(valueLeaf, { ...ctx, thisPath: leafAnchor });
         if (rootName) receiverDeopts.add(rootName);
+        // A direct dynamic array read may select any element, as in a lowered for-of.
+        // A following hop changes the receiver; class instance fields are not static slots.
+        else if (valueLeaf.type === 'ArrayExpression'
+          && peelSequenceTail(unwrapRuntimeExpr(leaf.object), { step: unwrapRuntimeExpr }) === parts.rootNode) {
+          // Elements belong to the array's frame, including an array assigned from another scope.
+          const arrayPath = pathOfNode(path, valueLeaf);
+          if (arrayPath) for (const value of containerSlotNodes(valueLeaf)) {
+            visitAliasValues(value, 1, arrayPath, { ...ctx, scope: arrayPath.scope, path: arrayPath });
+          }
+        }
       }
       return;
     }

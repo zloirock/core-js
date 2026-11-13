@@ -58,6 +58,7 @@ import {
   installedWriteValue,
   invocationNode,
   isAliasProxyRoot,
+  isAmbientBinding,
   isAmbientBindingShape,
   isChainAssignment,
   isDestructurePattern,
@@ -1514,10 +1515,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // Ambient declarations describe an external value; they do not shadow its runtime
   // global. Read the declaration's parent through the binding canon, including the
   // adapters' normalized records whose raw node has no `declare` flag of its own.
-  if (binding) {
-    const declaration = bindingDeclarationPath(binding);
-    if (isAmbientBindingShape(binding.node ?? declaration?.node, declaration?.parentPath?.node)) binding = null;
-  }
+  if (isAmbientBinding(binding)) binding = null;
   // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
   // no entry in babel's scope chain, so the init-follow path never observes them

@@ -21,7 +21,7 @@ import {
   importBindingView,
   lookupReadPath,
   isSloppyAtPath,
-  isAmbientBindingShape,
+  isAmbientBinding,
   bareAssignmentPatternLeafPath,
   isAssignOrForXWriteTargetPath,
   isInUpdateOperand,
@@ -149,7 +149,7 @@ export function createBabelAdapter(options = {}) {
       // ... and a name a catch parameter declares, read in that parameter, which babel looks past
       if (catchParameterOwnBinding(babelScopeBinding, scope, name)) return true;
       if (scope.getBindingIdentifier(name)) {
-        // shared `isAmbientBindingShape` covers all tsc-elided binding forms (declare,
+        // shared `isAmbientBinding` covers erased binding forms and their runtime redeclarations (declare,
         // type-only imports in 3 ESM variants, type-only TSImportEquals). without filtering
         // these, the binding would shadow the polyfill even though it doesn't exist at runtime.
         // `closestBindingVisibleAtUse` drops the second class the tracker over-reports: babel
@@ -158,7 +158,7 @@ export function createBabelAdapter(options = {}) {
         // not there, and the binding further out it reads instead
         const own = scope.getBinding?.(name);
         const b = own && closestBindingVisibleAtUse(own, path, { outer: hidden => hidden.scope.parent?.getBinding(name) });
-        if (!own || (b && !isAmbientBindingShape(b.path.node, b.path.parent))) return true;
+        if (!own || (b && !isAmbientBinding(b))) return true;
       }
       // TS-runtime declarations babel scope doesn't expose via getBindingIdentifier:
       // regular `enum`/`namespace`, `const enum`. walk path's ancestor chain (Program,
@@ -262,6 +262,7 @@ export function createBabelAdapter(options = {}) {
         }) ? `${ getInjector().pkg }/${ info.source }` : null;
         return {
           node: b.path.node, kind: b.kind, name, constantViolations, importSource, importKind,
+          declarationViolations: b.declarationViolations ?? b.constantViolations,
           references: b.references,
           // the scope the DECLARATOR is written in - the const-alias walkers advance to it per hop
           // so a later hop reading an outer-declared name resolves it there, not against the
