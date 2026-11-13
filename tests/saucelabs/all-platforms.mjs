@@ -24,7 +24,7 @@ function platform({ api_name: browser, short_version: version, os, device, long_
       capabilities: {
         browserName: android ? 'Chrome' : 'Safari',
         platformName: android ? 'Android' : 'iOS',
-        'appium:deviceName': android ? deviceName : device,
+        'appium:deviceName': deviceName,
         'appium:platformVersion': version,
         'appium:automationName': android ? 'UiAutomator2' : 'XCUITest',
       },
@@ -47,16 +47,18 @@ export function fromCatalog(catalog) {
     const { api_name: browser, short_version: version, automation_backend: backend, os, device } = entry;
     if (!browsers.has(browser) || backend !== (mobile.has(browser) ? 'appium' : 'webdriver')) continue;
     if (!version || !os || mobile.has(browser) && !device) continue;
-    if (browser === 'android' && !entry.long_name) {
-      throw new Error(`Sauce Labs platform catalog: android ${ version } has no emulator name`);
-    }
     const key = `${ browser }/${ version }`;
     const previous = selected.get(key);
     if (!previous || rank(entry) < rank(previous)) selected.set(key, entry);
   }
   if (!selected.size) throw new Error('Sauce Labs platform catalog contains no supported browsers');
   return Array.from(selected).sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))
-    .map(([, entry]) => platform(entry));
+    .map(([, entry]) => {
+      if (mobile.has(entry.api_name) && !entry.long_name) {
+        throw new Error(`Sauce Labs platform catalog: ${ entry.api_name } ${ entry.short_version } has no emulator name`);
+      }
+      return platform(entry);
+    });
 }
 
 export default async function allPlatforms(region) {

@@ -122,11 +122,11 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare bundle test-unit-deno
   ```
-- Unit browser pages in the [Sauce Labs](https://saucelabs.com/) browsers that CI lacks: real Safari, iOS, and older Chromium and Firefox. The runner tests the pages already deployed to GitHub Pages, not a local build, and needs the `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` environment variables (it's not included in the default tests):
+- Unit browser pages in the [Sauce Labs](https://saucelabs.com/) browsers that CI lacks: real Safari, iOS, IE10, and older Chromium and Firefox. The runner tests the pages already deployed to GitHub Pages, not a local build, and needs the `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` environment variables (it's not included in the default tests). Use an HTTP URL: Firefox before 27 cannot negotiate the GitHub Pages CDN's TLS versions, so Pages must allow HTTP (disable **Enforce HTTPS**):
   ```sh
-  npm run test-saucelabs -- <URL of a branch directory on GitHub Pages>
+  npm run test-saucelabs -- <HTTP URL of a branch directory on GitHub Pages> [full commit SHA]
   ```
-  To test one configuration per browser version in the Sauce Labs catalog, add `--all` after the URL (or after an optional commit SHA). The account dashboard showed a total concurrency limit of 10 sessions, Mac/iOS (x86) concurrency of 15, and real device concurrency of 0 on October 30, 2026. The full run limits itself to 10 concurrent sessions and uses simulators, not real devices.
+  To test one configuration per browser version in the Sauce Labs catalog, add `--all` after the optional commit SHA. Do not give the flag a value or put a SHA after it. The account dashboard showed a total concurrency limit of 10 sessions, Mac/iOS (x86) concurrency of 15, and real device concurrency of 0 on October 30, 2026. The full run limits itself to 10 concurrent sessions and uses simulators, not real devices.
 - [Test262](https://github.com/tc39/test262) test case (it's not included in the default tests):
   ```sh
   npx run-s prepare bundle-package test262

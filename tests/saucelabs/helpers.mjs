@@ -15,8 +15,10 @@ const RUN_TIMEOUT = 15 * 6e4;
 // GitHub Pages serves a finished deploy with a delay
 const DEPLOY_TIMEOUT = 10 * 6e4;
 const DEPLOY_POLL_INTERVAL = 15e3;
+const MARKER_TIMEOUT = 15e3;
 
 if (!username || !accessKey) throw new Error('SAUCE_USERNAME and SAUCE_ACCESS_KEY are required');
+if (COMMIT && !/^[\da-f]{40}$/.test(COMMIT)) throw new Error('commit must be a full 40-character SHA');
 // the short forms of other Sauce Labs tools (us, eu) name no host here, and every session would retry it
 if (!/^[a-z]+-[a-z]+-\d+$/.test(region)) throw new Error(`SAUCE_REGION is a data center like us-west-1 or eu-central-1, not ${ region }`);
 // anything else reaches the browsers first, as a navigation every session retries
@@ -30,7 +32,7 @@ const dashboard = region === 'us-west-1' ? 'https://app.saucelabs.com' : `https:
 // what the marker says, or why it says nothing - a network error is one more state to wait through
 async function deployedCommit() {
   try {
-    const response = await fetch(`${ base }/commit.txt`);
+    const response = await fetch(`${ base }/commit.txt`, { signal: AbortSignal.timeout(MARKER_TIMEOUT) });
     return response.ok ? (await response.text()).trim() : `HTTP ${ response.status }`;
   } catch (error) {
     return error.message;
@@ -94,7 +96,12 @@ async function runSession(suite, platform) {
         throw error;
       }
     }
-    await session.execute(`sauce:job-result=${ pages.every(({ passed }) => passed) ? 'passed' : 'failed' }`);
+    // reporting the job result must not discard the pages or retry a failed assertion
+    try {
+      await session.execute(`sauce:job-result=${ pages.every(({ passed }) => passed) ? 'passed' : 'failed' }`);
+    } catch (error) {
+      echo(yellow(`${ platform.name }: could not report the Sauce Labs job result: ${ error.message }`));
+    }
   } finally {
     // an abandoned session holds its concurrency slot until Sauce Labs times it out
     try {

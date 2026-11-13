@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ matrix.branch }}
+          ref: ${{ matrix.branch == github.ref_name && github.sha || matrix.branch }}
       - name: Build cache key
         id: cache-key
         env:
@@ -87,7 +87,7 @@ jobs:
           path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
       # written after the cache, so a branch restored from a cache older than this step gets it too: the
-      # sauce-labs job waits for the deployed pages to carry the commit it tests
+      # sauce-labs job checks the deployed pages against the triggering commit
       - name: Mark the commit of the artifacts
         run: git rev-parse HEAD > "$SAFE_BRANCH/commit.txt"
       - name: Upload artifacts for branch ${{ matrix.branch }}
@@ -154,12 +154,8 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
-    # `pages` again: the job reads the deployed site for minutes after the deploy, so the next deploy
-    # waits for it instead of replacing the pages under it. No cancel: another push to the same branch
-    # takes its own queued turn rather than canceling a run in the middle
-    concurrency:
-      group: pages
-      cancel-in-progress: false
+    # do not hold the deployment slot while the browsers run: the commit marker detects a replaced site
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
