@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 // Exercise the runner against a fake WebDriver hub without starting Sauce Labs sessions.
-async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false } = {}) {
+async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false, pageUrl } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
     accessKey: process.env.SAUCE_ACCESS_KEY,
@@ -63,7 +63,7 @@ async function runFake({ failed = 0, marker = 404, timeout = false, sessionNull 
           if (dynamicQueue && path.includes('/slow')) await slow;
           if (timeout) Date.now = () => start + 16 * 6e4;
           payload = { value: JSON.stringify({
-            url: `http://example.test/branch/unit-browser/${ wrongPage ? 'other' : 'global' }.html`,
+            url: pageUrl || `http://example.test/branch/unit-browser/${ wrongPage ? 'other' : 'global' }.html`,
             results: timeout
               ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
               : { done: true, failed, total: 1, failures: [] },
@@ -138,6 +138,12 @@ test('assigns the next waiting platform to the available worker', async () => {
   assert.equal(fastFinished, true);
   assert.equal(nextStartedWhileSlow, true);
   assert.deepEqual(started, ['slow', 'fast', 'next', 'last']);
+});
+
+test('accepts HTTPS redirects to the same published page', async () => {
+  const { output, sessions } = await runFake({ pageUrl: 'https://example.test/branch/unit-browser/global.html' });
+  assert.equal(sessions, 1);
+  assert.match(output, /all the browsers passed/);
 });
 
 test('rejects results from a different page', async () => {
