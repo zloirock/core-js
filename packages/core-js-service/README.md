@@ -11,20 +11,22 @@
 
 A bundle built for every browser instead of one built for the oldest of them. The service detects
 the visitor's engine from the request, serves it a [`core-js`](https://core-js.io) bundle carrying
-the modules that engine actually lacks, and injects the script tag into the HTML response. An
-application keeps working down to the floor `core-js` supports, and current browsers stop paying
-for that in bytes.
+the modules that engine actually lacks. The Express middleware injects a script tag into the
+HTML response; the standalone container serves a script that the application includes itself.
+An application keeps working down to the floor `core-js` supports, and current browsers stop
+paying for that in bytes.
 
-What the application can reach for - its **scope** - is decided by the build, not by this service:
-`@core-js/unplugin` and its relatives already work it out, and the list is passed in as it is.
+What the application can reach for - its **scope** - is decided by the application build, not by
+this service. Pass the complete module list to the container in a manifest or to the middleware
+as `scope`.
 
-The Express middleware below is the current integration, including for applications that run in
-many instances. Set `delivery: 'fixed'` to give every browser the same tag,
+The Express middleware below integrates the service into an application, including one that runs
+in many instances. Set `delivery: 'fixed'` to give every browser the same tag,
 `<script src="/__core-js/polyfills.js">`, and pick the bundle when the browser requests the script:
-see [One address for every browser](#one-address-for-every-browser). For a proposed separate HTTP container, a set-aside one-off container builder, and
-the trade-offs between bundle URLs, a fixed script URL, and a redirect, see
-[Integration concepts](integration-concepts.md). Those alternatives are not available as package
-options today.
+see [One address for every browser](#one-address-for-every-browser). A standalone HTTP container
+is also available; see [Run the standalone container](#run-the-standalone-container). For the
+set-aside one-off container builder and other delivery strategies, see
+[Integration concepts](integration-concepts.md). Those concepts are not package options.
 
 ```js
 import express from 'express';
@@ -76,6 +78,66 @@ app.use(polyfillService({
 
 app.get('/', (request, response) => response.render('index'));
 ```
+
+## Run the standalone container
+
+The container serves a fixed `/polyfills.js` URL without Express or HTML interception. Provide a
+complete manifest of the core-js modules your application might use, **before** its own
+browser-target filtering. The container does not generate this manifest or provide an application
+adapter. Create `app-modules.json` at the monorepo root, for example:
+
+```json
+{
+  "modules": ["es.array.from", "es.promise"]
+}
+```
+
+From the monorepo root, build the image and run it with the manifest mounted read-only:
+
+```sh
+docker build -f packages/core-js-service-container/Dockerfile -t core-js-service .
+docker run --rm -p 3000:3000 -v "$PWD/app-modules.json:/config/modules.json:ro" \
+  -e CORE_JS_MANIFEST_PATH=/config/modules.json core-js-service
+```
+
+The container listens on `0.0.0.0:3000` by default. Set `HOST` and `PORT` to change the listener.
+The image supplies its own core-js version; the application manifest and image can change
+independently. The container reads the manifest once at startup, so changing it requires a new
+instance. Deploy a replacement instance with the desired image and manifest, check its status, and
+then switch traffic; the container does not coordinate the switch.
+
+Place a blocking tag before your application scripts in the HTML:
+
+```html
+<script src="/polyfills.js"></script>
+<script src="/app.js"></script>
+```
+
+Route `/polyfills.js` through a same-origin proxy to the container. Forward `User-Agent`,
+`Accept-Encoding`, and `If-None-Match` unchanged. Do not independently cache this path or emit a
+stale `304` during an instance switch. In particular, do not add an encoding the browser did not
+request: the service uses `Accept-Encoding` to identify some browsers. The script response uses
+`Cache-Control: private, no-cache`, `Vary: User-Agent, Accept-Encoding`, and an `ETag` for the
+selected representation. The browser revalidates the URL; a changed generation, encoding, or
+newly ready bundle must not confirm old bytes with a `304`.
+
+Check `GET /status` to decide when to route traffic. It always returns HTTP `200` with JSON,
+including after an error; do not treat the HTTP status alone as a readiness check:
+
+| `state` | `baselineReady` | `fullyWarmed` | Meaning |
+|---|---|---|---|
+| `started` | `false` | `false` | Preparing the manifest, plan, or baseline. |
+| `ready` | `true` | `false` | The baseline is available; other bundles are warming. |
+| `ready` | `true` | `true` | All planned bundles are available. |
+| `error` | `false` | `false` | Preparation failed; no bundle is available. |
+| `error` | `true` | `false` | Later warm-up failed; the baseline remains available. |
+
+On error, the response includes `errorCode`: `manifest_invalid`, `plan_failed`,
+`baseline_build_failed`, or `bundle_build_failed`. It does not expose exception text or filesystem
+paths. Until the baseline is ready, `/polyfills.js` returns `503` with `Cache-Control: no-store`.
+Afterward, a bundle that has not warmed or failed to build falls back to the baseline. An error
+persists for that instance; start a replacement instance to retry preparation. Choose whether to
+switch traffic after baseline readiness or full warm-up based on your deployment requirements.
 
 ## Register it after `compression`
 
