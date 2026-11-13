@@ -25739,4 +25739,19 @@ function * generateNestedReceiverRoots() {
         try { ${ setup } return Array.from([1]); }
         finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
   }
+  // Every output gets its own realm: another import cannot decorate a narrow constructor.
+  for (const [shape, body] of [
+    ['pattern-key', "const k = 'w'; const { [k]: { groupBy } } = { w: Map };"],
+    ['numeric-key', 'const { 1: { groupBy } } = { 1: Map };'],
+    ['array-key', 'const { [0]: { groupBy } } = [Map];'],
+    ['literal-key', "const k = 'w'; const { w: { groupBy } } = { [k]: Map };"],
+    ['getter', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; } };"],
+    ['paired-accessors', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; }, set w(value) {} };"],
+    ['unknown-literal', "const k = String('w'); const { w: { groupBy } } = { [k]: Map };"],
+    ['unknown-getter', "const k = String('w'); const { w: { groupBy } } = { get [k]() { effects.push('get'); return Map; } };"],
+    ['key-effects', "const k = 'w'; const { [(effects.push('key'), k)]: { groupBy } } = { get w() { effects.push('get'); return Map; } };"],
+    ['assignment', "let groupBy; const k = 'w'; ({ [k]: { groupBy } } = { w: Map });"],
+    ['nested', "const { w: { inner: { groupBy } } } = { get w() { effects.push('get'); return { inner: Map }; } };"],
+  ]) yield { name: `retained-literal-slots/${ shape }`, strip: true, isolated: true,
+    code: `export const effects = []; ${ body } export const r = groupBy([1, 2, 3], value => value % 2).get(1);` };
 }

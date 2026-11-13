@@ -80,6 +80,33 @@ for (const [name, store] of [
   ['branched', "Object.defineProperty(api, 'M', { get() { effects.push('get'); if (api) return Map; return Set; } });"],
 ]) cases.push([`accessor export/${ name }`, `export const api = {}; ${ store }`, ['get'], '', 'function', 'r = typeof api.M.groupBy;']);
 
+for (const [name, body, effects = [], result = 'function'] of [
+  ['pattern key', "const k = 'w'; const { [k]: { groupBy } } = { w: Map }; r = typeof groupBy;"],
+  ['numeric key', 'const { 1: { groupBy } } = { 1: Map }; r = typeof groupBy;'],
+  ['array key', 'const { [0]: { groupBy } } = [Map]; r = typeof groupBy;'],
+  ['literal key', "const k = 'w'; const { w: { groupBy } } = { [k]: Map }; r = typeof groupBy;"],
+  ['getter', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; } }; r = typeof groupBy;", ['get']],
+  ['paired setter', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; }, set w(v) { effects.push('set'); } }; r = typeof groupBy;", ['get']],
+  ['unknown getter', "const k = String('w'); const { w: { groupBy } } = { get [k]() { effects.push('get'); return Map; } }; r = typeof groupBy;", ['get']],
+  ['unknown pattern', "const k = String('w'); const { [k]: { groupBy } } = { get w() { effects.push('get'); return Map; } }; r = typeof groupBy;", ['get']],
+  ['key effects', "const k = 'w'; const { [(effects.push('key'), k)]: { groupBy } } = { get w() { effects.push('get'); return Map; } }; r = typeof groupBy;", ['key', 'get']],
+  ['assignment', "let groupBy; const k = 'w'; ({ [k]: { groupBy } } = { w: Map }); r = typeof groupBy;"],
+  ['parameter', "const k = 'w'; function read({ [k]: { groupBy } } = { w: Map }) { return typeof groupBy; } r = read();"],
+  ['getter throw',
+    "try { const { w: { groupBy } } = { get w() { effects.push('get'); throw new RangeError(); } }; r = groupBy; } catch (error) { r = error.name; }", ['get'], 'RangeError'],
+  ['unknown overwrite', "const k = String('w'); const { w: { groupBy } } = { w: Map, [k]: { groupBy: () => 23 } }; r = groupBy();", [], 23],
+  ['known overwrite', "const k = String('w'); const { w: { groupBy } } = { [k]: Map, w: { groupBy: () => 23 } }; r = groupBy();", [], 23],
+  ['getter data overwrite', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; }, w: { groupBy: () => 23 } }; r = groupBy();", [], 23],
+  ['unknown sibling after getter', "const k = String('other'); const { w: { groupBy } } = { get w() { effects.push('get'); return Map; }, [k]: {} }; r = typeof groupBy;", ['get']],
+  ['unknown between accessors', "const k = String('other'); const { w: { groupBy } } = { get w() { effects.push('get'); return Map; },"
+    + " [k]: {}, set w(v) { effects.push('set'); } }; r = typeof groupBy;", ['get']],
+  ['data breaks accessor pair', "const k = String('w'); try { const { w: { groupBy } } = { get w() { effects.push('get'); return Map; },"
+    + ' [k]: {}, set w(v) {} }; r = groupBy; } catch (error) { r = error.name; }', [], 'TypeError'],
+  ['getter assignment', "let groupBy; ({ w: { groupBy } } = { get w() { effects.push('get'); return Map; } }); r = typeof groupBy;", ['get']],
+  ['loop key', "const k = 'w'; for (const { [k]: { groupBy } } of [{ w: Map }]) r = typeof groupBy;"],
+  ['shadowed key', "const k = 'other'; function read() { const k = 'w'; const { [k]: { groupBy } } = { w: Map }; return typeof groupBy; } r = read();"],
+]) cases.push([`literal read-back/${ name }`, body, effects, '', result]);
+
 try {
   for (const [name, body, effects = [], setup = '', result = 'function', consumer = '', pureStripped = result] of cases) {
     const source = scenarioSource(`export let r; export const effects = []; ${ body }`);
