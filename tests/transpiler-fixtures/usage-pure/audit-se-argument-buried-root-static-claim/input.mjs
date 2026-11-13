@@ -15,8 +15,8 @@ export const seBodyAndArg = (x => {
   return globalThis;
 })(Object.entries({ a: 1 }))?.window?.Reflect.ownKeys({ c: 3 }).flatMap(key => [key]);
 
-// the same root without a live optional over the hop: the receiver is swallowed rather than kept
-// in a test, so the effect travels a different path to the output
+// Without an optional over the hop, the effectful receiver also keeps its throwing read.
+// A user prototype call does not own or erase that read.
 export const seArgPlainHop = (x => globalThis)(Number.parseFloat('1.5')).window.Set.prototype.has.call(new Set([1]), 1);
 
 // BASELINE: an effectless argument - nothing to re-emit, and the claim is never at risk

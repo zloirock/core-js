@@ -3175,8 +3175,12 @@ function anySloppyOwnerAbove(path) {
   let answer = anySloppyOwnerAboveCache.get(nearest.node);
   if (answer === undefined) {
     answer = false;
-    for (let owner = nearest; owner && !answer; owner = findNearestVarScopeOwner(owner.parentPath)) {
-      answer = isSloppyAtPath(owner);
+    // Modules cannot have an Annex-B owner. Do not inspect function directives there,
+    // especially when the lookup is in a parameter and cannot see the body at all.
+    if (programIsScript(rootProgramOf(path))) {
+      for (let owner = nearest; owner && !answer; owner = findNearestVarScopeOwner(owner.parentPath)) {
+        answer = isSloppyAtPath(owner);
+      }
     }
     anySloppyOwnerAboveCache.set(nearest.node, answer);
   }

@@ -1041,7 +1041,9 @@ export default function createProxySpineChannel(ctx) {
       const read = keptWriteReader(up, span);
       if (!read) return null;
       const facts = {
-        node: up.node, optional: !!read.reader.optional,
+        node: up.node,
+        reader: read.reader,
+        optional: !!read.reader.optional,
         readerHop: !!proxyHopKey(read.reader, { allowOptional: true, metaPath }),
         deadOptional: !allowOptional && read.reader.optional && !!deadOptionalHop?.(read.reader),
       };

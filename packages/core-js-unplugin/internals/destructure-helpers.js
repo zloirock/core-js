@@ -56,6 +56,7 @@ import {
   soleChainToProp,
   statementListOf,
   unwrapRuntimeExpr,
+  markRenderedProbeRead,
   unwrapParens,
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -724,6 +725,8 @@ export function captureProbePlan(plan, metaPath, ctx) {
     return { ...plan, residual };
   }
   if (plan.kind === 'passthrough') return { ...plan, residual };
+  // Acceptance owns these reads before child claims can fold their parent navigation.
+  for (const node of plan.test?.source?.served ?? []) markRenderedProbeRead(node);
   const effects = plan.alternateEffects ?? [];
   const sources = [plan.test?.source?.source].filter(Boolean);
   const nodes = [...effects, ...sources];

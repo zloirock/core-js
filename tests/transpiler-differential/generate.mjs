@@ -25972,4 +25972,37 @@ function * generateNestedReceiverRoots() {
           function get() { return globalThis.lib; } return ${ read };
         });` };
   }
+  // Discarded realm probes retain throws, stores and receiver-prefix order.
+  for (const [name, body] of [
+    ['read', 'return typeof (effects.push("prefix"), globalThis).window.Promise.resolve;'],
+    ['declaration', 'const { resolve } = (effects.push("prefix"), globalThis).window.Promise; return typeof resolve;'],
+    ['assignment', 'let resolve; ({ resolve } = (effects.push("prefix"), globalThis).window.Promise); return typeof resolve;'],
+    ['store', 'let held; return typeof (held = globalThis.self).window.Promise.resolve;'],
+    ['store-declaration', 'let held; const { resolve } = (held = globalThis.self).window.Promise; return typeof resolve;'],
+    ['user-argument', 'function id(value) { return value; } return typeof id((effects.push("prefix"), globalThis).window.Promise.resolve);'],
+    ['new-argument', 'class Box { constructor(value) { this.value = value; } } return typeof new Box((effects.push("prefix"), globalThis).window.Promise.resolve).value;'],
+    ['user-prototype-call', 'return (x => globalThis)(Number.parseFloat("1.5")).window.Set.prototype.has.call(new Set([1]), 1);'],
+    ['inline-backed-member', 'return typeof (() => { effects.push("prefix"); return globalThis.self; })().window.Map.name;'],
+    ['user-member', 'return typeof ((effects.push("prefix"), globalThis).window.Promise.resolve).name;'],
+    ['instance-call', 'return (effects.push("prefix"), globalThis).window.Array.from([3]).at(-1);'],
+    ['nested-prefix', 'const { resolve } = (effects.push("a"), (effects.push("b"), globalThis.window))?.Promise; return typeof resolve;'],
+    ['nested-prefix-read', 'return typeof ((effects.push("a"), (effects.push("b"), globalThis.window))?.Promise).resolve;'],
+    ['nested-prefix-assignment', 'let resolve; ({ resolve } = (effects.push("a"), (effects.push("b"), globalThis.window))?.Promise); return typeof resolve;'],
+    ['alias-prefix', 'const held = globalThis.window; return typeof ((effects.push("prefix"), held).Promise).resolve;'],
+    ['quiet-call-key', 'function key() { return "self"; } return typeof globalThis[key()].Promise.resolve;'],
+    ['quiet-identity-key', 'const key = value => value; return globalThis[key("self")].Array.from([3]);'],
+    ['quiet-optional-key', 'function key() { return "self"; } return typeof globalThis[key()]?.Promise;'],
+    ['shadow', 'const globalThis = { window: { Promise: { resolve: 31 } } }; return globalThis.window.Promise.resolve;'],
+    ['effectful-key', 'function key() { effects.push("key"); return "self"; } return globalThis[key()].Math.abs(-3);'],
+    ['throwing-key', 'function key() { effects.push("key"); throw new RangeError(); } return globalThis[key()].Math.abs(-3);'],
+    ['changed-key', 'let key = () => "self"; key = () => "Math"; return globalThis[key()].abs(-3);'],
+    ['observed-store',
+      'let held; try { const { resolve } = (held = globalThis.self).window.Promise; '
+      + 'return [typeof resolve, held === globalThis.self]; } catch (error) { return [error.name, held === globalThis.self]; }'],
+    ['two-prefix-levels', 'const held = globalThis.window; return typeof ((effects.push("a"), (effects.push("b"), held).self).Promise).resolve;'],
+  ]) for (const present of [false, true]) yield { name: `realm-probe-effects/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+      export const effects = []; export const r = withWindowPresence(${ present }, () => {
+        try { ${ body } } catch (error) { return error.name; }
+      });` };
 }
