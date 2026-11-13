@@ -1,4 +1,4 @@
-import { GLOBAL, DESCRIPTORS, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
+import { GLOBAL, DESCRIPTORS, NODE, BUN, DENO, DENO_VERSION, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS } from '../helpers/constants.js';
 import { createIterable, nativeSubclass, timeLimitedPromise } from '../helpers/helpers.js';
 
 const { create, defineProperty, getPrototypeOf, getOwnPropertyDescriptor } = Object;
@@ -39,12 +39,6 @@ const DENO_RECORD_SYMBOLS = (DENO_VERSION > 125 || DENO_VERSION === 125 && DENO_
 // except `undefined` and `null`; fixed in 2.8.0.
 const DENO_ITERATOR_RESULT = DENO_RECORD_SYMBOLS;
 const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
-// Firefox 25-32 proxies call the legacy `getOwnPropertyNames` trap instead of `ownKeys`; fixed in Firefox 33.
-// https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
-const FIREFOX_LEGACY_PROXY = FIREFOX_VERSION >= 25 && FIREFOX_VERSION < 33;
-// Firefox 33-41 has no `Reflect.ownKeys`, so the fallback calls the `ownKeys` trap twice - for names and for symbols.
-// https://bugzilla.mozilla.org/show_bug.cgi?id=987514
-const FIREFOX_SPLIT_OWN_KEYS = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 42;
 // Firefox 33-34 `propertyIsEnumerable` skips the `getOwnPropertyDescriptor` trap of proxies for missing keys; fixed in Firefox 35.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1066834
 const FIREFOX_PROXY_ENUMERABLE = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 35;

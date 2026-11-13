@@ -10,7 +10,32 @@ export const DESCRIPTORS = !!(() => {
   } catch { /* empty */ }
 })();
 
+// Old V8 cannot preserve property order when collecting non-enumerable keys.
+export const OBJECT_NAMES_ORDER = (() => {
+  try {
+    const object = {};
+    const alphabet = 'abcdefghijklmnopqrst';
+    for (let i = 0; i < alphabet.length; i++) object[alphabet.charAt(i)] = i;
+    // eslint-disable-next-line es/no-object-getownpropertynames -- required for testing
+    return Object.getOwnPropertyNames(object).join('') === alphabet;
+  } catch {
+    return false;
+  }
+})();
+
 export const GLOBAL = Function('return this')();
+
+const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
+// Firefox 25-32 uses the legacy getOwnPropertyNames proxy trap.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1007334
+export const FIREFOX_LEGACY_PROXY = FIREFOX_VERSION >= 25 && FIREFOX_VERSION < 33;
+// Firefox 33-41 has no Reflect.ownKeys; names and symbols are collected separately.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=987514
+export const FIREFOX_SPLIT_OWN_KEYS = FIREFOX_VERSION >= 33 && FIREFOX_VERSION < 42;
+
+// Safari 10-14.0 / iOS 10-14.4 move proxy symbol keys after string keys.
+// https://bugs.webkit.org/show_bug.cgi?id=216227
+export const SAFARI_PROXY_SYMBOL_ORDER = /Version\/(?:1[0-3]|14\.0)\D.*Safari\/|(?:iPad|iPhone|iPod).*OS (?:1[0-3]|14_[0-4])\D/.test(GLOBAL.navigator?.userAgent);
 
 export const NATIVE = GLOBAL.NATIVE || false;
 

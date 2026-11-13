@@ -1,11 +1,14 @@
 'use strict';
 var DESCRIPTORS = require('../internals/descriptors');
+var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
+var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
-var call = require('../internals/function-call');
 var fails = require('../internals/fails');
 var objectKeys = require('../internals/object-keys');
+var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
+var ownKeys = require('../internals/own-keys');
+var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
-var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
 
@@ -43,16 +46,19 @@ module.exports = !$assign || fails(function () {
   var argumentsLength = arguments.length;
   var index = 1;
   var getOwnPropertySymbols = getOwnPropertySymbolsModule.f;
-  var propertyIsEnumerable = propertyIsEnumerableModule.f;
+  var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   while (argumentsLength > index) {
     var S = IndexedObject(arguments[index++]);
-    var keys = getOwnPropertySymbols ? concat(objectKeys(S), getOwnPropertySymbols(S)) : objectKeys(S);
+    var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && objectGetPrototypeOf(S) === null;
+    var keys = DESCRIPTORS && NAMES_ORDER ? ownKeys(S) : objectKeys(S);
+    if ((!DESCRIPTORS || !NAMES_ORDER) && getOwnPropertySymbols) keys = concat(keys, getOwnPropertySymbols(S));
     var length = keys.length;
     var j = 0;
-    var key;
+    var key, descriptor;
     while (length > j) {
       key = keys[j++];
-      if (!DESCRIPTORS || call(propertyIsEnumerable, S, key)) T[key] = S[key];
+      descriptor = DESCRIPTORS && getOwnPropertyDescriptor(S, key);
+      if (!DESCRIPTORS || (descriptor ? descriptor.enumerable : IE_WORKAROUND && key in S)) T[key] = S[key];
     }
   } return T;
 } : $assign;
