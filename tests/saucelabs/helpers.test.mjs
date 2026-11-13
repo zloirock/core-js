@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
+const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions');
+
 // Exercise the runner against a fake WebDriver hub without starting Sauce Labs sessions.
-async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false, pageUrl } = {}) {
+async function runFake({
+  failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
+  pageUrl, commits,
+} = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
+    sessionsFile: process.env.SAUCE_SESSIONS_FILE,
     accessKey: process.env.SAUCE_ACCESS_KEY,
     fetch: globalThis.fetch,
     $: globalThis.$,
@@ -17,6 +26,7 @@ async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = fals
   let sessions = 0;
   let annotationRequests = 0;
   let markerRequests = 0;
+  let listedWhileOpen;
   const started = [];
   let releaseSlow;
   let releaseFast;
@@ -26,6 +36,7 @@ async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = fals
   try {
     process.env.SAUCE_USERNAME = 'test';
     process.env.SAUCE_ACCESS_KEY = 'test';
+    process.env.SAUCE_SESSIONS_FILE = sessionsFile;
     globalThis.$ = {};
     globalThis.argv = { _: ['http://example.test/branch', 'a'.repeat(40)] };
     globalThis.chalk = { cyan: String, green: String, red: String, yellow: String };
@@ -53,6 +64,7 @@ async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = fals
         }
         payload = {};
       } else if (path.endsWith('/url')) {
+        listedWhileOpen = await readFile(sessionsFile, 'utf8');
         payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
       } else {
         const { script } = JSON.parse(options.body);
@@ -68,6 +80,7 @@ async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = fals
           }
           payload = { value: JSON.stringify({
             url: pageUrl || `http://example.test/branch/unit-browser/${ wrongPage ? 'other' : 'global' }.html`,
+            commits,
             results: sessions <= hangs
               ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
               : { done: true, failed, total: 1, failures: [] },
@@ -101,10 +114,12 @@ async function runFake({ failed = 0, marker = 404, hangs = 0, sessionNull = fals
     }
     if (failed || hangs === 3 || sessionNull || navigationError || wrongPage) await assert.rejects(run(suite), /Sauce Labs run failed/);
     else await run(suite);
-    return { output: output.join('\n'), sessions, annotationRequests, markerRequests };
+    return { output: output.join('\n'), sessions, annotationRequests, markerRequests, listedWhileOpen, listedAfter: await readFile(sessionsFile, 'utf8') };
   } finally {
     Date.now = previous.now;
-    for (const [name, value] of Object.entries({ SAUCE_USERNAME: previous.username, SAUCE_ACCESS_KEY: previous.accessKey })) {
+    for (const [name, value] of Object.entries({
+      SAUCE_USERNAME: previous.username, SAUCE_ACCESS_KEY: previous.accessKey, SAUCE_SESSIONS_FILE: previous.sessionsFile,
+    })) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
@@ -180,4 +195,20 @@ test('reports the active QUnit test when every attempt times out', async () => {
   assert.equal(sessions, 3);
   assert.match(output, /retrying \(3 of 3\)/);
   assert.match(output, /\n {2}unit-browser\/global\.html: not finished in 3 minutes; current test: Promises > pending callback/);
+});
+
+test('lists open sessions for the cleanup of a cancelled run', async () => {
+  const { listedWhileOpen, listedAfter } = await runFake();
+  assert.equal(listedWhileOpen, 'test-session\n');
+  assert.equal(listedAfter, '');
+});
+
+test('warns when the browser executed bundles of another commit', async () => {
+  const commit = 'a'.repeat(40);
+  const other = 'b'.repeat(40);
+  const { output } = await runFake({ marker: commit, commits: [other, other] });
+  assert.match(output, new RegExp(`unit-browser/global\\.html: bundles of ${ other } instead of ${ commit }`));
+  assert.match(output, /all the browsers passed/);
+  const { output: matching } = await runFake({ marker: commit, commits: [commit, commit] });
+  assert.doesNotMatch(matching, /bundles of/);
 });

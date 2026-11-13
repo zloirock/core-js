@@ -1,4 +1,4 @@
-import manualPlatforms from './platforms.mjs';
+import manualPlatforms, { android, desktop, ios } from './platforms.mjs';
 
 // Sauce Labs lists operating systems and devices separately for each browser version.
 // Keep one configuration per browser and version, preferring the manual matrix's OS and device where possible.
@@ -25,29 +25,9 @@ function rank({ api_name: browser, short_version: version, os, device, long_name
 }
 
 function platform({ api_name: browser, short_version: version, os, device, long_name: deviceName }) {
-  const name = `${ browser } ${ version }${ device ? ` (${ device })` : '' }`;
-  if (mobile.has(browser)) {
-    const android = browser === 'android';
-    return {
-      name,
-      w3c: true,
-      capabilities: {
-        browserName: android ? 'Chrome' : 'Safari',
-        platformName: android ? 'Android' : 'iOS',
-        'appium:deviceName': deviceName,
-        'appium:platformVersion': version,
-        'appium:automationName': android ? 'UiAutomator2' : 'XCUITest',
-      },
-    };
-  }
-  const legacy = browser === 'internet explorer' || browser === 'chrome' && +version < 75 || browser === 'firefox' && +version < 55;
-  return {
-    name: `${ browser } ${ version } (${ os })`,
-    w3c: !legacy,
-    capabilities: legacy
-      ? { browserName: browser, version, platform: platformName(os) }
-      : { browserName: browser, browserVersion: version, platformName: platformName(os) },
-  };
+  if (!mobile.has(browser)) return { ...desktop(browser, version, platformName(os)), name: `${ browser } ${ version } (${ os })` };
+  const base = browser === 'android' ? android(deviceName, version) : ios(version, deviceName);
+  return { ...base, name: `${ browser } ${ version } (${ device })` };
 }
 
 export function fromCatalog(catalog) {
