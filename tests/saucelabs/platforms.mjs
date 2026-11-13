@@ -63,6 +63,7 @@ export default [
   desktop('chrome', '93', 'Windows 10'),
   desktop('chrome', '109', 'Windows 10'),
   desktop('chrome', '118', 'Windows 10'),
+  legacy('firefox', '7', 'Windows 10'),
   legacy('firefox', '15', 'Windows 10'),
   legacy('firefox', '27', 'Windows 10'),
   legacy('firefox', '44', 'Windows 10'),
