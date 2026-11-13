@@ -1,5 +1,5 @@
 // A function-name read consumes its effectful constructor receiver once, preserving the call
-// prefix and all inner polyfills. Returned proxy navigation follows its normal collapse rule,
+// prefix and all inner polyfills. An absent-able returned realm retains its throwing read,
 // and sequence-wrapped receivers retain their preceding effects. Each constructor has its
 // own source shape so one rewritten call cannot hide another.
 let n = 0;

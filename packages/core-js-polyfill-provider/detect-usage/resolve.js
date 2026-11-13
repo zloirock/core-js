@@ -15,6 +15,7 @@ import {
   computedKeyHasSideEffects,
   computedKeyStaticName,
   isIdentifierPropValue,
+  isRenderedProbeRead,
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
   aliasSpanDominatesUse,
@@ -105,6 +106,7 @@ import {
   patternSlotWritten,
   peelChainAssignment,
   peelChainAssignmentDeep,
+  peelNestedSequenceExpressions,
   peelMemoizeWrappers,
   peelProxyGlobalObject,
   peelTransparentExpr,
@@ -271,13 +273,14 @@ export function decidedReceiverSpelling(node, left) {
 
 // Collect the effectful sequence prefixes of the navigation's source objects. The shared
 // decision owns retained-source filtering; no rendered spans or emitter-specific peel enter
-// this walk. Nested sequences stay with their source expression and are replayed only once.
+// this walk. Peel every nested prefix, as the key-effect collector does, so a root effect
+// never becomes a guarded key effect merely because another sequence wraps it.
 function navHopSequencePrefixes(inner, ctx) {
   const all = [];
   for (let cur = unwrapRuntimeExpr(inner); cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
     cur = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object))) {
-    const obj = unwrapRuntimeExpr(cur.object);
-    if (obj?.type === 'SequenceExpression') all.push(...sequencePrefixWithSideEffects(obj, ctx) ?? []);
+    const { prefix } = peelNestedSequenceExpressions(cur.object);
+    if (prefix.some(expression => mayHaveSideEffects(expression, ctx))) all.push(...prefix);
   }
   return all;
 }
@@ -1029,7 +1032,7 @@ function aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder =
   // truthy `if` on the binding) cannot see the void - no probe is owed there, and the plain
   // erase keeps the guarded branch byte-clean
   if (!store && !conditional && aliasCtx?.path && aliasReadGuardedAgainstNullish(aliasCtx.path, object.name)) return null;
-  const navStart = peelReceiverSequenceTail(member.object).start ?? member.object.start ?? null;
+  const navStart = object.start ?? member.object.start ?? null;
   return { object, key, computed: member.computed, innerKeys, navStart };
 }
 
@@ -5009,16 +5012,17 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null
     node = peelSequenceTail(node, { step: expression => unwrapTransparentSeq(expression, ctx) });
     if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
     if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node, ctx && { ...ctx, adapter })) {
-      const argument = ctx && !bailOnSideEffectKey ? identityCallKeyArgument(node, adapter, ctx) : null;
+      const argument = ctx ? identityCallKeyArgument(node, adapter, ctx, bailOnSideEffectKey) : null;
       if (!argument) return node;
       node = argument;
       continue;
     }
     const iifeRet = peelZeroArgIifeReturn(node, { staticIsMutated: adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic })
-      ?? (ctx && !bailOnSideEffectKey ? identityCallKeyArgument(
+      ?? (ctx ? identityCallKeyArgument(
         node,
         adapter,
         ctx,
+        bailOnSideEffectKey,
       ) : null);
     if (!iifeRet) return node;
     node = unwrapTransparentSeq(iifeRet, ctx);
@@ -5027,12 +5031,13 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null
 
 // the argument a bound identity call hands back as its key, or null: a callee this file binds whose
 // body returns its one param, folded through the shared inline canon; an effectful call folds only
-// where the node stays (usage-global, or a consumer holding the key in place)
-function identityCallKeyArgument(node, adapter, { scope, path, usageNode, seen, keepsKeyNode = false }) {
+// where the node stays (usage-global, or a consumer holding the key in place).
+// A no-effects query can fold a quiet call too, but never inherits that retention allowance.
+function identityCallKeyArgument(node, adapter, { scope, path, usageNode, seen, keepsKeyNode = false }, bailOnSideEffectKey) {
   const inlined = inlineCallReturnExpression({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
   if (!inlined?.node || inlined.node === node) return null;
   const effectful = node.arguments?.some(mayHaveSideEffects) || inlineCallHasObservableEffects({ callNode: node, scope, adapter, path });
-  if (effectful && adapter.method === 'usage-pure' && !keepsKeyNode) return null;
+  if (effectful && (bailOnSideEffectKey || adapter.method === 'usage-pure' && !keepsKeyNode)) return null;
   return unwrapTransparentSeq(inlined.node);
 }
 
@@ -5983,11 +5988,15 @@ export function directClaimProbePlan(source, resolvePure, ctx, options) {
 
 // An assignment or sequence can carry a genuine realm alias. Keep its observable
 // unbacked hops when a claim below or above it substitutes a backed surface.
+// A stored navigation and the managed alias replacing it answer alike, before either host settles it.
+// A sequence around an unstored navigation still belongs to the ordinary realm collapse.
 export function carriesRealmAlias(source, ctx) {
   const carrier = unwrapRuntimeExpr(source);
   const root = peelChainRootValue(carrier);
-  return root !== carrier && root?.type === 'Identifier' && isAliasProxyRoot(root, ctx)
-    && !!proxyGlobalRootName({ node: root, ...ctx });
+  if (root === carrier) return false;
+  return root?.type === 'Identifier' ? isAliasProxyRoot(root, ctx) && !!proxyGlobalRootName({ node: root, ...ctx })
+    : !!peelChainAssignment(peelReceiverSequenceTail(carrier)).outer
+      && POSSIBLE_GLOBAL_OBJECTS.has(globalProxyMemberName({ node: root, ...ctx }));
 }
 
 // A lowered pattern can reach detection as an ordinary read. If its observable
@@ -5995,17 +6004,15 @@ export function carriesRealmAlias(source, ctx) {
 // root effects do not stand in for that read or its exception. Bare realm folds
 // with no such effects continue to use the ordinary navigation contract.
 export function effectfulClaimReadProbe(node, effects, resolvePure, ctx) {
-  // An enclosing claim owns its receiver. A carried realm alias still owes the
-  // first plain read through its unbacked hop, even inside that enclosing claim.
-  const end = climbTransparentWrapperPath(ctx.path);
-  const parent = end.parentPath?.node;
-  const enclosed = isMemberAccessNode(parent) && parent.object === end.node || parent?.arguments && parent.callee !== end.node;
   for (let read = node; isMemberAccessNode(read) && !read.optional; read = unwrapRuntimeExpr(read.object)) {
     const receiver = unwrapRuntimeExpr(read.object);
-    if (receiver?.optional || !unbackedProxyHopKey(receiver, resolvePure)
-      || effects.every(effect => !subtreeContainsNode(receiver, effect))) continue;
-    if (!realmHopKeyName(read, ctx) || !carriesRealmAlias(receiver.object, ctx)
-      && (enclosed || !proxyReceiverValueCanBeUndefined(receiver, resolvePure, ctx))) return null;
+    if (receiver?.optional || !unbackedProxyHopKey(receiver, resolvePure)) continue;
+    effects ??= discardRescueNodes({ node, ...ctx });
+    if (effects.every(effect => !subtreeContainsNode(receiver, effect))) continue;
+    // A parent claim does not own this receiver's exception. Ordinary unstored
+    // navigation keeps its collapse; a stored surface observes its unbacked read.
+    if (!realmHopKeyName(read, ctx) || !proxyReceiverValueCanBeUndefined(receiver, resolvePure, ctx)
+      && !carriesRealmAlias(receiver.object, ctx)) return null;
     return retainedSourceProbe('read', node, read, resolvePure, ctx);
   }
   return null;
@@ -6146,6 +6153,8 @@ export function destructureProbePlan(source, resolvePure, ctx, { mirror = false 
   const sealed = directClaimProbePlan(source, resolvePure, ctx, { allowStoreHolder: true });
   if (sealed) return mirror && sealed.kind === 'alias' && sealed.aliasProbe.object.type === 'AssignmentExpression'
     ? { ...sealed, coerceHolder: true } : sealed;
+  const read = effectfulClaimReadProbe(unwrapRuntimeExpr(source), null, resolvePure, ctx);
+  if (read) return read;
   if (peelChainAssignment(peelReceiverSequenceTail(source)).outer) {
     const stored = discardedInitProbePlan(source, resolvePure, ctx);
     if (stored) return stored;
@@ -6616,9 +6625,10 @@ function foldableRealmHopKey(key, { adapter, resolvePure }, read = null) {
 // never this one's: gating the fold on the node's own SHAPE gave one hop two names - a `['window']`
 // step kept a slot its dotted twin drops, and the two emitters then folded one source two ways. an
 // EFFECT-bearing key still declines, because `realmHopKeyName` refuses one wherever the caller
-// carries no slot to replay it in, and this verdict carries none
+// carries no slot to replay it in, and this verdict carries none. An owned probe read
+// is already spoken for even when a child claim would otherwise fold its parent.
 export function foldableRealmHop(node, ctx) {
-  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
+  if (!isMemberAccessNode(node) || isRenderedProbeRead(node)) return false;
   return foldableRealmHopKey(realmHopKeyName(node, ctx?.scope ? ctx : null), ctx, ctx?.path ? { node, path: ctx.path } : null);
 }
 
@@ -6924,20 +6934,21 @@ export function keptProxyTailPlan(write, tail, resolvePure, { navigated = true, 
 // the next source carrier and its reader; this planner owns whether it can be consumed
 // and where its effects belong. Prefixes outside a write lead the whole render; prefixes
 // inside its value stay there. A backed hop resets the retained tail, including after a
-// write. The source nodes are retained by identity and nothing in the source is mutated.
+// write. An already owned probe ends the collapse. Source nodes are retained by identity
+// and nothing in the source is mutated.
 export function createOuterCollapsePlanner({ allowOptional = false, resolvePure }) {
   const plan = {
     seqPrefixEffects: [], valueEffects: [], keptTail: [], writeStep: null,
     innerKeptTail: null, outerHopName: null, outerBacked: false,
   };
-  function canCrossWrite({ optional = false, deadOptional = false, readerHop = false }) {
-    return !plan.writeStep && readerHop && (!optional || allowOptional || deadOptional);
+  function canCrossWrite({ reader = null, optional = false, deadOptional = false, readerHop = false }) {
+    return !plan.writeStep && readerHop && !isRenderedProbeRead(reader) && (!optional || allowOptional || deadOptional);
   }
-  function step({ kind, node, keyName, optional = false, deadOptional = false, readerHop = false,
+  function step({ kind, node, reader = null, keyName, optional = false, deadOptional = false, readerHop = false,
     stored = false, prefixes = [], writeTarget = false }) {
     switch (kind) {
       case 'write':
-        if (!canCrossWrite({ optional, deadOptional, readerHop })) return false;
+        if (!canCrossWrite({ reader, optional, deadOptional, readerHop })) return false;
         plan.writeStep = node;
         plan.innerKeptTail = plan.keptTail;
         plan.keptTail = [];
@@ -6951,7 +6962,7 @@ export function createOuterCollapsePlanner({ allowOptional = false, resolvePure 
         else return false;
         return true;
       case 'member':
-        if (writeTarget || !keyName
+        if (writeTarget || !keyName || isRenderedProbeRead(node)
           || (node.optional && !allowOptional && plan.keptTail.length && !deadOptional)) return false;
         if (!resolvePure({ kind: 'global', name: keyName })) {
           plan.keptTail.push({ name: keyName, node, liveOptional: false });

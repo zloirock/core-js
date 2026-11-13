@@ -72,12 +72,18 @@ QUnit.test('side effect: buried template-fold computed-key effect runs once', as
 // a bare-identifier re-emit stranded the inner member chain / polyfill - here the `.name` value + effect count
 // pin the inner resolution and single evaluation.
 QUnit.test('side effect: .name memo resolves chain-root call inner content and runs its effect once', assert => {
+  const hasWindow = globalThis.window !== undefined;
   let m = 0;
-  const memberChain = (() => {
-    m += 1;
-    return globalThis.self;
-  })().window.Map.name;
-  assert.strictEqual(memberChain, 'Map');
+  let memberChain;
+  try {
+    memberChain = (() => {
+      m += 1;
+      return globalThis.self;
+    })().window.Map.name;
+  } catch (error) {
+    memberChain = error.name;
+  }
+  assert.strictEqual(memberChain, hasWindow ? 'Map' : 'TypeError');
   assert.strictEqual(m, 1);
   let p = 0;
   const polyfillable = (() => {

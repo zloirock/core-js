@@ -38,9 +38,9 @@ export const seBodyAndArg = null == (x => {
   c: 3
 })).call(_ref5, key => [key]);
 
-// the same root without a live optional over the hop: the receiver is swallowed rather than kept
-// in a test, so the effect travels a different path to the output
-export const seArgPlainHop = ((x => _globalThis)(_Number$parseFloat('1.5')), _Set).prototype.has.call(new _Set([1]), 1);
+// Without an optional over the hop, the effectful receiver also keeps its throwing read.
+// A user prototype call does not own or erase that read.
+export const seArgPlainHop = ((x => _globalThis)(_Number$parseFloat('1.5')).window.Set, _Set).prototype.has.call(new _Set([1]), 1);
 
 // BASELINE: an effectless argument - nothing to re-emit, and the claim is never at risk
 export const noSeArg = null == (x => _globalThis)(1).window ? void 0 : _Promise$resolve(4).finally(() => {});
