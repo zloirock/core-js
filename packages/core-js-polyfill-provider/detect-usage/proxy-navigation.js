@@ -305,7 +305,6 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
     }
   }
   const guard = undefinableOptionalGuard(path.node, resolvePure, aliasCtx);
-  if (guard?.kind === 'standdown') return;
   const realm = kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName);
   if (realm && isMemberAccessNode(path.node)) {
     const store = resolvedClaimStore(path.node, meta, aliasCtx, resolvePure);

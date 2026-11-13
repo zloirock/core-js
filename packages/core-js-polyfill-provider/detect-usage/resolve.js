@@ -417,26 +417,6 @@ export function ownChainOptionalObjects(node) {
   return objects;
 }
 
-// guarding a value that navigates an unponyfilled proxy hop (`globalThis.window`) is NOT erasable:
-// the guard rides on that navigation, so dropping it runs the static where the source short-circuits.
-// returns what the emit needs:
-//   { kind: 'erase' }         - no `?.` guards an undefinable value; the navigation only names the
-//                               global the substituted import already is, so drop it
-//   { kind: 'guard', object } - exactly one `?.` guards an undefinable value; re-hang the claim
-//                               inside `null == object ? void 0 : <claim>`, short-circuit intact
-//   { kind: 'standdown' }     - two or more; a single test cannot express the union of short-circuit
-//                               points, so keep the raw chain (exactly what the source meant)
-// `object` is that hop's OBJECT (`globalThis.window?.self.X` -> `globalThis.window`), NOT the descended
-// root - a mid-chain `?.` guards a hop the always-defined root does not, and checking only the root let
-// the swap eat the guard. callers pass the CONSUMING member itself (not its `.object`) so the full
-// descent sees a leaf-hop's own `?.`
-// hop walk for the guard-source count: collect each member hop's resolved key name down to
-// the chain root. a COMPUTED hop resolves through the canonical key resolver - a const-bound
-// string names its hop like the dotted spelling; an SE-prefixed key still RESOLVES for the
-// count (the effect rides the kept test text; only a genuinely opaque key is a source of its
-// own). value-transparent wrapper layers peel between hops (`nav!.x` - erasure keeps the
-// chain); a SEALED (parenthesized) layer ends the walk - the sealed value is its own chain
-// and stays with the unproven arm, exactly as an opaque root does
 // the deepest hop a value's own walk calls a source of undefined - its NAME (the dedupe key) and its
 // NODE (the value a guard tests), or null when the walk proves nothing (an opaque root, another seal).
 // the sealed-source arm reads both: an optional over a sealed value keys by the same probe the sealed
@@ -450,7 +430,7 @@ function deepestUnresolvableHopSource(value, aliasCtx, resolvePure) {
   if (!rootName) return null;
   let found = null;
   for (const hop of hopsInfo) {
-    if (!hop.name || (POSSIBLE_GLOBAL_OBJECTS.has(hop.name) && !resolvePure({ kind: 'global', name: hop.name }))) {
+    if (!hop.name || proxyHopNeedsValueProbe(hop.name, resolvePure, aliasCtx)) {
       found = { name: hop.name ?? '<opaque>', node: hop.node };
     }
   }
@@ -459,13 +439,20 @@ function deepestUnresolvableHopSource(value, aliasCtx, resolvePure) {
   // (`const { window: W } = globalThis`) - is a source of undefined ITSELF. proving such a root
   // "a bare proxy global" and judging only the hops above it erased the guard the source's own
   // `?.` asked for, while the nav spelling of the same value kept it
-  // (`navHasUnresolvableProxyHop` is the canon both spellings follow)
-  if (POSSIBLE_GLOBAL_OBJECTS.has(rootName) && !resolvePure({ kind: 'global', name: rootName })) {
+  // (`proxyHopNeedsValueProbe` gives both spellings the same entry/exclusion rule)
+  if (proxyHopNeedsValueProbe(rootName, resolvePure, aliasCtx)) {
     found = { name: rootName, node: root };
   }
   return found;
 }
 
+// hop walk for the guard-source count: collect each member hop's resolved key name down to
+// the chain root. a COMPUTED hop resolves through the canonical key resolver - a const-bound
+// string names its hop like the dotted spelling; an SE-prefixed key still RESOLVES for the
+// count (the effect rides the kept test text; only a genuinely opaque key is a source of its
+// own). value-transparent wrapper layers peel between hops (`nav!.x` - erasure keeps the
+// chain); a SEALED (parenthesized) layer ends the walk - the sealed value is its own chain
+// and stays with the unproven arm, exactly as an opaque root does
 function walkGuardSourceHops(value, aliasCtx, resolvePure) {
   const hopsInfo = [];
   // the SE-prefix a sequence carries is not part of the value, so the walk steps through it exactly
@@ -625,6 +612,19 @@ export function mutationGuardKeepingHop(node, resolvePure, aliasCtx) {
   return proxyReceiverValueCanBeUndefined(below, resolvePure, aliasCtx) ? null : hop;
 }
 
+// guarding a value that navigates an unponyfilled proxy hop (`globalThis.window`) is NOT erasable:
+// the guard rides on that navigation, so dropping it runs the static where the source short-circuits.
+// returns what the emit needs:
+//   { kind: 'erase' }         - no `?.` guards an undefinable value; the navigation only names the
+//                               global the substituted import already is, so drop it
+//   { kind: 'guard', object } - a `?.` guards an undefinable value; re-hang the claim
+//                               inside `null == object ? void 0 : <claim>`, short-circuit intact
+// Multiple independent sources retain their optional prefix as the tested value.
+// The prefix itself carries each short-circuit; no native leaf is left unserved.
+// `object` is that hop's OBJECT (`globalThis.window?.self.X` -> `globalThis.window`), NOT the descended
+// root - a mid-chain `?.` guards a hop the always-defined root does not, and checking only the root let
+// the swap eat the guard. callers pass the CONSUMING member itself (not its `.object`) so the full
+// descent sees a leaf-hop's own `?.`
 // eslint-disable-next-line max-statements -- sequential guard-verdict steps of one chain
 export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = null) {
   if (!memberNode || !resolvePure) return { kind: 'erase' };
@@ -713,11 +713,9 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
       if (sealedAt && !objAssign && sealedReadIsClaimCtor(sealedAt, resolvePure, aliasCtx)) continue;
       const sealedSource = sealedAt && !objAssign ? sealedAt : null;
       if (proven || sealedSource) {
-        // the hop-level source criterion depends on the ROOT proof: an opaque-but-proven CALL
-        // may yield a global whose non-POSSIBLE members are still target-dependent (`f()?.
-        // chrome`), so ANY unresolvable name counts. a proxy-global IDENTIFIER root keeps the
-        // prior nav canon - only a POSSIBLE forwarder without a ponyfill is a source
-        // (`globalThis?.Array` stays erasable; `globalThis.window` guards)
+        // A realm hop backed by an entry is not an environment probe merely because
+        // the targets already provide it. A proven call also admits native static
+        // owners; those have no replacement global entry but are always defined.
         let source = sealedSource;
         // the seal does not CREATE undefinedness - it only makes the read above it observable. so a
         // sealed source keys by the source its own value has (`(globalThis.window?.self)?.Array?.of`
@@ -736,13 +734,12 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         for (let index = 0; index < hopsInfo.length; index++) {
           const hop = hopsInfo[index];
           const { name } = hop;
-          // the strict criterion (ANY unresolvable name) belongs to an opaque CALL root, whose
-          // members are target-dependent. a nav under a SEAL is a proxy navigation like the ident
-          // case - only a POSSIBLE forwarder without a ponyfill is a source there, or a claim's own
-          // constructor name (`?.Array`) reads as a second source and stands the whole claim down
+          // Unknown call-result members remain probes. Known constructors use the
+          // same served-value proof as ordinary reads, including target-native ones.
           const unresolvable = proven === 'ident' || sealedSource
-            ? !name || (POSSIBLE_GLOBAL_OBJECTS.has(name) && !resolvePure({ kind: 'global', name }))
-            : !name || !resolvePure({ kind: 'global', name });
+            ? !name || proxyHopNeedsValueProbe(name, resolvePure, aliasCtx)
+            : !name || (!resolvePure({ kind: 'global', name }) && !NATIVE_STATIC_OWNERS.has(name)
+              && !servedBacking({ kind: 'global', name }, aliasCtx, { node: hop.node, path: aliasCtx.path }));
           if (unresolvable) {
             // keep the DEEPEST unresolvable hop (hopsInfo runs leaf -> root): its prefix is
             // the shortest expression carrying the source of undefined - the guard tests THAT
@@ -760,16 +757,15 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         // defined - `window?.self.X` takes its undefinedness from `window` itself, and the guard
         // tests that root. without it the proven root counted as no source, the `?.` over it
         // erased, and the collapse read the ponyfill where the source short-circuits
-        if (proven === 'ident' && proxyHopLacksPureEntry(bareProxyGlobalAliasName(root, aliasCtx), resolvePure)) {
+        if (proven === 'ident' && proxyHopNeedsValueProbe(bareProxyGlobalAliasName(root, aliasCtx), resolvePure, aliasCtx)) {
           source ??= root;
           sourceNames.add(bareProxyGlobalAliasName(root, aliasCtx));
         }
         // a PROVEN call has no hops of its own for the walk to name, so when its VALUE can still be
         // absent (`() => globalThis.window` yields the probe) the call itself is the source - the
         // `?.` above it is the only guard, and erasing it read the collapse off `undefined`.
-        // it keys by WHAT makes it undefinable, not by the call: the hop above it usually reads the
-        // same probe (`(() => globalThis.window?.self)()?.window`), and two names there stand the
-        // whole claim down - raw output with a bare `globalThis` in it
+        // It keys by what makes it undefinable, not by the call: a repeated probe
+        // (`(() => globalThis.window?.self)()?.window`) needs only one test.
         // a PROVEN-defined OPTIONAL call link is not this source: its `?.` is a chain link the
         // guard renders together with the hops above it (one test on the whole prefix covers
         // both), and counting it separately stood the claim down and left the nav raw off the
@@ -799,16 +795,15 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
             : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { throughChainAssign: !!crossedAssign })))) {
           continue;
         }
-        // objects sharing ONE unresolvable NAME dedupe onto the structurally SHORTEST of them
-        // (depth, not text span - destructure claims arrive on position-less clones): under the
-        // realm-self-reference assumption a repeated hop name reads the same value, so one test
-        // covers both (`globalThis.window?.self.window`). a SECOND distinct name (`?.chrome`
-        // past the ponyfillable hop) is its own source and keeps the stand-down count
-        if (sourceNames.size > 1) {
-          undefinable.push(obj);
-          continue;
+        // Equal source sets share the shortest prefix, including multi-probe runs.
+        // Keeping a later backed constructor in that test would ask for the native
+        // constructor instead of serving it on precisely the hosts that lack it.
+        const multiple = sourceNames.size > 1;
+        let [key] = sourceNames;
+        if (multiple) {
+          const names = [...sourceNames];
+          key = names.every(name => typeof name === 'string') ? JSON.stringify(names.sort()) : obj;
         }
-        const [key] = sourceNames;
         const prior = provenSources.get(key);
         // the GUARD OBJECT is the source prefix itself (the deepest undefinable value), not
         // the whole navigation - one test on it covers every object sharing the name. a
@@ -820,7 +815,7 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         // test keeps the store (`null == (w = _globalThis.window)`); one above keeps its own node
         // An unsubstituted root leaves the probe raw: its whole read, including key effects,
         // must stay in the test instead of being shortened to the symbolic source below it.
-        const guardObj = objAssign || !realmRootIsSpellable(value, resolvePure) ? obj
+        const guardObj = multiple || objAssign || (!sealedInner && !realmRootIsSpellable(value, resolvePure)) ? obj
           : crossedAssign && hopsInfo.findIndex(hop => hop.node === source) >= crossedAssign.hopsAbove
             ? crossedAssign.node : source;
         if (!prior || (storedProbe && !prior.storedProbe)
@@ -835,11 +830,8 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     // sequence - the read a live `?.` behind that stop short-circuits on. the census walks no
     // further than the stop, so such a `?.` is a source it never counted and the guard erased over
     // a value that vanishes (`(a?.Array)?.from` ran the static where the source short-circuits).
-    // keyed per SOURCE like the counted arm: a nav and the chain link above it are one guard, not
-    // a stand-down pair, and a write guards what it wraps
-    // A live chain and its root share one source even when the value canon already knows
-    // the whole chain can vanish. Key it by that source before the opaque-value fallback;
-    // counting both nodes would stand down a claim guarded by only one environment probe.
+    // Key a live chain by its source before the opaque-value fallback. The chain
+    // and its root share one probe; a store must still guard the value it writes.
     const shortCircuit = navShortCircuitSource(value, resolvePure, aliasCtx);
     if (shortCircuit) {
       valueSources.set(objAssign ?? shortCircuit, objAssign ?? shortCircuit);
@@ -861,7 +853,6 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     const decidingHop = mutationGuardKeepingHop(memberNode, resolvePure, aliasCtx);
     return decidingHop ? { kind: 'guard', object: decidingHop.object } : { kind: 'erase' };
   }
-  if (undefinable.length > 1) return { kind: 'standdown' };
   return { kind: 'guard', object: undefinable[0] };
 }
 
@@ -2757,9 +2748,10 @@ export function realmSelectionLeafKind(node, { adapter = null, injectorState = n
 // operand and the whole selection drops. a `??` / `||` LEFT that names the realm decides it and kills
 // the right (the bare-name half `peelRealmLogicalDefault` walks below); a left that can only VANISH
 // hands on to the RIGHT instead, and a right proving the realm proves the selection whichever host
-// runs it. a ternary keeps both arms and owes a pure test; `&&` keeps its FALSY left, which no realm
+// runs it. A ternary owes a pure test unless the caller preserves the test itself.
+// `&&` keeps its FALSY left, which no realm
 // name can be, so its guarded path stays exactly as the source wrote it
-export function realmSelectionCollapseOperand(node, ctx) {
+export function realmSelectionCollapseOperand(node, ctx, { preserveTest = false } = {}) {
   return withCanonQuestion(() => {
     let core = unwrapTransparentSeq(node, ctx);
     // a level the build decides is the operand it always takes (`valueCanonDecision`); the operand stays
@@ -2768,15 +2760,15 @@ export function realmSelectionCollapseOperand(node, ctx) {
       core = unwrapTransparentSeq(core[decided.fold], ctx);
     }
     if (core?.type === 'ConditionalExpression') {
-      if (mayHaveSideEffects(core.test, ctx)) return null;
-      const consequent = realmSelectionCollapseOperand(core.consequent, ctx);
-      return consequent && realmSelectionCollapseOperand(core.alternate, ctx) ? consequent : null;
+      if (!preserveTest && mayHaveSideEffects(core.test, ctx)) return null;
+      const consequent = realmSelectionCollapseOperand(core.consequent, ctx, { preserveTest });
+      return consequent && realmSelectionCollapseOperand(core.alternate, ctx, { preserveTest }) ? consequent : null;
     }
     if (core?.type === 'LogicalExpression') {
       if (core.operator === '&&') return null;
-      return realmSelectionCollapseOperand(core.left, ctx)
+      return realmSelectionCollapseOperand(core.left, ctx, { preserveTest })
         ?? (realmSelectionLeafKind(core.left, ctx) === 'probe'
-          ? realmSelectionCollapseOperand(core.right, ctx) : null);
+          ? realmSelectionCollapseOperand(core.right, ctx, { preserveTest }) : null);
     }
     return realmSelectionLeafKind(core, ctx) === 'surface' ? core : null;
   });
@@ -4886,14 +4878,17 @@ function planValueFormSpells(shape) {
 
 // resolve a call ROOT to the proxy-global it provably yields, walking NESTED single-return
 // wrappers (`const f = () => g(); const g = () => globalThis`) - each layer inlines through the
-// same canon; one `seen` set guards cycles across the whole walk
+// same canon; one `seen` set guards cycles across the whole walk. The complete
+// yielded value must be a realm prefix: a user property below that prefix is not.
 export function inlineCallProxyGlobalRoot({ callNode, scope, adapter, path, rejectConditional = false }) {
   let hop = { node: callNode, seen: new Set(), ctx: { scope, adapter, path } };
   while (isCallShape(hop.node)) {
     hop = inlineCallReturnExpression(hop, { rejectConditional });
     if (!hop) return null;
   }
-  return findProxyGlobal(hop.node, hop.ctx);
+  const value = peelReceiverSequenceTail(hop.node);
+  const root = findProxyGlobal(value, hop.ctx);
+  return root && (root === value || maximalProxyGlobalPrefix(value, hop.ctx) === value) ? root : null;
 }
 
 // does the inline-resolved call carry prefix statements that would be lost if the site is
@@ -6379,11 +6374,7 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   }
   if (navValueCanShortCircuit(core, resolvePure, aliasCtx, { throughChainAssign, observableRead })) return true;
   const hop = realmHopKeyName(core, aliasCtx, { allowSideEffectKeys: true });
-  const meta = { kind: 'global', name: hop };
-  // A defined entry can still be excluded from this build. Keep that native read's guard,
-  // while a target-native entry the build carries retains the ordinary collapse.
-  if (!hop || !POSSIBLE_GLOBAL_OBJECTS.has(hop)
-    || (aliasCtx?.adapter?.available?.(meta) !== false && !proxyHopLacksPureEntry(hop, resolvePure))) return false;
+  if (!proxyHopNeedsValueProbe(hop, resolvePure, aliasCtx)) return false;
   const rootRaw = unwrapRuntimeExpr(peelReceiverSequenceTail(core.object));
   // the chain-root peel to FIXPOINT: a write storing an effect-prefixed root is the shape it
   // exists for (`(held = (n++, globalThis)).window`) - the one-step assign peel stops at that
@@ -6412,9 +6403,13 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   }
   // a MINTED pure import at the root (`_self.window` after the in-place rewrite) names its
   // source global through the polyfillHint side-channel - the probe read is the same
-  if (rootObj?.type === 'Identifier') {
-    return !!isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx })
-      || (!!aliasCtx && !!bareProxyGlobalAliasName(rootObj, aliasCtx));
+  if (rootObj?.type === 'Identifier' || rootObj?.type === 'ConditionalExpression') {
+    if (isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx })
+      || (aliasCtx && bareProxyGlobalAliasName(rootObj, aliasCtx))) return true;
+    const held = aliasCtx && rootObj.type === 'Identifier'
+      && followConstIdentifierInit({ node: rootObj, ctx: aliasCtx });
+    // This query keeps the whole source as its probe; it never discards the test.
+    return !!aliasCtx && !!realmSelectionCollapseOperand(held?.node ?? rootObj, held?.ctx ?? aliasCtx, { preserveTest: true });
   }
   // the probe read off a PROVEN inline call is the same environment probe (`f()?.window`,
   // `f = () => globalThis` - the opaque-root canon guards it)
@@ -6867,6 +6862,13 @@ export function proxyHopLacksPureEntry(hop, resolvePure) {
   return !!hop && POSSIBLE_GLOBAL_OBJECTS.has(hop)
     && !resolvePure({ kind: 'global', name: hop })
     && !resolveBuiltInMeta({ kind: 'global', name: hop });
+}
+
+// A value read can be absent when its realm hop has no entry or the build excludes
+// that entry. Target-native entries remain backed; an explicit exclusion does not.
+function proxyHopNeedsValueProbe(hop, resolvePure, ctx) {
+  return !!hop && POSSIBLE_GLOBAL_OBJECTS.has(hop)
+    && (ctx?.adapter?.available?.({ kind: 'global', name: hop }) === false || proxyHopLacksPureEntry(hop, resolvePure));
 }
 
 // true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` -

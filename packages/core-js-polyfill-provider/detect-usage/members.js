@@ -92,7 +92,6 @@ import { binaryOperatorResultKind, unaryOperatorResultKind } from '../resolve-no
 import { planCaptureSiblings, planNestedKeyedPatternCapture } from '../destructure-host-shape.js';
 import {
   aliasRootedReadMayThrow,
-  undefinableOptionalGuard,
   pristineRealmHopKey,
   callValueCanBeUndefined,
   proxyCollapseConsumer,
@@ -2258,8 +2257,6 @@ export function handleMemberExpressionNode({
     // key can still resolve to an INSTANCE helper (`Array.name` -> `function/instance/name`), whose
     // render takes the receiver as its argument. the call-rooted twin below already asks it this way
     const collapsesReceiver = subsumesReceiver && resolveMeta?.(meta, path)?.kind !== 'instance'
-      && (!suppressProxyGlobals || !resolvePure || ownChainOptionalCount(node) < 2
-        || undefinableOptionalGuard(node, spec => resolvePure(spec, path), { scope, adapter, path }).kind !== 'standdown')
       && (!resolveMeta || meta.placement === 'static'
         || !!resolveMeta({ kind: 'global', name: meta.object }, path));
     // a hop suppressed under a meta whose own OBJECT is an ordinary name (`bx.arr`) belongs to the

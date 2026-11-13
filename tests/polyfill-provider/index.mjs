@@ -101,6 +101,7 @@ import './guard-canon.mjs';
 import './optional-erasure.mjs';
 import './claim-probe.mjs';
 import './probe-source-spines.mjs';
+import './realm-guard-sources.mjs';
 import './navigation-render.mjs';
 import './guarded-value.mjs';
 import './wrapper-peels.mjs';
