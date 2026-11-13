@@ -20,6 +20,7 @@ const ALLOWED = new Map([
   ['audit-disable-next-line-over-a-stored-nav', ['globalThis']],
   ['audit-proxy-hop-normalize-disabled-line', ['globalThis', 'globalThis', 'globalThis']],
   ['opt-out-over-a-guarded-navigation', ['globalThis', 'globalThis']],
+  ['realm-guard-sources/disabled', ['globalThis']],
   ['realm-left-patched-native-owner-decides', ['globalThis']],
   ['realm-selection-disabled-assignment', ['globalThis', 'globalThis']],
   ['realm-selection-disabled-declaration', ['globalThis', 'globalThis']],
@@ -39,6 +40,9 @@ const ALLOWED = new Map([
   ['iterator-realm-effectful-key-beside-native-static', ['globalThis']],
   ['iterator-realm-leaf-beside-native-static', ['globalThis']],
   ['realm-alias-window-probe-native-root', ['globalThis', 'self']],
+  ['realm-guard-sources/call-native-constructor', ['globalThis']],
+  ['realm-guard-sources/native-self', ['globalThis']],
+  ['realm-guard-sources/sealed-self', ['globalThis']],
   ['unclaimed-realm-statics', ['globalThis']],
   ['user-selection-native-left', ['globalThis', 'globalThis']],
   // Slot writes deopt the original live binding, including compound writes and aliases - for the reads

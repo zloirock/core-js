@@ -1,4 +1,4 @@
 import "core-js/modules/es.object.group-by";
 import "core-js/modules/es.global-this";
-// A declined static claim retains both the sequence effect and its realm root.
+// A realm selection keeps its prefix effect and environment probe while serving the static.
 export const r = (effect(), globalThis).window?.self?.Object.groupBy;

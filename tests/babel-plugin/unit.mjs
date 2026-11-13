@@ -9,6 +9,7 @@ import './computed-pattern-keys-runtime.mjs';
 import './parameter-boundaries-runtime.mjs';
 import './destructure-capture-ownership-runtime.mjs';
 import './nullable-capture-sources-runtime.mjs';
+import './realm-guard-sources-runtime.mjs';
 import './initializer-effects-runtime.mjs';
 import './residual-extraction-order-runtime.mjs';
 import './nested-mirror-runtime.mjs';

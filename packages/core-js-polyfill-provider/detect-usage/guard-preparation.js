@@ -166,7 +166,6 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
     && !chainReadsThroughSeal(node, resolvePure, ctx)
     && !staticMayEraseReceiver(node, resolveGlobal, ctx) ? guardAssigns[0] : null;
   if (!guard) {
-    if (optional.kind === 'standdown' && effects.length <= 1) return { kind: 'retain' };
     const sequenceGuard = ownChainOptionalObjects(node).find(nestedSequenceValueSpelling) ?? null;
     guard = optional.kind === 'guard'
       ? (sequenceGuard && subtreeContainsNode(sequenceGuard, optional.object) ? sequenceGuard : optional.object)

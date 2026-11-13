@@ -4,5 +4,5 @@ import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.race";
 import "core-js/modules/es.global-this";
-// A declined static claim leaves the call-returned realm root live.
+// A call-returned realm keeps its environment probe while serving the static.
 export const r = (() => globalThis)().window?.self?.Promise.race;

@@ -1,2 +1,2 @@
-// A declined static claim leaves the call-returned realm root live.
+// A call-returned realm keeps its environment probe while serving the static.
 export const r = (() => globalThis)().window?.self?.Promise.race;

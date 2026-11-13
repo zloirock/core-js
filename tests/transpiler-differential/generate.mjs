@@ -25936,4 +25936,40 @@ function * generateNestedReceiverRoots() {
       export const effects = []; export const r = withWindowPresence(${ present }, () => {
         try { ${ body } } catch (error) { return error.name; }
       });` };
+  // Realm probes retain their optional prefix; call results must denote the whole realm.
+  const globalHost = new URL('../e2e-usage-pure/unbacked-global-host.cjs', import.meta.url).href;
+  const propertyHost = new URL('../helpers/restore-property.cjs', import.meta.url).href;
+  for (const [name, body] of [
+    ['call', 'function get() { effects.push("call"); return globalThis.window; } return get()?.Array?.from([3]);'],
+    ['call-store', `function get() { effects.push("call"); return globalThis.window; } let held;
+      const result = (held = get())?.Object?.hasOwn({ x: 1 }, "x"); return [result, held === undefined];`],
+    ['call-probe', 'function get() { effects.push("call"); return globalThis; } return get().window?.Array?.from([3]);'],
+    ['iife', 'return (() => globalThis.window)()?.Array?.from([3]);'],
+    ['selection', 'return (present ? globalThis : self).window?.Array.from([3]);'],
+    ['selection-alias', 'const root = globalThis; const held = present ? root : globalThis; const copied = held; return copied.window?.Array.from([3]);'],
+    ['selection-effect', 'return ((effects.push("test"), present) ? globalThis : self).window?.Array.from([3]);'],
+    ['sealed', 'return typeof (globalThis.window?.self)?.Iterator?.from;'],
+    ['leaf-effects', 'function get() { effects.push("call"); return globalThis.window; } return get()?.Array?.[(effects.push("key"), "from")]((effects.push("argument"), [3]));'],
+  ]) for (const present of [false, true]) yield { name: `realm-guard-sources/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+      export const effects = []; export const r = withWindowPresence(${ present }, present => { ${ body } });` };
+  for (const root of ['globalThis', 'get()', '(held = globalThis)']) for (const optional of ['', '?.']) {
+    for (const windowPresent of [false, true]) for (const globalPresent of [false, true]) {
+      yield { name: `realm-guard-sources/independent/${ root }/${ !!optional }/${ windowPresent }/${ globalPresent }`, strip: true, isolated: true,
+        code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        import { withGlobalPresence } from ${ JSON.stringify(globalHost) };
+        function get() { return globalThis; } let held;
+        export const effects = []; export const r = withWindowPresence(${ windowPresent }, () =>
+          withGlobalPresence(${ globalPresent }, () => typeof ${ root }.window?.global?.Iterator${ optional || '.' }from));` };
+    }
+  }
+  for (const [name, read] of [['static', 'get().self.Array.from([3])'], ['member', 'get().window.value']]) {
+    yield { name: `realm-guard-sources/user/${ name }`, strip: true, isolated: true,
+      code: `import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+        export const effects = [];
+        const user = { self: { Array: { from() { effects.push('from'); return 31; } } }, window: { value: 41 } };
+        export const r = withTemporaryProperty(globalThis, 'lib', user, () => {
+          function get() { return globalThis.lib; } return ${ read };
+        });` };
+  }
 }
