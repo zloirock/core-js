@@ -1,3 +1,5 @@
+import './container-http.mjs';
+import './container-process.mjs';
 import './container-lifecycle.mjs';
 import './container-manifest.mjs';
 import './container-settings.mjs';

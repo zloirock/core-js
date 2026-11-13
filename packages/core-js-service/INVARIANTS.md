@@ -42,6 +42,30 @@ does: a summary of the code is already in the code.
   floods diagnostics, while silently discarding failed buckets hides incomplete warm-up. A broken
   logger falls back to stderr instead of rejecting an unawaited startup promise
 
+## Standalone container HTTP
+
+- **container-http-1** - status stays reachable and reports the current lifecycle state even when
+  preparation fails; scripts return an uncacheable 503 until the baseline exists, but a later
+  warm-up failure does not withdraw the baseline
+- **container-http-2** - only GET requests to the fixed script address reach the raw service
+  handler; Fastify must not rewrite its bytes, compression, cache headers or validators, or
+  expose HEAD for either of the two GET routes
+- **container-http-3** - unexpected request failures are logged exactly once, including when the
+  standalone process disables Fastify logging, and answered with an uncacheable 500 before headers
+  are sent; after headers are sent the socket is destroyed instead of appending an invalid response.
+  A throwing logger must not strand either response; the failure falls back to stderr when possible
+
+## Standalone container process
+
+- **container-process-1** - the listener is available before manifest preparation, so a bad manifest
+  remains visible through status and scripts stay uncacheable failures. A valid manifest must produce
+  a real baseline and finish warm-up rather than only exercising the HTTP adapter with a stub
+- **container-process-2** - invalid listener settings and listener errors exit nonzero, while
+  termination lets requests already accepted finish before exiting. The executable must also start
+  through a symlink: otherwise a launcher can exit successfully without opening the listener.
+  Importing it with a missing argv path must stay passive rather than fail during import. An
+  interrupted script would break a page during a routine container replacement
+
 ## Across the layers
 
 - **layers-1** - `config.js` is imported by every layer, the domain included, so nothing in it may
