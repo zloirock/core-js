@@ -81,6 +81,9 @@ app.get('/', (request, response) => response.render('index'));
 
 ## Run the standalone container
 
+For a step-by-step deployment procedure, see
+[Connect an application to the containerized polyfill service](../core-js-service-container/README.md).
+
 The container serves a fixed `/polyfills.js` URL without Express or HTML interception. Provide a
 complete manifest of the core-js modules your application might use, **before** its own
 browser-target filtering. The container does not generate this manifest or provide an application
