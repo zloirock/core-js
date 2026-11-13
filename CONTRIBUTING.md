@@ -126,7 +126,7 @@ You can run parts of the test case separately:
   ```sh
   npm run test-saucelabs -- <HTTP URL of a branch directory on GitHub Pages> [full commit SHA]
   ```
-  To test one configuration per browser version in the Sauce Labs catalog, add `--all` after the optional commit SHA. Do not give the flag a value or put a SHA after it. The account dashboard showed a total concurrency limit of 10 sessions, Mac/iOS (x86) concurrency of 15, and real device concurrency of 0 on October 30, 2026. The full run limits itself to 10 concurrent sessions and uses simulators, not real devices.
+  If you provide a full commit SHA, the runner checks the deployed `commit.txt` before and after testing. A missing or changed marker produces a warning, not a failed run: concurrent Pages deployments can replace it. The results describe the pages served to each browser, not a verified commit. To test one configuration per browser version in the Sauce Labs catalog, add `--all` after the optional commit SHA. Do not give the flag a value or put a SHA after it. The account dashboard showed a total concurrency limit of 10 sessions, Mac/iOS (x86) concurrency of 15, and real device concurrency of 0 on October 30, 2026. The full run limits itself to 10 concurrent sessions and uses simulators, not real devices.
 - [Test262](https://github.com/tc39/test262) test case (it's not included in the default tests):
   ```sh
   npx run-s prepare bundle-package test262

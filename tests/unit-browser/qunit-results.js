@@ -25,6 +25,14 @@
     results.failures.push(failure);
   });
 
+  QUnit.testStart(function (details) {
+    results.currentTest = { module: details.module, test: details.name };
+  });
+
+  QUnit.testDone(function () {
+    results.currentTest = null;
+  });
+
   QUnit.done(function (details) {
     results.failed = details.failed;
     results.total = details.total;
