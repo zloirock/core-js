@@ -169,6 +169,7 @@ import {
   spineHasOptionalHop,
   standsForNoGlobal,
   staticMemberKeyName,
+  synthSlotName,
   TS_EXPR_WRAPPERS,
   tsImportEqualsProxyName,
   tsImportEqualsRequireSource,
@@ -2509,6 +2510,7 @@ function forwardedValuePositions(node) {
 
 // Reading or writing an accessor uses its own half of the final property descriptor.
 // A later data property or spread ends an earlier getter/setter pair.
+// An unknown computed key may redefine any slot, so it blocks an earlier descriptor proof.
 // Read-only batches may share a caller-owned index; live AST queries leave it uncached.
 function objectLiteralSlotMember(container, key, accessor = null, cache = null) {
   let { properties } = container;
@@ -2517,11 +2519,11 @@ function objectLiteralSlotMember(container, key, accessor = null, cache = null) 
     if (!slots) {
       cache.set(container, slots = new Map());
       for (const prop of properties) {
-        if (prop.type === 'SpreadElement') {
+        const name = prop.type === 'SpreadElement' ? null : synthSlotName(prop);
+        if (name === null) {
           slots.clear();
           continue;
         }
-        const name = foldedPropertyKeyName(prop);
         let members = slots.get(name);
         if (!members) slots.set(name, members = []);
         // Only the final data member or getter/setter pair can survive redefinition.
@@ -2535,11 +2537,12 @@ function objectLiteralSlotMember(container, key, accessor = null, cache = null) 
     }
     properties = slots.get(key) ?? [];
   }
-  let member = findObjectKeyBeforeSpread(properties, prop => cache || foldedPropertyKeyName(prop) === key, key);
+  let member = findObjectKeyBeforeSpread(properties, prop => cache || (synthSlotName(prop) ?? key) === key, key);
+  if (member && synthSlotName(member) === null) return null;
   if (accessor && member?.kind === (accessor === 'get' ? 'set' : 'get')) {
     const preceding = findObjectKeyBeforeSpread(properties.slice(0, properties.indexOf(member)),
-      prop => (cache || foldedPropertyKeyName(prop) === key) && prop.kind !== member.kind, key);
-    member = preceding?.kind === accessor ? preceding : null;
+      prop => !cache && synthSlotName(prop) === null || (cache || synthSlotName(prop) === key) && prop.kind !== member.kind, key);
+    member = preceding?.kind === accessor && synthSlotName(preceding) !== null ? preceding : null;
   }
   return member;
 }
@@ -2560,7 +2563,7 @@ function containerSlotValues(container, key, ownDataOnly = false, cache = null, 
     const match = objectLiteralSlotMember(container, key, ownDataOnly ? null : 'get', cache);
     if (match) return ownDataOnly && (match.kind === 'get' || match.kind === 'set') ? [] : memberSlotValues(match);
     // ... and a key it does not own may be INHERITED from the prototype a `__proto__:` member installs
-    return container.properties.some(prop => prop.type === 'SpreadElement')
+    return container.properties.some(prop => prop.type === 'SpreadElement' || synthSlotName(prop) === null)
       || !ownDataOnly && objectLiteralPrototypeValue(container, true) ? [container] : [];
   }
   if (container.type === 'ArrayExpression') {
@@ -3969,38 +3972,43 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     if (!values) aliasInit.set(name, values = []);
     values.push({ at, value, target, aliases: target ? aliasInit : null, paired: walked, keyAlias });
   }
-  // a read that comes BACK off a container slot this file stored a constructor in: pure substitutes
-  // its own binding into that slot and never reads the slot back, so the static the pattern names
-  // under it has to be ON that binding - and the narrow `*/constructor` module installs none of the
-  // constructor's own statics. only an OWN static counts (an intrinsic property is on the narrow
-  // entry too), and only where the container actually put the constructor there. the VALUES a
+  // A retained pattern reads a static off the value a literal slot supplies, including a getter's
+  // return. Pure substitutes its own constructor into that value, so the named static must be ON it:
+  // the narrow `*/constructor` module installs none of the constructor's own statics. Only an OWN
+  // static counts (intrinsic properties already exist on the narrow entry), and only where that
+  // slot can supply the constructor. The VALUES a
   // destructure can land on are what the source can hand the pattern - a container name or a container
   // literal: a selection reaches every arm, and each arm is read by the same pattern - the arm a run
   // takes is not this census's to decide. an effect spelled ahead of the value belongs to the SOURCE and
   // not to the value, so the union's flattener peels it first - `const box = (n++, { Map })` holds the
   // literal exactly as the bare spelling does. The completed value census follows aliases and
   // selection arms in their own scopes; all native wrappers share that answer.
-  function stampCtorStaticReadThroughSlot(pattern, source) {
+  function stampCtorStaticReadThroughSlot(pattern, source, retainedReads) {
+    let seen = retainedReads.get(pattern);
+    if (seen?.has(source)) return;
+    if (!seen) retainedReads.set(pattern, seen = new Set());
+    seen.add(source);
     let values;
     // an ARRAY pattern names its slots by INDEX, an object pattern by key - one walk over the pairs
     const slots = pattern?.type === 'ArrayPattern'
       ? pattern.elements.map((element, at) => [String(at), patternSlotTarget(element)])
       : pattern?.type === 'ObjectPattern'
         ? pattern.properties
-          .filter(prop => (prop.type === 'Property' || prop.type === 'ObjectProperty') && !prop.computed)
-          .map(prop => [plainSynthKeyName(prop.key), patternSlotTarget(prop.value)])
+          .filter(prop => prop.type === 'Property' || prop.type === 'ObjectProperty')
+          .map(prop => [prop.computed ? censusResolveKey({ node: prop.key }) : plainSynthKeyName(prop.key), patternSlotTarget(prop.value)])
         : null;
     if (!slots) return;
     for (const [key, inner] of slots) {
       if (!isDestructurePattern(inner)) continue;
       for (const value of values ??= readValues(aliasInit, source, new Set())) {
         if (value.type !== 'ObjectExpression' && value.type !== 'ArrayExpression') continue;
-        for (const slot of containerSlotValues(value, key, true)) {
-          if (slot === value) continue;
+        const paired = containerSlotValues(value, key);
+        const readSlots = paired.length === 1 && paired[0] === value ? containerSlotNodes(value) : paired;
+        for (const slot of readSlots) {
           for (const held of readValues(aliasInit, slot, new Set())) {
             const ctorName = realmGlobalName(programNode, held) ?? entryToGlobalHint(pureEntryOf(held));
             if (ctorName && inner.type === 'ObjectPattern') stampLeavesReadBack({ inner, ctorName });
-            else stampCtorStaticReadThroughSlot(inner, held);
+            else stampCtorStaticReadThroughSlot(inner, held, retainedReads);
           }
         }
       }
@@ -5084,7 +5092,9 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       // the root expansions it reads (`readsOffRealm`)
       ALIAS_SCOPE_FACTS.get(aliasInit).realmRoots = new Map();
       // Alias and scope facts are complete now; declaration order cannot change the family.
-      for (const [pattern, source] of retainedPatterns) stampCtorStaticReadThroughSlot(pattern, source);
+      // Namespace obligations are monotone; visit each pattern/value pair once, only in this finalization.
+      const retainedReads = new Map();
+      for (const [pattern, source] of retainedPatterns) stampCtorStaticReadThroughSlot(pattern, source, retainedReads);
     }
     return calleeRecords;
   }

@@ -230,4 +230,56 @@ for (const parser of adapters) {
   ]) check(`${ parser.name }/served/${ source }`, census(parser, source).has(source.includes('Promise') ? 'Promise' : 'Map', true), false);
 }
 
+for (const parser of adapters) for (const [name, source, held = true] of [
+  ['computed pattern', "const k = 'w'; const { [k]: { groupBy } } = { w: Map };"],
+  ['mutable key', "let k = 'w'; const { [k]: { groupBy } } = { w: Map };"],
+  ['computed array index', 'const { [0]: { groupBy } } = [Map];'],
+  ['numeric property', 'const { 1: { groupBy } } = { 1: Map };'],
+  ['computed property', "const k = 'w'; const { w: { groupBy } } = { [k]: Map };"],
+  ['computed numeric property', 'const { 1: { groupBy } } = { [1]: Map };'],
+  ['unknown pattern key', 'function read(k) { const { [k]: { groupBy } } = { w: Map }; }'],
+  ['unknown property key', 'function read(k) { const { w: { groupBy } } = { [k]: Map }; }'],
+  ['unknown override', 'function read(k) { const { w: { groupBy } } = { w: {}, [k]: Map }; }'],
+  ['getter', 'const { w: { groupBy } } = { get w() { return Map; } };'],
+  ['getter and setter', 'const { w: { groupBy } } = { get w() { return Map; }, set w(value) {} };'],
+  ['nested getter', 'const { w: { inner: { groupBy } } } = { get w() { return { inner: Map }; } };'],
+  ['intrinsic property', 'const { 1: { name } } = { 1: Map };', false],
+  ['different key', 'const { 2: { groupBy } } = { 1: Map, 2: {} };', false],
+  ['setter alone', 'const { w: { groupBy } } = { set w(value) {} };', false],
+  ['known data after getter', 'const { w: { groupBy } } = { get w() { return Map; }, w: {} };', false],
+  ['getter after setter', 'const { w: { groupBy } } = { set w(value) {}, get w() { return Map; } };'],
+  ['nested source aliases', 'const left = { w: Map }; const right = { w: Promise }; const { w: { groupBy } } = unknown ? left : right;'],
+]) check(`${ parser.name }/literal read-back/${ name }`, census(parser, source).has('Map', true), held);
+
+// Shared container branches must not repeat the same retained read-back along every path.
+for (const parser of adapters) for (const host of ['declaration', 'assignment', 'parameter', 'array']) {
+  const counts = [];
+  for (const levels of [6, 12]) {
+    const array = host === 'array';
+    const lines = [array ? 'const W0 = [[1]], W1 = [[2]];' : 'const W0 = { a: [1] }, W1 = { a: [2] };'];
+    for (let i = 0; i < levels; i++) {
+      const branch = `flag${ i } ? W${ i + 1 } : W${ i }`;
+      lines.push(`const W${ i + 2 } = ${ array ? `[${ branch }]` : `{ a: ${ branch } }` };`);
+    }
+    let pattern = '{ at }';
+    for (let i = 0; i < levels; i++) pattern = array ? `[${ pattern }]` : `{ a: ${ pattern } }`;
+    const source = `W${ levels + 1 }`;
+    lines.push(host === 'parameter' ? `function read(${ pattern } = ${ source }) { return at; }`
+      : host === 'assignment' ? `let at; (${ pattern } = ${ source });` : `const ${ pattern } = ${ source };`);
+    const tree = parser.parseAndScope(lines.join('\n'));
+    let reads = 0;
+    for (const { node } of parser.collectPaths(tree, 'ConditionalExpression')) {
+      const { consequent } = node;
+      Object.defineProperty(node, 'consequent', {
+        configurable: true,
+        get() { reads++; return consequent; },
+      });
+    }
+    collectFileCensus(tree.node, [escapedCtorReferencesReducer()]);
+    check(`${ parser.name }/retained DAG/${ host }/${ levels }/counter live`, reads > 0, true);
+    counts.push(reads);
+  }
+  check(`${ parser.name }/retained DAG/${ host }/bounded visits (${ counts })`, counts[1] <= counts[0] * 4, true);
+}
+
 finish();
