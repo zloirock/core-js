@@ -5,6 +5,7 @@
 import './babel-compat.mjs';
 import './destructure-groups.mjs';
 import './destructure-plan-runtime.mjs';
+import './computed-pattern-keys-runtime.mjs';
 import './initializer-effects-runtime.mjs';
 import './residual-extraction-order-runtime.mjs';
 import './nested-mirror-runtime.mjs';

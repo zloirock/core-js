@@ -35,6 +35,7 @@ import {
   probeRenderedReceiver,
   receiverSideEffectsOnly,
   resolveKey,
+  resolveStringKey,
   resolveObjectName,
   returnedReceiverHasEffects,
   unwrapParensCollectingEffects,
@@ -3819,6 +3820,55 @@ for (const [name, source, expected] of [
   const read = parser.pickPath(program, 'MemberExpression', p => p.node.object.name === 'arr');
   check(label, computedKeyWellKnownSymbolName({ keyNode: read.node.property, scope: read.scope, adapter, path: read }), expected);
 });
+
+// Keys moved out of a pattern must name a string without losing effects or symbol identity.
+for (const [name, source, expected] of [
+  ['literal', 'arr["at"]', 'at'],
+  ['number', 'arr[0]', '0'],
+  ['folded', 'const K = "a"; arr[K + "t"]', 'at'],
+  ['symbol', 'arr[Symbol.iterator]', null],
+  ['symbol alias', 'const K = Symbol.iterator; arr[K]', null],
+  ['symbol spelling', 'const K = "Symbol.iterator"; arr[K]', 'Symbol.iterator'],
+  ['effect', 'arr[(effect(), "at")]', null],
+  ['coercion', 'const K = { toString() { return "at"; } }; arr[K]', null],
+  ['unknown', 'arr[key]', null],
+  ['TDZ', 'arr[K]; const K = "at"', null],
+  ['early closure', 'f(); const K = "at"; function f() { arr[K]; }', null],
+  ['early hoisted var', 'f(); var K = "at"; function f() { arr[K]; }', null],
+  ['early nested caller', 'invoke(); const K = "at"; function f() { arr[K]; } function invoke() { f(); }', null],
+  ['late closure', 'const K = "at"; function f() { arr[K]; } f();', 'at'],
+  ['late alias', 'const A = "at", K = A; function f() { arr[K]; } f();', 'at'],
+  ['named export', 'export function f() { arr[K]; } const K = "at";', 'at'],
+  ['default export', 'export default function f() { arr[K]; } const K = "at";', 'at'],
+  ['export specifier', 'function f() { arr[K]; } export { f }; const K = "at";', 'at'],
+  ['early exported caller', 'f(); export function f() { arr[K]; } const K = "at";', null],
+]) runBoth(`string pattern key/${ name }`, source, (parser, program, label) => {
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', collectBindingReferences: parser.makeResolver().collectBindingReferences,
+  });
+  const read = parser.pickPath(program, 'MemberExpression', path => path.node.object.name === 'arr');
+  check(label, resolveStringKey({
+    node: read.node.property, computed: true, scope: read.scope, adapter, path: read, bailOnSideEffectKey: true,
+  }), expected);
+});
+
+for (const [key, expected, retainingEffects = expected] of [
+  ['row', 'row'],
+  ["['row']", 'row'],
+  ["['r' + 'ow']", 'row'],
+  ['0', null],
+  ["['0']", '0'],
+  ['[bound]', null],
+  ['[Symbol.iterator]', null],
+  ['["Symbol.iterator"]', 'Symbol.iterator'],
+  ['[(effect(), "row")]', null, 'row'],
+]) runBoth(`structural string pattern key/${ key }`,
+  `const bound = 'row'; const { ${ key }: value } = source;`, (parser, program, label) => {
+    const [prop] = parser.pickPath(program, 'ObjectPattern').node.properties;
+    const options = { node: prop.key, computed: prop.computed };
+    check(`${ label } consuming key`, resolveStringKey({ ...options, bailOnSideEffectKey: true }), expected);
+    check(`${ label } retaining key`, resolveStringKey(options), retainingEffects);
+  });
 
 // Pending emission changes the initializer, not the binding's scope or write history.
 for (const [name, source, expected] of [

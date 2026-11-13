@@ -1560,6 +1560,23 @@ check('minifier census/nested slot reached',
 check('minifier census/non-slot host ignored',
   splitSlotsOf({ type: 'SwitchCase', consequent: [splitStatement('a')], body: splitStatement('b') }), '');
 
+for (const [key, expected] of [
+  ['row', true],
+  ["['row']", true],
+  ["['r' + 'ow']", true],
+  ["[(effect(), 'row')]", true],
+  ['0', false],
+  ["['0']", true],
+  ['[unknown]', false],
+  ['[Symbol.iterator]', false],
+]) runBoth(`structural retained capture/${ key }`,
+  `let at; [{ ${ key }: { at } }] = [{ row: [3, 7], '0': [3, 7] }];`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'AssignmentExpression');
+    const [prop] = host.node.left.elements[0].properties[0].value.properties;
+    const plan = planRetainedObjectCapture({ pattern: host.node.left, init: host.node.right, assignment: true, prop });
+    check(`${ label } plans without a scope adapter`, !!plan, expected);
+  });
+
 for (const siblings of ['', ', tail']) runBoth('retained wrapper computed key shares one call result',
   `let method, tail; [{ [(key(), "at")]: method }${ siblings }] = [source(), 7];`, (parser, program, label) => {
     const host = parser.pickPath(program, 'AssignmentExpression');

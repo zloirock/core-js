@@ -1,16 +1,10 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// A proven non-colliding string key keeps the ordinary default mirror available.
+import _at from "@core-js/pure/actual/instance/at";
+// A proven non-colliding string key retains its read beside the method extraction.
 const key = 'length';
-export function read({
-  at,
-  [key]: other
-} = function (_ref) {
-  return null == _ref ? _ref : {
-    at: _atMaybeArray(_ref),
-    get [key]() {
-      return _ref[key];
-    }
-  };
-}([7])) {
+export function read(_ref = [7]) {
+  let at = _at(_ref);
+  let {
+    ["length"]: other
+  } = _ref;
   return [at, other];
 }

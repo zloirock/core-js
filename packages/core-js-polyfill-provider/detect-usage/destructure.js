@@ -88,7 +88,6 @@ import {
   installedWriteValue,
   CENSUS_KEY_NAMES,
   CENSUS_STATIC_RECEIVERS,
-  isValidIdentifierName,
   memberChainKeys,
   mayHaveSideEffects,
   noReassignmentReachesUsage,
@@ -230,6 +229,7 @@ import {
   realmSelectionCollapseOperand,
   realmSelectionLeafKind,
   resolveKey as sharedResolveKey,
+  resolveStringKey,
   resolveObjectName,
   resolveSynthKeys,
   seBearingChainRootCall,
@@ -2419,7 +2419,8 @@ const parameterExtractionBarriers = createInstanceNodeCache();
 // A parameter needs its actual receiver, rather than a caller-side mirror or a default-only
 // substitution. Pattern levels can move together to the body entry; their inner defaults
 // must be literals, since a moved expression would resolve body declarations in a different scope.
-// A served leaf default keeps its own route. A whole receiver default stays in the parameter list.
+// Literal leaf defaults use the declaration guard; the whole receiver default stays in the parameter list.
+// Folded keys move as literals so body bindings cannot change their meaning.
 // eslint-disable-next-line max-statements -- nested pattern admission shares the parameter timing and binding proof
 export function planParameterInstanceExtraction({
   propPath, adapter, resolvePure, isDisabledProp, parameterCallSites = null, isClaimedProp = null,
@@ -2454,6 +2455,7 @@ export function planParameterInstanceExtraction({
   }
   parameterExtractionBarriers.delete(adapter, patternPath.node);
   const properties = [];
+  const keys = new Map();
   const observed = [];
   const patterns = [patternPath];
   for (const pattern of patterns) {
@@ -2465,16 +2467,21 @@ export function planParameterInstanceExtraction({
     }
     if (!pattern.node.properties.length) return null;
     for (const prop of pattern.get('properties')) {
-      if (!isPropertyNode(prop.node) || prop.node.computed || isDisabledProp?.(prop.node)) return null;
+      if (!isPropertyNode(prop.node) || isDisabledProp?.(prop.node)) return null;
+      const key = resolveStringKey({
+        node: prop.node.key, computed: prop.node.computed, scope: prop.scope, adapter, path: prop.get('key'), bailOnSideEffectKey: true,
+      });
+      if (key === null) return null;
+      keys.set(prop, key);
       let target = prop.get('value');
       if (target.node.type === 'AssignmentPattern') {
         const value = unwrapRuntimeExpr(target.node.right);
         if (!isConstantLiteralNode(value)) return null;
         target = target.get('left');
-        // Flat leaf defaults keep their existing mirror. An inner receiver can instead
-        // capture a raw primitive default; coercing an object may invoke user code.
-        if (target.node.type === 'Identifier' && (pattern === patternPath || !PRIMITIVE_LITERAL_TYPES.has(value.type)
-          && !(value.type === 'UnaryExpression' && typeof value.argument.value === 'number'))) return null;
+        // Literal leaf defaults follow the ordinary declaration guard. Moving an
+        // expression could resolve a body binding or invoke user coercion instead.
+        if (target.node.type === 'Identifier' && !PRIMITIVE_LITERAL_TYPES.has(value.type)
+          && !(value.type === 'UnaryExpression' && typeof value.argument.value === 'number')) return null;
       }
       if (target.node.type === 'Identifier') {
         observed.push({ path: target, index: properties.length, moved: true });
@@ -2484,7 +2491,7 @@ export function planParameterInstanceExtraction({
         // whole parameter to the body and leave that hop reading a native method.
         const sourceMeta = buildDestructureLeafMeta({
           descriptor: classifyDestructureLeafHost({ objectPattern: prop.parentPath }),
-          key: propertyKeyName(prop.node), adapter, resolvePure, parameterCallSites,
+          key: keys.get(prop), adapter, resolvePure, parameterCallSites,
         });
         if (sourceMeta && resolvePure(sourceMeta, prop)?.kind === 'static') return null;
         patterns.push(target);
@@ -2550,7 +2557,7 @@ export function planParameterInstanceExtraction({
       }
       const sourceMeta = buildDestructureLeafMeta({
         descriptor: classifyDestructureLeafHost({ objectPattern: prop.parentPath }),
-        key: propertyKeyName(prop.node), adapter, resolvePure, parameterCallSites,
+        key: keys.get(prop), adapter, resolvePure, parameterCallSites,
       });
       const sourceKind = sourceMeta && resolveBuiltIn(sourceMeta)?.kind;
       // A static/global arm needs its existing mirror or identity guard, not a generic instance read.
@@ -2558,7 +2565,10 @@ export function planParameterInstanceExtraction({
       const localId = propBindingIdentifier(prop.node.value);
       if (!qualifiesForParamBodyExtract({ propPath: prop, localId, receiverCapture: true })) return null;
       const instance = resolvePure(sourceMeta, prop)?.kind === 'instance';
-      if (instance && prop.node.value.type === 'AssignmentPattern') return null;
+      // Positional extraction cannot move a leaf default off an unknown array element.
+      // Keep the existing caller/default mirror instead of preempting it with a body capture.
+      if (instance && prop.node.value.type === 'AssignmentPattern'
+        && patterns.some(pattern => pattern.node.type === 'ArrayPattern')) return null;
       claim ||= instance;
     }
     if (!claim) return null;
@@ -2568,7 +2578,8 @@ export function planParameterInstanceExtraction({
       && isSloppyAtPath(fnPath) && referencesArgumentsObject(fn);
     if (paddingRequired && (fn.kind === 'set' || fnPath.parentPath?.node.kind === 'set')) return null;
     return {
-      fnPath, rootPath, pattern: patternPath.node, root: rootPath.node, claimedProperties, bindingProperties: properties, paddingRequired,
+      fnPath, rootPath, pattern: patternPath.node, root: rootPath.node, keys,
+      claimedProperties, bindingProperties: properties, paddingRequired,
     };
   });
 }
@@ -3314,7 +3325,10 @@ export function resolveNestedReceiverChain(leafPath, {
         || pattern.node.properties.some(isRestProperty))) return null;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
       const key = consumableHopSlotName(owner.node, adapter ? { scope: owner.scope ?? leafPattern.scope, adapter, path: owner } : null);
-      if (typeof key !== 'string' || !isValidIdentifierName(key)) return null;
+      // Without scope, only a spelled string can have resolved; symbol labels need a scoped fold.
+      if (typeof key !== 'string' || adapter && owner.node.computed && symbolSourcedFoldedKey({
+        key, keyNode: owner.node.key, scope: owner.scope ?? leafPattern.scope, adapter, path: owner,
+      })) return null;
       keys.unshift(key);
       climbed.push({ pattern: pattern.node, prop: owner.node });
       pattern = owner.parentPath;
@@ -3707,13 +3721,14 @@ function positionalArrayLevels(pattern, host, captureState = null) {
 // leaf's pattern takes a minted name, which hop keys the dispatch reads off it, and how the levels
 // beside the claim re-emit (`levels`), or - on an assignment host - the statement the pair lands
 // after. taken where the pairing routes have nothing to pair - an init that is no array literal,
-// or one a SPREAD shifts - and refused for every leaf the rename cannot carry: a defaulted one, a
-// computed key beside siblings or one carrying an effect, an outer rest, a LATER array slot that
+// or one a SPREAD shifts - and refused for every leaf the rename cannot carry: a defaulted one, an
+// unresolved key beside siblings or one carrying an effect, an outer rest, a LATER array slot that
 // reads when the pattern binds, a host without a declarator or statement slot. null = the leaf
 // keeps whatever channel it came from. `arrayLevels` lists the array levels between the slot and
 // the host, innermost first, each with the index the climb took. `adapter`
 // folds a BOUND hop key on the way, as every other walk over the leaf's keys does. A complete
 // source host can supply its remaining-reader summary instead of re-scanning each suffix.
+// Its whole-declaration renderer also carries residual reads inside a for-init declaration.
 export function resolvePositionalElementSlot(leafPath, adapter = null, captureState = null) {
   // a DEFAULTED prop keeps an arm this route has no shape for: it binds the DISPATCH in place of the
   // slot, and the dispatch does not stand in for the default - a receiver carrying no such method
@@ -3735,9 +3750,10 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
     const at = props.indexOf(fromNode);
     if (at === -1) return null;
     const isClaimLevel = pattern.node === leafPath.parentPath.node;
-    // A residual needs a statement slot beside the capture and a plain key. A computed key
-    // belongs to its own channel (a polyfilled symbol, say), while the residual retains source keys.
-    if (props.length > 1 && (fromNode.computed || !residualHostTakesStatement(leafPath))) return null;
+    // A residual needs a proven slot and a host that can carry its remaining reads.
+    // The residual retains source keys; the claim renderer owns symbol-key dispatch.
+    if (props.length > 1 && (consumableHopSlotName(fromNode, { scope: leafPath.scope, adapter, path: leafPath }) === null
+      || !captureState?.declarationResidual && !residualHostTakesStatement(leafPath))) return null;
     // ... and a computed key carrying an EFFECT never rides this route, sole or not: the rename
     // drops the pattern that spells the key, and with it the effect the source runs (the memo
     // channel keeps that key in a sentinel residual beside the dispatch)
@@ -3752,7 +3768,10 @@ export function resolvePositionalElementSlot(leafPath, adapter = null, captureSt
       && owner.parentPath?.node?.type === 'ArrayPattern') owner = owner.parentPath;
     const ownerType = owner?.node?.type;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
-      const key = consumableHopSlotName(owner.node, adapter ? { scope: owner.scope ?? leafPath.scope, adapter, path: owner } : null);
+      const key = adapter && owner.node.computed ? sharedResolveKey({
+        node: owner.node.key, computed: true, scope: owner.scope ?? leafPath.scope, adapter, path: owner,
+        keepsKeyNode: true, requireInitialized: true,
+      }) : consumableHopSlotName(owner.node);
       if (typeof key !== 'string') return null;
       // the HOST above may carry a REST, and then nothing prunes: rest gathers what the pattern did
       // not name, so this hop's key has to stay there keeping itself excluded - and a hop that

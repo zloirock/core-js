@@ -115,6 +115,7 @@ import {
   isStaticPlacement,
   memberTargetTakesExtraction,
   resolveKey,
+  resolveStringKey,
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   resolveObjectName,
@@ -1746,7 +1747,7 @@ function planRetainedObjectCaptureShape({
       || kind === 'instance' && capturedElement && capture.leafPattern.properties.includes(prop))) {
       let source = arrayReceiver;
       for (const level of capture.ancestors) {
-        const key = foldedPropertyKeyName(level.prop);
+        const key = resolveStringKey({ node: level.prop.key, computed: level.prop.computed, ...ctx, bailOnSideEffectKey: true });
         const paired = key === null ? null : objectLevelPairedProperty(
           unwrapRuntimeExpr(installedWriteValue(source)), key,
         )?.read;
@@ -1855,7 +1856,7 @@ function planRetainedObjectCaptureShape({
     && patternKeepsEffectfulKey(pattern, ctx)) {
     const capture = planNestedKeyedPatternCapture({ pattern, init, force: true, plansLeaf: true, ctx });
     const source = capture?.ancestors.reduce((value, level) => {
-      const key = foldedPropertyKeyName(level.prop);
+      const key = resolveStringKey({ node: level.prop.key, computed: level.prop.computed, ...ctx, bailOnSideEffectKey: true });
       return value && key !== null ? memberFromKeyName(value, key) : null;
     }, installedWriteValue(init));
     const innerPlan = capture?.leafPattern.properties.includes(prop) && source
@@ -1951,7 +1952,9 @@ function planRetainedObjectCaptureShape({
         scope: hostPath?.scope, adapter, path: hostPath, rescuesReceiverRead: true,
       });
       levelNames.push(name && !POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null);
-      const key = level.defaultValue ? null : foldedPropertyKeyName(level.prop);
+      const key = level.defaultValue ? null : resolveStringKey({
+        node: level.prop.key, computed: level.prop.computed, ...ctx, bailOnSideEffectKey: true,
+      });
       receiver = receiver && key !== null ? memberFromKeyName(receiver, key) : null;
     }
     // Earlier assignment claims keep their ordered writes and share this root capture.

@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
 // Unserved slots keep their native read; a null receiver rejects before the pattern key.
 export function optional({
@@ -33,16 +33,10 @@ export function optedOut({
 }
 // The instance dispatcher and the retained length share one evaluated array.
 const key = 'length';
-export function instance({
-  at,
-  [key]: length
-} = function (_ref2) {
-  return null == _ref2 ? _ref2 : {
-    at: _atMaybeArray(_ref2),
-    get [key]() {
-      return _ref2[key];
-    }
-  };
-}([7])) {
+export function instance(_ref2 = [7]) {
+  let at = _at(_ref2);
+  let {
+    ["length"]: length
+  } = _ref2;
   return [at, length];
 }

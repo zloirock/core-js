@@ -936,6 +936,17 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   ['later rest', 'export function read({ at }, ...values) { return at; }', false],
   ['leaf default', 'export function read({ at = custom }) { return at; }', false],
   ['computed key', 'export function read({ [key]: at }) { return at; }', false],
+  ['folded literal key', "export function read({ ['at']: at }) { return at; }", true],
+  ['folded bound key', "const K = 'at'; export function read({ [K]: at }) { const K = 'length'; return at; }", true],
+  ['folded bound hop', "const K = 'row'; export function read({ [K]: { at } }) { let K; return at; }", true],
+  ['folded leaf default', "const K = 'at'; export function read({ [K]: at = null }) { return at; }", true],
+  ['effectful key', "export function read({ [(effect(), 'at')]: at }) { return at; }", false],
+  ['coercing key', "const K = { toString() { return 'at'; } }; export function read({ [K]: at }) { return at; }", false],
+  ['future key binding', 'export function read({ [K]: at }, K) { return at; }', false],
+  ['duplicate folded key', "const K = 'at'; export function read({ at, [K]: again }) { return at; }", false],
+  ['primitive leaf default', 'export function read({ at = null }) { return at; }', true],
+  ['symbol key stays native', 'const K = Symbol.iterator; export function read({ [K]: it, at }) { return [it, at]; }', false],
+  ['symbol-looking string is a string', "const K = 'Symbol.iterator'; export function read({ [K]: marker, at }) { return [marker, at]; }", true],
   ['repeated key', 'export function read({ at, at: again }) { return at; }', false],
   ['rest property', 'export function read({ at, ...rest }) { return at; }', false],
   ['nested pattern', 'export function read({ row: { at } }) { return at; }', true],
@@ -943,11 +954,11 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   ['nested siblings', 'export function read({ first: { at }, last: { flat }, marker }) { return [at, flat, marker]; }', true],
   ['nested native hop sibling', 'export function read({ row: { inner: { at }, marker } }) { return [at, marker]; }', true],
   ['nested claimed hop sibling', 'export function read({ row: { inner: { at }, flat } }) { return [at, flat]; }', true],
-  ['nested computed literal', 'export function read({ row: { ["at"]: at } }) { return at; }', false],
+  ['nested computed literal', 'export function read({ row: { ["at"]: at } }) { return at; }', true],
   ['empty nested level', 'export function read({ row: {}, at }) { return at; }', false],
-  ['flat leaf default keeps its mirror', 'export function read({ marker = 0, at } = [2]) { return [marker, at]; }', false],
+  ['flat primitive leaf default', 'export function read({ marker = 0, at } = [2]) { return [marker, at]; }', true],
   ['raw leaf with an inert default', 'export function read({ row: { marker = -1, at } }) { return [marker, at]; }', true],
-  ['served leaf with a literal default', 'export function read({ row: { at = 3, flat } }) { return [at, flat]; }', false],
+  ['served leaf with a literal default', 'export function read({ row: { at = 3, flat } }) { return [at, flat]; }', true],
   ['raw leaf with effectful default', 'export function read({ row: { marker = effect(), at } }) { return [marker, at]; }', false],
   ['raw leaf coercing an object', 'export function read({ row: { marker = +[], at } }) { return [marker, at]; }', false],
   ['raw default binding observed in parameters', 'export function read(probe = () => marker, { row: { marker = 0, at } }) { return probe(); }', false],
@@ -967,6 +978,7 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   ['array parameter', 'export function read([{ at }]) { return at; }', true],
   ['array partial default', 'export function read([{ at, length }] = source()) { return [at, length]; }', true],
   ['array hole', 'export function read([, { at }]) { return at; }', true],
+  ['array leaf default keeps mirror', 'export function read([{ at = null }]) { return at; }', false],
   ['array sibling binding', 'export function read([{ at }, later]) { return [at, later]; }', false],
   ['array rest', 'export function read([{ at }, ...tail]) { return [at, tail]; }', false],
   ['array slot default', 'export function read([{ at } = source()]) { return at; }', false],
@@ -1017,7 +1029,14 @@ for (const [name, source, accepted, padding = false, goal = 'module'] of [
   if (!accepted || !plan) return;
   check(`${ label } pads only observable sloppy arguments`, plan.paddingRequired, padding);
   check(`${ label } keeps the source property identities`, subtreeContainsNode(plan.pattern, property.node), true);
+  const sourceKeys = [...plan.keys].map(([prop]) => prop.node.key);
   const rendered = renderParameterInstanceCapture(plan, { receiverName: '_ref', unusedName: '_unused' });
+  checkDeep(`${ label } rendering does not mutate source keys`, [...plan.keys].map(([prop]) => prop.node.key), sourceKeys);
+  for (const { path, node } of rendered.keys) {
+    check(`${ label } a moved key is a proven string`, node.type, 'Literal');
+    check(`${ label } a moved key keeps its source answer`, node.value,
+      [...plan.keys].find(([prop]) => prop.node.key === path.node)?.[1]);
+  }
   check(`${ label } body declaration remains mutable`, rendered.declaration.kind, 'let');
   check(`${ label } keeps the property node for its source receiver fact`, subtreeContainsNode(rendered.declaration, property.node), true);
   check(`${ label } keeps the source receiver default`, rendered.head.right, plan.root.right);
@@ -1512,7 +1531,14 @@ for (const type of ['string', 'number[]']) runBoth(`body capture split annotatio
       propPath: properties[1], adapter,
       resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'instance/at' } : null,
     });
+    const sourceKeys = [...plan.keys].map(([prop]) => prop.node.key);
     const rendered = renderParameterInstanceCapture(plan, { receiverName: '_ref', unusedName: '_unused' });
+    checkDeep(`${ label } rendering does not mutate source keys`, [...plan.keys].map(([prop]) => prop.node.key), sourceKeys);
+    for (const { path, node } of rendered.keys) {
+      check(`${ label } a moved key is a proven string`, node.type, 'Literal');
+      check(`${ label } a moved key keeps its source answer`, node.value,
+        [...plan.keys].find(([prop]) => prop.node.key === path.node)?.[1]);
+    }
     check(`${ label } one declarator per original slot`, rendered.declaration.declarations.length, 3);
     for (const [index, declaration] of rendered.declaration.declarations.entries()) {
       check(`${ label }/${ index } preserves source property`, declaration.id.properties[0], properties[index].node);

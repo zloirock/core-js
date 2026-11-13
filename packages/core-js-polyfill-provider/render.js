@@ -493,6 +493,8 @@ export function renderParameterInstanceCapture(plan, { receiverName, unusedName,
     head = embed({ ...head, typeAnnotation: pattern.typeAnnotation && cloneNode(pattern.typeAnnotation), optional: pattern.optional });
   }
   return {
+    // Binding adapters replace only these keys, retaining source property identities.
+    keys: [...plan.keys].filter(([prop]) => prop.node.computed).map(([prop, key]) => ({ path: prop.get('key'), node: literal(key) })),
     head: plan.root.type === 'AssignmentPattern' ? assignmentPattern(head, embed(plan.root.right)) : head,
     padding: plan.paddingRequired ? assignmentPattern(identifier(unusedName), voidZero()) : null,
     declaration: variableDeclaration('let', renderDestructureDeclarators(

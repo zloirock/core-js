@@ -34,6 +34,7 @@ import {
   memberKeepsReceiverThrow,
   memberProxyHopName,
   nestedSequenceValueSpelling,
+  nodeCarriesSourceSpan,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelSequenceTail,
@@ -1335,13 +1336,26 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   if (node.computed) collectFoldedReceiverSideEffects(node.property, {
     out: keyEffects, ctx: { scope, adapter, path }, preserveSourceReads: adapter.method !== 'usage-global',
   });
+  // A source key keeps its initialization obligation after lowering. A host-minted key
+  // temporary has no source read to erase and retains the existing generated-binding proof.
   let key = node.computed
-    ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path, resolveStaticKey })
+    ? resolveKey({
+      scope, adapter, path, resolveStaticKey,
+      node: computedKeyNode,
+      computed: true,
+      requireInitialized: nodeCarriesSourceSpan(computedKeyNode),
+    })
     : memberKeyName(node);
   // ... and an effectful IDENTITY call key names its argument's key where the replacement replays
   // the call itself - the key-effect channel keeps the key node's evaluation in its slot
   if (!key && node.computed && isCallShape(unwrapRuntimeExpr(computedKeyNode)) && mayHaveSideEffects(computedKeyNode)) {
-    key = resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path, resolveStaticKey, keepsKeyNode: true });
+    key = resolveKey({
+      scope, adapter, path, resolveStaticKey,
+      node: computedKeyNode,
+      computed: true,
+      keepsKeyNode: true,
+      requireInitialized: nodeCarriesSourceSpan(computedKeyNode),
+    });
     if (key) keyEffects.push(computedKeyNode);
   }
   // a computed key with no single dominating name - a BRANCHING literal (`arr[cond ? "flat" :
