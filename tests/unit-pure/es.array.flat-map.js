@@ -10,6 +10,8 @@ QUnit.test('Array#flatMap', assert => {
   assert.deepEqual(flatMap([1, 2, 3], it => [it, it]), [1, 1, 2, 2, 3, 3]);
   assert.deepEqual(flatMap([1, 2, 3], it => [[it], [it]]), [[1], [1], [2], [2], [3], [3]]);
   assert.deepEqual(flatMap([1, [2, 3]], () => 1), [1, 1]);
+  // eslint-disable-next-line no-sparse-arrays -- testing
+  assert.same(flatMap([1, 2], it => [it, , it]).length, 4, 'skips holes of arrays returned by the callback');
   let array = [1];
   const context = {};
   flatMap(array, function (value, index, that) {

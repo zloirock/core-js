@@ -285,6 +285,17 @@ function createStringTrimMethodTest(METHOD_NAME) {
   };
 }
 
+function createArrayMethodSpeciesTest(METHOD_NAME, args) {
+  return function () {
+    var array = [];
+    var constructor = array.constructor = {};
+    constructor[Symbol.species] = function () {
+      return { foo: 1 };
+    };
+    return array[METHOD_NAME].apply(array, args || []).foo === 1;
+  };
+}
+
 function createSetLike(size) {
   return {
     size: size,
@@ -544,15 +555,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.fill': function () {
     return Array.prototype.fill && Array.prototype[Symbol.unscopables].fill;
   },
-  'es.array.filter': function () {
-    var array = [];
-    var constructor = array.constructor = {};
-    constructor[Symbol.species] = function () {
-      return { foo: 1 };
-    };
-    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
-    return array.filter(Boolean).foo === 1;
-  },
+  'es.array.filter': createArrayMethodSpeciesTest('filter', [Boolean]),
   'es.array.find': function () {
     var SKIPS_HOLES = true;
     Array(1).find(function () { return SKIPS_HOLES = false; });
@@ -569,12 +572,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.find-last-index': function () {
     return [].findLastIndex;
   },
-  'es.array.flat': function () {
-    return Array.prototype.flat;
-  },
-  'es.array.flat-map': function () {
-    return Array.prototype.flatMap;
-  },
+  'es.array.flat': createArrayMethodSpeciesTest('flat'),
+  'es.array.flat-map': [createArrayMethodSpeciesTest('flatMap', [Boolean]), function () {
+    // https://github.com/mozilla/rhino/issues/2588
+    // eslint-disable-next-line no-sparse-arrays -- testing
+    return [1].flatMap(function () { return [, 1]; }).length === 1;
+  }],
   'es.array.for-each': function () {
     try {
       Array.prototype.forEach.call(null, function () { /* empty */ });
@@ -628,15 +631,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return 1 / [1].lastIndexOf(1, -0) > 0;
     }
   },
-  'es.array.map': function () {
-    var array = [];
-    var constructor = array.constructor = {};
-    constructor[Symbol.species] = function () {
-      return { foo: 1 };
-    };
-    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
-    return array.map(function () { return true; }).foo === 1;
-  },
+  'es.array.map': createArrayMethodSpeciesTest('map', [Boolean]),
   'es.array.of': function () {
     function F() { /* empty */ }
     return Array.of.call(F) instanceof F;
@@ -667,15 +662,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var test = [1, 2];
     return String(test) !== String(test.reverse());
   },
-  'es.array.slice': function () {
-    var array = [];
-    var constructor = array.constructor = {};
-    constructor[Symbol.species] = function () {
-      return { foo: 1 };
-    };
-    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
-    return array.slice().foo === 1;
-  },
+  'es.array.slice': createArrayMethodSpeciesTest('slice'),
   'es.array.some': function () {
     try {
       Array.prototype.some.call(null, function () { /* empty */ });
@@ -724,15 +711,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.species': [SYMBOLS_SUPPORT, function () {
     return Array[Symbol.species];
   }],
-  'es.array.splice': function () {
-    var array = [];
-    var constructor = array.constructor = {};
-    constructor[Symbol.species] = function () {
-      return { foo: 1 };
-    };
-    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
-    return array.splice().foo === 1;
-  },
+  // with an argument, like the module detection: https://github.com/mozilla/rhino/issues/2589
+  'es.array.splice': createArrayMethodSpeciesTest('splice', [Boolean]),
   'es.array.to-reversed': function () {
     return [].toReversed;
   },

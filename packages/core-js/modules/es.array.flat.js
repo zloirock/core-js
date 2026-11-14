@@ -5,10 +5,14 @@ var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var arraySpeciesCreate = require('../internals/array-species-create');
+var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
+
+var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('flat');
 
 // `Array.prototype.flat` method
 // https://tc39.es/ecma262/#sec-array.prototype.flat
-$({ target: 'Array', proto: true }, {
+// with adding support of @@species
+$({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
   flat: function flat(/* depthArg = 1 */) {
     var depthArg = arguments.length ? arguments[0] : undefined;
     var O = toObject(this);

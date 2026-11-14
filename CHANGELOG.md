@@ -1,5 +1,7 @@
 # Changelog
 ### Unreleased
+- Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
+- Added missed detection of [native `Array.prototype.flatMap` keeping holes of arrays returned by the callback in Rhino](https://github.com/mozilla/rhino/issues/2588)
 - Fixed the polyfilled array iterator (`Array.prototype.{ entries, keys, values, @@iterator }`) reading the `length` of array-likes without `ToLength`: endless iteration with a missing or non-numeric `length` and of primitives, an extra step with a fractional one; an error on reading `length` no longer skips an element
 - Fixed `Object.{ assign, entries, values }` polyfills ignoring properties that become enumerable during iteration, except in old V8 where collecting all keys breaks property order
 - Reduced redundant proxy traps in `Object.{ assign, entries, values }` polyfills
@@ -187,6 +189,8 @@
   - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
   - `Set.prototype.union` marked as properly supported from [V8 ~ Chrome 133](https://issues.chromium.org/issues/352690887) where it gets the iterator record of a set-like object before cloning `this`
   - `self` marked as properly supported from Edge 87: unlike Chrome 86, Edge 86 has it as a data property
+  - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
+  - `Array.prototype.splice` marked as supported from Rhino 1.9.0
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from [1.9.0](https://github.com/mozilla/rhino/pull/1980), `Array.fromAsync` and `%TypedArray%.prototype.with` marked as not supported, `Error.prototype.toString`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, some, sort, toLocaleString }` - from [1.8.0](https://github.com/mozilla/rhino/commit/db117290720838a54126f6a27da117097f539353)
   - Fixed Firefox compat data: `Date.prototype.toISOString` marked as supported from [FF6](https://bugzilla.mozilla.org/show_bug.cgi?id=649575), `Object.getOwnPropertyNames` - from FF33, `Number` constructor - from [FF36](https://bugzilla.mozilla.org/show_bug.cgi?id=1079120), `Array.prototype.{ map, splice }` - from [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052), `Symbol.hasInstance` - from [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906), `DOMException.prototype[@@toStringTag]` - from [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799), `Iterator.prototype.{ drop, take }` - from [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666)
   - Fixed IE compat data: `%TypedArray%.prototype.subarray` marked as supported from IE11, the `DOMException` `.stack` patch is no longer required in IE10+

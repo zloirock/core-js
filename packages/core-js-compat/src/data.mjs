@@ -285,15 +285,12 @@ export const data = {
   'es.array.flat': {
     chrome: '69',
     firefox: '62',
-    hermes: '0.4',
-    rhino: '1.7.15',
+    rhino: '1.9.0',
     safari: '12.0',
   },
   'es.array.flat-map': {
     chrome: '69',
     firefox: '62',
-    hermes: '0.4',
-    rhino: '1.7.15',
     safari: '12.0',
   },
   'es.array.for-each': {
@@ -455,6 +452,7 @@ export const data = {
     edge: '13',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1165052
     firefox: '48',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.to-reversed': {
