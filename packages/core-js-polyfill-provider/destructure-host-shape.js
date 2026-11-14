@@ -7,6 +7,7 @@ import {
   capturedPatternSource,
   markCapturedKeyedPattern,
   markCapturedPatternSource,
+  markRenderedProbeRead,
   isCapturedKeyedPattern,
   allProxySelectingInit,
   aliasEscaped,
@@ -872,9 +873,9 @@ export function renderNestedKeyedPatternCapture(plan, {
       const mergeInner = inlineLeaf && index > 0 && level.pattern.properties.length === 1 && !pairedRoot;
       if (mergeInner && index === inlineAt) {
         const innerRead = renderLeaf;
-        renderLeaf = base => innerRead(renderSynthSlotRead({
+        renderLeaf = base => innerRead(markRenderedProbeRead(renderSynthSlotRead({
           base, key: embed(level.prop.key), computed: level.prop.computed, lookupKey: foldedPropertyKeyName(level.prop),
-        }));
+        })));
         inlineAt--;
         continue;
       }
@@ -930,9 +931,11 @@ export function renderNestedKeyedPatternCapture(plan, {
             memberExpression(typeof outer === 'string' ? identifier(outer) : embed(cloneNode(outer)), valueLiteral(''), { computed: true }),
             typeof outer === 'string' ? identifier(outer) : embed(cloneNode(outer))) : outerValue;
         if (inlineLeaf && index === inlineAt && prop === level.prop) {
-          const leafReceiver = pairedRoot ? init : renderSynthSlotRead({
+          // This read only navigates the captured source; the leaf dispatch owns the claim.
+          // Keep source children visitable without claiming the generated slot again.
+          const leafReceiver = pairedRoot ? init : markRenderedProbeRead(renderSynthSlotRead({
             base: init, key: embed(prop.key), computed: prop.computed, lookupKey: foldedPropertyKeyName(prop),
-          });
+          }));
           ordered.push({ expression: renderLeaf(leafReceiver) });
         } else if (!pairedRoot || prop !== level.prop || receiver !== null) {
           const pattern = pairedRoot ? source.value : { ...level.pattern, properties: [source] };

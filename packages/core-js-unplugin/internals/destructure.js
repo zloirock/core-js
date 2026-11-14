@@ -1801,12 +1801,12 @@ export default function createAstDestructureEmitter({
     if (defaultedSoleConsumes({ forInit, prop, soleBinding: declaratorConsumed, chain, kind, declarator })) {
       return { literalReceiver: declarator.init, forInitLiteral: true };
     }
-    // ... and a symbol-PATTERN value takes the same guarded route: the helper result is what the
-    // `=== void 0` test reads, and the extracted pattern binds off it
+    // Defaulted identifiers admit every resolved kind. The shared value render drops a
+    // static/global default and guards an instance result. A symbol-pattern value takes
+    // that same guard, with its pattern binding off the helper result.
     const defaultedIdent = prop.value.type === 'AssignmentPattern'
       && (prop.value.left?.type === 'Identifier'
-        || (prop.value.left?.type === 'ObjectPattern' && entry === 'get-iterator-method'))
-      && (kind === 'instance' || kind === 'static');
+        || (prop.value.left?.type === 'ObjectPattern' && entry === 'get-iterator-method'));
     // a for-init head hosts DECLARATORS, never statements, so the whole-init memo below cannot
     // serve it - and the blanket decline that stood here left the claim to whatever the hop
     // re-anchor spelled, which in the pure flavor reads a static off a ctor that does not carry

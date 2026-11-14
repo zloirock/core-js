@@ -15243,7 +15243,7 @@ export function isUndefinedNode(node) {
 // nodes die with their AST, and a re-parse (the sandwich's second pass) sees fresh unmarked
 // nodes - by then the reads are already claimed, so the gate's decline is vacuous there
 const renderedStoredValues = new WeakSet();
-// Reads deliberately retained by the probe render are already served. Only those nodes are
+// Reads deliberately retained by probe and capture renders are already served. Only those nodes are
 // owned: their computed keys, call arguments and other source children keep their own claims.
 const renderedProbeReads = new WeakSet();
 // Record one served read, without claiming its live child slots.
@@ -15251,7 +15251,7 @@ export function markRenderedProbeRead(node) {
   renderedProbeReads.add(node);
   return node;
 }
-// Whether this read is already owned by the shared probe render.
+// Whether this read is already owned by a shared probe or capture render.
 export function isRenderedProbeRead(node) {
   return !!node && renderedProbeReads.has(node);
 }

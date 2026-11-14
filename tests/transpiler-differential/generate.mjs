@@ -25209,6 +25209,37 @@ function * generateOptOutReceivers() {
   };
 }
 
+// An opaque outer key keeps its independent default without a masking canonical read.
+function * generateDestructureDefaultClaims() {
+  for (const host of ['declaration', 'assignment', 'parameter']) {
+    const pattern = '{ [key()]: { groupBy } = Map }';
+    const body = host === 'declaration' ? `const ${ pattern } = {}; return groupBy;`
+      : host === 'assignment' ? `let groupBy; (${ pattern } = {}); return groupBy;`
+        : `function read(${ pattern }) { return groupBy; } return read({});`;
+    yield { name: `destructure-default-claims/opaque-key/${ host }`, strip: true,
+      code: `export const effects = [];
+        function key() { effects.push('key'); return String(Math.random()); }
+        function pick() { ${ body } }
+        export const r = pick()([5], value => value).get(5)[0];` };
+  }
+  for (const name of ['Map', 'AggregateError']) for (const host of ['declaration', 'assignment', 'for-init']) {
+    const pattern = `{ ${ name }: C = fallback(), other }`;
+    const init = '(effects.push("init"), globalThis)';
+    const body = host === 'declaration' ? `const ${ pattern } = ${ init };`
+      : host === 'assignment' ? `let C, other; (${ pattern } = ${ init });` : `for (var ${ pattern } = ${ init };;) break;`;
+    yield { name: `destructure-default-claims/global/${ name }/${ host }`, strip: true,
+      code: `export const effects = []; function fallback() { effects.push('default'); return function replacement() {}; } ${ body } export const r = typeof C;` };
+  }
+  for (const key of ['values', 'entries']) for (const nested of [false, true]) {
+    const pattern = nested ? '{ entries: { at } }' : '{ at }';
+    const value = nested ? '{ entries: [7] }' : '[7]';
+    yield { name: `destructure-default-claims/capture/${ key }/${ nested }`, strip: true,
+      code: `export const effects = []; let from, at;
+        ({ C: { from }, ${ key }: ${ pattern } } = { C: Array, ${ key }: (effects.push('slot'), ${ value }) });
+        export const r = at.call([7], 0);` };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27007,4 +27038,5 @@ export function * generate() {
   yield * generateReadWriteOrder();
   yield * generateOptOutReceivers();
   yield * generateOpenInstanceDefaults();
+  yield * generateDestructureDefaultClaims();
 }

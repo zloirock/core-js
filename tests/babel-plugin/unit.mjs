@@ -84,3 +84,4 @@ import './proxy-global-invariant.mjs';
 import './static-flow-runtime.mjs';
 import './deferred-receiver-runtime.mjs';
 import './realm-probe-runtime.mjs';
+import './destructure-default-claims-runtime.mjs';

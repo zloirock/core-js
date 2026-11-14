@@ -6064,8 +6064,10 @@ function isFilledContainerLiteral(node) {
 // but a receiver default below it still owns an independent mirror arm.
 // Each known hop carries the `level` pattern it stands in, the `pattern` standing under it
 // and the receiver-bearing `defaultNode` of that level's element where it spells one; `indices` keeps
-// the array levels alone for the wrapper-only readers
-export function destructureHostThroughWrappers(leafPattern, adapter = null, throughInnerDefaults = false) {
+// the array levels alone for the wrapper-only readers. A default-only global query stops
+// at the nearest receiver default: its own key need not resolve, but every hop below it must.
+// That query consumes only the hops below this boundary, not an outer host or source pairing.
+export function destructureHostThroughWrappers(leafPattern, adapter = null, throughInnerDefaults = false, stopAtDefault = false) {
   let cursor = leafPattern;
   let objectPattern = leafPattern;
   const indices = [];
@@ -6076,8 +6078,12 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
     if (ownerType === 'Property' || ownerType === 'ObjectProperty') {
       // a bound computed key folds through the consuming canon where an adapter is at hand
       const key = consumableHopSlotName(owner.node, adapter ? { scope: owner.scope ?? leafPattern.scope, adapter, path: owner } : null);
-      if (typeof key === 'string') hops?.unshift({ key, level: owner.parentPath?.node, prop: owner.node, ...hopLevelBelow(cursor.node) });
-      else hops = null;
+      if (hops && (typeof key === 'string' || stopAtDefault)) {
+        const below = hopLevelBelow(cursor.node);
+        hops.unshift({ key, level: owner.parentPath?.node, prop: owner.node, ...below });
+        if (stopAtDefault && below.defaultNode) break;
+      }
+      if (typeof key !== 'string') hops = null;
       cursor = owner.parentPath;
       objectPattern = cursor;
       continue;
@@ -6089,6 +6095,7 @@ export function destructureHostThroughWrappers(leafPattern, adapter = null, thro
       // `level` is the array pattern itself: what a mirror renders whole where the descent ends
       // above this level on a container foreign to the host
       hops?.unshift({ index: idx, level: owner.node, ...hopLevelBelow(cursor.node) });
+      if (stopAtDefault && hops?.[0].defaultNode) break;
       cursor = owner;
       continue;
     }
@@ -9868,7 +9875,7 @@ function innerDefaultLeafPattern(outerProp, leafPattern) {
 function innerDefaultReceiverName(outerProp, adapter, leafPattern = null, unionSink = null) {
   const pattern = innerDefaultLeafPattern(outerProp, leafPattern);
   if (pattern?.node?.type !== 'ObjectPattern') return null;
-  const hops = destructureHostThroughWrappers(pattern, adapter, true)?.hops;
+  const hops = destructureHostThroughWrappers(pattern, adapter, true, adapter.method === 'usage-global')?.hops;
   const at = hops ? hops.findLastIndex(hop => hop.defaultNode) : -1;
   if (at === -1) return null;
   const below = hops.slice(at + 1);

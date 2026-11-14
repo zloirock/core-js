@@ -66,6 +66,7 @@ import './destructure-host-shape.mjs';
 import './scoped-hosts.mjs';
 import './destructure-write-order.mjs';
 import './destructure-evaluation.mjs';
+import './destructure-default-claims.mjs';
 import './destructure-emission-order.mjs';
 import './destructure-products.mjs';
 import './destructure-default-choice.mjs';
