@@ -284,9 +284,10 @@ function resolvedClaimStore(node, meta, aliasCtx, resolvePure) {
   const store = writtenRunKeptProbeStore(aliasCtx.path, { resolvePure, aliasCtx, unwrap: unwrapRuntimeExpr });
   if (!store) return null;
   const effects = resolvedClaimEffects(node, meta, aliasCtx);
-  const lands = effects.at(-1) === store && store.left.type === 'Identifier';
-  return { kind: 'written-store', store, effects: lands ? effects.slice(0, -1) : null,
-    base: proxyCollapseBase({ keptStore: store, writeReceiver: node, aliasCtx }) };
+  const base = proxyCollapseBase({ keptStore: store, earlyReadReceiver: node, aliasCtx });
+  // A member target cannot be read back; the base coerces the assignment's value.
+  const lands = effects.at(-1) === store && (store.left.type === 'Identifier' || base.read);
+  return { kind: 'written-store', store, effects: lands ? effects.slice(0, -1) : null, base };
 }
 
 // Finish a resolved claim before registering imports. A native guard can decline
@@ -422,14 +423,14 @@ function groupedStaticRead(path, ctx) {
 export function * staticClaimNavigationRoutes({ node, kind, hintName, meta, aliasCtx, resolvePure, deletion, rootRun }) {
   const deleteFold = deletion();
   if (isMemberAccessNode(node) && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)) {
-    if (sealedClaimDisposition(node, resolvePure, aliasCtx)?.kind !== 'throw') {
-      yield { kind: 'nested-guard' };
-      yield { kind: 'hop' };
-    }
     const store = resolvedClaimStore(node, meta, aliasCtx, resolvePure);
     if (store) {
       yield store;
       return;
+    }
+    if (sealedClaimDisposition(node, resolvePure, aliasCtx)?.kind !== 'throw') {
+      yield { kind: 'nested-guard' };
+      yield { kind: 'hop' };
     }
   }
   if (staticClaimNeedsGuard(node, resolvePure, aliasCtx) && !deleteFold) yield { kind: 'static-guard' };

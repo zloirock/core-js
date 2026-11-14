@@ -135,7 +135,6 @@ import {
   probeEffectNodes,
   probeResidualEffects,
   jobBindingTarget,
-  propBindingTarget,
   renderDiscardedInitProbe,
   renderSealedNavProbe,
   residualKeepsSibling,
@@ -589,7 +588,7 @@ export default function createDestructureDrains(ctx) {
       const rendered = renderKeyedDestructureRead({
         receiverName: receiverRef,
         receiver: running,
-        binding: job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop),
+        binding: memoJobBindingTarget(job),
         keys: job.keyReadPlan.keys.map(key => cloneNode(key)),
         read: job.value(inlineReceiver ? null : receiverRef),
         storeReceiver,
@@ -1145,7 +1144,7 @@ export default function createDestructureDrains(ctx) {
       byDeclarator.get(job.declarator).push(job);
       // the extraction's binding target is the SOURCE spelling (a ctor-pattern re-anchor
       // moves its whole pattern), captured before the removal pass
-      job.bindingTarget = job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop);
+      job.bindingTarget = memoJobBindingTarget(job);
     }
     // sentinel-kept declarators with an unre-readable init memoize like the block-hosted
     // twin: `var _ref = <init>, { ..._unused } = _ref, f = _flat(_ref), i = 0;`
@@ -1432,7 +1431,7 @@ export default function createDestructureDrains(ctx) {
       jobsByDeclarator.get(job.declarator).push(job);
       // the sentinel rename mutates the prop in place - the extraction's binding target is
       // the SOURCE spelling, captured before the removal pass
-      job.bindingTarget = job.collapseLeafName ? identifier(job.collapseLeafName) : propBindingTarget(job.prop);
+      job.bindingTarget = memoJobBindingTarget(job);
     }
     return { memoByDeclarator, jobsByDeclarator, memoDeclJobs };
   }
@@ -1891,9 +1890,9 @@ export default function createDestructureDrains(ctx) {
       = partitionDestructureReads(jobs, job => patternFrame(job.metaPath));
     const product = jobs.length === 1 && flatJobs.length && jobs[0].seqPrefix?.length ? {} : null;
     const flatExtracted = renderDestructureStatements(flatJobs.map(job => ({
-      id: propBindingTarget(job.prop), init: job.value(null, product),
+      id: memoJobBindingTarget(job), init: job.value(null, product),
     })));
-    const nestedExtracted = renderDestructureStatements(nestedJobs.map(job => ({ id: propBindingTarget(job.prop), init: job.value() })));
+    const nestedExtracted = renderDestructureStatements(nestedJobs.map(job => ({ id: memoJobBindingTarget(job), init: job.value() })));
     // the SOURCE slot of the residual, read before the removal empties the pattern: an
     // anchored residual keeps its own place among the extractions (babel's cascade)
     const assignSourceProps = jobs[0].assignment.left?.type === 'ObjectPattern'

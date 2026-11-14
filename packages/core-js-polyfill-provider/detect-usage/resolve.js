@@ -5330,17 +5330,25 @@ export function consumableHopSlotName(prop, keyCtx = null) {
 }
 
 // bare unbound `Symbol` / capitalised const-alias (`const Sym = Symbol`) /
-// proxy-global access (`globalThis.Symbol`, `self.window.Symbol`). other idents skip the
+// proxy-global access (`globalThis.Symbol`, `self.window.Symbol`) or an agreeing/decided selection.
+// Other idents skip the
 // const-chain walk unless their declaration may name `Symbol` (`symbolAliasShapedInit`) -
 // `Symbol` aliases are capitalised by convention, minified helpers' are not.
 // `seen` threaded through so callers caught in a cyclic const-alias chain
 // (`const a = b.Symbol; const b = a;`) don't restart the cycle guard
-function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
+function resolvesToGlobalSymbol({ node, scope, adapter, seen, path, preserveSourceReads }) {
   // a SLOT-mutated `Symbol` (`globalThis.Symbol = Fake`) is the user's replacement: its keys
   // are not the well-known symbols, so recognition bails and the key stays a raw member read
   // (the bare `Symbol` identifier then re-routes through the global-object binding) - save a read
   // the write does not reach: one before every write, or below a patch the build never runs
   if (isMutatedGlobalSlot(adapter, 'Symbol', path && { node, path })) return false;
+  if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
+    const selected = decidedSelectionValue(node, { scope, adapter, path });
+    const values = selected !== node ? [selected]
+      : node.type === 'ConditionalExpression' ? [node.consequent, node.alternate] : [];
+    return values.length > 0 && values.every(value => withinAliasWalkBudget(asSymbolRef,
+      { node: peelReceiverSequenceTail(value), scope, adapter, seen: new Set(seen), path, preserveSourceReads }));
+  }
   if (node.type === 'Identifier') {
     if (node.name === 'Symbol') return !adapter.hasBinding({ scope, name: 'Symbol', path, read: node });
     // the capitalisation probe bounds the const-alias walk for USER names only - a binding this
@@ -5391,10 +5399,15 @@ export function anchoredResidualSymbolKeyName({ key, computed, scope, adapter, p
 
 // Preserve both spellings for handledObjects. A nullable realm chain names no Symbol:
 // its short-circuit supplies the ordinary key "undefined", not a well-known symbol.
-export function asSymbolRef({ node, scope, adapter, seen, path }) {
+// A caller replaying the complete key may also retain a sealed read: it throws or
+// yields Symbol, but never yields the inner optional's undefined.
+export function asSymbolRef({ node, scope, adapter, seen, path, preserveSourceReads = false }) {
   const unwrapped = unwrapTransparentSeq(node);
-  return unwrapped && resolvesToGlobalSymbol({ node: unwrapped, scope, adapter, seen, path })
-    && !navValueCanShortCircuit(unwrapped, resolveBuiltInMeta, { scope, adapter, path })
+  const ctx = { scope, adapter, path };
+  return unwrapped && resolvesToGlobalSymbol({ node: unwrapped, scope, adapter, seen, path, preserveSourceReads })
+    && (!navValueCanShortCircuit(unwrapped, resolveBuiltInMeta, ctx)
+      || preserveSourceReads && ownChainOptionalObjects(unwrapped)
+        .every(object => !proxyReceiverValueCanBeUndefined(object, resolveBuiltInMeta, ctx)))
     ? { raw: node, unwrapped } : null;
 }
 
@@ -5501,15 +5514,16 @@ export function proxyCollapseBase({
   claimPure = null,
   rootPure,
   keepClaim = false,
-  writeReceiver = null,
+  earlyReadReceiver = null,
   aliasCtx,
 }) {
   if (keptStore) {
-    // A final write reference throws after its RHS; the erased hop read threw
-    // before it. Re-read only an identifier, never a user's assignment target.
-    const readKey = writeReceiver && !storeReadHopOptional(writeReceiver) && realmHopKeyName(unwrapRuntimeExpr(writeReceiver), aliasCtx);
-    const read = keptStore.left.type === 'Identifier' && typeof readKey === 'string'
-      ? { object: keptStore.left, key: readKey, computed: false } : null;
+    // A write throws after its RHS, and a computed read evaluates its key first.
+    // Preserve its earlier throw by re-reading an identifier or coercing the value.
+    const readKey = earlyReadReceiver && !storeReadHopOptional(earlyReadReceiver)
+      && realmHopKeyName(unwrapRuntimeExpr(earlyReadReceiver), aliasCtx);
+    const read = typeof readKey === 'string'
+      ? { object: keptStore.left.type === 'Identifier' ? keptStore.left : null, key: readKey, computed: false } : null;
     return read ? { keep: keptStore, read } : { keep: keptStore };
   }
   if (aliasRoot && !sourceValue) return { alias: aliasRoot };
@@ -5562,9 +5576,11 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
     };
   }
   if (navigated && collapsed.keptWrite && !collapsed.writeStoreSpellable) {
+    const earlyReadReceiver = (navigation.writeThrough && !facts.deletedAbove
+      || consumer.host?.computed && memberKeyName(consumer.host) === null) ? target.node : null;
     return {
       kind: 'store', base: proxyCollapseBase({ keptStore: collapsed.keptWrite,
-        writeReceiver: navigation.writeThrough && !facts.deletedAbove ? target.node : null, aliasCtx: ctx }),
+        earlyReadReceiver, aliasCtx: ctx }),
       prefix: collapsed.effects.slice(0, collapsed.effects.indexOf(collapsed.keptWrite)),
       optional: storeReadHopOptional(target.node),
     };
@@ -7037,15 +7053,17 @@ export function keptProbeStore(navNode, resolvePure, aliasCtx = null) {
   return outer && navHasUnresolvableProxyHop(value, resolvePure, aliasCtx) ? outer : null;
 }
 
-// the kept store of the environment probe a hop claim's member chain WRITES through (`(w =
-// f().window).self.k = v`), else null: the write reaches what the store holds, so a claim the
-// run-landing channels leave to the plain swap lands on that store, the hops above it dropping - the
-// swap's ponyfill base performs the write on the realm exactly where the source throws. a `delete`
-// names its slot by its own rule, and a read keeps the swap - the accepted price of a collapsed
-// `window` read
+// A write through a retained environment probe must land on its stored value, not
+// the ponyfill realm. A lowered guard also observes the first plain read's throw;
+// an optional first read keeps its guard channel, including a seal above it.
+// A following plain member already performs that throw before the test.
+// Delete names its slot separately, and ordinary reads retain the existing swap.
 export function writtenRunKeptProbeStore(path, { resolvePure, aliasCtx = null, unwrap = node => node }) {
   const end = memberChainEndPath({ path, unwrap });
-  return isMemberWriteHost(end) && !deleteHostAboveChain(end, end.node, unwrap)
+  return (isMemberWriteHost(end) || !storeReadHopOptional(path.node)
+    && !memberKeepsReceiverThrow(climbTransparentWrapperPath(path).parentPath?.node)
+    && runStandsInLoweredGuardTest(end, unwrap))
+    && !deleteHostAboveChain(end, end.node, unwrap)
     ? keptProbeStore(path.node, resolvePure, aliasCtx) : null;
 }
 

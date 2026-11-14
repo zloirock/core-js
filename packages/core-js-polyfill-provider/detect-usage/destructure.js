@@ -299,7 +299,8 @@ const CTOR_ALIAS_SOURCE_TYPES = new Set([
 // Constructor candidates from a binding's reaching values, including selectable initializer arms
 // and writes absent from the alias registry (`M = globalThis.Map`). Candidates justify identity
 // guards, never an unconditional receiver proof; imported pure namespaces already own their entry.
-export function aliasWriteCtorNames({ name, scope, adapter, path, binding = undefined, read = null }) {
+// Symbol-in consumers explicitly include realm imports, whose native Symbol slot still needs dispatch.
+export function aliasWriteCtorNames({ name, scope, adapter, path, binding = undefined, read = null, includeRealmImports = false }) {
   if (binding === undefined) binding = adapter.getBinding?.({ scope, name, path, read });
   const element = forOfHeadElement(binding, name);
   if (!binding) return [];
@@ -351,11 +352,12 @@ export function aliasWriteCtorNames({ name, scope, adapter, path, binding = unde
     // that the alias always denotes one. The ordinary name resolver stays scalar.
     if (node?.type === 'ConditionalExpression' || node?.type === 'LogicalExpression') {
       allDestructureValueBranches(node, leaf => {
-        // An imported arm already carries its chosen namespace. Re-guarding it
-        // would add a second static import when revisiting our own realm guard.
-        if (!pureImportSourceEntry(pureImportSubpath(moduleDefaultSource({ node: leaf, ...hop.ctx }), adapter.packages))) {
+        // Imported constructors already carry their namespace. A Symbol-in consumer
+        // also guards realm imports: their native Symbol slot still needs its helper.
+        const imported = pureImportSourceEntry(pureImportSubpath(moduleDefaultSource({ node: leaf, ...hop.ctx }), adapter.packages));
+        if (!imported || includeRealmImports) {
           const candidate = resolveObjectName({ objectNode: leaf, ...hop.ctx, usageNode: hop.readNode });
-          if (candidate) hints.push(candidate);
+          if (candidate && (!imported || POSSIBLE_GLOBAL_OBJECTS.has(candidate))) hints.push(candidate);
         }
         return true;
       });

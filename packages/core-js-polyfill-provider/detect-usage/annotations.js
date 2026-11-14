@@ -39,6 +39,7 @@ import {
   realmRootIsSpellable,
   resolveKey,
   resolveObjectName,
+  storeReadHopOptional,
   undefinableProxyRootValue,
 } from './resolve.js';
 
@@ -439,10 +440,13 @@ export function isPolyfillableOptional({
       { throughChainAssign: true }) === objCore
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
     // the raw nav reads through a value that can be undefined - the guard must survive
+    // A plain first read already threw on a void stored value. A later guard cannot
+    // rescue that throw, even when the landing is mutated or has an unknown key.
     // the landing verdict runs FIRST: it bails O(1) when the file mutates nothing, where the root
     // descent below walks the whole nav for an answer that could not matter. `unknown` keeps the
     // guard with `yes` - a key the walk could not name leaves the mutated landing unproven either way
     && (mutatedStaticLandingVerdict({ path, node: member, scope, adapter, mutatedSet }) === 'no'
+      || !storeReadHopOptional(objCore)
       || !proxyNavRootCanBeUndefined(objCore, resolve, { scope, adapter, path }))) return true;
   // a chain-assign subject: the shared store verdict above owns whether the `?.` is dead. it is
   // deliberately INDEPENDENT of which member follows (the guard tests the receiver, not the member),

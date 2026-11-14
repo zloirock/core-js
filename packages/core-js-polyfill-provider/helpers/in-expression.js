@@ -75,8 +75,9 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     // threads in as `rescue` so it INTERLEAVES at its true source position - a lexical prefix runs before
     // it (`(p(), IIFE()).Symbol.iterator` -> source order [p, IIFE]) - with any unplaced rescue appended
     const rescue = new Set(meta.sideEffects);
-    const leadingSe = collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), { rescue, ctx });
-    for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
+    const leadingSe = meta.symbolRead ? [meta.symbolRead]
+      : collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), { rescue, ctx, preserveSourceReads: true });
+    if (!meta.symbolRead) for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
     // the rewrite REPLACES the LHS value (`Symbol.iterator in x` -> `_isIterable(x)`), so the LHS is
     // discarded whole - the unplugin emitter must mark it (and any polyfillable subtree it buries, e.g. a
     // sequence-prefix proxy-global `(globalThis, Symbol.iterator) in x`) skipped or that rewrite has no

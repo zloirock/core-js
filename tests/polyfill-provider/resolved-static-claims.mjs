@@ -153,7 +153,9 @@ runBoth('member store target is not re-read', 'const box = { held: undefined }; 
     const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'self');
     const plans = [...resolvedStaticClaimRoutes(facts(parser, path, { kind: 'global', hintName: 'self' }))];
     check(`${ label }/store retained`, plans[0]?.kind, 'written-store');
-    check(`${ label }/no second getter`, plans[0]?.effects, null);
+    checkDeep(`${ label }/no detached effects`, plans[0]?.effects, []);
+    check(`${ label }/original store`, plans[0]?.base.keep, unwrapRuntimeExpr(path.node.object));
+    checkDeep(`${ label }/no second getter`, plans[0]?.base.read, { object: null, key: 'self', computed: false });
   });
 for (const [source, ordered, spent, owner] of [
   ['const a = Array.from, b = Array[(key(), "of")];', true, false],

@@ -11338,7 +11338,9 @@ export function allProxySelectingInit(node, {
     // complete selection as an effect. Consumers that discard the selection supply no such proof.
     if (readSurface) {
       if (!readSurface(value)) return false;
-      if (isChainAssignment(value) || value?.type === 'SequenceExpression') continue;
+      // The scoped value proof also recognizes imported and captured realm aliases.
+      // A second name-only check would reject those after their natural rewrite.
+      continue;
     }
     if (branch) {
       while (value?.type === 'AssignmentExpression' && value.operator === '=') value = peelTransparentExpr(value.right);
