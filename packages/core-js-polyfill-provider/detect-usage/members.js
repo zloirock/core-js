@@ -530,7 +530,8 @@ export function planProxyReceiver(receiver, {
     // gate left a call-rooted deep nav (`(() => globalThis)().window.foo[Symbol.iterator]`)
     // un-collapsed on the leg that renders through this plan while the other leg folded it
     const inner = planProxyReceiver(objectCore, { aliasCtx, throughChainAssign, guardedProbe, resolvePure });
-    return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
+    // This level still owns its short-circuit; the guard channel must split it first.
+    return inner && !receiver.optional ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
   }
   // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map` elsewhere, so bail here (a
   // root-collapse would emit native `_globalThis.Map` + a dead import). asked through the canon, so a
@@ -562,12 +563,14 @@ export function planProxyReceiver(receiver, {
     reader: receiver,
   });
   if (!source || source.unbackedRoot) return null;
+  const earlyReadReceiver = (isWriteTarget && !deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr)
+    || receiver.computed && memberKeyName(receiver) === null) ? receiver.object : null;
   return {
     kind: 'collapse',
     rootBinding: proxyCollapseBase({
       keptStore: keptAssignRoot,
       aliasCtx,
-      writeReceiver: isWriteTarget && !deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr) ? receiver.object : null,
+      earlyReadReceiver,
       aliasRoot: source.aliasRoot,
       rootPure: source.entry && { entry: source.entry, hintName: source.hintName },
     }),
@@ -2391,15 +2394,15 @@ export function symbolIteratorHint(entry) {
 // realm.Symbol).iterator in x`), whose membership test answers `false` for an iterable under sham
 // symbols. the test travels with the realm guard instead: the pristine proxy globals the binding
 // was WRITTEN with name the one realm, so one identity branch against the realm root answers the
-// is-iterable helper, and the source `in` stays the raw branch. the shape is kept narrow because the raw branch re-spells the source: the
+// is-iterable helper, and the source `in` stays the raw branch. The raw branch re-spells the source, so the
 // LHS is a plainly spelled `<binding>.Symbol.<name>` (no optional hop, sequence prefix or effectful
-// key - each would run twice, once ahead of the test and once in the raw branch), the RHS a bare
-// identifier the branches may repeat, the name the iterator entry (the one `in` rewrite with a
-// call shape) and `Symbol` unmutated. null = not this shape; the member route keeps it. the raw
+// key - each would run twice, once ahead of the test and once in the raw branch). The iterator entry uses a
+// call shape and requires an unmutated Symbol. Otherwise the member route keeps it. The raw
 // branch of an emitted guard re-enters here on the next pass (both legs re-queue their output)
 // and is recognised by that shape, like the member route's own raw branch
-function guardedRealmSymbolIn({ left, right, scope, adapter, path, resolvePure, resolveStaticKey }) {
-  if (left.type !== 'MemberExpression' || left.optional || !isReusableReceiver(right)) return null;
+function guardedRealmSymbolIn({ left, scope, adapter, path, resolvePure, resolveStaticKey }) {
+  // The RHS stays in mutually exclusive branches, each after the source key read.
+  if (left.type !== 'MemberExpression' || left.optional) return null;
   if (insideEmittedCtorGuardBranch(path, adapter)) return null;
   const symbolNode = unwrapTransparentSeq(left.object);
   if (symbolNode?.type !== 'MemberExpression' || symbolNode.optional || memberKeyName(symbolNode) !== 'Symbol') return null;
@@ -2412,7 +2415,7 @@ function guardedRealmSymbolIn({ left, right, scope, adapter, path, resolvePure, 
   // every pristine realm proxy the binding was written with names the ONE realm object, so the
   // guard carries one identity branch, spelled as the realm root's entry (the rule the ctor-identity
   // narrow applies to its realm candidates); a build without that entry keeps the member route
-  const realm = aliasWriteCtorNames({ name: receiver.name, scope, adapter, path, read: receiver })
+  const realm = aliasWriteCtorNames({ name: receiver.name, scope, adapter, path, read: receiver, includeRealmImports: true })
     .some(candidate => isPristineProxyGlobal(adapter, candidate))
     ? resolvePure({ kind: 'global', name: 'globalThis' }, null) : null;
   const realms = realm && realm.kind !== 'instance' ? [realm] : [];
@@ -2463,14 +2466,18 @@ export function handleBinaryIn({
   resolvePure = null,
 }) {
   if (node.operator !== 'in') return null;
-  const left = unwrapTransparentSeq(node.left);
+  const left = peelReceiverSequenceTail(node.left);
   // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
   // should resolve to the symbol-in polyfill path same as bare `Symbol.iterator in obj`.
   // SE preceding-elements are preserved at emit time by the structural harvest
   // (`collectFoldedReceiverSideEffects`) walking the original LHS subtree, so peeling here
   // doesn't drop side-effects
-  const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
-    ? asSymbolRef({ node: peelReceiverSequenceTail(left.object), scope, adapter, path }) : null;
+  const refCtx = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
+    ? { node: peelReceiverSequenceTail(left.object), scope, adapter, path } : null;
+  const quietRef = refCtx && asSymbolRef(refCtx);
+  // A sealed optional can throw before yielding Symbol. Keep that entire key read;
+  // ordinary key replacement is only allowed to use the stricter reference proof.
+  const ref = quietRef || refCtx && asSymbolRef({ ...refCtx, preserveSourceReads: true });
   if (ref) {
     const name = resolveKey({ node: left.property, computed: left.computed, scope, adapter, path });
     // nested `Symbol[Symbol.X]` - `resolveKey` already returns `Symbol.X`; double-prefixing
@@ -2502,11 +2509,14 @@ export function handleBinaryIn({
         // mode split as `handleMemberExpressionNode`
         if (suppressProxyGlobals) markSubsumedProxyChain({ node: ref.unwrapped, handledObjects, scope, adapter, path });
       }
-      return { kind: 'in', key, object: null, placement: null, symbolSourced: true, sideEffects };
+      return {
+        kind: 'in', key, object: null, placement: null, symbolSourced: true, sideEffects,
+        ...!quietRef ? { symbolRead: node.left } : {},
+      };
     }
   }
   const guarded = !ref && resolvePure
-    ? guardedRealmSymbolIn({ left, right: node.right, scope, adapter, path, resolvePure, resolveStaticKey }) : null;
+    ? guardedRealmSymbolIn({ left, scope, adapter, path, resolvePure, resolveStaticKey }) : null;
   if (guarded) {
     // the rewrite replaces the whole test; the LHS and its `Symbol` read are its own, like the
     // unconditional ref's above

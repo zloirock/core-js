@@ -904,6 +904,9 @@ export function planConsumedInitializerCarrier(init, reads, ctx) {
   const repeatable = !!pure || (tail?.type === 'Identifier' && isReReferenceableAcrossReads(tail, ctx));
   const carrier = planInitializerCarrier({ readCount: reads.length, inline, prefix: !!parts, repeatable });
   const guarded = carrier === 'memo' && guardedInitializerBinding(init, ctx.injectorState);
+  // One iterator helper already owns the guarded read and its nullish throw.
+  // Splitting a probe from that dispatch would read the iterator getter twice.
+  if (guarded && reads.length === 1 && first.symbolPattern) return { carrier: 'dispatch', receiver: init };
   return { carrier: guarded ? 'guard' : carrier, receiver: stored || null, prefix: parts?.prefix, tail, pure, guarded };
 }
 
@@ -1608,15 +1611,15 @@ export function symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled, key
 // the anchored hop IS that first key; a flat plan reads its first prop's recorded scoped key
 // name - which KIND the prop planned as ('consumed' extraction, 'anchored' re-homed residual)
 // is a render concern, not a probe one, and a plan that keeps a residual never asks. returns
-// `{ name }` for a nameable key, `{ symbolIterator: true }` for a computed `[Symbol.iterator]`
-// first key (the probe reads through the polyfilled symbol binding), or null (no probe)
+// `{ name }` for a nameable key, or null (no probe). An iterator extraction already
+// reads the guarded receiver through get-iterator-method, including its nullish throw.
 export function probedNavProbeKey(plan) {
   if (!plan?.probedNav) return null;
   if (plan.anchor) return { name: plan.anchor };
   const first = plan.outerProps?.[0];
   if (!first || (first.kind !== 'consumed' && first.kind !== 'anchored')) return null;
   if (first.keyName) return { name: first.keyName };
-  return first.extractions?.[0]?.synth === 'symbol-iterator' ? { symbolIterator: true } : null;
+  return null;
 }
 
 // Plan cache for the static declaration/assignment cascade. Its synthetic host must

@@ -25,7 +25,7 @@ export function readMember(flag, box) {
   if (flag) {
     var realm = _globalThis;
   }
-  return (realm === _globalThis ? _Symbol : realm.Symbol).iterator in box.value;
+  return realm === _globalThis ? _isIterable(box.value) : realm.Symbol.iterator in box.value;
 }
 export function readAsync(flag, value) {
   if (flag) {

@@ -22,6 +22,6 @@ export const storeFoldSpellableReRead = (s7 = _self).window?.customBox;
 let s8,
   s9,
   e1 = 0;
-export const storeFoldSeKey = (s8 = _globalThis.window)[e1++, 'customBox']?.q;
+export const storeFoldSeKey = (s8 = _globalThis.window, null == s8 ? null.self : s8)[e1++, 'customBox']?.q;
 export { e1 };
 export const storeFoldTwoHops = (s9 = _globalThis.window).Array;

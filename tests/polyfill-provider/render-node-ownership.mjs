@@ -59,7 +59,7 @@ for (const carrySource of [false, true]) for (const embedded of [false, true]) {
     (parser, program, label) => {
       const store = parser.pickPath(program, 'AssignmentExpression').node;
       const hop = parser.pickPath(program, 'MemberExpression', path => path.node.property.name === 'self').node;
-      const base = proxyCollapseBase({ keptStore: store, writeReceiver: hop });
+      const base = proxyCollapseBase({ keptStore: store, earlyReadReceiver: hop });
       const before = JSON.stringify(store);
       const context = { injectImport: () => '_pure', embed: embedded ? hostSlot : node => node,
         cloneHost: carrySource ? node => node : cloneNode };

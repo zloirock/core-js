@@ -1448,10 +1448,7 @@ export default function createAstDestructureEmitter({
       });
       if (!value) return;
       // a single instance leaf binds its own dispatch over the helper result, as the extraction does
-      const keyedLeaf = keyedPattern && symbolIteratorInstanceLeaf({
-        value: keyedPattern, resolvePure: m => resolvePure(m, metaPath), isDisabled: null,
-        keyNameOf: leafProp => leafProp.key?.name ?? leafProp.key?.value ?? null,
-      });
+      const keyedLeaf = keyedPattern && iteratorResultLeaf(keyedPattern, metaPath);
       if (keyedLeaf) {
         value = instanceLeafReader(keyedLeaf, value, metaPath);
       }
@@ -1954,10 +1951,7 @@ export default function createAstDestructureEmitter({
         // ... and its SINGLE bare polyfillable leaf collapses the whole extraction the same way
         // the plain route's does (`{ [S]: { name } } = arr` -> `_nameMaybeFunction(_gim(_ref))`)
         collapseLeaf: isSymbolIteratorPatternClaim(prop, entry)
-          ? symbolIteratorInstanceLeaf({
-            value: prop.value, resolvePure: m => resolvePure(m, metaPath), isDisabled: null,
-            keyNameOf: leafProp => leafProp.key?.name ?? leafProp.key?.value ?? null,
-          }) : null,
+          ? iteratorResultLeaf(prop.value, metaPath) : null,
         // A KEY effect buried in the source spine rides the extraction's
         // own sequence, where the source ran it - inside the read, not ahead of it
         buriedKeyEffect: navSpineHasComputedKeyEffect(declarator.init),
@@ -2088,6 +2082,14 @@ export default function createAstDestructureEmitter({
     }
     leafTwin.properties = leafTwin.properties.filter(item => !consumed.has(item));
     return leafTwin;
+  }
+
+  // Bind the shared iterator-result leaf decision to this source pattern's scope.
+  function iteratorResultLeaf(value, metaPath) {
+    return symbolIteratorInstanceLeaf({
+      value, resolvePure: meta => resolvePure(meta, metaPath), isDisabled: null,
+      keyNameOf: prop => prop.key?.name ?? prop.key?.value ?? null,
+    });
   }
 
   // Dispatch the single nested iterator-method leaf, retaining its own default and
@@ -2624,10 +2626,7 @@ export default function createAstDestructureEmitter({
     // the shared plan helper decides, so the two emitters cannot drift on which leaves qualify
     let collapseLeafName = null;
     if (isSymbolIteratorPatternClaim(prop, entry)) {
-      const leaf = symbolIteratorInstanceLeaf({
-        value: prop.value, resolvePure: m => resolvePure(m, metaPath), isDisabled: null,
-        keyNameOf: leafProp => leafProp.key?.name ?? leafProp.key?.value ?? null,
-      });
+      const leaf = iteratorResultLeaf(prop.value, metaPath);
       if (leaf) {
         collapseLeafName = leaf.localName;
         value = instanceLeafReader(leaf, value, metaPath);
@@ -3148,7 +3147,7 @@ export default function createAstDestructureEmitter({
       if (chain.length) renderNestedParamSynth({ metaPath, meta });
       return;
     }
-    const value = buildValue({
+    let value = buildValue({
       guardCtx,
       kind, entry, hintName, receiverNode, prop, nested: chain.length > 0, chainKeys, metaPath,
       literalRoute: soleConsume || multiInstanceConsume,
@@ -3156,6 +3155,9 @@ export default function createAstDestructureEmitter({
       typedHop: typedHopPure ? { pure: typedHopPure, defaultHost: typedHopDefaultHost } : null,
     });
     if (!value) return;
+    const collapseLeaf = !sentinel && isSymbolIteratorPatternClaim(prop, entry)
+      ? iteratorResultLeaf(prop.value, metaPath) : null;
+    if (collapseLeaf) value = instanceLeafReader(collapseLeaf, value, metaPath);
     // the assignment-form twin of the declarator-host registrations: the ctor hint / fold
     // source is what lets a later read resolve through the extracted alias
     registerAssignmentExtractAlias({ prop, kind, entry, hintName, hostParent, exprStmtPath, metaPath },
@@ -3172,7 +3174,7 @@ export default function createAstDestructureEmitter({
     if (keepSentinelBinding && entry === 'get-iterator-method' && chain.length > 0
       && prop.computed && computedKeyHasSideEffects(prop, keyCtx)) return;
     const job = {
-      prop, pattern, chain, sentinel, bodyless, local: propLocalName(prop), value,
+      prop, pattern, chain, sentinel, bodyless, local: propLocalName(prop), value, collapseLeaf,
       host: seqHostStatement ? 'assign-seq' : 'assignment',
       assignment: hostParent.node,
       // A surviving anchored residual performs its stored source itself.

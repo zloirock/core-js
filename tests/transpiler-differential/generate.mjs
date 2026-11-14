@@ -23801,6 +23801,949 @@ function * generateNestedMirrorReceivers() {
   };
 }
 
+// Nested instance roots retain their evaluation, while defaults below rest own only their arm.
+function * generateNestedReceiverRoots() {
+  for (const [shape, expression] of [
+    ['call', 'make()'], ['optional-call', 'owner.make?.()'], ['optional-base', 'owner?.make()'],
+    ['await', 'await make()'], ['await-value', 'await box'], ['tag', 'owner.tag`value`'],
+    ['or-store', '(held ||= make())'], ['nullish-store', '(held ??= make())'], ['and-store', '(held &&= make())'],
+    ['member', 'owner.value'], ['computed-member', 'owner["value"]'],
+  ]) for (const prefix of [false, true]) for (const assignment of [false, true]) {
+    const root = prefix ? `(effects.push('prefix'), ${ expression })` : expression;
+    yield {
+      name: `nested-receiver-root/${ shape }/${ prefix }/${ assignment }`, strip: true,
+      code: `export const effects = [];
+        const rows = [3, 7];
+        const box = { get list() { effects.push('list'); return rows; } };
+        let held = ${ shape === 'and-store' ? 'box' : 'null' };
+        function make() { effects.push('make'); return box; }
+        const owner = { make() { effects.push(this === owner); return make(); },
+          tag() { effects.push(this === owner); return make(); },
+          get value() { effects.push('value'); return box; } };
+        ${ assignment ? `let at; ({ list: { at } } = ${ root });` : `const { list: { at } } = ${ root };` }
+        export const r = at.call(rows, -1);`,
+    };
+  }
+  for (const prefix of [false, true]) yield {
+    name: `nested-receiver-root/yield/${ prefix }`, strip: true,
+    code: `export const effects = [];
+      function* read() {
+        const { list: { at } } = ${ prefix ? "(effects.push('prefix'), yield 1)" : '(yield 1)' };
+        return at.call([3, 7], -1);
+      }
+      const iterator = read(); iterator.next();
+      export const r = iterator.next({ get list() { effects.push('list'); return [3, 7]; } }).value;`,
+  };
+  for (const host of ['parameter', 'arrow', 'declaration', 'assignment']) for (const supplied of [false, true]) {
+    const pattern = '[{ Array: { from } } = (effects.push("default"), globalThis)]';
+    const input = supplied ? '{ Array: { from: () => [9] } }' : 'void 0';
+    const body = host === 'parameter' ? `function read(...${ pattern }) { return from([7])[0]; } const result = read(${ input });`
+      : host === 'arrow' ? `const read = (...${ pattern }) => from([7])[0]; const result = read(${ input });`
+        : host === 'declaration' ? `const [first, ...${ pattern }] = [0, ${ input }]; const result = from([7])[0];`
+          : `let from; [ignored, ...${ pattern }] = [0, ${ input }]; const result = from([7])[0];`;
+    yield { name: `nested-receiver-rest/${ host }/${ supplied }`, strip: true,
+      code: `export const effects = []; let ignored; ${ body } export const r = result;` };
+  }
+  for (const defaulted of [false, true]) yield {
+    name: `nested-receiver-realm/loop/${ defaulted }`, strip: true,
+    code: `export const effects = []; let result;
+      for (const realm of [globalThis]) {
+        const { ${ defaulted ? 'self' : 'globalThis' }: { Array: { prototype: { at } } }${ defaulted ? ' = globalThis' : '' } } = realm;
+        result = at.call([3, 7], -1);
+      }
+      export const r = result;`,
+  };
+  yield { name: 'nested-receiver-realm/multiple-hops', strip: true,
+    code: `const { globalThis: { self: { Array: { prototype: { at } } } = globalThis } } = globalThis.globalThis;
+      export const r = at.call([3, 7], -1); export const effects = [];` };
+  for (const [shape, body] of [
+    ['compound', 'let value = "a"; const { constructor: { prototype: { at } } } = (value += "b"); return [at.call(value, -1), value];'],
+    ['optional-null', 'const source = null; try { const { list: { at } } = (effects.push("prefix"), source?.value); return at; } catch (error) { return error.name; }'],
+    ['optional-tail-getters', `
+      const source = { get value() { effects.push("value");
+      return { get list() { effects.push("list");
+      return [3, 7];
+      } };
+      } };
+      const { list: { at } } = (effects.push("prefix"), source?.value);
+      return at.call([3,7], -1);
+    `],
+    ['user-leaf-getter', `
+      const rows = { get at() { effects.push("at");
+      return function () { return this === rows;
+      };
+      } };
+      const box = { get list() { effects.push("list");
+      return rows;
+      } };
+      const { list: { at } } = (effects.push("prefix"), box);
+      return at.call(rows);
+    `],
+    ['own-loop-root', `
+      const value = { get self() { effects.push("self");
+      return { Array: { prototype: [3,7] } };
+      } };
+      for (const root of [value]) { const { self: { Array: { prototype: { at } } } } = root;
+      return at.call([3,7], -1);
+      }
+    `],
+    ['rest-supplied-inner', 'function f(first, ...[{ w: { from } = Array } = {}]) { return from([first])[0]; } return f(7, {w: {from: () => [9]}});'],
+    ['rest-iterator', `
+      function* source() { effects.push("first");
+      yield 0;
+      effects.push("rest");
+      yield void 0;
+      effects.push("done");
+      } const [first, ...[{ Array: { from } } = (effects.push("default"), globalThis)]] = source();
+      return [first, from([7])[0]];
+    `],
+    ['rest-no-default', 'function f(first, ...[{ Array: { from } }]) { return from([first])[0]; } return f(7, {Array: {from: () => [9]}});'],
+    ['rest-prefix', 'function f(...[{ Array: { from } } = (effects.push("outer"), globalThis)]) { return from([7])[0]; } return f();'],
+    ['rest-throw', `
+      function f(...[{ Array: { from } } = (effects.push("default"), globalThis)]) { return from([7])[0];
+      } try { return f({ get Array() { effects.push("getter");
+      throw new RangeError();
+      } });
+      } catch (error) { return error.name;
+      }
+    `],
+    ['decl-default', 'function read(source) { const { list: { at } = (effects.push("default"), [3,7]) } = source; return at.call([3,7], -1); } return read({});'],
+    ['decl-sibling', `
+      function make() { effects.push("make");
+      return { get list() { effects.push("list");
+      return [3,7];
+      }, get other() { effects.push("other");
+      return 9;
+      } };
+      } const { list: { at }, other } = make();
+      return [at.call([3,7], -1), other];
+    `],
+  ]) yield { name: `nested-receiver-boundary/${ shape }`, strip: true,
+    code: `export const effects = []; export const r = (() => { ${ body } })();` };
+  // A lowercase head over several constructors carries every alternative into the write census.
+  // Restore from foreign code so cleanup cannot independently announce the slot being tested.
+  for (const kind of ['const', 'let', 'var']) for (const wrapped of [false, true]) for (const indexed of [false, true]) {
+    for (const write of ['c.from = () => "patched";', 'Object.defineProperty(c, "from", { configurable: true, value: () => "patched" });']) {
+      const elements = wrapped ? '[(Array), (Map)]' : '[Array, Map]';
+      const loop = indexed
+        ? `for (var i = 0, items = ${ elements }; i < items.length; i++) { ${ kind } c = items[i]; ${ write } }`
+        : `for (${ kind } c of ${ elements }) { ${ write } }`;
+      yield mutationSnippet(`iterated-constructor-write/${ kind }/${ wrapped }/${ indexed }/${ write.startsWith('c.') ? 'direct' : 'define' }`,
+        `(() => { const arrayDescriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+          const mapDescriptor = _nativeObject.getOwnPropertyDescriptor(Map, "from");
+          try { ${ loop }
+            return Array.from([1]); }
+          finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
+    }
+  }
+  for (const outer of [false, true]) for (const define of [false, true]) {
+    const write = define ? 'Object.defineProperty(c, "from", { configurable: true, value: () => "patched" });' : 'c.from = () => "patched";';
+    const loop = `for (var i = 0; i < items.length; i++) { const c = items[i]; ${ write } }`;
+    const setup = outer
+      ? `const items = [Array, Map]; (function (Array, Map) { ${ loop } })(function () {}, function () {});`
+      : `let items; (function (Array, Map) { items = [Array, Map]; })(function () {}, function () {}); ${ loop }`;
+    yield mutationSnippet(`iterated-constructor-write/scope/${ outer }/${ define }`,
+      `(() => { const arrayDescriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
+        const mapDescriptor = _nativeObject.getOwnPropertyDescriptor(Map, "from");
+        try { ${ setup } return Array.from([1]); }
+        finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
+  }
+  // Every output gets its own realm: another import cannot decorate a narrow constructor.
+  for (const [shape, body] of [
+    ['pattern-key', "const k = 'w'; const { [k]: { groupBy } } = { w: Map };"],
+    ['numeric-key', 'const { 1: { groupBy } } = { 1: Map };'],
+    ['array-key', 'const { [0]: { groupBy } } = [Map];'],
+    ['literal-key', "const k = 'w'; const { w: { groupBy } } = { [k]: Map };"],
+    ['getter', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; } };"],
+    ['paired-accessors', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; }, set w(value) {} };"],
+    ['unknown-literal', "const k = String('w'); const { w: { groupBy } } = { [k]: Map };"],
+    ['unknown-getter', "const k = String('w'); const { w: { groupBy } } = { get [k]() { effects.push('get'); return Map; } };"],
+    ['key-effects', "const k = 'w'; const { [(effects.push('key'), k)]: { groupBy } } = { get w() { effects.push('get'); return Map; } };"],
+    ['assignment', "let groupBy; const k = 'w'; ({ [k]: { groupBy } } = { w: Map });"],
+    ['nested', "const { w: { inner: { groupBy } } } = { get w() { effects.push('get'); return { inner: Map }; } };"],
+  ]) yield { name: `retained-literal-slots/${ shape }`, strip: true, isolated: true,
+    code: `export const effects = []; ${ body } export const r = groupBy([1, 2, 3], value => value % 2).get(1);` };
+  // Folded keys cross parameter scopes and positional/capture hosts without losing their claims.
+  for (const bound of [false, true]) for (const fallback of [false, true]) {
+    const key = bound ? 'K' : "'at'";
+    yield { name: `computed-pattern-keys/parameter/${ bound }/${ fallback }`, strip: true,
+      code: `export const effects = []; const K = 'at';
+        export function read({ [${ key }]: at${ fallback ? ' = null' : '' } }) {
+          const K = 'length'; return ${ fallback ? "at === null ? 'default' : " : '' }at.call([3, 7], -1);
+        } export const r = ${ fallback ? '[read([3, 7]), read({})]' : 'read([3, 7])' };` };
+  }
+  for (const bound of [false, true]) for (const sibling of [false, true]) {
+    yield { name: `computed-pattern-keys/positional/${ bound }/${ sibling }`, strip: true,
+      code: `export const effects = []; const K = 'at';
+        function* source() { try { effects.push('next'); yield [3, 7]; } finally { effects.push('close'); } }
+        const [{ [${ bound ? 'K' : "'at'" }]: at${ sibling ? ', length' : '' } }] = source();
+        export const r = ${ sibling ? '[at.call([3, 7], -1), length]' : 'at.call([3, 7], -1)' };` };
+  }
+  for (const host of ['parameter', 'capture']) {
+    const pattern = '[{ [K]: { at }, marker }]';
+    const setup = host === 'parameter' ? `export function read(${ pattern }) {`
+      : `export function read(source) { const ${ pattern } = source;`;
+    yield { name: `computed-pattern-keys/nested/${ host }`, strip: true,
+      code: `export const effects = []; const K = 'row'; ${ setup }
+        return [at.call([3, 7], -1), marker];
+      } export const r = read([{ row: [3, 7], marker: 9 }]);` };
+  }
+  for (const bound of [false, true]) {
+    yield { name: `computed-pattern-keys/captured-assignment/${ bound }`, strip: true,
+      code: `export const effects = []; const K = 'row'; const source = [{ row: [3, 7] }]; let at;
+        [{ [${ bound ? 'K' : "'row'" }]: { at } }] = source;
+        export const r = at.call([3, 7], -1);` };
+  }
+  for (const kind of ['const', 'let', 'var']) for (const wrapped of [false, true]) {
+    yield { name: `computed-pattern-keys/early/${ kind }/${ wrapped }`, strip: true,
+      code: `export const effects = []; export let r;
+        const source = { at: () => 7, undefined: () => 11 };
+        try { r = ${ wrapped ? 'invoke()' : 'read(source)' }; } catch (error) { r = error.name; }
+        ${ kind } K = 'at';
+        function read({ [K]: at }) { return at(); }
+        function invoke() { return read(source); }` };
+  }
+  yield { name: 'computed-pattern-keys/early-array', strip: true,
+    code: `export const effects = []; export let r;
+      try { r = read([3, 7]); } catch (error) { r = error.name; }
+      const K = 'at'; function read({ [K]: at }) { return at.call([3, 7], -1); }` };
+  for (const sibling of [false, true]) yield { name: `computed-pattern-keys/early-positional/${ sibling }`, strip: true,
+    code: `export const effects = []; export let r;
+      try { r = read(); } catch (error) { r = error.name; } const K = 'at';
+      function* source() { yield [3, 7]; }
+      function read() { const [{ [K]: at${ sibling ? ', length' : '' } }] = source(); return at.call([3, 7], -1); }` };
+  yield { name: 'computed-pattern-keys/early-capture', strip: true,
+    code: `export const effects = []; export let r;
+      try { r = read([{ row: [3, 7], marker: 1 }]); } catch (error) { r = error.name; } const K = 'row';
+      function read(source) { const [{ [K]: { at }, marker }] = source; return at.call([3, 7], -marker); }` };
+  yield { name: 'computed-pattern-keys/lowered-member-key', strip: true,
+    code: `export const effects = []; const receiver = { at: () => 7, undefined: () => 11 };
+      const early = read(receiver); var key = 'at'; function read(value) { return value[key](); }
+    export const r = [early, read(receiver)];` };
+  for (const effect of [false, true]) yield { name: `computed-pattern-keys/lowered-call-key/${ effect }`, strip: true,
+    code: `export const effects = []; const receiver = { at: () => 7, undefined: () => 11 };
+    const early = read(receiver); var key = 'at';
+    function read(value) { return value[(() => { ${ effect ? "effects.push('key');" : '' } return key; })()](); }
+    export const r = [early, read(receiver)];` };
+  for (const exported of ['export', 'export default']) yield { name: `computed-pattern-keys/deferred-key/${ exported }`, strip: true,
+    code: `export const effects = []; ${ exported } function read(value) { return value[key](-1); }
+    const key = 'at'; export const r = read([3, 7]);` };
+  for (const [shape, setup, expression] of [
+    ['call', 'const hop = "map";', '[[3, 7]].flat?.()[hop](value => value)?.at(-1)'],
+    ['read', 'const arr = [[[3, 7]]]; const hop = "flat";', 'arr.at?.(0)[hop].name'],
+    ['early', `let early; try { early = read(); } catch (error) { early = error.name; }
+      var hop = 'map'; function read() { return [[3, 7]].flat?.()[hop](value => value)?.at(-1); }`, '[early, read()]'],
+  ]) yield { name: `computed-pattern-keys/combined-key/${ shape }`, strip: true,
+    code: `export const effects = []; ${ setup } export const r = ${ expression };` };
+
+  // Parameter boundaries: later inert bindings, opt-outs and their TDZ witnesses.
+  for (const tail of ['options = {}', 'options = { xs: [1, -2] }', '...options']) {
+    for (const nested of [false, true]) yield { name: `parameter-boundaries/tail/${ tail }/${ nested }`, strip: true,
+      code: `export const effects = [];
+        export function read(${ nested ? '{ row: { at } }' : '{ at }' }, ${ tail }) { return [at.call([3, 7], -1), options]; }
+        export const r = [read(${ nested ? '{ row: [3, 7] }' : '[3, 7]' }), read.length];` };
+  }
+  for (const first of [false, true]) {
+    const off = '// core-js-disable-next-line\n flat';
+    const pattern = first ? `${ off },\n at` : `at,\n ${ off }`;
+    yield { name: `parameter-boundaries/disabled/${ first }`, strip: true, isolated: true,
+      code: `export const effects = [];
+        export function read({ ${ pattern } }) { return [at.call([3, 7], -1), flat]; }
+        const source = [3, 7]; Object.defineProperty(source, 'flat', { get() { effects.push('flat'); return 9; } });
+        export const r = read(source);` };
+    yield { name: `parameter-boundaries/disabled-order/${ first }`, strip: true, isolated: true,
+      code: `export const effects = [];
+        export function read({ ${ pattern } }) { effects.push('body'); return [at(), flat]; }
+        export const r = read({ get at() { effects.push('at'); return () => 7; }, get flat() { effects.push('flat'); return 9; } });` };
+  }
+  for (const tail of ['tail = {}', '...tail']) for (const witness of ['tail', 'tail = []', '++tail']) {
+    yield { name: `parameter-boundaries/tdz/${ tail }/${ witness }`, strip: true,
+      code: `export const effects = [];
+        export function read(probe = () => (${ witness }), { at } = { get at() { effects.push('get'); return probe(); } }, ${ tail }) { return at; }
+        export let r; try { read(); } catch (error) { r = error.name; }` };
+  }
+  for (const nested of [false, true]) yield { name: `parameter-boundaries/coercion/${ nested }`, strip: true, isolated: true,
+    code: `export const effects = [];
+      Array.prototype.valueOf = function () { effects.push('coerce'); return 9; };
+      export function read({ at }, options = ${ nested ? '{ value: +[] }' : '+[]' }) { return [at(), options]; }
+      export const r = read({ get at() { effects.push('get'); return () => 7; } });` };
+  yield { name: 'parameter-boundaries/disabled-realm', strip: true, isolated: true,
+    code: `export const effects = []; const realm = globalThis;
+      // core-js-disable-next-line
+      const nativeSet = realm.Set;
+      export function read({ Array: { from },
+        // core-js-disable-next-line
+        Set: S
+      } = globalThis) { return [from([3]), S === nativeSet]; }
+      export const r = read();` };
+  yield { name: 'parameter-boundaries/rest-arguments', strip: true,
+    code: `export const effects = [];
+      export function read({ at }, value, ...tail) { value = 9; return [at.call([3, 7], -1), arguments[1], tail, read.length]; }
+      export const r = read([3, 7], 5, 11);` };
+  yield { name: 'parameter-boundaries/constructor-selection', strip: true, isolated: true,
+    code: `export const effects = [], r = [];
+      for (const C of [Array, String, null]) (function ({ W: { concat } } = { W: C || Array }) { r.push(typeof concat); })();` };
+  for (const first of [false, true]) {
+    const nested = 'row: { value } = { value: +[] }';
+    yield { name: `parameter-boundaries/nested-coercion/${ first }`, strip: true, isolated: true,
+      code: `export const effects = [];
+        Array.prototype.valueOf = function () { effects.push('coerce'); return 9; };
+        export function read({ ${ first ? `${ nested }, at` : `at, ${ nested }` } }) { return [at.call([3, 7], -1), value]; }
+        export const r = read([3, 7]);` };
+  }
+  // Shared captures retain nullish errors and serve effectful keys after native iteration.
+  for (const [host, spelling] of [
+    ['value', 'const value = ({ of } = globalThis.window?.Array); return value;'],
+    ['call', 'return ((value) => value)(({ of } = globalThis.window?.Array));'],
+    ['arrow', 'return (() => ({ of } = globalThis.window?.Array))();'],
+    ['statement', '({ of } = globalThis.window?.Array); return of;'],
+  ]) yield { name: `capture-ownership/nullish/${ host }`, strip: true,
+    code: `export const effects = []; let of = 'unchanged';
+      export const r = (() => { try { ${ spelling } } catch (error) { return [error.name, of]; } })();` };
+  for (const [name, pattern, source, receiver, expectedKey] of [
+    ['iterator', '[{ [key()]: method }]', 'values([7, 8])', '[7, 8]', 'at'],
+    ['second', '[, { [key()]: method }]', 'values(0, [7, 8])', '[7, 8]', 'at'],
+    ['nested', '[[{ [key()]: method }]]', 'values([[7, 8]])', '[7, 8]', 'at'],
+    ['sibling', '[{ [key()]: method, length }]', 'values([7, 8])', '[7, 8]', 'at'],
+    ['string', '[{ [key()]: method }]', 'values("ab")', '"ab"', 'at'],
+  ]) yield { name: `capture-ownership/array/${ name }`, strip: true,
+    code: `export const effects = []; function key() { effects.push('key'); return '${ expectedKey }'; }
+      function* values(...items) { yield* items; }
+      const ${ pattern } = ${ source }; export const r = method.call(${ receiver }, -1);` };
+  for (const assignment of [false, true]) yield { name: `capture-ownership/prototype/${ assignment }`, strip: true,
+    code: `export const effects = [];
+      ${ assignment ? 'let from, it; ({ Array: { from, prototype: { [Symbol.iterator]: it } } } = globalThis);'
+        : 'const { Array: { from, prototype: { [Symbol.iterator]: it } } } = globalThis;' }
+      export const r = [from([7])[0], it.call([8]).next().value];` };
+  for (const parameter of [false, true]) yield { name: `capture-ownership/namespace/${ parameter }`, strip: true,
+    code: `export const effects = []; export const r = (() => {
+      try { ${ parameter ? 'return read();' : 'const { Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis; return it;' } }
+      catch (error) { return error.name; }
+      function read({ Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis) { return it; }
+    })();` };
+  // Naming a constructor through an alias cannot erase absence, read errors or argument order.
+  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const [name, body] of [
+    ['keyed', 'const held = globalThis.window?.Array; const { [(effects.push("key"), "from")]: from } = held; return typeof from;'],
+    ['used', 'const held = globalThis.window?.Array; let from; const value = ({ from } = held); return [typeof from, value === held];'],
+    ['prototype', 'const held = globalThis.window?.Array; const { [(effects.push("key"), "includes")]: includes } = held.prototype; return typeof includes;'],
+    ['stored-mirror', 'let saved; const { resolve: { length } } = (saved = globalThis.window)?.Promise; return typeof length;'],
+    ['stored-loop', 'let saved; for (const { resolve } of [(saved = globalThis.window)?.Promise]) return typeof resolve;'],
+    ['stored-argument', 'let saved; return (({ resolve }) => typeof resolve)((saved = globalThis.window)?.Promise);'],
+    ['read-mirror', 'const held = globalThis.window; const { resolve: { length } } = held.Promise; return typeof length;'],
+    ['read-argument', 'const held = globalThis.window; return (({ resolve }, last) => typeof resolve)(held.Promise, effects.push("last"));'],
+    ['held-argument', 'const held = globalThis.window?.Array; return (({ from }, last) => typeof from)(held, effects.push("last"));'],
+    ['nested-argument', 'return (({ Array: { from } }, last) => typeof from)(globalThis.window?.self, effects.push("last"));'],
+    ['keyed-argument', 'const held = globalThis.window?.Array; return (({ [(effects.push("key"), "from")]: from }, last) => typeof from)(held, effects.push("last"));'],
+    ['named-argument', 'const held = globalThis.window?.Array; function read({ from }) { return typeof from; } return read(held);'],
+    ['selected-pattern', 'const { from } = typeof Symbol !== "undefined" ? globalThis.window?.Array : Set; return typeof from;'],
+    ['selected-read', 'return typeof (typeof Symbol !== "undefined" ? globalThis.window?.Array : Set).from;'],
+    ['selected-optional', 'return typeof (typeof Symbol !== "undefined" ? globalThis.window?.Array : Set)?.from;'],
+    ['fallback', 'const held = globalThis.window?.Array; return (({ from }) => typeof from)(held ?? Array);'],
+  ]) for (const present of [false, true]) yield { name: `nullable-capture-sources/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+      export const effects = []; export const r = withWindowPresence(${ present }, () => {
+        try { ${ body } } catch (error) { return error.name; }
+      });` };
+  // Realm probes retain their optional prefix; call results must denote the whole realm.
+  const globalHost = new URL('../e2e-usage-pure/unbacked-global-host.cjs', import.meta.url).href;
+  const propertyHost = new URL('../helpers/restore-property.cjs', import.meta.url).href;
+  for (const [name, body] of [
+    ['call', 'function get() { effects.push("call"); return globalThis.window; } return get()?.Array?.from([3]);'],
+    ['call-store', `function get() { effects.push("call"); return globalThis.window; } let held;
+      const result = (held = get())?.Object?.hasOwn({ x: 1 }, "x"); return [result, held === undefined];`],
+    ['call-probe', 'function get() { effects.push("call"); return globalThis; } return get().window?.Array?.from([3]);'],
+    ['iife', 'return (() => globalThis.window)()?.Array?.from([3]);'],
+    ['selection', 'return (present ? globalThis : self).window?.Array.from([3]);'],
+    ['selection-alias', 'const root = globalThis; const held = present ? root : globalThis; const copied = held; return copied.window?.Array.from([3]);'],
+    ['selection-effect', 'return ((effects.push("test"), present) ? globalThis : self).window?.Array.from([3]);'],
+    ['sealed', 'return typeof (globalThis.window?.self)?.Iterator?.from;'],
+    ['leaf-effects', 'function get() { effects.push("call"); return globalThis.window; } return get()?.Array?.[(effects.push("key"), "from")]((effects.push("argument"), [3]));'],
+  ]) for (const present of [false, true]) yield { name: `realm-guard-sources/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+      export const effects = []; export const r = withWindowPresence(${ present }, present => { ${ body } });` };
+  for (const root of ['globalThis', 'get()', '(held = globalThis)']) for (const optional of ['', '?.']) {
+    for (const windowPresent of [false, true]) for (const globalPresent of [false, true]) {
+      yield { name: `realm-guard-sources/independent/${ root }/${ !!optional }/${ windowPresent }/${ globalPresent }`, strip: true, isolated: true,
+        code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        import { withGlobalPresence } from ${ JSON.stringify(globalHost) };
+        function get() { return globalThis; } let held;
+        export const effects = []; export const r = withWindowPresence(${ windowPresent }, () =>
+          withGlobalPresence(${ globalPresent }, () => typeof ${ root }.window?.global?.Iterator${ optional || '.' }from));` };
+    }
+  }
+  for (const [name, read] of [['static', 'get().self.Array.from([3])'], ['member', 'get().window.value']]) {
+    yield { name: `realm-guard-sources/user/${ name }`, strip: true, isolated: true,
+      code: `import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+        export const effects = [];
+        const user = { self: { Array: { from() { effects.push('from'); return 31; } } }, window: { value: 41 } };
+        export const r = withTemporaryProperty(globalThis, 'lib', user, () => {
+          function get() { return globalThis.lib; } return ${ read };
+        });` };
+  }
+  // Discarded realm probes retain throws, stores and receiver-prefix order.
+  for (const [name, body] of [
+    ['read', 'return typeof (effects.push("prefix"), globalThis).window.Promise.resolve;'],
+    ['declaration', 'const { resolve } = (effects.push("prefix"), globalThis).window.Promise; return typeof resolve;'],
+    ['assignment', 'let resolve; ({ resolve } = (effects.push("prefix"), globalThis).window.Promise); return typeof resolve;'],
+    ['store', 'let held; return typeof (held = globalThis.self).window.Promise.resolve;'],
+    ['store-declaration', 'let held; const { resolve } = (held = globalThis.self).window.Promise; return typeof resolve;'],
+    ['user-argument', 'function id(value) { return value; } return typeof id((effects.push("prefix"), globalThis).window.Promise.resolve);'],
+    ['new-argument', 'class Box { constructor(value) { this.value = value; } } return typeof new Box((effects.push("prefix"), globalThis).window.Promise.resolve).value;'],
+    ['user-prototype-call', 'return (x => globalThis)(Number.parseFloat("1.5")).window.Set.prototype.has.call(new Set([1]), 1);'],
+    ['inline-backed-member', 'return typeof (() => { effects.push("prefix"); return globalThis.self; })().window.Map.name;'],
+    ['user-member', 'return typeof ((effects.push("prefix"), globalThis).window.Promise.resolve).name;'],
+    ['instance-call', 'return (effects.push("prefix"), globalThis).window.Array.from([3]).at(-1);'],
+    ['nested-prefix', 'const { resolve } = (effects.push("a"), (effects.push("b"), globalThis.window))?.Promise; return typeof resolve;'],
+    ['nested-prefix-read', 'return typeof ((effects.push("a"), (effects.push("b"), globalThis.window))?.Promise).resolve;'],
+    ['nested-prefix-assignment', 'let resolve; ({ resolve } = (effects.push("a"), (effects.push("b"), globalThis.window))?.Promise); return typeof resolve;'],
+    ['alias-prefix', 'const held = globalThis.window; return typeof ((effects.push("prefix"), held).Promise).resolve;'],
+    ['quiet-call-key', 'function key() { return "self"; } return typeof globalThis[key()].Promise.resolve;'],
+    ['quiet-identity-key', 'const key = value => value; return globalThis[key("self")].Array.from([3]);'],
+    ['quiet-optional-key', 'function key() { return "self"; } return typeof globalThis[key()]?.Promise;'],
+    ['shadow', 'const globalThis = { window: { Promise: { resolve: 31 } } }; return globalThis.window.Promise.resolve;'],
+    ['effectful-key', 'function key() { effects.push("key"); return "self"; } return globalThis[key()].Math.abs(-3);'],
+    ['throwing-key', 'function key() { effects.push("key"); throw new RangeError(); } return globalThis[key()].Math.abs(-3);'],
+    ['changed-key', 'let key = () => "self"; key = () => "Math"; return globalThis[key()].abs(-3);'],
+    ['observed-store',
+      'let held; try { const { resolve } = (held = globalThis.self).window.Promise; '
+      + 'return [typeof resolve, held === globalThis.self]; } catch (error) { return [error.name, held === globalThis.self]; }'],
+    ['two-prefix-levels', 'const held = globalThis.window; return typeof ((effects.push("a"), (effects.push("b"), held).self).Promise).resolve;'],
+  ]) for (const present of [false, true]) yield { name: `realm-probe-effects/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+      export const effects = []; export const r = withWindowPresence(${ present }, () => {
+        try { ${ body } } catch (error) { return error.name; }
+      });` };
+  // Source probes survive delete, branch selection, sealed reads and mutation hosts.
+  for (const [name, body] of [
+    [
+      'sequence-delete',
+      'return delete (effects.push("prefix"), globalThis.window)?.window.slotD;',
+    ],
+    [
+      'declined-sequence',
+      'return delete (effects.push("prefix"), globalThis?.window)?.slotD;',
+    ],
+    [
+      'quiet-sequence',
+      'return delete (0, globalThis.window)?.slotD;',
+    ],
+    [
+      'nested-sequence',
+      'return delete (effects.push("a"), (effects.push("b"), globalThis.window))?.["slotD"];',
+    ],
+    [
+      'outer-guard',
+      'return delete globalThis.self.window?.window.slotD;',
+    ],
+    [
+      'outer-guard-sequence',
+      'return delete (effects.push("prefix"), globalThis.self.window)?.window.slotD;',
+    ],
+    [
+      'outer-guard-update',
+      'return (globalThis.self.window?.window).slotD++;',
+    ],
+    [
+      'outer-guard-write',
+      'return (globalThis.self.window?.window).slotD = (effects.push("rhs"), 31);',
+    ],
+    [
+      'outer-guard-pattern',
+      'let source = [31]; [ (globalThis.self.window?.window).slotD ] = source; return true;',
+    ],
+    [
+      'outer-guard-loop',
+      'for ((globalThis.self.window?.window).slotD of [31]) effects.push("body"); return true;',
+    ],
+    [
+      'branch-consequent',
+      'const x = { window: { slotD: 23 } }; const d = delete (choice ? globalThis : x).window.slotD; return [d, x.window.slotD];',
+    ],
+    [
+      'branch-alternate',
+      'const x = { window: { slotD: 23 } }; const d = delete (choice ? x : globalThis).window.slotD; return [d, x.window.slotD];',
+    ],
+    [
+      'null-test',
+      'return delete (globalThis == null).window.slotD;',
+    ],
+    [
+      'nonnull-test',
+      'return delete (globalThis != null).window.slotD;',
+    ],
+    [
+      'logical-control',
+      'return delete (choice && globalThis).window.slotD;',
+    ],
+    [
+      'stored-guard',
+      'let held; const d = delete (held = globalThis.window)?.slotD; return [d, typeof held];',
+    ],
+    [
+      'sealed-read',
+      'return typeof (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];',
+    ],
+    [
+      'sealed-delete',
+      'return delete (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];',
+    ],
+    [
+      'double-sealed',
+      'return typeof ((globalThis.window?.Promise))[(effects.push("key"), "noSuchStatic")];',
+    ],
+    [
+      'dynamic-key',
+      'const key = () => "resolve"; return typeof (globalThis.window?.Promise)[key()];',
+    ],
+    [
+      'effectful-key',
+      'const key = () => (effects.push("key"), "resolve"); return typeof (globalThis.window?.Promise)[key()];',
+    ],
+    [
+      'throwing-key',
+      'const key = () => { effects.push("key"); throw new RangeError(); }; return typeof (globalThis.window?.Promise)[key()];',
+    ],
+    [
+      'instance',
+      'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at(-1);',
+    ],
+    [
+      'optional-instance-call',
+      'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at?.(-1);',
+    ],
+    [
+      'terminal',
+      'return typeof (effects.push("prefix"), globalThis.window)?.self;',
+    ],
+    [
+      'claimed-delete',
+      'return delete globalThis.self?.window?.window?.Reflect.slot;',
+    ],
+    [
+      'claimless-delete',
+      'return delete globalThis.self?.window?.window?.self.slotD;',
+    ],
+    [
+      'vestigial-delete',
+      'const g = globalThis; return delete g.window?.Reflect?.slot;',
+    ],
+    [
+      'vestigial-read',
+      'const g = globalThis; return g.window?.Reflect?.slot;',
+    ],
+  ]) {
+    for (const present of [false, true]) yield {
+      name: `realm-collapse-delete/${ name }/${ present }`, strip: true, isolated: true,
+      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+        export const effects = []; const root = globalThis;
+        function read(choice) { ${ body } }
+        export const r = withWindowPresence(${ present }, () =>
+          withTemporaryProperty(root, 'slotD', 17, () => withTemporaryProperty(root, 'items', [1, 3], () => {
+            let value; try { value = read(false); } catch (error) { value = error.name; }
+            return [value, root.slotD];
+          })));
+      `,
+    };
+  }
+}
+
+// Nullable symbol keys, nested receiver prefixes and delete continuations share both hosts.
+function * generateGuardedKeys() {
+  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const [name, body, window, ts = false] of [
+    [
+      'optional-symbol-read',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; return typeof list[globalThis.window?.Symbol.iterator];',
+      true,
+    ],
+    [
+      'optional-symbol-call',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; return list[globalThis.window?.Symbol.iterator]();',
+      true,
+    ],
+    [
+      'optional-symbol-declaration',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; const { [globalThis.window?.Symbol.iterator]: it } = list; return typeof it;',
+      true,
+    ],
+    [
+      'optional-symbol-assignment',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; let it; ({ [globalThis.window?.Symbol.iterator]: it } = list); return typeof it;',
+      true,
+    ],
+    [
+      'optional-symbol-parameter',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; function pick({ [globalThis.window?.Symbol.iterator]: it }) { return typeof it; } return pick(list);',
+      true,
+    ],
+    [
+      'optional-symbol-in',
+      'const list = { undefined: 23 }; return globalThis.window?.Symbol.iterator in list;',
+      true,
+    ],
+    [
+      'nested-symbol-effects',
+      'const list = [1]; const it = list[(effects.push(1), (effects.push(2), Symbol)).iterator]; return it.call(list).next().value;',
+      false,
+    ],
+    [
+      'nested-symbol-hop-effects',
+      'const list = [1]; const it = list[(effects.push(1), (effects.push(2), globalThis[(effects.push(3), "Symbol")])).iterator]; return it.call(list).next().value;',
+      false,
+    ],
+    [
+      'nested-symbol-call-effects',
+      `const list = [1];
+        const get = () => (effects.push(3), globalThis);
+        const it = list[(effects.push(1), (effects.push(2), get()))[(effects.push(4), "Symbol")].iterator];
+        return it.call(list).next().value;`,
+      false,
+    ],
+    [
+      'nested-symbol-pattern-effects',
+      'const list = [1]; const { [(effects.push(1), (effects.push(2), Symbol)).iterator]: it } = list; return it.call(list).next().value;',
+      false,
+    ],
+    [
+      'nested-guarded-read',
+      'let C = Map; if (choice) C = Set; return typeof (effects.push(1), (effects.push(2), C)).groupBy;',
+      false,
+    ],
+    [
+      'nested-guarded-call',
+      'let C = Map; if (choice) C = Set; return (effects.push(1), (effects.push(2), C)).groupBy([1, 2], x => x % 2).size;',
+      false,
+    ],
+    [
+      'nested-guarded-pattern',
+      'let C = Map; if (choice) C = Set; const { groupBy } = (effects.push(1), (effects.push(2), C)); return typeof groupBy;',
+      false,
+    ],
+    [
+      'nested-guarded-throw',
+      'let C = Map; if (choice) C = Set; return (effects.push(1), (missingPrefix, C)).groupBy;',
+      false,
+    ],
+    [
+      'guarded-delete-tail',
+      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k.k; return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-parentheses',
+      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]]).k.k); return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-sealed',
+      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]])).k.k; return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-key',
+      `const obj = { k: 1 };
+        const result = delete (choice ? Object : null)?.fromEntries((effects.push("args"), [["k", obj]])).k[(effects.push("key"), "k")];
+        return [result, "k" in obj];`,
+      false,
+    ],
+    [
+      'guarded-delete-optional-tail',
+      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k?.k; return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-argument',
+      `const obj = { k: 1 };
+        const target = { take(x) { effects.push(typeof x);
+        return obj;
+        } };
+        const result = delete target.take((choice ? Object : null)?.fromEntries([])).k;
+        return [result, "k" in obj];`,
+      false,
+    ],
+    [
+      'nested-symbol-throw',
+      'const list = [1]; return list[(effects.push(1), (missingPrefix, Symbol)).iterator];',
+      false,
+    ],
+    [
+      'selected-symbol',
+      'const list = [1]; return ((effects.push("choose"), choice) ? globalThis : self).Symbol.iterator in list;',
+      false,
+    ],
+    [
+      'shadow-symbol',
+      'const Symbol = { iterator: "slot" }; const list = { slot: 17 }; return list[(effects.push(1), (effects.push(2), Symbol)).iterator];',
+      false,
+    ],
+    [
+      'guarded-delete-nonnull',
+      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]])!.k.k; return [result, "k" in obj];',
+      false,
+      true,
+    ],
+    [
+      'guarded-delete-cast',
+      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]]) as any).k.k; return [result, "k" in obj];',
+      false,
+      true,
+    ],
+    [
+      'guarded-delete-optional-call',
+      'return delete (choice ? Object : null).fromEntries?.([]);',
+      false,
+    ],
+    [
+      'guarded-delete-double-optional',
+      'return delete (choice ? Object : null)?.fromEntries?.([]);',
+      false,
+    ],
+    [
+      'guarded-delete-key-claim',
+      `const obj = { k: 1 };
+      const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k[(effects.push([7].at(-1)), "k")];
+      return [result, "k" in obj];`,
+      false,
+    ],
+    [
+      'nested-guarded-siblings',
+      `let C = Map;
+      if (choice) C = Set;
+      const { groupBy, name } = (effects.push(1), (effects.push(2), C));
+      return [typeof groupBy, typeof name];`,
+      false,
+    ],
+  ]) {
+    for (const present of window ? [false, true] : [false]) yield {
+      name: `guarded-keys/${ name }/${ present }`, strip: true, isolated: true, ts,
+      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        export const effects = []; function read(choice) { ${ body } }
+        export const r = withWindowPresence(${ present }, () => [false, true].map(choice => {
+          try { return read(choice); } catch (error) { return error.name; }
+        }));`,
+    };
+  }
+}
+
+// Iterator-key consumers and kept receiver guards preserve values, throws and source order.
+function * generateIteratorReceivers() {
+  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  const propertyHost = new URL('../helpers/restore-property.cjs', import.meta.url).href;
+  for (const [name, body, window] of [
+    [
+      'probe-native',
+      'const { [Symbol.iterator]: it } = globalThis.window; return typeof it;',
+      true,
+    ],
+    [
+      'probe-optional',
+      'const { [Symbol.iterator]: it } = globalThis.window?.self; return typeof it;',
+      true,
+    ],
+    [
+      'probe-assign',
+      'let it; ({ [Symbol.iterator]: it } = globalThis.window?.self); return typeof it;',
+      true,
+    ],
+    [
+      'probe-loop',
+      'for (const { [Symbol.iterator]: it } of [globalThis.window]) return typeof it;',
+      true,
+    ],
+    [
+      'probe-nested',
+      'let name; ({ [Symbol.iterator]: { name } } = globalThis.window); return name;',
+      true,
+    ],
+    [
+      'probe-rest',
+      'const { [Symbol.iterator]: it, ...rest } = globalThis.window; return [typeof it, typeof rest];',
+      true,
+    ],
+    [
+      'symbol-selection',
+      'return ((effects.push("test"), choice) ? Symbol : Symbol).iterator in [3];',
+      false,
+    ],
+    [
+      'symbol-presence',
+      'return (typeof Symbol === "function" ? Symbol : {}).iterator in [3];',
+      false,
+    ],
+    [
+      'symbol-defined',
+      'return (typeof Symbol !== "undefined" ? Symbol : {}).iterator in [3];',
+      false,
+    ],
+    [
+      'symbol-nested',
+      'return (choice ? (choice ? Symbol : Symbol) : Symbol).iterator in [3];',
+      false,
+    ],
+    [
+      'realm-conditional-store',
+      'const g = globalThis; let w; return (w = choice ? g : globalThis).window?.Array.from([3]);',
+      true,
+    ],
+    [
+      'realm-alias',
+      'const w = choice ? globalThis : self; return w.Symbol.iterator in [3];',
+      false,
+    ],
+    [
+      'realm-mixed',
+      'const w = choice ? globalThis : { Symbol: { iterator: "slot" } }; const list = [3]; return w.Symbol.iterator in list;',
+      false,
+    ],
+    [
+      'realm-mixed-right-effect',
+      'const w = choice ? globalThis : null; const box = { get value() { effects.push("rhs"); return [3]; } }; return w.Symbol.iterator in box.value;',
+      false,
+    ],
+    [
+      'realm-mixed-null',
+      'const w = choice ? globalThis : null; return w.Symbol.iterator in [3];',
+      false,
+    ],
+    [
+      'symbol-sequence',
+      'return (effects.push("a"), (effects.push("b"), Symbol.iterator)) in [3];',
+      false,
+    ],
+    [
+      'symbol-prefix-throw',
+      'return (effects.push("a"), missingPrefix, Symbol.iterator) in [3];',
+      false,
+    ],
+    [
+      'symbol-selection-throw',
+      'return (missingChoice ? Symbol : Symbol).iterator in [3];',
+      false,
+    ],
+    [
+      'symbol-shadow',
+      'const Symbol = { iterator: "slot" }; return (effects.push("prefix"), Symbol.iterator) in { slot: 7 };',
+      false,
+    ],
+    [
+      'symbol-mixed',
+      'const S = { iterator: "slot" }; return (choice ? Symbol : S).iterator in [3];',
+      false,
+    ],
+    [
+      'optional-call',
+      'globalThis.box = choice ? { list: [3] } : null; return globalThis.box?.list[Symbol.iterator]().next().value;',
+      false,
+    ],
+    [
+      'optional-read',
+      'globalThis.box = choice ? { list: [3] } : null; return typeof globalThis.box?.list[Symbol.iterator];',
+      false,
+    ],
+    [
+      'optional-alias',
+      'globalThis.box = choice ? { list: [3] } : null; const g = globalThis; return g.box?.list[Symbol.iterator]().next().value;',
+      false,
+    ],
+    [
+      'optional-destructure',
+      'globalThis.box = choice ? { list: [3] } : null; const { at } = globalThis.self.box?.list ?? []; return at.call([3], 0);',
+      false,
+    ],
+    [
+      'optional-key-effect',
+      'globalThis.box = choice ? { list: [3] } : null; return globalThis.box?.[(effects.push("key"), "list")][Symbol.iterator]().next().value;',
+      false,
+    ],
+    [
+      'optional-sealed',
+      'globalThis.box = choice ? { list: [3] } : null; return (globalThis.box?.list)[Symbol.iterator]();',
+      false,
+    ],
+    [
+      'store-dead',
+      'globalThis.box = [3, 4]; let w; return (w = globalThis.window).self?.box.at(0);',
+      true,
+    ],
+    [
+      'store-live',
+      'globalThis.box = [3, 4]; let w; return (w = globalThis.window)?.self?.box.at(0);',
+      true,
+    ],
+    [
+      'store-unknown-key',
+      'globalThis.box = [3, 4]; Array.prototype.extra = 1; const key = ["b", "o", "x"].join(""); let w; return (w = globalThis.window).self?.[key].at(0);',
+      true,
+    ],
+    [
+      'store-live-key',
+      'globalThis.box = [3, 4]; Array.prototype.extra = 1; const key = ["b", "o", "x"].join(""); let w; return (w = globalThis.window)?.self?.[key].at(0);',
+      true,
+    ],
+    [
+      'store-mutated-self',
+      'globalThis.self = choice ? { box: [7] } : null; let w; return (w = globalThis.window).self?.box.at(0);',
+      true,
+    ],
+    [
+      'store-lowered-test',
+      'globalThis.box = [3]; let w, ref; return (ref = (effects.push("prefix"), w = globalThis.window).self) == null ? void 0 : ref[(effects.push("key"), "box")].at(0);',
+      true,
+    ],
+    [
+      'store-lowered-setter-test',
+      `globalThis.box = [3]; const box = { get w() { throw new Error("getter"); }, set w(value) { effects.push("write"); } };
+      let ref; return (ref = (box.w = globalThis.window).self) == null ? void 0 : ref[(effects.push("key"), "box")].at(0);`,
+      true,
+    ],
+    [
+      'store-effects',
+      'globalThis.box = [3]; let w; return (effects.push("prefix"), (w = globalThis.window)).self?.[(effects.push("key"), "box")].at((effects.push("arg"), 0));',
+      true,
+    ],
+    [
+      'nullable-symbol-selection',
+      'return (choice ? Symbol : globalThis.window?.Symbol).iterator in [3];',
+      true,
+    ],
+    [
+      'sealed-symbol-selection',
+      'return (choice ? Symbol : (globalThis.window?.self).Symbol).iterator in [3];',
+      true,
+    ],
+    [
+      'stored-member-key',
+      'globalThis.box = [3]; const box = {}; return (box.w = globalThis.window).self?.[(effects.push("key"), "box")].at(0);',
+      true,
+    ],
+    [
+      'stored-setter-key',
+      `globalThis.box = [3]; const box = { get w() { throw new Error("getter"); }, set w(value) { effects.push("write"); } };
+      return (box.w = globalThis.window).self?.[(effects.push("key"), "box")].at(0);`,
+      true,
+    ],
+    [
+      'probe-nested-declaration',
+      'const { [Symbol.iterator]: { name } } = globalThis.window?.self; return name;',
+      true,
+    ],
+  ]) {
+    for (const present of window ? [false, true] : [false]) yield {
+      name: `iterator-receivers/${ name }/${ present }`, strip: true, isolated: true,
+      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+        export const effects = []; function read(choice) { ${ body } }
+        const root = Function('return this')();
+        export const r = withWindowPresence(${ present }, () =>
+          withTemporaryProperty(root, 'self', root, () => [false, true].map(choice => {
+            try { return read(choice); } catch (error) { return error.name; }
+          })));`,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -25591,730 +26534,5 @@ export function * generate() {
     code: `${ body } module.exports = { r, effects: [[7].at(0)] };` };
   yield * generateNestedReceiverRoots();
   yield * generateGuardedKeys();
-}
-
-// Nested instance roots retain their evaluation, while defaults below rest own only their arm.
-function * generateNestedReceiverRoots() {
-  for (const [shape, expression] of [
-    ['call', 'make()'], ['optional-call', 'owner.make?.()'], ['optional-base', 'owner?.make()'],
-    ['await', 'await make()'], ['await-value', 'await box'], ['tag', 'owner.tag`value`'],
-    ['or-store', '(held ||= make())'], ['nullish-store', '(held ??= make())'], ['and-store', '(held &&= make())'],
-    ['member', 'owner.value'], ['computed-member', 'owner["value"]'],
-  ]) for (const prefix of [false, true]) for (const assignment of [false, true]) {
-    const root = prefix ? `(effects.push('prefix'), ${ expression })` : expression;
-    yield {
-      name: `nested-receiver-root/${ shape }/${ prefix }/${ assignment }`, strip: true,
-      code: `export const effects = [];
-        const rows = [3, 7];
-        const box = { get list() { effects.push('list'); return rows; } };
-        let held = ${ shape === 'and-store' ? 'box' : 'null' };
-        function make() { effects.push('make'); return box; }
-        const owner = { make() { effects.push(this === owner); return make(); },
-          tag() { effects.push(this === owner); return make(); },
-          get value() { effects.push('value'); return box; } };
-        ${ assignment ? `let at; ({ list: { at } } = ${ root });` : `const { list: { at } } = ${ root };` }
-        export const r = at.call(rows, -1);`,
-    };
-  }
-  for (const prefix of [false, true]) yield {
-    name: `nested-receiver-root/yield/${ prefix }`, strip: true,
-    code: `export const effects = [];
-      function* read() {
-        const { list: { at } } = ${ prefix ? "(effects.push('prefix'), yield 1)" : '(yield 1)' };
-        return at.call([3, 7], -1);
-      }
-      const iterator = read(); iterator.next();
-      export const r = iterator.next({ get list() { effects.push('list'); return [3, 7]; } }).value;`,
-  };
-  for (const host of ['parameter', 'arrow', 'declaration', 'assignment']) for (const supplied of [false, true]) {
-    const pattern = '[{ Array: { from } } = (effects.push("default"), globalThis)]';
-    const input = supplied ? '{ Array: { from: () => [9] } }' : 'void 0';
-    const body = host === 'parameter' ? `function read(...${ pattern }) { return from([7])[0]; } const result = read(${ input });`
-      : host === 'arrow' ? `const read = (...${ pattern }) => from([7])[0]; const result = read(${ input });`
-        : host === 'declaration' ? `const [first, ...${ pattern }] = [0, ${ input }]; const result = from([7])[0];`
-          : `let from; [ignored, ...${ pattern }] = [0, ${ input }]; const result = from([7])[0];`;
-    yield { name: `nested-receiver-rest/${ host }/${ supplied }`, strip: true,
-      code: `export const effects = []; let ignored; ${ body } export const r = result;` };
-  }
-  for (const defaulted of [false, true]) yield {
-    name: `nested-receiver-realm/loop/${ defaulted }`, strip: true,
-    code: `export const effects = []; let result;
-      for (const realm of [globalThis]) {
-        const { ${ defaulted ? 'self' : 'globalThis' }: { Array: { prototype: { at } } }${ defaulted ? ' = globalThis' : '' } } = realm;
-        result = at.call([3, 7], -1);
-      }
-      export const r = result;`,
-  };
-  yield { name: 'nested-receiver-realm/multiple-hops', strip: true,
-    code: `const { globalThis: { self: { Array: { prototype: { at } } } = globalThis } } = globalThis.globalThis;
-      export const r = at.call([3, 7], -1); export const effects = [];` };
-  for (const [shape, body] of [
-    ['compound', 'let value = "a"; const { constructor: { prototype: { at } } } = (value += "b"); return [at.call(value, -1), value];'],
-    ['optional-null', 'const source = null; try { const { list: { at } } = (effects.push("prefix"), source?.value); return at; } catch (error) { return error.name; }'],
-    ['optional-tail-getters', `
-      const source = { get value() { effects.push("value");
-      return { get list() { effects.push("list");
-      return [3, 7];
-      } };
-      } };
-      const { list: { at } } = (effects.push("prefix"), source?.value);
-      return at.call([3,7], -1);
-    `],
-    ['user-leaf-getter', `
-      const rows = { get at() { effects.push("at");
-      return function () { return this === rows;
-      };
-      } };
-      const box = { get list() { effects.push("list");
-      return rows;
-      } };
-      const { list: { at } } = (effects.push("prefix"), box);
-      return at.call(rows);
-    `],
-    ['own-loop-root', `
-      const value = { get self() { effects.push("self");
-      return { Array: { prototype: [3,7] } };
-      } };
-      for (const root of [value]) { const { self: { Array: { prototype: { at } } } } = root;
-      return at.call([3,7], -1);
-      }
-    `],
-    ['rest-supplied-inner', 'function f(first, ...[{ w: { from } = Array } = {}]) { return from([first])[0]; } return f(7, {w: {from: () => [9]}});'],
-    ['rest-iterator', `
-      function* source() { effects.push("first");
-      yield 0;
-      effects.push("rest");
-      yield void 0;
-      effects.push("done");
-      } const [first, ...[{ Array: { from } } = (effects.push("default"), globalThis)]] = source();
-      return [first, from([7])[0]];
-    `],
-    ['rest-no-default', 'function f(first, ...[{ Array: { from } }]) { return from([first])[0]; } return f(7, {Array: {from: () => [9]}});'],
-    ['rest-prefix', 'function f(...[{ Array: { from } } = (effects.push("outer"), globalThis)]) { return from([7])[0]; } return f();'],
-    ['rest-throw', `
-      function f(...[{ Array: { from } } = (effects.push("default"), globalThis)]) { return from([7])[0];
-      } try { return f({ get Array() { effects.push("getter");
-      throw new RangeError();
-      } });
-      } catch (error) { return error.name;
-      }
-    `],
-    ['decl-default', 'function read(source) { const { list: { at } = (effects.push("default"), [3,7]) } = source; return at.call([3,7], -1); } return read({});'],
-    ['decl-sibling', `
-      function make() { effects.push("make");
-      return { get list() { effects.push("list");
-      return [3,7];
-      }, get other() { effects.push("other");
-      return 9;
-      } };
-      } const { list: { at }, other } = make();
-      return [at.call([3,7], -1), other];
-    `],
-  ]) yield { name: `nested-receiver-boundary/${ shape }`, strip: true,
-    code: `export const effects = []; export const r = (() => { ${ body } })();` };
-  // A lowercase head over several constructors carries every alternative into the write census.
-  // Restore from foreign code so cleanup cannot independently announce the slot being tested.
-  for (const kind of ['const', 'let', 'var']) for (const wrapped of [false, true]) for (const indexed of [false, true]) {
-    for (const write of ['c.from = () => "patched";', 'Object.defineProperty(c, "from", { configurable: true, value: () => "patched" });']) {
-      const elements = wrapped ? '[(Array), (Map)]' : '[Array, Map]';
-      const loop = indexed
-        ? `for (var i = 0, items = ${ elements }; i < items.length; i++) { ${ kind } c = items[i]; ${ write } }`
-        : `for (${ kind } c of ${ elements }) { ${ write } }`;
-      yield mutationSnippet(`iterated-constructor-write/${ kind }/${ wrapped }/${ indexed }/${ write.startsWith('c.') ? 'direct' : 'define' }`,
-        `(() => { const arrayDescriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
-          const mapDescriptor = _nativeObject.getOwnPropertyDescriptor(Map, "from");
-          try { ${ loop }
-            return Array.from([1]); }
-          finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
-    }
-  }
-  for (const outer of [false, true]) for (const define of [false, true]) {
-    const write = define ? 'Object.defineProperty(c, "from", { configurable: true, value: () => "patched" });' : 'c.from = () => "patched";';
-    const loop = `for (var i = 0; i < items.length; i++) { const c = items[i]; ${ write } }`;
-    const setup = outer
-      ? `const items = [Array, Map]; (function (Array, Map) { ${ loop } })(function () {}, function () {});`
-      : `let items; (function (Array, Map) { items = [Array, Map]; })(function () {}, function () {}); ${ loop }`;
-    yield mutationSnippet(`iterated-constructor-write/scope/${ outer }/${ define }`,
-      `(() => { const arrayDescriptor = _nativeObject.getOwnPropertyDescriptor(Array, "from");
-        const mapDescriptor = _nativeObject.getOwnPropertyDescriptor(Map, "from");
-        try { ${ setup } return Array.from([1]); }
-        finally { restoreProperty(Array, "from", arrayDescriptor); restoreProperty(Map, "from", mapDescriptor); } })()`);
-  }
-  // Every output gets its own realm: another import cannot decorate a narrow constructor.
-  for (const [shape, body] of [
-    ['pattern-key', "const k = 'w'; const { [k]: { groupBy } } = { w: Map };"],
-    ['numeric-key', 'const { 1: { groupBy } } = { 1: Map };'],
-    ['array-key', 'const { [0]: { groupBy } } = [Map];'],
-    ['literal-key', "const k = 'w'; const { w: { groupBy } } = { [k]: Map };"],
-    ['getter', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; } };"],
-    ['paired-accessors', "const { w: { groupBy } } = { get w() { effects.push('get'); return Map; }, set w(value) {} };"],
-    ['unknown-literal', "const k = String('w'); const { w: { groupBy } } = { [k]: Map };"],
-    ['unknown-getter', "const k = String('w'); const { w: { groupBy } } = { get [k]() { effects.push('get'); return Map; } };"],
-    ['key-effects', "const k = 'w'; const { [(effects.push('key'), k)]: { groupBy } } = { get w() { effects.push('get'); return Map; } };"],
-    ['assignment', "let groupBy; const k = 'w'; ({ [k]: { groupBy } } = { w: Map });"],
-    ['nested', "const { w: { inner: { groupBy } } } = { get w() { effects.push('get'); return { inner: Map }; } };"],
-  ]) yield { name: `retained-literal-slots/${ shape }`, strip: true, isolated: true,
-    code: `export const effects = []; ${ body } export const r = groupBy([1, 2, 3], value => value % 2).get(1);` };
-  // Folded keys cross parameter scopes and positional/capture hosts without losing their claims.
-  for (const bound of [false, true]) for (const fallback of [false, true]) {
-    const key = bound ? 'K' : "'at'";
-    yield { name: `computed-pattern-keys/parameter/${ bound }/${ fallback }`, strip: true,
-      code: `export const effects = []; const K = 'at';
-        export function read({ [${ key }]: at${ fallback ? ' = null' : '' } }) {
-          const K = 'length'; return ${ fallback ? "at === null ? 'default' : " : '' }at.call([3, 7], -1);
-        } export const r = ${ fallback ? '[read([3, 7]), read({})]' : 'read([3, 7])' };` };
-  }
-  for (const bound of [false, true]) for (const sibling of [false, true]) {
-    yield { name: `computed-pattern-keys/positional/${ bound }/${ sibling }`, strip: true,
-      code: `export const effects = []; const K = 'at';
-        function* source() { try { effects.push('next'); yield [3, 7]; } finally { effects.push('close'); } }
-        const [{ [${ bound ? 'K' : "'at'" }]: at${ sibling ? ', length' : '' } }] = source();
-        export const r = ${ sibling ? '[at.call([3, 7], -1), length]' : 'at.call([3, 7], -1)' };` };
-  }
-  for (const host of ['parameter', 'capture']) {
-    const pattern = '[{ [K]: { at }, marker }]';
-    const setup = host === 'parameter' ? `export function read(${ pattern }) {`
-      : `export function read(source) { const ${ pattern } = source;`;
-    yield { name: `computed-pattern-keys/nested/${ host }`, strip: true,
-      code: `export const effects = []; const K = 'row'; ${ setup }
-        return [at.call([3, 7], -1), marker];
-      } export const r = read([{ row: [3, 7], marker: 9 }]);` };
-  }
-  for (const bound of [false, true]) {
-    yield { name: `computed-pattern-keys/captured-assignment/${ bound }`, strip: true,
-      code: `export const effects = []; const K = 'row'; const source = [{ row: [3, 7] }]; let at;
-        [{ [${ bound ? 'K' : "'row'" }]: { at } }] = source;
-        export const r = at.call([3, 7], -1);` };
-  }
-  for (const kind of ['const', 'let', 'var']) for (const wrapped of [false, true]) {
-    yield { name: `computed-pattern-keys/early/${ kind }/${ wrapped }`, strip: true,
-      code: `export const effects = []; export let r;
-        const source = { at: () => 7, undefined: () => 11 };
-        try { r = ${ wrapped ? 'invoke()' : 'read(source)' }; } catch (error) { r = error.name; }
-        ${ kind } K = 'at';
-        function read({ [K]: at }) { return at(); }
-        function invoke() { return read(source); }` };
-  }
-  yield { name: 'computed-pattern-keys/early-array', strip: true,
-    code: `export const effects = []; export let r;
-      try { r = read([3, 7]); } catch (error) { r = error.name; }
-      const K = 'at'; function read({ [K]: at }) { return at.call([3, 7], -1); }` };
-  for (const sibling of [false, true]) yield { name: `computed-pattern-keys/early-positional/${ sibling }`, strip: true,
-    code: `export const effects = []; export let r;
-      try { r = read(); } catch (error) { r = error.name; } const K = 'at';
-      function* source() { yield [3, 7]; }
-      function read() { const [{ [K]: at${ sibling ? ', length' : '' } }] = source(); return at.call([3, 7], -1); }` };
-  yield { name: 'computed-pattern-keys/early-capture', strip: true,
-    code: `export const effects = []; export let r;
-      try { r = read([{ row: [3, 7], marker: 1 }]); } catch (error) { r = error.name; } const K = 'row';
-      function read(source) { const [{ [K]: { at }, marker }] = source; return at.call([3, 7], -marker); }` };
-  yield { name: 'computed-pattern-keys/lowered-member-key', strip: true,
-    code: `export const effects = []; const receiver = { at: () => 7, undefined: () => 11 };
-      const early = read(receiver); var key = 'at'; function read(value) { return value[key](); }
-    export const r = [early, read(receiver)];` };
-  for (const effect of [false, true]) yield { name: `computed-pattern-keys/lowered-call-key/${ effect }`, strip: true,
-    code: `export const effects = []; const receiver = { at: () => 7, undefined: () => 11 };
-    const early = read(receiver); var key = 'at';
-    function read(value) { return value[(() => { ${ effect ? "effects.push('key');" : '' } return key; })()](); }
-    export const r = [early, read(receiver)];` };
-  for (const exported of ['export', 'export default']) yield { name: `computed-pattern-keys/deferred-key/${ exported }`, strip: true,
-    code: `export const effects = []; ${ exported } function read(value) { return value[key](-1); }
-    const key = 'at'; export const r = read([3, 7]);` };
-  for (const [shape, setup, expression] of [
-    ['call', 'const hop = "map";', '[[3, 7]].flat?.()[hop](value => value)?.at(-1)'],
-    ['read', 'const arr = [[[3, 7]]]; const hop = "flat";', 'arr.at?.(0)[hop].name'],
-    ['early', `let early; try { early = read(); } catch (error) { early = error.name; }
-      var hop = 'map'; function read() { return [[3, 7]].flat?.()[hop](value => value)?.at(-1); }`, '[early, read()]'],
-  ]) yield { name: `computed-pattern-keys/combined-key/${ shape }`, strip: true,
-    code: `export const effects = []; ${ setup } export const r = ${ expression };` };
-
-  // Parameter boundaries: later inert bindings, opt-outs and their TDZ witnesses.
-  for (const tail of ['options = {}', 'options = { xs: [1, -2] }', '...options']) {
-    for (const nested of [false, true]) yield { name: `parameter-boundaries/tail/${ tail }/${ nested }`, strip: true,
-      code: `export const effects = [];
-        export function read(${ nested ? '{ row: { at } }' : '{ at }' }, ${ tail }) { return [at.call([3, 7], -1), options]; }
-        export const r = [read(${ nested ? '{ row: [3, 7] }' : '[3, 7]' }), read.length];` };
-  }
-  for (const first of [false, true]) {
-    const off = '// core-js-disable-next-line\n flat';
-    const pattern = first ? `${ off },\n at` : `at,\n ${ off }`;
-    yield { name: `parameter-boundaries/disabled/${ first }`, strip: true, isolated: true,
-      code: `export const effects = [];
-        export function read({ ${ pattern } }) { return [at.call([3, 7], -1), flat]; }
-        const source = [3, 7]; Object.defineProperty(source, 'flat', { get() { effects.push('flat'); return 9; } });
-        export const r = read(source);` };
-    yield { name: `parameter-boundaries/disabled-order/${ first }`, strip: true, isolated: true,
-      code: `export const effects = [];
-        export function read({ ${ pattern } }) { effects.push('body'); return [at(), flat]; }
-        export const r = read({ get at() { effects.push('at'); return () => 7; }, get flat() { effects.push('flat'); return 9; } });` };
-  }
-  for (const tail of ['tail = {}', '...tail']) for (const witness of ['tail', 'tail = []', '++tail']) {
-    yield { name: `parameter-boundaries/tdz/${ tail }/${ witness }`, strip: true,
-      code: `export const effects = [];
-        export function read(probe = () => (${ witness }), { at } = { get at() { effects.push('get'); return probe(); } }, ${ tail }) { return at; }
-        export let r; try { read(); } catch (error) { r = error.name; }` };
-  }
-  for (const nested of [false, true]) yield { name: `parameter-boundaries/coercion/${ nested }`, strip: true, isolated: true,
-    code: `export const effects = [];
-      Array.prototype.valueOf = function () { effects.push('coerce'); return 9; };
-      export function read({ at }, options = ${ nested ? '{ value: +[] }' : '+[]' }) { return [at(), options]; }
-      export const r = read({ get at() { effects.push('get'); return () => 7; } });` };
-  yield { name: 'parameter-boundaries/disabled-realm', strip: true, isolated: true,
-    code: `export const effects = []; const realm = globalThis;
-      // core-js-disable-next-line
-      const nativeSet = realm.Set;
-      export function read({ Array: { from },
-        // core-js-disable-next-line
-        Set: S
-      } = globalThis) { return [from([3]), S === nativeSet]; }
-      export const r = read();` };
-  yield { name: 'parameter-boundaries/rest-arguments', strip: true,
-    code: `export const effects = [];
-      export function read({ at }, value, ...tail) { value = 9; return [at.call([3, 7], -1), arguments[1], tail, read.length]; }
-      export const r = read([3, 7], 5, 11);` };
-  yield { name: 'parameter-boundaries/constructor-selection', strip: true, isolated: true,
-    code: `export const effects = [], r = [];
-      for (const C of [Array, String, null]) (function ({ W: { concat } } = { W: C || Array }) { r.push(typeof concat); })();` };
-  for (const first of [false, true]) {
-    const nested = 'row: { value } = { value: +[] }';
-    yield { name: `parameter-boundaries/nested-coercion/${ first }`, strip: true, isolated: true,
-      code: `export const effects = [];
-        Array.prototype.valueOf = function () { effects.push('coerce'); return 9; };
-        export function read({ ${ first ? `${ nested }, at` : `at, ${ nested }` } }) { return [at.call([3, 7], -1), value]; }
-        export const r = read([3, 7]);` };
-  }
-  // Shared captures retain nullish errors and serve effectful keys after native iteration.
-  for (const [host, spelling] of [
-    ['value', 'const value = ({ of } = globalThis.window?.Array); return value;'],
-    ['call', 'return ((value) => value)(({ of } = globalThis.window?.Array));'],
-    ['arrow', 'return (() => ({ of } = globalThis.window?.Array))();'],
-    ['statement', '({ of } = globalThis.window?.Array); return of;'],
-  ]) yield { name: `capture-ownership/nullish/${ host }`, strip: true,
-    code: `export const effects = []; let of = 'unchanged';
-      export const r = (() => { try { ${ spelling } } catch (error) { return [error.name, of]; } })();` };
-  for (const [name, pattern, source, receiver, expectedKey] of [
-    ['iterator', '[{ [key()]: method }]', 'values([7, 8])', '[7, 8]', 'at'],
-    ['second', '[, { [key()]: method }]', 'values(0, [7, 8])', '[7, 8]', 'at'],
-    ['nested', '[[{ [key()]: method }]]', 'values([[7, 8]])', '[7, 8]', 'at'],
-    ['sibling', '[{ [key()]: method, length }]', 'values([7, 8])', '[7, 8]', 'at'],
-    ['string', '[{ [key()]: method }]', 'values("ab")', '"ab"', 'at'],
-  ]) yield { name: `capture-ownership/array/${ name }`, strip: true,
-    code: `export const effects = []; function key() { effects.push('key'); return '${ expectedKey }'; }
-      function* values(...items) { yield* items; }
-      const ${ pattern } = ${ source }; export const r = method.call(${ receiver }, -1);` };
-  for (const assignment of [false, true]) yield { name: `capture-ownership/prototype/${ assignment }`, strip: true,
-    code: `export const effects = [];
-      ${ assignment ? 'let from, it; ({ Array: { from, prototype: { [Symbol.iterator]: it } } } = globalThis);'
-        : 'const { Array: { from, prototype: { [Symbol.iterator]: it } } } = globalThis;' }
-      export const r = [from([7])[0], it.call([8]).next().value];` };
-  for (const parameter of [false, true]) yield { name: `capture-ownership/namespace/${ parameter }`, strip: true,
-    code: `export const effects = []; export const r = (() => {
-      try { ${ parameter ? 'return read();' : 'const { Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis; return it;' } }
-      catch (error) { return error.name; }
-      function read({ Math: { trunc, prototype: { [Symbol.iterator]: it } } } = globalThis) { return it; }
-    })();` };
-  // Naming a constructor through an alias cannot erase absence, read errors or argument order.
-  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
-  for (const [name, body] of [
-    ['keyed', 'const held = globalThis.window?.Array; const { [(effects.push("key"), "from")]: from } = held; return typeof from;'],
-    ['used', 'const held = globalThis.window?.Array; let from; const value = ({ from } = held); return [typeof from, value === held];'],
-    ['prototype', 'const held = globalThis.window?.Array; const { [(effects.push("key"), "includes")]: includes } = held.prototype; return typeof includes;'],
-    ['stored-mirror', 'let saved; const { resolve: { length } } = (saved = globalThis.window)?.Promise; return typeof length;'],
-    ['stored-loop', 'let saved; for (const { resolve } of [(saved = globalThis.window)?.Promise]) return typeof resolve;'],
-    ['stored-argument', 'let saved; return (({ resolve }) => typeof resolve)((saved = globalThis.window)?.Promise);'],
-    ['read-mirror', 'const held = globalThis.window; const { resolve: { length } } = held.Promise; return typeof length;'],
-    ['read-argument', 'const held = globalThis.window; return (({ resolve }, last) => typeof resolve)(held.Promise, effects.push("last"));'],
-    ['held-argument', 'const held = globalThis.window?.Array; return (({ from }, last) => typeof from)(held, effects.push("last"));'],
-    ['nested-argument', 'return (({ Array: { from } }, last) => typeof from)(globalThis.window?.self, effects.push("last"));'],
-    ['keyed-argument', 'const held = globalThis.window?.Array; return (({ [(effects.push("key"), "from")]: from }, last) => typeof from)(held, effects.push("last"));'],
-    ['named-argument', 'const held = globalThis.window?.Array; function read({ from }) { return typeof from; } return read(held);'],
-    ['selected-pattern', 'const { from } = typeof Symbol !== "undefined" ? globalThis.window?.Array : Set; return typeof from;'],
-    ['selected-read', 'return typeof (typeof Symbol !== "undefined" ? globalThis.window?.Array : Set).from;'],
-    ['selected-optional', 'return typeof (typeof Symbol !== "undefined" ? globalThis.window?.Array : Set)?.from;'],
-    ['fallback', 'const held = globalThis.window?.Array; return (({ from }) => typeof from)(held ?? Array);'],
-  ]) for (const present of [false, true]) yield { name: `nullable-capture-sources/${ name }/${ present }`, strip: true, isolated: true,
-    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
-      export const effects = []; export const r = withWindowPresence(${ present }, () => {
-        try { ${ body } } catch (error) { return error.name; }
-      });` };
-  // Realm probes retain their optional prefix; call results must denote the whole realm.
-  const globalHost = new URL('../e2e-usage-pure/unbacked-global-host.cjs', import.meta.url).href;
-  const propertyHost = new URL('../helpers/restore-property.cjs', import.meta.url).href;
-  for (const [name, body] of [
-    ['call', 'function get() { effects.push("call"); return globalThis.window; } return get()?.Array?.from([3]);'],
-    ['call-store', `function get() { effects.push("call"); return globalThis.window; } let held;
-      const result = (held = get())?.Object?.hasOwn({ x: 1 }, "x"); return [result, held === undefined];`],
-    ['call-probe', 'function get() { effects.push("call"); return globalThis; } return get().window?.Array?.from([3]);'],
-    ['iife', 'return (() => globalThis.window)()?.Array?.from([3]);'],
-    ['selection', 'return (present ? globalThis : self).window?.Array.from([3]);'],
-    ['selection-alias', 'const root = globalThis; const held = present ? root : globalThis; const copied = held; return copied.window?.Array.from([3]);'],
-    ['selection-effect', 'return ((effects.push("test"), present) ? globalThis : self).window?.Array.from([3]);'],
-    ['sealed', 'return typeof (globalThis.window?.self)?.Iterator?.from;'],
-    ['leaf-effects', 'function get() { effects.push("call"); return globalThis.window; } return get()?.Array?.[(effects.push("key"), "from")]((effects.push("argument"), [3]));'],
-  ]) for (const present of [false, true]) yield { name: `realm-guard-sources/${ name }/${ present }`, strip: true, isolated: true,
-    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
-      export const effects = []; export const r = withWindowPresence(${ present }, present => { ${ body } });` };
-  for (const root of ['globalThis', 'get()', '(held = globalThis)']) for (const optional of ['', '?.']) {
-    for (const windowPresent of [false, true]) for (const globalPresent of [false, true]) {
-      yield { name: `realm-guard-sources/independent/${ root }/${ !!optional }/${ windowPresent }/${ globalPresent }`, strip: true, isolated: true,
-        code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
-        import { withGlobalPresence } from ${ JSON.stringify(globalHost) };
-        function get() { return globalThis; } let held;
-        export const effects = []; export const r = withWindowPresence(${ windowPresent }, () =>
-          withGlobalPresence(${ globalPresent }, () => typeof ${ root }.window?.global?.Iterator${ optional || '.' }from));` };
-    }
-  }
-  for (const [name, read] of [['static', 'get().self.Array.from([3])'], ['member', 'get().window.value']]) {
-    yield { name: `realm-guard-sources/user/${ name }`, strip: true, isolated: true,
-      code: `import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
-        export const effects = [];
-        const user = { self: { Array: { from() { effects.push('from'); return 31; } } }, window: { value: 41 } };
-        export const r = withTemporaryProperty(globalThis, 'lib', user, () => {
-          function get() { return globalThis.lib; } return ${ read };
-        });` };
-  }
-  // Discarded realm probes retain throws, stores and receiver-prefix order.
-  for (const [name, body] of [
-    ['read', 'return typeof (effects.push("prefix"), globalThis).window.Promise.resolve;'],
-    ['declaration', 'const { resolve } = (effects.push("prefix"), globalThis).window.Promise; return typeof resolve;'],
-    ['assignment', 'let resolve; ({ resolve } = (effects.push("prefix"), globalThis).window.Promise); return typeof resolve;'],
-    ['store', 'let held; return typeof (held = globalThis.self).window.Promise.resolve;'],
-    ['store-declaration', 'let held; const { resolve } = (held = globalThis.self).window.Promise; return typeof resolve;'],
-    ['user-argument', 'function id(value) { return value; } return typeof id((effects.push("prefix"), globalThis).window.Promise.resolve);'],
-    ['new-argument', 'class Box { constructor(value) { this.value = value; } } return typeof new Box((effects.push("prefix"), globalThis).window.Promise.resolve).value;'],
-    ['user-prototype-call', 'return (x => globalThis)(Number.parseFloat("1.5")).window.Set.prototype.has.call(new Set([1]), 1);'],
-    ['inline-backed-member', 'return typeof (() => { effects.push("prefix"); return globalThis.self; })().window.Map.name;'],
-    ['user-member', 'return typeof ((effects.push("prefix"), globalThis).window.Promise.resolve).name;'],
-    ['instance-call', 'return (effects.push("prefix"), globalThis).window.Array.from([3]).at(-1);'],
-    ['nested-prefix', 'const { resolve } = (effects.push("a"), (effects.push("b"), globalThis.window))?.Promise; return typeof resolve;'],
-    ['nested-prefix-read', 'return typeof ((effects.push("a"), (effects.push("b"), globalThis.window))?.Promise).resolve;'],
-    ['nested-prefix-assignment', 'let resolve; ({ resolve } = (effects.push("a"), (effects.push("b"), globalThis.window))?.Promise); return typeof resolve;'],
-    ['alias-prefix', 'const held = globalThis.window; return typeof ((effects.push("prefix"), held).Promise).resolve;'],
-    ['quiet-call-key', 'function key() { return "self"; } return typeof globalThis[key()].Promise.resolve;'],
-    ['quiet-identity-key', 'const key = value => value; return globalThis[key("self")].Array.from([3]);'],
-    ['quiet-optional-key', 'function key() { return "self"; } return typeof globalThis[key()]?.Promise;'],
-    ['shadow', 'const globalThis = { window: { Promise: { resolve: 31 } } }; return globalThis.window.Promise.resolve;'],
-    ['effectful-key', 'function key() { effects.push("key"); return "self"; } return globalThis[key()].Math.abs(-3);'],
-    ['throwing-key', 'function key() { effects.push("key"); throw new RangeError(); } return globalThis[key()].Math.abs(-3);'],
-    ['changed-key', 'let key = () => "self"; key = () => "Math"; return globalThis[key()].abs(-3);'],
-    ['observed-store',
-      'let held; try { const { resolve } = (held = globalThis.self).window.Promise; '
-      + 'return [typeof resolve, held === globalThis.self]; } catch (error) { return [error.name, held === globalThis.self]; }'],
-    ['two-prefix-levels', 'const held = globalThis.window; return typeof ((effects.push("a"), (effects.push("b"), held).self).Promise).resolve;'],
-  ]) for (const present of [false, true]) yield { name: `realm-probe-effects/${ name }/${ present }`, strip: true, isolated: true,
-    code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
-      export const effects = []; export const r = withWindowPresence(${ present }, () => {
-        try { ${ body } } catch (error) { return error.name; }
-      });` };
-  // Source probes survive delete, branch selection, sealed reads and mutation hosts.
-  for (const [name, body] of [
-    [
-      'sequence-delete',
-      'return delete (effects.push("prefix"), globalThis.window)?.window.slotD;',
-    ],
-    [
-      'declined-sequence',
-      'return delete (effects.push("prefix"), globalThis?.window)?.slotD;',
-    ],
-    [
-      'quiet-sequence',
-      'return delete (0, globalThis.window)?.slotD;',
-    ],
-    [
-      'nested-sequence',
-      'return delete (effects.push("a"), (effects.push("b"), globalThis.window))?.["slotD"];',
-    ],
-    [
-      'outer-guard',
-      'return delete globalThis.self.window?.window.slotD;',
-    ],
-    [
-      'outer-guard-sequence',
-      'return delete (effects.push("prefix"), globalThis.self.window)?.window.slotD;',
-    ],
-    [
-      'outer-guard-update',
-      'return (globalThis.self.window?.window).slotD++;',
-    ],
-    [
-      'outer-guard-write',
-      'return (globalThis.self.window?.window).slotD = (effects.push("rhs"), 31);',
-    ],
-    [
-      'outer-guard-pattern',
-      'let source = [31]; [ (globalThis.self.window?.window).slotD ] = source; return true;',
-    ],
-    [
-      'outer-guard-loop',
-      'for ((globalThis.self.window?.window).slotD of [31]) effects.push("body"); return true;',
-    ],
-    [
-      'branch-consequent',
-      'const x = { window: { slotD: 23 } }; const d = delete (choice ? globalThis : x).window.slotD; return [d, x.window.slotD];',
-    ],
-    [
-      'branch-alternate',
-      'const x = { window: { slotD: 23 } }; const d = delete (choice ? x : globalThis).window.slotD; return [d, x.window.slotD];',
-    ],
-    [
-      'null-test',
-      'return delete (globalThis == null).window.slotD;',
-    ],
-    [
-      'nonnull-test',
-      'return delete (globalThis != null).window.slotD;',
-    ],
-    [
-      'logical-control',
-      'return delete (choice && globalThis).window.slotD;',
-    ],
-    [
-      'stored-guard',
-      'let held; const d = delete (held = globalThis.window)?.slotD; return [d, typeof held];',
-    ],
-    [
-      'sealed-read',
-      'return typeof (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];',
-    ],
-    [
-      'sealed-delete',
-      'return delete (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];',
-    ],
-    [
-      'double-sealed',
-      'return typeof ((globalThis.window?.Promise))[(effects.push("key"), "noSuchStatic")];',
-    ],
-    [
-      'dynamic-key',
-      'const key = () => "resolve"; return typeof (globalThis.window?.Promise)[key()];',
-    ],
-    [
-      'effectful-key',
-      'const key = () => (effects.push("key"), "resolve"); return typeof (globalThis.window?.Promise)[key()];',
-    ],
-    [
-      'throwing-key',
-      'const key = () => { effects.push("key"); throw new RangeError(); }; return typeof (globalThis.window?.Promise)[key()];',
-    ],
-    [
-      'instance',
-      'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at(-1);',
-    ],
-    [
-      'optional-instance-call',
-      'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at?.(-1);',
-    ],
-    [
-      'terminal',
-      'return typeof (effects.push("prefix"), globalThis.window)?.self;',
-    ],
-    [
-      'claimed-delete',
-      'return delete globalThis.self?.window?.window?.Reflect.slot;',
-    ],
-    [
-      'claimless-delete',
-      'return delete globalThis.self?.window?.window?.self.slotD;',
-    ],
-    [
-      'vestigial-delete',
-      'const g = globalThis; return delete g.window?.Reflect?.slot;',
-    ],
-    [
-      'vestigial-read',
-      'const g = globalThis; return g.window?.Reflect?.slot;',
-    ],
-  ]) {
-    for (const present of [false, true]) yield {
-      name: `realm-collapse-delete/${ name }/${ present }`, strip: true, isolated: true,
-      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
-        import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
-        export const effects = []; const root = globalThis;
-        function read(choice) { ${ body } }
-        export const r = withWindowPresence(${ present }, () =>
-          withTemporaryProperty(root, 'slotD', 17, () => withTemporaryProperty(root, 'items', [1, 3], () => {
-            let value; try { value = read(false); } catch (error) { value = error.name; }
-            return [value, root.slotD];
-          })));
-      `,
-    };
-  }
-}
-
-// Nullable symbol keys, nested receiver prefixes and delete continuations share both hosts.
-function * generateGuardedKeys() {
-  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
-  for (const [name, body, window, ts = false] of [
-    [
-      'optional-symbol-read',
-      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; return typeof list[globalThis.window?.Symbol.iterator];',
-      true,
-    ],
-    [
-      'optional-symbol-call',
-      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; return list[globalThis.window?.Symbol.iterator]();',
-      true,
-    ],
-    [
-      'optional-symbol-declaration',
-      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; const { [globalThis.window?.Symbol.iterator]: it } = list; return typeof it;',
-      true,
-    ],
-    [
-      'optional-symbol-assignment',
-      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; let it; ({ [globalThis.window?.Symbol.iterator]: it } = list); return typeof it;',
-      true,
-    ],
-    [
-      'optional-symbol-parameter',
-      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; function pick({ [globalThis.window?.Symbol.iterator]: it }) { return typeof it; } return pick(list);',
-      true,
-    ],
-    [
-      'optional-symbol-in',
-      'const list = { undefined: 23 }; return globalThis.window?.Symbol.iterator in list;',
-      true,
-    ],
-    [
-      'nested-symbol-effects',
-      'const list = [1]; const it = list[(effects.push(1), (effects.push(2), Symbol)).iterator]; return it.call(list).next().value;',
-      false,
-    ],
-    [
-      'nested-symbol-hop-effects',
-      'const list = [1]; const it = list[(effects.push(1), (effects.push(2), globalThis[(effects.push(3), "Symbol")])).iterator]; return it.call(list).next().value;',
-      false,
-    ],
-    [
-      'nested-symbol-call-effects',
-      `const list = [1];
-        const get = () => (effects.push(3), globalThis);
-        const it = list[(effects.push(1), (effects.push(2), get()))[(effects.push(4), "Symbol")].iterator];
-        return it.call(list).next().value;`,
-      false,
-    ],
-    [
-      'nested-symbol-pattern-effects',
-      'const list = [1]; const { [(effects.push(1), (effects.push(2), Symbol)).iterator]: it } = list; return it.call(list).next().value;',
-      false,
-    ],
-    [
-      'nested-guarded-read',
-      'let C = Map; if (choice) C = Set; return typeof (effects.push(1), (effects.push(2), C)).groupBy;',
-      false,
-    ],
-    [
-      'nested-guarded-call',
-      'let C = Map; if (choice) C = Set; return (effects.push(1), (effects.push(2), C)).groupBy([1, 2], x => x % 2).size;',
-      false,
-    ],
-    [
-      'nested-guarded-pattern',
-      'let C = Map; if (choice) C = Set; const { groupBy } = (effects.push(1), (effects.push(2), C)); return typeof groupBy;',
-      false,
-    ],
-    [
-      'nested-guarded-throw',
-      'let C = Map; if (choice) C = Set; return (effects.push(1), (missingPrefix, C)).groupBy;',
-      false,
-    ],
-    [
-      'guarded-delete-tail',
-      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k.k; return [result, "k" in obj];',
-      false,
-    ],
-    [
-      'guarded-delete-parentheses',
-      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]]).k.k); return [result, "k" in obj];',
-      false,
-    ],
-    [
-      'guarded-delete-sealed',
-      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]])).k.k; return [result, "k" in obj];',
-      false,
-    ],
-    [
-      'guarded-delete-key',
-      `const obj = { k: 1 };
-        const result = delete (choice ? Object : null)?.fromEntries((effects.push("args"), [["k", obj]])).k[(effects.push("key"), "k")];
-        return [result, "k" in obj];`,
-      false,
-    ],
-    [
-      'guarded-delete-optional-tail',
-      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k?.k; return [result, "k" in obj];',
-      false,
-    ],
-    [
-      'guarded-delete-argument',
-      `const obj = { k: 1 };
-        const target = { take(x) { effects.push(typeof x);
-        return obj;
-        } };
-        const result = delete target.take((choice ? Object : null)?.fromEntries([])).k;
-        return [result, "k" in obj];`,
-      false,
-    ],
-    [
-      'nested-symbol-throw',
-      'const list = [1]; return list[(effects.push(1), (missingPrefix, Symbol)).iterator];',
-      false,
-    ],
-    [
-      'selected-symbol',
-      'const list = [1]; return ((effects.push("choose"), choice) ? globalThis : self).Symbol.iterator in list;',
-      false,
-    ],
-    [
-      'shadow-symbol',
-      'const Symbol = { iterator: "slot" }; const list = { slot: 17 }; return list[(effects.push(1), (effects.push(2), Symbol)).iterator];',
-      false,
-    ],
-    [
-      'guarded-delete-nonnull',
-      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]])!.k.k; return [result, "k" in obj];',
-      false,
-      true,
-    ],
-    [
-      'guarded-delete-cast',
-      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]]) as any).k.k; return [result, "k" in obj];',
-      false,
-      true,
-    ],
-    [
-      'guarded-delete-optional-call',
-      'return delete (choice ? Object : null).fromEntries?.([]);',
-      false,
-    ],
-    [
-      'guarded-delete-double-optional',
-      'return delete (choice ? Object : null)?.fromEntries?.([]);',
-      false,
-    ],
-    [
-      'guarded-delete-key-claim',
-      `const obj = { k: 1 };
-      const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k[(effects.push([7].at(-1)), "k")];
-      return [result, "k" in obj];`,
-      false,
-    ],
-    [
-      'nested-guarded-siblings',
-      `let C = Map;
-      if (choice) C = Set;
-      const { groupBy, name } = (effects.push(1), (effects.push(2), C));
-      return [typeof groupBy, typeof name];`,
-      false,
-    ],
-  ]) {
-    for (const present of window ? [false, true] : [false]) yield {
-      name: `guarded-keys/${ name }/${ present }`, strip: true, isolated: true, ts,
-      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
-        export const effects = []; function read(choice) { ${ body } }
-        export const r = withWindowPresence(${ present }, () => [false, true].map(choice => {
-          try { return read(choice); } catch (error) { return error.name; }
-        }));`,
-    };
-  }
+  yield * generateIteratorReceivers();
 }

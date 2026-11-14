@@ -13,6 +13,7 @@ import './realm-guard-sources-runtime.mjs';
 import './realm-probe-effects-runtime.mjs';
 import './realm-collapse-delete-runtime.mjs';
 import './guarded-keys-runtime.mjs';
+import './iterator-receivers-runtime.mjs';
 import './initializer-effects-runtime.mjs';
 import './residual-extraction-order-runtime.mjs';
 import './nested-mirror-runtime.mjs';

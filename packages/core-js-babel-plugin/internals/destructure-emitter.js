@@ -18,6 +18,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   renderAliasHeldProbeRead,
+  renderSynthEntryKey,
   renderResidualProbeWrites,
   hostSlot,
   renderInstanceDefaultGuard,
@@ -661,15 +662,6 @@ export default function createDestructureEmitter({
     }
     return node;
   }
-  // the pure read of `Symbol.iterator`, asked once: the resolver answers both halves from
-  // `built-in-definitions`, and the two renders below spell whatever it says. memoising is safe
-  // only for a WELL-KNOWN key - a `/constructor` entry additionally rides the file's own
-  // escaped-ctor and mutated-static rewrites, so the `Symbol` read below asks per call
-  let symbolIteratorPureRead = null;
-  function symbolIteratorPure() {
-    return symbolIteratorPureRead ??= resolvePure(symbolStaticMeta('iterator'), null);
-  }
-
   // original body index of each declaration, before insertBefore shifts it, with the body it indexes
   const originalDeclKeys = new WeakMap();
   // records a host's statement key and the body it indexes, once, ahead of its first extraction
@@ -1800,7 +1792,7 @@ export default function createDestructureEmitter({
         parts.before.push({
           source: srcProp,
           statement: buildPolyfillAssignmentStatement(extractionTargetNode(e),
-            extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope), assignPath.node),
+            extractionValueExpr(e, assignPath.node.right, plan, assignPath), assignPath.node),
         });
       }
       // anchored residual on an assignment host: `({ union } = _Set)` (the printer parenthesizes the
@@ -1952,24 +1944,24 @@ export default function createDestructureEmitter({
   // (registering the body-extract alias; a ctor alias - kind global - was already
   // trust-registered by the plan gate, a re-register here would erase its write span).
   // shared by the cascade's statement render and the in-place anchored rebuild
-  function extractionValueExpr(e, initNode, plan, scope) {
+  function extractionValueExpr(e, initNode, plan, path) {
     if (e.synth === 'symbol-iterator') {
       // an extraction the ANCHOR owns reads off that constructor's binding, never off the host init:
       // the leaf names a member of the ctor its residual re-anchored on, not one of the realm's
       const receiver = e.anchorPure
         ? t.cloneNode(injectPureImport(e.anchorPure.entry, e.anchorPure.hintName))
-        : flattenSynthReceiver(initNode, plan);
+        : flattenSynthReceiver(initNode, plan, path);
       return instanceLeafCall(e, t.callExpression(
         t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
-        [receiver]), scope);
+        [receiver]), path.scope);
     }
     // a MEMBER target binds no local name, so there is no alias for a later read to resolve through
     if (e.kind !== 'global' && e.localName) {
-      injector.registerBodyExtractAlias(e.localName, e.entry, scope.getBinding(e.localName));
+      injector.registerBodyExtractAlias(e.localName, e.entry, path.scope.getBinding(e.localName));
     }
     const id = injectPureImport(e.entry, e.hint);
     if (e.kind === 'global') adapter.recordEmittedBindingSource(
-      scope.getBinding(e.localName)?.path.node, e.localName, injector.getBindingInfo(id.name)?.source,
+      path.scope.getBinding(e.localName)?.path.node, e.localName, injector.getBindingInfo(id.name)?.source,
     );
     // A static import is always defined: the dropped default's writes must leave the
     // source analysis too, even though no clone now visits that discarded subtree.
@@ -2394,8 +2386,9 @@ export default function createDestructureEmitter({
             // a synth Symbol.iterator sentinel re-keys through the polyfilled binding so engines without
             // native `Symbol` can still evaluate the computed key (the original key was skip-seeded above)
             if (planNode.extractions?.[0]?.synth === 'symbol-iterator') {
-              const pure = symbolIteratorPure();
-              planNode.prop.key = t.cloneNode(injectPureImport(pure.entry, pure.hintName));
+              planNode.prop.key = estreeToBabel(renderSynthEntryKey({ wksSpelling: 'iterator' }, {
+                resolvePure, injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+              }).key);
             }
             // a consumed HOP whose leaves spell an effectful key keeps its shape, the leaves retiring
             // one by one: retiring the hop whole would drop the key the source still evaluates
@@ -2426,11 +2419,17 @@ export default function createDestructureEmitter({
   // independently), matching the unplugin render byte-for-byte; a direct proxy-global /
   // constructor receiver reads through its polyfill binding instead (the raw global would
   // ReferenceError on engines without it); anything else clones the SE-peeled tail verbatim
-  function flattenSynthReceiver(initNode, plan) {
+  function flattenSynthReceiver(initNode, plan, path) {
     // an ANCHORED plan's symbol leaf reads the iterator method off the anchored
     // CONSTRUCTOR, not the proxy root - the same base the anchored residual reads
     if (plan.anchor) return anchorInitNode(plan);
     const { tail } = peelNestedSequenceExpressions(initNode);
+    // The helper itself performs the source read and nullish throw. Keep its guarded
+    // receiver instead of probing the same property a second time before extraction.
+    if (plan.probedNav) {
+      const guarded = destructureProbeNode?.(tail, path);
+      if (guarded) return guarded.node;
+    }
     const isAliasedIdentifier = tail?.type === 'Identifier' && tail.name !== plan.receiver;
     const pure = !isAliasedIdentifier && plan.receiver ? resolveGlobalPure(plan.receiver) : null;
     if (!pure) return t.cloneNode(tail);
@@ -2651,7 +2650,7 @@ export default function createDestructureEmitter({
     cascadedAssignments.add(assignPath.node);
     const assignExprs = extractions.map(e => inheritSpan(t.assignmentExpression('=',
       extractionTargetNode(e),
-      extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope)), assignPath.node));
+      extractionValueExpr(e, assignPath.node.right, plan, assignPath)), assignPath.node));
     // full consume collapses the host to the assigns sequence. an SE-bearing init keeps its
     // effects verbatim ahead of the assigns - sequence prefixes and a chain-assignment tail,
     // the only SE channels the anchored plan admits - while the dead anchored tail read
@@ -2739,7 +2738,7 @@ export default function createDestructureEmitter({
     const extracted = [];
     for (const outer of plan.outerProps) {
       for (const e of outer.extractions ?? []) {
-        const init = t.cloneNode(extractionValueExpr(e, declarator.node.init, plan, declarator.scope));
+        const init = t.cloneNode(extractionValueExpr(e, declarator.node.init, plan, declarator));
         // a pattern-valued symbol extraction destructures the helper result; the deep clone is
         // fresh (not skip-seeded), so its inner polyfillables (a default's instance call) are
         // re-visited on insertion and rewritten like any source pattern - with its PROPERTY
@@ -2760,16 +2759,13 @@ export default function createDestructureEmitter({
   }
 
   // the probe's member read off the guard value: dotted for identifier-valid names, computed
-  // string otherwise, and the polyfilled symbol binding for a `[Symbol.iterator]` first key
-  // (old runtimes without native Symbol still evaluate the read). the read NODE is skip-seeded -
+  // string otherwise. Iterator extractions already read their guarded receiver. The read NODE is skip-seeded -
   // the probe is an already-decided render, and a key naming an instance method (`keys`) would
   // otherwise be re-claimed into a dispatcher call on insertion - while everything INSIDE stays
   // live for nested claims; the shared probe already carries its root-substitution facts
   function probeKeyReadNode(guardNode, probeKey) {
-    const iterator = probeKey.symbolIterator ? symbolIteratorPure() : null;
     const read = estreeToBabel(renderAliasHeldProbeRead({ key: probeKey.name,
-      computed: !isValidIdentifierName(probeKey.name),
-      property: iterator ? hostSlot(t.cloneNode(injectPureImport(iterator.entry, iterator.hintName))) : null }, hostSlot(guardNode)));
+      computed: !isValidIdentifierName(probeKey.name) }, hostSlot(guardNode)));
     skippedNodes.add(read);
     return read;
   }

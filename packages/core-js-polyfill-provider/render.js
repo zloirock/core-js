@@ -689,6 +689,14 @@ function renderProxyCollapseBase(base, { injectImport, embed, carry, effects = [
   // An alias already carried by an effect is a new read, not another copy of that source slot.
   const value = base.alias && effects.some(effect => subtreeContainsNode(effect, base.alias)) ? identifier(base.alias.name)
     : source ? embed(carry(source)) : identifier(injectImport(base.pure.entry, base.pure.hintName));
+  // A member target cannot be re-read. A local parameter preserves the assignment's
+  // value and early throw without introducing destructuring after external lowering.
+  if (base.read && !base.read.object) {
+    const memo = identifier('value');
+    return renderSynthActivation(conditionalExpression(nullFirstGuardTest(memo),
+      renderAliasHeldProbeRead(base.read, literal(null)), identifier(memo.name)),
+    { memo, argument: value, checkNullish: false });
+  }
   // The plan permits rereading only an identifier. Its source comments belong to the kept write.
   return base.read ? sequenceExpression([value, conditionalExpression(
     nullFirstGuardTest(identifier(base.read.object.name)),
@@ -983,8 +991,8 @@ export function renderInExpressionPlan(plan, { injectImport, embed = node => nod
     // the realm-guarded spelling: one identity branch per realm the receiver was written with
     // answers the helper, innermost-last, and the source test is what a receiver matching none of
     // them falls through to (`realm === _globalThis ? _isIterable(x) : realm.Symbol.iterator in x`).
-    // the operand is spelled again in each branch - a bare identifier by the plan's own gate - and
-    // the raw branch's own `Symbol` read stays a read off a written binding, which the member
+    // The RHS is spelled in mutually exclusive branches and evaluates only once.
+    // The raw branch's own `Symbol` read stays a read off a written binding, which the member
     // census recognises as the alternate of an emitted guard and leaves alone
     if (plan.realmGuard) {
       const guarded = plan.realmGuard.realms.reduceRight((alternate, realm) => conditionalExpression(

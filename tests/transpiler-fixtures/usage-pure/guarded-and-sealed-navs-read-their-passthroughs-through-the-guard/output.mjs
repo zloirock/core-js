@@ -8,7 +8,6 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _self from "@core-js/pure/actual/self";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // A guarded or sealed nav keeps its probe where a slot reads past it: plain hops above a `?.`, a computed
 // optional hop keyed by a literal or a sequence, a computed boundary member after a seal, a symbol slot
 // past a guarded realm and a defaulted static under a store of a realm `&&`. A plain probe in parentheses
@@ -54,7 +53,7 @@ export function h({
 }
 const fromAsync = _Array$fromAsync;
 const groupBy = ((null == _globalThis.window ? void 0 : _self)['Map'], _Map$groupBy);
-const n = ((null == _globalThis.window ? void 0 : _self)[_Symbol$iterator], _nameMaybeFunction(_getIteratorMethod(_self)));
+const n = _nameMaybeFunction(_getIteratorMethod(null == _globalThis.window ? void 0 : _self));
 let stored;
 const {
   Promise: {}
