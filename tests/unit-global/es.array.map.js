@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#map', assert => {
   const { map } = Array.prototype;
@@ -32,4 +32,16 @@ QUnit.test('Array#map', assert => {
   } };
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.map(Boolean).foo, 1, '@@species');
+  const descriptor = DESCRIPTORS && Object.getOwnPropertyDescriptor(Array, Symbol.species);
+  if (descriptor && descriptor.configurable) {
+    Object.defineProperty(Array, Symbol.species, { configurable: true, get: () => function () {
+      return { foo: 1 };
+    } });
+    try {
+      // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
+      assert.same([1].map(Boolean).foo, 1, '@@species of `Array` of the current realm');
+    } finally {
+      Object.defineProperty(Array, Symbol.species, descriptor);
+    }
+  }
 });

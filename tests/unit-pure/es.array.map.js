@@ -1,7 +1,9 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import map from 'core-js-pure/es/array/map';
+import defineProperty from 'core-js-pure/es/object/define-property';
+import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 
 QUnit.test('Array#map', assert => {
   assert.isFunction(map);
@@ -29,4 +31,15 @@ QUnit.test('Array#map', assert => {
     return { foo: 1 };
   } };
   assert.same(map(array, Boolean).foo, 1, '@@species');
+  const descriptor = DESCRIPTORS && getOwnPropertyDescriptor(Array, Symbol.species);
+  if (descriptor && descriptor.configurable) {
+    defineProperty(Array, Symbol.species, { configurable: true, get: () => function () {
+      return { foo: 1 };
+    } });
+    try {
+      assert.same(map([1], Boolean).foo, 1, '@@species of `Array` of the current realm');
+    } finally {
+      defineProperty(Array, Symbol.species, descriptor);
+    }
+  }
 });

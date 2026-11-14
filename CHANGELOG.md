@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice }` polyfills ignoring a redefined `Array[@@species]` of the current realm and `@@species` of constructors with an array as `.prototype`; they no longer run `IsConstructor` on each call, which makes them faster on small arrays
 - Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
 - Added missed detection of [native `Array.prototype.flatMap` keeping holes of arrays returned by the callback in Rhino](https://github.com/mozilla/rhino/issues/2588)
 - Fixed the polyfilled array iterator (`Array.prototype.{ entries, keys, values, @@iterator }`) reading the `length` of array-likes without `ToLength`: endless iteration with a missing or non-numeric `length` and of primitives, an extra step with a fractional one; an error on reading `length` no longer skips an element
