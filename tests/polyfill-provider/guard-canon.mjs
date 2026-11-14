@@ -983,4 +983,24 @@ for (const type of ['CallExpression', 'OptionalCallExpression']) for (const opti
   check(`${ type }/${ optional }/argument`, body.object.arguments[0], argument);
 }
 
+// Parentheses around the base do not seal the optional hop after them; a non-null
+// assertion inside its continuation erases without moving the tail outside the guard.
+for (const [base, tail] of [['realm', '.length'], ['(realm)', '.length'], ['((realm))', '!.length']]) {
+  runBoth(`guarded receiver wrapper/${ base }/${ tail }`, `let realm = globalThis; if (flag) realm = null;
+    const result = ${ base }?.Array.of(3)${ tail };`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'of')
+      ?? parser.pickPath(program, 'OptionalMemberExpression', item => item.node.property.name === 'of');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planGuardedStaticNarrow({
+      memberNode: path.node, parent: path.parentPath.node, path, adapter,
+      meta: { key: 'of', guardedAliasHint: 'Array', captureGuardReceiver: true },
+      resolvePure: meta => meta.kind === 'property' && meta.object === 'Array' && meta.key === 'of'
+        ? { kind: 'static', entry: 'array/of', hintName: 'of' } : null,
+    });
+    checkTruthy(`${ label }/admitted`, plan && !plan.bail);
+    check(`${ label }/receiver hop`, plan?.receiverHop, path.node.object);
+    check(`${ label }/tail belongs to the live branch`, plan?.chainTail?.at(-1)?.property.name, 'length');
+  });
+}
+
 finish();

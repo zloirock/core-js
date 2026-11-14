@@ -24744,6 +24744,43 @@ function * generateIteratorReceivers() {
   }
 }
 
+// Erased non-null wrappers keep the chain open; source parentheses keep its throw.
+// Realm aliases and parenthesized bases retain the same live probe in either dialect.
+// Every row is isolated so a sibling cannot supply its missing static in the stripped realm.
+function * generateOptionalWrapperGuards() {
+  const windowHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  const propertyHost = new URL('../helpers/restore-property.cjs', import.meta.url).href;
+  for (const [name, body] of [
+    ['stored-non-null', 'let held; return (held = globalThis.window)?.self!.box;'],
+    ['stored-plain', 'let held; return (held = globalThis.window)?.self.box;'],
+    ['stored-sealed', 'let held; return ((held = globalThis.window)?.self)!.box;'],
+    ['stored-cast-sealed', 'let held; return ((held = globalThis.window)?.self as any).box;'],
+    ['stored-key-effects', 'let held; return (effects.push("prefix"), held = globalThis.window)?.self![(effects.push("key"), "box")];'],
+    ['alias-live-window', 'const g = globalThis; return g?.window?.self.box;'],
+    ['alias-alias-live-window', 'const first = globalThis; const g = first; return g?.window?.self.box;'],
+    ['alias-selection-live-window', 'const g = typeof self === "object" ? self : globalThis; return g?.window?.self.box;'],
+    ['alias-plain-window', 'const g = globalThis; return g.window?.self.box;'],
+    ['alias-second-optional', 'const g = globalThis; return g?.window?.self?.box;'],
+    ['narrow-non-null-call', 'const w: any = typeof window !== "undefined" ? window : undefined; return w?.Array.of((effects.push("arg"), 3))!.length;'],
+    ['narrow-non-null-member', 'let w: any = globalThis; if (choice) w = null; return w?.Map!.groupBy([1], (x: number) => x).size;'],
+    ['narrow-sealed-call', 'const w: any = typeof window !== "undefined" ? window : undefined; return (w?.Array.of((effects.push("arg"), 3)))!.length;'],
+    ['narrow-paren-base', 'let w: any = globalThis; if (choice) w = null; return (w)?.Array.of((effects.push("arg"), 3))[0];'],
+    ['narrow-double-paren-base', 'let w: any = globalThis; if (choice) w = null; return ((w))?.Array.from((effects.push("arg"), [3]))[0];'],
+    ['narrow-rebuilt-call', 'const w: any = typeof window !== "undefined" ? window : undefined; const values = []; '
+      + 'values.push(w?.Array.of((effects.push("arg"), 3))!.length); return values[0];'],
+    ['unbound-optional-call', 'let f: any; return f?.()?.self.box;'],
+  ]) for (const present of [false, true]) yield {
+    name: `optional-wrapper-guards/${ name }/${ present }`, ts: true, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(windowHost) };
+      import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+      export const effects = []; function read(choice) { ${ body } }
+      const root = Function('return this')();
+      export const r = withWindowPresence(${ present }, () =>
+        withTemporaryProperty(root, 'self', root, () => withTemporaryProperty(root, 'box', 23, () =>
+          [false, true].map(choice => { try { return read(choice); } catch (error) { return error.name; } }))));`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -26535,4 +26572,5 @@ export function * generate() {
   yield * generateNestedReceiverRoots();
   yield * generateGuardedKeys();
   yield * generateIteratorReceivers();
+  yield * generateOptionalWrapperGuards();
 }
