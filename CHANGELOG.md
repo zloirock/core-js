@@ -5,6 +5,7 @@
 - Fixed `Object.assign` ignoring numeric keys of null-prototype objects in IE10
 - Added a workaround for an SWC optimization that rewrites `Array(1)` to `[,]` and hides [the `Array.prototype.includes` bug in Firefox 99-101](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541)
 - Added missed detection of native `Reflect.construct` ignoring `newTarget.prototype` for built-in constructors in [FF44](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472), fixing transpiled subclassing of constructors like `Array`
+- Fixed the `Reflect.construct` polyfill reading arguments after `newTarget.prototype` and reading the argument list length twice, which could lose arguments
 - Added missed detection of native `Array.from` and `%TypedArray%.from` accepting primitive iterator results after warmup in Safari 14
 - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
 - Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object

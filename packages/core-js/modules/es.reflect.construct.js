@@ -3,6 +3,8 @@ var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var apply = require('../internals/function-apply');
 var bind = require('../internals/function-bind');
+var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -10,6 +12,7 @@ var create = require('../internals/object-create');
 var fails = require('../internals/fails');
 
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
+var $Array = Array;
 var ObjectPrototype = Object.prototype;
 var push = [].push;
 
@@ -37,9 +40,10 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
     var newTarget = arguments.length < 3 ? Target : aConstructor(arguments[2]);
     anObject(args);
     if (ARGS_BUG && !NEW_TARGET_BUG) return nativeConstruct(Target, args, newTarget);
+    var length = lengthOfArrayLike(args);
     if (Target === newTarget) {
       // w/o altered newTarget, optimization for 0-4 arguments
-      switch (args.length) {
+      switch (length) {
         case 0: return new Target();
         case 1: return new Target(args[0]);
         case 2: return new Target(args[0], args[1]);
@@ -47,11 +51,13 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
         case 4: return new Target(args[0], args[1], args[2], args[3]);
       }
       // w/o altered newTarget, lot of arguments case
+      args = arrayFromConstructorAndList($Array, args, length);
       var $args = [null];
       apply(push, $args, args);
       return new (apply(bind, Target, $args))();
     }
     // with altered newTarget, not support built-in constructors
+    args = arrayFromConstructorAndList($Array, args, length);
     var proto = newTarget.prototype;
     var instance = create(isObject(proto) ? proto : ObjectPrototype);
     var result = apply(Target, instance, args);

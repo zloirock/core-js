@@ -1,5 +1,8 @@
+import { DESCRIPTORS } from '../helpers/constants.js';
+
 import construct from 'core-js-pure/es/reflect/construct';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+import defineProperty from 'core-js-pure/es/object/define-property';
 import isArray from 'core-js-pure/es/array/is-array';
 
 QUnit.test('Reflect.construct', assert => {
@@ -14,6 +17,35 @@ QUnit.test('Reflect.construct', assert => {
   assert.same(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
   A.apply = 42;
   assert.same(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
+  if (DESCRIPTORS) {
+    const Target = function (value) {
+      this.value = value;
+      this.argumentCount = arguments.length;
+    };
+    for (const NewTarget of [function () { /* empty */ }, Target]) {
+      const prototype = {};
+      const reads = [];
+      const args = {};
+      defineProperty(args, 'length', {
+        get() {
+          reads.push('length');
+          return reads.length === 1 ? 5 : 0;
+        },
+      });
+      defineProperty(args, '0', {
+        get() {
+          reads.push('0');
+          NewTarget.prototype = prototype;
+          return 42;
+        },
+      });
+      const result = construct(Target, args, NewTarget);
+      assert.same(getPrototypeOf(result), prototype, 'arguments are read before the new target prototype');
+      assert.same(result.value, 42, 'the collected argument reaches the constructor');
+      assert.same(result.argumentCount, 5, 'the first argument length is used');
+      assert.deepEqual(reads, ['length', '0'], 'argument length and values are read once');
+    }
+  }
   const instance = construct(function () {
     this.x = 42;
   }, [], Array);
