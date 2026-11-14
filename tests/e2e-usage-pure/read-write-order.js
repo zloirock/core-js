@@ -1,3 +1,5 @@
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+
 QUnit.test('a captured instance keeps its value after its source becomes a constructor', assert => {
   let current = 'ab';
   const captured = current;
@@ -21,6 +23,36 @@ QUnit.test('a written or escaped literal slot reads its live instance', assert =
   source.list = [3];
   const { list: { entries } = Object } = source;
   assert.deepEqual(entries.call(source.list).next().value, [0, 3]);
+});
+
+QUnit.test('an open receiver default serves an absent instance method and its static arm', assert => {
+  withTemporaryProperty(Array.prototype, 'entries', undefined, () => {
+    // eslint-disable-next-line sonarjs/prefer-object-literal -- The written slot must remain unknown to the source proof.
+    const source = {};
+    source.list = [3];
+    const { list: { entries } = Object } = source;
+    assert.deepEqual(entries.call(source.list).next().value, [0, 3]);
+  });
+  withTemporaryProperty(Object, 'entries', undefined, () => {
+    const source = Function('return {}')();
+    const { list: { entries } = Object } = source;
+    assert.deepEqual(entries({ a: 3 }), [['a', 3]]);
+  });
+});
+
+QUnit.test('an open receiver default retains the selected getter and custom method', assert => {
+  const log = [];
+  const receiver = { get entries() {
+    log.push('entries');
+    return function () { return this === receiver; };
+  } };
+  const source = { get list() {
+    log.push('list');
+    return receiver;
+  } };
+  const { list: { entries } = Object } = source;
+  assert.same(entries.call(receiver), true);
+  assert.deepEqual(log, ['list', 'entries']);
 });
 
 QUnit.test('a hoisted writer supplies the constructor read before its declaration', assert => {

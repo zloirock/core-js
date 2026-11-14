@@ -1,4 +1,7 @@
 // A source span ranks evaluations only inside the same synchronous slot and frame.
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { buildDestructureLeafMeta, classifyDestructureLeafHost } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import {
   aliasSlotWritten,
   readRunsBeforeWrites,
@@ -59,5 +62,23 @@ for (const method of ['usage-global', 'usage-pure']) {
   check(`${ method }/non-alias`, aliasSlotWritten({ type: 'ObjectExpression', properties: [] }, 'items', adapter), false);
 }
 check('no mutation adapter', aliasSlotWritten({ type: 'Identifier', name: 'box' }, 'items', null, { scope: {} }), false);
+
+for (const [label, source, key, object, guard, placement] of [
+  ['open default', 'const { list: { entries } = Object } = source;', 'entries', null, 'Object', 'static'],
+  ['born default', 'const source = {}; const { list: { entries } = Object } = source;', 'entries', 'Object', null, 'static'],
+  ['dead default', 'const { list: { entries } = Object } = { list: [3] };', 'entries', null, null, null],
+  ['static-only default', 'const { list: { fromEntries } = Object } = source;', 'fromEntries', 'Object', null, 'static'],
+  ['loop default mirror', 'for (const { list: { entries } = Object } of [source]) {}', 'entries', 'Object', null, 'static'],
+  ['parameter default mirror', 'function read({ list: { entries } = Object }) {}', 'entries', 'Object', null, 'static'],
+]) runBoth(label, source, (parser, program, row) => {
+  const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property',
+    item => item.parentPath.node.type === 'ObjectPattern' && item.node.key.name === key);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const meta = buildDestructureLeafMeta({ descriptor: classifyDestructureLeafHost({ objectPattern: prop.parentPath }), key, adapter });
+  check(`${ row }/receiver`, meta?.object, object);
+  check(`${ row }/guard`, meta?.guardedAliasHint ?? null, guard);
+  check(`${ row }/placement`, meta?.placement, placement);
+  checkDeep(`${ row }/static arms`, meta?.guardedWriteObjects ?? [], guard ? [guard] : []);
+});
 
 finish();

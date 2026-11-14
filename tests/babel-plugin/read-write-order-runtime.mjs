@@ -16,6 +16,8 @@ const TMP = path.join(import.meta.dirname, '../transpiler-differential/tmp');
 await fs.ensureDir(TMP);
 const DIR = await fs.mkdtemp(path.join(TMP, 'read-write-order-'));
 let count = 0;
+const stripIterators = path.join(DIR, 'strip-array-methods.mjs');
+await fs.outputFile(stripIterators, 'delete Array.prototype.entries; delete Array.prototype.keys; delete Array.prototype.values;');
 
 const cases = [
   ['written-default', 'const src = {}; src.list = [1, 2]; const { list: { entries } = Object } = src; r = entries.call(src.list).next().value;', [0, 1]],
@@ -24,6 +26,59 @@ const cases = [
     + 'fill(src); const { list: { entries } = Object } = src; r = entries.call(src.list).next().value;', [0, 1],
   ],
   ['pristine-default', 'const src = {}; const { list: { entries } = Object } = src; r = entries({ a: 1 });', [['a', 1]]],
+  ['opaque-default', 'const src = Function("return {}")(); const { list: { entries } = Object } = src; r = entries({ a: 1 });', [['a', 1]]],
+  [
+    'supplied-static-default', 'const src = Function("return { list: Object }")(); '
+    + 'const { list: { entries } = Object } = src; r = entries({ a: 1 });', [['a', 1]],
+  ],
+  [
+    'multiple-default', 'const src = Function("return { list: [1, 2] }")(); '
+    + 'const { list: { entries, keys } = Object } = src; r = [entries.call(src.list).next().value, keys.call(src.list).next().value];', [[0, 1], 0],
+  ],
+  [
+    'custom-default', 'const log = []; const receiver = { get entries() { log.push("entries"); return function () { return this === receiver; }; } }; '
+    + 'const src = { get list() { log.push("list"); return receiver; } }; const { list: { entries } = Object } = src; '
+    + 'r = [entries.call(receiver), log];', [true, ['list', 'entries']],
+  ],
+  [
+    'null-default', 'const src = { get list() { return null; } }; '
+    + 'try { const { list: { entries } = Object } = src; r = entries; } catch (error) { r = error.name; }', 'TypeError',
+  ],
+  [
+    'throw-default', 'const src = { get list() { throw new RangeError(); } }; '
+    + 'try { const { list: { entries } = Object } = src; r = entries; } catch (error) { r = error.name; }', 'RangeError',
+  ],
+  [
+    'key-default', 'const log = []; const src = { get list() { log.push("slot"); return [3]; } }; '
+    + 'const { [(log.push("key"), "list")]: { entries } = (log.push("default"), Object) } = src; '
+    + 'r = [entries.call([3]).next().value, log];', [[0, 3], ['key', 'slot']],
+  ],
+  [
+    'leaf-default', 'const src = Function("return { list: { entries: undefined } }")(); '
+    + 'const { list: { entries = () => 23 } = Object } = src; r = entries();', 23,
+  ],
+  [
+    'kept-default', 'const src = Function("return { list: [3] }")(); let entries; '
+    + 'const held = ({ list: { entries } = Object } = src); r = [held === src, entries.call(src.list).next().value];', [true, [0, 3]],
+  ],
+  [
+    'bodyless-default', 'const src = Function("return { list: [3] }")(); '
+    + 'if (true) var { list: { entries } = Object } = src; r = entries.call(src.list).next().value;', [0, 3],
+  ],
+  [
+    'nested-default', 'const src = Function("return { outer: { list: [3] } }")(); '
+    + 'const { outer: { list: { entries } = ((Object)) } } = ((src)); r = entries.call(src.outer.list).next().value;', [0, 3],
+  ],
+  [
+    'shadow-default', '{ const Object = { entries() { return 23; } }; const src = Function("return {}")(); '
+    + 'const { list: { entries } = Object } = src; r = entries(); }', 23,
+  ],
+  [
+    'loop-default', 'for (const { list: { entries } = Object } of [Function("return {}")()]) r = entries({ a: 3 });', [['a', 3]],
+  ],
+  [
+    'parameter-default', 'function read({ list: { entries } = Object }) { return entries; } r = read({})({ a: 3 });', [['a', 3]],
+  ],
   ['captured-alias', 'let cur = "ab"; const prev = cur; cur = Map; r = prev.at(0);', 'a'],
   ['captured-pattern', 'let cur = "ab"; const prev = cur; cur = Map; const { at } = prev; r = at.call(prev, 0);', 'a'],
   ['captured-optional', 'let cur = "ab"; const prev = cur; cur = Map; r = prev?.at(0);', 'a'],
@@ -82,7 +137,7 @@ const cases = [
 
 // Import assertions observe default branches that the stripped manifest deliberately retains.
 function checkGlobalImports(name, host, imports) {
-  if (name.endsWith('default')) {
+  if (['written-default', 'escaped-default', 'pristine-default'].includes(name)) {
     check(`${ name }/${ host }/possible instance`, imports.has('core-js/modules/es.array.entries'), name !== 'pristine-default');
     check(`${ name }/${ host }/possible static`, imports.has('core-js/modules/es.object.entries'), true);
   }
@@ -109,11 +164,23 @@ try {
         if (host === 'native' && method === 'usage-pure') continue;
         const imports = new Set(importSet(output));
         if (host !== 'native' && method === 'usage-global') checkGlobalImports(name, host, imports);
+        if (method === 'usage-pure' && (name === 'loop-default' || name === 'parameter-default')) {
+          check(`${ name }/${ host }/static default import`, imports.has('core-js/actual/object/entries'), true);
+        }
         const file = path.join(DIR, `case-${ count++ }.mjs`);
         await fs.outputFile(file, output);
         const expected = `OK|${ JSON.stringify(result) }|[]`;
         check(`${ name }/${ method }/${ host }/full`, await runInWorker(file, { strip: false }), expected);
-        if (host !== 'native') check(`${ name }/${ method }/${ host }/stripped`, await runInWorker(file), expected);
+        if (host === 'native') continue;
+        check(`${ name }/${ method }/${ host }/stripped`, await runInWorker(file), expected);
+        // The general strip set keeps Symbol and its iterator methods together. This
+        // separate realm exposes missing instance injection even on a modern Node.
+        if (name.endsWith('default')) {
+          const isolated = path.join(DIR, `missing-iterator-${ count }.mjs`);
+          await fs.outputFile(isolated, `import ${ JSON.stringify(pathToFileURL(stripIterators).href) };\n`
+            + `export * from ${ JSON.stringify(pathToFileURL(file).href) };`);
+          check(`${ name }/${ method }/${ host }/missing iterator`, await runInWorker(isolated), expected);
+        }
       }
     }
   }

@@ -1625,7 +1625,8 @@ function planRetainedObjectCaptureShape({
   } : resolvedMeta;
   const guarded = !!guardMeta?.guardedAliasHint && (kind === 'instance' || guardedFallback || guardedRealm);
   if (guarded && pattern?.type === 'ObjectPattern' && !pattern.properties.includes(prop)) {
-    const capture = planNestedKeyedPatternCapture({ pattern, init, allowArray: true, ctx })
+    // Even a sole defaulted leaf must share its selected receiver with the identity guard.
+    const capture = planNestedKeyedPatternCapture({ pattern, init, allowArray: true, holdsReceiver: true, ctx })
       ?? planNestedKeyedPatternCapture({ pattern, init, force: true, allowArray: true, ctx });
     if (capture && (capture.leafPattern.type === 'ArrayPattern' || capture.leafPattern.properties.includes(prop))) {
       const innerPlan = planRetainedObjectCapture({

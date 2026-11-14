@@ -10652,6 +10652,21 @@ function liveSlotStaticMeta({ outerProp, objectPattern }, { key, read, adapter, 
   return null;
 }
 
+// An open inner default supplies only one receiver arm. The ordinary fallback guard
+// keeps its static and dispatches the same key on a supplied instance. Its ordered
+// capture owns declarations with initializers and assignments; parameter and loop-head
+// defaults retain their independent source mirrors.
+function openDefaultInstanceMeta({ outerProp, objectPattern }, own, adapter) {
+  if (adapter.method !== 'usage-pure' || !own?.object || own.placement !== 'static'
+    || outerProp.node.value?.type !== 'AssignmentPattern'
+    || resolveBuiltIn({ kind: 'property', object: null, key: own.key, placement: null })?.kind !== 'instance') return null;
+  const host = destructurePatternHostPath(objectPattern)?.node;
+  if (!(host?.type === 'VariableDeclarator' && host.init || host?.type === 'AssignmentExpression')
+    || resolveNestedDestructureReceiver(outerProp, adapter, null, { innerDefault: false })) return null;
+  const arms = nearestInnerDefaultArms(objectPattern, adapter);
+  return arms?.size && [...arms].every(verdict => verdict === 'born') ? null : fallbackDestructureMeta(own, null, adapter);
+}
+
 // A literal parameter default governs only its own branch. A shared instance key still
 // dispatches on supplied values; its helper reads a constructor's native static unchanged.
 // An unclaimed constructor slot stays native, including an independent inner default.
@@ -10817,7 +10832,8 @@ export function buildDestructureLeafMeta({
           ?? pairedBindingLeafMeta(descriptor.objectPattern, {
             key, adapter, unionSink, resolveStaticKey, parameterCallSites, resolvePure,
           });
-      return liveSlotStaticMeta(descriptor, { key, read, adapter, resolvePure, own, unionSink }) ?? own;
+      return liveSlotStaticMeta(descriptor, { key, read, adapter, resolvePure, own, unionSink })
+        ?? openDefaultInstanceMeta(descriptor, own, adapter) ?? own;
     }
     case 'array': {
       if (!key) return null;

@@ -24991,6 +24991,28 @@ function * generateReadWriteOrder() {
   };
 }
 
+// A live nested default joins a static receiver with a supplied instance in one captured slot.
+function * generateOpenInstanceDefaults() {
+  for (const [selection, value] of [
+    ['array', '[3]'],
+    ['default', 'undefined'],
+    ['static', 'Object'],
+    ['custom', '{ get entries() { effects.push("method"); return function () { return [["custom", this === supplied]]; }; } }'],
+  ]) for (const [host, read] of [
+    ['declaration', 'const { list: { entries } = (effects.push("default"), Object) } = source; result = entries;'],
+    ['assignment', 'let entries; ({ list: { entries } = (effects.push("default"), Object) } = source); result = entries;'],
+    ['for-init', 'for (const { list: { entries } = (effects.push("default"), Object) } = source; ; ) { result = entries; break; }'],
+  ]) yield {
+    name: `open-instance-default/${ selection }-${ host }`, strip: true, isolated: true,
+    code: `export let r; export const effects = [];
+      const supplied = ${ value };
+      const source = { get list() { effects.push('slot'); return supplied; } };
+      let result; ${ read }
+      const value = result.call(supplied, { a: 3 });
+      r = Array.isArray(value) ? value : value.next().value;`,
+  };
+}
+
 // Disabled callers and receiver slots keep native identity while an independent claim stays live.
 function * generateOptOutReceivers() {
   const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
@@ -26984,4 +27006,5 @@ export function * generate() {
   yield * generateMutatedReceiverReads();
   yield * generateReadWriteOrder();
   yield * generateOptOutReceivers();
+  yield * generateOpenInstanceDefaults();
 }
