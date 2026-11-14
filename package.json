@@ -48,6 +48,8 @@
     "test-unit-node": "npm run zxi time tests/unit-node/runner.mjs",
     "test-unit-bun": "npm run zxi time cd tests/unit-bun/runner.mjs",
     "test-unit-deno": "npm run zxi time cd tests/unit-deno/runner.mjs",
+    "test-saucelabs": "npm run zxi -- time tests/saucelabs/unit.mjs",
+    "test-saucelabs-matrix": "npm run zxi tests/saucelabs/index.mjs",
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
     "test-observables": "npm run zxi time cd tests/observables/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",

@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ matrix.branch }}
+          ref: ${{ matrix.branch == github.ref_name && github.sha || matrix.branch }}
       - name: Build cache key
         id: cache-key
         env:
@@ -86,6 +86,15 @@ jobs:
         with:
           path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
+      # after the cache save, so a restored build is marked too; the query bypasses the Pages CDN cache
+      - name: Mark the commit of the artifacts
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "$sha" > "$SAFE_BRANCH/commit.txt"
+          sed -i "s#\(src='[^':?]*\.js\)'#\1?$sha'#g" "$SAFE_BRANCH"/unit-browser/*.html
+          for bundle in "$SAFE_BRANCH"/bundles/*.js; do
+            printf '\n;(window.bundleCommits = window.bundleCommits || []).push("%s");\n' "$sha" >> "$bundle"
+          done
       - name: Upload artifacts for branch ${{ matrix.branch }}
         uses: actions/upload-artifact@v7
         with:
@@ -106,18 +115,43 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
+      testable: ${{ steps.built.outputs.built == 'true' && (steps.deployment.outcome == 'success' || steps.deployment-retry.outcome == 'success') }}
     steps:
       - uses: actions/checkout@v7
+      - name: Check the triggering branch before publishing
+        id: current
+        run: |
+          head=$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping stale deployment: $GITHUB_SHA is not the head of $GITHUB_REF_NAME"
+          fi
       - name: Download artifacts
+        if: steps.current.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
           path: pages
       # artifacts are shared by all attempts of a run, so a re-run downloads the Pages artifact of the previous attempt
       - name: Drop Pages artifacts of previous attempts
+        if: steps.current.outputs.publish == 'true'
         run: rm -rf pages/github-pages*
+      - name: Check the pages of the triggering commit
+        id: built
+        if: steps.current.outputs.publish == 'true'
+        run: |
+          if [ "$(cat "pages/${GITHUB_REF_NAME//\//-}/commit.txt" 2>/dev/null)" = "$GITHUB_SHA" ]; then
+            echo 'built=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::no pages of $GITHUB_SHA were built, the Sauce Labs run is skipped"
+          fi
       - name: Setup Pages
+        if: steps.current.outputs.publish == 'true'
         uses: actions/configure-pages@v6
       - name: Upload GitHub Pages artifact
+        if: steps.current.outputs.publish == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: pages
@@ -127,13 +161,56 @@ jobs:
       # See https://github.com/actions/deploy-pages/issues/406.
       - name: Deploy to GitHub Pages
         id: deployment
+        if: steps.current.outputs.publish == 'true'
         continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
       - name: Deploy to GitHub Pages (retry)
         id: deployment-retry
-        if: steps.deployment.outcome == 'failure'
+        if: steps.current.outputs.publish == 'true' && steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
+
+  sauce-labs:
+    needs: [list-branches, combine-pages-and-deploy]
+    if: needs.combine-pages-and-deploy.outputs.testable == 'true' && github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
+    runs-on: ubuntu-latest
+    # the old engines still have open failures
+    continue-on-error: true
+    permissions:
+      contents: read
+    # not the Pages group, so a Sauce Labs run does not hold the deployment slot
+    concurrency:
+      group: sauce-labs-${{ github.ref }}
+      cancel-in-progress: true
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm run prepare-monorepo
+      # HTTP, since Firefox before 27 cannot negotiate the TLS of the Pages CDN; `@uri` for `#` and `%` in branch names
+      - run: |
+          url=${PAGE_URL/#https:/http:}
+          npm run test-saucelabs -- "${url%/}/$(jq -rn --arg branch "${GITHUB_REF_NAME//\//-}" '$branch | @uri')" "$GITHUB_SHA"
+        env:
+          PAGE_URL: ${{ needs.combine-pages-and-deploy.outputs.page-url }}
+          SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+          SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
+          SAUCE_SESSIONS_FILE: ${{ runner.temp }}/sauce-sessions
+      - name: Close the Sauce Labs sessions of a cancelled run
+        if: cancelled()
+        run: |
+          [ -f "$SAUCE_SESSIONS_FILE" ] || exit 0
+          while read -r id; do
+            curl -sS -o /dev/null --max-time 30 -u "$SAUCE_USERNAME:$SAUCE_ACCESS_KEY" -X DELETE \
+              "https://ondemand.us-west-1.saucelabs.com/wd/hub/session/$id" || true
+          done < "$SAUCE_SESSIONS_FILE"
+        env:
+          SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+          SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
+          SAUCE_SESSIONS_FILE: ${{ runner.temp }}/sauce-sessions
