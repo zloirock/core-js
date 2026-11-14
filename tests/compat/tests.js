@@ -1179,8 +1179,14 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       } catch (error2) {
         Infinity.toExponential(Infinity);
         NaN.toExponential(Infinity);
-        return (-6.9e-11).toExponential(4) === '-6.9000e-11'
+        1.0.toExponential(100);
+        // Rhino 1.8.0-
+        return 2.5e-323.toExponential() === '2.5e-323'
+          && 2.5e-323.toExponential(0) === '2e-323'
+          && (-6.9e-11).toExponential(4) === '-6.9000e-11'
           && 1.255.toExponential(2) === '1.25e+0'
+          // Chakra-based Edge
+          && 0.35.toExponential(0) === '3e-1'
           // FF86-, V8 ~ Chrome 49-50
           && (12345).toExponential(3) === '1.235e+4'
           && (25).toExponential(0) === '3e+1';
@@ -1191,17 +1197,32 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     try {
       Number.prototype.toFixed.call({});
     } catch (error) {
+      1.0.toFixed(100);
       return 0.00008.toFixed(3) === '0.000'
         && 0.9.toFixed(0) === '1'
         && 1.255.toFixed(2) === '1.25'
-        && 1000000000000000128.0.toFixed(0) === '1000000000000000128';
+        && 1000000000000000128.0.toFixed(0) === '1000000000000000128'
+        // Rhino 1.8.0-
+        && 5.054e-321.toFixed(0) === '0';
     }
   },
   'es.number.to-precision': function () {
     try {
       Number.prototype.toPrecision.call({});
     } catch (error) {
-      return 1.0.toPrecision(undefined) === '1';
+      Infinity.toPrecision(Infinity);
+      NaN.toPrecision(Infinity);
+      1.0.toPrecision(100);
+      return 1.0.toPrecision(undefined) === '1'
+        // IE11-, Chakra-based Edge
+        && 1.255.toPrecision(3) === '1.25'
+        // FF86-
+        && (12345).toPrecision(4) === '1.235e+4'
+        && (25).toPrecision(1) === '3e+1'
+        // Rhino 1.8.1+
+        && 0.03125.toPrecision(21) === '0.0312500000000000000000'
+        // Rhino 1.8.0-
+        && 2.5e-323.toPrecision(1) === '2e-323';
     }
   },
   'es.object.assign': function () {

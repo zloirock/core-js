@@ -1,12 +1,47 @@
 import toFixed from 'core-js-pure/es/number/to-fixed';
 
 QUnit.test('Number#toFixed', assert => {
+  const zeros = count => Array(count + 1).join('0');
   assert.isFunction(toFixed);
   assert.same(toFixed(0.00008, 3), '0.000');
   assert.same(toFixed(0.9, 0), '1');
   assert.same(toFixed(1.255, 2), '1.25');
   assert.same(toFixed(1843654265.0774949, 5), '1843654265.07749');
   assert.same(toFixed(1000000000000000128, 0), '1000000000000000128');
+  // the rounding position
+  assert.same(toFixed(0.5, 0), '1');
+  assert.same(toFixed(2.5, 0), '3');
+  assert.same(toFixed(-1.5, 0), '-2');
+  assert.same(toFixed(0.4, 0), '0');
+  assert.same(toFixed(0.6, 0), '1');
+  assert.same(toFixed(9.5, 0), '10');
+  assert.same(toFixed(999.5, 0), '1000');
+  assert.same(toFixed(0.9995, 3), '1.000');
+  assert.same(toFixed(0.05, 1), '0.1');
+  assert.same(toFixed(0.005, 2), '0.01');
+  assert.same(toFixed(1.005, 2), '1.00');
+  assert.same(toFixed(8.345, 2), '8.35');
+  assert.same(toFixed(4.35, 1), '4.3');
+  assert.same(toFixed(1e-10, 5), '0.00000');
+  assert.same(toFixed(-0.0001, 2), '-0.00');
+  assert.same(toFixed(0, 2), '0.00');
+  assert.same(toFixed(-0, 2), '0.00');
+  assert.same(toFixed(999999999999999900000, 2), '999999999999999868928.00');
+  // subnormals, Rhino 1.8.0- bugs
+  assert.same(toFixed(5.054e-321, 0), '0');
+  assert.same(toFixed(1.29516e-318, 16), '0.0000000000000000');
+  assert.same(toFixed(-2.5e-323, 2), '-0.00');
+  // up to 100 fraction digits
+  assert.same(toFixed(1.5, 21), '1.500000000000000000000');
+  assert.same(toFixed(-1.5, 30), '-1.500000000000000000000000000000');
+  assert.same(toFixed(0.1, 55), '0.1000000000000000055511151231257827021181583404541015625');
+  assert.same(toFixed(1e-30, 40), '0.0000000000000000000000000000010000000000');
+  assert.same(toFixed(123456789012345680000, 30), `123456789012345683968.${ zeros(30) }`);
+  assert.same(toFixed(1, 100), `1.${ zeros(100) }`);
+  assert.same(toFixed(0.000001, 100), '0.0000009999999999999999547481118258862586856139387236908078193664550781250000000000000000000000000000');
+  assert.same(toFixed(5e-101, 100), `0.${ zeros(99) }1`);
+  assert.same(toFixed(4e-101, 100), `0.${ zeros(100) }`);
+  assert.same(toFixed(Number.MIN_VALUE, 100), `0.${ zeros(100) }`);
   assert.same(toFixed(1), '1');
   assert.same(toFixed(1, 0), '1');
   assert.same(toFixed(1, 1), '1.0');
@@ -55,9 +90,9 @@ QUnit.test('Number#toFixed', assert => {
   assert.same(toFixed(1e21, NaN), String(1e21));
   assert.same(toFixed(1e21, 'some string'), String(1e21));
   assert.returns(() => toFixed(1e21, -0.1), String(1e21));
-  assert.throws(() => toFixed(1, -101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
-  assert.throws(() => toFixed(1, 101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
-  assert.throws(() => toFixed(NaN, Infinity), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
+  assert.throws(() => toFixed(1, -101), RangeError, 'If f < 0 or f > 100, throw a RangeError exception.');
+  assert.throws(() => toFixed(1, 101), RangeError, 'If f < 0 or f > 100, throw a RangeError exception.');
+  assert.throws(() => toFixed(NaN, Infinity), RangeError, 'If f < 0 or f > 100, throw a RangeError exception.');
   assert.throws(() => toFixed({}, 1), TypeError, '? thisNumberValue(this value)');
   assert.throws(() => toFixed('123', 1), TypeError, '? thisNumberValue(this value)');
   assert.throws(() => toFixed(false, 1), TypeError, '? thisNumberValue(this value)');

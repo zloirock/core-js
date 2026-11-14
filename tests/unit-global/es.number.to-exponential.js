@@ -1,5 +1,6 @@
 QUnit.test('Number#toExponential', assert => {
   const { toExponential } = Number.prototype;
+  const zeros = count => Array(count + 1).join('0');
   assert.isFunction(toExponential);
   assert.name(toExponential, 'toExponential');
   assert.arity(toExponential, 1);
@@ -120,6 +121,8 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(12.475, 3), '1.247e+1');
   assert.same(toExponential.call(4.675345, 5), '4.67535e+0');
   assert.same(toExponential.call(0.068565, 3), '6.857e-2');
+  assert.same(toExponential.call(0.35, 0), '3e-1'); // Chakra-based Edge bug
+  assert.same(toExponential.call(0.825, 2), '8.25e-1'); // Chakra-based Edge bug
   // values next to a power of ten
   assert.same(toExponential.call(9.999999999999901e+299, 14), '9.99999999999990e+299');
   assert.same(toExponential.call(9.999999999999901e+299, 13), '9.9999999999999e+299');
@@ -129,6 +132,16 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(9.999999999999998, 0), '1e+1');
   // an exact rounding half carries through all nines
   assert.same(toExponential.call(9.5, 0), '1e+1');
+  // up to 100 fraction digits
+  assert.same(toExponential.call(1, 21), '1.000000000000000000000e+0');
+  assert.same(toExponential.call(25, 21), '2.500000000000000000000e+1');
+  assert.same(toExponential.call(-1.5, 30), '-1.500000000000000000000000000000e+0');
+  assert.same(toExponential.call(0.1, 55), '1.0000000000000000555111512312578270211815834045410156250e-1');
+  assert.same(toExponential.call(0.000001, 25), '9.9999999999999995474811183e-7');
+  assert.same(toExponential.call(1, 100), `1.${ zeros(100) }e+0`);
+  assert.same(toExponential.call(123.456, 100), `1.234560000000000030695446184836328029632568359375${ zeros(52) }e+2`);
+  assert.same(toExponential.call(Number.MAX_VALUE, 100), '1.7976931348623157081452742373170435679807056752584499659891747680315726078002853876058955863276687817e+308');
+  assert.same(toExponential.call(Number.MIN_VALUE, 100), '4.9406564584124654417656879286822137236505980261432476442558568250067550727020875186529983636163599238e-324');
 
   assert.same(toExponential.call(Number.prototype, 0), '0e+0', 'Number.prototype, 0');
   assert.same(toExponential.call(0, 0), '0e+0', '0, 0');
@@ -152,12 +165,32 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(Number.MIN_VALUE, 0), '5e-324', 'MIN_VALUE, 0');
   assert.same(toExponential.call(Number.MIN_VALUE, 1), '4.9e-324', 'MIN_VALUE, 1');
   assert.same(toExponential.call(1e-323, 0), '1e-323', '1e-323, 0');
+  // subnormals, Rhino 1.8.0- bugs
+  assert.same(toExponential.call(2.5e-323, 0), '2e-323', '2.5e-323, 0');
+  assert.same(toExponential.call(2.5e-323, 2), '2.47e-323', '2.5e-323, 2');
+  assert.same(toExponential.call(2.47936e-318, 0), '2e-318', '2.47936e-318, 0');
+  assert.same(toExponential.call(5.054e-321, 3), '5.054e-321', '5.054e-321, 3');
+  assert.same(toExponential.call(2.5e-323), '2.5e-323', '2.5e-323');
+  assert.same(toExponential.call(5.054e-321), '5.054e-321', '5.054e-321');
+  // without fraction digits
+  assert.same(toExponential.call(123.456), '1.23456e+2');
+  assert.same(toExponential.call(-123.456), '-1.23456e+2');
+  assert.same(toExponential.call(1000), '1e+3');
+  assert.same(toExponential.call(120000), '1.2e+5');
+  assert.same(toExponential.call(0.000001), '1e-6');
+  assert.same(toExponential.call(0.00012), '1.2e-4');
+  assert.same(toExponential.call(1.5e-7), '1.5e-7');
+  assert.same(toExponential.call(1.5e+25), '1.5e+25');
+  assert.same(toExponential.call(0), '0e+0');
+  assert.same(toExponential.call(-0), '0e+0');
+  assert.same(toExponential.call(Infinity), 'Infinity');
+  assert.same(toExponential.call(Number.MAX_VALUE), '1.7976931348623157e+308');
 
   assert.same(toExponential.call(NaN, 1000), 'NaN', 'NaN check before fractionDigits check');
   assert.same(toExponential.call(Infinity, 1000), 'Infinity', 'Infinity check before fractionDigits check');
   assert.returns(() => toExponential.call(new Number(1e21), -0.1), '1e+21');
-  assert.throws(() => toExponential.call(1.0, -101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
-  assert.throws(() => toExponential.call(1.0, 101), RangeError, 'If f < 0 or f > 20 (100), throw a RangeError exception.');
+  assert.throws(() => toExponential.call(1.0, -101), RangeError, 'If f < 0 or f > 100, throw a RangeError exception.');
+  assert.throws(() => toExponential.call(1.0, 101), RangeError, 'If f < 0 or f > 100, throw a RangeError exception.');
   assert.throws(() => toExponential.call({}, 1), TypeError, '? thisNumberValue(this value)');
   assert.throws(() => toExponential.call('123', 1), TypeError, '? thisNumberValue(this value)');
   assert.throws(() => toExponential.call(false, 1), TypeError, '? thisNumberValue(this value)');
