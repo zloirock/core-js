@@ -22,14 +22,21 @@ export { pureImportSourceEntry } from './path-normalize.js';
 // it lives here, at the bottom, so the census and its readers need no import of each other
 export const ESCAPED_CONTAINER_NAMES = new WeakMap();
 
-// Selected values of fixed local member callees, found by the file census. Receiver-name
-// resolution follows their returns while preserving the call; the proof stays with the census.
+// Program -> source-position map of fixed local member callees found by the file census.
+// Receiver-name resolution follows their returns while preserving the call. Source clones
+// keep this proof; a new parse or census gets its own map.
 export const LOCAL_MEMBER_CALLEES = new WeakMap();
 
-// Read-only parameters supplied by one built-in at every closed call site. Published by the
-// escape census and reset when that census visits the parameter's owner again. The scoped
+// Program -> source-position map of read-only parameters supplied by one built-in at every
+// closed call site. Reset with the escape census, including facts for cloned parameters. The scoped
 // resolver validates only these candidates; unrelated parameters never need its caller walk.
 export const PARAMETER_STATIC_SOURCES = new WeakMap();
+
+// Read a file census fact at the same source site after a host has cloned its subtree.
+// Positionless nodes can only match themselves; identical offsets in another file cannot match.
+export function sourceCensusFact(table, node, path) {
+  return node && table.get(rootProgramOf(path))?.get(nodePositionKey(node) ?? node);
+}
 
 const capturedKeyedPatterns = new WeakSet();
 // Record the original pattern before moving its leaf onto a captured receiver.
@@ -7369,10 +7376,13 @@ export function classStaticSlotMember(classNode, key, {
 
 // ... and the one a CALL through that key reaches, where a caller census keyed on the class's binding
 // can count every call of it, or null: a decorator may replace the class or the member, a static whose
-// key no canon names may be this one, and an accessor runs a getter instead
-export function classStaticCallSlot(classNode, key) {
+// key no canon names may be this one, and an accessor runs a getter instead. Private keys
+// select only private declarations, never a public string spelling the same name.
+export function classStaticCallSlot(classNode, key, privateKey = false) {
   if (key === null || !classStaticsCallable(classNode)) return null;
-  const slot = classStaticSlotMember(classNode, key);
+  const slot = classStaticSlotMember(classNode, key, privateKey ? {
+    keyOf: member => privateNameSpelling(member.key), ignoreUnknown: true,
+  } : {});
   return slot && !slot.decorators?.length && (slot.kind === 'method' || CLASS_DATA_FIELD_TYPES.has(slot.type)) ? slot : null;
 }
 

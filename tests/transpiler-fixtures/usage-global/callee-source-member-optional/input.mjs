@@ -1,0 +1,12 @@
+// Static reads inside instance-call arguments retain their constructor and effects.
+const effects = [];
+let r;
+const out = [];
+const o = {
+  make() {
+    return Array;
+  }
+};
+out.push(o.make()?.from([3]));
+r = out;
+export { r, effects };

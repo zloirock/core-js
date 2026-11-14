@@ -137,6 +137,7 @@ import {
   SELECTION_TEST_FIELDS,
   SKIPPABLE_WRAPPER_TYPES,
   soleChainToProp,
+  sourceCensusFact,
   spelledSlotName,
   staticMemberFromEntrySegment,
   staticMemberKeyName,
@@ -1784,13 +1785,13 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   }
   if (binding?.kind === 'param' && bindingType === 'Identifier' && !binding.constantViolations?.length) {
     const parameter = binding.path ?? binding.declarationPath;
-    const candidate = PARAMETER_STATIC_SOURCES.get(parameter?.node);
+    const candidate = sourceCensusFact(PARAMETER_STATIC_SOURCES, parameter?.node, path);
     if (typeof candidate !== 'string') {
       const source = adapter.parameterStaticSources?.get(parameter?.node);
       return typeof source === 'string' ? source : null;
     }
     // The closed-source proof describes the original parameter, like the file census. Own
-    // rewrites only replace its proven reads; a new parse/relocated parameter has a new node.
+    // rewrites and their source clones keep that proof; a new parse gets a new census.
     // Cache refusals too: an opaque receiver must not rescan the body at every member read.
     const cache = adapter.parameterStaticSources;
     if (cache?.has(parameter.node)) {
@@ -3737,7 +3738,7 @@ export function resolveInlineCalleeFunction(hop, {
       declinedSink?.push(hop.node);
       return false;
     }
-    const local = !cycleGuardHas(seen, member) && LOCAL_MEMBER_CALLEES.get(member);
+    const local = binding && !cycleGuardHas(seen, member) && sourceCensusFact(LOCAL_MEMBER_CALLEES, member, path);
     if (!binding || !local) return false;
     seen.add(member);
     callee = local;
@@ -3908,7 +3909,7 @@ function patternMethodSlot(declarator, name, ctx) {
 function finishInlineCallee({ hop, callee, args, argsUnknown, scope, seen, allowIdentityParam, allowAsync }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration' && callee.type !== 'ObjectMethod'
-    && !(callee.type === 'ClassMethod' && callee.static && callee.kind === 'method'))
+    && !((callee.type === 'ClassMethod' || callee.type === 'ClassPrivateMethod') && callee.static && callee.kind === 'method'))
     || (callee.params?.length && !allowIdentityParam)
     || (callee.async && !allowAsync) || callee.generator) return null;
   // A named function expression binds its own name, outside the declaration scope carried here.
