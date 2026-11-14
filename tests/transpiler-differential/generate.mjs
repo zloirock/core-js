@@ -25590,6 +25590,7 @@ export function * generate() {
   ]) yield { name: `printer-script-lookahead/${ shape }`, sourceType: 'script', strip: true,
     code: `${ body } module.exports = { r, effects: [[7].at(0)] };` };
   yield * generateNestedReceiverRoots();
+  yield * generateGuardedKeys();
 }
 
 // Nested instance roots retain their evaluation, while defaults below rest own only their arm.
@@ -26136,6 +26137,184 @@ function * generateNestedReceiverRoots() {
             return [value, root.slotD];
           })));
       `,
+    };
+  }
+}
+
+// Nullable symbol keys, nested receiver prefixes and delete continuations share both hosts.
+function * generateGuardedKeys() {
+  const nullableHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const [name, body, window, ts = false] of [
+    [
+      'optional-symbol-read',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; return typeof list[globalThis.window?.Symbol.iterator];',
+      true,
+    ],
+    [
+      'optional-symbol-call',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; return list[globalThis.window?.Symbol.iterator]();',
+      true,
+    ],
+    [
+      'optional-symbol-declaration',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; const { [globalThis.window?.Symbol.iterator]: it } = list; return typeof it;',
+      true,
+    ],
+    [
+      'optional-symbol-assignment',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; let it; ({ [globalThis.window?.Symbol.iterator]: it } = list); return typeof it;',
+      true,
+    ],
+    [
+      'optional-symbol-parameter',
+      'const list = { undefined: 23, [Symbol.iterator]() { return 31; } }; function pick({ [globalThis.window?.Symbol.iterator]: it }) { return typeof it; } return pick(list);',
+      true,
+    ],
+    [
+      'optional-symbol-in',
+      'const list = { undefined: 23 }; return globalThis.window?.Symbol.iterator in list;',
+      true,
+    ],
+    [
+      'nested-symbol-effects',
+      'const list = [1]; const it = list[(effects.push(1), (effects.push(2), Symbol)).iterator]; return it.call(list).next().value;',
+      false,
+    ],
+    [
+      'nested-symbol-hop-effects',
+      'const list = [1]; const it = list[(effects.push(1), (effects.push(2), globalThis[(effects.push(3), "Symbol")])).iterator]; return it.call(list).next().value;',
+      false,
+    ],
+    [
+      'nested-symbol-call-effects',
+      `const list = [1];
+        const get = () => (effects.push(3), globalThis);
+        const it = list[(effects.push(1), (effects.push(2), get()))[(effects.push(4), "Symbol")].iterator];
+        return it.call(list).next().value;`,
+      false,
+    ],
+    [
+      'nested-symbol-pattern-effects',
+      'const list = [1]; const { [(effects.push(1), (effects.push(2), Symbol)).iterator]: it } = list; return it.call(list).next().value;',
+      false,
+    ],
+    [
+      'nested-guarded-read',
+      'let C = Map; if (choice) C = Set; return typeof (effects.push(1), (effects.push(2), C)).groupBy;',
+      false,
+    ],
+    [
+      'nested-guarded-call',
+      'let C = Map; if (choice) C = Set; return (effects.push(1), (effects.push(2), C)).groupBy([1, 2], x => x % 2).size;',
+      false,
+    ],
+    [
+      'nested-guarded-pattern',
+      'let C = Map; if (choice) C = Set; const { groupBy } = (effects.push(1), (effects.push(2), C)); return typeof groupBy;',
+      false,
+    ],
+    [
+      'nested-guarded-throw',
+      'let C = Map; if (choice) C = Set; return (effects.push(1), (missingPrefix, C)).groupBy;',
+      false,
+    ],
+    [
+      'guarded-delete-tail',
+      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k.k; return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-parentheses',
+      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]]).k.k); return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-sealed',
+      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]])).k.k; return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-key',
+      `const obj = { k: 1 };
+        const result = delete (choice ? Object : null)?.fromEntries((effects.push("args"), [["k", obj]])).k[(effects.push("key"), "k")];
+        return [result, "k" in obj];`,
+      false,
+    ],
+    [
+      'guarded-delete-optional-tail',
+      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k?.k; return [result, "k" in obj];',
+      false,
+    ],
+    [
+      'guarded-delete-argument',
+      `const obj = { k: 1 };
+        const target = { take(x) { effects.push(typeof x);
+        return obj;
+        } };
+        const result = delete target.take((choice ? Object : null)?.fromEntries([])).k;
+        return [result, "k" in obj];`,
+      false,
+    ],
+    [
+      'nested-symbol-throw',
+      'const list = [1]; return list[(effects.push(1), (missingPrefix, Symbol)).iterator];',
+      false,
+    ],
+    [
+      'selected-symbol',
+      'const list = [1]; return ((effects.push("choose"), choice) ? globalThis : self).Symbol.iterator in list;',
+      false,
+    ],
+    [
+      'shadow-symbol',
+      'const Symbol = { iterator: "slot" }; const list = { slot: 17 }; return list[(effects.push(1), (effects.push(2), Symbol)).iterator];',
+      false,
+    ],
+    [
+      'guarded-delete-nonnull',
+      'const obj = { k: 1 }; const result = delete (choice ? Object : null)?.fromEntries([["k", obj]])!.k.k; return [result, "k" in obj];',
+      false,
+      true,
+    ],
+    [
+      'guarded-delete-cast',
+      'const obj = { k: 1 }; const result = delete ((choice ? Object : null)?.fromEntries([["k", obj]]) as any).k.k; return [result, "k" in obj];',
+      false,
+      true,
+    ],
+    [
+      'guarded-delete-optional-call',
+      'return delete (choice ? Object : null).fromEntries?.([]);',
+      false,
+    ],
+    [
+      'guarded-delete-double-optional',
+      'return delete (choice ? Object : null)?.fromEntries?.([]);',
+      false,
+    ],
+    [
+      'guarded-delete-key-claim',
+      `const obj = { k: 1 };
+      const result = delete (choice ? Object : null)?.fromEntries([["k", obj]]).k[(effects.push([7].at(-1)), "k")];
+      return [result, "k" in obj];`,
+      false,
+    ],
+    [
+      'nested-guarded-siblings',
+      `let C = Map;
+      if (choice) C = Set;
+      const { groupBy, name } = (effects.push(1), (effects.push(2), C));
+      return [typeof groupBy, typeof name];`,
+      false,
+    ],
+  ]) {
+    for (const present of window ? [false, true] : [false]) yield {
+      name: `guarded-keys/${ name }/${ present }`, strip: true, isolated: true, ts,
+      code: `import { withWindowPresence } from ${ JSON.stringify(nullableHost) };
+        export const effects = []; function read(choice) { ${ body } }
+        export const r = withWindowPresence(${ present }, () => [false, true].map(choice => {
+          try { return read(choice); } catch (error) { return error.name; }
+        }));`,
     };
   }
 }

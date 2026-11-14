@@ -1,5 +1,6 @@
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+// A prefix read stays before the guard, even when the source spells a quiet expression.
 // the REFUSED-alias guarded narrow renders for the SOLE-ASSIGNMENT host exactly as for the
 // declarator host (`g = (se, M === _Map ? _Map$groupBy : M.groupBy)`) - the raw read off a
 // claimed alias answered `undefined` where every engine with the ctor answers the member
@@ -11,6 +12,6 @@ let vg;
 export const viaValueHost = (() => {
   let M;
   if (n === 0) M = _Map;
-  const v = (vg = M === _Map ? _Map$groupBy : M.groupBy, M);
+  const v = (vg = (n, M === _Map ? _Map$groupBy : M.groupBy), M);
   return [typeof vg, v === M];
 })();

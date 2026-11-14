@@ -5353,7 +5353,10 @@ function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
     }
     return resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path, read: node }) === 'Symbol';
   }
-  return globalProxyMemberName({ node, scope, adapter, path }) === 'Symbol';
+  // A realm returned by a call or selected between two realm spellings uses the same
+  // scoped value proof as ordinary global reads. Only a Symbol-shaped leaf needs it.
+  return staticMemberKeyName(node) === 'Symbol'
+    && resolveObjectName({ objectNode: node, scope, adapter, seen, path }) === 'Symbol';
 }
 
 // may a name's declaration hold `Symbol` - its init a name, a selection or a `.Symbol` read - the shapes a
@@ -5386,11 +5389,12 @@ export function anchoredResidualSymbolKeyName({ key, computed, scope, adapter, p
   return typeof name === 'string' && name ? name : null;
 }
 
-// preserve pre-unwrap node so callers can seed both forms into handledObjects;
-// Set dedup absorbs the duplicate when raw === unwrapped
+// Preserve both spellings for handledObjects. A nullable realm chain names no Symbol:
+// its short-circuit supplies the ordinary key "undefined", not a well-known symbol.
 export function asSymbolRef({ node, scope, adapter, seen, path }) {
   const unwrapped = unwrapTransparentSeq(node);
   return unwrapped && resolvesToGlobalSymbol({ node: unwrapped, scope, adapter, seen, path })
+    && !navValueCanShortCircuit(unwrapped, resolveBuiltInMeta, { scope, adapter, path })
     ? { raw: node, unwrapped } : null;
 }
 

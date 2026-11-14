@@ -75,6 +75,7 @@ import {
   renderCapturedReceiver,
   renderGuardedChainTail,
   renderShortCircuitGuard,
+  renderDeleteShortCircuitGuard,
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderDestructureAssignments,
@@ -239,8 +240,8 @@ export default function createProxySpineChannel(ctx) {
       ? renderBoundRawBranch(memberClone, identifier(plan.recvIdent.name))
       : memberClone.optional || receiverCarriesOptional(memberClone) ? chainExpression(memberClone) : memberClone;
     const liveArguments = plan.callInBranches ? new Set() : null;
-    // arguments of an absorbed call keep their own claims: the guard's subtree mark walks around them
-    const tailArguments = new Set();
+    // Arguments and continuation keys keep their own claims: the guard mark walks around them.
+    const tailClaims = new Set();
     let replacement = guardChainNode(plan, rawBranch, plan.callInBranches ? parent : null,
       captureSource, undefined, liveArguments,
       { scope: metaPath.scope, path: metaPath, adapter, injectorState });
@@ -249,10 +250,14 @@ export default function createProxySpineChannel(ctx) {
     let tailTarget = null;
     if (plan.chainTail.length) {
       replacement = renderGuardedChainTail(plan.chainTail, replacement, {
-        cloneHost: cloneNode,
+        cloneHost: node => {
+          const key = cloneNode(node);
+          tailClaims.add(key);
+          return key;
+        },
         cloneCall: (step, built) => {
           const call = { ...cloneNode(step), callee: built };
-          for (const argument of call.arguments) tailArguments.add(argument);
+          for (const argument of call.arguments) tailClaims.add(argument);
           return call;
         },
       });
@@ -265,7 +270,8 @@ export default function createProxySpineChannel(ctx) {
     // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
     // capture, the test rides inside the capture sequence, after the memo it reads
     if (plan.hoisted) {
-      replacement = renderShortCircuitGuard(nullFirstGuardTest(plan.receiverHop
+      const renderGuard = plan.deleteHost ? renderDeleteShortCircuitGuard : renderShortCircuitGuard;
+      replacement = renderGuard(nullFirstGuardTest(plan.receiverHop
         ? cloneNode(plan.receiverHop.object) : identifier(plan.recvIdent.name)), replacement);
     }
     if (plan.hoistInsideCapture) {
@@ -276,6 +282,7 @@ export default function createProxySpineChannel(ctx) {
     let target = metaPath;
     if (plan.callInBranches) target = peelParenAndTSSlotPath(metaPath).parentPath;
     if (tailTarget) target = tailTarget;
+    if (plan.deleteHost) target = plan.deleteHost;
     // the source `?.` arrived wrapped in a ChainExpression; the conditional replaces the whole
     // wrapper, the raw branch carries its own
     if (target.parentPath?.node?.type === 'ChainExpression' && target.parentPath.node.expression === target.node) {
@@ -290,7 +297,7 @@ export default function createProxySpineChannel(ctx) {
     // around - the captured receiver's own read, the re-emitted effectful prefix, the arguments of an
     // absorbed call (`(log.push("r"), M).groupBy` still owes `push` its dispatch, exactly as the
     // babel leg's prefix clones do)
-    const live = new Set([...liveArguments ?? [], ...tailArguments]);
+    const live = new Set([...liveArguments ?? [], ...tailClaims]);
     if (captureSource) live.add(captureSource);
     for (const expr of prefixClones) live.add(expr);
     markSubtreeSkipped(skippedNodes, replacement, live);

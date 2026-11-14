@@ -1079,7 +1079,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
         // capture, the test rides inside the capture sequence, after the memo it reads
         if (plan.hoisted) {
-          hoisted = estreeToBabel(renderShortCircuitGuard(nullFirstGuardTest(hostSlot(t.cloneNode(
+          const renderGuard = plan.deleteHost ? renderDeleteShortCircuitGuard : renderShortCircuitGuard;
+          hoisted = estreeToBabel(renderGuard(nullFirstGuardTest(hostSlot(t.cloneNode(
             plan.receiverHop ? plan.receiverHop.object : plan.recvIdent))), hostSlot(hoisted)));
         }
         if (plan.hoistInsideCapture) {
@@ -1091,7 +1092,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         t.traverseFast(rawBranch, n => skippedNodes.add(n));
         // Old generators need explicit grouping when the guard replaces the operand of
         // `expr<T>`. The guard contains no await or yield that regenerator would have to explode.
-        if (tailPath !== path) tailPath.replaceWith(guard);
+        if (plan.deleteHost) plan.deleteHost.replaceWith(guard);
+        else if (tailPath !== path) tailPath.replaceWith(guard);
         else if (callPath) callPath.replaceWith(guard);
         else if (legacyParens.instantiation && path.parentPath?.node?.type === 'TSInstantiationExpression'
           && instantiationSlotNeedsParens(guard)) path.replaceWith(t.parenthesizedExpression(guard));

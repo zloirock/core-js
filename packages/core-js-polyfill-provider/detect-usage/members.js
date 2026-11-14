@@ -6,12 +6,14 @@ import {
   bindingPolyfillHint,
   trustedIdentifierAliasWrite,
   callArgumentMayBeObserved,
+  CHAIN_HOP_WRAPPER_TYPES,
   claimDeleteOperand,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   findNodeSlot,
   pathOfNode,
   deleteHostAboveChain,
+  deleteOverOpenContinuation,
   definedBranchOfGuardConditional,
   getFallbackBranchSlots,
   isMemberAccessNode,
@@ -1670,18 +1672,20 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
 // live branch; a call rides with it (left outside, it would read its callee off the guard's value
 // and lose `this`), keeping its own `?.`; an optional MEMBER stops the walk - its short-circuit
 // reads the guard's own value and belongs outside it - and so does a SEAL, where the source's own
-// read of the short-circuited value throws and a guard would answer `void 0` instead
+// read of the short-circuited value throws and a guard would answer `void 0` instead.
+// A delete of the complete continuation is returned with it: the operator belongs in the
+// live branch and its short-circuit returns true, including parentheses around the operand.
 function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
   const tail = [];
   for (let step = path, up = path?.parentPath; up?.node; step = up, up = up.parentPath) {
     const { node } = up;
-    if (node.type === 'ChainExpression' && node.expression === step.node) continue;
+    if (CHAIN_HOP_WRAPPER_TYPES.has(node.type) && node.expression === step.node) continue;
     const isCall = node.type === 'CallExpression' || node.type === 'OptionalCallExpression';
     const isMember = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression';
     let slot = null;
     if (isMember && node.object === step.node) slot = node.object;
     else if (isCall && node.callee === step.node) slot = node.callee;
-    if (slot === null) break;
+    if (slot === null) return { tail, deleteHost: deleteOverOpenContinuation(step.node, up) };
     if (!isCall && node.optional) break;
     if (isCall && node !== absorbedCall && !tail.length) break;
     if (sealedLayerBetween(slot, step.node) || sealedLayerBetween(slot, memberNode)) break;
@@ -1690,7 +1694,7 @@ function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
     if (node === absorbedCall) continue;
     tail.push(node);
   }
-  return tail;
+  return { tail, deleteHost: null };
 }
 
 // the binding a guard tests under a run of backed realm hops (`root.self` -> `root`): where the binding holds the
@@ -1740,14 +1744,13 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   if (POSSIBLE_GLOBAL_OBJECTS.has(meta.key) && runStandsInLoweredGuardTest(path, unwrapRuntimeExpr)) return { bail: true };
   // an EFFECTFUL sequence prefix on the receiver (`(n++, M).groupBy`) keeps the guard: the value
   // tested is the sequence's tail, and the prefix runs once ahead of the whole render (the emitters
-  // re-emit it there). the transparent peel stops at such a prefix by design - it answers "what is
-  // this value", and the effect is the caller's to place - a prefix READ an accessor answers included.
+  // re-emit it there). Harvest every nested sequence level that detection and the census peel,
+  // including a prefix read whose accessor or exception is observable.
   // a selection the build decides for its left is read as that left spelled in its place
   // (`decidedReceiverSpelling`): the guard tests the left, and the emitters re-spell the raw read off it
   const receiver = decidedReceiverSpelling(memberNode.object, meta.decidedReceiver);
-  const objCore = unwrapTransparentSeq(receiver, adapter && path ? { scope: path.scope, adapter, path } : null);
-  const seqPrefix = objCore?.type === 'SequenceExpression' ? objCore.expressions.slice(0, -1) : [];
-  const recvCore = seqPrefix.length ? unwrapTransparentSeq(objCore.expressions.at(-1)) : objCore;
+  // Keep every prefix, including a bare read that can throw before the identity test.
+  const { prefix: seqPrefix, tail: recvCore } = peelNestedSequenceExpressions(receiver);
   const recvIdent = meta.guardsRealmHopRun ? realmHopRunBase(recvCore, { adapter, path, resolvePure }) : recvCore;
   const captureReceiver = meta.captureGuardReceiver ? memberNode.object : null;
   if (!captureReceiver && recvIdent?.type !== 'Identifier') return null;
@@ -1874,15 +1877,17 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // ... and for an absorbed OPTIONAL call the walk is also the proof there IS no continuation: the
   // steps the source wrote above a `?.()` short-circuit WITH it, and only a copy of them in every
   // branch would keep that, so a continuation over one keeps bailing
-  const chainTail = captureChain || memberNode.optional || receiverHop || absorbedCall?.optional
-    ? guardedNarrowChainTail(path, memberNode, absorbedCall) : [];
+  const { tail: chainTail, deleteHost } = captureChain || memberNode.optional || receiverHop || absorbedCall?.optional
+    ? guardedNarrowChainTail(path, memberNode, absorbedCall) : { tail: [], deleteHost: null };
   if (absorbedCall?.optional && chainTail.length) return { bail: true };
   // WHERE the one short-circuit is spelled: over the whole render for a hop the RECEIVER's spelling
   // carries, and inside the capture for the member's own hop, whose test is the memo the branches
   // read. an empty tail over an uncaptured receiver needs none - the member-level narrow keeps the
   // source's `?.` in its raw branch, which is exact where the chain ends there
-  const hoisted = Boolean(captureChain || receiverHop || (memberNode.optional && (captureReceiver || chainTail.length)));
+  const hoisted = Boolean(captureChain || receiverHop || (memberNode.optional && (captureReceiver || chainTail.length || deleteHost)));
   return {
+    // A non-hoisted narrow leaves the source operator around its value, including ?.().
+    deleteHost: hoisted ? deleteHost : null,
     callInBranches: absorbableCall,
     hoisted,
     hoistInsideCapture: Boolean(hoisted && captureReceiver && !receiverHop),
@@ -2146,9 +2151,7 @@ export function handleMemberExpressionNode({
     // value read is the sequence's tail, and the render re-emits the prefix once ahead of the test.
     // the transparent peel stops there by design, so peel the tail explicitly (the plan does the same).
     // a selection the member meta read as its decided left (`decidedReceiver`) is that left here too
-    const recvCore = unwrapTransparentSeq(decidedReceiverSpelling(node.object, meta?.decidedReceiver), { scope, adapter, path });
-    const recvIdent = recvCore?.type === 'SequenceExpression'
-      ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore;
+    const recvIdent = peelReceiverSequenceTail(decidedReceiverSpelling(node.object, meta?.decidedReceiver));
     // a local whose name COINCIDES with the global it aliases (`const { Map } = globalThis`)
     // only LOOKS like an echo: the object came from the registered alias, and the binding
     // proves it by hinting that very ctor. guarding there loses the resolved static
@@ -2468,12 +2471,6 @@ export function handleBinaryIn({
   // doesn't drop side-effects
   const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
     ? asSymbolRef({ node: peelReceiverSequenceTail(left.object), scope, adapter, path }) : null;
-  // the LHS chain to the symbol can SHORT-CIRCUIT (`globalThis.window?.Symbol.iterator in x`):
-  // the rewrite would replace the LHS with an always-defined binding, silently flipping the
-  // membership answer where native tests the key `"undefined"`. no meta - the `in` stays live
-  // text, and the LHS read keeps its own guarded substitution through the member machinery
-  if (ref && navValueCanShortCircuit(left,
-    ({ name }) => resolveBuiltIn({ kind: 'global', name }), { scope, adapter, path })) return null;
   if (ref) {
     const name = resolveKey({ node: left.property, computed: left.computed, scope, adapter, path });
     // nested `Symbol[Symbol.X]` - `resolveKey` already returns `Symbol.X`; double-prefixing
@@ -2613,30 +2610,12 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
   const ref = asSymbolRef({ node: peelReceiverSequenceTail(prop.object), scope, adapter, path });
   if (!ref) return null;
-  // the Symbol ref's proxy-global chain receiver (`(c++, globalThis.self).Symbol.iterator`,
-  // `(c++, globalThis).self.Symbol.iterator`) is fully dropped when the eliminated `o[key]` rewrites to
-  // `_getIteratorMethod(o)`; descend the whole chain receiver and harvest every buried effect at any hop
-  // depth so they re-emit. only the chain form (`X.Symbol`, a member) drops it - a direct `(c++, Symbol)`
-  // keeps the whole key (SE survives there). an SE-bearing chain-root CALL (purity is scope-aware)
-  // interleaves via the rescue channel at its true source position - BEFORE the buried hop-key
-  // effects the descent collects (`mk()[(c++, 'Symbol')].iterator` runs mk THEN c++); a
-  // walk-then-append two-step would reverse that order.
-  // peel transparent wrappers first: `(globalThis[(c++,'self')].Symbol).iterator` PARENTHESIZES the chain
-  // receiver, so a raw `.type === MemberExpression` check would miss it and DROP the buried `c++` when the
-  // whole `o[key]` rewrites to `_getIteratorMethod(o)`
-  let symbolReceiver = prop.object;
-  while (symbolReceiver && isTransparentWrapper(symbolReceiver)) symbolReceiver = symbolReceiver.expression;
-  if (symbolReceiver?.type === 'MemberExpression' || symbolReceiver?.type === 'OptionalMemberExpression') {
-    const rescue = seedChainRootCallRescue({ node: prop, scope, adapter, path });
-    collectFoldedReceiverSideEffects(symbolReceiver, { out: sideEffects, rescue, ctx: { scope, adapter, path } });
-  } else {
-    collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
-    if (symbolReceiver?.type === 'SequenceExpression') {
-      for (const element of symbolReceiver.expressions.slice(0, -1)) {
-        if (mayHaveSideEffects(element, { scope, adapter, path })) sideEffects.push(element);
-      }
-    }
-  }
+  // Recognition peels every sequence level. Harvest the same receiver, including a member
+  // tail and an observable root call, once and in source order before the computed key.
+  const rescue = seedChainRootCallRescue({ node: prop, scope, adapter, path });
+  collectFoldedReceiverSideEffects(prop.object, {
+    out: sideEffects, rescue, ctx: { scope, adapter, path }, preserveSourceReads: true,
+  });
   const keyNode = prop.computed
     ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;
   const name = resolveKey({ node: keyNode, computed: prop.computed, scope, adapter, path });

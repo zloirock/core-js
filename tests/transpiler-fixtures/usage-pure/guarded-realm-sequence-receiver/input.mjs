@@ -1,3 +1,4 @@
+// A prefix read stays before the guard, even when the source spells a quiet expression.
 // A guarded realm read through a sequence prefix names the same receiver as the bare alias: the
 // prefix runs once ahead of the identity test, the constructor takes its family entry (its statics
 // are read through it), and a static under the constructor gets the captured-receiver guard.
