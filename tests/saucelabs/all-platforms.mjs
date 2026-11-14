@@ -1,4 +1,4 @@
-import manualPlatforms, { android, desktop, ios } from './platforms.mjs';
+import manualPlatforms, { android, desktop, hostPool, ios } from './platforms.mjs';
 
 // one configuration per browser version, preferring the OS and device of the manual matrix
 const browsers = new Set(['chrome', 'firefox', 'safari', 'MicrosoftEdge', 'internet explorer', 'iphone', 'ipad', 'android']);
@@ -26,7 +26,7 @@ function rank({ api_name: browser, short_version: version, os, device, long_name
 
 function platform({ api_name: browser, short_version: version, os, device, long_name: deviceName }) {
   if (!mobile.has(browser)) return { ...desktop(browser, version, platformName(os)), name: `${ browser } ${ version } (${ os })` };
-  const base = browser === 'android' ? android(deviceName, version) : ios(version, deviceName);
+  const base = browser === 'android' ? android(deviceName, version) : { ...ios(version, deviceName), ...hostPool(platformName(os)) };
   return { ...base, name: `${ browser } ${ version } (${ device })` };
 }
 

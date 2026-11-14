@@ -143,3 +143,12 @@ for (const browser of ['iphone', 'ipad', 'android']) {
   const slashOs = { ...entry(browser, '7.1', 'B/C', 'A', 'appium'), long_name: 'D Emulator' };
   equal(fromCatalog([slashDevice, slashOs])[0].name, fromCatalog([slashOs, slashDevice])[0].name, 'rejects an empty or invalid catalog #13');
 }
+
+{
+  const pools = fromCatalog([
+    { ...entry('iphone', '17.0', 'Mac 13', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' },
+    { ...entry('iphone', '17.5', 'Mac 26', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' },
+    { ...entry('iphone', '18.0', 'Mac 26', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' },
+  ]).map(({ pool }) => pool);
+  deepEqual(pools, ['mac_vms', 'mac_arm_vms', 'mac_arm_vms'], 'counts an iOS simulator towards the pool of its host Mac');
+}

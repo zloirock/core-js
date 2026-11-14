@@ -225,7 +225,7 @@ export async function run(suite) {
   let passed = true;
   const waiting = suite.platforms.filter(platform => {
     if (!platform.pool || limit(platform.pool) > 0) return true;
-    passed = report({ platform, error: new Error(`the Sauce Labs plan has no ${ platform.pool } sessions`) }) && passed;
+    passed = report({ platform, error: new Error(`no Sauce Labs ${ platform.pool } sessions available, the limit is ${ limit(platform.pool) }`) }) && passed;
     return false;
   });
   // a session over its pool limit would wait in the Sauce Labs queue, so a worker takes a platform with a free slot

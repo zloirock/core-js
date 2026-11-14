@@ -138,7 +138,7 @@ async function runFake({
     }
     if (platforms) suite.platforms = platforms.map(platform => ({ ...platform, w3c: false, capabilities: { browserName: 'firefox', version: '7' } }));
     const foreignBundles = commits?.some(commit => commit !== 'a'.repeat(40));
-    const emptyPool = platforms?.some(({ pool }) => pool && limits.pools?.[pool] === 0);
+    const emptyPool = platforms?.some(({ pool }) => pool && !(limits.pools?.[pool] ?? (pool === 'mac_vms' ? 15 : 0)));
     if (limitStatus !== 200 || !limits?.team) {
       await rejects(run(suite), /could not read the Sauce Labs concurrency limit: (?:HTTP 401|.*JSON)|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
       return { sessions };
@@ -292,7 +292,14 @@ async function runFake({
   const platforms = [{ name: 'arm', pool: 'android_arm_vms' }, { name: 'linux' }];
   const { output, sessions } = await runFake({ platforms, limits: { organization: 2, team: 2, pools: { android_arm_vms: 0 } } });
   equal(sessions, 1, 'fails a platform of a pool the plan lacks without opening its session #1');
-  match(output, /arm: the Sauce Labs plan has no android_arm_vms sessions/, 'fails a platform of a pool the plan lacks without opening its session #2');
+  match(output, /arm: no Sauce Labs android_arm_vms sessions available, the limit is 0/, 'fails a platform of a pool the plan lacks without opening its session #2');
+}
+
+{
+  const platforms = [{ name: 'arm', pool: 'mac_arm_vms' }, { name: 'linux' }];
+  const { output, sessions } = await runFake({ platforms, limits: { organization: 2, team: 2 } });
+  equal(sessions, 1, 'fails a platform of a pool missing from the limit response without opening its session #1');
+  match(output, /arm: no Sauce Labs mac_arm_vms sessions available, the limit is NaN/, 'fails a platform of a pool missing from the limit response without opening its session #2');
 }
 
 {

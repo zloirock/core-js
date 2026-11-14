@@ -1,24 +1,29 @@
 // the concurrency limit a session counts towards besides the total one;
-// Sauce Labs runs macOS 14+ and the iOS 18+ simulator on Apple Silicon, older ones on Intel Macs
+// Sauce Labs runs macOS 14+ on Apple Silicon, older ones on Intel Macs
 function macPool(version, firstArm) {
   return parseInt(version, 10) >= firstArm ? 'mac_arm_vms' : 'mac_vms';
 }
 
+export function hostPool(platform) {
+  const mac = /^(?:OS X|macOS) (?<major>\d+)/.exec(platform);
+  return mac ? { pool: macPool(mac.groups.major, 14) } : {};
+}
+
 // Chrome before 75 and Firefox before 55 get no W3C session on Sauce Labs
 export function desktop(browserName, version, platform) {
-  const mac = /^(?:OS X|macOS) (?<major>\d+)/.exec(platform);
   const legacy = browserName === 'internet explorer' || browserName === 'chrome' && +version < 75 ||
     browserName === 'firefox' && +version < 55;
   return {
     name: `${ browserName } ${ version }`,
     w3c: !legacy,
-    ...mac && { pool: macPool(mac.groups.major, 14) },
+    ...hostPool(platform),
     capabilities: legacy
       ? { browserName, version, platform }
       : { browserName, browserVersion: version, platformName: platform },
   };
 }
 
+// the catalog lists the host Mac; without it, the iOS 18+ simulator runs on Apple Silicon
 export function ios(platformVersion, deviceName = 'iPhone Simulator') {
   return {
     name: `ios ${ platformVersion }`,
