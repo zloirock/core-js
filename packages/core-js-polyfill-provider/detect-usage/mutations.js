@@ -3221,6 +3221,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   const optedOutNodes = isOptedOut ? new WeakSet() : null;
   let stamps = null;
   let programNode = null;
+  const memberCallees = new Map();
+  const parameterSources = new Map();
   // the NAMES half of the census, handed to the file census so the entry decision reads it without
   // holding the program: this set outlives the walk, the AST must not
   const ctorNames = new Set();
@@ -3732,6 +3734,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       classStaticChains: new Map(),
       openedByWrite: (name, owner) => openedBy('write', name, owner),
       calleeValues: new WeakMap(),
+      memberCallees,
+      parameterSources,
       closedParameterHosts,
       parameterCallSites: new WeakMap(),
     };
@@ -4100,7 +4104,6 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     }
     if (FUNCTION_LIKE_NODE_TYPES.has(type)) {
       parameterHosts.push({ node, frame });
-      for (const param of node.params ?? []) PARAMETER_STATIC_SOURCES.delete(param);
     }
     const patterns = type === 'VariableDeclarator' ? [node.id]
       : type === 'AssignmentExpression' || type === 'ForOfStatement' || type === 'ForInStatement' ? [node.left]
@@ -4149,7 +4152,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
         // ... the key read off it travels too: a selecting root is held only for a read of one of the
         // constructor's OWN statics (below)
         const readKey = staticMemberKeyName(node) ?? (node.computed ? computedKeyStaticName(node.property) : null);
-        if (readKey === null && owner?.type === 'Identifier') {
+        if (readKey === null && owner?.type === 'Identifier' && privateNameSpelling(node.property) === null) {
           unreadableOwnerNames.add(owner.name);
           unreadableOwnerRefs.push(owner);
         }
@@ -4418,6 +4421,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   // registration is one step of the visit rather than a dozen
   function registerProgramTables(node) {
     programNode = node;
+    LOCAL_MEMBER_CALLEES.set(node, memberCallees);
+    PARAMETER_STATIC_SOURCES.set(node, parameterSources);
     ESCAPED_CTOR_REFS.set(node, stamps = new Set());
     ESCAPED_CTOR_NAMES.set(node, ctorNames);
     CTOR_ALIAS_INITS.set(node, aliasInit);
@@ -5663,8 +5668,10 @@ function ownerCallSlot(container, member, scopeFacts, chain, depth = 0) {
     selfReads.set(container, readsSelf);
   }
   if (readsSelf) return null;
-  const key = memberKeyName(member);
-  const heritage = isClass && key !== null && classStaticSlotMember(container, key) === null && depth < ALIAS_CHAIN_DEPTH
+  const privateKey = privateNameSpelling(member.property);
+  const key = privateKey ?? memberKeyName(member);
+  const heritage = isClass && privateKey === null && key !== null
+    && classStaticSlotMember(container, key) === null && depth < ALIAS_CHAIN_DEPTH
     && classStaticsCallable(container) ? unwrapRuntimeExpr(container.superClass) : null;
   if (heritage?.type === 'Identifier') {
     const held = heldOwner(heritage, scopeFacts);
@@ -5672,7 +5679,7 @@ function ownerCallSlot(container, member, scopeFacts, chain, depth = 0) {
     return held.links.some(([name, link]) => scopeFacts.openedByWrite(name, link)) ? null
       : ownerCallSlot(held.owner, member, scopeFacts, chain, depth + 1);
   }
-  if (isClass) return classStaticCallSlot(container, key);
+  if (isClass) return classStaticCallSlot(container, key, privateKey !== null);
   if (key === null) return null;
   const slot = findObjectKeyBeforeSpread(container.properties, prop => {
     const name = foldedPropertyKeyName(prop);
@@ -5697,8 +5704,10 @@ function calleeFunctionOf(calleeNode, localCallables, scopeFacts = null) {
   function finish(callee) {
     for (const [node, memberValue] of seen) {
       scopeFacts?.calleeValues.set(node, callee);
-      if (callee && memberValue) LOCAL_MEMBER_CALLEES.set(node, memberValue);
-      else LOCAL_MEMBER_CALLEES.delete(node);
+      if (!scopeFacts || !isMemberAccessNode(node)) continue;
+      const key = nodePositionKey(node) ?? node;
+      if (callee && memberValue) scopeFacts.memberCallees.set(key, memberValue);
+      else scopeFacts.memberCallees.delete(key);
     }
     if (callee && classChains.length) {
       const chains = scopeFacts.classStaticChains;
@@ -5884,19 +5893,24 @@ function argumentKeptBy({ pairing, index, scopeFacts, factCache, callee, referen
         const keys = typeof disposition === 'object' ? [...disposition.readKeys]
           : patternSlotTarget(dropLeadingThisParam(callee.params)[index]).properties?.map(foldedPropertyKeyName);
         if (source && keys?.length && keys.every(key => hasOwnStaticDefinition(source, key))) {
-          PARAMETER_STATIC_SOURCES.set(dropLeadingThisParam(callee.params)[index], source);
+          const parameter = dropLeadingThisParam(callee.params)[index];
+          scopeFacts.parameterSources.set(nodePositionKey(parameter) ?? parameter, source);
           disposition = 'bound';
         } else if (typeof disposition === 'object' && keys?.length) {
           // A closed read-only parameter owes only these keys to global injection. Keep
           // pure's namespace obligation until its scoped receiver proof succeeds.
-          PARAMETER_STATIC_SOURCES.set(dropLeadingThisParam(callee.params)[index], { keys });
+          const parameter = dropLeadingThisParam(callee.params)[index];
+          scopeFacts.parameterSources.set(nodePositionKey(parameter) ?? parameter, { keys });
           disposition = 'global-covered';
         }
       }
       byIndex.set(index, disposition);
     }
   }
-  if (disposition === 'global-covered') return disposition;
+  // A bare parameter with one proven built-in source has served reads even in a
+  // fixed member callee. Patterns still owe the retained native shape below.
+  if (disposition === 'global-covered' || disposition === 'bound'
+    && dropLeadingThisParam(callee.params)[index].type === 'Identifier') return disposition;
   if (!isMemberAccessNode(spelled) && spelled?.type !== 'Super'
     && (disposition === 'returned' || disposition === 'dropped' || disposition === 'bound')) return disposition;
   // Every supplied value of a closed synchronous callee is already paired with its bindings.

@@ -66,9 +66,11 @@ import {
   classStaticCallSlot,
   classStaticSlotMember,
   foldedPropertyKeyName,
+  FUSED_METHOD_TYPES,
   isMemberAccessNode,
   isMemberMutationContext,
   staticMemberKeyName,
+  privateNameSpelling,
   unwrapRuntimeExpr,
   readsConstructorKey,
   rootProgramOf,
@@ -130,7 +132,7 @@ function constructorCallerNames(fnPath) {
 // in the literal could expose it without spelling that owner's binding. A class's own static is
 // such a slot of the class, under the same refusals the census asks (`classStaticCallSlot`).
 function methodCallerNames(fnPath) {
-  const member = fnPath.node.type === 'ObjectMethod' || fnPath.node.type === 'ClassMethod' ? fnPath : fnPath.parentPath;
+  const member = FUSED_METHOD_TYPES.has(fnPath.node.type) ? fnPath : fnPath.parentPath;
   const object = member?.parentPath;
   if (object?.node.type === 'ClassBody') return classStaticCallerName(member, object.parentPath);
   const anchor = object?.parentPath;
@@ -150,10 +152,11 @@ function methodCallerNames(fnPath) {
 // ... and the class's outer name it is called by (`classOuterName`)
 function classStaticCallerName(member, classPath) {
   const classNode = classPath?.node;
-  const key = member.node.static ? foldedPropertyKeyName(member.node) : null;
-  if (key === null || classStaticCallSlot(classNode, key) !== member.node || classReachesItselfUnnamed(classNode)) return null;
+  const privateKey = privateNameSpelling(member.node.key) !== null;
+  const key = member.node.static ? privateNameSpelling(member.node.key) ?? foldedPropertyKeyName(member.node) : null;
+  if (key === null || classStaticCallSlot(classNode, key, privateKey) !== member.node || classReachesItselfUnnamed(classNode)) return null;
   const outer = classOuterName(classPath);
-  return outer && { ...outer, key };
+  return outer && { ...outer, key, privateKey };
 }
 
 // the outer name a class is called by: a declaration's own, or a declarator's
@@ -1355,7 +1358,7 @@ export function createPatternBindings({
     const sites = ownInvocation ? [{ ...ownInvocation, argIndex }] : [];
     const seenCalls = new Set(sites.map(site => site.callPath.node));
     const seenSources = new Set();
-    for (const { name: fnName, scope, anchor, key } of sources) {
+    for (const { name: fnName, scope, anchor, key, privateKey = false } of sources) {
       if (seenSources.has(anchor.node)) continue;
       seenSources.add(anchor.node);
       const binding = getScopeBinding({ scope, name: fnName, path: anchor });
@@ -1376,7 +1379,7 @@ export function createPatternBindings({
           // ... and an OWNER another binding takes whole (`const A = K`) is called through that name too
           const ownerAlias = aliasDeclaratorOf(ref);
           if (ownerAlias) {
-            sources.push({ name: ownerAlias.node.id.name, scope: ownerAlias.scope, anchor: ownerAlias, key });
+            sources.push({ name: ownerAlias.node.id.name, scope: ownerAlias.scope, anchor: ownerAlias, key, privateKey });
             continue;
           }
           // ... while a construction hands a class's statics on only to an instance a `constructor` read reaches,
@@ -1388,6 +1391,7 @@ export function createPatternBindings({
             continue;
           }
           if (CLASS_NODE_TYPES.has(host?.node.type) && unwrapRuntimeExpr(host.node.superClass) === ref.node) {
+            if (privateKey) continue;
             const subclass = classReachesItselfUnnamed(host.node) ? null : classOuterName(host);
             if (!subclass) return null;
             const member = classStaticSlotMember(host.node, key);
@@ -1396,10 +1400,12 @@ export function createPatternBindings({
             continue;
           }
           const member = peelTransparentExprAncestorPath(ref)?.parentPath;
+          const privateName = privateNameSpelling(member?.node?.property);
+          const readKey = privateName ?? staticMemberKeyName(member?.node);
           if (!isMemberAccessNode(member?.node) || unwrapRuntimeExpr(member.node.object) !== ref.node
-            || staticMemberKeyName(member.node) === null
+            || readKey === null
             || isMemberMutationContext(member.node, member.parentPath?.node, member.parentPath?.parentPath?.node)) return null;
-          if (staticMemberKeyName(member.node) !== key) continue;
+          if (readKey !== key || (privateKey ? privateName === null : privateName !== null)) continue;
           ref = member;
         }
         const site = invocationPairingAt(ref, ref.scope, ref, staticIsMutated, getBindingEntry);

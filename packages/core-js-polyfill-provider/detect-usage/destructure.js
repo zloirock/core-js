@@ -148,6 +148,7 @@ import {
   spelledSlotName,
   statementListOf,
   soleChainToProp,
+  sourceCensusFact,
   staticMemberKeyName,
   subtreeContainsNode,
   synthSlotName,
@@ -1577,7 +1578,7 @@ export function collectMemberUnionCandidates(options) {
     read: objectNode,
   }) : null;
   const parameterNode = parameterBinding?.path?.node ?? parameterBinding?.node;
-  const parameterSource = PARAMETER_STATIC_SOURCES.get(parameterNode);
+  const parameterSource = parameterBinding?.kind === 'param' ? sourceCensusFact(PARAMETER_STATIC_SOURCES, parameterNode, path) : null;
   // A closed proof that every caller supplies a fresh container excludes constructor
   // candidates; a failed or incomplete source proof does not.
   const parameterNonStatic = adapter.parameterStaticSources?.get(parameterNode)?.nonStatic;
@@ -5100,7 +5101,7 @@ export function staticContainerReceiverName({
   const binding = adapter.getBinding({ scope, name: root.name, path, read: root });
   const parameter = binding?.path ?? binding?.declarationPath;
   if (!keys.length && binding?.kind === 'param'
-    && !binding.constantViolations?.length && PARAMETER_STATIC_SOURCES.get(parameter?.node)?.keys) {
+    && !binding.constantViolations?.length && sourceCensusFact(PARAMETER_STATIC_SOURCES, parameter?.node, path)?.keys) {
     // The key-only census is a candidate, not a value proof. Its closed caller sources
     // use the container walk here; the bare-name resolver reads only the completed fact.
     const cache = adapter.parameterStaticSources;

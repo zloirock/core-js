@@ -24863,6 +24863,68 @@ function * generateSelectedStaticGuards() {
   };
 }
 
+// Cloning an outer instance call must preserve its nested callee and parameter proofs.
+// Private method names and public string keys stay separate under both parser dialects.
+function * generateCalleeSourceFacts() {
+  for (const [name, body] of [
+    ['private-array-parameter',
+      'class F { static #c(C) { return C.from([3]); } static run() { return F.#c(Array); } } r = F.run();'],
+    ['private-iterator',
+      'class K { static #iterator() { return Iterator; } static run() { return K.#iterator().from([1]); } } r = [...K.run()];'],
+    ['private-method',
+      'class F { static #c() { effects.push("callee"); return Promise; } static run() { return typeof F.#c().withResolvers; } } r = F.run();'],
+    ['private-field',
+      'class F { static #c = () => Promise; static run() { return typeof F.#c().withResolvers; } } r = F.run();'],
+    ['private-field-written',
+      'class F { static #c = () => Array; static run() { F.#c = () => ({ from() { effects.push("custom"); return 17; } }); '
+      + 'return F.#c().from([3]); } } r = F.run();'],
+    ['private-parameter-alias',
+      'class F { static #c(C) { return C.from([3]); } static run() { const Alias = F; return Alias.#c(Array); } } r = F.run();'],
+    ['private-parameter',
+      'class F { static #c(P) { return typeof P.allSettled; } static run() { return F.#c(Promise); } } r = F.run();'],
+    ['private-pattern',
+      'class F { static #c({ C }) { return typeof C.allSettled; } static run() { return F.#c({ C: Promise }); } } r = F.run();'],
+    ['private-in-push',
+      'const out = []; class F { static #c() { effects.push("callee"); return Array; } static run() { '
+      + 'out.push(F.#c().from((effects.push("arg"), [3]))); } } F.run(); r = out;'],
+    ['public-private-same-key',
+      'class F { static #c() { return { withResolvers: 17 }; } static ["#c"]() { return Promise; } static run() { return '
+      + '[F.#c().withResolvers, typeof F["#c"]().withResolvers]; } } r = F.run();'],
+    ['private-public-same-key',
+      'class F { static ["#c"]() { return { withResolvers: 17 }; } static #c() { return Promise; } static run() { return [typeof '
+      + 'F.#c().withResolvers, F["#c"]().withResolvers]; } } r = F.run();'],
+    ['private-wrong-brand',
+      'class F { static #c() { return Promise; } static run() { return G.#c().withResolvers; } } class G extends F {} try { F.run(); } catch '
+      + '(error) { r = error.name; }'],
+    ['member-push',
+      'const out = []; const o = { make() { effects.push("callee"); return Array; } }; out.push(o.make().from((effects.push("arg"), [3]))); r '
+      + '= out;'],
+    ['member-map',
+      'const o = { make() { effects.push("callee"); return Array; } }; r = [3, 4].map(x => o.make().from([x]));'],
+    ['member-spread',
+      'const out = []; const o = { make() { effects.push("callee"); return Array; } }; out.push(...o.make().from([3])); r = out;'],
+    ['member-loop',
+      'const out = []; const o = { make() { return Array; } }; for (const x of [3, 4]) out.push(o.make().from([x])); r = out;'],
+    ['member-optional',
+      'const out = []; const o = { make() { return Array; } }; out.push(o.make()?.from([3])); r = out;'],
+    ['member-write',
+      'const out = []; const o = { make() { return Array; } }; o.make = () => ({ from() { effects.push("custom"); return 17; } }); '
+      + 'out.push(o.make().from([3])); r = out;'],
+    ['parameter-push',
+      'const out = []; out.push(((C) => C.from((effects.push("arg"), [3])))(Array)); r = out;'],
+    ['parameter-narrow',
+      'const out = []; out.push(((P) => P.allSettled)(Promise)); r = typeof out[0];'],
+    ['parameter-written',
+      'const out = []; out.push(((C) => { C = { from() { effects.push("custom"); return 17; } }; return C.from([3]); })(Array)); r = out;'],
+    ['parameter-shadow',
+      'const out = []; out.push(((C) => { function read(C) { return C.from(); } return read({ from() { effects.push("custom"); return 17; } '
+      + '}); })(Array)); r = out;'],
+  ]) yield {
+    name: `callee-source-facts/${ name }`, strip: true, isolated: true,
+    code: `export let r; export const effects = []; ${ body }`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -26656,4 +26718,5 @@ export function * generate() {
   yield * generateIteratorReceivers();
   yield * generateOptionalWrapperGuards();
   yield * generateSelectedStaticGuards();
+  yield * generateCalleeSourceFacts();
 }

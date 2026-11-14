@@ -19,6 +19,7 @@ import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
 import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.from";
 import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.join";
 import "core-js/modules/es.iterator.map";
@@ -41,10 +42,9 @@ import "core-js/modules/web.url-search-params.constructor";
 import "core-js/modules/web.url-search-params.delete";
 import "core-js/modules/web.url-search-params.has";
 import "core-js/modules/web.url-search-params.size";
-// a call reading no key - a function a call returns, a private method - is a route the census does not
-// follow: a constructor such a call returns keeps its narrow entry in pure, which carries none of its
-// statics. where the read side names the callee itself - an extracted method, an accessor - it serves
-// the static read; a construction and a builtin callback read no static at all
+// A returned function remains outside callee following and keeps its narrow constructor.
+// Private methods, extracted methods and accessors name the callee and serve its static read.
+// A construction and a built-in callback read no static at all.
 const box = {
   map() {
     return Map;

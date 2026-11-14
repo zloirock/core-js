@@ -82,6 +82,10 @@ checkCalls('direct export', 'export function f(value = []) {} f();', null);
 checkCalls('separate export', 'function f(value = []) {} export { f }; f();', null);
 checkCalls('exported declarator NFE', 'export const f = function inner(value = []) {}; f();', null);
 checkCalls('callee alias contributes its callers', 'function f(value = []) {} const alias = f; alias();', ['<missing>'], true);
+checkCalls('private static method', 'class C { static #take(value = []) {} static run() { C.#take([1]); } } C.run();', ['[1]']);
+checkCalls('private static field', 'class C { static #take = (value = []) => value; static run() { C.#take([1]); } } C.run();', ['[1]']);
+checkCalls('private and public string keys are separate',
+  'class C { static #take(value = []) {} static ["#take"](other) {} static run() { C.#take([1]); C["#take"]("x"); } } C.run();', ['[1]']);
 checkCalls('method and its alias share callers',
   'const box = { read(value = []) {} }; const alias = box.read; box.read([1]); alias([2]);', ['[1]', '[2]']);
 checkCalls('method alias export opens the caller set',
