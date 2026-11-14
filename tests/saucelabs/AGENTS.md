@@ -1,10 +1,10 @@
 # saucelabs
 
-The `tests/unit-browser` pages, run in Sauce Labs browsers that the CI runners do not have: real Safari, iOS, Internet Explorer 10, and older Chromium and Gecko.
+The `tests/unit-browser` pages, run in Sauce Labs browsers that the CI runners do not have: Safari on macOS and in the iOS simulator, Internet Explorer 10, and older versions of Chrome, Edge, Firefox, and the Android emulator. `platforms.mjs` lists them.
 
 ## Target environment
 
-The runner uses the Node.js version supported by the repository's tooling. The WebDriver client next to it is plain HTTP, because it has to speak the JSON Wire protocol too, and the maintained clients have dropped that protocol. What runs in the browsers is the published pages and `tests/unit-browser/qunit-results.js`, which they load. That file is ES5, because it runs in every browser of the matrix.
+The runner uses the Node.js version supported by the repository's tooling. The WebDriver client next to it is plain HTTP, because it has to speak the JSON Wire protocol too, and the maintained clients have dropped that protocol.
 
 ## Rules
 
