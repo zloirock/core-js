@@ -3,6 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map";
 import _Symbol from "@core-js/pure/actual/symbol";
+// A prefix read stays before the guard, even when the source spells a quiet expression.
 // A guarded realm read through a sequence prefix names the same receiver as the bare alias: the
 // prefix runs once ahead of the identity test, the constructor takes its family entry (its statics
 // are read through it), and a static under the constructor gets the captured-receiver guard.
@@ -29,7 +30,7 @@ export function pureSymbol(flag) {
   if (flag) {
     var realm = _globalThis;
   }
-  return (realm === _globalThis ? _Symbol : (0, realm).Symbol).iterator;
+  return (0, realm === _globalThis ? _Symbol : realm.Symbol).iterator;
 }
 // A constructor read off the guarded realm and STORED whole is read through its binding, so the
 // entry carries the statics itself.

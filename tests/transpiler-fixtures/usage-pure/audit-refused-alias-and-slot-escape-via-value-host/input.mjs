@@ -1,3 +1,4 @@
+// A prefix read stays before the guard, even when the source spells a quiet expression.
 // the REFUSED-alias guarded narrow renders for the SOLE-ASSIGNMENT host exactly as for the
 // declarator host (`g = (se, M === _Map ? _Map$groupBy : M.groupBy)`) - the raw read off a
 // claimed alias answered `undefined` where every engine with the ctor answers the member

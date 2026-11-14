@@ -98,6 +98,7 @@ import './synth-receiver.mjs';
 import './parameter-call-sites.mjs';
 import './parameter-static-sources.mjs';
 import './guard-canon.mjs';
+import './guarded-keys.mjs';
 import './optional-erasure.mjs';
 import './claim-probe.mjs';
 import './probe-source-spines.mjs';
