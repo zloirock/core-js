@@ -8266,8 +8266,15 @@ function createMutationSiteHandler({ adapter, mutated, resolveStaticKey = null }
       }
       const { targetNode, keys } = entry;
       const { names, receiverDeopts } = resolveTargetOnce(targetNode, path);
+      const nativeWrite = adapter.isOptedOut?.(targetNode, true);
       for (const name of names) {
-        // ... and the NAME takes the whole-namespace mark beside each key it names: the entry the
+        // A disabled write lands on the native constructor. Retain that identity throughout
+        // the file, including reads before the write and aliases captured ahead of it.
+        if (nativeWrite) {
+          const nativeName = name.endsWith('.prototype') ? name.slice(0, -10) : name;
+          if (hasConstructorEntry(nativeName)) recordUnplaced(mutatedStaticKey('globalThis', nativeName));
+        }
+        // The receiver also takes the whole-namespace mark beside each key it names: the entry the
         // ctor reference resolves to is what has to carry the patched member back, and the narrow
         // one cannot. pinning the member with an import of its OWN entry instead left a binding
         // nothing reads - `@core-js/pure` declares only `./modules/*.js` side-effectful, so a

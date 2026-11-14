@@ -12,14 +12,14 @@ import { babelAdapter } from './detect-usage.js';
 // babel-traverse still walks before `@babel/preset-typescript` strips them - never
 // reach the callback. unplugin's `detectEntries` already iterates `ast.body` only, so
 // the body-only walk here keeps the two adapters symmetric
-export default function runEntryDetection(programPath, onEntry) {
+export default function runEntryDetection(programPath, onEntry, isDisabled = null) {
   // the pre-filter is the resolver's OWN accepted-type set, asked through its predicate rather
   // than re-listed here: it only skips the adapter / scope work on shapes `getEntrySource` would
   // reject anyway, and a local copy of the list is what let one emitter silently miss a newly
   // accepted arm the other already handled
   for (const bodyPath of programPath.get('body')) {
     if (!mayBeEntryStatement(bodyPath.node)) continue;
-    const source = getEntrySource(bodyPath.node, babelAdapter, bodyPath.scope);
+    const source = getEntrySource(bodyPath.node, babelAdapter, bodyPath.scope, isDisabled);
     if (source !== null) onEntry(source, bodyPath);
   }
 }

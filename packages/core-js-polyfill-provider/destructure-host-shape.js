@@ -1343,7 +1343,7 @@ function planRetainedDefaultCapture({ propPath, meta, adapter, resolvePure, para
     const name = receiverCtorName(peelNestedSequenceExpressions(pairedSources.get(value)).tail,
       { scope: callPath.scope, adapter, path: callPath });
     return name === meta.object || isPristineProxyGlobal(adapter, name) ? name : null;
-  })) return null;
+  }, adapter.isOptedOut)) return null;
   return {
     host,
     site,

@@ -27,7 +27,7 @@ import {
 // the parens esrap cannot re-derive are the ones that KEEP semantics away -
 // the hosts named below, a paren-wrapped string at statement position the first: it is NOT
 // a directive, so one layer stays or the reprint would promote it into the directive prologue
-function peelParens(child, parent, commentBetween) {
+function peelParens(child, parent, commentBetween, directiveBetween) {
   if (!child || child.type !== 'ParenthesizedExpression') return child;
   let inner = child.expression;
   while (inner.type === 'ParenthesizedExpression') inner = inner.expression;
@@ -38,7 +38,8 @@ function peelParens(child, parent, commentBetween) {
     child.expression = inner;
     return child;
   }
-  if ((parent?.type === 'ThrowStatement' || parent?.type === 'YieldExpression') && commentBetween(child, inner)) {
+  if ((parent?.type === 'ThrowStatement' || parent?.type === 'YieldExpression') && commentBetween(child, inner)
+    || directiveBetween && (directiveBetween(child.start, inner.start) || directiveBetween(inner.end, child.end))) {
     child.expression = inner;
     child.commentInside = true;
     return child;
@@ -175,7 +176,7 @@ function withCorpusGapOverrides(language, tails, script) {
     }
     return baseProperty(node, context);
   };
-  // the one paren layer the peel keeps around a commented `throw` / `yield` operand opens its
+  // The paren layer retained for a directive or commented `throw` / `yield` operand opens its
   // operand on a fresh line, the way the author wrote it: esrap flushes the comment right after
   // the `(` otherwise, and a line-bound directive that leaves its own line is what the roundtrip
   // gate holds against. the kept string-statement layer has no comment inside and prints inline
@@ -313,6 +314,7 @@ function withCorpusGapOverrides(language, tails, script) {
 // comments. `loc` values are skipped on re-entry via the `loc` key itself never carrying
 // a `type`. mutating the parsed program is deliberate - the parse is transform-local
 function synthesizeLocs(program, comments, source) {
+  const directives = comments.filter(comment => isLineBoundDisableDirective(comment.value));
   // does a comment open inside `outer`'s span ahead of `inner`'s start? asked only of the two
   // line-terminator-sensitive paren hosts. the comment list is source-ordered and its members do not
   // overlap, so the first comment opening at or after `outer` is the only candidate: every later
@@ -325,6 +327,13 @@ function synthesizeLocs(program, comments, source) {
   // the first comment opening at or after `offset`, or null: the list is source-ordered
   function firstCommentFrom(offset) {
     return comments[sortedPrefixLength(comments, comment => comment.start < offset)] ?? null;
+  }
+  // Only the gaps around the unwrapped value matter: comments inside it keep their own host.
+  // Collapsing nested parens makes these disjoint gaps, not repeated scans of an expression.
+  function directiveBetween(start, end) {
+    if (typeof start !== 'number' || typeof end !== 'number' || start >= end) return false;
+    const comment = directives[sortedPrefixLength(directives, item => item.start < start)];
+    return !!comment && comment.end <= end;
   }
   // ... and a binding host's VALUE that a line-bound directive opens its own line ahead of
   // (`const x =\n  // core-js-disable-next-line\n  v`): esrap flushes the comment after the `=`, which
@@ -358,7 +367,7 @@ function synthesizeLocs(program, comments, source) {
   // a paren layer the print sheds leaves its closing offset to what it wrapped: a comment after
   // `(a || b)` trails the operator expression, as it does in the babel leg
   function peelOwnedParens(value, parent) {
-    const peeled = peelParens(value, parent, commentBetween);
+    const peeled = peelParens(value, parent, commentBetween, directives.length ? directiveBetween : null);
     for (let layer = value; layer !== peeled && layer?.type === 'ParenthesizedExpression'; layer = layer.expression) {
       if (ownedEnds.has(layer.end)) ownEnd(layer.end, peeled);
     }

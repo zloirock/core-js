@@ -7159,14 +7159,17 @@ export function referencesArgumentsObject(callee, into = null) {
 
 // One static receiver supplied by every known invocation. Missing, shifted, opaque and mixed
 // arguments prove no identity; the caller owns scope resolution and completeness of the sites.
-export function parameterStaticSource(sites, paramIndex, resolveSource) {
+// Rewriting also excludes disabled callers and arguments; the mutation census still observes them.
+export function parameterStaticSource(sites, paramIndex, resolveSource, isOptedOut = null) {
   if (!sites?.length) return null;
   let source = null;
   for (const site of sites) {
     if (!site.pairing || site.pairing.argsUnknown) return null;
-    const argument = unwrapRuntimeExpr(resolveCallArgument(site.pairing.args ?? [], site.argIndex ?? paramIndex));
-    if (!argument) return null;
-    const name = resolveSource(argument, site);
+    const argument = resolveCallArgument(site.pairing.args ?? [], site.argIndex ?? paramIndex);
+    if (!argument || isOptedOut?.(site.callPath?.node) || isOptedOut?.(argument, true)) return null;
+    const value = unwrapRuntimeExpr(argument);
+    if (!value) return null;
+    const name = resolveSource(value, site);
     if (!name || source && source !== name) return null;
     source = name;
   }
@@ -14907,8 +14910,9 @@ function moduleExtensionGoal(id) {
 // core-js entry, which `entry-global` replaces with the modules it expands to. A binding import, any
 // export and `import.meta` outlive every method, so the format owner asks only about this shape -
 // and only a caller that actually removes them hands the test in
-export function isConsumedEntryImport(node, getCoreJSEntry) {
+export function isConsumedEntryImport(node, getCoreJSEntry, isDisabled = null) {
   return node.type === 'ImportDeclaration' && !node.specifiers?.length
+    && !isDisabled?.(node) && !isDisabled?.(node.source)
     && getCoreJSEntry(node.source?.value ?? '') !== null;
 }
 

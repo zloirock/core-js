@@ -1119,7 +1119,7 @@ function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfil
       } else break;
     }
   }
-  return { init, fallbackDropped };
+  return { init: init && adapter.isOptedOut?.(init, true) ? null : init, fallbackDropped };
 }
 
 // one step of the fallback-init collapse over a `||` / `??`: those select their RIGHT operand
@@ -2963,6 +2963,7 @@ export function buildNestedDestructurePlan({
     return plan;
   }
   if (planCache.has(adapter, declarator)) return planCache.get(adapter, declarator);
+  if (adapter?.isOptedOut?.(declarator?.init, true)) return null;
 
   // a disable directive on a LEAF prop's line blocks that leaf's extraction (the prop plans
   // verbatim - native semantics, the natural visitor honors the same directive on the

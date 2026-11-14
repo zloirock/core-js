@@ -2002,6 +2002,8 @@ export function handleMemberExpressionNode({
   if (keyKind === 'number' || keyKind === 'bigint') return null;
   // our own render read back on a SECOND pass stands down whole - not just its probe half
   if (claimAlreadyRendered(node, { scope, adapter, path })) return null;
+  const { object } = node;
+  if (adapter.isOptedOut?.(object, true)) return null;
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
@@ -2053,7 +2055,7 @@ export function handleMemberExpressionNode({
       // `globalThis.self`) before resolving + subsuming it. its proxy tail MUST be subsumed too - else the
       // member visitor's `globalThis.self -> _self` rewrite collides with the collapsed receiver
       // and renders inside a span the collapse already replaced
-      const receiverObj = unwrapTransparentSeq(node.object);
+      const receiverObj = unwrapTransparentSeq(object);
       const receiverChain = peelReceiverSequenceTail(receiverObj);
       const receiverName = resolveObjectName({ objectNode: receiverChain, scope, adapter, path });
       // a tagged-template tag is a this-CARRYING invocation the prototype-shaped get-iterator
@@ -2104,7 +2106,7 @@ export function handleMemberExpressionNode({
     return meta;
   }
   const builtMeta = buildMemberMeta({ node, scope, adapter, path, resolveStaticKey, resolvePure, proxySegments });
-  const meta = importedStaticReadMeta({ node: node.object, scope, adapter, path, meta: builtMeta });
+  const meta = importedStaticReadMeta({ node: object, scope, adapter, path, meta: builtMeta });
   // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
   // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
   // code referencing a possibly-missing global. return no meta and leave the receiver
@@ -2479,6 +2481,7 @@ export function handleBinaryIn({
   resolvePure = null,
 }) {
   if (node.operator !== 'in') return null;
+  if (adapter.isOptedOut?.(node.left, true) || adapter.isOptedOut?.(node.right, true)) return null;
   const left = peelReceiverSequenceTail(node.left);
   // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
   // should resolve to the symbol-in polyfill path same as bare `Symbol.iterator in obj`.

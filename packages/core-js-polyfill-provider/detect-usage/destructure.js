@@ -467,6 +467,8 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
 export function buildDestructuringInitMeta({
   initNode, key, scope, adapter, path = null, unionSink = null, resolveStaticKey = null, paramDefault = null,
 }) {
+  // Only rewriting consumes this slot; global detection still follows live uses of disabled aliases.
+  if (adapter.method === 'usage-pure' && initNode && adapter.isOptedOut?.(initNode, true)) return null;
   const meta = importedStaticReadMeta({ node: initNode, scope, adapter, path,
     meta: buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path, unionSink, resolveStaticKey, paramDefault }) });
   // a static the user monkey-patches is NOT a polyfillable destructure source: the prop
@@ -5125,7 +5127,7 @@ export function staticContainerReceiverName({
       const object = walkStaticReceiverChain({ receiverNode: value, walkPath: [], usageNode: value,
         scope: callPath.scope, adapter, path: callPath, reportNonStatic: true });
       return object === false ? nonStatic : object && isKnownGlobalName(object) ? object : null;
-    }) : null;
+    }, adapter.method === 'usage-pure' ? adapter.isOptedOut : null) : null;
     cache.set(parameter.node, source);
     return typeof source === 'string' ? source : null;
   }
@@ -7142,6 +7144,11 @@ function parameterArgumentSources(
   // omitted slot) may still pass the slot `undefined`, so no verdict about the default arm closes
   let complete = !!sites;
   for (const { pairing, callPath, argIndex } of sites ?? []) {
+    // A disabled caller keeps its own argument and cannot settle the parameter's default.
+    if (adapter.isOptedOut?.(callPath.node)) {
+      complete = false;
+      continue;
+    }
     // An omitted or explicitly undefined slot is already served by the default source above.
     // Leave that argument native and keep the completed caller plan from wrapping its default again.
     if (instanceDefaultOpen && !pairing.argsUnknown && !argumentOverridesSlot(
@@ -7156,7 +7163,7 @@ function parameterArgumentSources(
       argIndex,
       adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic,
     );
-    if (!node) {
+    if (!node || adapter.isOptedOut?.(node, true)) {
       complete = false;
       continue;
     }
@@ -7606,6 +7613,7 @@ export function buildNestedParamSynthPlan(options) {
   }
 
   function rootContext(node) {
+    if (adapter.isOptedOut?.(node, true)) return null;
     if (rootContextByNode.has(node)) return rootContextByNode.get(node);
     let ctx = resolveRootContext(node);
     const running = parameterInstance && decidedRunningOperand(node, receiverCtx);
@@ -9936,6 +9944,7 @@ export function resolveNestedDestructureReceiver(outerProp, adapter, unionSink =
 // buried in a ternary branch still marks the leaf. the EMIT plan keeps the strict left-only
 // walk: it collapses to a single binding, so a diverging `||` must stay native, not flatten
 export function resolveBranchProxyName({ branchNode, scope, adapter, path, eitherLogicalOperand = false }) {
+  if (adapter?.method === 'usage-pure' && adapter.isOptedOut?.(branchNode, true)) return null;
   let branch = unwrapExpressionChain(branchNode);
   while (branch) {
     // A decided guard contributes its yielded operand, never its dead proxy arm.
@@ -10155,6 +10164,7 @@ function computeNestedDestructureReceiver(outerProp, adapter, {
       )
       : null;
     const receiverNode = allIndices.length ? descended?.node ?? null : slotNode;
+    if (receiverNode && adapter.isOptedOut?.(receiverNode, true)) return null;
     // the keys the descent consumed into a parameter-filled slot are walked already
     const walkKeys = keys.slice(descended?.consumedKeys ?? 0);
     if (receiverNode !== null) {

@@ -24991,6 +24991,202 @@ function * generateReadWriteOrder() {
   };
 }
 
+// Disabled callers and receiver slots keep native identity while an independent claim stays live.
+function * generateOptOutReceivers() {
+  const helper = JSON.stringify(new URL('../helpers/restore-property.cjs', import.meta.url).href);
+  for (const [name, body] of [
+    [
+      'disabled-write',
+      '// core-js-disable-next-line\nPromise.resolve = value => ({ custom: value });\nr = Promise.resolve(1);',
+    ],
+    [
+      'disabled-delete',
+      '// core-js-disable-next-line\ndelete Map.groupBy;\nr = typeof Map.groupBy;',
+    ],
+    [
+      'disabled-call',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction pick({ resolve }) { return reso'
+      + 'lve; }\n// core-js-disable-next-line\nr = pick(Promise) === nativeResolve;',
+    ],
+    [
+      'disabled-arg',
+      'const nativeResolve = Function("return Promise.resolve")();\nr = (({ resolve }) => resolve)(\nPromise '
+      + '// core-js-disable-line\n) === nativeResolve;',
+    ],
+    [
+      'disabled-init',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst { resolve } =\nPromise; // core-js-'
+      + 'disable-line\nr = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-default',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction pick({ resolve } =\nPromise // c'
+      + 'ore-js-disable-line\n) { return resolve; }\nr = pick() === nativeResolve;',
+    ],
+    [
+      'disabled-arm',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst flag = true; const { resolve } = f'
+      + 'lag ?\nPromise // core-js-disable-line\n: Object; r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-loop',
+      'const nativeResolve = Function("return Promise.resolve")();\nfor (const { resolve } of [\nPromise // c'
+      + 'ore-js-disable-line\n]) { r = resolve === nativeResolve; }',
+    ],
+    [
+      'disabled-rest',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst { resolve, ...rest } =\nPromise; //'
+      + ' core-js-disable-line\nr = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-realm',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst { Promise: { resolve } } =\nglobalT'
+      + 'his; // core-js-disable-line\nr = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-optional',
+      'const nativeResolve = Function("return Promise.resolve")();\nr = (\n// core-js-disable-next-line\ngloba'
+      + 'lThis\n)?.Promise.resolve === nativeResolve;',
+    ],
+    [
+      'disabled-in',
+      'function pick() { return "resolve"\nin Promise; // core-js-disable-line\n} r = pick();',
+    ],
+    [
+      'disabled-realm-arm',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst flag = true; const { Promise: { re'
+      + 'solve } } = flag ?\nglobalThis // core-js-disable-line\n: self; r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-source-wrapper',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst { resolve } = (\nPromise // core-js'
+      + '-disable-line\n); r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-sequence',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst { resolve } = (effects.push("prefi'
+      + 'x"),\nPromise // core-js-disable-line\n); r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-assignment',
+      'const nativeResolve = Function("return Promise.resolve")();\nlet held; const { resolve } = (held =\nPr'
+      + 'omise // core-js-disable-line\n); r = [resolve === nativeResolve, held === Function("return Promise")'
+      + '()];',
+    ],
+    [
+      'disabled-loop-mixed',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst out = []; for (const { resolve } o'
+      + 'f [\nPromise, // core-js-disable-line\nPromise\n]) { out.push(resolve === nativeResolve); } r = [out[0]'
+      + ', out.length];',
+    ],
+    [
+      'disabled-realm-loop',
+      'const nativeResolve = Function("return Promise.resolve")();\nfor (const { Promise: { resolve } } of ['
+      + '\nglobalThis // core-js-disable-line\n]) { r = resolve === nativeResolve; }',
+    ],
+    [
+      'disabled-call-mixed',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction pick({ resolve }) { return reso'
+      + 'lve; }\n// core-js-disable-next-line\nconst opted = pick(Promise) === nativeResolve;\nr = [opted, typeo'
+      + 'f pick(Promise)];',
+    ],
+    [
+      'disabled-call-line',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction pick({ resolve }) { return reso'
+      + 'lve; }\nr = pick(Promise) === nativeResolve; // core-js-disable-line',
+    ],
+    [
+      'disabled-property-prefix',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst { resolve } = (\nFunction("return 1'
+      + '")(), // core-js-disable-line\nPromise); r = typeof resolve;',
+    ],
+    [
+      'disabled-write-alias',
+      'const P = Promise;\n// core-js-disable-next-line\nP.resolve = value => ({ custom: value });\nr = Promis'
+      + 'e.resolve(1);',
+    ],
+    [
+      'disabled-write-prototype',
+      '// core-js-disable-next-line\nMap.prototype.custom = function () { return 17; };\nr = new Map().custom'
+      + '();',
+    ],
+    [
+      'disabled-mutator',
+      '// core-js-disable-next-line\nObject.defineProperty(Promise, "resolve", { value: value => ({ custom: '
+      + 'value }), configurable: true });\nr = Promise.resolve(1);',
+    ],
+    [
+      'disabled-in-missing',
+      'Function("delete globalThis.Promise")();\ntry { r = "resolve"\nin Promise; // core-js-disable-line\n} c'
+      + 'atch (e) { r = e.name; }',
+    ],
+    [
+      'disabled-array-source',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst [{ resolve }] = [\nPromise // core-'
+      + 'js-disable-line\n]; r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-array-realm-source',
+      'const nativeResolve = Function("return Promise.resolve")();\nconst [{ Promise: { resolve } }] = [\nglo'
+      + 'balThis // core-js-disable-line\n]; r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-assignment-pattern',
+      'const nativeResolve = Function("return Promise.resolve")();\nlet resolve; ({ resolve } =\nPromise // c'
+      + 'ore-js-disable-line\n); r = resolve === nativeResolve;',
+    ],
+    [
+      'disabled-default-logical',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction f({ resolve } = (\nPromise // co'
+      + 're-js-disable-line\n) || {}) { return resolve; } r = f() === nativeResolve;',
+    ],
+    [
+      'disabled-array-iife',
+      'const nativeResolve = Function("return Promise.resolve")();\nr = (([{ resolve }]) => resolve)([\nPromi'
+      + 'se // core-js-disable-line\n]) === nativeResolve;',
+    ],
+    [
+      'disabled-write-callee',
+      '// core-js-disable-next-line\nObject.defineProperty(\nPromise, "resolve", { value: value => ({ custom:'
+      + ' value }), configurable: true });\nr = Promise.resolve(1);',
+    ],
+    [
+      'disabled-write-host',
+      '// core-js-disable-next-line\ndelete (\nMap.groupBy); r = typeof Map.groupBy;',
+    ],
+    [
+      'disabled-call-before-default',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction f({ resolve } = Promise) { retu'
+      + 'rn resolve; }\n// core-js-disable-next-line\nr = f(Promise) === nativeResolve;',
+    ],
+    [
+      'disabled-receiver-call-arg',
+      'r = (\n// core-js-disable-next-line\nFunction("return function(x) { return x; }")()\n)([3].at(-1));',
+    ],
+    [
+      'disabled-member-call',
+      'const nativeResolve = Function("return Promise.resolve")();\nfunction pick(value) { return value.resolve; }\n'
+      + '// core-js-disable-next-line\nr = pick(Promise) === nativeResolve;',
+    ],
+    [
+      'disabled-member-arg',
+      'const nativeResolve = Function("return Promise.resolve")();\nr = (value => value.resolve)(\n'
+      + 'Promise // core-js-disable-line\n) === nativeResolve;',
+    ],
+  ]) yield {
+    name: `opt-out-receiver/${ name }`, strip: true, isolated: true,
+    code: `import { withTemporaryProperty } from ${ helper };
+      export let r; export const effects = [];
+      const realm = Function('return this')();
+      const NativePromise = Function('function P() {} P.resolve = function (x) { return x; }; return P;')();
+      const NativeMap = Function('function M() {} M.groupBy = function () {}; return M;')();
+      withTemporaryProperty(realm, 'globalThis', realm, () => withTemporaryProperty(realm, 'Promise', NativePromise,
+        () => withTemporaryProperty(realm, 'Map', NativeMap, () => { ${ body }
+        })));
+      effects[effects.length] = [7].at(-1);`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -26787,4 +26983,5 @@ export function * generate() {
   yield * generateCalleeSourceFacts();
   yield * generateMutatedReceiverReads();
   yield * generateReadWriteOrder();
+  yield * generateOptOutReceivers();
 }

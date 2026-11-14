@@ -17,8 +17,8 @@ export function planEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntr
   let injectedModules = 0;
   for (let idx = 0; idx < ast.body.length; idx++) {
     const node = ast.body[idx];
-    const source = getEntrySource(node, adapter, shadowScope);
-    if (source === null || isDisabled(node)) continue;
+    const source = getEntrySource(node, adapter, shadowScope, isDisabled);
+    if (source === null) continue;
     const entry = getCoreJSEntry(source);
     if (entry === null) continue;
     injectedModules += injectModulesForEntry(entry);

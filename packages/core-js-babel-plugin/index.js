@@ -117,6 +117,7 @@ import {
   leadingJsxPragmas,
   mergeVisitors,
   parseDisableDirectives,
+  isDisabledByLines,
 } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
@@ -532,7 +533,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     getInjector: () => injector,
     nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
     method,
-    isOptedOut: node => !!currentIsDisabled?.(node),
+    isOptedOut: (node, receiver = false) => !!currentIsDisabled?.(node, receiver),
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`)
     resolvePure,
     isEntryCarried,
@@ -618,10 +619,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // freshly-allocated WeakSet
       let synthSwap;
       currentSynthSwap = () => synthSwap;
-      currentIsDisabled = node => isDisabled(node);
+      currentIsDisabled = isDisabled;
 
-      function isDisabled(node) {
-        return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
+      function isDisabled(node, receiver = false) {
+        return skipFile || (disabledLines !== null && isDisabledByLines(node, disabledLines, null, receiver));
       }
       // the opt-outs this pass honoured reach the next pass through the printed tree: the canon
       // (`disableDirectiveAnchors`) names every outermost covered node the reprint would leave
@@ -1953,7 +1954,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           // only this method removes an ESM statement, and only the entry shape it recognises; a
           // statement the author opted out of is not removed either, so it still holds the spelling
           consumesESM: method === 'entry-global'
-            ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
+            ? node => isConsumedEntryImport(node, getCoreJSEntry, isDisabled)
             : null,
         };
         // ONE raw walk collects format, name reservation and shape facts. The format reducer
@@ -2684,7 +2685,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               // `runEntryDetection` unifies the dual dispatch (ExpressionStatement body
               // scan + ImportDeclaration traversal) so the caller doesn't thread a visitor
               // object through manual pre-call + filtered traverse
-              runEntryDetection(this.file.path, entryGlobalCallback);
+              runEntryDetection(this.file.path, entryGlobalCallback, isDisabled);
               applyEntryDirectivePromotions(this.file.path);
             }
             // entry-global reprints the file like every babel mode but runs no usage traversal, so

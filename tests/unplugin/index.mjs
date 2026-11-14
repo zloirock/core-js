@@ -70,13 +70,12 @@ function parseOrNull(parseId, source) {
 // writes a BARE `import "core-js/modules/..."` (or a side-effect `require(...)`), usage-pure
 // a DEFAULT import off `@core-js/pure`. the two package names normalize together, as the
 // differential's own extractor does
-function importsOf(text) {
-  const found = text.split('\n').map(line => {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('import') && !trimmed.includes('require(')) return null;
-    return /["'](?<path>@?core-js(?:\/pure)?\/[^"']+)["']/u.exec(trimmed)?.groups.path.replace('@core-js/pure', 'core-js');
-  });
-  return JSON.stringify(found.filter(Boolean).sort());
+function importsOf(text, parseId) {
+  const parsed = parseOrNull(parseId, text);
+  if (!parsed) throw new Error('output does not parse for the import-set compare');
+  return JSON.stringify(importSources(parsed.program)
+    .filter(source => /^@?core-js(?:\/pure)?\//u.test(source))
+    .map(source => source.replace('@core-js/pure', 'core-js')).sort());
 }
 
 function label(directory) {
@@ -423,7 +422,7 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
   const looseLane = abstained || (babelOptions.plugins ?? []).some(plugin => !(Array.isArray(plugin) && plugin[0] === '@core-js'));
   let agrees;
   if (looseLane) {
-    agrees = importsOf(actual) === importsOf(babelOutput);
+    agrees = importsOf(actual, parseId) === importsOf(babelOutput, parseId);
   } else {
     const baselineParsed = parseOrNull(parseId, babelOutput);
     if (!baselineParsed) return fail(directory, 'babel baseline does not parse for the structural compare');

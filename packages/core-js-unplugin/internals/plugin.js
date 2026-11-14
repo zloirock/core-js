@@ -62,6 +62,7 @@ import {
   leadingJsxPragmas,
   mergeVisitors,
   parseDisableDirectives,
+  isDisabledByLines,
 } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
@@ -320,13 +321,24 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
     }
   } });
   function ownDirectiveText(node) {
-    if (typeof node.start !== 'number') return anchorText;
-    const line = offsetToLine(node.start);
+    // A lifted prefix has a zero-width statement at the declaration's insertion point.
+    // Its expression still owns the source directive; leaving that comment on the cursor
+    // would move it past the new binding and onto an unrelated statement.
+    const source = node.type === 'ExpressionStatement' && node.start === node.end ? node.expression : node;
+    if (typeof source.start !== 'number') return anchorText;
+    const line = offsetToLine(source.start);
+    const covering = coveringByLine.get(line) ?? [];
+    if (source !== node) {
+      for (const comment of covering) {
+        if (!isNextLineDisableDirective(comment.value) && comment.start >= source.end
+          && /^[\s,;]*$/.test(code.slice(source.end, comment.start))) removed.add(comment);
+      }
+    }
     // the directive standing directly above the node: a `-next-line` covering its line with nothing
     // but whitespace or opening parens between them. Splitting a parenthesized sequence
     // gives its first operand a statement host after those parens.
-    const own = (coveringByLine.get(line) ?? []).find(comment => isNextLineDisableDirective(comment.value)
-      && comment.end <= node.start && /^[\s(]*$/.test(code.slice(comment.end, node.start)));
+    const own = covering.find(comment => isNextLineDisableDirective(comment.value)
+      && comment.end <= source.start && /^[\s(]*$/.test(code.slice(comment.end, source.start)));
     if (!own) return anchorText;
     removed.add(own);
     return code.slice(own.start, own.end);
@@ -415,7 +427,7 @@ export default function createPlugin(options) {
     getInjector: () => currentInjector,
     nestedTSRuntimeDeclarations: () => currentNestedTSRuntimeDeclarations ?? true,
     method: options.method,
-    isOptedOut: node => !!currentIsOptedOut?.(node),
+    isOptedOut: (node, receiver = false) => !!currentIsOptedOut?.(node, receiver),
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`);
     // the resolver's half is destructured below, so it is read lazily like `getPackages`
     resolvePure,
@@ -676,15 +688,13 @@ export default function createPlugin(options) {
       // only this method removes an ESM statement, and only the entry shape it recognises; a
       // statement the author opted out of is not removed either, so it still holds the spelling
       consumesESM: method === 'entry-global'
-        ? node => !isDisabled(node) && isConsumedEntryImport(node, getCoreJSEntry)
+        ? node => isConsumedEntryImport(node, getCoreJSEntry, isDisabled)
         : null,
     };
     let format;
 
-    function isDisabled(node) {
-      if (!disabledLines) return false;
-      if (node.start === undefined) return false;
-      return disabledLines.has(offsetToLine(node.start));
+    function isDisabled(node, receiver = false) {
+      return disabledLines !== null && isDisabledByLines(node, disabledLines, offsetToLine, receiver);
     }
 
     // pre-walk for `Object.key` monkey-patches. cheap single AST traversal; result consulted
@@ -762,6 +772,9 @@ export default function createPlugin(options) {
     // per-transform slots below
     const outerNestedTSRuntimeDeclarations = currentNestedTSRuntimeDeclarations;
     currentNestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
+    // Disabled writes already choose native constructor identity during this prepass.
+    const outerIsOptedOut = currentIsOptedOut;
+    currentIsOptedOut = isDisabled;
     try {
       // mutation collection is INJECTION policy only, so usage-pure only: a global-flavor bail here
       // would drop an import instead of adding one. the typing side asks the same data separately
@@ -790,6 +803,7 @@ export default function createPlugin(options) {
       } else if (prePassArgs.isDisabled) prePass = collectPrePassSites(prePassArgs);
     } finally {
       currentNestedTSRuntimeDeclarations = outerNestedTSRuntimeDeclarations;
+      currentIsOptedOut = outerIsOptedOut;
     }
     let mutatedStatics = prePass?.mutated ?? null;
     // pre+post: union PRE's mutation set into post's own recompute. the keys are semantic

@@ -144,12 +144,18 @@ try {
       })).code : code;
       const file = path.join(directory, `case-${ serial++ }.mjs`);
       await fs.writeFile(file, output);
-      for (const strip of host === 'native' ? [false] : [false, true]) {
+      for (const strip of host === 'native' && name !== 'disabled/realm/false' ? [false] : [false, true]) {
         // Babel lowers rest bindings to var even without core-js. The raw leg keeps strict TDZ.
         const expected = lower && name.startsWith('tdz/...') ? '__undefined__' : want;
+        const expectedResult = `OK|${ JSON.stringify(expected) }|${ JSON.stringify(effects) }`;
+        // The disabled Set leaf and its globalThis default share one source line.
+        // With the root kept, the native pattern still reads a stripped Array.from.
+        const disabledRoot = strip && name === 'disabled/realm/false';
         check(`${ name }/${ host }/${ lower }/${ strip }`, await runInWorker(file, { strip }),
-          `OK|${ JSON.stringify(expected) }|${ JSON.stringify(effects) }`);
+          disabledRoot ? 'ERR|ReferenceError' : expectedResult);
       }
+      if (name === 'disabled/realm/false') check(`${ name }/${ host }/${ lower }/native root`,
+        await runInWorker(file, { stripGlobals: ['Iterator'] }), 'ERR|TypeError');
     }
   }
 } finally {

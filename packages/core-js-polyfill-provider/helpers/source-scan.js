@@ -1,4 +1,28 @@
-import { SINGLE_STATEMENT_SLOTS, isASTNode, sortedPrefixLength, statementListOf, walkAstChildren, walkAstNodes } from './ast-patterns.js';
+import {
+  SINGLE_STATEMENT_SLOTS,
+  isASTNode,
+  receiverSpineChild,
+  sortedPrefixLength,
+  statementListOf,
+  unwrapRuntimeExpr,
+  walkAstChildren,
+  walkAstNodes,
+} from './ast-patterns.js';
+
+// A replacement owns its receiver spine, including wrappers and stored values, but not
+// independent keys, prefixes or arguments. Directive-free files never walk that spine.
+export function isDisabledByLines(node, disabledLines, offsetToLine = null, receiver = false) {
+  if (!disabledLines?.size) return false;
+  for (let current = node; current; current = receiver ? receiverSpineChild(current) : null) {
+    // A sequence and its wrappers start at the prefix; only the tail supplies the receiver.
+    if (receiver && unwrapRuntimeExpr(current)?.type === 'SequenceExpression') continue;
+    const line = offsetToLine
+      ? typeof current.start === 'number' ? offsetToLine(current.start) : null
+      : current.loc?.start?.line;
+    if (disabledLines.has(line)) return true;
+  }
+  return false;
+}
 
 // ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
 function collectLineStarts(code) {

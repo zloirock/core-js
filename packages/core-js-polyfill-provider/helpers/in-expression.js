@@ -51,6 +51,7 @@ function foldPlan({ meta, left, right, ctx }) {
 
 // `ctx` is the host's scope, which the discarded operands' harvest asks its questions in
 export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null, parent = null, ctx = null }) {
+  if (ctx?.adapter?.isOptedOut?.(left, true) || ctx?.adapter?.isOptedOut?.(right, true)) return { kind: 'noop' };
   // the kept-test spelling re-enters on a SECOND pass - the unplugin emitter runs before AND after babel
   // in the sandwich, and the test it keeps still reads as a foldable probe. recognising our own
   // output by shape is what stops the wrap from wrapping itself. a hand-written `(k in o, true)`

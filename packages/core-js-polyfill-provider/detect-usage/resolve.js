@@ -1807,7 +1807,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
         && !bindingPolyfillHint({ binding: sourceBinding, scope: callPath.scope, name: value.name, adapter })) return null;
       const object = resolveObjectName({ objectNode: value, scope: callPath.scope, adapter, path: callPath, seen: new Set() });
       return object && (typeof candidate === 'string' ? object === candidate : isKnownGlobalName(object)) ? object : null;
-    });
+    }, adapter.method === 'usage-pure' ? adapter.isOptedOut : null);
     cache?.set(parameter.node, source);
     return source;
   }
@@ -2731,6 +2731,7 @@ export function decidedRunningPath(path, adapter) {
 // injector hint, so a caller asking after the rewrite reads the same answer as one asking before.
 // a deeper chain answers null - the multihop canon speaks for those
 export function realmSelectionLeafKind(node, { adapter = null, injectorState = null, scope = null, path = null } = {}) {
+  if (adapter?.isOptedOut?.(node, true)) return null;
   // a prefix READ an accessor answers is no dead comma: the leaf is then the sequence, which names no realm
   const core = unwrapTransparentSeq(node, { scope, adapter, path });
   const member = core?.type === 'MemberExpression' || core?.type === 'OptionalMemberExpression';
@@ -2827,7 +2828,8 @@ export function realmSelectingHostCollapses(hostNode, ctx) {
     const core = unwrapRuntimeExpr(init);
     if (core?.type !== 'LogicalExpression' && core?.type !== 'ConditionalExpression') return;
     const operand = realmSelectionCollapseOperand(core, ctx);
-    if (operand && operand !== core) sites.push({ container, key, init, operand });
+    if (operand && operand !== core && !ctx.adapter.isOptedOut?.(init, true)
+      && !ctx.adapter.isOptedOut?.(operand, true)) sites.push({ container, key, init, operand });
   }
   consider(hostNode, slot);
   // an ARRAY WRAPPER pairs each of its elements with the pattern's own, so a selection standing in

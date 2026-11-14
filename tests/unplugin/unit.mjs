@@ -1679,6 +1679,22 @@ function checkPhaseSnapshotFlow() {
       check(`phase/post keeps the live claim (${ method }, ${ engine })`, /\bat\b/.test(postImports), true);
       check(`phase/post claims nothing the directives covered (${ method }, ${ engine })`, /fill|flat|includes/.test(postImports), false);
     }
+    // A lifted sequence prefix keeps its directive once, ahead of its new statement.
+    // The original trailing marker must not drift beyond the extracted binding.
+    for (const [marker, receiverEnabled] of [
+      ['Function("return 1")(), // core-js-disable-line', true],
+      ['// core-js-disable-next-line\nFunction("return 1")(),', false],
+    ]) {
+      const prefixSrc = `const { resolve } = (\n${ marker }\nPromise);\nuse(resolve);`;
+      const prefixOut = createPlugin(pureOpts).transform(prefixSrc, '/sm-directive-prefix.mjs')?.code ?? prefixSrc;
+      check(`lifted prefix retains one directive (${ marker }, ${ engine })`, directiveCount(prefixOut), 1);
+      check(`lifted prefix consumes its old marker (${ marker }, ${ engine })`, prefixOut.includes('core-js-disable-line'), false);
+      check(`lifted prefix stays disabled (${ marker }, ${ engine })`,
+        prefixOut.includes(`// core-js-disable-next-line\nFunction("return 1")()${ receiverEnabled ? ';' : ',' }`), true);
+      check(`lifted prefix retains source-range coverage (${ marker }, ${ engine })`, prefixOut.includes('/promise/resolve'), receiverEnabled);
+      check(`lifted prefix is a fixed point (${ marker }, ${ engine })`,
+        createPlugin(pureOpts).transform(prefixOut, '/sm-directive-prefix.mjs')?.code ?? prefixOut, prefixOut);
+    }
     // a SOLE-prop chain hoists from any level: the opt-out on the inner leaf of `{ Object: {
     // groupBy } }`, or on a multi-line sole outer prop, lands ahead of the statement as the only
     // directive - inside the pattern babel's lowering between the passes would eat it

@@ -1,6 +1,5 @@
-// A `||` / `??` on a line the user opted out of decides nothing: its right stays live, so usage-global
-// injects what each arm reads and a pattern reading it mirrors each arm, as it does for an opted-out
-// ternary - the selection never collapses to its left.
+// An opted-out selecting receiver stays native, including its fallback arm.
+// Extraction must not replace its branches or the default of a parameter.
 export const { groupBy } =
   // core-js-disable-next-line
   Map || Object;

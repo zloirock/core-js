@@ -21,12 +21,13 @@ export { matchEntrySubpath } from '../helpers/path-normalize.js';
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
 // form some parsers emit (`{type: 'CallExpression', callee: {type: 'Import'}, arguments: [...]}`)
-function importExpressionSource(node, adapter) {
+function importExpressionSource(node, adapter, isDisabled) {
   const inner = unwrapTransparentSeq(node);
-  if (!inner) return null;
-  if (inner.type === 'ImportExpression') return extractStaticString(inner.source, adapter);
+  if (!inner || isDisabled?.(inner)) return null;
+  if (inner.type === 'ImportExpression') return isDisabled?.(inner.source) ? null : extractStaticString(inner.source, adapter);
   if (inner.type === 'CallExpression' && inner.callee?.type === 'Import') {
-    return extractStaticString(inner.arguments?.[0], adapter);
+    const source = inner.arguments?.[0];
+    return source && isDisabled?.(source) ? null : extractStaticString(source, adapter);
   }
   return null;
 }
@@ -46,14 +47,15 @@ export function mayBeEntryStatement(node) {
 // extract entry source from an AST node (ImportDeclaration / require() / await import())
 // returns source string or null if not an entry pattern. when `scope` is provided, calls to a
 // shadowed `require` (locally bound) are ignored. `export * from 'core-js/...'` is deliberately
-// NOT an entry: a re-export is a bundle pattern, not an entry point
-export function getEntrySource(node, adapter, scope) {
-  if (!mayBeEntryStatement(node)) return null;
+// NOT an entry: a re-export is a bundle pattern, not an entry point. An opted-out
+// host or source specifier keeps its original load, including its module-format marker.
+export function getEntrySource(node, adapter, scope, isDisabled = null) {
+  if (!mayBeEntryStatement(node) || isDisabled?.(node)) return null;
   // import 'core-js/...' - but `import type {} from 'core-js/...'` (and Flow's `import typeof`)
   // erases before runtime, so it is NOT a runtime side-effect entry and must not expand
   if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0
     && !isTypeOnlyImportKind(node.importKind)) {
-    return extractStaticString(node.source, adapter);
+    return isDisabled?.(node.source) ? null : extractStaticString(node.source, adapter);
   }
   // TS `import X = require('core-js/...')` binds a value like `import X from` and `const X =
   // require()` do - a binding import, never a side-effect entry, used or not: the minifier-joined
@@ -63,15 +65,16 @@ export function getEntrySource(node, adapter, scope) {
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
   const expr = unwrapTransparentSeq(node.expression);
+  if (expr && isDisabled?.(expr)) return null;
   // require('core-js/...') (incl. webpack `(0, require)(...)`, TS-wrapped, optional `require?.()`)
   const required = requireCallSource(expr, { adapter, scope });
-  if (required !== null) return required;
+  if (required !== null) return isDisabled?.(expr.arguments[0]) ? null : required;
   // await import('core-js/...') as a top-level statement (ESM top-level await).
   // bare `import('...')` without await is intentionally ignored: it discards the returned
   // promise (unhandled rejection risk). `import(...).then(cb)` is also ignored - the user
   // explicitly opted into async runtime loading, so replacing the dynamic import with static
   // side-effect imports would erase that async shape; see fixture `audit-dynamic-import-then-skip`
-  if (expr?.type === 'AwaitExpression') return importExpressionSource(expr.argument, adapter);
+  if (expr?.type === 'AwaitExpression') return importExpressionSource(expr.argument, adapter, isDisabled);
   return null;
 }
 
@@ -178,7 +181,7 @@ export function scanExistingCoreJSImports(ast, {
       }
       continue;
     }
-    const source = getEntrySource(node, adapter, shadowScope);
+    const source = getEntrySource(node, adapter, shadowScope, isDisabled);
     if (typeof source !== 'string') continue;
     const mod = matchEntrySubpath(source, packages, 'modules/');
     // the PACKAGE travels with the module: this import is removed and re-emitted, and a user's
