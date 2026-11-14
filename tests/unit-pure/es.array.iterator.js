@@ -49,6 +49,10 @@ QUnit.test('Array#keys', assert => {
     value: undefined,
     done: true,
   });
+  assert.deepEqual(keys({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(keys({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(keys({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(keys(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
 });
 
 QUnit.test('Array#values', assert => {
@@ -75,6 +79,18 @@ QUnit.test('Array#values', assert => {
     value: undefined,
     done: true,
   });
+  assert.deepEqual(values({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(values({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(values({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(values(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
+  let conversions = 0;
+  const throwing = values({ 0: 'q', 1: 'w', length: { valueOf() {
+    if (conversions++ === 1) throw new RangeError('length');
+    return 2;
+  } } });
+  assert.deepEqual(throwing.next(), { value: 'q', done: false }, 'before an abrupt length');
+  assert.throws(() => throwing.next(), RangeError, 'abrupt length');
+  assert.deepEqual(throwing.next(), { value: 'w', done: false }, 'an abrupt length does not advance the index');
 });
 
 QUnit.test('Array#entries', assert => {
@@ -99,4 +115,8 @@ QUnit.test('Array#entries', assert => {
     value: undefined,
     done: true,
   });
+  assert.deepEqual(entries({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(entries({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(entries({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(entries(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
 });

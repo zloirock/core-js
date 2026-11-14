@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed the polyfilled array iterator (`Array.prototype.{ entries, keys, values, @@iterator }`) reading the `length` of array-likes without `ToLength`: endless iteration with a missing or non-numeric `length` and of primitives, an extra step with a fractional one; an error on reading `length` no longer skips an element
 - Fixed `Object.{ assign, entries, values }` polyfills ignoring properties that become enumerable during iteration, except in old V8 where collecting all keys breaks property order
 - Reduced redundant proxy traps in `Object.{ assign, entries, values }` polyfills
 - Fixed `Object.assign` ignoring numeric keys of null-prototype objects in IE10

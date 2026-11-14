@@ -1,5 +1,6 @@
 'use strict';
 var toIndexedObject = require('../internals/to-indexed-object');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var Iterators = require('../internals/iterators');
 var InternalStateModule = require('../internals/internal-state');
@@ -37,11 +38,12 @@ module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
 }, function next() {
   var state = getInternalState(this);
   var target = state.target;
-  var index = state.index++;
-  if (!target || index >= target.length) {
+  var index = state.index;
+  if (!target || index >= lengthOfArrayLike(target)) {
     state.target = null;
     return createIterResultObject(undefined, true);
   }
+  state.index = index + 1;
   switch (state.kind) {
     case 'keys': return createIterResultObject(index, false);
     case 'values': return createIterResultObject(target[index], false);

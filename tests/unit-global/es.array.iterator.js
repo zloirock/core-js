@@ -38,6 +38,10 @@ QUnit.test('Array#keys', assert => {
     done: true,
   }, 'uses ToLength');
   */
+  assert.deepEqual(keys.call({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(keys.call({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(keys.call({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(keys.call(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
   assert.true('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -79,6 +83,18 @@ QUnit.test('Array#values', assert => {
     done: true,
   }, 'uses ToLength');
   */
+  assert.deepEqual(values.call({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(values.call({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(values.call({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(values.call(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
+  let conversions = 0;
+  const throwing = values.call({ 0: 'q', 1: 'w', length: { valueOf() {
+    if (conversions++ === 1) throw new RangeError('length');
+    return 2;
+  } } });
+  assert.deepEqual(throwing.next(), { value: 'q', done: false }, 'before an abrupt length');
+  assert.throws(() => throwing.next(), RangeError, 'abrupt length');
+  assert.deepEqual(throwing.next(), { value: 'w', done: false }, 'an abrupt length does not advance the index');
   assert.true('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -117,6 +133,10 @@ QUnit.test('Array#entries', assert => {
     done: true,
   }, 'uses ToLength');
   */
+  assert.deepEqual(entries.call({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(entries.call({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(entries.call({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(entries.call(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
   assert.true('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -155,4 +175,8 @@ QUnit.test('Array#@@iterator', assert => {
     done: true,
   }, 'uses ToLength');
   */
+  assert.deepEqual(Array.prototype[Symbol.iterator].call({ 0: 'q' }).next(), { value: undefined, done: true }, 'uses ToLength, missing length');
+  assert.deepEqual(Array.prototype[Symbol.iterator].call({ 0: 'q', length: NaN }).next(), { value: undefined, done: true }, 'uses ToLength, NaN length');
+  assert.deepEqual(Array.prototype[Symbol.iterator].call({ 0: 'q', length: 0.5 }).next(), { value: undefined, done: true }, 'uses ToLength, fractional length');
+  assert.deepEqual(Array.prototype[Symbol.iterator].call(1).next(), { value: undefined, done: true }, 'uses ToLength, primitive without length');
 });
