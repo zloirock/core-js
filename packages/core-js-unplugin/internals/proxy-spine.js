@@ -862,21 +862,17 @@ export default function createProxySpineChannel(ctx) {
     // a TS wrapper on the dropped span is consumed with it (`((d = gw)?.self as any).Array`
     // -> `(d = _globalThis.window).Array`) - the substituted spelling needs no assertion
     let top = navClimbed.at(-1);
-    // a SEAL (parens, a TS wrapper) ends the chain: the read above it is unconditional, so
-    // the dropped hop's `?.` does NOT travel to the survivor - the wrapper itself is
-    // consumed with the span it sealed (`((d = gw)?.self as any).Array` -> `(d =
-    // _globalThis.window).Array`)
-    let crossedSeal = false;
+    // Source parentheses seal the chain; erased TS wrappers alone do not. Ask the
+    // same heir rule as the other hop drops before replacing their source span.
     while (top.parentPath?.node?.expression === top.node
       && SKIPPABLE_WRAPPER_TYPES.has(top.parentPath.node.type)) {
-      crossedSeal ||= top.parentPath.node.type !== 'ChainExpression';
       top = top.parentPath;
     }
-    const above = top.parentPath?.node;
-    const wasOptional = !crossedSeal && navClimbed.some(path => path.node.optional);
+    const heir = optionalHeirAbove(top.parentPath?.node, navClimbed.at(-1).node);
+    const wasOptional = heir && navClimbed.some(path => path.node.optional);
     markRewrite();
     top.replaceWith(navClimbed[0].node.object);
-    if (above?.type === 'MemberExpression' && wasOptional) above.optional = true;
+    if (wasOptional) heir.optional = true;
   }
 
   // substitute the pristine proxy root inside a cloned guard test - the clone detaches

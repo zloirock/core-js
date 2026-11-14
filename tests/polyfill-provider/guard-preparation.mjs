@@ -2,7 +2,7 @@
 // preserve source identity; applying a preparation only changes explicitly owned slots.
 import {
   guardProbeUndefinable, holdsProxySurface, memoReceiverGlobalName, memoReceiverOriginName, mintedProxyGlobalName,
-  planGuardComposition, planOptionalProbe,
+  optionalMemberStaysGuarded, planGuardComposition, planOptionalProbe,
   planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, prepareMemoReceiver, storedMemoProvesGuard,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import {
@@ -385,5 +385,32 @@ runBoth('supplied probe keeps the realm sequence slot', 'const result = (effect(
     check(`${ label }/prefix stays in test`, plan.prefix.length, 0);
     check(`${ label }/read only`, JSON.stringify(program.node), before);
   });
+
+// The receiver's value decides the guard, across both optional-call dialects and realm aliases.
+for (const [setup, expression, expected] of [
+  ['let f;', 'f?.()?.self', true],
+  ['let f;', 'f?.()?.window?.self', true],
+  ['let f;', 'f?.().self?.window', true],
+  ['', 'globalThis?.read()?.self', true],
+  ['', 'globalThis?.Array?.from', false],
+  ['', 'globalThis.window?.self', true],
+  ['', 'globalThis?.window?.self', true],
+  ['const g = globalThis;', 'g?.window?.self', true],
+  ['const first = globalThis; const g = first;', 'g?.window?.self', true],
+  ['const g = globalThis;', 'g?.Array?.from', false],
+  ['import g from "@core-js/pure/actual/global-this";', 'g?.window?.self', true],
+  ['let held;', '(held = globalThis.window)?.self', true],
+  ['let held;', '(held = globalThis)?.self', false],
+  ['', '(() => globalThis)()?.self', true],
+]) runBoth(`optional member guard/${ expression }/${ setup }`, `${ setup } const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const node = unwrapRuntimeExpr(path.node.init);
+  const context = { path, adapter, resolvePure };
+  const before = JSON.stringify(program.node);
+  check(`${ label }/guard`, optionalMemberStaysGuarded(node, context), expected);
+  check(`${ label }/repeated query`, optionalMemberStaysGuarded(node, context), expected);
+  check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+});
 
 finish();

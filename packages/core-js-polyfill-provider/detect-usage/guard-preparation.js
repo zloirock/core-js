@@ -834,14 +834,13 @@ export function optionalMemberStaysGuarded(node, { path, adapter, resolvePure, o
   // still be the environment probe, and that value is what OUR `?.` tests
   // (`globalThis?.window?.self` - `globalThis` is defined, `window` is not backed, the guard stays)
   let cur = unwrapRuntimeExpr(node.object);
-  while (cur?.type === 'MemberExpression') {
+  while (isMemberAccessNode(cur)) {
     if (cur.optional) {
       if (guardProbeUndefinable(cur.object, seqOpts)) return true;
-      // the extended value question fires only on a SOURCE proxy-global root: a rendered
-      // span roots at a minted always-defined binding, and its vestigial `?.` keeps the
-      // erase the re-emit spelled (the sealed respell owns the probe there)
+      // The extended value question needs a proven realm root, including a source alias.
+      // Its spelling alone cannot distinguish a realm alias from an unrelated binding.
       const { root } = descendToChainRoot(cur);
-      if (root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return false;
+      if (!proxyGlobalRootName({ node: root, scope: path.scope, adapter, path })) return false;
       // ... asked of the RECEIVER, which is the value OUR `?.` tests - not of this link. hops
       // standing between them are realm self-references the collapse assumption defines, so the
       // link's own verdict guarded a run whose plain twin folds whole
@@ -850,7 +849,7 @@ export function optionalMemberStaysGuarded(node, { path, adapter, resolvePure, o
     }
     cur = unwrapRuntimeExpr(cur.object);
   }
-  if (cur?.type === 'CallExpression' && cur.optional) return guardProbeUndefinable(cur, seqOpts);
+  if (isCallShape(cur) && cur.optional) return guardProbeUndefinable(cur, seqOpts);
   let probeObject = unwrapRuntimeExpr(node.object);
   let sawWrite = false;
   while (probeObject?.type === 'AssignmentExpression') {
@@ -859,7 +858,7 @@ export function optionalMemberStaysGuarded(node, { path, adapter, resolvePure, o
   }
   // a BARE call value guards even proven (the strict opaque-root canon: `(() =>
   // globalThis)()?.self...` keeps its test); a KEPT WRITE of it erases (the write observes)
-  if (!sawWrite && probeObject?.type === 'CallExpression' && !probeObject.optional) return true;
+  if (!sawWrite && isCallShape(probeObject) && !probeObject.optional) return true;
   return proxyReceiverValueCanBeUndefined(probeObject, resolvePure,
     { scope: path.scope, adapter, path }, { throughChainAssign: true, observableRead });
 }

@@ -1769,7 +1769,7 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // `null == realm ? void 0 : (_ref = realm.Array, ...)`). a deeper hop would need a memo of its own
   // ahead of the test, and two live hops need two tests - both keep bailing
   const receiverHop = !captureChain && !memberNode.optional && captureReceiver?.optional
-    && optionalHops[0] === captureReceiver.object && captureReceiver.object.type === 'Identifier'
+    && optionalHops[0] === captureReceiver.object && unwrapRuntimeExpr(captureReceiver.object)?.type === 'Identifier'
     ? captureReceiver : null;
   if (!captureChain && (optionalHops.length > 1 || (optionalHops.length === 1 && !memberNode.optional && !receiverHop))) {
     return { bail: true };
