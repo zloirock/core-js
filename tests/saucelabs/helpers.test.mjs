@@ -247,3 +247,8 @@ async function runFake({
   doesNotMatch(output, /unexpected page/, 'restarts a hung platform without navigating the busy browser to the next page #4');
   match(output, /all the browsers passed/, 'restarts a hung platform without navigating the busy browser to the next page #5');
 }
+
+{
+  const { output } = await runFake({ hangs: 3, pages: ['unit-browser/global.html', 'unit-browser/pure.html'] });
+  match(output, /\n {2}unit-browser\/pure\.html: not run, the session stopped at unit-browser\/global\.html/, 'reports the pages after a hung page as not run');
+}

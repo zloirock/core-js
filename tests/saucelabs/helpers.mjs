@@ -103,8 +103,14 @@ async function runSession(suite, platform) {
   });
   await trackSession(session.id, true);
   const pages = [];
+  let hung;
   try {
     for (const page of suite.pages) {
+      // a browser busy with a hung page does not navigate
+      if (hung) {
+        pages.push({ page, passed: false, details: [], error: `not run, the session stopped at ${ hung }` });
+        continue;
+      }
       let result;
       try {
         result = await runPage(suite, session, page);
@@ -113,8 +119,7 @@ async function runSession(suite, platform) {
         throw error;
       }
       pages.push(result);
-      // a browser busy with a hung page does not navigate
-      if (result.unfinished) break;
+      if (result.unfinished) hung = page;
     }
     // a lost annotation must not retry the platform
     try {
