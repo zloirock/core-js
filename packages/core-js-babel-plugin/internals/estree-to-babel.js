@@ -111,6 +111,7 @@ function convert(node) {
 // from the first `optional: true` link upward, so the walk returns whether anything below
 // carried a `?.` and retypes on the way out
 function convertChainLink(node) {
+  if (node?.type === HOST_SLOT) return { node: convert(node), hasOptional: node.chain === true };
   if (node?.type === 'MemberExpression') {
     const below = convertChainLink(node.object);
     const optionalHere = below.hasOptional || !!node.optional;

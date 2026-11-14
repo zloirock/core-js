@@ -103,6 +103,7 @@ import {
   planMethodCall,
   renderMethodCall,
   renderShortCircuitGuard,
+  renderSealedCallFallback,
   renderSymbolReceiverRoot,
   renderStaticFallbackReceiver,
 } from '@core-js/polyfill-provider/render';
@@ -1007,12 +1008,12 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         if (!plan) return false;
         if (plan.bail) return true;
         if (plan.captureReceiver) plan.recvIdent = generateRef(path.scope, memberNode);
+        const hopBase = plan.captureHopBase ? generateRef(path.scope, memberNode) : plan.receiverHop?.object;
         // the receiver hop the guard absorbed is captured PLAIN - its `?.` is answered once, above the
         // whole render, by the short-circuit the plan hoists over that hop's own base
         const captureSource = plan.receiverHop
-          ? t.memberExpression(t.cloneNode(plan.receiverHop.object),
-            plan.receiverHop.computed
-              ? t.cloneNode(plan.receiverHop.property) : t.identifier(plan.receiverHop.property.name),
+          ? t.memberExpression(t.cloneNode(hopBase),
+            t.cloneNode(plan.receiverHop.property),
             plan.receiverHop.computed)
           : plan.captureReceiver && t.cloneNode(plan.captureReceiver, true);
         // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
@@ -1048,7 +1049,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           cloneCall: (source, callee, args, optional) => hostSlot({
             ...t.cloneNode(source), callee: estreeToBabel(callee),
             arguments: args.map(estreeToBabel), optional,
-          }),
+          }, { chain: optional }),
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
           spellRecv: () => {
@@ -1068,7 +1069,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             while (up?.node && up.node !== step) up = up.parentPath;
             if (up?.node) tailPath = up;
           }
-          hoisted = estreeToBabel(renderGuardedChainTail(plan.chainTail, hostSlot(narrow), {
+          if (!plan.branchTail) hoisted = estreeToBabel(renderGuardedChainTail(plan.chainTail, hostSlot(narrow), {
             cloneHost,
             cloneCall: (step, built) => callExpression(built, step.arguments.map(argument => hostSlot(t.cloneNode(argument))), {
               optional: step.optional === true,
@@ -1079,9 +1080,14 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
         // capture, the test rides inside the capture sequence, after the memo it reads
         if (plan.hoisted) {
-          const renderGuard = plan.deleteHost ? renderDeleteShortCircuitGuard : renderShortCircuitGuard;
-          hoisted = estreeToBabel(renderGuard(nullFirstGuardTest(hostSlot(t.cloneNode(
-            plan.receiverHop ? plan.receiverHop.object : plan.recvIdent))), hostSlot(hoisted)));
+          const renderGuard = plan.deleteHost && !plan.branchTail ? renderDeleteShortCircuitGuard : renderShortCircuitGuard;
+          const probe = plan.captureHopBase
+            ? t.assignmentExpression('=', t.cloneNode(hopBase), t.cloneNode(plan.receiverHop.object))
+            : t.cloneNode(hopBase ?? plan.recvIdent);
+          const absent = renderSealedCallFallback(plan.sealedCall, {
+            embed: argument => hostSlot(t.cloneNode(argument)), deleted: !!plan.deleteHost,
+          });
+          hoisted = estreeToBabel(renderGuard(nullFirstGuardTest(hostSlot(probe)), hostSlot(hoisted), absent));
         }
         if (plan.hoistInsideCapture) {
           hoisted = estreeToBabel(renderCapturedReceiver(

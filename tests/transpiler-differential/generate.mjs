@@ -24781,6 +24781,88 @@ function * generateOptionalWrapperGuards() {
   };
 }
 
+// A selection remains guarded through a memo, kept store and native optional boundary.
+// Isolated realms prevent another case from supplying a missing constructor static.
+function * generateSelectedStaticGuards() {
+  for (const [name, body, ts = false] of [
+    ['alias-nullable', 'const A = choice ? Array : null; return A?.from([3]);'],
+    ['alias-call', 'const A = choice ? Array : {}; return A.from?.((effects.push("arg"), [3]));'],
+    ['alias-sealed', 'const A = choice ? Array : null; return (A?.from)((effects.push("arg"), [3]));'],
+    ['optional-tail', 'const A = choice ? Array : {}; return A.from?.((effects.push("arg"), [3])).length;'],
+    ['sealed-delete', 'const A = choice ? Array : null; return delete (A?.from)?.((effects.push("arg"), [3])).value;'],
+    ['multiple-optionals', 'const A = choice ? Array : {}; return A.from?.([3]).at?.(0);'],
+    ['call-result-member', 'const A = choice ? Array : {}; return A.from?.([3]).at?.(0).toString();'],
+    ['optional-key-effects', 'const A = choice ? Array : {}; return A.from?.([3])[(effects.push("key"), 0)];'],
+    ['sealed-tail', 'const A = choice ? Array : {}; return (A.from?.([3])).length;'],
+    ['ts-call', 'const A: Partial<ArrayConstructor> = choice ? Array : {}; return A.from?.<number>([3]).length;', true],
+    ['ts-receiver', 'const A = choice ? Array : null; return (A as typeof Array | null)?.from<number>([3]).at(0);', true],
+    ['memo-array', 'return (choice ? Array : null)?.from([3]).at(0);'],
+    ['memo-object', 'return (choice ? Object : null)?.entries({ x: 3 }).at(0);'],
+    ['memo-user', 'const custom = { entries() { effects.push("custom"); return [this.value]; }, value: 7 }; return (choice ? Object : custom)?.entries({ x: 3 }).at(0);'],
+    ['store-alias', 'const A = choice ? Array : null; let held; const value = (held = A)?.from([3]); return [value, held === A];'],
+    ['store-setter', 'const A = choice ? Array : null; const box = { set value(v) { effects.push("write"); }, get value() { throw new Error("getter"); } }; '
+      + 'return (box.value = A)?.from((effects.push("arg"), [3]));'],
+    ['realm-selection', 'return (choice ? globalThis : null)?.Object.fromEntries([["x", 3]]);'],
+    ['realm-two-hops', 'return (choice ? globalThis : null)?.Array?.from([3]);'],
+    ['private-selection', 'class F { static #owner = choice ? Map : Object; static read() { return F?.#owner.groupBy([3], String); } } return typeof F.read();'],
+    ['private-export', 'class F { static #owner = Map; static read() { return F.#owner.groupBy([3], String).get("3"); } } const escaped = [F]; return escaped[0].read();'],
+    ['private-last-public-read', 'class F { static ["#owner"] = Map; static #owner = Object; '
+      + 'static read() { return F["#owner"].groupBy([3], String).get("3"); } } return F.read();'],
+    ['public-last-public-read', 'class F { static #owner = Object; static ["#owner"] = Map; '
+      + 'static read() { return F["#owner"].groupBy([3], String).get("3"); } } return F.read();'],
+    ['public-last-private-read', 'class F { static #owner = Map; static ["#owner"] = Object; static read() { return F.#owner.groupBy([3], String).get("3"); } } return F.read();'],
+    ['private-last-private-read', 'class F { static ["#owner"] = Object; static #owner = Map; static read() { return F.#owner.groupBy([3], String).get("3"); } } return F.read();'],
+    ['object-private-first', 'class F { static #owner = Object; static ["#owner"] = Map; '
+      + 'static read() { return F.#owner.groupBy([3], String)["3"]; } } return F.read();'],
+    ['object-private-last', 'class F { static ["#owner"] = Map; static #owner = Object; '
+      + 'static read() { return F.#owner.groupBy([3], String)["3"]; } } return F.read();'],
+    ['private-alias', 'class F { static #owner = Object; static ["#owner"] = Map; '
+      + 'static read() { const held = F.#owner; return held.groupBy([3], String)["3"]; } } return F.read();'],
+    ['public-pattern', 'class F { static #owner = Object; static ["#owner"] = Map; } '
+      + 'const { ["#owner"]: { groupBy } } = F; return groupBy([3], String).get("3");'],
+    ['public-nested-pattern', 'class F { static #box = { ["#owner"]: Map }; '
+      + 'static read() { const { ["#owner"]: { groupBy } } = F.#box; return groupBy([3], String).get("3"); } } return F.read();'],
+    ['private-then-public-class', 'class Inner { static ["#owner"] = Object; } class Outer { static #owner = Inner; '
+      + 'static read() { const { ["#owner"]: { groupBy } } = Outer.#owner; return groupBy([3], String)["3"]; } } return Outer.read();'],
+    ['private-then-public-self', 'class F { static #owner = F; static ["#owner"] = Object; '
+      + 'static read() { const { ["#owner"]: { groupBy } } = F.#owner; return groupBy([3], String)["3"]; } } return F.read();'],
+    ['private-value-escaped', 'class Inner { static C = Object; } class Outer { static #value = Inner; '
+      + 'static take() { return Outer.#value; } } '
+      + 'Function("C", "v", "C.C = { groupBy() { return {3: [v]}; } };")(Outer.take(), choice ? 7 : 9); '
+      + 'const { C: { groupBy } } = Inner; return groupBy([3], String)["3"];'],
+    ['private-this-value-escaped', 'class Inner { static C = Object; } class Outer { static #value = Inner; '
+      + 'static take() { return this.#value; } } '
+      + 'Function("C", "v", "C.C = { groupBy() { return {3: [v]}; } };")(Outer.take(), choice ? 7 : 9); '
+      + 'const { C: { groupBy } } = Inner; return groupBy([3], String)["3"];'],
+    ['private-shadowed-this-value-escaped', 'class Inner { static C = Object; } class Outer { static #value = Inner; '
+      + 'static take(Outer) { return this.#value; } } '
+      + 'Function("C", "v", "C.C = { groupBy() { return {3: [v]}; } };")(Outer.take(), choice ? 7 : 9); '
+      + 'const { C: { groupBy } } = Inner; return groupBy([3], String)["3"];'],
+    ['private-anonymous-this-value-escaped', 'class Inner { static C = Object; } const Outer = class { static #value = Inner; '
+      + 'static take() { return this.#value; } }; '
+      + 'Function("C", "v", "C.C = { groupBy() { return {3: [v]}; } };")(Outer.take(), choice ? 7 : 9); '
+      + 'const { C: { groupBy } } = Inner; return groupBy([3], String)["3"];'],
+    ['private-inline-this-value-escaped', 'class Inner { static C = Object; } const escaped = (class { static #value = Inner; '
+      + 'static take() { return this.#value; } }).take(); '
+      + 'Function("C", "v", "C.C = { groupBy() { return {3: [v]}; } };")(escaped, choice ? 7 : 9); '
+      + 'const { C: { groupBy } } = Inner; return groupBy([3], String)["3"];'],
+    ['private-written', 'class F { static #owner = Map; static set(value) { F.#owner = value; } static read() { return F.#owner.groupBy([3], String); } } '
+      + 'if (choice) F.set({ groupBy() { effects.push("custom"); return 7; } }); return F.read();'],
+  ]) yield {
+    name: `selected-static-guards/${ name }`, ts, strip: true, isolated: true,
+    code: `export const effects = []; function read(choice) { ${ body } }
+      export const r = [false, true].map(choice => { try { return read(choice); } catch (error) { return error.name; } });`,
+  };
+  yield {
+    name: 'selected-static-guards/exported-private-field', strip: true, isolated: true,
+    code: `export class Reader {
+      static #owner = Map;
+      static read() { return Reader.#owner.groupBy([3], String).get("3"); }
+    }
+    export const r = Reader.read();`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -26573,4 +26655,5 @@ export function * generate() {
   yield * generateGuardedKeys();
   yield * generateIteratorReceivers();
   yield * generateOptionalWrapperGuards();
+  yield * generateSelectedStaticGuards();
 }

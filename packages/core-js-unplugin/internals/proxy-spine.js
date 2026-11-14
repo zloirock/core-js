@@ -51,7 +51,6 @@ import {
   isMemberWriteHost,
   isPristineProxyGlobal,
   peelParenAndTSParentPath,
-  peelParenAndTSSlotPath,
   peelParenAndTSSlotChild,
   isChainAssignment,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -75,6 +74,7 @@ import {
   renderCapturedReceiver,
   renderGuardedChainTail,
   renderShortCircuitGuard,
+  renderSealedCallFallback,
   renderDeleteShortCircuitGuard,
   renderBoundRawBranch,
   renderCtorIdentityNarrow,
@@ -223,9 +223,11 @@ export default function createProxySpineChannel(ctx) {
     if (!plan) return false;
     if (plan.bail) return true;
     if (plan.captureReceiver) plan.recvIdent = identifier(injector.generateDeclaredRef(metaPath));
+    const hopBase = plan.captureHopBase ? identifier(injector.generateDeclaredRef(metaPath)) : plan.receiverHop?.object;
+    const hopSource = plan.captureHopBase ? cloneNode(plan.receiverHop.object) : null;
     // the receiver hop the guard absorbed is captured PLAIN - its `?.` is answered once by the
     // short-circuit the plan hoists over that hop's own base
-    const captureSource = plan.receiverHop ? { ...cloneNode(plan.receiverHop), optional: false }
+    const captureSource = plan.receiverHop ? { ...cloneNode(plan.receiverHop), object: cloneNode(hopBase), optional: false }
       : plan.captureReceiver ? cloneNode(plan.captureReceiver) : null;
     // an effectful sequence prefix on the receiver runs ONCE, ahead of the test - the raw
     // branch reads off the bare identifier, as it does off the left of a selection the build
@@ -249,7 +251,7 @@ export default function createProxySpineChannel(ctx) {
     // it, and the replaced target climbs to the outermost absorbed step
     let tailTarget = null;
     if (plan.chainTail.length) {
-      replacement = renderGuardedChainTail(plan.chainTail, replacement, {
+      if (!plan.branchTail) replacement = renderGuardedChainTail(plan.chainTail, replacement, {
         cloneHost: node => {
           const key = cloneNode(node);
           tailClaims.add(key);
@@ -270,9 +272,19 @@ export default function createProxySpineChannel(ctx) {
     // RECEIVER spelling carries it, the receiver itself otherwise - and where that receiver is a
     // capture, the test rides inside the capture sequence, after the memo it reads
     if (plan.hoisted) {
-      const renderGuard = plan.deleteHost ? renderDeleteShortCircuitGuard : renderShortCircuitGuard;
-      replacement = renderGuard(nullFirstGuardTest(plan.receiverHop
-        ? cloneNode(plan.receiverHop.object) : identifier(plan.recvIdent.name)), replacement);
+      const renderGuard = plan.deleteHost && !plan.branchTail ? renderDeleteShortCircuitGuard : renderShortCircuitGuard;
+      const probe = plan.captureHopBase
+        ? assignmentExpression('=', cloneNode(hopBase), hopSource)
+        : cloneNode(hopBase ?? plan.recvIdent);
+      const absent = renderSealedCallFallback(plan.sealedCall, {
+        embed(argument) {
+          const clone = cloneNode(argument);
+          tailClaims.add(clone);
+          return clone;
+        },
+        deleted: !!plan.deleteHost,
+      });
+      replacement = renderGuard(nullFirstGuardTest(probe), replacement, absent);
     }
     if (plan.hoistInsideCapture) {
       replacement = renderCapturedReceiver(identifier(plan.recvIdent.name), captureSource, replacement);
@@ -280,7 +292,7 @@ export default function createProxySpineChannel(ctx) {
     const prefixClones = plan.seqPrefix.map(expr => cloneNode(expr));
     if (prefixClones.length) replacement = sequenceExpression([...prefixClones, replacement]);
     let target = metaPath;
-    if (plan.callInBranches) target = peelParenAndTSSlotPath(metaPath).parentPath;
+    if (plan.callInBranches) target = climbTransparentWrapperPath(metaPath).parentPath;
     if (tailTarget) target = tailTarget;
     if (plan.deleteHost) target = plan.deleteHost;
     // the source `?.` arrived wrapped in a ChainExpression; the conditional replaces the whole
@@ -299,6 +311,7 @@ export default function createProxySpineChannel(ctx) {
     // babel leg's prefix clones do)
     const live = new Set([...liveArguments ?? [], ...tailClaims]);
     if (captureSource) live.add(captureSource);
+    if (hopSource) live.add(hopSource);
     for (const expr of prefixClones) live.add(expr);
     markSubtreeSkipped(skippedNodes, replacement, live);
     return true;

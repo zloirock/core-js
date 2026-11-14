@@ -368,6 +368,11 @@ check('chain/bare optional call', print(bareOptionalCall), 'f?.()');
 check('chain/bare optional call base stays plain', estreeToBabel(bareOptionalCall).callee.type, 'Identifier');
 const computedOptional = chainExpression(memberExpression(identifier('a'), identifier('k'), { computed: true, optional: true }));
 check('chain/computed optional member', print(computedOptional), 'a?.[k]');
+const hostOptionalCall = { type: 'OptionalCallExpression', callee: { type: 'Identifier', name: 'f' }, arguments: [], optional: true };
+check('chain/open host call extends the segment',
+  print(chainExpression(memberExpression(hostSlot(hostOptionalCall, { chain: true }), identifier('value')))), 'f?.().value');
+check('chain/plain host slot stays sealed',
+  print(chainExpression(memberExpression(hostSlot(hostOptionalCall), identifier('value')))), '(f?.()).value');
 const doubleOptionalCall = chainExpression(callExpression(
   memberExpression(identifier('a'), identifier('b'), { optional: true }), [], { optional: true }));
 check('chain/optional member then optional call', print(doubleOptionalCall), 'a?.b?.()');

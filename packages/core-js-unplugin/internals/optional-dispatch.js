@@ -9,7 +9,11 @@ import {
   resolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  planReceiverEffects, prepareGuardReceiver, prepareStaticReceiver, memoReceiverGlobalName, holdsProxySurface as receiverHoldsProxySurface,
+  planReceiverEffects,
+  prepareGuardReceiver,
+  prepareStaticReceiver,
+  registerGuardReceiverAlias,
+  holdsProxySurface as receiverHoldsProxySurface,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
 import { planProxyReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional, vestigialReceiverOptionals } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -121,8 +125,7 @@ export default function createOptionalDispatchChannel(ctx) {
     const memo = renderReceiverMemo(decision, {
       mintRef() {
         const ref = injector.generateDeclaredRef(metaPath);
-        const name = surface || memoReceiverGlobalName(source, aliasCtx, { constructors: true });
-        if (name) injectorState?.registerGlobalAlias?.(ref, name, { trusted: true, minted: true });
+        registerGuardReceiverAlias(ref, source, aliasCtx, { surface });
         return ref;
       },
       embed(node, role) {

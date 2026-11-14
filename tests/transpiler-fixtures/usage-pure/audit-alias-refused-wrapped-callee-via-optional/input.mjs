@@ -1,6 +1,4 @@
-// a wrapped OPTIONAL callee refuses the guard machinery: no raw-branch bind is emitted, the member
-// is left to the regular substitution path (pure bails when uncertain) and the optional call keeps
-// caller-side `this`
+// A wrapped optional callee uses the identity guard and retains caller-side this on the raw branch.
 export function viaOptional(c) {
   let O;
   if (c) ({ Object: O } = globalThis);

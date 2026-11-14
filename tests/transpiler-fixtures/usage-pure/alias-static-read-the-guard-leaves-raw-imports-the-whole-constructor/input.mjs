@@ -1,7 +1,5 @@
-// a reassigned constructor alias reads its statics through a runtime identity guard; a read the guard
-// leaves raw (an optional call over it, a call through its own `?.`, a key that runs code) reads the
-// static off the swapped binding, so the alias imports the whole constructor - one constructor per row.
-// a read the guard serves keeps the narrow entry
+// Optional calls and optional members of a selected constructor use an identity guard.
+// An effectful key stays raw and requires the whole constructor; guarded reads keep narrow entries.
 class Shim {}
 let M = Map;
 if (globalThis.c) M = Shim;

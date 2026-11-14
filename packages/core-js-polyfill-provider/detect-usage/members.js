@@ -1676,13 +1676,17 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
 // and lose `this`), keeping its own `?.`; an optional MEMBER stops the walk - its short-circuit
 // reads the guard's own value and belongs outside it - and so does a SEAL, where the source's own
 // read of the short-circuited value throws and a guard would answer `void 0` instead.
+// A seal directly below an absorbed call is handled by that call's absent branch;
+// it does not also separate the call from its following continuation.
 // A delete of the complete continuation is returned with it: the operator belongs in the
 // live branch and its short-circuit returns true, including parentheses around the operand.
 function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
   const tail = [];
+  let beforeCall = !!absorbedCall;
   for (let step = path, up = path?.parentPath; up?.node; step = up, up = up.parentPath) {
     const { node } = up;
-    if (CHAIN_HOP_WRAPPER_TYPES.has(node.type) && node.expression === step.node) continue;
+    if ((CHAIN_HOP_WRAPPER_TYPES.has(node.type) || beforeCall && node.type === 'ParenthesizedExpression')
+      && node.expression === step.node) continue;
     const isCall = node.type === 'CallExpression' || node.type === 'OptionalCallExpression';
     const isMember = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression';
     let slot = null;
@@ -1691,10 +1695,13 @@ function guardedNarrowChainTail(path, memberNode, absorbedCall = null) {
     if (slot === null) return { tail, deleteHost: deleteOverOpenContinuation(step.node, up) };
     if (!isCall && node.optional) break;
     if (isCall && node !== absorbedCall && !tail.length) break;
-    if (sealedLayerBetween(slot, step.node) || sealedLayerBetween(slot, memberNode)) break;
     // the absorbed call is spelled by the BRANCHES, each with its own invocation - it is a step the
     // walk climbs over, never one the tail rebuilds above the guard
-    if (node === absorbedCall) continue;
+    if (node === absorbedCall) {
+      beforeCall = false;
+      continue;
+    }
+    if (sealedLayerBetween(slot, step.node) || sealedLayerBetween(slot, memberNode)) break;
     tail.push(node);
   }
   return { tail, deleteHost: null };
@@ -1719,19 +1726,18 @@ export function realmHopRunBase(node, { adapter, path, resolvePure }) {
 
 // does the identity guard render over a member read off a bare receiver (a name holding several values)? the
 // escape census asks it of the source, before any meta exists, mirroring what `planGuardedStaticNarrow` below
-// bails on for a receiver it does not capture and what `buildMemberMeta` attaches no guard under: an optional
-// call over the member, or a call reading it through the member's own `?.` - only a captured receiver absorbs
-// one - and an effect in a computed key. a write needs no answer here: the mutation census holds what it
-// writes. `invocation`: the call the member is the callee of, wrappers stepped over
+// bails on: a deeper optional receiver without a capture, or an effect in a computed key.
+// Own optional members and sealed callees have explicit call branches.
+// Writes are handled by the mutation census separately.
 export function bareReceiverGuardRenders(memberNode, invocation = null) {
-  if (invocation && (invocation.optional || ownChainOptionalObjects(memberNode).length)) return false;
+  if (invocation && ownChainOptionalObjects(memberNode).length && !memberNode.optional) return false;
   return !(memberNode.computed && mayHaveSideEffects(memberNode.property));
 }
 
 // decision plan for the RUNTIME ctor guard - single-sourced so both emitters render the same
 // judgment. `parent` is the emitter-peeled semantic parent (each substrate peels its own
 // wrappers). returns: null = not a guard read (fall through to normal dispatch); { bail: true }
-// = handled, intentionally RAW (an optional-CALL form, whose short-circuit the callee slot
+// = handled, intentionally RAW (an unsupported receiver or invocation shape, whose short-circuit the callee slot
 // cannot reproduce, or a synthesized guard-only meta with no resolvable static); else the
 // render inputs - the unwrapped receiver identifier (or, for a meta asking `captureGuardReceiver`,
 // the receiver NODE the emitter captures into a ref of its own - `captureReceiver`), the static's
@@ -1761,16 +1767,16 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // the sealed value - the read above it throws where a hoisted guard would answer `void 0`. the
   // FLAG walk is the one answer both dialects give, babel promoting the node TYPES of a whole chain
   const optionalHops = ownChainOptionalObjects(memberNode);
-  // A proven conditional return can be absent only where this live chain short-circuits.
-  // Capture its entire spelling: sealed throws stay inside it, and its own ?. keeps its order.
-  const captureChain = Boolean(meta.definedGuardReceiver && captureReceiver && optionalHops.length);
-  // the receiver's own last hop the guard can absorb: its base is an identifier, so the test reads that
-  // base and the live branch re-reads it while re-spelling the receiver PLAIN (`realm?.Array.of` ->
-  // `null == realm ? void 0 : (_ref = realm.Array, ...)`). a deeper hop would need a memo of its own
-  // ahead of the test, and two live hops need two tests - both keep bailing
-  const receiverHop = !captureChain && !memberNode.optional && captureReceiver?.optional
-    && optionalHops[0] === captureReceiver.object && unwrapRuntimeExpr(captureReceiver.object)?.type === 'Identifier'
-    ? captureReceiver : null;
+  // A proven conditional return, or the member's own optional probe, permits testing the
+  // captured value. Capture its entire spelling: sealed throws stay inside it.
+  const captureChain = Boolean((meta.definedGuardReceiver || memberNode.optional) && captureReceiver && optionalHops.length);
+  // The receiver's own last hop can be absorbed: the test reads its base while
+  // re-spelling the receiver PLAIN (`realm?.Array.of` ->
+  // `null == realm ? void 0 : (_ref = realm.Array, ...)`). An effectful base gets its own
+  // memo before that test. Deeper live hops still require their separate probes.
+  const captureCore = unwrapRuntimeExpr(captureReceiver);
+  const receiverHop = !captureChain && !memberNode.optional && isMemberAccessNode(captureCore) && captureCore.optional
+    && optionalHops[0] === captureCore.object ? captureCore : null;
   if (!captureChain && (optionalHops.length > 1 || (optionalHops.length === 1 && !memberNode.optional && !receiverHop))) {
     return { bail: true };
   }
@@ -1822,15 +1828,15 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // arguments are observable: binding a possibly absent raw method would reject before them.
   // Each branch preserves `this`; quiet uncaptured calls keep their bound spelling.
   // A tagged-template tag is not a call this render can absorb.
-  // ... and a SEALED callee slot is not one either: parens / a paren'd cast around the member end the
-  // chain there, so the call runs on the short-circuited value and owes its throw. absorbing it would
-  // move the call inside a guard the seal put it outside of
+  // A sealed callee also invokes the short-circuited value. Its absent branch retains
+  // that invocation, including argument evaluation before the non-callable throw.
   const absorbableCall = Boolean(isCallee
     && (parent.type === 'CallExpression' || parent.type === 'OptionalCallExpression')
-    && (captureReceiver || (!parent.optional && !optionalHops.length && parent.arguments.some(argument => callArgumentMayBeObserved(
-      argument, adapter && path ? { scope: path.scope, adapter, path } : null,
-    ))))
-    && !(optionalHops.length && sealedLayerBetween(parent.callee, memberNode)));
+    && (captureReceiver || parent.optional || memberNode.optional || (!optionalHops.length
+      && parent.arguments.some(argument => callArgumentMayBeObserved(
+        argument, adapter && path ? { scope: path.scope, adapter, path } : null,
+      )))));
+  const sealedCall = absorbableCall && optionalHops.length && sealedLayerBetween(parent.callee, memberNode) ? parent : null;
   // a live `?.` has exactly one render each: at the member or in its receiver it rides the hoisted
   // guard above the whole continuation, and ON the call it rides the raw branch, which only the
   // absorbed-call spelling has. every other callee under a live `?.` keeps bailing - a bound raw
@@ -1877,24 +1883,29 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // a per-leg answer would print two spellings for one rule. an EMPTY tail keeps the member-level
   // narrow with its `?.`, which is exact where the chain ends, where the next step short-circuits
   // too, and where a seal makes the source's own read of the short-circuited value throw
-  // ... and for an absorbed OPTIONAL call the walk is also the proof there IS no continuation: the
-  // steps the source wrote above a `?.()` short-circuit WITH it, and only a copy of them in every
-  // branch would keep that, so a continuation over one keeps bailing
+  // An absorbed optional call carries its continuation in EACH branch, so a missing raw
+  // method still skips the tail. An ordinary call can share the tail above the identity test.
   const { tail: chainTail, deleteHost } = captureChain || memberNode.optional || receiverHop || absorbedCall?.optional
     ? guardedNarrowChainTail(path, memberNode, absorbedCall) : { tail: [], deleteHost: null };
-  if (absorbedCall?.optional && chainTail.length) return { bail: true };
+  const branchTail = Boolean(absorbedCall?.optional && chainTail.length);
   // WHERE the one short-circuit is spelled: over the whole render for a hop the RECEIVER's spelling
   // carries, and inside the capture for the member's own hop, whose test is the memo the branches
   // read. an empty tail over an uncaptured receiver needs none - the member-level narrow keeps the
   // source's `?.` in its raw branch, which is exact where the chain ends there
-  const hoisted = Boolean(captureChain || receiverHop || (memberNode.optional && (captureReceiver || chainTail.length || deleteHost)));
+  const hoisted = Boolean(captureChain || receiverHop
+    || (memberNode.optional && (captureReceiver || absorbedCall || chainTail.length || deleteHost)));
   return {
     // A non-hoisted narrow leaves the source operator around its value, including ?.().
-    deleteHost: hoisted ? deleteHost : null,
+    deleteHost: hoisted || branchTail ? deleteHost : null,
+    branchTail,
     callInBranches: absorbableCall,
+    sealedCall,
     hoisted,
     hoistInsideCapture: Boolean(hoisted && captureReceiver && !receiverHop),
     receiverHop,
+    captureHopBase: !!receiverHop && !isReusableReceiver(receiverHop.object, {
+      interveningEffects: true, ctx: { scope: path?.scope, adapter, path },
+    }),
     recvIdent,
     captureReceiver: !hoisted && adapter && path && isReusableReceiver(captureReceiver, {
       interveningEffects: true, ctx: { scope: path.scope, adapter, path },
@@ -2154,7 +2165,9 @@ export function handleMemberExpressionNode({
     // value read is the sequence's tail, and the render re-emits the prefix once ahead of the test.
     // the transparent peel stops there by design, so peel the tail explicitly (the plan does the same).
     // a selection the member meta read as its decided left (`decidedReceiver`) is that left here too
-    const recvIdent = peelReceiverSequenceTail(decidedReceiverSpelling(node.object, meta?.decidedReceiver));
+    const recvSource = peelReceiverSequenceTail(decidedReceiverSpelling(node.object, meta?.decidedReceiver));
+    const recvIdent = peelChainRootValue(recvSource);
+    const keptWrite = recvIdent !== recvSource;
     // a local whose name COINCIDES with the global it aliases (`const { Map } = globalThis`)
     // only LOOKS like an echo: the object came from the registered alias, and the binding
     // proves it by hinting that very ctor. guarding there loses the resolved static
@@ -2220,14 +2233,14 @@ export function handleMemberExpressionNode({
           Object.assign(meta, {
             guardedAliasHint: guardedHint,
             guardedWriteObjects: writeObjects,
-            captureGuardReceiver: meta.captureGuardReceiver || guardIdent?.type !== 'Identifier',
+            captureGuardReceiver: meta.captureGuardReceiver || keptWrite || guardIdent?.type !== 'Identifier',
             ...hopBase ? { guardsRealmHopRun: true } : {},
           });
         } else if (key) {
           return {
             kind: 'property', object: null, key, placement: 'static', guardedAliasHint: guardedHint,
             guardedWriteObjects: writeObjects,
-            captureGuardReceiver: guardIdent?.type !== 'Identifier',
+            captureGuardReceiver: keptWrite || guardIdent?.type !== 'Identifier',
             ...hopBase ? { guardsRealmHopRun: true } : {},
             guardOnly: true,
           };

@@ -607,8 +607,10 @@ export function createEstreeAdapter(options = {}) {
               // contract is the source spelling (`Symbol.iterator`, `Promise`)
               importSource: `${ getInjector().pkg }/${ minted.source }`,
               importKind: 'value',
-              polyfillHint: minted.hint.replaceAll('$', '.'),
-              mintedAlias: minted.minted === true,
+              polyfillHint: minted.aliasGuarded ? null : minted.hint.replaceAll('$', '.'),
+              mintedAlias: !minted.aliasGuarded && minted.minted === true,
+              guardedAliasHint: minted.aliasGuarded ? minted.hint : null,
+              guardedAliasHints: minted.aliasGuarded ? minted.hints : null,
             };
           }
           return null;
@@ -651,9 +653,10 @@ export function createEstreeAdapter(options = {}) {
       // predicate identifies the real alias binding (init resolves to the destructured global, any
       // declaration kind) and rejects user-declared shadows of the same name
       // binding-first: the per-binding registry is exact - see the babel twin
-      const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
       const useStart = useAnchorStart(path);
+      let identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
       const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, useStart) ?? null;
+      identityInfo ??= info?.minted ? info : null;
       const { isImportBinding, isRequireBinding, importSource, importKind } =
         importBindingView(b.path.node, b.path.parent, { adapter, scope, path });
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES

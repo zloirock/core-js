@@ -683,4 +683,17 @@ for (const [label, declarators, inline] of [
   }
 });
 
+// Generated selection refs are bound names, but their candidates never prove a scalar value.
+{
+  const injector = makeInjector();
+  injector.registerGlobalAlias('_selected', 'Array', { minted: true, guarded: true });
+  injector.registerGlobalAlias('_selected', 'Object', { minted: true, guarded: true });
+  injector.registerGlobalAlias('_selected', 'Array', { minted: true, guarded: true });
+  const info = injector.getBindingInfo('_selected');
+  check('registry/selected memo remains bound', injector.hasAliasName('_selected'), true);
+  check('registry/selected memo is not trusted', info.aliasTrusted, false);
+  check('registry/selected memo requires a guard', info.aliasGuarded, true);
+  check('registry/selected memo keeps all candidates', info.hints.join(','), 'Array,Object');
+}
+
 finish();

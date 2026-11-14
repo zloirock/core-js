@@ -578,7 +578,10 @@ export default class ImportInjectorState {
       // behind an AST mutation; trusting the hint would narrow over a flow a per-binding
       // registration may have refused)
       if (this.#aliasEntriesByName.get(name)?.length) return;
-      this.#globalAliases.set(name, { hint: globalName, trusted: true, minted });
+      const previous = this.#globalAliases.get(name);
+      const hints = guarded && previous?.guarded ? [...previous.hints] : [];
+      if (!hints.includes(globalName)) hints.push(globalName);
+      this.#globalAliases.set(name, { hint: globalName, hints, trusted: !guarded, guarded, minted });
       return;
     }
     // symmetric with the blind refusal above: a per-binding registration PROVES a user binding
@@ -656,7 +659,15 @@ export default class ImportInjectorState {
       }
     }
     const blind = this.#globalAliases.get(name);
-    if (blind) return { hint: blind.hint, source: null, entry: null, aliasTrusted: true, minted: blind.minted };
+    if (blind) return {
+      hint: blind.hint,
+      hints: blind.hints,
+      source: null,
+      entry: null,
+      aliasTrusted: blind.trusted,
+      aliasGuarded: blind.guarded,
+      minted: blind.minted,
+    };
     const list = this.#aliasEntriesByName.get(name);
     if (!list?.length) return null;
     let alias = null;

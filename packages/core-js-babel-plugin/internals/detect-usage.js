@@ -200,6 +200,7 @@ export function createBabelAdapter(options = {}) {
           polyfillHint: memoHint, aliasSymbolSource: null, aliasWrite: memoInfo?.aliasWrite ?? null,
           mintedAlias: !!memoHint && memoInfo.minted === true,
           guardedAliasHint: !memoHint ? memoInfo?.hint ?? null : null,
+          guardedAliasHints: !memoHint ? memoInfo?.hints ?? null : null,
         };
       }
       // use anchor for the trusted-span dominance gate: a use textually BEFORE its alias write /
@@ -223,8 +224,9 @@ export function createBabelAdapter(options = {}) {
       // binding-first: the per-binding registry is exact (same-name aliases in sibling scopes
       // never collide); the NAME view serves the scope-lag fallback below and the
       // replaced-declarator re-anchor, disambiguated positionally by the use anchor
-      const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null : null;
+      let identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null : null;
       const info = identityInfo ?? getInjector()?.getBindingInfo(name, useStart) ?? null;
+      identityInfo ??= info?.minted ? info : null;
       if (b) {
         const { isImportBinding, isRequireBinding, importSource, importKind } =
           importBindingView(b.path.node, b.path.parent, { adapter, scope, path });
@@ -320,6 +322,7 @@ export function createBabelAdapter(options = {}) {
         // no scope binding at all - a user shadow would HAVE one, so the positional name view
         // safely serves the runtime-guard hint when the static narrow did not apply
         guardedAliasHint: !blindHint ? info.hint ?? null : null,
+        guardedAliasHints: !blindHint ? info.hints ?? null : null,
       };
     },
     // lazy lookup for the resolver's assignment-form alias branch: the single TRUSTED write

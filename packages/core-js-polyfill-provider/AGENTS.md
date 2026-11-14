@@ -84,6 +84,7 @@ Each is a limit of the model, not a license to weaken the proofs above; its owne
 
 - No output typechecking guarantee: typecheck the source. A wrapper around a replaced value stays; one around a removed read may leave with it.
 - `with` and direct `eval` are outside the binding and value model.
+- Generated calls through `call` and `bind` assume their standard behavior; custom overrides are outside that guarantee.
 - Known builtin arguments alone do not require constructor namespaces (`builtin-*-static-read` fixtures); `call`, `apply`, `Reflect.apply`, an immediately invoked `bind` and tags invoke through `callPairing`.
 - `Symbol.iterator in x` is an is-iterable test (`helpers/in-expression.js`).
 - core-js wins a self-guarded patch (`readFeedsOwnSlotWrite`, `slotReadPrecedesItsWrites`, `readDecidesWrite`): a patch the build never runs is no write (`settleCensusWrites`), and a read after a patch that may run is the user's.
