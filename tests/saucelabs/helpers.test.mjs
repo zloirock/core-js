@@ -31,6 +31,7 @@ async function runFake({
   const openPools = {};
   const poolPeaks = {};
   let listedWhileOpen;
+  let exitCodeWhileRunning;
   const navigations = [];
   let sessionStart;
   const started = [];
@@ -61,6 +62,7 @@ async function runFake({
       if (path === '/rest/v1.2/users/test/concurrency') {
         equal(new URL(url).host, 'api.us-west-1.saucelabs.com', 'reads the limit from the REST API of the region');
         equal(options.headers.authorization, `Basic ${ btoa('test:test') }`, 'reads the limit with the hub credentials');
+        exitCodeWhileRunning = process.exitCode;
         return { ok: limitStatus === 200, status: limitStatus, json: async () => limits ? { concurrency: {
           organization: { allowed: { vms: limits.organization, mac_vms: 15, ...limits.pools } }, team: { allowed: { vms: limits.team, mac_vms: 15, ...limits.pools } },
         } } : JSON.parse('<html>') };
@@ -146,7 +148,7 @@ async function runFake({
     if (emptyPool || failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
     return {
-      output: output.join('\n'), navigations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
+      output: output.join('\n'), exitCodeWhileRunning, navigations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
       listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
     };
   } finally {
@@ -326,4 +328,13 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
   equal(none, 0, 'opens no session when the plan allows none');
   const { sessions: unread } = await runFake({ limits: null });
   equal(unread, 0, 'opens no session when the limit response is not JSON');
+}
+
+{
+  const { exitCode } = process;
+  const { exitCodeWhileRunning } = await runFake();
+  equal(exitCodeWhileRunning, 1, 'fails the process if the run never settles #1');
+  equal(process.exitCode, exitCode, 'fails the process if the run never settles #2');
+  await runFake({ failed: 1 });
+  equal(process.exitCode, exitCode, 'fails the process if the run never settles #3');
 }

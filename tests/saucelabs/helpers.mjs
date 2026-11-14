@@ -213,6 +213,17 @@ function report({ platform, id, pages, error }) {
 }
 
 export async function run(suite) {
+  // a never settled wait would end the process with code 0
+  const { exitCode } = process;
+  process.exitCode = 1;
+  try {
+    await runSuite(suite);
+  } finally {
+    process.exitCode = exitCode;
+  }
+}
+
+async function runSuite(suite) {
   if (COMMIT) {
     const deployed = await deployedCommit();
     if (deployed !== COMMIT) echo(yellow(`${ base }/commit.txt shows ${ deployed } instead of ${ COMMIT }; testing the currently served pages`));
