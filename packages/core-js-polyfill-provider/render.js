@@ -625,9 +625,11 @@ export const HOST_SLOT = 'CoreJsHostSlot';
 // the unplugin leg's host dialect IS canonical ESTree, so it never mints this wrapper (its
 // renders embed the subtree directly); the babel binding wraps each embedded babel subtree
 // in a host slot, and its converter unwraps the slot at the insertion boundary, passing the
-// subtree through unconverted. the wrapper NEVER survives into an inserted tree
-export function hostSlot(node) {
-  return { type: HOST_SLOT, node };
+// subtree through unconverted. The wrapper never survives into an inserted tree.
+// An explicitly open optional call can extend a new canonical chain; ordinary host
+// slots remain sealed, even when their source contains optional syntax.
+export function hostSlot(node, { chain = false } = {}) {
+  return chain ? { type: HOST_SLOT, node, chain: true } : { type: HOST_SLOT, node };
 }
 
 // ... and the host node a slot carries, for a render that asks about its shape
@@ -925,21 +927,32 @@ export function composeNullGuardTest(checks, { embed = node => node } = {}) {
     .reduce((left, right) => logicalExpression('||', left, right));
 }
 
-// the short-circuit itself: a nullish test yields `void 0`, everything else the live branch.
+// Parentheses end the callee's optional chain. Its missing value still invokes the
+// outer call: ordinary calls evaluate arguments and throw; optional calls skip them.
+// The host embeds argument slots so their own claims stay live in either branch.
+export function renderSealedCallFallback(call, { embed = cloneNode, deleted = false } = {}) {
+  if (!call) return deleted ? literal(true) : undefined;
+  const invocation = callExpression(voidZero(), call.arguments.map(embed), { optional: call.optional });
+  const expression = call.optional ? chainExpression(invocation) : invocation;
+  return deleted ? unaryExpression('delete', expression) : expression;
+}
+
+// the short-circuit itself: a nullish test yields its fallback (normally `void 0`), everything else the live branch.
 // `test` arrives BUILT (the channels compose their own disjuncts and reuse rendered tests).
 // every guard minted here is OUR render, never a user ternary, so the factory marks it: an
 // alias whose init lands this shape classifies through the defined branch (the resolve arm
 // consults the mark), where an unmarked user conditional of the same spelling must decline
-export function renderShortCircuitGuard(test, alternate) {
-  return markRenderedStoredValue(conditionalExpression(test, voidZero(), alternate));
+export function renderShortCircuitGuard(test, alternate, consequent = voidZero()) {
+  return markRenderedStoredValue(conditionalExpression(test, consequent, alternate));
 }
 
 // ... and its twin for a `delete` the chain continues into: a delete of a short-circuited chain is
 // `true` without evaluating any of it, anything else evaluates and deletes exactly as written. so the
 // whole operator rides the alternate - a `?.` re-hung off the guard's value instead takes a claim
-// that yields `undefined` for the short-circuit, and answers `true` where the source throws past it
-export function renderDeleteShortCircuitGuard(test, operand) {
-  return conditionalExpression(test, literal(true), unaryExpression('delete', operand));
+// that yields `undefined` for the short-circuit, and answers `true` where the source throws past it.
+// A sealed outer call supplies its own fallback to preserve argument effects and throws.
+export function renderDeleteShortCircuitGuard(test, operand, consequent = literal(true)) {
+  return conditionalExpression(test, consequent, unaryExpression('delete', operand));
 }
 
 // the synth value keeps its probe, each side of that probe's effects, and the source fallback.
@@ -1229,11 +1242,15 @@ export function renderCtorIdentityNarrow(plan, rawBranch, {
     if (!call) return callee;
     const optional = raw && !!call.optional;
     const args = call.arguments.map(argument => embed(argument, 'argument'));
-    if (receiver) return renderMethodCall(planMethodCall({
+    let built = receiver ? renderMethodCall(planMethodCall({
       receiver, prepared: true, optional, args, ctx,
-    }), { lookup: callee });
-    const built = cloneCall(call, callee, args, optional);
-    return optional ? chainExpression(built) : built;
+    }), { lookup: callee, chain: false }) : cloneCall(call, callee, args, optional);
+    if (plan.branchTail) built = renderGuardedChainTail(plan.chainTail, built, {
+      cloneHost: node => embed(node, 'continuation'),
+      cloneCall: (step, base) => cloneCall(step, base, step.arguments.map(argument => embed(argument, 'argument')), !!step.optional),
+    });
+    if (optional) built = chainExpression(built);
+    return plan.branchTail && plan.deleteHost ? unaryExpression('delete', built) : built;
   }
   let rawThis = null;
   if (plan.instanceFallback?.kind === 'instance') {

@@ -383,7 +383,10 @@ function handedOutValues(node) {
     case 'ExportNamedDeclaration':
       return node.declaration ? exportedValues(node.declaration)
         : (node.specifiers ?? []).map(specifier => specifier.local);
-    case 'PropertyDefinition': case 'ClassProperty': return [node.value];
+    case 'PropertyDefinition': case 'ClassProperty':
+      // A static private field does not publish its value. Later returns or stores of that
+      // value still escape; OXC represents this field with the same type as a public one.
+      return node.static && privateNameSpelling(node.key) !== null ? [] : [node.value];
     default: return [node.argument];
   }
 }
@@ -703,7 +706,7 @@ function aliasTargetsOf(value, readKeys = []) {
 const MAX_WRITE_TARGET_CHAINS = 64;
 
 function extendChain(node, keys) {
-  const inner = memberChainKeys(node, staticMemberKeyName);
+  const inner = memberChainKeys(node, hop => staticMemberKeyName(hop) ?? privateNameSpelling(hop.property));
   return { root: inner.root, keys: [...inner.keys, ...keys] };
 }
 
@@ -1519,7 +1522,7 @@ const NO_CHAIN_SLOT = { expanded: true, outside: true, absent: false, values: []
 // does a write this file spells land on the slot a member chain of a BOUND name reads, or on a
 // slot above it - or under one of its keys through a receiver no name spells?
 function censusSlotWritten(programNode, aliasInit, member, preserveOwn = false) {
-  const { root, keys } = memberChainKeys(member);
+  const { root, keys } = memberChainKeys(member, memberReadKeyName);
   const unrooted = UNROOTED_WRITE_KEYS.get(programNode);
   if (unrooted?.size && keys.some(key => unrooted.has(key ?? '*') || unrooted.has('*'))) return true;
   if (root?.type !== 'Identifier' || keys.includes(null)) return false;
@@ -2554,7 +2557,7 @@ function objectLiteralSlotMember(container, key, accessor = null, cache = null) 
 // holds no such slot hands back nothing. off anything ELSE the key reads a MEMBER, not a slot - the
 // constructor it may sit on keeps its own entry, and the read resolves where it stands.
 // Identity proofs request own data slots: an accessor's return does not establish storage.
-function containerSlotValues(container, key, ownDataOnly = false, cache = null, readNode = null, aliases = null) {
+function containerSlotValues(container, key, ownDataOnly = false, cache = null, readNode = null, aliases = null, privateKey = null) {
   // the container arrives off the alias graph, which carries whatever a slot held - a hole's
   // absent value included, and nothing is the answer for it
   if (!CENSUS_CONTAINER_TYPES.has(container?.type)) return [];
@@ -2573,10 +2576,23 @@ function containerSlotValues(container, key, ownDataOnly = false, cache = null, 
   }
   // ... and a class's static, read like a literal's member: an accessor answers what it returns
   const censusKey = ALIAS_SCOPE_FACTS.get(aliases)?.censusKey;
+  const ambiguousPrivate = privateKey === null && typeof key === 'string' && key.startsWith('#') && !isPrivateClassSlot(container, key);
   let candidates = null;
   const member = classStaticSlotMember(container, key, {
     readNode,
-    keyOf: element => element.computed && censusKey ? censusKey({ node: element.key }) : foldedPropertyKeyName(element),
+    keyOf: element => {
+      const privateName = privateNameSpelling(element.key);
+      if (privateKey === true && privateName === null || privateKey === false && privateName !== null) return undefined;
+      const name = privateName
+        ?? (element.computed && censusKey ? censusKey({ node: element.key }) : foldedPropertyKeyName(element));
+      // Census paths name private slots with #. A public string with that spelling
+      // is a distinct possible value, never proof that the private slot was served.
+      if (ambiguousPrivate && name === key) {
+        (candidates ??= []).push(...memberSlotValues(element));
+        return undefined;
+      }
+      return name;
+    },
     ignoreUnknown: true,
     unknown(element) {
       (candidates ??= []).push(...memberSlotValues(element));
@@ -2688,7 +2704,7 @@ function levelCallReads({ aliases, level, keys, index, state, written, receiverO
 // (`aliasPathsOf`: `const v = box.inner; v.C`, `const { inner: v } = box`) - each such path with the read's keys,
 // the slot the path's root files its writes under, which the read side folds into its walk the same way
 function readChains(aliases, target) {
-  const { root, keys } = memberChainKeys(target);
+  const { root, keys } = memberChainKeys(target, memberReadKeyName);
   if (root?.type !== 'Identifier' || keys.includes(null)) return [target];
   const paths = bindingAliasPaths(aliases, root);
   return paths ? paths.map(path => keyPathRead(path.node, [...path.keys, ...keys])) : [target];
@@ -2741,11 +2757,18 @@ function recordedSlotWrite(programNode, aliases, chain) {
   const records = CONTAINER_SLOT_RECORDS.get(programNode)?.();
   const { root, keys } = memberSlotPath(chain);
   if (!records || !keys) return false;
-  const { writtenContainerSlots: slots, containerSlotIndex: index, qualify, plainAliases, slotPathMemo } = records;
+  const { writtenContainerSlots: slots, containers, containerSlotIndex: index, qualify, plainAliases, slotPathMemo } = records;
   const scopes = aliasReferenceScopes(aliases, root);
   const declared = scopes ? [qualify(root.name, scopes)].filter(Boolean) : index.byName.get(root.name) ?? [];
-  return declared.some(key => canonicalSlotPaths(plainAliases, key, keys, slotPathMemo)
-    .some(([container, path]) => !path || containerSlotRecordWritten({ slots, unrootedKeys: index.unrootedKeys }, [container], path)));
+  return declared.some(declaredKey => canonicalSlotPaths(plainAliases, declaredKey, keys, slotPathMemo)
+    .some(([container, path]) => !path || containerSlotRecordWritten({ slots, unrootedKeys: index.unrootedKeys }, [container], path,
+      path[0]?.startsWith('#') ? {
+        wildcard(key, prefix) {
+          const literals = containers.get(container)?.literals;
+          return prefix === key && literals?.length && literals.every(({ literal }) => isPrivateClassSlot(literal, path[0]));
+        },
+        write() { return false; },
+      } : null)));
 }
 // ... and whether a name stands for one some write reassigns (`guarded`) through plain aliases alone - itself, or a
 // name its every value spells (`const held = X`): what the identity guard of that name's writes names
@@ -2778,7 +2801,18 @@ const ANY_CENSUS_CONTAINER = Object.freeze({ type: 'AnyCensusContainer' });
 // every name the descent read a value through; `outside` marks a hop that may read off a value the file does
 // not hold, and `absent` a container of the file holding no slot under a key the chain reads
 function chainSlotValues(aliases, node, state, written, selectedKeys = null, receiverOnly = false) {
-  const { root, keys } = memberChainKeys(node);
+  let depth = 0;
+  let privateSlots = null;
+  const { root, keys } = memberChainKeys(node, hop => {
+    const key = memberReadKeyName(hop);
+    // Only source keys distinguish #x from ["#x"]. A synthetic Identifier named #x
+    // is an untyped census path and keeps the conservative answer for both slots.
+    if (typeof key === 'string' && key.startsWith('#') && (hop.computed || privateNameSpelling(hop.property) !== null)) {
+      (privateSlots ??= new Map()).set(depth, !hop.computed);
+    }
+    depth++;
+    return key;
+  });
   if (selectedKeys) keys.push(...selectedKeys);
   if (!keys.length) return NO_CHAIN_SLOT;
   const seen = new Set();
@@ -2799,7 +2833,8 @@ function chainSlotValues(aliases, node, state, written, selectedKeys = null, rec
   }
   const classScope = scopes?.findLast(scope => CLASS_NODE_TYPES.has(scope.type));
   const position = classScope && staticEvaluationReaderIndex(classScope, node) >= 0 ? nodePositionKey(node) : '';
-  const slotKey = rootKey === null ? JSON.stringify(keys) : `${ rootKey }${ JSON.stringify(keys) }${ position }`;
+  const memoPath = JSON.stringify(keys) + (privateSlots ? JSON.stringify([...privateSlots]) : '');
+  const slotKey = rootKey === null ? memoPath : `${ rootKey }${ memoPath }${ position }`;
   const memo = slotMemo.get(slotKey);
   if (memo) return memo;
   // Publish before following local returns: recursive calls can revisit the same selection.
@@ -2839,7 +2874,8 @@ function chainSlotValues(aliases, node, state, written, selectedKeys = null, rec
     // ... and a key read off a value with no slot (`isSlotlessValue`) reads none: where it does not throw it
     // yields a value of the same kind, which the level below holds beside the slots its containers fill
     const slotless = level.some(isSlotlessValue) ? [SLOTLESS_VALUE] : [];
-    const slots = containers.map(value => containerSlotValues(value, key, false, null, node, aliases));
+    const slots = containers.map(value => containerSlotValues(value, key, false, null, node, aliases,
+      privateSlots?.get(depth - index - 1) ?? null));
     absent ||= key !== null && slots.some(held => !held.length);
     const filed = containers.flatMap((value, at) => [
       ...slots[at],
@@ -2934,9 +2970,14 @@ function jsxTagNameRoot(name) {
 }
 
 // is this slot value held by a member NO holder of the class can read? a private name is spellable
-// only inside the class body, so it leaves with nothing when the class itself is handed out
-function isPrivateClassSlot(container, slot) {
+// only inside the class body, so it leaves with nothing when the class itself is handed out.
+// A census key string proves this only without a public or unknown key of the same spelling.
+function isPrivateClassSlot(container, slot, privateKey = false) {
   if (!CLASS_NODE_TYPES.has(container?.type)) return false;
+  if (typeof slot === 'string') return slot.startsWith('#') && (container.body?.body ?? [])
+    .some(member => member.static && privateNameSpelling(member.key) === slot)
+    && (privateKey || (container.body?.body ?? []).every(member => !member.static || privateNameSpelling(member.key) !== null
+      || (foldedPropertyKeyName(member) ?? slot) !== slot));
   return (container.body?.body ?? []).some(member => (member === slot || member.value === slot || member.body === slot)
     && (member.type?.startsWith('ClassPrivate') || member.key?.type === 'PrivateName'
       || member.key?.type === 'PrivateIdentifier'));
@@ -6073,20 +6114,20 @@ function literalHasUnnameableSlot(literal) {
 function propagateWrapperWrites({ writtenContainerSlots, containers, writtenSlot, qualify, plainAliases, slotPathMemo, index, installed }) {
   // A held alias names its original container and path, in the scope its literal or write captures it in.
   const slots = [];
-  function holdSlot(name, keyPath, target, scopes) {
+  function holdSlot(name, keyPath, target, scopes, privateRoot = false) {
     const held = qualify(target.root, scopes);
     const inners = held ? canonicalSlotPaths(plainAliases, held, target.keys, slotPathMemo)
       .filter(([inner]) => containers.get(inner)?.container) : [];
-    if (inners.length) slots.push({ name, keyPath, inners });
+    if (inners.length) slots.push({ name, keyPath, inners, privateRoot });
   }
   for (const [name, { literals }] of containers) for (const { literal, scopes } of literals) {
-    for (const [keyPath, target] of wrapperSlotTargets(literal)) holdSlot(name, keyPath, target, scopes);
+    for (const [keyPath, target, privateRoot] of wrapperSlotTargets(literal)) holdSlot(name, keyPath, target, scopes, privateRoot);
   }
   for (const { name, keyPath, targets, scopes } of installed) for (const target of targets) holdSlot(name, keyPath, target, scopes);
   for (let round = 0; round < ALIAS_CHAIN_DEPTH; round++) {
     let grew = false;
-    for (const { name, keyPath, inners } of slots) for (const [inner, innerKeys] of inners) {
-      grew = rehomeWrapperRecords({ writtenContainerSlots, writtenSlot, name, keyPath, inner, innerKeys, index }) || grew;
+    for (const { name, keyPath, inners, privateRoot } of slots) for (const [inner, innerKeys] of inners) {
+      grew = rehomeWrapperRecords({ writtenContainerSlots, writtenSlot, name, keyPath, inner, innerKeys, index, privateRoot }) || grew;
     }
     if (!grew) return;
   }
@@ -6096,8 +6137,8 @@ function propagateWrapperWrites({ writtenContainerSlots, containers, writtenSlot
   // the ceiling a chain names nothing, as every walk of the census answers there (`withinAliasWalkBudget`)
   const values = new Set();
   const pending = [];
-  for (const { name, keyPath, inners } of slots) {
-    const { prefix, wildcards } = wrapperSlotRecords(name, keyPath);
+  for (const { name, keyPath, inners, privateRoot } of slots) {
+    const { prefix, wildcards } = wrapperSlotRecords(name, keyPath, privateRoot);
     for (const [record, list] of writtenContainerSlots) if (record.startsWith(prefix) || wildcards.has(record)) {
       for (const value of list) values.add(value);
       for (const [inner] of inners) pending.push(inner);
@@ -6115,34 +6156,42 @@ function propagateWrapperWrites({ writtenContainerSlots, containers, writtenSlot
 
 // the records standing under ONE wrapper slot: those under its path, and those on the wildcard of a level above it,
 // which may be that slot
-function wrapperSlotRecords(name, keyPath) {
+function wrapperSlotRecords(name, keyPath, privateRoot = false) {
+  const wildcards = new Set(keyPath.map((key, at) => `${ [name, ...keyPath.slice(0, at)].join('.') }.*`));
+  if (privateRoot) wildcards.delete(`${ name }.*`);
   return {
     prefix: `${ [name, ...keyPath].join('.') }.`,
-    wildcards: new Set(keyPath.map((key, at) => `${ [name, ...keyPath.slice(0, at)].join('.') }.*`)),
+    wildcards,
   };
 }
 
 // the containers a wrapper literal holds in its slots (`wrapperLiteralEntries`), each the key path to the slot
 // and the alias target the slot's value spells (`aliasTargetsOf`: a name, a member path off one, either arm of
 // a selection), through nested literals - and a class's own static fields (`class K { static v = box }`), a
-// container of statics the census indexes like a literal
-function wrapperSlotTargets(literal, prefix = []) {
+// container of statics the census indexes like a literal. A private slot propagates writes
+// through its value, but handing out the class alone cannot reach that slot.
+function wrapperSlotTargets(literal, prefix = [], privateRoot = false) {
   const slots = [];
   const entries = CLASS_NODE_TYPES.has(literal?.type) ? (literal.body?.body ?? [])
-    .filter(member => member.static && CLASS_DATA_FIELD_TYPES.has(member.type) && !isPrivateClassSlot(literal, member))
-    .map(member => [foldedPropertyKeyName(member), member.value]) : wrapperLiteralEntries(literal);
-  for (const [key, raw] of entries) {
+    .filter(member => member.static && CLASS_DATA_FIELD_TYPES.has(member.type))
+    .map(member => {
+      const privateName = privateNameSpelling(member.key);
+      return [privateName ?? foldedPropertyKeyName(member), member.value, privateName !== null];
+    }) : wrapperLiteralEntries(literal);
+  for (const [key, raw, privateKey] of entries) {
     const value = raw && unwrapRuntimeExpr(raw);
     if (key === null || !value) continue;
-    if (value.type === 'ObjectExpression' || value.type === 'ArrayExpression') slots.push(...wrapperSlotTargets(value, [...prefix, key]));
-    else for (const target of aliasTargetsOf(value)) if (target) slots.push([[...prefix, key], target]);
+    const heldPrivate = privateRoot || !prefix.length && privateKey;
+    if (value.type === 'ObjectExpression' || value.type === 'ArrayExpression') {
+      slots.push(...wrapperSlotTargets(value, [...prefix, key], heldPrivate));
+    } else for (const target of aliasTargetsOf(value)) if (target) slots.push([[...prefix, key], target, heldPrivate]);
   }
   return slots;
 }
 
 // the records under ONE wrapper slot, re-homed onto the container it holds; true when one landed
-function rehomeWrapperRecords({ writtenContainerSlots, writtenSlot, name, keyPath, inner, innerKeys, index }) {
-  const { prefix, wildcards } = wrapperSlotRecords(name, keyPath);
+function rehomeWrapperRecords({ writtenContainerSlots, writtenSlot, name, keyPath, inner, innerKeys, index, privateRoot }) {
+  const { prefix, wildcards } = wrapperSlotRecords(name, keyPath, privateRoot);
   let grew = false;
   const records = Array.from(writtenContainerSlots);
   for (const [record, values] of records) {
@@ -6503,7 +6552,28 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
           const { root, keys } = memberSlotPath(node);
           if (keys) recordSlotWrite(root.name, keys.at(-1) === '*' ? keys : [...keys, '*'], null, scopes, null,
             call ? { call, argument: node } : iteration ? { iteration } : null);
-          else work.push(root);
+          else if (root?.type === 'ThisExpression' && currentThisOwner?.static) {
+            // A static private brand pins this read to its declaring class. Keep the
+            // class's scope, not a same-named parameter of the method returning it.
+            let privateName;
+            const chain = memberChainKeys(node, member => {
+              privateName = privateNameSpelling(member.property);
+              return memberKeyName(member) ?? privateName;
+            });
+            const at = privateName ? scopes.findLastIndex(scope => CLASS_NODE_TYPES.has(scope.type)
+              && scope.body?.body.includes(currentThisOwner)) : -1;
+            const owner = at >= 0 && scopes[at];
+            const name = owner && (owner.id?.name ?? classOuterNames.get(owner));
+            const escaped = slotPathKeys(chain.keys);
+            if (name) {
+              recordSlotWrite(name, escaped.at(-1) === '*' ? escaped : [...escaped, '*'], null, scopes.slice(0, at + 1));
+              break;
+            }
+            if (!owner) break;
+            for (const field of owner.body.body) {
+              if (field.static && privateNameSpelling(field.key) === privateName) work.push(field.value);
+            }
+          } else work.push(root);
           break;
         }
         case 'ConditionalExpression': work.push(node.consequent, node.alternate); break;
@@ -6713,7 +6783,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     // (`const w = { k: Object } as T`) otherwise lands on the alias path and the binding never
     // registers as a container - the slot-write filter then drops its writes at publish time
     const value = unwrapRuntimeExpr(held);
-    if (id?.type === 'Identifier' && value?.type === 'ClassExpression' && value.id?.type === 'Identifier') {
+    if (id?.type === 'Identifier' && value?.type === 'ClassExpression') {
       classOuterNames.set(value, id.name);
     }
     if (id?.type === 'Identifier'
@@ -8670,8 +8740,10 @@ export function createDetectionAdapter({
     // cannot reach the read: proven later writes and escapes cannot affect an earlier capture; a closed parameter
     // pattern or the argument read itself may also preserve the selected container identity.
     // `escapeOnly` keeps later handouts but ignores named writes for global family coverage.
+    // `privateKey` identifies the first slot from a source private read, not its # spelling.
     isWrittenContainerSlot(
       object, keyPath, ownerNode = null, usagePath = null, usageNode = null, escapePreserves = null, escapeOnly = false,
+      privateKey = false,
     ) {
       const slots = getWrittenContainerSlots?.();
       if (!slots) return false;
@@ -8686,6 +8758,9 @@ export function createDetectionAdapter({
           const binding = usagePath && adapter.getBinding({ scope: usagePath.scope, name: object, path: usagePath });
           const declaration = binding?.path?.node ?? binding?.node;
           const classNode = CLASS_NODE_TYPES.has(declaration?.type) ? declaration : unwrapRuntimeExpr(declaration?.init);
+          // Handing out the class does not expose a private slot. Named writes and
+          // escapes of the slot's VALUE still invalidate it through their own records.
+          if (prefix === key && isPrivateClassSlot(classNode, keyPath[0], privateKey)) return true;
           const calls = escapes?.map(escape => !escape?.aliased || escapePreserves ? escape?.call : null);
           // A later handout cannot change a value already read from this container.
           const later = !escapeOnly && calls?.length && calls.every(Boolean) && binding && noReassignmentReachesUsage({

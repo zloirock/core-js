@@ -1,7 +1,10 @@
 // A census may only call a static read served when the claim side can name the same slot.
 // Unknown keys, class barriers and accessor exports must retain the constructor's namespace.
 import { adapters, createChecker, findNode } from './harness.mjs';
-import { classStaticCallSlot, classStaticSlotMember, collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  classStaticCallSlot, classStaticSlotMember, collectFileCensus, propertyKeyName,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { findNamespaceMemberValue } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { escapedCtorReferencesReducer, mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, finish } = createChecker('census-static-reads');
@@ -128,6 +131,61 @@ for (const parser of adapters) {
   ]) {
     const program = parser.parseAndScope(`class C { ${ members } }`);
     check(`${ parser.name }/accessor pair/${ members }`, classStaticSlotMember(program.node.body[0], 'P').kind, 'get');
+  }
+  for (const fields of [
+    'static ["#owner"] = Map; static #owner = Object;',
+    'static #owner = Object; static ["#owner"] = Map;',
+    'static ["#owner"] = Object; static #owner = Map;',
+    'static #owner = Map; static ["#owner"] = Object;',
+  ]) for (const read of ['C["#owner"]', 'C.#owner']) {
+    const source = `class C { ${ fields } static read() { return ${ read }.groupBy; } } C.read();`;
+    check(`${ parser.name }/distinct private and public slots/${ fields }/${ read }`, census(parser, source).has('Map', true), false);
+  }
+  // The same path spelling may ask about two different values in one memo lifetime.
+  // Escaping either value must not widen or narrow the other slot's constructor.
+  for (const privateMap of [false, true]) for (const privateEscape of [false, true]) for (const reverse of [false, true]) {
+    const escaped = privateEscape ? 'C.#owner' : 'C["#owner"]';
+    const retained = privateEscape ? 'C["#owner"]' : 'C.#owner';
+    const reads = [`hand(${ escaped });`, `${ retained }.groupBy;`];
+    if (reverse) reads.reverse();
+    const source = `class C { static #owner = ${ privateMap ? 'Map' : 'Object' };
+      static ["#owner"] = ${ privateMap ? 'Object' : 'Map' };
+      static read() { ${ reads.join(' ') } } } C.read();`;
+    check(`${ parser.name }/distinct slot escapes/${ privateMap }/${ privateEscape }/${ reverse }`,
+      census(parser, source).has('Map', true), privateMap === privateEscape);
+  }
+  for (const reverse of [false, true]) {
+    const reads = ['hand(C.#owner);', 'hand(C["#owner"]);'];
+    if (reverse) reads.reverse();
+    const source = `class C { static #owner = Map; static ["#owner"] = Promise;
+      static read() { ${ reads.join(' ') } } } C.read();`;
+    const facts = census(parser, source);
+    check(`${ parser.name }/both slot values escape/${ reverse }/Map`, facts.has('Map', true), true);
+    check(`${ parser.name }/both slot values escape/${ reverse }/Promise`, facts.has('Promise', true), true);
+  }
+  for (const fields of [
+    'static ["#owner"] = Map; static #owner = Object;',
+    'static #owner = Object; static ["#owner"] = Map;',
+  ]) for (const privateKey of [false, true]) {
+    const program = parser.parseAndScope(`class C { ${ fields } }`);
+    const value = findNamespaceMemberValue(program.node.body[0], '#owner', null, {},
+      ({ node, computed }) => propertyKeyName({ key: node, computed }), { privateKey });
+    check(`${ parser.name }/private key kind/${ fields }/${ privateKey }`, value?.name, privateKey ? 'Object' : 'Map');
+  }
+  for (const [name, field, tail, escaped] of [
+    ['private', 'static #value = Inner;', '', false],
+    ['private holder handed out', 'static #value = Inner;', 'hand(Outer);', false],
+    ['public', 'static value = Inner;', '', true],
+    ['public private spelling', 'static ["#value"] = Inner;', '', true],
+    ['private then returned', 'static #value = Inner; static read() { return Outer.#value; }', '', true],
+    ['private this returned', 'static #value = Inner; static read() { return this.#value; }', '', true],
+    ['private shadowed this returned', 'static #value = Inner; static read(Outer) { return this.#value; }', '', true],
+    ['private then handed out', 'static #value = Inner;', 'hand(Inner);', true],
+  ]) {
+    const program = parser.parseAndScope(`class Inner { static C = Map; } class Outer { ${ field } } ${ tail }`).node;
+    const { writtenContainerSlots } = collectFileCensus(program, [mutationShapesReducer()]);
+    const keys = writtenContainerSlots.keys().map(key => key.replace(/#\d+/u, '')).toArray();
+    check(`${ parser.name }/private field publication/${ name }`, keys.includes('Inner.*'), escaped);
   }
   for (const [members, expected] of [
     ['static set P(value) {}', 'set'],

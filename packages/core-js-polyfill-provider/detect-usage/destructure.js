@@ -4679,8 +4679,10 @@ function walkAlternativesIntoSink({ hop, walk, values, walkPath = walk.walkPath,
     if (writeNeverRuns({ write: value, usagePath: hop.ctx.path, adapter: hop.ctx.adapter })) continue;
     const slotHop = slotValueHop({ hop, walk }, value) ?? { ...hop, node: value };
     const { literal } = levelLiteralThroughIife(installedWriteValue(slotHop.node));
-    const resolved = walkStaticReceiverStep({ ...slotHop, node: literal, seen: new Set(slotHop.seen) }, {
-      ...walk, walkPath, depth: walk.depth + 1, containerPath,
+    const resolved = walkStaticReceiverStep({
+      ...slotHop, node: literal, seen: new Set(walkPath === walk.walkPath ? slotHop.seen : null),
+    }, {
+      ...walk, walkPath, depth: walk.depth + 1, containerPath, privateKey: walkPath === walk.walkPath && walk.privateKey,
     });
     if (resolved && !walk.unionSink.includes(resolved)) walk.unionSink.push(resolved);
   }
@@ -4782,6 +4784,7 @@ export function walkStaticReceiverChain({
   conditionalSink = null,
   selectionSink = null,
   navKeys = 0,
+  privateKey = false,
   preservesSelection = false,
   reportNonStatic = false,
   resolveLeaf = null,
@@ -4799,6 +4802,7 @@ export function walkStaticReceiverChain({
     conditionalSink,
     selectionSink,
     navKeys,
+    privateKey,
     preservesSelection,
     reportNonStatic,
     resolveLeaf,
@@ -5058,8 +5062,9 @@ export function staticContainerReceiverName({
   // walk only NAMES the receiver, and standing down dropped the injection whole
   // (`(eff(), { h: { g: globalThis } }).h.g.Symbol` resolved to nothing at all) - at the node itself
   // too, so a receiver read the tail performs answers for the whole node (`(eff(), K.g)`)
-  const { root: chainRoot, keys } = memberChainKeys(peelSequenceTail(unwrapTransparentSeq(node), { step: unwrapTransparentSeq }),
-    member => containerKeyName(member, { scope, adapter, path }));
+  const { root: chainRoot, keys, privateKey } = containerReadChain(
+    peelSequenceTail(unwrapTransparentSeq(node), { step: unwrapTransparentSeq }), { scope, adapter, path },
+  );
   if (keys.includes(null)) return null;
   const spelled = peelSequenceTail(unwrapTransparentSeq(chainRoot), { step: unwrapTransparentSeq });
   // ... and a STORE of a container spelled in place, or of a selection of them, hands that value on: the chain
@@ -5080,6 +5085,7 @@ export function staticContainerReceiverName({
     if (!keys.length && !unionSink) return null;
     const name = walkStaticReceiverStep({ node: root, readNode: root, ctx: { scope, adapter, path } }, {
       walkPath: keys,
+      privateKey,
       unionSink,
       conditionalSink,
       selectionSink,
@@ -5144,6 +5150,7 @@ export function staticContainerReceiverName({
   return walkStaticReceiverChain({
     receiverNode: root,
     walkPath: keys,
+    privateKey,
     scope,
     adapter,
     path,
@@ -5183,7 +5190,7 @@ function containerKeyName(member, { scope, adapter, path }) {
     const objectNode = peelReceiverSequenceTail(member.object);
     if (isPristineProxyGlobal(adapter, resolveObjectName({ objectNode, scope, adapter, path, readNode: objectNode }))) return null;
   }
-  return typeof key === 'string' && !key.startsWith('Symbol.') && (!key.startsWith('#') || !member.computed) ? key : null;
+  return typeof key === 'string' && !key.startsWith('Symbol.') ? key : null;
 }
 function privateReadKeyName(member, path, adapter) {
   const spelled = privateNameSpelling(member.property);
@@ -5197,6 +5204,19 @@ function privateReadKeyName(member, path, adapter) {
   return null;
 }
 
+// Retain the first key's kind beside its spelling. Private reads admitted above start at
+// a class binding; the flag follows aliases but is consumed with that slot, before any
+// public pattern keys. A public string spelling the same #name never selects a private field.
+function containerReadChain(node, ctx) {
+  let privateKey = false;
+  const chain = memberChainKeys(node, member => {
+    privateKey = privateNameSpelling(member.property) !== null;
+    return containerKeyName(member, ctx);
+  });
+  chain.privateKey = privateKey;
+  return chain;
+}
+
 // a member nav with readable keys and a root the walk can STAND on, split for the walk (`r.w.x` ->
 // root `r`, keys `['w', 'x']`); null for any other spelling. the root is whatever can hold a
 // built-in, not only a name: a container spelled IN PLACE (`({ h: { g: globalThis } }).h`,
@@ -5208,11 +5228,11 @@ function privateReadKeyName(member, path, adapter) {
 // transparent sequence around the root peels with it (`(0, w).h`), its tail being the value the
 // nav reads; a prefix that may have effects does not peel, so that spelling stays unfoldable
 function memberNavFold(node, ctx) {
-  const { root, keys } = memberChainKeys(node, member => containerKeyName(member, ctx));
+  const { root, keys, privateKey } = containerReadChain(node, ctx);
   // the sequence peel here answers WHICH container the nav stands on, so an effectful prefix is no
   // reason to stand down - the same split the receiver namer above spells
   const stem = peelSequenceTail(unwrapTransparentSeq(root), { step: unwrapTransparentSeq });
-  return canHoldBuiltIn(stem) && keys.length && !keys.includes(null) ? { root: stem, keys } : null;
+  return canHoldBuiltIn(stem) && keys.length && !keys.includes(null) ? { root: stem, keys, privateKey } : null;
 }
 
 // re-root the walk at a nav's fold: the fold's keys lead the remaining path and its root becomes the
@@ -5235,6 +5255,7 @@ function foldNavIntoWalk({ hop, walk }, node) {
   const rerooted = {
     ...walk,
     walkPath: [...fold.keys, ...walkPath],
+    privateKey: fold.privateKey,
     depth: depth + 1,
     foldedNavs: [...walk.foldedNavs, node],
     // the fold's keys are the RECEIVER EXPRESSION's own: a discard drops that text whole and the
@@ -5251,6 +5272,7 @@ function foldNavIntoWalk({ hop, walk }, node) {
   if (containerName && adapter.method === 'usage-pure'
     && adapter.isWrittenContainerSlot?.(
       containerName, [...containerPath, ...walkPath], containerNode, hop.ctx.path, walk.slotReadNode,
+      null, false, !containerPath.length && walk.privateKey,
     )) return null;
   return walkStaticReceiverStep({ ...hop, node: fold.root, seen: new Set() }, {
     ...rerooted,
@@ -5330,6 +5352,7 @@ function walkStaticReceiverStep(hop, {
   conditionalSink = null,
   selectionSink = null,
   navKeys = 0,
+  privateKey = false,
   reportNonStatic = false,
   resolveLeaf = null,
   inNode = true,
@@ -5398,6 +5421,7 @@ function walkStaticReceiverStep(hop, {
         conditionalSink,
         selectionSink,
         navKeys,
+        privateKey,
         reportNonStatic,
         resolveLeaf,
         foldedNavs,
@@ -5538,7 +5562,9 @@ function walkStaticReceiverStep(hop, {
     // alias holds the sequence's tail, the chain assignment's installed value (the write-value canon)
     const initNode = installedWriteValue(binding.path?.node?.init ?? binding.node?.init ?? forOfHeadElement(binding, current.name));
     if (!initNode) return null;
-    walkPath = destructureLeafWalkPath({ binding, name: current.name, scope: currentScope, adapter, walkPath });
+    const aliasPath = destructureLeafWalkPath({ binding, name: current.name, scope: currentScope, adapter, walkPath });
+    if (aliasPath !== walkPath) privateKey = false;
+    walkPath = aliasPath;
     if (!walkPath) return null;
     // the name this container is BOUND to - the init's literal, or the one the invocation it spells
     // yields (the call arm walks it inside this container): a write to one of its slots replaces
@@ -5774,7 +5800,8 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // its own writes feed would lose the patch (`const m = NS.M; m.groupBy = shim` must still route
   // reads through the injected constructor), so it opts out of the slot consult
   const slotWritten = !ignoreWrittenSlots && containerName && adapter.method === 'usage-pure'
-    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]], containerNode, path, walk.slotReadNode);
+    && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]], containerNode, path, walk.slotReadNode,
+      null, false, !containerPath.length && walk.privateKey);
   // usage-global union of the slot's OTHER reaching values, collected beside the primary descent:
   // the values recorded as written to this slot (including unknown-slot writes, which may land
   // anywhere), and - once an in-place mutator repositioned the container - every literal element
@@ -5822,7 +5849,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // recorded slot write likewise vetoes the primary answer, while keeping guarded candidates.
   if (!value && unionSink && adapter.method === 'usage-pure') {
     const named = findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey,
-      { spreadVetoes: false, candidateSink: candidates });
+      { spreadVetoes: false, candidateSink: candidates, privateKey: walk.privateKey });
     if (named) candidates.push(named);
   }
   if (unionSink && candidates.length) {
@@ -5847,9 +5874,12 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // asked about is what the read yields (`{ w: (g(), globalThis) }` names the realm)
   // ... and a defensive realm DEFAULT names its left the same way: a guaranteed realm name is an
   // object, so the right side is dead text (`{ w: globalThis ?? {} }` names the realm too)
-  return slotHop ? walkStaticReceiverStep({ ...slotHop, node: peelRealmLogicalDefault(slotHop.node) }, {
+  // Consuming a slot asks about a shorter path. A self-reference is not an alias
+  // cycle at that new path; repeated navigation remains bounded by foldedNavs.
+  return slotHop ? walkStaticReceiverStep({ ...slotHop, node: peelRealmLogicalDefault(slotHop.node), seen: null }, {
     ...walk,
     walkPath: walkPath.slice(1),
+    privateKey: false,
     depth: depth + 1,
     containerPath: [...containerPath, walkPath[0]],
     navKeys: navKeys > 0 ? navKeys - 1 : 0,
@@ -5872,6 +5902,7 @@ function literalSlotValue({ hop, walk, candidates, getters }) {
     candidateSink: unionSink && adapter.method === 'usage-global' ? candidates : null,
     getterSink: getters,
     readNode: walk.slotReadNode ?? hop.readNode ?? null,
+    privateKey: walk.privateKey,
   });
   if (!value && rescueSink?.length === rescued) rescueSlotAccessor({ hop, walk });
   return value;
@@ -5891,6 +5922,7 @@ function rescueSlotAccessor({ hop, walk }) {
       rescuesRead: true,
       rescueSink,
       readNode: walk.slotReadNode ?? hop.readNode ?? null,
+      privateKey: walk.privateKey,
     });
   }
   return null;

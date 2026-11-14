@@ -1,12 +1,11 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// a wrapped OPTIONAL callee refuses the guard machinery: no raw-branch bind is emitted, the member
-// is left to the regular substitution path (pure bails when uncertain) and the optional call keeps
-// caller-side `this`
+import _Object$groupBy from "@core-js/pure/actual/object/group-by";
+// A wrapped optional callee uses the identity guard and retains caller-side this on the raw branch.
 export function viaOptional(c) {
   let O;
   if (c) ({
     Object: O
   } = _globalThis);
-  return O.groupBy?.([1, 2], x => x % 2);
+  return O === Object ? _Object$groupBy([1, 2], x => x % 2) : O.groupBy?.([1, 2], x => x % 2);
 }
 export const r = [viaOptional(true)];

@@ -9,7 +9,7 @@ import {
   planReceiverEffects,
   planGuardComposition,
   planOptionalProbe,
-  memoReceiverOriginName,
+  registerGuardReceiverAlias,
   planGuardRootMemo,
   planGuardedClaimTail,
 } from '@core-js/polyfill-provider/detect-usage/guard-preparation';
@@ -1257,8 +1257,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // while the source path still anchors the read's scope and execution order.
   function tagProxyGlobalMemoRef(ref, rootNode, ctx) {
     if (!ctx.adapter || !ctx.scope || !ref?.name) return;
-    const name = memoReceiverOriginName(rootNode, ctx);
-    if (name) ctx.injectorState.registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
+    registerGuardReceiverAlias(ref.name, rootNode, ctx, { origin: true });
   }
 
   // THE guard-test spelling, shared by every channel that builds a `null == <test>` guard: the
@@ -1849,7 +1848,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
           const args = path.node.arguments.map(argument => t.cloneNode(argument));
           value = optional || inChain ? t.optionalCallExpression(value, args, optional) : t.callExpression(value, args);
         } else {
-          const property = path.node.computed ? t.cloneNode(path.node.property) : t.identifier(path.node.property.name);
+          const property = t.cloneNode(path.node.property);
           value = optional || inChain
             ? t.optionalMemberExpression(value, property, path.node.computed, optional)
             : t.memberExpression(value, property, path.node.computed);

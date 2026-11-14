@@ -151,6 +151,7 @@ import {
   proxyGlobalMemberCtorPure,
   decidedSelectionValue,
   guaranteedRealmObjectName,
+  isKnownStaticGlobal,
   isStaticPlacement,
   navValueCanShortCircuit,
   moduleDefaultSource,
@@ -3574,8 +3575,9 @@ export function buildNestedDestructurePlan({
         };
       }
       if (!plan && hopHostEligible) plan = planPeeledProxyHop();
-    } else if (receiver && isStaticPlacement(receiver)) {
+    } else if (receiver && isKnownStaticGlobal(receiver, adapter)) {
       // A known constructor supplies direct method extractions from this ObjectPattern.
+      // A local class name still owns a container path, even when capitalized.
       const outerProps = pattern.properties.map(p => planInnerProp(p, receiver, { node: init }));
       if (outerProps.some(hasExtractions)) {
         plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe };

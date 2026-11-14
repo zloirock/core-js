@@ -1166,10 +1166,12 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType, staticIsM
 // may BE propName at this (later) source position and would shadow an earlier literal (mirrors the
 // SpreadElement bail); 'skip' - a different named key, or a non-computed unresolvable key
 // (PrivateName) that can never collide with a public propName
-function memberKeyVerdict(key, computed, scope, propName, adapter, resolveKey) {
+// `privateKey` comes from the source read, not from a public string beginning with #.
+function memberKeyVerdict(key, computed, scope, propName, adapter, resolveKey, privateKey = false) {
   const privateName = privateNameSpelling(key);
+  if (privateKey ? privateName === null : privateName !== null) return 'skip';
   const name = privateName ?? resolveKey({ node: key, computed, scope, adapter });
-  if (name === propName) return privateName || !propName.startsWith('#') ? 'match' : 'bail';
+  if (name === propName) return 'match';
   return name === null && computed ? 'bail' : 'skip';
 }
 
@@ -1212,6 +1214,7 @@ function staticMemberReadValue(member, { preservesRead = false, returnSink = nul
 // while that caller keeps the read itself.
 export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey, {
   spreadVetoes = true, candidateSink = null, rescuesRead = false, rescueSink = null, getterSink = null, readNode = null,
+  privateKey = false,
 } = {}) {
   // the winning member's value for a REWRITING caller: it keeps the spread veto - which value wins
   // is still the literal's to say - and may keep the READ too, by re-emitting it where the source
@@ -1238,7 +1241,7 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
     const member = classStaticSlotMember(container, propName, {
       readNode,
       keyOf(m) {
-        const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
+        const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey, privateKey);
         return verdict === 'match' ? propName : verdict === 'bail' ? null : undefined;
       },
       ignoreUnknown: !spreadVetoes,

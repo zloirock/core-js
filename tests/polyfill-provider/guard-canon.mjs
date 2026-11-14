@@ -287,16 +287,15 @@ for (const [source, expected] of [
 
 // WHICH invocation a captured receiver may move into the guard's branches: an ordinary call and a
 // this-preserving wrapper over one, and an optional call, whose `?.` the RAW branch keeps - the pure
-// entry is always callable. what keeps bailing owes a test or a copy the branches have no slot for: a
-// continuation above an absorbed `?.()` short-circuits WITH it, and a tagged template is no call
-// this render spells. the SEALED callee slot - a paren'd member under a live `?.`, whose call runs on
+// entry is always callable. A continuation above an absorbed `?.()` stays inside each branch;
+// a tagged template is no call this render spells. the SEALED callee slot - a paren'd member under a live `?.`, whose call runs on
 // the short-circuited value and owes its throw - is a whole-emitter shape, locked by its fixture rows
 for (const [source, expected] of [
   ['held.Array.of;', 'read'],
   ['held.Array.of(effect());', 'call'],
   ['(held.Array.of)(effect());', 'call'],
   ['held.Array.of?.(effect());', 'call'],
-  ['held.Array.of?.(effect())[0];', 'bail'],
+  ['held.Array.of?.(effect())[0];', 'call'],
   ['held.Array.of`value`;', 'bail'],
 ]) runBoth(`captured static invocation/${ source }`, source, (adapter, program, label) => {
   const path = adapter.pickPath(program, 'MemberExpression', candidate => candidate.node.property?.name === 'of');
@@ -315,10 +314,22 @@ for (const [source, expected] of [
     injectImport, spellRecv: () => identifier('ref'),
     call: { ...path.parentPath.node, arguments: [identifier('argument')] },
   });
-  check(`${ label }/pure call`, rendered.consequent.type, 'CallExpression');
-  const rawCall = unwrapRuntimeExpr(rendered.alternate);
+  const tail = source.endsWith('[0];');
+  check(`${ label }/branch continuation`, plan.branchTail, tail);
+  const pureBranch = rendered.consequent;
+  const rawBranch = unwrapRuntimeExpr(rendered.alternate);
+  if (tail) {
+    check(`${ label }/pure tail`, pureBranch.type, 'MemberExpression');
+    check(`${ label }/raw tail`, rawBranch.type, 'MemberExpression');
+    check(`${ label }/pure key`, pureBranch.property.value, 0);
+    check(`${ label }/raw key`, rawBranch.property.value, 0);
+    check(`${ label }/raw chain includes tail`, rendered.alternate.type, 'ChainExpression');
+  }
+  const pureCall = tail ? pureBranch.object : pureBranch;
+  const rawCall = tail ? rawBranch.object : rawBranch;
+  check(`${ label }/pure call`, pureCall.type, 'CallExpression');
   check(`${ label }/raw call keeps member receiver`, rawCall.callee.object.name, 'ref');
-  check(`${ label }/pure argument`, rendered.consequent.arguments[0].name, 'argument');
+  check(`${ label }/pure argument`, pureCall.arguments[0].name, 'argument');
   check(`${ label }/raw argument`, rawCall.arguments[0].name, 'argument');
 });
 
@@ -590,13 +601,14 @@ for (const [source, proven] of [
 // the `?.` hops a captured receiver's guard can absorb - one, and only where the test has its value
 // at hand: the member's own hop tests the capture (the guard rides inside it), and the receiver's own
 // last hop tests that hop's base, which the live branch re-reads while spelling the receiver plain.
-// two live hops need two tests and a deeper one a memo of its own, so both keep bailing
+// The member's own optional can test the entire captured receiver, retaining any earlier guard.
+// Without that final optional, a deeper live hop still needs its own test and remains raw.
 for (const [source, expected] of [
   ['source.w.WeakSet;', 'capture'],
   ['(effect(), source.w).WeakSet;', 'capture'],
   ['source?.w.WeakSet;', 'capture'],
   ['source.w?.WeakSet;', 'capture'],
-  ['source?.w?.WeakSet;', 'bail'],
+  ['source?.w?.WeakSet;', 'capture'],
   ['source?.x.w.WeakSet;', 'bail'],
 ]) runBoth(`guarded member capture/${ source }`, source, (adapter, program, label) => {
   const path = adapter.pickPath(program, adapter.name === 'babel' && source.includes('?.')
@@ -950,8 +962,8 @@ for (const [source, expected] of [
   ['receiver.of(value);', 'read'],
   ['receiver.of(-1);', 'read'],
   ['receiver.of(1 + 2);', 'read'],
-  ['receiver.of?.(effect());', 'bail'],
-  ['receiver?.of(effect());', 'bail'],
+  ['receiver.of?.(effect());', 'call'],
+  ['receiver?.of(effect());', 'call'],
 ]) runBoth(`uncaptured static argument timing/${ source }`, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'of')
     ?? parser.pickPath(program, 'OptionalMemberExpression', item => item.node.property.name === 'of');

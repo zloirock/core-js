@@ -14,6 +14,7 @@ import './realm-probe-effects-runtime.mjs';
 import './realm-collapse-delete-runtime.mjs';
 import './guarded-keys-runtime.mjs';
 import './iterator-receivers-runtime.mjs';
+import './selected-static-guards-runtime.mjs';
 import './optional-wrapper-runtime.mjs';
 import './initializer-effects-runtime.mjs';
 import './residual-extraction-order-runtime.mjs';

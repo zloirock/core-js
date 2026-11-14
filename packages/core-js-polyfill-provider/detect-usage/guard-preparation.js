@@ -72,8 +72,9 @@ import {
   CHAIN_HOP_WRAPPER_TYPES,
   deleteHostAboveChain,
   staticFallbackSwapRedundant,
+  getFallbackBranchSlots,
 } from '../helpers/ast-patterns.js';
-import { instanceSynthReceiverPure, isConstantLiteralReceiver } from './destructure.js';
+import { instanceSynthReceiverPure, isConstantLiteralReceiver, flattenFallbackBranches, guardableSelectionArms } from './destructure.js';
 import { identifier, memberFromKeyName, planReceiverMemo, sequenceExpression } from '../render.js';
 
 // A guard may absorb the source continuation only while it owns its reads. A
@@ -708,6 +709,26 @@ export function memoReceiverOriginName(node, ctx) {
       ? proxyGlobalRootName({ node: value, ...ctx }) : null;
   }
   return memoReceiverGlobalName(node, ctx, { constructors: true });
+}
+
+// A captured selection keeps candidates for identity dispatch, never a scalar proof.
+// Reuse the source branch walk before the generated memo hides those value arms.
+export function registerGuardReceiverAlias(name, source, ctx, { surface = null, origin = false } = {}) {
+  const globalName = surface || (origin ? memoReceiverOriginName(source, ctx)
+    : memoReceiverGlobalName(source, ctx, { constructors: true }));
+  if (globalName) {
+    ctx.injectorState.registerGlobalAlias(name, globalName, { trusted: true, minted: true });
+    return;
+  }
+  const value = peelChainRootValue(source);
+  if (!getFallbackBranchSlots(value)) return;
+  const candidates = flattenFallbackBranches({ node: value, key: null, ...ctx, followAliasLeaves: true })
+    .map(branch => branch.object);
+  const guarded = [...guardableSelectionArms(candidates, ctx.adapter),
+    ...candidates.filter(candidate => POSSIBLE_GLOBAL_OBJECTS.has(candidate) && isPristineProxyGlobal(ctx.adapter, candidate))];
+  for (const candidate of new Set(guarded)) {
+    ctx.injectorState.registerGlobalAlias(name, candidate, { guarded: true, minted: true });
+  }
 }
 
 // A pristine dotted realm hop can disappear from a guard's memo. Its unbacked
