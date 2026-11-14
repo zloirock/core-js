@@ -16,7 +16,6 @@ await run({
     'unit-browser/pure.html',
   ],
   platforms: options.includes('--all') ? await allPlatforms(process.env.SAUCE_REGION || 'us-west-1') : platforms,
-  concurrency: 10,
   reporter: 'qunitResults',
   evaluate: results => evaluate(results, cyan),
 });

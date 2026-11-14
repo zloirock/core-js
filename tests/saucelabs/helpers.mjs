@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { COMMAND_TIMEOUT, createSession, WebDriverError } from './webdriver.mjs';
+import { basicAuthorization, COMMAND_TIMEOUT, createSession, WebDriverError } from './webdriver.mjs';
 
 // zx logs fetch options, which carry the credentials
 $.verbose = false;
@@ -16,7 +16,7 @@ const POLL_INTERVAL = 5e3;
 const REPORTER_TIMEOUT = 6e4;
 // the slowest emulator finished both pages in under two minutes
 const RUN_TIMEOUT = 3 * 6e4;
-const MARKER_TIMEOUT = 15e3;
+const REQUEST_TIMEOUT = 15e3;
 
 if (!username || !accessKey) throw new Error('SAUCE_USERNAME and SAUCE_ACCESS_KEY are required');
 if (COMMIT && !/^[\da-f]{40}$/.test(COMMIT)) throw new Error('commit must be a full 40-character SHA');
@@ -26,15 +26,30 @@ if (!/^https?:\/\/./.test(BASE_URL)) throw new Error(`pass the http(s) URL of th
 const { cyan, green, red, yellow } = chalk;
 const base = BASE_URL.replace(/\/$/, '');
 const hub = `https://ondemand.${ region }.saucelabs.com/wd/hub`;
+const api = `https://api.${ region }.saucelabs.com`;
 const dashboard = region === 'us-west-1' ? 'https://app.saucelabs.com' : `https://app.${ region }.saucelabs.com`;
 
 async function deployedCommit() {
   try {
-    const response = await fetch(`${ base }/commit.txt`, { signal: AbortSignal.timeout(MARKER_TIMEOUT) });
+    const response = await fetch(`${ base }/commit.txt`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT) });
     return response.ok ? (await response.text()).trim() : `HTTP ${ response.status }`;
   } catch (error) {
     return error.message;
   }
+}
+
+// sessions beyond the plan wait in the Sauce Labs queue, which has its own timeout
+async function sessionLimit() {
+  const response = await fetch(`${ api }/rest/v1.2/users/${ encodeURIComponent(username) }/concurrency`, {
+    headers: { authorization: basicAuthorization(username, accessKey) },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`could not read the Sauce Labs concurrency limit: HTTP ${ response.status }`);
+  const { organization, team } = (await response.json()).concurrency ?? {};
+  // the dashboard shows `vms` as the total limit, Mac and real device sessions have their own on top
+  const limit = Math.min(organization?.allowed?.vms, team?.allowed?.vms);
+  if (!(limit > 0)) throw new Error(`no Sauce Labs virtual machine sessions available, the limit is ${ limit }`);
+  return limit;
 }
 
 function sessionCapabilities(suite, { name, w3c, capabilities: browser }) {
@@ -197,10 +212,9 @@ export async function run(suite) {
     if (deployed !== COMMIT) echo(yellow(`${ base }/commit.txt shows ${ deployed } instead of ${ COMMIT }; testing the currently served pages`));
   }
 
-  echo(green(`running ${ cyan(base) } on Sauce Labs, browsers: ${ cyan(suite.platforms.length) }`));
-
   // limits queued session requests too: --all has hundreds of platforms
-  const concurrency = Math.min(suite.concurrency, suite.platforms.length);
+  const concurrency = Math.min(await sessionLimit(), suite.platforms.length);
+  echo(green(`running ${ cyan(base) } on Sauce Labs, browsers: ${ cyan(suite.platforms.length) }, sessions: ${ cyan(concurrency) }`));
   let nextPlatform = 0;
   const workers = Array.from({ length: concurrency }, async () => {
     let workerPassed = true;

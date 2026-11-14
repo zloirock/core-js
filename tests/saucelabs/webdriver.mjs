@@ -34,8 +34,12 @@ async function request(hub, authorization, method, path, body, timeout = COMMAND
   return payload;
 }
 
+export function basicAuthorization(username, accessKey) {
+  return `Basic ${ Buffer.from(`${ username }:${ accessKey }`).toString('base64') }`;
+}
+
 export async function createSession({ hub, username, accessKey, w3c, capabilities }) {
-  const authorization = `Basic ${ Buffer.from(`${ username }:${ accessKey }`).toString('base64') }`;
+  const authorization = basicAuthorization(username, accessKey);
   const body = w3c ? { capabilities: { alwaysMatch: capabilities } } : { desiredCapabilities: capabilities };
   const payload = await request(hub, authorization, 'POST', '/session', body, SESSION_TIMEOUT);
   const id = w3c ? payload.value?.sessionId : payload.sessionId;

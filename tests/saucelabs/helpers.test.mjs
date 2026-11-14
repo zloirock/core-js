@@ -8,6 +8,7 @@ const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions
 async function runFake({
   failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
   pageUrl, commits, pages = ['unit-browser/global.html'], unwritableSessions = false, noReporter = false,
+  limits = { organization: 1, team: 1 }, limitStatus = 200,
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -25,6 +26,8 @@ async function runFake({
   let annotationRequests = 0;
   let markerRequests = 0;
   let quits = 0;
+  let open = 0;
+  let peak = 0;
   let listedWhileOpen;
   const navigations = [];
   let sessionStart;
@@ -53,9 +56,17 @@ async function runFake({
         markerRequests++;
         return marker === 404 ? { ok: false, status: 404 } : { ok: true, text: async () => marker };
       }
+      if (path === '/rest/v1.2/users/test/concurrency') {
+        equal(new URL(url).host, 'api.us-west-1.saucelabs.com', 'reads the limit from the REST API of the region');
+        equal(options.headers.authorization, `Basic ${ btoa('test:test') }`, 'reads the limit with the hub credentials');
+        return { ok: limitStatus === 200, status: limitStatus, json: async () => ({ concurrency: {
+          organization: { allowed: { vms: limits.organization, mac_vms: 15 } }, team: { allowed: { vms: limits.team, mac_vms: 15 } },
+        } }) };
+      }
       let payload;
       if (path === '/wd/hub/session') {
         sessions++;
+        peak = Math.max(peak, ++open);
         sessionStart = navigations.length;
         const capabilities = JSON.parse(options.body).desiredCapabilities;
         doesNotMatch(capabilities.build, /@a{40}/, 'the build name carries no commit');
@@ -66,6 +77,7 @@ async function runFake({
         payload = sessionNull ? null : { sessionId: dynamicQueue ? name : 'test-session' };
       } else if (options.method === 'DELETE') {
         quits++;
+        open--;
         if (dynamicQueue && path.includes('/fast')) fastFinished = true;
         payload = {};
       } else if (path.endsWith('/url')) {
@@ -104,22 +116,25 @@ async function runFake({
       name: 'unit', pages, platforms: [{
         name: 'test browser', w3c: false, capabilities: { browserName: 'firefox', version: '7' },
       }],
-      concurrency: 1, reporter: 'qunitResults',
+      reporter: 'qunitResults',
       evaluate: ({ failed: count }) => ({ passed: count === 0, summary: `${ count } failed`, details: [] }),
     };
     if (dynamicQueue) {
       suite.platforms = ['slow', 'fast', 'next', 'last'].map(name => ({
         name, w3c: false, capabilities: { browserName: 'firefox', version: '7' },
       }));
-      suite.concurrency = 2;
       const running = run(suite);
       // the runner writes the session list in between, so wait for the request, not a tick
       const nextStartedWhileSlow = await Promise.race([next, new Promise(resolve => setTimeout(resolve, 5e3, false))]);
       releaseSlow();
       await running;
-      return { started, nextStartedWhileSlow, fastFinished };
+      return { started, nextStartedWhileSlow, fastFinished, peak };
     }
     const foreignBundles = commits?.some(commit => commit !== 'a'.repeat(40));
+    if (limitStatus !== 200 || !limits.team) {
+      await rejects(run(suite), /could not read the Sauce Labs concurrency limit: HTTP 401|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
+      return { sessions };
+    }
     if (failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
     return {
@@ -165,7 +180,7 @@ async function runFake({
 }
 
 {
-  const { started, nextStartedWhileSlow, fastFinished } = await runFake({ dynamicQueue: true });
+  const { started, nextStartedWhileSlow, fastFinished } = await runFake({ dynamicQueue: true, limits: { organization: 2, team: 2 } });
   equal(fastFinished, true, 'assigns the next waiting platform to the available worker #1');
   equal(nextStartedWhileSlow, true, 'assigns the next waiting platform to the available worker #2');
   deepEqual(started, ['slow', 'fast', 'next', 'last'], 'assigns the next waiting platform to the available worker #3');
@@ -261,4 +276,16 @@ async function runFake({
   const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, SAUCE_USERNAME: 'test', SAUCE_ACCESS_KEY: 'test' } })`npm run -s test-saucelabs -- http://example.test/branch --all=false`;
   notEqual(exitCode, 0, 'test-saucelabs passes its options to the suite literally #1');
   match(stderr, /unknown option --all=false/, 'test-saucelabs passes its options to the suite literally #2');
+}
+
+for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }]) {
+  const { peak } = await runFake({ dynamicQueue: true, limits });
+  equal(peak, 2, `opens no more sessions than the organization and team limits allow, ${ JSON.stringify(limits) }`);
+}
+
+{
+  const { sessions } = await runFake({ limitStatus: 401 });
+  equal(sessions, 0, 'opens no session without the concurrency limit');
+  const { sessions: none } = await runFake({ limits: { organization: 10, team: 0 } });
+  equal(none, 0, 'opens no session when the plan allows none');
 }
