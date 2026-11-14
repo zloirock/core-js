@@ -8,7 +8,7 @@ const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions
 async function runFake({
   failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
   pageUrl, commits, pages = ['unit-browser/global.html'], unwritableSessions = false, noReporter = false,
-  limits = { organization: 1, team: 1 }, limitStatus = 200,
+  limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -28,6 +28,8 @@ async function runFake({
   let quits = 0;
   let open = 0;
   let peak = 0;
+  const openPools = {};
+  const poolPeaks = {};
   let listedWhileOpen;
   const navigations = [];
   let sessionStart;
@@ -60,7 +62,7 @@ async function runFake({
         equal(new URL(url).host, 'api.us-west-1.saucelabs.com', 'reads the limit from the REST API of the region');
         equal(options.headers.authorization, `Basic ${ btoa('test:test') }`, 'reads the limit with the hub credentials');
         return { ok: limitStatus === 200, status: limitStatus, json: async () => limits ? { concurrency: {
-          organization: { allowed: { vms: limits.organization, mac_vms: 15 } }, team: { allowed: { vms: limits.team, mac_vms: 15 } },
+          organization: { allowed: { vms: limits.organization, mac_vms: 15, ...limits.pools } }, team: { allowed: { vms: limits.team, mac_vms: 15, ...limits.pools } },
         } } : JSON.parse('<html>') };
       }
       let payload;
@@ -74,10 +76,14 @@ async function runFake({
         const { name } = capabilities;
         if (dynamicQueue) started.push(name);
         if (name === 'next') nextStarted(true);
-        payload = sessionNull ? null : { sessionId: dynamicQueue ? name : 'test-session' };
+        const pool = platforms?.find(platform => platform.name === name)?.pool;
+        if (pool) poolPeaks[pool] = Math.max(poolPeaks[pool] ?? 0, openPools[pool] = (openPools[pool] ?? 0) + 1);
+        payload = sessionNull ? null : { sessionId: dynamicQueue || platforms ? name : 'test-session' };
       } else if (options.method === 'DELETE') {
         quits++;
         open--;
+        const pool = platforms?.find(platform => path.includes(`/${ platform.name }`))?.pool;
+        if (pool) openPools[pool]--;
         if (dynamicQueue && path.includes('/fast')) fastFinished = true;
         payload = {};
       } else if (path.endsWith('/url')) {
@@ -130,15 +136,17 @@ async function runFake({
       await running;
       return { started, nextStartedWhileSlow, fastFinished, peak };
     }
+    if (platforms) suite.platforms = platforms.map(platform => ({ ...platform, w3c: false, capabilities: { browserName: 'firefox', version: '7' } }));
     const foreignBundles = commits?.some(commit => commit !== 'a'.repeat(40));
+    const emptyPool = platforms?.some(({ pool }) => pool && limits.pools?.[pool] === 0);
     if (limitStatus !== 200 || !limits?.team) {
       await rejects(run(suite), /could not read the Sauce Labs concurrency limit: (?:HTTP 401|.*JSON)|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
       return { sessions };
     }
-    if (failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
+    if (emptyPool || failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
     return {
-      output: output.join('\n'), navigations, sessions, quits, annotationRequests, markerRequests, listedWhileOpen,
+      output: output.join('\n'), navigations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
       listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
     };
   } finally {
@@ -270,6 +278,21 @@ async function runFake({
 {
   const { output } = await runFake({ hangs: 3, pages: ['unit-browser/global.html', 'unit-browser/pure.html'] });
   match(output, /\n {2}unit-browser\/pure\.html: not run, the session stopped at unit-browser\/global\.html/, 'reports the pages after a hung page as not run');
+}
+
+{
+  const platforms = [{ name: 'arm1', pool: 'mac_arm_vms' }, { name: 'arm2', pool: 'mac_arm_vms' }, { name: 'intel', pool: 'mac_vms' }, { name: 'linux' }];
+  const { sessions, peak, poolPeaks } = await runFake({ platforms, limits: { organization: 3, team: 3, pools: { mac_arm_vms: 1 } } });
+  equal(sessions, 4, 'keeps the sessions of a pool within its limit #1');
+  equal(poolPeaks.mac_arm_vms, 1, 'keeps the sessions of a pool within its limit #2');
+  equal(peak, 3, 'keeps the sessions of a pool within its limit #3');
+}
+
+{
+  const platforms = [{ name: 'arm', pool: 'android_arm_vms' }, { name: 'linux' }];
+  const { output, sessions } = await runFake({ platforms, limits: { organization: 2, team: 2, pools: { android_arm_vms: 0 } } });
+  equal(sessions, 1, 'fails a platform of a pool the plan lacks without opening its session #1');
+  match(output, /arm: the Sauce Labs plan has no android_arm_vms sessions/, 'fails a platform of a pool the plan lacks without opening its session #2');
 }
 
 {

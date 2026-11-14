@@ -1,10 +1,18 @@
+// the concurrency limit a session counts towards besides the total one;
+// Sauce Labs runs macOS 14+ and the iOS 18+ simulator on Apple Silicon, older ones on Intel Macs
+function macPool(version, firstArm) {
+  return parseInt(version, 10) >= firstArm ? 'mac_arm_vms' : 'mac_vms';
+}
+
 // Chrome before 75 and Firefox before 55 get no W3C session on Sauce Labs
 export function desktop(browserName, version, platform) {
+  const mac = /^(?:OS X|macOS) (?<major>\d+)/.exec(platform);
   const legacy = browserName === 'internet explorer' || browserName === 'chrome' && +version < 75 ||
     browserName === 'firefox' && +version < 55;
   return {
     name: `${ browserName } ${ version }`,
     w3c: !legacy,
+    ...mac && { pool: macPool(mac.groups.major, 14) },
     capabilities: legacy
       ? { browserName, version, platform }
       : { browserName, browserVersion: version, platformName: platform },
@@ -15,6 +23,7 @@ export function ios(platformVersion, deviceName = 'iPhone Simulator') {
   return {
     name: `ios ${ platformVersion }`,
     w3c: true,
+    pool: macPool(platformVersion, 18),
     capabilities: {
       browserName: 'Safari',
       platformName: 'iOS',
@@ -30,6 +39,7 @@ export function android(deviceName, platformVersion) {
   return {
     name: `android ${ platformVersion }`,
     w3c: true,
+    .../\bARM\b/.test(deviceName) && { pool: 'android_arm_vms' },
     capabilities: {
       browserName: 'Chrome',
       platformName: 'Android',

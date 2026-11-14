@@ -28,7 +28,7 @@ function entry(browser, version, os, device, backend = 'webdriver') {
     capabilities: { browserName: 'chrome', version: '67', platform: 'Windows 10' },
   }, 'selects one configuration per browser version and excludes non-browser platforms #2');
   deepEqual(platforms.find(({ name }) => name.startsWith('iphone')), {
-    name: 'iphone 14.0 (iPhone Simulator)', w3c: true,
+    name: 'iphone 14.0 (iPhone Simulator)', w3c: true, pool: 'mac_vms',
     capabilities: {
       browserName: 'Safari', platformName: 'iOS',
       'appium:deviceName': 'iPhone Simulator', 'appium:platformVersion': '14.0',

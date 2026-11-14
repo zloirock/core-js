@@ -40,7 +40,7 @@ async function deployedCommit() {
 }
 
 // a session beyond the plan waits in the Sauce Labs queue, and the wait counts towards the session timeout
-async function sessionLimit() {
+async function sessionLimits() {
   let concurrency;
   try {
     const response = await fetch(`${ api }/rest/v1.2/users/${ encodeURIComponent(username) }/concurrency`, {
@@ -52,9 +52,9 @@ async function sessionLimit() {
   } catch (error) {
     throw new Error(`could not read the Sauce Labs concurrency limit: ${ error.message }`, { cause: error });
   }
-  // covers every virtual platform, the Mac included, as the dashboard total does
-  const limit = Math.min(concurrency?.organization?.allowed?.vms, concurrency?.team?.allowed?.vms);
-  if (!(limit > 0)) throw new Error(`no Sauce Labs virtual machine sessions available, the limit is ${ limit }`);
+  // `vms` covers every virtual platform, the Mac included, as the dashboard total does; the pools are within it
+  const limit = pool => Math.min(concurrency?.organization?.allowed?.[pool], concurrency?.team?.allowed?.[pool]);
+  if (!(limit('vms') > 0)) throw new Error(`no Sauce Labs virtual machine sessions available, the limit is ${ limit('vms') }`);
   return limit;
 }
 
@@ -218,19 +218,38 @@ export async function run(suite) {
     if (deployed !== COMMIT) echo(yellow(`${ base }/commit.txt shows ${ deployed } instead of ${ COMMIT }; testing the currently served pages`));
   }
 
+  const limit = await sessionLimits();
   // limits queued session requests too: --all has hundreds of platforms
-  const concurrency = Math.min(await sessionLimit(), suite.platforms.length);
+  const concurrency = Math.min(limit('vms'), suite.platforms.length);
   echo(green(`running ${ cyan(base) } on Sauce Labs, browsers: ${ cyan(suite.platforms.length) }, sessions: ${ cyan(concurrency) }`));
-  let nextPlatform = 0;
+  let passed = true;
+  const waiting = suite.platforms.filter(platform => {
+    if (!platform.pool || limit(platform.pool) > 0) return true;
+    passed = report({ platform, error: new Error(`the Sauce Labs plan has no ${ platform.pool } sessions`) }) && passed;
+    return false;
+  });
+  // a session over its pool limit would wait in the Sauce Labs queue, so a worker takes a platform with a free slot
+  const running = {};
+  const released = [];
   const workers = Array.from({ length: concurrency }, async () => {
     let workerPassed = true;
-    while (nextPlatform < suite.platforms.length) {
-      const platform = suite.platforms[nextPlatform++];
-      if (!report(await runPlatform(suite, platform))) workerPassed = false;
+    while (waiting.length) {
+      const index = waiting.findIndex(({ pool }) => !pool || (running[pool] ?? 0) < limit(pool));
+      if (index === -1) {
+        await new Promise(resolve => released.push(resolve));
+        continue;
+      }
+      const [platform] = waiting.splice(index, 1);
+      const { pool } = platform;
+      if (pool) running[pool] = (running[pool] ?? 0) + 1;
+      const result = await runPlatform(suite, platform);
+      if (pool) running[pool]--;
+      for (const resolve of released.splice(0)) resolve();
+      if (!report(result)) workerPassed = false;
     }
     return workerPassed;
   });
-  const passed = (await Promise.all(workers)).every(Boolean);
+  passed = (await Promise.all(workers)).every(Boolean) && passed;
 
   if (COMMIT) {
     const deployed = await deployedCommit();
