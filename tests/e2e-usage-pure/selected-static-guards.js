@@ -112,7 +112,7 @@ QUnit.test('returning a private value exposes the held container to writes', ass
     static #value = Inner;
     static take() { return Outer.#value; }
   }
-  Function('C', 'C.C = { groupBy() { return {3: [7]}; } };')(Outer.take());
+  Function('C', 'C.C = { groupBy: function () { return {3: [7]}; } };')(Outer.take());
   const { C: { groupBy } } = Inner;
   assert.deepEqual(groupBy([3], String)['3'], [7]);
 });
@@ -125,7 +125,7 @@ QUnit.test('a static private this read exposes the held container to writes', as
     // eslint-disable-next-line no-unused-vars, no-shadow -- Shadow the class name to check private this ownership.
     static take(Outer) { return this.#value; }
   }
-  Function('C', 'C.C = { groupBy() { return {3: [11]}; } };')(Outer.take());
+  Function('C', 'C.C = { groupBy: function () { return {3: [11]}; } };')(Outer.take());
   const { C: { groupBy } } = Inner;
   assert.deepEqual(groupBy([3], String)['3'], [11]);
 });
