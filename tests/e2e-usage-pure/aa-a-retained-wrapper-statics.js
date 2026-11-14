@@ -1,4 +1,4 @@
-// Read before sibling imports can attach groupBy to the shared narrow Map constructor.
+// Snapshot the module-evaluation read; isolated differential rows check its own imports.
 const effects = [];
 const key = 'slot';
 let observed;

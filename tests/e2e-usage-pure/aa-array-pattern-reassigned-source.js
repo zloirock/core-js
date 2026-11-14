@@ -1,4 +1,4 @@
-// Read the static during module evaluation, before siblings decorate the shared constructor.
+// Read the static during module evaluation; isolated differential rows check its own imports.
 let grouped;
 let failure;
 try {

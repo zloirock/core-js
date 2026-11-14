@@ -1,7 +1,7 @@
 import { generateTestsIndex } from './generate-tests-index.mjs';
 
-await generateTestsIndex('unit-global', 'core-js');
-await generateTestsIndex('unit-pure', '@core-js/pure');
+await generateTestsIndex({ name: 'unit-global', pkg: 'core-js' });
+await generateTestsIndex({ name: 'unit-pure', pkg: '@core-js/pure' });
 
 echo(chalk.green('tests indexes generated'));
 

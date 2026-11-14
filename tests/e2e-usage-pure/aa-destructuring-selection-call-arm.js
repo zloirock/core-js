@@ -1,7 +1,6 @@
 // A destructure over a selection whose arm is a call leaves its read raw, so the constructor the call
-// returns has to carry its statics. Every module of the bundle shares one ponyfill constructor, which a
-// sibling's import of the whole entry decorates, so the reads are taken while this module evaluates:
-// the `aa-` prefix keeps it first in the generated index, ahead of every such import.
+// returns has to carry its statics. Snapshot the reads during module evaluation; earlier modules
+// can already decorate the shared constructor, so isolated differential rows check its own imports.
 function pick(fail) {
   try {
     if (fail) throw new Error('fail');

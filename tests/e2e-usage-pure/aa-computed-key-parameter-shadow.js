@@ -1,4 +1,4 @@
-// Capture the call before sibling namespace imports can decorate the shared ponyfill.
+// Snapshot the module-evaluation call; isolated differential rows check its own imports.
 const key = 'name';
 // eslint-disable-next-line no-shadow -- the parameter must hide the outer literal key
 function read(key) {

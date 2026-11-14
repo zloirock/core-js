@@ -1,4 +1,4 @@
-// Capture the disabled read before sibling imports can attach statics to the ponyfill.
+// Snapshot the disabled read; isolated differential rows check its own imports.
 const wrapper = { C: Iterator };
 const {
   // core-js-disable-next-line

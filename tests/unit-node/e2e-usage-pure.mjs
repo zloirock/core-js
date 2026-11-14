@@ -1,3 +1,5 @@
+import './index-generation.mjs';
+
 // run the PREBUILT e2e-usage-pure bundles (built by the `bundle-e2e-usage-pure` script):
 // polyfilled code at runtime after the babel-plugin / unplugin transformations
 await Promise.all([

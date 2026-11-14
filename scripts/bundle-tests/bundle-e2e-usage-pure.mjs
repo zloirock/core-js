@@ -2,7 +2,7 @@ import { generateTestsIndex } from './generate-tests-index.mjs';
 
 // the e2e leg also picks up `.ts` files: TS-type-driven dispatch (class-field narrowing,
 // annotation unions) otherwise has NO runtime oracle - only compile-time fixtures
-await generateTestsIndex('e2e-usage-pure', '@core-js/pure', /^[a-z]/, ['.js', '.ts']);
+await generateTestsIndex({ name: 'e2e-usage-pure', pkg: '@core-js/pure', filter: /^[a-z]/, extensions: ['.js', '.ts'], exportCore: false });
 
 echo(chalk.green('e2e-usage-pure index generated'));
 

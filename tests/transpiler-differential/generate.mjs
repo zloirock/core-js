@@ -25240,6 +25240,47 @@ function * generateDestructureDefaultClaims() {
   }
 }
 
+// Standalone entries must supply their own statics: no helper, sibling or other emitter
+// may decorate the constructor first. Keep the same source forms in the shared e2e bundle.
+function * generateStandaloneConstructorImports() {
+  for (const [name, key, call] of [
+    ['Map', 'groupBy', 'method([7], value => value).get(7)[0]'],
+    ['Promise', 'allSettled', '(await method.call(Promise, [7]))[0].value'],
+  ]) for (const [shape, body] of [
+    ['iife', `const { C: { ${ key }: method } } = (() => (effects.push('source'), { C: ${ name } }))(); return ${ call };`],
+    ['parameter-default', `async function read({ C: { ${ key }: method } } = (() => (effects.push('default'), { C: ${ name } }))()) {
+      return ${ call }; } return read();`],
+    ['for-of', `for (const { C: { ${ key }: method } } of [(() => (effects.push('element'), { C: ${ name } }))()]) {
+      effects.push('body'); return ${ call }; }`],
+    ['opaque-default', `const key = String(Math.random()); const { [(effects.push('key'), key)]: { ${ key }: method } = ${ name } } = {};
+      return ${ call };`],
+    ['spread-grow', `const [first, second, { ${ key }: method }] = [...[1, 2], ${ name }]; return [first, second, ${ call }];`],
+    ['spread-shrink', `const [{ ${ key }: method }, ...rest] = [...[], ${ name }, Set]; return [${ call }, rest.length, rest[0] === Set];`],
+  ]) yield { name: `standalone-constructor-imports/${ name }/${ shape }`, strip: true, isolated: true,
+    code: `export const effects = []; export const r = await (async () => { ${ body } })();` };
+
+  for (const [shape, body] of [
+    ['parameter-shadow', `const key = 'name'; function read(key) { const alias = key; return Map[alias]([7], value => value); }
+      return [key, read('groupBy').get(7)[0]];`],
+    ['reassigned-default', `let sources = [Array]; let method; for (let i = 0; i < 1; i++) {
+      sources = [Promise]; const [{ allSettled } = Object] = sources; method = allSettled; }
+      return (await method.call(Promise, [7]))[0].value;`],
+    ['selected-call', `function pick(fail) { try { if (fail) throw new Error('fail'); } catch { return null; } return Map; }
+      const { groupBy } = pick(false) || Set; return groupBy([7], value => value).get(7)[0];`],
+    ['selected-call-default', `function pick(fail) { try { if (fail) throw new Error('fail'); } catch { return null; } return Map; }
+      function read(flag, { groupBy } = flag ? Set : pick(false)) { return groupBy([7], value => value).get(7)[0]; }
+      return read(false);`],
+    ['disabled-static', `const wrapper = { C: Iterator }; const {
+      // core-js-disable-next-line
+      C: { from },
+    } = wrapper; return from([7]).next().value;`],
+  ]) yield { name: `standalone-constructor-imports/${ shape }`, strip: true, isolated: true,
+    // Pure substitutes the constructor; global deliberately honors the disabled static read.
+    // Its exact full/stripped results are checked in standalone-imports.mjs.
+    fullEnv: shape === 'disabled-static',
+    code: `export const effects = []; export const r = await (async () => { ${ body } })();` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27039,4 +27080,5 @@ export function * generate() {
   yield * generateOptOutReceivers();
   yield * generateOpenInstanceDefaults();
   yield * generateDestructureDefaultClaims();
+  yield * generateStandaloneConstructorImports();
 }
