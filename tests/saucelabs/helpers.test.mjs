@@ -1,4 +1,4 @@
-import { deepEqual, doesNotMatch, equal, match, rejects } from 'node:assert/strict';
+import { deepEqual, doesNotMatch, equal, match, notEqual, rejects } from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -119,7 +119,8 @@ async function runFake({
       await running;
       return { started, nextStartedWhileSlow, fastFinished };
     }
-    if (failed || noReporter || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
+    const foreignBundles = commits?.some(commit => commit !== 'a'.repeat(40));
+    if (failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
     return {
       output: output.join('\n'), navigations, sessions, quits, annotationRequests, markerRequests, listedWhileOpen,
@@ -231,11 +232,14 @@ async function runFake({
 {
   const commit = 'a'.repeat(40);
   const other = 'b'.repeat(40);
-  const { output } = await runFake({ marker: commit, commits: [other, other] });
-  match(output, new RegExp(`unit-browser/global\\.html: bundles of ${ other } instead of ${ commit }`), 'warns when the browser executed bundles of another commit #1');
-  match(output, /all the browsers passed/, 'warns when the browser executed bundles of another commit #2');
+  const { output } = await runFake({ marker: commit, commits: [commit, other] });
+  match(output, new RegExp(`\\n {2}unit-browser/global\\.html: bundles of ${ other } instead of ${ commit }`), 'fails a page that executed bundles of another commit');
   const { output: matching } = await runFake({ marker: commit, commits: [commit, commit] });
-  doesNotMatch(matching, /bundles of/, 'warns when the browser executed bundles of another commit #3');
+  doesNotMatch(matching, /bundles of|commit marker in the bundles/, 'passes a page that executed bundles of the tested commit #1');
+  match(matching, /all the browsers passed/, 'passes a page that executed bundles of the tested commit #2');
+  const { output: unmarked } = await runFake({ marker: commit, commits: [] });
+  match(unmarked, /unit-browser\/global\.html: no commit marker in the bundles/, 'only warns about bundles without a commit marker #1');
+  match(unmarked, /all the browsers passed/, 'only warns about bundles without a commit marker #2');
 }
 
 {
@@ -251,4 +255,10 @@ async function runFake({
 {
   const { output } = await runFake({ hangs: 3, pages: ['unit-browser/global.html', 'unit-browser/pure.html'] });
   match(output, /\n {2}unit-browser\/pure\.html: not run, the session stopped at unit-browser\/global\.html/, 'reports the pages after a hung page as not run');
+}
+
+{
+  const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, SAUCE_USERNAME: 'test', SAUCE_ACCESS_KEY: 'test' } })`npm run -s test-saucelabs -- http://example.test/branch --all=false`;
+  notEqual(exitCode, 0, 'test-saucelabs passes its options to the suite literally #1');
+  match(stderr, /unknown option --all=false/, 'test-saucelabs passes its options to the suite literally #2');
 }

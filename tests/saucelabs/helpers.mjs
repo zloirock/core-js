@@ -8,7 +8,8 @@ $.verbose = false;
 const {
   SAUCE_USERNAME: username, SAUCE_ACCESS_KEY: accessKey, SAUCE_REGION: region = 'us-west-1', SAUCE_SESSIONS_FILE: sessionsFile,
 } = process.env;
-const [BASE_URL, COMMIT] = argv._;
+// the suite reads the options
+const [BASE_URL, COMMIT] = argv._.filter(arg => !arg.startsWith('--'));
 
 const ATTEMPTS = 3;
 const POLL_INTERVAL = 5e3;
@@ -169,21 +170,25 @@ function report({ platform, id, pages, error }) {
     return false;
   }
   const lines = [cyan(`${ platform.name }: ${ dashboard }/tests/${ id }`)];
+  let platformPassed = true;
   for (const { page, passed, summary, details, commits, error: pageError = summary } of pages) {
-    // appended to each bundle by the Pages build
-    const executed = [...new Set(commits)];
-    if (COMMIT && commits && (executed.length !== 1 || executed[0] !== COMMIT)) {
-      lines.push(yellow(`  ${ page }: bundles of ${ executed.join(', ') || 'no commit marker' } instead of ${ COMMIT }`));
+    // appended to each bundle by the Pages build; a deploy by an older workflow has none
+    const foreign = [...new Set(commits)].filter(commit => commit !== COMMIT);
+    if (COMMIT && commits && !commits.length) lines.push(yellow(`  ${ page }: no commit marker in the bundles`));
+    if (COMMIT && foreign.length) {
+      lines.push(red(`  ${ page }: bundles of ${ foreign.join(', ') } instead of ${ COMMIT }`));
+      platformPassed = false;
     }
     if (passed) {
       lines.push(green(`  ${ page }: ${ summary }`));
       continue;
     }
+    platformPassed = false;
     lines.push(red(`  ${ page }: ${ pageError }`));
     for (const detail of details) lines.push(red(detail));
   }
   echo(lines.join('\n'));
-  return pages.every(({ passed }) => passed);
+  return platformPassed;
 }
 
 export async function run(suite) {

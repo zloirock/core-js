@@ -3,6 +3,7 @@ import manualPlatforms, { android, desktop, ios } from './platforms.mjs';
 // one configuration per browser version, preferring the OS and device of the manual matrix
 const browsers = new Set(['chrome', 'firefox', 'safari', 'MicrosoftEdge', 'internet explorer', 'iphone', 'ipad', 'android']);
 const mobile = new Set(['iphone', 'ipad', 'android']);
+const manualDevices = new Set(manualPlatforms.map(({ capabilities }) => capabilities['appium:deviceName']).filter(Boolean));
 
 function platformName(os) {
   return os === 'Mac 11' ? 'macOS 11.00' : os.startsWith('Mac ') ? `macOS ${ os.slice(4) }` : os;
@@ -15,7 +16,7 @@ function rank({ api_name: browser, short_version: version, os, device, long_name
     Boolean(capabilities['appium:deviceName']) === Boolean(device));
   if (device) return JSON.stringify([deviceName ? 0 : 1,
     browser === 'iphone' ? 0 : browser === 'ipad' ? 1 : 0,
-    deviceName === manual?.capabilities['appium:deviceName'] ? 0 : 1,
+    deviceName === manual?.capabilities['appium:deviceName'] ? 0 : 1, manualDevices.has(deviceName) ? 0 : 1,
     device === 'iPhone Simulator' || device === 'iPad Simulator' ? 0 : 1, device, os, deviceName || '']);
   if (platformName(os) === (manual?.capabilities.platformName || manual?.capabilities.platform)) return '0';
   if (os === 'Windows 10') return '1';

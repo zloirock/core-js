@@ -78,14 +78,16 @@ function entry(browser, version, os, device, backend = 'webdriver') {
   const platforms = fromCatalog([
     entry('safari', '18', 'Mac 14'),
     entry('safari', '18', 'Mac 15'),
-    { ...entry('android', '14', 'Linux', 'Google ARM Medium Phone', 'appium'), long_name: 'Google ARM Medium Phone Emulator' },
-    { ...entry('android', '14', 'Linux', 'Generic Medium Phone', 'appium'), long_name: 'Generic Medium Phone Emulator' },
+    // the device fields as the live catalog has them
+    { ...entry('android', '14', 'Linux', 'Google ARM Medium Phone Emulator', 'appium'), long_name: 'Google ARM Medium Phone Emulator' },
+    { ...entry('android', '14', 'Linux', 'Pixel 6', 'appium'), long_name: 'Google Pixel 6 Emulator' },
+    { ...entry('android', '14', 'Linux', 'Medium Phone', 'appium'), long_name: 'Generic Medium Phone Emulator' },
   ]);
-  equal(platforms.find(({ name }) => name.startsWith('safari')).capabilities.platformName, 'macOS 15', 'prefers the manual matrix OS and emulator for matching versions #1');
+  equal(platforms.find(({ name }) => name.startsWith('safari')).capabilities.platformName, 'macOS 15', 'prefers the manual matrix OS and emulator #1');
   equal(
     platforms.find(({ name }) => name.startsWith('android')).capabilities['appium:deviceName'],
     'Generic Medium Phone Emulator',
-    'prefers the manual matrix OS and emulator for matching versions #2',
+    'prefers the manual matrix OS and emulator #2',
   );
 }
 
