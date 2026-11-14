@@ -9,7 +9,7 @@ const {
   SAUCE_USERNAME: username, SAUCE_ACCESS_KEY: accessKey, SAUCE_REGION: region = 'us-west-1', SAUCE_SESSIONS_FILE: sessionsFile,
 } = process.env;
 // the suite reads the options
-const [BASE_URL, COMMIT] = argv._.filter(arg => !arg.startsWith('--'));
+const [BASE_URL, COMMIT, ...extra] = argv._.filter(arg => !arg.startsWith('--'));
 
 const ATTEMPTS = 3;
 const POLL_INTERVAL = 5e3;
@@ -19,6 +19,7 @@ const RUN_TIMEOUT = 3 * 6e4;
 const REQUEST_TIMEOUT = 15e3;
 
 if (!username || !accessKey) throw new Error('SAUCE_USERNAME and SAUCE_ACCESS_KEY are required');
+if (extra.length) throw new Error(`unexpected arguments ${ extra.join(' ') }, pass the URL and an optional commit`);
 if (COMMIT && !/^[\da-f]{40}$/.test(COMMIT)) throw new Error('commit must be a full 40-character SHA');
 if (!/^[a-z]+-[a-z]+-\d+$/.test(region)) throw new Error(`SAUCE_REGION is a data center like us-west-1 or eu-central-1, not ${ region }`);
 if (!/^https?:\/\/./.test(BASE_URL)) throw new Error(`pass the http(s) URL of the branch directory on GitHub Pages, not ${ BASE_URL }`);
@@ -38,16 +39,21 @@ async function deployedCommit() {
   }
 }
 
-// sessions beyond the plan wait in the Sauce Labs queue, which has its own timeout
+// a session beyond the plan waits in the Sauce Labs queue, and the wait counts towards the session timeout
 async function sessionLimit() {
-  const response = await fetch(`${ api }/rest/v1.2/users/${ encodeURIComponent(username) }/concurrency`, {
-    headers: { authorization: basicAuthorization(username, accessKey) },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-  });
-  if (!response.ok) throw new Error(`could not read the Sauce Labs concurrency limit: HTTP ${ response.status }`);
-  const { organization, team } = (await response.json()).concurrency ?? {};
-  // the dashboard shows `vms` as the total limit, Mac and real device sessions have their own on top
-  const limit = Math.min(organization?.allowed?.vms, team?.allowed?.vms);
+  let concurrency;
+  try {
+    const response = await fetch(`${ api }/rest/v1.2/users/${ encodeURIComponent(username) }/concurrency`, {
+      headers: { authorization: basicAuthorization(username, accessKey) },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    });
+    if (!response.ok) throw new Error(`HTTP ${ response.status }`);
+    ({ concurrency } = await response.json());
+  } catch (error) {
+    throw new Error(`could not read the Sauce Labs concurrency limit: ${ error.message }`, { cause: error });
+  }
+  // covers every virtual platform, the Mac included, as the dashboard total does
+  const limit = Math.min(concurrency?.organization?.allowed?.vms, concurrency?.team?.allowed?.vms);
   if (!(limit > 0)) throw new Error(`no Sauce Labs virtual machine sessions available, the limit is ${ limit }`);
   return limit;
 }

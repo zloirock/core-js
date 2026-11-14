@@ -59,9 +59,9 @@ async function runFake({
       if (path === '/rest/v1.2/users/test/concurrency') {
         equal(new URL(url).host, 'api.us-west-1.saucelabs.com', 'reads the limit from the REST API of the region');
         equal(options.headers.authorization, `Basic ${ btoa('test:test') }`, 'reads the limit with the hub credentials');
-        return { ok: limitStatus === 200, status: limitStatus, json: async () => ({ concurrency: {
+        return { ok: limitStatus === 200, status: limitStatus, json: async () => limits ? { concurrency: {
           organization: { allowed: { vms: limits.organization, mac_vms: 15 } }, team: { allowed: { vms: limits.team, mac_vms: 15 } },
-        } }) };
+        } } : JSON.parse('<html>') };
       }
       let payload;
       if (path === '/wd/hub/session') {
@@ -131,8 +131,8 @@ async function runFake({
       return { started, nextStartedWhileSlow, fastFinished, peak };
     }
     const foreignBundles = commits?.some(commit => commit !== 'a'.repeat(40));
-    if (limitStatus !== 200 || !limits.team) {
-      await rejects(run(suite), /could not read the Sauce Labs concurrency limit: HTTP 401|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
+    if (limitStatus !== 200 || !limits?.team) {
+      await rejects(run(suite), /could not read the Sauce Labs concurrency limit: (?:HTTP 401|.*JSON)|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
       return { sessions };
     }
     if (failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
@@ -278,6 +278,12 @@ async function runFake({
   match(stderr, /unknown option --all=false/, 'test-saucelabs passes its options to the suite literally #2');
 }
 
+{
+  const { exitCode, stderr } = await $({ nothrow: true, quiet: true, timeout: '1m', env: { ...process.env, SAUCE_USERNAME: 'test', SAUCE_ACCESS_KEY: 'test' } })`npm run -s test-saucelabs -- http://example.test/branch ${ 'a'.repeat(40) } extra`;
+  notEqual(exitCode, 0, 'test-saucelabs rejects an argument after the commit #1');
+  match(stderr, /unexpected arguments extra/, 'test-saucelabs rejects an argument after the commit #2');
+}
+
 for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }]) {
   const { peak } = await runFake({ dynamicQueue: true, limits });
   equal(peak, 2, `opens no more sessions than the organization and team limits allow, ${ JSON.stringify(limits) }`);
@@ -288,4 +294,6 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
   equal(sessions, 0, 'opens no session without the concurrency limit');
   const { sessions: none } = await runFake({ limits: { organization: 10, team: 0 } });
   equal(none, 0, 'opens no session when the plan allows none');
+  const { sessions: unread } = await runFake({ limits: null });
+  equal(unread, 0, 'opens no session when the limit response is not JSON');
 }
