@@ -1,6 +1,7 @@
 // Each mutation channel has its own compilation unit: a sibling write must not make
 // another test pass by deoptimizing the same key for the whole file. Keep their run order.
 import './mutation-cases/alias-mutation-wins-over-substitution.js';
+import './mutation-cases/hoisted-constructor-patch.js';
 import './mutation-cases/destructure-leaf-alias-mutation-wins-over-substitution.js';
 import './mutation-cases/computed-const-key-mutation-wins-over-substitution.js';
 import './mutation-cases/defineproperty-const-key-mutation-wins-over-substitution.js';

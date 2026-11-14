@@ -1,4 +1,5 @@
 import { restoreProperty } from '../helpers/restore-property.cjs';
+import './mutation-cases/loop-body-before-update.js';
 
 // SLOT mutations live in their OWN module: a slot write of name X DEOPTS X for the whole
 // file (usage-pure leaves every X read verbatim), so these tests must not share a module

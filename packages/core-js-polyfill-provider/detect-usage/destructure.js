@@ -1489,6 +1489,9 @@ function receiverProvablyInstanceFree({ objectNode, scope, adapter, path }) {
   // an EMPTY enumeration proves nothing: an init-less binding's value comes from elsewhere
   // (TS ambient `declare const`, hoisting, cross-file merging) - stay conservative
   if (!values.length) return false;
+  // An unchanged alias already resolves its initializer at capture. Reuse that canonical
+  // question and its answers; resolving the initializer afresh repeats long alias chains.
+  const stableAlias = !!declarator.init && !isReassignedBeyondDeclarator(binding);
   return values.every(valueNode => {
     const value = unwrapTransparentSeq(valueNode);
     if (!value) return false;
@@ -1502,7 +1505,15 @@ function receiverProvablyInstanceFree({ objectNode, scope, adapter, path }) {
     if (isBareUndefinedIdentifier(value)) {
       return valueNode === declarator.init && !adapter.getBinding({ scope, name: 'undefined', path });
     }
-    const objectName = resolveObjectName({ objectNode: value, scope, adapter, path });
+    // Each value reads its aliases when captured, in its own scope, not at the eventual use.
+    const valuePath = stableAlias ? path : pathOfNode(path, valueNode) ?? path;
+    const objectName = resolveObjectName({
+      objectNode: stableAlias ? alias : value,
+      scope: valuePath?.scope ?? scope,
+      adapter,
+      path: valuePath,
+      usageNode: stableAlias ? alias : valueNode,
+    });
     return !!(objectName && isStaticPlacement(objectName));
   });
 }
@@ -5792,13 +5803,12 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   // a slot REPLACED after the literal (`const w = { k: Object }; w.k = Map`) no longer holds what the
   // literal spells, so descending it resolves a DIFFERENT constructor's static - a wrong value, not a
   // missed one. the class arm already bails on a static block for exactly this reason.
-  // Pure bails on writes that can reach this slot read. Global's direct replacement proof runs before the binding
-  // descent above; the remaining records establish only possible writes, so this descent retains
-  // the literal's candidate in that mode.
+  // A written slot no longer proves one receiver in either mode. Global's direct replacement proof
+  // runs before the binding descent above; otherwise the literal remains only a union candidate.
   // the MUTATION resolver walks these chains to REGISTER a patch - bailing it on the very record
   // its own writes feed would lose the patch (`const m = NS.M; m.groupBy = shim` must still route
   // reads through the injected constructor), so it opts out of the slot consult
-  const slotWritten = !ignoreWrittenSlots && containerName && adapter.method === 'usage-pure'
+  const slotWritten = !ignoreWrittenSlots && containerName
     && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, walkPath[0]], containerNode, path, walk.slotReadNode,
       null, false, !containerPath.length && walk.privateKey);
   // usage-global union of the slot's OTHER reaching values, collected beside the primary descent:
@@ -5842,13 +5852,19 @@ function walkStaticReceiverTerminal({ hop, walk }) {
       ? literalSlotValue({ hop, walk, candidates, getters })
       : (canHoldBuiltIn(arraySlot && decidedSelectionValue(arraySlot, hop.ctx))
         || walkBranchArms(arraySlot, { hop, walk }) ? arraySlot : null);
-  // An ambiguous slot names no single receiver in pure, but its enumerable candidates can still
-  // feed an identity guard. Keep those separate from the primary answer: the unknown key or spread
+  // An ambiguous slot names no single receiver, but its enumerable candidates can still feed
+  // global imports or a pure identity guard. Keep those separate from the primary answer: the unknown key or spread
   // may replace the named value, and only the runtime receiver decides which branch applies. A
   // recorded slot write likewise vetoes the primary answer, while keeping guarded candidates.
-  if (!value && unionSink && adapter.method === 'usage-pure') {
-    const named = findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey,
-      { spreadVetoes: false, candidateSink: candidates, privateKey: walk.privateKey });
+  if (!value && unionSink && (adapter.method === 'usage-pure' || slotWritten)) {
+    // Array-literal candidates belong to global imports; pure keeps their native reads.
+    const named = current?.type === 'ArrayExpression' ? adapter.method === 'usage-global' && arraySlot
+      : findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey, {
+        spreadVetoes: false,
+        candidateSink: candidates,
+        privateKey: walk.privateKey,
+        readNode: walk.slotReadNode ?? hop.readNode ?? null,
+      });
     if (named) candidates.push(named);
   }
   if (unionSink && candidates.length) {
@@ -5885,8 +5901,8 @@ function walkStaticReceiverTerminal({ hop, walk }) {
   }) : null;
 }
 
-// the value the object literal or class `hop` stands on holds at the walk's next key, method-aware like the
-// terminal walk's written-slot consult: what a trailing spread could redefine is one more candidate
+// the value the object literal or class `hop` stands on holds at the walk's next key, under the consumer's
+// method policy: what a trailing spread could redefine is one more candidate
 // usage-global injects FOR (`candidates`), and over-injection is the safe side there, while pure rewrites the
 // read and needs the literal to be the authority - and a spread or an unknown key the value stopped at leaves
 // the accessor ahead of it all the same (`rescueSlotAccessor`). `getters` collects the getters it reads through
@@ -6189,11 +6205,12 @@ function descendArrayWrapperInit(hop, indices, { maybe = false, unionSink = null
           hop: hopAt, binding, name, walk: { walkPath: indices.slice(level), depth: 0, unionSink },
         }) : null,
       });
-      // Capturing an element preserves its identity, not its contents. A nested reader
+      // Capturing an element preserves its identity, not its contents. A nested pure reader
       // checks its remaining property path before the literal descent forgets the alias.
-      if (followed.node !== cur && aliasSlotWritten(cur, [...indices.slice(level), ...remainingKeys], adapter, {
-        scope, path: hop.ctx.path, ownerNode: followed.readNode?.type === 'VariableDeclarator' ? followed.readNode : null,
-      })) return null;
+      if (adapter.method === 'usage-pure' && followed.node !== cur
+        && aliasSlotWritten(cur, [...indices.slice(level), ...remainingKeys], adapter, {
+          scope, path: hop.ctx.path, ownerNode: followed.readNode?.type === 'VariableDeclarator' ? followed.readNode : null,
+        })) return null;
       // ... while the usage-global union walks every value the file wrote into this level's slot of
       // the container, beside the literal's own element
       if (unionSink && followed.node !== cur) {

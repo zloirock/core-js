@@ -5,12 +5,14 @@ import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.keys";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+import "core-js/modules/web.dom-collections.keys";
 // An async callee receives the container and can replace its constructor slot before the read.
 const escapedByAsyncCallee = function () {
   const asyncEscape = {

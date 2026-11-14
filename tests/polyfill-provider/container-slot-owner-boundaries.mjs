@@ -186,10 +186,12 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     });
     const read = parser.pickPath(tree, 'MemberExpression', path => path.node.property.name === 'from');
     const context = { scope: read.scope, adapter: reader, path: read };
+    const candidates = [];
     const actual = read.node.object.type === 'Identifier'
       ? resolveObjectName({ objectNode: read.node.object, ...context })
-      : staticContainerReceiverName({ node: read.node.object, ...context });
-    check(`${ label }: ${ name }`, actual, method === 'usage-pure' ? expected : 'Array');
+      : staticContainerReceiverName({ node: read.node.object, ...context, unionSink: candidates });
+    check(`${ label }: ${ name }`, actual, method === 'usage-pure' || name === 'class slot' ? expected : 'Array');
+    if (name === 'class slot') check(`${ label }: initial field remains a candidate`, candidates.includes('Array'), true);
   }
   const classTree = parser.parseAndScope('class Box { static item = Array; } Box.item = Map; Box.item.groupBy;');
   const classData = collectFileCensus(classTree.node, [mutationShapesReducer()]);

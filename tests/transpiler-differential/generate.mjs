@@ -24948,6 +24948,49 @@ function * generateMutatedReceiverReads() {
   };
 }
 
+// Capture time and evaluation slots decide which writes reach a receiver.
+function * generateReadWriteOrder() {
+  for (const [kind, initial] of [['string', '"ab"'], ['array', '[3, 7]']]) {
+    for (const [shape, read] of [
+      ['member', 'r = captured.at(-1);'],
+      ['pattern', 'const { at } = captured; r = at.call(captured, -1);'],
+      ['optional', 'r = captured?.at(-1);'],
+    ]) for (const later of [false, true]) yield {
+      name: `read-write-order/capture-${ kind }-${ shape }-${ later }`, strip: true,
+      code: `export let r; export const effects = []; let current = ${ initial }; const captured = current;
+        ${ later ? 'current = Map;' : '' } ${ read } ${ later ? '' : 'current = Map;' }`,
+    };
+  }
+  for (const [write, install] of [
+    ['assigned', 'box.slot = Function("return [3, 7]")();'],
+    ['escaped', 'Function("box", "box.slot = [3, 7]")(box);'],
+  ]) for (const [shape, read] of [
+    ['member', 'r = box.slot.at(-1);'],
+    ['pattern', 'const { slot: { at } } = box; r = at.call(box.slot, -1);'],
+    ['optional', 'r = box.slot?.at(-1);'],
+  ]) yield {
+    name: `read-write-order/slot-${ write }-${ shape }`, strip: true,
+    code: `export let r; export const effects = []; const box = { slot: Object }; ${ install } ${ read }`,
+  };
+  for (const block of [false, true]) yield {
+    name: `read-write-order/hoisted-${ block }`, strip: true, isolated: true,
+    code: `export let r; export const effects = []; let P = null; init(); P.resolve(3); r = typeof P.resolve;
+      function init() { ${ block ? '{ P = Promise; }' : 'P = Promise;' } }`,
+  };
+  for (const [shape, loop] of [
+    ['update', 'for (let i = 0; i < 1; out[out.length] = Promise === Shim, i++) { globalThis.Promise = Shim; }'],
+    ['continue', 'for (let i = 0; i < 1; out[out.length] = Promise === Shim, i++) { globalThis.Promise = Shim; continue; }'],
+    ['test', 'for (let i = 0; i < 1 && (out[out.length] = Promise === Shim, true); i++) { globalThis.Promise = Shim; }'],
+    ['read-first', 'for (let i = 0; i < 1; out[out.length] = Promise === Shim, globalThis.Promise = Shim, i++) {}'],
+  ]) yield {
+    name: `read-write-order/loop-${ shape }`, strip: true, isolated: true,
+    code: `${ RESTORE_IMPORT }
+      export let r; export const effects = []; const out = []; function Shim() {}
+      const saved = Object.getOwnPropertyDescriptor(globalThis, 'Promise');
+      try { ${ loop } r = out; } finally { restoreProperty(globalThis, 'Promise', saved); }`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -26743,4 +26786,5 @@ export function * generate() {
   yield * generateSelectedStaticGuards();
   yield * generateCalleeSourceFacts();
   yield * generateMutatedReceiverReads();
+  yield * generateReadWriteOrder();
 }

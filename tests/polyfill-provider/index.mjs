@@ -9,6 +9,7 @@ import './render-node-ownership.mjs';
 import './resolve-node-type.mjs';
 import './receiver-type-precision.mjs';
 import './binding-read-positions.mjs';
+import './read-write-order.mjs';
 import './local-flow-values.mjs';
 import './positional-element-types.mjs';
 import './flow-class-members.mjs';

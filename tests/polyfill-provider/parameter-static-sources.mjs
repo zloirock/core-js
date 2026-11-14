@@ -42,39 +42,40 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     ['literal', '', '({ value: Array }).value', 'Array'],
     ['nested literal', '', '({ box: { value: Array } }).box.value', 'Array'],
     ['returned value', 'function get() { return Array; }', 'get()', 'Array'],
-    // Global keeps the possible native family; pure cannot replace a written receiver.
-    ['written slot', 'const box = { value: Array }; box.value = custom;', 'box.value', method === 'usage-global' ? 'Array' : null],
+    // Written caller slots prove no primary receiver. Global retains candidates for imports;
+    // pure keeps an opaque parameter native, without inventing an identity-guard candidate.
+    ['written slot', 'const box = { value: Array }; box.value = custom;', 'box.value', method === 'usage-global' ? ['Array'] : []],
     // a container bound to a NAMED call is indexed through the callee's literal: the write reaches
     // the read the same way
-    ['written call-bound slot', 'const f = () => ({ value: Array }); const box = f(); box.value = custom;', 'box.value', method === 'usage-global' ? 'Array' : null],
-    ['assign getter', 'const box = { value: Array }; Object.assign(box, { get value() { return custom; } });', 'box.value', method === 'usage-global' ? 'Array' : null],
-    ['assign spread', 'const box = { value: Array }; Object.assign(box, { ...custom });', 'box.value', method === 'usage-global' ? 'Array' : null],
-    ['assign method', 'const box = { value: Array }; Object.assign(box, { value() {} });', 'box.value', method === 'usage-global' ? 'Array' : null],
+    ['written call-bound slot', 'const f = () => ({ value: Array }); const box = f(); box.value = custom;', 'box.value', method === 'usage-global' ? ['Array'] : []],
+    ['assign getter', 'const box = { value: Array }; Object.assign(box, { get value() { return custom; } });', 'box.value', method === 'usage-global' ? ['Array'] : []],
+    ['assign spread', 'const box = { value: Array }; Object.assign(box, { ...custom });', 'box.value', method === 'usage-global' ? ['Array'] : []],
+    ['assign method', 'const box = { value: Array }; Object.assign(box, { value() {} });', 'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assigned fresh getter', 'const box = { value: Array }; Object.assign(box, { get value() { return { from: () => 1 }; } });', 'box.value', null],
     ['assigned effectful getter', 'const box = { value: Array }; Object.assign(box, { get value() { effect(); return { from: () => 1 }; } });', 'box.value', null],
     ['assigned fresh data', 'const box = { value: Array }; Object.assign(box, { value: { from: () => 1 } });', 'box.value', null],
     ['written fresh data', 'const box = { value: Array }; box.value = { from: () => 1 };', 'box.value', null],
-    ['conditional assign', 'const box = { value: Array }; if (flag) Object.assign(box, { get value() { return {}; } });', 'box.value', method === 'usage-global' ? 'Array' : null],
-    ['optional assign', 'const box = { value: Array }; Object.assign?.(box, { get value() { return {}; } });', 'box.value', method === 'usage-global' ? 'Array' : null],
+    ['conditional assign', 'const box = { value: Array }; if (flag) Object.assign(box, { get value() { return {}; } });', 'box.value', method === 'usage-global' ? ['Array'] : []],
+    ['optional assign', 'const box = { value: Array }; Object.assign?.(box, { get value() { return {}; } });', 'box.value', method === 'usage-global' ? ['Array'] : []],
     ['shadowed assign', 'const Object = custom; const box = { value: Array }; Object.assign(box, { get value() { return {}; } });',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['patched assign', 'Object.assign = custom; const box = { value: Array }; Object.assign(box, { get value() { return {}; } });',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign setter target', 'const box = { get value() { return Array; }, set value(value) {} }; Object.assign(box, { get value() { return {}; } });',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign getter target', 'const box = { set value(value) {}, get value() { return Array; } }; Object.assign(box, { get value() { return {}; } });',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign duplicate unknown', 'const box = { value: Array }; Object.assign(box, { get value() { return {}; } }, { value: custom });',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign getter this', 'const box = { value: Array }; Object.assign(box, { get value() { return this.other; }, other: custom });',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign later restored', 'const box = { value: Array }; Object.assign(box, { get value() { return {}; } }); box.value = Array;',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign later opaque', 'const box = { value: Array }; Object.assign(box, { get value() { return {}; } }); Object.assign(box, unknown);',
-      'box.value', method === 'usage-global' ? 'Array' : null],
-    ['assign after read', 'const box = { value: Array };', 'box.value', method === 'usage-global' ? 'Array' : null, 'Object.assign(box, { get value() { return {}; } });'],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
+    ['assign after read', 'const box = { value: Array };', 'box.value', method === 'usage-global' ? ['Array'] : [], 'Object.assign(box, { get value() { return {}; } });'],
     ['assign escaped holder', 'const box = { value: Array }; Object.assign(box, { get value() { return {}; } }); mutate(box);',
-      'box.value', method === 'usage-global' ? 'Array' : null],
+      'box.value', method === 'usage-global' ? ['Array'] : []],
     ['assign mixed callers', 'const box = { value: Array }; Object.assign(box, { get value() { return {}; } });', 'box.value); read(Array', null],
     ['scoped callable namesake', 'other(() => { function read(held) { return held.from([2]); } read(custom); }); const box = { value: Array };', 'box.value', 'Array'],
     // a namesake of the callee bound elsewhere (a foreign parameter) is no read of the callee, so
@@ -136,10 +137,17 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     function query() {
       return staticContainerReceiverName({ node: read.node.object, scope: read.scope, adapter, path: read });
     }
-    check(`${ parser.name }/${ method }/${ name } source`, query(), expected);
+    const primary = Array.isArray(expected) ? null : expected;
+    check(`${ parser.name }/${ method }/${ name } source`, query(), primary);
     const firstScans = scans;
-    check(`${ parser.name }/${ method }/${ name } repeat`, query(), expected);
+    check(`${ parser.name }/${ method }/${ name } repeat`, query(), primary);
     check(`${ parser.name }/${ method }/${ name } cached census`, scans, firstScans);
+    if (Array.isArray(expected)) {
+      const candidates = collectMemberUnionCandidates({ objectNode: read.node.object, computedKeyNode: null,
+        primaryObject: null, primaryKey: 'from', scope: read.scope, adapter, path: read });
+      const names = [...new Set(candidates.filter(candidate => candidate.placement === 'static').map(candidate => candidate.object))].sort();
+      check(`${ parser.name }/${ method }/${ name } possible static`, JSON.stringify(names), JSON.stringify(expected));
+    }
     if (['assigned fresh getter', 'assigned effectful getter', 'assigned fresh data', 'written fresh data'].includes(name)) {
       const candidates = collectMemberUnionCandidates({ objectNode: read.node.object, computedKeyNode: null,
         primaryObject: null, primaryKey: 'from', scope: read.scope, adapter, path: read });

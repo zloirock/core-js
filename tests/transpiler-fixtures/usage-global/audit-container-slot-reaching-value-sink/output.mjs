@@ -1,5 +1,8 @@
 import "core-js/modules/es.object.entries";
-// NEGATIVE: an escaped container records no written values - only the literal candidate injects
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.entries";
+import "core-js/modules/web.dom-collections.entries";
+// An escaped slot keeps its original static candidate and may also hold an instance.
 const ce = {
   e: Object
 };

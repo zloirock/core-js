@@ -548,12 +548,13 @@ function planNestedAssignmentReceiver({ path, assignment, entry, pending = false
   // A consumed user navigation borrows its exact live RHS, including the prefix.
   // Known surfaces keep their pure substitution instead of taking this raw read.
   // A parent iterator extraction owns its whole read and serves the nested leaf itself.
+  // Only object-pattern hops are property reads; array patterns must retain their iterator.
   const fallback = pending ? resolveNestedReceiverNode(path, { ...resolveOptions, allowNavSegments: true, adapter, navigation }) : node;
   if (!base?.pure && !base?.ctor && navigation.node && prop.value.type === 'Identifier'
     && !navigation.keys.includes('Symbol.iterator')
     && (pending && entry !== 'get-iterator-method' || !isReReadableSurfaceNav(fallback, isOwnAlias, surfaceOptions))
     && navigation.node === unwrapRuntimeExpr(peelReceiverSequenceTail(unwrapRuntimeExpr(assignment.right)))
-    && consumedAssignmentSlotDropsHost(path) && !patternKeepsEffectfulKey(assignment.left, ctx)) {
+    && soleChainToProp(assignment.left, prop) && consumedAssignmentSlotDropsHost(path) && !patternKeepsEffectfulKey(assignment.left, ctx)) {
     return { kind: 'receiver', ...navigation, carriesInit: true, liveReceiver: assignment };
   }
   const nav = typed && typed.keys.reduce(memberFromKeyName, typed.root);

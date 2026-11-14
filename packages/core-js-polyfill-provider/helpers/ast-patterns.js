@@ -1777,6 +1777,7 @@ function outrunningSpansFor(usagePath) {
     }
     if (pnode.type === 'SwitchCase' && cur.listKey === 'consequent') caseNode = pnode;
     if (pnode.type === 'SwitchStatement' && caseNode) spans.push(...switchTestsOutrunning(pnode, caseNode));
+    if (pnode.type === 'ForStatement' && cur.key === 'update') spans.push(pnode.body);
     const rhs = patternHostRhs(pnode, cur.key);
     if (rhs) spans.push(rhs);
   }
@@ -1845,6 +1846,7 @@ function lateSpansFor(usagePath) {
     if (pnode.type === 'SwitchCase' && cur.key === 'test' && parent.parentPath.node) {
       spans.push(...lateSlotsOf(parent.parentPath.node));
     }
+    if (pnode.type === 'ForStatement' && cur.key === 'body' && pnode.update) spans.push(pnode.update);
     const pattern = patternHostRhs(pnode, pnode.type === 'VariableDeclarator' ? 'id' : 'left');
     if (pattern === cur.node) spans.push(pnode.type === 'VariableDeclarator' ? pnode.id : pnode.left);
   }
@@ -1856,8 +1858,8 @@ function lateSpansFor(usagePath) {
 
 // the MIRROR of `writeOutrunsUse`: does the USE run BEFORE a write the source places above it? only
 // within one container, and only between its two halves - a use in an early slot (a class key or
-// decorator, a case test, a destructuring right-hand side) against a write in a late one (a field
-// value or static block, a clause body, the pattern). asked as a RELATION, not of the use alone: a
+// decorator, a case test, a destructuring right-hand side, a loop body) against a write in a late one
+// (a field value or static block, a clause body, the pattern, the for update). asked as a RELATION, not of the use alone: a
 // use in an early slot is ordered normally against every write OUTSIDE its container, and a rule
 // that declined on the use alone refused every parameter default in the corpus
 export function useOutrunsWrite(write, usagePath) {
@@ -1959,14 +1961,15 @@ export function siblingHostingIndex(siblings, target) {
   return -1;
 }
 
-// does a write the source places AFTER a use nevertheless run BEFORE it? three containers evaluate
+// does a write the source places AFTER a use nevertheless run BEFORE it? these containers evaluate
 // one slot ahead of another slot they also host, whatever the source order puts first, and no
 // positional test can see it - the write's span simply sits past the use:
 //   - a CLASS evaluates every computed key and every decorator expression at definition time, ahead
 //     of every static field and static block;
 //   - a `switch` evaluates every case TEST before it reaches the `default` body, and execution falls
 //     out of that body through every clause below it, so those bodies follow those tests too;
-//   - a DESTRUCTURING host evaluates its whole right-hand side before any slot of its pattern.
+//   - a DESTRUCTURING host evaluates its whole right-hand side before any slot of its pattern;
+//   - a `for` body runs before its update, but not before the first test or initializer.
 // asked by climbing from the USE and testing the write by SPAN, not the other way round: the use's
 // ancestry is always well formed, while a write's may be detached by a rewrite or, for a decorator,
 // not walked at all by one of the two parsers. the disorder is scoped to the container - a use
@@ -5401,7 +5404,7 @@ export function reassignmentDominatesUsage({
 // lie strictly AFTER the read at `readNode` within its OWN var-scope `owner`? a node beyond that
 // boundary (guards === null - a nested closure) could run before the read, so it does NOT qualify
 function nodeFollowsUsageInScope({ node, readNode, owner }) {
-  return collectVarGuardsToDeclarator(owner.node, node) !== null && provablyPrecedes(readNode, node);
+  return provablyPrecedes(readNode, node) && collectVarGuardsToDeclarator(owner.node, node) !== null;
 }
 
 // SOUND gate for the SUBSTITUTE (usage-pure) direction: does the declarator-init value provably
@@ -6464,7 +6467,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
     // Exclude ordinary later writes before walking the read's branch ancestry for each
     // candidate. Loops, deferred reads and early-evaluated slots still need the full proof.
     if (!everyWrite && !useInLoop && !closureReenters && !writeOutrunsUse(node, usagePath)
-      && provablyPrecedes(readNode, node)) continue;
+      && nodeFollowsUsageInScope({ node, readNode, owner })) continue;
     if (!countDeadWrites && writeNeverRuns({ write: recordedWrite(binding, node), usagePath, adapter: ctx?.adapter })) continue;
     // A late container slot or an opposite arm cannot reach this execution's read.
     // The proof retains writes carried by a loop back-edge or another invocation.
@@ -6737,14 +6740,14 @@ export function literalIsFreshAtRead(input, literal, { scope, adapter, path }) {
   }));
 }
 
-// Check a dereferenced alias's member path for writes in usage-pure. Binding-flow analysis
+// Check a dereferenced alias's member path for writes. Binding-flow analysis
 // alone does not track its contents. Use the declaration owner when known, otherwise the
 // name-wide union; anchor slot timing at the final read, even if the alias was captured earlier.
 export function aliasSlotWritten(aliasNode, key, adapter, { scope = null, path = null, ownerNode = null } = {}) {
-  if (aliasNode?.type !== 'Identifier' || adapter?.method !== 'usage-pure' || key === null || key === undefined) return false;
-  const binding = scope ? adapter.getBinding?.({ scope, name: aliasNode.name, path, read: aliasNode }) : null;
+  if (aliasNode?.type !== 'Identifier' || key === null || key === undefined) return false;
+  const binding = scope ? adapter?.getBinding?.({ scope, name: aliasNode.name, path, read: aliasNode }) : null;
   // the record keys slots by their STRING spelling, and a numeric key names one like any other
-  return !!adapter.isWrittenContainerSlot?.(aliasNode.name, Array.isArray(key) ? key.map(String) : [String(key)],
+  return !!adapter?.isWrittenContainerSlot?.(aliasNode.name, Array.isArray(key) ? key.map(String) : [String(key)],
     ownerNode ?? binding?.path?.node ?? binding?.node ?? null, path, path?.node);
 }
 

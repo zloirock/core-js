@@ -34,6 +34,7 @@ for (const [name, source, expected] of [
   ['rest', 'let method, rest; ({ y: { at: method, ...rest } } = source);', [null, null]],
   ['live default', 'let method; ({ y: { at: method } = fallback() } = source);', [null, null]],
   ['positional', 'let method; ([{ at: method }] = source);', [null, null]],
+  ['nested positional', 'let method; ({ y: [{ at: method }] } = source);', [null, null]],
   ['surface defaulted symbol', 'let method; ({ Array: { [Symbol.iterator]: method = fallback() } } = globalThis);', [null, null]],
 ]) runBoth(name, source, (parser, program, label) => {
   const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => {

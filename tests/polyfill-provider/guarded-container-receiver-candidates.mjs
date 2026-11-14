@@ -1,4 +1,4 @@
-// Ambiguous and written slots retain possible receivers without claiming a pure primary.
+// Written object slots retain candidates in both modes; pure also guards ambiguous literal keys.
 // Receiver capture precedes any binding write performed by the destructuring pattern.
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -15,7 +15,9 @@ const rows = [
   ['known later receiver', 'const source = { [key]: Array, realm: Object };',
     'const { realm: { of: value } } = source;', 'Object', [], 'Object', []],
   ['written literal receiver', 'const source = { realm: Array };',
-    'const { realm: { of: value } } = source;', 'Array', [], null, ['Array'], true],
+    'const { realm: { of: value } } = source;', null, ['Array'], null, ['Array'], true],
+  ['written array receiver stays native in pure', 'const source = [Array];',
+    'const { 0: { of: value } } = source;', null, ['Array'], null, [], true],
   ['default writes captured binding', 'let source = { leading: undefined, get realm() { mark(); return globalThis; } };',
     'const { leading = (source = {}, 1), realm: { WeakSet: value } } = source;',
     'globalThis', [], null, ['globalThis']],
@@ -26,7 +28,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     const program = parser.parseAndScope(`${ before } ${ statement }`);
     const propertyType = parser.name === 'babel' ? 'ObjectProperty' : 'Property';
     const outer = parser.pickPath(program, propertyType,
-      path => path.parentPath.node.type === 'ObjectPattern' && path.node.key.name === 'realm');
+      path => path.parentPath.node.type === 'ObjectPattern' && path.node.value.type === 'ObjectPattern');
     const adapter = parser.name === 'babel' ? createBabelAdapter({ method }) : createEstreeAdapter({ method });
     if (written) adapter.isWrittenContainerSlot = () => true;
     const candidates = [];
@@ -38,7 +40,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
     checked += 2;
   }
 }
-check('all rows were checked', checked, 32);
+check('all rows were checked', checked, 40);
 
 // A slot overwritten with a known constructor has no remaining literal candidate. The
 // full census supplies write sites so conditional, escaped and captured values stay distinct.
