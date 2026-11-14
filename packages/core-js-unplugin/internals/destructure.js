@@ -2419,9 +2419,11 @@ export default function createAstDestructureEmitter({
     // .prototype`, exactly as its identifier-init twin does)
     const navDispatch = kind === 'instance' && chain.length > 0
       ? resolveNestedNavDispatch(metaPath, { adapter, carriedInit: seCarried }) : null;
+    // A sole consumed source is read once; surviving readers still need a stable root.
     const pureNav = ((forInit || seCarried
       ? isPureNavAfterSePrefix(carriedInitValue, guardCtx)
-      : isPureNavReceiver(declarator.init, guardCtx)) && navRootReReadable(declarator.init, metaPath))
+      : isPureNavReceiver(declarator.init, guardCtx))
+      && (!sentinel && soleChainToProp(declarator.id, prop) || navRootReReadable(declarator.init, metaPath)))
       || allProxyInit
       || (!!navDispatch?.dispatch?.root && isPureNavReceiver(navDispatch.dispatch.node, guardCtx)
         && (sentinel || receiverPerformsEveryInitEffect(declarator.init, navDispatch.dispatch.node, keyCtx)));
@@ -2833,7 +2835,7 @@ export default function createAstDestructureEmitter({
       pattern,
       chain,
       sentinel,
-      assignment: receiverPlan.liveReceiver ? null : hostParent.node,
+      assignment: receiverPlan.liveReceiver && !receiverPlan.carriesInit ? null : hostParent.node,
       value: () => {
         // Follow the plan's borrowed slot after child rewrites, then embed it once.
         const node = !receiverPlan.liveReceiver && receiverPlan.refresh ? resolveNestedReceiverNode(metaPath,

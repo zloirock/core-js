@@ -81,4 +81,51 @@ for (const [name, pattern, right, expected, prunes] of [
   }
 });
 
+runBoth('live nested source', 'let method; ({ prototype: { at: method } } = self.Array);', (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value?.name === 'method');
+  const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planAssignmentOverwrite({ path, assignment, entry: 'instance/at', pending: true }, {
+    scope: path.scope, path, adapter, isOwnAlias: () => false,
+    resolveGlobalPolyfill: () => null, resolveStaticPolyfill: () => null,
+  });
+  check(`${ label }/borrowed source`, plan.liveReceiver, assignment);
+  check(`${ label }/consumed source effects`, plan.carriesInit, true);
+  check(`${ label }/consumed slot`, plan.prunesSlot, true);
+  checkDeep(`${ label }/navigation`, plan.keys, ['prototype']);
+  const replacement = identifier('rewrittenReceiver');
+  assignment.right = replacement;
+  const reads = [];
+  const receiver = renderNestedExtractionReceiver(plan, {
+    embed(node) { reads.push(node); return node; },
+  });
+  checkDeep(`${ label }/one live read`, reads, [replacement]);
+  check(`${ label }/receiver root`, receiver.object, replacement);
+  check(`${ label }/receiver key`, receiver.property.name, 'prototype');
+});
+
+runBoth('live ancestor default keeps its read', 'let method; ({ flat: { at: method } = [] } = rows);', (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value?.name === 'method');
+  const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const plan = planAssignmentOverwrite({ path, assignment, entry: 'instance/at', pending: true }, {
+    scope: path.scope, path, adapter, isOwnAlias: () => false,
+    resolveGlobalPolyfill: () => null, resolveStaticPolyfill: () => null,
+  });
+  check(`${ label }/default owns its receiver`, plan, null);
+});
+
+for (const key of ['Symbol.iterator', 'Symbol["iterator"]', 'key']) {
+  runBoth(`parent iterator owns ${ key }`, `const key = Symbol.iterator; let name; ({ [${ key }]: { name } } = receiver);`, (parser, program, label) => {
+    const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value?.name === 'name');
+    const assignment = parser.pickPath(program, 'AssignmentExpression').node;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planAssignmentOverwrite({ path, assignment, entry: 'function/instance/name', pending: true }, {
+      scope: path.scope, path, adapter, isOwnAlias: () => false,
+      resolveGlobalPolyfill: () => null, resolveStaticPolyfill: () => null,
+    });
+    check(`${ label }/no competing source borrower`, plan, null);
+  });
+}
+
 finish();

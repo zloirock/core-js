@@ -1169,7 +1169,7 @@ export function isReusableReceiver(node, { interveningEffects = false, directCal
   const ambient = isAmbientBinding(binding)
     || nonEmittedExpressionAncestor(declaration);
   if (!binding || ambient) {
-    if (ctx.adapter?.isMutatedStaticSlot?.('globalThis', inner.name)) return false;
+    if (ctx.adapter?.isMutatedStaticSlot?.('globalThis', inner.name, { node: inner, path: ctx.path })) return false;
     // The built-in mutation census omits unknown lowercase slots. The cached lexical write
     // index still knows their source writers and excludes writes to shadowed bindings.
     const owner = rootPathOf(ctx.path);

@@ -5,7 +5,7 @@
 import { createChecker, resolvePure } from './harness.mjs';
 import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { collectFileCensus, isPristineProxyGlobal } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus, isPristineProxyGlobal, isReusableReceiver } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, runBoth, finish } = createChecker('census-never-run-writes');
@@ -45,6 +45,17 @@ runBoth('realm install', "if (typeof globalThis == 'undefined') window.globalThi
   const adapter = censusAdapter(parser, program);
   check(`${ name }: pristine realm`, isPristineProxyGlobal(adapter, 'globalThis'), true);
   check(`${ name }: realm member`, adapter.isMutatedStatic('globalThis', 'Promise'), false);
+});
+
+for (const [name, code, expected] of [
+  ['before realm write', 'self.at(0); if (flag) globalThis.self = other;', true],
+  ['after realm write', 'if (flag) globalThis.self = other; self.at(0);', false],
+  ['deferred realm read', 'function read() { self.at(0); } if (flag) globalThis.self = other; read();', false],
+  ['write in getter', 'const box = { get x() { globalThis.self = other; } }; self.at(box.x);', false],
+]) runBoth(`receiver/${ name }`, code, (parser, program, label) => {
+  const adapter = censusAdapter(parser, program);
+  const path = parser.pickPath(program, 'MemberExpression', item => item.node.object?.name === 'self');
+  check(label, isReusableReceiver(path.node.object, { interveningEffects: true, ctx: { scope: path.scope, path, adapter } }), expected);
 });
 
 finish();

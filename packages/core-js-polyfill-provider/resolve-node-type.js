@@ -3073,7 +3073,8 @@ function createResolveNodeType(babelNodeType, t, {
     }
     // where the ctor comes from the KEY PATH, everything ahead of it walks the global object
     if (hops.length && (!POSSIBLE_GLOBAL_OBJECTS.has(root) || !hops.slice(0, -1).every(proxyStep))) return null;
-    if (typeof ctorName !== 'string' || babelBindingAdapter.isMutatedStatic('globalThis', ctorName)) return null;
+    if (typeof ctorName !== 'string'
+      || babelBindingAdapter.isMutatedStatic('globalThis', ctorName, hops.length ? keyRead : rootRead)) return null;
     const instance = resolvePrototypeInstance(ctorName);
     return unionHints ? mergeArmHints([resolved], 0, () => instance, () => null) : instance;
   }

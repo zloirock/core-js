@@ -24925,6 +24925,29 @@ function * generateCalleeSourceFacts() {
   };
 }
 
+// A written realm still supplies a single nested receiver; cleanup is outside its analysis.
+function * generateMutatedReceiverReads() {
+  for (const [shape, read] of [
+    ['declaration', 'const { prototype: { at } } = self.Array; r = at.call([3, 4], -1);'],
+    ['assignment', 'let at; ({ prototype: { at } } = self.Array); r = at.call([3, 4], -1);'],
+    ['bodyless', 'let at; if (effects) ({ prototype: { at } } = self.Array); r = at.call([3, 4], -1);'],
+    ['default', 'const { prototype: { at = () => 17 } } = self.Array; r = at.call([3, 4], -1);'],
+    ['loop', 'const out = []; for (const value of [3]) { const { prototype: { at } } = self.Array; '
+      + 'out.push(at.call([value], 0)); } r = out;'],
+  ]) yield {
+    name: `mutated-receiver-reads/${ shape }`, strip: true, isolated: true,
+    code: `${ RESTORE_IMPORT }
+      export let r; export const effects = [];
+      const saved = Object.getOwnPropertyDescriptor(globalThis, 'self');
+      try {
+        globalThis.self = { get Array() { effects.push('Array'); return {
+          get prototype() { effects.push('prototype'); return Array.prototype; }
+        }; } };
+        ${ read }
+      } finally { restoreProperty(globalThis, 'self', saved); }`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -26719,4 +26742,5 @@ export function * generate() {
   yield * generateOptionalWrapperGuards();
   yield * generateSelectedStaticGuards();
   yield * generateCalleeSourceFacts();
+  yield * generateMutatedReceiverReads();
 }

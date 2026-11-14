@@ -4058,9 +4058,7 @@ export function resolveNestedReceiverNode(leafPath,
       // = globalThis` reads `globalThis.Array.prototype`). the option is the caller's promise that
       // its render reads that nav ONCE - every other caller keeps the literal-only walk, where the
       // null is what tells it to take another channel
-      if (allowNavSegments && ((allowSeFreeSingleRead || !adapter ? isReReferenceableReceiver(node)
-        : isReReferenceableAcrossReads(node, { scope: leafPath.scope, adapter, injectorState, path: leafPath }))
-        || isSeFreeMemberReceiver(node))) {
+      if (allowNavSegments && (isReReferenceableReceiver(node) || isSeFreeMemberReceiver(node))) {
         if (!allowSePeeledFragment && elidedObservable()) return null;
         // a nav proves no value: a live default below it may fire
         if (segs.slice(segs.indexOf(seg)).some(rest => rest.liveDefault)) return null;
@@ -9645,7 +9643,7 @@ export function proxyNavHead(receiver, {
 }
 
 // the BASE a nested hop chain reads through, shared by both emitters' extraction renders:
-// a proxy-global root declines when its slot is MUTATED (the bare name holds the user's
+// a proxy-global root stays raw when its slot is MUTATED (the bare name holds the user's
 // replacement, not the global), drops leading pristine proxy hops (pure navigation into the
 // same surface), collapses an all-proxy chain onto the root's own pure import, and otherwise
 // resolves through the passthrough canon. a BOUND root shadows the global name and reads raw -
@@ -9681,7 +9679,7 @@ export function resolveNestedReceiverBase({
   const rootIsProxy = POSSIBLE_GLOBAL_OBJECTS.has(rootName);
   let hopKeys = keys;
   if (rootIsProxy) {
-    if (isMutatedGlobalSlot(adapter, rootName, read)) return mintedGlobal ? raw : null;
+    if (isMutatedGlobalSlot(adapter, rootName, read)) return raw;
     hopKeys = pristineProxyHopTail(hopKeys, adapter, read);
   }
   const rootPure = rootIsProxy && !hopKeys.length ? resolveGlobalPolyfill(rootName) : null;

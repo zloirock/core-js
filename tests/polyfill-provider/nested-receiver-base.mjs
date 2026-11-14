@@ -336,8 +336,9 @@ checkDeep('base/pristine self substitutes pure', base({ rootName: 'self', keys: 
 // a pristine proxy root without one stays bare
 checkDeep('base/pristine window stays bare', base({ rootName: 'window', keys: ['inner'], adapter: stubAdapter() }), { name: 'window', path: ['inner'] });
 
-// a MUTATED proxy root holds the user's replacement - no extraction base at all
-check('base/mutated proxy root declines', base({ rootName: 'self', keys: ['inner'], adapter: stubAdapter([['globalThis', 'self']]) }), null);
+// A mutated root stays raw: an extraction can read it without substituting the pristine realm.
+checkDeep('base/mutated proxy root stays raw',
+  base({ rootName: 'self', keys: ['inner'], adapter: stubAdapter([['globalThis', 'self']]) }), { name: 'self', path: ['inner'] });
 
 // a pristine proxy HOP is pure navigation and drops
 checkDeep('base/pristine proxy hop drops', base({ rootName: 'globalThis', keys: ['self', 'inner'], adapter: stubAdapter() }), { pure: PURE.globalThis, path: ['inner'] });

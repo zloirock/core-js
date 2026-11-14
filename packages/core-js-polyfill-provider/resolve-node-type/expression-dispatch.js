@@ -138,7 +138,8 @@ export function createExpressionDispatch({
       // invariant the `Object.create` arm below states and the two static-registry arms already
       // apply: a replaced global returns whatever the patch returns, so the known narrow drops to
       // generic. reading the slot directly handed a type-specific helper to a foreign value
-      if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name) && !isMutatedStatic('globalThis', name)) {
+      if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)
+        && !isMutatedStatic('globalThis', name, { node: callee.node, path: callee })) {
         return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
       }
     }
@@ -150,7 +151,7 @@ export function createExpressionDispatch({
     // anything, so a mutated slot keeps the call unmodelled (the mutated-static invariant)
     const calleePair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method: 'create' });
     if (calleePair?.constructor === 'Object'
-      && !isMutatedStatic('Object', 'create')
+      && !isMutatedStatic('Object', 'create', { node: callee.node, path: callee })
       && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding({ scope: path.scope, name: 'undefined', path }))) {
       return new $Object('Object');
     }
@@ -384,7 +385,7 @@ export function createExpressionDispatch({
     if (path.node?.type !== 'CallExpression' && path.node?.type !== 'OptionalCallExpression') return null;
     const callee = path.get('callee');
     const pair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } }, { method });
-    if (pair?.constructor !== 'Object' || isMutatedStatic('Object', method)) return null;
+    if (pair?.constructor !== 'Object' || isMutatedStatic('Object', method, { node: callee.node, path: callee })) return null;
     const args = path.get('arguments') ?? [];
     if (method === 'create') return args[0] ?? null;
     const target = args[0]?.node ? resolveNodeType(args[0]) : null;

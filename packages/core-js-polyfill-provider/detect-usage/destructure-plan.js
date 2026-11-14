@@ -460,8 +460,8 @@ export function planNestedDefaultHop({ chain, kind, entry, path, receiverPath },
 
 // An assignment overwrite shares the receiver proof with nested extraction. A retained
 // raw slot has already run its default, so only its binding can supply the fallback;
-// a pruned slot instead lends its live default pattern. A pending flat receiver follows
-// the assignment's right slot after child claims replace it, without resolving it again.
+// a pruned slot instead lends its live default pattern. A pending flat or consumed nested
+// receiver follows the assignment's right slot after child claims replace it.
 export function planAssignmentOverwrite(input, ctx) {
   const { path, assignment, pending = false } = input;
   const prop = path.node;
@@ -474,7 +474,7 @@ export function planAssignmentOverwrite(input, ctx) {
     ...receiver,
     target,
     prunesSlot,
-    liveReceiver: pending && assignment.left === path.parentPath.node ? assignment : null,
+    liveReceiver: receiver.liveReceiver ?? (pending && assignment.left === path.parentPath.node ? assignment : null),
     fallback: prop.value.type === 'AssignmentPattern'
       ? { pattern: prunesSlot ? prop.value : null, binding: prunesSlot ? null : target.name } : null,
   };
@@ -490,7 +490,7 @@ function planNestedAssignmentReceiver({ path, assignment, entry, pending = false
   const { adapter, isOwnAlias, resolvePure, resolveGlobalPolyfill, resolveStaticPolyfill, injectorState } = ctx;
   const prop = path.node;
   const resolveOptions = { allowSePeeledFragment: true, allowNavSegments: !pending };
-  const navigation = !pending && entry === 'get-iterator-method' ? {} : null;
+  const navigation = {};
   const copy = resolveNestedReceiverNode(path, { ...resolveOptions, adapter, navigation });
   const plain = pending && !isReReferenceableReceiver(copy) ? null : copy;
   const carried = !plain && consumedAssignmentSlotDropsHost(path) ? carriedInitReceiverNode({
@@ -504,7 +504,7 @@ function planNestedAssignmentReceiver({ path, assignment, entry, pending = false
   if (!pending) {
     // A sole iterator target can read the exact nested slot once, even when its
     // name needs brackets. Its discarded assignment supplies no second reader.
-    if (navigation?.node && prop.value.type === 'Identifier' && soleChainToProp(assignment.left, prop)
+    if (entry === 'get-iterator-method' && navigation.node && prop.value.type === 'Identifier' && soleChainToProp(assignment.left, prop)
       && !patternKeepsEffectfulKey(assignment.left, ctx) && proxyNavHead(assignment.right, ctx)) {
       return { kind: 'receiver', ...navigation, carriesInit: true };
     }
@@ -545,9 +545,23 @@ function planNestedAssignmentReceiver({ path, assignment, entry, pending = false
   if (base?.static && (!pending || !typed.slotDefault)) {
     return { kind: 'receiver', pure: base.pure, keys: [] };
   }
+  // A consumed user navigation borrows its exact live RHS, including the prefix.
+  // Known surfaces keep their pure substitution instead of taking this raw read.
+  // A parent iterator extraction owns its whole read and serves the nested leaf itself.
+  const fallback = pending ? resolveNestedReceiverNode(path, { ...resolveOptions, allowNavSegments: true, adapter, navigation }) : node;
+  if (!base?.pure && !base?.ctor && navigation.node && prop.value.type === 'Identifier'
+    && !navigation.keys.includes('Symbol.iterator')
+    && (pending && entry !== 'get-iterator-method' || !isReReadableSurfaceNav(fallback, isOwnAlias, surfaceOptions))
+    && navigation.node === unwrapRuntimeExpr(peelReceiverSequenceTail(unwrapRuntimeExpr(assignment.right)))
+    && consumedAssignmentSlotDropsHost(path) && !patternKeepsEffectfulKey(assignment.left, ctx)) {
+    return { kind: 'receiver', ...navigation, carriesInit: true, liveReceiver: assignment };
+  }
   const nav = typed && typed.keys.reduce(memberFromKeyName, typed.root);
+  // A defaulted iterator slot on a built-in surface keeps its native key-swap route,
+  // including when the source is an existing pure import rather than a realm name.
+  if (pending && entry === 'get-iterator-method' && prop.value?.type === 'AssignmentPattern'
+    && (base?.pure || isBuiltInSurfaceNav(fallback, surfaceOptions))) return null;
   const surfaceRead = pending && base?.pure && !typed.slotDefault
-    && !(entry === 'get-iterator-method' && prop.value?.type === 'AssignmentPattern')
     && dispatchMayReadNav(path, nav, { isOwnAlias, adapter });
   const ownedRead = base && !base.ctor && !typed.slotDefault && consumedAssignmentSlotDropsHost(path)
     && (!pending || !isBuiltInSurfaceNav(nav, { ctx, isOwnAlias }));
@@ -562,7 +576,6 @@ function planNestedAssignmentReceiver({ path, assignment, entry, pending = false
   }
   // Only a generated alias may be saved across pending root rewrites. A rendered nav may
   // also read a proven surface, or a surface whose residual the extraction consumes whole.
-  const fallback = pending ? resolveNestedReceiverNode(path, { ...resolveOptions, allowNavSegments: true, adapter }) : node;
   if (fallback && (carried || (!pending && isReReferenceableReceiver(fallback))
     || isReReadableSurfaceNav(fallback, name => !!injectorState?.getBindingInfo?.(name),
       { ownAliasRoot: pending, allowOptionalHops: !pending, ctx })

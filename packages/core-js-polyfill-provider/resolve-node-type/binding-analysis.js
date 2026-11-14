@@ -398,7 +398,7 @@ export function createBindingAnalysis({
   // drop a patched static by the same census
   function resolveKnownStaticEntry(callee, refPath) {
     const pair = resolveStaticCalleePair({ node: callee, ctx: { scope: refPath?.scope, path: refPath } });
-    return pair && !bindingAdapter.isMutatedStatic(pair.constructor, pair.method)
+    return pair && !bindingAdapter.isMutatedStatic(pair.constructor, pair.method, { node: callee, path: refPath })
       ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
   }
 

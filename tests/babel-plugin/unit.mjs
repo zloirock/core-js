@@ -53,6 +53,7 @@ import './own-output-guards-runtime.mjs';
 import './phase-rewrite-runtime.mjs';
 import './census-static-runtime.mjs';
 import './callee-source-facts-runtime.mjs';
+import './mutated-receiver-reads-runtime.mjs';
 import './realm-constructor-runtime.mjs';
 import './scoped-hosts-runtime.mjs';
 import './consumed-member-comments.mjs';

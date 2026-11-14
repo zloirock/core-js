@@ -62,6 +62,12 @@ const ALLOWED = new Map([
   ['declined-realm-mutated-hop', ['globalThis', 'globalThis']],
   ['realm-name-install-leaves-bare-globals-served', ['globalThis', 'globalThis', 'globalThis']],
   ['realm-root-replaced-keeps-the-generic-dispatch', ['self']],
+  ['written-realm-deep-declaration', ['self']],
+  ['written-realm-nested-assignment', ['self']],
+  ['written-realm-nested-bodyless', ['self']],
+  ['written-realm-nested-declaration', ['self']],
+  ['written-realm-nested-default', ['self']],
+  ['written-realm-nested-siblings', ['self']],
   // Babel's scope tracker does not register these TS runtime bindings before lowering.
   ['audit-logical-assign-namespace-shadow-silent', ['globalThis', 'globalThis']],
   ['audit-parameter-property-shadows-proxy-global', ['globalThis', 'globalThis']],
