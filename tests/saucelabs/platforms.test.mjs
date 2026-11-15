@@ -1,5 +1,5 @@
 import { deepEqual, equal } from 'node:assert/strict';
-import platforms, { android } from './platforms.mjs';
+import platforms, { android, desktop } from './platforms.mjs';
 
 deepEqual(platforms.find(({ name }) => name === 'firefox 7'), {
   name: 'firefox 7',
@@ -23,3 +23,12 @@ deepEqual(
 );
 
 equal(android('Google ARM Medium Phone Emulator', '14.0').pool, 'android_arm_vms', 'assigns an ARM Android emulator to its own pool');
+
+for (const [version, w3c, capabilities] of [
+  ['74', false, { browserName: 'chrome', version: '74', platform: 'Windows 10' }],
+  ['75', true, { browserName: 'chrome', browserVersion: '75', platformName: 'Windows 10' }],
+]) {
+  const selected = desktop('chrome', version, 'Windows 10');
+  equal(selected.w3c, w3c, `uses ${ w3c ? 'W3C' : 'JSON Wire' } for Chrome ${ version }`);
+  deepEqual(selected.capabilities, capabilities, `sends the ${ w3c ? 'W3C' : 'JSON Wire' } capabilities for Chrome ${ version }`);
+}
