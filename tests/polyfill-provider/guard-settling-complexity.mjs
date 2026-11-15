@@ -272,4 +272,76 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
   check(`${ label }/completed decisions are reused`, decisions(), before);
 }
 
+// A dependent crosses both A and B. B's answer closes before A asks that dependent again;
+// invalidation must happen at B's return, not wait for the oldest open frame A.
+function crossedCycleProbe(parser) {
+  const program = parser.parseAndScope('let a, b, c; if (a) a = 1; if (b) b = 1; if (c) c = 1; export const r = a.x;');
+  const writes = parser.collectPaths(program, 'AssignmentExpression').map(path => path.node);
+  const hosts = parser.collectPaths(program, 'IfStatement').map(path => path.node);
+  const read = parser.pickPath(program, 'MemberExpression');
+  const counts = [0, 0, 0];
+  const adapter = {
+    decidedSelection() { return null; },
+    settledSelection(host) {
+      const index = hosts.indexOf(host);
+      counts[index]++;
+      if (index === 0) {
+        ask(1);
+        return ask(2) ? { skip: 'consequent' } : null;
+      }
+      if (index === 1) {
+        ask(0);
+        ask(2);
+        return { skip: 'consequent' };
+      }
+      const dead = ask(1);
+      ask(0);
+      return dead ? { skip: 'consequent' } : null;
+    },
+  };
+  function ask(index) {
+    return writeNeverRuns({ write: writes[index], usagePath: read, adapter });
+  }
+  return { ask, counts };
+}
+
+for (const parser of adapters) for (const order of ORDERS) {
+  const { ask, counts } = crossedCycleProbe(parser);
+  const label = `${ parser.name }/crossed cycle/order ${ order }`;
+  for (const index of order) check(`${ label }/first verdict ${ index }`, ask(index), true);
+  for (const index of order) check(`${ label }/repeat verdict ${ index }`, ask(index), true);
+  const before = counts.join(',');
+  for (const index of order) ask(index);
+  check(`${ label }/completed answers stabilize`, counts.join(','), before);
+}
+
+// C cuts B before B cuts A. B's temporary open answer transfers its dependency on A
+// to C even though C never asked A itself. Closing A must expire both answers.
+for (const parser of adapters) for (const order of [[0, 2], [2, 0]]) {
+  const program = parser.parseAndScope('let a, b, c; if (a) a = 1; if (b) b = 1; if (c) c = 1; export const r = a.x;');
+  const writes = parser.collectPaths(program, 'AssignmentExpression').map(path => path.node);
+  const hosts = parser.collectPaths(program, 'IfStatement').map(path => path.node);
+  const read = parser.pickPath(program, 'MemberExpression');
+  const adapter = {
+    decidedSelection() { return null; },
+    settledSelection(host) {
+      const index = hosts.indexOf(host);
+      if (index === 0) {
+        ask(1);
+        return { skip: 'consequent' };
+      }
+      if (index === 1) {
+        ask(2);
+        return ask(0) ? { skip: 'consequent' } : null;
+      }
+      return ask(1) ? { skip: 'consequent' } : null;
+    },
+  };
+  function ask(index) {
+    return writeNeverRuns({ write: writes[index], usagePath: read, adapter });
+  }
+  for (const index of order) check(`${ parser.name }/inherited cut/${ order }/write ${ index }`, ask(index), true);
+  for (const index of [0, 1, 2]) check(`${ parser.name }/inherited cut/${ order }/repeat ${ index }`, ask(index), true);
+}
+
 finish();

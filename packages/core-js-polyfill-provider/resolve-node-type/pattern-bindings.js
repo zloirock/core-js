@@ -286,6 +286,7 @@ export function createPatternBindings({
       const owner = findNearestVarScopeOwner(binding.path)?.node;
       // Program values and suspended activations retain their existing conservative fallback.
       if (!owner || !t.isFunction(owner) || owner.async || owner.generator || !localFlowFrame(binding.path, owner)) return entry;
+      entry.owner = owner;
       const assignments = [];
       for (const write of binding.constantViolations) {
         if (write.canonicalRecovered) return entry;
@@ -311,7 +312,6 @@ export function createPatternBindings({
           if (sources.has(current.node)) return entry;
         }
       }
-      entry.owner = owner;
       entry.assignments = assignments;
       entry.completions = new WeakMap();
       return entry;
@@ -341,7 +341,13 @@ export function createPatternBindings({
     if (cycleGuardHas(activeLocalReads, path.node)) return null;
     const cuts = cycleGuardCuts();
     const inputs = localBindingFlowInputs(binding, path);
-    if (!inputs.owner || !localFlowFrame(path, inputs.owner)) return null;
+    if (!inputs.owner || !localFlowFrame(path, inputs.owner)) {
+      // A final decline can use the ordinary type cache; a cycle-cut proof must retry.
+      if (cycleGuardCuts() === cuts) localFlowRetries.delete(path.node);
+      return null;
+    }
+    // An eligible frame with incomplete writes still retries when the census changes.
+    if (!inputs.assignments) return null;
     const known = localFlowValues.get(path.node);
     if (known?.inputs === inputs && known.binding === binding && known.scope === path.scope
       && known.parent === path.parentPath?.node) {

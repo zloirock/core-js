@@ -2908,8 +2908,10 @@ export function findVarOwnerDeclaring(path, name) {
 // assignments, updates, for-x heads - and the block-level function declarations a hoisted twin
 // stands on) to its live path - per-binding / per-query owner
 // traversals re-walked the whole owner each time, quadratic on binding-heavy bundles.
-// keyed on the owner PATH object: a path (and the scope hanging off it) belongs to ONE
-// traversal, so the cache dies with the traversal and can never hand back a dead object.
+// keyed on the owner PATH object, which can survive later traversals and rewrites. Entries
+// may therefore point at replacements or detached paths: retiredWrite validates liveness and
+// rebuilds a stale miss, joinSideIndexes adds emitted writes, and invalidateScopeVarIndex
+// drops rewritten ancestor indexes. A caller needing a fresh view uses buildOwnerWritePathIndex.
 // one key per node shape the write scans record - a for-x head writes a binding without an
 // AssignmentExpression, so it needs its own. no early stop: the parsers disagree on the
 // traversal-abort API, and indexing every write costs one bounded walk total
@@ -4730,10 +4732,16 @@ function decidedGuards(owner, target, adapter) {
     // Keep dependents only if every completed settling validated its open-guard hypothesis.
     const unchanged = unnarrowed && settled && !settled.dead
       && settled.open.length === collectVarGuardsToDeclarator(owner.node, target).length;
-    const closed = unchanged && !frame.changed && head >= depth;
-    for (const [answers, kept] of frame.answers) {
-      if (closed) answers.get(kept).cut = undefined;
-      else answers.delete(kept);
+    for (const entry of frame.answers) {
+      const [answers, kept, answer] = entry;
+      if (answers.get(kept) !== answer) continue;
+      if (!unchanged || frame.changed) answers.delete(kept);
+      else {
+        // This frame can itself depend on an earlier cut the dependent never read.
+        answer.cut = Math.min(answer.cut, head);
+        if (answer.cut >= depth) answer.cut = undefined;
+        else settlingFrames.at(-1).answers.push(entry);
+      }
     }
     if (!unchanged || frame.changed) invalidateSettlingHypothesis();
     lowestSettlingCut = Math.min(outerCut, lowestSettlingCut);
@@ -4742,7 +4750,9 @@ function decidedGuards(owner, target, adapter) {
   // A self-cut is stable. Only a still-active ancestor owns a temporary answer.
   if (head < depth) {
     settled.cut = head;
-    settlingFrames[head].answers.push([byTarget, target]);
+    // Validate at each returning frame before forwarding to the next ancestor. Keeping
+    // only the oldest cut lets an outer reader reuse a disproved intermediate hypothesis.
+    settlingFrames.at(-1).answers.push([byTarget, target, settled]);
   }
   byTarget.set(target, settled);
   return settled;

@@ -25373,6 +25373,30 @@ function * generateTypeCallContracts() {
   }
 }
 
+// The same cyclic writes and declined local-flow frame must keep values and effects in either family.
+function * generateReceiverQueryLifetimes() {
+  for (const family of ['array', 'string']) for (const flag of [false, true]) {
+    const initial = family === 'array' ? '[3, 7]' : "'ab'";
+    const other = family === 'array' ? "'cd'" : '[5, 9]';
+    for (const [shape, writes] of [
+      ['conditional', 'value = flag ? value : next(value); value = !flag ? value : next(value);'],
+      ['logical', 'value = value || next(value); value = value && next(value);'],
+      ['mutual', 'let peer = next(value); value = flag ? value : peer; peer = !flag ? peer : value; value = peer;'],
+    ]) for (const host of ['top', 'closure', 'try']) {
+      const claim = '[value.at(-1), value.includes((log.push("argument"), "cd"))]';
+      const read = host === 'closure' ? `function read() { return ${ claim }; } const r = read();`
+        : host === 'try' ? `let r; try { r = ${ claim }; } catch (error) { r = error.name; }`
+          : `const r = ${ claim };`;
+      yield {
+        name: `receiver-query-lifetime/${ family }/${ flag }/${ shape }/${ host }`, strip: true,
+        code: `const log = []; const flag = ${ flag }; let value = ${ initial };
+          function next(previous) { log.push(previous.length); return ${ other }; }
+          ${ writes } ${ read } export { r }; export const effects = log;`,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27179,4 +27203,5 @@ export function * generate() {
   yield * generateNestedLeafSourceOrder(true);
   yield * generateNestedLeafClaimReads();
   yield * generateTypeCallContracts();
+  yield * generateReceiverQueryLifetimes();
 }

@@ -52,6 +52,7 @@ import {
   peelTSParenthesized,
   staticKeyNames,
   walkAstNodes,
+  cycleGuardHas,
   withCanonQuestion,
   writeNeverRuns,
   writesPastCeiling,
@@ -3671,6 +3672,7 @@ function createResolveNodeType(babelNodeType, t, {
   // a function-scoped `var` is excluded outright: one parser hoists it natively and the other
   // block-scopes it, so its write set is RECOVERED on one side and native on the other - the two
   // emitters would then enumerate different values and inject different sets for the same source
+  const activeUnionBindings = new Set();
   function bindingValueUnionHints(path, depth) {
     const binding = getScopeBinding({ scope: path.scope, name: path.node.name, path });
     const declaratorPath = binding?.path;
@@ -3690,7 +3692,15 @@ function createResolveNodeType(babelNodeType, t, {
         ? literalElementUnionPaths(loop.get('right'), null, path) : null;
       return elements?.length ? mergeArmHints(elements, depth) : null;
     }
-    return reachableValueUnionHints(binding, declaratorPath, path.node.name, path, depth);
+    // Re-enumerating a binding through its own write cannot close its open family set.
+    // Mark the cut for enclosing proofs, and release it even when a source lookup throws.
+    if (cycleGuardHas(activeUnionBindings, declarator)) return null;
+    activeUnionBindings.add(declarator);
+    try {
+      return reachableValueUnionHints(binding, declaratorPath, path.node.name, path, depth);
+    } finally {
+      activeUnionBindings.delete(declarator);
+    }
   }
 
   function mergeArmHints(arms, depth, resolve = resolveNodeType, resolveHints = unionReceiverHints) {

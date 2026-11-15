@@ -424,4 +424,33 @@ for (const adapter of adapters) {
   }
 }
 
+// A final decline must not force every later type question through the same write census.
+// These reads have no eligible function owner, or stand outside its local-flow frame.
+for (const adapter of adapters) for (const [source, expected] of [
+  ['let v = [1]; if (c) v = [2]; v.at(0);', null],
+  ['let v = [1]; if (c) v = [2]; function read() { return v.at(0); }', 'Array'],
+  ['class Box { static { let v = [1]; if (c) v = [2]; v.at(0); } }', null],
+  ['function read(c) { let v = [1]; if (c) v = [2]; return () => v.at(0); }', 'Array'],
+  ['function read(c) { let v = [1]; if (c) v = [2]; try { return v.at(0); } catch {} }', null],
+]) {
+  const tree = adapter.parseAndScope(source);
+  const member = adapter.pickPath(tree, 'MemberExpression');
+  const resolver = adapter.makeResolver();
+  let reads = 0;
+  for (const write of adapter.collectPaths(tree, 'AssignmentExpression')) {
+    const { right } = write.node;
+    Object.defineProperty(write.node, 'right', { configurable: true, enumerable: true, get() {
+      reads++; return right;
+    } });
+  }
+  const label = `${ adapter.name }/final decline/${ source }`;
+  const first = resolver.resolvePropertyObjectType(member);
+  check(`${ label }/type`, first?.constructor ?? null, expected);
+  checkTruthy(`${ label }/counter control`, reads > 0);
+  reads = 0;
+  checkDeep(`${ label }/second type`, resolver.resolvePropertyObjectType(member), first);
+  checkDeep(`${ label }/third type`, resolver.resolvePropertyObjectType(member), first);
+  check(`${ label }/no repeated write scan`, reads, 0);
+}
+
 finish();

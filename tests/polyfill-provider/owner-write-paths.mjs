@@ -1,6 +1,6 @@
 // A source write needs its own lexical scope, not a path index over every sibling body.
 import {
-  buildOwnerWritePathIndex, ownerSourceWritePath, synthHoistedBinding,
+  buildOwnerWritePathIndex, ownerSourceWritePath, ownerWritePathIndex, synthHoistedBinding,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -98,6 +98,24 @@ for (const parser of adapters) {
   incompleteBody.node.body.pop();
   checkTruthy(`${ parser.name }/remaining declaration`, binding.resolveDeclaratorPath());
   check(`${ parser.name }/missing authoritative write declines the binding`, binding.resolveViolationPaths(), null);
+}
+
+// Cached path maps survive another traversal; a fresh builder observes rewritten nodes.
+for (const parser of adapters) {
+  const program = parser.parseAndScope('function read() { let value = 0; value = 1; return value; }');
+  const [owner] = program.get('body');
+  const write = owner.get('body').get('body')[1].get('expression');
+  const original = write.node;
+  const index = ownerWritePathIndex(owner);
+  parser.collectPaths(program, 'AssignmentExpression');
+  check(`${ parser.name }/path index survives traversal`, ownerWritePathIndex(owner), index);
+  const replacement = { ...original };
+  write.replaceWith(replacement);
+  check(`${ parser.name }/cached index retains the old key`, index.has(original), true);
+  const fresh = buildOwnerWritePathIndex(owner);
+  check(`${ parser.name }/fresh index drops the replaced node`, fresh.has(original), false);
+  check(`${ parser.name }/fresh index sees replacement`, fresh.get(replacement)?.node, replacement);
+  check(`${ parser.name }/live navigation sees replacement`, ownerSourceWritePath(owner, replacement)?.node, replacement);
 }
 
 finish();
