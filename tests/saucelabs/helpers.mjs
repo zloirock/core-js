@@ -1,5 +1,7 @@
+import { setMaxListeners } from 'node:events';
 import { writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 import { basicAuthorization, COMMAND_TIMEOUT, createSession, WebDriverError } from './webdriver.mjs';
 
 // zx logs fetch options, which carry the credentials
@@ -68,29 +70,37 @@ function sessionCapabilities(suite, { name, w3c, capabilities: browser }) {
   return w3c ? { ...browser, 'sauce:options': options } : { ...browser, ...options };
 }
 
-async function runPage({ reporter, evaluate }, session, page) {
+async function runPage({ reporter, evaluate }, session, page, controller) {
+  const { signal } = controller;
+  const expected = `${ base }/${ page }`;
   await session.execute(`sauce:context=${ page }`);
-  await session.navigate(`${ base }/${ page }`);
+  signal.throwIfAborted();
+  await session.navigate(expected);
   const start = Date.now();
   for (;;) {
-    const state = await session.execute(`var results = window.${ reporter }; return results ? JSON.stringify({ url: window.location.href, results: results, commits: window.bundleCommits || [] }) : null;`);
+    signal.throwIfAborted();
+    const state = await session.execute(`var results = window.${ reporter }; var commits = window.bundleCommits || []; return results || commits.length ? JSON.stringify({ url: window.location.href, results: results, commits: commits }) : null;`);
+    signal.throwIfAborted();
     const elapsed = Date.now() - start;
-    if (state) {
-      const { url, results, commits } = JSON.parse(state);
-      const expected = `${ base }/${ page }`;
-      // GitHub Pages upgrades HTTP to HTTPS where the browser supports its TLS
-      if (url !== expected && !(expected.startsWith('http:') && url === expected.replace(/^http:/, 'https:'))) {
-        throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
-      }
-      if (results.done) return { page, commits, ...evaluate(results) };
-      if (elapsed > RUN_TIMEOUT) {
-        const current = results.currentTest;
-        const testName = current && `${ current.module ? `${ current.module } > ` : '' }${ current.test }`;
-        return { page, commits, ...evaluate(results), passed: false, unfinished: true,
-          error: `not finished in ${ RUN_TIMEOUT / 6e4 } minutes${ testName ? `; current test: ${ testName }` : '' }` };
-      }
-    } else if (elapsed > REPORTER_TIMEOUT) return { page, passed: false, details: [], error: 'no results reporter on the page' };
-    await sleep(POLL_INTERVAL);
+    const { url, results, commits } = state ? JSON.parse(state) : {};
+    const foreign = COMMIT && [...new Set(commits)].filter(commit => commit !== COMMIT);
+    // GitHub Pages upgrades HTTP to HTTPS where the browser supports its TLS
+    if ((results || foreign?.length) && url !== expected && !(expected.startsWith('http:') && url === expected.replace(/^http:/, 'https:'))) {
+      throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
+    }
+    if (foreign?.length) {
+      controller.abort(new Error(`${ page }: bundles of ${ foreign.join(', ') } instead of ${ COMMIT }`));
+      signal.throwIfAborted();
+    }
+    if (results?.done) return { page, commits, ...evaluate(results) };
+    if (results && elapsed > RUN_TIMEOUT) {
+      const current = results.currentTest;
+      const testName = current && `${ current.module ? `${ current.module } > ` : '' }${ current.test }`;
+      return { page, commits, ...evaluate(results), passed: false, unfinished: true,
+        error: `not finished in ${ RUN_TIMEOUT / 6e4 } minutes${ testName ? `; current test: ${ testName }` : '' }` };
+    }
+    if (!results && elapsed > REPORTER_TIMEOUT) return { page, passed: false, details: [], error: 'no results reporter on the page' };
+    await setTimeout(POLL_INTERVAL, undefined, { signal });
   }
 }
 
@@ -115,7 +125,17 @@ function trackSession(id, open) {
   return sessionsWritten;
 }
 
-async function runSession(suite, platform) {
+async function annotateJob(session, platform, result) {
+  try {
+    await session.execute(`sauce:job-result=${ result }`);
+    return result;
+  } catch (error) {
+    echo(yellow(`${ platform.name }: could not report the Sauce Labs job result: ${ error.message }`));
+  }
+}
+
+async function runSession(suite, platform, controller) {
+  const { signal } = controller;
   const session = await createSession({
     hub,
     username,
@@ -126,8 +146,10 @@ async function runSession(suite, platform) {
   await trackSession(session.id, true);
   const pages = [];
   let hung;
+  let jobResult;
   try {
     for (const page of suite.pages) {
+      signal.throwIfAborted();
       // a browser busy with a hung page does not navigate
       if (hung) {
         pages.push({ page, passed: false, details: [], error: `not run, the session stopped at ${ hung }` });
@@ -135,28 +157,24 @@ async function runSession(suite, platform) {
       }
       let result;
       try {
-        result = await runPage(suite, session, page);
+        result = await runPage(suite, session, page, controller);
       } catch (error) {
-        error.message = `${ page }: ${ error.message }`;
+        if (!signal.aborted) error.message = `${ page }: ${ error.message }`;
         throw error;
       }
       pages.push(result);
       if (result.unfinished) hung = page;
     }
+    signal.throwIfAborted();
     // a lost annotation must not retry the platform
-    try {
-      await session.execute(`sauce:job-result=${ pages.every(({ passed }) => passed) ? 'passed' : 'failed' }`);
-    } catch (error) {
-      echo(yellow(`${ platform.name }: could not report the Sauce Labs job result: ${ error.message }`));
-    }
+    jobResult = await annotateJob(session, platform, pages.every(({ passed }) => passed) ? 'passed' : 'failed');
+    signal.throwIfAborted();
   } catch (error) {
-    error.sessionId = session.id;
-    try {
-      await session.execute('sauce:job-result=failed');
-    } catch (reportError) {
-      echo(yellow(`${ platform.name }: could not report the Sauce Labs job result: ${ reportError.message }`));
-    }
-    throw error;
+    // The abort reason belongs to the whole run; each session keeps its own error and link.
+    const failure = signal.aborted ? new Error(`run stopped: ${ signal.reason.message }`, { cause: signal.reason }) : error;
+    failure.sessionId = session.id;
+    if (jobResult !== 'failed') await annotateJob(session, platform, 'failed');
+    throw failure;
   } finally {
     try {
       await session.quit();
@@ -168,17 +186,19 @@ async function runSession(suite, platform) {
   return { platform, id: session.id, pages };
 }
 
-async function runPlatform(suite, platform) {
+async function runPlatform(suite, platform, controller) {
+  const { signal } = controller;
   for (let attempt = 1; ; attempt++) {
     let message;
     try {
-      const result = await runSession(suite, platform);
+      signal.throwIfAborted();
+      const result = await runSession(suite, platform, controller);
       // a hung emulator and an endless test look alike
       const unfinished = result.pages.find(page => page.unfinished);
-      if (!unfinished || attempt === ATTEMPTS) return result;
+      if (signal.aborted || !unfinished || attempt === ATTEMPTS) return result;
       message = `${ unfinished.page }: ${ unfinished.error }`;
     } catch (error) {
-      if (!(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
+      if (signal.aborted || !(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
       ({ message } = error);
     }
     echo(yellow(`${ platform.name }: ${ message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
@@ -194,12 +214,7 @@ function report({ platform, id, pages, error }) {
   let platformPassed = true;
   for (const { page, passed, summary, details, commits, error: pageError = summary } of pages) {
     // appended to each bundle by the Pages build; a deploy by an older workflow has none
-    const foreign = [...new Set(commits)].filter(commit => commit !== COMMIT);
     if (COMMIT && commits && !commits.length) lines.push(yellow(`  ${ page }: no commit marker in the bundles`));
-    if (COMMIT && foreign.length) {
-      lines.push(red(`  ${ page }: bundles of ${ foreign.join(', ') } instead of ${ COMMIT }`));
-      platformPassed = false;
-    }
     if (passed) {
       lines.push(green(`  ${ page }: ${ summary }`));
       continue;
@@ -242,9 +257,13 @@ async function runSuite(suite) {
   // a session over its pool limit would wait in the Sauce Labs queue, so a worker takes a platform with a free slot
   const running = {};
   const released = [];
+  const controller = new AbortController();
+  const { signal } = controller;
+  // Each worker can have one polling timer listening for abort.
+  setMaxListeners(concurrency, signal);
   const workers = Array.from({ length: concurrency }, async () => {
     let workerPassed = true;
-    while (waiting.length) {
+    while (waiting.length && !signal.aborted) {
       const index = waiting.findIndex(({ pool }) => !pool || (running[pool] ?? 0) < limit(pool));
       if (index === -1) {
         await new Promise(resolve => released.push(resolve));
@@ -253,7 +272,7 @@ async function runSuite(suite) {
       const [platform] = waiting.splice(index, 1);
       const { pool } = platform;
       if (pool) running[pool] = (running[pool] ?? 0) + 1;
-      const result = await runPlatform(suite, platform);
+      const result = await runPlatform(suite, platform, controller);
       if (pool) running[pool]--;
       for (const resolve of released.splice(0)) resolve();
       if (!report(result)) workerPassed = false;
@@ -261,6 +280,7 @@ async function runSuite(suite) {
     return workerPassed;
   });
   passed = (await Promise.all(workers)).every(Boolean) && passed;
+  if (signal.aborted) throw new Error(`Sauce Labs run stopped: ${ signal.reason.message }`, { cause: signal.reason });
 
   if (COMMIT) {
     const deployed = await deployedCommit();

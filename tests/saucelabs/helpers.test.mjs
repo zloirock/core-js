@@ -2,6 +2,7 @@ import { deepEqual, doesNotMatch, equal, match, notEqual, rejects } from 'node:a
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions');
 
@@ -33,6 +34,7 @@ async function runFake({
   let listedWhileOpen;
   let exitCodeWhileRunning;
   const navigations = [];
+  const annotations = [];
   let sessionStart;
   const started = [];
   let releaseSlow;
@@ -96,10 +98,13 @@ async function runFake({
         const { script } = JSON.parse(options.body);
         if (script.startsWith('sauce:job-result=')) {
           annotationRequests++;
+          annotations.push(script);
           payload = { status: 13, value: { message: 'annotation unavailable' } };
         } else if (noReporter && script.startsWith('var results = ')) {
-          Date.now = () => start + 2 * 6e4;
-          payload = { value: null };
+          const now = Date.now() + 2 * 6e4;
+          Date.now = () => now;
+          const window = { location: { href: navigations.at(-1) }, bundleCommits: commits };
+          payload = { value: runInNewContext(`(function () { ${ script } })()`, { window }) };
         } else if (script.startsWith('var results = ')) {
           if (dynamicQueue && path.includes('/slow')) await slow;
           if (sessions <= hangs) {
@@ -145,10 +150,11 @@ async function runFake({
       await rejects(run(suite), /could not read the Sauce Labs concurrency limit: (?:HTTP 401|.*JSON)|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
       return { sessions };
     }
-    if (emptyPool || failed || noReporter || foreignBundles || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
+    if (foreignBundles) await rejects(run(suite), new RegExp(`Sauce Labs run stopped: unit-browser/global\\.html: bundles of .* instead of ${ 'a'.repeat(40) }`), 'the run stops on foreign bundles');
+    else if (emptyPool || failed || noReporter || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
     return {
-      output: output.join('\n'), exitCodeWhileRunning, navigations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
+      output: output.join('\n'), exitCodeWhileRunning, navigations, annotations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
       listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
     };
   } finally {
@@ -257,8 +263,20 @@ async function runFake({
 {
   const commit = 'a'.repeat(40);
   const other = 'b'.repeat(40);
-  const { output } = await runFake({ marker: commit, commits: [commit, other] });
-  match(output, new RegExp(`\\n {2}unit-browser/global\\.html: bundles of ${ other } instead of ${ commit }`), 'fails a page that executed bundles of another commit');
+  for (const noReporter of [false, true]) {
+    const { output, sessions, navigations, annotations, quits, markerRequests, listedAfter } = await runFake({
+      marker: commit, commits: [commit, other], noReporter,
+      pages: ['unit-browser/global.html', 'unit-browser/pure.html'], platforms: [{ name: 'first' }, { name: 'next' }],
+    });
+    match(output, new RegExp(`unit-browser/global\\.html: bundles of ${ other } instead of ${ commit }`), 'stops on foreign bundles before waiting for QUnit #1');
+    equal(sessions, 1, 'stops on foreign bundles before waiting for QUnit #2');
+    equal(navigations.length, 1, 'stops on foreign bundles before waiting for QUnit #3');
+    deepEqual(annotations, ['sauce:job-result=failed'], 'stops on foreign bundles before waiting for QUnit #4');
+    equal(quits, 1, 'stops on foreign bundles before waiting for QUnit #5');
+    equal(listedAfter, '', 'stops on foreign bundles before waiting for QUnit #6');
+    equal(markerRequests, 1, 'stops on foreign bundles before waiting for QUnit #7');
+    doesNotMatch(output, /all the browsers passed|assertions passed|retrying/, 'stops on foreign bundles before waiting for QUnit #8');
+  }
   const { output: matching } = await runFake({ marker: commit, commits: [commit, commit] });
   doesNotMatch(matching, /bundles of|commit marker in the bundles/, 'passes a page that executed bundles of the tested commit #1');
   match(matching, /all the browsers passed/, 'passes a page that executed bundles of the tested commit #2');
