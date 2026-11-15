@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { deepStrictEqual } from 'node:assert/strict';
 import { E2E_STRIP_REALM_GLOBALS, E2E_STRIP_STATIC, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
+import definitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
 import QUnit from 'qunit';
 import quietReporter from './quiet-reporter.js';
 
@@ -30,9 +31,10 @@ const sandbox = {
   clearTimeout,
   setInterval,
   clearInterval,
-  queueMicrotask,
   process,
 };
+deepStrictEqual(Object.keys(sandbox).filter(key => Object.hasOwn(definitions.globals, key)), [],
+  'the stripped sandbox must not copy ponyfilled host globals');
 const context = createContext(sandbox);
 const withWindow = process.argv.includes('--window');
 // A realm alias exercises browser-only proxy branches with all native features still stripped.

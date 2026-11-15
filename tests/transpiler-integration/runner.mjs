@@ -3,11 +3,13 @@ import { deepEqual } from 'node:assert/strict';
 import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
+import './runtime-tests.mjs';
+import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
 import { hostBoundaries } from './host-boundaries.mjs';
 import { assetExternals } from './asset-externals.mjs';
 import { leadingCommentsAndMaps } from './leading-comments-maps.mjs';
 
-const { mkdtemp, readFile, rm, writeFile } = fs;
+const { readFile, writeFile } = fs;
 const { dirname, join, resolve } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -41,88 +43,6 @@ const expected = {
   clamp: 4,
   cooked: 'hello',
 };
-
-// --- helpers ---
-
-async function withTmpDir(fn, prefix = 'transpiler-test-') {
-  const dir = await mkdtemp(join(os.tmpdir(), prefix));
-  try {
-    return await fn(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
-// node verifier: import bundle, extract results, compare against expected
-async function verifyInNode(code, label, ext = '.mjs') {
-  assertRefsDeclared(code, label);
-  await withTmpDir(async dir => {
-    const file = join(dir, `bundle${ ext }`);
-    await writeFile(file, code);
-    const mod = await import(pathToFileURL(file).href);
-    const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepEqual(results.clamp, expected.clamp, `${ label }: clamp`);
-    deepEqual(results.cooked, expected.cooked, `${ label }: cooked`);
-  });
-}
-
-// every plugin-minted temp the output USES must also be declared: a pass that emits a memo
-// without contributing its `var` produces a bundle that dies with `X is not defined` at
-// runtime - and only on the code paths that reach it, which a value assertion can miss
-function assertRefsDeclared(code, label) {
-  const declared = new Set();
-  for (const match of code.matchAll(/\bvar\s+(?<names>[^\n;]+);/g)) {
-    for (const name of match.groups.names.split(',')) declared.add(name.trim().split(/\s/u, 1)[0]);
-  }
-  const undeclared = new Set();
-  for (const match of code.matchAll(/\b(?<temp>_ref\d*)\b/g)) {
-    if (!declared.has(match.groups.temp)) undeclared.add(match.groups.temp);
-  }
-  if (undeclared.size) throw new Error(`${ label }: undeclared plugin temps ${ [...undeclared].join(', ') }`);
-}
-
-// pre+post contract verifier: the runtime must observe the user's Map patch (pre recorded the
-// mutation before the sibling mangled its spelling), and the control stays polyfilled
-async function verifyPhases(code, label, ext = '.mjs') {
-  assertRefsDeclared(code, label);
-  await withTmpDir(async dir => {
-    const file = join(dir, `bundle${ ext }`);
-    await writeFile(file, code);
-    const mod = await import(pathToFileURL(file).href);
-    const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepEqual(results.patched, 'patched', `${ label }: patched static observed`);
-    deepEqual(results.control, expected.clamp, `${ label }: control`);
-    deepEqual(mod.injected ?? results.injected, 'sib', `${ label }: sibling-injected call ran`);
-    // the injected call is sibling-authored code the POST pass alone can see: it must be
-    // substituted there, or this leg silently degrades to testing the native method
-    // bundlers spell the injected helper binding every which way (farm prefixes it, CJS interop
-    // wraps it in `(0, ns.default)`), so assert the ABSENCE of the raw call instead: whatever
-    // the helper is named, a substituted call no longer reads the method off the array literal
-    if (/\[\s*(?<q1>["'])s\k<q1>\s*,\s*(?<q2>["'])ib\k<q2>\s*\]\s*\.\s*join\s*\(/u.test(code)) {
-      throw new Error(`${ label }: sibling-injected call was left unpolyfilled`);
-    }
-  });
-}
-
-// dynamic-import verifier: the lazy module resolves through the bundler's loader machinery
-// and its own body ran polyfilled
-async function verifyDynamic(code, label, ext = '.mjs') {
-  assertRefsDeclared(code, label);
-  await withTmpDir(async dir => {
-    const file = join(dir, `bundle${ ext }`);
-    await writeFile(file, code);
-    const mod = await import(pathToFileURL(file).href);
-    const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepEqual(await results.lazy, 2, `${ label }: lazy chunk value`);
-    const probe = join(dir, 'stripped-probe.mjs');
-    await writeFile(probe, `import * as mod from ${ JSON.stringify(pathToFileURL(file).href) };
-      const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-      export const r = [await results.lazy, results.control];
-      export const effects = [];`);
-    deepEqual(await runInWorker(probe, { stripGlobals: [] }), 'OK|[2,4]|[]', `${ label }: lazy chunk in a fresh stripped realm`);
-    deepEqual(results.control, expected.clamp, `${ label }: control`);
-  });
-}
 
 // bun-mode output mixes CJS/ESM and isn't loadable by node - verify inside bun instead.
 // usage-pure exports results; global methods patch globals.

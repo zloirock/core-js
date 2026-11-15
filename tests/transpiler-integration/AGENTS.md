@@ -9,6 +9,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 ## Layout
 
 - `runner.mjs` - the matrix: a `builders` map with one entry per tool, crossed with the three methods and the phases each one supports. babel-plugin has no phase of its own; every other builder exercises the full range
+- `runtime.mjs` verifies bundles in fresh workers; `runtime-tests.mjs` checks that a preceding global install cannot hide missing injection, including CJS exports and lazy results
 - `input-<method>.js` - the source for each injection method, plus `input-phases.js` for the pre/post interaction and `input-dynamic.js` for dynamic import
 - `lazy-chunk.js` - the body of a lazily imported module, written so its value can only be right if the polyfill reached the chunk, not just the loader
 - `id-flow/` - the project behind the id-flow legs: an `.html` entry carrying an inline `<script>`, a Vue SFC per sub-block shape, a `src=` template (the one spelling whose block its plugin hands back as a separate module) and both halves of a worker. Every body uses a feature nothing else there uses, so an injection names the id that carried it

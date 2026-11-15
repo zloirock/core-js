@@ -8,8 +8,16 @@
 // The measurement needs `--expose-gc`, which the suite orchestrator does not carry, so the
 // module re-execs itself as a plain node child and reads back one JSON line. The child stays
 // zx-free on purpose - only the parent half reports through the shared checker.
-import { parseAsync, transformFromAstAsync, transformSync } from '@babel/core';
+import { createRequire } from 'node:module';
+import { resolve as resolvePath } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
+
+const { BABEL_REQUIRE_FROM } = process.env;
+const requireBabel = BABEL_REQUIRE_FROM
+  ? createRequire(pathToFileURL(`${ resolvePath(BABEL_REQUIRE_FROM) }/`).href)
+  : createRequire(import.meta.url);
+const { parseAsync, transformFromAstAsync, transformSync, version } = requireBabel('@babel/core');
 
 // `cfg` is bound to an object literal, so the census records `cfg.at` with the assigned
 // FunctionExpression as its value node; the trailing call gives the file real work to do
@@ -139,7 +147,7 @@ async function measure() {
   transformSync('export const outer = [1].at(0);', config);
   results.spareReleased = types.length === 3 && await collectable(() => types[2]);
   results.warmRetained = !!plugin.visitor && types[1]?.deref() !== undefined;
-  return results;
+  return { ...results, version };
 }
 
 if (typeof globalThis.gc === 'function') {
@@ -148,11 +156,13 @@ if (typeof globalThis.gc === 'function') {
   const { createChecker } = await import('../polyfill-provider/harness.mjs');
   const { check, checkTruthy, finish } = createChecker('per-file-teardown');
   const node = process.execPath.replaceAll('\\', '/');
-  const { stdout } = await $({ quiet: true, cwd: import.meta.dirname })`${ node } --expose-gc ./per-file-teardown.mjs`;
+  // Keep the caller's cwd: BABEL_REQUIRE_FROM may be relative to it.
+  const { stdout } = await $({ quiet: true, cwd: process.cwd() })`${ node } --expose-gc ${ import.meta.filename }`;
   const line = stdout.split('\n').find(row => row.startsWith(RESULT_PREFIX));
   checkTruthy('child measurement produced a result', !!line);
   if (line) {
     const results = JSON.parse(line.slice(RESULT_PREFIX.length));
+    check('child drives the selected Babel', results.version, requireBabel('@babel/core/package.json').version);
     check('entry directive candidates release their program', results.entryReleased, true);
     check('a completed burst releases its extra binding context', results.spareReleased, true);
     check('the sequential context remains warm', results.warmRetained, true);

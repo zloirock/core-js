@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { createChecker } from '../polyfill-provider/harness.mjs';
+import corejsPlugin from '../../packages/core-js-babel-plugin/index.js';
 import { generatorWorkarounds } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
@@ -55,14 +56,22 @@ function makeSiblingPlanting(where, observed) {
   });
 }
 
-async function plant(where, source, parserPlugins = []) {
+// Drive the shipped fallback even when the installed generator already contains the fix.
+// Only the advertised version changes; parsing, traversal and printing stay real.
+function withBabelVersion(release) {
+  return (api, options) => corejsPlugin(Object.create(api, {
+    version: { value: release },
+  }), options);
+}
+
+async function plant(where, source, parserPlugins = [], release = version) {
   const observed = {};
   const { code } = await transformAsync(source, {
     configFile: false,
     babelrc: false,
     parserOpts: { plugins: parserPlugins },
     plugins: [
-      ['@core-js', { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
+      [withBabelVersion(release), { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
       makeSiblingPlanting(where, observed),
     ],
   });
@@ -103,7 +112,6 @@ async function plant(where, source, parserPlugins = []) {
 
 // Patched generators print both tag spellings without help. Older ones need the
 // late walk, including when a TS wrapper sits between the tag and the optional chain.
-const legacy = generatorWorkarounds(version);
 for (const [release, instantiation, tag, write] of [
   ['7.29.7', true, true, true], ['7.29.12', false, true, true], ['7.29.13', false, false, true],
   ['8.0.4', true, true, true], ['8.0.5', true, false, true], ['8.0.10', false, false, false], ['8.1.0', false, false, false],
@@ -114,20 +122,23 @@ for (const [release, instantiation, tag, write] of [
 for (const [release, pending] of [['7.29.11', true], ['7.29.12', false], ['8.0.9', true], ['8.0.10', false]]) {
   checkTruthy(`optional constructor workaround/${ release }`, generatorWorkarounds(release).newCallee === pending);
 }
-for (const source of ['(o?.f)`x`', '(o?.f!)`x`']) {
-  const { compensated, code } = await plant('in-existing-statement',
-    `const tag = ${ source }; var seed = 0;`, ['typescript']);
-  checkTruthy(`tag gets a late walk only on old generators: ${ source }`, compensated === legacy.tag);
-  checkTruthy(`tag remains grouped: ${ source }`, code.includes(source));
-}
+for (const release of [version, '7.29.7', '8.0.4']) {
+  const workarounds = generatorWorkarounds(release);
+  for (const source of ['(o?.f)`x`', '(o?.f!)`x`']) {
+    const { compensated, code } = await plant('in-existing-statement',
+      `const tag = ${ source }; var seed = 0;`, ['typescript'], release);
+    checkTruthy(`tag gets a late walk only on old generators: ${ release }/${ source }`, compensated === workarounds.tag);
+    checkTruthy(`tag remains grouped: ${ release }/${ source }`, code.includes(source));
+  }
 
-for (const [source, pending] of [
-  ['(fn<T>).member', legacy.instantiation],
-  ['(x as number)++', legacy.write],
-  ['(<number>obj.x) = value', legacy.write],
-]) {
-  const { compensated } = await plant('in-existing-statement', `const value = ${ source }; var seed = 0;`, ['typescript']);
-  checkTruthy(`a fixed generator needs no late walk: ${ source }`, compensated === pending);
+  for (const [source, pending] of [
+    ['(fn<T>).member', workarounds.instantiation],
+    ['(x as number)++', workarounds.write],
+    ['(<number>obj.x) = value', workarounds.write],
+  ]) {
+    const { compensated } = await plant('in-existing-statement', `const value = ${ source }; var seed = 0;`, ['typescript'], release);
+    checkTruthy(`a fixed generator needs no late walk: ${ release }/${ source }`, compensated === pending);
+  }
 }
 
 for (const [source, pending] of [['(o?.f)!()', true], ['o?.f!()', false]]) {
@@ -273,24 +284,26 @@ function siblingPlanting(snippet) {
   });
 }
 
-for (const [name, snippet] of SHAPES) {
-  const { code } = await transformAsync('var seed = [1, 2].flat();\n', {
-    configFile: false,
-    babelrc: false,
-    filename: 'planted.ts',
-    parserOpts: { plugins: ['typescript'] },
-    plugins: [
-      ['@core-js', { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
-      siblingPlanting(snippet),
-    ],
-  });
-  const emitted = code.split('\n').filter(line => !line.startsWith('import') && !line.startsWith('var seed')).join('\n');
-  let reprinted = null;
-  try {
-    reprinted = plantedExpressionType(emitted);
-  } catch { /* stays null: unparsable output fails the check below with the same verdict */ }
-  checkTruthy(`sibling-planted ${ name }: reprint evaluates as the same expression`,
-    reprinted === plantedExpressionType(snippet));
+for (const release of [version, '7.29.7', '8.0.4']) {
+  for (const [name, snippet] of SHAPES) {
+    const { code } = await transformAsync('var seed = [1, 2].flat();\n', {
+      configFile: false,
+      babelrc: false,
+      filename: 'planted.ts',
+      parserOpts: { plugins: ['typescript'] },
+      plugins: [
+        [withBabelVersion(release), { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
+        siblingPlanting(snippet),
+      ],
+    });
+    const emitted = code.split('\n').filter(line => !line.startsWith('import') && !line.startsWith('var seed')).join('\n');
+    let reprinted = null;
+    try {
+      reprinted = plantedExpressionType(emitted);
+    } catch { /* stays null: unparsable output fails the check below with the same verdict */ }
+    checkTruthy(`sibling-planted ${ release }/${ name }: reprint evaluates as the same expression`,
+      reprinted === plantedExpressionType(snippet));
+  }
 }
 
 // the one shape an EMITTER puts into an instantiation slot: the guarded ctor narrow swaps a member

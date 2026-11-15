@@ -8,13 +8,19 @@
 // the last row is the suite's own control: two copies that are NOT the same source must render
 // differently, so a comparator that went blind fails here instead of passing everything.
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
 
-const { parseSync, transformAsync } = createRequire(import.meta.url)('@babel/core');
+const { BABEL_REQUIRE_FROM } = process.env;
+const requireBabel = BABEL_REQUIRE_FROM
+  ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  : createRequire(import.meta.url);
+const { parseSync, transformAsync, version } = requireBabel('@babel/core');
 
 const { check, finish } = createChecker('statement-order-independence');
+check('drives the selected Babel', version, requireBabel('@babel/core/package.json').version);
 
 const PRELUDE = 'let g, v, out, k;\nfunction eff() {}\n';
 

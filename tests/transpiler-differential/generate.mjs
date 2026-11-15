@@ -25281,6 +25281,21 @@ function * generateStandaloneConstructorImports() {
     code: `export const effects = []; export const r = await (async () => { ${ body } })();` };
 }
 
+// The original shared rows remain in place to preserve their successors' cache prefixes.
+// These twins cannot inherit a static from a neighbour's full constructor import.
+function * generateIsolatedStaticInstalls() {
+  for (const row of generateInstallsInArmsNeverTaken()) {
+    if (row.name.startsWith('installs-in-arms-never-taken/typeof-static/')) {
+      yield { ...row, name: `isolated-static-install/${ row.name }`, isolated: true };
+    }
+  }
+  for (const expr of EXPR_FAMILIES['destructure-edge']) {
+    if (expr.includes('Iterator.from ||=')) {
+      yield { ...snippet('isolated-static-install/iterator-from', expr), strip: STRIP_TARGET_RE.test(expr), isolated: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27081,4 +27096,5 @@ export function * generate() {
   yield * generateOpenInstanceDefaults();
   yield * generateDestructureDefaultClaims();
   yield * generateStandaloneConstructorImports();
+  yield * generateIsolatedStaticInstalls();
 }
