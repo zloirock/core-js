@@ -25435,6 +25435,58 @@ function * generateOptionalQuerySources() {
   }
 }
 
+// Shared selection subgraphs keep both key provenance and each executed source effect.
+function * generateSelectionDagSources() {
+  for (const flag of [false, true]) for (const rebuilt of [false, true]) {
+    for (const shape of ['key', 'alias', 'slot', 'return', 'symbol', 'mixed-key']) {
+      let setup;
+      let claim;
+      if (shape === 'symbol' || shape === 'mixed-key') {
+        setup = `const k0 = Symbol.iterator;
+          const k1 = flag ? k0 : ${ shape === 'symbol' ? 'k0' : '"Symbol.iterator"' };
+          const k2 = flag ? k1 : k1;
+          const value = { [Symbol.iterator]: 3, 'Symbol.iterator': 7 };`;
+        claim = 'value[(log.push("key"), k2)]';
+      } else {
+        setup = shape === 'key' ? 'const x0 = \'from\'; const x1 = \'from\';'
+          : shape === 'slot' ? 'const x0 = { a: Array }; const x1 = { a: Array };'
+            : shape === 'return' ? 'function x0() { return { a: Array }; } function x1() { return { a: Array }; }'
+              : 'const x0 = Array; const x1 = Array;';
+        for (let index = 0; index < 4; index++) {
+          const select = `flag ? x${ index + 1 } : x${ index }`;
+          setup += shape === 'return' ? `function x${ index + 2 }() { return { a: flag ? x${ index + 1 }() : x${ index }() }; }`
+            : `const x${ index + 2 } = ${ shape === 'slot' ? `{ a: ${ select } }` : select };`;
+        }
+        const receiver = shape === 'key' ? 'Array[x5]' : shape === 'slot' ? 'x5.a.a.a.a.a.from'
+          : shape === 'return' ? 'x5().a.a.a.a.a.from' : 'x5.from';
+        claim = `${ receiver }((log.push("argument"), [3]))[0]`;
+      }
+      yield {
+        name: `selection-dag/${ shape }/${ flag }/${ rebuilt }`, strip: !['slot', 'return'].includes(shape),
+        code: `const log = []; const flag = JSON.parse('${ flag }'); ${ setup }
+          let r; try { ${ rebuilt ? `const out = []; out.push(${ claim }); r = out[0];` : `r = ${ claim };` } }
+          catch (error) { r = error.name; }
+          export { r }; export const effects = log;`,
+      };
+    }
+  }
+  for (const flag of [false, true]) for (const other of ['Array', 'Object']) for (const rebuilt of [false, true]) {
+    let setup = `function f0() { return flag ? Array : f1(); }
+      function f1() { return flag ? f0() : ${ other }; }`;
+    for (let index = 0; index < 4; index++) {
+      setup += `function f${ index + 2 }() { return flag ? f${ index + 1 }() : f${ index }(); }`;
+    }
+    const call = '(log.push("receiver"), f5()).from((log.push("argument"), [3]))[0]';
+    yield {
+      name: `selection-dag/cycle/${ flag }/${ other }/${ rebuilt }`, strip: false,
+      code: `const log = []; const flag = JSON.parse('${ flag }'); ${ setup }
+        let r; try { ${ rebuilt ? `const out = []; out.push(${ call }); r = out[0];` : `r = ${ call };` } }
+        catch (error) { r = error.name; }
+        export { r }; export const effects = log;`,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27243,4 +27295,5 @@ export function * generate() {
   yield * generateTypeCallContracts();
   yield * generateReceiverQueryLifetimes();
   yield * generateOptionalQuerySources();
+  yield * generateSelectionDagSources();
 }

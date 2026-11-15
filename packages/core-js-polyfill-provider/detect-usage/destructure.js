@@ -178,6 +178,7 @@ import {
   unwrapTransparentSeq,
   ALWAYS_TRUTHY_OBJECT_NODES,
   canonAnswerTable,
+  guardedCanonAnswer,
   cycleGuardCuts,
   cycleGuardHas,
   canonContextPath,
@@ -1291,7 +1292,7 @@ function resolveIndirectBranchingReceiver({ node, seen = new Set(), ctx, binding
   while (cur) {
     if (cur.type === 'Identifier') {
       const { name } = cur;
-      if (seen.has(name) || !adapter.hasBinding({ scope, name, path, read: cur })) return null;
+      if (cycleGuardHas(seen, name) || !adapter.hasBinding({ scope, name, path, read: cur })) return null;
       seen.add(name);
       // ... the caller may already hold the first name's binding (`nodeBinding`)
       const binding = cur === node && nodeBinding !== undefined ? nodeBinding : adapter.getBinding({ scope, name, path, read: cur });
@@ -4691,8 +4692,8 @@ function walkAlternativesIntoSink({ hop, walk, values, walkPath = walk.walkPath,
     if (writeNeverRuns({ write: value, usagePath: hop.ctx.path, adapter: hop.ctx.adapter })) continue;
     const slotHop = slotValueHop({ hop, walk }, value) ?? { ...hop, node: value };
     const { literal } = levelLiteralThroughIife(installedWriteValue(slotHop.node));
-    const resolved = walkStaticReceiverStep({
-      ...slotHop, node: literal, seen: new Set(walkPath === walk.walkPath ? slotHop.seen : null),
+    const resolved = walkStaticReceiverAlternative({
+      ...slotHop, node: literal, seen: walkPath === walk.walkPath ? slotHop.seen : null,
     }, {
       ...walk, walkPath, depth: walk.depth + 1, containerPath, privateKey: walkPath === walk.walkPath && walk.privateKey,
     });
@@ -4760,7 +4761,7 @@ function agreedBranchArmName({ hop, walk }, arms, candidatesOnly = false) {
   let partial = candidatesOnly;
   for (const arm of arms) {
     const { literal } = levelLiteralThroughIife(arm, hop.ctx);
-    const resolved = walkStaticReceiverStep({ ...hop, node: literal, seen: new Set(hop.seen) },
+    const resolved = walkStaticReceiverAlternative({ ...hop, node: literal },
       { ...walk, depth: walk.depth + 1, unionSink: null });
     if (!resolved && walk.selectionSink && !isUndefinedNode(literal) && !isNullLiteralNode(literal)) {
       partial = true;
@@ -4772,6 +4773,32 @@ function agreedBranchArmName({ hop, walk }, arms, candidatesOnly = false) {
   if (!partial && names.every(name => name === names[0])) return names[0];
   if (walk.selectionSink) for (const name of names) if (!walk.selectionSink.includes(name)) walk.selectionSink.push(name);
   return null;
+}
+
+// Alternative arms keep the complete walk answer, including additions to each caller-owned sink.
+// Copied path arrays and sink prefixes are keyed by contents. Guard proofs share only under the
+// same depth and options, inside the read-only question (guardedCanonAnswer).
+function walkStaticReceiverAlternative(hop, walk) {
+  // Provenance callbacks may return the hop itself, including its guard and fresh identity.
+  if (walk.resolveLeaf) return walkStaticReceiverStep({ ...hop, seen: new Set(hop.seen) }, walk);
+  const context = [];
+  for (const record of [hop.ctx, { readNode: hop.readNode }, walk]) {
+    const fields = Object.entries(record);
+    context.push(fields.length);
+    for (const [key, value] of fields) {
+      context.push(key);
+      if (Array.isArray(value)) context.push(value.length, ...value);
+      else context.push(value);
+    }
+  }
+  const sinks = [walk.unionSink, walk.selectionSink, walk.rescueSink, walk.conditionalSink];
+  const { result, added } = guardedCanonAnswer(walkStaticReceiverAlternative, context, hop.node, hop.seen, () => {
+    const before = sinks.map(sink => sink?.length ?? 0);
+    const answer = walkStaticReceiverStep({ ...hop, seen: new Set(hop.seen) }, walk);
+    return { result: answer, added: sinks.map((sink, index) => sink?.splice(before[index]) ?? []) };
+  });
+  for (let index = 0; index < sinks.length; index++) sinks[index]?.push(...added[index]);
+  return result;
 }
 
 // Resolve `walkPath` through a receiver's aliases, containers, returned values and proxy hops.
@@ -5468,7 +5495,7 @@ function walkStaticReceiverStep(hop, {
   // ... and hands the identifier itself as the read: past the first hop it is an initializer, read where
   // its declarator stands rather than at the use `path` anchors
   while (current?.type === 'Identifier' && adapter.hasBinding({ scope: currentScope, name: current.name, path, read: current })) {
-    if (++hops > STATIC_WALK_DEPTH || visited.has(current.name)) return null;
+    if (++hops > STATIC_WALK_DEPTH || cycleGuardHas(visited, current.name)) return null;
     visited.add(current.name);
     const binding = adapter.getBinding({ scope: currentScope, name: current.name, path, read: current });
     if (resolveLeaf && !walkPath.length) {

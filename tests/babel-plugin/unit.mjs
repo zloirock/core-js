@@ -55,6 +55,7 @@ import './own-output-guards-runtime.mjs';
 import './phase-rewrite-runtime.mjs';
 import './census-static-runtime.mjs';
 import './callee-source-facts-runtime.mjs';
+import './selection-dag-runtime.mjs';
 import './mutated-receiver-reads-runtime.mjs';
 import './read-write-order-runtime.mjs';
 import './realm-constructor-runtime.mjs';

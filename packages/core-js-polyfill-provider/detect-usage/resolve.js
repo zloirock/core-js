@@ -35,6 +35,7 @@ import {
   prototypeChainMayLend,
   callPairing,
   canonAnswerTable,
+  guardedCanonAnswer,
   canonContextPath,
   chainValueCarrier,
   climbTransparentWrapperPath,
@@ -2654,11 +2655,8 @@ export function decidedLiveOperand(node, ctx) {
 // walk proves the well-known symbol the build serves - always truthy - through what it alone follows (an
 // alias of a decided selection, `REAL || '@@iterator'`; a static read off a decided realm selection,
 // `$Symbol.iterator || '@@iterator'`; a static this file already substituted). the left as written, or null.
-// an undecided ternary whose arms name one key, provenance included, yields it whichever runs
-// (`c ? 'at' : 'at'`) - the key twin of `agreeingTernaryArm`
 function decidedKeyOperand(node, { scope, adapter, path, seen, depth }) {
   const operand = decidedLiveOperand(node, { scope, adapter, path });
-  if (!operand && node?.type === 'ConditionalExpression') return agreeingKeyArm(node, { scope, adapter, path, seen, depth });
   if (operand || node?.type !== 'LogicalExpression' || node.operator === '&&') return operand;
   const key = resolveKey({ node: node.left, computed: true, scope, adapter, seen, path, depth: depth + 1 });
   const member = typeof key === 'string' && key.startsWith('Symbol.') ? key.slice('Symbol.'.length) : null;
@@ -2667,15 +2665,18 @@ function decidedKeyOperand(node, { scope, adapter, path, seen, depth }) {
     && isSymbolSourcedKey({ node: node.left, scope, adapter, seen, path, depth: depth + 1 }) ? node.left : null;
 }
 
-// ... the agreeing arm itself: the consequent where both arms fold to one key and agree on whether it is
-// a well-known symbol's, or null
-function agreeingKeyArm(node, { scope, adapter, path, seen, depth }) {
-  const ctx = { computed: true, scope, adapter, path, seen, depth: depth + 1 };
-  const key = resolveKey({ node: node.consequent, ...ctx });
-  if (key === null || key !== resolveKey({ node: node.alternate, ...ctx })) return null;
-  const symbolCtx = { scope, adapter, seen, path, depth: depth + 1 };
-  return isSymbolSourcedKey({ node: node.consequent, ...symbolCtx }) === isSymbolSourcedKey({ node: node.alternate, ...symbolCtx })
-    ? node.consequent : null;
+// The complete key and its symbol provenance when both undecided arms agree. Consumers use
+// this answer directly instead of resolving the consequent again. A moved or effect-free key
+// applies the same proof options to each arm, and depth/guard context remains part of the answer.
+function agreeingKey(node, options) {
+  const { seen, ...inputs } = options;
+  return guardedCanonAnswer(agreeingKey, Object.entries(inputs).flat(), node, seen, () => {
+    const ctx = { ...options, computed: true, depth: options.depth + 1 };
+    const key = resolveKey({ ...ctx, node: node.consequent });
+    if (key === null || key !== resolveKey({ ...ctx, node: node.alternate })) return null;
+    const symbol = isSymbolSourcedKey({ ...ctx, node: node.consequent });
+    return symbol === isSymbolSourcedKey({ ...ctx, node: node.alternate }) ? { key, symbol } : null;
+  });
 }
 
 // the key the part of a decided selection that ever runs stands at (`decidedLiveOperand` reads through it), for
@@ -5173,6 +5174,9 @@ export function resolveKey({
       node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, { scope, adapter, path, usageNode, seen, keepsKeyNode });
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
       const operand = decidedKeyOperand(node, { scope, adapter, path, seen, depth });
+      if (!operand && node?.type === 'ConditionalExpression') return agreeingKey(node, {
+        scope, adapter, path, seen, depth, bailOnSideEffectKey, usageNode, resolveStaticKey, keepsKeyNode, requireInitialized,
+      })?.key ?? null;
       if (operand) {
         node = operand;
         depth += 1;
@@ -7170,6 +7174,9 @@ export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0
     if (depth > MAX_KEY_DEPTH) return false;
     node = unwrapTransparentSeq(node);
     const operand = decidedKeyOperand(node, { scope, adapter, path, seen, depth });
+    if (!operand && node?.type === 'ConditionalExpression') return agreeingKey(node, {
+      scope, adapter, path, seen, depth,
+    })?.symbol ?? false;
     if (operand) {
       node = operand;
       depth += 1;

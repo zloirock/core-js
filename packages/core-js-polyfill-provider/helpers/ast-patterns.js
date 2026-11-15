@@ -2313,7 +2313,10 @@ export function withVarScopeOwners(visit) {
 export function cycleGuardHas(seen, element) {
   if (!seen?.has(element)) return false;
   invalidateSettlingHypothesis();
-  if (canonAnswers) canonAnswers.cuts++;
+  if (canonAnswers) {
+    canonAnswers.cuts++;
+    canonAnswers.guardCuts?.add(element);
+  }
   return true;
 }
 
@@ -2381,6 +2384,46 @@ export function canonAnswerTable(kind, context) {
     table = next;
   }
   return table;
+}
+
+// Reuse guard variants with the same blockers and already-proved irrelevant members. Each cut
+// must belong to the incoming guard; a newly encountered cycle cannot supply an answer. Proofs
+// with the same blockers may combine their irrelevant members, but a new member is evaluated
+// first. Refused binding reentry supplies no proof. Reusing a blocked answer replays its cuts
+// into enclosing questions and settling.
+// The input size stays in the key because alias budgets can read it. Other inputs, including
+// depth, belong to context. The question forks its guard; inherited cuts use cycleGuardHas.
+export function guardedCanonAnswer(kind, context, node, seen, question) {
+  return withCanonQuestion(() => {
+    const answers = canonAnswerTable(kind, [...context, seen?.size ?? 0]);
+    if (!answers) return question();
+    const entries = answers.get(node) ?? [];
+    const guard = [...seen ?? []];
+    const cached = entries.find(entry => [...entry.cuts].every(value => seen?.has(value))
+      && guard.every(value => entry.seen.has(value)));
+    if (cached) {
+      for (const value of cached.cuts) cycleGuardHas(cached.cuts, value);
+      return cached.answer;
+    }
+    const previous = canonAnswers.guardCuts;
+    const cuts = canonAnswers.guardCuts = new Set();
+    const refusals = refusedReentries;
+    let answer;
+    try {
+      answer = question();
+    } finally {
+      canonAnswers.guardCuts = previous;
+      if (previous) for (const value of cuts) previous.add(value);
+    }
+    if (refusedReentries === refusals && [...cuts].every(value => seen?.has(value))) {
+      const matching = entries.find(entry => entry.cuts.size === cuts.size
+        && [...cuts].every(value => entry.cuts.has(value)));
+      if (matching) for (const value of guard) matching.seen.add(value);
+      else entries.push({ answer, seen: new Set(guard), cuts });
+      answers.set(node, entries);
+    }
+    return answer;
+  });
 }
 
 // the path a per-node answer keys its read anchor by. a `||` / `??` / `&&` LEFT operand, parens

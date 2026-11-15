@@ -170,6 +170,8 @@ const { green } = chalk;
 echo(`\n${ green('all polyfill-provider suites passed') }`);
 import './guard-preparation.mjs';
 import './optional-query-reuse.mjs';
+import './selection-dag.mjs';
+import './canon-guard-answers.mjs';
 import './optional-seals.mjs';
 import './static-fallback-receiver.mjs';
 import './guard-tail.mjs';
