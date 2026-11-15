@@ -322,7 +322,7 @@ export function * resolvedStaticClaimRoutes({ kind, hintName, entry, meta, alias
       reader: path.parentPath?.node,
       effects: meta.sideEffects,
       receiverEffectCount: meta.receiverEffectCount,
-      guardObject: guard.object,
+      guard,
     });
     // The fold of an optional computed key still owes its effects to the live
     // arm, including under delete. The probe carries their original source slot.

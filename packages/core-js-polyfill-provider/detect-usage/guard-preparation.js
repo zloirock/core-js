@@ -1,8 +1,6 @@
 import {
   isCallShape,
-  chainSealsAShortCircuit,
   chainReadsThroughSeal,
-  navValueCanShortCircuit,
   descendToChainRoot,
   callYieldCanBeUndefined,
   inlineCallProxyGlobalRoot,
@@ -451,7 +449,7 @@ function callIsOptionalProbe(node, claimCtor, readNode, ctx) {
 // A memo request declines non-realm/computed hops before asking the value resolver.
 // eslint-disable-next-line max-statements -- Source selection and effect ownership form one shared query.
 export function planOptionalProbe(node, ctx, {
-  hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false, guardObject = null,
+  hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false, guard = null,
 } = {}) {
   if (!ctx?.adapter || !ctx.resolvePure || !isMemberAccessNode(node)) return null;
   if (memoize) {
@@ -467,7 +465,9 @@ export function planOptionalProbe(node, ctx, {
     return ctx.resolvePure({ kind: 'global', name });
   }
   // A supplied guard names the value, but its source slot may also carry a
-  // sequence prefix. Keep that slot for the shared prefix-placement decision.
+  // sequence prefix. Keep that slot for the shared prefix-placement decision;
+  // an erase verdict also completes the query, without asking for it again.
+  const guardObject = guard?.object;
   let probe = node.optional && (!guardObject
     || unwrapRuntimeExpr(peelReceiverSequenceTail(node.object)) === unwrapRuntimeExpr(guardObject))
     ? node.object : guardObject;
@@ -503,7 +503,7 @@ export function planOptionalProbe(node, ctx, {
       undefinable = true;
     } else break;
   }
-  const guarded = guardObject ?? undefinableOptionalGuard(node, ctx.resolvePure, ctx).object;
+  const guarded = (guard ?? undefinableOptionalGuard(node, ctx.resolvePure, ctx)).object;
   const sourceSlot = guarded && optionalProbeSourceSlot(probe, guarded);
   if (sourceSlot) probe = sourceSlot.source;
   const descended = ownOptionalProbe(probe, ctx);
@@ -601,11 +601,8 @@ export function prepareStaticReceiver(node, ctx, { injectImport, embed = source 
   if (keySequence?.prefix.length && POSSIBLE_GLOBAL_OBJECTS.has(staticKey)) return node;
   const pureView = typeof staticKey === 'string'
     ? memberFromKeyName(quietObject, staticKey, { optional: receiver.optional === true }) : receiver;
-  const pure = !navValueCanShortCircuit(node, ctx.resolvePure, ctx)
-    && !chainSealsAShortCircuit(node, ctx.resolvePure, ctx)
-    && !aliasRootedReadMayThrow(node, ctx.resolvePure, ctx)
-    && instanceSynthReceiverPure(pureView, ctx);
-  if (!pure) return node;
+  const pure = instanceSynthReceiverPure(pureView, ctx, node);
+  if (!pure || aliasRootedReadMayThrow(node, ctx.resolvePure, ctx)) return node;
   const effects = observableSequenceElements([
     ...receiverSequence.prefix, ...objectSequence?.prefix ?? [], ...objectKeySequence?.prefix ?? [], ...keySequence?.prefix ?? [],
   ], ctx, { preserveSourceReads: true });

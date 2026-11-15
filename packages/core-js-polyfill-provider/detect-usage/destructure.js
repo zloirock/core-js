@@ -2618,26 +2618,26 @@ export function planParameterInstanceExtraction({
 // this build polyfills has to arrive as the injected binding - `Iterator` there would be a raw read
 // of a name the pass replaces everywhere else. ONE answer for both emitters: the synth gate admits
 // exactly the receivers this resolves, and each render spells what it returns. The same
-// handoff serves an instance dispatch whose receiver is a proven static value.
-export function instanceSynthReceiverPure(receiverNode, { adapter, scope, path, resolvePure, injectorState = null }) {
+// handoff serves an instance dispatch whose receiver is a proven static value. A dispatch
+// may pass a quiet view for resolution while its source still owns the optional/throw proof.
+export function instanceSynthReceiverPure(receiverNode, { adapter, scope, path, resolvePure, injectorState = null },
+  guardSource = receiverNode) {
   if (receiverNode?.type !== 'Identifier') {
     const aliasCtx = { adapter, scope, path };
     // a whole swap cannot replay a read's effects or its live short-circuit / sealed throw here.
     // the same member-ctor canon used by the static synth proves the root and its unmutated slot.
-    if (mayHaveSideEffects(receiverNode, aliasCtx)
-      || navValueCanShortCircuit(receiverNode, resolvePure, aliasCtx)
-      || chainSealsAShortCircuit(receiverNode, resolvePure, aliasCtx)) return null;
+    if (mayHaveSideEffects(receiverNode, aliasCtx)) return null;
     const ctor = proxyGlobalMemberCtorPure({ receiver: receiverNode, aliasCtx, resolvePure });
-    if (ctor) return ctor;
     const key = isMemberAccessNode(receiverNode) && staticMemberKeyName(receiverNode);
-    const meta = key && isBuiltInSurfaceNav(receiverNode, {
+    const meta = !ctor && key && isBuiltInSurfaceNav(receiverNode, {
       ctx: aliasCtx,
       isOwnAlias: name => injectorState?.isOwnPassGeneratedName(name) && injectorState.getBindingInfo(name)?.minted === true,
     })
       && buildDestructuringInitMeta({ initNode: receiverNode.object, key, adapter, scope, path });
-    if (!meta?.object || meta.placement !== 'static' || meta.guardOnly || meta.fromFallback) return null;
-    const pure = resolvePure(meta);
-    return pure?.kind === 'static' ? pure : null;
+    const resolved = meta?.object && meta.placement === 'static' && !meta.guardOnly && !meta.fromFallback && resolvePure(meta);
+    const pure = ctor || (resolved?.kind === 'static' ? resolved : null);
+    return pure && !navValueCanShortCircuit(guardSource, resolvePure, aliasCtx)
+      && !chainSealsAShortCircuit(guardSource, resolvePure, aliasCtx) ? pure : null;
   }
   if (adapter.hasBinding({ scope, name: receiverNode.name, path, read: receiverNode })) return null;
   const pure = resolvePure({ kind: 'global', name: receiverNode.name });

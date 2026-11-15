@@ -1123,7 +1123,7 @@ function aliasHeldValueStep(node, aliasCtx) {
     if (write?.type === 'AssignmentExpression' && write.operator === '='
       && write.left?.type === 'Identifier' && write.left.name === node.name) held = write.right;
   }
-  if (!held || aliasCtx.enteredValues?.has(held)) return null;
+  if (!held || cycleGuardHas(aliasCtx.enteredValues, held)) return null;
   let value = unwrapTransparentSeq(held);
   // A store can forward another alias or the primary realm's environment probe.
   // Follow its value without moving the write. A stored multi-hop navigation
@@ -6354,12 +6354,35 @@ export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null, o
 
 // ... and WHICH read short-circuits it: the value the deepest live `?.` tests, which is what a
 // guard over the whole nav has to spell. one walk, two shapes of its answer - a caller asking
-// only whether the value can vanish takes the boolean above
+// only whether the value can vanish takes the boolean above. Alias steps copy their context:
+// key its fields and guard contents, not that copy's identity. A cycle-cut answer is not a fact
+// about the node, and none of these answers outlives the read-only question or traversal.
 export function navShortCircuitSource(navNode, resolvePure, aliasCtx = null,
   { throughChainAssign = false, observableRead = false } = {}) {
-  let cur = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
+  const core = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
+  if (!isMemberAccessNode(core)) return null;
+  return withCanonQuestion(() => {
+    const fields = Object.entries(aliasCtx ?? {});
+    const context = [resolvePure, throughChainAssign, observableRead, !!aliasCtx, fields.length];
+    for (const [key, value] of fields) {
+      context.push(key);
+      if (key === 'seen' || key === 'enteredValues') context.push(value?.size ?? -1, ...value ?? []);
+      else context.push(value);
+    }
+    const answers = canonAnswerTable(navShortCircuitSource, context);
+    const cuts = cycleGuardCuts();
+    const source = walkNavShortCircuitSource(core, resolvePure, aliasCtx, throughChainAssign, observableRead, answers);
+    if (answers && cycleGuardCuts() === cuts) answers.set(core, source);
+    return source;
+  });
+}
+
+// The deepest live test wins. A suffix already queried by the value canon owns the same
+// answer when this outer walk reaches it, including a completed negative answer.
+function walkNavShortCircuitSource(cur, resolvePure, aliasCtx, throughChainAssign, observableRead, answers) {
   let source = null;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    if (answers?.has(cur)) return answers.get(cur) ?? source;
     const raw = peelReceiverSequenceTail(cur.object);
     const object = unwrapRuntimeExpr(raw);
     // a CALL object answers by its OWN canon and by nothing under it - the value arm below reaches a

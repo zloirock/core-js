@@ -25397,6 +25397,44 @@ function * generateReceiverQueryLifetimes() {
   }
 }
 
+// Guard answers reused through aliases still own each source getter, store and argument.
+function * generateOptionalQuerySources() {
+  for (const present of [false, true]) for (const computed of [false, true]) {
+    const next = computed ? '["next"]' : '.next';
+    const list = computed ? '["list"]' : '.list';
+    const optional = computed ? '?.' : '?';
+    for (const shape of ['direct', 'alias', 'store', 'sealed', 'prefix', 'call']) {
+      const setup = shape === 'alias' ? `const first = root${ optional }${ next }; const second = first${ optional }${ list };`
+        : shape === 'call' ? 'function read() { log.push("root"); return root; }' : '';
+      const receiver = shape === 'alias' ? 'second' : shape === 'store' ? `(held = root${ optional }${ next })${ optional }${ list }`
+        : shape === 'sealed' ? `(root${ optional }${ next })${ list }`
+          : `${ shape === 'prefix' ? '(log.push("prefix"), root)' : shape === 'call' ? 'read()' : 'root' }${ optional }${ next }${ optional }${ list }`;
+      yield {
+        name: `optional-query-source/${ shape }/${ present }/${ computed }`, strip: true,
+        code: `const log = []; const values = [3, 7];
+          const inner = { get list() { log.push("list"); return values; } };
+          const root = ${ present } ? { get next() { log.push("next"); return inner; } } : null;
+          let held; ${ setup } let r;
+          try { r = ${ receiver }?.at((log.push("argument"), -1)); } catch (error) { r = error.name; }
+          export { r }; export const effects = log;`,
+      };
+    }
+  }
+  for (const rig of [false, true]) for (const rebuilt of [false, true]) {
+    for (const [shape, setup, receiver] of [
+      ['realm', '', 'globalThis.window'],
+      ['held-realm', 'const held = globalThis.window;', 'held'],
+      ['held-optional', 'const held = globalThis.window?.self;', 'held'],
+      ['stored-realm', 'let held;', '(held = globalThis.window)'],
+    ]) {
+      const claim = `${ receiver }?.Array.from((log.push("argument"), [3]))`;
+      const body = rebuilt ? `const out = []; out.push(${ claim }); return out[0];` : `return ${ claim };`;
+      yield { ...snippet(`optional-query-source/${ shape }/${ rig }/${ rebuilt }`,
+        `(() => { ${ setup } ${ body } })()`, { rig }), strip: true };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27204,4 +27242,5 @@ export function * generate() {
   yield * generateNestedLeafClaimReads();
   yield * generateTypeCallContracts();
   yield * generateReceiverQueryLifetimes();
+  yield * generateOptionalQuerySources();
 }

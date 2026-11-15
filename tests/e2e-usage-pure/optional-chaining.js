@@ -1769,3 +1769,26 @@ QUnit.test('a defined constructor does not make its derived optional method defi
   assert.same(selected(false), undefined);
   assert.same(selected(true), undefined);
 });
+
+QUnit.test('optional aliases retain source reads and skip absent arguments', assert => {
+  const log = [];
+  const values = [3, 7];
+  const inner = { get list() {
+    log.push('list');
+    return values;
+  } };
+  const root = { get next() {
+    log.push('next');
+    return inner;
+  } };
+  function read(source) {
+    const first = source?.next;
+    const second = first?.list;
+    return second?.at((log.push('argument'), -1));
+  }
+  assert.same(read(root), 7);
+  assert.deepEqual(log, ['next', 'list', 'argument']);
+  log.length = 0;
+  assert.same(read(null), undefined);
+  assert.deepEqual(log, []);
+});

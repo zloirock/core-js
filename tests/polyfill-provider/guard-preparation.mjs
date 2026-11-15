@@ -380,7 +380,7 @@ runBoth('supplied probe keeps the realm sequence slot', 'const result = (effect(
     const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
     const ctx = { path, scope: path.scope, adapter, resolvePure };
     const before = JSON.stringify(program.node);
-    const plan = planOptionalProbe(node, ctx, { hintName: 'self', guardObject: source.expressions.at(-1) });
+    const plan = planOptionalProbe(node, ctx, { hintName: 'self', guard: { object: source.expressions.at(-1) } });
     check(`${ label }/source`, plan.source, source);
     check(`${ label }/prefix stays in test`, plan.prefix.length, 0);
     check(`${ label }/read only`, JSON.stringify(program.node), before);
