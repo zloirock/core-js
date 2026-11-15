@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import './harness-contracts.mjs';
 import './render-node-ownership.mjs';
 import './resolve-node-type.mjs';
+import './type-call-contracts.mjs';
 import './receiver-type-precision.mjs';
 import './binding-read-positions.mjs';
 import './read-write-order.mjs';

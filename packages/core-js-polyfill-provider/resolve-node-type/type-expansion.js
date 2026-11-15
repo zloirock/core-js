@@ -35,8 +35,14 @@ import {
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import {
-  isPrivateMemberNode, isTopKeywordAnnotation, isTypeReferenceNode, mappedModifierDelta, mutableCollectionName,
-  readonlyCollectionBase, unionAnnotationOf,
+  isDistributiveConditional,
+  isPrivateMemberNode,
+  isTopKeywordAnnotation,
+  isTypeReferenceNode,
+  mappedModifierDelta,
+  mutableCollectionName,
+  readonlyCollectionBase,
+  unionAnnotationOf,
 } from './ast-shapes.js';
 
 // `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
@@ -789,7 +795,7 @@ export function createTypeExpansion({
   // (`[]`, `{}`). caller computes via `isConcreteEmptyShape(extendsAST)`. used to
   // distinguish syntactic empty (deterministic falseBranch) from post-resolve inner-less
   // artefacts (undecidable, fall back to fold)
-  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty }) {
+  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty, distributive = false }) {
     if (!check || !extend) return null;
     // never is the bottom type: assignable to any T, so `never extends T` is always true.
     // without this short-circuit, the primitive-vs-X tail rules below see never as just
@@ -822,6 +828,13 @@ export function createTypeExpansion({
     // family `2` vs `'2'` too). a union side is excluded above; a bare-keyword side has no stamp and folds
     // through the family rules below. mirrors pickConditionalBranchByAST's literal comparison
     if (check.literal !== undefined && extend.literal !== undefined) return check.literal === extend.literal;
+    // A naked boolean parameter represents true | false. A partial overlap can select
+    // either arm; an ordinary wide boolean check still takes the non-distributive false arm.
+    if (distributive && check.primitive && check.type === 'boolean' && !checkNarrow
+      && extendNarrow && extend.type === 'boolean') {
+      const members = literalMembers(extend);
+      return members?.has(true) && members.has(false) ? true : null;
+    }
     // wide-vs-narrow: a bare-keyword (or otherwise non-narrow) check is NOT assignable to a NARROWER target
     // - a single literal (`string extends "a"`) OR a literal union (`string extends 'a' | 'b'`) - so it
     // takes the FALSE branch. the reverse (`"a" extends string`) is true and folds through the family rules
@@ -946,7 +959,7 @@ export function createTypeExpansion({
   // object and (b) whether the extendsAST is already post-AST-subst or raw + a Type-object
   // substitution map. all 3 conditional-branch sites (`findConditionalTypeMember`,
   // `evaluateConditionalType`, `pickAwaitedConditionalBranch`) flow through this helper
-  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained, scope }) {
+  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained, scope, distributive = false }) {
     // resolveOne collapses TSTemplateLiteralType to $Primitive('string') - downstream
     // pickConditionalBranch then sees string-vs-string and returns true. short-circuit
     // to undecidable on either side so the caller folds both branches instead of
@@ -971,6 +984,7 @@ export function createTypeExpansion({
       check,
       extend: resolveSide(extendsAST),
       extendIsUnconstrained: isUnconstrained,
+      distributive,
       extendIsConcreteEmpty: isConcreteEmptyShape(extendsAST),
     });
   }
@@ -1025,17 +1039,6 @@ export function createTypeExpansion({
     return !!params?.length && params.every(isTopKeywordAnnotation);
   }
 
-  // the mirror of the predicate below: a BARE reference whose name the map BINDS. it is what makes
-  // a conditional distributive, so a caller may only apply a distribution rule once this answers
-  // yes - `[T] extends [string]` wraps the same parameter and distributes over nothing
-  function isBoundNakedTypeParam(node, typeParamMap) {
-    if (!typeParamMap) return false;
-    const target = peelTSParenthesized(node);
-    if (!isTypeReferenceNode(target) || getTypeArgs(target)?.params?.length) return false;
-    const name = typeRefName(target);
-    return !!name && typeParamMap.has(name);
-  }
-
   function isUnconstrainedTypeShape(node, typeParamMap = null) {
     if (!node) return false;
     const target = peelTSParenthesized(node);
@@ -1080,12 +1083,13 @@ export function createTypeExpansion({
     // distributing over `never` yields `never`: NO branch runs. picking one hands a branch-typed
     // narrow to a binding that can hold no value - in usage-pure a type-specific helper on an
     // uninhabited receiver. only the naked spelling distributes, hence the predicate
-    if (isBoundNakedTypeParam(node.checkType, typeParamMap)) {
+    if (isDistributiveConditional(node, typeParamMap)) {
       const bound = recurse(node.checkType, typeParamMap);
       if (bound?.primitive && bound.type === 'never') return bound;
     }
     const branch = pickConditionalBranchVia({
       checkAST: node.checkType,
+      distributive: isDistributiveConditional(node, typeParamMap),
       extendsAST: node.extendsType,
       resolveOne: ast => recurse(ast, typeParamMap),
       isUnconstrained: isUnconstrainedTypeShape(node.extendsType, typeParamMap),

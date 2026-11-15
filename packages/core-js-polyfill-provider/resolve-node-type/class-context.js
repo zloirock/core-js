@@ -208,7 +208,7 @@ export function createClassContext({
     if (t.isNewExpression(node)) {
       const classPath = resolveExpressionToClassPath(objectPath.get('callee'));
       if (classPath && classConstructionPreservesInstance(classPath)) {
-        return { classPath, isStatic: false, receiverArgs: constructionTypeArgs(classPath.node, objectPath) };
+        return { classPath, isStatic: false, receiverArgs: constructionTypeArgs(classPath, objectPath) };
       }
     }
     // `Reflect.construct(target, args[, newTarget])` is structurally equivalent to

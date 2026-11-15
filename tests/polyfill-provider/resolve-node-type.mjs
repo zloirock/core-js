@@ -9190,18 +9190,19 @@ runBoth('object-binding array-rest under nested array pattern resolves to Array'
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
-// a wide primitive does NOT extend a narrower literal of the same family, so the conditional takes
-// the FALSE branch across every literal family (not just `number extends 1`)
-for (const [variant, src] of [
+// A naked boolean parameter distributes over true | false; bigint remains a wide primitive.
+for (const [variant, src, expected] of [
   ['boolean extends true', 'type D<T> = T extends true ? string : number[];\ndeclare const w: D<boolean>;\n'
-    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;'],
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;', null],
   ['bigint extends 1n', 'type D<T> = T extends 1n ? string : number[];\ndeclare const w: D<bigint>;\n'
-    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;'],
+    + '// @ts-expect-error the member read is the probe, and the right answer is a type without it\nw.x;', { primitive: false, ctor: 'Array' }],
 ]) {
-  runBoth(`conditional wide-extends-literal takes the false branch: ${ variant }`, src,
+  runBoth(`conditional wide-extends-literal: ${ variant }`, src,
     (adapter, prog, lbl) => {
       const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
-      checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+      const result = adapter.makeResolver().resolveNodeType(member.get('object'));
+      if (expected) checkType(lbl, result, expected);
+      else check(lbl, result, null);
     });
 }
 
@@ -12044,12 +12045,12 @@ runBoth('class method: omitted arg legitimately binds the default',
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
   });
 
-runBoth('class method: non-param return keeps body inference',
+runBoth('class method: an opaque declared return does not use the base implementation',
   'class Holder<T = string> { list(): SomeAlias { return [1] as any; } } '
     + 'declare const h: Holder<number>; const out = h.list();',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
-    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
 runBoth('class getter: opaque arg resolves null',

@@ -48,6 +48,7 @@ import {
   isBareUndefinedIdentifier,
   noReassignmentReachesUsage,
   patternSlotHasDefault,
+  // Shared with union, intersection and type-query readers on the oxc parser path.
   peelTSParenthesized,
   staticKeyNames,
   walkAstNodes,
@@ -71,14 +72,17 @@ import {
   canonicalArrayIndex,
   intersectHintSets,
   isBigIntLiteralNode,
+  literalNodeValue,
   primitiveTypeOf,
   toHint,
 } from './resolve-node-type/base.js';
 import {
   collectQualifiedSegments,
   isUnionType,
+  isConstAssertionType,
   literalTypeValueNode,
   typeRefName,
+  literalTypeAnnotation,
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
 import { isKnownGlobalName, staticReceiverHint } from './detect-usage/globals.js';
@@ -241,13 +245,9 @@ function createResolveNodeType(babelNodeType, t, {
   function literalExactValue(node) {
     if (isLiteralOf(node, 'String') || isLiteralOf(node, 'Numeric') || isLiteralOf(node, 'Boolean')) return node.value;
     if (isBigIntLiteralNode(node)) return bigIntLiteralValue(node);
-    // negative numeric literals (`-1`, `-0`) parse as UnaryExpression { operator: '-',
-    // argument: NumericLiteral } - the raw `value` slot is undefined on the wrapper,
-    // so callers that compare against stringified numeric keys (`K extends -1 ? ...`)
-    // would otherwise see `null` from the wrapper and bail
-    if (node?.type === 'UnaryExpression' && node.operator === '-' && isLiteralOf(node.argument, 'Numeric')) {
-      return -node.argument.value;
-    }
+    // Signed numeric and bigint literals use the same canonical reader as type literals.
+    if (node?.type === 'UnaryExpression' && node.operator === '-'
+      && (isLiteralOf(node.argument, 'Numeric') || isBigIntLiteralNode(node.argument))) return literalNodeValue(node);
     return null;
   }
 
@@ -686,7 +686,7 @@ function createResolveNodeType(babelNodeType, t, {
         }
         if (!t.isVariableDeclarator(decl.node)) return null;
         if (readPath && !initializerReachesRead({
-          adapter: getDecisionAdapter(), binding, declaratorNode: decl.node, usagePath: readPath, usageNode: key,
+          adapter: getDecisionAdapter() ?? babelBindingAdapter, binding, declaratorNode: decl.node, usagePath: readPath, usageNode: key,
         })) return null;
         if (!decl.node.init) {
           // A type-only or uninitialised declaration provides no runtime value for a selection.
@@ -883,12 +883,42 @@ function createResolveNodeType(babelNodeType, t, {
     }
     return null;
   }
-  // peelTSParenthesized is imported from helpers/ast-patterns and shared with siblings that
-  // pattern-match TSUnionType / TSIntersectionType / TSTypeQuery on the oxc parser path
+  // Primitive-constrained and const type parameters retain a known argument's literal type.
+  // Use the scoped value reader so const aliases, wrappers and negative literals agree in both
+  // inference lanes; an object-only constraint still uses ordinary widening.
+  function inferredLiteralAnnotation(param, argument, scope, depth = 0) {
+    if (depth > MAX_DEPTH || !param || !argument?.node || argument.node.type === 'SpreadElement') return null;
+    if (!param.const) {
+      const constraint = unwrapTypeAnnotation(param.constraint ?? param.bound);
+      if (!constraint) return null;
+      const chain = followTypeAliasChain(constraint, scope);
+      const annotation = chain ? applySubst(chain.node, chain.subst) : constraint;
+      const arms = isUnionType(annotation) ? annotation.types : [annotation];
+      if (arms.every(arm => !resolveTypeAnnotation(arm, scope)?.primitive)) return null;
+    }
+    // An explicit annotation or assertion can widen a literal before inference. `satisfies`
+    // only checks its expression, while `as const` retains the expression's literal type.
+    // Keep the caller's annotation budget through recursive argument bindings.
+    let info = findExpressionAnnotation(argument, depth + 1);
+    while (info?.path?.node.type === 'TSSatisfiesExpression') {
+      depth += 1;
+      info = findExpressionAnnotation(info.path.get('expression'), depth + 1);
+    }
+    const annotated = info && unwrapTypeAnnotation(info.annotation);
+    if (annotated && !isConstAssertionType(annotated)) {
+      const chain = followTypeAliasChain(annotated, info.scope);
+      const literal = literalTypeValueNode(chain?.node ? applySubst(chain.node, chain.subst) : annotated);
+      return literal ? literalTypeAnnotation(literalExactValue(literal)) : null;
+    }
+    const value = resolveComputedKeyName(argument.node, argument.scope, literalExactValue, false, argument);
+    return value === null ? null : literalTypeAnnotation(value);
+  }
 
   // `function fn(x = 'a')` - default wraps param in AssignmentPattern; type is on `.left`.
+  // A constructor parameter property wraps either spelling without changing its argument slot.
   // `function fn(...xs: T[])` - RestElement carries `T[]` annotation; caller must unwrap one level
   function effectiveParam(param) {
+    while (param?.type === 'TSParameterProperty') param = param.parameter;
     if (!param) return { param: null, isRest: false };
     if (param.type === 'AssignmentPattern') return { param: param.left, isRest: false };
     if (param.type === 'RestElement') return { param, isRest: true };
@@ -1264,6 +1294,7 @@ function createResolveNodeType(babelNodeType, t, {
     babelNodeType,
     unwrapTypeAnnotation,
     effectiveParam,
+    inferredLiteralAnnotation,
     typeParamName,
     tupleElements,
     mappedTypeConstraint,
@@ -2418,6 +2449,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildSubstMap,
     typeParamName,
     effectiveParam,
+    inferredLiteralAnnotation,
     resolveIndexedAccessMemberAnnotationAST,
     foldUnionTypes,
   });

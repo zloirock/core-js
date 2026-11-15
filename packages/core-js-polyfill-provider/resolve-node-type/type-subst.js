@@ -31,7 +31,13 @@
 // imported directly because they're closure-free
 import { MAX_DEPTH, MEMBER_ANNOTATION_SLOTS } from './base.js';
 import {
-  isTypeAlias, isTypeReferenceNode, modifierWrapperDelta, typeAliasBody, typeRefName, TS_UNKNOWN_TYPE,
+  isDistributiveConditional,
+  isTypeAlias,
+  isTypeReferenceNode,
+  modifierWrapperDelta,
+  typeAliasBody,
+  typeRefName,
+  TS_UNKNOWN_TYPE,
 } from './ast-shapes.js';
 import { getTypeArgs, withTypeArgParams } from '../helpers/ast-patterns.js';
 
@@ -141,7 +147,8 @@ export function createTypeSubst({
     const tr = applyAliasSubstDeep(node.trueType, localSubst, depth + 1, visited);
     const fl = applyAliasSubstDeep(node.falseType, subst, depth + 1, visited);
     return ck === node.checkType && ex === node.extendsType && tr === node.trueType && fl === node.falseType
-      ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl };
+      ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl,
+        distributive: isDistributiveConditional(node, subst) };
   }
 
   function substFunctionType(node, subst, depth, visited) {

@@ -25327,6 +25327,52 @@ function * generateIsolatedStaticInstalls() {
   }
 }
 
+// Type-call decisions must keep array/string alternatives distinct through rebuilt claims.
+function * generateTypeCallContracts() {
+  for (const flag of [false, true]) {
+    const cases = [
+      ['constrained', `function read<T extends 'lines' | 'text'>(value: T): T extends 'lines' ? number[] : string {
+        log.push(value); return (value === 'lines' ? [23] : 'ab') as any;
+      } const mode = '${ flag ? 'lines' : 'text' }';`, 'read(mode)'],
+      ['signed-bigint', `function read<T extends bigint>(value: T): T extends -1n ? number[] : string {
+        log.push(String(value)); return (value === -1n ? [23] : 'ab') as any;
+      }`, `read(${ flag ? '-1n' : '2n' })`],
+      ['boolean', `type Result<T> = T extends true ? number[] : string;
+        function read(value: boolean): Result<boolean> { log.push(value); return value ? [23] : 'ab'; }`, `read(${ flag })`],
+      ['boolean-member', `type Result<T> = T extends true ? { rows: number[] } : { rows: string };
+        function read(value: boolean): Result<boolean> { log.push(value); return value ? { rows: [23] } : { rows: 'ab' }; }`, `read(${ flag }).rows`],
+      ['parameter-property', `class Box<T = string> { constructor(public value: T) { log.push('new'); }
+        get(): T { log.push('get'); return this.value; } }`, `new Box(${ flag ? '[23]' : "'ab'" }).get()`],
+      ['virtual-method', `class Base { value(): string | number[] { log.push('base'); return 'ab'; } }
+        class Child extends Base { value(): string | number[] { log.push('child'); return [23]; } }
+        function read(value: Base) { return value.value().at(-1); }`, `read(new ${ flag ? 'Child' : 'Base' }())`],
+      ['virtual-getter', `class Base { get value(): () => string | number[] { log.push('base'); return () => 'ab'; } }
+        class Child extends Base { get value(): () => string | number[] { log.push('child'); return () => [23]; } }
+        function read(value: Base) { return value.value().at(-1); }`, `read(new ${ flag ? 'Child' : 'Base' }())`],
+      ['nullable-overload', `function read(value: string): number[];
+        function read(value: string | undefined): string;
+        function read(value: string | undefined): any { log.push(value); return value === undefined ? 'ab' : [23]; }
+        function last(value: string | undefined) { return read(value).at(-1); }`, `last(${ flag ? "'value'" : 'undefined' })`],
+      ['specialized-overload', `function read(value: string): string;
+        function read(value: string, key?: 'rows'): number[];
+        function read(value: string, key?: 'rows'): any { log.push(value); return [23]; }`, `read('value'${ flag ? ", 'rows'" : '' })`],
+      ['wide-argument', `function read<T extends string>(value: T): T extends 'abc' ? number[] : string {
+        log.push(value); return value as any;
+      } const value: string = '${ flag ? 'abc' : 'xy' }';`, "read(value).includes('bc')"],
+    ];
+    for (const [shape, setup, receiver] of cases) for (const rebuilt of [false, true]) {
+      const value = shape.startsWith('virtual-') || shape === 'nullable-overload' || shape === 'wide-argument'
+        ? receiver : `${ receiver }.at(-1)`;
+      yield {
+        name: `type-call-contract/${ shape }/${ flag }/${ rebuilt }`, ts: true, strip: true,
+        code: `const log = []; ${ setup }
+          function result() { ${ rebuilt ? `const out = []; out.push(${ value }); return out[0];` : `return ${ value };` } }
+          export const r = result(); export const effects = log;`,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27132,4 +27178,5 @@ export function * generate() {
   yield * generateSealedKeyClaims(true);
   yield * generateNestedLeafSourceOrder(true);
   yield * generateNestedLeafClaimReads();
+  yield * generateTypeCallContracts();
 }

@@ -22,6 +22,7 @@ import {
   STRUCTURE_PRESERVING_WRAPPERS,
 } from './base.js';
 import {
+  isDistributiveConditional,
   applyMemberModifierDelta,
   composeModifierDeltas,
   interfaceBodyMembers,
@@ -599,6 +600,7 @@ export function createTypeMembers({
     // typeparam refs that resolved to a concrete shape no longer read as unconstrained
     const branch = pickConditionalBranchVia({
       checkAST: checkSubst,
+      distributive: isDistributiveConditional(aliased, subst),
       extendsAST: extendSubst,
       resolveOne: ast => resolveTypeAnnotation(ast, scope, depth + 1),
       isUnconstrained: isUnconstrainedTypeShape(extendSubst),

@@ -209,14 +209,18 @@ export function createClassObjectMember({
 
   // `receiverArgs` instantiate the class as its receiver does - an annotation's, where a missing one
   // takes its default as at any use, or the ones `resolveClassContext` reads off a runtime receiver
-  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype, unionHints = false }) {
+  function resolveClassMember({
+    classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype, unionHints = false, declaredReceiver = false,
+  }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
     const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype });
     // hoisted above the found / fall-through dispatch so the shadow bail also guards the
     // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
     // off a merged declaration is just as unsound under a subclass override as off the class body
     if (viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode: found?.member.node ?? null })) return null;
-    if (found) return resolveClassMemberNode(found.member, callPath, found.subst, unionHints, !viaThis && !callPath);
+    // Private members bind their lexical brand and cannot dispatch to an override.
+    if (found) return resolveClassMemberNode(found.member, callPath, found.subst, unionHints, !viaThis && !callPath,
+      (declaredReceiver || viaThis) && !isPrivateMemberNode(found.member.node));
     if (unionHints) return null;
     if (!classPath.node.id?.name) return null;
     // static lookup miss: try TS declaration-merging fallback. when `namespace Foo { export
@@ -334,12 +338,15 @@ export function createClassObjectMember({
   }
 
   // dispatch for "calling a method-shaped or getter member": for a regular method, resolve
-  // its return type at the call site; for a getter, resolve the body's returned value
-  // and (when callable) invoke. shared between class member resolution (with `classSubst`
+  // its return type at the call site; a virtual getter's callable declaration takes precedence,
+  // otherwise resolve and invoke the body's returned value. Shared with class resolution (`classSubst`
   // for type-arg substitution) and object member resolution (no subst). returns null when
   // neither path produces a type, letting the caller fall through to other strategies
-  function resolveMethodOrGetterCallReturn({ methodFn, kind, callPath, classSubst }) {
-    if (kind !== 'get') return resolveReturnType(methodFn, callPath, classSubst);
+  function resolveMethodOrGetterCallReturn({ methodFn, kind, callPath, classSubst, declaredReceiver = false }) {
+    if (kind !== 'get') return resolveReturnType(methodFn, callPath, classSubst, 0, declaredReceiver);
+    if (declaredReceiver && methodFn.node.returnType) {
+      return declaredCallableReturn(classSubstInner(methodFn.node.returnType, classSubst), methodFn.scope) ?? null;
+    }
     const value = resolveBodyReturnValue(methodFn);
     if (!t.isFunction(value?.node)) return null;
     // `obj.getter()` invokes the function the getter returns. `value` is ONE representative -
@@ -434,7 +441,7 @@ export function createClassObjectMember({
     }, m => bodylessReturnPath(m)?.node.returnType, callPath);
   }
 
-  function resolveClassMemberNode(member, callPath, classSubst, unionHints = false, valueRead = false) {
+  function resolveClassMemberNode(member, callPath, classSubst, unionHints = false, valueRead = false, declaredReceiver = false) {
     if (unionHints && callPath) return null;
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
     if (unionHints && !isPropertyMember(member.node) && !methodFn) return null;
@@ -457,7 +464,7 @@ export function createClassObjectMember({
       const overloaded = resolveBodylessMethodOverloads({ member, callPath, classSubst });
       if (overloaded !== undefined) return overloaded;
       if (methodFn) {
-        const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
+        const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst, declaredReceiver });
         if (r) return r;
       }
       // a bodyless member reaches here either with no `methodFn` at all (babel models the ambient
@@ -522,7 +529,8 @@ export function createClassObjectMember({
     // Accessors keep their return semantics; regular methods fold their Function value with writes.
     if (methodFn && member.node.kind !== 'get' && member.node.kind !== 'set') return resolveClassFieldType(member, unionHints, valueRead);
     if (unionHints) return null;
-    if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
+    if (methodFn) return member.node.kind === 'get'
+      ? resolveReturnType(methodFn, undefined, classSubst, 0, declaredReceiver) : new $Object('Function');
     // bodyless method (no body): a getter's property access still yields its declared return type -
     // only a non-getter declared method evaluates to a Function value
     if (declaredReturnPath) {

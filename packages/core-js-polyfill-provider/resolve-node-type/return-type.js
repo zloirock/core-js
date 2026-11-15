@@ -54,6 +54,7 @@ export function createReturnType({
   babelNodeType,
   unwrapTypeAnnotation,
   effectiveParam,
+  inferredLiteralAnnotation,
   functionTypeParams,
   typeParamName,
   tupleElements,
@@ -596,7 +597,10 @@ export function createReturnType({
       // argPath records the actual call arg for `getTypeParamArgPath` consumers;
       // SpreadElement isn't a single-value path that indexed-access peek can inspect
       const arg = args[i];
-      if (bindTypeParam(name, typeParamNames, typeParamMap, resolveCallArgType(arg))) {
+      const declared = fnPath.node.typeParameters.params.find(p => typeParamName(p) === name);
+      const literal = inferredLiteralAnnotation(declared, arg, fnPath.scope);
+      if (bindTypeParam(name, typeParamNames, typeParamMap,
+        literal ? resolveTypeAnnotation(literal, callPath.scope) : resolveCallArgType(arg))) {
         if (arg.node?.type !== 'SpreadElement') argPaths.set(name, arg);
         continue;
       }
@@ -674,8 +678,9 @@ export function createReturnType({
     return substituteTypeParams(annotationNode, typeParamMap, fnPath.scope, 0);
   }
 
-  // resolve return type of a function, inferring generic type parameters from call-site arguments
-  function resolveReturnType(fnPath, callPath, classSubst, depth = 0) {
+  // Resolve a function return, inferring generics from call arguments. A virtual receiver
+  // uses declaredOnly: an unresolved declared return cannot be replaced by the base body.
+  function resolveReturnType(fnPath, callPath, classSubst, depth = 0, declaredOnly = false) {
     // generator functions return iterators, async generators return async iterators
     // yield type is extracted from Generator<TYield>/AsyncGenerator<TYield> annotation if present
     if (fnPath.node.generator) {
@@ -715,7 +720,8 @@ export function createReturnType({
       // structural shape - body inference would clobber the declared annotation with a
       // scalar Type. bail so callers route through `findExpressionAnnotation` which
       // preserves the structural shape for member lookups. see isStructuralAnnotation
-      if (isStructuralAnnotation(returnInner)) return asyncFallback;
+      // A class-typed receiver can dispatch to an override: its declared return stays authoritative.
+      if (declaredOnly || isStructuralAnnotation(returnInner)) return asyncFallback;
     }
     // a return REFERENCING a method type-param the call-site couldn't bind (`T`, `T | null`, `T | string`, ...)
     // OR a CLASS-level type-param whose instantiation arg the resolver couldn't type (the class

@@ -358,6 +358,20 @@ export function openTypeArg(param) {
   return param.constraint ?? param.bound?.typeAnnotation ?? TS_UNKNOWN_TYPE;
 }
 
+// An inert literal annotation shared by call-site inference and type-level substitutions.
+export function literalTypeAnnotation(value) {
+  const kind = { string: 'StringLiteral', number: 'NumericLiteral', boolean: 'BooleanLiteral', bigint: 'BigIntLiteral' }[typeof value];
+  return kind ? { type: 'TSLiteralType', literal: { type: kind, value } } : null;
+}
+
+// Only a naked type parameter distributes. AST substitution retains that source fact after
+// replacing the reference; a literal `boolean extends true` and a tuple wrapper never acquire it.
+export function isDistributiveConditional(node, subst) {
+  if (node.distributive) return true;
+  const check = peelTSParenthesized(node.checkType);
+  return !!subst && isTypeReferenceNode(check) && !getTypeArgs(check)?.params?.length && subst.has(typeRefName(check));
+}
+
 // the type of `as const` / `<const>`: a reference named `const`, which keeps the expression's own
 // literal type where any other asserted type replaces it
 export function isConstAssertionType(node) {
@@ -583,7 +597,14 @@ function overloadArgVerdict(params, argLiterals, argKinds) {
 // between, and the lone arm is the caller's answer whatever the args are
 export function discriminateOverloads(overloads, getParams, argPaths, resolveNodeType) {
   return discriminateOverloadsByArgs(overloads, getParams, argPaths.map(a => a.node),
-    argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type)));
+    argPaths.map(a => {
+      const type = resolveNodeType(a);
+      // A non-null assertion narrows the TS overload argument, but must not erase the
+      // runtime marker used by optional-chain and fallback decisions elsewhere.
+      let node = unwrapParens(a.node);
+      while (node?.type === 'TSSatisfiesExpression') node = unwrapParens(node.expression);
+      return type?.mayBeNullish && node?.type !== 'TSNonNullExpression' ? null : primitiveTypeKind(type?.type);
+    }));
 }
 
 // the kind a literal argument NODE carries on its own (`'a'` is a string, `1n` a bigint) - what a
@@ -602,17 +623,12 @@ export function isImplementationSignature(fnNode) {
   return !!body && body.type !== 'TSEmptyBodyFunctionExpression';
 }
 
-// is this signature SPECIALIZED for these arguments - does one of its params spell a literal type the
-// argument matches exactly? TypeScript hoists such a signature above the wider ones whatever the
-// declaration order, so first-match has to see them first (checked against tsc for string, number and
-// boolean literals, in both declaration orders, and for a literal in a later slot)
-function specializedForArgs(params, argLiterals) {
+// TypeScript hoists a signature with any literal-typed parameter before testing its arguments,
+// including an omitted optional parameter. Stable ordering preserves declaration order within a rank.
+function specializedSignature(params) {
   const runtime = params && dropLeadingThisParam(params);
   if (!runtime) return false;
-  return runtime.some((param, i) => {
-    const literal = paramLiteralValue(param);
-    return literal !== undefined && literal === argLiterals[i];
-  });
+  return runtime.some(param => paramLiteralValue(param) !== undefined);
 }
 
 // the same discrimination over argument NODES - the spelling for a caller that holds no paths, the
@@ -625,7 +641,7 @@ export function discriminateOverloadsByArgs(overloads, getParams, argNodes, argK
   if (argNodes.some(node => node.type === 'SpreadElement')) return { selected: null, candidates: overloads };
   const argLiterals = argNodes.map(overloadLiteralValue);
   function specializedRank(ov) {
-    return Number(specializedForArgs(getParams(ov), argLiterals));
+    return Number(specializedSignature(getParams(ov)));
   }
   const ordered = overloads.toSorted((a, b) => specializedRank(b) - specializedRank(a));
   const candidates = [];

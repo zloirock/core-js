@@ -26,7 +26,7 @@
 //   resolveIndexSignatureValue(typeNode, scope, subst) - TSIndexSignature member resolution
 //   indexAccessKeyKind(memberPath)                    - computed-key kind classifier
 //   buildCallSiteSubst(fnNode, callNode)              - explicit `<...>` args -> subst Map
-//   constructionTypeArgs(classNode, newPath)          - the type arguments a `new` instantiates with
+//   constructionTypeArgs(classPath, newPath)          - the type arguments a `new` instantiates with
 //   resetExpressionAnnotationCache()                  - per-file cache drop
 //
 // `staticPairFromPolyfillEntry` stays in the factory because it's consumed by the
@@ -119,6 +119,7 @@ export function createCallResolution({
   buildSubstMap,
   typeParamName,
   effectiveParam,
+  inferredLiteralAnnotation,
   resolveIndexedAccessMemberAnnotationAST,
 }) {
   // Return-type narrowing needs a stable receiver, including writes to container slots.
@@ -882,7 +883,7 @@ export function createCallResolution({
       if (fnPath && isFunctionLike(fnPath.node) && fnPath.node.returnType) {
         // explicit `<...>` args; argument inference fallback (`makeBox(arr)` lifts arr's
         // annotation onto T). without subst, generic return `{value: T}` leaks unsubstituted
-        const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node, path.scope);
+        const subst = inferCallSiteSubst(fnPath.node, path, depth, fnPath.scope) ?? buildCallSiteSubst(fnPath.node, path.node, path.scope);
         const rawReturn = unwrapTypeAnnotation(fnPath.node.returnType);
         const annotation = subst ? applyAliasSubstDeep(rawReturn, subst) : rawReturn;
         return annotationAt(annotation, fnPath);
@@ -945,7 +946,7 @@ export function createCallResolution({
   // infer T -> argAnnotation from runtime arg annotations when caller omits `<...>`
   // (`makeBox(arr)` with `function makeBox<T>(t: T)`). limited to direct `T` param shapes
   // (no container wrappers); SpreadElement bails whole inference since positional mapping breaks
-  function inferCallSiteSubst(fnNode, callPath, depth) {
+  function inferCallSiteSubst(fnNode, callPath, depth, scope) {
     if (getTypeArgs(callPath.node)?.params?.length) return null;
     const fnTypeParams = fnNode.typeParameters?.params;
     if (!fnTypeParams?.length) return null;
@@ -968,7 +969,9 @@ export function createCallResolution({
       const name = paramAnnotation && typeRefName(paramAnnotation);
       if (!name || !paramNames.has(name) || subst.has(name)) continue;
       const argInfo = findExpressionAnnotation(args[i], depth + 1);
-      const argAnnot = (argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation))
+      const declared = fnTypeParams.find(p => typeParamName(p) === name);
+      const argAnnot = inferredLiteralAnnotation(declared, args[i], scope, depth + 1)
+        ?? (argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation))
         ?? literalArgAnnotation(args[i].node);
       if (argAnnot) subst.set(name, argAnnot);
     }
@@ -998,7 +1001,8 @@ export function createCallResolution({
   // the inherited one, which any argument may feed, so an argument leaves every parameter open. one
   // array per construction: the class-as-type reference built from it is interned by identity
   let constructionTypeArgsCache = new WeakMap();
-  function constructionTypeArgs(classNode, newPath) {
+  function constructionTypeArgs(classPath, newPath) {
+    const classNode = classPath.node;
     const params = classNode.typeParameters?.params;
     if (!params?.length) return undefined;
     const spelled = getCallSiteTypeArgs(newPath.node)?.params;
@@ -1008,7 +1012,7 @@ export function createCallResolution({
       const ctor = classConstructorFunction(classNode);
       const inherited = !ctor && (classNode.superClass || heritageClause(classNode)) && callArgumentPaths(newPath).length;
       const subst = inherited ? null
-        : inferCallSiteSubst({ typeParameters: classNode.typeParameters, params: ctor?.params ?? [] }, newPath, 0);
+        : inferCallSiteSubst({ typeParameters: classNode.typeParameters, params: ctor?.params ?? [] }, newPath, 0, classPath.scope);
       args = params.map(param => subst?.get(typeParamName(param)) ?? openTypeArg(param));
       constructionTypeArgsCache.set(newPath.node, args);
     }

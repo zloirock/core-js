@@ -26,6 +26,7 @@
 // this is the sole declaration.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
 import {
+  isDistributiveConditional,
   composeModifierDeltas,
   isFunctionTypeNode,
   isMethodShapeMember,
@@ -323,6 +324,7 @@ export function createAwaited({
   function pickAwaitedConditionalBranch({ node, scope, depth, typeParamMap, seen }) {
     return pickConditionalBranchVia({
       checkAST: node.checkType,
+      distributive: isDistributiveConditional(node, typeParamMap),
       extendsAST: node.extendsType,
       resolveOne: ast => resolveAnnotationInContext({ node: ast, scope, depth: depth + 1, typeParamMap, seen }),
       isUnconstrained: isUnconstrainedTypeShape(node.extendsType, typeParamMap),

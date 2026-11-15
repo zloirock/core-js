@@ -523,7 +523,7 @@ export function createMemberResolve({
       const classPath = findClassPathForTypeReference(annotation, scope);
       if (classPath) {
         const result = resolveClassMember({
-          classPath, name, isStatic: false, callPath, receiverArgs: getTypeArgs(annotation)?.params,
+          classPath, name, isStatic: false, callPath, receiverArgs: getTypeArgs(annotation)?.params, declaredReceiver: true,
         });
         if (result) return result;
       }
