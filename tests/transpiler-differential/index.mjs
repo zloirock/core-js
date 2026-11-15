@@ -23,6 +23,7 @@ import { applyRuntimeStamps, mergeCases, nextRound } from './cache-store.mjs';
 import { LEGS, coverageShortfalls, mergeCoverage, skippedTotal } from './coverage.mjs';
 import { generate } from './generate.mjs';
 import { openWorktreeCache } from './worktree-cache.mjs';
+import './corpus-coverage.mjs';
 import './method-call-evaluation.mjs';
 
 const { cyan, green, red } = chalk;

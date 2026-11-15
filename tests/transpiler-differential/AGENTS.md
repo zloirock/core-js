@@ -15,6 +15,7 @@ Run it with `npm run test-transpiler-differential`. The corpus is large and ever
 ## Layout
 
 - `generate.mjs` - the corpus, deterministic rather than random: families expand as a cross-product of syntactic contexts, receivers and methods, which reaches combinations nobody would write by hand. Snippets are grouped into families and each exports the observed value plus a side-effect log, so a duplicated receiver evaluation shows up as a duplicated entry rather than as a passing test
+- `corpus-coverage.mjs` - registration and oracle checks for restored families, run by the coordinator; missing rows and disabled checks must fail independently of runtime results
 - `harness.mjs` - runs one snippet through the pure legs (native, both emitters, the print-through) and compares them
 - `realm-runner.mjs` - starts an isolated evaluation worker; Script snippets use a CommonJS wrapper, matching the transpiler's script host, and have a distinct cache identity from Modules
 - `strip-manifest.mjs` - what may be removed from a realm, and the pairing rules that make a strip meaningful

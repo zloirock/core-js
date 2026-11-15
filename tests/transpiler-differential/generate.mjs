@@ -744,9 +744,10 @@ function * generateDisableDirectives() {
 // the destructure grammar runs its ASSIGNMENT hosts full-env only, because a pattern there may
 // legitimately decline - and that is what let a whole class of LOST polyfills through: a slot left on
 // the minted memo reads its static raw, which a full realm answers natively and only a stripped one
-// catches. These rows are the shapes that never decline: every leaf is a nameable static of one
-// constructor, so each is injected on both legs, whatever the KEY's spelling (a side-effect key, a
-// key bound to a constant, a key the pattern repeats) and whatever the receiver carries ahead of it.
+// catches. Direct constructor and realm receivers carry stripped checks across key spellings
+// (a side-effect key, a key bound to a constant, a repeated key). The four literal-wrapper rows
+// keep native patterns under the wrapper policy: full-env checks their effects and values;
+// usage-global checks injection independently. A nameable leaf alone does not require pure extraction.
 // The log observes the key effects, so a channel that replays one twice or drops it reddens beside a
 // missing injection rather than silently agreeing.
 function * generateAssignmentKeySpelling() {
@@ -1385,21 +1386,16 @@ function * generateAnchorInnerShape() {
 
 // --- Bracketed hop key (the spelling of the hop a CLAIM rides through) ---
 // a hop key written in brackets names the same slot its dotted spelling does, so the claim under it
-// has to ride the same route - and the STRIPPED realm is what says whether it did: a claim left
-// native there reads a method the realm no longer carries. the boundary is the key that folds only
-// past an EFFECT: it names the same slot and still may not be consumed, since the effect would leave
-// with the key, so that arm runs full-env and watches the effect COUNT beside the value. the host is
-// a live axis - a declaration, an assignment and an array-wrapped element each claim by a route of
-// their own, and the wrapped one answers the generic dispatcher where the flat ones narrow
+// has to ride the same route. Direct statics and instance claims carry stripped checks; a static
+// under an array wrapper keeps its native pattern under the wrapper policy. Effectful keys carry
+// full-env checks of the effect count and value, with usage-global injection checked independently.
+// The host is a live axis: declarations, assignments and wrapped instance claims take distinct routes.
 const BHK_KEYS = [
   { id: 'dotted', lhs: 'Array', strip: true },
   { id: 'string-literal', lhs: "['Array']", strip: true },
   { id: 'template', lhs: '[`Array`]', strip: true },
   { id: 'const-bound', lhs: '[BHK_K]', setup: "const BHK_K = 'Array';", strip: true },
-  // ... and a key that folds only PAST AN EFFECT names the hop for the INJECTION and not for the
-  // rewrite: the claim ships native (nothing may consume a key it cannot re-spell) while the module
-  // it needs is still injected, so these cells watch the effect count beside a value the realm
-  // strips out from under them
+  // A folded key's effect must survive, including when the surrounding native pattern remains.
   { id: 'se-folding', lhs: "[(hit(), 'Array')]", strip: false },
 ];
 const BHK_CLAIMS = [
@@ -1617,12 +1613,12 @@ function * generateSeKeySiblingHosts() {
 }
 
 // --- Wrapped selecting receiver (a selecting element / property value under a pattern wrapper) ---
-// a selecting receiver under a wrapper mirrors per branch exactly as the bare init does: the host's
-// literal pairs the level's slot by position or by plain key, and the polyfill lands in the
-// constructor arm alone. the stripped realm is the oracle for the constructor arm (a missed mirror
-// reads `undefined` there), the user arm for over-application (a mirrored user arm would answer the
-// polyfill instead of the user's own method). the level stays whole under the mirror, so an
-// inline-array spread, a later spread and a later bound key all pair the way the source reads them
+// Literal wrappers do not request dedicated static extraction. Common receiver selection still
+// serves the false ternary-user and true or-ctor arms on every host, and the true ternary-ctor /
+// and-ctor arms on iife-arg and spread-level. Those 34 constructor arms require pure stripped checks.
+// The other constructor arms keep native patterns. User/falsy arms check over-application and
+// effects in full-env; success without a builtin would not prove injection there. Every row also
+// reaches the independent usage-global leg.
 const WSR_HOSTS = [
   { id: 'element', bind: sel => `const [{ from: m }] = [${ sel }];` },
   { id: 'element-default', bind: sel => `const [{ from: m } = {}] = [${ sel }];` },
@@ -1654,7 +1650,11 @@ function * generateWrappedSelectingReceiver() {
         const expr = '(() => { let n = 0; const hit = () => { n += 1; return 0; };'
           + " const wsrUser = { from: () => 'user' }; const wsrMore = {}; const wsrK = 'q';"
           + ` ${ host.bind(selection.sel(pick)) } return [String(typeof m === 'function' && m('ab')), String(n)]; })()`;
-        yield { ...snippet(`wrapped-selecting-receiver/${ cell }`, expr), strip: false };
+        const strip = selection.id === 'ternary-user' && pick === '!cond'
+          || selection.id === 'or-ctor' && pick === 'cond'
+          || ['iife-arg', 'spread-level'].includes(host.id) && pick === 'cond'
+            && ['ternary-ctor', 'and-ctor'].includes(selection.id);
+        yield { ...snippet(`wrapped-selecting-receiver/${ cell }`, expr), strip };
       }
     }
   }
@@ -2226,9 +2226,10 @@ function * generateContainerSlots() {
 // be ONE across the channels that follow an alias: a callee (`mk()`), an array-wrapper alias in a
 // destructure, a class base under `extends`. a write the read provably observes as its only value
 // (unconditional, before the capture / call / class, nothing written after) is followed by both
-// flavors - the pure ponyfill must back it, so the STRIPPED realm sees a miss; a write the read MAY
-// observe (conditional, closure, try) joins the usage-global union only, pure declines by design, and
-// the GLOBAL leg is the one that can see it (`strip: false`). the anchor of every proof is the read
+// flavors where the source form permits substitution; literal-wrapper patterns still stay native.
+// Each row declares whether it requires pure stripped coverage. Conditional / closure / try writes
+// also exercise usage-global's candidate union; full-env checks pure semantics independently.
+// The anchor of every proof is the read
 // itself: a write earlier in the same SEQUENCE counts as before the read, one after a capturing alias
 // does not, whatever the outer expression spans
 const W_DOMINATING = [
@@ -6333,11 +6334,9 @@ function * generateNestedInstanceReceiver() {
 // the user default must still fire, so both legs keep the key-swap off the anchored constructor
 // (`({ [_Symbol$iterator]: it = null } = _Promise)`) and neither may reach for `get-iterator-method`,
 // whose helper would answer `undefined` before the default could.
-// the DECLARATION and FOR-OF hosts are NOT covered for the two instance-name leaves: there the
-// unplugin leg still binds the leaf off the anchored constructor (`const { name } = _Promise`) where
-// babel dispatches, an open leg divergence rather than a shape this corpus may claim. they are named
-// per leaf in `skipHosts` so the gap stays enumerable from the corpus, and re-adding a host is the
-// gap's own fail-before. the symbol leaves route the same on every host and carry all four
+// All four hosts cover both name and symbol leaves. Restored declaration / for-of name rows are
+// appended after the existing corpus: appendHosts partitions registration order only, preserving
+// the cached source prefixes of the original rows.
 const NIS_RECEIVERS = [
   { id: 'ctor-entry', build: inner => `Promise: { ${ inner } }` },
   { id: 'realm-slot', build: inner => `Object: { ${ inner } }` },
@@ -6352,16 +6351,16 @@ const NIS_HOSTS = [
     build: (pat, names, observe) => `let ${ names }; if (cond) ({ ${ pat } } = globalThis); return ${ observe };` },
 ];
 const NIS_LEAVES = [
-  { id: 'plain', leaf: 'name', name: 'name', observe: 'typeof name', skipHosts: ['decl', 'for-of'] },
-  { id: 'defaulted', leaf: 'name = "x"', name: 'name', observe: 'typeof name', skipHosts: ['decl', 'for-of'] },
+  { id: 'plain', leaf: 'name', name: 'name', observe: 'typeof name', appendHosts: ['decl', 'for-of'] },
+  { id: 'defaulted', leaf: 'name = "x"', name: 'name', observe: 'typeof name', appendHosts: ['decl', 'for-of'] },
   { id: 'symbol', leaf: '[Symbol.iterator]: it', name: 'it', observe: 'typeof it' },
   { id: 'symbol-defaulted', leaf: '[Symbol.iterator]: it = null', name: 'it', observe: 'String(it)' },
 ];
-function * generateNestedInstanceSurfaceBase() {
+function * generateNestedInstanceSurfaceBase(append = false) {
   for (const recv of NIS_RECEIVERS) {
     for (const host of NIS_HOSTS) {
       for (const leaf of NIS_LEAVES) {
-        if (leaf.skipHosts?.includes(host.id)) continue;
+        if (!!leaf.appendHosts?.includes(host.id) !== append) continue;
         const body = `(() => { ${ host.build(recv.build(leaf.leaf), leaf.name, leaf.observe) } })()`;
         yield { ...snippet(`nested-instance-surface/${ recv.id }/${ host.id }/${ leaf.id }`, body, { rig: !!recv.rig }),
           strip: false };
@@ -6417,10 +6416,9 @@ const ASSIGN_ALIAS_REASSIGN = [
 // returned node at the use site, and a shadowing parameter silently dropped the injection or
 // captured the wrong value). axes: the VALUE CHANNEL the walk returns through x a use-site
 // SHADOW of the read name; every cell carries an unshadowed control in the same family
-// `strip` per channel by what the PURE legs owe: a const-bound factory and a wrapper slot FOLD
-// in pure, so their stripped run proves the fold; a REASSIGNED alias and a diverging ternary
-// DECLINE in pure by design (bail-safe), so those rows' oracle is the usage-global leg
-// (import parity + the armed stripped run of the global output), never the pure stripped realm
+// `strip` follows the source form: the const-bound factory folds in pure and requires a stripped
+// check. The literal-wrapper slots keep native patterns. The other alias channels carry full-env
+// checks of shadowing and effects, while usage-global checks injection independently.
 const ALIAS_SCOPE_SHADOW = [
   { id: 'inline-callee', decl: 'const mk = () => Array;', use: 'mk().from([6, 7]).length', strip: true },
   { id: 'write-rhs', decl: 'let h = Object; h = Array;', use: 'h.from([8]).length', strip: false },
@@ -12819,7 +12817,7 @@ function * generateArrayPropertyOrder() {
       'array-mirror-neighbour-declaration-true',
       `const source = { get at() { log.push('at'); return () => 7; } };
       const other = { get from() { log.push('from'); return () => [9]; } };
-      const [{ at }, { from }] = [source, (log.push('pick'), true) ? Array : other]; return [at(), from([4])[0], log];`, false,
+      const [{ at }, { from }] = [source, (log.push('pick'), true) ? Array : other]; return [at(), from([4])[0], log];`,
     ],
     [
       'array-mirror-neighbour-declaration-false',
@@ -12831,7 +12829,7 @@ function * generateArrayPropertyOrder() {
       'array-mirror-neighbour-assignment-true',
       `const source = { get at() { log.push('at'); return () => 7; } };
       const other = { get from() { log.push('from'); return () => [9]; } };
-      let at, from; ([{ at }, { from }] = [source, (log.push('pick'), true) ? Array : other]); return [at(), from([4])[0], log];`, false,
+      let at, from; ([{ at }, { from }] = [source, (log.push('pick'), true) ? Array : other]); return [at(), from([4])[0], log];`,
     ],
     [
       'array-mirror-neighbour-assignment-false',
@@ -16798,7 +16796,7 @@ function * generateDecidedForOfHeadReads() {
             for (${ head(elements) }) { ${ write } out.push(run(() => { ${ read(spelled, key, args) } })); }
             return out;`;
           yield { ...snippet(`decided-for-of-head-reads/${ list }/${ kind }/${ selection }/${ host }`, `(() => { ${ body } })()`),
-            strip: !['nested-level', 'array-sibling'].includes(host) };
+            strip: list === 'map-null' || !['nested-level', 'array-sibling'].includes(host) };
         }
       }
     }
@@ -17802,8 +17800,9 @@ function * generateFoldsBesideDirectives() {
 // --- Decided test answers under patterns ---
 // A selection the build decides to its test's own answer - an `&&` whose test fails, a `||` / `??` whose test
 // holds - yields that answer: a nested pattern reading a static through it reads off a boolean and throws, the
-// operand it skips naming nothing. A `||` whose test fails runs its right, read as that right alone. Stripped,
-// a static the running right owes and the rewrite lost reads as no function
+// operand it skips naming nothing. A `||` whose test fails runs its right, read as that right alone.
+// These literal-wrapper patterns stay native in pure, including a running right arm: full-env
+// checks the selected answer and exception, and usage-global checks injection independently.
 const DECIDED_ANSWER_SELECTIONS = [
   ['and-test-fails', "typeof Symbol == 'undefined' && { C: Object }"],
   ['or-test-holds', "typeof Symbol != 'undefined' || { C: Object }"],
@@ -18431,9 +18430,8 @@ function * generateClaimsBesideANestedClaim() {
 // --- Computed member targets as the sole chain ---
 // A computed member target its pattern holds as the sole chain takes the ponyfill where its route keeps the
 // source order - an effect-keyed static, a realm hop off a constructor with or without a ponyfill of its own -
-// and the source, the key and the target's own key run in that order. Under a nested instance claim, whose
-// overwrite would read a getter hop after the target's key, and beside a sibling it keeps the native read, so
-// those rows run in the full environment only
+// and the source, the key and the target's own key run in that order, including beside another static.
+// The nested instance claim keeps its native getter-hop read and runs full-env only.
 const SOLE_CHAIN_COMPUTED_TARGETS = [
   [
     'effect-keyed-static',
@@ -18459,7 +18457,7 @@ const SOLE_CHAIN_COMPUTED_TARGETS = [
     'box.v.call([1, 2], -1)',
     false,
   ],
-  ['beside-a-sibling', 'let o; ({ from: box[(log.push("target"), "v")], of: o } = Array);', '[typeof box.v, o(1).length]', false],
+  ['beside-a-sibling', 'let o; ({ from: box[(log.push("target"), "v")], of: o } = Array);', '[typeof box.v, o(1).length]', true],
   // ... and siblings an earlier claim extracted no longer count: what the statement still holds is the sole chain
   [
     'after-an-extracted-sibling',
@@ -19505,7 +19503,8 @@ const SEALED_KEY_EFFECTS = [
   {
     id: 'destructure',
     effect: '(() => { const { from } = Array; log.push(typeof from); })()',
-    skipHosts: [...SEALED_KEY_HELD_HOSTS, 'parameter-default'],
+    skipHosts: SEALED_KEY_HELD_HOSTS,
+    appendHosts: ['parameter-default'],
   },
   {
     id: 'for-of-left',
@@ -19515,13 +19514,15 @@ const SEALED_KEY_EFFECTS = [
   {
     id: 'for-in-left',
     effect: '(() => { for (const { at } in { x: 1 }) log.push(typeof at); })()',
-    skipHosts: [...SEALED_KEY_HELD_HOSTS, 'parameter-default'],
+    skipHosts: SEALED_KEY_HELD_HOSTS,
+    appendHosts: ['parameter-default'],
   },
 ];
-function * generateSealedKeyClaims() {
+// Restored hosts follow the original corpus so its cached source prefixes remain valid.
+function * generateSealedKeyClaims(append = false) {
   for (const host of SEALED_KEY_HOSTS) {
-    for (const { id, effect, skipHosts } of SEALED_KEY_EFFECTS) {
-      if (skipHosts.includes(host.id)) continue;
+    for (const { id, effect, skipHosts, appendHosts } of SEALED_KEY_EFFECTS) {
+      if (skipHosts.includes(host.id) || !!appendHosts?.includes(host.id) !== append) continue;
       const expr = `(() => { try { ${ host.build(`(globalThis.window?.[(${ effect }, 'self')])`) } } catch (e) { return 'throw'; } })()`;
       yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }`, expr), strip: false };
       yield { ...snippet(`sealed-key-claims/${ host.id }/${ id }-rigged`, expr, { rig: true }), strip: false };
@@ -27097,4 +27098,6 @@ export function * generate() {
   yield * generateDestructureDefaultClaims();
   yield * generateStandaloneConstructorImports();
   yield * generateIsolatedStaticInstalls();
+  yield * generateNestedInstanceSurfaceBase(true);
+  yield * generateSealedKeyClaims(true);
 }
