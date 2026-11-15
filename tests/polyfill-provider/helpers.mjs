@@ -194,6 +194,11 @@ throwsWith('toStatelessRegExp/string throws',
   check('patternToRegExp/RegExp input matches', re.test('es.array.at'), true);
 }
 
+// The documented string prefix needs an explicit regex suffix; a bare prefix is exact.
+check('patternToRegExp/bare es prefix is not a module', patternToRegExp('es.').test('es.array.at'), false);
+check('patternToRegExp/documented es family', patternToRegExp('es\\..*').test('es.array.at'), true);
+check('patternToRegExp/documented family excludes proposals', patternToRegExp('es\\..*').test('esnext.array.at'), false);
+
 // string input compiled with anchors + non-capturing group
 {
   const re = patternToRegExp('es\\.array\\.at');
@@ -495,9 +500,12 @@ check('resolveImportPath/relative path',
 check('resolveImportPath/default false',
   resolveImportPath('core-js', 'actual/promise'), 'core-js/actual/promise');
 
-// absoluteImports=true with unknown package: falls back to `pkg/subpath`
-check('resolveImportPath/absoluteImports unknown falls back',
-  resolveImportPath('totally-not-a-real-package-xyz', 'foo', true),
+// An absolute request cannot silently become a bare import on a resolution failure.
+throwsWith('resolveImportPath/absoluteImports unknown fails',
+  () => resolveImportPath('totally-not-a-real-package-xyz', 'foo', true),
+  '[core-js] cannot resolve');
+check('resolveImportPath/bare unknown remains available',
+  resolveImportPath('totally-not-a-real-package-xyz', 'foo', false),
   'totally-not-a-real-package-xyz/foo');
 
 // --- isCoreJSFile ---

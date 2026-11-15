@@ -161,7 +161,7 @@ Like `usage-global`, but replaces usage of standard library features with import
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
+| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from the configured `package` in the project working directory by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
 | `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
@@ -172,8 +172,8 @@ Like `usage-global`, but replaces usage of standard library features with import
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
-| `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
-| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type if not set |
+| `absoluteImports` | `boolean` | `false` | Resolve injected imports from the project working directory; missing entries throw |
+| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from surviving ESM syntax and source format if not set |
 | `phase` | `'pre' \| 'post' \| 'pre+post'` | `'pre'` | When the plugin runs. `'pre'` - before sibling plugins, with a narrow post stage for compiled Vue/Svelte/Astro/MDX/Markdown/SVX/GJS/GTS components; ordinary JS has one pass and misses siblings' helpers. `'post'` - after siblings, sees helpers but TS stripping and other syntactic transforms by siblings make type inference unreliable, which may cause over-polyfilling. `'pre+post'` - two passes: pre transforms user code with full context, post detects helpers; post may still over-polyfill user code that siblings transformed between passes. On Bun and esbuild, where sibling ordering cannot be enforced, `'pre+post'` falls back to a single `'post'` pass with a one-time warning. Raw components stay excluded on Bun/esbuild. Not configurable for `entry-global`: entries run at pre, with the same narrow component post stage on ordered hosts |
 | `debug` | `boolean` | `false` | Print debug output |
 

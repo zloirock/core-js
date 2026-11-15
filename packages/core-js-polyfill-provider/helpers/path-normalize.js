@@ -1,5 +1,7 @@
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
+import { wrapWithCause } from './error-tag.js';
 
 const UNC_PREFIXES = ['\\\\?\\', '\\\\.\\', '//?/', '//./'];
 
@@ -30,7 +32,7 @@ export function stripQueryHash(id) {
 }
 
 // Windows long-path / device-path prefixes in their canonical (post-`\\`->`/`) form.
-// `import.meta.resolve` under Windows can return such absolute paths; strip so the
+// Windows module IDs can carry such prefixes; strip so the
 // canonical `core-js/...` slice lines up against the entry map. Combined char-class
 // `[.?]` covers both verbatim long-path (`//?/`) and device-path (`//./`) shapes
 export const WINDOWS_UNC_PREFIX_RE = /^\/\/[.?]\//;
@@ -77,28 +79,25 @@ export function canonicalisePackage(name) {
   return end === collapsed.length ? collapsed : collapsed.slice(0, end);
 }
 
-// `import.meta.resolve` is a pure function of the specifier for the whole process life (the
-// resolver reads the on-disk package layout, which a build does not mutate), yet it was hit once
-// per emitted import per file. cached by specifier - the key space is the polyfill entry set.
-// module-level rather than per-plugin-instance, unlike the adapters: the resolution is anchored at
-// THIS module's own URL, so it is identical for every instance in the process, and `pkg` is part of
-// the key so a monorepo alias cannot collide with the main package. bundler workers get their own
-// module instance, so there is no shared-state race to speak of either
+// Resolve from the project working directory, not the provider's installation. Builds do not
+// mutate their package layout; include the directory in the key so another project in this
+// process cannot inherit its paths. Only successful resolutions are retained.
 const absoluteImportCache = new Map();
 
 export function resolveImportPath(pkg, subpath, absoluteImports) {
   const source = `${ pkg }/${ subpath }`;
   if (!absoluteImports) return source;
-  const cached = absoluteImportCache.get(source);
+  const directory = process.cwd();
+  const key = `${ directory }\0${ source }`;
+  const cached = absoluteImportCache.get(key);
   if (cached !== undefined) return cached;
   let result;
   try {
-    const resolved = import.meta.resolve(source);
-    result = resolved.startsWith('file:') ? fileURLToPath(resolved).replaceAll('\\', '/') : resolved;
-  } catch {
-    result = source;
+    result = createRequire(resolve(directory, 'package.json')).resolve(source).replaceAll('\\', '/');
+  } catch (error) {
+    throw wrapWithCause(`cannot resolve ${ JSON.stringify(source) } from ${ JSON.stringify(directory) }`, error);
   }
-  absoluteImportCache.set(source, result);
+  absoluteImportCache.set(key, result);
   return result;
 }
 
@@ -109,14 +108,20 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
 const packageRootCache = new Map();
 
 export function packageRootPrefix(pkg) {
-  if (packageRootCache.has(pkg)) return packageRootCache.get(pkg);
-  const resolved = resolveImportPath(pkg, 'package.json', true);
+  const key = `${ process.cwd() }\0${ pkg }`;
+  if (packageRootCache.has(key)) return packageRootCache.get(key);
+  let resolved;
+  try {
+    resolved = resolveImportPath(pkg, 'package.json', true);
+  } catch {
+    packageRootCache.set(key, null);
+    return null;
+  }
   const marker = '/package.json';
-  // an UNRESOLVED package falls back to the bare specifier, which the bare-prefix check already
-  // covers - reporting it here would claim a root that does not exist
-  const root = resolved.endsWith(marker) && resolved !== `${ pkg }${ marker }`
+  // Recognition also asks about optional packages; absence is no provenance proof.
+  const root = resolved.endsWith(marker)
     ? normalizeImportSource(resolved.slice(0, -marker.length + 1)) : null;
-  packageRootCache.set(pkg, root);
+  packageRootCache.set(key, root);
   return root;
 }
 

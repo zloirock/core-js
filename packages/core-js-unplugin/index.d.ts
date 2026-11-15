@@ -7,12 +7,12 @@ type Method = 'entry-global' | 'usage-global' | 'usage-pure';
 type Mode = 'es' | 'stable' | 'actual' | 'full';
 
 // rich Targets re-exported from `@core-js/compat/compat` - same shape as babel-plugin's
-// `Pick<CompatOptions, "targets">`. preserves per-engine literal keys (chrome / firefox /
+// `CompatOptions["targets"]`. preserves per-engine literal keys (chrome / firefox /
 // node / ...), `esmodules: true | 'intersect'`, and `browsers: BrowserslistQuery` form
 type Targets = CompatOptions["targets"];
 
 interface BaseOptions {
-  /** used `core-js` version. Special values: `'node_modules'` (default; auto-detect from installed core-js); `'package.json'` (read from CWD `package.json`'s `dependencies` / `devDependencies` / `peerDependencies`). When specified as an explicit SemVer string, the minor component is required, e.g. `'4.1'` */
+  /** used `core-js` version. Special values: `'node_modules'` (default; auto-detect the configured package from the project working directory); `'package.json'` (read the configured package from CWD `package.json`'s `dependencies` / `devDependencies` / `peerDependencies`). When specified as an explicit SemVer string, the minor component is required, e.g. `'4.1'` */
   version?: string | null;
   /** entry point layer: 'es', 'stable', 'actual', or 'full', by default 'actual' */
   mode?: Mode | null;
@@ -23,8 +23,8 @@ interface BaseOptions {
   /** browserslist targets */
   targets?: Targets | null;
   /** include polyfill modules by module name (e.g. `'es.array.at'`) or pattern.
-   *  String patterns are raw regex syntax (not glob) anchored to start/end - a leading `es.`
-   *  matches any submodule, `*` is a regex quantifier. Entry paths (`'array/at'`) are allowed
+   *  String patterns are raw regex syntax (not glob) anchored to start/end; use `es\\..*`
+   *  to match all `es.` modules. `*` is a regex quantifier. Entry paths (`'array/at'`) are allowed
    *  only for `method: 'usage-pure'`. */
   include?: readonly (string | RegExp)[] | null;
   /** exclude polyfill modules - same pattern semantics as `include` */
@@ -33,7 +33,7 @@ interface BaseOptions {
   debug?: boolean | null;
   /** custom function to decide whether to inject a polyfill */
   shouldInjectPolyfill?: ((name: string, defaultShouldInject: boolean) => boolean) | null;
-  /** use absolute imports for injected polyfills */
+  /** resolve injected imports from the project working directory; missing entries throw */
   absoluteImports?: boolean | null;
   /** directory to search for browserslist config (for monorepos) */
   configPath?: string | null;
@@ -41,7 +41,7 @@ interface BaseOptions {
   browserslistEnv?: string | null;
   /** do not use browserslist config, only explicit `targets` */
   ignoreBrowserslistConfig?: boolean | null;
-  /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from sourceType */
+  /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from surviving ESM syntax and source format */
   importStyle?: 'import' | 'require' | null;
 }
 

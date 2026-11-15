@@ -36,7 +36,9 @@ function compare($a, operator, $b) {
   } return operator === '==' || operator === '<=' || operator === '>=';
 }
 
-function normalizeCoreJSVersion(raw) {
+// Plugins may name an alias and resolve its manifest from the project. Other compat callers
+// retain the standard package and resolver; SemVer parsing and range handling stay shared.
+function normalizeCoreJSVersion(raw, { package: packageName = 'core-js', resolve: resolvePackage = require.resolve } = {}) {
   if (raw instanceof SemVer) return raw;
 
   if (typeof raw != 'string') {
@@ -54,9 +56,9 @@ function normalizeCoreJSVersion(raw) {
       throw new TypeError('`package.json` not found in the current working directory');
     }
     const { dependencies, devDependencies, peerDependencies } = pkg;
-    raw = dependencies?.['core-js'] ?? devDependencies?.['core-js'] ?? peerDependencies?.['core-js'];
+    raw = dependencies?.[packageName] ?? devDependencies?.[packageName] ?? peerDependencies?.[packageName];
     if (raw === undefined) {
-      throw new TypeError('`core-js` is not specified in your `package.json`');
+      throw new TypeError(`\`${ packageName }\` is not specified in your \`package.json\``);
     }
     // semver range like `^4.1.0` - the regex extracts the base version;
     // wildcard-only range like `*` or `x` - fall back to installed version
@@ -65,9 +67,10 @@ function normalizeCoreJSVersion(raw) {
   }
 
   if (raw === 'node_modules') try {
-    raw = require('core-js/package.json').version;
-  } catch {
-    throw new TypeError('`core-js` is not installed - install it or specify the version explicitly');
+    // eslint-disable-next-line import/no-dynamic-require -- the configured package's resolved manifest
+    raw = require(resolvePackage(`${ packageName }/package.json`)).version;
+  } catch (error) {
+    throw new TypeError(`cannot read \`${ packageName }\` package.json - install it or specify the version explicitly`, { cause: error });
   }
 
   const version = semver(raw, requiredMinorComponent);

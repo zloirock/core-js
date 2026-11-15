@@ -13,7 +13,7 @@ Babel plugin for automatic injection of [`core-js`](https://core-js.io) polyfill
 The plugin supports three injection methods: `entry-global`, `usage-global`, and `usage-pure`.
 
 > [!TIP]
-> By default, the plugin auto-detects the installed `core-js` version (`version: 'node_modules'`). You can also specify it explicitly - the minor component is required, e.g. `version: '4.1'` (not `'4'`).
+> By default, the plugin auto-detects the installed version of the configured `package` (`version: 'node_modules'`). You can also specify it explicitly - the minor component is required, e.g. `version: '4.1'` (not `'4'`).
 
 ### `entry-global`
 
@@ -103,8 +103,8 @@ Array.from(items);
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
-| `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
+| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from the configured `package` in the project working directory by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
+| `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
@@ -114,19 +114,19 @@ Array.from(items);
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config, only explicit `targets` |
-| `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
-| `importStyle` | `string` | auto | Import style for injected polyfills: `'import'` or `'require'`, auto-detected from `sourceType` if not set |
+| `absoluteImports` | `boolean` | `false` | Resolve injected imports from the project working directory; missing entries throw |
+| `importStyle` | `string` | auto | Import style for injected polyfills: `'import'` or `'require'`, auto-detected from surviving ESM syntax and source format if not set |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
 
 ### `version`
 
-The `core-js` version installed in your project. The plugin uses this to determine which polyfill modules and entry points are available.
+The version of the configured `package` installed in your project. The plugin uses this to determine which polyfill modules and entry points are available.
 
-By default, the version is auto-detected from the installed `core-js` package (`'node_modules'`). You can also specify it explicitly as a semver string with the minor component, e.g. `'4.1'` (not `'4'`).
+By default, the version is auto-detected from the configured `package`, resolved from the project working directory (`'node_modules'`). You can also specify it explicitly as a semver string with the minor component, e.g. `'4.1'` (not `'4'`).
 
 Special values:
-- `'node_modules'` (default) - reads the version from the installed `core-js` package (`core-js/package.json`)
-- `'package.json'` - reads the version range from the project's `package.json` `dependencies`, `devDependencies`, or `peerDependencies`
+- `'node_modules'` (default) - reads the configured package's `package.json` (`core-js` for global methods, `@core-js/pure` for pure by default)
+- `'package.json'` - reads the configured package's version range from the working directory's `package.json` `dependencies`, `devDependencies`, or `peerDependencies`, in that order
 
 ```json
 {
@@ -269,11 +269,11 @@ When `true`, the plugin will not read any browserslist config files. Only the ex
 
 ### `absoluteImports`
 
-When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. This can be useful in monorepos to ensure that all files resolve to the same `core-js` installation.
+When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. The configured package is resolved from the project working directory, so all files use that installation. A missing package or entry raises an error instead of falling back to a bare import. With an explicit `version` and `absoluteImports: false`, the package need not be installed while transforming.
 
 ### `importStyle`
 
-Controls the syntax of injected polyfill imports: `'import'` for ESM `import` statements, `'require'` for CJS `require()` calls. When not set, auto-detected from the file's `sourceType` - `'script'` files get `require()`, `'module'` files get `import`.
+Controls the syntax of injected polyfill imports: `'import'` for ESM `import` statements, `'require'` for CJS `require()` calls. When not set, surviving ESM imports or exports select `import`; otherwise the source format (including the filename and explicit parse goal) determines the style. Setting this option changes injection syntax only, not the source language.
 
 ```json
 {

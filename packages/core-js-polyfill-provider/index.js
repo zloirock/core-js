@@ -3,12 +3,11 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { createRequire } from 'node:module';
 import { HELPER_CANON_ENTRIES } from './detect-usage/globals.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/ast-patterns.js';
 import { brand, wrapWithCause } from './helpers/error-tag.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, safeErrorMessage, validatePatternList } from './helpers/pattern-matching.js';
-import { WINDOWS_UNC_PREFIX_RE, canonicalisePackage, stripQueryHash } from './helpers/path-normalize.js';
+import { WINDOWS_UNC_PREFIX_RE, canonicalisePackage, resolveImportPath, stripQueryHash } from './helpers/path-normalize.js';
 import { VALID_MODES, expectEnum, validatePackageShape } from './plugin-options/validate.js';
 
 const { hasOwn } = Object;
@@ -154,21 +153,6 @@ function validateIncludeExclude({ include, exclude, modules, method, mode, entri
   if (errors.length) throw new Error(brand(`error while validating provider options:\n${ errors.join('') }`));
 }
 
-const require = createRequire(import.meta.url);
-
-// the installed version, read off whichever of the two packages the project carries: a usage-pure
-// project need not install `core-js` at all, and `@core-js/pure` ships the same version. with
-// neither installed the compat probe runs and raises its own diagnostic
-function installedCoreJSVersion() {
-  try {
-    return require('core-js/package.json').version;
-  } catch { /* not installed here */ }
-  try {
-    return require('@core-js/pure/package.json').version;
-  } catch { /* not installed here */ }
-  return 'node_modules';
-}
-
 // options assumed already validated by `initPluginOptions` in plugin-options.js;
 // for direct callers without `initPluginOptions`, the first hard type check will surface a bug
 // `targetsNeedPolyfill`: the targets' own verdict with no user filter in it (`buildTargetsNeedPolyfill`),
@@ -204,19 +188,19 @@ export function createPolyfillContext({
   // `validatePackageShape` with `validateOptions` so direct callers get the identical
   // per-index label + `formatReceived` diagnostic instead of a divergent error wording
   validatePackageShape(pkg, additionalPackages);
+  // Version lookup and import emission use the same configured package spelling and root.
+  pkg = canonicalisePackage(pkg);
 
   // the compat normaliser raises its own diagnostics for a version it cannot use (no minor
-  // component, a foreign major, no `core-js` in the project's `package.json`): user-facing, so they
+  // component, a foreign major, no configured package in the project's `package.json`): user-facing, so they
   // leave branded like every other option verdict
   try {
-    version = normalizeCoreJSVersion(version === 'node_modules' ? installedCoreJSVersion() : version);
+    version = normalizeCoreJSVersion(version, { package: pkg,
+      resolve: () => resolveImportPath(pkg, 'package.json', true) });
   } catch (error) {
     throw wrapWithCause(`invalid \`version\` option: ${ safeErrorMessage(error) }`, error);
   }
 
-  // canonicalised like every package name below (`canonicalisePackage`), so the emitted import
-  // paths and the entry detection agree on one spelling
-  pkg = canonicalisePackage(pkg);
   // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
   // Set preserves first-match order - hot-loop in `getCoreJSEntry` hits main pkg first
   const packages = [...new Set([pkg, ...additionalPackages ?? []]

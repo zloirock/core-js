@@ -199,7 +199,10 @@ throwsWith('createPolyfillContext/additionalPackages invalid entry',
 // --- createPolyfillContext: trailing slash stripping ---
 
 {
-  const ctx = createPolyfillContext({ method: 'usage-global', package: 'my-core-js///' });
+  throwsWith('createPolyfillContext/missing configured package version',
+    () => createPolyfillContext({ method: 'usage-global', package: 'my-core-js///' }),
+    '[core-js] invalid `version` option:');
+  const ctx = createPolyfillContext({ method: 'usage-global', package: 'my-core-js///', version: '4.0' });
   check('createPolyfillContext/strips trailing slashes from pkg', ctx.pkg, 'my-core-js');
   checkTruthy('createPolyfillContext/strips slashes from packages list',
     ctx.packages.every(p => !p.endsWith('/')));

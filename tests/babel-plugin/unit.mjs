@@ -39,6 +39,7 @@ import './guarded-values.mjs';
 import './optional-continuation-runtime.mjs';
 import './realm-claim-runtime.mjs';
 import './pure-import-runtime.mjs';
+import './package-resolution.mjs';
 import './excluded-residual-runtime.mjs';
 import './excluded-kept-store-runtime.mjs';
 import './realm-selection-directives.mjs';

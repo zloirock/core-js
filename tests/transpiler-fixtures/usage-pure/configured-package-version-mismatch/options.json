@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "node_modules",
+        "mode": "actual",
+        "targets": {
+          "ie": "11"
+        },
+        "package": "../transpiler-fixtures/usage-pure/configured-package-version-mismatch/runtime"
+      }
+    ]
+  ]
+}
