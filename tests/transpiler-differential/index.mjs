@@ -26,6 +26,8 @@ import { openWorktreeCache } from './worktree-cache.mjs';
 import './corpus-coverage.mjs';
 import './method-call-evaluation.mjs';
 
+await import('./arming-coverage.mjs');
+
 const { cyan, green, red } = chalk;
 const { ensureDir, readdir, remove } = fs;
 const { join } = path;
@@ -72,9 +74,13 @@ await ensureDir(TMP);
 // the NAMES ride along as the cache's liveness set: a group whose snippet the generator dropped is
 // dropped with it, which is what holds the file at corpus size instead of letting it grow forever
 const corpusNames = new Set();
+const runtimeSources = new Set();
 let corpusTotal = 0;
 for (const snippet of generate()) {
   corpusNames.add(snippet.name);
+  // Corpus runtime imports use literal specifiers or paths. A non-import mention may
+  // conservatively invalidate a group, but an imported runtime must cover its raw legs too.
+  if (snippet.code.includes('core-js')) runtimeSources.add(snippet.name);
   corpusTotal++;
 }
 const CHUNKS = CONCURRENCY * Math.max(1, Math.ceil(corpusTotal / SHARD_CAP / CONCURRENCY));
@@ -115,8 +121,8 @@ const CACHE_NAME = `cache-${ machinery.digest('hex').slice(0, 12) }.json`;
 // the runtime a cached result depends on is NOT in the code that produced it: an output is a list
 // of imports, so a polyfill edit moves the result without moving a single byte of the output. the
 // two flavours pull different trees (usage-pure the generated `@core-js/pure` entry layer,
-// usage-global `core-js/modules` and its internals closure), and the raw-source cells depend on
-// neither - so the stamps live per tree in the file header and void only their own cell types
+// usage-global `core-js/modules` and its internals closure). Raw-source cells survive unless
+// their source imports a runtime too; that source invalidates its whole group on a runtime edit
 // only what a run actually loads: the modules and the manifests that resolve them. READMEs and
 // ignore files sit in the same directories and change far more often than the code does, and
 // counting them would throw the cache away on a documentation edit. content, never mtime - an
@@ -128,7 +134,7 @@ const RUNTIME_TREES = { pure: ['packages/core-js-pure'], global: ['packages/core
 const INVALIDATE = process.env.INVALIDATE_CACHE === '1';
 const evaluationCache = await openWorktreeCache({ root: ROOT, directory: CACHE_DIR, name: CACHE_NAME, trees: RUNTIME_TREES, invalidate: INVALIDATE });
 const { runtime, stored, borrowedFrom } = evaluationCache;
-const { cases: liveCases, stale } = applyRuntimeStamps(stored, runtime);
+const { cases: liveCases, stale } = applyRuntimeStamps(stored, runtime, runtimeSources);
 // a first run for this machinery has no stamps to match, which is not a runtime change
 const hadCache = Boolean(Object.keys(stored.cases ?? {}).length);
 // Every shard reads this run's immutable snapshot. Another run, even in this same tree, cannot
@@ -136,7 +142,7 @@ const hadCache = Boolean(Object.keys(stored.cases ?? {}).length);
 const CACHE_INPUT = join(TMP, 'cache.json');
 if (!INVALIDATE) await evaluationCache.snapshot(CACHE_INPUT, { round: stored.round ?? 0, cases: liveCases });
 if (INVALIDATE) echo(red('INVALIDATE_CACHE=1: the evaluation cache is ignored - every leg runs live and the file is rewritten'));
-else if (stale.length && hadCache) echo(`core-js runtime changed: ${ cyan(stale.join(', ')) } cells dropped, the rest kept`);
+else if (stale.length && hadCache) echo(`core-js runtime changed: ${ cyan(stale.join(', ')) } cells and groups importing core-js dropped`);
 else if (borrowedFrom) echo(`Evaluation cache seeded from ${ cyan(borrowedFrom) }; writes stay in this worktree`);
 
 const MARKER = /@@SHARD@@(?<json>.*)@@/u;

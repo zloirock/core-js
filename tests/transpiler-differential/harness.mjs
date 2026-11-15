@@ -158,6 +158,22 @@ export async function writeModule(code, ts = false, sourceType = 'module') {
   await outputFile(file, ts ? await stripTypeScript(code) : code);
   return file;
 }
+// Raw-source arming is shared by both stripped legs and cached separately from their outputs.
+// Never reject: the global leg overlaps this worker with its transforms. The caller reports
+// a worker sentinel as a harness failure, not evidence that the source needs a polyfill.
+export async function armingEval(code, ts, sourceType) {
+  const t0 = process.hrtime.bigint();
+  let key;
+  try {
+    key = await cached({ type: 'arming', code,
+      evaluate: async () => runInWorker(await writeModule(code, ts, sourceType), { sourceType }) });
+  } catch (error) {
+    key = `WORKER-CRASH|arming: ${ error?.message ?? error }`;
+  }
+  mark('arming eval', t0);
+  return key;
+}
+
 // a module file written ON DEMAND: the cache answers most evaluations, and an answered one needs no
 // file at all. memoized, because a stripped MISS behind a full-env HIT still needs the same file -
 // and both legs must run the identical bytes, not two writes of them
@@ -348,8 +364,14 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false,
   // the stripped realm a reference that a leftover (now-throwing) native call would visibly diverge from
   // named in the order the gates above are written: `not-strip-family` first, so the leg's
   // `native-throw` bucket counts the shapes that DO assert an injection and lost the oracle anyway
-  const stripCoverage = !stripCheck ? 'not-strip-family' : native.startsWith('ERR') ? 'native-throw' : 'checked';
+  let stripCoverage = !stripCheck ? 'not-strip-family' : native.startsWith('ERR') ? 'native-throw' : 'checked';
+  let strippedNative = null;
   if (stripCoverage === 'checked') {
+    strippedNative = await armingEval(src, ts, sourceType);
+    if (strippedNative.startsWith('WORKER-CRASH|')) throw new Error(strippedNative);
+    if (strippedNative === native) stripCoverage = 'not-armed';
+    // Keep the requested output comparison even when unarmed: it can still expose a bad
+    // rewrite, and preserving the shared worker's import order keeps existing cache cells valid.
     t0 = process.hrtime.bigint();
     babelStripped = WANT_BABEL
       ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile(), sourceType, isolated) })
@@ -367,6 +389,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false,
     pluginRuntimeDiverge: EMITTER === 'both' && babelRun !== unpluginRun,
     nativeMalformed,
     strippedMismatch,
+    strippedNative,
     astPrintMismatch,
     stripCoverage,
     astCoverage,

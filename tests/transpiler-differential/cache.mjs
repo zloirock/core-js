@@ -216,7 +216,17 @@ const purePart = applyRuntimeStamps(STAMPED, { pure: 'MOVED', global: 'g' });
 checkDeep('a pure-runtime edit drops only pure cells', Object.keys(purePart.cases.one).sort(), ['arming', 'global-babel', 'native', 'src']);
 const globalPart = applyRuntimeStamps(STAMPED, { pure: 'p', global: 'MOVED' });
 checkDeep('a global-runtime edit drops only global cells', Object.keys(globalPart.cases.one).sort(), ['arming', 'native', 'pure-babel', 'src']);
-checkDeep('  and the raw-source cells never depend on a runtime', [purePart.cases.one.native, globalPart.cases.one.arming], ['n', 'a']);
+checkDeep('  and raw sources without runtime imports survive', [purePart.cases.one.native, globalPart.cases.one.arming], ['n', 'a']);
+const runtimeSources = new Set(['imported']);
+const withImport = { ...STAMPED, cases: { ...STAMPED.cases, imported: { ...STAMPED.cases.one } } };
+for (const tree of ['pure', 'global']) {
+  const changed = { ...STAMPED.runtime, [tree]: 'MOVED' };
+  const result = applyRuntimeStamps(withImport, changed, runtimeSources);
+  check(`${ tree } edit drops raw imports and every transformed leg`, Object.hasOwn(result.cases, 'imported'), false);
+  check(`${ tree } edit keeps unrelated native source`, result.cases.one.native, 'n');
+  check(`${ tree } edit keeps unrelated arming`, result.cases.one.arming, 'a');
+}
+checkDeep('matching runtime retains imported source cells', applyRuntimeStamps(withImport, STAMPED.runtime, runtimeSources).cases, withImport.cases);
 
 // Identical runtime content permits reuse across worktree paths without hiding a runtime edit.
 const TREES = { pure: ['pure'], global: ['global/modules', 'global/internals'] };

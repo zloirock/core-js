@@ -18,7 +18,7 @@
 // usage-global's inject-if-might contract those have no "legitimately did not inject" escape.
 import { runInWorker } from './realm-runner.mjs';
 import { cached } from './cache-store.mjs';
-import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, writeModule } from './harness.mjs';
+import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, armingEval, importSet, setEqual, transformBoth, writeModule } from './harness.mjs';
 
 // one stripped-realm evaluation, memoized by (snippet, type) in the shared cache: the worker spawn
 // is what this leg costs, and it only has to happen when the code that would run in it changed
@@ -26,51 +26,29 @@ function runOutput({ type, code, ts, sourceType }) {
   return cached({ type, code, evaluate: async () => runInWorker(await writeModule(code, ts, sourceType), { sourceType }) });
 }
 
-// arming is a property of the INPUT - the raw source's stripped-realm key - independent of the
-// plugins under test and deterministic over the deterministic corpus. It rides the same cache as
-// the outputs, in its own cell type, and unlike them it survives a core-js edit: the raw source
-// imports no core-js at all. The comparison against this run's native reference stays live.
-// never rejects: the promise floats unhandled while the transforms run, so a rejection here
-// (a temp-file write failure, say) would bypass the shard's per-snippet catch and kill the shard
-async function armingEval(code, ts, sourceType) {
-  const t0 = process.hrtime.bigint();
-  let key;
-  try {
-    key = await runOutput({ type: 'arming', code, ts, sourceType });
-  } catch (error) {
-    key = `WORKER-CRASH|arming: ${ error?.message ?? error }`;
-  }
-  phaseNs['arming eval (inside global leg)'] = (phaseNs['arming eval (inside global leg)'] ?? 0n) + (process.hrtime.bigint() - t0);
-  return key;
-}
-
 // the usage-global verdict for one snippet. `native` is the full-env reference key the pure leg
 // already computed; a throwing native is vacuous-by-throw (ERR == ERR regardless of injection),
 // same gate as the pure stripped leg. returns { skip, failed, detail } - `skip` names why the
 // stripped-realm comparison did not run and is null when it did, which is what the run's coverage
 // accounting counts as this leg's ARMED snippets
-export async function checkGlobalSnippet({ code, ts = false, native, options, provenArmed = false, sourceType = 'module' }) {
+export async function checkGlobalSnippet({ code, ts = false, native, options, strippedNative = null, sourceType = 'module' }) {
   if (native.startsWith('ERR')) return { skip: 'native-throw', failed: false, detail: '' };
-  // arming: a `strip:true` snippet is the generator's PROVEN manifest-builtin read - its
-  // stripped-realm divergence holds by construction (this realm strips the same globals as
-  // the pure regex's token set) and the evaluation is skipped; the output-vs-native oracle
-  // still runs and can only fail loudly. everything else is judged EMPIRICALLY: the corpus
-  // builds keys at runtime (`'fr' + 'om'` folds, buried template concats), so no static token
-  // test is sound and a prefilter would silently blind such snippets.
-  // the arming evaluation only needs the ORIGINAL source - start it and run both transforms
-  // while the worker spins, hiding its latency behind CPU work the shard must do anyway
-  const armingKey = provenArmed ? null : armingEval(code, ts, sourceType);
+  // The pure leg may already have evaluated the same raw source. A manual strip flag
+  // proves nothing; keys assembled at runtime must be armed just like literal reads.
+  const armingKey = strippedNative ?? armingEval(code, ts, sourceType);
 
   const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src: code, options, ts, sourceType });
+  const rawStripped = await armingKey;
   // a throwing transform fails BEFORE the arming gate: a crash is a plugin bug on any input,
   // and an unarmed verdict here would swallow it for exactly the snippets nothing else runs
   if (babelError || unpluginError) {
     const details = [];
     if (babelError) details.push(`babel threw: ${ babelError }`);
     if (unpluginError) details.push(`unplugin threw: ${ unpluginError }`);
-    return { skip: null, failed: true, detail: details.join('; ') };
+    return { skip: 'transform-crash', failed: true, detail: details.join('; ') };
   }
-  if (armingKey && await armingKey === native) return { skip: 'not-armed', failed: false, detail: '' };
+  if (rawStripped.startsWith('WORKER-CRASH|')) return { skip: 'harness-crash', failed: true, detail: rawStripped };
+  if (rawStripped === native) return { skip: 'not-armed', failed: false, detail: '' };
 
   // collapse two evaluations into ONE when the outputs are byte-identical: both emitters are
   // AST reprints now, so agreeing trees usually print the same bytes. any difference - imports

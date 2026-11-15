@@ -56,7 +56,7 @@ async function judge(snippet, live) {
       sourceType: snippet.sourceType,
       native: verdict.native,
       options: GLOBAL_OPTIONS,
-      provenArmed: snippet.strip === true,
+      strippedNative: verdict.strippedNative,
     });
     globalOutcome = globalVerdict.skip ?? 'checked';
     if (globalVerdict.failed) lines.push(`${ snippet.name } :: [global] ${ globalVerdict.detail }`);

@@ -31,8 +31,8 @@ import { createHash } from 'node:crypto';
 
 const { readFile } = fs;
 
-// which runtime tree a cell's result depends on. `native` and `arming` evaluate the raw corpus
-// source, which imports no core-js at all, so they survive a runtime edit; the usage-pure legs pull
+// Which runtime tree a transformed cell depends on. Raw sources that import core-js invalidate
+// their whole group separately; other native/arming cells survive a runtime edit. Pure legs pull
 // `@core-js/pure` (its ENTRY layer, which `build-entries` generates), the usage-global ones pull
 // `core-js/modules` (whose closure is modules + internals and reaches nothing else)
 const RUNTIME_TYPES = {
@@ -245,10 +245,9 @@ export function collectEvicted() {
 
 // --- coordinator side ---
 
-// drop every cell whose runtime stamp moved, keeping the rest: `native` / `arming` never load
-// core-js, and the two plugin flavours pull different trees, so a pure-runtime edit must not throw
-// the usage-global results away (nor the other way round)
-export function applyRuntimeStamps(parsed, runtime) {
+// Drop cells whose runtime stamp moved. A raw source importing core-js makes every leg
+// runtime-dependent; other sources retain their native/arming and opposite-flavour cells.
+export function applyRuntimeStamps(parsed, runtime, runtimeSources) {
   const stale = [];
   for (const [tree, types] of Object.entries(RUNTIME_TYPES)) {
     if (parsed.runtime?.[tree] !== runtime[tree]) stale.push(...types);
@@ -256,6 +255,7 @@ export function applyRuntimeStamps(parsed, runtime) {
   if (!stale.length) return { cases: parsed.cases ?? {}, stale };
   const cases = {};
   for (const [name, group] of Object.entries(parsed.cases ?? {})) {
+    if (runtimeSources?.has(name)) continue;
     const kept = {};
     for (const [type, cell] of Object.entries(group)) if (!stale.includes(type)) kept[type] = cell;
     cases[name] = kept;

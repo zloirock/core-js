@@ -2,6 +2,9 @@
 export const CACHE_MACHINERY = [
   '../helpers/restore-property.cjs',
   '../e2e-usage-pure/unbacked-window-host.cjs',
+  '../e2e-usage-pure/unbacked-global-host.cjs',
+  '../transpiler-fixtures/usage-pure/pure-import-sources/foreign/features/array.mjs',
+  '../transpiler-fixtures/usage-pure/pure-import-sources/foreign/features/list.mjs',
   'cache-store.mjs',
   'global-leg.mjs',
   'global-leg-worker.mjs',

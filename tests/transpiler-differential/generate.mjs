@@ -172,10 +172,9 @@ function * generateGrammar() {
 // single destructure examples - the cross-product covers shorthand / alias / multi / rest / nested
 // proxy-hop / side-effect-key uniformly. each pattern OBSERVES an injected binding (`typeof from`)
 // so the stripped-realm oracle stays valid (the observable never reads a native that wasn't replaced).
-// `strip` is pattern.strip && host.strip: only declaration hosts off a guaranteed-injected pattern
-// qualify; param-default (synth-swap may bail) and assignment hosts stay full-env only.
-// Object-rest keeps its named slots native in pure. Keep every host in the corpus, including
-// TS wrappers, but test these slots in the full environment and the usage-global stripped leg.
+// Strip admission combines the pattern, host and wrapper below. Patterns marked nativeRest
+// retain native slots; rest or effectful-key captures can serve other wrapped patterns.
+// Every row keeps its full-env/import checks and independent usage-global arming.
 const D_PATTERNS = [
   { id: 'shorthand', wrapperStatic: true, recv: 'Array', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
   { id: 'alias', wrapperStatic: true, recv: 'Array', lhs: '{ from: f }', names: ['f'], observe: 'typeof f', strip: true },
@@ -895,8 +894,10 @@ function * generateStaticRestHosts() {
     for (const [host, body] of hosts) yield {
       ...snippet(`static-rest-host/${ shape }/${ host }`,
         `(() => { function get() { log.push("get"); return Array; } ${ setup } ${ body } })()`),
-      // Static leaves inside literal wrappers are native; their full/global legs still run.
-      strip: !['outer', 'inner', 'array', 'alias-array'].includes(shape) && !nativeHosts[host]?.includes(shape),
+      // Object wrappers remain native in declarations; assignment mirrors and array
+      // captures serve their static leaves. Parameter admission stays explicit above.
+      strip: (!['outer', 'inner'].includes(shape) || ['assignment', 'retained', 'chained'].includes(host))
+        && !nativeHosts[host]?.includes(shape),
     };
   }
 }
@@ -910,8 +911,12 @@ function * generateDestructure() {
       // a host spelled in TS serves only the rows the stripping reaches
       if (host.ts && !pat.strip) continue;
       const name = `destructure-grammar/${ host.id }/${ pat.id }`;
-      // Literal wrappers retain native static reads; instance extraction remains armed.
-      const wrapperStatic = host.id.includes('array-wrap') && pat.wrapperStatic;
+      // Rest and effectful keys take the common capture even inside an array wrapper.
+      const capturedWrapper = pat.id === 'se-key' || pat.id === 'rest' && ![
+        'array-wrap-effect-neighbour', 'array-wrap-pure-neighbour',
+        'array-wrap-effect-before-hole', 'array-wrap-inline-spread-shifted',
+      ].includes(host.id);
+      const wrapperStatic = host.id.includes('array-wrap') && pat.wrapperStatic && !capturedWrapper;
       yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip && !pat.nativeRest && !wrapperStatic, ...host.ts ? { ts: true } : {} };
     }
   }
@@ -1524,7 +1529,7 @@ function * generateObjectHopPairing() {
       const expr = `((${ host.params ?? '' }) => { let n = 0; const hit = () => { n += 1; return 0; };`
         + ` ${ host.setup ?? '' } ${ bind } return [${ claim.observe }, String(n)]; })(${ host.arg ?? '' })`;
       // Direct realm aliases and instance claims retain their existing guarantees.
-      yield { ...snippet(`object-hop-pairing/${ cell }`, expr), strip: host.strip && (!['static', 'static-default', 'ctor', 'ctor-default'].includes(claim.id)
+      yield { ...snippet(`object-hop-pairing/${ cell }`, expr), strip: host.strip && (claim.id !== 'ctor-default' || !['array-value', 'bound-hop-key-array', 'seq-array-value'].includes(host.id)) && (!['static', 'static-default'].includes(claim.id)
         || ['realm-alias', 'closure-realm-alias', 'branching-realm-alias'].includes(host.id)) };
     }
   }
@@ -11633,7 +11638,7 @@ function * generateParameterReceiverChannels() {
     const expr = `(() => { function read(${ parameter }) { return groupBy([1], value => value); }`
       + ` const supplied = read(${ wrap('Map') }); const fallback = read(${ wrap('undefined') });`
       + ' return [supplied.get(1), fallback[1]]; })()';
-    yield { ...snippet(`parameter-receiver/different-default/${ patternId }`, expr), strip: patternId === 'flat' };
+    yield { ...snippet(`parameter-receiver/different-default/${ patternId }`, expr), strip: true };
   }
 }
 
@@ -11664,7 +11669,8 @@ function * generateCapturedContainerWrites() {
         const expr = `(() => { const original = ${ nested ? '{ part: { x: Array } }' : '{ x: Array }' };`
           + ' const custom = { from: xs => [\'custom\', xs[0]] };'
           + ` function opaque() { log.push('rebind'); return {}; } ${ capture } ${ update } return ${ observe }; })()`;
-        yield { ...snippet(`captured-container-write/${ captureId }/${ write }/${ read }`, expr), strip: read !== 'pattern' };
+        yield { ...snippet(`captured-container-write/${ captureId }/${ write }/${ read }`, expr),
+          strip: read !== 'pattern' || nested && ['clean', 'replace-wrapper'].includes(write) };
       }
     }
   }
@@ -14786,12 +14792,22 @@ const DM_EXPORT_HOSTS = {
 };
 // Receivers whose selected keys name instance methods.
 const DM_INSTANCE_RECEIVERS = new Set(['proto', 'literal', 'navProto', 'navRealmProto']);
-// Static/global reads through literal wrappers retain native slots. Keep full-realm,
-// import-set and usage-global checks; missing-native coverage belongs to retained
-// direct statics and to the instance matrix, whose strip contract is unchanged.
-function destructureMatrixStripDeclined({ hostId, receiverId, nestingId }) {
-  return !DM_INSTANCE_RECEIVERS.has(receiverId)
-    && (nestingId !== 'flat' || hostId === 'wrapMulti' || hostId === 'wrapSoleDecl' || hostId === 'wrapMultiDecl');
+// A literal wrapper alone is native. Effectful keys can instead require a common
+// capture, and a retained assignment mirrors its value. Admission follows the cell's
+// host and nesting; it must not disable every spelling of an otherwise native shape.
+function destructureMatrixStripDeclined({ hostId, receiverId, spellingId, nestingId }) {
+  if (DM_INSTANCE_RECEIVERS.has(receiverId)) return false;
+  const arrayHost = ['wrapMulti', 'wrapSoleDecl', 'wrapMultiDecl'].includes(hostId);
+  if (nestingId === 'flat' && !arrayHost || hostId === 'assignValue') return false;
+  if (!['seFirst', 'seSecond', 'seMiddle', 'twoSe'].includes(spellingId)) return true;
+  if (hostId === 'wrapMulti' || hostId === 'assignSeq') return false;
+  if (hostId === 'assign' || hostId === 'assignBodyless') return receiverId === 'navRealm' && nestingId === 'arrInObj';
+  if (arrayHost) return !['flat', 'arrInObj', 'arr2'].includes(nestingId);
+  if (hostId === 'forOfConst' || hostId === 'forOfAssign') {
+    return spellingId !== 'seMiddle' || hostId === 'forOfConst' && nestingId === 'objInArr';
+  }
+  if (['paramDefault', 'paramArg', 'arrowDefault'].includes(hostId)) return true;
+  return nestingId === 'objInArr';
 }
 function destructureMatrixCell({ hostId, host, receiverId, receiver, keys, nav, spellingId, nestingId, wrapperId }) {
   const [wrapPattern, wrapInit] = DM_NESTINGS[nestingId];
@@ -16634,7 +16650,7 @@ function * generateSelectionContainerReads() {
     for (const [shape, read] of SELECTION_CONTAINER_SHAPES) {
       const report = "r instanceof Map ? 'map:' + r.get(1) : 'object:' + r[1]";
       const body = `try { ${ read(on('flag')) } return ${ report }; } catch (error) { return error.constructor.name; }`;
-      yield { ...snippet(`selection-container-reads/${ test }/${ shape }`, `(flag => { ${ body } })(true)`), strip: shape !== 'pattern' };
+      yield { ...snippet(`selection-container-reads/${ test }/${ shape }`, `(flag => { ${ body } })(true)`), strip: shape !== 'pattern' || test === 'undecided-false' };
     }
   }
 }
@@ -16796,7 +16812,8 @@ function * generateDecidedForOfHeadReads() {
             for (${ head(elements) }) { ${ write } out.push(run(() => { ${ read(spelled, key, args) } })); }
             return out;`;
           yield { ...snippet(`decided-for-of-head-reads/${ list }/${ kind }/${ selection }/${ host }`, `(() => { ${ body } })()`),
-            strip: list === 'map-null' || !['nested-level', 'array-sibling'].includes(host) };
+            strip: list === 'map-null' || list === 'map-array' || !['nested-level', 'array-sibling'].includes(host)
+              || host === 'nested-level' && list !== 'number' };
         }
       }
     }
@@ -17085,7 +17102,7 @@ function * generateKeyedCapturesBesideSiblings() {
         const body = `let count = 0; ${ setup }
           try { ${ build(pattern, spelled, names, report) } } catch (error) { return error.constructor.name; }`;
         yield { ...snippet(`keyed-captures-beside-siblings/${ receiver }/${ shape }/${ host }`, `(() => { ${ body } })()`),
-          strip: shape !== 'two-keyed' || host !== 'assignment' };
+          strip: shape !== 'two-keyed' || host !== 'assignment' || receiver === 'call' };
       }
     }
   }
@@ -18333,24 +18350,36 @@ const NESTED_LEAF_ORDER_PATTERNS = [
   ['slot-default', '{ y: { other: { q }, at } = {} }', '[q, at]'],
   ['split-trailing', '{ k, y: { other: { q }, at } }', '[k, q, at]'],
   ['split-leading', '{ y: { other: { q }, at }, k }', '[k, q, at]'],
-  // in an unbraced `var` or a loop head no route of the other leg serves the nested claim beside an extracted
-  // host claim, so those hosts keep it native there
-  ['host-claim-ahead', '{ includes: inc, y: { other: { q }, at } }', '[typeof inc, q, at]', ['unbraced-var', 'loop-head']],
+  ['host-claim-ahead', '{ includes: inc, y: { other: { q }, at } }', '[typeof inc, q, at]'],
   ['effect-key-hop', '{ [(log.push("key"), "y")]: { other: { q }, at } }', '[q, at]'],
   ['two-leaf-claims', '{ y: { at, includes: inc } }', '[at, typeof inc]'],
 ];
-function * generateNestedLeafSourceOrder() {
+function * generateNestedLeafSourceOrder(extension = false) {
   const receiver = 'function nloBox() { return { get k() { log.push("k"); return 0; },'
     + ' get includes() { log.push("includes"); return Array.prototype.includes; }, get y() { log.push("y"); return {'
     + ' get k() { log.push("leaf-k"); return 2; }, get other() { log.push("other"); return { q: 1 }; },'
     + ' get at() { log.push("at"); return "own"; } }; } }; }';
   for (const [hostId, host] of NESTED_LEAF_ORDER_HOSTS) {
-    for (const [patternId, pattern, use, skipHosts = []] of NESTED_LEAF_ORDER_PATTERNS) {
-      if (skipHosts.includes(hostId)) continue;
+    for (const [patternId, pattern, use] of NESTED_LEAF_ORDER_PATTERNS) {
+      // Append restored hosts at the end of the corpus to preserve existing cache prefixes.
+      const appended = patternId === 'host-claim-ahead' && ['unbraced-var', 'loop-head'].includes(hostId);
+      if (appended !== extension) continue;
       const bind = host(pattern, use);
       yield { ...snippet(`nested-leaf-source-order/${ hostId }/${ patternId }`,
         `(() => { ${ receiver } function read(box) { let out; ${ bind } return out; } return read(nloBox()); })()`), strip: false };
     }
+  }
+}
+
+// A real array method, unlike the order matrix's own getter value, exposes lost injection.
+function * generateNestedLeafClaimReads() {
+  for (const [hostId, host] of NESTED_LEAF_ORDER_HOSTS) {
+    const pattern = '{ includes: inc, y: { other: { q }, at } }';
+    const use = '[inc.call([5, 6], 6), q, at.call([5, 6], -1)]';
+    yield { ...snippet(`nested-leaf-claim-read/${ hostId }`, `(() => {
+      function read(box) { let out; ${ host(pattern, use) } return out; }
+      return read({ includes: Array.prototype.includes, y: Object.assign([1, 2], { other: { q: 1 } }) });
+    })()`), strip: true };
   }
 }
 
@@ -19643,8 +19672,8 @@ function * generateRetainedWrapperDefaults() {
   }
 }
 
-// Native wrappers still owe their original read order. The instance-only observation
-// separately arms pure injection without requiring the wrapper's native static to exist.
+// Array wrappers keep their read order. Declarations capture both leaves; an assignment
+// retains its native static when supplied. A custom getter alone needs no polyfill.
 function * generateRetainedWrapperOrder() {
   for (const host of ['declaration', 'assignment']) for (const supplied of [false, true]) {
     for (const getter of [false, true]) for (const staticRead of [false, true]) {
@@ -19656,7 +19685,7 @@ function * generateRetainedWrapperOrder() {
       yield { ...snippet(`retained-wrapper-order/${ host }/${ supplied }/${ getter }/${ staticRead }`,
         `(() => { const custom = { get from() { log.push('from'); return () => [9]; } };
           ${ bind } return [at.call([7, 8], -1)${ staticRead ? ', from([4])[0]' : '' }]; })()`),
-      strip: !staticRead && !getter };
+      strip: !getter && (!staticRead || host === 'declaration' || !supplied) };
     }
   }
 }
@@ -19677,7 +19706,7 @@ function * generateRetainedWrapperNamespaces() {
     ['held-default', 'const fallback = { C };', `const { value: { C: { ${ key }: method } } = fallback } = {};`],
     ['array-default', '', `const { value: [{ ${ key }: method }] = [C] } = {};`],
   ]) yield { ...snippet(`retained-wrapper-namespace/${ name }/${ shape }`,
-    `await (async () => { const C = ${ name }; ${ setup } ${ read } return ${ call }; })()`), strip: true, isolated: true };
+    `await (async () => { const C = ${ name }; ${ setup } ${ read } return ${ call }; })()`), strip: name !== 'Promise', isolated: true };
 }
 
 // Direct probes preserve the absent holder, the first throwing seal and both effect halves.
@@ -19876,10 +19905,9 @@ function * generateDestructureEvaluation() {
     ]) yield {
       ...snippet(`destructure-evaluation/${ nested ? 'nested' : 'flat' }/${ partial ? 'partial' : 'full' }/${ pair ? 'pair' : 'single' }/${ host }`,
         `(() => { ${ setup } ${ body } })()`),
-      // Parameter-body extraction declines computed keys and leaf defaults. Unlike a
-      // default receiver, this caller argument has no synth route for those slots.
-      // Keep its native-read control; the plain caller and default hosts are stripped.
-      strip: host !== 'caller',
+      // The caller capture serves one consumed claim; multiple/residual caller leaves
+      // keep their native boundary. Other hosts retain their stripped controls.
+      strip: host !== 'caller' || !partial && !pair,
     };
   }
 }
@@ -19992,8 +20020,9 @@ function * generatePositionalParameterBarriers() {
 
 // Aliases copied into one another: the union of what an alias may hold is the set reachable through the copies -
 // a copy back into the ring through a pattern, a write reading the alias itself (`P = P || shim`) keeping the
-// value it read - and a static read off the alias is served for every constructor in it. The stripped realm is
-// the leg that sees a missing candidate: the native holds the static, the narrow ponyfill does not.
+// value it read - and a static read off the alias is served for every constructor in it.
+// Isolated full-env runs catch missing ponyfill statics; stripped runs additionally cover
+// groupBy and at. Promise.resolve is not removed by the strip manifest.
 function * generateAliasRings() {
   const group = 'const g = held.groupBy([1, 2, 3], value => value % 2); const r = [g.get(1).length, g.get(0)[0]];';
   for (const [shape, body] of [
@@ -20009,7 +20038,7 @@ function * generateAliasRings() {
     code: `const effects = [];
       ${ body }
       export { r, effects };`,
-    strip: true,
+    strip: !['self-or-write', 'self-nullish-write', 'self-ternary-write'].includes(shape),
     isolated: true,
   };
 }
@@ -20858,7 +20887,7 @@ function * generateSymbolFirstReceiverReads() {
       catch (error) { return error.name; }
       finally { restoreProperty(realm, "iteratorRows", descriptor); }
     })()`, { rig });
-    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: rig };
+    yield { ...row, code: `${ RESTORE_IMPORT }\n${ row.code }`, strip: true };
   }
   for (const args of [false, true]) yield {
     name: `symbol-first-receiver-read/sealed-guard-reuse/${ args }`,
@@ -21992,7 +22021,8 @@ function * generateLiveListPaths() {
   })()`), strip: true };
 }
 
-// Relocated heads retain BigInt values and keys; nested loop receivers have no init slot.
+// Relocated heads retain BigInt values and keys. Nested loop receivers use their
+// per-iteration capture; the returned instance method must work without its native.
 function * generateRelocatedLiteralHeads() {
   for (const host of ['const', 'let', 'var', 'assignment', 'catch', 'for-in']) for (const supplied of host === 'for-in' ? [false] : [false, true]) {
     const pattern = '{ at: method, limit = (log.push("default"), 10n), [1n]: first }';
@@ -22018,7 +22048,7 @@ function * generateRelocatedLiteralHeads() {
       for (${ host === 'let' ? 'let' : 'const' } ${ pattern } of [${ element }]) {
         out.push(includes.call(first, 5));
       } return out;
-    })()`), strip: false };
+    })()`), strip: true };
   }
 }
 
@@ -27100,4 +27130,6 @@ export function * generate() {
   yield * generateIsolatedStaticInstalls();
   yield * generateNestedInstanceSurfaceBase(true);
   yield * generateSealedKeyClaims(true);
+  yield * generateNestedLeafSourceOrder(true);
+  yield * generateNestedLeafClaimReads();
 }

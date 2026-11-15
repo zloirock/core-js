@@ -22,7 +22,7 @@
 // - `not-armed` - the untransformed source does not depend on a stripped builtin
 // - `harness-crash` - the snippet died outside the legs' own guards
 export const LEGS = {
-  'pure-stripped': ['transform-crash', 'not-strip-family', 'native-throw', 'harness-crash'],
+  'pure-stripped': ['transform-crash', 'not-strip-family', 'native-throw', 'not-armed', 'harness-crash'],
   'ast-print-through': ['transform-crash', 'native-throw', 'unparsable', 'harness-crash'],
   'global-stripped': ['pure-only', 'full-env', 'transform-crash', 'native-throw', 'not-armed', 'harness-crash'],
 };

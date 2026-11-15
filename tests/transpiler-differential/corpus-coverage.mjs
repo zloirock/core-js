@@ -5,13 +5,33 @@ import { createChecker } from '../polyfill-provider/harness.mjs';
 
 function checkCorpusCoverage() {
   const { check, checkDeep, finish } = createChecker('differential-corpus-coverage');
+  // Fixed source matrices: runtime parity alone cannot notice an omitted row or strip flag.
+  const matrices = {
+    'destructure-grammar': [2122, 1093],
+    'static-rest-host': [96, 74],
+    'object-hop-pairing': [164, 84],
+    'parameter-receiver': [126, 74],
+    'captured-container-write': [80, 46],
+    'destructure-matrix': [10032, 7776],
+    'selection-container-reads': [15, 13],
+    'decided-for-of-head-reads': [330, 324],
+    'keyed-captures-beside-siblings': [148, 145],
+    'retained-wrapper-order': [16, 7],
+    'destructure-evaluation': [56, 50],
+    'symbol-first-receiver-read': [62, 58],
+    'literal-head': [23, 23],
+    'nested-leaf-source-order': [90, 0],
+    'nested-leaf-claim-read': [9, 9],
+    'retained-wrapper-namespace': [16, 8],
+    'alias-rings': [6, 3],
+  };
   const families = new Map([
     ['wrapped-selecting-receiver', new Map()],
     ['nested-instance-surface', new Map()],
     ['sealed-key-claims', new Map()],
-    ['decided-for-of-head-reads', new Map()],
     ['array-property-order', new Map()],
     ['sole-chain-computed-targets', new Map()],
+    ...Object.keys(matrices).map(name => [name, new Map()]),
   ]);
   for (const { name, strip } of generate()) {
     const slash = name.indexOf('/');
@@ -61,6 +81,26 @@ function checkCorpusCoverage() {
     check(`array mirror ${ host }`, families.get('array-property-order').get(`array-mirror-neighbour-${ host }-true`), true);
   }
   check('computed target beside a sibling', families.get('sole-chain-computed-targets').get('beside-a-sibling'), true);
+  for (const [name, [size, stripped]] of Object.entries(matrices)) {
+    const family = families.get(name);
+    check(`${ name } row count`, family.size, size);
+    check(`${ name } requested strip count`, family.values().filter(Boolean).toArray().length, stripped);
+  }
+  // Host-local counts pin the larger matrix without copying its admission predicate.
+  for (const [host, stripped] of Object.entries({
+    const: 436, let: 436, var: 436, assign: 448, assignValue: 528, assignBodyless: 448,
+    assignSeq: 452, wrapMulti: 424, wrapSoleDecl: 344, wrapMultiDecl: 344,
+    forOfConst: 356, forOfAssign: 360, paramDefault: 340, paramArg: 340, arrowDefault: 340,
+    exportConst: 436, exportLet: 436, exportVar: 436, exportMulti: 436,
+  })) {
+    const cells = [...families.get('destructure-matrix')].filter(([cell]) => cell.startsWith(`${ host }/`));
+    check(`${ host } matrix size`, cells.length, 528);
+    check(`${ host } matrix strip count`, cells.filter(([, strip]) => strip).length, stripped);
+  }
+  for (const host of ['unbraced-var', 'loop-head']) {
+    check(`${ host } host claim order`, families.get('nested-leaf-source-order').get(`${ host }/host-claim-ahead`), false);
+    check(`${ host } host claim injection`, families.get('nested-leaf-claim-read').get(host), true);
+  }
   finish();
 }
 
