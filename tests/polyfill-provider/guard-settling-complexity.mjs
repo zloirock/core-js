@@ -3,14 +3,15 @@
 // accumulators under tests of one another (a text wrapper's lines, words and widths) settled every write of the
 // others under every settling that reached it: a power of the writes. Such an answer is kept while the settling it
 // took as open is in flight. Count the guard decisions (`adapter.settledSelection`) detecting such a loop takes over
-// w guard blocks and over 2w, both parsers, both methods - the member reads and every selection the visitors decide:
-// kept, the count grows by a bounded factor; settled anew, by a power. Then the keep itself, on a pair of writes
+// w guard blocks and over 2w, both parsers, both methods - the member reads and every selection the visitors decide.
+// Global rejects loop dominance before settling; pure keeps the count bounded instead of growing by a power.
+// Then the keep itself, on a pair of writes
 // guarding one another: a settling reached twice under one in flight is settled once, settled afresh once that
 // settling completed, and kept for good after that
 import { collectPrePassSites as collectBabelPrePassSites, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectPrePassSites, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
-  collectFileCensus, cutDeepWalk, cycleGuardHas, readDecidesWrite, refuseReentry, withReentrantQuestion, writeNeverRuns,
+  collectFileCensus, cutDeepWalk, cycleGuardHas, readDecidesWrite, reassignBailApplies, refuseReentry, withReentrantQuestion, writeNeverRuns,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
@@ -89,7 +90,7 @@ function detect({ parser, method, source, budget }) {
   }
 }
 
-// three accumulators over three blocks settle in the hundreds; settled anew under every settling that reached them
+// pure's three accumulators over three blocks settle in the hundreds; settled anew under every settling that reached them
 // they pass this ceiling at two blocks already
 const CEILING = 20000;
 
@@ -97,11 +98,42 @@ for (const parser of adapters) for (const method of ['usage-pure', 'usage-global
   const label = `${ parser.name }/${ method }`;
   const short = detect({ parser, method, source: wrapLoop(3, 3), budget: CEILING });
   checkTruthy(`${ label }/the member reads claim`, short.claims > 0, `${ short.claims } claims`);
-  checkTruthy(`${ label }/the guards are settled`, short.count > 0, `${ short.count ?? `past ${ CEILING }` } decisions`);
+  // A loop read admits no dominating write in global: settling its guards cannot change that.
+  // The cycle probes below still require live guard decisions in both methods.
+  checkTruthy(`${ label }/only required guards are settled`,
+    method === 'usage-global' ? short.count === 0 : short.count > 0, `${ short.count ?? `past ${ CEILING }` } decisions`);
   if (short.count === null) continue;
   // twice the blocks: twice the writes under twice the tests, each settled once per settling in flight
   const long = detect({ parser, method, source: wrapLoop(3, 6), budget: short.count * 8 });
   checkTruthy(`${ label }/decisions stay polynomial in the blocks`, long.count !== null, `${ short.count } -> past ${ short.count * 8 }`);
+}
+
+// The CI-sized ring used to exhaust the alias budget and invalidate thousands of temporary
+// answers. No write can dominate these loop reads, regardless of how its guards settle.
+for (const parser of adapters) for (const blocks of [96, 192]) {
+  const result = detect({ parser, method: 'usage-global', source: wrapLoop(16, blocks), budget: CEILING });
+  const label = `${ parser.name }/global loop/${ blocks } blocks`;
+  checkTruthy(`${ label }/member claims remain live`, result.claims > 0, `${ result.claims } claims`);
+  check(`${ label }/no unused guard decisions`, result.count, 0);
+}
+
+// A live write still kills the initializer outside a loop; a dead one must not.
+// In a rerun slot neither verdict can establish dominance, so no decision is needed.
+for (const parser of adapters) for (const dead of [false, true]) for (const loop of [false, true]) for (const inside of [false, true]) {
+  const body = inside ? 'if (choose) { a = Array; a.from(list); }' : 'if (choose) a = Array; a.from(list);';
+  const program = parser.parseAndScope(`let a = Map; ${ loop ? `while (repeat) { ${ body } }` : body }`);
+  const read = parser.pickPath(program, 'MemberExpression');
+  const adapter = makeAdapter(parser, 'usage-global', () => null);
+  let decisions = 0;
+  adapter.settledSelection = () => {
+    decisions++;
+    return { [dead ? 'skip' : 'fold']: 'consequent' };
+  };
+  const binding = adapter.getBinding({ scope: read.scope, name: 'a', path: read });
+  const label = `${ parser.name }/dominance/dead=${ dead }/loop=${ loop }/inside=${ inside }`;
+  check(`${ label }/only a live write outside the loop dominates`,
+    reassignBailApplies({ binding, adapter, path: read }), !dead && !loop);
+  check(`${ label }/only a relevant guard is settled`, decisions, loop ? 0 : 1);
 }
 
 // a write of `a` under two guards reading `b`, a write of `b` under a guard reading `a`, and a read of `a` after

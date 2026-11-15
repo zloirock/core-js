@@ -5382,9 +5382,11 @@ export function initializerReachesRead({ adapter, binding, declaratorNode, usage
 // a caller that names the reaching value itself, so drops nothing, passes `climb`: a write completing
 // before the reading closure is created then dominates as well (`nodeDominatesUsage`, as a replacing write).
 // an `adapter` deciding selections opens their live arms (`undecidedVarGuards`). `beforeNode` keeps the writes the
-// source provably places ahead of it, asked of each in turn: a long list stops at the first write that dominates
+// source provably places ahead of it, asked of each in turn: a long list stops at the first write that dominates.
+// `isLive` excludes dead writes only after the structural gates: a loop read admits no dominating write,
+// so settling those writes' guards would recursively ask a question whose answer cannot matter.
 export function reassignmentDominatesUsage({
-  reassignmentNodes, usagePath, usageNode = null, afterNode = null, beforeNode = null, adapter = null, climb = false,
+  reassignmentNodes, usagePath, usageNode = null, afterNode = null, beforeNode = null, adapter = null, climb = false, isLive = null,
 }) {
   if (!usagePath || !reassignmentNodes?.length) return false;
   const owner = findNearestVarScopeOwner(usagePath);
@@ -5407,7 +5409,7 @@ export function reassignmentDominatesUsage({
   // that registration can kill its candidate; missing source positions prove nothing.
   return reassignmentNodes.some(node => (!afterNode || provablyPrecedes(afterNode, node))
     && (!beforeNode || provablyPrecedes(node, beforeNode)) && !useOutrunsWrite(node, usagePath)
-    && nodeDominatesUsage({ node, usagePath, owner, climb, usageNode, adapter, replaces: true }));
+    && (!isLive || isLive(node)) && nodeDominatesUsage({ node, usagePath, owner, climb, usageNode, adapter, replaces: true }));
 }
 
 // per-node counterpart to nodeDominatesUsage for the SUBSTITUTE direction: does reassignment `node`
@@ -8846,7 +8848,8 @@ export function reassignBailApplies({ binding, adapter, path, usageNode = null, 
   // the anchor, pure bails a provably-live init whose only writes flip the key AFTER the capture
   if (method === 'usage-pure') return reassignmentReachesUsage({ binding, adapter, path, usageNode });
   return reassignmentDominatesUsage({
-    reassignmentNodes: liveReassignmentNodes(binding, path, adapter), usagePath: path, usageNode, afterNode, adapter,
+    reassignmentNodes: reassignmentNodesBeyondDeclarator(binding), usagePath: path, usageNode, afterNode, adapter,
+    isLive: node => !writeNeverRuns({ write: recordedWrite(binding, node), usagePath: path, adapter }),
   });
 }
 
