@@ -50,9 +50,6 @@ export default class ImportInjector extends ImportInjectorState {
     if (inherit) this.#rehydrate(inherit);
   }
 
-  // late-bound: outer plugin constructs debugOutput AFTER the injector. lazy lookup avoids
-  // TDZ; null-safe so `phase: 'post'` direct invocations without debug still work
-
   #rehydrate(snap) {
     // defensive `?? EMPTY` for every field: SnapshotCache persists across long-running dev
     // servers, and a plugin-version upgrade mid-session could bring in a snapshot missing

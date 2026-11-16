@@ -48,15 +48,21 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
   for (const hook of [false, true]) {
     const claims = [];
     const roots = [];
-    const visitors = createVisitors({
+    const options = {
       adapter: createAdapter({ method }),
       method,
       walkAnnotations: false,
       onUsage(meta) { claims.push(meta.name); },
       suppressKeptNavRoot: hook ? path => { roots.push(path.node.name); return true; } : null,
-    });
+    };
+    // The ESTree binding has no suppression hook. Test the shared hook at its owner,
+    // while the ordinary path continues through the production binding's reference gate.
+    const core = hook && parser.name !== 'babel' ? createUsageHandlerCore(options) : null;
+    const visitors = core ? null : createVisitors(options);
     for (const path of paths) {
-      const read = readsReferenceParent(path, visitors.ReferencedIdentifier ?? visitors.Identifier);
+      const read = readsReferenceParent(path, core
+        ? current => core.emitGlobalUsage(current)
+        : visitors.ReferencedIdentifier ?? visitors.Identifier);
       const observed = hook || path.node.name === 'Map';
       check(`global name gate/${ parser.name }/${ method }/${ hook }/${ path.node.name }/reference query`, read, observed);
     }

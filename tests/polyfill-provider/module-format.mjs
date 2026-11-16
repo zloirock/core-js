@@ -8,6 +8,8 @@
 import {
   collectFileCensus,
   detectCommonJS,
+  hostRequireCallLimit,
+  isReusableReceiver,
   isSloppyAtPath,
   moduleFormatReducer,
   moduleFormatMarkers,
@@ -20,6 +22,8 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { parseSync } from 'oxc-parser';
 import { moduleIdLanguage } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker, expectError } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('module-format');
@@ -197,7 +201,7 @@ const FORMAT = [
   // the extension outranks a body with no module proof, and a declared `module` is a default
   ['cjs extension, cjs body', '/p.cjs', 'module.exports = 1;', 'module', null, 'script', 'require'],
   ['cjs extension, bare body', '/p.cjs', 'g();', 'module', null, 'script', 'require'],
-  ['mjs extension, cjs body', '/p.mjs', 'module.exports = 1;', 'module', null, 'module', 'require'],
+  ['mjs extension, cjs body', '/p.mjs', 'module.exports = 1;', 'module', null, 'module', 'import'],
   // a declared SCRIPT is a statement about the file; a declared module is not
   ['host declared a script', '/p.js', 'g();', 'script', null, 'script', 'require'],
   ['host declared a script with a cjs body', '/p.js', 'module.exports = 1;', 'script', null, 'script', 'require'],
@@ -234,6 +238,23 @@ for (const [label, id, source, declaredSourceType, importStyleOption, sourceType
     }, { sourceType, importStyle });
   });
 }
+
+// A subsequent pass can see a lowered tree under the same Program identity.
+runBoth('fresh census replaces earlier module markers', 'export const value = 3;', (adapter, prog, label) => {
+  const program = prog.node;
+  const { body } = program;
+  const first = resolveModuleFormat({ id: '/input.mjs', program });
+  check(`${ label }/initial ESM`, first.markers.hasLiveESM, true);
+  program.body = body.map(node => node.declaration);
+  for (const restored of [false, true]) {
+    if (restored) program.body = body;
+    const { moduleFormat } = collectFileCensus(program, [moduleFormatReducer()]);
+    const format = resolveModuleFormat({ id: '/input.mjs', program, moduleFormat, moduleType: 'javascript/dynamic' });
+    check(`${ label }/${ restored }/fresh evidence`, format.markers.hasLiveESM, restored);
+    check(`${ label }/${ restored }/spelling`, format.importStyle, restored ? 'import' : 'require');
+    check(`${ label }/${ restored }/cached diagnostics`, moduleFormatMarkers(program), format.markers);
+  }
+});
 
 // --- the realm half: a script no CommonJS wrapper is known to host may run bare ---
 
@@ -372,6 +393,45 @@ for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/e
       check(`${ label }/wrapper`, programTopLevelIsRealm(prog.node), false);
     });
   }
+}
+
+// A permissive parse goal cannot change the loader selected by an ESM filename.
+for (const ext of ['mjs', 'mts', 'mjs?worker', 'mts#part']) {
+  for (const goal of ['script', 'commonjs', 'module']) {
+    runBoth(`ESM id/${ ext }/${ goal }`, '[1].at(0);', (adapter, prog, label) => {
+      prog.node.sourceType = goal;
+      const format = resolveModuleFormat({ id: `/worker.${ ext }`, program: prog.node, declaredSourceType: goal });
+      check(`${ label }/language`, format.sourceType, 'module');
+      check(`${ label }/injection`, format.importStyle, 'import');
+      check(`${ label }/realm`, programTopLevelIsRealm(prog.node), false);
+    });
+  }
+}
+
+for (const goal of ['script', 'commonjs', 'module']) for (const name of ['require', 'dep']) {
+  runBoth(`unpublished require/${ goal }/${ name }`, `var ${ name } = require("./dep");`, (adapter, prog, label) => {
+    prog.node.sourceType = goal;
+    check(`${ label }/unpublished`, hostRequireCallLimit(prog.node), 0);
+    resolveModuleFormat({ id: '/input.cjs', program: prog.node, declaredSourceType: goal });
+    check(`${ label }/published`, hostRequireCallLimit(prog.node), name === 'require' ? 0 : 1);
+  });
+}
+
+// CommonJS vars belong to the wrapper, not the realm, regardless of whether the host
+// writes the format verdict back onto its Program. A bare Script var remains observable.
+for (const goal of ['script', 'module', 'commonjs']) for (const cjs of [false, true]) {
+  runBoth(`receiver format/${ goal }/${ cjs }`, 'var list; list = [4]; list.at(0);', (parser, prog, label) => {
+    prog.node.sourceType = goal;
+    const declaredSourceType = cjs ? 'commonjs' : 'script';
+    const format = resolveModuleFormat({ id: '/input.js', program: prog.node, declaredSourceType });
+    check(`${ label }/language`, format.sourceType, 'script');
+    check(`${ label }/realm`, programTopLevelIsRealm(prog.node), !cjs);
+    const path = parser.pickPath(prog, 'MemberExpression', p => p.node.property.name === 'at');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    check(`${ label }/reuse`, isReusableReceiver(path.node.object, {
+      interveningEffects: true, ctx: { scope: path.scope, adapter, path },
+    }), cjs);
+  });
 }
 
 finish();

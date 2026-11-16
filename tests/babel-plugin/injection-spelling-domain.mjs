@@ -1,7 +1,7 @@
-// The spelling of an injected import is chosen from three facts - what the body spells on the ESM
-// side, what it spells on the CommonJS side, and whether the running method REMOVES any of that ESM
+// The spelling of an injected import follows the filename, the body's ESM/CommonJS markers,
+// and whether the running method REMOVES any of that ESM
 // - and the domain is small enough to enumerate rather than sample. Each cell is judged by what
-// would LOAD the emitted file: an ESM statement and a top-level `require` in one file load nowhere,
+// would LOAD the emitted file, including the filename: an ESM statement and a top-level `require` in one file load nowhere,
 // so a cell that emits both is a defect however the rule reached it. Two such cells were found by
 // hand before this enumeration existed, one in each direction.
 // BABEL_REQUIRE_FROM mirrors the fixture runner's hook so the suite runs under babel@8 (default)
@@ -56,9 +56,9 @@ const OUR_SPECIFIER = /^(?:core-js\/modules\/|@core-js\/pure\/)/;
 // the printed mixture. A source that already spells both module systems loads nowhere whatever we
 // put in it, and `sourceIsMixed` reports that; the defect this enumeration is for is our injection
 // adding a SECOND system to a body that had one
-function verdictOf(code) {
+function verdictOf(code, id) {
   // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const { program } = parseSync('/p.js', code, { lang: 'jsx', sourceType: 'module' });
+  const { program } = parseSync(id, code, { lang: 'jsx', sourceType: 'module' });
   function ours(node) {
     return ESM_STATEMENT_TYPES.has(node.type)
       && typeof node.source?.value === 'string' && OUR_SPECIFIER.test(node.source.value);
@@ -74,43 +74,47 @@ function verdictOf(code) {
   const authorCJS = /\bmodule\.exports\b|\bexports\.\w|\b__dirname\b|\b__filename\b/.test(code)
     || /(?:^|[^"])\brequire\("(?!core-js\/modules\/|@core-js\/pure\/)/m.test(code);
   const injects = ourRequire || ourImport;
-  if (authorESM && authorCJS) return { verdict: 'author-mixed', injects };
+  // CommonJS text in .mjs is already incompatible with its loader. It cannot license
+  // another require from our injection, even after entry-global consumes the last import.
+  const pinnedESM = id.endsWith('.mjs');
+  if (pinnedESM && ourRequire) return { verdict: 'loads nowhere: our require in an ESM file', injects };
+  if ((authorESM || pinnedESM) && authorCJS) return { verdict: 'author-mixed', injects };
   if (authorESM && ourRequire) return { verdict: 'loads nowhere: our require beside the author\'s ESM', injects };
   if (authorCJS && ourImport) return { verdict: 'loads nowhere: our import beside the author\'s CommonJS', injects };
   return { verdict: ourRequire ? 'cjs' : ourImport ? 'esm' : 'no injection', injects };
 }
 
 const injected = new Map();
-for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+for (const id of ['/p.js', '/p.mjs']) for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
   for (const [esmLabel, esm] of ESM_SIDE) {
     for (const [cjsLabel, cjs] of CJS_SIDE) {
       const source = esm + cjs + (method === 'entry-global' ? '' : USE);
       if (!source.trim()) continue;
       // eslint-disable-next-line node/no-sync -- the enumeration is synchronous, and so is the compare
       const out = transformSync(source, {
-        filename: '/p.mjs', babelrc: false, configFile: false, sourceType: 'module',
+        filename: id, babelrc: false, configFile: false, sourceType: 'module',
         plugins: [['../../packages/core-js-babel-plugin/index.js',
           { method, version: '4.0', targets: { ie: 11 } }]],
       })?.code ?? '';
-      const { verdict, injects } = verdictOf(out);
+      const { verdict, injects } = verdictOf(out, id);
       if (injects) injected.set(method, (injected.get(method) ?? 0) + 1);
-      check(`spelling/${ method } esm=${ esmLabel } cjs=${ cjsLabel }`,
+      check(`spelling/${ id }/${ method } esm=${ esmLabel } cjs=${ cjsLabel }`,
         verdict.startsWith('loads nowhere') ? `${ verdict }\n${ out }` : 'ok', 'ok');
       // the format owner is shared, so a cell the two legs spell differently is a binding defect -
       // and this enumeration is the only place the whole domain is asked of both
       // a leg that changed nothing answers `null`, and comparing that against the printed source
       // would read every untouched cell as a divergence
       const other = createUnplugin({ method, version: '4.0', targets: { ie: 11 } })
-        .transform.call({ warn: noop }, source, '/p.mjs')?.code ?? source;
-      check(`spelling/${ method } esm=${ esmLabel } cjs=${ cjsLabel } - both legs agree`,
-        verdictOf(other).verdict, verdict);
+        .transform.call({ warn: noop }, source, id)?.code ?? source;
+      check(`spelling/${ id }/${ method } esm=${ esmLabel } cjs=${ cjsLabel } - both legs agree`,
+        verdictOf(other, id).verdict, verdict);
     }
   }
 }
 // the enumeration means nothing unless the cells inject: a usage method has a claim in every one of
 // them, while `entry-global` has something to do only where the ESM side spells the entry itself
-check('spelling/every usage-global cell injects', injected.get('usage-global'), ESM_SIDE.length * CJS_SIDE.length);
-check('spelling/every usage-pure cell injects', injected.get('usage-pure'), ESM_SIDE.length * CJS_SIDE.length);
-check('spelling/entry-global injects exactly where the entry stands', injected.get('entry-global'), CJS_SIDE.length);
+check('spelling/every usage-global cell injects', injected.get('usage-global'), 2 * ESM_SIDE.length * CJS_SIDE.length);
+check('spelling/every usage-pure cell injects', injected.get('usage-pure'), 2 * ESM_SIDE.length * CJS_SIDE.length);
+check('spelling/entry-global injects exactly where the entry stands', injected.get('entry-global'), 2 * CJS_SIDE.length);
 
 finish();

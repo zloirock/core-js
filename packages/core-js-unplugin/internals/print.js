@@ -808,8 +808,9 @@ function followsOnLine(source, offset) {
 // print a parsed program back to source. `jsx` picks the tsx language - the caller owns
 // the id-to-dialect decision, same as it owns it for the parse. the returned map keeps
 // the plugin's map contract: `sources[0]` keeps the full id (SFC sub-block
-// identity), `file` is the query-stripped basename, content rides only when requested
-export function printProgram({ program, comments, source, id, jsx = false, includeContent = true,
+// identity), `file` is the query-stripped basename. The printer includes original content;
+// the post stage owns its omission when chaining through a pre-stage map.
+export function printProgram({ program, comments, source, id, jsx = false,
   anchoredComments = null, leadingPragmas = [], originalSource = source }) {
   // for a `.mjs`/`.cjs` parse oxc reports the hashbang BOTH as `program.hashbang` and as a
   // comment; printing both would double it - the re-emission below owns it
@@ -930,7 +931,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
     }
     return print(program, language, {
       sourceMapSource: id,
-      sourceMapContent: includeContent ? originalSource : undefined,
+      sourceMapContent: originalSource,
     });
   }
   let printed = render();

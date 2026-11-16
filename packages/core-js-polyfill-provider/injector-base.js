@@ -37,6 +37,7 @@ import {
   peelNestedSequenceExpressions,
   peelSequenceTail,
   performsNothing,
+  programTopLevelIsRealm,
   pureImportSourceEntry,
   reEvaluationObservable,
   sequenceElementsKept,
@@ -1416,7 +1417,7 @@ export function unwrapWriteOnlyGuardMemos(census, { injectorState = null, contex
       // The source store already holds the snapshot. Its single writer must belong to
       // this activation; an outer binding could change when a getter re-enters its writer.
       if (!['let', 'var'].includes(source?.kind) || frame !== writer.frame
-        || frame?.type === 'Program' && frame.sourceType === 'script' && source.kind === 'var'
+        || programTopLevelIsRealm(frame) && source.kind === 'var'
         || !ctx.adapter.collectBindingReferences?.(ctx.path, tail.name, { closed: true })
         || writes.length !== 1 || !span || !site || site.start !== span.start || site.end !== span.end) continue;
     }

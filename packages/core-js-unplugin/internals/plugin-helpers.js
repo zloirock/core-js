@@ -14,24 +14,25 @@ import { coreJSImportSubpath, moduleIdLanguage } from '@core-js/polyfill-provide
 // takes, and it stays in the binding because the vocabulary is the parser's. `lang` also drives the
 // PRINTER, and the two must never disagree - a tree parsed as JSX printed by the non-JSX printer
 // throws.
-// the goal is `module` for everything but a CommonJS extension, and deliberately NOT oxc's
+// The goal is `module` except for a CommonJS extension or explicit host, and deliberately NOT oxc's
 // `unambiguous`: that decides by ESM DECLARATIONS alone, so a module whose only module-only syntax
 // is a top-level `await` comes back as a script - and worse, silently reparsed, with
 // `await (import(x))` becoming a CALL of something named `await`. `script` is reached instead by
-// the retry the parse makes when the module goal is PROVEN wrong by a fatal error. a CommonJS
-// id whose Script goal rejects ESM can retry Module too; a successful initial parse always stays
-export function sourceDialectOf(cleanId, loader) {
+// a retry after a syntax or strict-mode error. CommonJS additionally admits wrapper-only
+// syntax such as a top-level return. A successful initial parse always stays.
+export function sourceDialectOf(cleanId, loader, moduleType) {
   const filename = moduleIdLanguage(cleanId);
   const language = loader ? moduleIdLanguage(`input.${ loader }`) : filename;
   const jsx = language?.jsx ?? true;
+  const scriptHost = moduleType === 'javascript/auto' || moduleType === 'javascript/dynamic';
   return {
     jsx,
-    // `.mjs` / `.mts` are Modules by extension whatever the body says, which is what makes the
-    // parse's own goal non-evidence there: a module parse that fails on one of them means a broken
-    // file, not a script
-    esm: filename?.esm ?? false,
+    // An explicit host overrides the extension, as in resolveModuleFormat. Otherwise an
+    // `.mjs` / `.mts` parse failure means a broken Module, not permission to retry Script.
+    esm: moduleType === 'javascript/esm' || !scriptHost && (filename?.esm ?? false),
     lang: language?.ts ? (jsx ? 'tsx' : 'ts') : 'jsx',
-    parseGoal: filename?.script ? 'script' : 'module',
+    parseGoal: moduleType === 'javascript/dynamic'
+      || moduleType !== 'javascript/esm' && filename?.script ? 'commonjs' : 'module',
   };
 }
 

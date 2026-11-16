@@ -1950,6 +1950,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           id: path.hub.file.opts.filename,
           program: path.node,
           declaredSourceType: path.node.sourceType,
+          // A preceding Babel preset may already have lowered this .mjs tree to CommonJS.
+          // Its explicit host format outranks the original filename, just as in a bundler.
+          moduleType: path.node.sourceType === 'script'
+            && path.hub.file.get('@babel/plugin-transform-modules-*') === 'commonjs' ? 'javascript/dynamic' : null,
           importStyleOption,
           // only this method removes an ESM statement, and only the entry shape it recognises; a
           // statement the author opted out of is not removed either, so it still holds the spelling

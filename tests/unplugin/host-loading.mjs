@@ -40,8 +40,24 @@ for (const ext of ['vue', 'svelte', 'astro', 'md', 'mdx', 'svx', 'gjs', 'gts']) 
 }
 
 checkDeep('loader overrides syntax but preserves filename goal', sourceDialectOf('/app/view.cjs', 'tsx'),
-  { jsx: true, esm: false, lang: 'tsx', parseGoal: 'script' });
+  { jsx: true, esm: false, lang: 'tsx', parseGoal: 'commonjs' });
 check('loader preserves explicit ESM', sourceDialectOf('/app/view.mjs', 'ts').esm, true);
+
+for (const extension of ['mjs', 'cjs']) for (const moduleType of ['javascript/auto', 'javascript/dynamic', 'javascript/esm']) {
+  const id = `/app/view.${ extension }`;
+  const esm = moduleType === 'javascript/esm';
+  const dialect = sourceDialectOf(id, 'tsx', moduleType);
+  check(`${ extension }/${ moduleType }/pinned`, dialect.esm, esm);
+  check(`${ extension }/${ moduleType }/goal`, dialect.parseGoal,
+    !esm && (extension === 'cjs' || moduleType === 'javascript/dynamic') ? 'commonjs' : 'module');
+  const warnings = [];
+  const output = createPlugin({ method: 'usage-pure', targets: { ie: 11 } }).transform.call({
+    warn(message) { warnings.push(message); },
+  }, 'if (false) return; var result = [3].at(0);', id, 'single', '', { moduleType });
+  check(`${ extension }/${ moduleType }/return diagnostic`, warnings.length, esm ? 1 : 0);
+  if (esm) check(`${ extension }/${ moduleType }/rejected`, output, null);
+  else checkTruthy(`${ extension }/${ moduleType }/require`, output?.code.includes('require('));
+}
 
 for (const phase of ['pre', 'post', 'pre+post']) {
   const stages = unplugin.raw({ method: 'usage-pure', phase }, { framework: 'vite' });

@@ -3,6 +3,8 @@
 import { access, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { parseSync } from 'oxc-parser';
+import { moduleIdLanguage } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 
 async function exists(file) {
   try {
@@ -35,6 +37,27 @@ export function inferTestId(babelOptions) {
   const hasTs = parserPlugins.includes('typescript');
   if (hasJsx) return hasTs ? 'input.tsx' : 'input.jsx';
   return 'input.ts';
+}
+
+// Output may retain CommonJS wrapper syntax such as a top-level return. Keep pinned ESM
+// validation strict, and retain the original diagnostic when neither goal accepts it.
+export function parseFixture(id, source) {
+  // eslint-disable-next-line node/no-sync -- fixture validation consumes the AST synchronously
+  const parsed = parseSync(id, source, { sourceType: 'module' });
+  if (parsed.errors?.some(error => error.severity === 'Error') && !moduleIdLanguage(id)?.esm) {
+    // eslint-disable-next-line node/no-sync -- retry the same source in its wrapper
+    const commonjs = parseSync(id, source, { sourceType: 'commonjs' });
+    if (!commonjs.errors?.some(error => error.severity === 'Error')) {
+      commonjs.program.sourceType = 'script';
+      return commonjs;
+    }
+  }
+  return parsed;
+}
+
+export function parseFixtureOrNull(id, source) {
+  const parsed = parseFixture(id, source);
+  return parsed.errors?.some(error => error.severity === 'Error') ? null : parsed;
 }
 
 // the @core-js plugin's own options out of the babel-shaped fixture options; `targets`

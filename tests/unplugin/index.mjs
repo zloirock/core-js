@@ -1,8 +1,7 @@
-import { parseSync } from 'oxc-parser';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { commentSignature, strip } from './structural.mjs';
-import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, shouldSkip } from './fixture-lang.mjs';
+import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, parseFixture, parseFixtureOrNull, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   FIXTURE_SHARD,
@@ -60,18 +59,12 @@ function collapseDriftingTargets(text) {
   return text === null ? text : text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
 }
 
-function parseOrNull(parseId, source) {
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const parsed = parseSync(parseId, source, { sourceType: 'module' });
-  return parsed.errors?.some(error => error.severity === 'Error') ? null : parsed;
-}
-
 // the injected-polyfill set for the imports-only loose lanes, BOTH spellings: usage-global
 // writes a BARE `import "core-js/modules/..."` (or a side-effect `require(...)`), usage-pure
 // a DEFAULT import off `@core-js/pure`. the two package names normalize together, as the
 // differential's own extractor does
 function importsOf(text, parseId) {
-  const parsed = parseOrNull(parseId, text);
+  const parsed = parseFixtureOrNull(parseId, text);
   if (!parsed) throw new Error('output does not parse for the import-set compare');
   return JSON.stringify(importSources(parsed.program)
     .filter(source => /^@?core-js(?:\/pure)?\//u.test(source))
@@ -208,8 +201,7 @@ function checkOutputParses(directory, code, testId) {
   // parser-language hint in the query); without it the validator rejects TS / JSX syntax
   // on the `.vue` / `.svelte` extension default
   const parseId = liftSfcLangSuffix(testId);
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const parsed = parseSync(parseId, code, { sourceType: 'module' });
+  const parsed = parseFixture(parseId, code);
   const errors = parsed.errors?.filter(err => err.severity === 'Error');
   if (!errors?.length) return true;
   counts.failed++;
@@ -269,8 +261,8 @@ function checkPrePost(directory, source, pluginOptions, testId, single, expected
     return;
   }
   const parseId = liftSfcLangSuffix(testId);
-  const before = parseOrNull(parseId, single);
-  const after = parseOrNull(parseId, result.code);
+  const before = parseFixtureOrNull(parseId, single);
+  const after = parseFixtureOrNull(parseId, result.code);
   if (!before || !after) {
     counts.phaseFailed++;
     echo(red(`${ cyan(name) } pre+post failed: output does not parse for the import comparison`));
@@ -424,9 +416,9 @@ async function compareMainOutput({ directory, actual, babelOutput, babelOptions,
   if (looseLane) {
     agrees = importsOf(actual, parseId) === importsOf(babelOutput, parseId);
   } else {
-    const baselineParsed = parseOrNull(parseId, babelOutput);
+    const baselineParsed = parseFixtureOrNull(parseId, babelOutput);
     if (!baselineParsed) return fail(directory, 'babel baseline does not parse for the structural compare');
-    const actualParsed = parseOrNull(parseId, actual);
+    const actualParsed = parseFixtureOrNull(parseId, actual);
     if (!actualParsed) return fail(directory, 'output does not parse for the structural compare');
     agrees = JSON.stringify(strip(actualParsed.program)) === JSON.stringify(strip(baselineParsed.program));
     // Comments live beside the AST in oxc. Structural equality alone would silently erase

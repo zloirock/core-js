@@ -351,15 +351,15 @@ function anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLi
 
 // The WASM entry only exposes the standard parser. Eager transfer on native hosts
 // reads slices from the original string, while the standard parser replaces lone surrogates.
-function parseSource(id, code, lang, sourceType) {
+function parseSource(id, code, lang, sourceType, showSemanticErrors = false) {
   if (oxc.rawTransferSupported?.() && code.isWellFormed()) {
     try {
       // eslint-disable-next-line node/no-sync -- the transform consumes the tree synchronously
-      return oxc.parseSync(id, code, { lang, sourceType, experimentalRawTransfer: true });
+      return oxc.parseSync(id, code, { lang, sourceType, showSemanticErrors, experimentalRawTransfer: true });
     } catch { /* The runtime may refuse the transfer buffer even on a supported platform. */ }
   }
   // eslint-disable-next-line node/no-sync -- the fallback has the same synchronous contract
-  return oxc.parseSync(id, code, { lang, sourceType });
+  return oxc.parseSync(id, code, { lang, sourceType, showSemanticErrors });
 }
 
 // disable-directive state for a (code, ast, comments) snapshot: the offset->line mapper
@@ -608,10 +608,10 @@ export default function createPlugin(options) {
     // INSIDE the query (`?vue&type=script&lang=ts`); `liftSfcLangSuffix` recovers it onto
     // the post-strip id so the right parser fires
     const cleanId = liftSfcLangSuffix(id);
-    // The id supplies the parse goal; a host loader can override its syntax dialect. What the
+    // The id and explicit host supply the parse goal; a loader can override its syntax dialect. What the
     // file IS, and how the injection is spelled, are the format owner's below, and they read
     // the body this parse produces.
-    const sourceDialect = sourceDialectOf(cleanId, hostOptions.loader);
+    const sourceDialect = sourceDialectOf(cleanId, hostOptions.loader, hostOptions.moduleType);
     // strip leading BOM(s) before parsing - oxc rejects BOM-prefixed shebangs, and
     // offsetting AST positions would corrupt every transform. The output does NOT carry a
     // BOM (babel alignment); the map restores first-line columns and the exact input below.
@@ -634,17 +634,29 @@ export default function createPlugin(options) {
     // they go before the parse. `createClassHelpers` is per-transform-fresh below; only the
     // persistent resolver needs clearing here
     typeResolvers.reset();
-    let parsed = parseSource(cleanId, code, sourceDialect.lang, sourceDialect.parseGoal);
+    const checkGoal = !sourceDialect.esm && sourceDialect.parseGoal === 'module';
+    let parsed = parseSource(cleanId, code, sourceDialect.lang, sourceDialect.parseGoal, checkGoal);
     let [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
-    // a refused goal may retry the other on an unpinned id: Script-only syntax (an Annex-B HTML
-    // comment, a legacy octal) refuses Module, while ESM in a CommonJS id refuses Script. only a
-    // successful retry replaces the first result. a successful Script is never re-read as Module:
-    // `await(import(x))` can call a function named `await` there. `.mjs` / `.mts` remain pinned.
+    // Retry unpinned ids only after an error. Semantic checks expose strict-only failures
+    // such as legacy octals and duplicate parameters; CommonJS also allows a top-level return.
+    // A successful Script is never re-read as Module: `await(import(x))` can call a function
+    // named `await` there. Explicit ESM hosts and otherwise `.mjs` / `.mts` remain pinned.
     if (fatal && !sourceDialect.esm) {
-      const retryGoal = sourceDialect.parseGoal === 'module' ? 'script' : 'module';
-      const retried = parseSource(cleanId, code, sourceDialect.lang, retryGoal);
-      const [stillFatal] = retried.errors?.filter(e => e.severity === 'Error') ?? [];
-      if (!stillFatal) [parsed, fatal] = [retried, undefined];
+      for (const retryGoal of ['script', 'commonjs', 'module']) {
+        if (retryGoal === sourceDialect.parseGoal) continue;
+        const retried = parseSource(cleanId, code, sourceDialect.lang, retryGoal, checkGoal);
+        if (!retried.errors?.some(e => e.severity === 'Error')) {
+          [parsed, fatal] = [retried, undefined];
+          break;
+        }
+      }
+    }
+    // Semantic diagnostics select a valid alternate goal, not a new typechecking gate.
+    // OXC also reports TS declaration/implementation errors that this binding leaves to tsc.
+    // If no goal fixes the error, retain the original syntax parser's acceptance and diagnostics.
+    if (fatal && checkGoal) {
+      parsed = parseSource(cleanId, code, sourceDialect.lang, sourceDialect.parseGoal);
+      [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
     }
     if (fatal) {
       // emit a tagged breadcrumb so the user knows core-js saw the bad source first.
@@ -677,8 +689,8 @@ export default function createPlugin(options) {
     // the format owner answers both halves at once, from the id, the body and the goal the parse
     // actually used. the write-back is load-bearing in BOTH directions - a CommonJS id can carry
     // ESM, and a Module parse can still yield a script by its body. the LANGUAGE half lands here,
-    // never the emission option. `ast.sourceType` still carries the goal at this point: a `script` there is
-    // the PARSER's own statement, either from a CommonJS extension or from a module goal it refused
+    // never the emission option. `ast.sourceType` still carries the accepted parse goal here:
+    // `script` may run bare, while `commonjs` explicitly supplies a function wrapper.
     const formatOptions = {
       id: cleanId,
       program: ast,
@@ -816,9 +828,7 @@ export default function createPlugin(options) {
       mutatedStatics = new Set([...inheritedMutatedStatics, ...mutatedStatics ?? []]);
     }
 
-    // late-bound: debugOutput is constructed below (after createPolyfillResolver) but the
-    // injector closes over it for fallback warnings. hoist above the try block so the lazy
-    // getter sees the same binding the later assignment populates
+    // Fallback diagnostics below share the debug output created after resolver setup.
     let debugOutput = null;
     const injector = new ImportInjector({
       pkg,
@@ -828,7 +838,6 @@ export default function createPlugin(options) {
       absoluteImports,
       importStyle,
       inherit,
-      getDebugOutput: () => debugOutput,
     });
     // typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's `polyfillHint` close over the
     // plugin instance's `currentInjector` slot; `resolvePure` + the adapter close over the
@@ -1141,8 +1150,7 @@ export default function createPlugin(options) {
         const outCode = printed.code;
         if (inputMap) map = composeInputSourceMap(map, inputMap.map);
         // pre+post chaining: the bundler chains through pre's content-bearing map, so the
-        // post map omits sourcesContent - the `includeContent: !chainedFromPre` rule,
-        // applied to the printer's map
+        // post map omits sourcesContent after printing.
         if (!inputMap && pass === 'post' && inherit && inheritedPreRewrote) delete map.sourcesContent;
         return { code: outCode, map };
       }

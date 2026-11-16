@@ -46,6 +46,7 @@ import './realm-selection-directives.mjs';
 import './opt-out-receivers-runtime.mjs';
 import './residual-source-order-runtime.mjs';
 import './loop-receiver-runtime.mjs';
+import './module-goals-runtime.mjs';
 import './anchor-activation-runtime.mjs';
 import './mutation-gate-superset.mjs';
 import './transform-idempotence.mjs';

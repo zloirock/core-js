@@ -1201,7 +1201,7 @@ export function isReusableReceiver(node, { interveningEffects = false, directCal
   const frame = owner?.node ?? binding.scope?.block;
   // A write outside this read can only intervene by re-entering its activation. The
   // frame/escape proof below rules that out; a store inside the computed read cannot move.
-  if (interveningEffects && (frame?.type === 'Program' && frame.sourceType === 'script' && binding.kind === 'var'
+  if (interveningEffects && (programTopLevelIsRealm(frame) && binding.kind === 'var'
     || writes.some(write => !provablyPrecedes(violationNode(write), ctx.path?.node)
       && !provablyPrecedes(ctx.path?.node, violationNode(write))))) return false;
   return !!frame && pathContainedBy(ctx.path, frame)
@@ -14783,8 +14783,9 @@ function bindsRequireAtProgramStart(program, sourceType) {
 // first line. Which of the two a program is comes from the format owner's published verdict, so a
 // program whose format was never resolved reports 0 and every call there stays the author's
 export function hostRequireCallLimit(program) {
-  if (program?.type !== 'Program') return 0;
-  if (bindsRequireAtProgramStart(program, programIsScript(program) ? 'script' : 'module')) return 0;
+  const format = PROGRAM_FORMAT.get(program);
+  if (!format || program?.type !== 'Program') return 0;
+  if (bindsRequireAtProgramStart(program, format.sourceType)) return 0;
   const body = program.body ?? [];
   let limit = programPrologueEndIndex(body);
   while (limit < body.length && isTopLevelImportLike(body[limit]) && !statementBindsRequireName(body[limit])) limit++;
@@ -14971,8 +14972,9 @@ export function moduleFormatReducer(onResult = null) {
   };
 }
 
-// the census is whole-file and both the format owner and the emitters' diagnostics ask it, so it
-// is memoised on the program node it describes
+// The census is whole-file and shared with diagnostics, so cache it on the Program.
+// A new explicit census replaces the answer: a sibling may have lowered the same tree
+// between plugin passes without replacing the Program node.
 const MODULE_FORMAT_CACHE = new WeakMap();
 
 // what the BODY spells: `{ hasLiveESM, hasCJS }`. the two are independent - a source can spell
@@ -14980,7 +14982,7 @@ const MODULE_FORMAT_CACHE = new WeakMap();
 export function moduleFormatMarkers(program, observed = null) {
   if (!program || typeof program !== 'object') return { hasLiveESM: false, hasCJS: false };
   let markers = MODULE_FORMAT_CACHE.get(program);
-  if (!markers) {
+  if (!markers || observed) {
     const { hasLiveESM, hasCJS, nestedAwait } = observed ?? collectFileCensus(program, [moduleFormatReducer()]).moduleFormat;
     // the census answered every await its frames can see; only a file carrying one they read as
     // NESTED pays the canonical walk, which additionally reaches the class definition-time slots
@@ -15017,14 +15019,14 @@ function programIsScript(program) {
 
 // may this program's top level be the realm's own - a top-level `var` or function the global object's slot, a `let` /
 // `const` / `class` the realm's shared lexical scope - per the verdict the format owner left (`resolveModuleFormat`)?
-// a program no verdict was given for keeps its top level a scope of its own. only the escape census asks it: reads
-// and caller boundaries take the wrapper, each side the answer that is safe while the format is unknown
+// A program with no verdict keeps its top level a scope of its own. Format publication precedes
+// scoped usage and capture queries, which share this answer with the escape census.
 export function programTopLevelIsRealm(program) {
   return PROGRAM_FORMAT.get(program)?.realmTopLevel === true;
 }
 
-// the extension's own answer, which neither the body nor the caller may overrule: `.mjs` / `.mts`
-// resolve as Modules and `.cjs` / `.cts` as CommonJS by the resolution rules of every host
+// The extension's default loading format: `.mjs` / `.mts` are Modules and `.cjs` / `.cts`
+// are CommonJS. An explicit bundler module kind or surviving ESM can override this default.
 function moduleExtensionGoal(id) {
   const language = moduleIdLanguage(id);
   return language?.script ? 'script' : language?.esm ? 'module' : null;
@@ -15047,9 +15049,9 @@ export function isConsumedEntryImport(node, getCoreJSEntry, isDisabled = null) {
 // half: reading it there let a caller who asked for `require` output silently turn an ES module
 // into a sloppy script, and every polyfill under an Annex-B shadow went with it.
 // precedence for the language fact, top wins: live module evidence in the body (proof - a script
-// parse rejects it); an explicit bundler module type; a host that declared it parsed a SCRIPT
-// (a declared `module` is babel's default, not a statement, so only the script half speaks);
-// the id's extension; CommonJS evidence; else a module.
+// parse rejects it); an explicit bundler module type; the id's extension; a host that parsed
+// SCRIPT or CommonJS (a declared `module` is babel's default, not a statement);
+// CommonJS evidence; else a module.
 // a script's SCOPE is the function body of the wrapper every consumer resolving the injection puts around it (a
 // bundler, Node's own loader); what a top-level `var` or function of a script spelling no CommonJS HOLDS may
 // still land in the realm's own slot, as an engine running it bare puts it there (`programTopLevelIsRealm`)
@@ -15076,12 +15078,13 @@ export function resolveModuleFormat({
   }
   const extensionGoal = moduleExtensionGoal(id);
   const sourceType = markers.hasLiveESM || moduleType === 'javascript/esm' ? 'module'
-    : moduleType === 'javascript/auto' || moduleType === 'javascript/dynamic' || declaredSourceType === 'script' ? 'script'
-      : extensionGoal ?? (markers.hasCJS ? 'script' : 'module');
+    : moduleType === 'javascript/auto' || moduleType === 'javascript/dynamic' ? 'script'
+      : extensionGoal ?? (declaredSourceType === 'script' || declaredSourceType === 'commonjs' || markers.hasCJS ? 'script' : 'module');
   // ... and a script no CommonJS wrapper is known to host - its body spells no CommonJS, its id no CommonJS
   // extension - may run its top level in the realm itself, where a top-level `var` or function IS the global
   // object's slot. Webpack-family modules always have a module wrapper.
-  const realmTopLevel = sourceType === 'script' && !moduleType && !markers.hasCJS && extensionGoal !== 'script';
+  const realmTopLevel = sourceType === 'script' && !moduleType && !markers.hasCJS
+    && extensionGoal !== 'script' && declaredSourceType !== 'commonjs';
   PROGRAM_FORMAT.set(program, { sourceType, realmTopLevel });
   // does the file's own live ESM OUTLIVE this pass? Only a caller knows: `entry-global` removes the
   // entry imports it recognises and nothing else does, so it hands in the test and everyone else
@@ -15090,15 +15093,16 @@ export function resolveModuleFormat({
   const topLevelESM = (program.body ?? []).filter(isLiveESMDeclaration);
   const keptESM = markers.hasLiveESM
     && (!topLevelESM.length || topLevelESM.some(node => !consumesESM?.(node)));
-  // a script always emits `require`; so does a module whose body writes CommonJS - the `.mjs` whose
-  // body still spells `module.exports` - and so does one whose only ESM the pass is about to take
+  // A script emits `require`; so does an unpinned module whose body writes CommonJS and
+  // whose only ESM the pass is about to take
   // away: after the entry it carried is consumed, what is left is CommonJS, and an `import` we put
   // in it is the second module system that body never had. That case is the correctness one.
   // Where the AUTHOR spelled both, no spelling saves the file - a bundler takes either and Node
   // takes neither - so the tie goes to the ESM markers, which is what the source says it is, and
   // `sourceIsMixed` reports the mixture rather than letting the choice pass for a fix
-  // An explicit javascript/esm host also keeps imports: it does not interpret require as a dependency.
-  const derived = moduleType !== 'javascript/esm' && (sourceType === 'script' || (markers.hasCJS && !keptESM)) ? 'require' : 'import';
+  // Explicit ESM hosts and extensions keep imports; neither supplies a CommonJS loader.
+  const derived = sourceType === 'script'
+    || moduleType !== 'javascript/esm' && extensionGoal !== 'module' && markers.hasCJS && !keptESM ? 'require' : 'import';
   const requested = importStyleOption ?? derived;
   // `require` is not a spelling this program HAS when it binds the name itself: our call lands at
   // the top of the body, where a hoisted `function require` already carries its body and a lexical

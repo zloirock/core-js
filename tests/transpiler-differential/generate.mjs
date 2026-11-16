@@ -25564,6 +25564,22 @@ function * generateTypeQueryDagSources() {
   }
 }
 
+// Wrapper locals can be reused; writes inside a computed read still need its original receiver.
+function * generateModuleReceiverScopes() {
+  for (const sourceType of ['module', 'script']) for (const kind of ['var', 'let']) {
+    for (const [shape, read] of [
+      ['store', '(list = [3, 7]).at((effects.push("index"), 0))'],
+      ['key', 'list[(effects.push("key"), "at")]((effects.push("index"), 0))'],
+      ['write-key', 'list[(effects.push("key"), list = [9], "at")]((effects.push("index"), 0))'],
+    ]) yield {
+      name: `module-receiver-scope/${ sourceType }/${ kind }/${ shape }`, sourceType, strip: true,
+      code: `const effects = []; ${ kind } list; list = [3, 7];
+        const value = ${ read }; const r = [value, list[0]];
+        ${ sourceType === 'script' ? 'module.exports = { r, effects };' : 'export { r, effects };' }`,
+    };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27375,4 +27391,5 @@ export function * generate() {
   yield * generateSelectionDagSources();
   yield * generatePatternPairingSources();
   yield * generateTypeQueryDagSources();
+  yield * generateModuleReceiverScopes();
 }

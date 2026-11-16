@@ -830,7 +830,6 @@ export function createUsageVisitors({
   adapter,
   onUsage,
   method,
-  suppressProxyGlobals = false,
   walkAnnotations = true,
   completedClaims = null,
   isEntryAvailable,
@@ -838,8 +837,6 @@ export function createUsageVisitors({
   resolvePure = null,
   parameterCallSites = null,
   resolveStaticKey = null,
-  onSuppressedProxyHop = null,
-  suppressKeptNavRoot = null,
   onDeadBranch = null,
   onDiscardedClaim = null,
 }) {
@@ -851,9 +848,6 @@ export function createUsageVisitors({
     resolveMeta,
     resolvePure,
     resolveStaticKey,
-    suppressProxyGlobals,
-    onSuppressedProxyHop,
-    suppressKeptNavRoot,
     onDiscardedClaim,
   });
   const { skipUpdateTargets } = core;

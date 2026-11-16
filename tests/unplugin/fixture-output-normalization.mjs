@@ -2,6 +2,20 @@ import { deepEqual, equal, notEqual, ok, throws } from 'node:assert/strict';
 import { parseSync } from 'oxc-parser';
 import { commentSignature, strip } from './structural.mjs';
 import { phaseImportVerdict, importSources, transformPrePost } from './phase-imports.mjs';
+import { parseFixture, parseFixtureOrNull } from './fixture-lang.mjs';
+
+for (const id of ['input.js', 'input.cjs', 'input.cts']) {
+  const parsed = parseFixtureOrNull(id, 'if (false) return; require("core-js/modules/es.array.at");');
+  ok(parsed, `${ id }: wrapper syntax is compared`);
+  equal(parsed.program.sourceType, 'script');
+  deepEqual(importSources(parsed.program), ['core-js/modules/es.array.at']);
+  equal(parseFixtureOrNull(id, 'if (false) return ('), null, `${ id }: malformed output still fails`);
+  ok(parseFixture(id, 'if (false) return (').errors.length, `${ id }: preserve the diagnostic`);
+}
+for (const id of ['input.mjs', 'input.mts']) {
+  equal(parseFixtureOrNull(id, 'return;'), null, `${ id }: ESM has no wrapper`);
+  ok(parseFixtureOrNull(id, 'export const r = 3;'));
+}
 
 // Phase imports are syntax, not lines or arbitrary strings containing a package path.
 // Keep package names distinct: a global entry cannot stand in for its pure counterpart.

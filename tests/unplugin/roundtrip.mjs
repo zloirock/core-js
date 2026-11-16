@@ -10,7 +10,7 @@
 import { parseSync } from 'oxc-parser';
 import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
+import { inferTestId, loadBabelOptions, parseFixtureOrNull } from './fixture-lang.mjs';
 import { commentPlacements, commentSignature, strip } from './structural.mjs';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/sfc-shapes.js';
 
@@ -45,15 +45,9 @@ function isOwnLine(source, offset) {
   return true;
 }
 
-function parseFixture(testId, source) {
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const parsed = parseSync(testId, source, { sourceType: 'module' });
-  return parsed.errors?.some(error => error.severity === 'Error') ? null : parsed;
-}
-
 function checkFixture(directory, testId, rawSource) {
   const source = rawSource.charCodeAt(0) === 0xFEFF ? rawSource.slice(1) : rawSource;
-  const parsed = parseFixture(testId, source);
+  const parsed = parseFixtureOrNull(testId, source);
   if (!parsed) {
     counts.skippedParse++;
     return;
@@ -66,7 +60,7 @@ function checkFixture(directory, testId, rawSource) {
   } catch (error) {
     return fail(directory, `print threw: ${ error.message }`);
   }
-  const reparsed = parseFixture(testId, printed.code);
+  const reparsed = parseFixtureOrNull(testId, printed.code);
   if (!reparsed) return fail(directory, 'printed output does not reparse');
   if (JSON.stringify(strip(parsed.program)) !== JSON.stringify(strip(reparsed.program))) {
     return fail(directory, 'reparse is structurally different');
@@ -102,7 +96,7 @@ function checkFixture(directory, testId, rawSource) {
   // accretion was one - grows again on every pass and fails here
   const reprint = printProgram({ program: reparsed.program, comments: reparsed.comments, source: printed.code, id: testId, jsx });
   if (reprint.code !== printed.code) {
-    const reparse2 = parseFixture(testId, reprint.code);
+    const reparse2 = parseFixtureOrNull(testId, reprint.code);
     if (!reparse2) return fail(directory, 'second print does not reparse');
     const reprint2 = printProgram({ program: reparse2.program, comments: reparse2.comments, source: reprint.code, id: testId, jsx });
     if (reprint2.code !== reprint.code) return fail(directory, 'print never reaches a fixed point over its own output');

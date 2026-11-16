@@ -4133,6 +4133,13 @@ function checkRefusedParseGoalIsEvidence() {
   }
   check('refused-goal/script-only source keeps the shadow', run(SCRIPT_ONLY, '/a.js').substituted, false);
   check('refused-goal/script-only source is not reported', run(SCRIPT_ONLY, '/a.js').warned, false);
+  // These early errors need OXC's semantic check: the syntax-only Module parse accepts them.
+  for (const prefix of ['var n = 010;', String.raw`var s = "\1";`, 'var private;', 'function f(a, a) {}', 'with ({}) {}', 'delete missing;']) {
+    const script = run(`${ prefix }\n${ SHADOW }`, '/a.js');
+    check(`refused-goal/${ prefix } keeps Annex-B shadow`, script.substituted, false);
+    check(`refused-goal/${ prefix } parses without warning`, script.warned, false);
+    check(`refused-goal/${ prefix } leaves the native program unchanged`, script.out, null);
+  }
   // the control: the SAME shadow in a file the module goal accepts is block-scoped, so the global
   // is what the source reads and the ponyfill is owed
   check('refused-goal/a module substitutes over the same shadow',
@@ -4184,6 +4191,16 @@ function checkRefusedParseGoalIsEvidence() {
     const pinned = run(SCRIPT_ONLY, id);
     check(`refused-goal/${ id } is not re-read as a script`, pinned.substituted, false);
     check(`refused-goal/${ id } is reported`, pinned.warned, true);
+  }
+  // Semantic checks choose the goal; TS declaration validation still belongs to tsc.
+  // These previously admitted inputs have the same semantic diagnostic in every goal.
+  for (const [source, id] of [
+    ['class Box { static value = 1; static value = 2; } [3].at(0);', '/a.js'],
+    ['namespace N { const x = 1; export declare const x: number; } [3].at(0);', '/a.ts'],
+  ]) {
+    const result = run(source, id);
+    check(`refused-goal/non-goal diagnostic ${ id } keeps injection`, Boolean(result.out?.code.includes('/at')), true);
+    check(`refused-goal/non-goal diagnostic ${ id } is left to the compiler`, result.warned, false);
   }
 }
 checkRefusedParseGoalIsEvidence();
@@ -5244,7 +5261,8 @@ function checkAstPrintMapContract() {
   check('map sources keep the full id (SFC sub-block identity)', JSON.stringify(plain.map.sources), '["dir/app.vue?vue&type=script"]');
   check('map file is the query-stripped basename', plain.map.file, 'app.vue');
   check('content rides by default', JSON.stringify(plain.map.sourcesContent), '["let x = 1;"]');
-  check('includeContent: false drops the content', JSON.stringify(astPrint('let x = 1;', 'input.ts', { includeContent: false }).map.sourcesContent), '[null]');
+  // Content omission belongs to the post handoff, checked by the prePost and ast-post rows.
+  check('standalone TypeScript map keeps its content', JSON.stringify(astPrint('let x = 1;', 'input.ts').map.sourcesContent), '["let x = 1;"]');
   const banged = astPrint('#!/usr/bin/env node\nlet x = 1;');
   check('hashbang shifts the mappings one generated line down', banged.map.mappings.startsWith(';'), true);
   const traced = new TraceMap({ ...banged.map, version: 3 });
