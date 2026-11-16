@@ -2375,15 +2375,33 @@ export function cutDeepWalk() {
 // the per-node answers one question `kind` keeps under one `context` - every input the answer reads
 // besides the node - or null where none may be kept: no scope is open, or the ask is re-entrant. climbs from
 // deep leaves and alias-chain walks still repeat per visit
+// Store an unbranched suffix as an array, not a Map per input: receiver contexts include whole
+// navigation paths. Split only where another context differs, retaining the original answer table.
 export function canonAnswerTable(kind, context) {
   if (!canonAnswers || reentrantQuestions) return null;
   let table = canonAnswers.tables;
-  for (const part of [kind, ...context]) {
-    let next = table.get(part);
-    if (!next) table.set(part, next = new Map());
-    table = next;
+  const parts = [kind, ...context];
+  for (let index = 0; index < parts.length;) {
+    const part = parts[index++];
+    let entry = table.get(part);
+    if (!entry) {
+      entry = { suffix: parts.slice(index), children: null, answers: new Map() };
+      table.set(part, entry);
+      return entry.answers;
+    }
+    let shared = 0;
+    while (shared < entry.suffix.length && index + shared < parts.length
+      && (entry.suffix[shared] === parts[index + shared] || Object.is(entry.suffix[shared], parts[index + shared]))) shared++;
+    if (shared < entry.suffix.length) {
+      const next = { suffix: entry.suffix.slice(shared + 1), children: entry.children, answers: entry.answers };
+      entry.children = new Map([[entry.suffix[shared], next]]);
+      entry.suffix = entry.suffix.slice(0, shared);
+      entry.answers = null;
+    }
+    index += shared;
+    if (index === parts.length) return entry.answers ??= new Map();
+    table = entry.children ??= new Map();
   }
-  return table;
 }
 
 // Reuse guard variants with the same blockers and already-proved irrelevant members. Each cut

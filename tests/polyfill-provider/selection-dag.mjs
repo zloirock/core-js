@@ -1,7 +1,10 @@
 // Shared selection arms retain their answer, source identity and candidate side effects.
 import { resolveKey, isSymbolSourcedKey } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { walkStaticReceiverChain } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
-import { withCanonQuestion, withReentrantQuestion } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  canonAnswerTable, canonQuestionScope, collectFileCensus, withCanonQuestion, withReentrantQuestion,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { adapters, createChecker, resolvePure } from './harness.mjs';
@@ -24,6 +27,56 @@ function selectionSource(shape, size, leaf = 'Array') {
   lines.push(`const result = ${ key ? `Array[x${ size + 1 }]`
     : `x${ size + 1 }${ shape === 'slot' ? '.a'.repeat(size + 1) : '' }.from` };`);
   return lines.join('\n');
+}
+
+// Count the retained trie, not its answers alone: empty context prefixes also occupy memory.
+function tableCount(table) {
+  if (!table) return 0;
+  let count = 1;
+  for (const value of table.values()) {
+    if (value instanceof Map) count += tableCount(value);
+    else if (value?.suffix) count += tableCount(value.children) + tableCount(value.answers);
+  }
+  return count;
+}
+
+const longContextScope = canonQuestionScope();
+withCanonQuestion(() => {
+  const kind = {};
+  const context = Array(128).fill(NaN);
+  const answer = canonAnswerTable(kind, context);
+  check('long context occupies a bounded number of tables', tableCount(longContextScope.answers.tables) <= 3, true);
+  check('equal long context reuses its table', canonAnswerTable(kind, [...context]), answer);
+  check('equal context does not split its suffix', tableCount(longContextScope.answers.tables) <= 3, true);
+}, longContextScope);
+
+for (const parser of adapters) for (const writes of [1, 2]) for (const size of [8, 16, 32, 65]) {
+  const lines = ['const c0 = { C: Object };'];
+  for (let index = 1; index <= size; index++) lines.push(`const c${ index } = { next: c${ index - 1 } };`);
+  const receiver = `c${ size }${ '.next'.repeat(size) }.C`;
+  for (const name of ['Map', 'Set'].slice(0, writes)) lines.push(`${ receiver } = ${ name };`);
+  lines.push(`const result = ${ receiver };`);
+  const tree = parser.parseAndScope(lines.join('\n'));
+  const census = collectFileCensus(tree.node, [mutationShapesReducer()]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-global', resolvePure,
+    getWrittenContainerSlots: () => census.writtenContainerSlots,
+    getContainerSlotIndex: () => census.containerSlotIndex,
+  });
+  const path = parser.pickPath(tree, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const question = canonQuestionScope();
+  const unionSink = [];
+  const answer = withCanonQuestion(() => walkStaticReceiverChain({
+    receiverNode: path.node.init, walkPath: [], scope: path.scope, path, adapter, unionSink,
+  }), question);
+  const label = `${ parser.name }/written chain/${ writes }/${ size }`;
+  const direct = writes === 1 && size < 32;
+  check(`${ label }/answer`, answer, direct ? 'Map' : null);
+  checkDeep(`${ label }/candidates`, unionSink, direct || size === 65 ? []
+    : writes === 1 ? ['Map', 'Object'] : ['Map', 'Set', 'Object']);
+  const tables = tableCount(question.answers.tables);
+  check(`${ label }/counter is armed`, tables > 1, true);
+  check(`${ label }/retained context tables stay bounded (${ tables })`, tables <= 100 * size + 64, true);
 }
 
 for (const parser of adapters) for (const shape of ['key', 'alias', 'slot']) for (const size of [4, 8, 12, 16]) {

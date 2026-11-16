@@ -15,6 +15,39 @@ const node = {};
 const kind = {};
 let calls = 0;
 
+// Splitting a context prefix must preserve every previously returned answer table.
+// Context parts use Map equality, including NaN and the two spellings of zero.
+for (const reverse of [false, true]) withCanonQuestion(() => {
+  const first = {};
+  const second = {};
+  const symbol = Symbol('context');
+  const contexts = [
+    [], [first], [first, 1], [first, 1, 2], [first, 1, 2, 3], [first, 1, 4],
+    [first, second], [second, first], [null], [undefined], [false], [''],
+    [NaN], [NaN, first, NaN], [0], [0, first, -0], [symbol], [Symbol('context')],
+  ];
+  if (reverse) contexts.reverse();
+  const tables = contexts.map((context, index) => {
+    const table = canonAnswerTable(kind, context);
+    table.set(first, index);
+    return table;
+  });
+  check(`${ reverse }/distinct contexts have distinct tables`, new Set(tables).size, contexts.length);
+  for (let index = contexts.length - 1; index >= 0; index--) {
+    const table = canonAnswerTable(kind, [...contexts[index]]);
+    check(`${ reverse }/${ index }/table survives prefix splitting`, table, tables[index]);
+    check(`${ reverse }/${ index }/answer survives prefix splitting`, table.get(first), index);
+  }
+  check(`${ reverse }/negative zero matches zero`, canonAnswerTable(kind, [-0]), canonAnswerTable(kind, [0]));
+  check(`${ reverse }/suffix negative zero matches zero`, canonAnswerTable(kind, [0, first, 0]), canonAnswerTable(kind, [-0, first, -0]));
+  check(`${ reverse }/other question kind`, canonAnswerTable({}, [first]) !== canonAnswerTable(kind, [first]), true);
+  const context = [first, 'copied', second];
+  const table = canonAnswerTable(kind, context);
+  context[1] = 'changed';
+  check(`${ reverse }/caller may mutate its context array`, canonAnswerTable(kind, [first, 'copied', second]), table);
+  check(`${ reverse }/changed context is separate`, canonAnswerTable(kind, context) !== table, true);
+});
+
 function ask(names, depth = 0) {
   const seen = new Set(names);
   return guardedCanonAnswer(kind, [depth], node, seen, () => {
