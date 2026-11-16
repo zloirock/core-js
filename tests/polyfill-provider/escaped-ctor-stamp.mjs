@@ -1,29 +1,13 @@
-// Unit tests for the NODE IDENTITY of the escaped-constructor stamp - the single thing the census
-// that WRITES a stamp and its name resolver have to agree on. A bare reference carries
-// its escape on its own Identifier. A constructor spelled off the proxy-global surface has no
-// identifier of its own, so the stamp names the MEMBER, which is the node the claim stands on; when
-// only one of the two halves knew that spelling, every proxy-global escape kept the bare
-// `*/constructor` entry, which installs none of the constructor's statics.
-// The stamps are positions, so a node that BORROWED its span (the read a destructure slot is paired
-// with is synthesized from its receiver) must never be stamped - its key names the receiver. The
-// escape such a slot carries is named by the SLOT instead, which is where the claim stands.
-// The other half of that census is the NAMES, and it answers a different question: WHICH runtime
-// value a constructor name stands for. A name is answered once per file - two answers mint two
-// bindings for one object and the identity guard then compares across module boundaries - so the
-// question is "did the REALM's constructor escape under this name", and a leaf resolving to a
-// binding the file wrote is not it. Two things keep that narrow honest, and both are here: the
-// slots of a scope that evaluate OUTSIDE it (a parameter list, a definition-time slot) reach past
-// the declarations that scope holds, and a binding whose VALUES the census cannot enumerate (a
-// parameter, a catch, an import local, a for-x head) may hold the realm's constructor after all.
+// Constructor escapes choose one namespace entry per file. Test the source forms and scoped
+// names that reach that decision, including synthetic member reads from destructuring.
+// A local binding with a builtin's spelling does not expose the realm's constructor.
 /* eslint-disable no-template-curly-in-string -- source snippets deliberately contain tagged interpolations */
 import { adapters, createChecker, findNode } from './harness.mjs';
 import {
+  CENSUS_STATIC_RECEIVERS,
   collectFileCensus,
-  ESCAPE_STAMPED_NODE_TYPES,
   ESCAPED_CONTAINER_NAMES,
-  ESCAPED_CTOR_REFS,
   escapeStampedName,
-  nodePositionKey,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   escapedCtorReferencesReducer,
@@ -32,256 +16,203 @@ import {
 
 const { check, checkTruthy, finish } = createChecker('escaped-ctor-stamp');
 
-// each row: the source, the spellings whose OWN span must carry a stamp, and the spellings that
-// must not. `stamped` is what an escaping reference resolves to; `bare` are the reads that stay
-// home (a `new` callee, a static read, a receiver hop) plus the receivers a synthesized read
-// would borrow its span from
+// Each row keeps the original source and states which builtin namespace leaves the file.
 const ROWS = [
   {
     name: 'literal loop element through a plain binding',
     code: 'for (const value of [globalThis.Map]) hand(value);',
-    stamped: ['globalThis.Map'],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   {
     name: 'loop assignment reaches its outer binding',
     code: 'let value; { for ([value] of [[globalThis.Map]]) {} } hand(value);',
-    stamped: ['globalThis.Map'],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   {
     name: 'lexical loop binding does not reach an outer namesake',
     code: 'let value = globalThis.Set; for (const [value] of [[globalThis.Map]]) {} hand(value);',
-    stamped: ['globalThis.Set'],
-    bare: ['globalThis.Map', ['globalThis', 1], ['globalThis', 2]],
+    names: ['Set'],
   },
   {
     name: 'bare reference in a call argument',
     code: 'hand(Map);',
-    stamped: ['Map'],
-    bare: [],
+    names: ['Map'],
   },
   {
     name: 'proxy-global member handed out',
     code: 'hand(globalThis.Map);',
-    stamped: ['globalThis.Map'],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   {
     name: 'proxy-global member as a new callee stays home',
     code: 'use(new globalThis.Map());',
-    stamped: [],
-    bare: ['globalThis.Map', 'globalThis'],
+    names: [],
   },
   {
     name: 'proxy-global member through an alias of the surface',
     code: 'const g = globalThis;\nhand(g.Map);',
-    stamped: ['g.Map'],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   {
     name: 'proxy-global member past a redundant proxy hop',
     code: 'hand(globalThis.self.Map);',
-    stamped: ['globalThis.self.Map'],
-    bare: ['globalThis.self'],
+    names: ['Map'],
   },
   {
     name: 'proxy-global member through a container slot holding the surface',
     code: 'const ns = { g: globalThis };\nhand(ns.g.Map);',
-    stamped: ['ns.g.Map'],
-    bare: ['ns.g'],
+    names: ['Map'],
   },
   {
     name: 'proxy-global member off a zero-arg IIFE returning the surface',
     code: 'hand((() => globalThis)().Map);',
-    stamped: ['(() => globalThis)().Map'],
-    bare: [],
+    names: ['Map'],
   },
   {
-    name: 'container slot holding a bare constructor stamps the slot VALUE',
+    name: 'container slot holding a bare constructor exposes the slot value',
     code: 'const box = { Base: Map };\nhand(box.Base);',
-    stamped: ['Map'],
-    bare: ['box.Base'],
+    names: ['Map'],
   },
   {
-    name: 'destructured slot carries the escape and never stamps its receiver',
+    name: 'destructured slot names the constructor rather than its receiver',
     code: 'const { Map: Held } = globalThis;\nhand(Held);',
-    stamped: ['Map: Held', ['Held', 2]],
-    bare: ['globalThis', ['Held', 1]],
+    names: ['Map'],
   },
   {
     name: 'shorthand destructured slot off the proxy-global surface',
     code: 'const { Map } = globalThis;\nhand(Map);',
-    stamped: [['Map', 1], ['Map', 2]],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   {
     name: 'nested destructured slot, every level read off the receiver',
     code: 'const { self: { Map } } = globalThis;\nhand(Map);',
-    stamped: [['Map', 1], ['Map', 2]],
-    bare: ['globalThis', 'self: { Map }'],
+    names: ['Map'],
   },
   {
     name: 'for-of head binds its pattern against the iterated element',
     code: 'for (const { Map } of [globalThis]) hand(Map);',
-    stamped: [['Map', 1], ['Map', 2]],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   {
-    name: 'slot paired with a real container value stamps that value, not the slot',
+    name: 'slot paired with a real container exposes its value',
     code: 'const ns = { Map: globalThis.Map };\nconst { Map: Held } = ns;\nhand(Held);',
-    stamped: ['globalThis.Map', ['Held', 2]],
-    bare: ['Map: Held', 'globalThis'],
+    names: ['Map'],
   },
   // babel spells a method as a function node of its own where ESTree nests a `FunctionExpression`
   // under `value`: a slot read reaching only `value` answered a HOLE for the babel spelling, which
   // hands nothing out - so the constructor a method returns escaped on one parser only, and a read
-  // going on past an accessor's hole landed nowhere and was stamped on one parser only
+  // going on past an accessor's hole landed nowhere and was exposed on one parser only
   {
     name: 'method slot holds the method',
     code: 'let M;\nM = { groupBy() { return Set; } };\nhand(M.groupBy);',
-    stamped: ['Set'],
-    bare: ['M.groupBy'],
+    names: ['Set'],
   },
   {
     name: 'accessor slot holds the accessor',
     code: 'let M;\nM = { get groupBy() { return { k: 1 }; } };\nhand(M.groupBy.k);',
-    stamped: [],
-    bare: ['M.groupBy.k'],
+    names: [],
   },
   {
     name: 'class static method slot holds the method',
     code: 'class NS { static m() { return Set; } }\nlet M;\nM = NS;\nhand(M.m);',
-    stamped: ['Set'],
-    bare: ['M.m'],
+    names: ['Set'],
   },
   // a MIXED level reads each value it holds: a read off the realm member one write stored is read
   // outside the file beside the container another stored, and so is the realm arm of a selection
   {
     name: 'a mixed level reads its realm member too',
     code: 'let M;\nM = globalThis.Map;\nM = { groupBy() { return Set; } };\nhand(M.groupBy);',
-    stamped: ['M.groupBy', 'Set'],
-    bare: ['globalThis.Map'],
+    names: ['Set'],
   },
   {
     name: 'a selection of the realm and a container reads the realm arm',
     code: 'const o = flag ? globalThis : { Map: 1 };\nhand(o.Map);',
-    stamped: ['o.Map'],
-    bare: ['globalThis'],
+    names: ['Map'],
   },
   // A method's returns belong to that method. A local host returning another value must not
   // expose a constructor merely mentioned in its nested methods.
   {
     name: "a method's returns are not its host function's",
     code: 'const held = (() => { const box = { g() { return 1; } };\n  return Map; })();\nuse(new held());',
-    stamped: [],
-    bare: ['Map'],
+    names: [],
   },
   {
     name: "... and a method's OWN return still escapes",
     code: 'hand({ g() { return Map; } });',
-    stamped: ['Map'],
-    bare: [],
+    names: ['Map'],
   },
   {
     name: 'destructured slot whose binding never escapes stays home',
     code: 'const { Map } = globalThis;\nuse(new Map());',
-    stamped: [],
-    bare: [['Map', 1], ['Map', 2], 'globalThis'],
+    names: [],
   },
   // a CLASS is a container to every other walk here - the keyed read, the container index, the
   // holder position domain - and this one read the two literals alone, so a constructor parked in
-  // any of its slots left the file unstamped. each slot kind is a carrier of its own: a static
+  // any of its slots left the file unrecorded. each slot kind is a carrier of its own: a static
   // field, an instance field whatever the class constructs exposes, and a private static
   {
     name: 'class static slot hands its constructor out',
     code: 'class NS { static B = Map; }\nhand(NS);',
-    stamped: ['Map', ['NS', 2]],
-    bare: [['NS', 1]],
+    names: ['Map'],
   },
   {
     name: 'class expression handed straight to a call',
     code: 'hand(class { static B = Map; });',
-    stamped: ['Map'],
-    bare: [],
+    names: ['Map'],
   },
   {
     name: 'instance slot of a handed-out class',
     code: 'class NS { B = Map; }\nhand(NS);',
-    stamped: ['Map', ['NS', 2]],
-    bare: [['NS', 1]],
+    names: ['Map'],
   },
   // ... except the PRIVATE one: `NS.#B` is a syntax error anywhere but the class body, and no
   // reflection reaches it, so whoever holds the constructor cannot read that slot back
   {
     name: 'a private static slot of a handed-out class is not one its holder can read',
     code: 'class NS { static #B = Map; }\nhand(NS);',
-    stamped: [],
-    bare: ['Map', ['NS', 1]],
+    names: [],
   },
   {
     name: 'class read through a key this walk cannot fold',
     code: 'class NS { static B = Map; }\nuse(NS[key]);',
-    stamped: ['Map'],
-    bare: ['NS[key]'],
+    names: ['Map'],
   },
   {
     name: 'a destructure off a class pairs with no slot, so the class hands out whole',
     code: 'class NS { static B = Map; }\nconst { B: Held } = NS;\nhand(Held);',
-    stamped: ['Map', ['Held', 2]],
-    bare: [['NS', 1], ['NS', 2]],
+    names: ['Map'],
   },
   {
     name: 'a class nothing hands out keeps its slot home',
     code: 'class NS { static B = Map; }\nuse(new NS.B());',
-    stamped: [],
-    bare: ['Map', 'NS.B'],
+    names: [],
   },
 ];
-
-// the span a spelling occupies in its own source, given as the text alone where it is unique there
-// or as `[text, nth]` where the shape spells the same name twice - an unqualified text matching more
-// than once would silently assert about whichever node came first
-function spanKey(code, spelling, label) {
-  const [text, nth] = Array.isArray(spelling) ? spelling : [spelling, 0];
-  let start = -1;
-  for (let seen = 0; seen < (nth || 1); seen++) start = code.indexOf(text, start + 1);
-  checkTruthy(`${ label }: '${ text }' occurs ${ nth || 'once' }`,
-    start !== -1 && (nth !== 0 || code.indexOf(text, start + 1) === -1));
-  return `${ start }:${ start + text.length }`;
-}
 
 for (const adapter of adapters) {
   for (const row of ROWS) {
     const label = `${ adapter.name }: ${ row.name }`;
     const program = adapter.parseAndScope(row.code).node;
-    collectFileCensus(program, [escapedCtorReferencesReducer()]);
-    const stamps = ESCAPED_CTOR_REFS.get(program);
-    checkTruthy(`${ label }: census ran`, !!stamps);
-    for (const spelling of row.stamped) {
-      check(`${ label }: '${ spelling }' stamped`, stamps.has(spanKey(row.code, spelling, label)), true);
-    }
-    for (const spelling of row.bare) {
-      check(`${ label }: '${ spelling }' not stamped`, stamps.has(spanKey(row.code, spelling, label)), false);
-    }
-    // the halves agree by construction only while every stamp names a node type the claim admits:
-    // a stamp on any other type is unreadable, and one sharing a span with the node it wraps would
-    // hand a reference the escape of its neighbour
-    for (const key of stamps) {
-      const owner = findNode(program, node => nodePositionKey(node) === key
-        && ESCAPE_STAMPED_NODE_TYPES.has(node.type));
-      checkTruthy(`${ label }: stamp ${ key } names a claimable node`, !!owner);
-      // A wrapper borrowing a reference's fields and span must not name its constructor.
-      // The callback keeps unknown computed keys observable independently of key folding.
-      check(`${ label }: stamp ${ key } is unnamed off a wrapper type`,
-        escapeStampedName({ ...owner, type: 'ChainExpression' }, () => 'computed'), null);
-      check(`${ label }: stamp ${ key } is named off its own node`,
-        typeof escapeStampedName(owner, () => 'computed'), 'string');
+    const { escapedCtorNames } = collectFileCensus(program, [escapedCtorReferencesReducer()]);
+    for (const name of ['Map', 'Set']) for (const pure of [false, true]) {
+      check(`${ label }: ${ name }/${ pure ? 'pure' : 'global' }`, escapedCtorNames.has(name, pure), row.names.includes(name));
     }
   }
 }
 
-// --- the NAME half: which runtime value the escape answers for ---
+// Source carriers name a constructor; a wrapper borrowing their fields does not.
+for (const adapter of adapters) for (const source of ['Map', 'globalThis.Map', 'globalThis?.[key]', '({ Map: held } = globalThis)']) {
+  const program = adapter.parseAndScope(`${ source };`).node;
+  const owner = findNode(program, node => source.startsWith('({')
+    ? (node.type === 'Property' || node.type === 'ObjectProperty') && node.key?.name === 'Map'
+    : source === 'Map' ? node.type === 'Identifier' && node.name === 'Map'
+      : node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression');
+  checkTruthy(`${ adapter.name }: source carrier exists/${ source }`, !!owner);
+  check(`${ adapter.name }: carrier name/${ source }`, escapeStampedName(owner, () => 'Map'), 'Map');
+  check(`${ adapter.name }: wrapper is no name/${ source }`, escapeStampedName({ ...owner, type: 'ChainExpression' }, () => 'Map'), null);
+}
+
+// --- Which runtime value the escape answers for ---
 
 // each row: the source, the ctor names whose REALM value the file hands out, and the names an
 // escape spells while handing out a binding of the file's own. `plugins` extends the babel parser
@@ -2446,6 +2377,74 @@ for (const adapter of adapters) for (const [name, code, names, escapes] of [
     const program = adapter.parseAndScope(code).node;
     const { escapedCtorNames } = collectFileCensus(program, reducers());
     for (const ctor of names) check(`${ adapter.name }: closed-call boundary: ${ name }: ${ order }: ${ ctor }`, escapedCtorNames.has(ctor), escapes);
+  }
+}
+
+// A census can enumerate more values than the claim resolver follows. Retained static reads
+// still need the namespace; the last supported read remains narrow.
+for (const parser of adapters) for (const order of [false, true]) {
+  for (const kind of ['writes', 'depth']) for (const count of [63, 64, 65, 66]) for (const alias of [false, true]) {
+    const setup = kind === 'writes' ? `let C = Map; ${ 'C = Map;'.repeat(count) }`
+      : `const box = ${ '{ a: '.repeat(count) }Map${ ' }'.repeat(count) };`;
+    const receiver = kind === 'writes' ? 'C' : `box${ '.a'.repeat(count) }`;
+    const source = `function run() { ${ setup } ${ alias ? `const held = ${ receiver };` : '' }
+      return (effect(), ${ alias ? 'held' : receiver }).groupBy([3], value => value); } run();`;
+    const program = parser.parseAndScope(source).node;
+    const reducers = [escapedCtorReferencesReducer(), mutationShapesReducer()];
+    const answer = collectFileCensus(program, order ? reducers.reverse() : reducers);
+    const label = `${ parser.name }/${ order }/${ kind }/${ count }/${ alias }`;
+    check(`${ label }: namespace for an unserved read`, answer.escapedCtorNames.has('Map', true), count > 64);
+    check(`${ label }: no actual handout`, answer.escapedCtorNames.has('Map'), false);
+    const read = findNode(program, node => node.property?.name === 'groupBy');
+    check(`${ label }: global has a per-key candidate`, JSON.stringify([...CENSUS_STATIC_RECEIVERS.get(program)(read.object, true)]),
+      count >= (kind === 'depth' ? 64 : 65) ? '["Map"]' : '[]');
+    check(`${ label }: pure does not bypass the claim ceiling`, JSON.stringify([...CENSUS_STATIC_RECEIVERS.get(program)(read.object)]), '[]');
+    check(`${ label }: querying candidates does not hand out the constructor`, answer.escapedCtorNames.has('Map'), false);
+  }
+  for (const body of [
+    `let C = Map; function other() { let C; ${ 'C = Map;'.repeat(65) } } C.groupBy([3], value => value);`,
+    `let C = Map; function other() { let C = 0; ${ 'C++;'.repeat(65) } } C.groupBy([3], value => value);`,
+    `let C = Map; ${ 'C = Map;'.repeat(65) } C.name;`,
+    `const box = ${ '{ a: '.repeat(65) }Map${ ' }'.repeat(65) }; box${ '.a'.repeat(65) }.name;`,
+  ]) {
+    const program = parser.parseAndScope(`function run() { ${ body } } run();`).node;
+    const reducers = [escapedCtorReferencesReducer(), mutationShapesReducer()];
+    const answer = collectFileCensus(program, order ? reducers.reverse() : reducers);
+    check(`${ parser.name }/${ order }: unrelated writes or intrinsic reads stay narrow/${ body }`, answer.escapedCtorNames.has('Map', true), false);
+  }
+}
+
+// Pattern keys share their source node, but every key contributes its own possible families.
+// Querying the union must neither mutate the per-key answer nor publish an actual handout.
+for (const parser of adapters) for (const order of [false, true]) for (const reversed of [false, true]) {
+  const source = `function run(flag) { let C; ${ 'C = flag ? Map : Promise;'.repeat(65) }
+    const { ${ reversed ? 'withResolvers, groupBy' : 'groupBy, withResolvers' } } = C;
+    return [typeof groupBy, typeof withResolvers]; } run(true);`;
+  const program = parser.parseAndScope(source).node;
+  const reducers = [escapedCtorReferencesReducer(), mutationShapesReducer()];
+  const answer = collectFileCensus(program, order ? reducers.reverse() : reducers);
+  const pattern = findNode(program, node => node.type === 'VariableDeclarator' && node.id.type === 'ObjectPattern');
+  const query = CENSUS_STATIC_RECEIVERS.get(program);
+  const label = `${ parser.name }/${ order }/${ reversed }: shared pattern receiver`;
+  for (const repeat of [0, 1]) {
+    check(`${ label }/${ repeat }: candidate union`, JSON.stringify([...query(pattern.init, true)].sort()), '["Map","Promise"]');
+    check(`${ label }/${ repeat }: pure query stays separate`, JSON.stringify([...query(pattern.init)]), '[]');
+    for (const name of ['Map', 'Promise']) {
+      check(`${ label }/${ repeat }: ${ name } namespace`, answer.escapedCtorNames.has(name, true), true);
+      check(`${ label }/${ repeat }: ${ name } does not escape`, answer.escapedCtorNames.has(name), false);
+    }
+  }
+}
+
+// Recollecting the same Program replaces its registration token and all derived query state.
+// A retained answer from the previous tree must not survive the return below the ceiling.
+for (const parser of adapters) {
+  const program = parser.parseAndScope('function run() {} run();').node;
+  for (const count of [64, 65, 64]) {
+    const source = `function run() { let C = Map; ${ 'C = Map;'.repeat(count) } return C.groupBy([3], value => value); } run();`;
+    program.body = parser.parseAndScope(source).node.body;
+    const answer = collectFileCensus(program, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
+    check(`${ parser.name }: recollected program/${ count }`, answer.escapedCtorNames.has('Map', true), count > 64);
   }
 }
 

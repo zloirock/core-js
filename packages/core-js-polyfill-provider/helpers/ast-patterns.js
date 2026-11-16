@@ -83,7 +83,7 @@ export function appendMemoDeclarator(host, declarator) {
   return declarator;
 }
 
-// Program -> read-only receiver candidate query. Global includes local call/parameter flows;
+// Program -> read-only receiver candidate query. Global includes retained reads and local call/parameter flows;
 // pure asks for opaque iteration/selection families. Candidates alone never prove a replacement.
 export const CENSUS_STATIC_RECEIVERS = new WeakMap();
 
@@ -95,18 +95,9 @@ export const CENSUS_KEY_NAMES = new WeakMap();
 // reassignment and handout do not. Null delegates a qualified enum to the scoped declaration owner.
 export const CENSUS_ENUM_RECEIVERS = new WeakMap();
 
-// The escape census's position half, keyed by PROGRAM node -> `start:end` keys of CONSTRUCTOR references
-// whose value escapes. a position survives every clone and region rebuild (babel's cloneNode keeps
-// source positions), where node identity does not
-export const ESCAPED_CTOR_REFS = new WeakMap();
-
-// the node an escape stamp NAMES. a bare reference carries its escape on its own Identifier; a value
-// spelled off the proxy-global surface (`f(globalThis.Map)`) has no identifier of its own, and the
-// claim above it stands on the whole member, so the member is what the stamp names; a value
-// DESTRUCTURED off that surface (`const { Map } = globalThis`) spells no read at all - the claim
-// stands on the pattern slot, and so does the stamp. every other type shares its position with a
-// node it wraps and must never read that node's stamp
-export const ESCAPE_STAMPED_NODE_TYPES = new Set([
+// The source nodes that name a constructor: a bare reference, a realm member or a pattern slot.
+// Wrappers carry their child's value but do not name that constructor themselves.
+const ESCAPE_STAMPED_NODE_TYPES = new Set([
   'Identifier',
   'MemberExpression',
   'ObjectProperty',
@@ -122,8 +113,7 @@ export function nodePositionKey(node) {
   return typeof start === 'number' && typeof end === 'number' ? `${ start }:${ end }` : null;
 }
 
-// ... and the NAME half of the same census, keyed by PROGRAM node -> the constructor NAMES its
-// stamped references spell. WHICH entry a constructor resolves to is a file-wide fact, not a
+// Program -> the constructor names whose realm values escape. WHICH entry a constructor resolves to is a file-wide fact, not a
 // per-reference one: the two entries name ONE runtime value, so two references answering
 // differently mint two bindings for it, and the identity guard then tests a value taken from one
 // against the other - a comparison held up by the two modules exporting the same object, which
@@ -135,12 +125,11 @@ export function nodePositionKey(node) {
 // the file-wide answer is unaffected either way, since the set is still keyed by the name and a
 // single realm leaf puts it in. the narrow lives with the walk that fills the set, which is the only
 // place that can see which binding a leaf reached.
-// keyed by program for the STAMPING half alone; the set itself rides the file census, so the
+// keyed by program while collecting names; the set itself rides the file census, so the
 // decision reads it without holding an AST the file is done with
 export const ESCAPED_CTOR_NAMES = new WeakMap();
 
-// the NAME a stamp spells, over the same node types the position half stamps - the one list, so a
-// spelling added to it is named as well as stamped: a bare reference carries its own name, a
+// The constructor name a source node spells: a bare reference carries its own name, a
 // proxy-surface read the hop key, a destructured slot the pattern key. a computed key no structural
 // fold names is read by the census's own key canon where the caller holds it (`resolveKey`), the way
 // the claims read it: `globalThis[K]` and `{ [(k++, 'Map')]: P }` name `Map`
@@ -6945,7 +6934,7 @@ export function arrayLiteralSlotValue(node, key) {
 // it inherits the receiver's own span so a downstream reassignment-dominance check anchors at the
 // capture read (where the receiver was destructured), not at the host use - a positionless synthetic
 // node made a reassign-after-capture receiver look dominated and wrongly bailed. that borrowed span
-// is also why no POSITION names such a read: `patternReceiverSlotNodes` answers with the slot instead.
+// does not name a new source read: `patternReceiverSlotNodes` answers with the slot instead.
 // a `keyNode` reads the slot under the key the source spells, computed, for a key the caller's canon cannot fold
 export function receiverSlotRead(receiver, key, keyNode = null) {
   return {

@@ -7,7 +7,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { chainReadsThroughSeal, composableNavGuardPlan, probedDestructureInitValue } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { planOptionalProbe, planGuardRootMemo } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
-import { readStandsOverAbsentableStore, shouldDropRescueReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { shouldDropRescueReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { walkStaticReceiverChain } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 
 const { check, runBoth, finish } = createChecker('optional-seals');
@@ -80,7 +80,6 @@ for (const [source, retained] of [
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   const ctx = { scope: path.scope, path, adapter, resolvePure };
   const receiver = unwrapRuntimeExpr(path.node.init);
-  check(`${ label }/throwing read`, !!readStandsOverAbsentableStore(receiver, ctx), retained);
   check(`${ label }/rescue decision`, shouldDropRescueReceiver(receiver, ctx), !retained);
 });
 for (const [source, walkPath, expected] of [

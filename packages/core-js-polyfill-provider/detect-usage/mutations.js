@@ -59,7 +59,6 @@ import {
   definitionTimeSlotOf,
   ESCAPED_CONTAINER_NAMES,
   ESCAPED_CTOR_NAMES,
-  ESCAPED_CTOR_REFS,
   escapeStampedName,
   findNearestVarScopeOwner,
   findObjectKeyBeforeSpread,
@@ -220,6 +219,7 @@ import {
   decidedSelection,
   defaultDroppedAsDead,
   readRunsAccessor,
+  STATIC_WALK_DEPTH,
   walkStaticReceiverChain,
 } from './destructure.js';
 import { bareReceiverGuardRenders } from './members.js';
@@ -549,23 +549,10 @@ function recordHopInvocation(node, recordReceiver) {
   recordReceiver(owner, values);
 }
 
-// --- escaped bare-ctor references (source-anchored) ---
-// a bare built-in-ctor reference whose VALUE escapes the resolver's tracked-read positions
-// (an argument of any call or `new`, a spread, a member-slot write's RHS, an export, a
-// throw - including through value-forwarding layers and temporary literals): reads through
-// wherever it lands are unresolvable, so its pure claim must carry the ctor's statics with
-// it (the NAMESPACE entry; both entries export the same object, so only the loaded module
-// set differs). stamped over the PRISTINE tree by node identity, so the decision cannot
-// depend on which emitter rewrites first - the whole reason this is a census and not a
-// claim-time parent probe. tracked positions (a declarator init, a member object, a callee,
-// a plain-identifier assignment, a literal chain ending in a declarator init, a bare value
-// compare) never stamp: the reaching-value walks resolve reads through them, and the
-// constructor entry suffices
-// the position keys of that census live in `ESCAPED_CTOR_REFS`, beside its container-name half:
-// both are read from layers this module imports, so neither index can live here.
-// a bare leaf is stamped by POSITION whatever it resolves to - a position is read by the node that
-// owns it - while the NAME half answers for the realm's value alone, so a leaf reaching a binding
-// this file wrote contributes no name. the two halves part company exactly there
+// Constructor values handed outside tracked reads require their statics on the pure namespace.
+// Collect names on the pristine tree, before either emitter rewrites it. Registration is separate
+// from the name sets: side queries share resolution state without publishing their answers there.
+const ESCAPE_CENSUS = new WeakMap();
 
 // a parameter pattern nests, and so do the defaults on its slots - the ceiling is the same one the
 // census puts on every other descent
@@ -1577,9 +1564,10 @@ function readsOffRealm(programNode, aliases, chain, cache = ALIAS_SCOPE_FACTS.ge
 }
 
 // A caller-paired parameter, assignment loop head or catch binds a value whose later reads stay native.
+// So does a binding with more writes than the claims follow; the census still records every value.
 // The census can follow its source without promising that the claim resolver substitutes
 // the read. Plain aliases of that binding carry the same obligation, in their own scope.
-function readsRetainedPatternBinding(aliases, node, cache, seen = null) {
+function readsRetainedBinding(aliases, node, cache, seen = null) {
   // An unbound name cannot forward a pattern. Callers often repeat that terminal
   // constructor argument; do not unwrap it again while inspecting their binding.
   if (node?.name && !aliases.has(node.name)) return false;
@@ -1592,9 +1580,13 @@ function readsRetainedPatternBinding(aliases, node, cache, seen = null) {
   const visited = seen ?? new Set();
   if (visited.has(key)) return false;
   visited.add(key);
-  const found = aliasEntriesInScope(aliases, value.name, scopes).some(({ value: held, paired, at, target }) => held?.pattern
+  const entries = aliasEntriesInScope(aliases, value.name, scopes);
+  const updates = ALIAS_SCOPE_FACTS.get(aliases).updatedBindings?.get(key) ?? 0;
+  const found = writesPastCeiling(updates ? { length: entries.length + updates } : entries)
+    && writesPastCeiling({ length: entries.filter(entry => entry.target).length + updates })
+    || entries.some(({ value: held, paired, at, target }) => held?.pattern
     ? paired || target && at?.type === 'ForOfStatement' || at?.type === 'CatchClause'
-    : withinAliasWalkBudget(() => readsRetainedPatternBinding(aliases, held, cache, visited)) ?? true);
+    : withinAliasWalkBudget(() => readsRetainedBinding(aliases, held, cache, visited)) ?? true);
   // The completed census is stable across reads. Only a root miss is conclusive
   // in a cyclic graph; a recursive positive is reusable as soon as it is found.
   // Exhausting the alias budget cannot prove that the read is served: retain its family.
@@ -1646,17 +1638,20 @@ function collectHeldReceivers({
 }) {
   const opaqueFamilies = new WeakMap();
   const receiverFamilies = new WeakMap();
-  // Pattern aliases need synthesized realm reads named without stamping the borrowed
+  // Pattern aliases need synthesized realm reads named despite their borrowed
   // source span. Whether that read is served is decided separately from its provenance.
   const syntheticReceiverFamilies = new WeakMap();
   const returnReads = new WeakMap();
   const retainedReads = new WeakMap();
-  const retainedPatternBindings = new Map();
+  const retainedBindings = new Map();
+  // Claims can stop before the census does. Global still owes the named static of
+  // those possible receivers, without treating them as actual constructor escapes.
+  let boundedReadCandidates;
   const ambiguousReads = new WeakMap();
   const syntheticAmbiguousReads = new WeakMap();
   const receiverRoots = new WeakMap();
   const selectingRealmRoots = new Map();
-  // Candidate queries share the escape walk without publishing escape or position facts.
+  // Candidate queries share the escape walk without publishing escape facts.
   // Iteration keys are provenance records; receiver keys are source callees. Calls to one
   // callee share its return graph, so neither that graph nor its completeness is scanned per use.
   function familiesFrom(value, callee = null, receiverOnly = false, key = callee ?? value, syntheticNames = false) {
@@ -1667,7 +1662,6 @@ function collectHeldReceivers({
       memo.set(key, facts);
       stampEscapesFrom(programNode, value.opaqueSource ?? value, {
         ...facts,
-        stamps: new Set(),
         containers: new Set(),
         receiverOnly: !!callee || receiverOnly,
         strictMembers: receiverOnly,
@@ -1731,7 +1725,7 @@ function collectHeldReceivers({
   // eslint-disable-next-line max-statements -- keep the serving verdict with its cache dimensions
   function holdUnresolvedReadFamilies({
     receiver, root, readKey, guardable, guardsIdentity, keyNamed = true, keepsCallRead = false, rawRead = false,
-    heldNames = heldInSlot, patternRead = false,
+    patternRead = false,
   }) {
     // the receiver's VALUE: an effect prefix ahead of it runs where the read stands and names nothing
     const target = peelReceiverSequenceTail(receiver);
@@ -1764,12 +1758,16 @@ function collectHeldReceivers({
         }
       }
     }
-    for (const name of answeredKeys?.get(readKey) ?? []) heldNames.add(name);
+    for (const name of answeredKeys?.get(readKey) ?? []) heldInSlot.add(name);
     if (typeof readKey !== 'string' || !hasNarrowEntryStaticKey(readKey)) return;
-    rawRead ||= readsRetainedPatternBinding(aliasInit, target, retainedPatternBindings);
+    const retainedBinding = readsRetainedBinding(aliasInit, member ? root : target, retainedBindings);
+    rawRead ||= retainedBinding;
     // the chains the read stands for (`readChains`), each walked as the slot it reads
     const chains = member ? readChains(aliasInit, target) : null;
     const slots = chains?.map(chain => chainSlotValues(aliasInit, chain, heldState, WRITTEN_SLOT_VALUES.get(programNode)));
+    // The census follows the whole path to retain its possible families. A claim's shorter
+    // walk cannot serve a read beyond its depth ceiling, even when that path has one value.
+    rawRead ||= slots?.some(each => each.depth > STATIC_WALK_DEPTH);
     const slot = slots?.[0];
     const reached = !slots ? new Set() : slots.length > 1 ? new Set(slots.flatMap(each => [...each.reached])) : slot.reached;
     const values = !slots ? chainRootValues(aliasInit, root, reached, heldState.roots)
@@ -1778,13 +1776,18 @@ function collectHeldReceivers({
     // graph also holds values for it. A retained static reads through the binding pure mints.
     const realm = member ? realmGlobalName(programNode, target) : null;
     if (realm) {
-      if ((!keyNamed || rawRead) && hasNarrowEntry(realm) && hasOwnStaticDefinition(realm, readKey)) heldNames.add(realm);
+      if ((!keyNamed || rawRead) && hasNarrowEntry(realm) && hasOwnStaticDefinition(realm, readKey)) heldInSlot.add(realm);
       if (!values.length) return;
     }
     const reassigned = [...reached].some(name => guardedAliases.has(name));
     // an OPEN union (`openSource`) serves a bare name through the identity guard its candidates
     // register, and nothing read off a member of it
     const { open, known } = knownValuesOf(values);
+    // An alias itself can consume the last claim step, so retain global candidates
+    // at the ceiling too. The pure serving decision below still uses its exact bound.
+    const bounded = retainedBinding || slots?.some(each => each.depth >= STATIC_WALK_DEPTH)
+      || (valueSetAnswers(values).atStaticCeiling ??= known.some(value => !value?.name && isMemberAccessNode(value)
+        && chainSlotValues(aliasInit, value, heldState, WRITTEN_SLOT_VALUES.get(programNode)).depth >= STATIC_WALK_DEPTH));
     // ... and a member slot the file WRITES is one pure never names off the literal: the read side bails
     // there, whatever single value the census follows into it - a write the mutation census files for the
     // container it lands on included (`recordedSlotWrite`), the record the read side asks - and so is one a
@@ -1806,7 +1809,7 @@ function collectHeldReceivers({
       && (reassigned && unwrapRuntimeExpr(target)?.type === 'Identifier'
         && standsForGuardedName(aliasInit, guardedAliases, unwrapRuntimeExpr(target).name)
         || patternRead && open && !rawSlot && values.every(value => !value.openSource || value.guardedRead));
-    if (!known.length || served || guarded) return;
+    if (!known.length || !bounded && (served || guarded)) return;
     const syntheticNames = rawRead || reassigned;
     const answers = syntheticNames ? syntheticAmbiguousReads : ambiguousReads;
     let answered = answers.get(values);
@@ -1824,8 +1827,16 @@ function collectHeldReceivers({
         }
       }
     }
-    for (const name of answered.get(readKey)) {
-      heldNames.add(name);
+    const names = answered.get(readKey);
+    if (bounded) {
+      const previous = (boundedReadCandidates ??= new WeakMap()).get(target);
+      // Several pattern keys can share one source node. Keep their candidate union
+      // separate from the per-key held-name answers above.
+      boundedReadCandidates.set(target, previous ? new Set([...previous, ...names]) : names);
+    }
+    if (served || guarded) return;
+    for (const name of names) {
+      heldInSlot.add(name);
       if (open) unnamedReadNames.add(name);
     }
   }
@@ -1837,9 +1848,9 @@ function collectHeldReceivers({
     const read = unwrapRuntimeExpr(value);
     if (!isMemberAccessNode(read) || seen.has(read) || isKnownGlobalName(escapeStampedName(read, censusKey))) return true;
     seen.add(read);
-    if (readsAccessor(read)) return false;
-    const { values, outside } = chainSlotValues(aliasInit, read, heldState, WRITTEN_SLOT_VALUES.get(programNode));
-    return !outside && values.length === 1 && readsOneValue(values[0], seen);
+    if (readsAccessor(read) || readsRetainedBinding(aliasInit, runtimeChainRoot(read, receiverRoots), retainedBindings)) return false;
+    const { values, outside, depth } = chainSlotValues(aliasInit, read, heldState, WRITTEN_SLOT_VALUES.get(programNode));
+    return !outside && depth <= STATIC_WALK_DEPTH && values.length === 1 && readsOneValue(values[0], seen);
   }
   // does a member read land on a GETTER of a container this census indexes, one whose body runs
   // something beside its return - the read side names a pure one by name? a getter read inside that
@@ -1881,7 +1892,7 @@ function collectHeldReceivers({
       : isMemberAccessNode(source) ? chainSlotValues(aliasInit, source, heldState, WRITTEN_SLOT_VALUES.get(programNode)).values : source;
     opaqueReads.set(member, familiesFrom(source, null, false, key).names);
   }
-  // Closed local calls and opaque selections publish the same candidate facts as iteration.
+  // Bounded reads, closed local calls and opaque selections publish the same candidate facts as iteration.
   // Global can cover a named static without treating its receiver as handed out.
   CENSUS_STATIC_RECEIVERS.set(programNode, (receiver, includeLocal = false) => {
     if (!receiver) return [];
@@ -1890,6 +1901,7 @@ function collectHeldReceivers({
       const names = hasOpaqueIteration ? iteratedFamilies(receiver) : [];
       return candidates ? new Set([...names, ...candidates]) : names;
     }
+    const bounded = boundedReadCandidates?.get(peelReceiverSequenceTail(receiver));
     const root = peelReceiverSequenceTail(runtimeChainRoot(receiver));
     const target = peelReceiverSequenceTail(receiver);
     const values = chainRootValues(aliasInit, root, new Set(), heldState.roots);
@@ -1913,13 +1925,7 @@ function collectHeldReceivers({
     // Identifier reads of one binding share its source array; member paths keep their own answer.
     const key = unwrapRuntimeExpr(receiver)?.type === 'Identifier' ? values : receiver;
     const names = local ? familiesFrom(receiver, null, true, key).names : hasOpaqueIteration ? iteratedFamilies(receiver) : [];
-    if (!opaqueReads.size) return names;
-    let selected;
-    if (candidates) {
-      selected = new Set(names);
-      for (const name of candidates) selected.add(name);
-    }
-    return selected ?? names;
+    return candidates || bounded ? new Set([...names, ...candidates ?? [], ...bounded ?? []]) : names;
   });
   // Constructor rest needs the whole family in each supported flavor. Resolve that obligation
   // before any rewrite so all references to the same constructor use one family entry. a rest over
@@ -1929,7 +1935,6 @@ function collectHeldReceivers({
   for (const source of restSources) stampEscapesFrom(programNode, source, {
     names: restNames,
     state: restState,
-    stamps: new Set(),
     containers: new Set(),
     receiverOnly: true,
     strictMembers: true,
@@ -1942,7 +1947,6 @@ function collectHeldReceivers({
       for (const value of restCopiedValues(source, pattern, from)) stampEscapesFrom(programNode, value, {
         names: restNames,
         state: copiedState,
-        stamps: new Set(),
         containers: new Set(),
         strictMembers: true,
         syntheticNames: true,
@@ -1978,7 +1982,7 @@ function collectHeldReceivers({
     for (const key of readKeys) {
       holdUnresolvedReadFamilies({
         receiver, root, readKey: key, guardable, guardsIdentity: guardsIdentity && !optedOut,
-        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut || positional || rawDefault, heldNames: heldInSlot,
+        keyNamed: readKeys.length === 1, keepsCallRead, rawRead: rawRead || optedOut || positional || rawDefault,
         patternRead: !member,
       });
     }
@@ -2017,11 +2021,11 @@ function collectHeldReceivers({
   }
 }
 
-// the walk state one file's stamps share, minted on first use (why it is shared, and why it keys by
-// NAME, is the note at the call site)
-function escapeWalkStateFor(stamps) {
-  let state = ESCAPE_WALK_STATE.get(stamps);
-  if (!state) ESCAPE_WALK_STATE.set(stamps, state = { names: new Set(), roots: new Map(), slots: new Map() });
+// The resolution state shared by one census or an independent held-name channel.
+// The call site explains why its slot memo keys by name rather than synthesized node identity.
+function escapeWalkStateFor(census) {
+  let state = ESCAPE_WALK_STATE.get(census);
+  if (!state) ESCAPE_WALK_STATE.set(census, state = { names: new Set(), roots: new Map(), slots: new Map() });
   return state;
 }
 
@@ -2030,13 +2034,13 @@ function escapeWalkStateFor(stamps) {
 // escape half's rule, a synthesized read included, into the escape half's sets as well - so the escape walk
 // run after it steps past what it met. null where the file keeps no escape census
 function unnamedReadChannel(programNode, readNames) {
-  const stamps = ESCAPED_CTOR_REFS.get(programNode);
-  if (!stamps || !readNames) return null;
+  const census = ESCAPE_CENSUS.get(programNode);
+  if (!census || !readNames) return null;
   return {
     names: readNames,
     globalOnly: readNames,
     syntheticNames: true,
-    state: escapeWalkStateFor(stamps),
+    state: escapeWalkStateFor(census),
     visit: { names: new Set(), expanded: new WeakSet() },
     escapes: { names: ESCAPED_CTOR_NAMES.get(programNode), globalOnly: GLOBAL_ONLY_CTOR_NAMES.get(programNode) },
   };
@@ -2046,12 +2050,10 @@ function unnamedReadChannel(programNode, readNames) {
 // enter here after the walk, so the completed graph answers the same whichever runs first.
 // eslint-disable-next-line max-statements -- one worklist owns alias, member and container expansion
 function stampEscapesFrom(programNode, node, sideChannel = null) {
-  const stamps = sideChannel?.stamps ?? ESCAPED_CTOR_REFS.get(programNode);
-  if (!stamps) return;
-  // the name half of the same stamp: every position recorded below contributes the name it spells,
-  // so the entry a constructor resolves to is decided once per FILE instead of once per reference.
-  // a SIDE CHANNEL takes a walk's names and memo somewhere else, for a caller answering one flavor
-  // alone. Position stamps stay shared unless the caller only needs container mutation facts.
+  const census = ESCAPE_CENSUS.get(programNode);
+  if (!census) return;
+  // Entry choice is file-wide. A side channel keeps its names and visited marks separate,
+  // so a speculative receiver query cannot turn those candidates into actual escapes.
   const ctorNames = sideChannel?.names ?? ESCAPED_CTOR_NAMES.get(programNode);
   // a side channel answers ONE flavor and carries no additional global-only half unless it brings
   // one: otherwise only proven realm values enter its own set
@@ -2063,7 +2065,7 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
   // fold. So the state is keyed by what a read NAMES (the root's position plus the key path) and it
   // is shared across every escape of one file: without sharing, one root is re-derived per slot,
   // which a minified bundle turns into hours
-  const state = sideChannel?.state ?? escapeWalkStateFor(stamps);
+  const state = sideChannel?.state ?? escapeWalkStateFor(census);
   // ... while a channel walking that shared state for a set of its own keeps its VISITED marks apart (`visit`):
   // a binding another walk of the file met first still names into its set. one naming into the escape half's
   // sets as well (`escapes`) marks that half's visits too, so the escape walk after it steps past them
@@ -2105,7 +2107,7 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
     const stands = callCallees?.get(unwrapRuntimeExpr(popped));
     let leaf;
     if (stands) pushCalleeReturns(work, expanded, stands, sideChannel, unwrapRuntimeExpr(popped));
-    else leaf = stampEscapingLeaves(popped, stamps, work, sideChannel?.receiverOnly, sideChannel?.ownStatics);
+    else leaf = stampEscapingLeaves(popped, work, sideChannel?.receiverOnly, sideChannel?.ownStatics);
     if (!leaf) continue;
     if (!isMemberAccessNode(leaf)) {
       const names = sideChannel?.containers ?? ESCAPED_CONTAINER_NAMES.get(programNode);
@@ -2151,8 +2153,6 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
         for (const values of writes.values()) work.push(...values);
       }
       for (const slot of slots) {
-        const slotKey = nodePositionKey(slot);
-        if (slotKey !== null) stamps.add(slotKey);
         const slotName = escapeStampedName(slot, censusKey);
         if (slotName !== null) {
           ctorNames.add(slotName);
@@ -2175,18 +2175,16 @@ function stampEscapesFrom(programNode, node, sideChannel = null) {
       // reference is then the MEMBER itself, which is where the claim stands.
       // a SYNTHESIZED read (the member a destructure slot pairs with) borrows its receiver's span,
       // so its position names the RECEIVER - a reference that may well stand in a tracked position,
-      // and stamping it would move the escape onto that node
-      const key = nodePositionKey(chain);
-      const ownPosition = key !== null && !borrowsReceiverSpan(chain);
+      // and treating it as an independent source read would attribute the wrong name
+      const ownPosition = nodePositionKey(chain) !== null && !borrowsReceiverSpan(chain);
       // A retained pure binding must cover its outside alternative too: a guarded union of a
       // custom namespace and the realm can still yield the realm's constructor. Global usage has
       // no minted guard result and keeps the ordinary escape answer for a locally replaced slot.
       const namedRealm = !sideChannel?.strictMembers || outside && readsOffRealm(programNode, aliases, chain, state.roots);
       // ... while a synthesized read still NAMES what it reads where the walk answers a hand-out or a hold - the
       // value a pattern leaf's member target stores (`({ Map: sink.y } = globalThis)`) leaves or stays as a member
-      // store's does - and where a candidate-only receiver query asks for it; the borrowed span never turns into a stamp
+      // store's does - and where a candidate-only receiver query asks for it; the borrowed span is no independent source read
       if (namedRealm && outside && (!sideChannel || sideChannel.syntheticNames || ownPosition)) {
-        if (ownPosition) stamps.add(key);
         const chainName = escapeStampedName(chain, censusKey);
         if (chainName !== null) {
           ctorNames.add(chainName);
@@ -2838,7 +2836,7 @@ function chainSlotValues(aliases, node, state, written, selectedKeys = null, rec
   const memo = slotMemo.get(slotKey);
   if (memo) return memo;
   // Publish before following local returns: recursive calls can revisit the same selection.
-  const answer = { expanded: false, outside: false, absent: false, values: [], reached: seen };
+  const answer = { expanded: false, outside: false, absent: false, values: [], reached: seen, depth: keys.length };
   slotMemo.set(slotKey, answer);
   let level = chainRootValues(aliases, root, seen, state.roots);
   // the ROOT level is filtered where its values are already cached - by BINDING. one binding is read
@@ -2924,7 +2922,7 @@ function returnedContainerWriteCandidates(programNode, call, keys) {
     : chainSlotValues(aliases, value, state, facts.receiverWrites, keys.slice(1), true).values;
   const names = new Set();
   for (const selected of values) stampEscapesFrom(programNode, selected, {
-    names, state, stamps: new Set(), containers: new Set(), receiverOnly: true, strictMembers: true,
+    names, state, containers: new Set(), receiverOnly: true, strictMembers: true,
   });
   return names;
 }
@@ -3102,10 +3100,10 @@ function confinedSlotArguments(call, callee) {
 }
 
 // Return one identifier or member leaf, or enqueue the values a carrier forwards. Identifiers are
-// stamped here; members need the caller's slot resolution.
+// returned here; members need the caller's slot resolution.
 // Every child re-enters the same call/alias dispatch, including calls nested in returned containers
 // or class heritage. A step yields at most one leaf, so no per-step collections are needed.
-function stampEscapingLeaves(node, stamps, work, receiverOnly = false, ownStatics = false) {
+function stampEscapingLeaves(node, work, receiverOnly = false, ownStatics = false) {
   // a zero-arg IIFE hands out its RETURN value, and the same peel every value canon takes on the
   // way into a container / global resolution puts the escape on the reference the source forwards
   const target = peelIifeReturnTarget(unwrapRuntimeExpr(node));
@@ -3136,19 +3134,16 @@ function stampEscapingLeaves(node, stamps, work, receiverOnly = false, ownStatic
     return;
   }
   switch (target.type) {
-    // a JSX tag name is an identifier in every way this walk cares about - it holds a position and it
+    // a JSX tag name is an identifier in every way this walk cares about - it
     // names a binding; only the node type differs between the two spellings of the same reference
     case 'JSXIdentifier':
-    case 'Identifier': {
-      const key = nodePositionKey(target);
-      if (key) stamps.add(key);
+    case 'Identifier':
       // the escaping value may be an ALIAS of the constructor rather than the reference itself
       // (`const B = Map; class C extends B`), and the reference sits in the alias's own init -
       // reported as the leaf NODE here and followed by its name once the whole file has been
       // walked. the node, not the name alone: whether it reaches the realm is a question about the
       // scope this one was spelled in, and two leaves of one name may answer it differently
       return target;
-    }
     // a value spelled as a container READ hands out whatever the slot holds, and the reference
     // sits wherever the container was written - recorded as a CHAIN here and followed once the
     // whole file has been walked, exactly like a bare alias name
@@ -3181,10 +3176,9 @@ function ownEscapedCtorNames(programNode, escaped) {
   // Value resolution is shared; the own/inherited distinction belongs to visitation only.
   const channel = {
     names,
-    stamps: new Set(),
     containers: new Set(),
     ownStatics: true,
-    state: escapeWalkStateFor(ESCAPED_CTOR_REFS.get(programNode)),
+    state: escapeWalkStateFor(ESCAPE_CENSUS.get(programNode)),
     visit: { names: new Set(), expanded: new WeakSet() },
   };
   for (const node of escaped) stampEscapesFrom(programNode, node, channel);
@@ -3219,7 +3213,7 @@ const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 // eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
 export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits = null, packages = null } = {}) {
   const optedOutNodes = isOptedOut ? new WeakSet() : null;
-  let stamps = null;
+  let census = null;
   let programNode = null;
   const memberCallees = new Map();
   const parameterSources = new Map();
@@ -3241,6 +3235,8 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   const jsxEscaped = [];
   // the NAMES an assignment writes, and those of them no declaration reaches: the realm's slot of the name
   const nameWriteTargets = [];
+  // Numeric updates consume the claim budget without adding constructor or key values.
+  const updateTargets = [];
   const realmSlotTargets = new WeakSet();
   // ... and the names an export specifier hands out, which only the finished declarations tell from a type
   const exportedSpecifierLocals = [];
@@ -4423,7 +4419,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     programNode = node;
     LOCAL_MEMBER_CALLEES.set(node, memberCallees);
     PARAMETER_STATIC_SOURCES.set(node, parameterSources);
-    ESCAPED_CTOR_REFS.set(node, stamps = new Set());
+    ESCAPE_CENSUS.set(node, census = {});
     ESCAPED_CTOR_NAMES.set(node, ctorNames);
     CTOR_ALIAS_INITS.set(node, aliasInit);
     CENSUS_STATIC_RECEIVERS.delete(node);
@@ -4505,8 +4501,9 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     }
   }
 
+  // eslint-disable-next-line max-statements -- one dispatch records pristine nodes and their scope facts
   function visit(node, frame) {
-    if (!stamps) registerProgramTables(node);
+    if (!census) registerProgramTables(node);
     // Suppression covers a visitor's entire subtree; writes there still join the same census.
     if (optedOutNodes && (optedOutNodes.has(frame?.parentNode) || isOptedOut(node))) optedOutNodes.add(node);
     // An identifier contributes only its reference facts; it declares no names or value shapes.
@@ -4625,10 +4622,15 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
           noteTopLevelNames(node, frame);
         }
         break;
-      case 'UpdateExpression':
-        if (node.argument.type === 'Identifier') guardedAliases.add(node.argument.name);
-        else fileSlotWrite(node.argument, null, frame);
+      case 'UpdateExpression': {
+        const target = unwrapRuntimeExpr(node.argument);
+        if (target?.type === 'Identifier') {
+          guardedAliases.add(target.name);
+          referenceScopes.set(target, frame?.scopes ?? []);
+          updateTargets.push(target);
+        } else fileSlotWrite(node.argument, null, frame);
         break;
+      }
       case 'UnaryExpression':
         if (node.operator === 'delete') fileSlotWrite(node.argument, null, frame);
         break;
@@ -5211,8 +5213,17 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       }
     }
   }
+  // eslint-disable-next-line max-statements -- finalize the shared tables before publishing name and receiver facts
   function result() {
     finalize();
+    if (updateTargets.length) {
+      const updates = new Map();
+      for (const target of updateTargets) {
+        const key = aliasBindingKey(aliasInit, target.name, aliasReferenceScopes(aliasInit, target));
+        updates.set(key, (updates.get(key) ?? 0) + 1);
+      }
+      ALIAS_SCOPE_FACTS.get(aliasInit).updatedBindings = updates;
+    }
     const kept = keptArguments;
     ALIAS_SCOPE_FACTS.get(aliasInit).receiverWrites = indexReceiverWrites();
     keepOpaqueReadSources(kept);
@@ -5314,7 +5325,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     }
     // Builtin arguments still expose containers to mutation analysis (including enum keys).
     // Only their constructor-family obligation is suppressed; keep the same scoped walk.
-    const builtinState = { names: new Set(), stamps: new Set(), state: { names: new Set(), roots: new Map(), slots: new Map() } };
+    const builtinState = { names: new Set(), state: { names: new Set(), roots: new Map(), slots: new Map() } };
     for (const node of builtinArguments) stampEscapesFrom(programNode, node, builtinState);
     // the sources of reads the claims do not name are escapes too, walked FIRST as the reads they are - a
     // binding that may hold the realm's value included, as the escape half asks - naming into both halves at
@@ -5334,8 +5345,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     // statics, and that read then answers `undefined` where the native answers the member.
     // that half walks into names and a memo of its OWN, never into the shared set - the two bindings
     // list their census reducers in different orders, and an answer that moved with that order would
-    // leave one leg narrower than the other. the POSITION stamps stay one set for both, so a slot the
-    // value canon declined is still the reference a pure destructure plan reads back
+    // leave one leg narrower than the other.
     const heldState = { names: new Set(), roots: new Map(), slots: new Map() };
     collectHeldReceivers({
       programNode,
@@ -5358,7 +5368,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       isOptedOut: optedOutNodes ? node => optedOutNodes.has(node) : null,
     });
     for (const value of kept) {
-      stampEscapesFrom(programNode, value, { names: heldInSlot, state: heldState, heldInSlot: true, syntheticNames: true });
+      stampEscapesFrom(programNode, value, { names: heldInSlot, state: heldState, syntheticNames: true });
     }
     // read at QUERY time, when every reducer of this census has stamped: ONE answer object rather
     // than two census fields, since the flavor doing the asking is what picks the half
@@ -7467,7 +7477,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     // Global resolves the selected key through the captured heritage; a known key is not
     // an unnamed read. Unknown keys and actual escapes retain their separate obligations.
     const heldNames = HELD_CTOR_NAMES.get(programNode);
-    const held = heldNames && { names: heldNames, state: escapeWalkStateFor(heldNames), heldInSlot: true };
+    const held = heldNames && { names: heldNames, state: escapeWalkStateFor(heldNames) };
     for (const [key, { name, literals, container }] of containers) {
       if (!container) continue;
       for (const { literal: node } of literals) {

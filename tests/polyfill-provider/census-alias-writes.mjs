@@ -7,7 +7,6 @@ import {
   collectFileCensus,
   nodePositionKey,
   ESCAPED_CONTAINER_NAMES,
-  ESCAPED_CTOR_REFS,
   CENSUS_STATIC_RECEIVERS,
   walkAstNodes,
   writtenPatternSlotValues,
@@ -204,11 +203,10 @@ for (const parser of adapters) {
   const head = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'value').node.id;
   const { escapedCtorNames } = collectFileCensus(program.node, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
   const containers = [...ESCAPED_CONTAINER_NAMES.get(program.node)];
-  const stamps = [...ESCAPED_CTOR_REFS.get(program.node)];
   const query = CENSUS_STATIC_RECEIVERS.get(program.node);
   checkDeep(`${ parser.name }: opaque head's possible family`, [...query(head)], ['Map']);
   checkDeep(`${ parser.name }: query leaves container escape facts unchanged`, [...ESCAPED_CONTAINER_NAMES.get(program.node)], containers);
-  checkDeep(`${ parser.name }: query leaves position stamps unchanged`, [...ESCAPED_CTOR_REFS.get(program.node)], stamps);
+  check(`${ parser.name }: query leaves global family narrow`, escapedCtorNames.has('Map'), false);
   check(`${ parser.name }: query leaves pure family narrow`, escapedCtorNames.has('Map', true), false);
 }
 

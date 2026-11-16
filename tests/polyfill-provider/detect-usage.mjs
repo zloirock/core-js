@@ -98,7 +98,6 @@ import {
   TS_EXPR_WRAPPERS,
   collectFileCensus,
   nodePositionKey,
-  ESCAPED_CTOR_REFS,
   reachingReassignmentValueNode,
   reassignmentValueEnumeration,
   varInitDominatesUsage,
@@ -3115,31 +3114,30 @@ for (const [init, paired] of [['[receiver]', true], ['[...[...[receiver]]]', tru
 
 // --- the escaping-constructor census over the slots a source can leave ABSENT ---
 
-function censusStamps(programNode) {
-  collectFileCensus(programNode, [escapedCtorReferencesReducer()]);
-  return ESCAPED_CTOR_REFS.get(programNode).size;
+function censusNames(programNode) {
+  const { escapedCtorNames } = collectFileCensus(programNode, [escapedCtorReferencesReducer()]);
+  return escapedCtorNames.has('Map', true);
 }
 
 // an array literal's element slot can be a HOLE, and a hole redefines nothing: the container is
 // handed out whole only where a SPREAD may have filled the slot the read names
 runBoth('escaped-ctor census/an array hole is no spread', 'const NS = [, Map];\nsink(NS[9]);',
-  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 0));
+  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), false));
 runBoth('escaped-ctor census/a spread hands the container out whole', 'const NS = [...s, Map];\nsink(NS[9]);',
-  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 2));
+  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));
 
 // a class DECLARATION can bind no name at all - `export default class {}` - and a container nothing
 // names is reachable through no chain the census can follow. the export hands the class itself out,
-// which stamps its own static either way, so the pair is what isolates the claim: the READ adds
-// nothing, where a slot wrongly resolved off the nameless class would make it two
-runBoth('escaped-ctor census/a nameless class declaration is stamped by its export alone',
+// which exposes its own static either way; the read through an unrelated object adds no family
+runBoth('escaped-ctor census/a nameless class declaration exposes its static through its export',
   'const x = {};\nexport default class { static Base = Map; }',
-  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
+  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));
 runBoth('escaped-ctor census/a nameless class declaration binds no container name',
   'const x = {};\nexport default class { static Base = Map; }\nsink(x.Base);',
-  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
+  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));
 runBoth('escaped-ctor census/a named class declaration binds its statics',
   'class NS { static Base = Map; }\nsink(NS.Base);',
-  (adapter, prog, lbl) => check(lbl, censusStamps(prog.node), 1));
+  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));
 
 // The alias pre-pass can register only a known global key. Ordinary destructuring must
 // not start a scoped file walk; nested wrappers and all key spellings it accepts still do.

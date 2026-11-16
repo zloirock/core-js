@@ -1284,7 +1284,7 @@ export function shouldDropRescueReceiver(inner, ctx = null) {
 // takes. a read a COLLAPSE would fold away buys nothing by being kept - it reaches the output as a
 // ponyfill read (and a dead import with it), never as the throw - so only a key the fold leaves
 // standing counts
-export function readStandsOverAbsentableStore(inner, { scope, adapter, path, resolvePure }) {
+function readStandsOverAbsentableStore(inner, { scope, adapter, path, resolvePure }) {
   // through a SEQUENCE the source wrote around the read: it hands its TAIL on, and a peel of the
   // runtime wrappers alone reads the wrapper as a non-member and answers no.
   // the READ ITSELF comes back, not a flag: a leg whose collapse has already eaten the key by the

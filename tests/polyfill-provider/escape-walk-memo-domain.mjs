@@ -9,25 +9,21 @@
 // produces and what `tsc` answers TS7022 to - the circularity is the point, and none of these
 // sources is executed
 import { createChecker, findNode } from './harness.mjs';
-import {
-  collectFileCensus,
-  ESCAPED_CTOR_REFS,
-} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('escape-walk-memo-domain');
 
 // --- Convergence and key soundness ---
 
-// each row: the source, and the spellings whose own span must carry an escape stamp once the walk
-// has converged. every row hands out a pair - one value the walk reaches only AFTER it is done with
-// the shape the cache exists for, so a cache that stops folding starves the second half
+// Each row names the families the completed walk must expose. Every row hands out a pair:
+// one value is reached only after the cached shape, so a cache that stops folding starves it.
 const ROWS = [
   {
     name: 'effectful getter pairings keep same-name aliases in their own scopes',
     code: 'export function first() { const { w: { Map: Held } } = { get w() { mark(); return globalThis; } }; return Held; }'
       + ' export function second() { const { w: { Set: Held } } = { get w() { mark(); return globalThis; } }; return Held; }',
-    stamped: ['Map: Held', 'Set: Held'],
+    names: ['Map', 'Set'],
   },
   // a cycle whose every hop is a node the SOURCE spells: two containers reading each other's slot.
   // both keys fold it, which is what separates this row from the next one - the node is stable, so
@@ -40,7 +36,7 @@ const ROWS = [
       'var later = Map;',
       'hand([later, a.p]);',
     ].join('\n'),
-    stamped: ['Map'],
+    names: ['Map'],
   },
   // ... and the same cycle through slots a destructure SYNTHESIZES: the read a receiver-shaped
   // source pairs with is a new node every pass, so identity can never fold it and only the name
@@ -55,7 +51,7 @@ const ROWS = [
       'var later = Map;',
       'hand([later, boxA.inner.p]);',
     ].join('\n'),
-    stamped: ['Map'],
+    names: ['Map'],
   },
   // two synthesized reads off ONE receiver node: the pair borrows its span, so the root position is
   // the same for both and only the key path tells `box.inner.A` from `box.inner.B`. a key without
@@ -68,7 +64,7 @@ const ROWS = [
       'hand(A);',
       'hand(B);',
     ].join('\n'),
-    stamped: ['Map', 'Set'],
+    names: ['Map', 'Set'],
   },
   // a root resolved once and read twice: the second read gets the cached values, and it has to get
   // the visited NAMES with them. Without them the descent walks back through the alias hop the root
@@ -81,56 +77,44 @@ const ROWS = [
       'var alias = holder;',
       'hand([alias.probe, alias.deep.absent]);',
     ].join('\n'),
-    stamped: ['alias.deep.absent'],
+    names: ['absent'],
   },
   {
     name: 'same-name roots in different functions keep independent cached values',
     code: 'export function first() { const box = { value: Map }; return box.value; }'
       + ' export function second() { const box = { value: Set }; return box.value; }',
-    stamped: ['Map', 'Set'],
+    names: ['Map', 'Set'],
   },
   {
     name: 'a same-name alias hop is not a cycle until it reaches the same binding',
     code: 'const x = { payload: Map }; const box = { x };'
       + ' export function read() { const { x } = box; return x.payload; }',
-    stamped: ['Map'],
+    names: ['Map'],
   },
   {
     name: 'independent cycles do not starve either function escape',
     code: 'export function first() { var a = { p: b.q }; var b = { q: a.p }; return [Map, a.p]; }'
       + ' export function second() { var a = { p: b.q }; var b = { q: a.p }; return [Set, a.p]; }',
-    stamped: ['Map', 'Set'],
+    names: ['Map', 'Set'],
   },
   {
     name: 'literal slots and computed keys preserve their parent container escape',
     code: 'const box = { "held": Map }; hand([0, "text", false, null, 1n, /x/, box["held"]]);',
-    stamped: ['Map'],
+    names: ['Map'],
   },
   {
     name: 'a leading block and its program are different owners even when both start at zero',
     code: '{ const box = { value: Map }; hand(box.value); }'
       + ' const box = { value: Set }; hand(box.value);',
-    stamped: ['Map', 'Set'],
+    names: ['Map', 'Set'],
   },
 ];
 
-// the span a spelling occupies in its own source. every spelling here is unique in its row, so an
-// ambiguous one is an authoring mistake that fails rather than asserting about whichever came first
-function spanKey(code, text, label) {
-  const start = code.indexOf(text);
-  checkTruthy(`${ label }: '${ text }' occurs exactly once`,
-    start !== -1 && code.indexOf(text, start + 1) === -1);
-  return `${ start }:${ start + text.length }`;
-}
-
 for (const row of ROWS) {
   runBoth(row.name, row.code, (adapter, programPath, label) => {
-    const program = programPath.node;
-    collectFileCensus(program, [escapedCtorReferencesReducer()]);
-    const stamps = ESCAPED_CTOR_REFS.get(program);
-    checkTruthy(`${ label }: census ran`, !!stamps);
-    for (const spelling of row.stamped) {
-      check(`${ label }: '${ spelling }' stamped`, stamps.has(spanKey(row.code, spelling, label)), true);
+    const { escapedCtorNames } = collectFileCensus(programPath.node, [escapedCtorReferencesReducer()]);
+    for (const name of row.names) for (const pure of [false, true]) {
+      check(`${ label }: ${ name }/${ pure ? 'pure' : 'global' } escapes`, escapedCtorNames.has(name, pure), true);
     }
   });
 }

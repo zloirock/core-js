@@ -25580,6 +25580,58 @@ function * generateModuleReceiverScopes() {
   }
 }
 
+// Retained reads beyond analysis ceilings must be self-sufficient in an isolated realm.
+function * generateCensusBoundarySources() {
+  for (const kind of ['writes', 'depth']) for (const count of [64, 65]) {
+    for (const alias of [false, true]) for (const effectful of [false, true]) {
+      const setup = kind === 'writes' ? `let C = Map; ${ 'C = Map;'.repeat(count) }`
+        : `const box = ${ '{ a: '.repeat(count) }Map${ ' }'.repeat(count) };`;
+      const value = kind === 'writes' ? 'C' : `box${ '.a'.repeat(count) }`;
+      const receiver = alias ? 'held' : value;
+      yield {
+        name: `census-boundary/${ kind }/${ count }/${ alias }/${ effectful }`, strip: true, isolated: true,
+        code: `export const effects = [];
+          function run() { ${ setup } ${ alias ? `const held = ${ value };` : '' }
+            return ${ effectful ? `(effects.push('receiver'), ${ receiver })` : receiver }
+              .groupBy((effects.push('argument'), [3]), value => value).get(3)[0];
+          }
+          export const r = run();`,
+      };
+    }
+  }
+  for (const [shape, setup, receiver] of [
+    ['object-write', `let C = Map; ${ '({ C } = { C: Map });'.repeat(65) }`, 'C'],
+    ['array-write', `let C = Map; ${ '[C] = [Map];'.repeat(65) }`, 'C'],
+    ['logical-write', `let C = Map; ${ 'C ||= Map;'.repeat(65) }`, 'C'],
+    ['update-reset', `let C = Map; ${ 'C++;'.repeat(65) } C = Map;`, 'C'],
+    ['wrapped-update', `let C: any = Map; ${ '(C as any)++;'.repeat(65) } C = Map;`, 'C'],
+    ['split-depth', `const box = ${ '{ a: '.repeat(65) }Map${ ' }'.repeat(65) };
+      const held = box${ '.a'.repeat(32) };`, `held${ '.a'.repeat(33) }`],
+    ['written-root', `let box = { C: Map }; ${ 'box = { C: Map };'.repeat(65) }`, 'box.C'],
+    ['double-alias', `let C = Map; ${ 'C = Map;'.repeat(65) } const held = C; const last = held;`, 'last'],
+    ['computed-read', `let C = Map; ${ 'C = Map;'.repeat(65) }`, 'C'],
+  ]) {
+    yield {
+      name: `census-boundary/${ shape }`, ts: shape === 'wrapped-update', strip: true, isolated: true,
+      code: `export const effects = [];
+        function run() { ${ setup }
+          return ${ receiver }[${ shape === 'computed-read' ? "(effects.push('key'), 'groupBy')" : "'groupBy'" }]
+            ((effects.push('argument'), [3]), value => value).get(3)[0];
+        }
+        export const r = run();`,
+    };
+  }
+  for (const reversed of [false, true]) yield {
+    name: `census-boundary/multiple-keys/${ reversed }`, strip: true, isolated: true,
+    code: `export const effects = [];
+      function run(flag) { let C; ${ 'C = flag ? Map : Promise;'.repeat(65) }
+        const { ${ reversed ? 'withResolvers, groupBy' : 'groupBy, withResolvers' } } = C;
+        return [typeof groupBy, typeof withResolvers];
+      }
+      export const r = [run(true), run(false)];`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27392,4 +27444,5 @@ export function * generate() {
   yield * generatePatternPairingSources();
   yield * generateTypeQueryDagSources();
   yield * generateModuleReceiverScopes();
+  yield * generateCensusBoundarySources();
 }
