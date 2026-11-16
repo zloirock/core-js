@@ -553,7 +553,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Array.prototype.every;
   },
   'es.array.fill': function () {
-    return Array.prototype.fill && Array.prototype[Symbol.unscopables].fill;
+    try {
+      Array.prototype.fill.call(Object.defineProperty({ length: 1 }, 0, { writable: false }));
+      return false;
+    } catch (error) { /* empty */ }
+    // a negative length is tried only if the method stops on a non-writable element
+    Array.prototype.fill.call(Object.defineProperty({ length: -1 }, 0, { writable: false }));
+    return Array.prototype[Symbol.unscopables].fill;
   },
   'es.array.filter': createArrayMethodSpeciesTest('filter', [Boolean]),
   'es.array.find': function () {

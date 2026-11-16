@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added missed detection of native `Array.prototype.fill` reading the `length` of array-likes without `ToLength` in V8 ~ Chrome 45-47
 - Fixed `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice }` polyfills ignoring a redefined `Array[@@species]` of the current realm and `@@species` of constructors with an array as `.prototype`; they no longer run `IsConstructor` on each call, which makes them faster on small arrays
 - Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
 - Added missed detection of [native `Array.prototype.flatMap` keeping holes of arrays returned by the callback in Rhino](https://github.com/mozilla/rhino/issues/2588)
@@ -194,6 +195,7 @@
   - `self` marked as properly supported from Edge 87: unlike Chrome 86, Edge 86 has it as a data property
   - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
   - `Array.prototype.splice` marked as supported from Rhino 1.9.0
+  - `Array.prototype.fill` marked as properly supported from Chrome 48 instead of Chrome 45 because of the bug above
   - `Array.prototype.unshift` marked as properly supported from FF55 instead of FF23 and Edge 16 instead of Edge 12 and no longer marked as supported in IE because of the bugs above
   - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from [1.9.0](https://github.com/mozilla/rhino/pull/1980), `Array.fromAsync` and `%TypedArray%.prototype.with` marked as not supported, `Error.prototype.toString`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, some, sort, toLocaleString }` - from [1.8.0](https://github.com/mozilla/rhino/commit/db117290720838a54126f6a27da117097f539353)
   - Fixed Firefox compat data: `Date.prototype.toISOString` marked as supported from [FF6](https://bugzilla.mozilla.org/show_bug.cgi?id=649575), `Object.getOwnPropertyNames` - from FF33, `Number` constructor - from [FF36](https://bugzilla.mozilla.org/show_bug.cgi?id=1079120), `Array.prototype.{ map, splice }` - from [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052), `Symbol.hasInstance` - from [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906), `DOMException.prototype[@@toStringTag]` - from [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799), `Iterator.prototype.{ drop, take }` - from [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666)

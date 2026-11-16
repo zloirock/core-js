@@ -241,7 +241,7 @@ export const data = {
     safari: '7.1',
   },
   'es.array.fill': {
-    chrome: '45',
+    chrome: '48', // '45',
     edge: '12',
     firefox: '48',
     rhino: '1.8.0',

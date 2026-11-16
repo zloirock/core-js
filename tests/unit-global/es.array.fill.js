@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#fill', assert => {
   const { fill } = Array.prototype;
@@ -19,7 +19,8 @@ QUnit.test('Array#fill', assert => {
     assert.throws(() => fill.call(null, 0), TypeError);
     assert.throws(() => fill.call(undefined, 0), TypeError);
   }
-  if (NATIVE && DESCRIPTORS) {
+  // native fill in V8 ~ Chrome 45-47 treats a negative length as unsigned
+  if (DESCRIPTORS) {
     assert.notThrows(() => fill.call(Object.defineProperty({
       length: -1,
     }, 0, {
