@@ -5,6 +5,6 @@ var $TypeError = TypeError;
 
 // Perform ? RequireInternalSlot(M, [[WeakSetData]])
 module.exports = function (it) {
-  if (typeof it == 'object' && 'has' in it && 'add' in it && 'delete' in it) return it;
+  if (typeof it == 'object' && it !== null && 'has' in it && 'add' in it && 'delete' in it) return it;
   throw new $TypeError(tryToString(it) + ' is not a weakset');
 };

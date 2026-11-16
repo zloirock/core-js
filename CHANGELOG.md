@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed a misleading error message of `Map`, `Set`, `WeakMap` and `WeakSet` methods called on `null` in the pure version
 - Added missed detection of native `Array.prototype.fill` reading the `length` of array-likes without `ToLength` in V8 ~ Chrome 45-47
 - Fixed `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice }` polyfills ignoring a redefined `Array[@@species]` of the current realm and `@@species` of constructors with an array as `.prototype`; they no longer run `IsConstructor` on each call, which makes them faster on small arrays
 - Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
