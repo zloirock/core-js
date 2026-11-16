@@ -3923,7 +3923,9 @@ for (const [label, source, receivers, shallow] of [
       const { root, keys } = memberChainKeys(receiver);
       return [root.name ?? root.callee?.name, ...keys].join('.');
     })).toArray();
-    check(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]: slot count`, slots.length, (readsThrough ? receivers : shallow).length);
+    // One property can read several sources; retain every receiver without repeating the slot.
+    check(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]: slot count`, slots.length, Number((readsThrough ? receivers : shallow).length > 0));
+    checkDeep(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]: slot identities`, slots, slotReceivers.keys().toArray());
     checkDeep(`patternReceiverSlotNodes/${ label }/${ readsThrough } [${ adapter.name }]`, actual, readsThrough ? receivers : shallow);
   }
 }

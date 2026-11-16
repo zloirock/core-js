@@ -171,6 +171,7 @@ echo(`\n${ green('all polyfill-provider suites passed') }`);
 import './guard-preparation.mjs';
 import './optional-query-reuse.mjs';
 import './selection-dag.mjs';
+import './pattern-pairing.mjs';
 import './canon-guard-answers.mjs';
 import './optional-seals.mjs';
 import './static-fallback-receiver.mjs';

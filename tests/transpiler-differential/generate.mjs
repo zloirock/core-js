@@ -25487,6 +25487,38 @@ function * generateSelectionDagSources() {
   }
 }
 
+// Repeated pairing changes analysis work, never the order or identity of runtime defaults.
+function * generatePatternPairingSources() {
+  for (const array of [false, true]) for (const supplied of [false, true]) for (const assigned of [false, true]) {
+    const target = assigned ? 'box.method' : 'method';
+    const pattern = array ? `[[{ at: ${ target } } = (log.push('inner'), 'xy')] = (log.push('outer'), [])]`
+      : `{ a: { b: { at: ${ target } } = (log.push('inner'), 'xy') } = (log.push('outer'), {}) }`;
+    const source = array ? supplied ? '[[[3]]]' : '[]' : supplied ? '{ a: { b: [3] } }' : '{}';
+    const body = `${ assigned ? 'const box = {}; (' : 'const ' }${ pattern } = (log.push('source'), ${ source })${ assigned ? ')' : '' };
+      return ${ assigned ? 'box.method' : 'method' }.call([9], 0);`;
+    // Literal wrappers keep their native pattern in pure; the full-runtime and global legs
+    // still observe defaults, supplied values, member stores and string/array receiver identity.
+    yield { ...snippet(`pattern-pairing/defaults/${ array }/${ supplied }/${ assigned }`, `(() => { ${ body } })()`), strip: false };
+  }
+  for (const assigned of [false, true]) for (const laterWrite of [false, true]) {
+    const lines = assigned ? ['let a, b, c;', '[a] = [Array];', '[b] = [a];', '[c] = [b];']
+      : ['const [a] = [Array];', 'const [b] = [a];', 'const [c] = [b];'];
+    if (laterWrite && assigned) lines.push('[b] = [Object];');
+    if (laterWrite && !assigned) lines.push('const shadow = () => { const a = Object; return a; }; void shadow;');
+    yield { ...snippet(`pattern-pairing/aliases/${ assigned }/${ laterWrite }`, `(() => {
+      ${ lines.join('\n') }
+      return c.from((log.push('argument'), [3]))[0];
+    })()`), strip: true };
+  }
+  for (const swaps of [1, 2, 3]) yield {
+    ...snippet(`pattern-pairing/swaps/${ swaps }`, `(() => {
+      let a = [3], b = 'ab';
+      ${ '[a, b] = [b, a];'.repeat(swaps) }
+      return a.at((log.push('index'), 0));
+    })()`), strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27296,4 +27328,5 @@ export function * generate() {
   yield * generateReceiverQueryLifetimes();
   yield * generateOptionalQuerySources();
   yield * generateSelectionDagSources();
+  yield * generatePatternPairingSources();
 }

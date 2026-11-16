@@ -6896,22 +6896,18 @@ export function followConstIdentifierInit(hop, { maybe = false, onReassignedHop 
 // ctx-less caller keeps the node
 export function followConstLiteralAlias(node, ctx) {
   if (!ctx?.adapter || node?.type !== 'Identifier') return node;
-  // every head normalization of one slot pairing follows its rhs (`patternSlotValues`,
-  // `patternSlotSpreadShifted`), and a binding a pattern takes off the one before it re-pairs the
-  // link below at each of them: kept per question under the very context handed in - its guard as
-  // it stands included - a chain of such destructures follows each link once instead of twice per
-  // level. the follow rewrites nothing, so it is one question of its own where no scope is open
+  // Every pairing head follows its source. Key equivalent contexts by their parts: alias hops
+  // copy the context object, so its identity cannot identify the question. Keep the guard proof
+  // as well; equal guard sizes alone say nothing about which aliases are still available.
   return withCanonQuestion(() => followedConstLiteral(node, ctx));
 }
 
 function followedConstLiteral(node, ctx) {
-  const answers = canonAnswerTable(followConstLiteralAlias, [ctx, ctx.seen?.size ?? 0]);
-  if (answers?.has(node)) return answers.get(node);
-  const followed = followConstIdentifierInit({ node, readNode: node, seen: ctx.seen, ctx });
-  const value = followed.node;
-  const answer = value?.type === 'ArrayExpression' || value?.type === 'ObjectExpression' ? value : node;
-  answers?.set(node, answer);
-  return answer;
+  const { seen, ...inputs } = ctx;
+  return guardedCanonAnswer(followConstLiteralAlias, Object.entries(inputs).flat(), node, seen, () => {
+    const { node: value } = followConstIdentifierInit({ node, readNode: node, seen, ctx });
+    return value?.type === 'ArrayExpression' || value?.type === 'ObjectExpression' ? value : node;
+  });
 }
 
 // the canonical ARRAY-slot read: `container[key]` for a literal container, with the same guards
@@ -6978,7 +6974,14 @@ export function restCopiedValues(rhs, pattern, from, ctx = null) {
 // under the member's own path. a key this canon cannot fold keeps its own node in that read, so a consumer
 // folds it with the canon it holds once its bindings are known (`{ [k]: o.y }` stores `rhs[k]`, as `o.y = rhs[k]`)
 export function patternMemberTargetPairs(pattern, rhs, ctx = null, out = []) {
-  if (pattern?.type === 'AssignmentPattern') patternMemberTargetPairs(pattern.left, pattern.right, ctx, out);
+  out.push(...patternPairing(pattern, rhs, ctx, pairMemberTargets));
+  return out;
+}
+
+// One member-target level; defaults are alternative sources, not independent pattern walks.
+function pairMemberTargets(pattern, rhs, ctx, pair) {
+  const out = [];
+  if (pattern?.type === 'AssignmentPattern') out.push(...pair(pattern.left, pattern.right, ctx));
   const target = patternSlotTarget(pattern);
   if (isMemberAccessNode(target)) {
     if (rhs) out.push([target, rhs]);
@@ -6986,7 +6989,7 @@ export function patternMemberTargetPairs(pattern, rhs, ctx = null, out = []) {
     target.elements.forEach((element, index) => {
       if (!element || element.type === 'RestElement') return;
       const paired = rhs?.type === 'ArrayExpression' ? pairedArrayWrapInitElement(rhs.elements, index) : null;
-      patternMemberTargetPairs(element, paired ?? (rhs && receiverSlotRead(rhs, String(index))), ctx, out);
+      out.push(...pair(element, paired ?? (rhs && receiverSlotRead(rhs, String(index))), ctx));
     });
   } else if (target?.type === 'ObjectPattern') {
     for (const prop of target.properties) {
@@ -6995,10 +6998,39 @@ export function patternMemberTargetPairs(pattern, rhs, ctx = null, out = []) {
       const paired = key !== null && rhs?.type === 'ObjectExpression'
         ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, target) === key, key), ctx ?? {})
         : null;
-      patternMemberTargetPairs(prop.value, paired ?? (rhs && receiverSlotRead(rhs, key, key === null ? prop.key : null)), ctx, out);
+      out.push(...pair(prop.value, paired ?? (rhs && receiverSlotRead(rhs, key, key === null ? prop.key : null)), ctx));
     }
   }
   return out;
+}
+
+// Pair a level with each source once within this walk. All options and sinks are shared;
+// source expansion may change scope, and receiver pairing changes the two store flags.
+// A hit reuses node identities and already-recorded sink entries. Distinct sources retain
+// their order; repeated paths to the same values do not duplicate the union. A cut or a
+// refused lookup supplies no reusable proof. Nothing survives a caller or an AST rewrite.
+function patternPairing(pattern, rhs, ctx, visit) {
+  let answers;
+  function pair(level, value, context) {
+    let table = answers ??= new Map();
+    for (const part of [level, context?.scope, context?.belowSource, context?.belowStore]) {
+      let next = table.get(part);
+      if (!next) table.set(part, next = new Map());
+      table = next;
+    }
+    if (table.has(value)) return table.get(value);
+    const cuts = cycleGuardCuts();
+    const refusals = refusedReentries;
+    const values = visit(level, value, context, pair);
+    const result = values.length > 1 ? [...new Set(values)] : values;
+    if (cuts === cycleGuardCuts() && refusals === refusedReentries) table.set(value, result);
+    return result;
+  }
+  // Flat patterns need no memo table; only a recursive descent can revisit a pair.
+  return withCanonQuestion(() => {
+    const values = visit(pattern, rhs, ctx, pair);
+    return values.length > 1 ? [...new Set(values)] : values;
+  });
 }
 
 // the containers a source the pairer cannot index stands for (`pairedSources`, asked with the
@@ -7049,29 +7081,39 @@ export function literalDestructureSource(node) {
 // the routes it falls back to name a static through one only on some hosts and levels. a slot such a
 // route does name still reads raw here - the whole entry is the price of not mirroring those routes
 export function patternReceiverSlotNodes(pattern, rhs, name, ctx) {
+  return patternPairing(pattern, rhs, ctx, (level, value, context, pair) => {
+    return receiverPatternSlots(level, value, name, context, pair);
+  });
+}
+
+// Keep store provenance local to each descent, including a cached child result.
+function receiverPatternSlots(pattern, rhs, name, ctx, pair) {
   const rawReads = ctx?.rawReads;
-  if (!rawReads) return pairPatternReceiverSlots(pattern, rhs, name, ctx);
+  if (!rawReads) return pairPatternReceiverSlots(pattern, rhs, name, ctx, pair);
   const { belowSource = false, belowStore = false } = ctx;
   const { tail } = peelNestedSequenceExpressions(rhs);
   const stored = belowStore || (belowSource && tail?.type === 'AssignmentExpression' && tail.operator === '=');
   ctx.belowSource = true;
   ctx.belowStore = stored;
-  const slots = pairPatternReceiverSlots(pattern, rhs, name, ctx);
-  ctx.belowSource = belowSource;
-  ctx.belowStore = belowStore;
-  if (stored) for (const slot of slots) rawReads.add(slot);
-  return slots;
+  try {
+    const slots = pairPatternReceiverSlots(pattern, rhs, name, ctx, pair);
+    if (stored) for (const slot of slots) rawReads.add(slot);
+    return slots;
+  } finally {
+    ctx.belowSource = belowSource;
+    ctx.belowStore = belowStore;
+  }
 }
 
-// one level of that pairing; each level below re-enters through `patternReceiverSlotNodes`
+// One receiver level; recursive calls share the enclosing pairing's answers and sinks.
 // eslint-disable-next-line max-statements -- pair source slots and independent defaults without reordering receiver records
-function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
+function pairPatternReceiverSlots(pattern, rhs, name, ctx, pair) {
   const out = [];
   rhs = followConstLiteralAlias(installedWriteValue(rhs), ctx);
   rhs = literalDestructureSource(rhs) ?? rhs;
   // the same sources and reads `patternSlotValues` takes under `pairedSources` / `readsThrough`
   const sources = pairerSources(rhs, ctx);
-  if (sources) return sources.flatMap(({ source }) => patternReceiverSlotNodes(pattern, source, name, ctx));
+  if (sources) return sources.flatMap(({ source }) => pair(pattern, source, ctx));
   if (ctx?.selectionLevels && (getFallbackBranchSlots(rhs) || LOGICAL_ASSIGN_OPS.has(rhs?.operator))) {
     ctx.selectionLevels.push({ pattern, rhs });
   }
@@ -7089,12 +7131,12 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, at)
         : [patternSourceSlotRead(rhs, String(at), ctx, true)].filter(Boolean);
       for (const candidate of candidates) {
-        const slots = patternReceiverSlotNodes(slot, candidate, name, ctx);
+        const slots = pair(slot, candidate, ctx);
         out.push(...slots);
         if (rhs?.type !== 'ArrayExpression') for (const read of slots) ctx?.positionalReads?.add(read);
         else for (const read of slots) ctx?.rawReads?.add(read);
       }
-      if (element.type === 'AssignmentPattern') out.push(...patternReceiverSlotNodes(slot, element.right, name, ctx));
+      if (element.type === 'AssignmentPattern') out.push(...pair(slot, element.right, ctx));
     }
     return out;
   }
@@ -7113,7 +7155,7 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       // An unknown source key does not hide the default's own receiver. It still
       // supplies the nested reads whenever the runtime slot is undefined.
       if (isDestructurePattern(slot) && prop.value.type === 'AssignmentPattern') {
-        out.push(...patternReceiverSlotNodes(slot, prop.value.right, name, ctx));
+        out.push(...pair(slot, prop.value.right, ctx));
       }
       continue;
     }
@@ -7133,14 +7175,14 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
       }
       const source = paired ?? received;
       if (source) {
-        const slots = patternReceiverSlotNodes(slot, source, name, ctx);
+        const slots = pair(slot, source, ctx);
         out.push(...slots);
         if (paired && pairedProperty?.kind !== 'get' || ctx?.keepsSelectedReceiver && prop.value.type === 'AssignmentPattern') {
           for (const read of slots) ctx?.rawReads?.add(read);
         }
       }
       if (prop.value.type === 'AssignmentPattern') {
-        out.push(...patternReceiverSlotNodes(slot, prop.value.right, name, ctx));
+        out.push(...pair(slot, prop.value.right, ctx));
       }
       continue;
     }
@@ -7154,7 +7196,7 @@ function pairPatternReceiverSlots(pattern, rhs, name, ctx) {
 // A slot can be visited against several sources. Keep each receiver beside the one source node.
 function recordPatternReceiverSlot(out, prop, rhs, ctx) {
   out.push(prop);
-  if (ctx?.slotReceivers) pushMultimap(ctx.slotReceivers, prop, rhs);
+  if (ctx?.slotReceivers && !ctx.slotReceivers.get(prop)?.includes(rhs)) pushMultimap(ctx.slotReceivers, prop, rhs);
 }
 
 // the function's OWN return statements: a shallow walk that does not descend into nested
@@ -7517,6 +7559,11 @@ function classStaticSlotValue(classNode, key) {
 // `readsThrough` takes a slot of a receiver or an invocation still left as the READ of that slot,
 // nested levels included - what a census following member chains resolves further.
 export function patternSlotValues(pattern, rhs, name, ctx) {
+  return patternPairing(pattern, rhs, ctx, (level, value, context, pair) => pairPatternValues(level, value, name, context, pair));
+}
+
+// The value union at one level, under the shared options and the source's own scope.
+function pairPatternValues(pattern, rhs, name, ctx, pair) {
   const out = [];
   // a caller comparing supplied values with a default's existing obligations needs the source
   // half alone. keep that choice on the canonical pairing, including its nested descent
@@ -7530,7 +7577,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   const sources = pairerSources(rhs, ctx);
   if (sources) {
     return sources.flatMap(({ source, filled, scope, argumentScope }) => {
-      const values = patternSlotValues(pattern, source, name, scope ? { ...ctx, scope } : ctx);
+      const values = pair(pattern, source, scope ? { ...ctx, scope } : ctx);
       return values.map(value => {
         const read = filled?.(value) ?? value;
         if (scope && !ctx.valueScopes?.has(read)) ctx.valueScopes?.set(read, read === value ? scope : argumentScope);
@@ -7560,8 +7607,8 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
         : [ctx?.readsThrough && element?.type !== 'RestElement'
           && patternSourceSlotRead(rhs, String(i), ctx, isDestructurePattern(slot))].filter(Boolean);
       if (isDestructurePattern(slot)) {
-        for (const cand of candidates) out.push(...patternSlotValues(slot, cand, name, ctx));
-        if (includeDefaults && element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
+        for (const cand of candidates) out.push(...pair(slot, cand, ctx));
+        if (includeDefaults && element.type === 'AssignmentPattern') out.push(...pair(slot, element.right, ctx));
         continue;
       }
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
@@ -7596,8 +7643,8 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       const paired = candidates.filter(Boolean);
       if (isDestructurePattern(slot)) {
         const levels = paired.length ? paired : [patternSourceSlotRead(rhs, key, ctx, true)].filter(Boolean);
-        for (const cand of levels) out.push(...patternSlotValues(slot, cand, name, ctx));
-        if (includeDefaults && prop.value.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, prop.value.right, name, ctx));
+        for (const cand of levels) out.push(...pair(slot, cand, ctx));
+        if (includeDefaults && prop.value.type === 'AssignmentPattern') out.push(...pair(slot, prop.value.right, ctx));
         continue;
       }
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
@@ -7626,6 +7673,9 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
 // slots: a shifted array sits just as well under a key (`{ x: [, A] } = { x: [...xs, V] }`).
 // mirrors `patternSlotHasDefault` / `patternSlotValues`, which walk both pattern kinds
 export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
+  // A binding leaf cannot contain a shifted slot. Following its source only re-pairs the
+  // preceding alias, whose completeness was already proved at its own pattern level.
+  if (!isDestructurePattern(pattern)) return false;
   // the SAME head normalization as `patternSlotValues`, or the two answer about DIFFERENT nodes:
   // values enumerated through a followed / peeled rhs with completeness judged on the raw spelling
   // would read a lone candidate as certain while an alias or a paren hides the shift
@@ -7662,7 +7712,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
           : key !== null && rhs?.type === 'ObjectExpression'
             ? objectPropertyReadValue(findObjectKeyBeforeSpread(rhs.properties,
               rp => patternPropKey(rp, ctx, pattern) === key, key)) : null;
-        if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
+        if ((paired || prop.value.type !== 'AssignmentPattern') && patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
       }
       if (prop.value.type === 'AssignmentPattern'
         && patternSlotSpreadShifted(slot, prop.value.right, name, ctx)) return true;
@@ -7681,7 +7731,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
     if (rhs?.type === 'ArrayExpression' && !coords && spreadAtOrBefore(rhs.elements, i)) return true;
     const slot = patternSlotTarget(element);
     const paired = coords ? resolveCallArgument(rhs.elements, i, ctx?.adapter?.isMutatedStaticSlot ?? ctx?.adapter?.isMutatedStatic) : null;
-    if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
+    if ((paired || element.type !== 'AssignmentPattern') && patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
     if (element.type === 'AssignmentPattern'
       && patternSlotSpreadShifted(slot, element.right, name, ctx)) return true;
   }
