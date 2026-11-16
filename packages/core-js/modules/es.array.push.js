@@ -6,12 +6,14 @@ var setArrayLength = require('../internals/array-set-length');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var fails = require('../internals/fails');
 
+// V8 ~ Chrome < 48, FF < 55, IE and Rhino 1.7.13
 var INCORRECT_TO_LENGTH = fails(function () {
   return [].push.call({ length: 0x100000000 }, 1) !== 4294967297;
 });
 
-// V8 <= 121 and Safari <= 15.4; FF < 23 throws InternalError
+// V8 <= 121, Safari 14.1 - 15.x and Rhino; FF < 23 throws InternalError
 // https://issues.chromium.org/issues/42202623
+// https://github.com/mozilla/rhino/issues/2591
 var properErrorOnNonWritableLength = function () {
   try {
     // eslint-disable-next-line es/no-object-defineproperty -- safe

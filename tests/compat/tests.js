@@ -733,7 +733,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     try {
       Object.defineProperty([], 'length', { writable: false }).unshift();
     } catch (error) {
-      return error instanceof TypeError;
+      if (!(error instanceof TypeError)) return false;
+      var touched = false;
+      var accessor = function () { touched = true; };
+      [].unshift.call(Object.defineProperty({ length: 1 }, 0, { get: accessor, set: accessor }));
+      // an engine that moves elements without arguments would iterate up to a huge length
+      return !touched && [].unshift.call({ length: 0x100000000 }) === 4294967296;
     }
   },
   'es.array.with': function () {

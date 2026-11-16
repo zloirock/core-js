@@ -494,9 +494,10 @@ export const data = {
   },
   'es.array.unshift': {
     chrome: '71',
-    firefox: '23',
+    edge: '16',
+    firefox: '55', // '23',
     hermes: '0.1',
-    ie: '9',
+    // ie: '9',
     // bug with setting length fixed only in Safari 16
     safari: '16.0',
   },
