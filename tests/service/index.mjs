@@ -1,5 +1,4 @@
 import './container-http.mjs';
-import './container-process.mjs';
 import './container-image.mjs';
 import './container-lifecycle.mjs';
 import './container-manifest.mjs';
@@ -22,5 +21,8 @@ import './script-tag.mjs';
 import './adapter-express.mjs';
 import './warn.mjs';
 import './types.mjs';
+
+// Windows terminates children when sent SIGINT or SIGTERM through child_process.kill.
+if (process.platform !== 'win32') await import('./container-process.mjs');
 
 echo(chalk.green('service tested'));

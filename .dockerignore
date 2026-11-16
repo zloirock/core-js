@@ -1,6 +1,7 @@
 **/node_modules
 .git
 .work
+/app-modules.json
 tests/**
 !tests/compat/
 !tests/compat/compat-data.js

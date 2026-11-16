@@ -42,8 +42,8 @@ function store(has) {
     async has(bundleId) {
       return [...has].some(key => key.startsWith(`${ bundleId } `));
     },
-    async get(bundleId, encoding) {
-      return has.has(`${ bundleId } ${ encoding }`) ? BYTES : null;
+    async getRepresentation(bundleId, encoding) {
+      return has.has(`${ bundleId } ${ encoding }`) ? { bytes: BYTES, digest: 'fixture' } : null;
     },
   };
 }
@@ -56,7 +56,7 @@ const plan = {
 function handler({ ready = ['base identity', 'base gzip', 'warm identity', 'warm gzip'] } = {}) {
   const reported = [];
   const serve = createServe({
-    getBundle: createGetBundle(plan, { bundles: store(new Set(ready)) }),
+    getBundle: createGetBundle(plan, store(new Set(ready))),
     encodings: STORED,
     baselineId: 'base',
     urlOf: bundleId => `/__core-js/${ bundleId }.js`,
@@ -150,11 +150,9 @@ strictEqual(outlived.response.headers.etag, '"left-behind-gzip"', 'get-bundle-1 
 const retained = {
   serve: createServe({
     getBundle: createGetBundle(plan, {
-      bundles: {
-        // held on disk from a retained generation, but not in the one being served
-        async has() { return false; },
-        async get() { return BYTES; },
-      },
+      // held on disk from a retained generation, but not in the one being served
+      async has() { return false; },
+      async getRepresentation() { return { bytes: BYTES, digest: 'fixture' }; },
     }),
     encodings: STORED,
     baselineId: 'base',
@@ -234,7 +232,7 @@ function fixed({
 } = {}) {
   const warnings = [];
   const serveScript = createServeScript({
-    getBundle: createGetBundle(plan, { bundles: store(new Set(ready)) }),
+    getBundle: createGetBundle(plan, store(new Set(ready))),
     encodings: STORED,
     baselineId: 'base',
     chooseBundle: () => chosen,
@@ -262,9 +260,9 @@ strictEqual(first.response.headers.vary, 'user-agent, accept-encoding', 'serve-4
 strictEqual(first.response.headers['content-type'], 'text/javascript; charset=utf-8', 'serve-4 #5');
 strictEqual(first.response.headers['x-content-type-options'], 'nosniff', 'serve-4 #6');
 strictEqual(first.response.headers['content-encoding'], 'gzip', 'serve-4 #7');
-strictEqual(first.response.headers.etag, '"g1-warm-gzip"', 'serve-3 #1');
+strictEqual(first.response.headers.etag, '"g1-warm-gzip-fixture"', 'serve-3 #1');
 
-const again = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip"' });
+const again = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip-fixture"' });
 
 await script.serveScript(again.request, again.response);
 strictEqual(again.response.statusCode, 304, 'serve-3 #2');
@@ -274,11 +272,11 @@ strictEqual(again.response.body, undefined, 'serve-3 #3');
 // identifier can carry another syntax level, so a tag without the generation would confirm the
 // previous deploy's bytes with a 304
 const next = fixed({ generation: 'g2' });
-const redeployed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip"' });
+const redeployed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip-fixture"' });
 
 await next.serveScript(redeployed.request, redeployed.response);
 strictEqual(redeployed.response.statusCode, 200, 'serve-3 #4');
-strictEqual(redeployed.response.headers.etag, '"g2-warm-gzip"', 'serve-3 #5');
+strictEqual(redeployed.response.headers.etag, '"g2-warm-gzip-fixture"', 'serve-3 #5');
 
 // a bucket that is not warm yet is the baseline's bytes under this same address, not a redirect:
 // the address promises nothing about which bundle it holds
@@ -289,17 +287,17 @@ await warming.serveScript(early.request, early.response);
 strictEqual(early.response.statusCode, 200, 'serve-4 #8');
 strictEqual(early.response.body, BYTES, 'serve-4 #9');
 strictEqual(early.response.headers.location, undefined, 'serve-4 #10');
-strictEqual(early.response.headers.etag, '"g1-base-gzip"', 'serve-3 #6');
+strictEqual(early.response.headers.etag, '"g1-base-gzip-fixture"', 'serve-3 #6');
 
 // and once the bucket is warm, the baseline's tag no longer matches: the browser gets its own bundle
 // on the next page load, with nothing to tell it to
 warming.choose('warm');
 
-const warmed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-base-gzip"' });
+const warmed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-base-gzip-fixture"' });
 
 await warming.serveScript(warmed.request, warmed.response);
 strictEqual(warmed.response.statusCode, 200, 'serve-3 #7');
-strictEqual(warmed.response.headers.etag, '"g1-warm-gzip"', 'serve-3 #8');
+strictEqual(warmed.response.headers.etag, '"g1-warm-gzip-fixture"', 'serve-3 #8');
 
 // no baseline, nothing to send: a failure nobody may cache, rather than a 404 a cache could keep
 const missing = fixed({ ready: [], chosen: 'cold' });

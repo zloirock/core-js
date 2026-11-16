@@ -5,7 +5,7 @@ import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const entry = new URL('../../packages/core-js-service-container/index.js', import.meta.url);
 const fixtureEntry = new URL('./container-process-fixture.mjs', import.meta.url);
@@ -21,7 +21,7 @@ async function freePort() {
 }
 
 function launch(manifestPath, port, extra = {}, { script = entry, ipc = false } = {}) {
-  const child = spawn(process.execPath, [script.pathname], {
+  const child = spawn(process.execPath, [fileURLToPath(script)], {
     env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), CORE_JS_MANIFEST_PATH: manifestPath, ...extra },
     stdio: ['ignore', 'ignore', 'pipe', ...ipc ? ['ipc'] : []],
   });
@@ -143,7 +143,7 @@ try {
   deepStrictEqual(await stop(valid), { code: 0, signal: null }, 'container-process-2 #4');
 
   const linkPath = join(directory, 'container-entry.js');
-  await symlink(entry.pathname, linkPath);
+  await symlink(fileURLToPath(entry), linkPath);
   const linkedPort = await freePort();
   const linked = launch(validPath, linkedPort, {}, { script: pathToFileURL(linkPath) });
   const linkedStatus = await until(linkedPort, response => response.status === 200 &&

@@ -85,6 +85,7 @@ interface Bundles {
   /** the generation being served: one directory of the store */
   generation: string;
   has(bundleId: string): Promise<boolean>;
+  /** Returns a copy of the stored representation. */
   get(bundleId: string, encoding: string): Promise<Uint8Array | null>;
   modules(bundleId: string): Promise<readonly string[] | null>;
   put(bundleId: string, bundle: { modules: readonly string[], script: string }): Promise<void>;

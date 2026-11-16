@@ -3,10 +3,14 @@ import { request } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { gunzip } from 'node:zlib';
 import fastify from 'fastify';
 import createService from '@core-js/service';
 import createLifecycle from '../../packages/core-js-service-container/lifecycle.js';
 import createServer from '../../packages/core-js-service-container/server.js';
+
+const decompress = promisify(gunzip);
 
 async function listen(lifecycle) {
   const app = createServer({ lifecycle, fastify: fastify({ logger: false }) });
@@ -216,7 +220,7 @@ try {
   strictEqual(script.headers['content-encoding'], 'gzip', 'container-http-2 #16');
   strictEqual(script.body[0], 0x1F, 'container-http-2 #17');
   ok(script.headers.etag, 'container-http-2 #18');
-  notStrictEqual(script.headers.etag, `"${ service.plan.generation }-${ chosen }-gzip"`,
+  deepStrictEqual(script.body, await service.bundles.get(service.plan.baseline.bundleId, 'gzip'),
     'container-http-2 #31');
   const cached = await live.get('/polyfills.js', { ...headers, 'if-none-match': script.headers.etag });
   strictEqual(cached.status, 304, 'container-http-2 #19');
@@ -230,9 +234,16 @@ try {
   const warm = await live.get('/polyfills.js', { ...headers, 'if-none-match': script.headers.etag });
   strictEqual(warm.status, 200, 'container-http-2 #26');
   notStrictEqual(warm.headers.etag, script.headers.etag, 'container-http-2 #27');
-  strictEqual(warm.headers.etag, `"${ service.plan.generation }-${ chosen }-gzip"`, 'container-http-2 #32');
+  deepStrictEqual(warm.body, await service.bundles.get(chosen, 'gzip'), 'container-http-2 #32');
   const warmIdentity = await live.get('/polyfills.js', { ...headers, 'accept-encoding': 'identity' });
   notStrictEqual(warmIdentity.body.length, identity.body.length, 'container-http-2 #28');
+  for (const [encoding, original] of [['identity', warmIdentity], ['gzip', warm]]) {
+    const publicBytes = await service.bundles.get(chosen, encoding);
+    new Uint8Array(publicBytes.buffer).fill(0);
+    const afterEdit = await live.get('/polyfills.js', { ...headers, 'accept-encoding': encoding });
+    deepStrictEqual(afterEdit.body, original.body, 'bundles-5 #3');
+    strictEqual(afterEdit.headers.etag, original.headers.etag, 'bundles-5 #4');
+  }
   strictEqual(JSON.parse((await live.get('/status')).body).fullyWarmed, true, 'container-http-1 #14');
   const nextService = createService({ scope: ['es.array.at', 'es.object.group-by', 'es.promise.all'],
     delivery: 'fixed', route: '/', ignoreBrowserslistConfig: true, directory,
@@ -247,6 +258,15 @@ try {
   } finally {
     await replacement.app.close();
   }
+  // Rebuilding the same manifest and versions can replace the bytes under the same bundle ID.
+  const updatedScript = 'var updated = true;';
+  await service.bundles.put(chosen, { modules: await service.bundles.modules(chosen), script: updatedScript });
+  const updated = await live.get('/polyfills.js', { ...headers, 'if-none-match': warm.headers.etag });
+  strictEqual(updated.status, 200, 'serve-3 #10');
+  notStrictEqual(updated.headers.etag, warm.headers.etag, 'serve-3 #11');
+  strictEqual((await decompress(updated.body)).toString(), updatedScript, 'serve-3 #12');
+  const revalidated = await live.get('/polyfills.js', { ...headers, 'if-none-match': updated.headers.etag });
+  strictEqual(revalidated.status, 304, 'serve-3 #13');
   strictEqual((await live.get('/missing')).status, 404, 'container-http-2 #24');
 } finally {
   await live.app.close();

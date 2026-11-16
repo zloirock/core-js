@@ -42,7 +42,7 @@ The container requires a JSON manifest with exactly one field:
 
 ```json
 {
-  "modules": ["es.array.from", "es.promise"]
+  "modules": ["es.array.from", "es.promise.constructor"]
 }
 ```
 

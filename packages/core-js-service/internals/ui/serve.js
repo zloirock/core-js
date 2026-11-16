@@ -117,10 +117,10 @@ export function createServeScript({ getBundle, encodings, baselineId, chooseBund
     response.setHeader('cache-control', 'private, no-cache');
     varyBy(response, 'user-agent');
     varyBy(response, 'accept-encoding');
-    // the identifier names the module list, not the targets it was built for: across a deploy one
-    // identifier can carry another syntax level, and a tag without the generation would confirm the
-    // previous deploy's bytes with a 304
-    send(request, response, bundle.bytes, encoding, `"${ generation }-${ bundleId }-${ encoding }"`);
+    // package versions and plan inputs can stay the same across image builds. the digest covers
+    // the actual representation so an older image's bytes cannot be confirmed with a 304
+    const etag = `"${ generation }-${ bundleId }-${ encoding }-${ bundle.digest }"`;
+    send(request, response, bundle.bytes, encoding, etag);
   };
 }
 

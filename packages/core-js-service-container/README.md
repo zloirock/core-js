@@ -10,7 +10,7 @@ The container accepts a JSON object with only a `modules` array of exact names f
 
 ```json
 {
-  "modules": ["es.array.from", "es.promise"]
+  "modules": ["es.array.from", "es.promise.constructor"]
 }
 ```
 
@@ -28,6 +28,9 @@ docker run --rm --name core-js-service -p 127.0.0.1:3000:3000 \
 ```
 
 This example makes the service available to a proxy running on the same host. If your proxy runs in a different container or on another host, connect it to the service over your deployment network instead; do not use `127.0.0.1` as the proxy's upstream address unless both processes share a network namespace. The container listens on `0.0.0.0:3000` by default. Set `HOST` or `PORT` if your deployment needs a different listener, and update the port mapping and proxy address accordingly.
+
+The root-level `app-modules.json` is excluded from the Docker build context. You can also keep the
+manifest with your application outside the monorepo and use its absolute path as the mount source.
 
 ## Check readiness
 

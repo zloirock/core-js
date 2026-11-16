@@ -91,7 +91,7 @@ adapter. Create `app-modules.json` at the monorepo root, for example:
 
 ```json
 {
-  "modules": ["es.array.from", "es.promise"]
+  "modules": ["es.array.from", "es.promise.constructor"]
 }
 ```
 

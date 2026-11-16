@@ -368,11 +368,10 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   the best representation the store actually HOLDS, never `identity` on the assumption it is there
 - **The ETag carries the encoding.** The gzip copy and the uncompressed one are different bytes
   under one identifier, and a shared tag lets a cache hand one to a client that asked for the other
-- **serve-3** - on the fixed address, the tag carries the generation as well. The identifier names
-  the module list, not the targets it was built for, so across a deploy one identifier can carry
-  another syntax level - and a tag of identifier and encoding alone confirms the previous deploy's
-  bytes with a 304, at every client that kept them. The tag of a bucket also differs from the
-  baseline's, which is what moves a client off the baseline once the bucket is warm
+- **serve-3** - on the fixed address, the tag carries the generation, bundle identifier, encoding,
+  and digest of the served bytes. Rebuilding an image can change the bytes while the manifest and
+  package versions stay the same. Without the digest, a browser can get a 304 for the old bytes.
+  The tag of a bucket also differs from the baseline's, so a client revalidates when its bucket warms
 - **serve-4** - the fixed address promises no particular bundle, so it is revalidated rather than
   kept: `private, no-cache`, varying by `User-Agent` as well as `Accept-Encoding`. A shared cache
   that kept it would hand one browser's bundle to another. A bucket still warming is the
@@ -497,7 +496,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
 - **bundles-3** - a reader never sees a half-written bundle: it is written under a temporary name
   and renamed WITHIN THE SAME DIRECTORY. A rename across a device boundary is not atomic and
   throws, so the OS temporary directory cannot be used here; without atomicity a reader gets a
-  truncated file under a valid identifier, and `immutable` nails it into that cache for a year
+  truncated file under a valid identifier, and `immutable` nails it into that cache for a year.
+  Concurrent builds use unique temporary paths even when they share one process
 - **bundles-4** - the store is one directory per generation, every generation holds the whole plan
   that named it, and the prune runs after the new generation is warm, never before it. A prune that
   ran first would take the only bundles anything could be served from if this build failed. It
@@ -510,7 +510,13 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   what makes a rollback find its bundles where it left them. A sidecar that parses but carries no
   module list is treated exactly like one that does not parse - taken as it is, the bundle would
   answer `has` for ever and `modules` never, and the warm-up would keep skipping the rebuild that
-  repairs it
+  repairs it. Discover bundles by that sidecar so a store configured for compressed bytes alone
+  can also restore its bundles. A write waits for discovery so a pending disk read cannot
+  replace freshly published bytes with a previous record
+- **bundles-5** - the store hashes the exact bytes of each representation when it becomes resident,
+  whether built or loaded from disk. Recomputing the digest on every request makes revalidation
+  scan the entire bundle even when it answers 304. Public byte reads return an independent copy;
+  edits to a returned buffer must not change the representation behind an existing validator
 - **What the store keeps it reads once, at the start**, and answers from memory afterwards - a
   request names an identifier the client was given, so both a hit and a miss cost a lookup and never
   a walk of the disk. `retain` therefore bounds the memory as well as the disk: a retained generation

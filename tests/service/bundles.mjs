@@ -1,5 +1,5 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -84,6 +84,10 @@ try {
   strictEqual(await restarted.has('abc'), true, 'bundles #11');
   strictEqual((await restarted.get('abc', 'identity')).toString('utf8'), SCRIPT, 'bundles #12');
   deepStrictEqual(await restarted.modules('abc'), ['es.array.at'], 'bundles #13');
+  for (const encoding of disk.encodings) {
+    deepStrictEqual(await restarted.getRepresentation('abc', encoding), await disk.getRepresentation('abc', encoding),
+      'bundles-5 #1');
+  }
   strictEqual(await restarted.has('missing'), false, 'bundles #14');
 
   // a second bundle that only ever exists in the generation being replaced
@@ -141,13 +145,41 @@ try {
   // and what was pruned is missed by nobody else: the plan is complete in the generation being served
   strictEqual((await store({ generation: NEXT }).get('abc', 'identity')).toString('utf8'), SCRIPT, 'bundles-4 #12');
 
-  // no permission to write is a working state, not a failure: we pay with another warm-up at the
-  // next restart, and say so once
-  await chmod(directory, 0o555);
+  for (const compression of [{ gzip: {} }, { br: {} }, { gzip: {}, br: {} }]) {
+    const compressedDirectory = join(directory, Object.keys(compression).join('-'));
+    const compressed = store({ directory: compressedDirectory, compression });
+    await compressed.put('abc', { modules: [], script: SCRIPT });
+    const reloaded = store({ directory: compressedDirectory, compression });
+    strictEqual(await reloaded.has('abc'), true, 'bundles-4 #15');
+    for (const encoding of compressed.encodings) {
+      deepStrictEqual(await reloaded.getRepresentation('abc', encoding),
+        await compressed.getRepresentation('abc', encoding), 'bundles-5 #2');
+    }
+  }
 
+  const sharedDirectory = join(directory, 'shared');
+  const sharedWarn = warnings();
+  const shared = { directory: sharedDirectory, warn: sharedWarn.warn };
+  const bundle = { modules: ['es.array.at'], script: SCRIPT };
+  await Promise.all([store(shared).put('abc', bundle), store(shared).put('abc', bundle)]);
+  deepStrictEqual(sharedWarn.reported, [], 'bundles-3 #2');
+  deepStrictEqual((await readdir(join(sharedDirectory, GENERATION))).toSorted(),
+    ['abc.js', 'abc.js.gz', 'abc.json'], 'bundles-3 #3');
+  strictEqual((await store(shared).get('abc', 'identity')).toString('utf8'), SCRIPT, 'bundles-3 #4');
+
+  const replacing = store(shared);
+  await replacing.put('abc', { modules: [], script: '' });
+  strictEqual((await replacing.get('abc', 'identity')).length, 0, 'bundles-4 #16');
+  deepStrictEqual(await replacing.modules('abc'), [], 'bundles-4 #17');
+  strictEqual((await store(shared).get('abc', 'identity')).length, 0, 'bundles-4 #18');
+
+  // an unusable store falls back to memory. a file in its parent path makes every platform
+  // reject writes even when the test runs with elevated privileges
+  const parentFile = join(directory, 'file');
+  await writeFile(parentFile, '');
   const readOnly = warnings();
   const blocked = createBundles({
-    directory: join(directory, 'nested'), generation: GENERATION, compression: COMPRESSION_DEFAULT, warn: readOnly.warn,
+    directory: join(parentFile, 'nested'), generation: GENERATION, compression: COMPRESSION_DEFAULT, warn: readOnly.warn,
   });
 
   await blocked.put('def', { modules: [], script: SCRIPT });
@@ -163,7 +195,6 @@ try {
   strictEqual(readOnly.reported.length, 1, 'bundles-4 #14');
 } finally {
   try {
-    await chmod(directory, 0o755);
     await rm(directory, { force: true, recursive: true });
   } catch (error) {
     // a leftover temporary directory cannot break a run, and a failure to remove it must not

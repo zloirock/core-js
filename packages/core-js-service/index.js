@@ -47,7 +47,7 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     listModules: createListModules(config),
     warn,
   });
-  const bundles = createBundles({
+  const { getRepresentation, ...bundles } = createBundles({
     directory: config.directory,
     generation: plan.generation,
     compression: config.compression,
@@ -56,7 +56,7 @@ export default function createService({ warn: warnSink, ...options } = {}) {
   });
   const identify = createResolver({ parseUserAgent });
   const warm = createWarm(plan, { bundles, build: createBuilder(config), warn });
-  const getBundle = createGetBundle(plan, { bundles });
+  const getBundle = createGetBundle(plan, { has: bundles.has, getRepresentation });
   const chooseBundle = createChooseBundle(plan, { resolve: identify });
   const scriptUrl = `${ config.route }/${ SCRIPT_NAME }`;
   function urlOf(bundleId) {
