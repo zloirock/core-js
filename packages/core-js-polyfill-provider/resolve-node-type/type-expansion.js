@@ -58,6 +58,7 @@ const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
 const DOMAIN_DESCRIBES_NOTHING = Symbol('domain-describes-nothing');
 
 export function createTypeExpansion({
+  typeAnswer,
   literalKeyValue,
   applyAliasSubstDeep,
   unwrapTypeAnnotation,
@@ -1058,7 +1059,15 @@ export function createTypeExpansion({
   //   3) fall through to the canonical union fold over both branches
   // shared between substituteTypeParams's TSConditionalType case and any future caller
   // that needs the same evaluation contract for a TSConditionalType node
+  // Undecided aliased branches can meet the same conditional exponentially many times without
+  // returning to resolveNodeType. Keep its answer for this question's exact substitution and depth.
   function evaluateConditionalType(node, typeParamMap, scope, depth, seen) {
+    return typeAnswer(evaluateConditionalType, node, { scope, depth, map: typeParamMap, seen },
+      () => evaluateConditionalTypeUncached(node, typeParamMap, scope, depth, seen));
+  }
+
+  // Compute the conditional once for the exact substitution and recursion budget.
+  function evaluateConditionalTypeUncached(node, typeParamMap, scope, depth, seen) {
     const inferred = resolveInferElementPattern({ node, typeParamMap, scope, depth, seen });
     // disjoint-primitive check side: the infer-container true branch can't fire and the result is
     // exactly the false branch - resolve it (a `string` keeps `_atMaybeString`). without this we'd

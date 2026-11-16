@@ -8,7 +8,7 @@
 //   resolveConstructorType(name, path)            - `new Container<T>()` typed call expression
 //   resolveConstructorCallType(name, path)        - `Container<T>(x)` typed call (no `new`)
 //
-// All other handlers (`resolveNamedType` / `resolveLiteralType` / `resolveConditionalType` /
+// All other handlers (`resolveNamedType` / `resolveLiteralType` /
 // `resolveKeyofSelfValueUnion` / `resolveIndexedAccessType` / `resolveKnownContainerType` /
 // `resolveExtractExclude`) are cluster-private. `resolveAnnotationInContext`
 // and `resolveNonNullableAnnotation` live in the factory (they're consumed both inside this
@@ -100,6 +100,7 @@ function intrinsicStringTransform(name, resolved) {
 }
 
 export function createTypeAnnotationResolve({
+  typeAnswer,
   t,
   babelNodeType,
   evaluateConditionalType,
@@ -351,7 +352,8 @@ export function createTypeAnnotationResolve({
       const target = peelTSParenthesized(followTypeAliasChain(spelled ?? arg, scope).node);
       if (isObjectTypeLiteral(target)) return true;
       return (isUnionType(target) || target?.type === 'TSIntersectionType') && hops < MAX_DEPTH
-        && target.types.every(part => spellsClosedObject(part, hops + 1));
+        && typeAnswer(spellsClosedObject, target, { scope, depth: hops, map: typeParamMap },
+          () => target.types.every(part => spellsClosedObject(part, hops + 1)));
     }
     // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
     // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners.
@@ -547,43 +549,6 @@ export function createTypeAnnotationResolve({
     return null;
   }
 
-  // TS conditional type: T extends U ? X : Y - resolve if both branches have the same
-  // type, or one is `never`. `T extends (infer U)[] ? U : never` with T already substituted
-  // (via alias-chain) is the canonical element-extraction shape: trueType references the
-  // inferred name, falseType is never-like. match first so `First<string[]>` resolves to
-  // `string` instead of collapsing through the generic branches (which can't resolve the
-  // naked `U` reference)
-  // a non-reducing conditional folds BOTH branches; N nested aliased conditionals expand a binary
-  // tree of 2^N branch resolutions, because each sibling branch re-hops to the same downstream
-  // conditional and `resolveCache` (keyed at the resolveNodeType entry) is bypassed by the
-  // resolveTypeAnnotation branch recursion. memoize each conditional's result per (node, scope) -
-  // collapsing the tree to O(distinct subterms) - so a single polyfillable call on a receiver
-  // typed by deep distributive conditionals can't wedge the transform. depth is a recursion-safety
-  // cutoff only; the resolved result is a pure function of (node, scope) below MAX_DEPTH. WeakMap on
-  // the AST node auto-evicts across files (fresh AST per file); also cleared in reset()
-  let conditionalResultCache = new WeakMap();
-
-  function resolveConditionalType(node, scope, depth) {
-    let byScope = conditionalResultCache.get(node);
-    const cached = byScope?.get(scope);
-    // a cached result may be a depth-cutoff artifact - the deepest branch-path hits MAX_DEPTH
-    // first - so it is reused only when the current call has no more budget than the cached one
-    // (depth >= cached.depth); a shallower reach has more budget and recomputes
-    if (cached && depth >= cached.depth) return cached.result;
-    // route through the canonical conditional evaluator: it runs the structural branch pick
-    // (pickConditionalBranchVia) before the both-branch fold - the local re-implementation
-    // folded BOTH branches even when the conditional decidably fires to a single one (wrong
-    // branch leaked when the other resolved to never / null)
-    const result = evaluateConditionalType(node, null, scope, depth, null);
-    // the evaluation above can re-enter on the SAME node in another scope and install the
-    // per-scope map itself - re-read it rather than overwrite the slot, which would throw the
-    // nested call's entries away and leave the tree it collapsed to re-expand
-    byScope = conditionalResultCache.get(node);
-    if (!byScope) conditionalResultCache.set(node, byScope = new Map());
-    byScope.set(scope, { result, depth });
-    return result;
-  }
-
   // does `idx` (the indexType of `T[idx]`) collapse to `keyof T` against `target`?
   //   - direct `keyof T` operator
   //   - generic-constrained ref `K` where K's TypeParameter declaration constrains to
@@ -708,14 +673,16 @@ export function createTypeAnnotationResolve({
       // set is a SUPERSET of the union's shared keys, so the fold either converges - and then the
       // shared subset carries that same type - or degrades. it cannot over-resolve
       const selfKeyof = isKeyofTargeting(node.indexType, objectType, scope);
-      return foldUnionTypes(objectUnion.types, arm => {
+      return typeAnswer(resolveIndexedAccessType, objectUnion, {
+        scope, depth, map: objectAlias.subst, key: node.indexType, selfKeyof,
+      }, () => foldUnionTypes(objectUnion.types, arm => {
         const armNode = applySubst(arm, objectAlias.subst);
         return resolveTypeAnnotation({
           type: 'TSIndexedAccessType',
           objectType: armNode,
           indexType: selfKeyof ? { type: 'TSTypeOperator', operator: 'keyof', typeAnnotation: armNode } : node.indexType,
         }, scope, depth + 1);
-      });
+      }));
     }
     // T[number] - element type of array/tuple. both dialect spellings of the keyword: a name-only
     // test here left every Flow file taking the generic path on a shape TS resolves precisely
@@ -932,7 +899,7 @@ export function createTypeAnnotationResolve({
           ? resolveTypeofFromSegments(collectQualifiedSegments(arg.id), scope, depth) : null;
       }
       case 'TSConditionalType':
-        return resolveConditionalType(node, scope, depth);
+        return evaluateConditionalType(node, null, scope, depth, seen);
       // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
       case 'TSUnionType':
       case 'UnionTypeAnnotation': {
@@ -961,10 +928,6 @@ export function createTypeAnnotationResolve({
     return null;
   }
 
-  function reset() {
-    conditionalResultCache = new WeakMap();
-  }
-
   return {
     resolveTypeAnnotation,
     resolveConstructorType,
@@ -973,6 +936,5 @@ export function createTypeAnnotationResolve({
     resolveStructuralContainerType,
     resolveNamedType,
     isKeyofTargeting,
-    reset,
   };
 }

@@ -1,0 +1,11 @@
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.string.includes";
+// The optional field can select a string fallback, even through a shared composite type.
+// Both receiver families must remain available after the type annotations are erased.
+type A = {
+  list: string[];
+};
+type X<T> = A & A;
+export function read<T>(x: Partial<X<T>>) {
+  return (x.list ?? 'cat').includes('at');
+}

@@ -25519,6 +25519,51 @@ function * generatePatternPairingSources() {
   };
 }
 
+// Shared type graphs must retain the array/string distinction after TS erasure and stripping.
+function * generateTypeQueryDagSources() {
+  for (const shape of ['conditional', 'member', 'awaited', 'awaited-member', 'union', 'intersection', 'element', 'indexed']) {
+    for (const string of [false, true]) {
+      const type = string ? 'string' : 'number[]';
+      const value = string ? '"abc"' : '[3, 7]';
+      const member = ['member', 'awaited-member', 'union', 'intersection', 'indexed'].includes(shape);
+      const leaf = member ? `{ list: ${ type } }` : shape === 'element' ? `Array<${ type }>` : type;
+      const awaited = shape.startsWith('awaited');
+      const conditional = ['conditional', 'member', 'awaited'].includes(shape);
+      const first = awaited ? `Promise<${ leaf }>` : leaf;
+      const declarations = conditional ? [`type C0<T> = ${ first };`] : [`type C0 = ${ first };`, `type C1 = ${ first };`];
+      for (let index = 0; index < 5; index++) declarations.push(conditional
+        ? `type C${ index + 1 }<T> = T extends string ? C${ index }<T> : C${ index }<T>;`
+        : `type C${ index + 2 } = C${ index + 1 } ${ shape === 'intersection' ? '&' : '|' } C${ index };`);
+      let annotation = conditional ? awaited ? 'C5<unknown>' : 'C5<U>' : 'C6';
+      if (awaited) annotation = `Awaited<${ annotation }>`;
+      if (shape === 'indexed') annotation += "['list']";
+      const body = shape === 'element' ? 'const result = []; for (const e of x) result.push(e.at(-1)); return result;'
+        : `return x${ member && shape !== 'indexed' ? '.list' : '' }.at(-1);`;
+      const argument = shape === 'element' ? `[${ value }]` : member && shape !== 'indexed' ? `{ list: ${ value } }` : value;
+      yield {
+        name: `type-query-dag/${ shape }/${ string ? 'string' : 'array' }`, ts: true, strip: true,
+        code: `${ declarations.join('\n') }
+          export const effects = [];
+          function read<U>(x: ${ annotation }) { ${ body } }
+          export const r = read((effects.push('argument'), ${ argument }));`,
+      };
+    }
+  }
+  for (const body of ['A | A', 'A & A', 'T extends number ? A : A', 'T extends (infer E)[] ? A : A']) {
+    for (const required of [false, true]) for (const missing of required ? [false] : [false, true]) {
+      yield {
+        name: `type-query-dag/modifiers/${ body }/${ required }/${ missing }`, ts: true, strip: true,
+        code: `type A = { list${ required ? '?' : '' }: string[] }; type X<T> = ${ body };
+          export const effects = [];
+          function read<T>(x: ${ required ? 'Required' : 'Partial' }<X<${ body.includes('infer') ? 'number[]' : 'T' }>>) {
+            return (x.list ?? (effects.push('fallback'), 'cat')).includes('at');
+          }
+          export const r = read<number[]>(${ missing && !required ? '{}' : "{ list: ['at'] }" });`,
+      };
+    }
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27329,4 +27374,5 @@ export function * generate() {
   yield * generateOptionalQuerySources();
   yield * generateSelectionDagSources();
   yield * generatePatternPairingSources();
+  yield * generateTypeQueryDagSources();
 }

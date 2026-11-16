@@ -23,7 +23,7 @@ import {
   typeAliasBody,
   TS_UNKNOWN_TYPE,
 } from './ast-shapes.js';
-import { getHeritageTypeArgs, getTypeArgs, heritageClause } from '../helpers/ast-patterns.js';
+import { cycleGuardHas, getHeritageTypeArgs, getTypeArgs, heritageClause } from '../helpers/ast-patterns.js';
 
 // side-channel cycle flag: Set instances that hit a declaration-cycle during a walk.
 // per-walk, keyed on the decl-set's identity so parent frames can detect cycles without
@@ -210,7 +210,7 @@ export function createUserTypeResolve({
     // property - that way `new Set(visited)` (should a caller ever clone) doesn't silently
     // forget the cycle flag; the cloned Set is simply a different identity with no flag.
     // unknowable cyclic type must NOT masquerade as `Object` (it suppresses generic polyfill)
-    if (seen?.has(declaration)) {
+    if (cycleGuardHas(seen, declaration)) {
       cycleSeenSets.add(seen);
       return null;
     }

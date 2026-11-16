@@ -254,16 +254,23 @@ export function isUnionType(node) {
 // keys, index signatures under an unknown key - all want that same shape, and a hand-built literal
 // per site is what let one of them keep a `length === 1` arm the others lacked
 export function unionAnnotationOf(types) {
+  return compositeAnnotationOf(types, 'TSUnionType');
+}
+
+// Flatten only the same connective and remove repeated nodes, not merely similar shapes.
+// A shared alias DAG must not become an exponentially large annotation tree on its way out.
+export function compositeAnnotationOf(types, kind) {
   // a member that is ITSELF a union is SPLICED, not nested: downstream resolves a nested arm as a
   // whole, and an arm that diverges resolves to nothing, which sinks the entire set instead of
   // contributing its members. the dialect predicate carries the Flow spelling too, which a
   // hand-written `type === 'TSUnionType'` test at one of these sites had been missing
   const flat = [];
   for (const type of types) {
-    if (isUnionType(type)) flat.push(...type.types);
+    if (type?.type === kind || kind === 'TSUnionType' && isUnionType(type)) flat.push(...type.types);
     else flat.push(type);
   }
-  return flat.length === 1 ? flat[0] : { type: 'TSUnionType', types: flat };
+  const unique = [...new Set(flat)];
+  return unique.length === 1 ? unique[0] : { type: kind, types: unique };
 }
 
 // TS + Flow function-TYPE predicate (the annotation form `(a: A) => B`, not a function node).

@@ -25,6 +25,8 @@ import {
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createElementTypes({
+  typeAnswer,
+  typeGuardHas,
   babelNodeType,
   unwrapTypeAnnotation,
   resolveTypeAnnotation,
@@ -72,7 +74,7 @@ export function createElementTypes({
           return new $Primitive('string');
         // union: strip null/undefined, check remaining
         case 'TSUnionType':
-        case 'UnionTypeAnnotation': {
+        case 'UnionTypeAnnotation': return typeAnswer(resolveElementType, node, { scope, depth, seen, guarded: true }, () => {
           const { types } = node;
           if (!types?.length) return null;
           let result = null;
@@ -86,7 +88,7 @@ export function createElementTypes({
             if (!result) return null;
           }
           return result;
-        }
+        });
         // transparent wrappers: readonly T[], (T[])
         case 'TSTypeOperator':
           return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1, seen) : null;
@@ -119,7 +121,7 @@ export function createElementTypes({
     // "is this decl already open ABOVE me", and a set that only grows lets the first arm of
     // a union read its siblings' repeat reference as a cycle and fold the whole union to null
     const visited = seen ?? new Set();
-    if (visited.has(decl)) return null;
+    if (typeGuardHas(visited, decl)) return null;
     visited.add(decl);
     try {
       const subst = buildSubstMap(decl.typeParameters?.params, typeArgs, scope);

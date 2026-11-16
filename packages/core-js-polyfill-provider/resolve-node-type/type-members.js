@@ -25,6 +25,7 @@ import {
   isDistributiveConditional,
   applyMemberModifierDelta,
   composeModifierDeltas,
+  compositeAnnotationOf,
   interfaceBodyMembers,
   internedTypeRef,
   isInterfaceDeclaration,
@@ -44,6 +45,7 @@ import {
 import { getHeritageTypeArgs, getTypeArgs, staticKeyNames } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
+  typeAnswer,
   memoize,
   unwrapTypeAnnotation,
   peelTSParenthesized,
@@ -560,7 +562,7 @@ export function createTypeMembers({
   // keeping the BRANCH INDEX (steps 1-2) and recursing with the AST trueType/falseType is
   // crucial: AST-driven member lookup works for TSTypeLiteral / TSArrayType / etc. shapes
   // where Type Object inputs would silently null
-  function findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst }) {
+  function findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst, modifiers }) {
     const checkSubst = withSubst(aliased.checkType);
     const extendSubst = withSubst(aliased.extendsType);
     // alpha-rename guard: trueType / falseType reference `infer X` declarations bound in
@@ -593,7 +595,7 @@ export function createTypeMembers({
       const threadedSubst = new Map(innerSubst);
       threadedSubst.set(inferName, inferElement);
       const trueObjectType = applySubst(unwrapTypeAnnotation(aliased.trueType), threadedSubst);
-      return findTypeMember({ objectType: trueObjectType, key, scope, depth: depth + 1 });
+      return findTypeMember({ objectType: trueObjectType, key, scope, depth: depth + 1, modifiers });
     }
     // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
     // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
@@ -607,10 +609,12 @@ export function createTypeMembers({
       scope,
     });
     if (branch !== null) {
-      return findTypeMember({ objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
+      return findTypeMember({
+        objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1, modifiers,
+      });
     }
-    const trueResult = findTypeMember({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1 });
-    const falseResult = findTypeMember({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1 });
+    const trueResult = findTypeMember({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1, modifiers });
+    const falseResult = findTypeMember({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1, modifiers });
     // strip nullable/never branches the way the value-side conditional fold does - otherwise
     // `K extends string ? Foo : never` post-subst can return a synth union carrying the
     // never branch as a member, which would interfere with downstream member dispatch
@@ -711,10 +715,13 @@ export function createTypeMembers({
       // max-statements lint threshold and the member-lookup-on-conditional path becomes
       // hard to reason about
       if (aliased?.type === 'TSConditionalType') {
-        return findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst });
+        return typeAnswer(findConditionalTypeMember, aliased, { scope, depth, map: subst, key, modifiers },
+          () => findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst, modifiers }));
       }
       function resolveBranch(member) {
-        return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
+        // Apply the outer modifier in each arm: Required must remove the member's own optionality
+        // before annotations are folded, while Partial makes every surviving member optional.
+        return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1, modifiers });
       }
       // union: `(A | B)['k']` is `A['k'] | B['k']`.
       // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
@@ -725,10 +732,10 @@ export function createTypeMembers({
       // before an array member no longer shadows the array polyfill
       if (isUnionType(aliased) || aliased?.type === 'TSIntersectionType'
         || aliased?.type === 'IntersectionTypeAnnotation') {
-        const found = aliased.types.map(resolveBranch).filter(Boolean);
-        if (!found.length) return null;
-        if (found.length === 1) return found[0];
-        return { type: aliased.type, types: found };
+        return typeAnswer(findTypeMember, aliased, { scope, depth, map: subst, key, modifiers }, () => {
+          const found = aliased.types.map(resolveBranch).filter(Boolean);
+          return found.length ? compositeAnnotationOf(found, aliased.type) : null;
+        });
       }
       // the tuple / array ELEMENT return is a member-annotation return like every other one below,
       // so it owes the accumulated wrapper delta: `Partial<[T, U]>[0]` reached here without it and

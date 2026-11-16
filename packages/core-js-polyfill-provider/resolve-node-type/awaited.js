@@ -26,6 +26,7 @@
 // this is the sole declaration.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
 import {
+  compositeAnnotationOf,
   isDistributiveConditional,
   composeModifierDeltas,
   isFunctionTypeNode,
@@ -40,6 +41,7 @@ import { getTypeArgs } from '../helpers/ast-patterns.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
 export function createAwaited({
+  typeAnswer,
   t,
   babelNodeType,
   findTypeDeclaration,
@@ -111,7 +113,14 @@ export function createAwaited({
   // peel structurally with no typeParamMap. type-param substitution is applied OUTSIDE this
   // walker by findTypeMember at the call site (with the proper alias subst); the Type walker
   // (`resolveAwaitedAnnotation`) is the surface that threads typeParamMap / seen
-  function peelAwaitedArgument({ arg, scope, depth }) {
+  function peelAwaitedArgument(args) {
+    return typeAnswer(peelAwaitedArgument, args.arg, {
+      scope: args.scope, depth: args.depth, map: args.typeParamMap, seen: args.seen,
+    }, () => peelAwaitedArgumentUncached(args));
+  }
+
+  // The uncached walk keeps its original depth and branch policy.
+  function peelAwaitedArgumentUncached({ arg, scope, depth }) {
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
     function recurse(next) {
@@ -128,7 +137,7 @@ export function createAwaited({
     if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation'
         || peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
       const nextTypes = peeled.types.map(recurse).filter(Boolean);
-      return nextTypes.length ? { ...peeled, types: nextTypes } : null;
+      return nextTypes.length ? compositeAnnotationOf(nextTypes, peeled.type) : null;
     }
     // NO tuple arm: `Awaited<T>` unwraps only what `await` unwraps - an object with a callable
     // `then` - and a tuple has none, so `Awaited<[Promise<A>, Promise<B>]>` IS that tuple, elements
@@ -273,7 +282,14 @@ export function createAwaited({
   // `T & U` which CAN fold (when T and U share a constructor for unions, or when
   // intersection's plain-Object branch is dropped). depth + cycle bounds match
   // `followTypeAliasChain`'s budget
-  function resolveAwaitedAnnotation({ node, scope, depth, typeParamMap, seen }) {
+  function resolveAwaitedAnnotation(args) {
+    return typeAnswer(resolveAwaitedAnnotation, args.node, {
+      scope: args.scope, depth: args.depth, map: args.typeParamMap, seen: args.seen,
+    }, () => resolveAwaitedAnnotationUncached(args));
+  }
+
+  // The uncached walk keeps its original depth and branch policy.
+  function resolveAwaitedAnnotationUncached({ node, scope, depth, typeParamMap, seen }) {
     if (!node || depth > MAX_DEPTH) return null;
     // oxc preserves `(T)` as TSParenthesizedType (babel strips); must peel before the
     // union / intersection / Promise check or distribution misses the inner shape

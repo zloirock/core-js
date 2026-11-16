@@ -120,6 +120,7 @@ import { createTypeExpansion } from './resolve-node-type/type-expansion.js';
 import { createTypeFolding } from './resolve-node-type/type-folding.js';
 import { createOverloadFold } from './resolve-node-type/overload-fold.js';
 import { createTypeMembers } from './resolve-node-type/type-members.js';
+import { createTypeQueryCache } from './resolve-node-type/type-query-cache.js';
 import { createTypeQuery } from './resolve-node-type/type-query.js';
 import { createTypeResolveDispatch } from './resolve-node-type/type-resolve-dispatch.js';
 import { createTypeSubst } from './resolve-node-type/type-subst.js';
@@ -1051,6 +1052,9 @@ function createResolveNodeType(babelNodeType, t, {
     commonType,
   });
 
+  // Type questions share answers only until the enclosing read-only question returns.
+  const { typeAnswer, typeGuardHas } = createTypeQueryCache(currentLookupPath, map => spelledTypeArgsOf(map));
+
   // global-resolve cluster: bare-Identifier / global-proxy / `<Cls>.prototype` resolution +
   // `extends` chain walker. `resolveClassInheritance` needs forward-decl thunks for
   // `resolveKnownContainerType` / `resolveTypeAnnotation` (factory `let`s populated when
@@ -1112,6 +1116,7 @@ function createResolveNodeType(babelNodeType, t, {
     dropMapKeys,
     trueBranchSubst,
   } = createTypeExpansion({
+    typeAnswer,
     literalKeyValue,
     applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
     unwrapTypeAnnotation,
@@ -1335,6 +1340,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `findTypeMember` / `getTypeMembers` are forward-decl `let`s thunked here because
   // type-members cluster is instantiated late
   const awaitedCluster = createAwaited({
+    typeAnswer,
     t,
     babelNodeType,
     findTypeDeclaration,
@@ -2238,6 +2244,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveElementType` / `extractElementAnnotation` (+ shared `resolveUserTypeElement`
   // alias / interface-extends walker) live in `resolve-node-type/element-types.js`
   const elementTypesCluster = createElementTypes({
+    typeAnswer,
+    typeGuardHas,
     babelNodeType,
     unwrapTypeAnnotation,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
@@ -2468,6 +2476,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs (all just-destructured). assigns the factory's forward-declared `let`s for
   // `resolveTypeAnnotation` / `resolveConstructorType` / `resolveConstructorCallType`
   const typeAnnotationResolveCluster = createTypeAnnotationResolve({
+    typeAnswer,
     structuralMembers,
     flattenUnionBranches,
     evaluateConditionalType: (...args) => evaluateConditionalType(...args),
@@ -2547,6 +2556,7 @@ function createResolveNodeType(babelNodeType, t, {
   // direct (awaited destructured early); the forward-decl `let`s `findTypeMember` /
   // `getTypeMembers` are this cluster's OUTPUTS, populated by the destructure assignment below
   const typeMembersCluster = createTypeMembers({
+    typeAnswer,
     matchTemplatePattern,
     memoize,
     unwrapTypeAnnotation,
@@ -2896,7 +2906,6 @@ function createResolveNodeType(babelNodeType, t, {
     patternBindingsCluster.reset();
     predicateGuardsCluster.reset();
     typeMembersCluster.reset();
-    typeAnnotationResolveCluster.reset();
     callResolutionCluster.resetExpressionAnnotationCache();
     expressionDispatchCluster.reset();
     resolveCache = new WeakMap();
