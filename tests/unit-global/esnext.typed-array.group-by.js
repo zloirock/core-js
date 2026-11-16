@@ -34,6 +34,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.groupBy', assert => {
       i4: new TypedArray([4, 9]),
       i0: new TypedArray([5, 10]),
     }, '#2');
+    assert.deepEqual(Object.keys(new TypedArray([1, 2]).groupBy(() => Symbol('groupBy test'))), [], 'symbol keys are not exposed as string keys');
 
     assert.throws(() => groupBy.call([0], () => { /* empty */ }), "isn't generic");
   }

@@ -26,6 +26,10 @@ QUnit.test('Array#groupBy', assert => {
     '#2',
   );
   assert.deepEqual(Array(3).groupBy(it => it), { undefined: [undefined, undefined, undefined] }, '#3');
+  const symbol = Symbol('groupBy test');
+  const grouped = [1, 2].groupBy(() => symbol);
+  assert.deepEqual(grouped[symbol], [1, 2], 'symbol keys');
+  assert.deepEqual(Object.keys(grouped), [], 'symbol keys are not exposed as string keys');
   if (STRICT) {
     assert.throws(() => groupBy.call(null, () => { /* empty */ }), TypeError, 'null this -> TypeError');
     assert.throws(() => groupBy.call(undefined, () => { /* empty */ }), TypeError, 'undefined this -> TypeError');

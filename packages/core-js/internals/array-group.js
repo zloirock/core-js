@@ -6,6 +6,7 @@ var toObject = require('../internals/to-object');
 var toPropertyKey = require('../internals/to-property-key');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var objectCreate = require('../internals/object-create');
+var createProperty = require('../internals/create-property');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
 var $Array = Array;
@@ -25,7 +26,7 @@ module.exports = function ($this, callbackfn, that, specificConstructor) {
     // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
     // but since it's a `null` prototype object, we can safely use `in`
     if (key in target) push(target[key], value);
-    else target[key] = [value];
+    else createProperty(target, key, [value]);
   }
   // TODO: Remove this block from `core-js@4`
   if (specificConstructor) {

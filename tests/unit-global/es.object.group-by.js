@@ -32,4 +32,5 @@ QUnit.test('Object.groupBy', assert => {
   });
   assert.deepEqual(grouped[even], [2, 4, 6]);
   assert.deepEqual(grouped[odd], [1, 3, 5]);
+  assert.deepEqual(Object.keys(grouped), [], 'symbol keys are not exposed as string keys');
 });
