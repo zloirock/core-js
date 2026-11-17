@@ -1090,7 +1090,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   function wrapConditional(check, result) {
     // the SHAPE spelling of the canon (`x == null` for an identifier-like check, `null == (_ref = x)`
-    // otherwise); the nav-guard channels take the literal-first form through `nullTest` instead
+    // otherwise); the nav-guard channels take the literal-first form through `nullFirstGuardTest` instead
     return estreeToBabel(renderShortCircuitGuard(
       composeNullGuardTest(guardChecks(check), { embed: hostSlot }), hostSlot(result)));
   }
@@ -1153,7 +1153,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   function normalizeOptionalChain(path, stripFirstOptional) {
     // walk past TS / Paren / Chain wrappers between the replaced node and the optional
     // chain. without these peels, `(arr.includes)?.(1)` / ESTree-wrapped chains wouldn't
-    // deopt. symmetric with `peelTransparentChildPath` (extractCheck's child-walk)
+    // deopt. The shared parent peel keeps the same wrapper boundary as the child peel.
     let parentPath = peelParenAndTSParentPath(path, SKIPPABLE_WRAPPER_TYPES);
     if (!parentPath) return null;
     let topPath = null;
@@ -1359,8 +1359,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return estreeToBabel(renderShortCircuitGuard(nullFirstGuardTest(test), hostSlot(value)));
   }
 
-  // node-level twin of `collapseProvenNavPath` for channels that hold a NODE, not a path (the
-  // static claim's guard test): a kept chain-assign VALUE collapses in place by mutating the
+  // A static claim's guard test holds a NODE: a kept chain-assign VALUE collapses by mutating the
   // assignment's right slot - the node is live in the tree, so the spelling lands in the test
   // KEPT chain-assign values only: bare / call-rooted shapes collapse through the claim +
   // guard channels (with the stronger static-in-branch substitution). the plan resolves NOW
@@ -1441,7 +1440,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the WRITE observes the raw read by construction - this channel exists for it - so the value
     // question is asked with that flag: the proxy spine below the probe hop is one surface here,
     // where a plain read of the same nav folds it whole
-    // the verdict is the PLAN's - see `storedValueFormSpells`. this channel only renders it
+    // the verdict is the PLAN's `storedValueSpells`; this channel only renders it
     const { leafPure: pure, storedValueSpells } = plan;
     // a channel that OWNS the assignment's emission (the unguarded static claim re-emits it as a
     // side effect, possibly on a REBUILT receiver whose nodes the deferred flush can never match
@@ -1458,7 +1457,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // value form is what a stored plain nav owes unless the plan itself has effects only the
     // guarded render can spell, or the CALLER's own render observes the store's absence (its
     // null test is the store's only reader - a flag, because that test is not in the tree yet).
-    // the host-exit flush adds the LATE half (`storeNullTestObservedAbove`) for observers
+    // the host-exit flush adds the LATE half (`storedAbsenceObservedAbove`) for observers
     // rendered between the queue point and the flush
     const storeTakesGuard = !storedValueSpells || observed;
     // a caller rendering a CLONE of this value takes it now, but only where no unresolvable prefix

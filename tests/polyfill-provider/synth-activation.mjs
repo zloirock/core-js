@@ -2,6 +2,7 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { planSynthReceiverActivation, renderSynthReplacement } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { planMemoReadTarget } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { findNodeSlot } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { identifier, memberFromKeyName, renderMemoReadTarget, renderProxyReceiverPlan } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
@@ -228,6 +229,27 @@ for (const [receiver, prelude, checkNullish] of [
       receiver: node, entries: [{ lookupKey: 'missing' }], path, scope: path.scope, adapter, resolvePure: () => null,
     });
     check(`${ label }/source proof`, plan.checkNullish, checkNullish);
+  });
+
+for (const prefix of ['', 'effect(), ']) runBoth(`memo landing below a user member/${ !!prefix }`,
+  `consume((${ prefix }globalThis.self.box.deep));`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'consume');
+    const [receiver] = path.node.arguments;
+    function resolvePure({ name }) {
+      return ['globalThis', 'self'].includes(name) ? { entry: name, hintName: name } : null;
+    }
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(program.node);
+    const plan = planMemoReadTarget(receiver, { aliasCtx: { path, scope: path.scope, adapter }, resolvePure });
+    check(`${ label }/member plan`, plan.plan.kind, 'member');
+    const rendered = renderMemoReadTarget(plan, { injectImport: entry => `_${ entry }` });
+    const chain = prefix ? rendered.expressions[1] : rendered;
+    if (prefix) check(`${ label }/prefix first`, rendered.expressions[0].callee.name, 'effect');
+    check(`${ label }/chain boundary`, chain.type, 'ChainExpression');
+    check(`${ label }/retained outer key`, chain.expression.property.name, 'deep');
+    check(`${ label }/retained inner key`, chain.expression.object.property.name, 'box');
+    check(`${ label }/backed realm hop`, chain.expression.object.object.name, '_self');
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
   });
 
 finish();

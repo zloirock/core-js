@@ -1747,8 +1747,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       }
 
       // entry-global pass 2: partition every collected entry into remove / `0;`-promotion through the
-      // shared batch resolver, fed the TOTAL injected-module count. mirrors unplugin's `detectEntries`
-      // so the directive-promotion decision is single-sourced in the provider (no incremental fork).
+      // shared batch resolver, fed the TOTAL injected-module count, as in unplugin.
       // `body.indexOf` reads the live (pre-flush) order; module imports flush after
       function applyEntryDirectivePromotions(programPath) {
         if (!entryDirectiveCandidates.length) return;
@@ -2097,7 +2096,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           debugOutput?.warn('the source mixes ESM and CommonJS, so its output is mixed whatever the injection spells');
         }
         deoptNotedNames = new Set();
-        // entry-global handles re-emit via detectEntries
+        // entry-global handles re-emit through its own entry scan.
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
           scanExistingCoreJSImports(path.node, {

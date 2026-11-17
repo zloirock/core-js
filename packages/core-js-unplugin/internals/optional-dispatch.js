@@ -20,7 +20,6 @@ import { isPolyfillableOptional, vestigialReceiverOptionals } from '@core-js/pol
 import { instanceSynthReceiverPure } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { nodePathInScope } from '@core-js/polyfill-provider/resolve-node-type';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   calleeParenWrapped,
   TS_EXPR_WRAPPERS,
   isReusableReceiver,
@@ -35,7 +34,6 @@ import {
   remapInheritedStaticMeta,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
-  assignmentExpression,
   callExpression,
   chainExpression,
   cloneNode,
@@ -81,7 +79,6 @@ export default function createOptionalDispatchChannel(ctx) {
   const {
     STAGED_SPLIT,
     adapter,
-    guardCommaMemos,
     inheritedCtx,
     injectPureImport,
     injector,
@@ -142,8 +139,7 @@ export default function createOptionalDispatchChannel(ctx) {
   }
 
   // Bind the shared optional call product to source spans, receiver types and live claims.
-  // Receiver clones retain the existing proxy-hop skip ownership; generated calls keep
-  // the source return type for a continuing claim above them.
+  // Generated calls keep the source return type for a continuing claim above them.
   function renderOptionalCallSplit({ node, callee, decision, metaPath, helper = null, guard = null, checks = [] }) {
     const recvType = !callee.optional && decision.capture
       && nodeTypeRefinement(unwrapRuntimeExpr(callee.object), metaPath.scope, resolveNodeType);
@@ -153,17 +149,10 @@ export default function createOptionalDispatchChannel(ctx) {
       embed(source, role) {
         const clone = guard && role === 'receiver' ? cloneStamped(source, typeStampCtx) : cloneNode(source);
         if (role === 'receiver' && recvType) resolvedType.set(clone, recvType);
-        if (role === 'capture' && holdsProxySurface(callee.object, metaPath)) {
-          for (let hop = unwrapRuntimeExpr(clone); hop?.type === 'MemberExpression' && !hop.computed
-            && POSSIBLE_GLOBAL_OBJECTS.has(memberKeyName(hop)); hop = unwrapRuntimeExpr(hop.object)) {
-            skippedNodes.add(hop);
-          }
-        }
         return clone;
       },
       recordLookup: lookup => stampReplacementSpan(lookup, callee),
     });
-    if (!callee.optional && product.methodCheck?.type === 'SequenceExpression') guardCommaMemos.add(product.methodCheck);
     return {
       hopKind: 'call',
       disjuncts: product.disjuncts,
@@ -440,30 +429,6 @@ export default function createOptionalDispatchChannel(ctx) {
     return receiverHoldsProxySurface(objectNode, { path: metaPath, scope: metaPath?.scope, adapter });
   }
 
-  // guard-comma fusion: the split's `(_r = X, _g = _r.m)` memo with a RESOLVING method -
-  // the lookup absorbs the receiver memo (`_g = _mMaybe(_r = X)`), babel's nesting
-  function fuseGuardCommaMemo({ metaPath, entry, hintName }) {
-    const assignUp = metaPath.parentPath?.node;
-    const seqPath = metaPath.parentPath?.parentPath;
-    if (assignUp?.type !== 'AssignmentExpression' || assignUp.right !== metaPath.node
-      || !seqPath?.node || !guardCommaMemos.has(seqPath.node)) return false;
-    const [recvAssign] = seqPath.node.expressions;
-    markRewrite();
-    const consumed = seqPath.node;
-    const recvClone = cloneNode(recvAssign);
-    // the memo build may have claim-suppressed the receiver's proxy-surface hops (the memo
-    // holds the VALUE, babel keeps the hops spelled) - the fresh clone inherits those marks
-    for (let orig = unwrapRuntimeExpr(recvAssign.right), copy = unwrapRuntimeExpr(recvClone.right);
-      orig?.type === 'MemberExpression' && copy?.type === 'MemberExpression';
-      orig = unwrapRuntimeExpr(orig.object), copy = unwrapRuntimeExpr(copy.object)) {
-      if (skippedNodes.has(orig)) skippedNodes.add(copy);
-    }
-    seqPath.replaceWith(assignmentExpression('=', cloneNode(assignUp.left),
-      callExpression(identifier(injectPureImport(entry, hintName)), [recvClone])));
-    markSubtreeSkipped(skippedNodes, consumed);
-    return true;
-  }
-
   // one guard test out of the split's CHECKS and the member-optional one; the spelling rule
   // (single test ident-first, a chain literal-first) is the render canon's
   function composeGuardTest(guardChecks, check) {
@@ -555,7 +520,6 @@ export default function createOptionalDispatchChannel(ctx) {
     object = metaPath.node.object, sourceOptional = metaPath.node.optional === true, consumesCall = false, preparedOptionals = false,
   }) {
     const memberNode = metaPath.node;
-    if (!sideEffects.length && fuseGuardCommaMemo({ metaPath, entry, hintName })) return true;
     if (isDeleteOperand(metaPath)) return false;
     // the caller past transparent wrappers; `calleeIsMember` holds when the call's callee
     // unwraps to exactly this member (the paren-lookup class included)

@@ -429,7 +429,6 @@ export function * staticClaimNavigationRoutes({ node, kind, hintName, meta, alia
       return;
     }
     if (sealedClaimDisposition(node, resolvePure, aliasCtx)?.kind !== 'throw') {
-      yield { kind: 'nested-guard' };
       yield { kind: 'hop' };
     }
   }

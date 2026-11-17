@@ -4490,7 +4490,6 @@ export function renderSynthLiteral(entries, {
       { resolvePure, injectImport, embed, cloneHost: node => cloneKey(node, entry) },
     );
     let slot = entry.optedOut ? null : slotFor(entry);
-    if (slot?.unresolved) return null;
     const receiverCtorName = !slot && !entry.optedOut && !computed
       ? planReceiver().receiverCtorName : null;
     if (!slot && !entry.optedOut && !computed && receiverCtorName) {

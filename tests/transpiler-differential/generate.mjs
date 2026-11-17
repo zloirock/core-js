@@ -25654,6 +25654,35 @@ function * generateReassignedRefImports() {
   };
 }
 
+// Shared guard and receiver products own the live routes after obsolete host fallbacks leave.
+function * generateGuardedReceiverEffects() {
+  const windowHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  const propertyHost = new URL('../helpers/restore-property.cjs', import.meta.url).href;
+  for (const [name, body] of [
+    ['stored-sequence', 'let held; const value = (held = (effects.push("prefix"), globalThis).window?.self); return [value === undefined, held === undefined];'],
+    ['stored-call',
+      'function get() { effects.push("call"); return globalThis; } let held; const value = (held = get().window?.self); return [value === undefined, held === undefined];'],
+    ['captured-method',
+      'const box = { get list() { effects.push("read"); return [3]; } }; return box.list.at?.((effects.push("argument"), 0));'],
+    ['sequence-method', 'const list = [3]; return (effects.push("receiver"), list).at?.((effects.push("argument"), 0));'],
+    ['captured-combined',
+      'const box = { get list() { effects.push("read"); return [[3]]; } }; return box.list.at?.((effects.push("argument"), 0)).includes(3);'],
+    ['sequence-combined', 'const list = [[3]]; return (effects.push("receiver"), list).at?.((effects.push("argument"), 0)).includes(3);'],
+    ['raw-combined',
+      'const box = { get list() { effects.push("read"); return { read() { effects.push("call"); return [3]; } }; } };'
+        + ' return box.list.read?.(effects.push("argument")).includes(3);'],
+    ['iterator-read', 'return typeof (effects.push("prefix"), globalThis.self)[(effects.push("key"), Symbol.iterator)];'],
+    ['partial-synth', 'return (({ from, extra = (effects.push("default"), 7) } = (effects.push("source"), Array)) => [from([3])[0], extra])();'],
+  ]) for (const present of [false, true]) yield {
+    name: `guarded-receiver-effects/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(windowHost) };
+      import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
+      export const effects = []; function read() { ${ body } }
+      const root = Function('return this')();
+      export const r = withWindowPresence(${ present }, () => withTemporaryProperty(root, 'self', root, read));`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27468,4 +27497,5 @@ export function * generate() {
   yield * generateModuleReceiverScopes();
   yield * generateCensusBoundarySources();
   yield * generateReassignedRefImports();
+  yield * generateGuardedReceiverEffects();
 }

@@ -273,10 +273,6 @@ export function renderSymbolReceiverRoot(plan, { injectImport, embed = node => n
 // Apply an effect-order decision. A native preparation may already supply the
 // receiver memo; otherwise the shared capture renderer allocates it here. Effects
 // outside the captured source precede it, and key effects always follow that read.
-// `leadingCapture` borrows the first effect when that minted write can move into a
-// guard. Prepared checks own the guard instead; the write stays in their live branch.
-// The role is valid for this synchronous apply only; moving it removes that effect,
-// while cloning the product must clone the role and its effect as the same node.
 export function renderReceiverEffects(plan, { memo = null, ...hooks } = {}) {
   const embed = hooks.embed ?? (node => node);
   if (!plan.ordered && !plan.capture) {

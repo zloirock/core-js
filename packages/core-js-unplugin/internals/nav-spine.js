@@ -5,11 +5,9 @@ import {
   foldableRealmHop,
   foldSeqKeyLiteralTail,
   navValueCanShortCircuit,
-  planProvenNavGuardCollapse,
   resolveKey,
   resolveObjectName,
   sealedLayerBetween,
-  storedNavHopClaimSuppressed,
   storedUserAssignmentOf,
   unbackedRealmHopFoldAbove,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -39,10 +37,7 @@ import {
   cloneNode,
   identifier,
   sequenceExpression,
-  nullFirstGuardTest,
-  renderShortCircuitGuard,
   renderKeptSequenceTail,
-  renderNavCollapseValue,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional } from './emit-shared.js';
 
@@ -63,51 +58,6 @@ export function cloneSpinePeeled(node) {
     return { ...cloneNode(cur), callee: cloneSpinePeeled(cur.callee) };
   }
   return cloneNode(cur ?? node);
-}
-
-// the nested-guard VALUE spelling: a nav whose unresolvable hop sits BELOW the collapse point
-// (`(se(), globalThis).window.self` -> `null == (se(), _globalThis).window ? void 0 : _self`).
-// WHICH form a kept store takes is the plan's verdict (`valueFormSpells`), read here as the other
-// leg reads it: the value form carries an ident root and an effect-free call root whole, so the
-// store collapses through the plain swap; a SEQUENCE prefix and an effectful CALL root have no
-// slot in it and re-emit inside the guarded render, where the honest hop read stands and carries
-// the guard the source's own semantics ask for. the prefix subtree is REUSED in place, so the
-// claims queued inside it still land in the re-emit; a call root is re-read exactly as written
-export function emitNestedGuardNavValue(metaPath, node, {
-  adapter,
-  resolvePure,
-  injectPureImport,
-  markRewrite,
-  substituteProbeProxyRoot,
-}) {
-  function resolveHere(m) {
-    return resolvePure(m, metaPath);
-  }
-  // only a STORED value takes it: the shared canon suppresses the hop claim exactly where the
-  // collapse would change what the write holds. a plain read position keeps the realm collapse
-  // (`const v = (n++, globalThis).window.self` stores `(n++, _self)`)
-  if (!storedNavHopClaimSuppressed(metaPath, { scope: metaPath.scope, adapter, resolvePure: resolveHere })) {
-    return false;
-  }
-  const plan = planProvenNavGuardCollapse({
-    rootNode: node,
-    scope: metaPath.scope,
-    adapter,
-    path: metaPath,
-    resolvePure: resolveHere,
-    allowSequenceRoot: true,
-  });
-  if (plan?.kind !== 'nested' || plan.valueFormSpells || plan.topAssign || !plan.leafPure) return false;
-  // the proven root: an ident the substitution below reaches, or a call the slice re-reads
-  const provenRoot = plan.rootId ?? plan.call;
-  const prefixNode = plan.hops[plan.lastUnresolvableIdx].node;
-  if (!provenRoot || provenRoot.start < prefixNode.start || provenRoot.end > prefixNode.end) return false;
-  substituteProbeProxyRoot(prefixNode);
-  const built = renderNavCollapseValue(plan,
-    identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)), { cloneHost: cloneNode });
-  markRewrite();
-  metaPath.replaceWith(renderShortCircuitGuard(nullFirstGuardTest(prefixNode), built));
-  return true;
 }
 
 // Apply the provider's kept-sequence decision to this host's live slot.
@@ -370,21 +320,6 @@ export function swallowDeadSeqWrapper(targetPath, adapter = null) {
       || up.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr, { scope: at.scope, adapter, path: at }))) return at;
     at = at.parentPath;
   }
-}
-
-// receiver-only effects with a pristine proxy tail (`(n += 1, globalThis.self)[S]`):
-// the [S] member NAV-consumes the spine - a verdict the tail's revisit cannot see once
-// the member is the helper's own call - so the tail folds onto its ROOT here
-// (`(n += 1, _globalThis)`, babel's nav collapse); null when the tail is not that shape
-export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHopSpine, injectPureImport }) {
-  const seqValue = unwrapRuntimeExpr(object);
-  const tail = seqValue?.type === 'SequenceExpression' ? unwrapRuntimeExpr(seqValue.expressions.at(-1)) : null;
-  const collapsed = tail?.type === 'MemberExpression' ? collapseProxyHopSpine(tail, metaPath) : null;
-  if (!collapsed?.entry || collapsed.aliasRoot) return null;
-  return sequenceExpression([
-    ...seqValue.expressions.slice(0, -1).map(expr => cloneNode(expr)),
-    identifier(injectPureImport(collapsed.entry, collapsed.hintName)),
-  ]);
 }
 
 // does anything READ THROUGH this member - a further hop off it, a call of it? a member nothing

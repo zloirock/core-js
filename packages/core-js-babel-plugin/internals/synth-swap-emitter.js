@@ -424,7 +424,6 @@ export default function createSynthSwapEmitter({
         },
       },
     );
-    if (!literal) return null;
     const result = estreeToBabel(literal);
     entries.forEach(
       (entry, index) => {
@@ -491,9 +490,7 @@ export default function createSynthSwapEmitter({
           // declared-ref set: arrow normalization would move it into the function body.
           createMemo: () => t.identifier(injector.generateRefName(name => path.scope.hasBinding(name))),
         });
-        if (!rendered) return;
         const replacement = estreeToBabel(rendered);
-        // Commit ownership only after native replacement succeeds; a failed apply can retry.
         path.replaceWith(replacement);
         pending.applied = true;
         pendingSwapCount--;

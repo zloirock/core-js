@@ -53,7 +53,6 @@ import {
 } from './claim-guards.js';
 import {
   climbToCallerPath,
-  foldPendingReceiverSpineRoot,
   insideMemoClone,
   markSubtreeSkipped,
   noteProxyHopClaimHost,
@@ -140,10 +139,6 @@ export default function createAstUsagePureCallback({
 }) {
   // a fold re-queues the membership test it keeps - without the mark it would wrap its own wrap
   const foldedInTests = new WeakSet();
-  // the split's comma memos (`(_r = X, _g = _r.m)`): when the raw method read inside one
-  // RESOLVES, the lookup absorbs the receiver memo (`_g = _mMaybe(_r = X)`) - the fusion in
-  // `replaceInstanceLike` keys on this set
-  const guardCommaMemos = new WeakSet();
   const resolvedClaimNodes = new WeakSet();
   // a consumer whose ctor-FALLBACK swap staged renders nothing at all, so a claim below it may
   // not stand down for it: over a proxy-rooted nav the collapse family is otherwise assumed to
@@ -182,13 +177,6 @@ export default function createAstUsagePureCallback({
   const seKeyReadCtx = { injector, resolvePure };
   // what the module-scope pristine-hop peel needs
   const hopPeelCtx = { adapter, resolveGlobalPolyfill };
-  // what the module-scope nested-guard value render needs
-  const nestedGuardCtx = {
-    adapter,
-    resolvePure,
-    injectPureImport,
-    markRewrite,
-  };
   // the proxy-spine channel shares this transform's closure state; the ctx objects above get
   // its renders assigned back before anything runs
   const {
@@ -215,7 +203,6 @@ export default function createAstUsagePureCallback({
     injector,
     markRewrite,
     memoValueClones,
-    nestedGuardCtx,
     probeTestClones,
     resolveGlobalPolyfill,
     resolvePure,
@@ -225,7 +212,6 @@ export default function createAstUsagePureCallback({
     skippedNodes,
   });
   Object.assign(destructureEmit.probeRenderCtx, { substituteProbeProxyRoot });
-  Object.assign(nestedGuardCtx, { substituteProbeProxyRoot });
   const {
     emitInheritedStatic,
     eraseVestigialReceiverOptionals,
@@ -233,7 +219,6 @@ export default function createAstUsagePureCallback({
   } = createOptionalDispatchChannel({
     STAGED_SPLIT,
     adapter,
-    guardCommaMemos,
     inheritedCtx,
     injectPureImport,
     injector,
@@ -316,7 +301,6 @@ export default function createAstUsagePureCallback({
     }
     state.receiverEffectCount -= state.pendingEffects.slice(0, state.receiverEffectCount).filter(effect => planConsumed.has(effect)).length;
     state.pendingEffects = state.pendingEffects.filter(effect => !planConsumed.has(effect));
-    state.pendingReceiverOnly = false;
   }
 
   // `obj[Symbol.iterator]()` -> `_getIterator(obj)`; the read form -> `_getIteratorMethod(obj)`
@@ -336,12 +320,8 @@ export default function createAstUsagePureCallback({
       memberOptional: node.optional === true,
       pendingEffects: meta.sideEffects ?? [],
       receiverEffectCount: meta.receiverEffectCount ?? 0,
-      pendingReceiverOnly: !!meta.sideEffects?.length && meta.receiverEffectCount === meta.sideEffects.length,
     };
     if (!proxyRootFired) collapseSymbolReceiver(meta, metaPath, state);
-    if (state.pendingReceiverOnly) {
-      state.object = foldPendingReceiverSpineRoot(state.object, metaPath, { collapseProxyHopSpine, injectPureImport }) ?? state.object;
-    }
     if (replaceInstanceLike({
       metaPath,
       entry,

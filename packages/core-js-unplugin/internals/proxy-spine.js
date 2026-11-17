@@ -95,7 +95,6 @@ import {
 } from './claim-guards.js';
 import {
   foldTailPristineProxyHops,
-  emitNestedGuardNavValue,
   dropChainMarkerWithoutOptional,
   foldRealmHopOverCarriedValue,
   foldUnbackedRealmHopsAbove,
@@ -169,7 +168,6 @@ export default function createProxySpineChannel(ctx) {
     injectorState,
     markRewrite,
     memoValueClones,
-    nestedGuardCtx,
     probeTestClones,
     resolveGlobalPolyfill,
     resolvePure,
@@ -1283,9 +1281,6 @@ export default function createProxySpineChannel(ctx) {
     });
     for (const route of routes) {
       switch (route.kind) {
-        case 'nested-guard':
-          if (emitNestedGuardNavValue(metaPath, node, nestedGuardCtx)) return;
-          break;
         case 'hop':
           if (emitProxyHopClaim({ meta, metaPath, node, entry, hintName })) return;
           break;
@@ -1336,16 +1331,14 @@ export default function createProxySpineChannel(ctx) {
       }
       // Child traversal has already settled retained stores in this substrate.
       if (product.kind === 'settle') continue;
-      if (product.kind === 'written-store' && !product.effects) return;
       const target = climbSubstitutedSpan(metaPath);
       const consumed = target.node;
       const replacement = renderResolvedStaticClaim(product, {
         injectImport: injectPureImport,
-        cloneHost: product.kind === 'written-store' ? source => source : cloneNode,
+        cloneHost: cloneNode,
       });
       markRewrite();
       target.replaceWith(replacement);
-      if (product.kind === 'written-store') return;
       markSubtreeSkipped(skippedNodes, consumed, product.live ? new Set(product.live) : undefined);
       skippedNodes.add(replacement);
       if (product.live) return;

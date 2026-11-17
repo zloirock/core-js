@@ -60,12 +60,6 @@ export default class ImportInjector extends ImportInjectorState {
   // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
   // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
   #idByName = new Map();
-  // every Identifier node this injector PLACED into the AST (the clones `addPureImport`
-  // hands back, which the substitution visitor drops in via `replaceWith`). node-IDENTITY
-  // membership, not name: a polyfill-rewritten member key (`[Symbol.iterator]` -> the placed
-  // `[_Symbol$iterator]`) is in here; a user binding the user typed - including the user's own
-  // deduped `@core-js/pure` import reused under the same UID - is NOT. consumed by the
-  // computed-key synth gate to bail exactly the rewritten-member keys unplugin also bails on
   // flush runs multiple times (pre, programExit) - skip already-emitted.
   // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
   // to compute newGlobals)

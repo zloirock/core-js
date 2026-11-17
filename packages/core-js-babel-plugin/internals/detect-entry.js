@@ -10,8 +10,7 @@ import { babelAdapter } from './detect-usage.js';
 // imports by design, and (2) type-only ImportDeclarations nested inside
 // `declare module "x" { import ... }` blocks - which TypeScript elides at runtime but
 // babel-traverse still walks before `@babel/preset-typescript` strips them - never
-// reach the callback. unplugin's `detectEntries` already iterates `ast.body` only, so
-// the body-only walk here keeps the two adapters symmetric
+// reach the callback. Both bindings scan only the program body.
 export default function runEntryDetection(programPath, onEntry, isDisabled = null) {
   // the pre-filter is the resolver's OWN accepted-type set, asked through its predicate rather
   // than re-listed here: it only skips the adapter / scope work on shapes `getEntrySource` would

@@ -4,6 +4,7 @@ import {
   createOuterCollapsePlanner, keptProxyTailPlan, planOuterCollapseValue, proxyCollapseBase, proxyCollapseConsumer,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { renderOuterCollapseValue } from '../../packages/core-js-polyfill-provider/render.js';
+import { planInnerProxyCollapse } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -166,6 +167,40 @@ for (const [reader, admitted] of [
       resolvePure({ name: 'self' }), ctx, { consumer: { node: path.node, host } });
     check(`${ label }/final reader owns the earlier throw`, !!result, admitted);
     if (admitted) check(`${ label }/same source binding`, result.base.alias, aliasRoot);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+
+runBoth('effectful alias store under a navigation reader',
+  'const alias = globalThis; let held; const result = (before(), held = (inside(), alias).self).self.box;',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'self'
+      && unwrapRuntimeExpr(item.node.object).expressions?.at(-1)?.name === 'alias');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { path, scope: path.scope, adapter, resolvePure };
+    const before = JSON.stringify(program.node);
+    const collapsed = planInnerProxyCollapse(path.node, { aliasCtx: ctx, resolvePure });
+    const write = parser.pickPath(program, 'AssignmentExpression').node;
+    const host = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'box').node;
+    const prefix = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'before').node;
+    const target = { node: unwrapRuntimeExpr(host.object) };
+    const { plan, step } = createOuterCollapsePlanner({ resolvePure });
+    check(`${ label }/inner alias`, collapsed.aliasRoot.name, 'alias');
+    check(`${ label }/inner effect`, collapsed.effects[0].callee.name, 'inside');
+    check(`${ label }/write`, step({ kind: 'write', node: write, readerHop: true }), true);
+    check(`${ label }/prefix`, step({ kind: 'sequence', readerHop: true, prefixes: [prefix] }), true);
+    check(`${ label }/outer hop`, step({ kind: 'member', node: target.node, keyName: 'self' }), true);
+    const facts = { consumer: { node: target.node, host }, directReader: true };
+    const product = planOuterCollapseValue({ target, ...plan }, collapsed, resolvePure({ name: 'self' }), ctx, facts);
+    check(`${ label }/in-place write`, product.kind, 'write-in-place');
+    const rendered = renderOuterCollapseValue(product, { injectImport: entry => `_${ entry }` });
+    check(`${ label }/prefix identity`, rendered.expressions[0], prefix);
+    check(`${ label }/one retained store`, rendered.expressions.length, 2);
+    const [, stored] = rendered.expressions;
+    check(`${ label }/target`, stored.left.name, 'held');
+    check(`${ label }/RHS effect`, stored.right.expressions[0].callee.name, 'inside');
+    check(`${ label }/RHS value`, stored.right.expressions[1].name, '_self');
+    check(`${ label }/reader required`, planOuterCollapseValue({ target, ...plan }, collapsed,
+      resolvePure({ name: 'self' }), ctx, { ...facts, directReader: false }).kind, 'decline');
     check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
   });
 
