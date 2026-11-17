@@ -9,6 +9,7 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var defineBuiltIns = require('../internals/define-built-ins');
 var fails = require('../internals/fails');
 var anInstance = require('../internals/an-instance');
+var isCallable = require('../internals/is-callable');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toIndex = require('../internals/to-index');
 var fround = require('../internals/math-fround');
@@ -219,7 +220,10 @@ if (!NATIVE_ARRAY_BUFFER) {
     $ArrayBuffer = function ArrayBuffer(length /* , options */) {
       anInstance(this, ArrayBufferPrototype);
       var options = arguments.length > 1 ? arguments[1] : undefined;
-      return inheritIfRequired(new NativeArrayBuffer(toIndex(length), options), this, $ArrayBuffer);
+      var buffer = new NativeArrayBuffer(toIndex(length), options);
+      // the own `slice` is dropped only if its polyfill is loaded
+      if (OWN_INSTANCE_METHODS && 'slice' in ArrayBufferPrototype) delete buffer.slice;
+      return inheritIfRequired(buffer, this, $ArrayBuffer);
     };
 
     $ArrayBuffer[PROTOTYPE] = ArrayBufferPrototype;
@@ -236,8 +240,14 @@ if (!NATIVE_ARRAY_BUFFER) {
     setPrototypeOf(DataViewPrototype, ObjectPrototype);
   }
 
-  // iOS Safari 7.x bug
   var testView = new $DataView(new $ArrayBuffer(2));
+  // in NodeJS 0.11.0-0.11.3, methods of buffers and views are own properties of each instance, the prototypes are empty
+  var OWN_INSTANCE_METHODS = !DataViewPrototype.setInt8;
+  if (OWN_INSTANCE_METHODS) for (var key in testView) {
+    if (isCallable(testView[key])) createNonEnumerableProperty(DataViewPrototype, key, testView[key]);
+  }
+
+  // iOS Safari 7.x bug
   var $setInt8 = uncurryThis(DataViewPrototype.setInt8);
   testView.setInt8(0, 2147483648);
   testView.setInt8(1, 2147483649);

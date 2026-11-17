@@ -55,10 +55,13 @@ var OWN_INSTANCE_METHODS = NATIVE_ARRAY_BUFFER_VIEWS && hasOwn(new globalThis.In
 
 // an own method is dropped only if the prototype has a replacement: its polyfill may not be loaded
 var dropOwnInstanceMethods = function (it) {
-  if (OWN_INSTANCE_METHODS) forEach(['set', 'slice', 'subarray'], function (key) {
-    if (key in TypedArrayPrototype) delete it[key];
-  });
-  return it;
+  if (OWN_INSTANCE_METHODS) {
+    forEach(['set', 'slice', 'subarray'], function (key) {
+      if (key in TypedArrayPrototype) delete it[key];
+    });
+    // the buffer of a typed array is created by the engine, not by the `ArrayBuffer` wrapper
+    if ('slice' in ArrayBufferPrototype) delete it.buffer.slice;
+  } return it;
 };
 
 var addGetter = function (it, key) {

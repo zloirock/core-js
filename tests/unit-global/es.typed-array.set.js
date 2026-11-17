@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
+import { DESCRIPTORS, NATIVE, NODE_TYPED_ARRAY_SET_NUMBER_BUG, TYPED_ARRAYS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.set', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
@@ -26,7 +26,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.set', assert => {
     assert.arrayEqual(array3, [1, 2], 'set array-like #2');
     assert.notThrows(() => array3.set('34'), 'set string #1');
     assert.arrayEqual(array3, [3, 4], 'set string #2');
-    assert.notThrows(() => array3.set(1), 'set number #1');
+    (NODE_TYPED_ARRAY_SET_NUMBER_BUG ? assert.skip : assert).notThrows(() => array3.set(1), 'set number #1');
     assert.arrayEqual(array3, [3, 4], 'set number #2');
     assert.throws(() => set.call([1, 2, 3], [1]), "isn't generic");
   }

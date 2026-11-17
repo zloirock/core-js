@@ -9,8 +9,11 @@ var toLength = require('../internals/to-length');
 
 var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
 var DataView = ArrayBufferModule.DataView;
+var ArrayBufferPrototype = ArrayBuffer.prototype;
 var DataViewPrototype = DataView.prototype;
-var nativeArrayBufferSlice = uncurryThis(ArrayBuffer.prototype.slice);
+// in NodeJS 0.11.0-0.11.3, `slice` is an own property of each buffer and fails on a missing or undefined argument
+var OWN_SLICE = !ArrayBufferPrototype.slice && new ArrayBuffer(1).slice;
+var nativeArrayBufferSlice = uncurryThis(ArrayBufferPrototype.slice || OWN_SLICE);
 var getUint8 = uncurryThis(DataViewPrototype.getUint8);
 var setUint8 = uncurryThis(DataViewPrototype.setUint8);
 
@@ -22,13 +25,20 @@ var INCORRECT_SLICE = fails(function () {
 // https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice
 $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE }, {
   slice: function slice(start, end) {
-    if (nativeArrayBufferSlice && end === undefined) {
+    if (nativeArrayBufferSlice && !OWN_SLICE && end === undefined) {
       return nativeArrayBufferSlice(anObject(this), start); // FF fix
     }
     var length = anObject(this).byteLength;
     var first = toAbsoluteIndex(start, length);
     var fin = toAbsoluteIndex(end === undefined ? length : end, length);
-    var result = new ArrayBuffer(toLength(fin - first));
+    var result;
+    if (OWN_SLICE) {
+      // the native method converts arguments to int32, so it gets normalized indices
+      result = nativeArrayBufferSlice(this, first, fin);
+      delete result.slice;
+      return result;
+    }
+    result = new ArrayBuffer(toLength(fin - first));
     var viewSource = new DataView(this);
     var viewTarget = new DataView(result);
     var index = 0;

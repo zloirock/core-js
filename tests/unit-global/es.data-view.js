@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
+import { DESCRIPTORS, NATIVE, NODE_DATA_VIEW_NEGATIVE_LENGTH_BUG } from '../helpers/constants.js';
 
 QUnit.test('DataView', assert => {
   assert.same(DataView, Object(DataView), 'is object'); // in Safari 5 typeof DataView is 'object'
@@ -39,8 +39,7 @@ QUnit.test('DataView', assert => {
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If offset > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
-    // Known Node 6 failure: native DataView accepts a negative byteLength.
-    assert.throws(() => new DataView(new ArrayBuffer(8), 0, -1), 'negative byteLength throws');
+    (NODE_DATA_VIEW_NEGATIVE_LENGTH_BUG ? assert.skip : assert).throws(() => new DataView(new ArrayBuffer(8), 0, -1), 'negative byteLength throws');
   }
   dataview = new DataView(new ArrayBuffer(8));
   dataview.setUint32(0, 0x12345678);

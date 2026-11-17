@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }` polyfills and `ArrayBuffer.prototype.slice` without arguments or with `undefined` as the end in NodeJS 0.11.0 - 0.11.3, where native methods of `ArrayBuffer` and `DataView` are own properties of instances
 - Fixed `%TypedArray%.prototype.{ set, slice, subarray }` polyfills shadowed by own native methods of typed array instances in NodeJS 0.11.0 - 0.11.3
 - `Array.from`, `Array.fromAsync` and `{ Map, Object }.groupBy` polyfills check the maximum allowed index before requesting the next value and no longer allow the index `2 ** 53 - 1`
 - Fixed symbol keys of groups leaking out to `for-in` and `Object.keys` in obsolete `Array.prototype.{ group, groupBy }` and `%TypedArray%.prototype.groupBy` together with `Symbol` polyfill, like it was fixed for `Object.groupBy`
