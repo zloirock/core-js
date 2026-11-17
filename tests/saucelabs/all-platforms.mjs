@@ -17,6 +17,8 @@ function rank({ api_name: browser, short_version: version, os, device, long_name
   if (device) return JSON.stringify([deviceName ? 0 : 1,
     browser === 'iphone' ? 0 : browser === 'ipad' ? 1 : 0,
     deviceName === manual?.capabilities['appium:deviceName'] ? 0 : 1, manualDevices.has(deviceName) ? 0 : 1,
+    // an ARM emulator counts towards its own pool, which a plan may lack
+    browser === 'android' && android(deviceName, version).pool ? 1 : 0,
     device === 'iPhone Simulator' || device === 'iPad Simulator' ? 0 : 1, device, os, deviceName || '']);
   if (platformName(os) === (manual?.capabilities.platformName || manual?.capabilities.platform)) return '0';
   if (os === 'Windows 10') return '1';

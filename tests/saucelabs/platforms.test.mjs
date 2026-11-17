@@ -16,8 +16,18 @@ deepEqual(platforms.find(({ name }) => name === 'internet explorer 10'), {
 deepEqual(
   Object.fromEntries(platforms.filter(({ pool }) => pool).map(({ name, pool }) => [name, pool])),
   {
-    'safari 14': 'mac_vms', 'safari 16': 'mac_vms', 'safari 18': 'mac_arm_vms', 'safari 26': 'mac_arm_vms', 'safari 27': 'mac_arm_vms',
-    'ios 26.1': 'mac_arm_vms', 'ios 27.0': 'mac_arm_vms',
+    'safari 14': 'mac_vms',
+    'safari 15': 'mac_vms',
+    'safari 16': 'mac_vms',
+    'safari 17': 'mac_vms',
+    'safari 18': 'mac_arm_vms',
+    'safari 26': 'mac_arm_vms',
+    'ios 15.4': 'mac_vms',
+    'ios 16.0': 'mac_vms',
+    'ios 17.0': 'mac_vms',
+    'ios 18.6': 'mac_arm_vms',
+    'ios 26.1': 'mac_arm_vms',
+    'ios 27.0': 'mac_arm_vms',
   },
   'assigns the Mac sessions to the Intel and Apple Silicon pools of Sauce Labs',
 );
