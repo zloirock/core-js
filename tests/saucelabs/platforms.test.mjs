@@ -42,3 +42,5 @@ for (const [version, w3c, capabilities] of [
   equal(selected.w3c, w3c, `uses ${ w3c ? 'W3C' : 'JSON Wire' } for Chrome ${ version }`);
   deepEqual(selected.capabilities, capabilities, `sends the ${ w3c ? 'W3C' : 'JSON Wire' } capabilities for Chrome ${ version }`);
 }
+
+echo(chalk.green('Sauce Labs matrix tested'));

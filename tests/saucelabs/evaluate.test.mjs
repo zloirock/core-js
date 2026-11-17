@@ -16,3 +16,5 @@ deepEqual(evaluate({ done: true, failed: 0, total: 0, failures: [] }), {
   passed: false, summary: 'no assertions ran', details: [],
 }, 'reports regular failures and rejects a page that ran no assertions #2');
 equal(evaluate({ done: true, failed: 0, total: 10, failures: [] }).passed, true, 'reports regular failures and rejects a page that ran no assertions #3');
+
+echo(chalk.green('Sauce Labs results evaluation tested'));

@@ -25,6 +25,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
     await rm(sessionsDir, { recursive: true });
   }
   equal(failures.length, 0, failures.join('\n'));
+  echo(chalk.green('Sauce Labs run abort tested'));
 } else {
   const [scenario] = process.argv.slice(2);
   const sessionsFile = process.env.SAUCE_SESSIONS_FILE;

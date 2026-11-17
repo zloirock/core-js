@@ -67,3 +67,5 @@ await responseTest('<html>unavailable</html>', 502);
     globalThis.fetch = previous;
   }
 }
+
+echo(chalk.green('Sauce Labs WebDriver client tested'));

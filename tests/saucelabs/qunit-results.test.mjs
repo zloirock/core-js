@@ -45,3 +45,5 @@ const source = await readFile(new URL('../unit-browser/qunit-results.js', import
   equal(results.failed, 1, 'publishes the active QUnit test until it completes #6');
   equal(results.total, 2, 'publishes the active QUnit test until it completes #7');
 }
+
+echo(chalk.green('Sauce Labs page reporter tested'));

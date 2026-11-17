@@ -152,3 +152,5 @@ for (const browser of ['iphone', 'ipad', 'android']) {
   ]).map(({ pool }) => pool);
   deepEqual(pools, ['mac_vms', 'mac_arm_vms', 'mac_arm_vms'], 'counts an iOS simulator towards the pool of its host Mac');
 }
+
+echo(chalk.green('Sauce Labs catalog matrix tested'));
