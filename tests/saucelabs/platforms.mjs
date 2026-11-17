@@ -9,16 +9,18 @@ export function hostPool(platform) {
   return mac ? { pool: macPool(mac.groups.major, 14) } : {};
 }
 
-// Chrome before 75 and Firefox before 55 get no W3C session on Sauce Labs
+// Chrome before 75 and Firefox before 78 get no W3C session on Sauce Labs
 export function desktop(browserName, version, platform) {
   const legacy = browserName === 'internet explorer' || browserName === 'chrome' && +version < 75 ||
-    browserName === 'firefox' && +version < 55;
+    browserName === 'firefox' && +version < 78;
+  // Firefox 48 - 52 have no legacy driver, and the default Selenium of Sauce Labs cannot connect to them
+  const selenium = browserName === 'firefox' && +version >= 48 && +version <= 52 ? { seleniumVersion: '3.4.0' } : {};
   return {
     name: `${ browserName } ${ version }`,
     w3c: !legacy,
     ...hostPool(platform),
     capabilities: legacy
-      ? { browserName, version, platform }
+      ? { browserName, version, platform, ...selenium }
       : { browserName, browserVersion: version, platformName: platform },
   };
 }

@@ -34,13 +34,19 @@ deepEqual(
 
 equal(android('Google ARM Medium Phone Emulator', '14.0').pool, 'android_arm_vms', 'assigns an ARM Android emulator to its own pool');
 
-for (const [version, w3c, capabilities] of [
-  ['74', false, { browserName: 'chrome', version: '74', platform: 'Windows 10' }],
-  ['75', true, { browserName: 'chrome', browserVersion: '75', platformName: 'Windows 10' }],
+for (const [browserName, version, w3c, capabilities] of [
+  ['chrome', '74', false, { browserName: 'chrome', version: '74', platform: 'Windows 10' }],
+  ['chrome', '75', true, { browserName: 'chrome', browserVersion: '75', platformName: 'Windows 10' }],
+  ['firefox', '47', false, { browserName: 'firefox', version: '47', platform: 'Windows 10' }],
+  ['firefox', '48', false, { browserName: 'firefox', version: '48', platform: 'Windows 10', seleniumVersion: '3.4.0' }],
+  ['firefox', '52', false, { browserName: 'firefox', version: '52', platform: 'Windows 10', seleniumVersion: '3.4.0' }],
+  ['firefox', '53', false, { browserName: 'firefox', version: '53', platform: 'Windows 10' }],
+  ['firefox', '77', false, { browserName: 'firefox', version: '77', platform: 'Windows 10' }],
+  ['firefox', '78', true, { browserName: 'firefox', browserVersion: '78', platformName: 'Windows 10' }],
 ]) {
-  const selected = desktop('chrome', version, 'Windows 10');
-  equal(selected.w3c, w3c, `uses ${ w3c ? 'W3C' : 'JSON Wire' } for Chrome ${ version }`);
-  deepEqual(selected.capabilities, capabilities, `sends the ${ w3c ? 'W3C' : 'JSON Wire' } capabilities for Chrome ${ version }`);
+  const selected = desktop(browserName, version, 'Windows 10');
+  equal(selected.w3c, w3c, `uses ${ w3c ? 'W3C' : 'JSON Wire' } for ${ browserName } ${ version }`);
+  deepEqual(selected.capabilities, capabilities, `sends the ${ w3c ? 'W3C' : 'JSON Wire' } capabilities for ${ browserName } ${ version }`);
 }
 
 echo(chalk.green('Sauce Labs matrix tested'));

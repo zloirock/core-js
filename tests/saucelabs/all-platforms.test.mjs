@@ -10,8 +10,8 @@ function entry(browser, version, os, device, backend = 'webdriver') {
     entry('chrome', '67', 'Windows 11'),
     entry('chrome', '67', 'Windows 10'),
     entry('chrome', '109', 'Windows 10'),
-    entry('firefox', '54', 'Windows 10'),
-    entry('firefox', '55', 'Windows 10'),
+    entry('firefox', '77', 'Windows 10'),
+    entry('firefox', '78', 'Windows 10'),
     entry('firefox', 'beta', 'Windows 11'),
     entry('internet explorer', '11', 'Windows 10'),
     entry('iphone', '14.0', 'Mac 11', 'iPhone 8', 'appium'),
@@ -40,8 +40,8 @@ function entry(browser, version, os, device, backend = 'webdriver') {
     'macOS 11.00',
     'selects one configuration per browser version and excludes non-browser platforms #4',
   );
-  equal(platforms.find(({ name }) => name.startsWith('firefox 54')).w3c, false, 'selects one configuration per browser version and excludes non-browser platforms #5');
-  equal(platforms.find(({ name }) => name.startsWith('firefox 55')).w3c, true, 'selects one configuration per browser version and excludes non-browser platforms #6');
+  equal(platforms.find(({ name }) => name.startsWith('firefox 77')).w3c, false, 'selects one configuration per browser version and excludes non-browser platforms #5');
+  equal(platforms.find(({ name }) => name.startsWith('firefox 78')).w3c, true, 'selects one configuration per browser version and excludes non-browser platforms #6');
   equal(platforms.find(({ name }) => name.startsWith('firefox beta')).w3c, true, 'selects one configuration per browser version and excludes non-browser platforms #7');
   equal(platforms.find(({ name }) => name.startsWith('internet explorer')).w3c, false, 'selects one configuration per browser version and excludes non-browser platforms #8');
   equal(
