@@ -3,7 +3,8 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var ArrayBufferModule = require('../internals/array-buffer');
-var anObject = require('../internals/an-object');
+var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
+var notDetached = require('../internals/array-buffer-not-detached');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
 
@@ -25,7 +26,9 @@ var INCORRECT_SLICE = fails(function () {
 // https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice
 $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE }, {
   slice: function slice(start, end) {
-    var length = anObject(this).byteLength;
+    var length = arrayBufferByteLength(this);
+    // FF < 46 returns an empty buffer for a detached one
+    notDetached(this);
     var first = toAbsoluteIndex(start, length);
     var fin = toAbsoluteIndex(end === undefined ? length : end, length);
     var result;

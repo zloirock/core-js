@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed `ArrayBuffer.prototype.slice` polyfill: the receiver is checked before the conversion of arguments, an own `byteLength` property of a buffer no longer replaces its length, a detached buffer is rejected instead of returning an empty one in FF45
 - `ArrayBuffer.prototype.slice` polyfill passes calls with an explicit end to the native method too where it exists, instead of copying byte by byte, which makes it faster by orders of magnitude on large buffers
 - Fixed `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }` polyfills and `ArrayBuffer.prototype.slice` without arguments or with `undefined` as the end in NodeJS 0.11.0 - 0.11.3, where native methods of `ArrayBuffer` and `DataView` are own properties of instances
 - Fixed `%TypedArray%.prototype.{ set, slice, subarray }` polyfills shadowed by own native methods of typed array instances in NodeJS 0.11.0 - 0.11.3

@@ -55,6 +55,8 @@ const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 export const NODE_EMPTY_DATA_VIEW_BUG = NODE && nodeVersion[0] === '0' && (nodeVersion[1] < 11 || nodeVersion[1] === '11' && nodeVersion[2] < 4);
 // NodeJS 0.11.4 (V8 3.20.2): `%TypedArray%.prototype.set` throws on a number.
 export const NODE_TYPED_ARRAY_SET_NUMBER_BUG = NODE && GLOBAL.process.versions.node === '0.11.4';
+// NodeJS 0.11.4-0.11.8 (V8 3.20-3.21): native `ArrayBuffer.prototype.slice` takes the length from an own `byteLength`.
+export const NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG = NODE && /^3\.2[01]\./.test(GLOBAL.process.versions.v8);
 // NodeJS 6 (V8 5.0-5.1): a native `DataView` accepts a negative `byteLength`.
 export const NODE_DATA_VIEW_NEGATIVE_LENGTH_BUG = NODE && nodeVersion[0] === '6';
 
