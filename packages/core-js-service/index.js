@@ -21,9 +21,7 @@ async function warmAndPrune(ready, warm, bundles) {
 
   const warmed = await warm.buckets();
 
-  // after the new generation is on disk, never before it: pruning first would take the
-  // only bundles anything can be served from if this build turns out to fail
-  await bundles.prune();
+  if (warmed.failed.length === 0) await bundles.prune();
 
   return warmed;
 }

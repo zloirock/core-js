@@ -16,6 +16,9 @@ does: a summary of the code is already in the code.
 - **container-settings-2** - a missing or invalid manifest path, host or port fails before the
   container starts. Coercing or accepting a malformed port could bind an unintended address, while
   an absent manifest cannot define the bundle scope
+- **container-settings-3** - disk caching is optional. When enabled, the cache path is scoped to
+  the image digest, since images built from different checkouts can declare the same package
+  versions. Accept only a SHA-256 digest so it cannot escape the configured cache root
 
 ## Standalone container manifest
 
@@ -65,6 +68,8 @@ does: a summary of the code is already in the code.
   through a symlink: otherwise a launcher can exit successfully without opening the listener.
   Importing it with a missing argv path must stay passive rather than fail during import. An
   interrupted script would break a page during a routine container replacement
+- **container-cache-1** - a replacement container with the same image, module set and volume serves
+  the cached bundles without rebuilding them. A partial cache rebuilds only incomplete bundles
 
 ## Across the layers
 
@@ -503,7 +508,9 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   ran first would take the only bundles anything could be served from if this build failed. It
   removes only directories shaped like a generation - a store pointed at a path holding anything else
   loses nothing of it - never the one being served, and never the `retain` newest of the rest (one by
-  default; `0` keeps only the current, `null` prunes nothing). `has` therefore asks about the
+  default; `0` keeps only the current, `null` prunes nothing). A failed warm-up preserves earlier
+  generations. Pruning picks candidates from one directory listing and skips generations another
+  instance has already removed. `has` therefore asks about the
   generation being served while `get` answers from any that is retained: a bundle inherited from an
   older generation would leave this one incomplete, and pruning the older one would then cost a
   warm-up nobody asked for. Retention is what lets a page outlive the deploy that replaced it, and
@@ -516,7 +523,10 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
 - **bundles-5** - the store hashes the exact bytes of each representation when it becomes resident,
   whether built or loaded from disk. Recomputing the digest on every request makes revalidation
   scan the entire bundle even when it answers 304. Public byte reads return an independent copy;
-  edits to a returned buffer must not change the representation behind an existing validator
+  edits to a returned buffer must not change the representation behind an existing validator.
+  Sidecars with digests admit a bundle only when every configured representation matches its
+  recorded digest. Otherwise a damaged file would be served on every restart. Legacy sidecars
+  with only a module list still load to preserve access to retained bundles
 - **What the store keeps it reads once, at the start**, and answers from memory afterwards - a
   request names an identifier the client was given, so both a hit and a miss cost a lookup and never
   a walk of the disk. `retain` therefore bounds the memory as well as the disk: a retained generation

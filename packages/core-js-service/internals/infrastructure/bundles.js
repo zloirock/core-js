@@ -23,7 +23,7 @@ function representation(bytes) {
 // the bundle store, one directory per generation of the plan. the module list is kept beside the
 // bytes: it cannot be recovered from the identifier, and it is what tells a developer what went into
 // the bundle of a given browser
-export default function createBundles({ directory = null, generation, compression, retain, warn }) {
+export default function createBundles({ directory = null, generation, compression, retain = null, warn }) {
   const memory = new Map();
   // in the order the store writes and reads them, which is the order they were declared in
   const encodings = Object.keys(compression);
@@ -31,25 +31,32 @@ export default function createBundles({ directory = null, generation, compressio
 
   const loaded = loadFromDisk();
 
-  async function generationsToKeep() {
+  async function otherGenerations() {
     const others = [];
 
-    try {
-      for (const entry of await readdir(root, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !GENERATION_LIKE.test(entry.name) || entry.name === generation) continue;
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !GENERATION_LIKE.test(entry.name) || entry.name === generation) continue;
+      try {
         others.push([entry.name, (await stat(join(root, entry.name))).mtimeMs]);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
       }
-    } catch { /* nothing has been written here yet, or nothing can be read */ }
+    }
 
     others.sort(([, a], [, b]) => b - a);
 
-    return [generation, ...others.slice(0, retain ?? others.length).map(([name]) => name)];
+    return others.map(([name]) => name);
   }
 
   async function loadFromDisk() {
     if (root === null) return;
 
-    for (const name of await generationsToKeep()) {
+    const names = [generation];
+    try {
+      if (retain !== 0) names.push(...(await otherGenerations()).slice(0, retain ?? undefined));
+    } catch { /* no other generations could be listed */ }
+
+    for (const name of names) {
       // each generation is read on its own: the one being served is usually not on disk yet - this
       // process is about to write it - and giving up there would leave the retained ones unread
       try {
@@ -91,10 +98,12 @@ export default function createBundles({ directory = null, generation, compressio
     const folder = join(root, generation);
     try {
       await mkdir(folder, { recursive: true });
-      for (const [encoding, { bytes }] of representations) {
+      const digests = {};
+      for (const [encoding, { bytes, digest }] of representations) {
         await commit(join(folder, bundleId + REPRESENTATIONS[encoding].extension), bytes);
+        digests[encoding] = digest;
       }
-      await commit(join(folder, `${ bundleId }.json`), JSON.stringify({ modules }));
+      await commit(join(folder, `${ bundleId }.json`), JSON.stringify({ modules, digests }));
     } catch (error) {
       if (root === null) return;
       root = null;
@@ -106,7 +115,7 @@ export default function createBundles({ directory = null, generation, compressio
   async function readBundle(bundleId, storedIn) {
     try {
       const from = join(root, storedIn);
-      const { modules } = JSON.parse(await readFile(join(from, `${ bundleId }.json`), 'utf8'));
+      const { modules, digests } = JSON.parse(await readFile(join(from, `${ bundleId }.json`), 'utf8'));
 
       // a sidecar that parses but carries no list is as unusable as one that does not parse at
       // all - taken as it is, the bundle would answer `has` for ever and `modules` never, and the
@@ -115,8 +124,10 @@ export default function createBundles({ directory = null, generation, compressio
 
       const representations = new Map();
       for (const encoding of encodings) {
-        const bytes = await readFile(join(from, bundleId + REPRESENTATIONS[encoding].extension));
-        representations.set(encoding, representation(bytes));
+        const stored = representation(await readFile(join(from, bundleId + REPRESENTATIONS[encoding].extension)));
+        // Sidecars written before digests were recorded still work with retained bundle URLs.
+        if (digests !== undefined && digests?.[encoding] !== stored.digest) return;
+        representations.set(encoding, stored);
       }
       memory.set(bundleId, { modules: Object.freeze(modules), representations, generation: storedIn });
     } catch { /* absent, or half-written by a build that died: this process will build it */ }
@@ -191,13 +202,10 @@ export default function createBundles({ directory = null, generation, compressio
       const removed = [];
 
       try {
-        const keep = new Set(await generationsToKeep());
-
-        for (const entry of await readdir(root, { withFileTypes: true })) {
-          if (!entry.isDirectory() || !GENERATION_LIKE.test(entry.name) || keep.has(entry.name)) continue;
-
-          await rm(join(root, entry.name), { recursive: true, force: true });
-          removed.push(entry.name);
+        // A later directory listing could include a generation created by another instance.
+        for (const name of (await otherGenerations()).slice(retain)) {
+          await rm(join(root, name), { recursive: true, force: true });
+          removed.push(name);
         }
       } catch (error) {
         warn('bundles:no-prune', `the bundles of the previous generations could not be removed from ${

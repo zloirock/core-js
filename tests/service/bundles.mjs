@@ -1,7 +1,9 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import fs, { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { mock } from 'node:test';
 import { promisify } from 'node:util';
 import { gunzip } from 'node:zlib';
 import createBundles from '../../packages/core-js-service/internals/infrastructure/bundles.js';
@@ -118,6 +120,7 @@ try {
   // generation. `get` still answers - from the generation retained beside it, which is its job
   strictEqual(await store({ generation: NEXT }).has('abc'), false, 'bundles-4 #6a');
   await writeFile(join(directory, NEXT, 'abc.json'), JSON.stringify({ modules: ['es.array.at'] }));
+  strictEqual(await store({ generation: NEXT }).has('abc'), true, 'bundles-4 #6b');
 
   // the generation being served stays, and so do the `retain` newest of the rest. the age is set
   // rather than taken from the clock: two directories written in the same millisecond order by luck
@@ -157,6 +160,17 @@ try {
     }
   }
 
+  const checked = { directory: join(directory, 'integrity'), compression: { ...COMPRESSION_DEFAULT, br: {} } };
+  const written = store(checked);
+  for (const [extension, label] of [['.js', 'bundles-5 #3'], ['.js.gz', 'bundles-5 #4'], ['.js.br', 'bundles-5 #5']]) {
+    await written.put('abc', { modules: [], script: SCRIPT });
+    const file = join(checked.directory, GENERATION, `abc${ extension }`);
+    const bytes = await readFile(file);
+    bytes[0] ^= 1;
+    await writeFile(file, bytes);
+    strictEqual(await store(checked).has('abc'), false, label);
+  }
+
   const sharedDirectory = join(directory, 'shared');
   const sharedWarn = warnings();
   const shared = { directory: sharedDirectory, warn: sharedWarn.warn };
@@ -193,6 +207,34 @@ try {
   // a store with no disk left has nothing to prune and says nothing more
   deepStrictEqual(await blocked.prune(), [], 'bundles-4 #13');
   strictEqual(readOnly.reported.length, 1, 'bundles-4 #14');
+
+  const race = join(directory, 'prune-race');
+  const pruner = store({ directory: race });
+  await pruner.has('abc');
+  const vanished = '0000000000000000';
+  const fresh = '1122334455667788';
+  for (const name of [GENERATION, NEXT, THIRD, vanished]) await mkdir(join(race, name), { recursive: true });
+  await utimes(join(race, THIRD), older, older);
+
+  // Change this store's directory immediately after the first listing resolves.
+  const realReaddir = readdir;
+  let changed = false;
+  const listed = mock.method(fs, 'readdir', async (path, ...options) => {
+    const entries = await realReaddir(path, ...options);
+    if (path !== race || changed) return entries;
+    changed = true;
+    await rm(join(race, vanished), { recursive: true });
+    await mkdir(join(race, fresh));
+    return entries.toSorted((a, b) => a.name.localeCompare(b.name));
+  });
+  syncBuiltinESMExports();
+  try {
+    deepStrictEqual(await pruner.prune(), [THIRD], 'bundles-4 #19');
+  } finally {
+    listed.mock.restore();
+    syncBuiltinESMExports();
+  }
+  deepStrictEqual((await readdir(race)).toSorted(), [GENERATION, NEXT, fresh].toSorted(), 'bundles-4 #20');
 } finally {
   try {
     await rm(directory, { force: true, recursive: true });

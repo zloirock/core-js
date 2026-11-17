@@ -1,6 +1,6 @@
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { writeFile, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { writeFile, mkdtemp, readdir, rm, symlink } from 'node:fs/promises';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -22,7 +22,13 @@ async function freePort() {
 
 function launch(manifestPath, port, extra = {}, { script = entry, ipc = false } = {}) {
   const child = spawn(process.execPath, [fileURLToPath(script)], {
-    env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), CORE_JS_MANIFEST_PATH: manifestPath, ...extra },
+    env: {
+      ...process.env,
+      HOST: '127.0.0.1', PORT: String(port), CORE_JS_MANIFEST_PATH: manifestPath,
+      // Keep the test processes out of any cache configured by the invoking shell.
+      CORE_JS_CACHE_DIR: undefined, CORE_JS_IMAGE_DIGEST: undefined,
+      ...extra,
+    },
     stdio: ['ignore', 'ignore', 'pipe', ...ipc ? ['ipc'] : []],
   });
   children.add(child);
@@ -124,7 +130,9 @@ try {
   const validPath = join(directory, 'valid.json');
   await writeFile(validPath, '{"modules":["es.array.at","es.object.group-by"]}');
   const validPort = await freePort();
-  const valid = launch(validPath, validPort);
+  const cacheDir = join(directory, 'cache');
+  const digest = 'a'.repeat(64);
+  const valid = launch(validPath, validPort, { CORE_JS_CACHE_DIR: cacheDir, CORE_JS_IMAGE_DIGEST: `sha256:${ digest }` });
   const ready = await until(validPort, response => response.status === 200 &&
     JSON.parse(response.body).baselineReady, 'baseline readiness', valid.exit);
   strictEqual(JSON.parse(ready.body).state, 'ready', 'container-process-1 #6');
@@ -139,6 +147,7 @@ try {
   const warmed = await until(validPort, response => JSON.parse(response.body).fullyWarmed,
     'full warm-up', valid.exit);
   strictEqual(JSON.parse(warmed.body).state, 'ready', 'container-process-1 #12');
+  ok((await readdir(join(cacheDir, digest))).length > 0, 'container-cache-1 #8');
 
   deepStrictEqual(await stop(valid), { code: 0, signal: null }, 'container-process-2 #4');
 

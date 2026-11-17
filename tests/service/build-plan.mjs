@@ -95,6 +95,18 @@ await mkdir(previous, { recursive: true });
 await mkdir(older, { recursive: true });
 await utimes(older, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
 
+const interrupted = createService({ scope, directory: kept, warn: noop });
+const { has } = interrupted.bundles;
+interrupted.bundles.has = async id => {
+  if (id !== interrupted.plan.baseline.bundleId) throw new Error('fixture bucket lookup failed');
+  return has(id);
+};
+const partial = interrupted.start();
+await partial.ready;
+ok((await partial.warmed).failed.length > 0, 'bundles-4 #1: a later bucket failed');
+deepStrictEqual((await readdir(kept)).toSorted(),
+  [interrupted.plan.generation, '0123456789abcdef', 'fedcba9876543210'].toSorted(), 'bundles-4 #2: failed warm-up preserves older generations');
+
 // and the whole of it once more with the bundles actually built: the identifier a request resolves
 // to is one the warm-up has put bytes behind
 const { ready, warmed } = service.start();

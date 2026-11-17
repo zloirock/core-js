@@ -15,11 +15,11 @@ function logIncident(code, detail) {
 // This entry is also imported by the process fixture to exercise the same listener and signal wiring.
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- The executable shares its startup wiring with a child-process fixture.
 export async function startContainer({ createService: serviceFactory = createService } = {}) {
-  const { manifestPath, host, port } = settingsFrom(process.env);
+  const { manifestPath, cacheDirectory, host, port } = settingsFrom(process.env);
   const app = fastify({ logger: false });
   const lifecycle = createLifecycle({
     load: () => loadManifest(manifestPath),
-    createService: scope => serviceFactory({ scope, delivery: 'fixed', route: '/',
+    createService: scope => serviceFactory({ scope, directory: cacheDirectory, delivery: 'fixed', route: '/',
       ignoreBrowserslistConfig: true, warn: warning => logIncident('warning', warning) }),
     log: logIncident,
   });

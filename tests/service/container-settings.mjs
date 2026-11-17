@@ -1,14 +1,15 @@
 import { deepStrictEqual, throws } from 'node:assert/strict';
+import { join } from 'node:path';
 import { settingsFrom } from '../../packages/core-js-service-container/settings.js';
 
 deepStrictEqual(settingsFrom({ CORE_JS_MANIFEST_PATH: '/app/manifest.json' }), {
-  manifestPath: '/app/manifest.json', host: '0.0.0.0', port: 3000,
+  manifestPath: '/app/manifest.json', cacheDirectory: null, host: '0.0.0.0', port: 3000,
 }, 'container-settings-1 #1');
 deepStrictEqual(settingsFrom({ CORE_JS_MANIFEST_PATH: 'manifest.json', HOST: 'localhost', PORT: '65535' }), {
-  manifestPath: 'manifest.json', host: 'localhost', port: 65535,
+  manifestPath: 'manifest.json', cacheDirectory: null, host: 'localhost', port: 65535,
 }, 'container-settings-1 #2');
 deepStrictEqual(settingsFrom({ CORE_JS_MANIFEST_PATH: 'manifest.json', PORT: '1' }), {
-  manifestPath: 'manifest.json', host: '0.0.0.0', port: 1,
+  manifestPath: 'manifest.json', cacheDirectory: null, host: '0.0.0.0', port: 1,
 }, 'container-settings-1 #3');
 
 for (const [label, env] of [
@@ -30,3 +31,14 @@ for (const [label, env] of [
 ]) {
   throws(() => settingsFrom(env), TypeError, label);
 }
+
+const cache = { CORE_JS_MANIFEST_PATH: 'manifest.json', CORE_JS_CACHE_DIR: '/var/cache/core-js' };
+const digest = 'a'.repeat(64);
+deepStrictEqual(settingsFrom({ ...cache, CORE_JS_IMAGE_DIGEST: `sha256:${ digest }` }), {
+  manifestPath: 'manifest.json', cacheDirectory: join(cache.CORE_JS_CACHE_DIR, digest), host: '0.0.0.0', port: 3000,
+}, 'container-settings-3 #1');
+throws(() => settingsFrom(cache), /CORE_JS_IMAGE_DIGEST/, 'container-settings-3 #2');
+throws(() => settingsFrom({ ...cache, CORE_JS_IMAGE_DIGEST: `sha256:../${ digest }` }),
+  /CORE_JS_IMAGE_DIGEST/, 'container-settings-3 #3');
+throws(() => settingsFrom({ ...cache, CORE_JS_CACHE_DIR: '', CORE_JS_IMAGE_DIGEST: `sha256:${ digest }` }),
+  /CORE_JS_CACHE_DIR/, 'container-settings-3 #4');

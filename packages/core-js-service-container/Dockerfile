@@ -27,6 +27,7 @@ COPY --from=dependencies /app/packages/core-js-service/internals/ui/*.js ./packa
 COPY --from=dependencies /app/packages/core-js-service-container/*.js /app/packages/core-js-service-container/package.json ./packages/core-js-service-container/
 COPY LICENSE ./LICENSE
 COPY LICENSE ./packages/core-js-service-container/LICENSE
+RUN install -d -o node -g node /var/cache/core-js
 USER node
 EXPOSE 3000
 CMD ["node", "packages/core-js-service-container/index.js"]
