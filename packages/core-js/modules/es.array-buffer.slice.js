@@ -25,17 +25,15 @@ var INCORRECT_SLICE = fails(function () {
 // https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice
 $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE }, {
   slice: function slice(start, end) {
-    if (nativeArrayBufferSlice && !OWN_SLICE && end === undefined) {
-      return nativeArrayBufferSlice(anObject(this), start); // FF fix
-    }
     var length = anObject(this).byteLength;
     var first = toAbsoluteIndex(start, length);
     var fin = toAbsoluteIndex(end === undefined ? length : end, length);
     var result;
-    if (OWN_SLICE) {
-      // the native method converts arguments to int32, so it gets normalized indices
+    if (nativeArrayBufferSlice) {
+      // the native method gets normalized indices: FF < 46 and other old engines take `undefined` as the end for 0,
+      // NodeJS 0.11.0-0.11.3 converts arguments to int32
       result = nativeArrayBufferSlice(this, first, fin);
-      delete result.slice;
+      if (OWN_SLICE) delete result.slice;
       return result;
     }
     result = new ArrayBuffer(toLength(fin - first));
