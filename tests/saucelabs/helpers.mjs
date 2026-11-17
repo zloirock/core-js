@@ -70,7 +70,7 @@ function sessionCapabilities(suite, { name, w3c, capabilities: browser }) {
   return w3c ? { ...browser, 'sauce:options': options } : { ...browser, ...options };
 }
 
-async function runPage({ reporter, evaluate }, session, page, controller) {
+async function runPage({ reporter, evaluate, pollInterval = POLL_INTERVAL }, session, page, controller) {
   const { signal } = controller;
   const expected = `${ base }/${ page }`;
   await session.execute(`sauce:context=${ page }`);
@@ -79,6 +79,9 @@ async function runPage({ reporter, evaluate }, session, page, controller) {
   const start = Date.now();
   for (;;) {
     signal.throwIfAborted();
+    // the driver of Firefox 48 - 50 cancels a timer of the page on each command, and one
+    // right after the navigation takes the timer QUnit resumes with, so the wait goes first
+    await setTimeout(pollInterval, undefined, { signal });
     const state = await session.execute(`var results = window.${ reporter }; var commits = window.bundleCommits || []; return results || commits.length ? JSON.stringify({ url: window.location.href, results: results, commits: commits }) : null;`);
     signal.throwIfAborted();
     const elapsed = Date.now() - start;
@@ -100,7 +103,6 @@ async function runPage({ reporter, evaluate }, session, page, controller) {
         error: `not finished in ${ RUN_TIMEOUT / 6e4 } minutes${ testName ? `; current test: ${ testName }` : '' }` };
     }
     if (!results && elapsed > REPORTER_TIMEOUT) return { page, passed: false, details: [], error: 'no results reporter on the page' };
-    await setTimeout(POLL_INTERVAL, undefined, { signal });
   }
 }
 

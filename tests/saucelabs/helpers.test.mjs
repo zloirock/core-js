@@ -1,4 +1,4 @@
-import { deepEqual, doesNotMatch, equal, match, notEqual, rejects } from 'node:assert/strict';
+import { deepEqual, doesNotMatch, equal, match, notEqual, ok, rejects } from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,7 @@ async function runFake({
   failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
   pageUrl, commits, pages = ['unit-browser/global.html'], unwritableSessions = false, noReporter = false,
   limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
+  polling = { pollInterval: 0 },
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -35,6 +36,8 @@ async function runFake({
   let exitCodeWhileRunning;
   const navigations = [];
   const annotations = [];
+  const pollDelays = [];
+  let navigated;
   let sessionStart;
   const started = [];
   let releaseSlow;
@@ -92,10 +95,15 @@ async function runFake({
         payload = {};
       } else if (path.endsWith('/url')) {
         navigations.push(JSON.parse(options.body).url);
+        navigated = performance.now();
         if (!unwritableSessions) listedWhileOpen = await readFile(sessionsFile, 'utf8');
         payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
       } else {
         const { script } = JSON.parse(options.body);
+        if (navigated !== undefined && script.startsWith('var results = ')) {
+          pollDelays.push(performance.now() - navigated);
+          navigated = undefined;
+        }
         if (script.startsWith('sauce:job-result=')) {
           annotationRequests++;
           annotations.push(script);
@@ -130,6 +138,7 @@ async function runFake({
         name: 'test browser', w3c: false, capabilities: { browserName: 'firefox', version: '7' },
       }],
       reporter: 'qunitResults',
+      ...polling,
       evaluate: ({ failed: count }) => ({ passed: count === 0, summary: `${ count } failed`, details: [] }),
     };
     if (dynamicQueue) {
@@ -155,6 +164,7 @@ async function runFake({
     else await run(suite);
     return {
       output: output.join('\n'), exitCodeWhileRunning, navigations, annotations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
+      pollDelays,
       listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
     };
   } finally {
@@ -337,6 +347,15 @@ async function runFake({
 for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }]) {
   const { peak } = await runFake({ dynamicQueue: true, limits });
   equal(peak, 2, `opens no more sessions than the organization and team limits allow, ${ JSON.stringify(limits) }`);
+}
+
+{
+  const { pollDelays } = await runFake({ pages: ['unit-browser/global.html', 'unit-browser/pure.html'], polling: { pollInterval: 100 } });
+  equal(pollDelays.length, 2, 'sends no command to a page before the polling interval passes #1');
+  // a timer may fire a little early
+  ok(pollDelays.every(delay => delay > 90), 'sends no command to a page before the polling interval passes #2');
+  const { pollDelays: [byDefault] } = await runFake({ polling: {} });
+  ok(byDefault > 4900, 'sends no command to a page before the polling interval passes #3');
 }
 
 {

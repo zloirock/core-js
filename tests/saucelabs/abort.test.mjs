@@ -59,6 +59,8 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
   const annotations = [];
   const output = [];
   let navigations = 0;
+  let stopped = false;
+  let pollsAfterStop = 0;
 
   function waitForAbort() {
     ready.resolve();
@@ -95,10 +97,12 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
         }
         if (id === 'changing') release.resolve();
       } else if (script.startsWith('var results = ')) {
+        if (stopped) pollsAfterStop++;
         if (id === 'changing') {
           await ready.promise;
           // Let the other page enter its polling wait before the mismatch arrives.
           await setImmediate();
+          stopped = true;
         } else if (!otherFinished) ready.resolve();
         payload = { value: JSON.stringify({ url: pageUrl, commits: [id === 'changing' ? otherCommit : commit],
           results: { done: id === 'other' && otherFinished } }) };
@@ -110,6 +114,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
   const { run } = await import('./helpers.mjs');
   await rejects(run({
     name: 'unit', pages: otherFinished ? [page] : [page, 'unit-browser/pure.html'], reporter: 'qunitResults',
+    pollInterval: 100,
     platforms: ['changing', 'other', 'queued'].map(name => ({ name, pool: 'mac_vms', w3c: false, capabilities: {} })),
     evaluate: () => {
       if (!otherFinished) throw new Error('foreign or unfinished results must not be evaluated');
@@ -125,5 +130,6 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
     ...otherResults.map(result => ['other', `sauce:job-result=${ result }`]),
   ], `${ scenario }: session results reflect when the abort happened`);
   equal(navigations, scenario === 'starting' ? 1 : 2, `${ scenario }: no further page starts`);
+  equal(pollsAfterStop, 0, `${ scenario }: the stop interrupts a polling wait, no page is polled after it`);
   doesNotMatch(output.join('\n'), /all the browsers passed|retrying/, `${ scenario }: no retry or success is reported`);
 }
