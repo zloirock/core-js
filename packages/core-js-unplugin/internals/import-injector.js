@@ -6,13 +6,13 @@ import ImportInjectorState, {
   generatedNameFamilyOf,
   localizeVarlessMemos,
   refDeclarationOrder,
+  retirePureImportReads,
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
 import {
   isInitlessVarDecl,
   emptyMemoActivationValue,
   isTopLevelImportLike,
-  isTypeAnnotationWrapper,
   programPrologueEndIndex,
   prologueEndIndex,
   isDirectiveStatement,
@@ -170,22 +170,11 @@ function findDetachedRefHosts(program, refs, bindings) {
 // Prune empty declarations from statement lists. Multi-declarator for-heads also lose dead
 // memos; a sole-declarator head stays intact. Owned initializer-local vars are also pruned
 // when a guard unwrap leaves them without a read.
-function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, memoStatementWrites, pureCounts },
+function dropOrphanedMemoDeclarations(program, census,
   initlessRefs = null, memoActivations = null) {
+  const { refCounts, refDeclIdCounts, memoStatementWrites } = census;
   const dead = new Set();
   const deadWrites = new Set();
-  const retiredNodes = new WeakSet();
-  // Removed initializers no longer keep their pure imports live in the final-tree census.
-  // A removed function can contain another dead memo: count their overlapping nodes once.
-  function retirePureReads(root) {
-    walkAstNodes({ root, visit(node) {
-      if (isTypeAnnotationWrapper(node) || retiredNodes.has(node)) return false;
-      retiredNodes.add(node);
-      if ((node.type === 'Identifier' || node.type === 'JSXIdentifier') && pureCounts.has(node.name)) {
-        pureCounts.set(node.name, pureCounts.get(node.name) - 1);
-      }
-    } });
-  }
   // A consumed outer assignment can leave its inner receiver memo as a bare
   // write. The census proves there is no read; retain any observable RHS.
   for (const { statement, target, name, value } of memoStatementWrites) {
@@ -223,7 +212,7 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
     if (kept.length === declaration.declarations.length) return false;
     for (const gone of declaration.declarations) if (!kept.includes(gone)) {
       refCounts.set(gone.id.name, 0);
-      retirePureReads(gone.init);
+      retirePureImportReads(gone.init, census);
     }
     declaration.declarations = kept;
     return true;
@@ -233,7 +222,7 @@ function dropOrphanedMemoDeclarations(program, { refCounts, refDeclIdCounts, mem
     for (let at = list.length - 1; at >= 0; at--) {
       const statement = list[at];
       if (deadWrites.has(statement)) {
-        retirePureReads(statement.expression.right);
+        retirePureImportReads(statement.expression.right, census);
         list.splice(at, 1);
         continue;
       }

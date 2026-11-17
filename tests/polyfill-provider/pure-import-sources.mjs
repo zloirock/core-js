@@ -75,6 +75,38 @@ for (const source of ['foreign/actual/promise', '@core-js/pure/actual/promise/tr
     });
 }
 
+for (const [label, source, object, key, owned] of [
+  ['whole iterator', '@core-js/pure/actual/iterator', 'Iterator', 'range', true],
+  ['narrow iterator', '@core-js/pure/actual/iterator/constructor', 'Iterator', 'range', false],
+  ['earlier flavor', '@core-js/pure/es/promise', 'Promise', 'allKeyed', true],
+  ['foreign import', 'foreign/actual/iterator', 'Iterator', 'range', false],
+]) runBoth(`imported fallback receiver/${ label }`, `import C from '${ source }'; C;`, (parser, program, name) => {
+  const statement = program.get('body').at(-1);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const meta = importedStaticReadMeta({ node: statement.node.expression, scope: statement.scope, adapter, path: statement,
+    meta: { kind: 'property', object, key, placement: 'static' } });
+  check(`${ name }/source owns constructor`, !!meta?.importedConstructorReceiver, owned);
+  check(`${ name }/static still reaches resolver`, meta?.key, key);
+});
+
+for (const [source, owned] of [
+  ['@core-js/pure/actual/map', true],
+  ['@core-js/pure/actual/map/constructor', false],
+  ['foreign/actual/map', false],
+]) for (const alias of [false, true]) for (const receiver of ['Map.prototype', '(Map.prototype as any)', 'Map["prototype"]', 'Map[prototypeKey]']) {
+  runBoth(`imported prototype/${ source }/${ alias }/${ receiver }`,
+    `import ${ alias ? 'C' : 'Map' } from '${ source }'; ${ alias ? 'const Map = C;' : '' }
+    ${ receiver === 'Map[prototypeKey]' ? 'const prototypeKey = "prototype";' : '' } ${ receiver };`,
+    (parser, program, name) => {
+      const statement = program.get('body').at(-1);
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const meta = importedStaticReadMeta({ node: statement.node.expression, scope: statement.scope, adapter, path: statement,
+        meta: { kind: 'property', object: 'Map', key: 'has', placement: 'prototype' } });
+      check(`${ name }/source owns constructor`, !!meta?.importedConstructorReceiver, owned);
+      check(`${ name }/prototype still reaches resolver`, meta?.key, 'has');
+    });
+}
+
 for (const depth of [8, 32, 128]) runBoth(`fallback query stays linear/${ depth }`,
   `import P0 from '@core-js/pure/actual/promise'; ${ Array.from({ length: depth },
     (_, n) => `const P${ n + 1 } = P${ n } ?? other;`).join(' ') } P${ depth };`, (parser, program, name) => {

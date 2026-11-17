@@ -1013,6 +1013,20 @@ export function canDropUnusedMemo(target, value, { owned, hasUses, removable }) 
   return !!owned && !hasUses && !!removable && target?.type === 'Identifier' && !reEvaluationObservable(value);
 }
 
+// A removed initializer no longer keeps its pure imports live. Removed functions can
+// contain other dead memos, so subtract their overlapping nodes only once per census.
+export function retirePureImportReads(root, census) {
+  if (!root || !census.pureCounts.size) return;
+  const retired = census.retiredPureNodes ??= new WeakSet();
+  walkAstNodes({ root, visit(node) {
+    if (isTypeAnnotationWrapper(node) || retired.has(node)) return false;
+    retired.add(node);
+    if ((node.type === 'Identifier' || node.type === 'JSXIdentifier') && census.pureCounts.has(node.name)) {
+      census.pureCounts.set(node.name, census.pureCounts.get(node.name) - 1);
+    }
+  } });
+}
+
 // canonical slot assignment for ONE prefix family: names ordered by FIRST PRINT OCCURRENCE
 // take the lowest free slots, so the two emitters agree on numbering wherever they agree on
 // output shape - the raw allocation orders differ by construction (the babel emitter's guard

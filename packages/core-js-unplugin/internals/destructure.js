@@ -204,7 +204,7 @@ import {
   nestedInstanceWithoutSelectingInit,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
-import { patternHoldsOnlyProcessedSentinels, sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { patternAlreadyProcessed, sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import createDestructureDrains from './destructure-drain.js';
 
@@ -480,7 +480,7 @@ export default function createAstDestructureEmitter({
   const patternMirrorBinding = {
     captureInstance: captureParameterInstance,
     isClaimedProperty: path => skippedNodes.has(path.node),
-    isProcessedPattern: path => patternHoldsOnlyProcessedSentinels(path, injectorState, adapter),
+    isProcessedPattern: path => patternAlreadyProcessed(path, injectorState, adapter),
     resolvePure,
     parameterCallSites,
     renderMirror: (metaPath, meta, { parameterCallSites: argumentSites, ...options }) => renderNestedParamSynth({

@@ -1,6 +1,12 @@
 // Prior-output recognition requires a scoped capture and its matching extraction.
 // Parser-generated names, unrelated imports and parameter-body shadows prove nothing.
-import { ownEmittedNavClaim, ownEmittedPatternClaim, ownOutputTests, sentinelAlreadyProcessed } from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
+import {
+  ownEmittedNavClaim,
+  ownEmittedPatternClaim,
+  ownOutputTests,
+  patternAlreadyProcessed,
+  sentinelAlreadyProcessed,
+} from '../../packages/core-js-polyfill-provider/detect-usage/own-output.js';
 import { withCanonQuestion } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { adapters, createChecker } from './harness.mjs';
 
@@ -9,6 +15,21 @@ const pkg = '@core-js/pure';
 const importFrom = `import fromArray from '${ pkg }/actual/array/from';`;
 const importName = `import readName from '${ pkg }/actual/function/instance/name';`;
 const tests = ownOutputTests({ pkg, isOwnPassPureBinding: () => false });
+
+for (const parser of adapters) for (const [label, source, expected] of [
+  ['owned default and rest', `import C from '${ pkg }/actual/set'; const { Map: { groupBy: _unused, ...rest } = C } = source;`, true],
+  ['owned default with live name', `import C from '${ pkg }/actual/set'; const { Map: { groupBy: user, ...rest } = C } = source; use(user);`, true],
+  ['unserved sibling', `import C from '${ pkg }/actual/set'; const { Map: { groupBy: _unused, ...rest } = C, Array: { from } } = source;`, false],
+  ['no default', `import C from '${ pkg }/actual/set'; const { Map: { groupBy: _unused, ...rest } } = source;`, false],
+  ['native default', 'const { Map: { groupBy: _unused, ...rest } = Set } = source;', false],
+  ['shadowed import', `import C from '${ pkg }/actual/set'; function f(C) { const { Map: { groupBy: _unused, ...rest } = C } = source; }`, false],
+  ['overwritten import alias', `let C = require('${ pkg }/actual/set'); C = other; const { Map: { groupBy: _unused, ...rest } = C } = source;`, false],
+]) {
+  const tree = parser.parseAndScope(source);
+  const pattern = parser.pickPath(tree, 'ObjectPattern');
+  const injector = { pkg, hasGeneratedUnusedName: () => false, isOwnPassPureBinding: () => false };
+  check(`${ parser.name }/processed pattern/${ label }`, patternAlreadyProcessed(pattern, injector, null), expected);
+}
 
 for (const parser of adapters) for (const [label, source, expected] of [
   ['foreign memo', 'var _ref; _ref = source; _ref.at;', false],

@@ -9,6 +9,7 @@ import ImportInjectorState, {
   createPureImportLiveness,
   generatedNameFamilyOf,
   refDeclarationOrder,
+  retirePureImportReads,
   unwrapWriteOnlyGuardMemos,
 } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { unwrapRuntimeExpr, walkAstNodes } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -161,6 +162,32 @@ runBoth('census/pure binder positions',
     check(`${ label } :: pure name counts every occurrence`, census.pureCounts.get('_at'), 2);
     check(`${ label } :: import specifier is the binder position`, census.pureImportBoundCounts.get('_at'), 1);
     check(`${ label } :: require declarator is the binder position too`, census.pureImportBoundCounts.get('_flat'), 1);
+  });
+
+// --- retirePureImportReads: overlapping removal and independent census lifetime ---
+
+for (const innerFirst of [false, true]) runBoth(`retired import reads/overlap/${ innerFirst }`,
+  'import _Map from "@core-js/pure/actual/map/constructor"; const outer = () => { const inner = _Map; return _Map; }; use(_Map);',
+  (parser, program, label) => {
+    const census = collectInjectorCensus(program.node, { pureNames: new Set(['_Map']) });
+    const separate = collectInjectorCensus(program.node, { pureNames: new Set(['_Map']) });
+    const outer = program.node.body[1].declarations[0].init;
+    const inner = outer.body.body[0].declarations[0].init;
+    check(`${ label }/initial occurrences`, census.pureCounts.get('_Map'), 4);
+    if (innerFirst) retirePureImportReads(inner, census);
+    retirePureImportReads(outer, census);
+    retirePureImportReads(inner, census);
+    retirePureImportReads(null, census);
+    check(`${ label }/remaining import and live use`, census.pureCounts.get('_Map'), 2);
+    check(`${ label }/separate census intact`, separate.pureCounts.get('_Map'), 4);
+  });
+
+runBoth('retired import reads/type wall',
+  'import _Map from "@core-js/pure/actual/map/constructor"; const unused = (): typeof _Map => _Map;',
+  (parser, program, label) => {
+    const census = collectInjectorCensus(program.node, { pureNames: new Set(['_Map']) });
+    retirePureImportReads(program.node.body[1].declarations[0].init, census);
+    check(`${ label }/only runtime read subtracted`, census.pureCounts.get('_Map'), 1);
   });
 
 // --- createPureImportLiveness: use, orphan, ctor-static exception ---

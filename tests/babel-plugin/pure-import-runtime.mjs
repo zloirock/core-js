@@ -32,11 +32,37 @@ try {
   await fs.outputFile(path.join(DIR, 'vendor/@core-js/pure/actual/map/constructor.js'), 'export default [3, 9];');
   await fs.outputFile(path.join(DIR, 'consume.mjs'), 'export default function consume(value) { return value; }');
   for (const pkg of ['my-pure', '@vendor/pure']) {
+    await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/iterator.js`),
+      'function Iterator() {} Iterator.range = function (start, end) { return [this === Iterator, start, end]; }; module.exports = Iterator;');
     await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/promise.js`),
       'module.exports = { resolve: function resolve(value) { return ["custom", value]; }, token: 17 };');
     await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/reflect/apply.js`), 'module.exports = Reflect.apply;');
+    await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/self.js`),
+      'var events = []; module.exports = { events: events, get Promise() { events.push("Promise"); '
+      + 'return { get any() { events.push("any"); return 7; }, prototype: { catch: 13 }, extra: 17 }; } };');
+    await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/set.js`), 'module.exports = {};');
+    await fs.outputFile(path.join(DIR, `node_modules/${ pkg }/actual/map.js`),
+      'function Map() {} Map.prototype.has = function () { return this.constructor === Map; }; module.exports = Map;');
   }
   const cases = [
+    ['same-name-prototype-key', `import Map from 'my-pure/actual/map.js'; const key = 'prototype';
+export const r = [Map[key].has.call(new Map()), Map[key].has === new Map().has];`, [true, true], { package: 'my-pure' }],
+    ['alias-prototype-key', `import C from '@vendor/pure/actual/map.js'; const Map = C; const key = 'prototype';
+export const r = [Map[key].has.call(new C()), Map[key].has === C.prototype.has];`, [true, true],
+    { additionalPackages: ['@vendor/pure'] }],
+    ['same-name-prototype', `import Map from 'my-pure/actual/map.js';
+export const r = [Map.prototype.has.call(new Map()), Map.prototype.has === new Map().has];`, [true, true], { package: 'my-pure' }],
+    ['alias-prototype', `import C from '@vendor/pure/actual/map.js'; const Map = C;
+export const r = [Map.prototype.has.call(new C()), Map.prototype.has === C.prototype.has];`, [true, true],
+    { additionalPackages: ['@vendor/pure'] }],
+    ['custom-static-fallback', 'import I from \'my-pure/actual/iterator.js\'; export const r = I.range(3, 7);',
+      [true, 3, 7], { package: 'my-pure' }],
+    ['additional-static-fallback', 'import I from \'@vendor/pure/actual/iterator.js\'; const C = I; export const r = C.range(5, 9);',
+      [true, 5, 9], { additionalPackages: ['@vendor/pure'] }],
+    ['owned-pattern-default', `import R from '@vendor/pure/actual/self.js'; import C from '@vendor/pure/actual/set.js';
+const { Promise: { any: _unused2, prototype: { catch: rescue }, ...pooled } = C } = R;
+export const r = [rescue, pooled.extra, R.events];`, [13, 17, ['Promise', 'any']],
+    { additionalPackages: ['@vendor/pure'], exclude: ['es.promise.constructor'] }],
     ['foreign-static', 'import array from "./features/array.mjs"; export const r = array.from([7]);', ['foreign', 7]],
     ['foreign-call', 'import getList from "./features/list/get-list.mjs"; export const r = getList().at(-1);', 9],
     ['foreign-package-segment', `import C from './vendor/@core-js/pure/actual/map/constructor.js';
@@ -102,6 +128,10 @@ export const r = [7][key]().next().value;`, 7],
         check(`${ name }/${ host }/${ phase }/stripped`, await runInWorker(file, { sourceType }), native);
       }
       switch (name) {
+        case 'owned-pattern-default':
+          check(`${ name }/${ host }/no second extraction`, /promise\/(?:any|constructor)/.test(first), false);
+
+          break;
         case 'other-flavor':
           check(`${ name }/${ host }/no generic helper`, /\/instance\//.test(first), false);
 

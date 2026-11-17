@@ -420,6 +420,11 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
   }
   let directSource = null;
   let object = meta?.object;
+  const prototypeReceiver = adapter.method === 'usage-pure' && meta?.placement === 'prototype' && object
+    ? unwrapRuntimeExpr(node) : null;
+  const prototype = prototypeReceiver && isMemberAccessNode(prototypeReceiver)
+    && containerKeyName(prototypeReceiver, { scope, adapter, path }) === 'prototype';
+  if (prototype) node = prototypeReceiver.object;
   if (meta && !meta.object && !objectPattern && !walkPath.length) {
     directSource = explicitSource(node, { scope, adapter, path });
     const entry = pureImportSourceEntry(pureImportSubpath(directSource, adapter.packages));
@@ -429,7 +434,7 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
     };
   }
   // Proven imported aliases share the namespace test, without promoting a narrow import's guarded claim.
-  if ((meta?.placement !== 'static' && !directSource) || !object || POSSIBLE_GLOBAL_OBJECTS.has(object)) return meta;
+  if ((meta?.placement !== 'static' && !directSource && !prototype) || !object || POSSIBLE_GLOBAL_OBJECTS.has(object)) return meta;
   if (objectPattern) {
     const walked = destructureHostThroughWrappers(objectPattern, adapter);
     node = walked && destructureReceiverNode(walked.host, null, adapter?.isMutatedStaticSlot ?? adapter?.isMutatedStatic);
@@ -451,12 +456,21 @@ export function importedStaticReadMeta({ node, meta, scope, adapter, path, objec
   const subpath = pureImportSubpath(source, adapter.packages);
   const entry = pureImportSourceEntry(subpath);
   if (!entry || entryToGlobalHint(entry) !== object) return meta;
+  // A prototype fallback names this same imported constructor even if its local name
+  // happens to match the global. Preserve its identity instead of importing another one.
+  if (prototype) {
+    return hasConstructorEntry(object) && !entry.includes('/') ? { ...meta, importedConstructorReceiver: true } : meta;
+  }
   // ... and an import of the whole namespace that carries the static at its own level reads it as written
   // (`es/promise` lacks `Promise.allKeyed`, which `actual/promise` ships)
   if (adapter.method === 'usage-pure' && hasOwnStaticDefinition(object, meta.key)) {
-    return hasConstructorEntry(object) && !entry.includes('/')
-      && namespaceEntryCarriesStatic(subpath, object, meta.key)
-      ? null : meta;
+    if (hasConstructorEntry(object) && !entry.includes('/')) {
+      if (namespaceEntryCarriesStatic(subpath, object, meta.key)) return null;
+      // A later-stage static may still need injection, but the source already owns
+      // its constructor. A declined static must not replace it with a narrow fallback.
+      return { ...meta, importedConstructorReceiver: true };
+    }
+    return meta;
   }
   return { ...meta, object: null, placement: 'prototype', receiverHint: staticReceiverHint('static', object) };
 }

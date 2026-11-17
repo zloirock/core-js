@@ -28,6 +28,9 @@ import { printProgram } from '../../packages/core-js-unplugin/internals/print.js
 import { runInWorker } from './realm-runner.mjs';
 import { cached } from './cache-store.mjs';
 import { runtimeKey } from './serialize.mjs';
+import { importSet } from './import-sources.mjs';
+
+export { importSet } from './import-sources.mjs';
 
 const { outputFile } = fs;
 const { dirname, join } = path;
@@ -122,19 +125,6 @@ export async function transformBoth({ src, options, ts = false, timed = false, s
   }
   if (timed) mark('transform unplugin', t0);
   return { babelOut, unpluginOut, babelError, unpluginError };
-}
-
-// injected core-js import paths, normalized so @core-js/pure and core-js compare equal
-const IMPORT_RE = /["'](?<path>@?core-js(?:\/pure)?\/[^"']+)["']/u;
-export function importSet(code) {
-  const set = new Set();
-  for (const raw of code.split('\n')) {
-    const line = raw.trim();
-    if (!line.startsWith('import') && !line.includes('require(')) continue;
-    const found = IMPORT_RE.exec(line);
-    if (found) set.add(found.groups.path.replace('@core-js/pure', 'core-js'));
-  }
-  return set;
 }
 
 // strip TS syntax so a TS plugin-output becomes runnable; only TS nodes are removed, the injected

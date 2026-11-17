@@ -794,4 +794,27 @@ await transformAsync('', {
   } } })],
 });
 
+// Dropping a memo's last read must retire its import too, without removing a live
+// neighbour, an effectful initializer or a source-owned declaration.
+for (const importStyle of ['import', 'require']) for (const shape of ['dead', 'live', 'effect', 'neighbour', 'user']) {
+  const label = `memo import liveness/${ importStyle }/${ shape }`;
+  const { code } = await transformAsync(`var untouched = 7; var MEMO = 0; ${ shape === 'live' ? 'use(MEMO);' : '' }`, {
+    configFile: false, babelrc: false,
+    plugins: [() => ({ visitor: { Program(programPath) {
+      const injector = new ImportInjector({ t, programPath, pkg: '@core-js/pure', mode: 'actual', importStyle });
+      const pure = injector.addPureImport('map/constructor', 'Map');
+      if (shape !== 'user') programPath.scope.rename('MEMO', injector.generateLocalRef(programPath.scope).name);
+      programPath.get('body.1.declarations.0.init').replaceWith(shape === 'effect'
+        ? t.callExpression(t.cloneNode(pure), []) : t.cloneNode(pure));
+      if (shape === 'neighbour') programPath.pushContainer('body', t.expressionStatement(t.cloneNode(pure)));
+      injector.flush();
+      injector.pruneUnusedRefs();
+      injector.pruneUnusedPureImports();
+      check(`${ label }/remaining import`, injector.pureImports.has('actual/map/constructor'), shape !== 'dead');
+    } } })],
+  });
+  check(`${ label }/printed import`, code.includes('/actual/map/constructor'), shape !== 'dead');
+  checkTruthy(`${ label }/source neighbour`, code.includes('untouched = 7'));
+}
+
 finish();

@@ -448,6 +448,7 @@ export function createPolyfillResolver(options, {
   function resolvePureOrGlobalFallback(meta, path) {
     const normal = resolvePure(meta, path);
     if (normal) return { result: normal, fallback: null };
+    if (meta.importedConstructorReceiver) return { result: null, fallback: null };
     if (meta.kind === 'property' && (meta.placement === 'static' || meta.placement === 'prototype') && meta.object
       && !POSSIBLE_GLOBAL_OBJECTS.has(meta.object)) {
       // engage the `prototype` fallback ONLY for an SE-free `<ctor>.prototype` receiver

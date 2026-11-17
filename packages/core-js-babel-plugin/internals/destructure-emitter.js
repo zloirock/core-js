@@ -13,7 +13,7 @@
 import {
   ownEmittedPatternClaim,
   ownOutputTests,
-  patternHoldsOnlyProcessedSentinels,
+  patternAlreadyProcessed,
   sentinelAlreadyProcessed,
 } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
@@ -1209,7 +1209,7 @@ export default function createDestructureEmitter({
   const patternMirrorBinding = {
     captureInstance: captureParameterInstance,
     isClaimedProperty: path => skippedNodes.has(path.node),
-    isProcessedPattern: path => patternHoldsOnlyProcessedSentinels(path, injector, adapter),
+    isProcessedPattern: path => patternAlreadyProcessed(path, injector, adapter),
     resolvePure,
     parameterCallSites,
     renderMirror: (prop, meta, options) => renderNestedParamSynth({ prop, meta, deps: synthPlanDeps, ...options }),
@@ -2542,7 +2542,7 @@ export default function createDestructureEmitter({
       || !multiPropAssignmentAnchorCandidate(pattern, init)) return;
     // Replacing an ancestor leaves queued exit paths attached to its old child array.
     if (ancestorChainDetached(path) || isDisabled(path.node)) return;
-    if (patternHoldsOnlyProcessedSentinels(path.get(isDecl ? 'id' : 'left'), injector, adapter)) return;
+    if (patternAlreadyProcessed(path.get(isDecl ? 'id' : 'left'), injector, adapter)) return;
     const declaratorNode = isDecl ? path.node : { id: pattern, init, loc: path.node.loc };
     let plan = buildFlattenPlan({ declaratorNode, scope: path.scope, path });
     // a claim that rewrote the host in place left the plan of the pattern it replaced, which would render its

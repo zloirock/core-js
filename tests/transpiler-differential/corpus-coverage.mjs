@@ -2,9 +2,26 @@
 // separately, using source-form expectations rather than the imports either emitter happens to add.
 import { generate } from './generate.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
+import { importSet } from './import-sources.mjs';
 
 function checkCorpusCoverage() {
   const { check, checkDeep, finish } = createChecker('differential-corpus-coverage');
+  const first = 'core-js/actual/global-this';
+  const second = 'core-js/actual/set';
+  for (const [name, source, expected] of [
+    ['same line', 'import R from \'@core-js/pure/actual/global-this\'; import C from \'@core-js/pure/actual/set\';', [first, second]],
+    ['multiline', 'import {\n default as R\n} from\n\'@core-js/pure/actual/global-this\';', [first]],
+    ['bare', 'import \'core-js/actual/set\';', [second]],
+    ['requires', 'const R = require(\'core-js/actual/global-this\'); const C = require(\'core-js/actual/set\');', [first, second]],
+    ['comment', '// import \'core-js/actual/set\';\nimport R from \'@core-js/pure/actual/global-this\';', [first]],
+    ['string beside import', 'import R from \'@core-js/pure/actual/global-this\'; const text = "require(\'core-js/actual/set\')";', [first]],
+    ['export', 'export { default as C } from \'@core-js/pure/actual/set\';', [second]],
+    ['dynamic', 'const R = import(\'@core-js/pure/actual/global-this\');', [first]],
+    ['wrapper return', 'const C = require(\'core-js/actual/set\'); return C;', [second]],
+    ['jsx', 'import C from \'@core-js/pure/actual/set\'; const element = <C/>;', [second]],
+    ['foreign', 'import C from "foreign/actual/set";', []],
+    ['empty', '', []],
+  ]) checkDeep(`import collection/${ name }`, [...importSet(source)], expected);
   // Fixed source matrices: runtime parity alone cannot notice an omitted row or strip flag.
   const matrices = {
     'destructure-grammar': [2122, 1093],

@@ -18,6 +18,12 @@ const { check, finish } = createChecker('transform-idempotence-pure');
 
 // one representative per probe/seal render family
 const CASES = [
+  ['constant imported prototype key', 'import Map from "@core-js/pure/actual/map"; const key = "prototype"; export const r = Map[key].has;',
+    null, ['@core-js/pure/actual/map']],
+  ['same-name imported prototype', 'import Map from "@core-js/pure/actual/map"; export const r = Map.prototype.has;',
+    null, ['@core-js/pure/actual/map']],
+  ['whole imported receiver with a filtered static', 'import I from "@core-js/pure/actual/iterator"; export const r = I.range(0, 2);',
+    null, ['@core-js/pure/actual/iterator']],
   ['unknown constructed receiver', 'export const value = new External().at(-1);'],
   ['own constructor with nested default', 'const receiver = new Map(); export const { keys: { at } = [] } = receiver;'],
   ['own constructor in a captured parameter', 'function f({ keys: { at } = [] } = new Map()) { return at; } f();'],

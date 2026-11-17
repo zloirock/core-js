@@ -511,6 +511,17 @@ for (const parser of adapters) for (const [source, fallback] of [
   check(`${ parser.name }/prototype alias fallback/${ source }`, !!result.fallback, fallback);
 }
 
+// A declined static keeps its imported receiver; an admitted later-stage static still injects.
+for (const mode of ['actual', 'full']) for (const importedConstructorReceiver of [false, true]) {
+  const { resolver } = createPolyfillResolver({ method: 'usage-pure', version: '4.0', mode, targets: { ie: 11 } }, makeFilterEnv());
+  const resolved = resolver.resolvePureOrGlobalFallback({ kind: 'property', object: 'Iterator', key: 'range',
+    placement: 'static', importedConstructorReceiver });
+  check(`imported static/${ mode }/${ importedConstructorReceiver }/normal static`, resolved.result?.entry ?? null,
+    mode === 'full' ? 'iterator/range' : null);
+  check(`imported static/${ mode }/${ importedConstructorReceiver }/constructor fallback`, !!resolved.fallback,
+    mode === 'actual' && !importedConstructorReceiver);
+}
+
 // Exercise enrichment with the real resolver. Prototype entries live in the instance
 // namespace; methods carried by a routed constructor have no separate instance entry.
 for (const [key, expectedEntry] of [

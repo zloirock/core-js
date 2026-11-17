@@ -23,6 +23,7 @@ import ImportInjectorState, {
   isCanonicalSlotOrder,
   localizeVarlessMemos,
   refDeclarationOrder,
+  retirePureImportReads,
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator } from '@core-js/polyfill-provider/plugin-options/inject';
@@ -396,6 +397,7 @@ export default class ImportInjector extends ImportInjectorState {
         continue;
       }
       const block = declPath.parentPath;
+      retirePureImportReads(binding.path.node.init, this.#ensureExitCensus());
       if (declPath.node.declarations.length === 1) {
         declPath.remove();
         clearRemovedDeclarationCache(block);
@@ -480,8 +482,8 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // ONE flush census per programExit, shared by the ref prune and the pure-import prune
-  // (the ref prune's tree mutations - dead initless declarators, slot renames, the guard
-  // unwrap - carry no pure-name content, so the pure counts stay valid). the write-only
+  // (removed initializers retire their pure reads; slot renames and guard unwraps leave
+  // the pure counts intact). the write-only
   // guard-memo unwrap rides the first computation exactly once: a second application over
   // already-collapsed candidates would read `.right` of a node that is no longer a write
   #exitCensus = null;

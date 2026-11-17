@@ -708,15 +708,17 @@ export function sentinelAlreadyProcessed(path, { node, meta, injector, adapter =
   });
 }
 
-// A capture can retain several levels solely to evaluate their original keys and
-// getters. Their extracted bindings are already served, while the keys stay visitable.
-export function patternHoldsOnlyProcessedSentinels(pattern, injector, adapter) {
+// Imported pattern defaults and captures keep their already-served leaves in place.
+// Their original keys and getters remain visitable without re-extracting the host.
+export function patternAlreadyProcessed(pattern, injector, adapter) {
   if (pattern?.node?.type !== 'ObjectPattern' || !pattern.node.properties.length) return false;
-  return pattern.get('properties').every(path => {
+  const props = pattern.get('properties');
+  if (patternDefaultHoldsPureImport(props[0], ownOutputTests(injector))) return true;
+  return props.every(path => {
     if (!isPropertyNode(path.node)) return false;
     const value = path.get('value');
     const slot = value.node.type === 'AssignmentPattern' ? value.get('left') : value;
-    return slot.node.type === 'ObjectPattern' ? patternHoldsOnlyProcessedSentinels(slot, injector, adapter)
+    return slot.node.type === 'ObjectPattern' ? patternAlreadyProcessed(slot, injector, adapter)
       : sentinelAlreadyProcessed(path, { node: path.node, meta: null, injector, adapter });
   });
 }

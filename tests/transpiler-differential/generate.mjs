@@ -25708,6 +25708,38 @@ function * generateOptionalConstructorEffects() {
     } catch (error) { return error.name; } })();` };
 }
 
+// Prior imports own their constructor and retained level defaults on every new pass.
+function * generateOwnedImportReceivers() {
+  for (const alias of [false, true]) yield {
+    name: `owned-import-receivers/static/${ alias }`, strip: true, isolated: true,
+    code: `import I from '@core-js/pure/actual/iterator';
+      ${ alias ? 'const C = I;' : '' }
+      export const effects = [];
+      export const r = typeof ${ alias ? 'C' : 'I' }[(effects.push('key'), 'range')];`,
+  };
+  for (const assignment of [false, true]) yield {
+    name: `owned-import-receivers/pattern/${ assignment }`, strip: true, isolated: true,
+    code: `import R from '@core-js/pure/actual/global-this'; import C from '@core-js/pure/actual/set';
+      ${ assignment ? 'let _unused, rest;' : '' }
+      ${ assignment ? '(' : 'const ' }{ Map: { groupBy: _unused, ...rest } = C } = R${ assignment ? ')' : '' };
+      export const r = typeof rest; export const effects = [];`,
+  };
+  for (const alias of [false, true]) yield {
+    name: `owned-import-receivers/prototype/${ alias }`, strip: true, isolated: true,
+    code: `import ${ alias ? 'C' : 'Map' } from '@core-js/pure/actual/map';
+      ${ alias ? 'const Map = C;' : '' }
+      export const effects = [];
+      export const r = Map.prototype[(effects.push('key'), 'has')].call(new Map([[3, 7]]), 3);`,
+  };
+  for (const alias of [false, true]) yield {
+    name: `owned-import-receivers/prototype-key/${ alias }`, strip: true, isolated: true,
+    code: `import ${ alias ? 'C' : 'Map' } from '@core-js/pure/actual/map';
+      ${ alias ? 'const Map = C;' : '' }
+      const key = 'prototype'; export const effects = [];
+      export const r = Map[key].has.call(new Map([[3, 7]]), 3);`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27524,4 +27556,5 @@ export function * generate() {
   yield * generateReassignedRefImports();
   yield * generateGuardedReceiverEffects();
   yield * generateOptionalConstructorEffects();
+  yield * generateOwnedImportReceivers();
 }
