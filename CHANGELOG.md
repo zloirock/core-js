@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Fixed `%TypedArray%.prototype.{ set, slice, subarray }` polyfills shadowed by own native methods of typed array instances in NodeJS 0.11.0 - 0.11.3
 - `Array.from`, `Array.fromAsync` and `{ Map, Object }.groupBy` polyfills check the maximum allowed index before requesting the next value and no longer allow the index `2 ** 53 - 1`
 - Fixed symbol keys of groups leaking out to `for-in` and `Object.keys` in obsolete `Array.prototype.{ group, groupBy }` and `%TypedArray%.prototype.groupBy` together with `Symbol` polyfill, like it was fixed for `Object.groupBy`
 - Fixed a misleading error message of `Map`, `Set`, `WeakMap` and `WeakSet` methods called on `null` in the pure version

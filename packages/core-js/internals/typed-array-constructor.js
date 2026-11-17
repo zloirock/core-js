@@ -49,6 +49,18 @@ var isTypedArray = ArrayBufferViewCore.isTypedArray;
 var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
 var WRONG_LENGTH = 'Wrong length';
 
+// in NodeJS 0.11.0-0.11.3, methods of typed arrays are own properties of each instance and shadow the prototype;
+// `slice` there is `subarray`, `set` ignores strings and takes a number as an index
+var OWN_INSTANCE_METHODS = NATIVE_ARRAY_BUFFER_VIEWS && hasOwn(new globalThis.Int8Array(0), 'subarray');
+
+// an own method is dropped only if the prototype has a replacement: its polyfill may not be loaded
+var dropOwnInstanceMethods = function (it) {
+  if (OWN_INSTANCE_METHODS) forEach(['set', 'slice', 'subarray'], function (key) {
+    if (key in TypedArrayPrototype) delete it[key];
+  });
+  return it;
+};
+
 var addGetter = function (it, key) {
   defineBuiltInAccessor(it, key, {
     configurable: true,
@@ -185,7 +197,7 @@ if (DESCRIPTORS) {
     } else if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
       TypedArrayConstructor = wrapper(function (dummy, data, typedArrayOffset, $length) {
         anInstance(dummy, TypedArrayConstructorPrototype);
-        return inheritIfRequired(function () {
+        return inheritIfRequired(dropOwnInstanceMethods(function () {
           if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
           if (isArrayBuffer(data)) return $length !== undefined
             ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES), $length)
@@ -194,7 +206,7 @@ if (DESCRIPTORS) {
               : new NativeTypedArrayConstructor(data);
           if (isTypedArray(data)) return arrayFromConstructorAndList(TypedArrayConstructor, data);
           return call(typedArrayFrom, TypedArrayConstructor, data);
-        }(), dummy, TypedArrayConstructor);
+        }()), dummy, TypedArrayConstructor);
       });
 
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
