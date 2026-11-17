@@ -22,6 +22,7 @@ deepEqual(
     'safari 17': 'mac_vms',
     'safari 18': 'mac_arm_vms',
     'safari 26': 'mac_arm_vms',
+    'ios 14.0': 'mac_vms',
     'ios 15.4': 'mac_vms',
     'ios 16.0': 'mac_vms',
     'ios 17.0': 'mac_vms',

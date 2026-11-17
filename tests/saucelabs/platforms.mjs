@@ -64,6 +64,7 @@ export default [
   desktop('safari', '17', 'macOS 13'),
   desktop('safari', '18', 'macOS 15'),
   desktop('safari', '26', 'macOS 26'),
+  ios('14.0'),
   ios('15.4'),
   ios('16.0'),
   ios('17.0'),
