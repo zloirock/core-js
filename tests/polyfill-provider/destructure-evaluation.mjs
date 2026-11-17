@@ -5,6 +5,7 @@ import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/d
 import {
   buildNestedDestructurePlan,
   chainThroughNamedDefaults,
+  descendArrayWrapperToSE,
   destructureReadKeepsKey,
   forInitNeedsReceiverMemo,
   planDestructureKeySegments,
@@ -580,6 +581,37 @@ for (const [pattern, options, expected] of [
     checkDeep(`${ label }/leaves`, plan?.map(leaf => leaf.key) ?? null, expected);
     check(`${ label }/source intact`, JSON.stringify(target), before);
     if (plan) check(`${ label }/dispatch retained`, plan[0].pure.entry, 'instance/at');
+  });
+
+// Prefix harvesting borrows source occurrences; stripping only relinks the caller's tree.
+// A nested object keeps its own value effects, and trailing array effects follow the leaf.
+for (const [pattern, init, expected, tailType, trailing = false] of [
+  ['[{ at }]', '(outer(), [(inner(), value)])', ['outer', 'inner'], 'Identifier'],
+  ['[[{ at }]]', '(outer(), [(middle(), [(inner(), value)])])', ['outer', 'middle', 'inner'], 'Identifier'],
+  ['[{ nested: { at } }]', '(outer(), [{ nested: (inner(), value) }])', ['outer'], 'ObjectExpression'],
+  ['[{ at }]', '[(inner(), value), after()]', ['inner', 'after'], 'Identifier', true],
+  ['[{ at }]', '[value]', null, null],
+  ['[{ at }, other]', '(outer(), [value, other])', null, null],
+]) for (const strip of [false, true]) runBoth(`wrapper prefix/${ pattern }/${ init }/${ strip }`,
+  `const ${ pattern } = ${ init };`, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const original = JSON.stringify(host.node);
+    const firstArray = findNode(host.node.init, node => node.type === 'ArrayExpression');
+    const nestedValue = tailType === 'ObjectExpression' ? firstArray.elements[0].properties[0].value : null;
+    const plan = descendArrayWrapperToSE(host.node, { strip, liftTrailing: trailing, includeTrailing: trailing });
+    checkDeep(`${ label } source order`, plan?.prefix.map(node => node.callee.name) ?? null, expected);
+    check(`${ label } tail kind`, plan?.tail.type ?? null, tailType);
+    if (plan && strip) {
+      check(`${ label } source array identity`, host.node.init, firstArray);
+      const arrays = [];
+      walkAstNodes({ root: host.node.init, visit(node) { if (node.type === 'ArrayExpression') arrays.push(node); } });
+      check(`${ label } tail identity`, arrays.at(-1).elements[0], plan.tail);
+      if (trailing) check(`${ label } discarded neighbour removed`, arrays.at(-1).elements.length, 1);
+      if (tailType === 'ObjectExpression') {
+        check(`${ label } nested value identity`, plan.tail.properties[0].value, nestedValue);
+        check(`${ label } nested effect stays`, unwrapRuntimeExpr(plan.tail.properties[0].value).type, 'SequenceExpression');
+      }
+    } else check(`${ label } source unchanged`, JSON.stringify(host.node), original);
   });
 
 finish();

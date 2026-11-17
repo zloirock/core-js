@@ -1486,28 +1486,33 @@ for (const [code, inDeclaration] of [
   check(`${ label } original residual`, plan.array.elements[0].children.at(0).prop, arrayPath.node.id.elements[0].properties[0]);
 });
 
-for (const [code, expected] of [
-  ['const [{ at }] = rows;', { isExport: false, isForInit: false, isBodyless: false, isMultiDecl: false, exportedSiblings: [] }],
-  ['for (const [{ at }] = rows; test;) use(at);', { isExport: false, isForInit: true, isBodyless: false, isMultiDecl: false, exportedSiblings: [] }],
-  ['if (test) var [{ at }] = rows;', { isExport: false, isForInit: false, isBodyless: true, isMultiDecl: false, exportedSiblings: [] }],
-  [
-    'export const before = 1, [{ at }, other] = rows, after = 2;',
-    { isExport: true, isForInit: false, isBodyless: false, isMultiDecl: true, exportedSiblings: ['before', 'other', 'after'] },
-  ],
-  ['let at; [{ at }] = rows;', { assignment: true }],
-  ['const [{ Array: { at } }] = [globalThis, ...rest];', undefined],
-  ['const [{ Array: { prototype: { at } } }] = [globalThis, ...rest];', { isExport: false, isForInit: false, isBodyless: false, isMultiDecl: false, exportedSiblings: [] }],
+// Exercise placement through the array host that the emitters actually request.
+// Export bookkeeping belongs to that host; sibling declarators remain outside it.
+for (const [code, inDeclaration, positional, exportedSiblings] of [
+  ['const [{ at }] = rows;', false, true, []],
+  ['for (const [{ at }] = rows; test;) use(at);', true, true, []],
+  ['if (test) var [{ at }] = rows;', true, true, []],
+  ['export const before = 1, [{ at }, other] = rows, after = 2;', true, true, ['at', 'other']],
+  ['let at; [{ at }] = rows;', undefined, true, []],
+  ['const [{ Array: { at } }] = [globalThis, ...rest];', false, undefined, undefined],
+  ['const [{ Array: { prototype: { at } } }] = [globalThis, ...rest];', false, undefined, undefined],
 ]) runBoth('positional plan/host placement', code, (parser, program, label) => {
   const propPath = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key?.name === 'at');
   const original = JSON.stringify(program.node ?? program);
   const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
-  const positional = resolvePositionalElementSlot(propPath, adapter);
-  checkTruthy(`${ label } slot`, positional);
-  if (!positional) return;
+  const slot = resolvePositionalElementSlot(propPath, adapter);
+  checkTruthy(`${ label } slot`, slot);
+  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern')
+    ?? parser.pickPath(program, 'AssignmentExpression', item => item.node.left.type === 'ArrayPattern');
   const plan = buildNestedDestructurePlan({
-    positional: { prop: propPath.node, pattern: propPath.parentPath.node, slot: positional.slot.node, keys: positional.keys, levels: positional.levels, host: positional },
+    arrayPath, adapter,
+    resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null,
   });
-  checkDeep(`${ label } placement`, plan?.positional.placement, expected);
+  checkTruthy(`${ label } host plan`, plan);
+  check(`${ label } declaration placement`, plan?.array.inDeclaration, inDeclaration);
+  check(`${ label } positional route`, plan?.array.positional, positional);
+  checkDeep(`${ label } host exports`, plan?.array.exportedSiblings, exportedSiblings);
+  check(`${ label } original iterator`, plan?.array.capture.init, arrayPath.node.init ?? arrayPath.node.right);
   check(`${ label } source unchanged`, JSON.stringify(program.node ?? program), original);
 });
 
@@ -1529,30 +1534,37 @@ for (const [name, source, inline, list] of [
   check(`${ label } planning leaves source intact`, JSON.stringify(arrayPath.node), before);
 });
 
-// Positional plans retain the native iterator's slot and distinguish a rest exclusion
-// from an ordinary sibling. Planning itself must leave every source occurrence intact.
-for (const [pattern, keys, memoizeHop, keepsClaimKey, residualCount] of [
-  ['{ at: method }', 0, false, false, 0],
-  ['{ at: method, other }', 0, false, false, 1],
-  ['{ at: method, ...rest }', 0, false, true, 1],
-  ['{ y: { at: method } }', 1, false, false, 0],
-  ['{ y: { at: method, other } }', 1, true, false, 1],
-  ['{ y: { at: method, other: {} } }', 1, true, false, 1],
-  ['{ y: { other: [], at: method } }', 1, true, false, 1],
-  ['{ before, y: { at: method }, after }', 1, true, false, 0],
+// The real array host retains each native property read around the extracted leaf.
+// A rest-bearing slot declines this positional route instead of returning an unused flag.
+for (const [pattern, keys, memoizeHop, residualCount] of [
+  ['{ at: method }', 0, false, 0],
+  ['{ at: method, other }', 0, false, 1],
+  ['{ at: method, ...rest }', null, null, null],
+  ['{ y: { at: method } }', 1, false, 0],
+  ['{ y: { at: method, other } }', 1, true, 1],
+  ['{ y: { at: method, other: {} } }', 1, true, 1],
+  ['{ y: { other: [], at: method } }', 1, true, 1],
+  ['{ before, y: { at: method }, after }', 1, true, 0],
 ]) runBoth('positional plan/source ownership', `const [${ pattern }] = rows;`, (parser, program, label) => {
   const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key?.name === 'at');
   const slot = resolvePositionalElementSlot(prop);
-  checkTruthy(`${ label } reaches positional plan`, slot);
-  if (!slot) return;
-  const original = JSON.stringify(slot.slot.node);
-  const plan = buildNestedDestructurePlan({ positional: { prop: prop.node, pattern: prop.parentPath.node, slot: slot.slot.node, keys: slot.keys, levels: slot.levels } });
-  check(`${ label } key depth`, plan.positional.keys.length, keys);
-  check(`${ label } receiver memo`, plan.positional.memoizeHop, memoizeHop);
-  check(`${ label } rest exclusion`, plan.positional.keepsClaimKey, keepsClaimKey);
-  check(`${ label } retained property reads`, plan.positional.residual.length, residualCount);
-  check(`${ label } occurrence identity`, plan.outerProps[0].prop, prop.node);
-  check(`${ label } source unchanged`, JSON.stringify(slot.slot.node), original);
+  checkTruthy(`${ label } reaches positional slot`, slot);
+  const arrayPath = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ArrayPattern');
+  const adapter = parser.name === 'babel' ? createBabelAdapter() : createEstreeAdapter();
+  const original = JSON.stringify(arrayPath.node);
+  const plan = buildNestedDestructurePlan({ arrayPath, adapter,
+    resolvePure: meta => meta.key === 'at' ? { kind: 'instance', entry: 'actual/instance/at', hintName: 'at' } : null });
+  check(`${ label } positional admission`, !!plan, keys !== null);
+  if (plan) {
+    const [element] = plan.array.elements;
+    check(`${ label } key depth`, element.positional.keys.length, keys);
+    check(`${ label } receiver memo`, element.positional.memoizeHop, memoizeHop);
+    check(`${ label } retained property reads`, element.children.filter(child => child.kind === 'verbatim').length, residualCount);
+    check(`${ label } occurrence identity`, element.children.find(child => child.kind === 'consumed').prop, prop.node);
+    check(`${ label } iterator source`, plan.array.capture.init, arrayPath.node.init);
+    checkDeep(`${ label } outer read order`, element.positional.outer, slot.levels.slice(0, -1));
+  }
+  check(`${ label } source unchanged`, JSON.stringify(arrayPath.node), original);
 });
 
 function injectImport(entry, hintName) {
@@ -2535,5 +2547,37 @@ for (const [key, expected] of [
   const [prop] = parser.pickPath(program, 'ObjectPattern', item => item.node.properties[0]?.key.name === 'at').get('properties');
   checkDeep(`${ label } needs no scope for a spelled key`, resolveNestedReceiverChain(prop)?.keys, expected);
 });
+
+// A cached declaration plan is independent of which of its claims asks first.
+// Namespace exports cannot split a rest-bearing host into private declarations.
+for (const rest of [false, true]) for (const namespace of [false, true]) for (const first of [0, 1, 2]) {
+  const declaration = `export const { Array: { from }, ${ rest ? '...rest' : 'console' } } = globalThis;`;
+  const source = namespace ? `namespace NS { ${ declaration } }` : declaration;
+  runBoth(`cached plan/host boundary/${ rest }/${ namespace }/${ first }`, source, (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+    const prop = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.key?.name === 'from');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const paths = [host, prop, prop.get('key')];
+    const before = JSON.stringify(host.node);
+    let resolutions = 0;
+    const options = {
+      declarator: host.node, scope: host.scope, adapter,
+      resolvePure(meta) {
+        resolutions++;
+        return meta.object === 'Array' && meta.key === 'from'
+          ? { kind: 'static', entry: 'actual/array/from', hintName: 'from' } : null;
+      },
+      resolveGlobalPolyfill: name => name === 'globalThis' ? { entry: 'actual/global-this', hintName: name } : null,
+    };
+    const initial = buildNestedDestructurePlan({ ...options, path: paths[first] });
+    const initialResolutions = resolutions;
+    check(`${ label } first answer`, !!initial, !namespace || !rest);
+    for (const path of paths) {
+      check(`${ label } same cached answer`, buildNestedDestructurePlan({ ...options, path }), initial);
+      check(`${ label } no repeated resolution`, resolutions, initialResolutions);
+    }
+    check(`${ label } source unchanged`, JSON.stringify(host.node), before);
+  });
+}
 
 finish();

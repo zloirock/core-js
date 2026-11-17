@@ -25740,6 +25740,24 @@ function * generateOwnedImportReceivers() {
   };
 }
 
+// Array-host placement preserves an opaque call, its nested getter and a single method read.
+function * generateArrayHostBoundaries() {
+  for (const placement of ['declaration', 'for-init', 'bodyless']) for (const nested of [false, true]) {
+    const pattern = nested ? '{ nested: { at } }' : '{ at }';
+    const value = nested ? '{ get nested() { log.push("nested"); return list; } }' : 'list';
+    const binding = `[${ pattern }]`;
+    const read = 'at.call(list, -1)';
+    const body = placement === 'for-init' ? `for (const ${ binding } = [make()];;) return ${ read };`
+      : placement === 'bodyless' ? `if (true) var ${ binding } = [make()]; return ${ read };`
+      : `const ${ binding } = [make()]; return ${ read };`;
+    yield { ...snippet(`array-host-boundaries/${ placement }/${ nested }`, `(() => {
+      const list = [3, 7]; function make() { log.push("make"); return ${ value }; }
+      function read(make) { ${ body } }
+      return Reflect.apply(read, null, [make]);
+    })()`), strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27557,4 +27575,5 @@ export function * generate() {
   yield * generateGuardedReceiverEffects();
   yield * generateOptionalConstructorEffects();
   yield * generateOwnedImportReceivers();
+  yield * generateArrayHostBoundaries();
 }

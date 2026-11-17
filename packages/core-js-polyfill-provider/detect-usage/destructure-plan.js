@@ -14,8 +14,11 @@ import { pureImportSubpath } from '../helpers/path-normalize.js';
 //     but a raw `Symbol.iterator` key would throw on engines without `Symbol`)
 //   - { kind: 'rebuilt', prop, pattern, extractions, children }
 //     partially-consumed nested pattern: one child plan per inner prop, survivors re-render
-// extraction records: { entry, hint, localName } resolved pure entries, or
-// { synth: 'symbol-iterator', localName } for the `_getIteratorMethod(receiver)` shape.
+//   - { kind: 'anchored', prop, keyName, anchorPure, extractions, residualProps }
+//     keep a constructor residual on its resolved binding, with its separate leaf extractions
+// Extraction records carry an entry/hint or synth kind, the source target/localName,
+// and any receiver, live-default or anchor facts the corresponding render consumes.
+// `symbol-iterator` extractions use `_getIteratorMethod(receiver)`.
 // a 'rebuilt' node's `extractions` already aggregates its children's - consumers read
 // extractions at the OUTER level only and use child lists for residual rendering
 import {
@@ -1203,7 +1206,8 @@ export function destructureReadKeepsKey(path, kind, ctx) {
 // `liftTrailing` permits inline array neighbours with effects: harvest replayable effects in
 // `trailingEffects`, or keep the wrapper when a spread must still iterate. The same lift lets the
 // peel step through a CALL yielding a literal - one no crossed sequence prefix precedes, which would
-// lift through another channel and run after it; the calls it steps through return in `steppedCalls`.
+// lift through another channel and run after it. Following a call inspects its yielded literal;
+// the caller still owns the original source evaluation.
 // eslint-disable-next-line max-statements -- the peel: one arm per wrapper shape a level may take
 export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null, liftTrailing = false }) {
   // the capture the levels consumed so far anchor at - the host use first, then the innermost
@@ -1232,19 +1236,12 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   // (the pattern below it plans), but its array has to SURVIVE the render - a sentinel keeps the
   // consumed slot and the residual runs the iteration where the source did
   let wrapperSurvives = false;
-  // ... and whether a REST beside a hop is what keeps it: the render then EMPTIES the consumed hop and
-  // binds the hop itself to a sentinel (`{ w: _unused, ...rest }`), the flat rest shape one level down,
-  // where a spread's survivor keeps the leaf sentinel inside the hop
-  let restKeepsLevel = false;
   let firstArray = null;
   let lastArray = null;
   // STICKY across levels: once a level dereferenced a const-bound alias, every DEEPER level
   // also lives in the alias's own init (outside the destructure host), so the trailing-extra
   // rule below never applies to them either
   let dereferenced = false;
-  // the CALLS the peel stepped through, source order: each is a value the flatten discards with the
-  // consumed level, and the plan replays it ahead of the extractions so it still runs where it stood
-  const steppedCalls = [];
   // the parameters of the call the peel stepped into, each holding the argument the call passes: a
   // slot naming one reads that argument, at the call site (`callScope`), where the peel goes on
   let paramArgs = null;
@@ -1260,15 +1257,12 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     return {
       pattern: peeledPattern,
       init: peeledInit,
-      initScope: scope,
       peeledPrefixes,
       firstArray,
       lastArray,
       consumedLevels,
       trailingEffects: trailingByLevel.toReversed().flat(),
       wrapperSurvives,
-      restKeepsLevel,
-      steppedCalls,
     };
   }
   // the value a consumed level hands the next one: the slot's own node, or - where that node names a
@@ -1361,7 +1355,6 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
         || !invocationNode(effectiveInit)) break;
       const yielded = callYieldedLiteral({ node: effectiveInit, readNode, seen: new Set(), ctx: { scope, adapter, path } });
       if (!yielded) return done(pattern, init);
-      steppedCalls.push(effectiveInit);
       ({ paramArgs } = yielded);
       callScope = scope;
       readNode = effectiveInit;
@@ -1378,7 +1371,6 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
         adapter ? { scope, adapter, path } : null);
       if (!paired || (paired.read && !yieldedSlotValue(paramArgs, paired.read))) return done(pattern, init);
       if (paired.survives || hopRest) wrapperSurvives = true;
-      if (hopRest) restKeepsLevel = true;
       // an OBJECT hop level holds its child at the property its key names, not at an element: the
       // `array` contract below belongs to the ARRAY levels, and a renderer re-linking this one by
       // position wrote `.elements` on an object literal and threw on perfectly ordinary source
@@ -1637,9 +1629,10 @@ export function probedNavProbeKey(plan) {
   return null;
 }
 
-// Plan cache for the static declaration/assignment cascade. Its synthetic host must
-// keep the first plan, including the discardSe adjustment made before rendering.
-// Array plans apply immediately; declined hosts may change before the next claim.
+// Memoize completed object-host planning, including null, per adapter and declarator.
+// Later claims read what that plan rendered even after its own rewrite. External
+// pattern rewrites retire the entry below; fresh synthetic hosts do not share it.
+// Array hosts plan their current source on every call before reaching this cache.
 const planCache = createInstanceNodeCache();
 
 // A binding that rewrites a host's pattern in place - a nested leaf's flat twin, a hop split, a keyed
@@ -1674,18 +1667,18 @@ export function hostLevelSurvives(declarator, { askPairing = true, ctx = null } 
     }).wrapperSurvives);
 }
 
-// A positional extraction reads the element captured by native iteration. Its outer
-// levels split around the selected hop; only rest keeps the claimed key as an exclusion.
-// Host placement admits statement, bodyless and for-init declarations, and statement
-// assignments. Exports retain source names while capture bindings stay private.
-function positionalDestructurePlan({ prop, pattern, slot, keys, levels = [], host = null, collectExports = true }) {
+// A positional extraction reads the element captured by native iteration. Keep the
+// selected hop's outer reads and memoize a hop shared with another property.
+// The array host owns rest admission and exports; this record supplies placement
+// and the receiver path for a leaf that the host will validate before rendering.
+function positionalDestructurePlan({ prop, pattern, keys, levels = [], host }) {
   const targetNode = propBindingIdentifier(prop.value);
   if (!targetNode) return null;
-  let placement = null;
-  if (host?.assignment) {
+  let placement;
+  if (host.assignment) {
     if (!statementListOf(host.statement?.parentPath?.node)) return null;
     placement = { assignment: true };
-  } else if (host) {
+  } else {
     // A namespace hop names a method, but only an instance surface can supply its receiver. Its hop
     // names answer alone: an identifier element roots the nav here only as a realm capture the caller proved.
     const slotIndex = host.slot.parentPath?.node?.elements?.indexOf(host.slot.node) ?? -1;
@@ -1700,28 +1693,16 @@ function positionalDestructurePlan({ prop, pattern, slot, keys, levels = [], hos
     placement = classifyVariableDeclarationHost({ declaration: declaration.node, declarationParent: declaration.parentPath?.node });
     const anchor = placement.isExport ? declaration.parentPath : declaration;
     if (!placement.isForInit && !placement.isBodyless && !statementListOf(anchor.parentPath?.node)) return null;
-    const exportedSiblings = [];
-    if (placement.isExport && collectExports) for (const item of declaration.node.declarations) walkPatternIdentifiers(item.id, id => {
-      if (id.name !== targetNode.name) exportedSiblings.push(id.name);
-    });
-    if (placement.isExport && collectExports && !canSplitDestructureExport(host.declarator)
-      && (placement.isMultiDecl || exportedSiblings.length)) return null;
-    placement.exportedSiblings = exportedSiblings;
   }
   const residual = pattern.properties.filter(item => item !== prop);
-  const keepsClaimKey = residual.some(isRestProperty);
   const outer = levels.slice(0, -1);
   const outerReads = outer.some(level => level.before.length || level.after.length);
   return {
     pattern,
-    outerProps: [{ kind: 'consumed', prop, extractions: [{ targetNode, localName: targetNode.name }] }],
     positional: {
       placement,
-      slot,
       keys,
       outer,
-      residual,
-      keepsClaimKey,
       memoizeHop: !!keys.length && (!!residual.length || outerReads),
     },
   };
@@ -2049,11 +2030,9 @@ function positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabled
     const plan = positionalDestructurePlan({
       prop: propPath.node,
       pattern: propPath.parentPath.node,
-      slot: element.node,
       keys: positional.keys,
       levels: positional.levels,
       host: positional,
-      collectExports: false,
     });
     if (!plan) continue;
     // Ordinary declarations retain their paired surface spelling. A loop header
@@ -2161,8 +2140,8 @@ function namespaceArrayExportNames(plan, path, adapter) {
 
 // Collect sequence prefixes from the shared wrapper peel and the innermost array element.
 // If the peel continues through an object hop, keep that array element whole: its nested
-// effects belong to the object capture. Return its `tail`, `arr` and outermost `unwrappedInit`,
-// plus consumed levels; null if no array was consumed or no prefix can lift.
+// effects belong to the object capture. Return `prefix` and `tail`, or null if no
+// array was consumed or no prefix can lift. The remaining peel data only guides `strip`.
 // `liftTrailing` admits observable neighbours; `includeTrailing` adds their effects after
 // the element's prefix and `between`. Partial consumption leaves those neighbours in place.
 // `strip` applies the decided replacements to a caller-owned tree. Shared planners pass a clone.
@@ -2202,7 +2181,7 @@ export function descendArrayWrapperToSE(declaratorNode, {
     }
     declaratorNode.init = firstArray;
   }
-  return { prefix, tail, arr: lastArray, unwrappedInit: firstArray, consumedLevels };
+  return { prefix, tail };
 }
 
 // Plan the reading leaves of a paired array before any property is consumed. Element
@@ -2230,6 +2209,8 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
       injectorState,
       ctx: { scope: path.scope, adapter, path },
     })
+      // A declaration fallback needs an opaque nested claim. Loop heads also capture
+      // flat literal positions so a later element cannot change an earlier receiver.
       ?? planArrayWrapperCapture({ pattern, init: sourceInit, nestedOnly: !placement.isForInit });
     return capture ? { pattern, extractions: [], array: { capture } } : null;
   }
@@ -2879,14 +2860,12 @@ export function buildNestedDestructurePlan({
   resolveGlobalPolyfill,
   isDisabledProp = null,
   isClaimedProp = null,
-  positional = null,
   arrayPath = null,
   arrayProp = null,
   captureFor = null,
   injectorState = null,
 }) {
   if (patternHasRestReadBeforeNestedBinding(arrayPath?.node?.id ?? arrayPath?.node?.left ?? declarator?.id, adapter)) return null;
-  if (positional) return positionalDestructurePlan(positional);
   if (arrayPath) {
     let plan = pairedArrayDestructurePlan({
       path: arrayPath,
@@ -3095,9 +3074,8 @@ export function buildNestedDestructurePlan({
     return pure && pure.kind !== 'instance' ? { pure, pattern } : null;
   }
 
-  // the user's own default on a consumed leaf (`{ from: alias = d }`): the polyfill is always defined,
-  // so it is dead text at runtime - the render canon's static guard drops it on both legs; the plan
-  // still carries it so a renderer can spell the guard where the read is a memo rather than the import
+  // Retain the source default node even when the served static makes it dead.
+  // The renderer retires its writes while removing it; it is not a new runtime guard.
   function leafDefaultNode(prop) {
     return prop.value?.type === 'AssignmentPattern' ? prop.value.right : null;
   }
@@ -3235,7 +3213,7 @@ export function buildNestedDestructurePlan({
   }
 
   // Anchor a nested constructor residual on its pure binding while retaining planned extractions.
-  // Rest, proxy-global hops, disabled or mutated slots, residual defaults and realm writes keep
+  // Rest, proxy-global hops, disabled or mutated slots and residual defaults keep
   // the existing plan. Residual polyfillable statics belong to the mirror: the constructor entry
   // alone does not supply them.
   function anchorMissingAbleResidual(planned, outerPattern, receiver) {
@@ -3433,8 +3411,8 @@ export function buildNestedDestructurePlan({
       // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key names no
       // known non-proxy built-in (a capitalised user global is an unknown slot whose default stays
       // live), the inner is not a non-empty ObjectPattern, an opt-out
-      // covers the hop or a leaf under it, a residual leaf's write would land the ponyfill in the
-      // realm, or the MIRROR can spell that leaf with the member's own ponyfill
+      // covers the hop or a leaf under it, or the MIRROR can spell that leaf with the member's
+      // own ponyfill. Writing a served value to a realm slot does not disqualify the anchor.
       function planCtorKeyAnchor(hostPattern) {
         const anchor = planResidualAnchorHop({
           pattern: hostPattern,
@@ -3609,10 +3587,10 @@ export function buildNestedDestructurePlan({
   if (plan && hostLevelSurvives(declarator, { askPairing: false, ctx: { scope, adapter, path } })) {
     plan.wrapperSurvives = true;
   }
+  const host = plan && path && (path.node === declarator ? path : destructurePatternHostPath(path));
   // an effectful hop key keeps its level the way a rest does: the hop retires to a sentinel
   if (orderedRealmKeys && plan && !plan.anchor && !plan.guarded && plan.pattern === declarator.id
     && declarator.type === 'VariableDeclarator' && plan.outerProps.every(supportedKey)) {
-    const host = path && (path.node === declarator ? path : destructurePatternHostPath(path));
     const aliases = new Map();
     function noteAlias(item) {
       if (item.kind !== 'rebuilt') return;
@@ -3642,7 +3620,7 @@ export function buildNestedDestructurePlan({
     plan.restKeepsLevel = true;
   }
   // A namespace export cannot hide the sentinels a surviving level would bind.
-  if (plan && !plan.orderedRealmKeys && !canSplitDestructureExport(path) && (plan.wrapperSurvives || plan.restKeepsLevel
+  if (plan && !plan.orderedRealmKeys && !canSplitDestructureExport(host) && (plan.wrapperSurvives || plan.restKeepsLevel
     || patternKeepsEffectfulKey(declarator.id, { scope, adapter, path }) || plan.pattern.properties.some(isRestProperty))) plan = null;
   if (plan) {
     // These source decisions precede pattern pruning and are shared by every apply
@@ -3661,16 +3639,6 @@ export function buildNestedDestructurePlan({
 
 // --- catch-clause relocation ---
 
-// whether `catch ({ pattern })` has to become `catch (_ref) { let { pattern } = _ref;` - the
-// receiver a key lookup and a defaulted key both rewrite against. the answer is per PATTERN
-// but composed of per-prop ones: a computed key hosting machinery forces the relocation on
-// its own, and a plainly-resolvable key earns it only where the body actually READS what it
-// binds - an unread one would buy an import plus a dead dispatcher call for nothing. those
-// unread props come back so the caller can skip them, keeping them native reads in the
-// residual. shallow by design: a nested pattern without outer-level machinery destructures
-// in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern asks
-// none of these questions - its bindings are positional, so there is no key to rewrite against a
-// named receiver - and takes the single question its own branch asks instead
 // does a leaf ANYWHERE below this pattern name a polyfillable member? this is the relocation's own
 // question - what it buys is a DECLARATION HOST, and every claim below takes it, whatever else the
 // pattern binds. the positional walk beside it answers a different one (may this element be RENAMED
@@ -3920,6 +3888,12 @@ export function planLoopHeadExtraction(path, {
   return plan ? { ...plan, left, declarator, assignment, elementType } : null;
 }
 
+// Decide whether a catch or loop pattern needs a declaration inside its body. A computed
+// key with machinery, an observed property or a nested claim can require that host.
+// Claims already served by a receiver mirror stay with it. Returned unobservable props
+// keep their native reads instead of receiving a dead dispatcher; assignments keep all writes.
+// Array patterns ask about claims at iterated positions rather than named properties.
+// Body binding conflicts and opaque catch rest decline relocation.
 export function planCatchClauseExtraction({
   paramNode,
   bodyNode,

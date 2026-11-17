@@ -820,3 +820,23 @@ QUnit.test('positional extraction reads a getter once beside a binding-free patt
   assert.same(at.call(value, -1), 7);
   assert.deepEqual(events, ['hop', 'check']);
 });
+
+QUnit.test('destructuring: a loop header captures an opaque nested receiver once', assert => {
+  const events = [];
+  const list = [3, 7];
+  function make() {
+    events.push('make');
+    return {
+      get nested() {
+        events.push('nested');
+        return list;
+      },
+    };
+  }
+  function read() {
+    // eslint-disable-next-line no-unreachable-loop -- observe the initializer once
+    for (const [{ nested: { at } }] = [make()]; ;) return at.call(list, -1);
+  }
+  assert.same(read(), 7);
+  assert.deepEqual(events, ['make', 'nested']);
+});
