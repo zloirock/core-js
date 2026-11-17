@@ -33,15 +33,12 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
     result = IS_CONSTRUCTOR ? new this() : [];
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
-    for (;!(step = anObject(call(next, iterator))).done; index++) {
-      try {
-        doesNotExceedSafeInteger(index);
-      } catch (error) {
-        iteratorClose(iterator, 'throw', error);
-      }
+    while (!(step = anObject(call(next, iterator))).done) {
       value = mapping ? callWithSafeIterationClosing(iterator, mapfn, [step.value, index], true) : step.value;
       try {
-        createProperty(result, index, value);
+        createProperty(result, index++, value);
+        // the index of the next value should be checked before requesting it
+        doesNotExceedSafeInteger(index + 1);
       } catch (error) {
         iteratorClose(iterator, 'throw', error);
       }

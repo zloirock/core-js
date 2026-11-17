@@ -35,7 +35,8 @@ var createMethod = function (TYPE) {
       var loop = function () {
         try {
           try {
-            doesNotExceedSafeInteger(counter);
+            // the index of the next value should not reach the maximum allowed length
+            doesNotExceedSafeInteger(counter + 1);
           } catch (error5) {
             return ifAbruptCloseAsyncIterator(error5);
           }
