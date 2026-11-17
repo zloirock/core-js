@@ -31,10 +31,11 @@ $({ target: 'Map', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
     var map = new Map();
     var k = 0;
     iterate(items, function (value) {
-      doesNotExceedSafeInteger(k);
       var key = callbackfn(value, k++);
       if (!has(map, key)) set(map, key, [value]);
       else push(get(map, key), value);
+      // the index of the next value should be checked before requesting it
+      doesNotExceedSafeInteger(k + 1);
     });
     return map;
   }

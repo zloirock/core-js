@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- `{ Map, Object }.groupBy` polyfills check the maximum allowed index before requesting the next value instead of after it
 - Fixed symbol keys of groups leaking out to `for-in` and `Object.keys` in obsolete `Array.prototype.{ group, groupBy }` and `%TypedArray%.prototype.groupBy` together with `Symbol` polyfill, like it was fixed for `Object.groupBy`
 - Fixed a misleading error message of `Map`, `Set`, `WeakMap` and `WeakSet` methods called on `null` in the pure version
 - Added missed detection of native `Array.prototype.fill` reading the `length` of array-likes without `ToLength` in V8 ~ Chrome 45-47

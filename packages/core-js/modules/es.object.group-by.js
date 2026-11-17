@@ -31,12 +31,13 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
     var obj = create(null);
     var k = 0;
     iterate(items, function (value) {
-      doesNotExceedSafeInteger(k);
       var key = toPropertyKey(callbackfn(value, k++));
       // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
       // but since it's a `null` prototype object, we can safely use `in`
       if (key in obj) push(obj[key], value);
       else createProperty(obj, key, [value]);
+      // the index of the next value should be checked before requesting it
+      doesNotExceedSafeInteger(k + 1);
     });
     return obj;
   }
