@@ -14,6 +14,7 @@ const aliases = new Map([
   ['opera_mobile', 'opera-android'],
   ['react', 'react-native'],
   ['reactnative', 'react-native'],
+  ['ya_android', 'yandex-android'],
 ]);
 
 const validTargets = new Set([
@@ -38,6 +39,7 @@ const validTargets = new Set([
   'rhino',
   'safari',
   'samsung',
+  'yandex-android',
 ]);
 
 // TODO: Drop the fallback in core-js@4

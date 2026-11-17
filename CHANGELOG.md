@@ -216,6 +216,7 @@
   - [Updated Electron 46 and added 47](https://releases.electronjs.org/) compat data mapping
   - Updated Opera 140+ compat data mapping
   - Added [Opera for Android 103](https://forums.opera.com/topic/89817/opera-for-android-103) compat data mapping
+  - Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping, [#721](https://github.com/zloirock/core-js/issues/721)
 
 ### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
 - Changes [v3.50.0...v3.51.0](https://github.com/zloirock/core-js/compare/v3.50.0...v3.51.0) (62 commits)

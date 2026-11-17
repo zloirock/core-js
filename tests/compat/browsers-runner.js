@@ -30,7 +30,8 @@ var environments = [
   'react-native',
   'rhino',
   'safari',
-  'samsung'
+  'samsung',
+  'yandex-android'
 ];
 
 var tableHeader = createElement('tr');

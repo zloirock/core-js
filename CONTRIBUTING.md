@@ -63,6 +63,7 @@ engine            | how to run tests | base data inherits from    | mandatory ch
 `rhino`           | rhino runner     |                            | required         |
 `safari`          | browser runner   |                            | required         |
 `samsung`         | browser runner   | `chrome-android`           |                  | required
+`yandex-android`  |                  | `chrome-android`           |                  | required
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
 

@@ -71,6 +71,7 @@ for (const scope of [data, external]) {
       module.oculus = module.quest;
     }
     map('ChromeAndroidToSamsung');
+    map('ChromeAndroidToYandexAndroid');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }

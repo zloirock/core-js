@@ -56,6 +56,7 @@ await builder({
     rhino: '1',
     safari: 1,
     samsung: '1',
+    'yandex-android': '1',
     node: 'current',
     esmodules: true,
     browsers: ['> 1%'],

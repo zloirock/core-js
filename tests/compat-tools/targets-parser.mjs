@@ -70,6 +70,7 @@ deepEqual(targetsParser({ esmodules: true }), new Map([
   ['quest', '4.0'],
   ['safari', '10.1'],
   ['samsung', '8.0'],
+  ['yandex-android', '17.10'],
 ]), 'targets.esmodules');
 
 deepEqual(targetsParser({ node: 'current' }), new Map([
@@ -133,6 +134,7 @@ deepEqual(targetsParser({
   ['react-native', '0.70'],
   ['safari', '10.1'],
   ['samsung', '4'],
+  ['yandex-android', '17.10'],
 ]), 'mixed');
 
 deepEqual(targetsParser({
@@ -202,5 +204,13 @@ for (const [targets, engine, version] of [
     message: `Invalid version "${ version }" for "${ engine }"`,
   }, 'invalid version identifies the engine and value');
 }
+
+deepEqual(targetsParser({ 'yandex-android': '26.8' }), new Map([
+  ['yandex-android', '26.8'],
+]), 'yandex-android target');
+
+deepEqual(targetsParser({ ya_android: '26.11' }), new Map([
+  ['yandex-android', '26.11'],
+]), 'ya_android alias');
 
 echo(chalk.green('targets parser tested'));
