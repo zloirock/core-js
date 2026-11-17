@@ -177,8 +177,6 @@ jobs:
     needs: [list-branches, combine-pages-and-deploy]
     if: needs.combine-pages-and-deploy.outputs.testable == 'true' && github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
     runs-on: ubuntu-latest
-    # the old engines still have open failures
-    continue-on-error: true
     permissions:
       contents: read
     # not the Pages group, so a Sauce Labs run does not hold the deployment slot
