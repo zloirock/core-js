@@ -300,6 +300,9 @@ runBoth('unwrap/test-own memo', 'y = null == (_ref3 = root.p) ? void 0 : polyfil
 // --- the state registries ---
 
 class TestInjector extends ImportInjectorState {
+  declaredRefNames = new Set();
+  extraGeneratedNameSets() { return [this.declaredRefNames]; }
+
   flush() { /* nothing to render - the suite locks state, not emission */ }
   generateLocalRef() { return this.generateRefName(); }
   generateDeclaredRef() {

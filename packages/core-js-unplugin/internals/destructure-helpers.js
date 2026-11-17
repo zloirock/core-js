@@ -79,7 +79,7 @@ import { bodylessSlotReplacement } from '@core-js/polyfill-provider/destructure-
 import { detectIifeArgReceiverPath } from './destructure-emit-utils.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
-import { mintedProxyGlobalName, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
+import { replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression,
   cloneNode,
@@ -148,15 +148,6 @@ export function nestedLeafSelectingReceiver(metaPath, hostRhs) {
     if (level.node.type !== 'ObjectPattern' && level.node.type !== 'Property') break;
   }
   return hostRhs;
-}
-
-// a hop level whose DEFAULT carries an EFFECT bars the consume on EVERY host: the consume removes
-// the whole chain and the effect leaves with the hop, while the source runs it exactly where that
-// slot reads undefined - a condition the extraction no longer spells. the mirror keeps the default
-// where it stands and swaps INSIDE it, which is the shape the other binding prints
-export function hopDefaultCarriesEffect(chain) {
-  return chain.some(level => level.hopProp?.value?.type === 'AssignmentPattern'
-    && mayHaveSideEffects(level.hopProp.value.right));
 }
 
 // a NESTED instance claim whose init SELECTS nothing names no receiver for the declarator route to
@@ -921,10 +912,6 @@ export function substituteProxyRootsInClone(root, metaPath, { adapter, resolveGl
     }
   })(root);
   return (root?.type === 'Identifier' ? proxyRootSwap(root) : null) ?? root;
-}
-
-export function isMintedOrProxyName(name, injectorState) {
-  return POSSIBLE_GLOBAL_OBJECTS.has(name) || mintedProxyGlobalName(name, injectorState) !== null;
 }
 
 // a ctor-hop job (pattern-valued, the anchored render) stands down when a LIVE sibling

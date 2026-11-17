@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { parseSync } from 'oxc-parser';
 import './per-file-teardown.mjs';
+import './import-handoff.mjs';
 import './probe-planning.mjs';
 import './destructure-products.mjs';
 import './receiver-effects.mjs';
@@ -1116,21 +1117,6 @@ check('ORPHAN_REF/_ref09', ORPHAN_REF_PATTERN.test('_ref09'), false);
 check('ORPHAN_REF/_refX', ORPHAN_REF_PATTERN.test('_refX'), false);
 check('ORPHAN_REF/empty', ORPHAN_REF_PATTERN.test(''), false);
 
-// --- adoptOrphanRefs respects flushedRefs across the snapshot round-trip ---
-
-// pre already printed `var _ref;` into its output; post re-discovers the name as an orphan
-// and must NOT redeclare it - the `#flushedRefs` skip in `adoptOrphanRefs` is the only
-// dedup between pre's printed decl and post's flush
-function checkAdoptOrphanRespectsFlushed() {
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', inherit: { flushedRefs: ['_ref'] } });
-  inj.adoptOrphanRefs(['_ref', '_ref2']);
-  const snap = inj.snapshot();
-  check('adoptOrphan/skips flushed', snap.refs.includes('_ref'), false);
-  check('adoptOrphan/adds new', snap.refs.includes('_ref2'), true);
-  check('adoptOrphan/flushed carried', snap.flushedRefs.includes('_ref'), true);
-}
-checkAdoptOrphanRespectsFlushed();
-
 // --- SnapshotCache key normalization ---
 // pre/post pair must round-trip across the SPELLING variants one pipeline emits for one module -
 // a Windows bundler switching between `\` and `/` between passes, a resolver adding or dropping a
@@ -1305,7 +1291,7 @@ function checkSnapshotKeyNormalization() {
   check('SnapshotCache/win drive lower-case canonical', cache.take('c:/win/case.js')?.tag, 'win-case');
   // drive-letter case mismatch BEHIND a scheme prefix: pre emits `/@fs/C:/...` (source case),
   // post emits `/@fs/c:/...` (a stage that lowercased). the lowercase form must ALSO shed its
-  // residual leading `/` so both canonicalise to `c:/...` - else snapshot lost (dangling _ref)
+  // residual leading `/` so both canonicalise to `c:/...` and preserve pending import facts
   cache.store('/@fs/C:/win/scheme-case.js', { tag: 'win-scheme-case' });
   check('SnapshotCache/win drive scheme-prefixed case mismatch',
     cache.take('/@fs/c:/win/scheme-case.js')?.tag, 'win-scheme-case');
@@ -1392,7 +1378,7 @@ function probeSnapshotHit(storeId, takeId) {
 // Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
 // timestamp, but the logical module is the same. snapshot lookup keyed by normalized id
 // (timestamp stripped) so pre->post lookup survives HMR. without the strip, post-pass
-// missed pre's snapshot and emitted duplicate `var _ref;` / re-allocated UIDs
+// misses pre's pending imports and injector facts
 function checkSnapshotHMRTimestampStrip() {
   check('snapshot/HMR &t= different timestamp finds same entry',
     probeSnapshotHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=script&t=9999'), true);
@@ -2593,7 +2579,7 @@ async function checkAstFlushContracts() {
   check('flush spells require() in the require style', requireShape.split('|', 1)[0], 'ExpressionStatement');
 
   // Program declarations group families by numeric slot after the print-order renumber.
-  // Function declarations retain registration order, including after snapshot/orphan adoption.
+  // Function declarations retain registration order, with or without a prior snapshot.
   for (const host of ['program', 'function']) for (const stateKind of ['fresh', 'snapshot', 'orphan']) {
     const options = { importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false };
     const reserved = ['_ref2', '_ref4', '_ref5', '_ref6', '_ref7', '_ref8', '_ref9', '_unused'];
@@ -2605,7 +2591,7 @@ async function checkAstFlushContracts() {
     const state = stateKind === 'fresh' ? original : new ImportInjector({ ...options, inherit: stateKind === 'snapshot' ? original.snapshot() : null });
     state.seedReservedNames(reserved);
     if (stateKind === 'orphan') {
-      state.adoptOrphanRefs([...refs, dead]);
+      for (const name of [...refs, dead]) state.usedNames.add(name);
       state.adoptUnusedNames(unused);
     }
     const use = `use(${ [unused[1], ...refs.toReversed(), unused[0]].join(', ') });`;
@@ -3276,7 +3262,7 @@ checkEntryGlobalTransformWithPhasePre();
 // --- usage-pure standalone phase: 'post' wrapper dispatches `pass='post'` ---
 // regression lock: the wrapper at unplugin/index.js builds sub-plugins via
 // `stage(effective, ...)`; when phase=='post' the second-arg `pass` MUST be 'post' (not
-// 'single'), otherwise the post-only machinery (orphan adoption, post-snapshot pickup)
+// 'single'), otherwise the post-only machinery (sentinel recognition, snapshot pickup)
 // doesn't fire and an isolated post build emits an empty bundle. mirrors the
 // entry-global phase=='pre' end-to-end test above but goes through usage-pure to assert
 // pure imports survive the wrapper-driven pass dispatch
@@ -3613,9 +3599,7 @@ checkHasPureImport('hasCoreJSImport/CJS require shape',
   'const x = require("@core-js/pure/y");\nfoo();', ['@core-js/pure'], true);
 checkHasPureImport('hasCoreJSImport/lowercased package match',
   'import _ from "@CORE-JS/PURE/x";\nfoo();', ['@core-js/pure'], true);
-// usage-global side-effect imports MUST be detected too - they're the pre-pass output for
-// global mode. without this, webpack persistent-cache + post-fresh in usage-global would
-// fail the orphan-adoption gate even though the source HAS pre's emitted imports
+// Both side-effect import styles mark a source that already includes configured polyfills.
 checkHasPureImport('hasCoreJSImport/usage-global side-effect import',
   'import "core-js/modules/es.array.from";\nfoo();', ['core-js'], true);
 checkHasPureImport('hasCoreJSImport/usage-global CJS require',
@@ -5920,15 +5904,17 @@ function checkSingleBareProbePerAllocation() {
     };
     return { inj, probes };
   }
-  // reclaim path: cache seeded past bare by an orphan, bare itself free -> exactly one bare probe
+  // Rehydration can seed the suffix past bare while bare itself remains free.
   const reclaim = countingInjector();
-  reclaim.inj.adoptOrphanRefs(['_ref2']);
+  reclaim.inj.seedReservedNames(['_ref2']);
+  reclaim.inj.rehydrateSuffixState(new Map([['_ref', 3]]));
   check('probe/reclaim returns bare', reclaim.inj.generateLocalRef(), '_ref');
   check('probe/reclaim probes bare once', reclaim.probes.filter(name => name === '_ref').length, 1);
   // bare taken as well: the reclaim probe fails and the allocator resumes from the cache, so bare
   // is still asked exactly once and the answer skips past the orphan
   const taken = countingInjector();
-  taken.inj.adoptOrphanRefs(['_ref', '_ref2']);
+  taken.inj.seedReservedNames(['_ref', '_ref2']);
+  taken.inj.rehydrateSuffixState(new Map([['_ref', 3]]));
   check('probe/bare-taken skips reclaim', taken.inj.generateLocalRef(), '_ref3');
   check('probe/bare-taken probes bare once', taken.probes.filter(name => name === '_ref').length, 1);
   // cold cache: no reclaim decision to make, the allocator's own try-bare-first is the only probe
@@ -6274,7 +6260,7 @@ for (const [source, typed] of [
     check(`rendered sequence guard/${ label }/prefix retained`, unwrapNode(firstRead).type, 'SequenceExpression');
     check(`rendered sequence guard/${ label }/first prefix retained`, unwrapNode(firstRead).expressions?.[0]?.callee?.name, 'before');
     check(`rendered sequence guard/${ label }/later read is bare`, guard.makeBase().type, 'Identifier');
-    check(`rendered sequence guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
+    check(`rendered sequence guard/${ label }/allocated refs`, injector.generatedRefFamilies().get('_ref').size, Number(capture));
   }
 
   const options = { method: 'usage-pure', importStyle: 'require', version: '4.0', targets: { ie: 11 } };
@@ -6390,7 +6376,7 @@ for (const [source, typed] of [
     const first = capture ? guard.disjuncts[0].right : guard.disjuncts[0];
     check(`rendered bare guard/${ label }/first read retained`, first.name, 'held');
     check(`rendered bare guard/${ label }/later reads selected value`, guard.makeBase().name, capture ? guard.disjuncts[0].left.name : 'held');
-    check(`rendered bare guard/${ label }/allocated refs`, injector.declaredRefNames.size, Number(capture));
+    check(`rendered bare guard/${ label }/allocated refs`, injector.generatedRefFamilies().get('_ref').size, Number(capture));
   }
   // Runtime wrappers and static object/key prefixes reach the same scoped handoff.
   // A failed proof still snapshots the original value before the method reads it again.

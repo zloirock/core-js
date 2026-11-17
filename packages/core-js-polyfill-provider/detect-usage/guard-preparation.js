@@ -757,18 +757,6 @@ export function planGuardRootMemo(node, ctx) {
     ? { spine, holder, source: holder.object } : null;
 }
 
-// A stored navigation already proved defined needs no outer value guard. A user's
-// bare alias keeps its read; only a generated pure binding stands for a collapsed nav.
-export function storedMemoProvesGuard(node, ctx) {
-  const stored = peelChainAssignment(node);
-  if (!stored.outer) return false;
-  const nav = unwrapRuntimeExpr(peelChainRootValue(stored.value));
-  return (isMemberAccessNode(nav)
-    || nav?.type === 'Identifier' && !!ctx.injectorState?.isOwnPassPureBinding?.(nav.name))
-    && maximalProxyGlobalPrefix(nav, ctx, { throughChainAssign: true }) === nav
-    && !proxyReceiverValueCanBeUndefined(stored.value, ctx.resolvePure, ctx);
-}
-
 // A guard prepares its observed VALUE before allocating any ref. Whole source
 // navigation owns effects before trailing hops are peeled; kept stores and calls
 // yielding an environment probe retain their nullish branch. Bindings only render,

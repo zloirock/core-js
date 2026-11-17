@@ -567,7 +567,7 @@ export default function createPlugin(options) {
     }
   }
 
-  // pipeline orchestrator: shared pre-amble (parse, injector setup, scan, orphan adoption,
+  // pipeline orchestrator: shared pre-amble (parse, injector setup, scan, sentinel recognition,
   // module-injector wiring, finalize closure) then mode dispatch through inner functions
   // (`runEntryGlobal` / `runUsageGlobal` / `runUsagePure`) which close over the pre-amble
   // state. mode bodies kept as inner functions for closure sharing - extracting them to
@@ -870,10 +870,9 @@ export default function createPlugin(options) {
     currentMemberKeyNames = fileCensus.memberKeyNames ?? null;
     currentNestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
     try {
-    // single AST scan - `names` seeds UID-collision guards at every nesting level;
-    // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
-    // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
-      const { names: bindingNames, declaredNames, orphanRefs, restSentinelNames } = fileCensus;
+      // The source census reserves bindings and references at every nesting level,
+      // including names declared by an earlier pass.
+      const { names: bindingNames, restSentinelNames } = fileCensus;
       // every install's never-run answer is settled on the tree as the source wrote it, before a render
       // rebuilds the node an install stands in
       settleCensusWrites({ mutatedSet: mutatedStatics, adapter: estreeAdapter });
@@ -884,16 +883,6 @@ export default function createPlugin(options) {
       // alias and clobber the slot
       if (readsCensus) injector.seedReservedNames(fileCensus.memberKeyNames);
       injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
-      // `readsCensus` is the LOCAL statement of this block's dependency: it reads census-only
-      // collections, and the method that skips the census hands back a shape without them. today
-      // that method also forces `pass: 'single'`, so the phase test alone would keep this
-      // unreachable - but resting on a distant, unrelated guard turns a future phase change into a
-      // TypeError here instead of the degrade the empty shape is meant to give
-      if (readsCensus && pass === 'post' && !inherit && hasCoreJSImport(ast, packages)) {
-        const adoptable = new Set();
-        for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
-        injector.adoptOrphanRefs(adoptable);
-      }
       // a rest-destructure sentinel is DECLARED by the rewritten pattern itself
       // (`{ polyKey: _unusedN, ...rest }`), so it comes from the census' sentinel-position names
       // (bound there, read nowhere) and the injector validates the generator shape before

@@ -52,6 +52,9 @@ function attachedLeadingComments(node) {
 }
 
 export default class ImportInjector extends ImportInjectorState {
+  // Babel keeps declared refs for scope registration and late pruning.
+  declaredRefNames = new Set();
+
   #t;
   #programPath;
   // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
@@ -105,6 +108,9 @@ export default class ImportInjector extends ImportInjectorState {
     this.#scopeReferences = makeScopeBag(program, 'referencesSet', 'references');
     this.#scopeUids = makeScopeBag(program, 'uidsSet', 'uids');
   }
+
+  // The shared rename pass must update Babel's declaration ledger as well.
+  extraGeneratedNameSets() { return [this.declaredRefNames]; }
 
   // the nodes WE put in the program that are still standing, by node IDENTITY rather than by
   // shape: a sibling CommonJS rewriter REPLACES our `ImportDeclaration` with a `require` of its

@@ -2114,10 +2114,10 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
               removed.add(node);
             },
             // a user binding the file WRITES through is poisoned as a dedup target - the
-            // pre-mutation scope's constantViolations carry the reassignment fact
+            // canonical binding view also sees TS-wrapped writes missed by Babel's tracker
             onPureImport: (entry, name, sourceMode) => injector.registerUserPureImport(entry, name, {
               mode: sourceMode,
-              reassigned: (path.scope.getBinding(name)?.constantViolations.length ?? 0) > 0,
+              reassigned: !!adapter.getBinding({ scope: path.scope, name, path })?.constantViolations?.length,
             }),
           });
           // a re-parse of our own pure output carries rest/SE-key sentinels already in place -

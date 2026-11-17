@@ -145,7 +145,7 @@ const unplugin = createUnplugin((options, meta) => {
   //                    dev. drops only the changed file's snapshot so other files' state
   //                    survives. without this, HMR sessions accumulated orphan snapshots
   // standalone `phase: 'post'` MUST dispatch `pass='post'` (not `'single'`) so the post-only
-  // machinery activates: orphan-ref and rest-sentinel adoption of a prior pass's spellings.
+  // machinery activates: snapshot pickup and rest-sentinel recognition of prior output.
   // standalone `phase: 'pre'` stays at `pass='single'` - 'pre' would enable `deferImports`
   // expecting a follow-up post pass that never comes
   const subs = resolvedPhase === 'pre+post'

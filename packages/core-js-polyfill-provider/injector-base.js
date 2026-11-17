@@ -116,10 +116,9 @@ export function localizeVarlessMemos(program, names, render = renderMemoActivati
   return localized;
 }
 
-// post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
-// `generateRefName` actually emits (skip-1 per babel convention). user-written
-// `_ref0`/`_ref1`/leading-zero forms (`_ref01`) stay out of adoption - our generator
-// never emits them, so they must belong to user code.
+// Generated ref spelling for output recognition and canonical numbering: `_ref`,
+// `_ref2..9`, `_ref10+` (skip-1 per babel convention). Spelling alone proves no ownership.
+// `_ref0`/`_ref1`/leading-zero forms (`_ref01`) are always user names.
 // the numeric tail is length-capped at 15 digits (< Number.MAX_SAFE_INTEGER): a user-written
 // `_ref` with a 16+-digit suffix would `parseInt` into a float-collapsed integer that the
 // nextSuffix cache seed + `findUniqueName` probe loop can never increment past, hanging the
@@ -133,7 +132,7 @@ const REF_SLOT_SUFFIX_SOURCE = '[2-9]|[1-9]\\d{1,14}';
 export const ORPHAN_REF_PATTERN = new RegExp(`^_ref(?<suffix>${ REF_SLOT_SUFFIX_SOURCE })?$`);
 
 // generator-shaped `_unused` sentinel names (`generateUnusedName` output), same suffix
-// grammar and safe-integer cap as ORPHAN_REF_PATTERN - shared by the post-pass adoption
+// grammar and safe-integer cap as ORPHAN_REF_PATTERN - shared by the output recognition
 // that re-recognizes pre's rest-destructure sentinels when the state snapshot was lost
 export const UNUSED_NAME_PATTERN = new RegExp(`^_unused(?<suffix>${ REF_SLOT_SUFFIX_SOURCE })?$`);
 
@@ -166,7 +165,7 @@ function nextSuffixFromName(name, prefix) {
 }
 
 // where `uniqueName` should begin. bare-slot reclaim: when the cache was seeded past 2 by
-// snapshot inherit / orphan adoption but bare itself is still free (e.g. HMR re-parse of
+// snapshot inheritance but bare itself is still free (e.g. HMR re-parse of
 // user-edited source dropped `_ref` declaration leaving `_ref2+`), prefer bare so output stays
 // canonical (`_ref, _ref2, ...`). otherwise resume from cache.
 // returns the bare NAME rather than a null start suffix in the reclaim case: handing `null` to
@@ -216,12 +215,10 @@ function aliasBindingPoisoned(binding) {
   return (binding.kind !== 'const' && !isCleanDestructureAliasBinding(binding)) || isGuardedAliasingWrite(binding);
 }
 
-// import-emitter state; each plugin subclasses and implements `flush()`.
+// Shared import-emitter state; each binding owns its AST flush.
 // augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass.
 //
 // subclass contract:
-//   abstract: flush() - emit collected imports/refs into the AST or text-rewrite queue;
-//             called at programExit. base class never invokes it - pure data sink.
 //   abstract: generateLocalRef() / generateDeclaredRef() - return an Identifier-shaped ref
 //             allocated via this.uniqueName('_ref'). babel returns t.identifier(name);
 //             unplugin returns the bare string. callers MUST treat the return value as
@@ -235,9 +232,7 @@ function aliasBindingPoisoned(binding) {
 //
 // shared invariants:
 //   - usedNames is single source-of-truth for collision detection. uniqueName consults it
-//     plus subclass-supplied extraCheck (e.g. babel's program.references / scope.hasBinding,
-//     unplugin's declaredNames Set)
-//   - #refs (subclass field) tracks plugin-allocated refs for orphan adoption + rename
+//     plus subclass-supplied extraCheck (e.g. babel's program.references / scope.hasBinding)
 //   - existingPureImports populated via scanExistingCoreJSImports in pre-pass; readers
 //     don't write. there is no global-import counterpart: both emitters remove a user global
 //     import and re-emit it through `addGlobalImport`, so no dedup channel suppresses one
@@ -257,9 +252,6 @@ export default class ImportInjectorState {
   pureImports = new Map(); // `${mode}/${entry}` -> binding name
   existingPureImports = new Map();
   usedNames = new Set();
-  // names whose `var <name>;` declaration this injector owes or has adopted - the declared
-  // `_ref` subset of the slot space; each emitter's flush/prune reads and maintains it
-  declaredRefNames = new Set();
   // every generated slot-family name (prefix -> Set): `_refN` slots (declared AND local)
   // plus `_unusedN` rest sentinels - the whole slot space the print-order canonicalization
   // renumbers from. adopted names stay out (their spellings live in a previous pass's text,
@@ -881,12 +873,11 @@ export default class ImportInjectorState {
   generatedRefFamilies() { return this.#generatedByPrefix; }
 
   // subclass hook: extra name registries the canonical rename must rebuild alongside the
-  // base ones (e.g. the unplugin injector's flushed-refs set)
+  // base ones (e.g. babel's declared refs for scope registration and pruning)
   extraGeneratedNameSets() { return []; }
 
   #allGeneratedNameSets() {
     return [
-      this.declaredRefNames,
       this.usedNames,
       this.#unusedSentinelNames,
       this.#adoptedUnusedSentinelNames,

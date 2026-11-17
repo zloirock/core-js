@@ -1,0 +1,12 @@
+require("core-js/modules/es.symbol.constructor");
+require("core-js/modules/es.symbol.description");
+require("core-js/modules/es.symbol.iterator");
+require("core-js/modules/es.object.to-string");
+require("core-js/modules/es.array.iterator");
+require("core-js/modules/es.array.at");
+require("core-js/modules/es.array.from");
+require("core-js/modules/es.string.iterator");
+require("core-js/modules/web.dom-collections.iterator");
+var _ref = require('@core-js/pure/actual/array/instance/at');
+for (_ref of [custom()]) use(_ref);
+module.exports = [7].at(0);

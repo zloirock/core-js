@@ -87,7 +87,6 @@ runBoth('consumed initializer landing', 'const source = (first(), second(), rece
   check(`${ label }/carried prefix first`, separate.sink.expressions[0], prefix);
   checkDeep(`${ label }/one leading sink`, separate.sink.expressions[1].expressions, [first, second]);
   check(`${ label }/read is not replayed`, separate.value, read);
-  check(`${ label }/sink provenance`, separate.role, 'initializer');
   const pattern = land({ effects: [first, second], residualPrefix: true });
   check(`${ label }/residual replaces sink`, pattern.sink, null);
   checkDeep(`${ label }/residual keeps every planned effect`, pattern.value.expressions, [first, second, read]);

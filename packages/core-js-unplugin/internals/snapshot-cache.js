@@ -2,12 +2,11 @@ import { WINDOWS_UNC_PREFIX_RE } from '@core-js/polyfill-provider/helpers/path-n
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { parseModuleId } from './sfc-shapes.js';
 
-// pre->post snapshot handoff for `phase: 'pre+post'`, keyed by the ENVIRONMENT plus the whole
-// module id (see `normalizeKey`). pre's transformed
-// output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
-// `#rehydrate(inherit)`. losing the snapshot between passes leaves refs dangling at runtime,
-// so entries stick around until `reset()` on `buildEnd` drains them - pre-only ids leak
-// within a single invocation but can't accumulate across builds.
+// Pre/post handoff carries deferred imports, mutation facts and injector alias/poison
+// state, keyed by the environment plus the whole module id (see normalizeKey).
+// Each phase emits its own memo declarations. Losing a snapshot falls back to standalone
+// post, but cannot reproduce pending imports and source facts erased by intervening
+// transforms. Keep entries until take(), watch invalidation or build-end reset().
 // the id's PATH normalizes so pre and post match regardless of the form their bundler emits:
 // - backslash -> forward (`C:\src\foo.js` <-> `C:/src/foo.js`)
 // - Vite scheme prefixes stripped (`file:///abs/foo.js`, `/@fs/abs/foo.js`, `/@id/virtual:foo`
@@ -58,7 +57,7 @@ function normalizePath(path) {
 // no id parser of its own. only a NUMERIC value is the marker; `?t=abc` is somebody's own param.
 // EVERYTHING ELSE IS IDENTITY, a parameter nothing here recognises included: a MISSED snapshot
 // degrades to the supported standalone-`post` path, while a WRONG one silently rewrites another
-// module's mutation census, import registry and ref set into this one
+// module's mutation census, import registry and aliases into this one
 const HMR_TIMESTAMP_VALUE_RE = /^\d+(?:\.\d+)?$/;
 
 // `\0` separates the environment from the module part, and can occur in neither: `index.js` refuses

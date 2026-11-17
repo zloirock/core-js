@@ -25632,6 +25632,28 @@ function * generateCensusBoundarySources() {
   };
 }
 
+// Generated-looking import names are still user bindings after an assignment.
+function * generateReassignedRefImports() {
+  for (const name of ['_ref', '_ref2', 'userAt']) for (const [shape, write, ts = false] of [
+    ['argument', 'use(NAME = replacement());'],
+    ['member', '(NAME = replacement()).tag;'],
+    ['test', '(NAME = replacement()) === null;'],
+    ['for-of', 'for (NAME of [replacement()]) use(NAME);'],
+    ['for-in', 'for (NAME in { replaced: 1 }) use(NAME);'],
+    ['cast', 'use((NAME as any) = replacement());', true],
+    ['nonnull', 'use(NAME! = replacement());', true],
+    ['satisfies', 'use((NAME satisfies any) = replacement());', true],
+  ]) yield {
+    name: `reassigned-ref-import/${ name }/${ shape }`, sourceType: 'script', strip: true, isolated: true, ts,
+    code: `var ${ name } = require('@core-js/pure/actual/array/instance/at');
+      var effects = [];
+      function replacement() { effects.push('write'); return function () { return function () { return 99; }; }; }
+      function use(value) { effects.push('use'); return value; }
+      ${ write.replaceAll('NAME', name) }
+      const r = [[7].at(0), ${ shape === 'for-in' ? name : `${ name }()()` }]; module.exports = { r, effects };`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27445,4 +27467,5 @@ export function * generate() {
   yield * generateTypeQueryDagSources();
   yield * generateModuleReceiverScopes();
   yield * generateCensusBoundarySources();
+  yield * generateReassignedRefImports();
 }

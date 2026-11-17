@@ -194,7 +194,6 @@ runBoth('effect ownership and placement', 'let held; const result = (effect(), h
     const plan = planDiscardedInitPlacement(effects, facts);
     check(`${ label }/${ JSON.stringify(facts) }`, plan.placement, expected);
     check(`${ label }/borrowed effects`, plan.effects, effects);
-    check(`${ label }/explicit initializer role`, plan.role, 'initializer');
   }
   check(`${ label }/sole plain prefix`, planDiscardedInitPlacement([effects[0]]).placement, 'value');
   check(`${ label }/nothing to place`, planDiscardedInitPlacement([], { forInit: true, readCount: 2 }).placement, 'none');

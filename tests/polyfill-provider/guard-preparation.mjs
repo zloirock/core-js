@@ -3,7 +3,7 @@
 import {
   guardProbeUndefinable, holdsProxySurface, memoReceiverGlobalName, memoReceiverOriginName, mintedProxyGlobalName,
   optionalMemberStaysGuarded, planGuardComposition, planOptionalProbe,
-  planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, prepareMemoReceiver, storedMemoProvesGuard,
+  planGuardRootMemo, prepareGuardReceiver, prepareKeptMemoTail, prepareMemoReceiver,
 } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import {
   markRenderedStoredValue, receiverContainsOptional, trustedIdentifierAliasWrite, unwrapRuntimeExpr,
@@ -250,16 +250,16 @@ for (const expression of ['read()', 'read?.()']) runBoth(`call provenance/${ exp
     check(`${ label }/read only`, JSON.stringify(path.node.init), before);
   });
 
-for (const [expression, root, storeProven] of [
-  ['(held = globalThis).self', 'held = globalThis', false],
-  ['(effect(), held = globalThis).self', 'effect(), held = globalThis', false],
-  ['(held = globalThis).window', null, false],
-  ['globalThis.self', null, false],
-  ['held = globalThis.self', null, true],
-  ['held = globalThis.window', null, false],
-  ['(held = globalThis.host).self', null, false],
-  ['held = (other = globalThis.host).self', null, false],
-  ['held = unknown', null, false],
+for (const [expression, root] of [
+  ['(held = globalThis).self', 'held = globalThis'],
+  ['(effect(), held = globalThis).self', 'effect(), held = globalThis'],
+  ['(held = globalThis).window', null],
+  ['globalThis.self', null],
+  ['held = globalThis.self', null],
+  ['held = globalThis.window', null],
+  ['(held = globalThis.host).self', null],
+  ['held = (other = globalThis.host).self', null],
+  ['held = unknown', null],
 ]) runBoth(`memo source/${ expression }`, `let held, other; const result = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
   const source = unwrapRuntimeExpr(path.node.init);
@@ -275,7 +275,6 @@ for (const [expression, root, storeProven] of [
     check(`${ label }/source spine`, plan.spine[0], source);
     check(`${ label }/repeat`, planGuardRootMemo(source, ctx).source, plan.source);
   }
-  check(`${ label }/store proof`, storedMemoProvesGuard(source, ctx), storeProven);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
 

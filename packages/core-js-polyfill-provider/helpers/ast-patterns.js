@@ -3474,7 +3474,7 @@ export function writtenNames(node, { identifierNodes = false } = {}) {
 
 // Visit the target identifiers without materializing their names. A whole-owner scan asks
 // this of every node, including non-writes; the array projection above is only for its readers.
-function walkWrittenIdentifiers(node, add) {
+export function walkWrittenIdentifiers(node, add) {
   const target = node.type === 'AssignmentExpression' ? unwrapRuntimeExpr(node.left)
     : node.type === 'UpdateExpression' ? unwrapRuntimeExpr(node.argument) : null;
   if (target?.type === 'Identifier') add(target);
@@ -10902,10 +10902,8 @@ export function mutatedStaticKey(object, key) {
 
 // --- Per-file census ---
 
-// node types that introduce a new `var`-scope boundary. the census `atTopLevel` frame flag
-// drops when descending into them - unplugin's orphan-ref classifier keys on it (a `var _ref;`
-// rehydrated at module top hoists through plain blocks but never past these), and the census
-// driver computes it once for every reducer
+// Nodes that introduce a new var scope. The census uses these boundaries for binding
+// ownership and the atTopLevel flag consumed by module-format detection.
 const SCOPE_REBINDING_TYPES = new Set([
   'FunctionDeclaration',
   'FunctionExpression',
@@ -10918,9 +10916,7 @@ const SCOPE_REBINDING_TYPES = new Set([
   'MethodDefinition',
   // ES2022 class `static { ... }` has its own var-scope; `var` inside doesn't leak to the class
   'StaticBlock',
-  // TS namespaces and enums compile to IIFEs - their bodies are var-scopes, so a `_ref = X`
-  // inside `namespace N { ... }` / an enum initializer is never the plugin's module-top-level
-  // emission (mirrors the injector's var-scope anchoring of TSModuleBlock)
+  // TS namespaces and enums compile to IIFEs, so their bodies have their own var scope.
   'TSModuleDeclaration',
   'TSEnumDeclaration',
 ]);
@@ -11037,9 +11033,9 @@ export function methodReadsUsageCensus(method) {
 // strictness; results run in reducer order so the format owner can publish before its consumers.
 // The point is collapsing the
 // N independent whole-file scans (name reservation, mutation / ctor-alias / minifier
-// shape gates) into a single pass. frames carry the structural parent type (transparent
-// wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
-// classifier distinguishes emit positions by
+// shape gates) into a single pass. Frames carry the structural parent type (transparent
+// wrappers forwarded) for receiver/call-result observations, and the module-top-level
+// flag for format detection.
 export function collectFileCensus(programNode, reducers) {
   const previousKeys = objectPropertyKeys;
   // Reducers build their facts in stages, but the source property lists stay unchanged throughout.

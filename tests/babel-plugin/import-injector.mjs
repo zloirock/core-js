@@ -779,4 +779,19 @@ await transformAsync('', {
   })],
 });
 
+// Babel owns this declaration ledger, but shared name canonicalization must keep it aligned.
+await transformAsync('', {
+  configFile: false,
+  babelrc: false,
+  plugins: [() => ({ visitor: { Program(programPath) {
+    const injector = new ImportInjector({ t, programPath, pkg: '@core-js/pure', mode: 'actual', importStyle: 'import' });
+    const declared = injector.generateDeclaredRef(programPath.scope).name;
+    const local = injector.generateLocalRef(programPath.scope).name;
+    checkDeep('declared refs/registered by Babel', [...injector.declaredRefNames], [declared, local]);
+    injector.canonicalizeGeneratedNames(new Map([[declared, '_ref3'], [local, '_ref4']]));
+    checkDeep('declared refs/follow shared rename', [...injector.declaredRefNames], ['_ref3', '_ref4']);
+    checkDeep('declared refs/family agrees', [...injector.generatedRefFamilies().get('_ref')], ['_ref3', '_ref4']);
+  } } })],
+});
+
 finish();

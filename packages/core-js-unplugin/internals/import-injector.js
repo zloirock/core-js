@@ -1,5 +1,4 @@
 import ImportInjectorState, {
-  ORPHAN_REF_PATTERN,
   buildCanonicalRenameMap,
   canDropUnusedMemo,
   collectInjectorCensus,
@@ -32,9 +31,6 @@ import {
 import { replaceNodeInTree } from './emit-shared.js';
 
 export default class ImportInjector extends ImportInjectorState {
-  // refs already emitted by a prior flush (or inherited from pre via snapshot).
-  // lets post emit only the delta so pre + post doesn't produce duplicate `var X;` lines
-  #flushedRefs = new Set();
   #rootScope = null;
 
   constructor({
@@ -64,11 +60,6 @@ export default class ImportInjector extends ImportInjectorState {
     for (const n of snap.usedNames ?? EMPTY_ARR) this.usedNames.add(n);
     this.rehydrateUnusedSentinelNames(snap.unusedNames);
     for (const [k, v] of snap.existingPure ?? EMPTY_MAP) this.existingPureImports.set(k, v);
-    for (const r of snap.refs ?? EMPTY_ARR) this.declaredRefNames.add(r);
-    // pre's `var X;` is already in post's input - don't re-emit. snapshot() always emits
-    // `flushedRefs` (may be empty array but never undefined); EMPTY_ARR fallback covers the
-    // snapshot-absent path only
-    for (const r of snap.flushedRefs ?? EMPTY_ARR) this.#flushedRefs.add(r);
     this.rehydrateSuffixState(snap.suffixState);
     this.rehydrateImportInfoByName(snap.importInfoByName);
     this.rehydrateReassignedBindings(snap.reassignedBindings);
@@ -91,8 +82,6 @@ export default class ImportInjector extends ImportInjectorState {
       pure: new Map(this.pureImports),
       usedNames: new Set(this.usedNames),
       unusedNames: this.captureUnusedSentinelNames(),
-      refs: [...this.declaredRefNames],
-      flushedRefs: [...this.#flushedRefs],
       existingPure: new Map(this.existingPureImports),
       suffixState: this.captureSuffixState(),
       importInfoByName: this.captureImportInfoByName(),
@@ -107,58 +96,11 @@ export default class ImportInjector extends ImportInjectorState {
     return this.usedNames.has(name) || (this.#rootScope?.hasBinding(name) ?? false);
   }
 
-  // numbering is shared via `ImportInjectorState.generateRefName`; declared names go into
-  // the base `declaredRefNames` so flush() can emit the `var _ref, _ref2, ...;` declaration.
-  // callers choose:
-  //   `generateDeclaredRef()` - queues `var _refN;` at flush (caller writes `_refN = ...`).
-  //                             same abstract role as babel's `scope.push({id})`-backed
-  //                             `generateDeclaredRef(scope)`; see injector-base.js docstring
-  //   `generateLocalRef()`    - UID only (caller emits its own `const _refN = ...` inline)
-  generateDeclaredRef() {
-    const name = this.generateRefName();
-    this.declaredRefNames.add(name);
-    return name;
-  }
+  // Both forms allocate a name here. The caller records the AST declaration site;
+  // flushIntoProgram owns placement and reads the final tree, including prior output.
+  generateDeclaredRef() { return this.generateRefName(); }
 
   generateLocalRef() { return this.generateRefName(); }
-
-  // the flushed-refs delta set renames alongside the base registries
-  extraGeneratedNameSets() { return [this.#flushedRefs]; }
-
-  // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments.
-  // caller filters user-owned bindings; `#flushedRefs` skip avoids dup `var _ref;`
-  // orphan refs adopted from pre's output (post sees the rewritten source but the state
-  // snapshot was lost/disabled). `#flushedRefs.has(ref)` skip guards the shape covered by
-  // `tests/unplugin/unit.mjs:checkAdoptOrphanRespectsFlushed`: a caller re-invokes this
-  // after a re-hydrated state snapshot where `flushedRefs` records pre's already-emitted
-  // var decls, so adopting the same name again would emit a duplicate `var _ref;`.
-  // the guard is only reachable through `snapshot`/`#rehydrate` with manually populated
-  // flushedRefs - production `!inherit` path hits it with an empty flushedRefs, but the
-  // contract is part of the documented orphan-adoption API
-  adoptOrphanRefs(orphanRefs) {
-    // seed `#nextSuffixByPrefix['_ref']` to `max(suffixes) + 1` so subsequent
-    // `generateRefName` skips the probe loop over already-adopted names. without this,
-    // allocating a new `_ref` with 20 orphans in `usedNames` means 20 collision-probes
-    // before landing on `_ref21`.
-    // bare-slot reclaim is handled centrally by `uniqueName`: when bare is free but cache is
-    // seeded past 2, allocator falls back to bare. so we always seed by max numeric tail
-    let maxSuffix = 1;
-    for (const ref of orphanRefs) {
-      if (this.#flushedRefs.has(ref)) continue;
-      // validate ORPHAN_REF_PATTERN BEFORE mutating refs/usedNames - the orphan-adoption
-      // contract only accepts generator-shaped names (`_ref`, `_ref2..N`) that
-      // `generateRefName` produces. a non-conforming `weirdName` slipping through would join
-      // `#refs` and `flush` would emit `var weirdName;` from a stale snapshot, polluting output
-      const match = ORPHAN_REF_PATTERN.exec(ref);
-      if (!match) continue;
-      this.declaredRefNames.add(ref);
-      this.usedNames.add(ref);
-      // extract numeric suffix (pattern caps it below Number.MAX_SAFE_INTEGER; bare `_ref` -> slot 1)
-      const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
-      if (n > maxSuffix) maxSuffix = n;
-    }
-    if (maxSuffix > 1) this.rehydrateSuffixState(new Map([['_ref', maxSuffix + 1]]));
-  }
 }
 
 // the flush over the injector state above (the provider base is a pure data sink; this

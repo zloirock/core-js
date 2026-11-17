@@ -1354,11 +1354,10 @@ export function renderResidualProbeWrites(sourceProps, pattern, init, writes, {
 // A consumed header's source plan owns its effects and memo landing. A re-anchored
 // pattern takes the planned prefix in its value; otherwise the remaining read gets a
 // leading sink. The binding supplies native embedding and memo rendering.
-// Return the sink role explicitly, before native conversion can erase its provenance.
 export function renderForInitSink(plan, { init, value = null, prefix = [], receiver = null, renderMemo, embed = node => node }) {
   const effects = plan.effects?.map(embed);
   if (plan.placement === 'value' || plan.placement === 'none') {
-    return { role: 'initializer', sink: null, value: sequenceExpression([
+    return { sink: null, value: sequenceExpression([
       ...prefix.map(embed), renderDestructurePrefix(embed(value), effects, receiver),
     ]) };
   }
@@ -1367,7 +1366,7 @@ export function renderForInitSink(plan, { init, value = null, prefix = [], recei
     ? effects ?? peelNestedSequenceExpressions(init).prefix.map(embed) : [];
   const slot = effects ? effects.length ? sequenceExpression(effects) : null : memo ?? embed(init);
   const sink = residualPrefix.length ? null : slot;
-  return { role: 'initializer', sink: sink ? sequenceExpression([...prefix.map(embed), sink]) : null,
+  return { sink: sink ? sequenceExpression([...prefix.map(embed), sink]) : null,
     value: sink ? embed(value) : sequenceExpression([...prefix.map(embed), ...residualPrefix, embed(value)]) };
 }
 

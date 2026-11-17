@@ -1003,11 +1003,11 @@ export function planDiscardedInit(init, ctx, probe = null, sourceFacts = null, r
 // receiver slot can carry a store as well as a prefix. A plain value slot carries a
 // sole prefix, but an ordinary statement host lifts stores and receiverless setup.
 // Several readers share one leading effect group; a loop uses a sink instead of
-// lifting statements. The role survives native rendering and late declaration cleanup.
+// lifting statements.
 export function planDiscardedInitPlacement(effects, { readCount = 1, forInit = false, carrier = 'value' } = {}) {
   const carry = readCount === 1 && (carrier === 'receiver'
     || (carrier === 'value' && (forInit || !effects.some(isChainAssignment))));
-  return { effects, placement: !effects.length ? 'none' : carry ? 'value' : forInit ? 'sink' : 'statements', role: 'initializer' };
+  return { effects, placement: !effects.length ? 'none' : carry ? 'value' : forInit ? 'sink' : 'statements' };
 }
 
 // The value left by an already consumed receiver. A binding store publishes its
@@ -1060,7 +1060,7 @@ export function planForInitSink(init, ctx, { probe = null, dropReceiver = false,
       const prefix = sink.writes ? sink.effects : reads.length === 1 && reads[0].carriesPrefix
         ? observablePrefixElements(forInitSESinkParts({ init, id: reads[0].declarator?.id }, true)?.prefix ?? [], ctx) : [];
       const placed = planDiscardedInitPlacement(prefix, { readCount: reads.length, forInit: true });
-      return placed.placement === 'value' ? placed : { effects: sink.effects, placement: 'sink', role: placed.role };
+      return placed.placement === 'value' ? placed : { effects: sink.effects, placement: 'sink' };
     }
   }
   const placement = binding?.type === 'ObjectPattern' ? { residualPrefix: true } : {};
