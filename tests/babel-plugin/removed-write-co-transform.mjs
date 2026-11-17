@@ -1,6 +1,7 @@
 // Class, block-scope and pattern lowering can empty a recorded assignment path before
 // the program-exit usage sweep. The live replacement writes must remain visible.
 import { readFile } from 'node:fs/promises';
+import loweringSource from './removed-write-co-transform-source.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { createChecker } from '../polyfill-provider/harness.mjs';
@@ -18,7 +19,7 @@ const lowerings = ['classes', 'destructuring', 'block-scoping']
   .map(name => requireBabel.resolve(`@babel/plugin-transform-${ name }`));
 
 for (const method of ['usage-global', 'usage-pure']) {
-  const source = await readFile(new URL(`../transpiler-fixtures/${ method }/loop-destructure-shared-lowering-source/input.mjs`, import.meta.url), 'utf8');
+  const source = loweringSource;
   const { code, ast } = await transformAsync(source, {
     filename: 'input.mjs',
     babelrc: false,

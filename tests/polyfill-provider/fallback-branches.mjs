@@ -6,6 +6,7 @@ import {
   buildParameterArgumentSynthPlan,
   enumerateFallbackDestructureBranches,
   fallbackBranchSwapKeepsSelection,
+  fallbackDestructureHasPolyfillableBranch,
   instanceSynthReceiverPure,
   isViableBranchForKey,
   selectionLeftAlwaysTruthy,
@@ -45,6 +46,24 @@ function resolvePure(meta) {
 function propType(adapter) {
   return adapter.name === 'babel' ? 'ObjectProperty' : 'Property';
 }
+
+// A diagnostic needs a real static candidate, independently of the binding's early
+// filtering. In particular a generic instance helper cannot justify this warning.
+for (const [key, arms, expected, instanceOnly = false] of [
+  ['from', 'Array : Object', true],
+  ['from', 'Object : Array', true],
+  ['from', 'Set : WeakMap', false],
+  ['banana', 'Set : WeakMap', false],
+  ['from', 'Array : Object', false, true],
+]) runBoth(`diagnostic/${ key }/${ arms }/${ instanceOnly }`,
+  `const { ${ key }, ...rest } = choice ? ${ arms };`, (adapter, prog, label) => {
+    const prop = adapter.pickPath(prog, propType(adapter), path => path.parent?.type === 'ObjectPattern');
+    const meta = { kind: 'property', object: null, key, placement: null, fromFallback: true };
+    check(label, fallbackDestructureHasPolyfillableBranch({
+      meta, path: prop, adapter: pluginAdapter(adapter),
+      resolvePure: instanceOnly ? () => ({ kind: 'instance', entry: 'instance/from' }) : resolvePure,
+    }), expected);
+  });
 
 // --- isViableBranchForKey ---
 

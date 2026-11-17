@@ -6,6 +6,7 @@
 import { fileURLToPath } from 'node:url';
 import './harness-contracts.mjs';
 import './render-node-ownership.mjs';
+import './unclaimed-flattens.mjs';
 import './resolve-node-type.mjs';
 import './type-query-dag.mjs';
 import './type-call-contracts.mjs';

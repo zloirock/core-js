@@ -25,6 +25,7 @@ import './iife-synth-receivers.mjs';
 import './binding-read-runtime.mjs';
 import './class-static-runtime.mjs';
 import './fixture-size.mjs';
+import './fixture-options-test.mjs';
 import './fixture-output-normalization.mjs';
 import './estree-to-babel.mjs';
 import './spanless-co-transform.mjs';

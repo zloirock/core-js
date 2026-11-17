@@ -1,0 +1,26 @@
+core-js@4: `DEBUG` option
+
+Using targets: <RESOLVED>
+
+Using polyfills with `usage-global` method:
+The core-js@4 polyfill added the following polyfills:
+  es.symbol.constructor { "ie":"11" }
+  es.symbol.description { "ie":"11" }
+  es.object.assign { "ie":"11" }
+  es.object.get-own-property-symbols { "ie":"11" }
+  es.object.to-string { "ie":"11" }
+  es.array.iterator { "ie":"11" }
+  es.set.constructor { "ie":"11" }
+  es.set.species { "ie":"11" }
+  es.set.difference { "ie":"11" }
+  es.set.intersection { "ie":"11" }
+  es.set.is-disjoint-from { "ie":"11" }
+  es.set.is-subset-of { "ie":"11" }
+  es.set.is-superset-of { "ie":"11" }
+  es.set.symmetric-difference { "ie":"11" }
+  es.set.union { "ie":"11" }
+  es.string.iterator { "ie":"11" }
+  es.weak-map.constructor { "ie":"11" }
+  es.weak-map.get-or-insert { "ie":"11" }
+  es.weak-map.get-or-insert-computed { "ie":"11" }
+  web.dom-collections.iterator { "ie":"11" }

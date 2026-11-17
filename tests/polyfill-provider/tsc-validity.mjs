@@ -16,7 +16,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
 import { createChecker, scenarioOrigin, scenarioSources, suiteTscIntents } from './harness.mjs';
-import { loadBabelOptions } from '../unplugin/fixture-lang.mjs';
+import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
 
 const { check, checkDeep, fail, finish, pass } = createChecker('tsc-validity');
 

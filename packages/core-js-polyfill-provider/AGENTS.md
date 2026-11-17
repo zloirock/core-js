@@ -103,7 +103,6 @@ Each is a limit of the model, not a license to weaken the proofs above; its owne
 - A decided selection is decided for its claims only: usage-pure folds expressions, not statements (`decidedSelection` lists the runtime-equal leftovers).
 - A realm member as a destructuring target or a for-of head (`({ Promise: globalThis.Promise } = globalThis)`) is no self-copy: its read stays native.
 - A script that may run bare is bare only for what it hands out (`programTopLevelIsRealm`).
-- An effectful computed key keeps a pattern's member target native, and an effectful keyed level of an assignment over a member receiver leaves the levels after it native.
 - An exotic destructuring spelling - an effectful or computed key beside claims, a getter on a claimed slot, a rest or default level under a selection - can run in another order than native or keep a native read; each price is locked by its fixture and stated at the deciding code. A difference between emitters within an accepted price is still a defect with one shared owner.
 
 ## Canon owners and dialect rules

@@ -6,6 +6,7 @@
 // zx globals without a zxi round-trip (deps are already installed by the parent's zxi)
 import { fork } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { loadBabelOptions } from './fixture-options.mjs';
 
 // `.*` (greedy to the line's last `@@`), never `[^@]*`: the counters carry per-reason keys, and one
 // of them - `skip:no @core-js plugin in options` - holds the delimiter's own character. The marker
@@ -36,15 +37,18 @@ function zxCliPath() {
   return path.join(path.dirname(req.resolve('zx/package.json')), bin);
 }
 
-// the walk COLLECTS (sorted - readdir order is OS-dependent and the shard slices must be
-// identical across processes); a fixture directory is one holding `input.mjs`. shared by
-// the recursive-corpus runners (babel-plugin, ast-engine); the text runner keeps its own
-// two-level collect because its walk is method-scoped
+// Collect sorted fixture directories for both plugin runners and shared invariants;
+// shard slices must be identical across processes. Validate source size and plugin
+// configuration before either skipping or regeneration can hide an invalid fixture.
 export async function collectFixtures(directory, out = []) {
   const names = (await fs.readdir(directory)).sort();
   if (names.includes('input.mjs')) {
     const source = await fs.readFile(path.join(directory, 'input.mjs'), 'utf8');
     checkFixtureSize(source, directory);
+    const options = await loadBabelOptions(directory);
+    if (!Array.isArray(options?.plugins) || options.plugins.every(plugin => !Array.isArray(plugin) || plugin[0] !== '@core-js')) {
+      throw new Error(`fixture options: ${ directory } must declare plugins: [["@core-js", { ... }]]`);
+    }
     out.push(directory);
     return out;
   }

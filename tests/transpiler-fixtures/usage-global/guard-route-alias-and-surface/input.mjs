@@ -1,3 +1,4 @@
+// A retained alias and effectful prefix keep their receiver; surface optionals guard only their own hop.
 const realm = globalThis;
 export function read(effect) {
   let held;

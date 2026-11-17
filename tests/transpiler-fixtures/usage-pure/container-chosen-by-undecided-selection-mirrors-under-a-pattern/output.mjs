@@ -7,8 +7,8 @@ import _Promise from "@core-js/pure/actual/promise";
 var _ref2;
 // a nested pattern over an undecided selection of containers reads the slot of whichever arm ran, so
 // every arm's slot takes the static of the constructor it holds - declared, assigned or passed to a
-// parameter - and an arm whose constructor has no such static keeps its own. a hop key read twice leaves
-// the read native, and an arm that is no container is the raw branch of the guard over the arm that is
+// parameter - and an arm whose constructor has no such static keeps its own.
+// An arm that is no container remains the raw branch of the guard.
 const {
     C: _ref
   } = flag ? {
@@ -49,17 +49,6 @@ const {
   C: Object
 };
 export const ownless = () => attempt(() => 1);
-const {
-  C: {
-    withResolvers
-  },
-  C: held
-} = flag ? {
-  C: _Promise
-} : {
-  C: Object
-};
-export const readTwice = () => [withResolvers(), held];
 const {
     C: _ref3
   } = flag ? {

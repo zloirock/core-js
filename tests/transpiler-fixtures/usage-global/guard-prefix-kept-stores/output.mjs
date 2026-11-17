@@ -1,0 +1,21 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
+import "core-js/modules/es.global-this";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+import "core-js/modules/web.self";
+// Every kept store and prefix belongs to the probe, before either guard outcome.
+let first, second;
+const holder = {};
+export const direct = (effect(), first = second = globalThis.window)?.self.Array.from([7]);
+export const member = (holder.first = holder.second = globalThis.window)?.self.Map;
+export const wrapped = (effect(), first = second = globalThis.window)?.self.Array.of?.(2);
+export const nested = (effect(), other(), first = globalThis.window)?.self.self.Array.from([1]);
+export { first, second, holder };

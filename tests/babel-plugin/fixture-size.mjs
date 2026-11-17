@@ -32,6 +32,7 @@ const fixture = path.join(directory, 'nested', 'claim');
 const previousOverwrite = process.env.OVERWRITE;
 try {
   await fs.outputFile(path.join(fixture, 'input.mjs'), '// row\n'.repeat(30));
+  await fs.writeJson(path.join(fixture, 'options.json'), { plugins: [['@core-js', {}]] });
   deepEqual(await collectFixtures(directory), [fixture]);
   await fs.writeFile(path.join(fixture, 'input.mjs'), '// row\n'.repeat(31));
   process.env.OVERWRITE = '1';

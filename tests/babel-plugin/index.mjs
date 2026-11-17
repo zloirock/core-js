@@ -14,6 +14,7 @@ const { equal } = require('node:assert/strict');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
 
+const { loadBabelOptions } = await import('./fixture-options.mjs');
 const { normalizeFixtureOutput } = await import('./fixture-output.mjs');
 
 const { FIXTURE_SHARD, collectFixtures, defaultShardCount, emitShardSummary, runShards, shardSlice } =
@@ -31,7 +32,7 @@ const babel = requireBabel('@babel/core');
 const { transformAsync } = babel;
 
 const { _: args } = argv;
-const { pathExists, readFile, readJson, rm, writeFile } = fs;
+const { pathExists, readFile, rm, writeFile } = fs;
 const { join } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -176,10 +177,7 @@ async function runFixture(directory) {
     return;
   }
   const source = await readFile(join(directory, 'input.mjs'), UTF8);
-  const optionsMjs = join(directory, 'options.mjs');
-  const options = await pathExists(optionsMjs)
-    ? (await import(pathToFileURL(path.resolve(optionsMjs)).href)).default
-    : await readJson(join(directory, 'options.json'), UTF8);
+  const options = await loadBabelOptions(directory);
   const { errorFile, outputFile, debugFile, warningsFile } = await resolveExpectedSlots(directory);
 
   const { logs, warns, restore } = captureConsole();

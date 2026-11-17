@@ -1,6 +1,7 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
+// A retained alias and effectful prefix keep their receiver; surface optionals guard only their own hop.
 const realm = _globalThis;
 export function read(effect) {
   var _ref, _ref2;

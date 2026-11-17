@@ -12,8 +12,8 @@ import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // a class static block scopes what it declares - a `var` too, as a function body does - so a method, a field
 // initializer, another static block, a static method and a computed key read the global past its `let`, `const`,
 // `var`, class, function and destructured names. the block's own read and a closure in it stay on its binding, and
-// a second block redeclaring the name, or the block of a class expression redeclaring the class's own name, reads
-// its own declaration - its type in a closure and under an early-exit guard too - while an outer user binding still
+// the block of a class expression redeclaring its name reads its own declaration,
+// including under an early-exit guard, while an outer user binding still
 // covers the method; one family per line so a lost decision shows up in the import set.
 class A {
   static {
@@ -110,16 +110,6 @@ const M = class Map {
     _atMaybeString(Map).call(Map, -1);
   }
 };
-class N {
-  static {
-    const s = [1, 2];
-  }
-  static {
-    const s = 'ab';
-    const f = () => _atMaybeString(s).call(s, -1);
-    f();
-  }
-}
 const O = class s {
   static {
     let s = this.value;

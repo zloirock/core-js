@@ -1,7 +1,8 @@
+import { loadBabelOptions } from '../babel-plugin/fixture-options.mjs';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { commentSignature, strip } from './structural.mjs';
-import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, parseFixture, parseFixtureOrNull, shouldSkip } from './fixture-lang.mjs';
+import { extractPluginOptions, inferTestId, normalizeMachinePaths, parseFixture, parseFixtureOrNull, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   FIXTURE_SHARD,

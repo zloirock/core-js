@@ -3,6 +3,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.self";
+// A sealed read must throw before its argument, while the neighboring optional read guards only its own hop.
 export function read(arg) {
   const alias = globalThis.window;
   const key = 'Array';

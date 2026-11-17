@@ -8,6 +8,7 @@ import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
+// A class iterator call keeps its class receiver; deleting a realm property preserves the member target.
 export class Collection {
   static *[Symbol.iterator]() {
     yield this;

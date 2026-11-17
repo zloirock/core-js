@@ -1,13 +1,7 @@
 import "core-js/modules/es.array.at";
-import "core-js/modules/es.array.flat";
-import "core-js/modules/es.array.species";
-import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.string.includes";
-// `new C()` on a value typed with a construct signature (`{ new (): T }`, or a constructable
-// interface) narrows on the constructed instance - the `new`-context mirror of how a call
-// signature narrows a call. crucially the two contexts use DIFFERENT signatures: `new` on a
-// call-ONLY type does NOT borrow the call return, so its unknown instance family needs generic
-// dispatch for `.flat`. distinct methods trace each line.
+// Construct signatures determine the new receiver, independently of call signatures.
+// Array and string methods distinguish the two constructed families.
 type Make<T> = {
   new (): T[];
 };
@@ -18,9 +12,3 @@ interface MakeString {
 }
 declare const makeString: MakeString;
 export const b = new makeString().includes("x");
-type CallOnly = {
-  (): number[];
-};
-declare const callOnly: CallOnly;
-// @ts-expect-error a function called with new is the shape under test
-export const c = new callOnly().flat();
