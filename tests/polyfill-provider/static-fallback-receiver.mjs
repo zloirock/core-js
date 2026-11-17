@@ -109,4 +109,18 @@ runBoth('guarded computed constructor and optional call',
     check(`${ label } key in the live arm`, plan.effects[0], key);
   });
 
+for (const expression of ['(globalThis.window?.Promise.noSuchStatic)()', '(globalThis.window?.Promise.noSuchStatic)`tag`']) {
+  runBoth(`sealed callee fallback/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+    const path = parser.pickPath(program, type, item => item.node.property.name === 'noSuchStatic');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const before = JSON.stringify(program.node);
+    const plan = planStaticFallbackReceiver(path.node, { placement: 'static' }, fallback,
+      { path, scope: path.scope, adapter }, { resolvePure });
+    check(`${ label }/reference stays`, plan.kind, 'retain');
+    check(`${ label }/receiver is released`, plan.release, path.node.object);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+}
+
 finish();

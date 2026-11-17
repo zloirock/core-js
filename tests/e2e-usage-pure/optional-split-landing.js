@@ -124,3 +124,18 @@ QUnit.test('a keyed optional dispatch preserves the receiver and argument order'
   assert.throws(() => sealed(null), TypeError);
   assert.deepEqual(events, ['arg']);
 });
+
+QUnit.test('optional constructor landing keeps root and key effects', assert => {
+  const log = [];
+  assert.same(typeof (log.push('prefix'), globalThis)?.Map?.name, 'string');
+  assert.same(typeof globalThis?.[(log.push('key'), 'Map')]?.name, 'string');
+  assert.deepEqual(log, ['prefix', 'key']);
+  assert.same(typeof (log.push('root'), globalThis)?.[(log.push('slot'), 'Map')]?.name, 'string');
+  assert.deepEqual(log, ['prefix', 'key', 'root', 'slot']);
+  function throwPrefix() {
+    log.push('throw');
+    throw new RangeError();
+  }
+  assert.throws(() => (throwPrefix(), globalThis)?.[(log.push('unreachable'), 'Map')]?.name, RangeError);
+  assert.deepEqual(log, ['prefix', 'key', 'root', 'slot', 'throw']);
+});

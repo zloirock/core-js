@@ -529,11 +529,11 @@ export default function createOptionalDispatchChannel(ctx) {
     const callOptional = isCall && parent.optional;
     const methodCall = isCall && !consumesCall;
     // A constructor landing can erase this optional only if the source guard is dead.
-    // Leave an effect-bearing landing to the ordinary split, which emits its prefix.
+    // The landing owns the prefix even when the optional no longer needs a test.
     const landing = sourceOptional && optionalConstructorLanding(object, {
       scope: metaPath.scope, adapter, path: metaPath, resolvePure: m => resolvePure(m, metaPath),
     });
-    const deadCtorOptional = landing && !landing.effects.length;
+    const deadCtorOptional = !!landing;
     // A plainly called, sealed iterator lookup throws in the whole-call helper.
     // With no detached receiver or key effect, its source chain can go directly into that argument.
     const sealedIterator = isCall && consumesCall && calleeParenWrapped(parent) && sideEffects.length === receiverEffectCount
@@ -544,7 +544,8 @@ export default function createOptionalDispatchChannel(ctx) {
     const { splitSource, rewrapNonNull } = peelNonNullWraps(object);
     let guardDisjuncts = null;
     let effObject = deadCtorSwap
-      ? landing.source ? cloneNode(landing.source) : identifier(injectPureImport(landing.pure.entry, landing.pure.hintName)) : object;
+      ? withSideEffects(landing.source ? cloneNode(landing.source)
+        : identifier(injectPureImport(landing.pure.entry, landing.pure.hintName)), landing.effects) : object;
     if (deadCtorSwap) markSubtreeSkipped(skippedNodes, object);
     else if (!memberOptional && !sealedIterator) {
       const split = splitOptionalReceiver(splitSource, metaPath);

@@ -157,6 +157,8 @@ for (const [expression, seal, deleted, called] of [
   ['consume(globalThis.window?.self.box)', null, false, false],
   ['delete globalThis.window?.self.box', null, true, false],
   ['delete (globalThis.window?.self).box', null, true, false],
+  ['delete (0, globalThis.window?.self).box', null, true, false],
+  ['delete (effect(), globalThis.window?.self).box', null, true, false],
 ]) runBoth(`claim continuation/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
   const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
   const path = parser.pickPath(program, type, item => item.node.property.name === 'self');
@@ -169,5 +171,29 @@ for (const [expression, seal, deleted, called] of [
   if (called) check(`${ label }/call slot identity`, plan.call, path.parentPath);
   check(`${ label }/source intact`, JSON.stringify(program.node), before);
 });
+
+for (const alwaysDefined of [false, true]) runBoth(`defined sealed realm tail/${ alwaysDefined }`,
+  '(globalThis?.self.window)();', (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+    const path = parser.pickPath(program, type, item => item.node.property.name === 'self');
+    const before = JSON.stringify(program.node);
+    const plan = planGuardedClaimTail(path, {
+      alwaysDefined, resolvePure: ({ name }) => name === 'window' ? null : { entry: name },
+    });
+    check(`${ label }/sealed tail`, plan.sealedTail?.property.name ?? null, alwaysDefined ? null : 'window');
+    check(`${ label }/absorption`, plan.absorb, alwaysDefined);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+
+for (const expression of ['delete (held = globalThis).window', 'delete (effect(), globalThis).window']) {
+  runBoth(`carried root delete/${ expression }`, `let held; ${ expression };`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'Identifier', item => item.node.name === 'globalThis');
+    const before = JSON.stringify(program.node);
+    const plan = planGuardedClaimTail(path);
+    check(`${ label }/delete owns the carried root`, plan.deleteHost, true);
+    check(`${ label }/delete is not absorbed`, plan.absorb, false);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+}
 
 finish();

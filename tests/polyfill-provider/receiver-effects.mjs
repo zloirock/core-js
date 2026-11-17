@@ -143,6 +143,8 @@ runBoth('symbol source slots', 'const rows = []; const result = (first(), rows)[
         resolvePure: () => ({ entry: 'global-this', hintName: 'globalThis' }),
       };
       const plan = planSymbolReceiverRoot(root, options);
+      checkDeep(`${ label }/receiver channel/${ keep }/${ optional }/${ keyed }`,
+        plan.receiverEffects, keyed && !optional ? [] : [first]);
       planSymbolReceiverRoot(root, options);
       const name = `${ label }/keep ${ keep }/optional ${ optional }/key ${ keyed }`;
       check(`${ name } query does not import`, imports, 0);
@@ -213,5 +215,21 @@ runBoth('symbol split key order', 'const result = box?.rows[Symbol.iterator];', 
   checkDeep(`${ label } prepared prefix runs before key`, rendered.effects, [prefix, tail, key]);
   check(`${ label } prepared stable tail is reused`, rendered.receiver, tail);
 });
+
+runBoth('detached prefix precedes a getter capture', 'const result = (first(), box.rows)[(key(), "at")];',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const member = unwrapRuntimeExpr(path.node.init);
+    const sequence = peelNestedSequenceExpressions(member.object);
+    const [first] = sequence.prefix;
+    const [key] = peelNestedSequenceExpressions(member.property).prefix;
+    const plan = planReceiverEffects({
+      receiver: sequence.tail, sideEffects: [first, key], receiverEffectCount: 1, receiverReads: 1,
+    });
+    check(`${ label }/capture`, plan.capture, true);
+    check(`${ label }/first read`, plan.firstReceiver, sequence.tail);
+    checkDeep(`${ label }/prefix`, plan.prefixEffects, [first]);
+    checkDeep(`${ label }/key`, plan.keyEffects, [key]);
+  });
 
 finish();

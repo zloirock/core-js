@@ -52,6 +52,10 @@ for (const [expression, source, prefix = [], memo = null, keepSequence = false, 
   ['(effect(), read().self)?.self', null, [], 'read()', false, 'const read = () => globalThis.window;'],
   ['(effect(), read()).self?.self', null, [], 'effect(), read()', false, 'const read = () => globalThis.window;'],
   ['unknown?.self', null],
+  ['(outer(), (inner(), globalThis.window)?.self)?.self', 'globalThis.window', ['inner()'], null, false, '', 'self'],
+  ['(0, effect(), globalThis.window)?.Array', 'globalThis.window', ['effect()'], null, false, '', 'Array'],
+  ['read()?.C?.from', 'read()'],
+  ['globalThis.window?.self[key].from', null],
   ['globalThis?.Array.from', null, [], null, false, 'const globalThis = {};'],
 ]) {
   const code = `${ prelude } let held; const result = ${ expression };`;
@@ -139,8 +143,10 @@ for (const [name, expression, undefinable, surface, globalName, prelude = '', op
   ['literal callee', '(() => 1)()', false, false, null],
   ['nested sequence value', '(effect(), (again(), globalThis))', false, true, 'globalThis'],
   ['nested sequence probe', '(effect(), (again(), globalThis))', true, true, 'globalThis', '', { nestedSeqUnproven: true }],
+  ['nested conditional probe', '(effect(), (again(), null == probe ? void 0 : self))', true, false, null, '', { nestedSeqUnproven: true }],
   ['nested foreign value', '(effect(), (again(), unknown))', false, false, null, '', { nestedSeqUnproven: true }],
   ['constructor value', 'globalThis.Array', false, false, 'Array'],
+  ['stored terminal probe', '(held = globalThis.self.window)', true, true, 'window'],
   ['user property', 'globalThis.user', false, false, null],
 ]) runBoth(name, `${ prelude } let held; const result = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
@@ -195,6 +201,8 @@ for (const [name, expression, expected, setup = '', mutated = false] of [
   ['shadowed realm constructor', 'globalThis.Array', null, 'const globalThis = { Array: {} };'],
   ['mutated global slot', 'held = Array', null, '', true],
   ['ordinary property', 'globalThis.custom', null],
+  ['script this is not a named realm memo', 'this.Array', null],
+  ['literal constructor slot', 'box.C', null, 'const box = { C: Array };'],
 ]) runBoth(`constructor memo/${ name }`, `${ setup } let held, other; const result = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
@@ -411,5 +419,163 @@ for (const [setup, expression, expected] of [
   check(`${ label }/repeated query`, optionalMemberStaysGuarded(node, context), expected);
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
+
+// Provenance is minted explicitly; an ordinary source alias must not acquire it.
+for (const own of [false, true]) runBoth(`memo origin ownership/${ own }`,
+  'const realm = globalThis; const result = realm;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { path, scope: path.scope, adapter, injectorState: { isOwnPassPureBinding: () => own } };
+    check(label, memoReceiverOriginName(path.node.init, ctx), own ? 'globalThis' : null);
+  });
+
+for (const expression of ['probe ? void 0 : value', 'probe == null ? void 0 : value']) {
+  runBoth(`unrecognized rendered conditional/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    markRenderedStoredValue(path.node.init);
+    check(label, planGuardComposition(path.node.init, { path, scope: path.scope, resolvePure }), null);
+  });
+}
+
+// These are application tests: the shared decision must invoke the right binding,
+// retain its chosen source and mutate only the cloned slot owned by that binding.
+for (const [expression, setup, firstType, firstName, calls] of [
+  ['globalThis.Array', '', 'Identifier', '_Array', ['pure']],
+  ['read()', 'const read = () => globalThis;', 'Identifier', '_globalThis', ['pure']],
+  ['(held = globalThis.window).self?.self', '', 'AssignmentExpression', null, []],
+  ['(() => globalThis.window)()?.self', '', 'Identifier', '_guarded', ['guarded']],
+  ['(effect(), globalThis.window.self)', '', 'SequenceExpression', null, ['kept']],
+  ['null == globalThis.window ? void 0 : self', '', 'MemberExpression', null, []],
+  ['(held = globalThis)?.[key]', '', 'OptionalMemberExpression', null, ['deoptionalize']],
+]) runBoth(`guard application/${ expression }`, `${ setup } let held; const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const node = unwrapRuntimeExpr(path.node.init);
+  if (node.type === 'ConditionalExpression') markRenderedStoredValue(node);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { path, scope: path.scope, adapter, resolvePure };
+  const before = JSON.stringify(node);
+  const seen = [];
+  let cloned;
+  const plan = prepareGuardReceiver(node, ctx, {
+    pure(pure) { seen.push('pure'); return { type: 'Identifier', name: `_${ pure.hintName }` }; },
+    renderNav() { throw new Error('Unexpected navigation collapse'); },
+    cloneMemo(source) { cloned = cloneNode(source); return cloned; },
+    guarded(probe) {
+      check(`${ label }/guard source`, probe, node.object);
+      seen.push('guarded');
+      return { type: 'Identifier', name: '_guarded' };
+    },
+    renderKeptTail(tail) {
+      check(`${ label }/kept probe belongs to clone`, tail.probe, unwrapRuntimeExpr(cloned).expressions.at(-1).object);
+      check(`${ label }/kept probe is detached`, tail.probe === unwrapRuntimeExpr(node).expressions.at(-1).object, false);
+      seen.push('kept');
+      return { type: 'Identifier', name: '_kept' };
+    },
+    deoptionalize(hop) { seen.push('deoptionalize'); hop.optional = false; },
+  });
+  const type = firstType === 'OptionalMemberExpression' && parser.name !== 'babel' ? 'MemberExpression' : firstType;
+  check(`${ label }/first read shape`, unwrapRuntimeExpr(plan.firstReceiver).type, type);
+  if (firstType === 'AssignmentExpression') {
+    check(`${ label }/root spelling retained`, plan.firstReceiver.type, parser.name === 'babel' ? firstType : 'ParenthesizedExpression');
+    check(`${ label }/captured source identity`, plan.firstReceiver, cloned);
+  }
+  check(`${ label }/first read binding`, plan.firstReceiver.name ?? null, firstName);
+  checkDeep(`${ label }/binding calls`, seen, calls);
+  if (calls.includes('deoptionalize')) check(`${ label }/owned optional removed`, plan.firstReceiver.optional, false);
+  if (calls.includes('kept')) check(`${ label }/reader uses prepared tail`, plan.receiver.name, '_kept');
+  if (node.type === 'ConditionalExpression') {
+    check(`${ label }/composed probe identity`, plan.firstReceiver, node.test.right);
+    check(`${ label }/composed value identity`, plan.receiver, node.alternate);
+  }
+  check(`${ label }/source unchanged`, JSON.stringify(node), before);
+});
+
+for (const [expression, setup, expected] of [
+  ['(effect(), globalThis.window.self)', '', ['kept']],
+  ['read().self', 'const read = () => globalThis.window;', []],
+]) runBoth(`memo application/${ expression }`, `${ setup } const result = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { path, scope: path.scope, adapter, resolvePure };
+  const node = cloneNode(path.node.init);
+  const calls = [];
+  const result = prepareMemoReceiver(node, ctx, {
+    renderKeptTail() { calls.push('kept'); return { type: 'Identifier', name: '_kept' }; },
+    renderNav() { calls.push('nav'); return { type: 'Identifier', name: '_nav' }; },
+  });
+  check(`${ label }/source value retained`, result, node);
+  checkDeep(`${ label }/application order`, calls, expected);
+  if (expected.length) check(`${ label }/tail replacement`, unwrapRuntimeExpr(node).expressions.at(-1).name, '_kept');
+});
+
+runBoth('supplied constructor guard descends to a local call',
+  'const read = () => ({ C: Array }); const result = read()?.C?.from;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const object = unwrapRuntimeExpr(node.object);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { path, scope: path.scope, adapter, resolvePure };
+    const plan = planOptionalProbe(node, ctx, { hintName: 'Array$from', guard: { object } });
+    check(`${ label }/call owns the probe`, plan.source, object.object);
+    check(`${ label }/no detached effects`, plan.prefix.length, 0);
+  });
+
+runBoth('an instance reader observes a nested sequence value',
+  'const result = (effect(), (again(), globalThis))?.Array.name;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const reader = unwrapRuntimeExpr(path.node.init);
+    const node = unwrapRuntimeExpr(reader.object);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { path, scope: path.scope, adapter, resolvePure };
+    check(`${ label }/claim alone has no value guard`, planOptionalProbe(node, ctx), null);
+    const plan = planOptionalProbe(node, ctx, { reader });
+    check(`${ label }/nested sequence owns the test`, plan.source, unwrapRuntimeExpr(node.object));
+    check(`${ label }/prefix kept once`, plan.keepSequence, true);
+    check(`${ label }/no duplicated prefix`, plan.prefix.length, 0);
+  });
+
+for (const root of ['globalThis', 'globalThis.window']) runBoth(`mutated reader over a backed call/${ root }`,
+  `const read = () => ${ root }; const result = (effect(), read())?.self;`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
+    const node = unwrapRuntimeExpr(path.node.init);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const seen = [];
+    const before = JSON.stringify(node);
+    const plan = prepareGuardReceiver(node, { path, scope: path.scope, adapter, resolvePure }, {
+      cloneMemo: cloneNode,
+      folded(pure, effects) {
+        seen.push('folded');
+        check(`${ label }/backed surface`, pure.hintName, 'self');
+        checkDeep(`${ label }/prefix ownership`, effects, [unwrapRuntimeExpr(node.object).expressions[0]]);
+        return { type: 'Identifier', name: '_folded' };
+      },
+      guarded(probe, pure) {
+        seen.push('guarded');
+        check(`${ label }/nullish source identity`, probe, node.object);
+        check(`${ label }/guarded surface`, pure.hintName, 'self');
+        return { type: 'Identifier', name: '_guarded' };
+      },
+    }, { mutatedLeaf: true });
+    const kind = root === 'globalThis' ? 'folded' : 'guarded';
+    checkDeep(`${ label }/one application`, seen, [kind]);
+    check(`${ label }/prepared reader`, plan.firstReceiver.name, `_${ kind }`);
+    check(`${ label }/source unchanged`, JSON.stringify(node), before);
+  });
+
+for (const positioned of [false, true]) runBoth(`effects already owned by probe/${ positioned }`,
+  'const result = (effect(), globalThis.window)?.Array;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const node = unwrapRuntimeExpr(cloneNode(path.node.init));
+    if (!positioned) delete node.end;
+    const object = unwrapRuntimeExpr(node.object);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const ctx = { path, scope: path.scope, adapter, resolvePure };
+    // OXC's outer parens straddle the probe; only the exact owned slot is portable.
+    const raw = planOptionalProbe(node, ctx, { hintName: 'Array', effects: [node.object], receiverEffectCount: 1 });
+    check(`${ label }/raw wrapper admission`, !!raw, parser.name === 'babel');
+    const plan = planOptionalProbe(node, ctx, { hintName: 'Array', effects: [object], receiverEffectCount: 1 });
+    check(`${ label }/test owns its read`, plan.source, object.expressions.at(-1));
+    checkDeep(`${ label }/prefix exactly once`, plan.prefix, [object.expressions[0]]);
+  });
 
 finish();

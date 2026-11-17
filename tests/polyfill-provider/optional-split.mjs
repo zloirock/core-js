@@ -1,6 +1,7 @@
 // Split landings and nested claim ownership are source decisions in both dialects.
 import {
   optionalConstructorLanding,
+  optionalSurfaceLanding,
   planOptionalMemberSplit,
   optionalSplitReusesSurface,
   planSplitMemberLanding,
@@ -213,4 +214,74 @@ runBoth('excluded and target-native self are different value proofs', 'globalThi
   carried = true;
   check(`${ label } restored availability`, proxyReceiverValueCanBeUndefined(probe, native, ctx), false);
 });
+for (const expression of ['(effect(), globalThis)?.Map?.name', 'globalThis?.[(effect(), "Map")]?.name']) {
+  runBoth(`constructor landing effects/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+    const path = member(parser, program, 'name');
+    const effect = parser.pickPath(program, 'CallExpression').node;
+    const before = JSON.stringify(program.node);
+    const landing = optionalConstructorLanding(path.node.object, context(parser, path));
+    check(`${ label }/constructor`, landing?.pure.entry, 'Map');
+    checkDeep(`${ label }/effects`, landing?.effects, [effect]);
+    check(`${ label }/effect identity`, landing?.effects[0], effect);
+    check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+  });
+}
+
+runBoth('effectful constructor without a realm root retains its source', '(effect(), Map)?.name;', (parser, program, label) => {
+  const path = member(parser, program, 'name');
+  check(label, optionalConstructorLanding(path.node.object, context(parser, path)), null);
+});
+
+for (const [expression, expected, prelude = ''] of [
+  ['globalThis?.self', null],
+  ['window?.self', 'self'],
+  ['(effect(), local)?.self', null, 'const local = {};'],
+  ['(held = globalThis.window, held)?.self', 'self', 'let held;'],
+  ['(held = globalThis, held)?.self', 'self', 'let held;'],
+  ['(held = globalThis.window, effect(), held)?.self', null, 'let held;'],
+]) runBoth(`surface landing/${ expression }`, `${ prelude } const result = ${ expression };`, (parser, program, label) => {
+  const path = member(parser, program, 'self');
+  const before = JSON.stringify(program.node);
+  const landing = optionalSurfaceLanding(path.node, context(parser, path));
+  check(`${ label }/entry`, landing?.pure?.entry ?? null, expected);
+  if (expected) check(`${ label }/probe identity`, landing.probe, path.node.object);
+  else check(`${ label }/declined`, landing, null);
+  check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
+});
+
+for (const operator of ['||', '??']) runBoth(`decided local/${ operator }`,
+  `const A = Array; const result = (A ${ operator } Object)?.from;`, (parser, program, label) => {
+    const path = member(parser, program, 'from');
+    const plan = planOptionalMemberSplit(path.node, context(parser, path));
+    check(`${ label }/reused operand`, plan.guard.decided, unwrapRuntimeExpr(path.node.object).left);
+  });
+
+runBoth('unserved member retains its proven constructor', 'realm.unknown;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression');
+  const plan = planSplitMemberLanding(path.node, { provenKey: 'Map' }, context(parser, path));
+  check(`${ label }/member`, plan.kind, 'member');
+  check(`${ label }/constructor key`, plan.base?.key, 'Map');
+  check(`${ label }/constructor entry`, plan.base?.pure?.entry, 'Map');
+});
+
+runBoth('a realm key ends nested claim ownership', 'globalThis.window?.Map.self.box;', (parser, program, label) => {
+  const path = parser.pickPath(program, 'ExpressionStatement').get('expression');
+  check(label, nestedOptionalClaim(unwrapRuntimeExpr(path.node), context(parser, path)), null);
+});
+
+for (const kind of ['static', 'global', 'instance']) runBoth(`nested static claim kind/${ kind }`,
+  'globalThis.window?.Object.values.name;', (parser, program, label) => {
+    const path = parser.pickPath(program, 'ExpressionStatement').get('expression');
+    const ctx = context(parser, path);
+    const claim = { kind, entry: 'Object.values' };
+    ctx.resolvePure = meta => meta.object === 'Object' && meta.key === 'values' ? claim : null;
+    check(label, nestedOptionalClaim(unwrapRuntimeExpr(path.node), ctx)?.pure ?? null, kind === 'static' ? claim : null);
+  });
+
+runBoth('effectful call root is not a replaceable realm spelling',
+  '(() => { effect(); return globalThis; })().Map?.name;', (parser, program, label) => {
+    const path = member(parser, program, 'name');
+    check(label, optionalConstructorLanding(path.node.object, context(parser, path)), null);
+  });
+
 finish();

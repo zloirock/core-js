@@ -25683,6 +25683,31 @@ function * generateGuardedReceiverEffects() {
   };
 }
 
+// Constructor landings keep root effects before key effects, including abrupt completion.
+function * generateOptionalConstructorEffects() {
+  for (const shape of ['prefix', 'key', 'both']) for (const throwing of [false, true]) yield {
+    name: `optional-constructor-effects/${ shape }/${ throwing }`, strip: true, isolated: true,
+    code: `export const effects = [];
+      function step(label) { effects.push(label); ${ throwing ? 'throw new RangeError();' : '' } }
+      export const r = (() => { try {
+        return typeof ${ shape === 'key' ? 'globalThis' : '(step("prefix"), globalThis)' }?.${
+  shape === 'prefix' ? 'Map' : '[(step("key"), "Map")]' }?.name;
+      } catch (error) { return error.name; } })();`,
+  };
+  for (const [shape, expression] of [
+    ['inner-claim', '(effects.push([3].at(0)), globalThis)?.Map?.name'],
+    ['method', '(effects.push("root"), globalThis)?.Map?.[(effects.push("key"), "bind")]((effects.push("arg"), null))'],
+    ['optional-call', '(effects.push("root"), globalThis)?.Map?.bind?.((effects.push("arg"), null))'],
+    ['sealed-call', '((effects.push("root"), globalThis)?.Map?.bind)((effects.push("arg"), null))'],
+    ['iterator-read', '(effects.push("root"), globalThis)?.Map?.[(effects.push("key"), Symbol.iterator)]'],
+  ]) yield { name: `optional-constructor-effects/${ shape }`, strip: true, isolated: true,
+    code: `export const effects = []; export const r = typeof ${ expression };` };
+  yield { name: 'optional-constructor-effects/iterator-call', strip: true, isolated: true,
+    code: `export const effects = []; export const r = (() => { try {
+      return (effects.push("root"), globalThis)?.Map?.[Symbol.iterator]((effects.push("arg"), 0));
+    } catch (error) { return error.name; } })();` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27498,4 +27523,5 @@ export function * generate() {
   yield * generateCensusBoundarySources();
   yield * generateReassignedRefImports();
   yield * generateGuardedReceiverEffects();
+  yield * generateOptionalConstructorEffects();
 }
