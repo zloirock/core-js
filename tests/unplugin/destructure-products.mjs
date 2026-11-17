@@ -57,4 +57,39 @@ for (const guarded of [false, true]) for (const literalRoute of [false, true]) {
   );
   check(`${ label }/prefix leaves the old result intact`, JSON.stringify(before), snapshot);
 }
+// Deferred planning uses the same owned-alias query as visit-time planning. A ref
+// facade only allocates names; it cannot answer whether a root is a pure namespace.
+for (const owned of [false, true]) {
+  const program = parser.parseAndScope('const { Array: { prototype: { at } } } = _realm;');
+  const metaPath = parser.pickPath(program, 'Property', path => path.node.key.name === 'at');
+  const host = parser.pickPath(program, 'VariableDeclarator').node;
+  let queries = 0;
+  const { buildValue } = createDestructureDrains({
+    adapter: createEstreeAdapter({ method: 'usage-pure' }),
+    injectPureImport: () => '_at',
+    resolveGlobalPolyfill: () => null,
+    resolvePure: () => null,
+    resolveProxyNavReceiver: () => null,
+    injector: { generateDeclaredRef: () => '_ref' },
+    isOwnPureAlias(name) {
+      queries++;
+      return owned && name === '_realm';
+    },
+  });
+  const value = buildValue({
+    kind: 'instance', entry: 'array/instance/at', hintName: 'at',
+    receiverNode: host.init, prop: metaPath.node, metaPath,
+    nested: true, chainKeys: ['Array', 'prototype'],
+  });
+  check(`owned namespace/${ owned }/queries shared registry`, queries > 0, true);
+  check(`owned namespace/${ owned }/admission`, !!value, owned);
+  if (value) {
+    const product = {};
+    const rendered = value(null, product);
+    check(`owned namespace/${ owned }/lookup`, rendered.callee.name, '_at');
+    check(`owned namespace/${ owned }/root`, rendered.arguments[0].object.object.name, '_realm');
+    check(`owned namespace/${ owned }/role`, product.receiver, rendered);
+  }
+}
+
 finish();

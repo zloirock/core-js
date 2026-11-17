@@ -177,6 +177,37 @@ for (const assignment of [false, true]) for (const before of [false, true]) for 
   [...before ? ['y'] : [], 'list', 'iterator', 'next', ...throws ? [] : ['close', ...before ? [] : ['y']]],
 ]);
 
+// Shared captures replaced the old emitter-specific carrier ladder. These hosts must
+// retain initializer order even when their patterns consume every method.
+for (const placement of ['declaration', 'siblings', 'for-init', 'bodyless']) {
+  const pattern = '{ Array: { prototype: { at, includes } }, Object: C }';
+  const init = '(effects.push("init"), globalThis)';
+  const read = 'return [at.call([3, 7], -1), includes.call([3, 7], 7), typeof C];';
+  const body = placement === 'siblings'
+    ? `const lead = effects.push("lead"), ${ pattern } = ${ init }, tail = effects.push("tail"); ${ read }`
+    : placement === 'for-init' ? `for (const ${ pattern } = ${ init };;) { ${ read } }`
+      : placement === 'bodyless' ? `if (true) var ${ pattern } = ${ init }; ${ read }`
+        : `const ${ pattern } = ${ init }; ${ read }`;
+  cases.push([`carrier/${ placement }`, body, [7, true, 'function'], placement === 'siblings' ? ['lead', 'init', 'tail'] : ['init']]);
+}
+cases.push([
+  'carrier/sibling-memo',
+  'const rows = [3, 7]; function makeRows() { effects.push("make"); return rows; } '
+    + 'if (true) { const first = effects.push("lead"), { y: { at } } = { y: rows }, { at: other, length } = makeRows(); '
+    + 'return [first, at.call(rows, -1), other.call(rows, -1), length]; }',
+  [1, 7, 7, 2], ['lead', 'make'],
+]);
+for (const placement of ['init', 'update']) cases.push([
+  `carrier/rest-${ placement }`,
+  `let from, rest, index = 0; const result = [];
+   for (${ placement === 'init' ? '({ from, ...rest } = Array)' : '' }; index < 2;
+     index++${ placement === 'update' ? ', ({ from, ...rest } = Array)' : '' }) {
+     result.push(typeof from === 'function' ? from([index])[0] : -1);
+   }
+   return [result, typeof rest, Object.prototype.hasOwnProperty.call(rest, "from")];`,
+  [placement === 'init' ? [0, 1] : [-1, 1], 'object', false],
+]);
+
 for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
   for (const directive of ['file', 'line', 'next-line']) {
     const body = 'const { globalThis: { Array: { prototype: { at } }, Object: o } } = globalThis;';

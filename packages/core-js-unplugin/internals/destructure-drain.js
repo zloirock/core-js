@@ -119,11 +119,9 @@ import {
   interleavedSeKeySegments,
   jobHostSiblingDeclarators,
   joinSeKeySiblingDeclarator,
-  keptSymbolSentinelResidual,
   liftAssignInitPrefix,
   liftedPrefixStatements,
   liftSurvivingInitPrefix,
-  literalContainerRescue,
   liveHostStatement,
   liveTailOf,
   livePrefixOf,
@@ -159,6 +157,7 @@ export default function createDestructureDrains(ctx) {
     injector,
     injectorState,
     isDisabled,
+    isOwnPureAlias,
     ledger,
     markRewrite,
     mintRefName,
@@ -180,11 +179,6 @@ export default function createDestructureDrains(ctx) {
     synthLedger,
     toHint,
   } = ctx;
-  // the aliases this leg minted for a global (`_globalThis`): the re-read question's per-leg lookup
-  function isOwnPureAlias(name) {
-    return !!injector?.getBindingInfo?.(name);
-  }
-
   // the extracted binding's value: a static / global claim is the import binding itself;
   // an instance claim dispatches through the receiver and retains its live default.
   // An always-defined static import makes the source default unreachable.
@@ -1041,7 +1035,7 @@ export default function createDestructureDrains(ctx) {
       markSubtreeSkipped(skippedNodes, job.prop);
     }
     statements.push(...groupMemoExtractions(extracted, exported));
-    return keptSymbolSentinelResidual(declarator, declJobs, refName, mintUnusedName) ? true : 'consumed';
+    return 'consumed';
   }
 
   // PARTIAL consumption still memoizes when the group READS the receiver: the memo holds
@@ -1146,8 +1140,8 @@ export default function createDestructureDrains(ctx) {
       // moves its whole pattern), captured before the removal pass
       job.bindingTarget = memoJobBindingTarget(job);
     }
-    // sentinel-kept declarators with an unre-readable init memoize like the block-hosted
-    // twin: `var _ref = <init>, { ..._unused } = _ref, f = _flat(_ref), i = 0;`
+    // Sentinel-kept declarators with an unre-readable init share a memo with their
+    // extractions, keeping both the residual and the memo inside the loop header.
     const memoRefs = forInitMemoVerdicts(byDeclarator, mintRefName, { adapter, injectorState });
     removeConsumedProps(jobs);
     const declarations = [];
@@ -1324,10 +1318,8 @@ export default function createDestructureDrains(ctx) {
       // a HOP-anchored sibling renders its own declarator whole (the flatten's slots), so the
       // comma join would bake this memo into a declaration that emitter is about to replace
       || jobs.some(job => !memoByDeclarator.has(job.declarator) && job.chain?.length)
-      // a residual kept by a REST alone splits per statement instead - the memo, the extraction,
-      // then the residual (`var _ref = holder.p; var m = _flat(_ref); var { ..._unused } = _ref;`),
-      // on a sole and a sibling host alike; an SE-KEY sentinel joins - its key runs in the residual,
-      // behind the memo and ahead of the extraction
+      // A join requires an effectful sentinel key, which runs in the residual after
+      // the memo and before its extraction. A rest-only static residual uses the split.
       || jobs.every(job => !job.seKey)) {
       return false;
     }
@@ -1505,12 +1497,8 @@ export default function createDestructureDrains(ctx) {
     const overwrites = jobs.map(job => expressionStatement(
       assignmentExpression('=', jobBindingTarget(job), job.value())));
     const remains = consumedAssignmentRemains(jobs);
-    // a sentinel minted into the kept residual (a hop emptied beside a REST) writes an undeclared
-    // name in assignment position: its `var` lands ahead of the statement, babel's shape
-    const mintedNames = jobs.flatMap(job => job.mintedSentinels ?? []);
-    const varDecl = mintedNames.length
-      ? [variableDeclaration('var', mintedNames.map(name => variableDeclarator(identifier(name))))] : [];
-    const statements = [...varDecl, ...remains ?? [body[at]], ...overwrites];
+    // Instance overwrite jobs never rename rest-excluded keys; those remain native.
+    const statements = [...remains ?? [body[at]], ...overwrites];
     body.splice(at, 1, ...anchorLeadingStatement({ statements, hostNode: body[at] }));
   }
 
@@ -1662,8 +1650,8 @@ export default function createDestructureDrains(ctx) {
         continue;
       }
       const declJobsHere = jobsByDeclarator.get(declarator) ?? [];
-      // the memo lands FIRST: the join reads a re-readable identifier init, which is what
-      // the memo just made this one (`const _ref = getArr(), { ..._unused } = _ref, fl = ...`)
+      // The memo lands first, supplying the stable initializer shared by the residual
+      // and its extractions.
       // the node that memo HOLDS: a literal-receiver plan naming the same read joins this
       // binding instead of declaring a second copy of it
       const refName = memoByDeclarator.get(declarator);
@@ -1700,16 +1688,11 @@ export default function createDestructureDrains(ctx) {
       // separates "we emptied it" from "it came that way"
       const emptied = declarator.id.type === 'ObjectPattern' && declarator.id.properties.length === 0
         && (declJobsHere.length > 0 || (sourceProps.get(declarator) ?? []).length > 0);
-      // a LITERAL CONTAINER's discarded siblings evaluate BEFORE the slot the extraction
-      // read, so they ride the value as a sequence prefix (`{ 1: { keys } } = [bump(),
-      // Object]` -> `const keys = (bump(), _Object$keys)`); every other rescued init lifts
-      // as its own statement ahead of the extraction, which is the sequence-init canon
-      const containerPrefix = emptied ? literalContainerRescue(declarator, declJobsHere, adapter) : [];
       // ... and an init only the PROBE proved absent-able keeps its own read: the consume
       // discards it, and off-env that read is what throws
       // (`{ Array: { of } } = globalThis.window` leads with `(null == _globalThis.window
       // ? void 0 : _globalThis.window).Array`)
-      const probeRead = emptied && !containerPrefix.length ? renderDiscardedInitProbe(declJobsHere, probeRenderCtx) : null;
+      const probeRead = emptied ? renderDiscardedInitProbe(declJobsHere, probeRenderCtx) : null;
       const extractedHere = [];
       const extractionJobs = new Map();
       // the init's own prefix is placed ONCE per declarator: it rides the FIRST extraction's value
@@ -1730,7 +1713,7 @@ export default function createDestructureDrains(ctx) {
       const carryIntoFirst = initPlacement.placement === 'value';
       for (const job of jobsHere) {
         const leading = extractedHere.length !== 0 ? []
-          : [...containerPrefix.map(expr => cloneNode(expr)), ...probeRead ? probeEffectNodes(probeRead) : []];
+          : probeRead ? probeEffectNodes(probeRead) : [];
         const carried = extractedHere.length !== 0 || !carryIntoFirst ? [] : initPrefix;
         const carriedValue = renderDestructurePrefix(firstValue || job.value(refName), carried, firstProduct?.receiver);
         const value = leading.length ? sequenceExpression([...leading, carriedValue]) : carriedValue;
@@ -1797,7 +1780,7 @@ export default function createDestructureDrains(ctx) {
         );
         const extractionAt = statements.length;
         statements.push(...extractedHere);
-        if (declJobsHere.length && !containerPrefix.length && !probeRead) {
+        if (declJobsHere.length && !probeRead) {
           rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements, insertAt: extractionAt });
         }
         // Only a sole defaulted consume retains the untouched tail of this source host.

@@ -25758,6 +25758,58 @@ function * generateArrayHostBoundaries() {
   }
 }
 
+// Deferred emitter hosts share source-order obligations with retained captures.
+function * generateDestructureCarrierHosts() {
+  for (const placement of ['declaration', 'siblings', 'for-init', 'bodyless']) {
+    const pattern = '{ Array: { prototype: { at, includes } }, Object: C }';
+    const init = '(log.push("init"), globalThis)';
+    const result = 'return [at.call([3, 7], -1), includes.call([3, 7], 7), typeof C];';
+    const body = placement === 'siblings'
+      ? `const lead = log.push("lead"), ${ pattern } = ${ init }, tail = log.push("tail"); ${ result }`
+      : placement === 'for-init' ? `for (const ${ pattern } = ${ init };;) { ${ result } }`
+        : placement === 'bodyless' ? `if (cond) var ${ pattern } = ${ init }; ${ result }`
+          : `const ${ pattern } = ${ init }; ${ result }`;
+    yield { ...snippet(`destructure-carrier-hosts/${ placement }`, `(() => { ${ body } })()`), strip: true };
+  }
+  for (const placement of ['init', 'update']) yield {
+    ...snippet(`destructure-carrier-hosts/rest-${ placement }`, `(() => {
+      let from, rest, index = 0; const result = [];
+      for (${ placement === 'init' ? '({ from, ...rest } = Array)' : '' }; index < 2;
+        index++${ placement === 'update' ? ', ({ from, ...rest } = Array)' : '' }) {
+        result.push(typeof from === 'function' ? from([index])[0] : -1);
+      }
+      return [result, typeof rest, Object.prototype.hasOwnProperty.call(rest, "from")];
+    })()`), strip: true,
+  };
+  yield { ...snippet('destructure-carrier-hosts/sibling-memo', `(() => {
+    const rows = [3, 7]; function makeRows() { log.push("make"); return rows; }
+    if (cond) {
+      const first = log.push("lead"), { y: { at } } = { y: rows }, { at: other, length } = makeRows();
+      return [first, at.call(rows, -1), other.call(rows, -1), length];
+    }
+  })()`), strip: true };
+  for (const prefix of [false, true]) yield {
+    ...snippet(`destructure-carrier-hosts/call/${ prefix }`, `(() => {
+      function getRealm() { ${ prefix ? '' : 'log.push("call");' } return globalThis; }
+      const { Array: { prototype: { flat }, isArray } } = ${ prefix ? '(log.push("init"), getRealm())' : 'getRealm()' };
+      return [flat.call([[7]])[0], isArray([])];
+    })()`), strip: true,
+  };
+  for (const active of [false, true]) yield {
+    ...snippet(`destructure-carrier-hosts/sealed/${ active }`, `(() => {
+      try { if (${ active }) var { from } = (globalThis.window?.self).Array;
+        return typeof from;
+      } catch (error) { return error.name; }
+    })()`), strip: true,
+  };
+  yield { ...snippet('destructure-carrier-hosts/header-prefix', `(() => {
+    const holder = { get box() { log.push("get"); return { A: Array }; } };
+    for (const { A: { from } } = (log.push("prefix"), holder.box); ;) {
+      return from([7])[0];
+    }
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27576,4 +27628,5 @@ export function * generate() {
   yield * generateOptionalConstructorEffects();
   yield * generateOwnedImportReceivers();
   yield * generateArrayHostBoundaries();
+  yield * generateDestructureCarrierHosts();
 }

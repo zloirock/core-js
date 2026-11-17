@@ -5,9 +5,7 @@
 // AST-mutation pipeline `handleDestructuredProperty` (strategy decided by `planDestructureEmission`,
 // executed via babel `replaceWith` / `insertBefore` / `splice`) plus the side-effect lift
 // (`plantSideEffect` plants what a discarded init owes ahead of its host).
-// public surface: `handleObjectPropertyResult`, `extractCatchClause`,
-// `retainedForInitHosts`, and the three programExit-driven members the caller must drain -
-// `flushProbedAnchorSwaps`, `splitFlatMultiDecls`, `tryFlattenProxyHopHost`.
+// The returned callbacks serve traversal, deferred captures and the final program drains.
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
@@ -1664,6 +1662,7 @@ export default function createDestructureEmitter({
   // chain for inner descendants; raw mutation leaves the detached SE expression slot
   // referenced by inner prop paths, and `isOrphaned` flags every sibling after the first
   // as orphaned - silently dropping per-prop polyfill dispatch for multi-prop hosts
+  // `peeled` is the successful `peelToDestructureHost` result, including its sequence prefix.
   function flattenSEWrappersToBareAE(exprStmt, assignPath, peeled) {
     if (exprStmt.node.expression === assignPath.node) return;
     const prefixStmts = peeled.sequencePrefix.map(e => t.expressionStatement(e));
@@ -1684,10 +1683,6 @@ export default function createDestructureEmitter({
   // bare statement. preserves "polyfill always wins" - the destructure discards the
   // receiver's native value into `_unused`, then `name = _polyfill` overrides it
   const cascadedAssignments = new WeakSet();
-  // `peeled` is REQUIRED: both call sites reach here only past a truthy `peelToExpressionStatement`
-  // the discarded-ELEMENT twin of `peelToExpressionStatement`: the same render, hosted by a slot
-  // that is not a statement. the peel yields no sequence prefix - only Paren / TS wrappers sit
-  // between the assignment and its element, and the SE its RIGHT carries is lifted downstream
   // sentinel `var`s owed by a discarded-element render, flushed once the tree is final
   const pendingElementSentinels = [];
 
@@ -4206,7 +4201,7 @@ export default function createDestructureEmitter({
         // of the root, which only a memo affords - the whole init memoizes into a `_ref` (the shape
         // the flat sibling's own claim takes) and the walk resolves off that identifier
         // (`{ data: { at }, keys } = mk()` -> `const _ref = mk(); const at = _at(_ref.data);`)
-        // A known surface behind a sequence or store uses the prefix lift below.
+        // A known surface behind a sequence or store uses the carrier plan below.
         // Treating it as an opaque root first would replace that route with a whole-init memo.
         const prefixedSurface = !typedChain
           && resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true, adapter });
@@ -5242,7 +5237,7 @@ export default function createDestructureEmitter({
   }
 
   // for-init with SE: keep SE inline so it doesn't escape the loop.
-  // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
+  // static: for (var { from } = (se(), Array);;) -> for (var from = (se(), _Array$from);;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
   // Both branches return their live declarators for the caller to restore moved bindings.
   function handleForInitSE({ declaration, parent, localBinding, value, scope, isStatic, probe = null }) {
@@ -5261,9 +5256,8 @@ export default function createDestructureEmitter({
           injectImport: (entry, hint) => injectPureImport(entry, hint).name, embed: hostSlot, cloneHost: node => t.cloneDeep(node),
         }),
       });
-      // static polyfill import - SE needs a dummy binding to stay in for-init. the sink
-      // lands BEFORE every extraction of its source initializer (SE-first, source-faithful),
-      // not at the consumed slot where earlier per-prop inserts would precede it
+      // A sole value carries its setup inline. A separate sink, when required, precedes
+      // every extraction of this initializer rather than only the last consumed slot.
       const decls = declaration.node.declarations;
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
@@ -5820,20 +5814,6 @@ export default function createDestructureEmitter({
     });
   }
 
-  // build the planner context for an AssignmentExpression destructure host. mirrors
-  // `classifyVariableDeclaratorSite`: `assignmentTarget` is the host ExpressionStatement,
-  // `isBodyless` reports whether that statement is the unbraced body of a control statement,
-  // `hasSideEffects` is only relevant when the destructure pattern was fully consumed (isEmpty)
-  function classifyAssignmentDestructureSite({ parent, assignmentTarget, isStaticValue, isEmpty }) {
-    return {
-      parentType: 'AssignmentExpression',
-      isEmpty,
-      isStaticValue,
-      hasSideEffects: isEmpty && initRunsCode(parent.node.right, { scope: parent.scope, adapter, path: parent }),
-      isBodyless: isBodylessStatementSlot(assignmentTarget.parentPath?.node, assignmentTarget.node),
-    };
-  }
-
   // a DISCARDED non-tail sequence element owns no statement: what a statement host writes as
   // sibling statements, this one writes as sequence elements in its own slot. the three shapes the
   // planner reaches here map one for one - a surviving residual takes the extraction AHEAD of it,
@@ -5898,8 +5878,7 @@ export default function createDestructureEmitter({
     // aligning flat multi-prop AE with the VariableDeclaration splice order
     recordOriginalDeclKey(assignmentTarget);
     if (isEmpty && isStaticValue) reclaimLiftedResidualPrefix(parent.node, 'right');
-    const ctx = classifyAssignmentDestructureSite({ parent, assignmentTarget, isStaticValue, isEmpty });
-    const strategy = planDestructureEmission(ctx);
+    const strategy = planDestructureEmission({ parentType: 'AssignmentExpression', isStaticValue, isEmpty });
     switch (strategy) {
       case STRATEGIES.LIFT_SE_AND_REPLACE_ASSIGN: {
         plantSideEffect(assignmentTarget, parent.node.right, probe);

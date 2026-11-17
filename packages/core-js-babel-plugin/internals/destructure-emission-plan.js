@@ -17,7 +17,7 @@ export const STRATEGIES = Object.freeze({
   // bodyless host (`if (...) { /* declaration */ }` form needed) with SE-bearing static
   // init - replace declaration with a block carrying the SE expr + extracted declaration
   WRAP_BODYLESS_SE: 'wrap-bodyless-se',
-  // for-init with SE static value - keep SE inline as dummy declarator alongside extracted
+  // for-init with SE static value - keep setup in its value or a preceding sink
   FOR_INIT_SE_STATIC: 'for-init-se-static',
   // for-init with SE instance value - mutate declarator's id/init in place
   FOR_INIT_SE_INSTANCE: 'for-init-se-instance',

@@ -176,7 +176,6 @@ import {
   defaultedSoleConsumes,
   duplicateReceiver,
   eagerSentinelMemoName,
-  emitAssignStaticDefaultOverwrite,
   guardedSlotValue,
   hasRestSibling,
   hopChainKeys,
@@ -361,6 +360,7 @@ export default function createAstDestructureEmitter({
     injector,
     injectorState,
     isDisabled,
+    isOwnPureAlias,
     ledger,
     markRewrite,
     mintRefName,
@@ -2202,7 +2202,7 @@ export default function createAstDestructureEmitter({
             && (soleConsume || (sentinel && prop.computed && computedKeyHasSideEffects(prop, keyCtx)));
     // ... and a MEMO bounds any other instance shape the same way: the init evaluates in
     // the `_ref` declaration alone - the extraction dispatches on the ref, a surviving
-    // residual reads the same ref (`if (c) var { at, ...rest } = getObj();` -> the block
+    // residual reads the same ref (`if (c) var { at, length } = getObj();` -> the block
     // memo - babel's shape)
     // a NON-instance claim reads nothing off the receiver, but a SURVIVING residual does, and the
     // block the drain opens hosts a memo for it exactly like the instance twin - so an effectful
@@ -2459,9 +2459,8 @@ export default function createAstDestructureEmitter({
       memoSibling,
     } = literalRoute;
     let { literalReceiver, forInitLiteral } = literalRoute;
-    // a for-init SENTINEL needs a receiver the residual can read a second time: the memo
-    // gives it one, and a bare IDENTIFIER init already is one (`{ at, ...rest } = arr` ->
-    // `at = _at(arr), { at: _unused, ...rest } = arr`)
+    // An admitted effectful key in a for-init needs a receiver its residual can re-read:
+    // an eligible memo or the initializer's stable identifier supplies that receiver.
     if (forInit && sentinel && !sentinelMemoEligible && kind === 'instance'
       && peelTransparentExpr(declarator.init)?.type !== 'Identifier') return;
     // A retained receiver keeps its selection; the common proof bars user-valued arms.
@@ -2850,7 +2849,6 @@ export default function createAstDestructureEmitter({
         });
       },
     };
-    attachAssignmentSentinelMinter(overwriteJob, { seqHostStatement, metaPath, injector, mintUnusedName });
     recordJob({ hostPath: seqHostStatement ? hostParent : exprStmtPath, job: overwriteJob });
     return true;
   }
@@ -2927,8 +2925,6 @@ export default function createAstDestructureEmitter({
       routeSelectionMirror(metaPath, handlePerBranch, meta);
       return;
     }
-    if (emitAssignStaticDefaultOverwrite({ hostParent, prop, chain, kind, entry, hintName, metaPath },
-      { adapter, injectorState, injectPureImport, markRewrite, markSubtreeSkipped, skippedNodes })) return;
     // a NESTED instance leaf in a destructuring-ASSIGNMENT has no declaration to host a
     // `const`: the destructure assigns the native slot first, then an OVERWRITE statement
     // re-binds the local through the ponyfill (`({ y: { at: m } } = { y: R })` -> `m =
@@ -3045,15 +3041,13 @@ export default function createAstDestructureEmitter({
     // (and any surviving residual) read ONE receiver, which the drain memoizes
     // (`({ at, includes } = [1, 2, 3])` -> `const _ref = [1, 2, 3]; at = _atMaybeArray(_ref); ...`)
     // ... a DEFAULTED leaf too, as in the sole consume: its guard is the value render's
-    // ... and a REST sibling is exactly such a residual: it re-reads the receiver past the renamed
-    // key, so the memo is what gives both readers one identity - the arrangement the DECLARATION
-    // host already emits for the same pattern. an SE-keyed sentinel keeps its own routes below,
-    // where the key's effect decides the shape rather than the receiver's re-readability
+    // Static claims can rename a rest-excluded key. Instance claims beside rest stay
+    // native at admission, so their consume route never creates such a sentinel.
     const restSentinelOnly = sentinel && hasRestSibling(pattern, keyCtx)
       && !(prop.computed && computedKeyHasSideEffects(prop, keyCtx));
     // ... and a BODYLESS slot hosts the same arrangement: its drain opens a block, and the memo goes
     // in there with the extraction and the residual, guarded exactly as the source guarded them
-    const multiInstanceConsume = !pureNavRhs && !bodylessSeqPrefix && (!sentinel || restSentinelOnly)
+    const multiInstanceConsume = !pureNavRhs && !bodylessSeqPrefix && !sentinel
       && chain.length === 0
       && pattern.properties.length > 1 && flatAssignLeaf && kind === 'instance';
     // a receiverless STATIC in a MULTI-prop consume rides along: the memo (or the kept

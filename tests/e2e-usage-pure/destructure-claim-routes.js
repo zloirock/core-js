@@ -426,3 +426,24 @@ QUnit.test('a captured static rest keeps an independent claim in its write targe
   assert.same(typeof holder.t, 'object');
   assert.false('from' in holder.t, 'the served property is excluded from rest');
 });
+
+QUnit.test('destructuring: shared surface capture follows its preceding declarator', assert => {
+  const events = [];
+  const lead = events.push('lead'),
+        { Array: { prototype: { at, includes } }, Object: C } = (events.push('init'), globalThis);
+  assert.same(lead, 1);
+  assert.same(at.call([3, 7], -1), 7);
+  assert.same(includes.call([3, 7], 7), true);
+  assert.same(typeof C, 'function');
+  assert.deepEqual(events, ['lead', 'init']);
+});
+
+QUnit.test('destructuring: loop slots retain static rest exclusions', assert => {
+  let from, rest,
+      index = 0;
+  for ({ from, ...rest } = Array; index < 2; index++, { from, ...rest } = Array) {
+    assert.same(from([index])[0], index);
+    assert.same(typeof rest, 'object');
+    assert.same(Object.hasOwn(rest, 'from'), false);
+  }
+});
