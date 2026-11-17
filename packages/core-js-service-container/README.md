@@ -108,3 +108,8 @@ Expect HTTP `200` with JavaScript, `Vary: User-Agent, Accept-Encoding`, and an `
 ## Update the service
 
 For a new manifest or image, start a replacement container without stopping the current one. Wait for your required readiness state, then switch the application's proxy to the replacement. Keep the old instance available until traffic has moved. The container does not perform that switch, and editing the mounted manifest does not update an already running instance.
+
+If the new application needs additional modules, add them to the existing manifest and
+roll it out to every container serving `/polyfills.js` before publishing the application.
+Keep modules that older pages still use. You can remove them in a later update, once visitors
+can no longer load those pages, including from cached HTML.
