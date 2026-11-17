@@ -35,7 +35,6 @@ import {
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
-  assignmentExpression,
   chainExpression,
   cloneNode,
   identifier,
@@ -180,7 +179,7 @@ export default function createAstUsagePureCallback({
   // what the module-scope type-stamp pair needs
   const typeStampCtx = { resolveNodeType, resolvedType };
   // The proxy guard may memoize an instance claim on its surviving tail.
-  const seKeyReadCtx = { injector, assignmentExpression, resolvePure };
+  const seKeyReadCtx = { injector, resolvePure };
   // what the module-scope pristine-hop peel needs
   const hopPeelCtx = { adapter, resolveGlobalPolyfill };
   // what the module-scope nested-guard value render needs
@@ -239,7 +238,6 @@ export default function createAstUsagePureCallback({
     injectPureImport,
     injector,
     injectorState,
-    isMutatedStatics,
     isShadowedByClassOwnMember,
     markRewrite,
     memoValueClones,

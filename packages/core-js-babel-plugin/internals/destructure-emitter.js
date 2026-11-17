@@ -3267,7 +3267,6 @@ export default function createDestructureEmitter({
         mintDeclaredRef: () => generateRef(prop.scope, prop.node).name,
         injectImport: (pureEntry, hint) => injectPureImport(pureEntry, hint).name,
         resolveGlobalPolyfill: resolveGlobalPure,
-        adapter,
         embed: hostSlot,
         ctx: { scope: prop.scope, adapter, path: prop },
         sourceNode: estreeToBabel,
@@ -4020,7 +4019,7 @@ export default function createDestructureEmitter({
   function clonePatternClaimed(pattern) {
     const clone = t.cloneNode(pattern, true);
     t.traverseFast(clone, node => {
-      if (node.type === 'ObjectProperty' || node.type === 'Property') skippedNodes.add(node);
+      if (node.type === 'ObjectProperty') skippedNodes.add(node);
     });
     return clone;
   }
@@ -4086,7 +4085,7 @@ export default function createDestructureEmitter({
     let headDeclarator = objectPattern.parentPath;
     while (headDeclarator?.node && (headDeclarator.node.type === 'ArrayPattern'
       || headDeclarator.node.type === 'ObjectPattern' || headDeclarator.isObjectProperty?.()
-      || headDeclarator.node.type === 'Property' || headDeclarator.node.type === 'AssignmentPattern')) {
+      || headDeclarator.node.type === 'AssignmentPattern')) {
       // The shared array plan already had first refusal; this route owns object hosts only - an
       // element's default is climbed through, the element it defaults stays the array plan's.
       if (headDeclarator.isArrayPattern()) return kind === 'instance';

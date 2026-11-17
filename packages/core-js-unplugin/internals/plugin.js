@@ -1021,7 +1021,7 @@ export default function createPlugin(options) {
           holder = holder[key];
           key = 'expression';
         }
-        node.typeArguments = instantiation.typeArguments ?? instantiation.typeParameters;
+        node.typeArguments = instantiation.typeArguments;
         holder[key] = instantiation.expression;
         astNormalized = true;
       }
@@ -1374,7 +1374,6 @@ export default function createPlugin(options) {
           injector: refFacade,
           injectorState: injector,
           injectPureImport,
-          isEntryAvailable,
           markRewrite() { astRewrote = true; },
           skippedNodes,
           markSubtreeSkipped,

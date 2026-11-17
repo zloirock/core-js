@@ -705,7 +705,6 @@ function restoreLegacyInstantiationParens(path) {
 const OPTIONAL_CHAIN_PAREN_TYPES = new Set([
   'OptionalMemberExpression',
   'OptionalCallExpression',
-  'ChainExpression',
 ]);
 const CHAIN_PAREN_KEYS = { TaggedTemplateExpression: 'tag', NewExpression: 'callee', TSNonNullExpression: 'expression' };
 

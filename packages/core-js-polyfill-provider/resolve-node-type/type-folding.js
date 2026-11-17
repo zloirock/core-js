@@ -499,7 +499,6 @@ export function createTypeFolding({
     findTupleElement,
     resolveAnnotationInContext,
     typesEqual,
-    innersEqual,
     commonType,
     isNullableOrNever,
     isNullableOrNeverAnnotation,

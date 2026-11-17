@@ -132,7 +132,7 @@ function liveOptionalAboveSeal(chainPath) {
   for (let up = chainPath.parentPath; up?.node; cur = up, up = up.parentPath) {
     const { node } = up;
     if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) && node.expression === cur.node) continue;
-    return (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+    return node.type === 'MemberExpression'
       && node.object === cur.node && !!node.optional;
   }
   return false;
@@ -365,12 +365,11 @@ export function replaceGuardedHop({
 // the chain-hop canon's set - the marker oxc hangs on an optional spine, and TS assertions, which
 // erase and seal nothing of their own (`(x?.y as any).z` seals exactly like its cast-less twin;
 // climbing only the marker read it as unsealed). only the ANSWER is outside a set: the paren is not
-// a layer to peel, and one dialect spells it as a flag on the node below rather than a node at all
-export function sealedLayerAbove(metaPath, node) {
-  if (node.extra?.parenthesized) return true;
+// a layer to peel. This host retains source parens as nodes.
+export function sealedLayerAbove(metaPath) {
   let up = metaPath.parentPath;
   while (CHAIN_HOP_WRAPPER_TYPES.has(up?.node?.type)) up = up.parentPath;
-  return up?.node?.type === 'ParenthesizedExpression' || !!up?.node?.extra?.parenthesized;
+  return up?.node?.type === 'ParenthesizedExpression';
 }
 
 // Bind the shared value question to the caller's native scope and entry resolver.

@@ -306,7 +306,7 @@ for (const [label, source, expected] of [
   const property = adapter.pickPath(program, adapter.name === 'babel' ? 'ObjectProperty' : 'Property');
   const typeResolvers = adapter.makeResolver();
   const env = { typeResolvers,
-    astPredicates: { isMemberLike: () => false, isCallee: () => false, isSpreadElement: () => false } };
+    astPredicates: { isMemberLike: () => false, isSpreadElement: () => false } };
   for (const method of ['usage-global', 'usage-pure']) {
     const { resolver } = createPolyfillResolver({ method, version: '4.0', targets: { ie: 11 } }, env);
     const meta = { kind: 'property', key: 'toString' };

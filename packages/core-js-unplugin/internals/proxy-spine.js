@@ -618,7 +618,7 @@ export default function createProxySpineChannel(ctx) {
     // the sealed value, so the run goes on through it, and the shared plan spells it whole from that
     // end - the render the root claim gives the same run. where nothing past the seal continues it
     // the root render declines and the claim keeps its own guard below
-    if (sealedLayerAbove(metaPath, node) && emitRootGuardedNavCollapse(metaPath)) return true;
+    if (sealedLayerAbove(metaPath) && emitRootGuardedNavCollapse(metaPath)) return true;
     if (emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName })) return true;
     // both guard renders declining is not a verdict to ship the claim RAW: the ordinary swap
     // owns those shapes (`delete f?.()?.Map.groupBy` - a `delete` reads nothing over the nav,
@@ -1117,7 +1117,7 @@ export default function createProxySpineChannel(ctx) {
     }, {
       allowOptional, consumer: spineConsumerFacts(target),
       get mutatedGuards() { return mutatedRunKeepsItsGuards(metaPath); },
-      sealed: sealedLayerAbove(target, target.node),
+      sealed: sealedLayerAbove(target),
       get deletedAbove() { return deleteHostAboveChain(target, target.node, unwrapRuntimeExpr); },
       get deleteFold() { return deleteHostForClaim(metaPath, metaPath.node, { forFold: true }); },
       get inProbe() { return insideMemoClone(metaPath, probeTestClones); },
@@ -1167,7 +1167,7 @@ export default function createProxySpineChannel(ctx) {
       node, above, hintName,
       aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
       resolvePure: m => resolvePure(m, metaPath),
-      sealed: sealedLayerAbove(metaPath, node),
+      sealed: sealedLayerAbove(metaPath),
       stored: !!storedUserAssignmentOf(metaPath),
       probeTest: insideMemoClone(metaPath, probeTestClones),
       deleteHosted: deleteHostForClaim(metaPath, node),
@@ -1437,7 +1437,7 @@ export default function createProxySpineChannel(ctx) {
     // (`(0, globalThis)?.flat`) substitutes what the source already read directly, and the `?.` there
     // is the source's own - the reference emitter keeps it
     if (!chainDropped && substituted?.type === 'Identifier'
-      && (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')) {
+      && node?.type === 'MemberExpression') {
       const seqPath = metaPath.parentPath;
       const seqNode = seqPath?.node;
       // the sequence's own TAIL is asked, not the path's node: the path can still hold the member the

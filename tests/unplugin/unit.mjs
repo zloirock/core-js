@@ -69,6 +69,7 @@ import {
   KNOWN_BUNDLERS,
   hasCoreJSImport,
   isChunkLoaderBundler,
+  optionalCallInstantiationCallee,
   stripLeadingBOMs,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import unpluginPackage from '../../packages/core-js-unplugin/package.json' with { type: 'json' };
@@ -5997,7 +5998,7 @@ function checkSealedLayerAbove() {
     let verdict = null;
     traverse(program, {
       MemberExpression(path) {
-        if (path.node.optional) verdict = sealedLayerAbove(path, path.node);
+        if (path.node.optional) verdict = sealedLayerAbove(path);
       },
     });
     return verdict;
@@ -6017,6 +6018,26 @@ function checkSealedLayerAbove() {
   for (const [label, expr, expected] of rows) check(`sealedLayerAbove/${ label }`, sealed(expr), expected);
 }
 checkSealedLayerAbove();
+
+// Type arguments belong to the ESTree instantiation; normalization must expose the
+// method receiver without making a bare optional call or indirect eval into a method.
+for (const [expression, expected] of [
+  ['(Array.of<number>)?.(7)', true],
+  ['((Array.of<number>))?.(7)', true],
+  ['Array.of?.<number>(7)', false],
+  ['(fn<number>)?.(7)', false],
+  ['(eval<string>)?.("x")', true],
+]) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const { program, errors } = parseSync('unit.ts', expression, { lang: 'ts' });
+  check(`optional instantiation/${ expression }/parses`, errors.length, 0);
+  let call;
+  traverse(program, { CallExpression(path) { if (path.node.optional) call = path.node; } });
+  check(`optional instantiation/${ expression }/optional call found`, !!call, true);
+  const instantiation = optionalCallInstantiationCallee(call);
+  check(`optional instantiation/${ expression }/normalizes`, !!instantiation, expected);
+  if (expected) check(`optional instantiation/${ expression }/type arguments retained`, instantiation.typeArguments.params.length, 1);
+}
 
 {
   const source = 'const obj = globalThis; const { Array: { from }, [Symbol.iterator]: iter, ...rest } = obj; use(from, iter, rest);';

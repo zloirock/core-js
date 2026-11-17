@@ -35,6 +35,7 @@ import {
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
+  assignmentExpression,
   cloneNode,
   identifier,
   sequenceExpression,
@@ -46,8 +47,6 @@ import {
 import { receiverCarriesOptional } from './emit-shared.js';
 
 export { sequenceTailRunAbove } from '@core-js/polyfill-provider/helpers/ast-patterns';
-
-export { foldSeqKeyLiteralTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 // Clone a receiver without redundant spine parens. A seal around an optional chain
 // remains semantic for later rewrites of both member objects and callees; TS casts stay.
@@ -132,7 +131,7 @@ export function instanceTailMemoTest(test, metaPath, node, ctx) {
     || ctx.resolvePure({ kind: 'property', key: aboveKey, placement: 'prototype' }, metaPath)?.kind !== 'instance') {
     return test;
   }
-  return ctx.assignmentExpression('=', identifier(ctx.injector.generateDeclaredRef(metaPath)), test);
+  return assignmentExpression('=', identifier(ctx.injector.generateDeclaredRef(metaPath)), test);
 }
 
 // this leg's surgery for the shared fold verdict: the core walks the realm hops standing above a
@@ -457,14 +456,6 @@ export function noteProxyHopClaimHost(metaPath, node, hopNoteCtx) {
     && !hopNoteCtx.meta?.sideEffects?.length && POSSIBLE_GLOBAL_OBJECTS.has(node.property?.name)) {
     noteMutatedCtorHopDestructure(metaPath, node, hopNoteCtx);
   }
-}
-
-// a COMPUTED hop anywhere down the member spine - the read-form split arm keys on it
-// (`navComputedKeyEffects` answers a different question: only the SEQ-keyed hops' effects)
-export function spineCarriesComputedHop(objectNode) {
-  for (let cur = unwrapRuntimeExpr(objectNode); cur?.type === 'MemberExpression';
-    cur = unwrapRuntimeExpr(cur.object)) if (cur.computed) return true;
-  return false;
 }
 
 // Locate the native whole host of a realm claim. Consumed assignment values keep their

@@ -840,7 +840,6 @@ export default function createAstDestructureEmitter({
         mintDeclaredRef: () => injector.generateDeclaredRef(metaPath),
         injectImport: injectPureImport,
         resolveGlobalPolyfill,
-        adapter,
         ctx: { scope: metaPath.scope, adapter, path: metaPath },
         claimProperties: properties => { for (const item of properties) skippedNodes.add(item); },
       });
@@ -1345,9 +1344,9 @@ export default function createAstDestructureEmitter({
     // does the host hold this prop ALONE, every level down to it spelling one key? the re-anchor
     // LIFTS the pattern out of the statement, and a prop in the MIDDLE of its level has no placement
     // that orders both sides of it
-    // the node types a destructure LEVEL is spelled with, in either dialect: the climb out of a
+    // the node types a destructure LEVEL is spelled with: the climb out of a
     // nested prop to the pattern its statement owns walks exactly these
-    const PATTERN_LEVEL_TYPES = new Set(['ObjectPattern', 'ArrayPattern', 'Property', 'ObjectProperty', 'AssignmentPattern']);
+    const PATTERN_LEVEL_TYPES = new Set(['ObjectPattern', 'ArrayPattern', 'Property', 'AssignmentPattern']);
 
     // the pattern an ASSIGNMENT host owns, climbed out of however many levels sit between it and
     // this prop - the lift moves the pair out of that whole statement, so its arity is the question,
@@ -2565,7 +2564,6 @@ export default function createAstDestructureEmitter({
       pureNav,
       sentinel,
       forInit,
-      exported,
       chain,
       kind,
       entry,
@@ -2871,7 +2869,6 @@ export default function createAstDestructureEmitter({
     if (prop.value.type === 'AssignmentPattern' && kind === 'instance' && computedKeyHasSideEffects(prop, keyCtx)) {
       return emitAssignmentOverwrite({
         metaPath,
-        kind,
         entry,
         hintName,
         prop,

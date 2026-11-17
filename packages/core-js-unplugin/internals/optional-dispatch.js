@@ -219,7 +219,6 @@ export default function createOptionalDispatchChannel(ctx) {
     // callee memoizes, the disjunct guards the memo and the call reads it exactly once
     // (`pick(1)?.()` -> `null == (_ref = pick(1)) || ... _ref()`, babel's callee-split)
     if (callee?.type !== 'MemberExpression') {
-      if (callee?.type === 'Super') return STAGED_SPLIT;
       const calleeSequence = callee?.type === 'SequenceExpression' ? peelNestedSequenceExpressions(callee) : null;
       let calleeValue = calleeSequence?.tail ?? callee;
       const pure = instanceSynthReceiverPure(calleeValue, { ...receiverCtx, resolvePure: meta => resolvePure(meta, metaPath) });

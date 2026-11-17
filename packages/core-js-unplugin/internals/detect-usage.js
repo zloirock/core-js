@@ -969,7 +969,6 @@ export function createUsageVisitors({
       // sweep it here too or the type-only globals drop in unplugin only
       CallExpression: checkCallTypeArguments,
       NewExpression: checkCallTypeArguments,
-      OptionalCallExpression: checkCallTypeArguments,
       TaggedTemplateExpression: checkCallTypeArguments,
       // a class node and its field shapes carry type-only globals the FunctionExpression walk
       // (method param / return types) never reaches: the class's own `typeParameters` constraints /

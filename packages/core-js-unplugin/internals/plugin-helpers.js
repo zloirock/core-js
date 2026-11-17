@@ -207,7 +207,7 @@ export function optionalCallInstantiationCallee(node) {
   if (node?.type !== 'CallExpression' || !node.optional) return null;
   const callee = unwrapParens(node.callee);
   if (callee?.type !== 'TSInstantiationExpression') return null;
-  if (!(callee.typeArguments ?? callee.typeParameters)) return null;
+  if (!callee.typeArguments) return null;
   // An ordinary name has no receiver. Keep eval indirect and compound callees grouped
   // even if the next stage uses an older Babel generator before lowering the call.
   const target = unwrapParens(callee.expression);

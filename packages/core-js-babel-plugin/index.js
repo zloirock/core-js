@@ -2064,7 +2064,6 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           injectPureImport,
           isDisabled,
           isEntryNeeded,
-          isEntryAvailable,
           resolvePropertyObjectType,
           forgetDestructureReceiverTypes,
           primeDestructureReceiverTypes,

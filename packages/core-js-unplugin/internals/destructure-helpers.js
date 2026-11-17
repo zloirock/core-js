@@ -1562,7 +1562,7 @@ export function arrayWrapperDeclarator(patternPath) {
       top = top.parentPath;
       continue;
     }
-    if ((up?.type === 'Property' || up?.type === 'ObjectProperty') && up.value === top.node && !up.computed) {
+    if (up?.type === 'Property' && up.value === top.node && !up.computed) {
       top = top.parentPath;
       continue;
     }

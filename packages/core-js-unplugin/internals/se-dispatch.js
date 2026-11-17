@@ -29,9 +29,6 @@ export function collapseSymbolProxyRoot(meta, metaPath, { resolvePure, injectPur
 // is passed EXPLICITLY - this path anchors on the trailing claim, not on `super.<key>` itself
 export function inheritedStaticCalleeSplit(node, callee, metaPath, ctx) {
   const calleeObject = unwrapRuntimeExpr(callee.object);
-  // a COMPUTED key answers through the canonical resolver, but only when it carries NO
-  // effect: this split has no slot that spells an effectful key exactly once, so the raw
-  // guarded read stays the honest answer there
   // an EFFECT-FREE computed key answers through the canonical resolver; an SE-BEARING one
   // stays out - the claim ABOVE harvests those effects and spells them itself, so a copy
   // here runs them twice, and there is no channel to tell that harvest they were consumed
@@ -51,8 +48,7 @@ export function inheritedStaticCalleeSplit(node, callee, metaPath, ctx) {
   // an own class member SHADOWS the inherited surface - `this.<key>` reads that one
   if (thisReceiver && ctx.isShadowedByClassOwnMember(metaPath, key)) return null;
   const inherited = ctx.resolveStaticInheritedMember(metaPath, key);
-  const remapped = inherited && remapInheritedStaticMeta(ctx.injectorState,
-    { kind: 'property', object: null, key, placement: 'static' }, inherited);
+  const remapped = inherited && remapInheritedStaticMeta(ctx.injectorState, null, inherited);
   const result = remapped && !ctx.isMutatedStatics(remapped) ? ctx.resolvePure(remapped, metaPath) : null;
   if (!result || result.kind === 'instance') return null;
   return {

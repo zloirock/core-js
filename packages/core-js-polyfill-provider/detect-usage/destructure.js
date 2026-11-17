@@ -7753,7 +7753,6 @@ export function buildNestedParamSynthPlan(options) {
       node,
       ...receiverContext(node),
       callSite,
-      resolvePure,
       rescuesReceiverRead: host?.node.type === 'VariableDeclarator' || host?.node.type === 'AssignmentExpression',
     });
   }
@@ -9104,7 +9103,7 @@ export function selectionLeftAlwaysTruthy({
   const literal = literalNodeValue(unwrapRuntimeExpr(peelReceiverSequenceTail(node)));
   if (literal !== undefined) return !!literal;
   function rootContext(leaf) {
-    return mirrorRootContext({ node: leaf, scope, adapter, path, resolvePure, rescuesReceiverRead });
+    return mirrorRootContext({ node: leaf, scope, adapter, path, rescuesReceiverRead });
   }
   return !selectionValueCanBeFalsy(node, {
     rootContext,

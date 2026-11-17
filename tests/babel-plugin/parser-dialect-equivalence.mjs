@@ -213,6 +213,11 @@ const CASES = [
   ['parenthesized member target of an instance claim', 'const sink = {};\n({ at: (sink.m) } = arr);\n({ y: { flat: (sink.n) } } = { y: arr });'],
   ['mixed inner default under a parenthesized slot',
     'const held = { Set: class {}, Array: { of: x => [x] } };\nexport const r = (([{ Set: S, Array: { of } } = globalThis]) => [S, of(7)])([(held)]);'],
+  ['instantiated optional static callee', 'export const r = (Array.of<number>)?.(7);', ['typescript']],
+  ['optional inherited static callee', 'class Bag extends Array { static read() { return (super.of)?.(7); } } export const r = Bag.read();'],
+  ['computed default nested under an array pattern',
+    'let at; ({ row: [{ [(effect(), "at")]: at = Array.prototype.at }] } = source);'],
+  ['optional reader above a cast seal', 'export const r = (globalThis.window?.self as any)?.Array.from([7]);', ['typescript']],
 ];
 
 for (const method of ['usage-pure', 'usage-global']) {
@@ -293,6 +298,9 @@ try {
     'new ((effects.push("prefix"), held = globalThis.window)?.self.Map)([[1, 2]]).size',
     '(effects.push([2].at(0)), held = globalThis.window)?.self.Array.from([7])',
     '(box.value = held = globalThis.self.window)?.self.Array.from([7])',
+    '(Array.of<number>)?.(7)[0]',
+    '(globalThis.window?.self as any)?.Array.from([7])[0]',
+    '(globalThis.window?.self as any).Array.from([7])[0]',
   ]) {
     const source = `export const effects = []; export let r;
 let held;
