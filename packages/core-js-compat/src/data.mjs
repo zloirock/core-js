@@ -530,13 +530,13 @@ export const data = {
     safari: '7.1',
   },
   'es.array-buffer.slice': {
-    chrome: '31',
+    chrome: '52', // '31',
     firefox: '46',
     hermes: '0.1',
     ie: '11',
     node: '0.11.4',
     rhino: '1.7.13',
-    safari: '12.1',
+    safari: '14.1', // '12.1',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.data-view': null,

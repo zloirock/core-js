@@ -772,6 +772,25 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   }],
   'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
+  }, function () {
+    // V8 ~ Chrome < 52 and Safari < 14.1 return an empty buffer for a detached one
+    if (typeof MessageChannel == 'undefined') return true;
+    var buffer = new ArrayBuffer(1);
+    var channel = new MessageChannel();
+    try {
+      channel.port1.postMessage(null, [buffer]);
+    } catch (error) {
+      return true;
+    } finally {
+      channel.port1.close();
+      channel.port2.close();
+    }
+    if (buffer.byteLength) return true;
+    try {
+      buffer.slice();
+    } catch (error) {
+      return true;
+    }
   }],
   'es.array-buffer.detached': function () {
     return 'detached' in ArrayBuffer.prototype;

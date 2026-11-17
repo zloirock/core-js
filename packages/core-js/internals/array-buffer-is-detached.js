@@ -10,7 +10,8 @@ var postMessage = require('../internals/message-channel-post');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var Uint8Array = globalThis.Uint8Array;
-var nativeSlice = globalThis.ArrayBuffer && globalThis.ArrayBuffer.prototype.slice;
+var ArrayBufferPrototype = globalThis.ArrayBuffer && globalThis.ArrayBuffer.prototype;
+var nativeSlice = ArrayBufferPrototype && ArrayBufferPrototype.slice;
 var NATIVE_UINT8_ARRAY = Uint8Array && !Uint8Array.sham;
 var CHECK_BY_CLONING = PROPER_STRUCTURED_CLONE_TRANSFER ? false : undefined;
 var STOP = { valueOf: function () { throw STOP; } };
@@ -42,7 +43,8 @@ module.exports = function (O) {
   if (NATIVE_UINT8_ARRAY && CHECK_BY_CLONING === false) return throwsOnDetached(O);
   var prototype = getNativePrototype(O, true);
   if (prototype && classof(prototype) === 'SharedArrayBuffer') return false;
-  var slice = NATIVE_UINT8_ARRAY ? nativeSlice : prototype && prototype.slice;
+  // a polyfill of `slice` installed on this prototype later checks the detachment itself
+  var slice = NATIVE_UINT8_ARRAY || prototype === ArrayBufferPrototype ? nativeSlice : prototype && prototype.slice;
   if (CHECK_BY_CLONING === undefined && postMessage) {
     // old WebKit accepts detached buffers in both view constructors and slice
     // The probe must actually detach: Deno 1.13 rejects ArrayBuffer transfer.
