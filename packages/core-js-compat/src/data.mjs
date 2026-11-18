@@ -541,12 +541,13 @@ export const data = {
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.data-view': null,
   'es.data-view.constructor': {
-    chrome: '26',
+    chrome: '54', // '26',
     firefox: '15',
     hermes: '0.1',
     ie: '10',
     // setInt8 truncates 2147483649 to 0 in NodeJS 0.11.4.
-    node: '0.11.5',
+    // NodeJS 6 (V8 5.0-5.1) accepts a negative byteLength.
+    node: '7.0', // '0.11.5',
     rhino: '1.7.13',
     safari: '7.1',
   },

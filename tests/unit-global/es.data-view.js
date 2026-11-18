@@ -1,4 +1,5 @@
-import { DESCRIPTORS, NATIVE, NODE_DATA_VIEW_NEGATIVE_LENGTH_BUG } from '../helpers/constants.js';
+import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
+import { nativeSubclass } from '../helpers/helpers.js';
 
 QUnit.test('DataView', assert => {
   assert.same(DataView, Object(DataView), 'is object'); // in Safari 5 typeof DataView is 'object'
@@ -6,6 +7,8 @@ QUnit.test('DataView', assert => {
   if (NATIVE) assert.name(DataView, 'DataView'); // Safari 5 bug
   if (NATIVE) assert.looksNative(DataView); // Safari 5 bug
   let dataview = new DataView(new ArrayBuffer(8));
+  // old WebKit has no own `constructor` on the native `DataView.prototype`, so it's checked on an instance
+  assert.same(dataview.constructor, DataView, '#constructor');
   assert.same(dataview.byteOffset, 0, '#byteOffset, passed buffer');
   assert.same(dataview.byteLength, 8, '#byteLength, passed buffer');
   dataview = new DataView(new ArrayBuffer(16), 8);
@@ -39,7 +42,24 @@ QUnit.test('DataView', assert => {
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If offset > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
-    (NODE_DATA_VIEW_NEGATIVE_LENGTH_BUG ? assert.skip : assert).throws(() => new DataView(new ArrayBuffer(8), 0, -1), 'negative byteLength throws');
+    // V8 ~ Chrome 50-53, NodeJS 6: a native `DataView` accepts a negative `byteLength`
+    assert.throws(() => new DataView(new ArrayBuffer(8), 0, -1), 'negative byteLength throws');
+  }
+  // V8 ~ Chrome 50-53, NodeJS 6: a native `DataView` rejects a non-integer `byteOffset`
+  dataview = new DataView(new ArrayBuffer(8), 1.5);
+  assert.same(dataview.byteOffset, 1, '#byteOffset, fractional byteOffset');
+  assert.same(dataview.byteLength, 7, '#byteLength, fractional byteOffset');
+  dataview = new DataView(new ArrayBuffer(8), NaN, 2.5);
+  assert.same(dataview.byteOffset, 0, '#byteOffset, NaN byteOffset');
+  assert.same(dataview.byteLength, 2, '#byteLength, fractional byteLength');
+  let converted = false;
+  assert.throws(() => new DataView({}, { valueOf() { return converted = true; } }), 'non-ArrayBuffer argument with byteOffset');
+  assert.false(converted, 'the buffer is checked before the conversion of arguments');
+  if (nativeSubclass) {
+    const Subclass = nativeSubclass(DataView);
+    assert.true(new Subclass(new ArrayBuffer(8)) instanceof Subclass, 'correct subclassing with native classes #1');
+    assert.true(new Subclass(new ArrayBuffer(8)) instanceof DataView, 'correct subclassing with native classes #2');
+    assert.same(new Subclass(new ArrayBuffer(8), 1).byteOffset, 1, 'correct subclassing with native classes #3');
   }
   dataview = new DataView(new ArrayBuffer(8));
   dataview.setUint32(0, 0x12345678);

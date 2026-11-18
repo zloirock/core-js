@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added missed detection of native `DataView` constructor accepting a negative `byteLength` and rejecting a non-integer `byteOffset` in V8 ~ Chrome 50-53
 - Added missed detection of native `ArrayBuffer.prototype.slice` returning an empty buffer for a detached one instead of throwing in V8 ~ Chrome < 52 and Safari < 14.1
 - Fixed `ArrayBuffer.prototype.slice` polyfill: the receiver is checked before the conversion of arguments, an own `byteLength` property of a buffer no longer replaces its length, a detached buffer is rejected instead of returning an empty one in FF45
 - `ArrayBuffer.prototype.slice` polyfill passes calls with an explicit end to the native method too where it exists, instead of copying byte by byte, which makes it faster by orders of magnitude on large buffers
@@ -185,6 +186,7 @@
   - `queueMicrotask` marked as properly supported from Deno 1.24.3 instead of 1.0 because of incorrect arity
   - Fixed NodeJS compat data for array iterators, `Array.prototype.{ reduce, reduceRight }`, `ArrayBuffer`, `ArrayBuffer.prototype.slice`, `DataView`, `Math.imul` and `%TypedArray%.prototype.subarray`
   - `ArrayBuffer.prototype.slice` marked as properly supported from Chrome 52 and Safari 14.1 instead of Chrome 31 and Safari 12.1 because of the detached buffers bug above
+  - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.5 because of the arguments conversion bug above
   - `Function.prototype[@@hasInstance]` marked as supported from Chrome 50 instead of 51
   - Fixed [Deno 1.1.1](https://github.com/denoland/deno/releases/tag/v1.1.1) compat data mapping: `AggregateError`, `Promise.any` and `String.prototype.replaceAll` are available from this version
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:

@@ -807,6 +807,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     view.setInt8(0, 2147483648);
     view.setInt8(1, 2147483649);
     return !(view.getInt8(0) || !view.getInt8(1));
+  }, function () {
+    // V8 ~ Chrome 50-53 follows ES2015: accepts a negative `byteLength` and rejects a non-integer `byteOffset`
+    try {
+      new DataView(new ArrayBuffer(1), 0, -1);
+    } catch (error) {
+      return true;
+    }
   }],
   'es.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.getFloat16;

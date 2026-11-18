@@ -240,6 +240,31 @@ if (!NATIVE_ARRAY_BUFFER) {
     setPrototypeOf(DataViewPrototype, ObjectPrototype);
   }
 
+  // V8 ~ Chrome 50-53 follows ES2015: accepts a negative `byteLength` and rejects a non-integer `byteOffset`
+  if (!fails(function () {
+    // eslint-disable-next-line no-new -- required for testing
+    new $DataView(new NativeArrayBuffer(1), 0, -1);
+  })) {
+    var NativeDataView = $DataView;
+
+    $DataView = function DataView(buffer /* , byteOffset, byteLength */) {
+      anInstance(this, DataViewPrototype);
+      // the buffer is validated before the conversion of arguments
+      // eslint-disable-next-line no-new -- thrower
+      new NativeDataView(buffer);
+      var argumentsLength = arguments.length;
+      var byteOffset = toIndex(argumentsLength > 1 ? arguments[1] : undefined);
+      var byteLength = argumentsLength > 2 ? arguments[2] : undefined;
+      return inheritIfRequired(byteLength === undefined
+        ? new NativeDataView(buffer, byteOffset)
+        : new NativeDataView(buffer, byteOffset, toIndex(byteLength)), this, $DataView);
+    };
+
+    $DataView[PROTOTYPE] = DataViewPrototype;
+
+    copyConstructorProperties($DataView, NativeDataView);
+  }
+
   var testView = new $DataView(new $ArrayBuffer(2));
   // in NodeJS 0.11.0-0.11.3, methods of buffers and views are own properties of each instance, the prototypes are empty
   var OWN_INSTANCE_METHODS = !DataViewPrototype.setInt8;
