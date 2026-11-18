@@ -771,7 +771,8 @@ export function planGuardRootMemo(node, ctx) {
     ? { spine, holder, source: holder.object } : null;
 }
 
-// A guard prepares its observed VALUE before allocating any ref. Whole source
+// Prepare a detached receiver for unplugin's reconstructed chain. Babel applies the
+// root memo and guard composition to live slots before requeueing. Whole source
 // navigation owns effects before trailing hops are peeled; kept stores and calls
 // yielding an environment probe retain their nullish branch. Bindings only render,
 // clone and deoptionalize decided nodes; scope/type registration follows this result.

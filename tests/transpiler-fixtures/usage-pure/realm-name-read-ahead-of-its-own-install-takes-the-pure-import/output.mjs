@@ -12,7 +12,7 @@ var _ref;
 export const keyIn = _isIterable(obj);
 export const keyRead = obj[_Symbol$asyncIterator];
 export const deleted = delete _self.customSlot;
-export const selectedHop = _Array$from(list);
+export const selectedHop = (c ? _globalThis : _globalThis, _Array$from)(list);
 export const selectedArm = (_ref = c ? _globalThis : user, _ref === _globalThis ? _Map : _ref.Map).groupBy;
 const of = _Array$of;
 const {

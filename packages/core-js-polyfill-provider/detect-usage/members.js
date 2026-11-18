@@ -111,6 +111,7 @@ import {
   findProxyGlobal,
   foldableRealmHop,
   inlineCallHasObservableEffects,
+  discardedIdentifierMayThrow,
   inlineCallProxyGlobalRoot,
   inlineCallReturnExpression,
   interopDefaultProxyName,
@@ -343,7 +344,9 @@ export function planInnerProxyCollapse(node, {
   }
   const sourceRoot = descendToChainRoot(node).root;
   const keptWrite = peelChainAssignment(sourceRoot).outer;
-  const effects = collectFoldedReceiverSideEffects(node, { rescue: rescue && new Set(rescue), ctx: aliasCtx });
+  const effects = collectFoldedReceiverSideEffects(node, {
+    rescue: rescue && new Set(rescue), ctx: aliasCtx, preserveSourceReads: root?.type === 'CallExpression',
+  });
   if (root?.type === 'CallExpression' && aliasCtx && !keptWrite && provenCallRoot) {
     for (let scan = node; isMemberAccessNode(scan); scan = peelReceiverSequenceTail(scan.object)) {
       if (scan.optional && (!allowOptional
@@ -1007,17 +1010,20 @@ export function planDeclinedNavigation({ receiver = null, meta = null, ...option
   const plan = planClaimlessCallRootedNav(options);
   const { path, scope, adapter } = options;
   const inner = receiver?.collapse;
-  const callPure = plan.verdict === 'fold-whole' ? plan.rootPure : null;
+  const callPure = plan.rootPure ?? plan.pure;
   const pure = callPure ?? (receiver?.deleteFold && inner?.entry ? inner : null);
   if ((!inner?.aliasRoot && !pure) || (!callPure && !receiver?.navigated)) return plan;
-  const target = plan.endPath === path && receiver?.node === path.node ? path : plan.endPath.get('object');
+  // A probe-yielding call folds the receiver up to its backed leaf. Its reader,
+  // including a final environment probe, stays in place.
+  const target = plan.verdict !== 'leaf-fold' && plan.endPath === path && receiver?.node === path.node
+    ? path : plan.endPath.get('object');
   const source = target.node;
   // Reuse the effects of the exact alias span being replaced. A wider call fold
   // must collect its own effects; a delete-only fold cannot move the receiver setup.
   const replay = callPure && !inner?.aliasRoot || inner?.carriesAlias && source === receiver.node
     && (!inner.keptWrite || inner.keptWrite.left.type === 'Identifier');
   const effects = !replay ? [] : source === receiver?.node && inner ? inner.effects
-    : collectFoldedReceiverSideEffects(source, { ctx: { scope, adapter, path } });
+    : collectFoldedReceiverSideEffects(source, { ctx: { scope, adapter, path }, preserveSourceReads: true });
   const seFree = !meta?.sideEffects?.length && !meta?.receiverEffectCount;
   const covered = replay ? seFree || (meta.sideEffects ?? []).slice(0, meta.receiverEffectCount ?? 0)
     .every(effect => effects.includes(effect) || effects.some(held => subtreeContainsNode(held, effect)))
@@ -1385,7 +1391,9 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   const sideEffects = [];
   // a sequence-prefix element the receiver owes: one whose discard keeps anything
   function keepsEffect(element) {
-    return discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0;
+    return (adapter.method !== 'usage-global'
+      && mayHaveSideEffects(element, { scope, adapter, path, readIdentifier: discardedIdentifierMayThrow }))
+      || discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0;
   }
   // `obj` is then passed to `resolveObjectName` which calls `unwrapTransparentSeq` again - idempotent
   // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
@@ -1634,7 +1642,9 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
       // read, so it runs before any key above it, and `chainAssignInsertAt` puts the splice there rather
       // than at the receiver/key boundary. a READ needs that slot exactly as much as a terminal call
       const chainAssignAt = { at: null };
-      collectFoldedReceiverSideEffects(classifyTarget, { out: sideEffects, rescue, chainAssignAt, ctx: { scope, adapter, path } });
+      collectFoldedReceiverSideEffects(classifyTarget, {
+        out: sideEffects, rescue, chainAssignAt, ctx: { scope, adapter, path, readIdentifier: discardedIdentifierMayThrow },
+      });
       if (chainAssignAt.at !== null) meta.chainAssignInsertAt = chainAssignAt.at;
     }
     // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)

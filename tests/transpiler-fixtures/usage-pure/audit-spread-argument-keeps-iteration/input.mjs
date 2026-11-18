@@ -1,12 +1,14 @@
 // A spread iterates its operand, so an argument list carrying one is never effect-free: folding the
 // receiver away would drop that iteration (and the TypeError a non-iterable owes). The first call
 // keeps its receiver in a sequence exactly as a plainly effectful argument does, while the two
-// controls below still fold - a blanket "arguments are effectful" answer would lose them.
+// initialized and empty controls still fold. A free argument must keep its possibly throwing read.
 // usage-global is not paired: that method only adds imports and never rewrites the receiver, so the
 // spread survives there either way and the row could not tell its claim from its negation.
 export const spread = (() => Array)(...poison).from(a);
 export const effectful = (() => Array)(effect()).from(b);
 export const plain = (() => Array)(pure).from(c);
+const initialized = 1;
+export const local = (() => Array)(initialized).from(c);
 export const empty = (() => Array)().from(d);
 
 // a spread nested inside a literal argument reaches the same answer through the container rather

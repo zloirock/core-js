@@ -25992,6 +25992,25 @@ function * generateStaticFallbackPrefixes() {
   };
 }
 
+// A declined member can fold onto a backed leaf even when a call yields an environment probe.
+function * generateCallReceiverPrefixes() {
+  const windowHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const root of ['globalThis', 'globalThis.window']) for (const [name, prefix] of [
+    ['nested', 'effects.push("first"), (effects.push("second"), read())'],
+    ['throw', 'effects.push("first"), missingReceiverPrefix, effects.push("late"), read()'],
+    ['argument', 'effects.push("first"), read([missingArgument])'],
+  ]) yield {
+    name: `call-receiver-prefix/${ root }/${ name }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(windowHost) };
+      export const effects = [];
+      export const r = withWindowPresence(true, () => {
+        function read() { return ${ root }; }
+        try { return (${ prefix }).self?.[(effects.push("key"), "Math")].PI; }
+        catch (error) { return error.name; }
+      });`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27816,4 +27835,5 @@ export function * generate() {
   yield * generateDestructureResidualReads();
   yield * generateCommentedPatternKeys();
   yield * generateStaticFallbackPrefixes();
+  yield * generateCallReceiverPrefixes();
 }

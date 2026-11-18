@@ -15360,14 +15360,14 @@ function objectLiteralAccessorRead(node) {
 // The walker treats the depth limit as observable, keeping pathological trees conservative.
 // A caller holding a scope passes it as `ctx` (`{ scope, adapter, path }`): a member READ its
 // adapter's `readRunsAccessor` answers for - an accessor with effects the receiver walk names - runs
-// code too, where a plain read is pure. Every drop, elision or reorder decision owes that question;
-// its answer is the caller's context, so only the context-free half is cached.
+// code too, where a plain read is pure. Every drop, elision or reorder decision owes that question.
+// A discarded call operand can also supply a readIdentifier proof for missing names and TDZ.
+// Only the context-free half of either query is cached.
 export function mayHaveSideEffects(node, ctx = null) {
   if (!node) return false;
   if (!SIDE_EFFECTS_CACHE.has(node)) SIDE_EFFECTS_CACHE.set(node, computeSideEffects(node, 0, false));
   if (SIDE_EFFECTS_CACHE.get(node)) return true;
-  const readRuns = ctx?.adapter?.readRunsAccessor;
-  return !!readRuns && computeSideEffects(node, 0, member => readRuns({ ...ctx, node: member }));
+  return !!(ctx?.adapter?.readRunsAccessor || ctx?.readIdentifier) && computeSideEffects(node, 0, ctx);
 }
 
 // a literal `undefined` reference or an effect-free `void X` - the statically-undefined value shape
@@ -15471,7 +15471,7 @@ export function reEvaluationObservable(node) {
   return result;
 }
 // `strict`: `true` asks the re-evaluation question, `false` the single-evaluation one, and a READ
-// hook asks the single-evaluation one with the member reads it answers for counted (uncached)
+// context counts observable member reads and, for discarded call operands, throwing name reads.
 function recurse(node, depth, strict) {
   if (!node) return false;
   const cache = strict === true ? RE_EVAL_CACHE : strict ? null : SIDE_EFFECTS_CACHE;
@@ -15519,7 +15519,7 @@ function computeSideEffects(node, depth, strict) {
     // ... and a read off an in-place literal that spells the key as an ACCESSOR runs that accessor
     // right here: the READ is the effect, and every channel that may drop the literal asks here first
     if (objectLiteralAccessorRead(node)) return true;
-    if (strict && strict(node)) return true;
+    if (strict?.adapter?.readRunsAccessor?.({ ...strict, node })) return true;
     return recurse(node.object, depth, strict) || (node.computed && recurse(node.property, depth, strict));
   }
   if (type === 'Property' || type === 'ObjectProperty') {
@@ -15535,6 +15535,7 @@ function computeSideEffects(node, depth, strict) {
     return node.computed && recurse(node.key, depth, strict);
   }
   if (type === 'AssignmentPattern') return recurse(node.right, depth, strict);
+  if (type === 'Identifier') return !!strict?.readIdentifier?.(node, strict);
   if (JSX_NODE_TYPES.has(type)) return jsxHasSideEffects(node, type, depth, strict);
   if (type === 'ClassExpression' || type === 'ClassDeclaration') return classHasSideEffects(node, depth, strict);
   return false;

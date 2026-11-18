@@ -1,5 +1,6 @@
 // A declined member has one replacement owner: base, source span and ordered effects.
 import { planDeclinedNavigation, planInnerProxyCollapse } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { discardedIdentifierMayThrow, inlineCallHasObservableEffects } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { renderDeclinedNavigation, hostSlot } from '../../packages/core-js-polyfill-provider/render.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -111,6 +112,23 @@ for (const [source, facts, verdict] of [
     check(`${ label } patched hop refuses`, !!planDeclinedNavigation({ ...options, adapter: patched }).fold, false);
   });
 
+for (const receiver of ['globalThis', 'globalThis.window']) runBoth(`call receiver effects/${ receiver }`,
+  `const root = () => ${ receiver }; const result = (first(), missingPrefix, (last(), root())).self?.[(key(), "slot")];`,
+  (parser, program, label) => {
+    const path = parser.pickPath(program, parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression',
+      item => item.node.optional);
+    const member = path.node;
+    const options = context(parser, path);
+    const plan = planDeclinedNavigation(options);
+    check(`${ label } verdict`, plan.verdict, receiver === 'globalThis' ? 'fold-whole' : 'leaf-fold');
+    check(`${ label } keep reader and key`, plan.fold?.path.node, member.object);
+    check(`${ label } backed base`, plan.fold?.base.pure.entry, 'self');
+    checkDeep(`${ label } original prefix slots`, plan.fold?.effects, [
+      ...unwrapRuntimeExpr(member.object.object).expressions.slice(0, 2),
+      unwrapRuntimeExpr(unwrapRuntimeExpr(member.object.object).expressions[2]).expressions[0],
+    ]);
+  });
+
 runBoth('reuse an exact inner source', 'const root = () => globalThis; const result = (effect(), root()).self.slot;',
   (parser, program, label) => {
     const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result').get('init');
@@ -121,6 +139,48 @@ runBoth('reuse an exact inner source', 'const root = () => globalThis; const res
     check(`${ label } queried effects reused`, plan.fold.effects, collapse.effects);
     check(`${ label } source identity`, plan.fold.source, node);
   });
+
+runBoth('a cached call receiver keeps a throwing read', 'function root() { return globalThis; } (missingPrefix, root()).self.slot;',
+  (parser, program, label) => {
+    const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'slot');
+    const options = context(parser, path);
+    const node = path.node.object;
+    const collapse = planInnerProxyCollapse(node, { resolvePure, aliasCtx: options, provenCallRoot: true });
+    const plan = planDeclinedNavigation({ ...options, receiver: { node, collapse, navigated: true } });
+    check(`${ label } exact effect source`, collapse.effects[0], unwrapRuntimeExpr(node.object).expressions[0]);
+    check(`${ label } reuse effects`, plan.fold.effects, collapse.effects);
+  });
+
+for (const [argument, setup, after, expected] of [
+  ['missing', '', '', true],
+  ['{ item: [missing] }', '', '', true],
+  ['later', '', 'const later = 1;', true],
+  ['local', 'const local = 1;', '', false],
+  ['x', '', 'var x;', false],
+  ['() => missing', '', '', false],
+  ['[1, {}]', '', '', false],
+]) runBoth(`discarded call argument/${ argument }`, `function root() { return Array; } ${ setup } root(${ argument }); ${ after }`,
+  (parser, program, label) => {
+    const call = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'root');
+    check(label, inlineCallHasObservableEffects({ callNode: call.node, ...context(parser, call) }), expected);
+  });
+
+runBoth('pending import and same-named source reads', 'root(_globalThis); const _globalThis = 1;', (parser, program, label) => {
+  const call = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'root');
+  const ctx = context(parser, call);
+  const [read] = call.node.arguments;
+  check(`${ label }/source TDZ`, discardedIdentifierMayThrow(read, ctx), true);
+  for (const [source, hint, expected] of [
+    ['@core-js/pure/actual/global-this', 'globalThis', false],
+    ['./actual/global-this', 'globalThis', true],
+    ['@core-js/pure/null', 'globalThis', true],
+    ['@core-js/pure/actual/global-this', null, true],
+  ]) {
+    const binding = { node: null, kind: 'module', importSource: source, polyfillHint: hint };
+    const adapter = { ...ctx.adapter, getBinding: () => binding };
+    check(`${ label }/${ source }/${ hint }`, discardedIdentifierMayThrow(read, { ...ctx, adapter }), expected);
+  }
+});
 
 runBoth('whole source owned by a destructure', 'const alias = globalThis; const { slot } = alias.window.self;',
   (parser, program, label) => {

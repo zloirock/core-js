@@ -79,6 +79,8 @@ export function optionalSurfaceLanding(node, ctx, hop = null) {
   return { probe: node.object, pure, member: !pure };
 }
 
+// unplugin rebuilds an ESTree chain from its split members. Babel asks for the
+// surface landing on the live path and revisits nested claims after replacement.
 // Decide a single optional member's landing before allocating a guard or import.
 // A live environment probe defeats the whole-constructor swap, even through a
 // seal or an alias. Kept writes and sequence prefixes stay in the guard source;

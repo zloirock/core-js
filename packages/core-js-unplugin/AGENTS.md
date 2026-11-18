@@ -19,6 +19,7 @@ Key files under `internals/`:
 - `import-injector.js`, `snapshot-cache.js`: imports, generated refs and phase-state handoff.
 - `print.js`, `estree-compat.js`, `sfc-shapes.js`, `plugin-helpers.js`: printing, dialect translation, module ids and host helpers.
 - `usage-pure.js`: claim dispatch; `proxy-spine.js`, `optional-dispatch.js`, `se-dispatch.js`, `claim-guards.js` and `nav-spine.js` provide its host channels.
+- `emit-shared.js` shares ESTree replacement, source-span tracking and effect wrapping between usage-pure and the destructure emitter.
 - `destructure.js`, `destructure-drain.js`, `destructure-helpers.js`, `destructure-emit-utils.js`: visit, deferred insertion and supporting operations.
 
 Keep the emitter dependency graph acyclic. `proxy-spine`, `optional-dispatch` and `destructure-drain` are per-transform factories; shared decisions and render forms belong in the provider, not another host helper.

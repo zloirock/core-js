@@ -38,6 +38,19 @@ const cases = [
   ['throwing-key', 'const key = () => { effects.push("key"); throw new RangeError(); }; return typeof (globalThis.window?.Promise)[key()];'],
   ['instance', 'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at(-1);'],
   ['optional-instance-call', 'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at?.(-1);'],
+  ['call-leaf-prefix', `function root() { return globalThis.window; }
+    return (effects.push("first"), (effects.push("second"), root())).self?.includes(1);`],
+  ['call-leaf-throw', `function root() { return globalThis.window; }
+    return (effects.push("first"), missingReceiverPrefix, effects.push("late"), root()).self?.includes(1);`],
+  ['call-leaf-argument', `function root() { return globalThis.window; }
+    return (effects.push("before"), root({ value: missingArgument })).self?.[(effects.push("late"), "Math")].PI;`],
+  ['call-leaf-prefix-before-argument', `function root() { return globalThis.window; }
+    return (effects.push("before"), missingPrefix, effects.push("late"), root([missingArgument])).self?.Math.PI;`],
+  ['call-leaf-return', `const root = () => (missingReturnPrefix, globalThis.window);
+    return (effects.push("before"), root()).self?.[(effects.push("late"), "Math")].PI;`],
+  ['call-static-argument-tdz', `function root() { return Array; }
+    const value = (effects.push("before"), root(later)).from([3]);
+    const later = 1; return value;`],
   ['terminal', 'return typeof (effects.push("prefix"), globalThis.window)?.self;'],
   ['claimed-delete', 'return delete globalThis.self?.window?.window?.Reflect.slot;'],
   ['claimless-delete', 'return delete globalThis.self?.window?.window?.self.slotD;'],

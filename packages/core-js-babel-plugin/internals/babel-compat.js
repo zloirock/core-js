@@ -541,16 +541,11 @@ function collapseClaimlessCallRootedNav({
       return swapProbeRunBase(endPath, plan.swapNode,
         plan.droppedSe.length ? withSideEffects(base, plan.droppedSe) : base, markRenderedPlanTail);
     }
+    case 'leaf-fold':
     case 'fold-whole':
       plan.fold.path.replaceWith(renderFold(plan.fold));
       deoptionalizeDanglingOptionalParent(plan.fold.path);
       return true;
-    case 'leaf-fold': {
-      const navPath = endPath.get('object');
-      navPath.replaceWith(injectPureGlobal(plan.pure.entry, plan.pure.hintName));
-      deoptionalizeDanglingOptionalParent(navPath);
-      return true;
-    }
     default: return false;
   }
 }

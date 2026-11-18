@@ -182,6 +182,7 @@ import {
 import {
   KNOWN_FUNCTION_GLOBALS,
   NATIVE_STATIC_OWNERS,
+  NON_WRITABLE_VALUE_GLOBALS,
   SYMBOL_STATIC_KEYS,
   implementsPrototypeMethod,
   isKnownGlobalName,
@@ -4912,16 +4913,35 @@ export function inlineCallHasObservableEffects({ callNode, scope, adapter, path 
   return hasObservableEffectsRec({ node: callNode, seen: new Set(), ctx: { scope, adapter, path } });
 }
 
+// A discarded operand still reads its names. A served global or an initialized
+// local has a value here. A missing global, cyclic import or lexical TDZ can throw.
+export function discardedIdentifierMayThrow(node, ctx) {
+  const { name } = node;
+  const { adapter, scope, path } = ctx;
+  const binding = adapter?.getBinding?.({ scope, name, path, read: node });
+  if (!binding || isAmbientBinding(binding)) {
+    return !NON_WRITABLE_VALUE_GLOBALS.has(name) && !(isKnownGlobalName(name) && servedRead(node, ctx));
+  }
+  // A pending pure import has a registry binding before its declaration reaches the tree.
+  if (binding.node === null && binding.polyfillHint && pureImportSubpath(binding.importSource, adapter.packages)) return false;
+  if (binding.kind === 'var' || binding.kind === 'hoisted') return false;
+  const declaratorNode = bindingDeclaratorNode(binding);
+  return declaratorNode?.type !== 'VariableDeclarator'
+    || !initializerReachesRead({ adapter, binding, declaratorNode, usagePath: path, usageNode: node, requireInitialized: true });
+}
+
 // the walk behind `inlineCallHasObservableEffects`, over the hop standing on the call: it descends
 // nested single-return callees with the advanced hop until a returned value or an effect answers
 function hasObservableEffectsRec(hop) {
+  function argumentRuns(argument) {
+    return mayHaveSideEffects(argument, { ...hop.ctx, readIdentifier: discardedIdentifierMayThrow });
+  }
   while (true) {
     // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
     // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation -
     // in both spellings of the list: the raw one carries a receiver slot (`f.call(eff(), x)`), the
     // paired one a tag's interpolations and a bind's captured arguments
-    if (hop.node.arguments?.some(argument => mayHaveSideEffects(argument, hop.ctx))
-      || pairedCallView(hop.node, hop.ctx)?.arguments.some(argument => mayHaveSideEffects(argument, hop.ctx))) return true;
+    if (hop.node.arguments?.some(argumentRuns) || pairedCallView(hop.node, hop.ctx)?.arguments.some(argumentRuns)) return true;
     // `allowIdentityParam` MUST mirror the fold (`inlineCallReturnExpression`): the fold inlines an
     // identity-param IIFE (`((x) => { g(); return x; })(Array)`), so the effect gate has to inspect its
     // block body too - a stricter gate here misses the `g()` prefix and drops it at the source
@@ -4951,8 +4971,9 @@ function hasObservableEffectsRec(hop) {
     // is peeled to its tail and re-driven, so an inner call in the tail keeps its own prefix effects.
     // the peeled-away prefix runs at the source too, so its effects count when the fold drops the call
     const peeled = peelReceiverSequenceTail(next);
-    if (peeled !== next && next?.type === 'SequenceExpression'
-      && next.expressions.slice(0, -1).some(expression => mayHaveSideEffects(expression, resolved.ctx))) return true;
+    const returned = unwrapRuntimeExpr(next);
+    if (returned?.type === 'SequenceExpression' && returned.expressions.slice(0, -1)
+      .some(expression => mayHaveSideEffects(expression, { ...resolved.ctx, readIdentifier: discardedIdentifierMayThrow }))) return true;
     // recurse when the (peeled) target is an inline-resolvable call (`() => inner()` with its own effects)
     if (isCallShape(peeled)) {
       // the inner call sits in the callee's body - resolve it there, with the advanced cycle set

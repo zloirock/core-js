@@ -358,19 +358,21 @@ for (const [source, proven, guarded, keeps] of [
   ['((value, key = (value = other)) => value)(source, key);', null, null, true],
   ['((value = other) => value)(source);', null, null, null],
   ['(async (value, key) => value)(source, key);', null, null, null],
-]) runBoth(`guarded returned container/${ source }`, source, (adapter, program, label) => {
-  const path = adapter.pickPath(program, 'CallExpression', candidate => candidate.node.arguments[0]?.name === 'source');
-  const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
-  check(`${ label }/proven fold`, inlineCallReturnExpression(callHop)?.node?.name ?? null, proven);
-  check(`${ label }/guard candidate`,
-    inlineCallReturnExpression(callHop, { allowMutatingForwarder: true })?.node?.name ?? null, guarded);
-  // the value answer never decides the call's fate: a list that RUNS keeps it. the gate answers
-  // about a callee it can REACH, so a row the fold refuses outright carries no expectation here
-  if (keeps !== null) {
-    check(`${ label }/keeps the call`,
-      inlineCallHasObservableEffects({ callNode: path.node, scope: path.scope, adapter, path }), keeps);
-  }
-});
+]) for (const initialized of [false, true]) runBoth(`guarded returned container/${ source }/${ initialized }`,
+  initialized ? `var source = {}, key = 'x'; ${ source }` : source, (parser, program, label) => {
+    const path = parser.pickPath(program, 'CallExpression', candidate => candidate.node.arguments[0]?.name === 'source');
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const callHop = { node: path.node, ctx: { adapter, scope: path.scope, path }, seen: new Set() };
+    check(`${ label }/proven fold`, inlineCallReturnExpression(callHop)?.node?.name ?? null, proven);
+    check(`${ label }/guard candidate`,
+      inlineCallReturnExpression(callHop, { allowMutatingForwarder: true })?.node?.name ?? null, guarded);
+    // With initialized inputs the parameter list and body decide. Without them the first
+    // argument can throw before either runs.
+    if (keeps !== null) {
+      check(`${ label }/keeps the call`,
+        inlineCallHasObservableEffects({ callNode: path.node, scope: path.scope, adapter, path }), keeps || !initialized);
+    }
+  });
 
 // Callee identity does not require scanning an argument's flow through the body.
 // Only the later return proof may pay for that walk; repeated speculative queries stay constant.

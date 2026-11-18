@@ -26,3 +26,16 @@ QUnit.test('declined navigation keeps alias stores and delete order', assert => 
     assert.deepEqual(effects, ['receiver', 'key']);
   }));
 });
+
+QUnit.test('a call yielding window preserves its receiver prefix before the member key', assert => {
+  withWindowWithoutSelf(() => withRealmSelf(() => {
+    const effects = [];
+    function root() { return globalThis.window; }
+    const value = (effects.push('first'), (effects.push('second'), root())).self?.[(effects.push('key'), 'Math')].PI;
+    assert.same(value, Math.PI);
+    assert.deepEqual(effects, ['first', 'second', 'key']);
+    // eslint-disable-next-line no-undef, sonarjs/no-reference-error, sonarjs/no-extra-arguments -- The unused argument must throw before the key.
+    assert.throws(() => root(missingReceiverArgument).self?.[(effects.push('late'), 'Math')].PI, ReferenceError);
+    assert.deepEqual(effects, ['first', 'second', 'key']);
+  }));
+});
