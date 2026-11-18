@@ -1550,9 +1550,7 @@ export default function createPlugin(options) {
             }
           }
         }
-        // a file that injected nothing prints as written: the wrapper splices are undone (the babel
-        // leg's rule, kept here for the reprint a surgery alone still triggers)
-        if (!injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(ast);
+        restoreUnclaimedFlattens(ast, injector);
         const collected = injector.pureImports.size || injector.globalImports.size || astRefNames.length;
         // A disabled claim alone still needs reprinting before sibling lowering can drop its
         // comment. Only test for anchors here: restoring parameters or retaining these node

@@ -87,3 +87,18 @@ QUnit.test('initializer carriers preserve preceding declarators and early throws
   assert.throws(() => read(true), Error);
   assert.deepEqual(effects, ['lead', 'prefix', 'getter']);
 });
+
+QUnit.test('a loop header serves the prototype method beside its residual at the source slot', assert => {
+  const log = [];
+  function realm() { return globalThis; }
+  let visits = 0;
+  for (const before = log.push('before'), { Array: { prototype: { flat }, isArray } } = (log.push('prefix'), realm()),
+             after = log.push('after'); visits < 1; visits++) {
+    assert.same(before, 1);
+    assert.deepEqual(flat.call([[7]]), [7]);
+    assert.same(isArray([]), true);
+    assert.same(after, 3);
+  }
+  assert.same(visits, 1);
+  assert.deepEqual(log, ['before', 'prefix', 'after']);
+});

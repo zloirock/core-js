@@ -5839,7 +5839,7 @@ function partitionEffectsAtProbe(effects, navStart) {
 // position belong to this read; deferred consumers capture the guard before rewriting, retain
 // the live effectsHost for child claims, and never cache the answer across source mutations.
 function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
-  preserveRead = false, allowStoreHolder = false,
+  preserveRead = false, allowStoreHolder = false, retainPassthrough = false,
 } = {}) {
   const sourceValue = peelTransparentExpr(source);
   // A fallback changes the bound value, but its left read always runs, including its throw.
@@ -5853,6 +5853,7 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
     const aliasProbe = aliasHeldClaimProbe(member, resolvePure, aliasCtx, { allowStoreHolder });
     return aliasProbe ? { kind: 'alias', source, aliasProbe, navStart: aliasProbe.navStart } : null;
   }
+  let passthrough = null;
   // An outer seal can end at a claim with no guard of its own. Keep descending the SOURCE
   // boundaries: that claim's value does not discharge a throwing read through an inner seal.
   for (let boundary = outerBoundary; boundary; boundary = sealedChainBoundary(boundary.inner)) {
@@ -5884,6 +5885,8 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
     const leafPlan = sealedClaimLeafGuardPlan(boundary.inner, resolvePure, aliasCtx);
     if (!leafPlan?.leafPure && !leafPlan?.leafName) {
       if (preserveRead) return { ...facts, kind: 'passthrough' };
+      // A synth replacement may need this read if no inner claim or alias owns it.
+      if (retainPassthrough) passthrough ??= { ...facts, kind: 'passthrough' };
       continue;
     }
     return {
@@ -5892,7 +5895,7 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
       foldLeafOntoBase: !preserveRead && !!leafPlan.foldLeafOntoBase,
     };
   }
-  return aliasPlan();
+  return aliasPlan() ?? passthrough;
 }
 
 // A source slot carried by a claim or pattern probe. The facts name only its value spine: computed
@@ -5954,6 +5957,13 @@ export function guardedNavPassthroughPlan(receiver, resolvePure, ctx) {
     navPlan: { hops, collapseIdx: -1, leafPure },
     test: { source: claimProbeSourceSlot(cur.object, resolvePure, ctx) },
   };
+}
+
+// A retained optional chain still owes the ordinary read above its closing parenthesis.
+// Keep its computed key, including effects, on that outer read.
+export function bindSealedPassthrough(plan, resolvePure, ctx) {
+  const nav = guardedNavPassthroughPlan(plan.boundary.inner, resolvePure, ctx);
+  return nav && { ...plan, ...nav, boundary: plan.boundary, source: plan.source };
 }
 
 // A terminal value has no reader retaining its unbacked tail. Fold that quiet remainder
@@ -6020,7 +6030,8 @@ export function navGuardSourcePlan(guard, resolvePure, ctx) {
 // their capture contract; this adds no live claims or host mutations to the shared question.
 export function directClaimProbePlan(source, resolvePure, ctx, options) {
   const decision = sealedClaimProbePlan(source, resolvePure, ctx, options);
-  return decision && claimProbeRenderPlan(decision, resolvePure, ctx, options);
+  const plan = decision && claimProbeRenderPlan(decision, resolvePure, ctx, options);
+  return plan?.kind === 'passthrough' && options?.retainPassthrough ? bindSealedPassthrough(plan, resolvePure, ctx) : plan;
 }
 
 // An assignment or sequence can carry a genuine realm alias. Keep its observable
@@ -6073,7 +6084,11 @@ function retainedSourceProbe(kind, source, read, resolvePure, ctx) {
 function claimProbeRenderPlan(decision, resolvePure, ctx, options) {
   // The navigation passthrough retains this whole source read. Its effects still
   // have the same source owner as the other probes; deferred drains need no offset fallback.
-  if (decision.kind === 'passthrough') return { ...decision, retained: [decision.boundary.inner], consumed: [] };
+  if (decision.kind === 'passthrough') {
+    const retained = [decision.boundary.inner];
+    if (decision.keyNode) retained.push(decision.keyNode);
+    return { ...decision, retained, consumed: [] };
+  }
   if (decision.kind === 'read') return retainedSourceProbe('read', decision.source, decision.boundary.member, resolvePure, ctx);
   const { source } = decision;
   const retained = [];

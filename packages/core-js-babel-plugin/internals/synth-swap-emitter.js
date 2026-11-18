@@ -164,7 +164,7 @@ export default function createSynthSwapEmitter({
       // the source identities decide which effects the read owns before any rewrite.
       const probeSource = receiver.type === 'LogicalExpression' ? receiver.left : receiver;
       const probePlan = directClaimProbePlan(probeSource, resolvePure,
-        { scope: targetPath.scope, adapter, path: targetPath });
+        { scope: targetPath.scope, adapter, path: targetPath }, { retainPassthrough: true });
       const probeEffects = probePlan && directClaimProbeEffects({ decision: probePlan, node: null },
         discardRescueNodes({ node: probeSource, scope: targetPath.scope, adapter, path: targetPath }));
       const probeSlots = probePlan && new Map([

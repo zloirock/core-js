@@ -208,6 +208,122 @@ for (const placement of ['init', 'update']) cases.push([
   [placement === 'init' ? [0, 1] : [-1, 1], 'object', false],
 ]);
 
+for (const active of [false, true]) {
+  cases.push([
+    `carrier/bodyless-realm-call/${ active }`,
+    `function realm() { return globalThis; }
+     if (${ active }) var { Array: { prototype: { flat }, isArray } } = (effects.push('prefix'), realm());
+     return typeof flat === 'function' && isArray(flat.call([[7]]));`, active, active ? ['prefix'] : [],
+  ], [
+    `carrier/bodyless-navigation/${ active }`,
+    `function read(source) {
+       if (${ active }) var { slot: { items: { at } } } = { slot: source };
+       return typeof at === 'function' && at.call([7], 0);
+     }
+     return read({ get items() { effects.push('items'); return [7]; } });`, active && 7, active ? ['items'] : [],
+  ]);
+}
+cases.push([
+  'carrier/header-realm-call',
+  `function realm() { return globalThis; }
+   for (var before = effects.push('before'), { Array: { prototype: { flat }, isArray } } = (effects.push('prefix'), realm()),
+     after = effects.push('after');;) return [before, flat.call([[7]])[0], isArray([]), after];`,
+  [1, 7, true, 3], ['before', 'prefix', 'after'],
+], [
+  'carrier/update-rest-on-realm',
+  `let from, rest;
+   for (let i = 0; i < 1; i++, (({ globalThis: { Array: { from } }, ...rest } = globalThis), 0)) effects.push('body');
+   return [from([7])[0], Object.prototype.hasOwnProperty.call(rest, 'globalThis')];`,
+  [7, false], ['body'],
+]);
+
+for (const assign of [false, true]) {
+  function wrap(pattern) { return assign ? `let m; (${ pattern });` : `const ${ pattern };`; }
+  for (const fallback of ["(effects.push('default'), flag) ? globalThis : user", "(effects.push('default'), flag ? globalThis : user)"]) {
+    cases.push([
+      `level-default/present-outer/${ assign }/${ fallback }`,
+      `const flag = true, user = {}; try { ${ wrap(`{ Map: { Map: { groupBy: m } } = ${ fallback } } = globalThis`) } return typeof m; } catch (error) { return error.name; }`,
+      'TypeError',
+    ]);
+  }
+  for (const supplied of [false, true]) cases.push([
+    `level-default/user/${ assign }/${ supplied }`,
+    `function read(source, flag) { const user = { Map: { groupBy: () => 23 } };
+       ${ wrap("{ slot: { Map: { groupBy: m } } = (effects.push('default'), flag) ? globalThis : user } = source") }
+       return m(); }
+     return read(${ supplied ? '{ slot: { Map: { groupBy: () => 7 } } }' : '{}' }, false);`,
+    supplied ? 7 : 23, supplied ? [] : ['default'],
+  ]);
+}
+
+// Two defaulted nested catch bindings may need more than one declaration beside
+// their shared source. Reading the neighbouring key must not replay either getter.
+for (const reverse of [false, true]) {
+  const codes = 'codes: { at: m = () => -1, keys: k }';
+  const other = 'other: { toFixed: t = () => 0 }';
+  cases.push([
+    `carrier/catch-siblings/${ reverse }`,
+    `const src = { codes: { get at() { effects.push('at'); return () => 7; }, keys: 17 },
+       other: { get toFixed() { effects.push('fixed'); return () => 8; } } };
+     try { throw src; } catch ({ ${ (reverse ? [other, codes] : [codes, other]).join(', ') } }) { return [m(), k, t()]; }`,
+    [7, 17, 8], reverse ? ['fixed', 'at'] : ['at', 'fixed'],
+  ]);
+}
+cases.push([
+  'carrier/captured-computed-sibling',
+  `const { Map: { groupBy: g, [(effects.push('key'), 'name')]: name }, other } = globalThis;
+   return [g([7], x => x).get(7)[0], name, typeof other];`,
+  [7, 'Map', 'undefined'], ['key'],
+], [
+  'carrier/header-user-receiver',
+  `function get() { effects.push('call'); return { Array: { prototype: { flat() { return [23]; } }, isArray: () => false } }; }
+   for (var before = effects.push('before'), { Array: { prototype: { flat }, isArray } } = (effects.push('prefix'), get()),
+     after = effects.push('after');;) return [before, flat()[0], isArray([]), after];`,
+  [1, 23, false, 4], ['before', 'prefix', 'call', 'after'],
+]);
+
+for (const throws of [false, true]) cases.push([
+  `sparse-spread/${ throws }`,
+  `let seen = '', end = 0, after = 0, result;
+   function read(flag) { return (([{ from }]) => typeof from)([...[flag ? Array : Set, , ++end], after = end]); }
+   const proto = Object.getPrototypeOf([]), length = proto.length;
+   const saved = Object.getOwnPropertyDescriptor(proto, '1');
+   Object.defineProperty(proto, '1', { configurable: true, get() {
+     seen += this.length + ':' + end; ${ throws ? 'throw new RangeError();' : 'return 17;' }
+   } });
+   try { result = read(true); } catch (error) { result = error.name; } finally {
+     if (saved) Object.defineProperty(proto, '1', saved); else delete proto[1];
+     proto.length = length;
+   }
+   return [seen, end, after, result];`,
+  ['3:1', 1, throws ? 0 : 1, throws ? 'RangeError' : 'function'],
+]);
+
+// A constructor can be polyfilled while the excluded realm name remains native.
+// A plain read beyond the closing parenthesis still evaluates its key and throws.
+for (const rootState of ['missing', 'undefined', 'present']) for (const outcome of ['read', 'throw', 'supplied']) {
+  const supplied = outcome === 'supplied';
+  cases.push([
+    `sealed-passthrough/${ rootState }/${ outcome }`,
+    `const root = Function('return this')();
+     const previous = Object.getOwnPropertyDescriptor(root, 'self'), win = Object.getOwnPropertyDescriptor(root, 'window');
+     try {
+       ${ rootState === 'missing' ? 'delete root.self;'
+        : `Object.defineProperty(root, 'self', { configurable: true, value: ${ rootState === 'present' ? 'root' : 'undefined' } });` }
+       Object.defineProperty(root, 'window', { configurable: true, value: root });
+       function key() { effects.push('key'); ${ outcome === 'throw' ? 'throw new RangeError();' : '' } }
+       function read({ from: m } = (self?.globalThis.window)[(key(), 'Array')]) { return m([3])[0]; }
+       try { return ${ supplied ? 'read({ from() { return [7]; } })' : 'read()' }; } catch (error) { return error.name; }
+     } finally {
+       if (previous) Object.defineProperty(root, 'self', previous); else delete root.self;
+       if (win) Object.defineProperty(root, 'window', win); else delete root.window;
+     }`,
+    supplied ? 7 : rootState === 'missing' ? 'ReferenceError' : outcome === 'throw' ? 'RangeError'
+      : rootState === 'undefined' ? 'TypeError' : 3, supplied || rootState === 'missing' ? [] : ['key'],
+      { ...OPTIONS, exclude: ['self'] },
+  ]);
+}
+
 for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
   for (const directive of ['file', 'line', 'next-line']) {
     const body = 'const { globalThis: { Array: { prototype: { at } }, Object: o } } = globalThis;';
@@ -228,13 +344,13 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
 
 let index = 0;
 try {
-  for (const [name, body, expected, events = []] of cases) {
+  for (const [name, body, expected, events = [], options = OPTIONS] of cases) {
     const source = scenarioSource(`export const effects = []; export const r = (() => { ${ body } })();`);
     const babel = (await transformAsync(source, {
-      filename: 'input.mjs', configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]],
+      filename: 'input.mjs', configFile: false, babelrc: false, plugins: [[babelPlugin, options]],
       parserOpts: { createParenthesizedExpressions: name.startsWith('parenthesized/') },
     })).code;
-    const plugin = createUnplugin(OPTIONS);
+    const plugin = createUnplugin(options);
     const pre = plugin.transform(source, 'input.mjs', 'pre')?.code ?? source;
     const post = plugin.transform(pre, 'input.mjs', 'post')?.code ?? pre;
     for (const [host, output] of [['native', source], ['babel', babel], ['unplugin', pre], ['pre+post', post]]) {
@@ -264,4 +380,24 @@ try {
 } finally {
   await fs.remove(DIR);
 }
+// A later parameter keeps this pattern native. A sibling plugin can still rewrite a
+// following array element between spread preparation and core-js's Program.exit.
+for (const spread of ['...[]', '...[x, y]']) {
+  const source = `function read([{ y: { at: method } }] = [seed, ${ spread }, tail], b = method) { return b; }`;
+  const { ast } = await transformAsync(source, {
+    babelrc: false, configFile: false, ast: true, code: false,
+    plugins: [[babelPlugin, OPTIONS], ({ types: t }) => ({ visitor: {
+      Identifier(id) {
+        if (id.node.name === 'tail' && id.parentPath.isArrayExpression()) id.replaceWith(t.identifier('changed'));
+      },
+    } })],
+  });
+  const { body } = ast.program;
+  check(`unclaimed spread/${ spread }/no import`, body.length, 1);
+  const { elements } = body[0].params[0].right;
+  check(`unclaimed spread/${ spread }/restored list`, elements.length, 3);
+  check(`unclaimed spread/${ spread }/spread`, elements[1].type, 'SpreadElement');
+  check(`unclaimed spread/${ spread }/sibling edit`, elements[2].name, 'changed');
+}
+
 finish();

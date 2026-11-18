@@ -2552,7 +2552,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // a moved head no claim took up goes back, once the flush has placed its refs
         restoreIdleRelocations(path.node);
         // a file that injected nothing prints as written: the wrapper splices are undone
-        if (injector && !injector.pureImports.size && !injector.globalImports.size) restoreUnclaimedFlattens(path.node);
+        restoreUnclaimedFlattens(path.node, injector);
         exitedBodyNodes = new WeakSet(path.node.body);
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
         // late-CJS detection (`postHook`'s diagnostic warn) can add to

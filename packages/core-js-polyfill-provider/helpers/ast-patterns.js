@@ -6612,18 +6612,35 @@ export function pairedArrayWrapInitElement(initElements, index) {
 
 // the same expansion written INTO the literal: the rewriting flavor splices an inline-array spread
 // in place before any route edits the literal by slot, so a positional answer and a positional edit
-// name one element. Live trees supply the binding's path-aware replacement; raw splices are
-// only for detached lists. A spread with an opaque nested spread keeps its original shape.
-export function flattenInlineArraySpreads(elements, replaceSpread = null) {
+// name one element. Live trees replace the spread through its path; raw splices are
+// only for detached lists. A sparse spread reads inherited slots while building the outer
+// list, even when the consumer never visits them. Keep that spread and its timing intact.
+export function flattenInlineArraySpreads(elements, host = null, edits = null) {
   if (!Array.isArray(elements)) return;
   for (let i = 0; i < elements.length; i++) {
     const item = elements[i];
     const spread = item?.type === 'SpreadElement' ? inlineArrayElements(item.argument) : null;
-    if (!spread) continue;
-    if (replaceSpread) {
-      if (!replaceSpread(item, spread)) continue;
+    if (!spread || spread.includes(null)) continue;
+    if (host) {
+      const path = pathOfNode(host, item);
+      if (!path || path.container !== elements) continue;
+      const edit = edits && { host, array: path.parentPath, literal: path.parentPath.node, item, spread, index: i };
+      if (spread.length) {
+        const inserted = path.replaceWithMultiple(spread);
+        if (edit) edit.inserted = inserted;
+      } else {
+        if (edit) {
+          let left = i - 1;
+          let right = i + 1;
+          while (elements[left] === null) left--;
+          while (elements[right] === null) right++;
+          edit.gap = { previous: elements[left], next: elements[right], before: i - left, after: right - i - 1 };
+        }
+        path.remove();
+      }
+      if (edit) edits.push(edit);
     } else elements.splice(i, 1, ...spread);
-    i -= 1;
+    i += spread.length - 1;
   }
 }
 
@@ -12317,7 +12334,7 @@ export function pathOfNode(anchorPath, node) {
 // validates that same physical ancestry before using its scope or placement.
 function liveCachedNodePath(context, node) {
   const known = PATHS_OF_NODES.get(context, node);
-  return known?.node === node && !ancestorChainDetached(known) ? known : null;
+  return known?.node === node && !known.removed && !ancestorChainDetached(known) ? known : null;
 }
 
 // ... one level at a time: a list's item through its span index, a single child through its own span - and where no
@@ -12340,6 +12357,8 @@ function descendToNode(from, node) {
           if (!next) {
             // The container cache holds siblings without refreshing the whole list per descent.
             next = cachedContainerPaths(cur, key)[at];
+            // Reintroducing the same node can leave a retired path in the list cache.
+            if (next?.removed || next?.node !== value[at]) next = cur.get(key)[at];
             if (next?.node === value[at]) PATHS_OF_NODES.set(context, value[at], next);
           }
         } else if (isASTNode(value) && nodeRangeContains(value, node)) {

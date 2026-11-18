@@ -153,3 +153,41 @@ QUnit.test('replaced namespace captures retain their private role', assert => {
   assert.same(DispatchedPublic.tail, 3);
   assert.deepEqual(privateReplacementEffects, ['before', 'key', 'default-key', 'function', 'function']);
 });
+
+QUnit.test('destructuring: a spread reads an inherited hole before the next argument element', assert => {
+  const proto = Object.getPrototypeOf([]);
+  const length = proto.length;
+  const saved = Object.getOwnPropertyDescriptor(proto, '1');
+  let reads = 0, end = 0, after = 0, errorName;
+  function read(flag: boolean) {
+    // The type wrapper keeps the ES5 spread helper's iterator read observable too.
+    return (([{ from }]) => typeof from)([...([flag ? Array : Set, , ++end] as any[]), after = end]);
+  }
+  Object.defineProperty(proto, '1', { configurable: true, get() {
+    reads++;
+    throw new RangeError();
+  } });
+  try { read(true); } catch (error) {
+    errorName = error.name;
+  } finally {
+    if (saved) Object.defineProperty(proto, '1', saved);
+    else delete proto[1];
+    proto.length = length;
+  }
+  assert.same(errorName, 'RangeError');
+  assert.deepEqual([reads, end, after], [1, 1, 0]);
+});
+
+QUnit.test('a loop header keeps a computed iterator key on a wrapped realm at its source slot', assert => {
+  const log: string[] = [];
+  let visits = 0;
+  for (const before = log.push('before'), { [(log.push('key'), Symbol.iterator)]: it, Infinity: bound } = (globalThis as any),
+             after = log.push('after'); visits < 1; visits++) {
+    assert.same(before, 1);
+    assert.same(it, (globalThis as any)[Symbol.iterator]);
+    assert.same(bound, Infinity);
+    assert.same(after, 3);
+  }
+  assert.same(visits, 1);
+  assert.deepEqual(log, ['before', 'key', 'after']);
+});

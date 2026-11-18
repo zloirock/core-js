@@ -151,9 +151,11 @@ import {
   consumableHopSlotName,
   globalProxyMemberName,
   guardedNavPassthroughPlan,
+  bindSealedPassthrough,
   proxyGlobalMemberCtorPure,
   decidedSelectionValue,
   guaranteedRealmObjectName,
+  isCallShape,
   isKnownStaticGlobal,
   isStaticPlacement,
   navValueCanShortCircuit,
@@ -847,16 +849,16 @@ export function planInitializerNavigation({ init, prop, kind, entry, keys, sourc
         && isPureNavReceiver(proven ?? tail);
     return carried ? { carried: true, receiver: proven ?? receiver } : null;
   }
-  if (forInit || kind !== 'instance' || entry === SYMBOL_ITERATOR_PURE_RESULT.entry
+  if (kind !== 'instance' || entry === SYMBOL_ITERATOR_PURE_RESULT.entry
     || !(prop.value.type === 'Identifier'
       || (prop.value.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier'))) return null;
   const parts = initializerEffectParts(init);
-  const bare = peelTransparentExpr(init);
-  const call = !parts && (bare?.type === 'CallExpression' || bare?.type === 'OptionalCallExpression')
-    && !provenRealmCallRoot(bare, ctx.path, ctx.adapter)
-    && provenRealmCallRoot(bare, ctx.path, ctx.adapter, { allowEffects: true }) ? bare : null;
-  const tail = parts?.tail ?? call;
-  const root = tail && (provenRealmCallRoot(tail, ctx.path, ctx.adapter, { allowEffects: true }) ?? tail);
+  const tail = parts ? parts.tail : peelTransparentExpr(init);
+  if (!parts && (forInit || !isCallShape(tail) || provenRealmCallRoot(tail, ctx.path, ctx.adapter))) return null;
+  // A loop residual keeps the source in its header. Only a proven realm call can
+  // supply an independent receiver there; an opaque source still needs a shared memo.
+  const proven = tail && provenRealmCallRoot(tail, ctx.path, ctx.adapter, { allowEffects: !forInit });
+  const root = proven ?? (parts && !forInit ? tail : null);
   const guardCtx = { resolvePure: ctx.resolvePure, aliasCtx: ctx };
   return root && isPureNavReceiver(root, guardCtx)
     && isInstanceSurfaceNav(keys.reduce(memberFromKeyName, root), { ctx, isOwnAlias: ctx.isOwnAlias })
@@ -4441,14 +4443,14 @@ export function renderSynthLiteral(entries, {
         aliasCtx,
       );
       const sealed = !collapsed && !guarded && sealedReceiverPlan;
-      const probe = sealed?.kind === 'passthrough' && aliasCtx ? guardedNavPassthroughPlan(
-        sealed.boundary.inner,
+      const probe = sealed?.kind === 'passthrough' && aliasCtx ? bindSealedPassthrough(
+        sealed,
         ({ name }) => resolvePure({ kind: 'global', name }),
         aliasCtx,
       ) : null;
       reference = collapsed ?? (guarded || sealed && (sealed.kind !== 'passthrough' || probe)
         ? renderClaimProbe(
-          guarded ?? (probe ? { ...probe, boundary: sealed.boundary, key: sealed.key } : sealed),
+          guarded ?? probe ?? sealed,
           { injectImport, embed, cloneHost },
         ) : embed(cloneHost(readReceiver)));
       if (collapsed ? plan.kind === 'member' || plan.optional : receiverCarriesLiveOptional(readReceiver)) {

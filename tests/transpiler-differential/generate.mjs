@@ -25810,6 +25810,46 @@ function * generateDestructureCarrierHosts() {
   })()`), strip: true };
 }
 
+// Spreading a hole reads its source array before the next outer element, even if
+// the parameter consumes only the first element. Observe reads without using Array#push.
+function * generateSparseDestructureSpreads() {
+  for (const nested of [false, true]) for (const throws of [false, true]) {
+    const array = '[flag ? Array : Set, , ++end]';
+    const spread = nested ? `[...${ array }]` : array;
+    yield { ...snippet(`sparse-destructure-spreads/${ nested }/${ throws }`, `(() => {
+      let seen = '', end = 0, after = 0, result;
+      function read(flag) { return (([{ from }]) => typeof from)([...${ spread }, after = end]); }
+      const proto = Object.getPrototypeOf([]), length = proto.length;
+      const saved = Object.getOwnPropertyDescriptor(proto, '1');
+      Object.defineProperty(proto, '1', { configurable: true, get() {
+        seen += this.length + ':' + end; ${ throws ? 'throw new RangeError();' : 'return 17;' }
+      } });
+      try { result = read(true); } catch (error) { result = error.name; } finally {
+        if (saved) Object.defineProperty(proto, '1', saved); else delete proto[1];
+        proto.length = length;
+      }
+      return [seen, end, after, result];
+    })()`), strip: true };
+  }
+}
+
+// A present outer slot skips its default even when its next property is missing.
+function * generateDestructureSourceSlots() {
+  for (const assign of [false, true]) {
+    const pattern = "{ Map: { Map: { groupBy: method } } = (log.push('default'), flag ? globalThis : {}) } = globalThis";
+    const binding = assign ? `let method; (${ pattern });` : `const ${ pattern };`;
+    yield { ...snippet(`destructure-source-slots/present-outer/${ assign }`, `(() => {
+      const log = [], flag = true;
+      try { ${ binding } return [typeof method, log]; } catch (error) { return [error.name, log]; }
+    })()`), strip: true };
+  }
+  yield { ...snippet('destructure-source-slots/loop-header', `(() => {
+    const log = []; function realm() { return globalThis; }
+    for (const before = log.push('before'), { Array: { prototype: { flat }, isArray } } = (log.push('prefix'), realm()),
+      after = log.push('after');;) return [before, flat.call([[7]])[0], isArray([]), after, log];
+  })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27629,4 +27669,6 @@ export function * generate() {
   yield * generateOwnedImportReceivers();
   yield * generateArrayHostBoundaries();
   yield * generateDestructureCarrierHosts();
+  yield * generateSparseDestructureSpreads();
+  yield * generateDestructureSourceSlots();
 }

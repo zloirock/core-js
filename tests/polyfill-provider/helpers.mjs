@@ -2462,16 +2462,13 @@ runBoth('call argument coordinates: cast spread, nested spread, later positional
   check('flattenInlineArraySpreads/inline spread spliced in place', elements.map(e => e.name ?? e.type).join(','), 'x,y,c,SpreadElement');
 }
 // Retaining a sibling path before a splice exposes stale indices independently of printing.
-for (const [spread, count] of [['...[]', 1], ['...[a, b]', 3], ['...[...[a, b]]', 3], ['...unknown', 2]]) {
+for (const [spread, count] of [
+  ['...[]', 1], ['...[a, b]', 3], ['...[...[a, b]]', 3], ['...unknown', 2], ['...[a, , b]', 2], ['...[...[a, , b]]', 2],
+]) {
   runBoth(`flattenInlineArraySpreads/live siblings ${ spread }`, `const values = [${ spread }, Map];`, (parser, program, label) => {
     const array = program.get('body')[0].get('declarations')[0].get('init');
     const tail = array.get('elements').at(-1);
-    flattenInlineArraySpreads(array.node.elements, (node, elements) => {
-      const target = array.get('elements').find(item => item.node === node);
-      if (elements.length) target.replaceWithMultiple(elements);
-      else target.remove();
-      return true;
-    });
+    flattenInlineArraySpreads(array.node.elements, array);
     check(`${ label } length`, array.node.elements.length, count);
     check(`${ label } tail index`, tail.key, count - 1);
     check(`${ label } physical slot`, tail.container[tail.key] === tail.node, true);
@@ -2481,7 +2478,7 @@ for (const [spread, count] of [['...[]', 1], ['...[a, b]', 3], ['...[...[a, b]]'
 }
 {
   const elements = [INLINE, EL('c')];
-  flattenInlineArraySpreads(elements, () => false);
+  flattenInlineArraySpreads(elements, { node: { type: 'Program', body: [] } });
   check('flattenInlineArraySpreads/unavailable insertion path keeps the spread', elements[0], INLINE);
   check('flattenInlineArraySpreads/unavailable insertion path keeps length', elements.length, 2);
 }

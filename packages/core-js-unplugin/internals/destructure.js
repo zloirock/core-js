@@ -13,9 +13,8 @@ import {
   destructureDefaultAfterResidual,
   destructurePatternHostPath,
   canExtractDestructureExport,
-  destructureRetainsLiteralWrapper,
   liftedPrefixSplit,
-  flattenArrayWrapperInits,
+  prepareDestructureLiteralWrapper,
   isInstanceSurfaceNav,
   isReReferenceableAcrossReads,
   isReReferenceableReceiver,
@@ -224,23 +223,6 @@ function attachAssignmentSentinelMinter(job, { seqHostStatement, metaPath, injec
     job.mintedSentinels.push(name);
     return name;
   };
-}
-
-// Native insertion APIs refresh cached sibling paths when a spread changes list length.
-function replaceSpread(path, nodes) {
-  // Insertion validation rejects holes. Keep their prototype reads and shift cached paths
-  // with the same sibling-index operation the native insertion uses; a hole has no visitor.
-  if (nodes.includes(null)) {
-    for (const node of nodes) {
-      if (node) path.insertBefore([node]);
-      else {
-        path.container.splice(path.key, 0, null);
-        path.updateSiblingIndex(path.key, 1);
-      }
-    }
-    return path.remove();
-  }
-  return nodes.length ? path.replaceWithMultiple(nodes) : path.remove();
 }
 
 // eslint-disable-next-line max-statements -- per-transform ledgers and the binding channels sharing them
@@ -639,7 +621,6 @@ export default function createAstDestructureEmitter({
   function handlePerBranch({ metaPath, meta = null, sourcePath = metaPath }) {
     const prop = metaPath.node;
     if (prop.type !== 'Property') return;
-    if (destructureRetainsLiteralWrapper({ propPath: metaPath, kind: 'static', adapter, meta })) return;
     const patternPath = metaPath.parentPath;
     const pattern = patternPath?.node;
     if (pattern?.type !== 'ObjectPattern') return;
@@ -648,8 +629,7 @@ export default function createAstDestructureEmitter({
     // (`const host = ({ assign: a } = shim || Object)` keeps `Object`) - asked through the shared
     // host climb, so a wrapped pattern (`host = ([{ p }] = [sel])`) answers like the flat one
     if (destructureAssignmentValueIsCaptured(metaPath)) return;
-    // an inline-array spread in the wrapper flattens first, the way the per-prop dispatch does
-    flattenArrayWrapperInits(metaPath, replaceSpread);
+    if (prepareDestructureLiteralWrapper({ propPath: metaPath, kind: 'static', adapter, meta })) return;
     // the receiver the pattern reads: its host's slot, the IIFE argument, or - under an ARRAY
     // WRAPPER - the element the host's literal pairs it with, the shared resolver's own climb
     const desc = resolveFallbackReceiver(patternPath.parentPath, pattern,
@@ -1239,9 +1219,7 @@ export default function createAstDestructureEmitter({
     if (applyParameterClaimMirror(metaPath, meta, kind, patternMirrorBinding)) return;
     // every leaf of this pattern answers its receiver type before the routes below rewrite it
     primeDestructureReceiverTypes?.(metaPath);
-    // A native wrapper keeps its written iteration even when another host injects.
-    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: metaPath, kind, adapter, meta });
-    if (!retainsLiteralWrapper) flattenArrayWrapperInits(metaPath, replaceSpread);
+    const retainsLiteralWrapper = prepareDestructureLiteralWrapper({ propPath: metaPath, kind, adapter, meta });
 
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
@@ -1893,20 +1871,6 @@ export default function createAstDestructureEmitter({
     // ordered AHEAD of the AssignmentPattern bail: a DEFAULTED leaf under a selection
     // belongs to the mirror / the statically-selected extraction exactly like its
     // undefaulted twin - the flat bail left the claim unrendered
-    // ... and a value-selecting inner DEFAULT of the leaf's own level (`{ k: { Map: { groupBy } }
-    // = sel } = {}`) is the per-branch mirror's shape whatever the host's init: the leaf reads
-    // that default exactly when the outer key is missing, and the mirror fills its arms
-    const levelDefault = nestedLeafSelectingReceiver(metaPath, null);
-    if (levelDefault && kind !== 'instance' && chain.length > 0
-      && SELECTING_INIT_TYPES.has(peelTransparentExpr(levelDefault)?.type)) {
-      // the shared plan first: a paired slot proves the default dead, an all-proxy selection
-      // mirrors whole; only a selection the plan cannot spell goes to the per-branch mirror
-      if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return 'handled';
-      if (!selectingInitSurface(levelDefault, metaPath)) {
-        routeSelectionMirror(metaPath, handlePerBranch, meta);
-        return 'handled';
-      }
-    }
     const selecting = peelTransparentExpr(declarator.init);
     const selection = selectingExtractionPlan({
       receiver: declarator.init, kind, object: meta?.object, soleBinding, nested: chain.length > 0,
@@ -2250,11 +2214,11 @@ export default function createAstDestructureEmitter({
     // the identity (`{ a, y: { flat: m } } = { a: se(), y: [3, [1, 2]] }` -> the block memo)
     const nestedMemoNode = nestedReceiver && nodeHoldsSubtree(initValue, nestedReceiver)
       && !mayHaveSideEffects(nestedReceiver) ? nestedReceiver : null;
-    if (kind === 'instance' && chain.length && !carriedReceiver
+    if (literalRoute.navigation || (kind === 'instance' && chain.length && !carriedReceiver
       && !isReReferenceableReceiver(nestedReceiver) && !surfaceLeafValue
-      && !(relaxedNestedReceiver && nestedMemoNode)) {
-      // The ordinary drain can capture a slot that this compact host cannot re-read.
-      // Re-detect every declarator inside the same conditional var scope.
+      && !(relaxedNestedReceiver && nestedMemoNode))) {
+      // The ordinary declaration owns navigation and captures that need a statement.
+      // Keep every declarator inside the original conditional var scope.
       ledger.delete(host.declaration);
       host.declarationPath.replaceWith(blockStatement([host.declaration]));
       markRewrite();
@@ -2288,8 +2252,7 @@ export default function createAstDestructureEmitter({
     // the walk proved re-referenceable - re-reads inline
     // ... and so does a SOLE consume (above): with the whole pattern gone there is no second
     // reader for the memo to serve, and the dispatch spells the init itself
-    const dispatchReceiver = literalRoute.navigation
-      ? renderNestedExtractionReceiver(literalRoute.navigation, { embed: cloneNode }) : nestedReceiver ?? initValue;
+    const dispatchReceiver = nestedReceiver ?? initValue;
     // ... and it is read LIVE where it IS the init: a claim INSIDE the receiver renders by REPLACING
     // its node, so a copy captured here ships the source read with its own polyfill lost. a resolved
     // hop, a lifted prefix or an array-wrapped element each name a slot of their own and keep theirs
@@ -2370,6 +2333,16 @@ export default function createAstDestructureEmitter({
     });
   }
 
+  // A default supplies its nested receiver only if the source slot is undefined.
+  // Resolve this before an unconditional declaration or assignment can extract a static.
+  function routeNestedSelectingDefault(metaPath, meta, level) {
+    if (!SELECTING_INIT_TYPES.has(peelReceiverSequenceTail(level)?.type)) return false;
+    if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return true;
+    if (selectingInitSurface(level, metaPath)) return false;
+    routeSelectionMirror(metaPath, handlePerBranch, meta);
+    return true;
+  }
+
   // eslint-disable-next-line max-statements -- per-form host dispatch sequence
   function handleDeclaratorHost({ metaPath, meta = null, kind, entry, hintName, prop, pattern, chain, sentinel, hostParent }) {
     const keyCtx = { scope: metaPath.scope, adapter, path: metaPath };
@@ -2395,6 +2368,8 @@ export default function createAstDestructureEmitter({
     });
     const { declarator, declarationPath, declaration, forInit, exported } = host;
     if (!canExtractDestructureExport(metaPath, keyCtx)) return;
+    if (kind !== 'instance' && chain.length
+      && routeNestedSelectingDefault(metaPath, meta, nestedLeafSelectingReceiver(metaPath, null))) return;
     // the guard canon's context, asked once for this claim: the pure-nav predicates and the value
     // builder all owe the same verdict about the receiver's `?.`
     const guardCtx = navGuardCtx(metaPath);
@@ -2410,7 +2385,8 @@ export default function createAstDestructureEmitter({
       sourcePattern: declarator.id, forInit,
     }, { ...keyCtx, resolvePure: guardCtx.resolvePure, isOwnAlias: isOwnPureAlias });
     const seCarried = !!initializerNavigation?.carried;
-    const carriedInitValue = seCarried ? initializerNavigation.receiver : declarator.init;
+    const headerReceiver = forInit && !seCarried && initializerNavigation?.receiver;
+    const carriedInitValue = headerReceiver || (seCarried ? initializerNavigation.receiver : declarator.init);
     // ... and an init the pattern DESCENDS - a literal holding the receiver in one of its slots -
     // is a nav receiver by what the hops land on, not by what the init spells: the shared decision
     // walks through the literal and hands back the nav those hops name, which is what dispatches
@@ -2419,7 +2395,7 @@ export default function createAstDestructureEmitter({
     const navDispatch = kind === 'instance' && chain.length > 0
       ? resolveNestedNavDispatch(metaPath, { adapter, carriedInit: seCarried }) : null;
     // A sole consumed source is read once; surviving readers still need a stable root.
-    const pureNav = ((forInit || seCarried
+    const pureNav = !!headerReceiver || ((forInit || seCarried
       ? isPureNavAfterSePrefix(carriedInitValue, guardCtx)
       : isPureNavReceiver(declarator.init, guardCtx))
       && (!sentinel && soleChainToProp(declarator.id, prop) || navRootReReadable(declarator.init, metaPath)))
@@ -2611,7 +2587,7 @@ export default function createAstDestructureEmitter({
       // CARRIED prefix leaves the tail it yields: the drain carries that prefix, so a dispatch reading
       // the whole init would run it twice (`(o.k = _self, _self.Array.prototype)`). A navigation
       // root also differs from the init: reading this.Array for this would duplicate the Array hop.
-      liveReceiver: carriedLive ?? (seCarried || memoRecv || allProxyInit
+      liveReceiver: carriedLive ?? (seCarried || headerReceiver || memoRecv || allProxyInit
         || (navSurface && navSurface.root !== declarator.init)
         || (literalReceiver && literalReceiver !== declarator.init) ? null : () => declarator.init),
       reusedReceiver: !!keepKey,
@@ -2900,22 +2876,8 @@ export default function createAstDestructureEmitter({
     // a DISCARDED sequence element has no statement slot of its own: the shared plan answers there first,
     // as on the other leg, and its bail keeps the read native over a receiver it cannot prove
     if (seqHostStatement && kind !== 'instance' && chain.length > 0 && renderNestedParamSynth({ metaPath, meta })) return;
-    // a value-SELECTING RHS under a NESTED static leaf routes to the per-branch mirror,
-    // the declarator host's decline (babel mirrors too; the extraction
-    // route discards the selection and drags the substituted root in as a dead import)
-    // ... the RHS the leaf's own level reads: an inner default of its own ahead of the host's. the
-    // shared plan settles that level first - a value the host's literal pairs proves the default
-    // DEAD (nothing to mirror, the babel leg's `dead` arm), an all-proxy selection mirrors whole -
-    // and only a selection the plan cannot spell goes to the per-branch mirror
     const levelRhs = nestedLeafSelectingReceiver(metaPath, rhs);
-    if (kind !== 'instance' && chain.length > 0 && levelRhs !== rhs
-      && SELECTING_INIT_TYPES.has(peelTransparentExpr(levelRhs)?.type)) {
-      if (renderNestedParamSynth({ metaPath, meta, fallbackOnBail: true })) return;
-      if (!selectingInitSurface(levelRhs, metaPath)) {
-        routeSelectionMirror(metaPath, handlePerBranch, meta);
-        return;
-      }
-    }
+    if (kind !== 'instance' && chain.length && levelRhs !== rhs && routeNestedSelectingDefault(metaPath, meta, levelRhs)) return;
     // ... a selection the build decides is no selection here: the operand of it that runs is the RHS the routes
     // below take (`decidedRunningOperand`), as the declarator host's selected left is
     const runningRhs = decidedRunningOperand(rhs, keyCtx);

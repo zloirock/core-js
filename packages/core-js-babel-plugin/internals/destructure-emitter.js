@@ -114,10 +114,9 @@ import {
   observablePrefixElements,
   destructurePatternHostPath,
   canExtractDestructureExport,
-  destructureRetainsLiteralWrapper,
   fallbackDestructureHasPolyfillableBranch,
   destructureDefaultAfterResidual,
-  flattenArrayWrapperInits,
+  prepareDestructureLiteralWrapper,
   noteRelocation,
   initRunsCode,
   isBuiltInSurfaceNav,
@@ -540,23 +539,6 @@ function renderNestedParamSynth({
       }
     },
   });
-}
-
-// Native insertion APIs refresh cached sibling paths when a spread changes list length.
-function replaceSpread(path, nodes) {
-  // Insertion validation rejects holes. Keep their prototype reads and refresh cached
-  // sibling paths through Babel's container lookup; a hole has no visitor.
-  if (nodes.includes(null)) {
-    for (const node of nodes) {
-      if (node) path.insertBefore([node]);
-      else {
-        path.container.splice(path.key, 0, null);
-        path.parentPath.get(path.listKey);
-      }
-    }
-    return path.remove();
-  }
-  return nodes.length ? path.replaceWithMultiple(nodes) : path.remove();
 }
 
 // destructure-emit factory: orchestrates the flatten / cascade / param / catch pipelines,
@@ -4631,9 +4613,7 @@ export default function createDestructureEmitter({
     // Caller mirrors replace their paired leaf in the original argument, before any wrapper flatten.
     if (kind === 'instance' && isFunctionParamDestructureParent(objectPattern)
       && applyParameterClaimMirror(prop, meta, kind, patternMirrorBinding)) return;
-    // A native wrapper keeps its written iteration even when another host injects.
-    const retainsLiteralWrapper = destructureRetainsLiteralWrapper({ propPath: prop, kind, adapter, meta });
-    if (!retainsLiteralWrapper) flattenArrayWrapperInits(prop, replaceSpread);
+    const retainsLiteralWrapper = prepareDestructureLiteralWrapper({ propPath: prop, kind, adapter, meta });
     // the MIRROR's one ask, at the same point in both bindings' dispatch and ahead of every route that
     // CONSUMES the hop (the keyed capture, the proxy flatten, the key-read plan). Every condition of
     // it is the provider's `seKeyStaticOwesTheMirror`, so neither leg carries a gate of its own, and

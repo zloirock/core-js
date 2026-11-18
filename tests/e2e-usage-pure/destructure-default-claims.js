@@ -21,3 +21,13 @@ QUnit.test('destructuring: a generated literal capture keeps its own slot', asse
   assert.same(at.call([7], 0), 7, 'the instance claim reads the captured array');
   assert.deepEqual(effects, ['slot'], 'the captured slot is evaluated once');
 });
+
+QUnit.test('a present outer slot skips a selecting default before a missing nested receiver', assert => {
+  let defaults = 0;
+  function read(flag) {
+    const { Map: { Map: { groupBy } } = (++defaults, flag ? globalThis : {}) } = globalThis;
+    return groupBy;
+  }
+  assert.throws(() => read(true), TypeError);
+  assert.same(defaults, 0);
+});

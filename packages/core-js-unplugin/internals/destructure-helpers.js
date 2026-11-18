@@ -25,7 +25,7 @@ import {
   peelChainRootValue,
   peelRealmLogicalDefault,
   isPureNavReceiver,
-  guardedNavPassthroughPlan,
+  bindSealedPassthrough,
   resolveObjectName,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -641,9 +641,9 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
   let node;
   if (plan.kind !== 'passthrough') node = renderCapturedProbe(plan, ctx);
   else {
-    const passthrough = guardedNavPassthroughPlan(plan.boundary.inner, ({ name }) => ctx.resolveGlobalPolyfill(name),
+    const passthrough = bindSealedPassthrough(plan, ({ name }) => ctx.resolveGlobalPolyfill(name),
       { ...nodeSite(plan.boundary.inner, metaPath), adapter: ctx.adapter });
-    node = passthrough && renderPassthroughProbe({ ...passthrough, boundary: plan.boundary, key: plan.key }, metaPath, ctx);
+    node = passthrough && renderPassthroughProbe(passthrough, metaPath, ctx);
   }
   if (node) probeFacts.set(node, plan.residual);
   return node;

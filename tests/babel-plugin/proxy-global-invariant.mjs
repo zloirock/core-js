@@ -39,6 +39,7 @@ const ALLOWED = new Map([
   ['audit-realm-run-under-an-excluded-root-guarded-over-store', ['globalThis']],
   ['declined-realm-excluded-root', ['globalThis']],
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
+  ['excluded-self-parameter-passthrough', ['self']],
   ['guarded-alias-realm-proxy-comparator-native-realm', ['globalThis', 'globalThis', 'globalThis', 'self', 'globalThis']],
   ['iterator-receiver-probe-assign', ['globalThis']],
   ['iterator-receiver-probe-loop', ['globalThis']],

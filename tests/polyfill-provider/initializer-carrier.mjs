@@ -69,6 +69,12 @@ for (const [name, init, sibling, carried, memo, forInit = false] of [
   ['prefix in header is not an early lift', '(effect(), globalThis)', '', false, false, true],
   ['surviving sibling shares prefix', '(effect(), globalThis)', ', other', false, true],
   ['surviving sibling shares store', '(held = globalThis)', ', other', false, true],
+  ['effectful call with a sibling', '(() => { effect(); return globalThis; })()', ', other', false, true],
+  ['pure call with a sibling', '(() => globalThis)()', ', other', false, false],
+  ['opaque call with a sibling', 'unknown()', ', other', false, false],
+  ['bare effectful call in header', '(() => { effect(); return globalThis; })()', ', other', false, false, true],
+  ['prefix and pure call in header', '(effect(), (() => globalThis)())', ', other', false, true, true],
+  ['prefix and effectful call in header', '(effect(), (() => { effect(); return globalThis; })())', ', other', false, false, true],
   ['ordinary root has no moved effects', 'globalThis', '', false, false],
   ['user member names no builtin surface', '(effect(), user)', ', other', false, false],
 ]) runBoth(name, `let held; const { Array: { prototype: { at: method } }${ sibling } } = ${ init };`, (parser, program, label) => {
@@ -123,6 +129,25 @@ for (const [name, init, pattern, collapseLeaf, expected] of [
   check(`${ label }/carrier`, plan.carrier, expected);
   checkDeep(`${ label }/repeat`, planConsumedInitializerCarrier(initNode, reads, ctx), plan);
   check(`${ label }/source untouched`, JSON.stringify(program.node), before);
+});
+
+// Two actual readers can reuse a realm-returning call only when the root has a
+// ponyfill and the call itself is repeatable. Keep the user's effects on their prefix.
+for (const [name, result, available, expected] of [
+  ['pure realm', 'return globalThis;', true, 'lift'],
+  ['unserved realm', 'return globalThis;', false, 'memo'],
+  ['effectful call', 'effect(); return globalThis;', true, 'memo'],
+  ['user result', 'return user;', true, 'memo'],
+]) runBoth(name, `function realm() { ${ result } } const { at, includes } = (prefix(), realm());`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const pure = { entry: 'global-this', hintName: 'globalThis' };
+  const ctx = { adapter, path, scope: path.scope, resolveGlobalPolyfill: key => available && key === 'globalThis' ? pure : null };
+  const reads = path.node.id.properties.map(prop => ({ kind: 'instance', prop }));
+  const plan = planConsumedInitializerCarrier(path.node.init, reads, ctx);
+  check(`${ label }/carrier`, plan.carrier, expected);
+  check(`${ label }/root import`, plan.pure || null, expected === 'lift' ? pure : null);
+  check(`${ label }/prefix`, plan.prefix[0], parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'prefix').node);
 });
 
 checkDeep('receiver-less claims keep only effects', planConsumedInitializerCarrier(null, [{ kind: 'static' }], {}),

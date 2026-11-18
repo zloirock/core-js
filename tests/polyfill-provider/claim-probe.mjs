@@ -21,6 +21,20 @@ function resolvePure({ name }) {
   return ['globalThis', 'self', 'Array', 'Promise'].includes(name) ? { entry: name, hintName: name } : null;
 }
 
+runBoth('excluded realm with an outer computed read', 'const value = (self?.globalThis.window)[(key(), "Array")];', (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { scope: path.scope, adapter, path };
+  function include(meta) { return meta.name === 'self' ? null : resolvePure(meta); }
+  const node = path.node.init;
+  const plan = directClaimProbePlan(node, include, ctx, { retainPassthrough: true });
+  check(`${ label }/ordinary claim`, directClaimProbePlan(node, include, ctx), null);
+  check(`${ label }/guard`, plan?.kind, 'nav');
+  check(`${ label }/root`, plan?.source, node);
+  check(`${ label }/computed key`, plan?.keyNode, node.property);
+  check(`${ label }/key belongs to the retained read exactly once`, plan?.retained.filter(part => part === node.property).length, 1);
+});
+
 for (const [source, kind, readKind] of [
   ['const value = (globalThis.window?.self).Array;', 'nav', 'leaf'],
   ['const value = (globalThis.window?.self.window).Array;', 'nav', 'leaf'],
