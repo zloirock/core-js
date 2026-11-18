@@ -266,11 +266,14 @@ export default {
     [143, '30.0'],
     [148, '31.0'],
   ],
-  // Yandex Browser for Android (YaBrowser). The dataset covers the mobile  product only.
+  // Yandex Browser for Android (YaBrowser).
   // https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers
   // https://web-platform-dx.github.io/baseline-browser-mapping/with_downstream/all_versions_object.json
-  // Two UA-derived rows whose Chromium version goes backwards relative to earlier Yandex versions
-  // (1.5 -> 22 after 1.0 -> 25, and 22.4 -> 92 after 22.3 -> 98) are omitted.
+  // Omit 1.5: Yandex documented Chromium 22 for the desktop release, six months before the Android launch.
+  // https://yandex.ru/blog/company/56960
+  // https://habr.com/ru/companies/yandex/articles/183704/
+  // Omit 22.4: the user agent reporting Chromium 92 identifies Yandex Browser Lite running in Android WebView.
+  // https://useragents.io/uas/mozilla-5-0-linux-android-12-goa-lx9-build-huaweigoa-lx9-wv-applewebkit-537-36-khtml-like-gecko-version-4-0-chrome-92-0-4515-105-yabrowser-22-4-0-71-lite-mobile-safari-537-36_81aa5af934063f5b7ea5ea0f58b344b2
   ChromeAndroidToYandexAndroid: [
     [25, '1.0'],
     [28, '13.9'],
