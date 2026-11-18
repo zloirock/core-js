@@ -392,4 +392,4 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
   equal(process.exitCode, exitCode, 'fails the process if the run never settles #3');
 }
 
-echo(chalk.green('Sauce Labs runner tested'));
+echo(chalk.green('Sauce Labs run tested'));
