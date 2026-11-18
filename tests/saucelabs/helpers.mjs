@@ -41,18 +41,30 @@ async function deployedCommit() {
   }
 }
 
+// the line about a failed attempt that is followed by the next one
+function retrying(message, attempt) {
+  echo(yellow(`${ message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
+}
+
 // a session beyond the plan waits in the Sauce Labs queue, and the wait counts towards the session timeout
-async function sessionLimits() {
+async function sessionLimits({ pollInterval = POLL_INTERVAL }) {
   let concurrency;
-  try {
-    const response = await fetch(`${ api }/rest/v1.2/users/${ encodeURIComponent(username) }/concurrency`, {
-      headers: { authorization: basicAuthorization(username, accessKey) },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-    });
-    if (!response.ok) throw new Error(`HTTP ${ response.status }`);
-    ({ concurrency } = await response.json());
-  } catch (error) {
-    throw new Error(`could not read the Sauce Labs concurrency limit: ${ error.message }`, { cause: error });
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(`${ api }/rest/v1.2/users/${ encodeURIComponent(username) }/concurrency`, {
+        headers: { authorization: basicAuthorization(username, accessKey) },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+      });
+      if (!response.ok) throw new Error(`HTTP ${ response.status }`);
+      ({ concurrency } = await response.json());
+      break;
+    } catch (error) {
+      const message = `could not read the Sauce Labs concurrency limit: ${ error.message }`;
+      if (attempt === ATTEMPTS) throw new Error(message, { cause: error });
+      retrying(message, attempt);
+      // an immediate request would meet the same outage
+      await setTimeout(pollInterval);
+    }
   }
   // `vms` covers every virtual platform, the Mac included, as the dashboard total does; the pools are within it
   const limit = pool => Math.min(concurrency?.organization?.allowed?.[pool], concurrency?.team?.allowed?.[pool]);
@@ -211,7 +223,7 @@ async function runPlatform(suite, platform, controller) {
       if (signal.aborted || !(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
       ({ sessionId: id, message } = error);
     }
-    echo(yellow(`${ titled(platform, id) }: ${ message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
+    retrying(`${ titled(platform, id) }: ${ message }`, attempt);
   }
 }
 
@@ -254,7 +266,7 @@ async function runSuite(suite) {
     if (deployed !== COMMIT) echo(yellow(`${ base }/commit.txt shows ${ deployed } instead of ${ COMMIT }; testing the currently served pages`));
   }
 
-  const limit = await sessionLimits();
+  const limit = await sessionLimits(suite);
   // limits queued session requests too: --all has hundreds of platforms
   const concurrency = Math.min(limit('vms'), suite.platforms.length);
   echo(green(`running ${ cyan(base) } on Sauce Labs, browsers: ${ cyan(suite.platforms.length) }, sessions: ${ cyan(concurrency) }`));

@@ -12,6 +12,7 @@ async function runFake({
   limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
   polling = { pollInterval: 0 },
   latePage = false,
+  limitOutages = 0,
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -26,6 +27,7 @@ async function runFake({
   };
   const output = [];
   let sessions = 0;
+  const limitRequests = [];
   let annotationRequests = 0;
   let markerRequests = 0;
   let quits = 0;
@@ -69,6 +71,8 @@ async function runFake({
         equal(new URL(url).host, 'api.us-west-1.saucelabs.com', 'reads the limit from the REST API of the region');
         equal(options.headers.authorization, `Basic ${ btoa('test:test') }`, 'reads the limit with the hub credentials');
         exitCodeWhileRunning = process.exitCode;
+        limitRequests.push(Date.now());
+        if (limitRequests.length <= limitOutages) return { ok: false, status: 503 };
         return { ok: limitStatus === 200, status: limitStatus, json: async () => limits ? { concurrency: {
           organization: { allowed: { vms: limits.organization, mac_vms: 15, ...limits.pools } }, team: { allowed: { vms: limits.team, mac_vms: 15, ...limits.pools } },
         } } : JSON.parse('<html>') };
@@ -163,7 +167,7 @@ async function runFake({
     const emptyPool = platforms?.some(({ pool }) => pool && !(limits.pools?.[pool] ?? (pool === 'mac_vms' ? 15 : 0)));
     if (limitStatus !== 200 || !limits?.team) {
       await rejects(run(suite), /could not read the Sauce Labs concurrency limit: (?:HTTP 401|.*JSON)|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
-      return { sessions };
+      return { sessions, limitRequests, output: output.join('\n') };
     }
     if (foreignBundles) await rejects(run(suite), new RegExp(`Sauce Labs run stopped: unit-browser/global\\.html: bundles of .* instead of ${ 'a'.repeat(40) }`), 'the run stops on foreign bundles');
     else if (emptyPool || failed || noReporter || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
@@ -171,6 +175,7 @@ async function runFake({
     return {
       output: output.join('\n'), exitCodeWhileRunning, navigations, annotations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
       pollDelays,
+      limitRequests,
       listedAfter: unwritableSessions ? undefined : await readFile(sessionsFile, 'utf8'),
     };
   } finally {
@@ -375,12 +380,28 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
 }
 
 {
-  const { sessions } = await runFake({ limitStatus: 401 });
-  equal(sessions, 0, 'opens no session without the concurrency limit');
-  const { sessions: none } = await runFake({ limits: { organization: 10, team: 0 } });
-  equal(none, 0, 'opens no session when the plan allows none');
-  const { sessions: unread } = await runFake({ limits: null });
-  equal(unread, 0, 'opens no session when the limit response is not JSON');
+  const { sessions, limitRequests, output } = await runFake({ limitStatus: 401 });
+  equal(sessions, 0, 'opens no session without the concurrency limit #1');
+  equal(limitRequests.length, 3, 'opens no session without the concurrency limit #2');
+  match(output, /concurrency limit: HTTP 401, retrying \(2 of 3\)\n.*concurrency limit: HTTP 401, retrying \(3 of 3\)$/, 'opens no session without the concurrency limit #3');
+  // the pause between the requests is the polling interval of the suite, zero here
+  ok(limitRequests[2] - limitRequests[0] < 4000, 'opens no session without the concurrency limit #4');
+  const { sessions: none, limitRequests: answered } = await runFake({ limits: { organization: 10, team: 0 } });
+  equal(none, 0, 'opens no session when the plan allows none #1');
+  equal(answered.length, 1, 'opens no session when the plan allows none #2');
+  const { sessions: unread, limitRequests: unparsed } = await runFake({ limits: null });
+  equal(unread, 0, 'opens no session when the limit response is not JSON #1');
+  equal(unparsed.length, 3, 'opens no session when the limit response is not JSON #2');
+}
+
+{
+  const { sessions, limitRequests, output } = await runFake({ limitOutages: 2, polling: { pollInterval: 100 } });
+  equal(sessions, 1, 'reads the concurrency limit again after a failed request #1');
+  equal(limitRequests.length, 3, 'reads the concurrency limit again after a failed request #2');
+  match(output, /concurrency limit: HTTP 503, retrying \(3 of 3\)/, 'reads the concurrency limit again after a failed request #3');
+  match(output, /all the browsers passed/, 'reads the concurrency limit again after a failed request #4');
+  // a timer may fire a little early
+  ok(limitRequests[1] - limitRequests[0] > 90 && limitRequests[2] - limitRequests[1] > 90, 'reads the concurrency limit again after a failed request #5');
 }
 
 {
