@@ -21,6 +21,7 @@ import {
   sequenceExpression,
   renderDeleteShortCircuitGuard,
   renderShortCircuitGuard,
+  retainSealedClaimTail,
 } from '@core-js/polyfill-provider/render';
 import { receiverCarriesOptional, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import { markSubtreeSkipped, optionalHeirAbove } from './nav-spine.js';
@@ -200,7 +201,7 @@ export function replaceGuardedHop({
   // a stale path is a no-op, never a throw
   if (hopPath.removed) return;
   const continuation = test ? planGuardedClaimTail(hopPath, { alwaysDefined, resolvePure: resolveHere }) : null;
-  const sealedTail = continuation?.sealedTail;
+  retainSealedClaimTail(continuation?.sealedTail);
   const deleteHostTail = continuation?.deleteHost;
   const climbed = continuation?.absorb && !fallbackTarget
     ? climbAbsorbedTail(hopPath, {
@@ -212,7 +213,6 @@ export function replaceGuardedHop({
     }) : null;
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
   const foldedHops = climbed?.foldedHops ?? [];
-  if (sealedTail) sealedTail.optional = true;
   let target = (continuation?.absorb ? fallbackTarget : null) ?? climbed?.target ?? hopPath;
   // did the climb take a TAIL along? a TS wrapper spanning one asserts about a read the render
   // KEEPS, so it stays; one spanning the substituted span alone asserts about nothing

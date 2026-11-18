@@ -12,3 +12,6 @@ const b = (obj.list?.[(probe(), Symbol.iterator)])();
 
 // side-effecting call receiver: memoized ahead of the key SE so the receiver evaluates first, like native
 const c = (getList()?.[(spy(), Symbol.iterator)])();
+
+// A guard on the parent skips the nested getter and the key. On success the getter runs first.
+const d = (box?.rows[(key(), Symbol.iterator)])();

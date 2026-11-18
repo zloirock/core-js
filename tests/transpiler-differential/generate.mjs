@@ -20955,6 +20955,9 @@ function * generateGuardedClaimBoundaries() {
     ['sealed-key-call', '(globalThis.window?.self).Array[(log.push("key"), "from")]((log.push("arg"), [7]))[0]'],
     ['stored-key-call', '(held = globalThis.window)?.self.Array[(log.push("key"), "from")]((log.push("arg"), [7]))?.[0]'],
     ['sealed-call', '(globalThis.window?.self.Array.from)((log.push("arg"), [7]))[0]'],
+    ['sealed-reference/call', '(globalThis.window?.Array.from[(log.push("key"), "call")])(null, (log.push("argument"), [7]))[0]'],
+    // eslint-disable-next-line no-template-curly-in-string -- the substitution belongs to the generated tag
+    ['sealed-reference/tag', '(globalThis.window?.Map[(log.push("key"), "prototype")].isPrototypeOf)`tag${ (log.push("substitution"), 7) }`'],
     ['member-tail', 'globalThis.window?.self.Array.from([7]).length'],
     ['optional-tail', 'globalThis.window?.self.Array.from.guardBoundaryAbsent?.value'],
     ['open-delete', 'delete globalThis.window?.self.Array.from.guardBoundaryAbsent'],

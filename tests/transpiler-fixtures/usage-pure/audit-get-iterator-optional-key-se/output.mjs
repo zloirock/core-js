@@ -1,5 +1,5 @@
 import _getIterator from "@core-js/pure/actual/get-iterator";
-var _ref, _ref2;
+var _ref, _ref2, _ref3;
 // a bare get-iterator paren-lookup (`(recv?.[(eff(), Symbol.iterator)])()`) reaches the polyfill as
 // `_getIterator(recv)`. the receiver is OPTIONAL, so its computed-key side effect must fire only on the
 // non-null branch - native short-circuits the `?.` before evaluating the key. the `_getIterator` call stays
@@ -14,3 +14,6 @@ const b = _getIterator(null == (_ref = obj.list) ? void 0 : (probe(), _ref));
 
 // side-effecting call receiver: memoized ahead of the key SE so the receiver evaluates first, like native
 const c = _getIterator(null == (_ref2 = getList()) ? void 0 : (spy(), _ref2));
+
+// A guard on the parent skips the nested getter and the key. On success the getter runs first.
+const d = _getIterator(box == null ? void 0 : (_ref3 = box.rows, key(), _ref3));

@@ -50,6 +50,21 @@ QUnit.test('a sealed static claim keeps throws, keys and arguments on their sour
   });
 });
 
+QUnit.test('a sealed method and tag keep their receiver when a guarded key precedes them', assert => {
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    const events = [];
+    function call() { return (globalThis.window?.Array.from[(events.push('key'), 'call')])(null, (events.push('argument'), [7])); }
+    function tag() { return (globalThis.window?.Map[(events.push('key'), 'prototype')].isPrototypeOf)`x${ (events.push('substitution'), 7) }`; }
+    if (live) assert.arrayEqual(call(), [7]);
+    else assert.throws(call, TypeError);
+    assert.arrayEqual(events, live ? ['key', 'argument'] : ['argument']);
+    events.length = 0;
+    if (live) assert.same(tag(), false);
+    else assert.throws(tag, TypeError);
+    assert.arrayEqual(events, live ? ['key', 'substitution'] : ['substitution']);
+  });
+});
+
 QUnit.test('a retained guard store remains live for a later alias read', assert => {
   for (const present of [false, true]) withWindowPresence(present, live => {
     let held;

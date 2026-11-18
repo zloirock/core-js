@@ -7,7 +7,8 @@ import {
 import { realmHopRunBase } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { retainSealedClaimTail } from '../../packages/core-js-polyfill-provider/render.js';
+import { openContinuationEnd, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('guard-tail');
@@ -148,12 +149,32 @@ for (let index = 0; index < 64; index++) {
 check('folded prefix leaves the next receiver defined', longClimb(steps.optional).optional, false);
 check('long prefix still stops at the second guard', longClimb(steps.optional), null);
 
+for (const [expression, end] of [
+  ['root?.head.middle.end', 'end'],
+  ['root?.head()!.end', 'end'],
+  ['root?.head()', 'call'],
+  ['(root?.head.middle).end', 'middle'],
+  ['(root?.head).end', null],
+  ['table[root?.head].end', null],
+  ['consume(root?.head).end', null],
+  ['delete root?.head.end', 'end'],
+]) runBoth(`open continuation/${ expression }`, expression, (parser, program, label) => {
+  const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+  const path = parser.pickPath(program, type, item => item.node.property.name === 'head');
+  const last = openContinuationEnd(path.node, path.parentPath);
+  const expected = end === 'call' ? path.parentPath : end && parser.pickPath(program, type, item => item.node.property.name === end);
+  if (end) check(`${ label }/source reader`, !!expected, true);
+  check(label, last?.node ?? null, expected?.node ?? null);
+});
+
 for (const [expression, seal, deleted, called] of [
   ['globalThis.window?.self.box', null, false, false],
   ['globalThis.window?.self(1)', null, false, true],
   ['(globalThis.window?.self)(1)', null, false, false],
   ['(globalThis.window?.self.box)()', 'box', false, false],
   ['(globalThis.window?.self.box)`tag`', 'box', false, false],
+  ['(globalThis.window?.self[key].fn)()', 'key', false, false],
+  ['(globalThis.window?.self.String!.raw)`tag`', 'String', false, false],
   ['consume(globalThis.window?.self.box)', null, false, false],
   ['delete globalThis.window?.self.box', null, true, false],
   ['delete (globalThis.window?.self).box', null, true, false],
@@ -170,6 +191,15 @@ for (const [expression, seal, deleted, called] of [
   check(`${ label }/absorption`, plan.absorb, !seal && !deleted);
   if (called) check(`${ label }/call slot identity`, plan.call, path.parentPath);
   check(`${ label }/source intact`, JSON.stringify(program.node), before);
+  const tail = plan.sealedTail;
+  const original = tail && { ...tail };
+  retainSealedClaimTail(tail, type);
+  if (tail) {
+    check(`${ label }/live source member`, parser.pickPath(program, type, item => item.node === tail).node, tail);
+    checkDeep(`${ label }/only optional spelling changes`, tail, { ...original, type, optional: true });
+  } else {
+    check(`${ label }/no source edit`, JSON.stringify(program.node), before);
+  }
 });
 
 for (const alwaysDefined of [false, true]) runBoth(`defined sealed realm tail/${ alwaysDefined }`,

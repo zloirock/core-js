@@ -42,6 +42,7 @@ import {
   memberExpression,
   nullGuardTest,
   renderMethodCall,
+  renderMethodLookup,
   renderReceiverEffects,
   renderOptionalMethodCall,
   renderReceiverMemo,
@@ -637,9 +638,7 @@ export default function createOptionalDispatchChannel(ctx) {
         embed: (node, role) => role === 'effect' ? node : cloneStamped(node, typeStampCtx),
       }) : { receiver: cloneStamped(lookupArg, typeStampCtx) };
       const id = injectPureImport(entry, hintName);
-      built = sealedLookup
-        ? callExpression(identifier(id), [renderShortCircuitGuard(test, withSideEffects(product.receiver, product.effects))])
-        : withSideEffects(callExpression(identifier(id), [product.receiver]), product.effects);
+      built = renderMethodLookup(identifier(id), product.receiver, product.effects?.map(cloneNode), sealedLookup ? test : null);
     }
     // the ORIGINAL node's resolved type travels to the replacement: a member ABOVE reads off
     // it, and untyped there the next claim resolves generic (`.name` off an array value

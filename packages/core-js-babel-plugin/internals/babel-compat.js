@@ -95,7 +95,8 @@ import {
   renderResolvedStaticClaim,
   renderDeclinedNavigation,
   renderMethodCall,
-  renderGuardedMethodCall,
+  renderMethodLookup,
+  retainSealedClaimTail,
   renderOptionalMethodCall,
   renderReceiverMemo,
   renderReceiverEffects,
@@ -1018,10 +1019,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       alwaysDefined: true,
       resolvePure: m => resolvePureGlobalEntry(m.name, path),
     });
-    if (continuation.sealedTail) {
-      continuation.sealedTail.type = 'OptionalMemberExpression';
-      continuation.sealedTail.optional = true;
-    }
+    retainSealedClaimTail(continuation.sealedTail, 'OptionalMemberExpression');
     const invokeParent = continuation.call;
     const isInvoke = !!invokeParent;
     let target = isInvoke ? invokeParent : replacePath;
@@ -2571,16 +2569,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (isParenLookupOnly) {
       // Keep the native guard's checks: an inner optional tests its root, not the
       // receiver reached past it. The shared renderer guards that receiver and key.
-      const decision = planMethodCall({
-        receiver: recvNode, prepared: true, sideEffects: hoistedSE,
-      });
-      const { built } = renderGuardedMethodCall(decision, {
-        helper: hostSlot(id),
-        guard: { checks: guardChecks(check).map(hostSlot), receiver: recvNode },
-        invoke: false,
-        sealed: true,
-        embed: node => hostSlot(t.cloneNode(node)),
-      });
+      const built = renderMethodLookup(hostSlot(id), cloneHost(recvNode), hoistedSE?.map(cloneHost),
+        composeNullGuardTest(guardChecks(check), { embed: hostSlot }));
       callerPath.parentPath.replaceWith(estreeToBabel(built));
       return;
     }

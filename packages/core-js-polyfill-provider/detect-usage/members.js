@@ -2254,6 +2254,10 @@ export function handleMemberExpressionNode({
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global
   if (meta?.object) {
+    // A native prototype tag keeps its receiver. Let the constructor inside it
+    // receive its own polyfill even when the surrounding reference stays intact.
+    if (meta.placement === 'prototype' && adapter.method === 'usage-pure' && path
+      && isTaggedTemplateTagPosition(climbTransparentWrapperPath(path).parentPath?.node, node)) return meta;
     // suppress the receiver's identifier / member visitors only when the member actually subsumes
     // the receiver. a "static" on a proxy-global itself (`globalThis.foo`, `(() => globalThis)().flat`)
     // resolves to a real polyfill ONLY when the key names a global (`self.Map` -> `_Map`); an

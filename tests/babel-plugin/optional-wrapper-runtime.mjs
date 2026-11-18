@@ -33,6 +33,7 @@ const cases = [
   ['narrow-sealed-call', 'const w: any = typeof window !== "undefined" ? window : undefined; return (w?.Array.of((effects.push("arg"), 3)))!.length;'],
   ['narrow-paren-base', 'let w: any = globalThis; if (choice) w = null; return (w)?.Array.of((effects.push("arg"), 3))[0];'],
   ['narrow-double-paren-base', 'let w: any = globalThis; if (choice) w = null; return ((w))?.Array.from((effects.push("arg"), [3]))[0];'],
+  ['tagged-prototype', 'return (globalThis.window?.Promise[(effects.push("key"), "prototype")].isPrototypeOf)`tag`;', [...STRIP_GLOBALS, 'Promise']],
   ['narrow-rebuilt-call', 'const w: any = typeof window !== "undefined" ? window : undefined; const values = []; '
     + 'values.push(w?.Array.of((effects.push("arg"), 3))!.length); return values[0];'],
   ['unbound-optional-call', 'let f: any; return f?.()?.self.box;'],
@@ -40,7 +41,7 @@ const cases = [
 const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/optional-wrappers-'));
 let serial = 0;
 try {
-  for (const [name, body] of cases) {
+  for (const [name, body, stripGlobals = STRIP_GLOBALS] of cases) {
     const source = scenarioSource(`export const effects = []; export function read(choice) { ${ body } }`);
     for (const method of ['usage-global', 'usage-pure']) {
       const options = { method, version: '4.0', targets: { ie: 11 } };
@@ -78,7 +79,7 @@ try {
                 try { return mod.read(choice); } catch (error) { return error.name; }
               });
               export const effects = mod.effects;`);
-            const actual = await runInWorker(file, { strip, stripGlobals: STRIP_GLOBALS });
+            const actual = await runInWorker(file, { strip, stripGlobals });
             if (host === 'native') {
               check(`${ name }/${ present }/native runs`, actual.startsWith('OK|'), true);
               expected = actual;

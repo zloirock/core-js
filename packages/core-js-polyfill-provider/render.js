@@ -320,30 +320,15 @@ export function planReceiverMemo(receiver, { interveningEffects = false, directC
     capture: !isReusableReceiver(value, { interveningEffects, directCallee, ctx }) };
 }
 
-// A receiver guard owns the first read and leaves key effects in its live branch. A sealed
-// method lookup leaves invocation arguments outside that branch; a whole-call helper instead
-// receives the guarded value and keeps its own nullish rejection. Prepared navigation supplies
-// its existing checks and receiver. All choices are shared; hooks only bind live source slots.
-export function renderGuardedMethodCall(plan, {
-  helper, guard = null, invoke = true, sealed = false, chain = true,
-  mintRef, embed = node => node, recordCapture = node => node,
-}) {
-  const memo = !guard && renderReceiverMemo({ ...plan, capture: !!plan.capture }, { mintRef, embed, recordCapture });
-  const prefix = !guard && plan.prefixEffects.map(node => embed(node, 'effect'));
-  const checks = guard ? guard.checks : [prefix.length ? sequenceExpression([...prefix, memo.firstRead]) : memo.firstRead];
-  const makeBase = guard ? () => embed(guard.receiver, 'receiver') : memo.makeBase;
-  const effects = plan.keyEffects.map(node => embed(node, 'effect'));
-  const test = sealed ? composeNullGuardTest(checks) : null;
-  const value = sealed && !invoke && test ? sequenceExpression([...effects, makeBase()]) : makeBase();
-  const lookup = callExpression(helper, [sealed && !invoke && test ? renderShortCircuitGuard(test, value) : value]);
-  const lookupEffects = sealed && (invoke || test) || invoke && plan.continues;
-  const built = invoke ? renderMethodCall({
-    ...plan, receiver: makeBase(), prefixEffects: [], firstReadEffects: [],
-    keyEffects: lookupEffects ? effects : [], args: plan.args.map(node => embed(node, 'argument')),
-  }, { lookup, lookupGuard: sealed ? test : null, chain }) : lookup;
-  // A proved-empty guard uses the ordinary effect prefix; only a live sealed guard
-  // keeps a consumed lookup's effects inside the helper's receiver argument.
-  return { checks: sealed ? [] : checks, built: !lookupEffects && effects.length ? sequenceExpression([...effects, built]) : built };
+// In a parenthesized lookup the key is guarded, but the helper still consumes the
+// missing value and throws. An open lookup leaves its guard to the enclosing chain.
+export function renderMethodLookup(helper, receiver, keyEffects, sealedTest = null) {
+  if (sealedTest) {
+    const value = keyEffects?.length ? sequenceExpression([...keyEffects, receiver]) : receiver;
+    return callExpression(helper, [renderShortCircuitGuard(sealedTest, value)]);
+  }
+  const lookup = callExpression(helper, [receiver]);
+  return keyEffects?.length ? sequenceExpression([...keyEffects, lookup]) : lookup;
 }
 
 // Split an optional method invocation into ordered null checks and its live continuation.
@@ -921,6 +906,14 @@ export function composeNullGuardTest(checks, { embed = node => node } = {}) {
   return checks
     .map(check => nullFirstGuardTest(check, { embed }))
     .reduce((left, right) => logicalExpression('||', left, right));
+}
+
+// Keep the source member in place so an outer call or tag retains its reference.
+export function retainSealedClaimTail(tail, memberType = 'MemberExpression') {
+  if (tail) {
+    tail.type = memberType;
+    tail.optional = true;
+  }
 }
 
 // Parentheses end the callee's optional chain. Its missing value still invokes the

@@ -1,9 +1,9 @@
 // Ordinary invocation decisions retain source slots and never allocate or mutate on a query.
 import {
   cloneNode, hostSlot, identifier, planMethodCall, planOptionalMethodCall, renderOptionalMethodCall, renderReceiverMemo,
-  renderGuardedMethodCall, renderMethodCall,
+  renderMethodCall, renderMethodLookup,
 } from '../../packages/core-js-polyfill-provider/render.js';
-import { calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { callResultIsChainBase, calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -15,6 +15,8 @@ for (const [source, continues] of [
   ['rows.at?.(arg()).next;', true],
   ['rows.at?.(arg())();', true],
   ['(rows.at?.(arg())).next;', true],
+  ['rows.at?.(arg())!.next;', true],
+  ['(rows.at?.(arg()) as any)();', true],
   ['new (rows.at?.(arg()))();', true],
   ['read(rows.at?.(arg()));', false],
   ['holder[rows.at?.(arg())];', false],
@@ -22,6 +24,7 @@ for (const [source, continues] of [
 ]) runBoth(`call result consumer/${ source }`, source, (parser, program, label) => {
   const path = parser.pickPath(program, 'MemberExpression', member => member.node.property?.name === 'at');
   const callPath = path.parentPath;
+  check(`${ label } value supplies the object or callee`, callResultIsChainBase(callPath), continues);
   check(`${ label } effect placement`, planMethodCall({
     receiver: path.node.object, optional: true, callPath,
   }).continues, continues);
@@ -249,66 +252,29 @@ runBoth('optional render live slots', 'getRows().at?.(before());', (parser, prog
   check(`${ label } receiver read nodes do not alias`, first === second, false);
 });
 
-// A seal guards receiver/key work but cannot swallow the outer invocation.
-// A prepared navigation guard never allocates a second receiver.
-for (const sealed of [false, true]) for (const invoke of [false, true]) for (const prepared of [false, true, 'settled']) {
-  runBoth(`guarded consume/${ sealed }/${ invoke }/${ prepared }`, 'getRows()[(key(), "at")](before());', (parser, program, label) => {
+// The receiver and key have already been prepared. With a live seal the helper
+// still gets called on the missing value, but the computed key runs only on success.
+for (const guarded of [false, true]) for (const keyed of [false, true]) {
+  runBoth(`prepared method lookup/${ guarded }/${ keyed }`, 'getRows()[(key(), "at")](before());', (parser, program, label) => {
     const path = parser.pickPath(program, 'MemberExpression');
-    const call = path.parentPath.node;
-    const decision = planMethodCall({
-      receiver: path.node.object, args: call.arguments,
-      sideEffects: [
-        { type: 'CallExpression', callee: identifier('receiverEffect'), arguments: [] },
-        ...peelNestedSequenceExpressions(path.node.property).prefix,
-      ],
-      receiverEffectCount: 1,
-    });
-    call.arguments[0].callee.name = 'after';
-    const source = JSON.stringify(program.node);
-    let captures = 0;
-    const roles = [];
-    const product = renderGuardedMethodCall(decision, {
-      helper: identifier('lookup'), sealed, invoke,
-      guard: prepared ? { checks: prepared === 'settled' ? [] : [identifier('probe')], receiver: identifier('held') } : null,
-      mintRef() {
-        captures++;
-        return 'held';
-      },
-      embed(node, role) {
-        roles.push(role);
-        return cloneNode(node);
-      },
-    });
-    check(`${ label } receiver captured once`, captures, prepared ? 0 : 1);
-    check(`${ label } seal consumes the receiver guard`, product.checks.length, sealed || prepared === 'settled' ? 0 : 1);
-    check(`${ label } source unchanged`, JSON.stringify(program.node), source);
-    check(`${ label } arguments belong only to invocation`, roles.includes('argument'), invoke);
-    if (!sealed && !prepared) {
-      check(`${ label } lifted prefix before receiver guard`, product.checks[0].expressions[0].callee.name, 'receiverEffect');
+    const receiver = path.node.object;
+    const effects = keyed ? peelNestedSequenceExpressions(path.node.property).prefix : [];
+    const helper = identifier('lookup');
+    const probe = guarded ? identifier('missing') : null;
+    const before = JSON.stringify(program.node);
+    const result = renderMethodLookup(helper, receiver, effects, probe);
+    const call = !guarded && keyed ? result.expressions[1] : result;
+    check(`${ label } helper outside guard`, call.callee, helper);
+    check(`${ label } only the receiver is passed`, call.arguments.length, 1);
+    const [argument] = call.arguments;
+    if (guarded) {
+      check(`${ label } existing guard`, argument.test, probe);
+      check(`${ label } missing value`, argument.consequent.operator, 'void');
     }
-    const body = product.built.type === 'SequenceExpression' ? product.built.expressions.at(-1) : product.built;
-    check(`${ label } helper or invocation`, body.type, 'CallExpression');
-    if (invoke) {
-      check(`${ label } argument rewritten before rendering`, body.arguments[1].callee.name, 'after');
-      check(`${ label } this is the captured value`, body.arguments[0].name, 'held');
-      if (sealed) {
-        const { left: lookup } = body.callee.object;
-        const effects = prepared === 'settled' ? product.built : lookup.alternate;
-        check(`${ label } key inside sealed lookup`, effects.expressions[0].callee.name, 'key');
-        check(`${ label } undefined lookup cannot reject before argument`, body.callee.object.operator, '||');
-      }
-    } else if (sealed) {
-      const [guarded] = body.arguments;
-      if (prepared === 'settled') {
-        check(`${ label } proved guard uses ordinary prefix`, product.built.expressions[0].callee.name, 'key');
-        check(`${ label } proved receiver supplies the helper`, guarded.name, 'held');
-      } else {
-        const value = guarded.alternate;
-        check(`${ label } key and receiver short-circuit together`, value.expressions[0].callee.name, 'key');
-        check(`${ label } guarded value supplies the helper`, value.expressions.at(-1).name, 'held');
-      }
-      check(`${ label } helper rejects outside seal`, body.callee.name, 'lookup');
-    }
+    const value = guarded ? argument.alternate : argument;
+    if (keyed) check(`${ label } key evaluated once`, (guarded ? value : result).expressions[0], effects[0]);
+    check(`${ label } prepared receiver`, guarded && keyed ? value.expressions[1] : value, receiver);
+    check(`${ label } source unchanged`, JSON.stringify(program.node), before);
   });
 }
 

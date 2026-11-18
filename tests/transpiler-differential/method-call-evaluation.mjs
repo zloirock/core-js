@@ -74,6 +74,8 @@ const rows = [
   ['optional symbol guarded keyed continuation', 'getReceiver()?.[(effect(), Symbol.iterator)]?.(argument()).toString()', '', null, true],
   ['sealed symbol key and arguments', '(getReceiver()?.[(effect(), Symbol.iterator)])(argument())'],
   ['sealed symbol key consume', '(getReceiver()?.[(effect(), Symbol.iterator)])()'],
+  ['sealed symbol key past a receiver getter', '(box?.rows[(effect(), Symbol.iterator)])()',
+    'const box = receiver === null ? null : { get rows() { effect(); return receiver; } };'],
   ['symbol key consume', 'getReceiver()?.[(effect(), Symbol.iterator)]()'],
   ['extracted method call', 'receiver[(effect(), "at")].call(receiver, argument())'],
   ['extracted method apply', 'receiver[(effect(), "at")].apply(receiver, [argument()])'],
