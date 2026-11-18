@@ -24,15 +24,19 @@ function entry(browser, version, os, device, backend = 'webdriver') {
   ]);
   equal(platforms.length, 9, 'selects one configuration per browser version and excludes non-browser platforms #1');
   deepEqual(platforms.find(({ name }) => name.startsWith('chrome 67')), {
-    name: 'chrome 67 (Windows 10)', w3c: false,
+    name: 'chrome 67 (Windows 10)',
+    w3c: false,
     capabilities: { browserName: 'chrome', version: '67', platform: 'Windows 10' },
   }, 'selects one configuration per browser version and excludes non-browser platforms #2');
   deepEqual(platforms.find(({ name }) => name.startsWith('iphone')), {
     name: 'iphone 14.0 (iPhone Simulator)', w3c: true, pool: 'mac_vms',
     capabilities: {
-      browserName: 'Safari', platformName: 'iOS',
-      'appium:deviceName': 'iPhone Simulator', 'appium:platformVersion': '14.0',
+      browserName: 'Safari',
+      platformName: 'iOS',
+      'appium:deviceName': 'iPhone Simulator',
+      'appium:platformVersion': '14.0',
       'appium:automationName': 'XCUITest',
+      'appium:settings[snapshotMaxDepth]': 2,
     },
   }, 'selects one configuration per browser version and excludes non-browser platforms #3');
   equal(

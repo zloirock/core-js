@@ -37,6 +37,9 @@ export function ios(platformVersion, deviceName = 'iPhone Simulator') {
       'appium:deviceName': deviceName,
       'appium:platformVersion': platformVersion,
       'appium:automationName': 'XCUITest',
+      // when a command waits for the page over a second, Appium looks for a system dialog in a snapshot
+      // of the accessibility tree, and one that reaches the QUnit report stops the page for 15 seconds
+      'appium:settings[snapshotMaxDepth]': 2,
     },
   };
 }
