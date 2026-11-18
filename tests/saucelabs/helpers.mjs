@@ -190,31 +190,37 @@ async function runSession(suite, platform, controller) {
   return { platform, id: session.id, pages };
 }
 
+// a platform in the output, with the link to its session once it has one
+function titled({ name }, id) {
+  return id ? `${ name }: ${ dashboard }/tests/${ id }` : name;
+}
+
 async function runPlatform(suite, platform, controller) {
   const { signal } = controller;
   for (let attempt = 1; ; attempt++) {
-    let message;
+    let id, message;
     try {
       signal.throwIfAborted();
       const result = await runSession(suite, platform, controller);
       // a hung emulator and an endless test look alike
       const unfinished = result.pages.find(page => page.unfinished);
       if (signal.aborted || !unfinished || attempt === ATTEMPTS) return result;
+      ({ id } = result);
       message = `${ unfinished.page }: ${ unfinished.error }`;
     } catch (error) {
       if (signal.aborted || !(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
-      ({ message } = error);
+      ({ sessionId: id, message } = error);
     }
-    echo(yellow(`${ platform.name }: ${ message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
+    echo(yellow(`${ titled(platform, id) }: ${ message }, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
   }
 }
 
 function report({ platform, id, pages, error }) {
   if (error) {
-    echo(red(`${ platform.name }: ${ id ? `${ dashboard }/tests/${ id }: ` : '' }${ error.message }`));
+    echo(red(`${ titled(platform, id) }: ${ error.message }`));
     return false;
   }
-  const lines = [cyan(`${ platform.name }: ${ dashboard }/tests/${ id }`)];
+  const lines = [cyan(titled(platform, id))];
   let platformPassed = true;
   for (const { page, passed, summary, details, commits, error: pageError = summary } of pages) {
     // appended to each bundle by the Pages build; a deploy by an older workflow has none

@@ -202,6 +202,7 @@ async function runFake({
   equal(markerRequests, 2, 'passes served pages despite a missing deployment marker #2');
   match(output, /all the browsers passed/, 'passes served pages despite a missing deployment marker #3');
   match(output, /commit\.txt shows HTTP 404.*after the run/, 'passes served pages despite a missing deployment marker #4');
+  match(output, /^test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session$/m, 'passes served pages despite a missing deployment marker #5');
 }
 
 {
@@ -209,6 +210,7 @@ async function runFake({
   equal(sessions, 3, 'retries an invalid WebDriver response for a platform #1');
   match(output, /invalid WebDriver response.*retrying \(2 of 3\)/, 'retries an invalid WebDriver response for a platform #2');
   match(output, /invalid WebDriver response.*retrying \(3 of 3\)/, 'retries an invalid WebDriver response for a platform #3');
+  doesNotMatch(output, /saucelabs\.com\/tests\//, 'retries an invalid WebDriver response for a platform #4');
 }
 
 {
@@ -240,7 +242,8 @@ async function runFake({
 {
   const { output, sessions } = await runFake({ navigationError: true });
   equal(sessions, 3, 'includes a session link when a page fails after session creation #1');
-  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session.*navigation failed/, 'includes a session link when a page fails after session creation #2');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session.*navigation failed$/m, 'includes a session link when a page fails after session creation #2');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session: .*navigation failed, retrying \(2 of 3\)/, 'includes a session link when a page fails after session creation #3');
 }
 
 {
@@ -252,7 +255,7 @@ async function runFake({
 {
   const { output, sessions } = await runFake({ hangs: 1 });
   equal(sessions, 2, 'restarts a platform whose page does not finish and passes if it recovers #1');
-  match(output, /test browser: unit-browser\/global\.html: not finished in 3 minutes.*retrying \(2 of 3\)/, 'restarts a platform whose page does not finish and passes if it recovers #2');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session: unit-browser\/global\.html: not finished in 3 minutes.*retrying \(2 of 3\)/, 'restarts a platform whose page does not finish and passes if it recovers #2');
   match(output, /all the browsers passed/, 'restarts a platform whose page does not finish and passes if it recovers #3');
 }
 
