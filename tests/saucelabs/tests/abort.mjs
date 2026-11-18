@@ -15,7 +15,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
       const sessionsFile = join(sessionsDir, scenario);
       try {
         await $({ quiet: true, timeout: '4s', timeoutSignal: 'SIGKILL',
-          env: { ...process.env, SAUCE_SESSIONS_FILE: sessionsFile } })`node tests/saucelabs/abort.test.mjs ${ scenario }`;
+          env: { ...process.env, SAUCE_SESSIONS_FILE: sessionsFile } })`node tests/saucelabs/tests/abort.mjs ${ scenario }`;
         equal(await readFile(sessionsFile, 'utf8'), '', 'the session list is empty');
       } catch (error) {
         failures.push(`${ scenario }: ${ error.message }`);
@@ -111,7 +111,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
     return { ok: true, text: async () => JSON.stringify(payload) };
   };
 
-  const { run } = await import('./helpers.mjs');
+  const { run } = await import('../helpers.mjs');
   await rejects(run({
     name: 'unit', pages: otherFinished ? [page] : [page, 'unit-browser/pure.html'], reporter: 'qunitResults',
     pollInterval: 100,

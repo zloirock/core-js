@@ -142,7 +142,7 @@ async function runFake({
       }
       return { ok: true, text: async () => JSON.stringify(payload) };
     };
-    const { run } = await import('./helpers.mjs');
+    const { run } = await import('../helpers.mjs');
     const suite = {
       name: 'unit', pages, platforms: [{
         name: 'test browser', w3c: false, capabilities: { browserName: 'firefox', version: '7' },

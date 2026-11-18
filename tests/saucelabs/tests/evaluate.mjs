@@ -1,5 +1,5 @@
 import { deepEqual, equal } from 'node:assert/strict';
-import { evaluate } from './evaluate.mjs';
+import { evaluate } from '../evaluate.mjs';
 
 {
   const result = evaluate({

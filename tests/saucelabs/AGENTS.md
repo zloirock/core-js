@@ -32,7 +32,7 @@ The runner uses the Node.js version supported by the repository's tooling. The W
 
 ## Tests of the runner
 
-- `npm run test-saucelabs-matrix` runs the `*.test.mjs` files through `index.mjs` without a live session; a new test file is imported there. It is a single `ci.yml` job, outside the OS and Node.js matrix and the `npm test` composite: the runner works only on the Pages workflow runner
+- `npm run test-saucelabs-runner` runs the files of `tests/` through its `index.mjs` without a live session; each is named after what it tests, and a new one is imported there. It is a single `ci.yml` job, outside the OS and Node.js matrix and the `npm test` composite: the runner works only on the Pages workflow runner
 - The tests replace `fetch`, and the abort scenarios keep their mocks inside child processes: the parent kills a stalled child and waits for its exit before removing its temporary files, since restoring the real `fetch` while `run` is still alive would send test requests to Sauce Labs
 - A test passes its own `pollInterval`: with the default one, every fake page takes five seconds
 

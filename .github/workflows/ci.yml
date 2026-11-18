@@ -102,7 +102,7 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npm run test-saucelabs-matrix
+      - run: npm run test-saucelabs-runner
 
   tests:
     if: *not-duplicate

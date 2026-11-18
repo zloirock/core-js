@@ -2,7 +2,7 @@ import { deepEqual, equal } from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
-const source = await readFile(new URL('../unit-browser/qunit-results.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../../unit-browser/qunit-results.js', import.meta.url), 'utf8');
 
 {
   const callbacks = {};

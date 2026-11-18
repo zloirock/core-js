@@ -1,5 +1,5 @@
 import { deepEqual, equal } from 'node:assert/strict';
-import platforms, { android, desktop } from './platforms.mjs';
+import platforms, { android, desktop } from '../platforms.mjs';
 
 deepEqual(platforms.find(({ name }) => name === 'firefox 7'), {
   name: 'firefox 7',

@@ -1,5 +1,5 @@
 import { deepEqual, equal, ok, rejects, throws } from 'node:assert/strict';
-import allPlatforms, { fromCatalog } from './all-platforms.mjs';
+import allPlatforms, { fromCatalog } from '../all-platforms.mjs';
 
 function entry(browser, version, os, device, backend = 'webdriver') {
   return { api_name: browser, short_version: version, os, automation_backend: backend, device };

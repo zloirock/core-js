@@ -1,5 +1,5 @@
 import { deepEqual, rejects } from 'node:assert/strict';
-import { createSession, WebDriverError } from './webdriver.mjs';
+import { createSession, WebDriverError } from '../webdriver.mjs';
 
 const options = { hub: 'https://example.test/wd/hub', username: 'test', accessKey: 'test', w3c: false, capabilities: {} };
 
