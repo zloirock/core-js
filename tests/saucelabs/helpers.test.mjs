@@ -365,6 +365,14 @@ async function runFake({
   match(stderr, /unexpected arguments extra/, 'test-saucelabs rejects an argument after the commit #2');
 }
 
+{
+  // a step of the cancelled job kills the runner by the path of its entry
+  const workflow = await readFile('.github/workflows/build-and-deploy-pages.yml', 'utf8');
+  const { scripts } = JSON.parse(await readFile('package.json', 'utf8'));
+  const pattern = /pkill -KILL -f (?<pattern>\S+)/.exec(workflow)?.groups.pattern;
+  ok(pattern && scripts['test-saucelabs'].includes(pattern), 'the cancelled job kills the runner that the test-saucelabs script starts');
+}
+
 for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }]) {
   const { peak } = await runFake({ dynamicQueue: true, limits });
   equal(peak, 2, `opens no more sessions than the organization and team limits allow, ${ JSON.stringify(limits) }`);

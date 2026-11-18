@@ -203,6 +203,8 @@ jobs:
       - name: Close the Sauce Labs sessions of a cancelled run
         if: cancelled()
         run: |
+          # the runner outlives the cancelled step and would open a new session in place of each closed one
+          pkill -KILL -f tests/saucelabs/unit.mjs || true
           [ -f "$SAUCE_SESSIONS_FILE" ] || exit 0
           while read -r id; do
             curl -sS -o /dev/null --max-time 30 -u "$SAUCE_USERNAME:$SAUCE_ACCESS_KEY" -X DELETE \
