@@ -2449,6 +2449,7 @@ export default [
     files: [
       `packages/core-js?(-pure)/**/${ jsFile }`,
       'tests/compat/*.js',
+      'tests/unit-browser/*.js',
     ],
     languageOptions: {
       ecmaVersion: 3,
@@ -2460,6 +2461,7 @@ export default [
       `packages/core-js?(-pure)/**/${ jsFile }`,
       `tests/@(helpers|unit-pure|wpt-url-resources)/**/${ jsFile }`,
       'tests/compat/*-runner.js',
+      'tests/unit-browser/*.js',
     ],
     rules: forbidModernBuiltIns,
   },
