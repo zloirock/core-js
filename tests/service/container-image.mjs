@@ -1,5 +1,5 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, writeFile, rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -59,20 +59,12 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
       });
     }
 
-    async function start() {
-      const started = await $`docker run -d --rm -p 127.0.0.1::3000 \
-        -e CORE_JS_MANIFEST_PATH=/manifest.json -e ${ `CORE_JS_CACHE_DIR=${ cacheRoot }` } \
-        -e ${ `CORE_JS_IMAGE_DIGEST=${ imageDigest }` } -v ${ `${ manifestPath }:/manifest.json:ro` } \
-        -v ${ `${ volume }:${ cacheRoot }` } ${ imageDigest }`;
-      container = started.stdout.trim();
-      const published = await $`docker port ${ container } 3000/tcp`;
-      const port = Number(published.stdout.trim().split(':').at(-1));
-
+    async function waitForWarm(port, path) {
       let failure = 'timed out';
       const deadline = Date.now() + 60000;
       while (Date.now() < deadline) {
         try {
-          const status = await get(port, '/status');
+          const status = await get(port, path);
           const state = JSON.parse(status.body);
           if (status.status === 200 && state.fullyWarmed) return port;
           if (status.status === 200 && state.state === 'error') {
@@ -84,6 +76,18 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
       }
       const logs = await $`docker logs ${ container }`.nothrow();
       throw new Error(`image warm-up failed: ${ failure }\n${ logs.stdout }${ logs.stderr }`);
+    }
+
+    async function start({
+      source = manifestPath, mount = '/manifest.json', setting = 'CORE_JS_MANIFEST_PATH', status = '/status',
+    } = {}) {
+      const started = await $`docker run -d --rm -p 127.0.0.1::3000 \
+        -e ${ `${ setting }=${ mount }` } -e ${ `CORE_JS_CACHE_DIR=${ cacheRoot }` } \
+        -e ${ `CORE_JS_IMAGE_DIGEST=${ imageDigest }` } -v ${ `${ source }:${ mount }:ro` } \
+        -v ${ `${ volume }:${ cacheRoot }` } ${ imageDigest }`;
+      container = started.stdout.trim();
+      const published = await $`docker port ${ container } 3000/tcp`;
+      return waitForWarm(Number(published.stdout.trim().split(':').at(-1)), status);
     }
 
     async function stop() {
@@ -140,6 +144,31 @@ if (process.env.RUN_SERVICE_DOCKER_TEST === '1') {
     const changed = Object.keys(repairedFiles).filter(file => repairedFiles[file] !== originalFiles[file]);
     const stem = missing.slice(0, -'.js.gz'.length);
     ok(changed.includes(missing) && changed.every(file => file.startsWith(`${ stem }.`)), 'container-cache-1 #7');
+    await stop();
+
+    const releases = join(directory, 'releases');
+    await mkdir(releases, { mode: 0o755 });
+    await writeFile(join(releases, 'release-1.json'), manifest);
+    const versioned = await start({
+      source: releases, mount: '/releases', setting: 'CORE_JS_RELEASES_DIR', status: '/status/release-1',
+    });
+    const first = await get(versioned, '/polyfills/release-1.js', headers);
+    strictEqual(first.status, 200, 'container-releases-4 #8');
+    deepStrictEqual(first.body, script.body, 'container-releases-4 #9');
+
+    const pending = join(releases, 'release-2.tmp');
+    await writeFile(pending, JSON.stringify({ modules: [] }));
+    await rename(pending, join(releases, 'release-2.json'));
+    await waitForWarm(versioned, '/status/release-2');
+    const second = await get(versioned, '/polyfills/release-2.js', {
+      ...headers, 'if-none-match': first.headers.etag,
+    });
+    strictEqual(second.status, 200, 'container-releases-4 #10');
+    ok(!second.body.equals(first.body), 'container-releases-4 #11');
+    const previous = await get(versioned, '/polyfills/release-1.js', {
+      ...headers, 'if-none-match': first.headers.etag,
+    });
+    strictEqual(previous.status, 304, 'container-releases-4 #12');
   } finally {
     try {
       if (container) await $`docker stop ${ container }`.nothrow();
