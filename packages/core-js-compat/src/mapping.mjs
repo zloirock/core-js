@@ -200,8 +200,8 @@ export default {
     [150, '43.0'],
     [152, '44.0'],
     [156, '45.0'],
-    [158, '46.0'],
-    [159, '47.0'],
+    [160, '46.0'],
+    [160, '47.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   // Opera 120 is Chromium 135 and Opera 121 is Chromium 137:
