@@ -43,6 +43,7 @@ import {
   decidedRunningOperandPath,
   overwriteMemberTarget,
   pruneHopFromLevels,
+  nativeRealmPatternParent,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   bodylessSlotReplacement,
@@ -1366,6 +1367,7 @@ export default function createAstDestructureEmitter({
     const liftTakesHostWhole = !liftHostPattern(metaPath) || soleChainToProp(liftHostPattern(metaPath), prop);
     // Original leaf defaults and assignment targets stay in the re-anchored pattern.
     const ctorPattern = liftTakesHostWhole && prop.value?.type === 'ObjectPattern' && !prop.computed
+      && !nativeRealmPatternParent(metaPath, adapter, resolveGlobalPolyfill)
       && (kind === 'global' || (kind === 'static' && !adapter.isMutatedStatic?.(meta?.object, meta?.key)
         && patternStaticNeedsExtraction(metaPath, meta, { resolvePure, mode: injectorState.mode })))
       && prop.value.properties.every(leaf => (patternSlotTarget(leaf.value)?.type === 'Identifier'

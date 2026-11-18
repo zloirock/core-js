@@ -249,6 +249,17 @@ for (const [expression, expected, prelude = ''] of [
   check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
 });
 
+for (const [source, reuse] of [
+  ['globalThis?.self?.window', true],
+  ['globalThis.self?.window', false],
+  ['opaque?.self?.window', false],
+]) runBoth(`nested surface/${ source }`, `const result = ${ source };`, (parser, program, label) => {
+  const path = member(parser, program, 'window');
+  const landing = optionalSurfaceLanding(path.node, context(parser, path));
+  check(`${ label }/reuse receiver`, !!landing?.reuse, reuse);
+  if (reuse) check(`${ label }/original probe`, landing.probe, path.node.object);
+});
+
 for (const operator of ['||', '??']) runBoth(`decided local/${ operator }`,
   `const A = Array; const result = (A ${ operator } Object)?.from;`, (parser, program, label) => {
     const path = member(parser, program, 'from');

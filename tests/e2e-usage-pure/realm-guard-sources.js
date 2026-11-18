@@ -2,6 +2,20 @@ import { withWindowPresence } from './unbacked-window-host.cjs';
 import { withGlobalPresence } from './unbacked-global-host.cjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
+QUnit.test('realm guards: a missing intermediate hop throws before the store', assert => {
+  for (const requested of [false, true]) withWindowPresence(requested, present => {
+    let held = 'unset';
+    function read() { return (held = globalThis.window.window?.Array)?.isArray; }
+    if (present) {
+      assert.true(read()([]));
+      assert.same(held, Array);
+    } else {
+      assert.throws(read, TypeError);
+      assert.same(held, 'unset');
+    }
+  });
+});
+
 QUnit.test('realm guards: a call keeps its absence and the live leaf effects', assert => {
   for (const requested of [false, true]) withWindowPresence(requested, present => {
     const effects = [];

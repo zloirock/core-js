@@ -1290,6 +1290,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // root where the source slot found it, including inside a sequence or store.
     // Writes retain their live source; a lifted alias member still needs its own visit.
     if (detached && injectPureGlobal) {
+      if (unwrapRuntimeExpr(node).type === 'SequenceExpression') {
+        node = prepareMemoReceiver(t.cloneWithoutRetiring(node), ctx);
+      }
       const source = claimProbeSourceSlot(node, resolvePure, ctx);
       if (source.root) return markGuardTestRendered(estreeToBabel(renderNavGuardTest({ source }, {
         injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
@@ -1392,10 +1395,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // as a GUARD whose alternate is the ponyfill it collapsed to (`null == ga.window ? void 0 : _self`),
   // and memoizing that spells a SECOND test over the first - the probe decides the branch and the
   // claim reads the always-defined leaf. the link and every optional above it deoptionalize with it
-  function composeNavGuardCheck(chainStart, key, path, memoType) {
-    const ctx = { scope: path.scope, adapter: getAdapter?.(), path,
-      resolvePure: resolvePureGlobalEntry && (({ name }) => resolvePureGlobalEntry(name, path)) };
-    const surface = key === 'object' && chainStart !== path && optionalSurfaceLanding(chainStart.node, ctx);
+  function composeNavGuardCheck(chainStart, key, path, memoType, ctx, surface) {
     const composed = surface?.pure ? surface : planGuardComposition(chainStart.node[key], ctx, {
       readThrough: key === 'object',
       readerKey: key === 'object' ? staticMemberKeyName(chainStart.node) : null,
@@ -2247,7 +2247,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       if (check === null) {
         let ref;
         const rootNode = chainStart.node[key];
-        const composedCheck = composeNavGuardCheck(chainStart, key, path, memoType);
+        const ctx = { scope: path.scope, adapter: getAdapter?.(), path,
+          resolvePure: resolvePureGlobalEntry && (({ name }) => resolvePureGlobalEntry(name, path)) };
+        const surface = key === 'object' && chainStart !== path && optionalSurfaceLanding(chainStart.node, ctx);
+        const composedCheck = composeNavGuardCheck(chainStart, key, path, memoType, ctx, surface);
         if (composedCheck) return [composedCheck, node.object];
         // the probe-yield memo re-target: the CALL is the memo, the realm hops (the asking hop
         // included) fold onto the ref the member above now reads - `null == (_ref = dh()) ?
@@ -2264,7 +2267,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
           [check, ref] = decided ? [t.cloneNode(memoNode), t.cloneNode(decided)]
             : memoize(memoNode, path.scope, chainStart.node, false, memoCtx, key === 'callee');
           tagProxyGlobalMemoRef(ref, memoNode, memoCtx);
-          chainStart.node[key] = seededRefClone(ref, memoType);
+          const receiver = seededRefClone(ref, memoType);
+          if (surface?.reuse) chainStart.replaceWith(receiver);
+          else chainStart.node[key] = receiver;
           // proven-nav memo RHS: render the nested test via the shared kept-nav plan (see the
           // optional-node arm above) instead of keeping the raw `.self`-reading spelling; an
           // own-chain-assign nav is owned by the entry call's plan
@@ -2273,7 +2278,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         }
       }
     }
-    deoptionalizeNode(chainStart);
+    if (isOptionalNode(chainStart.node)) deoptionalizeNode(chainStart);
     // `p && p !== path` guard: on orphaned paths parentPath chain can bottom out at null
     // before reaching `path`, which would infinite-loop the original `p !== path` test
     for (let p = chainStart.parentPath; p && p !== path; p = p.parentPath) {

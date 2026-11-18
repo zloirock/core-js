@@ -142,6 +142,7 @@ import {
   chainReadsThroughSeal,
   chainSealsAShortCircuit,
   navValueCanShortCircuit,
+  storedGuardReadsThroughProbe,
   sealedLayerBetween,
   ownChainOptionalObjects,
   navHopChain,
@@ -322,6 +323,7 @@ export function planInnerProxyCollapse(node, {
   reader = null,
 }) {
   if (effectfulRealmHop(reader, aliasCtx) && unwrapRuntimeExpr(reader.object) === node) return null;
+  if (!deleteFold && storedGuardReadsThroughProbe(node, resolvePure, aliasCtx)) return null;
   if (valueConsumer) {
     if (!isDestructurePattern(valueConsumer.target) || valueConsumer.observed
       || !navHasUnresolvableProxyHop(node, resolvePure, aliasCtx)
@@ -366,6 +368,8 @@ export function planInnerProxyCollapse(node, {
     // Replaying the setup and substituting the alias would lose that read on an absent host.
     const carriesAlias = !!effects.length && peelChainRootValue(sourceRoot) === root;
     if (carriesAlias && !deleteFold && navHasUnresolvableProxyHop(node, resolvePure, aliasCtx)) return null;
+    if (!deleteFold && nodeCarriesSourceSpan(root) && !proxyRunLandingPure({ navNode: node, ctx: aliasCtx, resolvePure,
+      rootName: proxyGlobalRootName({ node: root, ...aliasCtx }) })) return null;
     if (!admittedRoot) {
       const { scope, adapter, path } = aliasCtx;
       if (adapter.getBinding({ scope, name: root.name })?.polyfillHint
@@ -605,10 +609,11 @@ export function planKeptSequenceReceiver(path, { aliasCtx, resolvePure }) {
   if (root?.type !== 'Identifier' || keys.some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))
     || computed || wrapped
     || maximalProxyGlobalPrefix(node, aliasCtx) !== node || !findProxyGlobal(node, aliasCtx, true)) return null;
-  const pure = POSSIBLE_GLOBAL_OBJECTS.has(root.name)
-    ? proxyRunLandingPure({ navNode: node, ctx: aliasCtx, resolvePure, rootName: root.name })
-    : resolvePure({ kind: 'global', name: root.name });
-  return { keys: ['object', ...receiverSequenceTailKeys(receiver.object)], root, pure };
+  const direct = POSSIBLE_GLOBAL_OBJECTS.has(root.name);
+  const pure = proxyRunLandingPure({ navNode: node, ctx: aliasCtx, resolvePure,
+    rootName: direct ? root.name : proxyGlobalRootName({ node: root, ...aliasCtx }) });
+  if (!pure && nodeCarriesSourceSpan(root)) return null;
+  return { keys: ['object', ...receiverSequenceTailKeys(receiver.object)], root, pure: direct ? pure : null };
 }
 
 // the canonical RE-READ target of a memoized receiver, peeled to its SE tail: a bare unbound global

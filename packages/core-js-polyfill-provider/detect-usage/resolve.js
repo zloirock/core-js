@@ -5547,13 +5547,16 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   const { target, keptTail, writeStep, innerKeptTail, seqPrefixEffects, valueEffects, outerHopName, outerBacked } = outer;
   const { resolvePure } = ctx;
   const { consumer } = facts;
+  if (storedGuardReadsThroughProbe(target.node, resolvePure, ctx)) return null;
   if (keptTail.length && effectfulRealmHop(consumer.host, ctx) && consumer.host.object === consumer.node) return null;
   if (collapsed.carriesAlias && keptTail.some(hop => proxyHopLacksPureEntry(hop.name, resolvePure)) && !facts.deleteFold) return null;
   if (collapsed.aliasRoot && aliasRootedReadMayThrow(collapsed.aliasRoot, resolvePure, ctx)
     && !(memberKeepsReceiverThrow(consumer.host) && consumer.host.object === consumer.node)) return null;
   let mutatedGuards;
-  const deadOptional = facts.allowOptional
-    || (!(mutatedGuards = facts.mutatedGuards) && proxyRunValueIsProven(target.node, resolvePure, ctx));
+  // The inward collapse already proved the realm root, including a call that returns it.
+  const deadOptional = facts.allowOptional || (!(mutatedGuards = facts.mutatedGuards)
+    && !proxyReceiverValueCanBeUndefined(target.node, resolvePure, ctx,
+      { throughChainAssign: true, observableRead: consumer.writeTarget || consumer.deleteAbove }));
   const source = { ...consumer, keptWrite: collapsed.keptWrite ?? writeStep, hasKeptTail: !!keptTail.length };
   const navigation = proxyCollapseConsumer({ ...source, deadOptional,
     storeHoldsProbe: !!collapsed.keptWrite && !collapsed.writeStoreSpellable }, ctx);
@@ -6369,6 +6372,15 @@ export function chainSealsAShortCircuit(node, resolvePure, aliasCtx = null, { th
 // entry parens are value-transparent - the value asked about IS the sealed one
 export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null, options = {}) {
   return !!navShortCircuitSource(navNode, resolvePure, aliasCtx, options);
+}
+
+// In a stored optional read the first missing hop can throw before the next hop is tested.
+export function storedGuardReadsThroughProbe(node, resolvePure, ctx) {
+  node = unwrapRuntimeExpr(node);
+  if (!isMemberAccessNode(node) || !proxyHopLacksPureEntry(realmHopKeyName(node, ctx), resolvePure)) return false;
+  const store = storedUserAssignmentOf(ctx?.path);
+  const probe = store && navShortCircuitSource(store.right, resolvePure, ctx, { observableRead: true });
+  return !!probe && navHasUnresolvableProxyHop(probe.object, resolvePure, ctx);
 }
 
 // ... and WHICH read short-circuits it: the value the deepest live `?.` tests, which is what a

@@ -223,6 +223,7 @@ import {
   buildDestructuringInitMeta,
   claimWriteOrderBound,
   destructureHostInitNode,
+  nativePatternRealmHop,
   destructurePropLeafMeta,
   firstPatternProp,
   isReReferenceableAcrossReads,
@@ -2809,7 +2810,8 @@ export function planResidualAnchorHop({
   if (isDisabledProp?.(prop) || inner.properties.some(item => isDisabledProp?.(item))) return null;
   const read = path && { node: prop, path };
   if (proxy) {
-    if (guarded || !isPristineProxyGlobal(adapter, key, read)) return null;
+    if (guarded || !isPristineProxyGlobal(adapter, key, read)
+      || nativePatternRealmHop(key, receiver, resolveGlobalPolyfill)) return null;
     return { kind: 'proxy', prop, key, pattern: inner };
   }
   if (!realmLevelNamesCtor(key, prop.value, adapter)) return null;
@@ -3194,6 +3196,11 @@ export function buildNestedDestructurePlan({
       if (value.properties.some(isRestProperty)
         && value.properties.some(item => isSymbolIteratorComputedKey(item, { scope, adapter, path }))) {
         return { kind: 'verbatim', prop: outerProp };
+      }
+      // The iterator reads this native hop. Other leaves can still claim their own polyfills.
+      if (nativePatternRealmHop(name, planReceiverName, resolveGlobalPolyfill)) {
+        return foldNestedPattern(outerProp, value, prop => isSymbolIteratorComputedKey(prop, { scope, adapter, path })
+          ? { kind: 'verbatim', prop } : planOuterProp(prop));
       }
       const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
         ? planOuterProp

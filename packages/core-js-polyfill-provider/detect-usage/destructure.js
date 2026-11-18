@@ -4509,6 +4509,22 @@ export function destructureHostInitNode(leafPath) {
     : host?.node?.type === 'AssignmentExpression' ? host.node.right : null);
 }
 
+export function nativePatternRealmHop(key, receiver, resolveGlobalPolyfill) {
+  return POSSIBLE_GLOBAL_OBJECTS.has(key) && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
+    && !resolveGlobalPolyfill(receiver) && !resolveGlobalPolyfill(key);
+}
+
+// Extracting a nested constructor cannot skip a target-native enclosing pattern read.
+export function nativeRealmPatternParent(path, adapter, resolveGlobalPolyfill) {
+  const parent = path?.parentPath?.parentPath?.node;
+  if (!isPropertyNode(parent)) return false;
+  const key = propertyKeyName(parent);
+  if (!POSSIBLE_GLOBAL_OBJECTS.has(key)) return false;
+  const init = destructureHostInitNode(path);
+  const receiver = proxyGlobalRootName({ node: init, scope: path.scope, adapter, path });
+  return nativePatternRealmHop(key, receiver, resolveGlobalPolyfill);
+}
+
 // does the destructure ASSIGNMENT around this leaf have its value consumed (`host = ({ k } = R)`,
 // a `return`, a call argument)? an assignment yields its RHS, so a receiver replaced by a synth
 // mirror literal becomes the value the consumer captures - `host === Object` turns false. a
@@ -7924,15 +7940,16 @@ export function buildNestedParamSynthPlan(options) {
       if (dataKey !== null && key === dataKey) dataReads++;
       if (key === null) {
         if (disabled) return null;
-        // A well-known symbol has no string slot, but its stable imported key can carry the
-        // receiver's own value beside the mirrored statics. Unknown or effectful keys still bail.
+        // A well-known symbol can carry the receiver's value beside mirrored statics.
+        // A target-native receiver keeps its own symbol when the key needs no import.
         const symbolName = prop.computed && !computedKeyHasSideEffects(prop, keyCtx)
           ? computedKeyWellKnownSymbolName({ keyNode: prop.key, ...keyCtx }) : null;
-        const symbolKey = symbolName && resolvePure({ kind: 'property', object: 'Symbol', key: symbolName, placement: 'static' });
-        if (!symbolKey || symbolKey.kind !== 'static') return isPropertyNode(prop)
+        const symbolPure = symbolName && resolvePure({ kind: 'property', object: 'Symbol', key: symbolName, placement: 'static' });
+        if (!symbolName || (symbolPure ? symbolPure.kind !== 'static' : !ctx.nativeHop)) return isPropertyNode(prop)
           ? { kind: 'passthrough', bailed: true, unknownKey: true } : null;
-        if (entries.every(entry => entry.symbolKey?.entry !== symbolKey.entry)) {
-          entries.push({ symbolKey, prop, ...ctx.kind === 'instance' ? { deferred: !eagerInstance } : {},
+        if (entries.every(entry => entry.symbolName !== symbolName)) {
+          entries.push({ symbolName, symbolKey: symbolPure ?? { native: prop.key }, prop,
+            ...ctx.kind === 'instance' ? { deferred: !eagerInstance } : {},
             readPure: symbolName === 'iterator' ? SYMBOL_ITERATOR_PURE_RESULT : null,
             child: { kind: 'passthrough' } });
         }
@@ -7971,6 +7988,8 @@ export function buildNestedParamSynthPlan(options) {
         if (inner?.type === 'ObjectPattern') {
           // the key is read where the pattern stands, ahead of a write of its slot or not
           const proxy = isPristineProxyGlobal(adapter, key, { node: prop, path: leafPatternPath });
+          const nativeHop = proxy && (host?.node.type === 'VariableDeclarator' || host?.node.type === 'AssignmentExpression')
+            && nativePatternRealmHop(key, proxyGlobalRootName({ node: ctx.receiverRead?.node, ...receiverCtx }), resolveGlobalPolyfill);
           // Check a proxy subtree once; its nested hops share this admission below.
           const nativeKeys = proxy && !ctx.checkedKeys && patternKeepsEffectfulKey(inner, keyCtx);
           // A user slot is read at destructuring time, after all call arguments or
@@ -7991,7 +8010,7 @@ export function buildNestedParamSynthPlan(options) {
             }
           }
           const child = mirrorPattern(inner, proxy
-            ? { ...ctx, checkedKeys: true, eagerInstance: eagerNestedInstance }
+            ? { ...ctx, nativeHop, checkedKeys: true, eagerInstance: eagerNestedInstance }
             : { kind: 'ctor', name: key, eagerInstance: eagerNestedInstance });
           // A materialized subtree erases the hop's native read before its computed key.
           // An unknown-key decline still needs its backed realm, with the child kept native.
@@ -8000,6 +8019,12 @@ export function buildNestedParamSynthPlan(options) {
           // A valid claim-free subtree does not veto its sibling's constructor mirror.
           const metrics = child && treeInjectionMetrics(child);
           const spelled = metrics && (metrics.hasPolyfill || metrics.hasDescendedClaim);
+          // The pattern must reach this receiver before any of its bindings can be initialized.
+          if (nativeHop && spelled) {
+            entries.push({ key, deferred: patternNode.properties.length > 1,
+              child: { kind: 'receiver', child, liveDefault: prop.value.type === 'AssignmentPattern' } });
+            continue;
+          }
           const bailed = !child || metrics.hasBailedSubtree;
           // An unknown child key leaves its native pattern in place, but the known realm
           // slot still reads its ponyfill. Do not make that fallback own the child's claims.
@@ -8832,11 +8857,11 @@ export function renderSynthTree(tree, ctx, keyPath = [], receiverState = null) {
       }
       return property;
     }
-    const keyName = ctx.injectImport(symbolKey.entry, symbolKey.hintName);
+    const symbol = symbolKey.native ? cloneNode(symbolKey.native) : identifier(ctx.injectImport(symbolKey.entry, symbolKey.hintName));
     const receiver = renderSynthTree(child, ctx, keyPath, receiverState);
     const value = readPure ? callExpression(identifier(ctx.injectImport(readPure.entry, readPure.hintName)), [receiver])
-      : memberExpression(receiver, identifier(keyName), { computed: true });
-    return (deferred ? objectGetter : objectProperty)(identifier(keyName), value, { computed: true });
+      : memberExpression(receiver, cloneNode(symbol), { computed: true });
+    return (deferred ? objectGetter : objectProperty)(symbol, value, { computed: true });
   }));
 }
 
@@ -8847,7 +8872,6 @@ function collectTreeInjectionFlags(tree, m) {
   switch (tree.kind) {
     case 'receiver': {
       const claimed = m.claimedProperties.length;
-      m.deferred = true;
       m.passthrough = true;
       m.passthroughCount += 1;
       collectTreeInjectionFlags(tree.child, m);

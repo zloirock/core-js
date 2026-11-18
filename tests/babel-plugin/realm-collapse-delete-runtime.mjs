@@ -43,6 +43,30 @@ const cases = [
   ['claimless-delete', 'return delete globalThis.self?.window?.window?.self.slotD;'],
   ['vestigial-delete', 'const g = globalThis; return delete g.window?.Reflect?.slot;'],
   ['vestigial-read', 'const g = globalThis; return g.window?.Reflect?.slot;'],
+  ['written-call-root', 'const root = () => globalThis; globalThis.slotD = 27; return root().self.window?.slotD === globalThis.self.window?.slotD;'],
+  ['defined-call-root', `function get() { return globalThis; }
+    Object.defineProperty(globalThis, "slotD", { value: 27, configurable: true });
+    return (effects.push("prefix"), get().self).window?.slotD === globalThis.self.window?.slotD;`],
+  ['stored-native-leaf', `let held = "unset";
+    try { return typeof (held = globalThis.window.window?.Array)?.isArray; }
+    finally { effects.push(held === "unset" ? "unset" : typeof held); }`],
+  ['stored-native-leaf-chrome', `let held = "unset";
+    try { return typeof (held = globalThis.window["window"]?.Array)?.isArray; }
+    finally { effects.push(held === "unset" ? "unset" : typeof held); }`, { targets: { chrome: 60 } }],
+  ['parenthesized-store', `let held = "unset";
+    try { return typeof (held = ((globalThis.window).window)?.Array)?.isArray; }
+    finally { effects.push(held === "unset" ? "unset" : typeof held); }`, { targets: { chrome: 60 } }],
+  ['alias-pattern-read', 'const w = globalThis.window; let isArray; ({ Array: { isArray } } = w.globalThis); return typeof isArray;', { targets: { chrome: 60 } }],
+  ['native-realm-pattern', `const { self: { Set: { name }, Map: { groupBy } } } = globalThis;
+    return [name, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['native-realm-iterator', `const { self: { [Symbol.iterator]: iter, Map: { groupBy } } } = globalThis;
+    return [typeof iter, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['native-realm-partial-bindings', `try { var { self: { Set: { name }, Map: { groupBy } } } = globalThis; }
+    catch (error) { return [error.name, typeof name, typeof groupBy]; }
+    return [name, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['native-realm-iterator-default', `try { var { self: { [Symbol.iterator]: iter = effects.push("default"), Map: { groupBy } } } = globalThis; }
+    catch (error) { return [error.name, typeof iter, typeof groupBy]; }
+    return [iter, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
   ['excluded-store', 'let held; return [delete (held = (effects.push("prefix"), globalThis)).self.slotD, typeof held];', { exclude: ['web.self'] }],
 ];
 // Export rewriting must not mutate a shared identifier used by the kept store.
@@ -64,7 +88,7 @@ await fs.ensureDir(tmp);
 const directory = await fs.mkdtemp(path.join(tmp, 'realm-collapse-delete-'));
 let serial = 0;
 try {
-  for (const [name, body, extra = {}] of cases) {
+  for (const [name, body, extra = {}, nativeRealm = false] of cases) {
     const source = scenarioSource(`export const effects = []; export function read(choice) { ${ body } }`);
     for (const method of ['usage-global', 'usage-pure']) {
       const options = { method, version: '4.0', targets: { ie: 11 }, ...extra };
@@ -91,7 +115,7 @@ try {
           await fs.writeFile(module, output);
           const file = path.join(directory, `case-${ serial++ }.mjs`);
           await fs.writeFile(file, `const root = Function('return this')();
-            root.self = root;
+            ${ nativeRealm && !present ? 'delete root.self;' : 'root.self = root;' }
             ${ present ? 'root.window = root;' : 'delete root.window;' }
             root.slotD = 17; root.items = [1, 3];
             const mod = await import(${ JSON.stringify(pathToFileURL(module).href) });
@@ -100,7 +124,7 @@ try {
             try { value = mod.read(false); } catch (error) { value = error.name; }
             export const r = [value, root.slotD];`);
           for (const strip of host === 'native' ? [false] : [false, true]) {
-            const actual = await runInWorker(file, { strip, stripGlobals: ['Promise', 'globalThis'] });
+            const actual = await runInWorker(file, { strip, stripGlobals: nativeRealm ? ['Promise'] : ['Promise', 'globalThis'] });
             if (host === 'native') {
               check(`${ name }/${ present }/native runs`, actual.startsWith('OK|'), true);
               wanted = actual;

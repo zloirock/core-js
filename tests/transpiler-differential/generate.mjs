@@ -24366,6 +24366,18 @@ function * generateNestedReceiverRoots() {
       'vestigial-read',
       'const g = globalThis; return g.window?.Reflect?.slot;',
     ],
+    [
+      'written-call-root',
+      'function get() { return globalThis; } globalThis.slotD = 27; return (effects.push("prefix"), get().self).window?.slotD === globalThis.self.window?.slotD;',
+    ],
+    [
+      'stored-native-leaf',
+      'let held = "unset"; try { return typeof (held = globalThis.window.window?.Array)?.isArray; } finally { effects.push(held === "unset" ? "unset" : typeof held); }',
+    ],
+    [
+      'alias-pattern-read',
+      'const w = globalThis.window; let isArray; ({ Array: { isArray } } = w.globalThis); return typeof isArray;',
+    ],
   ]) {
     for (const present of [false, true]) yield {
       name: `realm-collapse-delete/${ name }/${ present }`, strip: true, isolated: true,

@@ -37,6 +37,7 @@ const ALLOWED = new Map([
   ['audit-realm-fold-drops-its-guard', Array(3).fill('globalThis')],
   ['audit-realm-run-under-an-excluded-root-bare-root', ['globalThis']],
   ['audit-realm-run-under-an-excluded-root-guarded-over-store', ['globalThis']],
+  ['claimless-native-realm-patterns', Array(5).fill('globalThis')],
   ['declined-realm-excluded-root', ['globalThis']],
   ['excluded-realm-root-guard-stored-carriers', Array(4).fill('globalThis')],
   ['excluded-self-parameter-passthrough', ['self']],
