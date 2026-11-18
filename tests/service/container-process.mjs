@@ -1,11 +1,12 @@
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { writeFile, mkdtemp, readdir, rm, symlink } from 'node:fs/promises';
+import { writeFile, mkdir, mkdtemp, readdir, rename, rm, symlink, utimes } from 'node:fs/promises';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createContext, runInContext } from 'node:vm';
 
 const entry = new URL('../../packages/core-js-service-container/index.js', import.meta.url);
 const fixtureEntry = new URL('./container-process-fixture.mjs', import.meta.url);
@@ -20,6 +21,13 @@ async function freePort() {
   return port;
 }
 
+async function publishRelease(releases, release, modules, mtime) {
+  const staged = join(releases, `${ release }.tmp`);
+  await writeFile(staged, JSON.stringify({ modules }));
+  if (mtime !== undefined) await utimes(staged, mtime, mtime);
+  await rename(staged, join(releases, `${ release }.json`));
+}
+
 function launch(manifestPath, port, extra = {}, { script = entry, ipc = false } = {}) {
   const child = spawn(process.execPath, [fileURLToPath(script)], {
     env: {
@@ -27,6 +35,7 @@ function launch(manifestPath, port, extra = {}, { script = entry, ipc = false } 
       HOST: '127.0.0.1', PORT: String(port), CORE_JS_MANIFEST_PATH: manifestPath,
       // Keep the test processes out of any cache configured by the invoking shell.
       CORE_JS_CACHE_DIR: undefined, CORE_JS_IMAGE_DIGEST: undefined,
+      CORE_JS_RELEASES_DIR: undefined, CORE_JS_RELEASE_RETENTION_SECONDS: undefined,
       ...extra,
     },
     stdio: ['ignore', 'ignore', 'pipe', ...ipc ? ['ipc'] : []],
@@ -57,9 +66,9 @@ function get(port, path, { headers = {}, timeout = 3000 } = {}) {
   });
 }
 
-async function statusOrNull(port) {
+async function statusOrNull(port, path) {
   try {
-    return await get(port, '/status', { timeout: 1500 });
+    return await get(port, path, { timeout: 1500 });
   } catch {
     return null;
   }
@@ -70,10 +79,10 @@ async function failOnExit(exit, label) {
   throw new Error(`${ label }: container exited ${ JSON.stringify(result) }`);
 }
 
-async function until(port, predicate, label, exit) {
+async function until(port, predicate, label, exit, path = '/status') {
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
-    const outcome = await Promise.race([statusOrNull(port), failOnExit(exit, label)]);
+    const outcome = await Promise.race([statusOrNull(port, path), failOnExit(exit, label)]);
     if (outcome && predicate(outcome)) return outcome;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
@@ -150,6 +159,88 @@ try {
   ok((await readdir(join(cacheDir, digest))).length > 0, 'container-cache-1 #8');
 
   deepStrictEqual(await stop(valid), { code: 0, signal: null }, 'container-process-2 #4');
+
+  const releases = join(directory, 'releases');
+  const versions = {
+    CORE_JS_RELEASES_DIR: releases, CORE_JS_RELEASE_RETENTION_SECONDS: '3600',
+    CORE_JS_CACHE_DIR: cacheDir, CORE_JS_IMAGE_DIGEST: `sha256:${ digest }`,
+  };
+  const versionedPort = await freePort();
+  const versioned = launch(undefined, versionedPort, versions);
+  const initialized = await until(versionedPort, response => JSON.parse(response.body).state === 'error',
+    'missing releases directory', versioned.exit);
+  deepStrictEqual(JSON.parse(initialized.body),
+    { state: 'error', errorCode: 'releases_unavailable' }, 'container-releases-2 #1');
+  await mkdir(releases);
+  const olderThanRetention = Math.floor(Date.now() / 1000) - 7200;
+  await publishRelease(releases, 'release-40', ['es.array.at'], olderThanRetention);
+  await publishRelease(releases, 'release-41', ['es.object.group-by']);
+  await publishRelease(releases, 'broken', ['unknown.module']);
+  function isReady(response) {
+    return response.status === 200 && JSON.parse(response.body).baselineReady;
+  }
+  await until(versionedPort, isReady, 'first release', versioned.exit, '/status/release-41');
+  const broken = await until(versionedPort, response => response.status === 200 &&
+    JSON.parse(response.body).state === 'error', 'invalid release', versioned.exit, '/status/broken');
+  strictEqual(JSON.parse(broken.body).errorCode, 'manifest_invalid', 'container-releases-2 #2');
+  const failedVersion = await get(versionedPort, '/polyfills/broken.js');
+  strictEqual(failedVersion.status, 503, 'container-releases-2 #3');
+  strictEqual(failedVersion.headers['cache-control'], 'no-store', 'container-releases-2 #4');
+  const unknown = await get(versionedPort, '/polyfills/release-42.js');
+  strictEqual(unknown.status, 404, 'container-releases-2 #5');
+  strictEqual(unknown.headers['cache-control'], 'no-store', 'container-releases-2 #6');
+  strictEqual((await get(versionedPort, '/polyfills.js')).status, 404, 'container-releases-1 #7');
+
+  await publishRelease(releases, 'release-42', ['es.array.to-reversed']);
+  await until(versionedPort, isReady, 'second release', versioned.exit, '/status/release-42');
+  const identity = { 'accept-encoding': 'identity' };
+  await until(versionedPort, isReady, 'pinned release', versioned.exit, '/status/release-40');
+  const pinned = await get(versionedPort, '/polyfills/release-40.js', { headers: identity });
+  strictEqual(pinned.status, 200, 'container-releases-3 #9');
+  const oldScript = await get(versionedPort, '/polyfills/release-41.js', { headers: identity });
+  const newScript = await get(versionedPort, '/polyfills/release-42.js', {
+    headers: { ...identity, 'if-none-match': oldScript.headers.etag },
+  });
+  for (const [response, expected] of [[oldScript, ['function', 'undefined']], [newScript, ['undefined', 'function']]]) {
+    strictEqual(response.status, 200, 'container-releases-4 #1');
+    strictEqual(response.headers['cache-control'], 'private, no-cache', 'container-releases-4 #2');
+    strictEqual(response.headers.vary, 'user-agent, accept-encoding', 'container-releases-4 #3');
+    const context = createContext();
+    runInContext('delete Object.groupBy; delete Array.prototype.toReversed;', context);
+    runInContext(response.body.toString(), context);
+    deepStrictEqual([
+      runInContext('typeof Object.groupBy', context),
+      runInContext('typeof Array.prototype.toReversed', context),
+    ], expected, 'container-releases-2 #7');
+  }
+  const current = await get(versionedPort, '/polyfills/release-42.js', {
+    headers: { ...identity, 'if-none-match': newScript.headers.etag },
+  });
+  strictEqual(current.status, 304, 'container-releases-4 #4');
+  ok((await readdir(join(cacheDir, digest, 'releases'))).includes('release-42'), 'container-releases-4 #5');
+
+  const seconds = Math.floor(Date.now() / 1000);
+  await writeFile(join(releases, `release-41.retired.${ seconds - 3600 }`), '');
+  await until(versionedPort, response => response.status === 404, 'expired release', versioned.exit, '/status/release-41');
+  const expired = await get(versionedPort, '/polyfills/release-41.js', {
+    headers: { ...identity, 'if-none-match': oldScript.headers.etag },
+  });
+  strictEqual(expired.status, 404, 'container-releases-3 #1');
+  strictEqual(expired.headers['cache-control'], 'no-store', 'container-releases-3 #2');
+  deepStrictEqual(await stop(versioned), { code: 0, signal: null }, 'container-releases-3 #3');
+
+  const restartPort = await freePort();
+  const restarted = launch(undefined, restartPort, versions);
+  await until(restartPort, isReady, 'second release after restart', restarted.exit, '/status/release-42');
+  const restartedScript = await get(restartPort, '/polyfills/release-42.js', { headers: identity });
+  strictEqual(restartedScript.headers.etag, newScript.headers.etag, 'container-releases-4 #6');
+  deepStrictEqual(restartedScript.body, newScript.body, 'container-releases-4 #7');
+  strictEqual((await get(restartPort, '/polyfills/release-41.js')).status, 404, 'container-releases-3 #4');
+  await until(restartPort, isReady, 'pinned release after restart', restarted.exit, '/status/release-40');
+  const restartedPinned = await get(restartPort, '/polyfills/release-40.js', { headers: identity });
+  strictEqual(restartedPinned.status, 200, 'container-releases-3 #10');
+  deepStrictEqual(restartedPinned.body, pinned.body, 'container-releases-3 #11');
+  deepStrictEqual(await stop(restarted), { code: 0, signal: null }, 'container-releases-3 #5');
 
   const linkPath = join(directory, 'container-entry.js');
   await symlink(fileURLToPath(entry), linkPath);

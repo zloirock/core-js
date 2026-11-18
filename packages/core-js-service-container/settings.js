@@ -2,13 +2,27 @@ import { join } from 'node:path';
 
 export function settingsFrom(env) {
   const manifestPath = env.CORE_JS_MANIFEST_PATH;
+  const releasesDir = env.CORE_JS_RELEASES_DIR;
+  const retention = env.CORE_JS_RELEASE_RETENTION_SECONDS;
   const cacheRoot = env.CORE_JS_CACHE_DIR;
   const imageDigest = env.CORE_JS_IMAGE_DIGEST;
   const host = env.HOST === undefined ? '0.0.0.0' : env.HOST;
   const portValue = env.PORT === undefined ? '3000' : env.PORT;
 
-  if (typeof manifestPath !== 'string' || !manifestPath) {
+  let releases;
+  if (releasesDir !== undefined) {
+    if (typeof releasesDir !== 'string' || !releasesDir || manifestPath !== undefined) {
+      throw new TypeError('CORE_JS_RELEASES_DIR must be a nonempty string and used without CORE_JS_MANIFEST_PATH');
+    }
+    if (retention !== undefined && (typeof retention !== 'string' ||
+      !/^[1-9]\d*$/.test(retention) || !Number.isSafeInteger(Number(retention)))) {
+      throw new TypeError('CORE_JS_RELEASE_RETENTION_SECONDS must be a positive decimal integer');
+    }
+    releases = { directory: releasesDir, retentionSeconds: retention === undefined ? 7 * 24 * 60 * 60 : Number(retention) };
+  } else if (typeof manifestPath !== 'string' || !manifestPath) {
     throw new TypeError('CORE_JS_MANIFEST_PATH must be a nonempty string');
+  } else if (retention !== undefined) {
+    throw new TypeError('CORE_JS_RELEASE_RETENTION_SECONDS requires CORE_JS_RELEASES_DIR');
   }
   if (typeof host !== 'string' || !host) {
     throw new TypeError('HOST must be a nonempty string');
@@ -28,5 +42,5 @@ export function settingsFrom(env) {
     cacheDirectory = join(cacheRoot, imageDigest.slice('sha256:'.length));
   }
 
-  return { manifestPath, cacheDirectory, host, port: Number(portValue) };
+  return { ...releases ? { releases } : { manifestPath }, cacheDirectory, host, port: Number(portValue) };
 }

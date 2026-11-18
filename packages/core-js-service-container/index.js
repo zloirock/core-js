@@ -2,10 +2,12 @@
 import fastify from 'fastify';
 import { fileURLToPath } from 'node:url';
 import { realpath } from 'node:fs/promises';
+import { join } from 'node:path';
 import createService from '@core-js/service';
 import { loadManifest } from './manifest.js';
 import { settingsFrom } from './settings.js';
 import createLifecycle from './lifecycle.js';
+import createReleases from './releases.js';
 import createServer from './server.js';
 
 function logIncident(code, detail) {
@@ -15,20 +17,27 @@ function logIncident(code, detail) {
 // This entry is also imported by the process fixture to exercise the same listener and signal wiring.
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- The executable shares its startup wiring with a child-process fixture.
 export async function startContainer({ createService: serviceFactory = createService } = {}) {
-  const { manifestPath, cacheDirectory, host, port } = settingsFrom(process.env);
+  const { manifestPath, releases, cacheDirectory, host, port } = settingsFrom(process.env);
   const app = fastify({ logger: false });
-  const lifecycle = createLifecycle({
-    load: () => loadManifest(manifestPath),
-    createService: scope => serviceFactory({ scope, directory: cacheDirectory, delivery: 'fixed', route: '/',
-      ignoreBrowserslistConfig: true, warn: warning => logIncident('warning', warning) }),
-    log: logIncident,
-  });
-  createServer({ lifecycle, fastify: app, log: error => logIncident('request_failed', error) });
+  function lifecycleFor(path, release) {
+    const directory = cacheDirectory && release ? join(cacheDirectory, 'releases', release) : cacheDirectory;
+    const log = release ? (code, detail) => logIncident(code, `[${ release }] ${ detail }`) : logIncident;
+    return createLifecycle({
+      load: () => loadManifest(path),
+      createService: scope => serviceFactory({ scope, directory, delivery: 'fixed', route: '/',
+        ignoreBrowserslistConfig: true, warn: warning => log('warning', warning) }),
+      log,
+    });
+  }
+  const registry = releases && createReleases({ ...releases, createLifecycle: lifecycleFor, log: logIncident });
+  const lifecycle = registry ? undefined : lifecycleFor(manifestPath);
+  createServer({ lifecycle, releases: registry, fastify: app, log: error => logIncident('request_failed', error) });
 
   let closing = false;
   async function shutdown() {
     if (closing) return;
     closing = true;
+    registry?.stop();
     try {
       await app.close();
     } catch (error) {
@@ -46,7 +55,7 @@ export async function startContainer({ createService: serviceFactory = createSer
     process.off('SIGINT', shutdown);
     throw error;
   }
-  lifecycle.start();
+  (registry ?? lifecycle).start();
 }
 
 async function isDirectInvocation() {

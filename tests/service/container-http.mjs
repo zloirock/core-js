@@ -95,6 +95,23 @@ try {
   await server.app.close();
 }
 
+const release = {
+  status: () => ({ state: 'ready', baselineReady: true, fullyWarmed: true }),
+  serveScript(rawRequest, response) { response.end('release'); },
+};
+const versioned = createServer({
+  fastify: fastify({ logger: false }),
+  releases: { status: () => ({ state: 'ready' }), get: id => id === 'release-1' ? release : undefined },
+});
+try {
+  for (const path of ['/status', '/status/release-1', '/polyfills/release-1.js']) {
+    strictEqual((await versioned.inject({ url: path })).statusCode, 200, `container-http-2 #36: GET ${ path }`);
+    strictEqual((await versioned.inject({ url: path, method: 'HEAD' })).statusCode, 404, `container-http-2 #37: HEAD ${ path }`);
+  }
+} finally {
+  await versioned.close();
+}
+
 const failed = await listen({
   status: () => ({ state: 'ready', baselineReady: true, fullyWarmed: false }),
   serveScript(rawRequest, response) { response.setHeader('etag', '"partial"'); throw new Error('disk failed'); },

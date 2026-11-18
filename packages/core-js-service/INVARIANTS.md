@@ -50,9 +50,9 @@ does: a summary of the code is already in the code.
 - **container-http-1** - status stays reachable and reports the current lifecycle state even when
   preparation fails; scripts return an uncacheable 503 until the baseline exists, but a later
   warm-up failure does not withdraw the baseline
-- **container-http-2** - only GET requests to the fixed script address reach the raw service
-  handler; Fastify must not rewrite its bytes, compression, cache headers or validators, or
-  expose HEAD for either of the two GET routes
+- **container-http-2** - the raw service handler receives only GET requests to the script address
+  for the selected mode, `/polyfills.js` or `/polyfills/:release.js`. Fastify must preserve its
+  bytes, compression, cache headers and validators. All script and status routes disable HEAD
 - **container-http-3** - unexpected request failures are logged exactly once, including when the
   standalone process disables Fastify logging, and answered with an uncacheable 500 before headers
   are sent; after headers are sent the socket is destroyed instead of appending an invalid response.
@@ -70,6 +70,22 @@ does: a summary of the code is already in the code.
   interrupted script would break a page during a routine container replacement
 - **container-cache-1** - a replacement container with the same image, module set and volume serves
   the cached bundles without rebuilding them. A partial cache rebuilds only incomplete bundles
+
+## Standalone container releases
+
+- **container-releases-1** - versioned delivery is explicitly selected in place of single-manifest
+  delivery. Retention is a positive integer duration in seconds. Conflicting input must fail
+  before opening a listener so a release is never silently served by the wrong deployment mode
+- **container-releases-2** - each release derives its scope from its own manifest. Directory scans
+  discover deployments and isolate bad manifests from other releases. Missing or expired URLs
+  return an uncacheable 404 so a later registration can become available to the same client
+- **container-releases-3** - a release remains available indefinitely while its manifest is
+  present without a retirement marker, since some clients may stay on it. Only explicit
+  retirement sets an expiry deadline at the recorded time plus retention. Falling back to
+  another release could omit a module the requested release needs
+- **container-releases-4** - each release uses the same browser selection, representation and
+  revalidation contract as the fixed URL. A validator for different bytes must get a fresh body,
+  even when a release replaces one module with another
 
 ## Across the layers
 
