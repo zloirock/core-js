@@ -70,7 +70,7 @@ import {
   walkAstNodes,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
-import { mintedProxyGlobalName, replaceNodeInTree } from './emit-shared.js';
+import { mintedProxyGlobalName, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression,
   callExpression,
@@ -2307,7 +2307,9 @@ export default function createDestructureDrains(ctx) {
       binding: identifier(refName), receiver: slot, kind: left.kind, assignment,
     });
     const bodyless = body.type === 'BlockStatement' ? null : body;
-    if (bodyless) path.get('body').replaceWith({ type: 'BlockStatement', body: [relocated, bodyless] });
+    // The printer starts a new comment cursor at the block. The original body's
+    // offset keeps it past the loop head that has already printed.
+    if (bodyless) path.get('body').replaceWith(stampReplacementSpan({ type: 'BlockStatement', body: [relocated, bodyless] }, bodyless));
     else path.get('body').unshiftContainer('body', [relocated]);
     const pattern = declarator.id;
     if (assignment) leftPath.replaceWith(head);

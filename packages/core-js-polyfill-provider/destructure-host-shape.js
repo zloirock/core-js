@@ -2357,6 +2357,7 @@ export function renderRetainedObjectCapture(plan, {
   entry,
   hintName,
   embed = node => node,
+  bind = null,
   anchorPure = null,
   noteStaticAlias = null,
   mintUnused = mintRef,
@@ -2367,6 +2368,16 @@ export function renderRetainedObjectCapture(plan, {
   sourceNode = node => node,
   renderDefaultGuard = renderInstanceDefaultGuard,
 }) {
+  function binding(prop, target, effects = []) {
+    return bind ? bind(prop, target, !!plan.rest && !prop.computed, effects) : embed(target);
+  }
+  function renderNested(child, receiver) {
+    return renderRetainedObjectCapture(child, {
+      mintRef, mintDeclaredRef, injectImport, entry, hintName, anchorPure, noteStaticAlias,
+      mintUnused, claimProperties, sourceNode, renderDefaultGuard, bind,
+      embed: receiver ? node => node === receiver ? node : embed(node) : embed,
+    });
+  }
   if (plan.defaultCapture) return renderRetainedDefaultCapture(plan.defaultCapture, {
     mintRef,
     mintDeclaredRef,
@@ -2400,7 +2411,7 @@ export function renderRetainedObjectCapture(plan, {
     });
     const capturedElement = captured.elements.find(item => item.pattern === elementPattern);
     const receiverRef = capturedElement.ref;
-    const inner = plan.elementPlan || plan.innerPlan ? renderRetainedObjectCapture({
+    const inner = plan.elementPlan || plan.innerPlan ? renderNested({
       ...plan.elementPlan ?? plan.innerPlan,
       init: receiverRef ? identifier(receiverRef) : voidZero(),
       receiverRef,
@@ -2408,19 +2419,6 @@ export function renderRetainedObjectCapture(plan, {
       receiverAlreadyEvaluated: !receiverRef,
       coerceReceiver: !!receiverRef && (plan.elementPlan ?? plan.innerPlan).coerceReceiver,
       preserveResult: false,
-    }, {
-      mintRef,
-      mintDeclaredRef,
-      injectImport,
-      entry,
-      hintName,
-      embed,
-      anchorPure,
-      noteStaticAlias,
-      mintUnused,
-      claimProperties,
-      sourceNode,
-      renderDefaultGuard,
     }) : null;
     if (!plan.assignment) return {
       declarations: [
@@ -2453,28 +2451,15 @@ export function renderRetainedObjectCapture(plan, {
     anchorPure,
     noteRefAlias,
     coerceLeaf,
-    renderLeaf: plan.innerPlan ? init => renderRetainedObjectCapture({
+    renderLeaf: plan.innerPlan ? init => renderNested({
       ...plan.innerPlan,
       init: init ?? voidZero(),
       receiverRef: init?.name,
       preserveResult: false,
       coerceReceiver: !!init && plan.innerPlan.coerceReceiver,
       receiverAlreadyEvaluated: !init,
-    }, {
-      mintRef,
-      mintDeclaredRef,
-      injectImport,
-      entry,
-      hintName,
-      embed: node => node === init ? node : embed(node),
-      anchorPure,
-      noteStaticAlias,
-      mintUnused,
-      claimProperties,
-      sourceNode,
-      renderDefaultGuard,
-    }).expression : plan.capture.inlineLeaf ? receiver => assignmentExpression('=', embed(plan.capture.leaf.value),
-      callExpression(identifier(injectImport(entry, hintName)), [receiver])) : null,
+    }, init).expression : plan.capture.inlineLeaf ? receiver => assignmentExpression('=',
+      binding(plan.capture.leaf, plan.capture.leaf.value), callExpression(identifier(injectImport(entry, hintName)), [receiver])) : null,
   });
   entry = plan.primaryPure?.entry ?? entry;
   hintName = plan.primaryPure?.hintName ?? hintName;
@@ -2530,20 +2515,7 @@ export function renderRetainedObjectCapture(plan, {
     } else if (prop === plan.nestedRest?.prop) {
       const nestedInit = memberFromKeyName(ref(), plan.nestedRest.key);
       // the nested plan carries the host's result flag, but only the host's own render yields a result
-      const inner = renderRetainedObjectCapture({ ...plan.nestedRest.plan, init: nestedInit, preserveResult: false }, {
-        mintRef,
-        mintDeclaredRef,
-        injectImport,
-        entry,
-        hintName,
-        embed: node => node === nestedInit ? node : embed(node),
-        anchorPure,
-        noteStaticAlias,
-        mintUnused,
-        claimProperties,
-        sourceNode,
-        renderDefaultGuard,
-      });
+      const inner = renderNested({ ...plan.nestedRest.plan, init: nestedInit, preserveResult: false }, nestedInit);
       if (plan.assignment) assignments.push(inner.expression);
       else declarations.push(...inner.declarations);
     } else if (plan.retainedStatic && !plan.assignment && prop === plan.prop) {
@@ -2555,8 +2527,8 @@ export function renderRetainedObjectCapture(plan, {
       if (plan.readStaticSlots) keys.push(memberFromKeyName(ref(), plan.primaryKey));
       const read = identifier(injectImport(entry, hintName));
       declarations.push(plan.provenReceiver || receiverCoerced
-        ? variableDeclarator(embed(target), keys.length ? sequenceExpression([...keys, read]) : read)
-        : renderKeyedDestructureRead({ receiverName: refName, receiver: ref(), binding: embed(target), keys, read }).at(-1));
+        ? variableDeclarator(binding(prop, target, keys), keys.length ? sequenceExpression([...keys, read]) : read)
+        : renderKeyedDestructureRead({ receiverName: refName, receiver: ref(), binding: binding(prop, target, keys), keys, read }).at(-1));
     } else if (!plan.assignment && prop === plan.prop && entry) {
       const defaulted = prop.value.type === 'AssignmentPattern';
       const target = defaulted ? prop.value.left : prop.value;
@@ -2583,11 +2555,11 @@ export function renderRetainedObjectCapture(plan, {
       declarations.push(keyEffects.length ? renderKeyedDestructureRead({
         receiverName: refName,
         receiver: ref(),
-        binding: embed(target),
+        binding: binding(prop, target, keyEffects),
         keys: keyEffects,
         read,
         proven: plan.receiverNeverNullish || receiverCoerced,
-      }).at(-1) : variableDeclarator(embed(target), read));
+      }).at(-1) : variableDeclarator(binding(prop, target), read));
     } else if (plan.assignment && prop === plan.prop) {
       const defaulted = prop.value.type === 'AssignmentPattern';
       const target = plan.retainedStatic && !plan.narrow ? droppedDefaultTarget(prop) : patternSlotTarget(prop.value);
@@ -2607,10 +2579,10 @@ export function renderRetainedObjectCapture(plan, {
         read = renderDefaultGuard({ assignedRef: identifier(memo), call: read, reread: identifier(memo),
           defaultValue: embed(prop.value.right), defaultPattern: prop.value, defaultName: target.name });
       }
-      const write = assignmentExpression('=', embed(target), read);
       const { prefix, tail } = peelNestedSequenceExpressions(prop.key);
       const keyEffects = prop.computed
         ? observableSequenceElements([...prefix, tail], ctx, { preserveSourceReads: plan.keepKeyReads }).map(embed) : [];
+      const write = assignmentExpression('=', binding(prop, target, keyEffects), read);
       assignments.push(keyEffects.length ? sequenceExpression([...keyEffects, write]) : write);
     } else if (plan.siblingStatics?.has(prop)) {
       // A direct polyfill drops the dead default; a guarded native fallback keeps it.
@@ -2631,16 +2603,16 @@ export function renderRetainedObjectCapture(plan, {
           defaultName: target.name,
         });
       }
-      const siblingWrite = assignmentExpression('=', embed(target), read);
       // the read is gone, the key's own effects are not: they ran where the source spelled them
       const { prefix: siblingPrefix, tail: siblingTail } = peelNestedSequenceExpressions(prop.key);
       const siblingKeyEffects = prop.computed
         ? observableSequenceElements([...siblingPrefix, siblingTail], ctx).map(embed) : [];
       if (plan.readStaticSlots && !native && !narrow) siblingKeyEffects.push(memberFromKeyName(ref(), key));
       if (plan.assignment) {
+        const siblingWrite = assignmentExpression('=', binding(prop, target, siblingKeyEffects), read);
         assignments.push(siblingKeyEffects.length
           ? sequenceExpression([...siblingKeyEffects, siblingWrite]) : siblingWrite);
-      } else declarations.push(variableDeclarator(embed(target), siblingKeyEffects.length
+      } else declarations.push(variableDeclarator(binding(prop, target, siblingKeyEffects), siblingKeyEffects.length
         ? sequenceExpression([...siblingKeyEffects, read]) : read));
     } else {
       const residual = { ...plan.pattern, properties: [prop] };

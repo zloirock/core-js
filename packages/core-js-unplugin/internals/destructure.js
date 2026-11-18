@@ -191,6 +191,7 @@ import {
   captureProbePlan,
   planLiftedRhsPrefix,
   captureSealedNavProbe,
+  carryBindingKeyComments,
   propLocalName,
   proxyNavSynthBase,
   registerAssignmentExtractAlias,
@@ -955,6 +956,14 @@ export default function createAstDestructureEmitter({
         injectImport: injectPureImport,
         entry,
         hintName,
+        bind(prop, target, keepsKey, effects) {
+          // A lifted key effect keeps its annotations when its binding prints first.
+          for (const effect of effects) if (typeof effect.start === 'number') {
+            effect.ownedCommentsAt = effect.start;
+            effect.ownedCommentsEnd = effect.end;
+          }
+          return carryBindingKeyComments(target, prop, keepsKey);
+        },
         renderDefaultGuard: buildInstanceDefaultGuard,
         mintUnused: declared => declared ? injector.declareUnusedRef(metaPath) : mintUnusedName(),
         claimProperties: properties => { for (const item of properties) skippedNodes.add(item); },

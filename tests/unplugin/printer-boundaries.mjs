@@ -70,6 +70,45 @@ const exports = [
 const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/printer-boundaries-'));
 let serial = 0;
 try {
+  for (const [label, loop] of [
+    ['declaration', 'for (const { at /* key */: method, length } of [[1]]) use(method, length);'],
+    ['assignment', 'let method; for ({ at /* key */: method } of [[1]]) ;'],
+    ['nested', 'for (const { row: { at /* key */: method } } of [box]) use(method);'],
+    ['braced', 'for (const { row: { at /* key */: method } } of [box]) { use(method); }'],
+    ['native', 'for (const { custom /* key */: value } of [box]) use(value);'],
+  ]) {
+    let code = `${ loop } /* after */\nuse(0);`;
+    const expected = commentSignature((await parse('input.mjs', code)).comments);
+    for (const stage of ['pre', 'post']) {
+      code = createPlugin({ ...options, method: 'usage-pure' }).transform(code, '/input.mjs', stage)?.code ?? code;
+      checkDeep(`relocated head/${ label }/${ stage }`, commentSignature((await parse('input.mjs', code)).comments), expected);
+    }
+  }
+
+  for (const [label, body, order] of [
+    ['bare', '/* body */ a;', ['source', 'body', 'key', 'residual', 'after']],
+    ['braced', '{ /* body */ a; }', ['source', 'key', 'residual', 'body', 'after']],
+  ]) {
+    let code = `for (const { at /* key */: a, length /* residual */ } of /* source */ [[1]]) ${ body } /* after */`;
+    for (const stage of ['pre', 'post']) {
+      code = createPlugin({ ...options, method: 'usage-pure' }).transform(code, '/input.mjs', stage)?.code ?? code;
+      const { comments } = await parse('input.mjs', code);
+      checkDeep(`loop binding ownership/${ label }/${ stage }`, comments.map(comment => comment.value.trim()), order);
+    }
+  }
+  for (const [label, source, order] of [
+    ['nested loop', 'for (const { y: { at /* key */: fn }, length } of /* source */ [box]) { /* body */ fn; }',
+      ['source', 'key', 'body']],
+    ['nested default', 'const { y: { at /* key */: fn = /*#__PURE__*/ magic() }, other } = box;',
+      ['key', '#__PURE__']],
+  ]) {
+    let code = source;
+    for (const stage of ['pre', 'post']) {
+      code = createPlugin({ ...options, method: 'usage-pure' }).transform(code, '/input.mjs', stage)?.code ?? code;
+      const { comments } = await parse('input.mjs', code);
+      checkDeep(`nested binding ownership/${ label }/${ stage }`, comments.map(comment => comment.value.trim()), order);
+    }
+  }
   for (const [source, marker, lang] of [
     ['export default (function sourceName() {});', 'sourceName', 'js'],
     ['import defer * as sourceName from "pkg";', 'sourceName', 'js'],

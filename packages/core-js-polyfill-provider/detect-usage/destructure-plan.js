@@ -2986,6 +2986,10 @@ export function buildNestedDestructurePlan({
       : plainSynthKeyName(prop.key);
   }
 
+  function consumedLeaf(extraction, keyName) {
+    return { kind: 'consumed', prop: extraction.prop, keyName, extractions: [extraction] };
+  }
+
   function planInnerProp(prop, receiverName, source = null) {
     const keyName = propKeyNameScoped(prop);
     if (source) {
@@ -3003,21 +3007,18 @@ export function buildNestedDestructurePlan({
       // way a symbol-iterator pattern leaf does. a default, a rest or a disabled leaf keeps the source
       const patternStatic = patternValuedStaticProp(prop, receiverName, keyName);
       if (!patternStatic) return { kind: 'verbatim', prop };
-      return {
-        kind: 'consumed', prop, keyName,
-        extractions: [{ entry: patternStatic.pure.entry, hint: patternStatic.pure.hintName, pattern: patternStatic.pattern }],
-      };
+      return consumedLeaf({
+        prop, entry: patternStatic.pure.entry, hint: patternStatic.pure.hintName, pattern: patternStatic.pattern,
+      }, keyName);
     }
-    return {
-      kind: 'consumed', prop, keyName,
-      extractions: [{
-        entry: resolved.pure.entry,
-        hint: resolved.pure.hintName,
-        localName: resolved.localName,
-        targetNode: resolved.targetNode,
-        defaultNode: leafDefaultNode(prop),
-      }],
-    };
+    return consumedLeaf({
+      prop,
+      entry: resolved.pure.entry,
+      hint: resolved.pure.hintName,
+      localName: resolved.localName,
+      targetNode: resolved.targetNode,
+      defaultNode: leafDefaultNode(prop),
+    }, keyName);
   }
 
   // ... a leaf that carries a claim of ITS own (`name` off the static) keeps the pattern out: the
@@ -3102,6 +3103,12 @@ export function buildNestedDestructurePlan({
     if (!extractions.length) return { kind: 'verbatim', prop: outerProp };
     if (children.every(child => child.kind === 'consumed')) {
       if (children.every(child => !computedKeyHasSideEffects(child.prop, { scope, adapter, path }))) {
+        // The enclosing level can still keep its key for rest. The keys folded inside it
+        // disappear and belong to the first binding extracted from each child.
+        for (const child of children) {
+          const [first] = child.extractions;
+          if (first.prop !== child.prop) (first.foldedProps ??= []).push(child.prop);
+        }
         return { kind: 'consumed', prop: outerProp, keyName: propKeyNameScoped(outerProp), extractions };
       }
       orderedRealmKeys = true;
@@ -3130,14 +3137,14 @@ export function buildNestedDestructurePlan({
     if (leafDisabled(prop)) return { kind: 'verbatim', prop };
     const localName = symbolIteratorLocalName(prop, { scope, adapter, path });
     if (localName !== null) {
-      return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
+      return consumedLeaf({ prop, synth: 'symbol-iterator', localName });
     }
     // An assignment to a member observes write order through its setter. It belongs
     // in this ordered plan, not in an independent extraction ahead of the residual.
     const targetNode = symbolIteratorMemberTarget(prop, 'get-iterator-method', {
       hostPattern: declarator.id, ctx: { scope, adapter, path },
     });
-    if (targetNode) return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', targetNode }] };
+    if (targetNode) return consumedLeaf({ prop, synth: 'symbol-iterator', targetNode });
     if (isSymbolIteratorPatternProp(prop, { scope, adapter, path })) {
       // The ordinary capture retains the live declarator for a relocated rest binding.
       if (declarator.id.properties?.length === 1 && prop.value.properties.some(isRestProperty)) {
@@ -3146,8 +3153,8 @@ export function buildNestedDestructurePlan({
       const leaf = symbolIteratorInstanceLeaf({
         value: prop.value, resolvePure, isDisabled: leafDisabled, keyNameOf: propKeyNameScoped,
       });
-      if (leaf) return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', ...leaf }] };
-      return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', pattern: prop.value }] };
+      if (leaf) return consumedLeaf({ prop, synth: 'symbol-iterator', ...leaf });
+      return consumedLeaf({ prop, synth: 'symbol-iterator', pattern: prop.value });
     }
     return { kind: 'symbol-iterator-key', prop };
   }
@@ -3200,16 +3207,15 @@ export function buildNestedDestructurePlan({
       // does, because the ENTRY is one file-wide answer per ctor name
       const pure = resolveGlobalPolyfill(name);
       if (!pure) return { kind: 'verbatim', prop: outerProp };
-      return {
-        kind: 'consumed', prop: outerProp, keyName: name,
-        // `kind: 'global'` lets renderers register the binding as a GLOBAL alias (member
-        // reads through the local must keep resolving: `const { Symbol } = globalThis;
-        // Symbol.iterator` -> `_Symbol$iterator`), unlike static-method extractions which
-        // register a body-extract alias
-        extractions: [{
-          kind: 'global', entry: pure.entry, hint: pure.hintName, localName: value.name, defaultNode: leafDefaultNode(outerProp),
-        }],
-      };
+      // Members read through this binding must still resolve against the global constructor.
+      return consumedLeaf({
+        prop: outerProp,
+        kind: 'global',
+        entry: pure.entry,
+        hint: pure.hintName,
+        localName: value.name,
+        defaultNode: leafDefaultNode(outerProp),
+      }, name);
     }
     return { kind: 'verbatim', prop: outerProp };
   }
@@ -3241,7 +3247,7 @@ export function buildNestedDestructurePlan({
       const localName = declarator.type === 'VariableDeclarator' || leafDisabled(item)
         ? null : symbolIteratorLocalName(item, { scope, adapter, path });
       if (localName === null) return true;
-      anchorWks.push({ synth: 'symbol-iterator', localName, anchorPure });
+      anchorWks.push({ prop: item, synth: 'symbol-iterator', localName, anchorPure });
       return false;
     });
     // a TOP-LEVEL default on a residual leaf bails: the two bindings split there - one re-visits the

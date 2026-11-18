@@ -44,6 +44,11 @@ function peelParens(child, parent, commentBetween, directiveBetween) {
     child.commentInside = true;
     return child;
   }
+  // The opening parenthesis must precede an annotation on the sequence's first call.
+  if (inner.type === 'SequenceExpression' && commentBetween(child, inner)) {
+    child.expression = inner;
+    return child;
+  }
   if (typeof child.ownedCommentsAt === 'number') {
     Object.assign(inner, { ownedCommentsAt: child.ownedCommentsAt, ownedCommentsEnd: child.ownedCommentsEnd });
     stampReplacementSpan(inner, { start: child.ownedCommentsAt, end: child.ownedCommentsEnd });
@@ -547,10 +552,12 @@ function writeComment(comment, context) {
   }
 }
 
-// a comment the anchored channel leads a node with, each on its own line ahead of the node
-function writeAnchoredComment(comment, context) {
+// Leading directives need their own line. An inline binding comment keeps its spacing.
+function writeAnchoredComment(comment, context, node) {
   writeComment(comment, context);
-  context.newline();
+  if (node?.type === 'Identifier' && comment.type === 'Block' && comment.loc.end.line === node.loc?.start.line
+    && !isLineBoundDisableDirective(comment.value)) context.write(' ');
+  else context.newline();
 }
 
 // --- List tails ---
@@ -857,7 +864,9 @@ export function printProgram({ program, comments, source, id, jsx = false,
   for (const [heir, indexes] of heirComments) {
     if (heir.discardedComments) continue;
     const owned = indexes.map(index => locatedComments[index]);
-    if (typeof heir.ownedCommentsEnd === 'number') localized.set(heir, owned);
+    // A range ending at the binding consists entirely of leading comments. The outer cursor
+    // must flush its earlier comments before printing them; only an interior needs a local cursor.
+    if (typeof heir.ownedCommentsEnd === 'number' && heir.ownedCommentsEnd !== sourceOffset(heir, 'start')) localized.set(heir, owned);
     else anchors.set(heir, [...owned, ...anchors.get(heir) ?? []]);
   }
   // the dead-chain unwrap pays a full-tree walk - a file with no ChainExpression at all
@@ -893,7 +902,7 @@ export function printProgram({ program, comments, source, id, jsx = false,
         const base = dialect[type];
         if (typeof base !== 'function') continue;
         dialect[type] = (node, context) => {
-          for (const comment of anchors.get(node) ?? []) writeAnchoredComment(comment, context);
+          for (const comment of anchors.get(node) ?? []) writeAnchoredComment(comment, context, node);
           base(node, context);
         };
       }

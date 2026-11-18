@@ -25850,6 +25850,19 @@ function * generateDestructureSourceSlots() {
   })()`), strip: true };
 }
 
+// A commented key still evaluates once, and moving a loop binding preserves its receiver.
+function * generateCommentedPatternKeys() {
+  for (const [name, body] of [
+    ['static-rest', `const { Array: { from /* key */: fn, ...rest } } = globalThis;
+      return [fn([7])[0], Object.hasOwn(rest, 'from')];`],
+    ['nested-loop', `const rows = [{ get items() { effects.push('get'); return [7]; } }];
+      for (const { items: { at /* key */: first } } of rows) return first.call([7], 0);`],
+    ['computed-order', `const { [(effects.push('key'), 'from')] /* key */: from, name } = Array;
+      return [from([7])[0], name];`],
+  ]) yield { name: `commented-pattern-keys/${ name }`, code: `export const effects = [];
+    export const r = (() => { ${ body } })();`, strip: true };
+}
+
 // Observe who owns each residual read, including after a pure import enables name adoption.
 function * generateDestructureResidualReads() {
   for (const [name, claim, getter] of [
@@ -27768,4 +27781,5 @@ export function * generate() {
   yield * generateSparseDestructureSpreads();
   yield * generateDestructureSourceSlots();
   yield * generateDestructureResidualReads();
+  yield * generateCommentedPatternKeys();
 }

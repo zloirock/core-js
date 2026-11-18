@@ -1,12 +1,15 @@
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import {
+  chainAssignOverPureNav,
   initializerEffectParts,
   residualReadOwnsValue,
   planInitializerCarrier,
   planInitializerNavigation,
   planConsumedInitializerCarrier,
+  sentinelMemoInitShape,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { renderShortCircuitGuard } from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from './harness.mjs';
 
@@ -28,6 +31,34 @@ for (const [name, facts, expected] of [
   ['no legal prefix slot leaves the route untouched', { residual: true, statement: false }, null],
   ['an emptied statement needs no further carrier', { residual: true, consumesPattern: () => true }, null],
 ]) check(name, planInitializerCarrier(facts), expected);
+
+for (const [source, carries] of [
+  ['held = globalThis.Array', true],
+  ['held = other = (effect(), row.items)', true],
+  ['held = getRow().items', false],
+  ['held += row.items', false],
+  ['row.items', false],
+]) runBoth('a stored navigation keeps its source assignments', `let held, other; const ref = ${ source };`, (parser, program, label) => {
+  const { init } = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'ref').node;
+  check(label, chainAssignOverPureNav(init), carries ? init : null);
+});
+
+for (const [source, shared, sameRealm] of [
+  ['receiver.name', true, true],
+  ['read()', true, true],
+  ['(touch(), receiver)', true, true],
+  ['pick ? window : self', true, false],
+  ['window || self', true, false],
+  ['[1, 2]', true, true],
+  ['({ row: [] })', true, true],
+  ['[touch()]', false, false],
+  ['receiver', false, false],
+  ['0', false, false],
+]) runBoth('a residual and its extraction share a receiver', `const { at } = ${ source };`, (parser, program, label) => {
+  const init = unwrapRuntimeExpr(parser.pickPath(program, 'VariableDeclarator').node.init);
+  check(`${ label }/ordinary receiver`, sentinelMemoInitShape(init, false), shared);
+  check(`${ label }/all proxy`, sentinelMemoInitShape(init, true), sameRealm);
+});
 
 let questions = 0;
 function unexpected() {

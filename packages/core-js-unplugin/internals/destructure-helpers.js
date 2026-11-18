@@ -46,6 +46,7 @@ import {
   pathOfNode,
   patternHasSeveralSeKeys,
   patternLevelKeepsEffectfulHop,
+  patternSlotTarget,
   spelledWriteSlot,
   peelNestedSequenceExpressions,
   peelTransparentExpr,
@@ -285,7 +286,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
 }) {
   const sentinelKept = jobs.some(job => job.sentinel);
   const partition = partitionDestructureReads(jobs, job => ({ ...nodeSite(job.prop, job.metaPath), adapter: memoCtx?.adapter }));
-  const statements = renderDestructureStatements(jobs.map(job => ({ id: propBindingTarget(job.prop), init: job.value() })));
+  const statements = renderDestructureStatements(jobs.map(job => ({ id: propBindingTarget(job.prop, job.sentinel), init: job.value() })));
   // the lifted SE prefix runs first, once - re-derived from the CURRENT right, the way the statement
   // drain derives its own: the walk rewrites the claims INSIDE the prefix in place, and the nodes the
   // job recorded are the pre-rewrite originals (lifting those printed a native `log.push` where the
@@ -398,17 +399,29 @@ function spelledSlotClone(value) {
   return slot ? cloneNode(slot) : null;
 }
 
+// A named key that disappears hands its source gap to the original binding.
+export function carryBindingKeyComments(target, prop, keepsKey = false) {
+  if (keepsKey || !prop || prop.computed || prop.shorthand || !Number.isInteger(prop.start)) return target;
+  const source = patternSlotTarget(prop.value);
+  if (source.type === 'Identifier' && target.type === 'Identifier' && source.name === target.name && Number.isInteger(source.start)) {
+    target.ownedCommentsAt = prop.start;
+    target.ownedCommentsEnd = source.start;
+    stampReplacementSpan(target, source);
+  }
+  return target;
+}
+
 // the slot a JOB writes into: a spelled slot (a member, an asserted binding) names it in the source
 // itself, so the job has no local of its own to declare - every other job binds the name it RECORDED.
 // that fallback is what separates this from `memoJobBindingTarget`, which falls back to
 // `propBindingTarget` and so hands a pattern value its own pattern; the two are not interchangeable
 export function jobBindingTarget(record) {
-  return spelledSlotClone(record?.prop?.value) ?? identifier(record.local);
+  return spelledSlotClone(record?.prop?.value) ?? carryBindingKeyComments(identifier(record.local), record.prop, record.sentinel);
 }
 
 // the extracted declarator's binding slot: a pattern-valued symbol prop moves its whole
 // pattern; everything else binds the local name
-export function propBindingTarget(prop) {
+function propBindingTarget(prop, keepsKey) {
   if (isDestructurePattern(prop.value)) return prop.value;
   // a SPELLED slot is the target the source itself named - the extraction writes there, and its own
   // DEFAULT goes with the rest of them: the import it takes is never undefined
@@ -420,7 +433,7 @@ export function propBindingTarget(prop) {
     && isDestructurePattern(prop.value.left)) {
     return prop.value.left;
   }
-  return identifier(propLocalName(prop));
+  return carryBindingKeyComments(identifier(propLocalName(prop)), prop, keepsKey);
 }
 
 // The host carries a sequence's effects before its receiver, so only the final
@@ -1027,7 +1040,7 @@ export function memoJobBindingTarget(job) {
   if (job.collapseLeafName ?? job.collapseLeaf?.localName) {
     return identifier(job.collapseLeafName ?? job.collapseLeaf.localName);
   }
-  return job.bindingTarget ?? propBindingTarget(job.prop);
+  return job.bindingTarget ?? propBindingTarget(job.prop, job.sentinel);
 }
 
 // the prop a job's claim occupies on its declarator's own level: a chained claim sits under its

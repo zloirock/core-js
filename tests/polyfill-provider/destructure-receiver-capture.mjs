@@ -7,11 +7,47 @@ import {
 import {
   planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderNestedKeyedPatternCapture, renderRetainedObjectCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
-import { collectFoldedReceiverSideEffects, noteRelocatedHeadName, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { planKeyedClaimCapture } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import {
+  canSplitDestructureExport, collectFoldedReceiverSideEffects, literalDestructureSource, noteRelocatedHeadName, unwrapRuntimeExpr,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { toHint } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 import { createChecker, findNode } from './harness.mjs';
 
 const { check, checkTruthy, finish, runBoth } = createChecker('destructure-receiver-capture');
+
+for (const [source, literal] of [
+  ['[1]', 'ArrayExpression'],
+  ['(() => ({ C: Array }))()', 'ObjectExpression'],
+  ['getBox()', null],
+  ['source', null],
+]) runBoth('only a literal wrapper supplies the pattern slots', `const { C } = ${ source };`, (parser, program, label) => {
+  const { init } = parser.pickPath(program, 'VariableDeclarator').node;
+  check(label, literalDestructureSource(init)?.type ?? null, literal);
+});
+
+for (const [source, split] of [
+  ['const { at } = receiver;', true],
+  ['export const { at } = receiver;', true],
+  ['namespace Box { export const { at } = receiver; }', false],
+]) runBoth('a private capture can split the export', source, (parser, program, label) => {
+  check(label, canSplitDestructureExport(parser.pickPath(program, 'VariableDeclarator')), split);
+});
+
+for (const [receiver, kind, fallback, captures] of [
+  ['box', 'instance', false, true],
+  ['{ row: Array }', 'static', true, true],
+  ['{ row: Set }', 'static', true, false],
+  ['choice ? left : right', 'static', true, false],
+]) runBoth('a keyed capture uses the selected receiver', `const { row: { [(effect(), "from")]: method }, other } = ${ receiver };`,
+  (parser, program, label) => {
+    const host = parser.pickPath(program, 'VariableDeclarator');
+    const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.computed);
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const plan = planKeyedClaimCapture({ pattern: host.node.id, init: host.node.init, prop: path.node, kind,
+      meta: { fromFallback: fallback, object: 'Array' }, ctx: { scope: path.scope, path, adapter } });
+    check(`${ label }/${ receiver }`, plan?.leafPattern ?? null, captures ? path.parentPath.node : null);
+  });
 
 for (const [name, source, captures] of [
   ['retained sibling', '({ box: { x, [Symbol.iterator]: it } } = globalThis.Array);', true],

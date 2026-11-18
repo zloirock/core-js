@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import plugin from '../../packages/core-js-babel-plugin/index.js';
+import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
 
 const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href)
@@ -85,6 +86,66 @@ for (const [label, source] of [
       plugins: [[plugin, { method, version: '4.0', targets: { ie: 11 } }]],
     })).code;
     checkDeep(`receiver copies/${ label }/${ method }/parens ${ parens }/pass ${ pass }`, await signature(output), expected);
+  }
+}
+
+// A consumed key hands its comments to its binding. A surviving default or
+// rest exclusion still prints the comments on the source it actually evaluates.
+for (const [label, source] of [
+  ['nested siblings', 'const { Array: { from /* same */: a, of /* same */: b }, ...rest } = globalThis;'],
+  ['rest capture', 'const { /* head */ from /* key */: /* value */ f, /* rest */ ...rest } = Array;'],
+  ['computed brackets', 'const { [/* head */ "from" /* key */] /* end */: /* value */ f } = Array;'],
+  ['nested store', 'let f, rest; ({ Array: { from: /* target */ f /* tail */ }, ...rest } = globalThis);'],
+  ['array capture', 'const [{ at /* key */: f }, { includes /* key */: g }] = [box, box];'],
+  ['parameter capture', 'function read({ row: { at /* key */: f } = fallback() }) { return f; }'],
+  ['bodyless store', 'if (active) ({ row: { at /* key */: sink.value } } = box);'],
+  ['used assignment', 'const r = (touch(), ({ from /* key */: f } = Array), 1);'],
+  ['line key', 'const { Array: { from // key\n : f }, ...rest } = globalThis;'],
+]) for (const parens of [false, true]) {
+  let output = source;
+  const expected = await signature(source);
+  for (let pass = 1; pass <= 2; pass++) {
+    output = (await transformAsync(output, {
+      ...config, parserOpts: { createParenthesizedExpressions: parens },
+      plugins: [[plugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+    })).code;
+    checkDeep(`extracted property/${ label }/parens ${ parens }/pass ${ pass }`, await signature(output), expected);
+  }
+}
+
+// A matching count is not enough: check the token each comment actually leads.
+const pureOptions = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+const commentOwners = [
+  ['siblings', 'const { Array: { from /* same */: a, of /* same */: b }, ...rest } = globalThis;', [
+    ['same', 'a'], ['same', 'b'],
+  ]],
+  ['folded keys', 'const { self /* rest */: { Array /* ctor */: { from /* key */: fn } }, ...rest } = globalThis;', [
+    ['ctor', 'fn'], ['key', 'fn'], ['rest', ':'],
+  ]],
+  ['folded parent alone', 'const { self /* rest */: { Array /* ctor */: { from: fn } }, ...rest } = globalThis;', [
+    ['ctor', 'fn'], ['rest', ':'],
+  ]],
+  ...['touch(), /*#__PURE__*/ magic()', 'touch(/*#__PURE__*/ magic())', '/*#__PURE__*/ magic()'].map(effect => [
+    effect, `const { [(${ effect }, "from")] /* key */: fn, name } = Array;`, [['key', 'fn'], ['#__PURE__', 'magic']],
+  ]),
+];
+const unplugin = createUnplugin(pureOptions);
+for (const [label, source, expected] of commentOwners) for (const host of ['babel', 'babel/parens', 'unplugin']) {
+  let code = source;
+  for (const stage of ['pre', 'post']) {
+    code = host === 'unplugin' ? unplugin.transform(code, '/input.mjs', stage)?.code ?? code
+      : (await transformAsync(code, {
+        ...config, parserOpts: { createParenthesizedExpressions: host === 'babel/parens' }, plugins: [[plugin, pureOptions]],
+      })).code;
+    const { comments, tokens } = await parseAsync(code, { ...config, parserOpts: { tokens: true } });
+    const starts = new Set(comments.map(comment => comment.start));
+    const spelled = tokens.filter(token => !starts.has(token.start));
+    checkDeep(`extracted comment owner/${ label }/${ host }/${ stage }`, comments.map(comment => {
+      const next = spelled.find(token => token.start >= comment.end);
+      return [comment.value.trim(), code.slice(next.start, next.end)];
+    }), expected);
+    if (source.includes('#__PURE__')) check(`annotated call/${ label }/${ host }/${ stage }`,
+      /\/\*#__PURE__\*\/\s*magic\(/.test(code), true);
   }
 }
 

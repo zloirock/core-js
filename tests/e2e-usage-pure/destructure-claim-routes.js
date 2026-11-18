@@ -468,3 +468,15 @@ QUnit.test('destructuring: loop slots retain static rest exclusions', assert => 
     assert.same(Object.hasOwn(rest, 'from'), false);
   }
 });
+
+QUnit.test('a commented nested loop binding keeps its receiver and evaluates the getter once', assert => {
+  const events = [];
+  const rows = [{ get items() {
+    events.push('get');
+    return [7];
+  } }];
+  for (const { items: { at /* method */: first } } of rows) {
+    assert.same(first.call([7], 0), 7);
+  }
+  assert.deepEqual(events, ['get']);
+});

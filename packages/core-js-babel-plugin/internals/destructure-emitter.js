@@ -19,6 +19,7 @@ import {
   renderSynthEntryKey,
   renderResidualProbeWrites,
   hostSlot,
+  hostSlotNode,
   renderInstanceDefaultGuard,
   renderAssignmentOverwrite,
   renderNestedExtractionReceiver,
@@ -1908,12 +1909,61 @@ export default function createDestructureEmitter({
     }) : call;
   }
 
+  // Adjacent nodes may share a source comment, and Babel clones can copy that comment.
+  function orderedComments(...groups) {
+    const comments = new Map();
+    for (const group of groups) for (const comment of group ?? []) comments.set(nodeSpan(comment)?.start ?? comment, comment);
+    return comments.values().toArray().sort((a, b) => nodeSpan(a)?.start - nodeSpan(b)?.start);
+  }
+
+  // An extracted binding owns the consumed key. A rest exclusion keeps its key, and
+  // each expression replayed from a computed key keeps the annotations on its calls.
+  function bindKeyComments(target, prop, keepsKey = false, effects = []) {
+    const { key, value } = prop;
+    const slot = patternSlotTarget(value);
+    if (!prop.computed && [prop, key, value, slot].every(node => t.COMMENT_KEYS.every(field => !node[field]?.length))) return target;
+    if (keepsKey && target.type === 'Identifier') {
+      t.inheritLeadingComments(key, prop);
+      key.trailingComments = orderedComments(key.trailingComments, value.leadingComments,
+        slot.leadingComments, slot.trailingComments, prop.trailingComments);
+      return t.removeComments({ ...target });
+    }
+
+    const fromKey = [];
+    if (!keepsKey) {
+      const live = effects.length ? new Map(effects.map(item => {
+        const effect = hostSlotNode(item);
+        return [nodeSpan(effect)?.start ?? effect, effect];
+      })) : null;
+      t.traverseFast(key, node => {
+        const effect = live?.get(nodeSpan(node)?.start ?? node);
+        if (effect) {
+          // A sequence and its first call can share the opening token.
+          if (effect !== node && node.leadingComments) {
+            effect.leadingComments = orderedComments(effect.leadingComments, node.leadingComments);
+          }
+          if (effect.type === node.type && nodeSpan(effect)?.end === nodeSpan(node)?.end) return t.traverseFast.skip;
+        }
+        for (const field of t.COMMENT_KEYS) {
+          if (node[field] && !(effect && field === 'leadingComments')) fromKey.push(...node[field]);
+        }
+      });
+    }
+    target.leadingComments = orderedComments(prop.leadingComments, prop.innerComments, fromKey,
+      value.leadingComments, slot.leadingComments, target.leadingComments);
+    target.trailingComments = orderedComments(target.trailingComments, slot.trailingComments, prop.trailingComments);
+    return target;
+  }
+
   // what an extraction WRITES INTO: a pattern value, the MEMBER slot the source named, or the
   // binding it declares. a member target reaches here only from an ASSIGNMENT host - a declaration
   // cannot bind one - so the declarator render never asks
   function extractionTargetNode(e) {
-    if (e.pattern) return clonePatternClaimed(e.pattern);
-    return e.targetNode ? cloneWriteTarget(t, e.targetNode) : t.identifier(e.localName);
+    const target = e.pattern ? clonePatternClaimed(e.pattern)
+      : e.targetNode ? cloneWriteTarget(t, e.targetNode) : t.identifier(e.localName);
+    bindKeyComments(target, e.prop);
+    for (const parent of e.foldedProps ?? []) bindKeyComments(target, parent);
+    return target;
   }
 
   // value expression for one extraction record, kind-dispatched: `symbol-iterator` synth
@@ -2150,7 +2200,11 @@ export default function createDestructureEmitter({
       embed: node => hostSlot(t.cloneNode(node, true)),
       decorate: (node, source, exported) => {
         const statement = estreeToBabel(node);
-        if (source) t.inheritsComments(plan.array.inDeclaration ? statement.declarations[0] : statement, source);
+        if (source) {
+          const binding = statement.declarations?.[0]?.id ?? statement.id ?? statement.expression.left;
+          t.inheritsComments(plan.array.inDeclaration ? statement.declarations[0] : statement, source);
+          bindKeyComments(binding, source);
+        }
         return hostSlot(wrapAsExportIf(statement, exported));
       },
       read: (extraction, receiver) => hostSlot(markThrowingExtraction(t.callExpression(
@@ -2720,7 +2774,7 @@ export default function createDestructureEmitter({
         // fresh (not skip-seeded), so its inner polyfillables (a default's instance call) are
         // re-visited on insertion and rewritten like any source pattern - with its PROPERTY
         // nodes claimed so the pipeline doesn't re-enter on the extracted pattern
-        const item = t.variableDeclarator(e.pattern ? clonePatternClaimed(e.pattern) : t.identifier(e.localName), init);
+        const item = t.variableDeclarator(extractionTargetNode(e), init);
         extractionPropOf.set(item, outer.prop);
         extracted.push(item);
       }
@@ -2891,16 +2945,20 @@ export default function createDestructureEmitter({
     function bound(paths) {
       rebindMovedBindings([declarator, ...paths], bindingKind, bindings);
     }
-    // Consumed properties and their keys lose their attachments with the pattern.
-    // A key's comments stay by the extracted binding, before its initializer.
+    prunePatternByPlanAndRest(plan, declarator.node.id, { ctx: aliasCtxFromPath(declarator) });
+    let remainingProps;
+    // A flattened hop hands its key to the first extracted binding. A rest
+    // exclusion still spells the hop itself and prints the key there.
     for (const item of extracted) {
       const sourceProp = extractionPropOf.get(item);
       if (sourceProp) {
         t.inheritsComments(item, sourceProp);
-        t.inheritsComments(item.id, sourceProp.key);
+        if (sourceProp.value?.type === 'ObjectPattern') {
+          remainingProps ??= new Set(plan.pattern.properties);
+          if (!remainingProps.has(sourceProp)) bindKeyComments(item.id, sourceProp);
+        }
       }
     }
-    prunePatternByPlanAndRest(plan, declarator.node.id, { ctx: aliasCtxFromPath(declarator) });
     // a wrapper a spread keeps alive never EMPTIES: what leaves it (an anchored prop reading its
     // own ctor binding) leaves a `{}` husk that still coerces the slot and lets the spread iterate
     // ... or binds only the sentinels the prune minted over a PURE init: nothing reads them, the
@@ -3338,6 +3396,7 @@ export default function createDestructureEmitter({
         entry,
         hintName,
         sourceNode: estreeToBabel,
+        bind: (source, target, keepsKey, effects) => hostSlot(bindKeyComments(target, source, keepsKey, effects)),
         mintUnused: declared => {
           const id = generateUnusedId();
           if (declared) injector.generateDeclaredRef(prop.scope, prop.node, t.cloneNode(id));
@@ -3477,7 +3536,7 @@ export default function createDestructureEmitter({
         receiverName: receiverRef?.name,
         // Move the receiver so a pending anchored guard still updates this exact node.
         receiver: hostSlot(keyReadPlan.receiver),
-        binding: hostSlot(binding),
+        binding: hostSlot(bindKeyComments(binding, prop.node, false, keyReadPlan.keys)),
         keys: keyReadPlan.keys.map(key => hostSlot(t.cloneWithoutRetiring(key))),
         read: hostSlot(read),
         storeReceiver,
@@ -3536,8 +3595,9 @@ export default function createDestructureEmitter({
       ? symbolIteratorInstanceLeaf({ value: patternValue, resolvePure, isDisabled: null, keyNameOf: propertyKeyName })
       : null;
     function bindingLhs() {
-      if (instanceLeaf) return t.identifier(instanceLeaf.localName);
-      return patternValue ? clonePatternClaimed(patternValue) : t.cloneNode(valueNode);
+      const id = instanceLeaf ? t.identifier(instanceLeaf.localName)
+        : patternValue ? clonePatternClaimed(patternValue) : t.cloneNode(valueNode);
+      return plan.eliminateResidual || consumeKey ? bindKeyComments(id, prop.node, false, keyReadPlan?.keys) : id;
     }
 
     // an `insertBefore` below auto-wraps a bodyless control body (`if (c) var {...}=R`) in a block and
@@ -3903,8 +3963,9 @@ export default function createDestructureEmitter({
         ref: overwriteRef,
         embed: node => hostSlot(t.cloneNode(node)),
       }));
-      const overwriteAssign = inheritSpan(
-        t.assignmentExpression('=', cloneWriteTarget(t, target), overwriteValue), spanAnchor.node);
+      const binding = cloneWriteTarget(t, target);
+      if (prunesSlot) bindKeyComments(binding, prop.node);
+      const overwriteAssign = inheritSpan(t.assignmentExpression('=', binding, overwriteValue), spanAnchor.node);
       if (seqElement) {
         insertSeqElementOverwrite({
           seqElement,
@@ -5365,7 +5426,6 @@ export default function createDestructureEmitter({
   // Handle defaults, then remove the source property or retain its rest exclusion sentinel.
   // Flat statics first try the shared nested-plan renderer. A computed key that runs code takes
   // its own route ahead of this one, which keeps the key in place (`handleSideEffectComputedKey`).
-  // eslint-disable-next-line max-statements -- one extraction owns the binding, default, comments and residual placement
   function handleDestructuredProperty(prop, value, kind) {
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
@@ -5408,14 +5468,8 @@ export default function createDestructureEmitter({
     // const { from, ...rest } = Array -> const from = _from; const { from: _, ...rest } = Array
     const hasRest = objectPattern.node.properties.some(p => isRestProperty(p));
     // A surviving rest exclusion owns its key; a consumed key hands its trivia to the binding.
-    if (!hasRest) {
-      t.inheritsComments(localBinding, prop.node.key);
-      // The removed default wrapper owns trivia between the key and binding, before any target trivia.
-      if (defaultPattern?.leadingComments) {
-        t.inheritTrailingComments(localBinding, { trailingComments: defaultPattern.leadingComments });
-        localBinding.trailingComments.sort((a, b) => nodeSpan(a)?.start - nodeSpan(b)?.start);
-      }
-    }
+    if (!hasRest) bindKeyComments(localBinding, prop.node);
+    else if (propValue.type === 'Identifier') t.removeComments(localBinding);
     // rest: rename property value to preserve rest semantics; otherwise remove property
     const isEmpty = hasRest ? false : (removePatternSlot(prop), objectPattern.node.properties.length === 0);
     // the static's departure can leave a NESTED leaf as the pattern's sole prop (`{ of: { name, foo },
