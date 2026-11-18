@@ -2,6 +2,29 @@ import { withWindowPresence } from './unbacked-window-host.cjs';
 import { withGlobalPresence } from './unbacked-global-host.cjs';
 import { withTemporaryProperty } from '../helpers/restore-property.cjs';
 
+QUnit.test('a constructor fallback evaluates the full prefix before testing the receiver', assert => {
+  for (const requested of [false, true]) withWindowPresence(requested, present => {
+    const events = [];
+    const realm = globalThis.window;
+    function read() {
+      // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- This absent binding must throw between the two calls.
+      return (events.push('first'), missingRealmPrefix, events.push('last'), realm)?.self.WeakMap.mode;
+    }
+    assert.throws(read, ReferenceError);
+    assert.deepEqual(events, ['first']);
+    // eslint-disable-next-line @stylistic/no-extra-parens -- Keep the effect and the static key in one computed sequence.
+    const method = (events.push('prefix'), realm)?.self[(events.push('key'), 'WeakMap')].hasOwnProperty;
+    assert.same(typeof method, present ? 'function' : 'undefined');
+    assert.deepEqual(events, present ? ['first', 'prefix', 'key'] : ['first', 'prefix']);
+    const nested = [];
+    assert.throws(() => {
+      // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- The inner guard cannot skip the outer read.
+      return (nested.push('before'), missingRealmPrefix, nested.push('after'), realm?.self)?.WeakMap.mode;
+    }, ReferenceError);
+    assert.deepEqual(nested, ['before']);
+  });
+});
+
 QUnit.test('realm guards: a missing intermediate hop throws before the store', assert => {
   for (const requested of [false, true]) withWindowPresence(requested, present => {
     let held = 'unset';

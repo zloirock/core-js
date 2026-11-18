@@ -64,6 +64,7 @@ import {
   invocationCalleeOf,
   nestedSequenceValueSpelling,
   mayHaveSideEffects,
+  performsNothing,
   subtreeContainsNode,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   reEvaluationObservable,
@@ -176,13 +177,14 @@ export function planStaticFallbackReceiver(node, meta, fallback, ctx, {
     const end = openContinuationEnd(node, ctx.path?.parentPath) ?? ctx.path;
     const slot = end && isMemberAccessNode(end.node) && climbTransparentWrapperPath(end);
     if (slot?.parentPath?.node && invocationCalleeOf(slot.parentPath.node) === slot.node) return { kind: 'retain', release: receiver };
-    const lifted = effects.filter(effect => !guardAssigns.includes(effect) && !subtreeContainsNode(guard, effect));
-    const orderedEffects = migratableClaimSe({ sideEffects: lifted, rootNode: guard, end: nodeSpan(node)?.end, node });
-    if (!orderedEffects) return { kind: 'retain', release: receiver };
+    const source = optionalProbeSourceSlot(receiver, guard, { keepStoreSequence: true })?.source ?? guard;
+    const lifted = effects.filter(effect => !guardAssigns.includes(effect) && !subtreeContainsNode(source, effect));
+    const probe = planProbeEvaluation(node, source, lifted, fallback.hintName);
+    if (!probe) return { kind: 'retain', release: receiver };
     return {
-      kind: 'guard', receiver, fallback, guard, target: end, hadChainAssign, definedReceiverRead,
-      prefix: orderedEffects.leading,
-      effects: orderedEffects.migrated,
+      kind: 'guard', receiver, fallback, guard: probe.source, target: end, hadChainAssign, definedReceiverRead,
+      prefix: probe.prefix,
+      effects: probe.keySe ?? [],
     };
   }
   const boundary = sealedChainBoundary(node);
@@ -389,7 +391,7 @@ export function guardProbeUndefinable(probe, {
 // Locate a decided source, or the deepest raw slot, on this probe's member spine.
 // A sequence owns its prefix and a store owns its whole value. Keep crossed hops
 // so capturing a call can prove that the replaced span drops only realm navigation.
-function optionalProbeSourceSlot(probe, source = null) {
+function optionalProbeSourceSlot(probe, source = null, { keepStoreSequence = false } = {}) {
   const target = unwrapRuntimeExpr(source);
   const hops = [];
   let slot = probe;
@@ -403,7 +405,7 @@ function optionalProbeSourceSlot(probe, source = null) {
     spine = unwrapRuntimeExpr(slot);
   }
   if (!source) return { source: slot, hops };
-  return spine?.type === 'SequenceExpression' && target?.type !== 'AssignmentExpression'
+  return spine?.type === 'SequenceExpression' && (keepStoreSequence || target?.type !== 'AssignmentExpression')
     && unwrapRuntimeExpr(peelReceiverSequenceTail(spine)) === target ? { source: spine, hops } : null;
 }
 
@@ -447,7 +449,6 @@ function callIsOptionalProbe(node, claimCtor, readNode, ctx) {
 // sequence prefix. It tests the CALL yield even if the enclosing realm hop is backed:
 // a claim's guard can erase there without proving that the captured call is defined.
 // A memo request declines non-realm/computed hops before asking the value resolver.
-// eslint-disable-next-line max-statements -- Source selection and effect ownership form one shared query.
 export function planOptionalProbe(node, ctx, {
   hintName = null, reader = null, effects = [], receiverEffectCount, memoize = false, guard = null,
 } = {}) {
@@ -506,11 +507,24 @@ export function planOptionalProbe(node, ctx, {
   const guarded = (guard ?? undefinableOptionalGuard(node, ctx.resolvePure, ctx)).object;
   const sourceSlot = guarded && optionalProbeSourceSlot(probe, guarded);
   if (sourceSlot) probe = sourceSlot.source;
-  const descended = ownOptionalProbe(probe, ctx);
+  const descended = !nestedSequenceValueSpelling(probe) && ownOptionalProbe(probe, ctx);
   if (descended) probe = descended;
   if (!undefinable || !plainHops) return null;
 
-  const migration = migratableClaimSe({ sideEffects: effects, receiverEffectCount, rootNode: probe, end: node.end, node });
+  // A claim with a consumer or a decided guard also owns the enclosing receiver's prefix.
+  return planProbeEvaluation(node, probe, effects, hintName, {
+    receiverEffectCount, descended, ctx, resolveGlobal, preserveSourceReads: !!reader || !!guard,
+  });
+}
+
+// The original probe owns its sequence prefixes, including reads that can throw.
+// An immediate fallback and a child claim must place them around the same guard.
+function planProbeEvaluation(node, probe, effects, hintName, {
+  receiverEffectCount, descended, ctx, resolveGlobal, preserveSourceReads = true,
+} = {}) {
+  const migration = migratableClaimSe({
+    sideEffects: effects, receiverEffectCount, rootNode: probe, end: nodeSpan(node)?.end, node, preserveSourceReads,
+  });
   if (!migration && effects?.length) return null;
   const keySe = migration?.migrated?.length ? migration.migrated : null;
   const navSe = migration ? migration.leading : effects;
@@ -523,12 +537,12 @@ export function planOptionalProbe(node, ctx, {
   const dropped = [];
   for (;;) {
     if (source?.type === 'SequenceExpression' && !keepSequence) {
-      dropped.push(...source.expressions.slice(0, -1));
+      for (const prefix of source.expressions.slice(0, -1)) dropped.push(prefix);
       source = unwrapRuntimeExpr(source.expressions.at(-1));
       continue;
     }
     // The probe owns a plain read above a sealed optional, including its throw.
-    if (chainReadsThroughSeal(source, ctx.resolvePure, ctx)) break;
+    if (!resolveGlobal || chainReadsThroughSeal(source, ctx.resolvePure, ctx)) break;
     const peeled = peelPristineProxyHops(source, { adapter: ctx.adapter, resolveGlobalPolyfill: resolveGlobal });
     if (peeled === source) break;
     source = peeled;
@@ -539,7 +553,7 @@ export function planOptionalProbe(node, ctx, {
     probe, source,
     prefix: [
       ...!effectsAreProbe && navSe?.some(effect => !subtreeContainsNode(source, effect)) ? navSe : [],
-      ...dropped.filter(effect => mayHaveSideEffects(effect) && !(navSe ?? []).includes(effect)),
+      ...dropped.filter(effect => !performsNothing(effect, ctx) && !(navSe ?? []).includes(effect)),
     ],
     keySe, keepSequence,
   };

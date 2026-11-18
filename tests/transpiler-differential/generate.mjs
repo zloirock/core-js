@@ -25974,6 +25974,24 @@ function * generateDestructureResidualReads() {
   };
 }
 
+// Fallback prefixes run before the nullish test; computed hop keys belong to its live arm.
+function * generateStaticFallbackPrefixes() {
+  const windowHost = new URL('../e2e-usage-pure/unbacked-window-host.cjs', import.meta.url).href;
+  for (const [name, expression] of [
+    ['throwing-read', '(effects.push("before"), missingRealmPrefix, effects.push("after"), realm)?.self.WeakMap.mode'],
+    ['live-key', '(effects.push("prefix"), globalThis.window)?.self[(effects.push("key"), "WeakMap")].hasOwnProperty'],
+    ['inner-guard', '(effects.push("before"), missingRealmPrefix, effects.push("after"), realm?.self)?.WeakMap.mode'],
+  ]) for (const present of [false, true]) yield {
+    name: `static-fallback-prefix/${ name }/${ present }`, strip: true, isolated: true,
+    code: `import { withWindowPresence } from ${ JSON.stringify(windowHost) };
+      export const effects = [];
+      export const r = withWindowPresence(${ present }, () => {
+        const realm = globalThis.window;
+        try { return typeof ${ expression }; } catch (error) { return error.name; }
+      });`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27797,4 +27815,5 @@ export function * generate() {
   yield * generateDestructureSourceSlots();
   yield * generateDestructureResidualReads();
   yield * generateCommentedPatternKeys();
+  yield * generateStaticFallbackPrefixes();
 }

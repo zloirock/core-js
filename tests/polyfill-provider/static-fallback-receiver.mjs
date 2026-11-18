@@ -1,5 +1,5 @@
 // A constructor fallback preserves source ownership, guards and exceptions before any import.
-import { planStaticFallbackReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
+import { planOptionalProbe, planStaticFallbackReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/guard-preparation.js';
 import { renderStaticFallbackReceiver, hostSlot } from '../../packages/core-js-polyfill-provider/render.js';
 import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
@@ -121,6 +121,60 @@ for (const expression of ['(globalThis.window?.Promise.noSuchStatic)()', '(globa
     check(`${ label }/receiver is released`, plan.release, path.node.object);
     check(`${ label }/source unchanged`, JSON.stringify(program.node), before);
   });
+}
+
+for (const root of ['realm', 'globalThis.window', 'realm?.self']) {
+  runBoth(`fallback prefix on ${ root }`,
+    `const realm = globalThis.window; const read = (missing, before(), ${ root })?.self[(key(), "Promise")].mode;`,
+    (parser, program, label) => {
+      const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+      const path = parser.pickPath(program, type, item => item.node.property.name === 'mode');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const ctx = { path, scope: path.scope, adapter, resolvePure };
+      const sequence = parser.pickPath(program, 'SequenceExpression', item => item.node.expressions.length === 3).node;
+      const [missing, before, tail] = sequence.expressions;
+      const testedReceiver = root === 'realm?.self' ? unwrapRuntimeExpr(tail).object : tail;
+      const key = parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'key').node;
+      // The effect census knows about the calls. The source also owns the possibly throwing identifier.
+      const meta = { placement: 'static', sideEffects: [before, key], receiverEffectCount: 2 };
+      const fallbackPlan = planStaticFallbackReceiver(path.node, meta, fallback, ctx, { resolvePure });
+      check(`${ label }/immediate guard`, fallbackPlan.kind, 'guard');
+      const pending = planStaticFallbackReceiver(path.node, meta, fallback, ctx, { resolvePure, pendingReceiver: path.node.object });
+      check(`${ label }/queued receiver`, pending.kind, 'stage');
+      const child = path.get('object');
+      const probe = planOptionalProbe(child.node, { ...ctx, path: child }, {
+        hintName: fallback.hintName, effects: meta.sideEffects, receiverEffectCount: 2,
+        guard: { kind: 'guard', object: root === 'realm' ? sequence : testedReceiver },
+      });
+      for (const [route, tested, prefix, live] of [
+        ['immediate', fallbackPlan.guard, fallbackPlan.prefix, fallbackPlan.effects],
+        ['child', probe.source, probe.prefix, probe.keySe],
+      ]) {
+        check(`${ label }/${ route }/tested value`, tested, testedReceiver);
+        checkDeep(`${ label }/${ route }/original prefix order`, prefix, [missing, before]);
+        checkDeep(`${ label }/${ route }/guarded key`, live, [key]);
+      }
+    });
+}
+
+for (const expression of ['(before(), held = realm?.self)', '(before(), (second(), realm?.self))']) {
+  runBoth(`retained fallback prefix on ${ expression }`,
+    `const realm = globalThis.window; let held; const read = ${ expression }?.Promise.mode;`, (parser, program, label) => {
+      const path = parser.pickPath(program, parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression',
+        item => item.node.property.name === 'mode');
+      const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+      const ctx = { path, scope: path.scope, adapter, resolvePure };
+      const effects = parser.collectPaths(program, 'CallExpression').map(item => item.node);
+      const child = path.get('object');
+      const source = unwrapRuntimeExpr(child.node.object);
+      const immediate = planStaticFallbackReceiver(path.node, {
+        placement: 'static', sideEffects: effects, receiverEffectCount: effects.length,
+      }, fallback, ctx, { resolvePure });
+      const queued = planOptionalProbe(child.node, { ...ctx, path: child }, { hintName: fallback.hintName, reader: path.node, effects });
+      check(`${ label }/immediate guard keeps original sequence`, immediate.guard, source);
+      check(`${ label }/child guard keeps original sequence`, queued.source, source);
+      checkDeep(`${ label }/no repeated prefixes`, [immediate.prefix, queued.prefix], [[], []]);
+    });
 }
 
 finish();

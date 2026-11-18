@@ -9000,27 +9000,28 @@ export function reassignmentReachesUsage({ binding, adapter, path, usageNode = n
 // `window?.[(e++, 'self')].Array`) `migrated`s into the guarded branch, in native order (test ->
 // key effect -> leaf read). Without spans, source identity can still prove the same regions.
 // An effect straddling the root or outside the claim has no proven home; keep its source.
-export function migratableClaimSe({ sideEffects, receiverEffectCount = 0, rootNode, end, node }) {
-  if (!sideEffects?.length && !receiverEffectCount) return { leading: [], migrated: [] };
-  if (!sideEffects?.length) return null;
+export function migratableClaimSe({ sideEffects, receiverEffectCount = 0, rootNode, end, node, preserveSourceReads = false }) {
+  if (!sideEffects?.length && receiverEffectCount) return null;
+  if (!sideEffects?.length && !preserveSourceReads) return { leading: [], migrated: [] };
   const root = nodeSpan(rootNode);
   const leading = [];
   const migrated = [];
-  for (const se of sideEffects) {
+  for (const se of sideEffects ?? []) {
     const span = nodeSpan(se);
-    if (!span || !root || end === undefined) return unpositionedClaimEffects(sideEffects, node, rootNode);
+    if (!span || !root || end === undefined) return sourceClaimEffects(sideEffects, node, rootNode, preserveSourceReads);
     if (span.start >= root.start && span.end <= root.end) continue;
     if (span.start >= root.end && span.end <= end) migrated.push(se);
     else if (span.end <= root.start) leading.push(se);
     else return null;
   }
-  return { leading, migrated };
+  const source = preserveSourceReads && sourceClaimEffects(leading, node, rootNode, true);
+  return { leading: source?.leading ?? leading, migrated };
 }
 
 // Synthetic nodes can still prove order by identity. Follow the value spine to
 // the guard: sequence prefixes precede it, keys and arguments above it follow.
 // An effect outside those slots, or a guard off that spine, stays on its source.
-function unpositionedClaimEffects(effects, node, rootNode) {
+function sourceClaimEffects(effects, node, rootNode, preserveSourceReads) {
   const root = unwrapRuntimeExpr(rootNode);
   let current = unwrapRuntimeExpr(node);
   const before = [];
@@ -9030,16 +9031,24 @@ function unpositionedClaimEffects(effects, node, rootNode) {
       if (current.computed) after.push(current.property);
       current = current.object;
     } else if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
-      after.push(...current.arguments);
+      for (const argument of current.arguments) after.push(argument);
       current = current.callee;
     } else if (current.type === 'SequenceExpression') {
-      before.push(...current.expressions.slice(0, -1));
+      for (const prefix of current.expressions.slice(0, -1)) before.push(prefix);
       current = current.expressions.at(-1);
     } else if (current.type === 'AssignmentExpression' && current.operator === '=') current = current.right;
     else return null;
     current = unwrapRuntimeExpr(current);
   }
   if (!root || current !== root) return null;
+  // In source order the census is usually a subsequence of the original prefix.
+  // Match those nodes once, including when the census missed a throwing read.
+  const sourcePrefix = preserveSourceReads && before.length ? before.filter(prefix => !performsNothing(prefix)) : null;
+  if (sourcePrefix) {
+    let index = 0;
+    for (const prefix of before) if (prefix === effects[index]) index++;
+    if (index === effects.length) return { leading: sourcePrefix, migrated: [] };
+  }
   const leading = [];
   const migrated = [];
   for (const effect of effects) {
@@ -9048,7 +9057,7 @@ function unpositionedClaimEffects(effects, node, rootNode) {
     else if (after.some(slot => subtreeContainsNode(slot, effect))) migrated.push(effect);
     else return null;
   }
-  return { leading, migrated };
+  return { leading: sourcePrefix ?? leading, migrated };
 }
 
 // a node's source span, through BOTH spellings its dialects use. babel's `cloneNode` keeps `loc`
