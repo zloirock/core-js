@@ -8,7 +8,10 @@ import { basicAuthorization, COMMAND_TIMEOUT, createSession, WebDriverError } fr
 $.verbose = false;
 
 const {
-  SAUCE_USERNAME: username, SAUCE_ACCESS_KEY: accessKey, SAUCE_REGION: region = 'us-west-1', SAUCE_SESSIONS_FILE: sessionsFile,
+  SAUCE_USERNAME: username,
+  SAUCE_ACCESS_KEY: accessKey,
+  SAUCE_REGION: region = 'us-west-1',
+  SAUCE_SESSIONS_FILE: sessionsFile,
 } = process.env;
 // the suite reads the options
 const [BASE_URL, COMMIT, ...extra] = argv._.filter(arg => !arg.startsWith('--'));
