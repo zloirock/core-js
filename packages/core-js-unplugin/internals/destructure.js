@@ -3256,7 +3256,7 @@ export default function createAstDestructureEmitter({
       return effectful && value?.type === 'Identifier' && isPristineProxyGlobal(adapter, value.name);
     },
     noteCtorHopHost,
-    isRealmSelectingInit: node => !!realmSelectionCollapseOperand(node, { adapter, injectorState }),
+    isRealmSelectingInit: (node, path) => !!realmSelectionCollapseOperand(node, { adapter, injectorState, scope: path.scope, path }),
     // the host init of the pattern this leaf sits in, where that init puts a realm PROBE on the arm
     // its own test decides - null otherwise. the arm is decided by the RECEIVER, so the question is
     // asked of the host rather than of the leaf's own meta, which says nothing about it

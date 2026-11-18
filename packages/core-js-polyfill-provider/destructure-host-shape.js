@@ -1800,10 +1800,12 @@ function planRetainedObjectCaptureShape({
   if (!init || pattern?.type !== 'ObjectPattern') return null;
   // A selecting receiver with a user branch belongs to the per-branch mirror; one the build decides behind
   // an effect prefix is the value of it that runs (`decidedRunningValue`), as it is without the prefix.
-  const selection = !guardedFallback && kind === 'static' && computedKeyHasSideEffects(prop, ctx)
+  // A fallback supplies its constructor only on the realm arm. The other arm keeps its own getter.
+  const selection = !guardedFallback && (kind === 'static' || kind === 'global' && resolvedMeta?.fromFallback)
+    && computedKeyHasSideEffects(prop, ctx)
     ? unwrapRuntimeExpr(adapter && hostPath ? decidedRunningValue(init, ctx) : peelNestedSequenceExpressions(init).tail) : null;
   if ((selection?.type === 'ConditionalExpression' || selection?.type === 'LogicalExpression')
-    && !allProxySelectingInit(selection, { adapter, injectorState })) return null;
+    && !allProxySelectingInit(selection, { ...ctx, injectorState })) return null;
   const guardedPlan = guarded && pattern.properties.includes(prop) && resolvePure ? planGuardedNarrow?.({
     memberNode: memberExpression(identifier(''), identifier(resolvedMeta.key)),
     parent: null,
@@ -2195,13 +2197,16 @@ function planRetainedObjectCaptureShape({
     && pattern.properties.includes(prop)
     && (consumed || rest || symbolPattern || computedKeyHasSideEffects(prop, ctx) || keyOrderSplit);
   if (kind !== 'instance' && !symbolPattern && !retainedStatic && !nestedSibling && !narrow) return null;
+  // A keyed iterator (including its default) reads its slot before the next sibling.
+  const iteratorWithSibling = keyedElement && entry === 'get-iterator-method'
+    && target?.type === 'Identifier' && pattern.properties.length > 1;
   // A consumed global assignment must still yield the realm while its target receives the
   // polyfilled value. A discarded continuation with a key effect uses that same capture;
   // quiet hops and source discarded writes keep their existing direct extraction.
   // ... asked of the init as written (`writtenInit`): the realm route that owns it reads that spelling
-  if (!provenCtorName && !symbolPattern && !nestedSibling && adapter
+  if (!provenCtorName && !symbolPattern && !nestedSibling && !iteratorWithSibling && adapter
     && (kind !== 'global' || !assignment || assignmentValueDiscarded(hostPath) && (!servedGlobal || target?.type !== 'ObjectPattern'))
-    && allProxySelectingInit(writtenInit ?? init, { adapter, injectorState })) return null;
+    && allProxySelectingInit(writtenInit ?? init, { ...ctx, injectorState })) return null;
   const siblingStatics = siblingStaticEntries();
   const hostPattern = hostPath?.node?.type === 'VariableDeclarator' ? hostPath.node.id : hostPath?.node?.left;
   const receiverNeverNullish = !isCapturedKeyedPattern(pattern)

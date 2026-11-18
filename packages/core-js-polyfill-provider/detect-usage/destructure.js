@@ -3016,9 +3016,13 @@ export function isReReadableSurfaceNav(node, isOwnAlias = null, opts = undefined
 // a leaf an instance claim on a REAL surface (`globalThis.Array.prototype`) instead of a name match
 // on whatever object the chain happens to reach (`globalThis.Array.keys`, kept native by both legs)
 export function isInstanceSurfaceNav(node, opts = undefined) {
-  return (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
-    && !node.computed && node.property?.type === 'Identifier' && node.property.name === 'prototype'
-    && isBuiltInSurfaceNav(node, opts);
+  if (!isMemberAccessNode(node) || node.computed || node.property?.name !== 'prototype' || !isBuiltInSurfaceNav(node, opts)) return false;
+  const receiver = unwrapRuntimeExpr(node.object);
+  if (!isMemberAccessNode(receiver)) return true;
+  // Number.EPSILON.prototype reads a property of a boxed primitive. It can run a user getter.
+  const owner = unwrapRuntimeExpr(receiver.object);
+  const name = isMemberAccessNode(owner) ? memberKeyName(owner) : builtInNamespaceRoot(owner, opts);
+  return !PRIMITIVE_WRAPPERS[knownBuiltInReturnTypes.staticProperties[name]?.[memberKeyName(receiver)]?.type];
 }
 
 // the two AST flavors of an object-pattern property - the walk below climbs through either

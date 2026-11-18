@@ -16,6 +16,7 @@ import {
   consumedAssignmentSlotPrunes,
   destructureKeyReadPlan,
   isBuiltInSurfaceNav,
+  isInstanceSurfaceNav,
   isReReadableSurfaceNav,
   planNestedKeyedPatternCapture,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
@@ -273,6 +274,18 @@ for (const [label, source, builtIn, reReadable, mutated = null] of [
   check(`${ row }/second read`, isReReadableSurfaceNav(path.node.init, null, { ctx }), reReadable);
   check(`${ row }/a raw root is not a minted alias`, isReReadableSurfaceNav(path.node.init, null, { ctx, ownAliasRoot: true }), false);
   check(`${ row }/source AST retained`, JSON.stringify(path.node.init), before);
+});
+
+for (const [source, expected] of [
+  ['const methods = Number.prototype;', true],
+  ['const methods = globalThis.Array.prototype;', true],
+  ['const methods = globalThis.Number.EPSILON.prototype;', false],
+  ['const methods = Number.MAX_SAFE_INTEGER.prototype;', false],
+  ['const N = Number; const methods = (N as any).EPSILON.prototype;', false],
+]) runBoth(`instance surface/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'methods');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  check(label, isInstanceSurfaceNav(path.node.init, { ctx: { scope: path.scope, path, adapter } }), expected);
 });
 
 runBoth('a rescue query preserves unsettled getter return candidates', `

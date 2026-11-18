@@ -1,5 +1,26 @@
 import { restoreProperty } from '../helpers/restore-property.cjs';
 
+QUnit.test('a keyed iterator binding reads the realm slot once before its sibling', assert => {
+  const events = [];
+  const key = Symbol.iterator;
+  const saved = Object.getOwnPropertyDescriptor(globalThis, key);
+  const sibling = Object.getOwnPropertyDescriptor(globalThis, 'e2eIteratorTail');
+  function method() { return 7; }
+  try {
+    Object.defineProperties(globalThis, {
+      [key]: { configurable: true, get() { events.push('iterator'); return method; } },
+      e2eIteratorTail: { configurable: true, get() { events.push('sibling'); return 3; } },
+    });
+    const { [(events.push('key'), Symbol.iterator)]: it, e2eIteratorTail: tail } = globalThis;
+    assert.same(it, method);
+    assert.same(tail, 3);
+    assert.deepEqual(events, ['key', 'iterator', 'sibling']);
+  } finally {
+    restoreProperty(globalThis, key, saved);
+    restoreProperty(globalThis, 'e2eIteratorTail', sibling);
+  }
+});
+
 QUnit.test('a nested iterator assignment reads the shared slot once', assert => {
   const events = [];
   const saved = Object.getOwnPropertyDescriptor(Array, 'e2eIteratorBox');

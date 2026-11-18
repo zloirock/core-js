@@ -1,7 +1,6 @@
 // Realm roots reached through a call or through a selection of realm spellings serve their claims as the realm
 // itself does, alike in both legs: a rest beside a claim keeps reading the call's realm once the claim extracted,
-// and an effect-keyed `Symbol.iterator` claim binds after the residual that runs its key - in an assignment and
-// beside another declarator.
+// and an effect-keyed `Symbol.iterator` binds after its key and before the next property read.
 const { Array: { from, ...r } } = (() => globalThis)();
 let it, zz;
 ({ [(e(), Symbol.iterator)]: it, zz } = c ? globalThis : self);

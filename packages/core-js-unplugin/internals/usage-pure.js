@@ -394,7 +394,7 @@ export default function createAstUsagePureCallback({
         // route, where standing down would leave that leaf with no polyfill at all on this leg. the
         // HOST's own init needs no such question: its flatten owns the collapse, and asking the plan
         // ahead of it mirrors a literal that flatten drops
-        if (selecting && destructureEmit.isRealmSelectingInit(selecting)
+        if (selecting && destructureEmit.isRealmSelectingInit(selecting, metaPath)
           && (!innerDefault || destructureEmit.renderNestedParamSynth({ metaPath, meta }))) return false;
         // a DECLINED mirror leaves the key untouched, and which branch runs then decides whether
         // the polyfill applies at all - the shared diagnostic both other emitters emit

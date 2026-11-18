@@ -3804,9 +3804,9 @@ export default function createDestructureEmitter({
     return true;
   }
 
-  // a sentinel this leg minted, by the injector's own registry
+  // Only this pass's extraction accounts for the read a residual would discard.
   function isUnusedName(id) {
-    return injector.hasGeneratedUnusedName(id.name);
+    return injector.isOwnPassUnusedName(id.name);
   }
 
   // is a hop above this leaf keyed by an effect? its level keeps the hop, so no residual dies

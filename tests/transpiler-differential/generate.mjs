@@ -25850,6 +25850,102 @@ function * generateDestructureSourceSlots() {
   })()`), strip: true };
 }
 
+// Observe who owns each residual read, including after a pure import enables name adoption.
+function * generateDestructureResidualReads() {
+  for (const [name, claim, getter] of [
+    ['constructor', 'Map: value', 'return 7;'],
+    ['iterator', '[Symbol.iterator]: value', 'throw new RangeError();'],
+  ]) yield {
+    name: `destructure-residual-reads/${ name }`,
+    code: `import keys from '@core-js/pure/actual/object/keys';
+      export const effects = [];
+      const root = globalThis;
+      Object.defineProperty(root, 'own', { configurable: true, get() { effects.push('get'); ${ getter } } });
+      export const r = (() => {
+        try {
+          const { ${ claim }, own: _unused } = globalThis;
+          return [typeof value, keys({ x: 0 })[0]];
+        } catch (error) { return error.name; }
+        finally { delete root.own; }
+      })();`,
+    strip: true,
+  };
+  for (const local of [false, true]) yield {
+    name: `destructure-residual-reads/selected-iterator/${ local }`,
+    code: `export const effects = [];
+      const source = {
+        get [Symbol.iterator]() { effects.push('iterator'); return function iter() {}; },
+        get spare() { effects.push('spare'); return 7; }
+      };
+      function other() { effects.push('other'); return [1, 2]; }
+      function read(self, active) {
+        const lead = effects.push('lead'),
+          { [(effects.push('key'), Symbol.iterator)]: it, spare } = active ? self : globalThis,
+          { at, includes } = other(), tail = effects.push('tail');
+        return [lead, typeof it, spare, at.call([1], 0), includes.call([1], 1), tail];
+      }
+      export const r = read(source, ${ local });`,
+    strip: true,
+  };
+  for (const [name, binding, getter] of [
+    ['realm-iterator', 'it', 'return function iter() {};'],
+    ['realm-iterator-default', "it = (effects.push('default'), 7)", 'return undefined;'],
+    ['realm-iterator-store', "it = (effects.push('default'), 7)", 'return function iter() {};'],
+  ]) {
+    const pattern = `{ [(effects.push('key'), Symbol.iterator)]: ${ binding }, spare }`;
+    const read = name === 'realm-iterator-store'
+      ? `let it, spare;
+         const lead = effects.push('lead'), result = (${ pattern } = globalThis), tail = effects.push('tail');
+         if (result !== root) throw new Error('assignment result');`
+      : `const lead = effects.push('lead'), ${ pattern } = globalThis, tail = effects.push('tail');`;
+    yield { name: `destructure-residual-reads/${ name }`, code: `export const effects = [];
+      const root = globalThis, key = Symbol.iterator;
+      Object.defineProperty(root, key, {
+        configurable: true, get() { effects.push('iterator'); ${ getter } }
+      });
+      export const r = (() => {
+        try {
+          ${ read }
+          return [lead, typeof it, spare, tail];
+        } finally { delete root[key]; }
+      })();`, strip: true };
+  }
+  for (const local of [false, true]) yield {
+    name: `destructure-residual-reads/fallback-constructor/${ local }`,
+    code: `export const effects = [];
+      class Local { get() { return 7; } }
+      const box = { get Map() { effects.push('getter'); return Local; }, get spare() { effects.push('sibling'); } };
+      function read(self) {
+        const { [(effects.push('key'), 'Map')]: C, spare } = self ?? globalThis;
+        return [new C([[1, 4]]).get(1), typeof spare];
+      }
+      export const r = read(${ local ? 'box' : 'null' });`,
+    strip: true,
+  };
+  for (const getter of [false, true]) yield {
+    name: `destructure-residual-reads/primitive-prototype/${ getter }`,
+    code: `export const effects = [];
+      const proto = Object.getPrototypeOf(1);
+      const previous = Object.getOwnPropertyDescriptor(proto, 'prototype');
+      export const r = (() => {
+        try {
+          ${ getter ? "Object.defineProperty(proto, 'prototype', { configurable: true, get() { effects.push('get'); return [1]; } });" : '' }
+          const before = effects.push('before'), {
+            Number: { // core-js-disable-line
+              EPSILON: { prototype: { at, unknown }, name }
+            }
+          } = (effects.push('init'), globalThis), after = effects.push('after');
+          return [before, typeof at, unknown, name, after];
+        } catch (error) { return error.name; }
+        finally {
+          if (previous) Object.defineProperty(proto, 'prototype', previous);
+          else delete proto.prototype;
+        }
+      })();`,
+    strip: true,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27671,4 +27767,5 @@ export function * generate() {
   yield * generateDestructureCarrierHosts();
   yield * generateSparseDestructureSpreads();
   yield * generateDestructureSourceSlots();
+  yield * generateDestructureResidualReads();
 }

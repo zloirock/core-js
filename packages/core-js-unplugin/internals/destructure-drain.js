@@ -1509,7 +1509,7 @@ export default function createDestructureDrains(ctx) {
     return declJobs.length > 0 && residualHuskIsDead({
       pattern: declarator.id,
       init: declarator.init,
-      isSentinel: id => injectorState.hasGeneratedUnusedName(id.name),
+      isSentinel: id => injectorState.isOwnPassUnusedName(id.name),
       scope: at?.scope,
       adapter,
       path: at,
@@ -1572,7 +1572,8 @@ export default function createDestructureDrains(ctx) {
         if (capturedGroup) {
           // Later source declarators remain in this group too. Preserve any effects
           // their own initializer still owes before joining their extracted bindings.
-          const effects = [];
+          // The group keeps the extracted bindings, so it must emit the consumed receiver's prefix here.
+          const effects = carriedInitPrefix(declarator, declJobsHere, patternFrame(declJobsHere[0].metaPath)).map(expressionStatement);
           if (declJobsHere.every(job => !job.capturedSibling)) {
             rescueEmptiedDeclaratorInit({ declarator, declJobsHere, statements: effects });
           }
