@@ -46,6 +46,7 @@ import {
   renderMemoReadTarget,
   renderProxyReceiverPlan,
   renderClaimProbe,
+  renderSubstitutedSequenceReceiver,
 } from '@core-js/polyfill-provider/render';
 import {
   collapseRootHoldsItsGlobal,
@@ -377,8 +378,10 @@ export default function createSynthSwapEmitter({
         refreshKeptStore(recPath, route.store);
       } else if (route.kind === 'sequence') {
         const { tail } = route;
-        recPath.get(tail.keys.join('.')).replaceWith(tail.pure
-          ? injectPureImport(tail.pure.entry, tail.pure.hintName) : t.cloneNode(tail.root));
+        const slot = recPath.get(tail.keys.join('.'));
+        const value = tail.pure ? injectPureImport(tail.pure.entry, tail.pure.hintName) : t.cloneNode(tail.root);
+        const sequence = renderSubstitutedSequenceReceiver(slot, value, aliasCtx, t.inheritsComments);
+        sequence.target.replaceWith(sequence.value);
         return true;
       } else {
         collapsed = renderCollapsePlan(route.plan, { carrySource: true });

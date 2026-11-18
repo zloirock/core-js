@@ -39,6 +39,7 @@ import {
   canonContextPath,
   chainValueCarrier,
   climbTransparentWrapperPath,
+  callArgumentMayBeObserved,
   collectFoldedReceiverSideEffects,
   collectParamBindingNames,
   definedBranchOfGuardConditional,
@@ -47,6 +48,8 @@ import {
   firstProxyBranch,
   flattenBranchingValueNodes,
   followConstIdentifierInit,
+  literalIsFreshAtRead,
+  objectPropertiesForKey,
   foldedPropertyKeyName,
   globalProxyNameFromImportSource,
   identifierDeclaratorInit,
@@ -4930,6 +4933,35 @@ export function discardedIdentifierMayThrow(node, ctx) {
     || !initializerReachesRead({ adapter, binding, declaratorNode, usagePath: path, usageNode: node, requireInitialized: true });
 }
 
+// A discarded comma operand still resolves its names and can run a getter or coercion.
+export function observablePrefixOperand(expression, ctx) {
+  if (mayHaveSideEffects(expression, { ...ctx, readIdentifier: discardedIdentifierMayThrow })) return true;
+  if (!callArgumentMayBeObserved(expression, ctx)) return false;
+  const member = unwrapRuntimeExpr(expression);
+  if (!ctx?.adapter || !isMemberAccessNode(member)) return true;
+  const key = memberKeyName(member);
+  if (key === null || key === '__proto__') return true;
+  const object = unwrapRuntimeExpr(member.object);
+  // A served realm hop reads the ponyfill binding. Excluded or mutated slots stay observable.
+  if (POSSIBLE_GLOBAL_OBJECTS.has(key) && object?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(object.name)
+    && servedRead(member, ctx)?.substituted) return false;
+  const literal = followConstLiteralAlias(object, ctx);
+  if (literal?.type !== 'ObjectExpression' || !literalIsFreshAtRead(object, literal, ctx)) return true;
+  // A spread defines data properties. It can replace an own slot but cannot install a getter.
+  let own = false;
+  for (const prop of objectPropertiesForKey(literal.properties, key)) {
+    const name = spelledSlotName(prop);
+    if (prop.kind === 'get' && (name === key || name === null)) return true;
+    if (name === key) own = true;
+  }
+  return !own;
+}
+
+// The observable source operands in their original evaluation order.
+export function observablePrefixElements(expressions, ctx) {
+  return expressions.filter(expression => observablePrefixOperand(expression, ctx));
+}
+
 // the walk behind `inlineCallHasObservableEffects`, over the hop standing on the call: it descends
 // nested single-return callees with the advanced hop until a returned value or an effect answers
 function hasObservableEffectsRec(hop) {
@@ -5626,9 +5658,9 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
   return {
     kind: 'value', base: proxyCollapseBase({ aliasRoot: collapsed.aliasRoot, sourceValue,
       claimPure: claim, rootPure: collapsed, keepClaim: (valuePosition || mutatedAbove) && !forced && !deleted }),
-    prefix: navigated ? effects.filter(effect => mayHaveSideEffects(effect)) : effects,
+    prefix: navigated ? observablePrefixElements(effects, ctx) : effects,
     tail: valuePosition ? keptTail : [], valuePosition, deadOptional,
-    swallowDeadSequence: navigated && !collapsed.aliasRoot,
+    swallowDeadSequence: navigated,
   };
 }
 
@@ -6956,7 +6988,7 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
     // prefix is what the run DID
     const objectCore = unwrapRuntimeExpr(node.object);
     const deadSeqWrapper = objectCore?.type === 'SequenceExpression'
-      && objectCore.expressions.slice(0, -1).every(expr => !mayHaveSideEffects(expr));
+      && objectCore.expressions.slice(0, -1).every(expr => !observablePrefixOperand(expr, { ...ctx, scope: up.scope, path: up }));
     // the OUTERMOST folding hop is the one slot that lands, and what it lands is what the FIRST
     // fold reached: everything between is erased with the run, so a per-hop replacement would
     // only rewrite nodes the next one drops

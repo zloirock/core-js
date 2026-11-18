@@ -2714,14 +2714,18 @@ export function minifierSequenceReducer() {
 // converts the products and inherits the replaced statement's attached comments, unplugin
 // splices as is. the entries hold nodes, so a binding applies them by identity and reads a
 // statement's index at apply time. Retired sequences, parens and quiet literals hand their comment
-// objects to surviving products without changing source owners. Bindings supply their census;
-// standalone callers collect it here.
-export function planMinifierSequenceSplit(root, { embed = node => node, census = null } = {}) {
+// objects to surviving products without changing source owners. `onDropLiteral` reports each
+// discarded operand so a binding can distinguish a real deletion from regrouping live products.
+// Bindings supply their census; standalone callers collect it here.
+export function planMinifierSequenceSplit(root, { embed = node => node, census = null, onDropLiteral = null } = {}) {
   const { minifierSequences } = census ?? collectFileCensus(root, [minifierSequenceReducer()]);
   // one operand's products: every operand that is not a quiet literal (`isQuietLiteralOperand` -
   // the minifier's `0`, a string that must not become a directive), in order
   function operandProducts(operand, knownExpressions = null) {
-    if (isQuietLiteralOperand(operand)) return [];
+    if (isQuietLiteralOperand(operand)) {
+      onDropLiteral?.();
+      return [];
+    }
     const nested = knownExpressions ?? getMinifierSequenceExpressions(expressionStatement(operand));
     if (nested) {
       const groups = nested.map(value => operandProducts(value));

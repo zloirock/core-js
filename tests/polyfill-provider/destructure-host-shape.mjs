@@ -1483,6 +1483,14 @@ for (const [source, count] of [
   check(`${ lbl }: planning leaves the source intact`, JSON.stringify(prog.node), before);
 });
 
+runBoth('minifier split with nested literals', '(before(), (0, ({ from } = Array)), "quiet");', (adapter, prog, lbl) => {
+  let dropped = 0;
+  const [entry] = planMinifierSequenceSplit(prog.node, { onDropLiteral() { dropped++; } });
+  check(`${ lbl }: discarded literals`, dropped, 2);
+  checkDeep(`${ lbl }: live operands in source order`, entry.products.map(product => unwrapRuntimeExpr(product.expression).type),
+    ['CallExpression', 'AssignmentExpression']);
+});
+
 for (const host of [
   'SPLIT',
   '{ SPLIT }',
@@ -1500,8 +1508,10 @@ for (const host of [
   'const f = () => { SPLIT };',
 ]) runBoth('minifier census statement positions', host.replaceAll('SPLIT', '(before(), ({ at } = source), after());'), (adapter, prog, lbl) => {
   const census = collectFileCensus(prog.node, [minifierSequenceReducer()]);
-  const plan = planMinifierSequenceSplit(prog.node, { census });
+  let dropped = 0;
+  const plan = planMinifierSequenceSplit(prog.node, { census, onDropLiteral() { dropped++; } });
   check(`${ lbl }: every position planned`, plan.length, host.split('SPLIT').length - 1);
+  check(`${ lbl }: all live operands survive`, dropped, 0);
   for (const entry of plan) {
     check(`${ lbl }: source position retained`, entry.statements?.includes(entry.statement) ?? entry.host[entry.key] === entry.statement, true);
     check(`${ lbl }: ordered products`, entry.products.length, 3);

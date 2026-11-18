@@ -762,9 +762,14 @@ export default function createPlugin(options) {
     ]);
     // Apply only the indexed positions, before any scoped walk. The census keeps the original
     // operands; splitting only re-parents them. Product spans preserve directive and entry sites.
-    for (const { statements, host, key, statement, products } of planMinifierSequenceSplit(ast, { census: fileCensus })) {
+    let splitChanged = false;
+    const minifierPlan = planMinifierSequenceSplit(ast, { census: fileCensus, onDropLiteral() { splitChanged = true; } });
+    for (const { statements, host, key, statement, products } of minifierPlan) {
       if (statements) statements.splice(statements.indexOf(statement), 1, ...products);
-      else host[key] = { type: 'BlockStatement', body: products };
+      else {
+        host[key] = { type: 'BlockStatement', body: products };
+        splitChanged = true;
+      }
     }
     const { importStyle } = format;
     // ONE scoped pre-pass walk carries both lanes: the mutation classification and the ctor-alias
@@ -1026,6 +1031,9 @@ export default function createPlugin(options) {
         astNormalized = true;
       }
 
+      // A removed literal or a new block changes the output even without imports. Merely
+      // regrouping live statements would reprint our own rest assignments on their next pass.
+      const surgeryChanged = astNormalized || astSweptImports || splitChanged;
       const isInTypeAnnotation = createTypeAnnotationChecker();
 
       // write-position bails for a property member usage: a for-x head target, and every other
@@ -1048,8 +1056,7 @@ export default function createPlugin(options) {
         // baseline rather than bailing to the untouched bytes
         if (!plan.found) {
           outputDebug();
-          // Optional-call normalization is owed even in a file without entry imports.
-          return astNormalized ? finalizeAst() : null;
+          return surgeryChanged ? finalizeAst() : null;
         }
         debugOutput?.markEntryFound();
         applyEntryProgram({
@@ -1228,7 +1235,6 @@ export default function createPlugin(options) {
       // pre's union, so a report from both passes would double-print every diagnostic
       function runUsageGlobal() {
         collectUsageGlobal();
-        const surgeryChanged = !!astSweptImports || astNormalized;
         if (pass === 'pre') {
           computeDirectiveAnchors();
           const preChanged = surgeryChanged || !!directiveAnchors;
@@ -1555,7 +1561,7 @@ export default function createPlugin(options) {
         // A disabled claim alone still needs reprinting before sibling lowering can drop its
         // comment. Only test for anchors here: restoring parameters or retaining these node
         // keys before the scope-building flush and relocation undo would invalidate them.
-        if (!astRewrote && !collected && !astNormalized && !astSweptImports
+        if (!astRewrote && !collected && !surgeryChanged
           && !(pass === 'pre' && anchorDisableDirectives({ ast, comments, code, offsetToLine, disabledLines }))) {
           // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
           if (pass === 'pre') storeAstPreSnapshot(false);

@@ -238,6 +238,9 @@ import {
   resolveSynthKeys,
   seBearingChainRootCall,
   symbolSourcedFoldedKey,
+  discardedIdentifierMayThrow,
+  observablePrefixOperand,
+  observablePrefixElements,
   readKeepingAdapter,
   presenceDecision,
   patternBoundSlotOpen,
@@ -286,6 +289,8 @@ import {
   staticReceiverHint,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from './globals.js';
+
+export { observablePrefixElements };
 
 // the init shapes a clean declarator may carry a ctor through (`aliasWriteCtorNames` below)
 const CTOR_ALIAS_SOURCE_TYPES = new Set([
@@ -4914,7 +4919,8 @@ export function discardRescueNodesWithReads({ node, scope, adapter, path }) {
   if (decided) return decided;
   const { prefix, tail } = peelNestedSequenceExpressions(node);
   if (prefix.length) {
-    const kept = prefix.flatMap(element => mayHaveSideEffects(element) ? [element]
+    const ctx = { scope, adapter, path };
+    const kept = prefix.flatMap(element => observablePrefixOperand(element, ctx) ? [element]
       : discardRescueNodesWithReads({ node: element, scope, adapter, path }));
     if (kept.some(element => !mayHaveSideEffects(element))) {
       return [...kept, ...discardRescueNodesWithReads({ node: tail, scope, adapter, path })];
@@ -5060,12 +5066,6 @@ export function residualHuskIsDead({ pattern, init, isSentinel, scope, adapter, 
     && !(init && mayHaveSideEffects(init, ctx));
 }
 
-// the elements of a discarded sequence PREFIX that still run something: an effect, or a receiver
-// read only a getter answers (the scoped predicate)
-export function observablePrefixElements(expressions, { scope, adapter, path }) {
-  return expressions.filter(expression => mayHaveSideEffects(expression, { scope, adapter, path }));
-}
-
 // what a discarded effectful init still owes as the statement the lift spells: the init whole where its
 // tail performs a read the rescue keeps, else the observable elements of its sequence, else the tail -
 // the dead tail of `(eff(), { C: [] })` is a comma the source wrote, not work it did. a wrapper leaves
@@ -5077,7 +5077,9 @@ export function liftedInitElements(node, { scope, adapter, path }) {
     || discardRescueNodesWithReads({ node: init, scope, adapter, path })[0] === init) return [init];
   const prefix = [];
   const tail = decidedRunningValue(init, { scope, adapter, path }, prefix);
-  const observed = observablePrefixElements([...prefix, tail], { scope, adapter, path });
+  const ctx = { scope, adapter, path };
+  const observed = observablePrefixElements(prefix, ctx);
+  if (mayHaveSideEffects(tail, { ...ctx, readIdentifier: discardedIdentifierMayThrow })) observed.push(tail);
   return observed.length ? observed : [tail];
 }
 

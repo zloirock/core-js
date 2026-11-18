@@ -51,6 +51,32 @@ const cases = [
   ['call-static-argument-tdz', `function root() { return Array; }
     const value = (effects.push("before"), root(later)).from([3]);
     const later = 1; return value;`],
+  ['nested-sequence-zero', 'return (0, (0, globalThis.self))?.Math.PI;'],
+  ['nested-sequence-alias', 'const realm = globalThis; return (0, (0, realm.self)).slotD;'],
+  ['excluded-sequence-delete', 'return delete (0, (0, (0, globalThis.self)).slotD);', { exclude: ['web.self'] }],
+  ['nested-sequence-name', 'return (effects.push("before"), (missingPrefix, globalThis.self))?.[(effects.push("late"), "Math")].PI;'],
+  ['nested-sequence-getter', `var box = { get key() { effects.push("get"); throw new RangeError(); } };
+    return (0, (box.key, globalThis.self))?.Math.PI;`],
+  ['nested-sequence-coercion', `var box = { valueOf() { effects.push("valueOf"); return 1; } };
+    return (0, (+box, globalThis.self)).Math.PI;`],
+  ['nested-sequence-redefined-slot', `const box = { key: 1 };
+    Object.defineProperty(box, "key", { get() { effects.push("get"); return 2; } });
+    let M; ({ Map: M } = (box.key, globalThis)); return typeof M;`],
+  ['nested-sequence-late-var', 'const result = (0, (box.key, globalThis.self))?.Math.PI; var box = { key: 1 }; return result;'],
+  ['nested-sequence-tdz', 'const r = (0, (later, globalThis.self)).slotD; let later; return r;'],
+  ['alias-unbacked-sequence-name', 'const realm = globalThis; return (0, missingPrefix, realm.self)?.self.window.slotD;'],
+  ['alias-unbacked-sequence-window', 'const realm = globalThis; return (effects.push("prefix"), realm.self)?.window.slotD;'],
+  ['alias-unbacked-sequence-self-window', 'const realm = globalThis; return (effects.push("prefix"), realm.self)?.self.window.slotD;', {}, true, 'core-js/modules/web.self.js'],
+  ['alias-unbacked-sequence-excluded-self', 'const realm = globalThis; return (effects.push("prefix"), realm.self)?.self.window.slotD;', { exclude: ['web.self'] }, true],
+  ['global-sequence-before-static', `Object.defineProperty(globalThis, "sequenceKey", { get() { effects.push("get"); return 1; } });
+    (globalThis.sequenceKey, Promise).resolve((effects.push("arg"), 2)); return 27;`],
+  ['throwing-global-sequence-before-static', `Object.defineProperty(globalThis, "sequenceKey", { get() { effects.push("get"); throw new RangeError(); } });
+    (globalThis.sequenceKey, Promise).resolve((effects.push("arg"), 2)); return 27;`],
+  ['alias-unbacked-sequence-coercion', `const realm = globalThis;
+    var box = { valueOf() { effects.push("coerce"); throw new RangeError(); } };
+    return (+box, realm.self)?.self.window.slotD;`],
+  ['pattern-sequence-name', 'const { self: { Array: A } } = (effects.push("before"), missingPrefix, globalThis); return typeof A;'],
+  ['pattern-sequence-tdz', 'let M; ({ Map: M } = (effects.push("before"), later, effects.push("late"), globalThis)); let later; return typeof M;'],
   ['terminal', 'return typeof (effects.push("prefix"), globalThis.window)?.self;'],
   ['claimed-delete', 'return delete globalThis.self?.window?.window?.Reflect.slot;'],
   ['claimless-delete', 'return delete globalThis.self?.window?.window?.self.slotD;'],
@@ -101,7 +127,7 @@ await fs.ensureDir(tmp);
 const directory = await fs.mkdtemp(path.join(tmp, 'realm-collapse-delete-'));
 let serial = 0;
 try {
-  for (const [name, body, extra = {}, nativeRealm = false] of cases) {
+  for (const [name, body, extra = {}, nativeRealm = false, globalReference] of cases) {
     const source = scenarioSource(`export const effects = []; export function read(choice) { ${ body } }`);
     for (const method of ['usage-global', 'usage-pure']) {
       const options = { method, version: '4.0', targets: { ie: 11 }, ...extra };
@@ -131,6 +157,7 @@ try {
             ${ nativeRealm && !present ? 'delete root.self;' : 'root.self = root;' }
             ${ present ? 'root.window = root;' : 'delete root.window;' }
             root.slotD = 17; root.items = [1, 3];
+            ${ host === 'native' && method === 'usage-global' && globalReference ? `await import(${ JSON.stringify(globalReference) });` : '' }
             const mod = await import(${ JSON.stringify(pathToFileURL(module).href) });
             export const effects = mod.effects;
             let value;

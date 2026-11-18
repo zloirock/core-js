@@ -4554,6 +4554,26 @@ function checkGuardSourceMap() {
 }
 checkGuardSourceMap();
 
+// A split must reach the printer even when every referenced feature is native.
+for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+  const options = { method, version: '4.0', targets: { chrome: 100 } };
+  for (const [name, statement, expected] of [
+    ['flat', '(0, ({ from } = Array));', /\(\{ from \} = Array\);/],
+    ['nested', '(0, (0, ({ from } = Array)));', /\(\{ from \} = Array\);/],
+    ['unbraced', 'if (use) (use(), ({ from } = Array));', /if \(use\) \{\s*use\(\);/],
+  ]) {
+    const source = `function read(use) { let from; ${ statement } return from; }`;
+    for (const pass of ['single', 'pre', 'post']) {
+      const plugin = createPlugin(options);
+      const output = plugin.transform(source, '/split.mjs', pass);
+      const label = `native sequence split/${ method }/${ pass }/${ name }`;
+      check(`${ label }/split emitted`, expected.test(output?.code) && !output.code.includes('0,'), true);
+      check(`${ label }/source map`, output?.map.sourcesContent?.[0], source);
+      check(`${ label }/second pass`, plugin.transform(output?.code ?? source, '/split.mjs', pass)?.code ?? output?.code, output?.code);
+    }
+  }
+}
+
 // --- source map: minifier-split products map to their own operands ---
 
 // the split replaces one statement by one statement per operand, and each product carries its

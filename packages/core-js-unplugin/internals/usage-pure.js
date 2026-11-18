@@ -43,6 +43,7 @@ import {
   nullFirstGuardTest,
   renderInExpressionPlan,
   renderDeclinedNavigation,
+  renderSubstitutedSequenceReceiver,
   renderLogicalSlotPatch,
   renderStaticFallbackReceiver,
   renderProxyReceiverPlan,
@@ -680,9 +681,12 @@ export default function createAstUsagePureCallback({
         const { path: dropped, source, effects } = plan.fold;
         const baseNode = renderDeclinedNavigation(plan.fold, { injectImport: injectPureImport, carryEffect: effect => effect });
         for (const effect of effects) skippedNodes.keepLive?.add(effect);
-        dropped.replaceWith(baseNode);
+        const sequence = renderSubstitutedSequenceReceiver(dropped, baseNode, { scope: dropped.scope, adapter, path: dropped });
+        sequence.target.replaceWith(sequence.value);
         markSubtreeSkipped(skippedNodes, source, skippedNodes.keepLive);
-        deoptionalizeOverSubstituted({ metaPath: dropped, node: source, replacement: baseNode, proxyRoot: true });
+        if (!sequence.keptGuard) deoptionalizeOverSubstituted({
+          metaPath: sequence.target, node: source, replacement: unwrapRuntimeExpr(sequence.value), proxyRoot: true,
+        });
       } else if (plan.verdict === 'swap-call') {
         // the flat probe-leaf read keeps the probe spelled where the source wrote it - it is the
         // environment the read discriminates - and swaps the span below it for the deepest

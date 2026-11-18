@@ -112,6 +112,7 @@ import {
   foldableRealmHop,
   inlineCallHasObservableEffects,
   discardedIdentifierMayThrow,
+  observablePrefixOperand,
   inlineCallProxyGlobalRoot,
   inlineCallReturnExpression,
   interopDefaultProxyName,
@@ -345,7 +346,8 @@ export function planInnerProxyCollapse(node, {
   const sourceRoot = descendToChainRoot(node).root;
   const keptWrite = peelChainAssignment(sourceRoot).outer;
   const effects = collectFoldedReceiverSideEffects(node, {
-    rescue: rescue && new Set(rescue), ctx: aliasCtx, preserveSourceReads: root?.type === 'CallExpression',
+    rescue: rescue && new Set(rescue), ctx: aliasCtx, observePrefix: observablePrefixOperand,
+    preserveSourceReads: root?.type === 'CallExpression',
   });
   if (root?.type === 'CallExpression' && aliasCtx && !keptWrite && provenCallRoot) {
     for (let scan = node; isMemberAccessNode(scan); scan = peelReceiverSequenceTail(scan.object)) {
@@ -525,10 +527,13 @@ export function planProxyReceiver(receiver, {
   // survives off the pure root (`(0, globalThis.window).Set = fn` -> `(0, _globalThis.window).Set`, an
   // undefined write host off-engine); the prefix effects ride the harvest below
   let objectCore = unwrapRuntimeExpr(receiver.object);
-  // a write target peels its sequence tail: the leaf is the assignment slot, and the
-  // per-id rewrite does not reach it there
+  // A write keeps its slot. A backed hop can use the alias directly after a comma.
+  // An unbacked hop still needs the normal navigation fold, including its environment check.
   const throughRoot = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
-  if (isWriteTarget) objectCore = peelReceiverSequenceTail(objectCore);
+  if (isWriteTarget || objectCore?.type === 'SequenceExpression' && isAliasProxyRoot(throughRoot, aliasCtx)
+    && !navHasUnresolvableProxyHop(objectCore, resolvePure, aliasCtx)) {
+    objectCore = peelReceiverSequenceTail(objectCore);
+  }
   if (maximalProxyGlobalPrefix(receiver, aliasCtx, { throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver({ receiver, aliasCtx, resolvePure, deleteFold: deleteConsumer });
     if (callRooted) return callRooted;
@@ -1322,7 +1327,9 @@ export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
   const effects = [];
   const rescue = seedChainRootCallRescue({ node, scope, adapter, path });
   const chainAssignAt = { at: null };
-  collectFoldedReceiverSideEffects(node, { out: effects, rescue, chainAssignAt, ctx: { scope, adapter, path } });
+  collectFoldedReceiverSideEffects(node, {
+    out: effects, rescue, chainAssignAt, ctx: { scope, adapter, path }, observePrefix: observablePrefixOperand,
+  });
   return prependChainAssignmentEffect(node, effects, chainAssignAt.at ?? effects.length);
 }
 
@@ -1391,8 +1398,7 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
   const sideEffects = [];
   // a sequence-prefix element the receiver owes: one whose discard keeps anything
   function keepsEffect(element) {
-    return (adapter.method !== 'usage-global'
-      && mayHaveSideEffects(element, { scope, adapter, path, readIdentifier: discardedIdentifierMayThrow }))
+    return (adapter.method !== 'usage-global' && observablePrefixOperand(element, { scope, adapter, path }))
       || discardRescueNodesWithReads({ node: element, scope, adapter, path }).length > 0;
   }
   // `obj` is then passed to `resolveObjectName` which calls `unwrapTransparentSeq` again - idempotent
@@ -2822,7 +2828,16 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
     handledObjects.add(obj);
     return;
   }
-  if (!suppressProxyGlobals) return;
+  if (!suppressProxyGlobals) {
+    // An unbacked read on a sequence-carried alias keeps its source hops. A child
+    // claim replacing one of them would also erase the read on an absent host.
+    if (subsumesReceiver || adapter?.method !== 'usage-pure' || !resolvePure
+      || !unbackedProxyHopKey(obj, meta => resolvePure(meta, path))) return;
+    let source = obj;
+    while (isMemberAccessNode(source)) source = unwrapRuntimeExpr(source.object);
+    const ctx = { scope, adapter, path };
+    if (source.type !== 'SequenceExpression' || !isAliasProxyRoot(findProxyGlobal(source, ctx), ctx)) return;
+  }
   // a CHAIN-ASSIGN receiver hides the navigation in its VALUE: when that value carries an
   // UNRESOLVABLE hop, its own leaf claim would either swallow the read below (`(k = globalThis
   // .window.self)` -> `k = _self`) or detach the nodes an owning render reads - dig with the

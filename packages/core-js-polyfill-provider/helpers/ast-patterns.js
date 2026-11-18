@@ -13094,9 +13094,10 @@ export function sequencePrefixWithSideEffects(expr, ctx = null) {
 // one member of a discarded container: a NESTED container recurses (re-emitting the whole literal
 // would rebuild it for nothing), anything else is pushed when it carries an effect - the same
 // push-if-observable rule the sequence prefix uses, including source reads in its preservation mode
-function collectContainerMemberSideEffect(node, { out, rescue, ctx, preserveSourceReads }) {
+function collectContainerMemberSideEffect(node, options) {
+  const { out, ctx, preserveSourceReads } = options;
   if (node?.type === 'ObjectExpression' || node?.type === 'ArrayExpression') {
-    collectFoldedReceiverSideEffects(node, { out, rescue, ctx, preserveSourceReads });
+    collectFoldedReceiverSideEffects(node, options);
   } else if (preserveSourceReads ? node && !performsNothing(node, ctx) : mayHaveSideEffects(node, ctx)) out.push(node);
 }
 
@@ -13122,8 +13123,9 @@ function collectContainerMemberSideEffect(node, { out, rescue, ctx, preserveSour
 // leaves the key in place and needs no such replay.
 export function collectFoldedReceiverSideEffects(node, {
   out = [], rescue = null, chainAssignAt = null, ctx = null, preserveSourceReads = false,
+  observePrefix = preserveSourceReads ? (operand, frame) => !performsNothing(operand, frame) : mayHaveSideEffects,
 } = {}) {
-  const nested = { out, rescue, ctx, preserveSourceReads };
+  const nested = { out, rescue, ctx, preserveSourceReads, observePrefix };
   let cur = node;
   while (cur && SKIPPABLE_WRAPPER_TYPES.has(cur.type)) cur = cur.expression;
   // a value-position chain-root receiver CALL is intentionally NOT pushed by the structural walk
@@ -13139,7 +13141,7 @@ export function collectFoldedReceiverSideEffects(node, {
   switch (cur?.type) {
     case 'SequenceExpression':
       for (const e of cur.expressions.slice(0, -1)) {
-        if ((preserveSourceReads ? !performsNothing(e, ctx) : mayHaveSideEffects(e, ctx)) || rescue?.has(e)) out.push(e);
+        if (observePrefix(e, ctx) || rescue?.has(e)) out.push(e);
       }
       collectFoldedReceiverSideEffects(cur.expressions.at(-1), { ...nested, chainAssignAt });
       break;

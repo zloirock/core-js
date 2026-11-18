@@ -71,7 +71,6 @@ import {
   memberKeyName,
   nodeSpan,
   noteRenderRetiredWrites,
-  observableSequenceElements,
   paramsHaveInvisibleCallers,
   patternBindingCount,
   patternHasSeveralSeKeys,
@@ -292,7 +291,7 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
 // no statement behind.
 // cloning preserves sibling visitors' path references through AST sub-tree relocation
 function buildSEPrefixStatements(t, prefix, ctx = null) {
-  return observableSequenceElements(prefix, ctx)
+  return observablePrefixElements(prefix, ctx)
     .map(expression => t.expressionStatement(t.cloneNode(expression)));
 }
 

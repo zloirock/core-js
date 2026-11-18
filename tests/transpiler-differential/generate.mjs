@@ -26011,6 +26011,22 @@ function * generateCallReceiverPrefixes() {
   };
 }
 
+function * generateFoldedSequencePrefixes() {
+  for (const [name, body] of [
+    ['read', 'return (effects.push("first"), (missingPrefix, globalThis.globalThis)).Math.PI;'],
+    ['optional', 'return (0, (missingPrefix, globalThis.globalThis))?.[(effects.push("key"), "Math")].PI;'],
+    ['flat-pattern', 'const { Map: M } = (effects.push("first"), missingPrefix, globalThis); return typeof M;'],
+    ['nested-pattern', 'const { globalThis: { Array: A } } = (later, globalThis); let later; return typeof A;'],
+    ['partial-pattern', 'const { Map: M, user } = (missingPrefix, globalThis); return [typeof M, user];'],
+    ['assignment', 'let M; ({ Map: M } = (missingPrefix, effects.push("late"), globalThis)); return typeof M;'],
+    ['initialized', 'const ready = 1; return (ready, (0, globalThis.globalThis))?.Math.PI;'],
+  ]) yield {
+    name: `folded-sequence-prefix/${ name }`, strip: true,
+    code: `export const effects = []; function read() { ${ body } }
+      export let r; try { r = read(); } catch (error) { r = error.name; }`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27836,4 +27852,5 @@ export function * generate() {
   yield * generateCommentedPatternKeys();
   yield * generateStaticFallbackPrefixes();
   yield * generateCallReceiverPrefixes();
+  yield * generateFoldedSequencePrefixes();
 }

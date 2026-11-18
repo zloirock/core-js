@@ -3,8 +3,9 @@
 import {
   isPureNavReceiver, keptWriteRidesValue, navHopChain, runSwallowsStoreProbe,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
+import { renderSubstitutedSequenceReceiver } from '../../packages/core-js-polyfill-provider/render.js';
 import { planKeptSequenceReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { pathOfNode, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { pathOfNode, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -163,6 +164,31 @@ for (const [expression, landing, prefix = ''] of [
     tail.object = { type: 'ParenthesizedExpression', expression: object };
     check(`${ label }/wrapped tail keeps its own route`, planKeptSequenceReceiver(path, ctx), null);
     tail.object = object;
+  }
+});
+
+for (const [source, prefix] of [
+  ['(0, (missing, base)).x', ['missing']],
+  ['(first(), (0, base))?.x', ['CallExpression']],
+  ['(ready, (0, base)).x', []],
+  ['(ready.x, (0, base))?.x', ['MemberExpression']],
+  ['(+ready, (0, base)).x', ['UnaryExpression']],
+  ['(0, base)()', null],
+  ['(0, base)?.()', null],
+  ['(0, base)`tag`', null],
+  ['delete (0, base)', null],
+  ['typeof (0, base)', null],
+]) runBoth(`substituted sequence/${ source }`, `var ready; ${ source };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'Identifier', item => item.node.name === 'base');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const value = { type: 'Identifier', name: 'replacement' };
+  const result = renderSubstitutedSequenceReceiver(path, value, { path, scope: path.scope, adapter });
+  if (prefix === null) {
+    check(`${ label }/original reference boundary`, result.target === path && result.value === value, true);
+  } else {
+    const parts = peelNestedSequenceExpressions(result.value);
+    checkDeep(`${ label }/ordered effects`, parts.prefix.map(node => node.name ?? node.type), prefix);
+    check(`${ label }/replacement`, parts.tail === value, true);
   }
 });
 

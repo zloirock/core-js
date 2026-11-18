@@ -39,7 +39,6 @@ import {
   isPristineProxyGlobal,
   isValidIdentifierName,
   mayHaveSideEffects,
-  observableSequenceElements,
   patternBindingCount,
   patternBindsOnlyGeneratedNames,
   patternFullyConsumed,
@@ -271,7 +270,7 @@ export function carryForInitPrefixIntoFirst(extracted, carried) {
 export function liftSurvivingInitPrefix(declarator, declJobs, ctx = null, key = 'init') {
   if (!declJobs.length) return [];
   // per element, the grouping the other leg's declarator lift prints for the same shape
-  return observableSequenceElements(takeSourceSequencePrefix(declarator, key, ctx), ctx).map(expr => expressionStatement(expr));
+  return observablePrefixElements(takeSourceSequencePrefix(declarator, key, ctx), ctx).map(expr => expressionStatement(expr));
 }
 
 // A bodyless assignment has no statement list to splice into. Apply the common read order,

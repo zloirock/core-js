@@ -81,6 +81,7 @@ import {
   renderDestructureAssignments,
   renderNavCollapseValue,
   renderOuterCollapseValue,
+  renderSubstitutedSequenceReceiver,
   renderNavGuardTest,
   renderResolvedStaticClaim,
 } from '@core-js/polyfill-provider/render';
@@ -113,7 +114,6 @@ import {
   sequenceTailRunAbove,
   sourceSpanKey,
   keptWriteReader,
-  swallowDeadSeqWrapper,
 } from './nav-spine.js';
 
 // the value a chain of CARRIERS hands on, effects and all: the fold leaves a kept write and a
@@ -1137,20 +1137,23 @@ export default function createProxySpineChannel(ctx) {
         consumer.optional = plan.optional && optionalHeirAbove(consumer, unwrapRuntimeExpr(carried.node)) !== null;
       }
     }
+    const sequence = plan.swallowDeadSequence && renderSubstitutedSequenceReceiver(target, replacement,
+      { scope: target.scope, adapter, path: target });
     const replaceAt = plan.kind === 'store' || plan.kind === 'write-in-place' ? target
-      : landingOverSubstitutedSpan(plan.swallowDeadSequence ? swallowDeadSeqWrapper(target, adapter) : target);
-    replaceAt.replaceWith(replacement);
+      : landingOverSubstitutedSpan(sequence?.target ?? target);
+    const installed = sequence?.value ?? replacement;
+    replaceAt.replaceWith(installed);
     markSubtreeSkipped(skippedNodes, consumed);
     skippedNodes.add(replaceAt.node);
-    if ((plan.kind === 'write' && !plan.readsOffWrite) || plan.deadOptional) {
+    if ((plan.kind === 'write' && !plan.readsOffWrite) || plan.deadOptional && !sequence?.keptGuard) {
       deoptionalizeOverSubstituted({ metaPath: plan.kind === 'write' ? target : replaceAt,
-        node: consumed, replacement, proxyRoot: true });
+        node: consumed, replacement: sequence ? unwrapRuntimeExpr(installed) : replacement, proxyRoot: true });
     }
     // Once the plan proves the replacement defined, its unbacked continuation
     // takes the ordinary fold too. Removing only the optional marker leaves a
     // raw window read above the ponyfill in non-window realms.
-    if (plan.kind === 'value' && plan.deadOptional && !plan.tail.length) {
-      foldUnbackedRealmHopsAbove(replaceAt, replacement, { adapter, resolvePure: m => resolvePure(m, metaPath) });
+    if (plan.kind === 'value' && plan.deadOptional && !sequence?.keptGuard && !plan.tail.length) {
+      foldUnbackedRealmHopsAbove(replaceAt, installed, { adapter, resolvePure: m => resolvePure(m, metaPath) });
     }
     if (plan.kind === 'value' && plan.valuePosition) {
       foldRealmHopOverCarriedValue(replaceAt, { adapter, resolvePure: m => resolvePure(m, metaPath) });

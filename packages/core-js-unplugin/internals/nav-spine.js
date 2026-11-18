@@ -308,20 +308,6 @@ export function navRootIsProxyIdentifier(node, metaPath, adapter, { requireBareN
   return aliased && POSSIBLE_GLOBAL_OBJECTS.has(aliased) ? aliased : false;
 }
 
-// a rebuild from the root swallows a DEAD sequence wrapper above it - the wrapper carried
-// nothing but the spelling that just folded (`(0, globalThis.window).Promise = f` ->
-// `_globalThis.Promise = f`); an effectful prefix keeps its wrapper, and so does an alias
-// base, which keeps the source spelling whole - a prefix READ an accessor answers is no dead comma either
-export function swallowDeadSeqWrapper(targetPath, adapter = null) {
-  let at = targetPath;
-  for (;;) {
-    const up = at.parentPath?.node;
-    if (up?.type !== 'SequenceExpression' || up.expressions.at(-1) !== at.node
-      || up.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr, { scope: at.scope, adapter, path: at }))) return at;
-    at = at.parentPath;
-  }
-}
-
 // does anything READ THROUGH this member - a further hop off it, a call of it? a member nothing
 // reads through is the end of the navigation, whatever the operator above does with it
 function memberIsReadThrough(memberPath) {

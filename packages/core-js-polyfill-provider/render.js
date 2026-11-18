@@ -16,10 +16,13 @@ import {
   peelNestedSequenceExpressions,
   propertyKeyName,
   receiverSpineChild,
+  sequenceTailRunAbove,
+  nestedSequenceValueSpelling,
   subtreeContainsNode,
   noteRenderRetiredWrites,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
+import { observablePrefixElements, observablePrefixOperand } from './detect-usage/resolve.js';
 import { symbolStaticMeta } from './detect-usage/globals.js';
 import { polyfillOrderComparator, sortByPolyfillOrder } from './plugin-options/inject.js';
 
@@ -1280,11 +1283,32 @@ export function renderDestructureDispatch(callee, receiver, product = null) {
   return call;
 }
 
+// Only a member's object consumes the comma result as a receiver value. A callee,
+// tag, delete or typeof operand can still need the comma to discard the Reference.
+export function renderSubstitutedSequenceReceiver(path, value, ctx, inheritComments = null) {
+  const run = sequenceTailRunAbove(path);
+  if (!run?.prefixes.length) return { target: path, value };
+  for (let at = path; at !== run.top; at = at.parentPath) {
+    const holder = at.parentPath.node;
+    if (holder.type === 'SequenceExpression') {
+      const kept = [value];
+      for (let i = holder.expressions.length - 2; i >= 0; i--) {
+        const operand = holder.expressions[i];
+        if (observablePrefixOperand(operand, ctx)) kept.push(operand);
+        else inheritComments?.(kept.at(-1), operand);
+      }
+      if (kept.length > 1) value = { ...holder, expressions: kept.toReversed() };
+      else inheritComments?.(value, holder);
+    } else value = { ...holder, expression: value };
+  }
+  return { target: run.top, value, keptGuard: run.member.optional && nestedSequenceValueSpelling(run.member.object) };
+}
+
 // One lifted initializer expression keeps only observable work, or no expression at all.
 // Without scope, the conservative trim can retain a quiet final value; drop that value
 // before embedding. Native source nodes are embedded only after the effect decision.
 export function renderLiftedPrefix(prefix, ctx = null, embed = null) {
-  const kept = ctx ? observableSequenceElements(prefix, ctx) : dropDeadSequenceElements(prefix);
+  const kept = ctx ? observablePrefixElements(prefix, ctx) : dropDeadSequenceElements(prefix);
   if (!kept.length) return null;
   const lifted = sequenceExpression(kept);
   if (!ctx && !mayHaveSideEffects(lifted)) return null;

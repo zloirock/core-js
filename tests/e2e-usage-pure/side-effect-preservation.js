@@ -891,3 +891,14 @@ QUnit.test('side effect: a getter read in a lifted prefix runs once on every hos
   assert.same(typeof fromSlot, 'function');
   assert.same(typeof fromAssigned, 'function');
 });
+
+QUnit.test('a discarded sequence prefix still reads an unbound name before the receiver', assert => {
+  /* global missingReceiverName -- Intentionally unbound. */
+  const effects = [];
+  assert.throws(() => (effects.push('before'), (missingReceiverName, globalThis.self))?.[(effects.push('key'), 'Math')], ReferenceError);
+  assert.throws(() => {
+    const { Map: M, other } = (missingReceiverName, globalThis);
+    effects.push(M, other);
+  }, ReferenceError);
+  assert.deepEqual(effects, ['before']);
+});
