@@ -2,6 +2,7 @@ import './container-http.mjs';
 import './container-image.mjs';
 import './container-lifecycle.mjs';
 import './container-manifest.mjs';
+import './container-releases.mjs';
 import './container-settings.mjs';
 import './target.mjs';
 import './user-agents.mjs';

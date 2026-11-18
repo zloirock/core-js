@@ -242,6 +242,33 @@ try {
   deepStrictEqual(restartedPinned.body, pinned.body, 'container-releases-3 #11');
   deepStrictEqual(await stop(restarted), { code: 0, signal: null }, 'container-releases-3 #5');
 
+  const recoveryDirectory = join(directory, 'recovery');
+  await mkdir(recoveryDirectory);
+  const recoveryLink = join(recoveryDirectory, 'retry.json');
+  const recoveryTarget = join(recoveryDirectory, 'retry.target');
+  await writeFile(recoveryTarget, '{"modules":["es.array.at"]}');
+  await symlink('retry.target', recoveryLink);
+  for (const versionedMode of [true, false]) {
+    const recoveryPort = await freePort();
+    const recovery = launch(versionedMode ? undefined : recoveryLink, recoveryPort, {
+      CORE_JS_RELEASES_DIR: versionedMode ? recoveryDirectory : undefined,
+      CONTAINER_DISAPPEARING_MANIFEST: recoveryLink,
+    }, { script: fixtureEntry, ipc: true });
+    const statusPath = versionedMode ? '/status/retry' : '/status';
+    const fault = await until(recoveryPort, response => response.status === 200 && JSON.parse(response.body).state === 'error',
+      'manifest read failure', recovery.exit, statusPath);
+    strictEqual(JSON.parse(fault.body).errorCode, versionedMode ? 'manifest_unavailable' : 'manifest_invalid',
+      'container-releases-2 #29: filesystem read error in the selected mode');
+    await rename(`${ recoveryTarget }.hidden`, recoveryTarget);
+    if (versionedMode) {
+      const recovered = await until(recoveryPort, isReady, 'manifest read recovery', recovery.exit, statusPath);
+      strictEqual(JSON.parse(recovered.body).errorCode, undefined,
+        'container-releases-2 #30: the versioned container prepares the same release after recovery');
+    }
+    recovery.child.disconnect();
+    deepStrictEqual(await stop(recovery), { code: 0, signal: null }, 'container-process-2 #16');
+  }
+
   const linkPath = join(directory, 'container-entry.js');
   await symlink(fileURLToPath(entry), linkPath);
   const linkedPort = await freePort();

@@ -1,4 +1,22 @@
+import fs from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
+import { mock } from 'node:test';
 import { startContainer } from '../../packages/core-js-service-container/index.js';
+
+const disappearingManifest = process.env.CONTAINER_DISAPPEARING_MANIFEST;
+if (disappearingManifest) {
+  const { readFile } = fs;
+  const fault = mock.method(fs, 'readFile', async (path, ...options) => {
+    if (path === disappearingManifest) {
+      fault.mock.restore();
+      syncBuiltinESMExports();
+      const target = await fs.realpath(path);
+      await fs.rename(target, `${ target }.hidden`);
+    }
+    return readFile(path, ...options);
+  });
+  syncBuiltinESMExports();
+}
 
 process.on('SIGINT', () => process.send('shutdown received'));
 await startContainer({

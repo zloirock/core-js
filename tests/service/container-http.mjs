@@ -37,21 +37,24 @@ async function listen(lifecycle) {
 const status = { state: 'started', baselineReady: false, fullyWarmed: false };
 const requests = [];
 const logs = [];
+function serveFixtureScript(rawRequest, rawResponse) {
+  requests.push(rawRequest);
+  rawResponse.setHeader('content-type', 'text/javascript; charset=utf-8');
+  rawResponse.setHeader('cache-control', 'private, no-cache');
+  rawResponse.setHeader('vary', 'user-agent, accept-encoding');
+  rawResponse.setHeader('etag', '"fixture-gzip"');
+  rawResponse.setHeader('content-encoding', 'gzip');
+  if (rawRequest.headers['if-none-match'] === '"fixture-gzip"') {
+    rawResponse.statusCode = 304;
+    rawResponse.end();
+  } else {
+    rawResponse.end(Buffer.from([0x1F, 0x8B, 0x08]));
+  }
+}
 const lifecycle = {
   status: () => ({ ...status }),
-  async serveScript(rawRequest, rawResponse) {
-    requests.push(rawRequest);
-    rawResponse.setHeader('content-type', 'text/javascript; charset=utf-8');
-    rawResponse.setHeader('cache-control', 'private, no-cache');
-    rawResponse.setHeader('vary', 'user-agent, accept-encoding');
-    rawResponse.setHeader('etag', '"fixture-gzip"');
-    rawResponse.setHeader('content-encoding', 'gzip');
-    if (rawRequest.headers['if-none-match'] === '"fixture-gzip"') {
-      rawResponse.statusCode = 304;
-      rawResponse.end();
-    } else {
-      rawResponse.end(Buffer.from([0x1F, 0x8B, 0x08]));
-    }
+  get serveScript() {
+    return status.baselineReady ? serveFixtureScript : undefined;
   },
 };
 const server = await listen(lifecycle);
@@ -95,20 +98,37 @@ try {
   await server.app.close();
 }
 
-const release = {
-  status: () => ({ state: 'ready', baselineReady: true, fullyWarmed: true }),
-  serveScript(rawRequest, response) { response.end('release'); },
-};
+const releaseBuildStarted = Promise.withResolvers();
+const releaseBaseline = Promise.withResolvers();
+const release = createLifecycle({
+  load: () => [],
+  createService: () => ({
+    start() {
+      releaseBuildStarted.resolve();
+      return { ready: releaseBaseline.promise, warmed: Promise.resolve({ failed: [] }) };
+    },
+    serveScript(rawRequest, response) { response.end('release'); },
+  }),
+  log() { /* no build failures expected */ },
+});
 const versioned = createServer({
   fastify: fastify({ logger: false }),
   releases: { status: () => ({ state: 'ready' }), get: id => id === 'release-1' ? release : undefined },
 });
+const releasePreparation = release.start();
 try {
+  await releaseBuildStarted.promise;
+  const pending = await versioned.inject({ url: '/polyfills/release-1.js' });
+  strictEqual(pending.statusCode, 503, 'container-http-1 #15: release building its baseline');
+  strictEqual(pending.headers['cache-control'], 'no-store', 'container-http-1 #16');
+  releaseBaseline.resolve();
+  await releasePreparation;
   for (const path of ['/status', '/status/release-1', '/polyfills/release-1.js']) {
     strictEqual((await versioned.inject({ url: path })).statusCode, 200, `container-http-2 #36: GET ${ path }`);
     strictEqual((await versioned.inject({ url: path, method: 'HEAD' })).statusCode, 404, `container-http-2 #37: HEAD ${ path }`);
   }
 } finally {
+  releaseBaseline.resolve();
   await versioned.close();
 }
 

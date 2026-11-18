@@ -20,10 +20,12 @@ export async function startContainer({ createService: serviceFactory = createSer
   const { manifestPath, releases, cacheDirectory, host, port } = settingsFrom(process.env);
   const app = fastify({ logger: false });
   function lifecycleFor(path, release) {
-    const directory = cacheDirectory && release ? join(cacheDirectory, 'releases', release) : cacheDirectory;
-    const log = release ? (code, detail) => logIncident(code, `[${ release }] ${ detail }`) : logIncident;
+    const versioned = release !== undefined;
+    const directory = cacheDirectory && versioned ? join(cacheDirectory, 'releases', release) : cacheDirectory;
+    const log = versioned ? (code, detail) => logIncident(code, `[${ release }] ${ detail }`) : logIncident;
     return createLifecycle({
       load: () => loadManifest(path),
+      retryManifestRead: versioned,
       createService: scope => serviceFactory({ scope, directory, delivery: 'fixed', route: '/',
         ignoreBrowserslistConfig: true, warn: warning => log('warning', warning) }),
       log,

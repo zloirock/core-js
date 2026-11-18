@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 
+const POSITIVE_DECIMAL = /^[1-9]\d*$/;
+
 export function settingsFrom(env) {
   const manifestPath = env.CORE_JS_MANIFEST_PATH;
   const releasesDir = env.CORE_JS_RELEASES_DIR;
@@ -15,7 +17,7 @@ export function settingsFrom(env) {
       throw new TypeError('CORE_JS_RELEASES_DIR must be a nonempty string and used without CORE_JS_MANIFEST_PATH');
     }
     if (retention !== undefined && (typeof retention !== 'string' ||
-      !/^[1-9]\d*$/.test(retention) || !Number.isSafeInteger(Number(retention)))) {
+      !POSITIVE_DECIMAL.test(retention) || !Number.isSafeInteger(Number(retention)))) {
       throw new TypeError('CORE_JS_RELEASE_RETENTION_SECONDS must be a positive decimal integer');
     }
     releases = { directory: releasesDir, retentionSeconds: retention === undefined ? 7 * 24 * 60 * 60 : Number(retention) };
@@ -27,7 +29,7 @@ export function settingsFrom(env) {
   if (typeof host !== 'string' || !host) {
     throw new TypeError('HOST must be a nonempty string');
   }
-  if (typeof portValue !== 'string' || !/^[1-9]\d*$/.test(portValue) || Number(portValue) > 65535) {
+  if (typeof portValue !== 'string' || !POSITIVE_DECIMAL.test(portValue) || Number(portValue) > 65535) {
     throw new TypeError('PORT must be a decimal integer from 1 to 65535');
   }
 

@@ -78,11 +78,22 @@ does: a summary of the code is already in the code.
   before opening a listener so a release is never silently served by the wrong deployment mode
 - **container-releases-2** - each release derives its scope from its own manifest. Directory scans
   discover deployments and isolate bad manifests from other releases. Missing or expired URLs
-  return an uncacheable 404 so a later registration can become available to the same client
+  return an uncacheable 404 so a later registration can become available to the same client.
+  Directories cannot publish or retire releases. A failed directory read preserves all registered
+  releases. A failed metadata read preserves the affected release's known files while other
+  releases are reconciled. Pending warm-up waits for a scan that can read the release's files.
+  A filesystem error during the first manifest read can recover on a later scan. Invalid
+  manifest contents and build failures remain terminal for that registered lifecycle.
+  A previously valid link can temporarily lose its target, so a missing target is insufficient
+  evidence to withdraw the release or forget its retirement. A readable retirement marker still
+  sets a deadline, and a manifest missing from the directory withdraws its release. Scanning
+  resumes even if reporting the error fails
 - **container-releases-3** - a release remains available indefinitely while its manifest is
   present without a retirement marker, since some clients may stay on it. Only explicit
-  retirement sets an expiry deadline at the recorded time plus retention. Falling back to
-  another release could omit a module the requested release needs
+  retirement sets an expiry deadline at the recorded time plus retention. If a listed marker's
+  target is unavailable, the release is withheld from its deadline until a scan confirms its
+  retirement or invalidates the marker. Falling back to another release could omit a module
+  the requested release needs
 - **container-releases-4** - each release uses the same browser selection, representation and
   revalidation contract as the fixed URL. A validator for different bytes must get a fresh body,
   even when a release replaces one module with another

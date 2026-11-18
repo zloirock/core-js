@@ -165,11 +165,19 @@ and retention setting across replicas.
 
 ### Check release status
 
-`GET /status` reports whether the releases directory is readable. Per-release status has the
-same fields as in single-manifest mode. Unknown or expired releases return `404` for both
-status and script requests. A known release whose baseline is still building returns `503` for
-the script. A failed release reports its own error code and leaves other releases available.
-Use a fresh release ID to stage a corrected manifest.
+`GET /status` reports the result of scanning the releases directory. If a scan fails, it
+reports `state: "error"` and `errorCode: "releases_unavailable"`. A release with a ready baseline
+can still serve its bundle when its manifest becomes unreadable. Pending warm-up waits for
+the affected files to become readable. A filesystem error while reading a manifest during
+preparation sets `errorCode: "manifest_unavailable"` in the release status. The container
+retries the read on a later scan.
+Once a listed marker reaches its deadline, the release stays unavailable while the container
+checks a missing marker target. A readable retirement marker confirms expiry.
+The container continues discovering other releases. Per-release status has the same fields
+as in single-manifest mode. Unknown or expired releases return `404` for both status and
+script requests. A known release whose baseline is still building returns `503` for the script.
+A failed release reports its own error code and leaves other releases available. Use a fresh
+release ID to stage a corrected manifest.
 
 Before switching traffic to a replacement versioned container, check its `GET /status/<release>`
 for every release whose URL still needs to work, including releases in their retention period.

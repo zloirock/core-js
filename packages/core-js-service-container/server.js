@@ -1,25 +1,19 @@
+import report from './report.js';
+
 const GET_ONLY = { exposeHeadRoute: false };
 
 export default function createServer({ lifecycle, releases, fastify, log = error => fastify.log.error(error) }) {
   async function serve(script, request, reply) {
     const response = reply.raw;
     if (!script) return reply.header('cache-control', 'no-store').code(404).send();
-    if (!script.status().baselineReady) {
-      reply.header('cache-control', 'no-store');
-      return reply.code(503).send();
-    }
+    const { serveScript } = script;
+    if (!serveScript) return reply.header('cache-control', 'no-store').code(503).send();
 
     reply.hijack();
     try {
-      await script.serveScript(request.raw, response);
+      await serveScript(request.raw, response);
     } catch (error) {
-      try {
-        log(error);
-      } catch (loggingError) {
-        try {
-          process.stderr.write(`service container request failed: ${ error }; logging failed: ${ loggingError }\n`);
-        } catch { /* The response still needs to be finished when both logging channels fail. */ }
-      }
+      report(() => log(error), 'service container request failed', error);
       if (response.headersSent) {
         response.destroy(error);
       } else {
