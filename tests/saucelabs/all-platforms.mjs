@@ -4,16 +4,29 @@ import manualPlatforms, { android, desktop, hostPool, ios } from './platforms.mj
 const browsers = new Set(['chrome', 'firefox', 'safari', 'MicrosoftEdge', 'internet explorer', 'iphone', 'ipad', 'android']);
 const mobile = new Set(['iphone', 'ipad', 'android']);
 const manualDevices = new Set(manualPlatforms.map(({ capabilities }) => capabilities['appium:deviceName']).filter(Boolean));
+// versions with the engine of a selected neighbour, which the catalog does not list:
+// the Android emulators share six versions of Chrome, iOS 14.3 and 14.4 have Safari 14.0.x of iOS 14.0,
+// iOS 14.5 has Safari 14.1 of the desktop Safari 14, the desktop Safari 27 is Safari 27.0 of iOS 27.0
+const repeated = {
+  android: new Set(['5.1', '7.0', '8.0', '8.1', '10.0', '11.0', '12.0', '14.0', '15.0', '16.0']),
+  iphone: new Set(['14.3', '14.4', '14.5']),
+  safari: new Set(['27']),
+};
 
 function platformName(os) {
   return os === 'Mac 11' ? 'macOS 11.00' : os.startsWith('Mac ') ? `macOS ${ os.slice(4) }` : os;
 }
 
-function rank({ api_name: browser, short_version: version, os, device, long_name: deviceName }) {
+function manualPlatform({ api_name: browser, short_version: version, device }) {
   const browserName = browser === 'android' ? 'Chrome' : browser === 'iphone' || browser === 'ipad' ? 'Safari' : browser;
-  const manual = manualPlatforms.find(({ capabilities }) => capabilities.browserName === browserName &&
+  return manualPlatforms.find(({ capabilities }) => capabilities.browserName === browserName &&
     (capabilities.browserVersion || capabilities.version || capabilities['appium:platformVersion']) === version &&
     Boolean(capabilities['appium:deviceName']) === Boolean(device));
+}
+
+function rank(entry) {
+  const { api_name: browser, short_version: version, os, device, long_name: deviceName } = entry;
+  const manual = manualPlatform(entry);
   if (device) return JSON.stringify([deviceName ? 0 : 1,
     browser === 'iphone' ? 0 : browser === 'ipad' ? 1 : 0,
     deviceName === manual?.capabilities['appium:deviceName'] ? 0 : 1, manualDevices.has(deviceName) ? 0 : 1,
@@ -40,7 +53,11 @@ export function fromCatalog(catalog) {
     const { api_name: browser, short_version: version, automation_backend: backend, os, device } = entry;
     if (!browsers.has(browser) || backend !== (mobile.has(browser) ? 'appium' : 'webdriver')) continue;
     if (!version || !os || mobile.has(browser) && !device) continue;
-    const key = `${ browser === 'ipad' ? 'iphone' : browser }/${ version }`;
+    const family = browser === 'ipad' ? 'iphone' : browser;
+    // the manual matrix is a part of the full one; besides it, Edge of the catalog is Chromium and repeats Chrome,
+    // and the units are not kept passing in Firefox before 7
+    if (!manualPlatform(entry) && (browser === 'MicrosoftEdge' || browser === 'firefox' && +version < 7 || repeated[family]?.has(version))) continue;
+    const key = `${ family }/${ version }`;
     const previous = selected.get(key);
     if (!previous || rank(entry) < rank(previous)) selected.set(key, entry);
   }

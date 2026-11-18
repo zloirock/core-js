@@ -58,6 +58,40 @@ function entry(browser, version, os, device, backend = 'webdriver') {
 
 {
   const platforms = fromCatalog([
+    entry('MicrosoftEdge', '86', 'Windows 10'),
+    entry('MicrosoftEdge', '93', 'Windows 10'),
+    entry('firefox', '6', 'Windows 10'),
+    entry('firefox', '7', 'Windows 10'),
+    entry('firefox', 'dev', 'Windows 10'),
+  ]);
+  deepEqual(
+    platforms.map(({ name }) => name),
+    ['firefox 7 (Windows 10)', 'firefox dev (Windows 10)', 'MicrosoftEdge 86 (Windows 10)'],
+    'skips Firefox before 7 and the Edge versions that the manual matrix does not have',
+  );
+}
+
+{
+  const emulator = version => ({ ...entry('android', version, 'Linux', 'Medium Phone', 'appium'), long_name: 'Google Medium Phone Emulator' });
+  const simulator = (browser, version) => ({ ...entry(browser, version, 'Mac 11', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' });
+  const platforms = fromCatalog([
+    emulator('8.1'),
+    emulator('9.0'),
+    simulator('iphone', '14.0'),
+    simulator('iphone', '14.4'),
+    simulator('ipad', '14.5'),
+    entry('safari', '26', 'Mac 26'),
+    entry('safari', '27', 'Mac 26'),
+  ]);
+  deepEqual(
+    platforms.map(({ name }) => name),
+    ['android 9.0 (Medium Phone)', 'iphone 14.0 (iPhone Simulator)', 'safari 26 (Mac 26)'],
+    'skips the versions that repeat the engine of a selected neighbour',
+  );
+}
+
+{
+  const platforms = fromCatalog([
     { ...entry('ipad', '14.0', 'Mac 11', 'iPad Simulator', 'appium'), long_name: 'iPad Simulator' },
   ]);
   equal(platforms[0].capabilities.browserName, 'Safari', 'supports iPad when the catalog has no iPhone for that iOS version #1');

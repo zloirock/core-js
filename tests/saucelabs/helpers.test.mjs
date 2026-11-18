@@ -11,6 +11,7 @@ async function runFake({
   pageUrl, commits, pages = ['unit-browser/global.html'], unwritableSessions = false, noReporter = false,
   limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
   polling = { pollInterval: 0 },
+  latePage = false,
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -100,7 +101,8 @@ async function runFake({
         payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
       } else {
         const { script } = JSON.parse(options.body);
-        if (navigated !== undefined && script.startsWith('var results = ')) {
+        const firstPoll = navigated !== undefined && script.startsWith('var results = ');
+        if (firstPoll) {
           pollDelays.push(performance.now() - navigated);
           navigated = undefined;
         }
@@ -119,9 +121,13 @@ async function runFake({
             const now = start + sessions * 16 * 6e4;
             Date.now = () => now;
           }
+          if (wrongPage) {
+            const now = Date.now() + 2 * 6e4;
+            Date.now = () => now;
+          }
           payload = { value: JSON.stringify({
-            // a busy browser stays on its first page
-            url: pageUrl || (wrongPage ? 'http://example.test/branch/unit-browser/other.html'
+            // a busy browser stays on its first page, a slow one shows another page at the first poll
+            url: pageUrl || (wrongPage || latePage && firstPoll ? 'http://example.test/branch/unit-browser/other.html'
               : navigations[sessions <= hangs ? sessionStart : navigations.length - 1]),
             commits,
             results: sessions <= hangs
@@ -222,6 +228,13 @@ async function runFake({
   const { output, sessions } = await runFake({ wrongPage: true });
   equal(sessions, 3, 'rejects results from a different page #1');
   match(output, /unexpected page.*other\.html/, 'rejects results from a different page #2');
+}
+
+{
+  const { output, sessions } = await runFake({ latePage: true, pages: ['unit-browser/global.html', 'unit-browser/pure.html'] });
+  equal(sessions, 1, 'waits for a page that the browser opens late #1');
+  doesNotMatch(output, /retrying|unexpected page/, 'waits for a page that the browser opens late #2');
+  match(output, /all the browsers passed/, 'waits for a page that the browser opens late #3');
 }
 
 {

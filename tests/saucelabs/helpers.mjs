@@ -89,7 +89,9 @@ async function runPage({ reporter, evaluate, pollInterval = POLL_INTERVAL }, ses
     const foreign = COMMIT && [...new Set(commits)].filter(commit => commit !== COMMIT);
     // GitHub Pages upgrades HTTP to HTTPS where the browser supports its TLS
     if ((results || foreign?.length) && url !== expected && !(expected.startsWith('http:') && url === expected.replace(/^http:/, 'https:'))) {
-      throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
+      // a slow simulator shows the previous page for a while after the navigation command
+      if (elapsed > REPORTER_TIMEOUT) throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
+      continue;
     }
     if (foreign?.length) {
       controller.abort(new Error(`${ page }: bundles of ${ foreign.join(', ') } instead of ${ COMMIT }`));
