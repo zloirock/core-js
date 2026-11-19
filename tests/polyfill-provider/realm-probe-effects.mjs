@@ -11,7 +11,8 @@ import {
   resolveKey,
   terminalNavCollapsePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { collectFileCensus, markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -138,5 +139,47 @@ for (const [source, expected] of [
   (parser, program, label) => {
     const path = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'Promise');
     check(label, effectfulClaimReadProbe(path.node, null, resolvePure, context(parser, path))?.kind, expected);
+  });
+for (const [key, retains] of [
+  ['(effect(), "self")', true], ['(effect(), key)', true], ['"self"', false],
+  ['(effect(), "other")', false], ['effect()', false],
+]) runBoth(`native receiver/${ key }`, `const key = "self";
+  const tracked = globalThis.self, other = globalThis.self; tracked?.[${ key }];`, (parser, program, label) => {
+  function init(name) {
+    return parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === name).node.init;
+  }
+  for (const preserveRealmReads of [true, false]) {
+    const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({ preserveRealmReads })]);
+    check(`${ label }/${ preserveRealmReads }/source`, !!nativeRealmReads?.(init('tracked')), preserveRealmReads && retains);
+    check(`${ label }/${ preserveRealmReads }/independent`, !!nativeRealmReads?.(init('other')), false);
+  }
+});
+for (const [test, retains] of [
+  ['(void s, flag)', false], ['inspect(s)', false], ['typeof s', false],
+  ['s && false', false], ['(inspect(), true) || s', false], ['flag && s', true],
+  ['(inspect(), !s)', true], ['null === s', true], ['typeof s === "undefined"', true],
+]) runBoth(`tested receiver/${ test }`, `function f(flag) {
+  const s = globalThis.self; if (${ test }) return; return s[(effect(), "self")]; }`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator');
+  const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({ preserveRealmReads: true })]);
+  check(label, !!nativeRealmReads?.(path.node.init), retains);
+});
+for (const [base, retains] of [['globalThis', true], ['globalThis.window', false]]) {
+  runBoth(`optional self above ${ base }`, `const s = ${ base }?.self; s?.[(effect(), "self")];`, (parser, program, label) => {
+    const path = parser.pickPath(program, 'VariableDeclarator');
+    const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({ preserveRealmReads: true })]);
+    check(label, !!nativeRealmReads?.(unwrapRuntimeExpr(path.node.init)), retains);
+  });
+}
+runBoth('guard on a reused program', 'function read() { const s = globalThis.self; if (s) { s[(effect(), "self")]; } }',
+  (parser, program, label) => {
+    const { body } = program.node.body[0].body;
+    const arm = body[1].consequent.body;
+    for (const stage of ['original', 'cloned', 'moved']) {
+      if (stage === 'cloned') arm[0] = structuredClone(arm[0]);
+      else if (stage === 'moved') body.push(arm.pop());
+      const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({ preserveRealmReads: true })]);
+      check(`${ label }/${ stage }`, !!nativeRealmReads?.(body[0].declarations[0].init), stage !== 'moved');
+    }
   });
 finish();

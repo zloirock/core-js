@@ -15,6 +15,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import {
   deleteGuardKeepingHop,
+  effectfulRealmHop,
   navValueCanShortCircuit,
   navHasUnresolvableProxyHop,
   peelReceiverSequenceTail,
@@ -454,15 +455,15 @@ export function probeHopInValue(plan, probeHop) {
     && probeHop.node.start >= plan.rootAssign.start && probeHop.node.end <= plan.rootAssign.end;
 }
 
-// A retained probe owns its optional unless the consumer invokes its value or
-// deletes directly on a backed surface. A read through that surface still consumes
-// the stored value, even when a later slot is deleted: the ordinary outer-consumer
+// An invocation or an effectful realm key reads the backed surface of a live probe.
+// An ordinary read consumes the stored value, even when a later slot is deleted. The outer-consumer
 // proof distinguishes `delete stored?.self.key` from `delete stored?.self.box.key`.
 export function navGuardKeepsStoredProbe(plan, { path, aliasCtx, invoked, deleteHosted }) {
   if (!probeHopInValue(plan, plan.hops[plan.lastUnresolvableIdx]) || invoked) return false;
-  if (!deleteHosted || navHasUnresolvableProxyHop(path.node, plan.resolvePure, aliasCtx)) return true;
   const slot = climbTransparentWrapperPath(path);
   const host = slot.parentPath;
+  if (host?.node.object === slot.node && effectfulRealmHop(host.node, aliasCtx)) return false;
+  if (!deleteHosted || navHasUnresolvableProxyHop(path.node, plan.resolvePure, aliasCtx)) return true;
   return navHasUnresolvableProxyHop(plan.rootAssign.right, plan.resolvePure, aliasCtx)
     && proxyCollapseConsumer({
       node: slot.node, host: host?.node, keptWrite: plan.rootAssign,

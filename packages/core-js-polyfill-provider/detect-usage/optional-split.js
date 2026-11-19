@@ -93,7 +93,7 @@ export function planOptionalMemberSplit(node, ctx) {
   const hop = surface && pristineRealmHopKey(node, ctx, { allowOptional: true });
   const key = node.computed ? null : memberKeyName(node);
   const decided = decidedReusableReceiver(node.object, ctx);
-  const guard = { decided, bareMemo: !!hop, mutatedLeaf: !!key && isMutatedGlobalSlot(adapter, key), readerKey: key };
+  const guard = { decided, bareMemo: !!hop, mutatedLeaf: !!key && isMutatedGlobalSlot(adapter, key), readerKey: key, reader: node };
   if (hop) {
     const landingSurface = optionalSurfaceLanding(node, ctx, hop);
     return { kind: 'surface', guard, pure: landingSurface?.pure, member: !!landingSurface?.member };

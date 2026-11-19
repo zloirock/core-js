@@ -34,6 +34,7 @@ import {
   staticMayEraseReceiver,
   directClaimProbePlan,
   directClaimProbeEffects,
+  effectfulRealmHop,
   sealedChainBoundary,
   aliasRootedReadMayThrow,
 } from './resolve.js';
@@ -777,7 +778,7 @@ export function planGuardRootMemo(node, ctx) {
 // yielding an environment probe retain their nullish branch. Bindings only render,
 // clone and deoptionalize decided nodes; scope/type registration follows this result.
 export function prepareGuardReceiver(objectNode, ctx, bindings, {
-  bareMemo = false, mutatedLeaf = false, readerKey = null, interveningEffects = false,
+  bareMemo = false, mutatedLeaf = false, readerKey = null, reader = null, interveningEffects = false,
 } = {}) {
   const receiverPure = !mutatedLeaf && instanceSynthReceiverPure(objectNode, ctx);
   if (receiverPure) objectNode = bindings.pure(receiverPure);
@@ -790,7 +791,12 @@ export function prepareGuardReceiver(objectNode, ctx, bindings, {
   // not once per hop of the same shrinking source.
   if (memoSource === objectNode && surface && !chainReadsThroughSeal(memoSource, ctx.resolvePure, ctx)) {
     const rootMemo = planGuardRootMemo(objectNode, ctx);
-    if (rootMemo) memoSource = rootMemo.source;
+    if (rootMemo) {
+      // An effectful realm key must read the backed hop in the live branch. The first guard still tests the store.
+      const pure = rootMemo.holder.optional && effectfulRealmHop(reader, ctx) && ctx.resolvePure({ kind: 'global', name: surface });
+      if (pure) return { firstReceiver: rootMemo.source, receiver: bindings.pure(pure), capture: false, source: objectNode, surface };
+      memoSource = rootMemo.source;
+    }
     for (let hop = unwrapRuntimeExpr(memoSource), pure; pure = backedMemoHop(hop, ctx);
       hop = unwrapRuntimeExpr(memoSource)) {
       if (hop.optional && !peelChainAssignment(unwrapRuntimeExpr(hop.object)).outer) {

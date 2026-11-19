@@ -136,6 +136,21 @@ for (const source of ['held = globalThis.window', 'before(), held = globalThis.w
     });
 }
 
+for (const [key, keepsStore] of [
+  ["(mark(), 'self')", false],
+  ["(mark(), 'window')", false],
+  ["(mark(), 'box')", true],
+  ["'self'", true],
+  ['unknown', true],
+]) runBoth(`computed read above a stored window/${ key }`, `let held; (held = globalThis.window)?.self?.[${ key }];`,
+  (parser, program, label) => {
+    const type = parser.name === 'babel' ? 'OptionalMemberExpression' : 'MemberExpression';
+    const path = parser.pickPath(program, type, item => item.node.property.name === 'self');
+    const aliasCtx = context(parser, path);
+    const plan = planProvenNavGuardCollapse({ rootNode: path.node, ...aliasCtx, resolvePure, throughKeptAssign: true });
+    check(label, navGuardKeepsStoredProbe(plan, { path, aliasCtx, invoked: false, deleteHosted: false }), keepsStore);
+  });
+
 for (const [expression, expected] of [
   ['(held = globalThis.window)?.self.Array', ['stored-probe']],
   ['(held = globalThis["window"])?.self.Array', ['stored-probe']],

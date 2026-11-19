@@ -91,6 +91,7 @@ import {
   isMemberWriteOnlyContext,
   isMutatedStaticPair,
   isNonReferencePosition,
+  isNullLiteralNode,
   isQuietLiteralOperand,
   isReassignedBeyondDeclarator,
   isUndefinedNode,
@@ -121,6 +122,10 @@ import {
   enclosingOwnerWritePath,
   readDecidesWrite,
   readRunsBeforeWrites,
+  readRunsDeferredWithin,
+  SELECTION_TEST_FIELDS,
+  statementListOf,
+  syntheticNodeAncestry,
   PARAMETER_STATIC_SOURCES,
   parameterStaticSource,
   paramReturnsTheValue,
@@ -200,7 +205,9 @@ import {
   isStaticPlacement,
   MAX_KEY_DEPTH,
   ownChainOptionalObjects,
+  peelChainRootValue,
   peelReceiverSequenceTail,
+  proxyHopLacksPureEntry,
   requireBoundProxyGlobalName,
   resolveBindingToGlobal,
   resolveKey,
@@ -214,6 +221,7 @@ import {
 import { isKnownGlobalName, NON_WRITABLE_VALUE_GLOBALS, staticReceiverHint } from './globals.js';
 import { canonicalArrayIndex, dropLeadingThisParam, nodeRangeContains, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { findEnumMember } from '../resolve-node-type/enum-types.js';
+import { bodyRunsWhileTestHolds, nodeAlwaysHardExits } from '../resolve-node-type/exit-analysis.js';
 import {
   bareBuiltInLeft,
   decidedSelection,
@@ -2358,7 +2366,7 @@ function storedValues(aliases, name, seen, slots = null, scopes = null) {
   return values;
 }
 
-function computeStoredValues(aliases, name, seen, slots, scopes) {
+function computeStoredValues(aliases, name, seen, slots, scopes, entries = aliasEntriesInScope(aliases, name, scopes)) {
   const out = [];
   // what a source the pairer cannot index expands to (`pairedSources`), once for the value and the
   // slot walk alike: `seen` answers each name once, so a second expansion would read another graph
@@ -2378,7 +2386,7 @@ function computeStoredValues(aliases, name, seen, slots, scopes) {
   const censusKey = ALIAS_SCOPE_FACTS.get(aliases)?.censusKey ?? null;
   const ctx = { preservesBody: true, readsThrough: true, pairedSources: expandedSources, resolveKey: censusKey };
   // the graph is a per-program record: a program this census never walked stores none
-  for (const { value: entry } of aliasEntriesInScope(aliases, name, scopes)) {
+  for (const { value: entry } of entries) {
     if (entry.type || entry.opaqueSource) out.push(entry);
     else for (const source of aliasedValues(aliases, entry.source, seen)) {
       if (source.opaqueSource) {
@@ -3211,7 +3219,9 @@ const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 
 // Per-file constructor escapes, resolved after every declaration and alias source is recorded.
 // eslint-disable-next-line max-statements -- the escape census factory: one closure per fact table it publishes
-export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits = null, packages = null } = {}) {
+export function escapedCtorReferencesReducer({
+  isOptedOut = null, selectedInits = null, packages = null, preserveRealmReads = false,
+} = {}) {
   const optedOutNodes = isOptedOut ? new WeakSet() : null;
   let census = null;
   let programNode = null;
@@ -3338,6 +3348,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
   // the `in` tests by a key the walk cannot fold, each as the member read of that key
   const presenceTests = [];
   const memberReaders = new WeakMap();
+  let effectfulRealmReaders;
   const argumentsHosts = new WeakSet();
   const argumentsReferenceCache = new WeakMap();
   const knownCtorCandidateCache = new WeakMap();
@@ -4148,6 +4159,10 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
         // ... the key read off it travels too: a selecting root is held only for a read of one of the
         // constructor's OWN statics (below)
         const readKey = staticMemberKeyName(node) ?? (node.computed ? computedKeyStaticName(node.property) : null);
+        if (preserveRealmReads && node.computed && readKey !== null
+          && POSSIBLE_GLOBAL_OBJECTS.has(readKey) && mayHaveSideEffects(node.property)) {
+          (effectfulRealmReaders ??= []).push(node);
+        }
         if (readKey === null && owner?.type === 'Identifier' && privateNameSpelling(node.property) === null) {
           unreadableOwnerNames.add(owner.name);
           unreadableOwnerRefs.push(owner);
@@ -5074,7 +5089,10 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
       const realmSurface = POSSIBLE_GLOBAL_OBJECTS.has(surfaceName) && (root?.type === 'Identifier'
         ? classifyRealmReference(root) === 'proven' : isMemberAccessNode(object) && isKnownGlobalName(surfaceName));
       const proof = { served: true };
-      const foldable = censusKeyNames(member.property, 0, false, proof) !== null;
+      const namesForKey = censusKeyNames(member.property, 0, false, proof);
+      const foldable = namesForKey !== null;
+      if (preserveRealmReads && namesForKey?.length === 1 && POSSIBLE_GLOBAL_OBJECTS.has(namesForKey[0])
+        && mayHaveSideEffects(member.property)) (effectfulRealmReaders ??= []).push(member);
       // A finite key union suffices for global injection. Pure still needs its retained
       // namespace when the claim cannot name that key through the same binding shape.
       if (!realmSurface && foldable && !proof.served) kept.add(member.object);
@@ -5098,6 +5116,140 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
         if (realm && hasNarrowEntry(realm)) ctorNames.add(realm);
       }
     }
+  }
+  // The receiver observes a binding at its read. A later write or a superseded initializer
+  // still belongs to the other uses of that binding. Never assume source order across calls.
+  function realmReceiverEntries(node, scopes, paths) {
+    const entries = aliasEntriesInScope(aliasInit, node.name, scopes);
+    if (entries.length < 2 || entries.every(entry => !entry.target)) return entries;
+    const owner = scopes?.findLast(scope => isVarScopeBoundary(scope.type)) ?? programNode;
+    const bindingScope = scopes && declarations.resolve(node.name, scopes);
+    if (!bindingScope || !nodeRangeContains(owner, bindingScope)) return entries;
+    const usagePath = syntheticNodeAncestry(programNode, node, paths);
+    if (!usagePath || readRunsDeferredWithin(usagePath, bindingScope)) return entries;
+    let lastWrite = null;
+    const reaching = entries.filter(({ target }) => {
+      if (!target) return true;
+      const write = syntheticNodeAncestry(programNode, target, paths)?.parentPath?.node;
+      if (write?.type !== 'AssignmentExpression' || write.operator !== '=' || write.left !== target) return true;
+      const reassignmentNodes = [write];
+      if (noReassignmentReachesUsage({ reassignmentNodes, usagePath, bindingScopeNode: bindingScope })) return false;
+      if ((!lastWrite || provablyPrecedes(lastWrite, write))
+        && reassignmentDominatesUsage({ reassignmentNodes, usagePath })) lastWrite = write;
+      return true;
+    });
+    if (!lastWrite) return reaching;
+    return reaching.filter(({ target, value }) => {
+      const origin = target ?? value.source ?? value;
+      const path = syntheticNodeAncestry(programNode, origin, paths);
+      return !provablyPrecedes(origin, lastWrite) || !path || readRunsDeferredWithin(path, owner);
+    });
+  }
+  // An effectful realm key reads the original value, even if a declaration, assignment or
+  // parameter captured it earlier. Follow only its value sources in the completed census.
+  function retainedRealmReads() {
+    if (!effectfulRealmReaders) return null;
+    const retained = new Set();
+    const seen = new Set();
+    const state = { names: new Set(), roots: new Map(), slots: new Map() };
+    const work = [];
+    const guardIndexes = new Map();
+    const paths = new Map();
+    // A copy tests the same captured Get. Independent reads of the same property can differ.
+    function referenceKey({ root, keys }) {
+      if (root?.type !== 'Identifier' || keys.includes(null)) return null;
+      const values = chainRootValues(aliasInit, root, new Set(), state.roots);
+      const origin = values.length === 1 && isMemberAccessNode(values[0]) && !borrowsReceiverSpan(values[0])
+        ? nodePositionKey(values[0]) : null;
+      return JSON.stringify([origin ?? aliasBindingKey(aliasInit, root.name, aliasReferenceScopes(aliasInit, root)), ...keys]);
+    }
+    // Only operands whose value is tested can guard a read. A sequence prefix or a call argument cannot.
+    function indexTest(index, test) {
+      const node = unwrapExpressionChain(test);
+      if (!node) return;
+      if (node.type === 'LogicalExpression') {
+        const fixed = node.operator === '&&' ? false : node.operator === '||' ? true : null;
+        if (fixed !== null && [node.left, node.right].some(side => unwrapExpressionChain(side)?.value === fixed)) return;
+        indexTest(index, node.left);
+        indexTest(index, node.right);
+      } else if (node.type === 'UnaryExpression' && node.operator === '!') indexTest(index, node.argument);
+      else if (node.type === 'BinaryExpression' && ['==', '!=', '===', '!=='].includes(node.operator)) {
+        for (const [operand, other] of [[node.left, node.right], [node.right, node.left]]) {
+          const value = unwrapExpressionChain(operand);
+          if (isNullLiteralNode(other) || isUndefinedNode(other)) indexTest(index, value);
+          else if (value?.operator === 'typeof' && typeof other.value === 'string') indexTest(index, value.argument);
+        }
+      } else {
+        const read = node.type === 'AssignmentExpression' && node.operator === '=' ? node.left : node;
+        const key = referenceKey(memberChainKeys(read, memberReadKeyName));
+        if (!key) return;
+        if (!index.has(key)) index.set(key, { reads: [], next: 0 });
+        index.get(key).reads.push(read);
+      }
+    }
+    function keepGuard(host, key, receiver, before) {
+      let index = guardIndexes.get(host);
+      if (!index) {
+        guardIndexes.set(host, index = new Map());
+        const body = statementListOf(host);
+        if (body) {
+          for (const row of body) if (row.type === 'IfStatement'
+            && (nodeAlwaysHardExits(row.consequent) || row.alternate && nodeAlwaysHardExits(row.alternate))) indexTest(index, row.test);
+        } else indexTest(index, host);
+      }
+      const group = index.get(key);
+      if (!group || before && !provablyPrecedes(group.reads[0], before)) return;
+      work.push(receiver);
+      for (; group.next < group.reads.length; group.next++) {
+        const read = group.reads[group.next];
+        if (before && !provablyPrecedes(read, before)) break;
+        work.push(read);
+      }
+    }
+    for (const reader of effectfulRealmReaders) {
+      for (let member = reader; isMemberAccessNode(member); member = unwrapRuntimeExpr(member.object)) {
+        if (member.optional) work.push(member.object);
+      }
+      if (reader.optional) continue;
+      const receiver = unwrapRuntimeExpr(reader.object);
+      const key = referenceKey(memberChainKeys(receiver, memberReadKeyName));
+      if (!key) continue;
+      for (let step = syntheticNodeAncestry(programNode, reader, paths); step?.parentPath; step = step.parentPath) {
+        const host = step.parentPath.node;
+        if (FUNCTION_LIKE_NODE_TYPES.has(host.type)) break;
+        const test = host[SELECTION_TEST_FIELDS[host.type]] ?? (bodyRunsWhileTestHolds(host) && host.test);
+        if (test && test !== step.node) keepGuard(test, key, receiver);
+        if (statementListOf(host)) keepGuard(host, key, receiver, step.node);
+      }
+    }
+    function retain(node) { retained.add(nodePositionKey(node) ?? node); }
+    while (work.length) {
+      const node = unwrapRuntimeExpr(work.pop());
+      if (!node || seen.has(node)) continue;
+      seen.add(node);
+      if (isMemberAccessNode(node)) {
+        if (escapeStampedName(node, censusResolveKey) === 'self') {
+          // A live unbacked realm probe guards its own window-like root. Its selected self is still backed.
+          const bases = node.optional && chainRootValues(aliasInit, peelChainRootValue(node.object), new Set(), state.roots);
+          const guardedRoot = bases?.length && bases.every(base => proxyHopLacksPureEntry(escapeStampedName(base, censusResolveKey))
+            && (isMemberAccessNode(base)
+              ? readsOffRealm(programNode, aliasInit, base, state.roots) : classifyRealmReference(base) === 'proven'));
+          if (!guardedRoot && !borrowsReceiverSpan(node)) retain(node);
+          work.push(node.object);
+        }
+        work.push(...chainSlotValues(aliasInit, node, state, written).values);
+      } else if (node.type === 'Identifier') {
+        const scopes = aliasReferenceScopes(aliasInit, node);
+        const entries = realmReceiverEntries(node, scopes, paths);
+        const slots = new Set();
+        work.push(...computeStoredValues(aliasInit, node.name, new Set(), slots, scopes, entries));
+        for (const slot of slots) if (escapeStampedName(slot, censusResolveKey) === 'self') retain(slot);
+      } else {
+        const callee = callCallees.get(node);
+        work.push(...(callee ? calleeReturnValues(callee) : forwardedValuePositions(node)) ?? []);
+      }
+    }
+    return retained.size ? node => retained.has(nodePositionKey(node) ?? node) : null;
   }
   // the callees every call of the file invokes, resolved ONCE and only from a result: this
   // reducer's own, or the container census's, which files a binding of a NAMED call through the
@@ -5373,6 +5525,7 @@ export function escapedCtorReferencesReducer({ isOptedOut = null, selectedInits 
     // read at QUERY time, when every reducer of this census has stamped: ONE answer object rather
     // than two census fields, since the flavor doing the asking is what picks the half
     return {
+      nativeRealmReads: retainedRealmReads(),
       escapedCtorNames: escapedNameAnswer({ names: ctorNames, heldInSlot, globalOnly, unnamedReadNames,
         ownEscapes: hasHeritage ? ownEscapedCtorNames(programNode, escaped) : ctorNames }),
     };
@@ -8547,6 +8700,7 @@ function recordedSlotWriteValues(slots, keys, keyPath) {
 export function createDetectionAdapter({
   method = null,
   isOptedOut = () => false,
+  getNativeRealmReads = () => null,
   resolvePure = null,
   isEntryCarried = null,
   isEntryAvailable = null,
@@ -8672,6 +8826,7 @@ export function createDetectionAdapter({
     // does a directive the user wrote (`core-js-disable-line` and kin) cover this node: nothing there is
     // rewritten, so a read there is served by nothing this build does
     isOptedOut,
+    get nativeRealmRead() { return getNativeRealmReads(); },
     // how this build guarantees the global or static `meta` names - the one backing every canon deciding
     // a user's selection asks (`servedRead`): `{ substituted: true }` where pure respells the read,
     // `{ substituted: false }` where the data subset the build is configured for carries what is behind it

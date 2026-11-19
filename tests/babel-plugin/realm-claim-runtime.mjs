@@ -38,6 +38,64 @@ try {
     ['sealed-prefix', { ie: 11 }, 'return ((effects.push("prefix"), globalThis)?.window).document;', 23, ['prefix']],
     ['dead-middle-guard', { ie: 11 }, 'return globalThis.self?.window.document;', 23, []],
     ['dead-repeated-guard', { ie: 11 }, 'return globalThis.self?.self.document;', 23, []],
+    ['native-self-key', { ie: 11 }, 'return globalThis.self?.[(effects.push("key"), "self")].document;', 'undefined', [], ['self', 'globalThis']],
+    ['captured-self-key', { ie: 11 }, `const s = globalThis.self;
+      const value = s?.[(effects.push("key"), "self")].document;
+      return [typeof value, s === globalThis, globalThis.self === globalThis];`, ['undefined', false, true], []],
+    ['self-typeof-key', { ie: 11 }, `const s = globalThis.self;
+      return typeof s === "undefined" ? "absent" : s[(effects.push("key"), "self")].document;`, 'absent', []],
+    ['self-guard-repeated-read', { ie: 11 }, `return globalThis.self
+      && globalThis.self[(effects.push("key"), "self")].document;`, 'undefined', []],
+    ['self-guard-copied-alias', { ie: 11 }, `const s = globalThis.self, t = s;
+      return [typeof (t && s[(effects.push("left"), "self")].document),
+        typeof (s && t[(effects.push("right"), "self")].document)];`, ['undefined', 'undefined'], []],
+    ['self-guard-early-return', { ie: 11 }, `const box = { realm: globalThis.self };
+      if (!box.realm) return "absent";
+      return box.realm[(effects.push("key"), "self")].document;`, 'absent', []],
+    ['self-unguarded-alias', { ie: 11 }, `const s = globalThis.self;
+      function compare(s) { return s === globalThis; }
+      return [compare(s), typeof s[(effects.push("key"), "self")]];`, [true, 'undefined'], ['key']],
+    ['self-discarded-in-exit-test', { ie: 11 }, `const s = globalThis.self;
+      if ((void s, effects.length)) return 0;
+      return s[(effects.push("key"), "self")]?.document;`, 'undefined', ['key']],
+    ['self-tested-in-sequence-tail', { ie: 11 }, `const s = globalThis.self;
+      if ((effects.push("test"), !s)) return 0;
+      return s[(effects.push("key"), "self")]?.document;`, 0, ['test']],
+    ['self-after-window-guard', { ie: 11 },
+      'return globalThis.window?.self?.[(effects.push("key"), "window")] === globalThis;', true, ['key']],
+    ['self-after-aliased-window-guard', { ie: 11 }, `const w = globalThis.window;
+      return w?.self?.[(effects.push("key"), "window")] === globalThis;`, true, ['key']],
+    ['stored-window-guard-backs-self', { ie: 11 }, `const g = globalThis; let held;
+      const value = (held = g.window)?.self?.[(effects.push("key"), "self")].Array.prototype.at.call([7], 0);
+      return [value, held === g.window];`, [7, true], ['key']],
+    ['stored-window-terminal-self', { ie: 11 }, `let held;
+      const value = (held = globalThis.window)?.self?.[(effects.push("key"), "self")];
+      return [value === globalThis, held === globalThis.window];`, [true, true], ['key']],
+    ['stored-window-bracket-backs-self', { ie: 11 }, `const g = globalThis; let held;
+      const value = (held = g.window)?.["self"]?.[(effects.push("key"), "self")].Array.prototype.at.call([7], 0);
+      return [value, held === g.window];`, [7, true], ['key']],
+    ['self-default-key', { ie: 11 }, `function get(s = globalThis.self) {
+        return s && s[(effects.push("key"), "self")].document;
+      }
+      const user = { get self() { effects.push("get"); return { document: 7 }; } };
+      return [typeof get(), get(user)];`, ['undefined', 7], ['key', 'get']],
+    ['self-destructured-key', { ie: 11 }, `const { self: s } = globalThis;
+      return delete s?.[(effects.push("key"), "self")].temporary;`, true, []],
+    ['self-stored-key', { ie: 11 }, `let held;
+      const value = (held = globalThis.self)?.[(effects.push("key"), "self")].document;
+      return [typeof value, typeof held];`, ['undefined', 'undefined'], []],
+    ['self-key-write-order', { ie: 11 }, `const user = { self: { document: 7 } };
+      let s = globalThis.self;
+      const first = s === globalThis;
+      s = user;
+      const value = s?.[(effects.push("key"), "self")].document;
+      s = globalThis.self;
+      return [first, value, s === globalThis];`, [true, 7, true], ['key']],
+    ['self-source-key', { ie: 11 }, `const k = "self"; const s = globalThis[k];
+      return s?.[(effects.push("key"), k)].document;`, 'undefined', []],
+    ['self-nested-source-key', { ie: 11 }, 'return globalThis.self?.self?.[(effects.push("key"), "self")].document;', 'undefined', []],
+    ['self-pattern-alias-key', { ie: 11 }, `const realm = globalThis; const { self: s } = realm;
+      return s?.[(effects.push("key"), "self")].document;`, 'undefined', []],
     ['native-root-constructor', { chrome: 100 }, 'const { Set: { prototype: { union } } } = globalThis; return union.call(new Set([1]), new Set([2])).size;', 2, [], []],
     ['native-root-iterator', { node: 18 }, `const { Iterator: { prototype: { flatMap } } } = globalThis;
       return flatMap.call([1].values(), x => [x, x + 1]).next().value;`, 1, [], ['Iterator']],
@@ -59,6 +117,7 @@ try {
       const { Set: { prototype: { union } } } = globalThis;
       return union === Function("return this")().Set.prototype.union;`, true, [], []],
   ]) {
+    const separateWindow = name.startsWith('stored-window-');
     const source = `export function read() { ${ body } }`;
     scenarioSource(source);
     const options = { method: 'usage-pure', version: '4.0', targets, ...extra };
@@ -79,7 +138,8 @@ try {
         const exercise = `
 export const effects = [];
 const root = Function("return this")();
-root.window = ${ name.includes('standdown') ? 'null' : 'root' };
+root.window = ${ separateWindow ? '{}' : name.includes('standdown') ? 'null' : 'root' };
+${ separateWindow ? 'root.self = root;' : '' }
 root.document = 23;
 root[Symbol.iterator] = function () { effects.push(this === root ? "iterator" : "wrong-this"); return 17; };
 const value = read();

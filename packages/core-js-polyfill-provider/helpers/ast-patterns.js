@@ -16093,11 +16093,12 @@ export function ancestorChainDetached(path) {
 // cached path went stale. node-identity DFS - a carried node has exactly one live position. the
 // chain carries no scope and no traversal, so it serves ONLY the walks that read `.node` and
 // `.parentPath` (the placement climb); a consumer needing a real path keeps its own re-anchor
-export function syntheticNodeAncestry(rootNode, targetNode) {
+export function syntheticNodeAncestry(rootNode, targetNode, paths = null) {
   function descend(node, parentPath) {
     if (!isASTNode(node)) return null;
     const self = { node, parentPath };
-    if (node === targetNode) return self;
+    if (paths) paths.set(node, self);
+    else if (node === targetNode) return self;
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
         for (const el of value) {
@@ -16111,7 +16112,17 @@ export function syntheticNodeAncestry(rootNode, targetNode) {
     }
     return null;
   }
-  return rootNode === targetNode ? null : descend(rootNode, null);
+  if (rootNode === targetNode) return null;
+  if (!paths) return descend(rootNode, null);
+  // A batch of source queries shares one index for this census. Index the enclosing statement
+  // on demand. Moved or positionless nodes fall back to their actual position in the tree.
+  if (!paths.has(targetNode) && !paths.has(rootNode)) {
+    const body = statementListOf(rootNode);
+    const statement = body?.[childSpanOwnerIndex(body, targetNode)];
+    if (statement && !paths.has(statement)) descend(statement, { node: rootNode, parentPath: null });
+    if (!paths.has(targetNode)) descend(rootNode, null);
+  }
+  return paths.get(targetNode) ?? null;
 }
 
 // the statement nodes an expression can be hosted by - where a placement / order walk stops

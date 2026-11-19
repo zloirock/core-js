@@ -534,6 +534,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
     nestedTSRuntimeDeclarations: () => nestedTSRuntimeDeclarations ?? true,
     method,
     isOptedOut: (node, receiver = false) => !!currentIsDisabled?.(node, receiver),
+    getNativeRealmReads: () => fileCensus?.nativeRealmReads,
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`)
     resolvePure,
     isEntryCarried,
@@ -622,7 +623,8 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       currentIsDisabled = isDisabled;
 
       function isDisabled(node, receiver = false) {
-        return skipFile || (disabledLines !== null && isDisabledByLines(node, disabledLines, null, receiver));
+        return skipFile || !!fileCensus?.nativeRealmReads?.(node)
+          || (disabledLines !== null && isDisabledByLines(node, disabledLines, null, receiver));
       }
       // the opt-outs this pass honoured reach the next pass through the printed tree: the canon
       // (`disableDirectiveAnchors`) names every outermost covered node the reprint would leave
@@ -1976,7 +1978,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             memberKeyNamesReducer(),
             ctorAliasShapesReducer(),
             mutationShapesReducer(packages, isPure),
-            escapedCtorReferencesReducer({ packages, isOptedOut: disabledLines?.size ? isDisabled : null }),
+            escapedCtorReferencesReducer({ packages, isOptedOut: disabledLines?.size ? isDisabled : null, preserveRealmReads: isPure }),
             restSentinelNamesReducer(),
             proxyWriteOriginsReducer(),
             nestedTSRuntimeDeclarationsReducer(),
@@ -2617,6 +2619,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       // file's `skipFile=true`, or its format verdict, into the next file's programExit
       function resetPerFilePrimitives() {
         skipFile = false;
+        fileCensus = null;
         disabledLines = null;
         entryModulesInjected = 0;
         entryDirectiveCandidates = [];

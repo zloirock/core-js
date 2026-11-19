@@ -420,14 +420,15 @@ export default function createPlugin(options) {
   // observe the WRONG injector after their await point if introduced later - oxc is sync
   // and all current visitors are sync. enforce by inspection
   let currentInjector = null;
-  // ... and the file's opt-out directives, which the shared canon reads through the adapter (`isOptedOut`)
-  let currentIsOptedOut = null;
+  // The active file owns both directive coverage and the native reads its guards observe.
+  let currentReadPolicy = null;
   // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const estreeAdapter = createEstreeAdapter({
     getInjector: () => currentInjector,
     nestedTSRuntimeDeclarations: () => currentNestedTSRuntimeDeclarations ?? true,
     method: options.method,
-    isOptedOut: (node, receiver = false) => !!currentIsOptedOut?.(node, receiver),
+    isOptedOut: (node, receiver = false) => !!currentReadPolicy?.isDisabled(node, receiver),
+    getNativeRealmReads: () => currentReadPolicy?.nativeRealmReads,
     // the build's backing of a global or static (`served`), and the set it is configured for (`available`);
     // the resolver's half is destructured below, so it is read lazily like `getPackages`
     resolvePure,
@@ -705,8 +706,10 @@ export default function createPlugin(options) {
     };
     let format;
 
+    const readPolicy = { isDisabled, nativeRealmReads: null };
     function isDisabled(node, receiver = false) {
-      return disabledLines !== null && isDisabledByLines(node, disabledLines, offsetToLine, receiver);
+      return !!readPolicy.nativeRealmReads?.(node)
+        || disabledLines !== null && isDisabledByLines(node, disabledLines, offsetToLine, receiver);
     }
 
     // pre-walk for `Object.key` monkey-patches. cheap single AST traversal; result consulted
@@ -750,7 +753,9 @@ export default function createPlugin(options) {
       }] : [],
       ...readsCensus ? [
         bindingNamesReducer(),
-        escapedCtorReferencesReducer({ packages, isOptedOut: disabledLines?.size ? isDisabled : null }),
+        escapedCtorReferencesReducer({
+          packages, isOptedOut: disabledLines?.size ? isDisabled : null, preserveRealmReads: method === 'usage-pure',
+        }),
         restSentinelNamesReducer(),
         memberKeyNamesReducer(),
         mutationShapesReducer(packages, method === 'usage-pure'),
@@ -760,6 +765,7 @@ export default function createPlugin(options) {
         patternOrderReducer(),
       ] : [],
     ]);
+    readPolicy.nativeRealmReads = fileCensus.nativeRealmReads;
     // Apply only the indexed positions, before any scoped walk. The census keeps the original
     // operands; splitting only re-parents them. Product spans preserve directive and entry sites.
     let splitChanged = false;
@@ -790,8 +796,8 @@ export default function createPlugin(options) {
     const outerNestedTSRuntimeDeclarations = currentNestedTSRuntimeDeclarations;
     currentNestedTSRuntimeDeclarations = fileCensus.nestedTSRuntimeDeclarations ?? null;
     // Disabled writes already choose native constructor identity during this prepass.
-    const outerIsOptedOut = currentIsOptedOut;
-    currentIsOptedOut = isDisabled;
+    const outerReadPolicy = currentReadPolicy;
+    currentReadPolicy = readPolicy;
     try {
       // mutation collection is INJECTION policy only, so usage-pure only: a global-flavor bail here
       // would drop an import instead of adding one. the typing side asks the same data separately
@@ -820,7 +826,7 @@ export default function createPlugin(options) {
       } else if (prePassArgs.isDisabled) prePass = collectPrePassSites(prePassArgs);
     } finally {
       currentNestedTSRuntimeDeclarations = outerNestedTSRuntimeDeclarations;
-      currentIsOptedOut = outerIsOptedOut;
+      currentReadPolicy = outerReadPolicy;
     }
     let mutatedStatics = prePass?.mutated ?? null;
     // pre+post: union PRE's mutation set into post's own recompute. the keys are semantic
@@ -856,7 +862,7 @@ export default function createPlugin(options) {
     // '.../constructor'; _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the
     // Promise constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
     const previousInjector = currentInjector;
-    const previousIsOptedOut = currentIsOptedOut;
+    const previousReadPolicy = currentReadPolicy;
     const previousMutatedStatics = currentMutatedStatics;
     const previousEscapedCtorNames = currentEscapedCtorNames;
     const previousMutationRoots = currentMutationRoots;
@@ -866,7 +872,7 @@ export default function createPlugin(options) {
     const previousNestedTSRuntimeDeclarations = currentNestedTSRuntimeDeclarations;
     const previousClassStaticHost = estreeAdapter.resolveClassStaticHost;
     currentInjector = injector;
-    currentIsOptedOut = isDisabled;
+    currentReadPolicy = readPolicy;
     currentMutatedStatics = mutatedStatics;
     currentEscapedCtorNames = fileCensus.escapedCtorNames ?? null;
     currentMutationRoots = fileCensus.mutationRoots ?? null;
@@ -1595,7 +1601,7 @@ export default function createPlugin(options) {
       return null;
     } finally {
       currentInjector = previousInjector;
-      currentIsOptedOut = previousIsOptedOut;
+      currentReadPolicy = previousReadPolicy;
       currentMutatedStatics = previousMutatedStatics;
       currentEscapedCtorNames = previousEscapedCtorNames;
       currentMutationRoots = previousMutationRoots;

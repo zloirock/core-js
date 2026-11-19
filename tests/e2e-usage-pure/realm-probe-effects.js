@@ -3,6 +3,26 @@
 /* eslint-disable @stylistic/no-extra-parens -- Preserve the realm-probe spellings under test. */
 import { withWindowPresence } from './unbacked-window-host.cjs';
 
+QUnit.test('effectful self key reads the supplied receiver', assert => {
+  const events = [];
+  function read(s = globalThis.self) {
+    return s?.[(events.push('key'), 'self')];
+  }
+  const native = Function('return this.self')();
+  assert.strictEqual(read(), native?.self);
+  assert.deepEqual(events, native === null || native === undefined ? [] : ['key']);
+  events.length = 0;
+  withWindowPresence(true, () => {
+    assert.strictEqual(read(), globalThis);
+    assert.strictEqual(read(null), undefined);
+    assert.strictEqual(read({ get self() {
+      events.push('get');
+      return 7;
+    } }), 7);
+    assert.deepEqual(events, ['key', 'key', 'get']);
+  });
+});
+
 QUnit.test('realm probe effects: read', assert => {
   for (const requested of [false, true]) withWindowPresence(requested, present => {
     const effects = [];

@@ -3186,6 +3186,7 @@ function objectNameAt({
     }) : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
+  if (adapter?.nativeRealmRead?.(objectNode)) return null;
   // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
   // identifier name directly. either way the receiver chain must bottom out on a proxy global
   const propertyName = objectNode.computed
@@ -5674,6 +5675,7 @@ export function planOuterCollapseValue(outer, collapsed, claim, ctx, facts) {
 // a separate effectful realm-hop collapse
 // A retained key also admits an effectful bound call's known result through the key canon.
 export function realmHopKeyName(node, aliasCtx = null, { allowSideEffectKeys = false, keepsKeyNode = false } = {}) {
+  if (aliasCtx?.adapter?.nativeRealmRead?.(node)) return null;
   if (!node?.computed) return memberKeyName(node);
   if (!allowSideEffectKeys && mayHaveSideEffects(node.property)) return null;
   return staticMemberKeyName(node) ?? (aliasCtx
@@ -7016,7 +7018,7 @@ export function unbackedRealmHopFoldAbove(basePath, baseNode, ctx, { deleted = f
 // per-target resolver still leads, so a hop it answers needs no definitions lookup.
 export function proxyHopLacksPureEntry(hop, resolvePure) {
   return !!hop && POSSIBLE_GLOBAL_OBJECTS.has(hop)
-    && !resolvePure({ kind: 'global', name: hop })
+    && !resolvePure?.({ kind: 'global', name: hop })
     && !resolveBuiltInMeta({ kind: 'global', name: hop });
 }
 

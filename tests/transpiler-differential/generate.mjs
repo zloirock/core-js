@@ -26027,6 +26027,20 @@ function * generateFoldedSequencePrefixes() {
   };
 }
 
+function * generateEffectfulRealmReceivers() {
+  for (const [name, body] of [
+    ['direct', 'return globalThis.self?.[(log.push("key"), "self")] === globalThis;'],
+    ['alias', 'const s = globalThis.self; return s && s[(log.push("key"), "self")] === s;'],
+    ['destructured', 'const { self: s } = globalThis; return typeof s !== "undefined" && s[(log.push("key"), "self")] === s;'],
+    ['discarded-test', 'const s = globalThis.self; if ((void s, log.length)) return 0; return s[(log.push("key"), "self")] === globalThis;'],
+    ['sequence-test', 'const s = globalThis.self; if ((log.push("test"), !s)) return 0; return s[(log.push("key"), "self")] === globalThis;'],
+    ['stored-window', 'let w; const value = (w = globalThis.window)?.self?.[(log.push("key"), "self")]; return [w === globalThis.window, value === globalThis];'],
+    ['stored', 'let held; return (held = globalThis.self)?.[(log.push("key"), "self")] === held;'],
+    ['default', 'function get(s = globalThis.self) { return s?.[(log.push("key"), "self")]; } return get() === globalThis;'],
+    ['getter', 'function get(s = globalThis.self) { return s?.[(log.push("key"), "self")]; } return get({ get self() { log.push("get"); return 7; } });'],
+  ]) yield { ...snippet(`effectful-realm-receiver/${ name }`, `(() => { ${ body } })()`, { rig: true }), strip: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27853,4 +27867,5 @@ export function * generate() {
   yield * generateStaticFallbackPrefixes();
   yield * generateCallReceiverPrefixes();
   yield * generateFoldedSequencePrefixes();
+  yield * generateEffectfulRealmReceivers();
 }
