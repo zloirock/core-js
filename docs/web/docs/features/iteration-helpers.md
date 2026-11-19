@@ -33,8 +33,6 @@ iterator.next().value; // => 2
 iterator.next().value; // => 3
 iterator.next().value; // => undefined
 
-getIterator({}); // => TypeError: [object Object] is not iterable
-
 let method = getIteratorMethod(list);
 typeof method;         // => 'function'
 iterator = method.call(list);
@@ -44,4 +42,5 @@ iterator.next().value; // => 3
 iterator.next().value; // => undefined
 
 getIteratorMethod({}); // => undefined
+getIterator({});       // => TypeError: [object Object] is not iterable
 ```

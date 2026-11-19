@@ -36,11 +36,14 @@ structuredClone(new Int8Array([1, 2, 3]));                      // => new Int8Ar
 structuredClone(new AggregateError([1, 2, 3], 'message'));      // => new AggregateError([1, 2, 3], 'message')
 structuredClone(new TypeError('message', { cause: 42 }));       // => new TypeError('message', { cause: 42 })
 structuredClone(new DOMException('message', 'DataCloneError')); // => new DOMException('message', 'DataCloneError')
-structuredClone(document.getElementById('myfileinput').files);  // => new FileList
 structuredClone(new Date(0));                                   // => new Date(0)
 structuredClone(new Blob(['test']));                            // => new Blob(['test'])
 structuredClone(new ImageData(8, 8));                           // => new ImageData(8, 8)
 // etc.
+
+const input = document.createElement('input');
+input.type = 'file';
+structuredClone(input.files); // => new FileList
 
 structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ```
