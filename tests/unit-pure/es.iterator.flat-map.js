@@ -1,10 +1,9 @@
 import { createIterator, createIterable } from '../helpers/helpers.js';
-import { DESCRIPTORS, STRICT, STRICT_THIS } from '../helpers/constants.js';
 
-import Iterator from 'core-js-pure/es/iterator';
-import Map from 'core-js-pure/es/map';
-import values from 'core-js-pure/es/array/values';
-import defineProperty from 'core-js-pure/es/object/define-property';
+import Iterator from '@core-js/pure/es/iterator';
+import Map from '@core-js/pure/es/map';
+import values from '@core-js/pure/es/array/values';
+import defineProperty from '@core-js/pure/es/object/define-property';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap, find } = Iterator.prototype;
@@ -20,7 +19,7 @@ QUnit.test('Iterator#flatMap', assert => {
     'basic functionality',
   );
   flatMap.call(createIterator([1]), function (arg, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
     assert.same(counter, 0, 'counter');
@@ -37,10 +36,8 @@ QUnit.test('Iterator#flatMap', assert => {
 
   assert.same(find.call(flatMap.call(values([1]), () => [1]), () => true), 1, 'iterator without `return` method #2');
 
-  if (STRICT) {
-    assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => flatMap.call(createIterator([1]), it => it).next(), TypeError);
   assert.throws(() => flatMap.call({}, () => { /* empty */ }).next(), TypeError);
@@ -77,7 +74,7 @@ QUnit.test('Iterator#flatMap', assert => {
   assert.true(closableSource.closed, 'source iterator closed on mapper error during execution');
 });
 
-if (DESCRIPTORS) QUnit.test('Iterator#flatMap, throwing source value getter', assert => {
+QUnit.test('Iterator#flatMap, throwing source value getter', assert => {
   const { flatMap } = Iterator.prototype;
   const error = new Error('value');
   let returnCalls = 0;

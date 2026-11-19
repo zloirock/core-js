@@ -1,10 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
 var decimalDigits = require('../internals/number-decimal-digits');
-var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
@@ -12,7 +12,8 @@ var $String = String;
 var $isFinite = isFinite;
 var abs = Math.abs;
 var nativeToExponential = uncurryThis(1.1.toExponential);
-var repeat = uncurryThis($repeat);
+// @dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var join = uncurryThis([].join);
 var charAt = uncurryThis(''.charAt);
 var stringIndexOf = uncurryThis(''.indexOf);
@@ -43,15 +44,6 @@ var ACCEPTS_100_DIGITS = !fails(function () {
   nativeToExponential(1, 100);
 });
 
-// IE8-
-var throwsOnInfinityFraction = function () {
-  return fails(function () {
-    nativeToExponential(1, Infinity);
-  }) && fails(function () {
-    nativeToExponential(1, -Infinity);
-  });
-};
-
 // Safari <11 && FF <50
 var properNonFiniteThisCheck = function () {
   return !fails(function () {
@@ -60,7 +52,7 @@ var properNonFiniteThisCheck = function () {
   });
 };
 
-var FORCED = !ROUNDS_PROPERLY || !PROPER_SHORTEST || !ACCEPTS_100_DIGITS || !throwsOnInfinityFraction() || !properNonFiniteThisCheck();
+var FORCED = !ROUNDS_PROPERLY || !PROPER_SHORTEST || !ACCEPTS_100_DIGITS || !properNonFiniteThisCheck();
 
 // `Number.prototype.toExponential` method
 // https://tc39.es/ecma262/#sec-number.prototype.toexponential
@@ -102,5 +94,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     }
     if (f !== 0) m = stringSlice(m, 0, 1) + '.' + stringSlice(m, 1);
     return s + m + 'e' + (e < 0 ? '-' : '+') + $String(abs(e));
-  }
+  },
 });

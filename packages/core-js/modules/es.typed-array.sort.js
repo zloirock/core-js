@@ -1,35 +1,35 @@
 'use strict';
-var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var uncurryThisClause = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
 var internalSort = require('../internals/array-sort');
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/a-typed-array');
 var FF = require('../internals/environment-ff-version');
 var IE_OR_EDGE = require('../internals/environment-is-ie-or-edge');
 var V8 = require('../internals/environment-v8-version');
 var WEBKIT = require('../internals/environment-webkit-version');
 
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var Uint16Array = globalThis.Uint16Array;
-var nativeSort = Uint16Array && uncurryThis(Uint16Array.prototype.sort);
+var $Uint16Array = Uint16Array;
+var nativeSort = uncurryThisClause($Uint16Array.prototype.sort);
 
 // WebKit
 var ACCEPT_INCORRECT_ARGUMENTS = !!nativeSort && !(fails(function () {
-  nativeSort(new Uint16Array(2), null);
+  nativeSort(new $Uint16Array(2), null);
 }) && fails(function () {
-  nativeSort(new Uint16Array(2), {});
+  nativeSort(new $Uint16Array(2), {});
 }));
 
+// the sort below runs `nativeSort` on every class, which the own method of `Uint16Array` in Rhino 1.8 rejects
 var STABLE_SORT = !!nativeSort && !fails(function () {
+  nativeSort(new Float32Array(1));
   // feature detection can be too slow, so check engines versions
   if (V8) return V8 < 74;
   if (FF) return FF < 67;
   if (IE_OR_EDGE) return true;
   if (WEBKIT) return WEBKIT < 602;
 
-  var array = new Uint16Array(516);
+  var array = new $Uint16Array(516);
   var expected = Array(516);
   var index, mod;
 

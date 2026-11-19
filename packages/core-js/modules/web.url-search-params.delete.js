@@ -1,24 +1,26 @@
+// @no-types: because of a conflict with lib.dom.d.ts
 'use strict';
 var defineBuiltIn = require('../internals/define-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
-var create = require('../internals/object-create');
 var hasOwn = require('../internals/has-own-property');
 var toUSVString = require('../internals/to-usv-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
+var create = Object.create;
+// @dependency: web.url-search-params.constructor
 var $URLSearchParams = URLSearchParams;
 var URLSearchParamsPrototype = $URLSearchParams.prototype;
 var append = uncurryThis(URLSearchParamsPrototype.append);
-var $delete = uncurryThis(URLSearchParamsPrototype['delete']);
+var $delete = uncurryThis(URLSearchParamsPrototype.delete);
 var forEach = uncurryThis(URLSearchParamsPrototype.forEach);
 var has = uncurryThis(URLSearchParamsPrototype.has);
 var push = uncurryThis([].push);
 var params = new $URLSearchParams('a=1&a=2&b=3');
 
-params['delete']('a', 1);
+params.delete('a', 1);
 // `undefined` case is a Chromium 117 bug
 // https://issues.chromium.org/issues/40278437
-params['delete']('b', undefined);
+params.delete('b', undefined);
 
 if (params + '' !== 'a=2') {
   defineBuiltIn(URLSearchParamsPrototype, 'delete', function (name /* , value */) {

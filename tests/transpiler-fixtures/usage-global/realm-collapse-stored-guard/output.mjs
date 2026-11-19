@@ -1,0 +1,7 @@
+import "core-js/modules/es.global-this";
+// Keep the source probe, receiver and effects across realm collapse.
+export function read(choice, effects) {
+  let held;
+  const d = delete (held = globalThis.window)?.slotD;
+  return [d, typeof held];
+}

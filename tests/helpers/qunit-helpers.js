@@ -1,12 +1,8 @@
-import { DESCRIPTORS, GLOBAL } from './constants.js';
-import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
-import defineProperties from 'core-js-pure/es/object/define-properties';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import reduce from 'core-js-pure/es/array/reduce';
-import isIterable from 'core-js-pure/es/is-iterable';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
+import { GLOBAL } from './constants.js';
+import Symbol from '@core-js/pure/es/symbol';
+import globalThis from '@core-js/pure/es/global-this';
+import assign from '@core-js/pure/es/object/assign';
+import isIterable from '@core-js/pure/es/is-iterable';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // Karma buffers 50 results over HTTP polling. Report completed tests so slow batches do not time out.
@@ -15,16 +11,16 @@ if (karma) {
   QUnit.testDone(() => karma.info({}));
 }
 
-// for Babel template transform
-// eslint-disable-next-line es/no-object-create -- safe
-if (!Object.create) Object.create = create;
-// eslint-disable-next-line es/no-object-freeze -- safe
-if (!Object.freeze) Object.freeze = Object;
-// eslint-disable-next-line es/no-object-defineproperties -- safe
-if (!DESCRIPTORS) Object.defineProperties = defineProperties;
+function toPropertyKey(it) {
+  return typeof it === 'symbol' ? it : String(it);
+}
 
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
-const { getOwnPropertyDescriptor } = Object;
+// for Babel / Regenerator runtime
+if (!globalThis.Symbol || toPropertyKey(globalThis.Symbol.iterator) !== toPropertyKey(Symbol.iterator)) {
+  globalThis.Symbol = Symbol;
+}
+
+const { getOwnPropertyDescriptor, getOwnPropertyNames, getPrototypeOf } = Object;
 const { toString, hasOwnProperty, propertyIsEnumerable } = Object.prototype;
 
 const { assert } = QUnit;
@@ -52,18 +48,16 @@ assign(assert, {
     });
   },
   enumerable(O, key, message) {
-    const result = !DESCRIPTORS || propertyIsEnumerable.call(O, key);
+    const result = propertyIsEnumerable.call(O, key);
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be enumerable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`
-        : 'Enumerability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`,
     });
   },
   // TODO: Drop from future `core-js` versions
-  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
+  // unavailable in `qunit@1` that's required for testing in Chrome 38, etc.
   false(value, message = 'The value is `false`') {
     this.same(value, false, message);
   },
@@ -77,7 +71,7 @@ assign(assert, {
   },
   isIterable(actual, message = 'The value is iterable') {
     this.pushResult({
-      result: GLOBAL.PURE ? isIterable(actual) : typeof (actual?.[ITERATOR] ?? actual?.['@@iterator']) == 'function',
+      result: GLOBAL.PURE ? isIterable(actual) : typeof (actual?.[Symbol.iterator] ?? actual?.['@@iterator']) == 'function',
       actual,
       expected: 'The value should be iterable',
       message,
@@ -103,8 +97,12 @@ assign(assert, {
   name(fn, expected, message) {
     const applicable = typeof fn == 'function' && 'name' in fn;
     const actual = fn.name;
+    // swc renames a function expression named like a referenced global, `Map` to `Map1`, and the library
+    // cannot restore a name that is not configurable, as in Firefox before 38
+    // TODO: drop after the release of swc with the fix of https://github.com/swc-project/swc/issues/12528
+    const renamed = applicable && actual === `${ expected }1` && getOwnPropertyDescriptor(fn, 'name')?.configurable === false;
     this.pushResult({
-      result: applicable ? actual === expected : true,
+      result: applicable && !renamed ? actual === expected : true,
       actual,
       expected,
       message: applicable
@@ -113,25 +111,21 @@ assign(assert, {
     });
   },
   nonConfigurable(O, key, message) {
-    const result = !DESCRIPTORS || getOwnPropertyDescriptor(O, key)?.configurable === false;
+    const result = getOwnPropertyDescriptor(O, key)?.configurable === false;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-configurable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`
-        : 'Configurability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`,
     });
   },
   nonEnumerable(O, key, message) {
-    const result = !DESCRIPTORS || getOwnPropertyDescriptor(O, key)?.enumerable === false;
+    const result = getOwnPropertyDescriptor(O, key)?.enumerable === false;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-enumerable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`
-        : 'Enumerability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
     });
   },
   nonEnumerableIn(O, key, message) {
@@ -140,14 +134,12 @@ assign(assert, {
     this.nonEnumerable(owner || O, key, message);
   },
   nonWritable(O, key, message) {
-    const result = !DESCRIPTORS || getOwnPropertyDescriptor(O, key)?.writable === false;
+    const result = getOwnPropertyDescriptor(O, key)?.writable === false;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-writable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`
-        : 'Writability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`,
     });
   },
   notSame(actual, expected, message) {
@@ -201,13 +193,14 @@ assign(assert, {
     });
   },
   // TODO: Drop from future `core-js` versions
-  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
+  // unavailable in `qunit@1` that's required for testing in Chrome 38, etc.
   true(value, message = 'The value is `true`') {
     this.same(value, true, message);
   },
 });
 
-assert.skip = reduce(getOwnPropertyNames(assert), (skip, method) => {
+// eslint-disable-next-line es/no-array-prototype-reduce -- safe
+assert.skip = getOwnPropertyNames(assert).reduce((skip, method) => {
   skip[method] = () => { /* empty */ };
   return skip;
 }, {});

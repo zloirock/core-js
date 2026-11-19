@@ -1,11 +1,11 @@
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import assign from 'core-js-pure/es/object/assign';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import assign from '@core-js/pure/es/object/assign';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
 
 const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1] || 0);
 // Firefox 45- passes a wrapper as `this` to accessors of the prototypes of primitives; fixed in Firefox 46.
@@ -40,7 +40,7 @@ QUnit.test('Iterator.from', assert => {
   // Should not create observable `String` wrapper objects
   // https://github.com/tc39/test262/blob/main/test/built-ins/Iterator/from/iterable-primitives.js
   const descriptor = getOwnPropertyDescriptor(String.prototype, Symbol.iterator);
-  if (DESCRIPTORS && descriptor) {
+  if (descriptor) {
     let observedType;
     defineProperty(String.prototype, Symbol.iterator, {
       configurable: true,

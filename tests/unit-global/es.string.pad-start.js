@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#padStart', assert => {
   const { padStart } = String.prototype;
   assert.isFunction(padStart);
@@ -24,8 +22,6 @@ QUnit.test('String#padStart', assert => {
   assert.throws(() => padStart.call('a', 10, symbol), 'throws on symbol argument');
   assert.same('abc'.padStart(2, symbol), 'abc', 'does not throw on symbol fillString when no padding needed');
 
-  if (STRICT) {
-    assert.throws(() => padStart.call(null, 0), TypeError);
-    assert.throws(() => padStart.call(undefined, 0), TypeError);
-  }
+  assert.throws(() => padStart.call(null, 0), TypeError);
+  assert.throws(() => padStart.call(undefined, 0), TypeError);
 });

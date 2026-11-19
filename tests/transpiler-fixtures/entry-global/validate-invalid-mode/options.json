@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "entry-global",
+        "version": "4.0",
+        "mode": "invalid",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

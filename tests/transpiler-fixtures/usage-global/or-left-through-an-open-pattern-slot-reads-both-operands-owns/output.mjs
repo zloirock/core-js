@@ -1,0 +1,16 @@
+import "core-js/modules/es.symbol.constructor";
+import "core-js/modules/es.symbol.description";
+import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.has-own";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.weak-map.constructor";
+import "core-js/modules/es.weak-map.get-or-insert";
+import "core-js/modules/es.weak-map.get-or-insert-computed";
+import "core-js/modules/web.dom-collections.iterator";
+const slots = [WeakMap];
+slots[0] = null;
+const [W] = slots;
+export const owns = (typeof W == 'function' ? W : Object).hasOwn;

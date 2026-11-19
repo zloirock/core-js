@@ -1,7 +1,6 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
-import Iterator from 'core-js-pure/es/iterator';
+import Iterator from '@core-js/pure/es/iterator';
 
 QUnit.test('Iterator#drop', assert => {
   const { drop } = Iterator.prototype;
@@ -17,10 +16,8 @@ QUnit.test('Iterator#drop', assert => {
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 0).toArray(), [1, 2, 3], 'zero');
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), Infinity).toArray(), [], Infinity);
 
-  if (STRICT) {
-    assert.throws(() => drop.call(undefined, 1), TypeError);
-    assert.throws(() => drop.call(null, 1), TypeError);
-  }
+  assert.throws(() => drop.call(undefined, 1), TypeError);
+  assert.throws(() => drop.call(null, 1), TypeError);
 
   assert.throws(() => drop.call({}, 1).next(), TypeError);
   assert.throws(() => drop.call([], 1).next(), TypeError);
@@ -30,6 +27,21 @@ QUnit.test('Iterator#drop', assert => {
   assert.throws(() => drop.call(it, -Infinity), RangeError, '-Infinity');
   assert.throws(() => drop.call(it, 0x20000000000000), RangeError, 'unsafe integer');
   assert.true(it.closed, 'drop closes iterator on validation error');
+  // .return() on wrapper propagates to underlying iterator
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    const dropped = drop.call(it2, 1);
+    dropped.next();
+    dropped.return();
+    assert.same(returnCount, 1, '.return() on dropped iterator propagates to underlying');
+  }
+
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => drop.call({ next: null }, 0).next(), TypeError);
 });

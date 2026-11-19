@@ -1,4 +1,4 @@
-import fontsize from 'core-js-pure/es/string/fontsize';
+import fontsize from '@core-js/pure/es/string/fontsize';
 
 QUnit.test('String#fontsize', assert => {
   assert.isFunction(fontsize);
@@ -6,7 +6,7 @@ QUnit.test('String#fontsize', assert => {
   assert.same(fontsize('a', '"'), '<font size="&quot;">a</font>', 'escape quotes');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol == 'function') {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     const symbol = Symbol('fontsize test');
     assert.throws(() => fontsize(symbol, 'b'), 'throws on symbol context');
     assert.throws(() => fontsize('a', symbol), 'throws on symbol argument');

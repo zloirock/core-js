@@ -1,2 +1,4 @@
 *.log
 .*
+
+/AGENTS.md

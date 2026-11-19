@@ -1,0 +1,4 @@
+// PLAIN claims through the sealed root ERASE receiverless like the alias spelling (the seal
+// ends the inner chain; the plain read declares the value) - call, destructure and the
+// claimable ctor value-use alike
+export const viaSealedPlainCall = (globalThis.window?.self.window).Array.of(6).at(0);

@@ -1,9 +1,9 @@
 import { deepEqual, ok, throws } from 'node:assert/strict';
-import compat from 'core-js-compat/compat.js';
+import compat from '@core-js/compat/compat.js';
 
 deepEqual(compat({
   modules: [
-    'core-js/es/math',
+    'es/math',
     'es.array.at',
     /^es\.reflect/,
   ],
@@ -13,19 +13,8 @@ deepEqual(compat({
   targets: 'firefox 27',
 }), {
   list: [
-    'es.array.at',
-    'es.array.iterator',
-    'es.math.acosh',
-    'es.math.asinh',
-    'es.math.atanh',
-    'es.math.cbrt',
-    'es.math.clz32',
-    'es.math.expm1',
-    'es.math.f16round',
-    'es.math.log1p',
-    'es.math.log2',
-    'es.math.sum-precise',
-    'es.math.to-string-tag',
+    'es.object.to-string',
+    'es.reflect.namespace',
     'es.reflect.apply',
     'es.reflect.construct',
     'es.reflect.define-property',
@@ -39,21 +28,23 @@ deepEqual(compat({
     'es.reflect.set',
     'es.reflect.set-prototype-of',
     'es.reflect.to-string-tag',
+    'es.array.iterator',
+    'es.math.log2',
+    'es.array.at',
+    'es.math.acosh',
+    'es.math.asinh',
+    'es.math.atanh',
+    'es.math.cbrt',
+    'es.math.clz32',
+    'es.math.expm1',
+    'es.math.f16round',
+    'es.math.log1p',
+    'es.math.sum-precise',
+    'es.math.to-string-tag',
   ],
   targets: {
-    'es.array.at': { firefox: '27' },
-    'es.array.iterator': { firefox: '27' },
-    'es.math.acosh': { firefox: '27' },
-    'es.math.asinh': { firefox: '27' },
-    'es.math.atanh': { firefox: '27' },
-    'es.math.cbrt': { firefox: '27' },
-    'es.math.clz32': { firefox: '27' },
-    'es.math.expm1': { firefox: '27' },
-    'es.math.f16round': { firefox: '27' },
-    'es.math.log1p': { firefox: '27' },
-    'es.math.log2': { firefox: '27' },
-    'es.math.sum-precise': { firefox: '27' },
-    'es.math.to-string-tag': { firefox: '27' },
+    'es.object.to-string': { firefox: '27' },
+    'es.reflect.namespace': { firefox: '27' },
     'es.reflect.apply': { firefox: '27' },
     'es.reflect.construct': { firefox: '27' },
     'es.reflect.define-property': { firefox: '27' },
@@ -67,6 +58,19 @@ deepEqual(compat({
     'es.reflect.set': { firefox: '27' },
     'es.reflect.set-prototype-of': { firefox: '27' },
     'es.reflect.to-string-tag': { firefox: '27' },
+    'es.array.iterator': { firefox: '27' },
+    'es.array.at': { firefox: '27' },
+    'es.math.acosh': { firefox: '27' },
+    'es.math.asinh': { firefox: '27' },
+    'es.math.atanh': { firefox: '27' },
+    'es.math.cbrt': { firefox: '27' },
+    'es.math.clz32': { firefox: '27' },
+    'es.math.expm1': { firefox: '27' },
+    'es.math.f16round': { firefox: '27' },
+    'es.math.log1p': { firefox: '27' },
+    'es.math.log2': { firefox: '27' },
+    'es.math.sum-precise': { firefox: '27' },
+    'es.math.to-string-tag': { firefox: '27' },
   },
 }, 'basic');
 
@@ -114,53 +118,6 @@ for (const exclude of [false, 0, [null]]) {
   throws(() => compat({ exclude }), TypeError, `invalid exclude: ${ JSON.stringify(exclude) }`);
 }
 
-for (const exclude of [
-  'es.array.at',
-  /^es\.array\.at$/,
-  ['es.array.at'],
-  'core-js/stable/array/at',
-  'esnext.array.at',
-  /^esnext\.array\.at$/,
-  ['esnext.array.at'],
-  'core-js/proposals/relative-indexing-method',
-]) {
-  deepEqual(compat({
-    modules: ['es.array.at', 'esnext.array.at'],
-    exclude,
-    targets: 'ie 11',
-  }), { list: [], targets: {} }, `exclude stabilized aliases: ${ JSON.stringify(exclude) }`);
-}
-
-deepEqual(compat({
-  modules: 'esnext.array.at',
-  exclude: 'es.array.at',
-  targets: 'ie 11',
-}), { list: [], targets: {} }, 'exclude a stable module when only its alias is selected');
-
-for (const exclude of ['es.array.at', 'esnext.array.at']) {
-  deepEqual(compat({
-    modules: ['es.array.at', 'esnext.array.at'],
-    exclude,
-    targets: 'chrome 100',
-    inverse: true,
-  }), { list: [], targets: {} }, 'inverse respects excluded stabilized aliases');
-}
-
-deepEqual(compat({
-  modules: ['es.math.f16round', 'esnext.math.f16round', 'esnext.math.clamp'],
-  exclude: /^es\.math\./,
-  targets: 'ie 11',
-}), {
-  list: ['esnext.math.clamp'],
-  targets: { 'esnext.math.clamp': { ie: '11' } },
-}, 'excluding stable math modules preserves unrelated proposals');
-
-deepEqual(compat({
-  modules: 'es.array.at',
-  exclude: 'esnext.array.at',
-  targets: 'ie 11',
-}), { list: [], targets: {} }, 'exclude an alias when only its stable module is selected');
-
 const noTargets = compat();
 
 for (const targets of [
@@ -190,19 +147,21 @@ deepEqual(
 
 deepEqual(
   compat({ targets: { chrome: 93 } }),
-  compat({ modules: 'core-js', targets: { chrome: 93 } }),
+  compat({ modules: 'actual', targets: { chrome: 93 } }),
   'no modules',
 );
 
 deepEqual(compat({
-  modules: 'core-js/es/math',
+  modules: 'es/math',
   targets: {
     chrome: 40,
     firefox: 27,
   },
 }), {
   list: [
+    'es.object.to-string',
     'es.array.iterator',
+    'es.math.log2',
     'es.math.acosh',
     'es.math.asinh',
     'es.math.atanh',
@@ -213,12 +172,12 @@ deepEqual(compat({
     'es.math.hypot',
     'es.math.log10',
     'es.math.log1p',
-    'es.math.log2',
     'es.math.sum-precise',
     'es.math.tanh',
     'es.math.to-string-tag',
   ],
   targets: {
+    'es.object.to-string': { chrome: '40', firefox: '27' },
     'es.array.iterator': { chrome: '40', firefox: '27' },
     'es.math.acosh': { chrome: '40', firefox: '27' },
     'es.math.asinh': { chrome: '40', firefox: '27' },
@@ -244,21 +203,22 @@ deepEqual(
 );
 
 for (const targets of ['safari TP', { safari: 'tp' }, { browsers: { safari: 'latest' } }]) {
-  deepEqual(compat({ modules: ['es.array.at', 'esnext.array.filter-out'], targets }), {
-    list: ['esnext.array.filter-out'],
-    targets: { 'esnext.array.filter-out': { safari: '999999' } },
+  deepEqual(compat({ modules: ['es.array.at', 'esnext.string.dedent'], targets }), {
+    list: ['esnext.string.dedent'],
+    targets: { 'esnext.string.dedent': { safari: '999999' } },
   }, 'latest Safari needs polyfills only for unsupported features');
 }
 
 const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true });
 
 ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');
-ok(!inverted1.includes('esnext.iterator.from'), 'inverse #2');
-ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
+ok(!inverted1.includes('esnext.iterator.range'), 'inverse #2');
+// TODO: enable after adding new stabilized aliases in `core-js@4`
+// ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
 
-const { list: inverted2 } = compat({ modules: 'core-js/es/math', targets: { esmodules: true }, inverse: true });
+const { list: inverted2 } = compat({ modules: 'es/math', targets: { esmodules: true }, inverse: true });
 
 ok(inverted2.includes('es.math.acosh'), 'inverse #4');
-ok(!inverted2.includes('es.map'), 'inverse #5');
+ok(!inverted2.includes('es.map.constructor'), 'inverse #5');
 
 echo(chalk.green('compat tool tested'));

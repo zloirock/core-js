@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -48,6 +49,8 @@ var IteratorProxy = createIteratorProxy(function () {
 
     var value = result.value;
     try {
+      // @dependency: es.array.iterator
+      // @dependency: web.dom-collections.iterator
       this.inner = getIteratorFlattenable(mapper(value, this.counter++), false);
     } catch (error) { iteratorClose(iterator, 'throw', error); }
   }
@@ -55,6 +58,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.flatMap` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
@@ -68,7 +72,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

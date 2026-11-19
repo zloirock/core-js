@@ -1,0 +1,10 @@
+// duplicate-key object literal: `{k: literal1, k: literal2}` evaluates `k = literal2` at
+// runtime (last-property-wins). backward iteration picks `literal2` correctly; forward
+// iteration would return `literal1` and narrow to the wrong RHS shape (sound only when
+// the constraint covers both, but the fixture pinpoints the iteration direction directly)
+function pick<T extends { k: unknown }>(o: T): T['k'] {
+  return o.k;
+}
+// @ts-expect-error a key collision, which tsc refuses, is the shape under test
+const r = pick({ k: 'string', k: [1, 2, 3] });
+r.at(-1);

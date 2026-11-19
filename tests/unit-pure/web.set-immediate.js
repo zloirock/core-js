@@ -1,7 +1,7 @@
 import { timeLimitedPromise } from '../helpers/helpers.js';
 
-import setImmediate from 'core-js-pure/stable/set-immediate';
-import clearImmediate from 'core-js-pure/stable/clear-immediate';
+import setImmediate from '@core-js/pure/stable/set-immediate';
+import clearImmediate from '@core-js/pure/stable/clear-immediate';
 
 QUnit.test('setImmediate / clearImmediate', assert => {
   assert.isFunction(setImmediate, 'setImmediate is function');
@@ -40,4 +40,17 @@ QUnit.test('setImmediate / clearImmediate', assert => {
   assert.false(called, 'setImmediate is async');
 
   return promise;
+});
+
+QUnit.test('clearImmediate does not cancel other callbacks', assert => {
+  return timeLimitedPromise(1e3, resolve => {
+    const id = setImmediate(() => assert.avoid('cancelled callback'));
+    clearImmediate(id);
+    clearImmediate(id);
+    clearImmediate(undefined);
+    setImmediate(() => {
+      assert.required('other callback runs');
+      resolve();
+    });
+  });
 });

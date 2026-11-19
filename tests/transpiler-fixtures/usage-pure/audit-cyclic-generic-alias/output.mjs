@@ -1,0 +1,11 @@
+import _at from "@core-js/pure/actual/instance/at";
+// self-wrapping generic alias `Rec<T> = Rec<T[]>` - type unresolvable. without cycle
+// guard in the type resolver, each re-entry substitutes T -> T[] -> T[][] ... until the
+// depth cap, burning CPU for no useful result. polyfill falls back to the generic
+// instance form when type resolution returns null
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
+type Rec<T> = Rec<T[]>;
+// @ts-expect-error a higher-kinded application tsc refuses is the shape under test
+function at(r: Rec<string>) {
+  return _at(r).call(r, 0);
+}

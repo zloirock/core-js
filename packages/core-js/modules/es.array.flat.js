@@ -1,4 +1,6 @@
+// @types: proposals/array-flat-map
 'use strict';
+// @dependency: es.array.unscopables.flat
 var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var toObject = require('../internals/to-object');
@@ -21,5 +23,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     var A = arraySpeciesCreate(O, 0);
     flattenIntoArray(A, O, O, sourceLen, 0, depthNum);
     return A;
-  }
+  },
 });

@@ -6,8 +6,10 @@ module.exports = {
   mode: 'none',
   module: {
     rules: [{
-      test: /\.js$/,
+      test: /\.m?js$/,
       exclude: [/node_modules/, resolve(__dirname, '../../packages')],
+      // Babel lowers modules to CommonJS, including explicitly named ESM inputs.
+      type: 'javascript/auto',
       use: {
         loader: 'babel-loader',
         options: babelConfig,

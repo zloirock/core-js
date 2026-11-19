@@ -1,0 +1,15 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _globalThis from "@core-js/pure/actual/global-this";
+import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
+var _ref;
+let held;
+export const method = (held = _globalThis.window.window?.Array)?.isArray;
+export { held };
+const root = () => _globalThis;
+_globalThis.slotD = 27;
+export const written = _self.slotD;
+export const called = _self == null ? void 0 : _atMaybeArray(_ref = _self.Array.of(1)).call(_ref, 0);
+let count = 0;
+export const guarded = null == (count++, count++, null == _globalThis.window ? void 0 : _self) ? void 0 : _Map.name;
+export { count };

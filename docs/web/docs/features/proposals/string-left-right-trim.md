@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-left-right-trim)
 
 ## Modules
-[`es.string.trim-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-end.js) and [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-start.js).
+[`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-end.js) and [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-start.js).
 
 ## Built-ins signatures
 ```ts
@@ -18,11 +18,14 @@ class String {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/string-left-right-trim
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-end
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-left
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-right
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-start
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-end
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-left
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-right
+{ core-js, @core-js/pure }/es|stable|actual|full/string(/prototype)/trim-start
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-left-right-trim`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/string-left-right-trim.d.ts)
 
 ## Examples
 ```js

@@ -1,0 +1,55 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _globalThis from "@core-js/pure/actual/global-this";
+import _Object$keys from "@core-js/pure/actual/object/keys";
+import _self from "@core-js/pure/actual/self";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+// A nested static assignment keeps its guarded source check before key effects.
+// If the source is absent, neither the key nor either target write is reached.
+// The receiver prefix runs once; the next key observes the preceding target write.
+const events = [];
+let from = 'old-from';
+let keys = 'old-keys';
+let result;
+try {
+  ({
+    Array: {
+      [(_pushMaybeArray(events).call(events, 'key'), 'from')]: from
+    },
+    [((_pushMaybeArray(events) || 0).call(events, _atMaybeString('x').call('x', 0), typeof from), 'Object')]: {
+      keys
+    }
+  } = (_pushMaybeArray(events).call(events, 'source'), {} = null == _globalThis.window ? void 0 : _self, {
+    Array: {
+      from: _Array$from
+    },
+    Object: {
+      keys: _Object$keys
+    }
+  }));
+  result = [from([7])[0], keys({
+    x: 1
+  })[0]];
+} catch (error) {
+  result = _nameMaybeFunction(error);
+}
+export { events, result };
+
+// A native member target does not turn the preceding Identifier slot into a native-first default.
+const pureFrom = _Array$from;
+const box = {};
+let method = 'old';
+try {
+  var _ref;
+  _ref = (_pushMaybeArray(events).call(events, 'partial-source'), null == _globalThis.window ? void 0 : _self), {
+    Array: {}
+  } = _ref, _pushMaybeArray(events).call(events, 'partial'), method = _Array$from, {
+    Object: {
+      keys: box[(_pushMaybeArray(events) || 0).call(events, method === pureFrom, _atMaybeString('y').call('y', 0)), 'value']
+    }
+  } = _ref;
+} catch (error) {
+  (_pushMaybeArray(events) || 0).call(events, _nameMaybeFunction(error));
+}
+export const partial = [method === pureFrom, typeof box.value];

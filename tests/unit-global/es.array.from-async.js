@@ -1,8 +1,7 @@
 import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
-import { DESCRIPTORS, STRICT_THIS } from '../helpers/constants.js';
 
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
+import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
 
 QUnit.test('Array.fromAsync', assert => {
   const { fromAsync } = Array;
@@ -31,7 +30,7 @@ QUnit.test('Array.fromAsync', assert => {
   return fromAsync(createAsyncIterable([1, 2, 3]), it => it ** 2).then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'async iterable and mapfn');
     return fromAsync(createAsyncIterable([1]), function (arg, index) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(index, 0, 'index');
@@ -47,7 +46,7 @@ QUnit.test('Array.fromAsync', assert => {
   }).then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'iterable and async mapfn');
     return fromAsync(createIterable([1]), function (arg, index) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(index, 0, 'index');
@@ -143,7 +142,7 @@ QUnit.test('Array.fromAsync, array-like length and mapping', assert => {
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Array.fromAsync, array-like length is read once', assert => {
+QUnit.test('Array.fromAsync, array-like length is read once', assert => {
   const log = [];
   const arrayLike = Object.defineProperty({ 0: 1 }, 'length', {
     get() {
@@ -168,6 +167,7 @@ for (const [name, symbol, create] of [
   QUnit.test(`Array.fromAsync, ${ name } iterator awaits primitive mapper results`, assert => {
     const values = [1, 2];
     return Array.fromAsync(create(values), (value, index) => {
+      // eslint-disable-next-line unicorn/prefer-promise-try -- a microtask is required for the test
       if (index === 0) Promise.resolve().then(() => { values[1] = 3; });
       return value;
     }).then(result => {
@@ -175,7 +175,7 @@ for (const [name, symbol, create] of [
     });
   });
 
-  if (DESCRIPTORS) QUnit.test(`Array.fromAsync, ${ name } iterator initialization`, assert => {
+  QUnit.test(`Array.fromAsync, ${ name } iterator initialization`, assert => {
     const log = [];
     const iterator = Object.defineProperty({}, 'next', {
       get() {
@@ -205,7 +205,7 @@ for (const [name, symbol, create] of [
 
   QUnit.test(`Array.fromAsync, ${ name } iterator step errors`, assert => {
     const phases = ['next', 'primitive'];
-    if (DESCRIPTORS) phases.push('done', 'value');
+    phases.push('done', 'value');
     if (name === 'async') phases.push('rejection');
     return Promise.all(phases.map(phase => {
       let closed = 0;

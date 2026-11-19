@@ -1,9 +1,8 @@
-import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
-import rawJSON from 'core-js-pure/es/json/raw-json';
-import stringify from 'core-js-pure/es/json/stringify';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import isFrozen from 'core-js-pure/es/object/is-frozen';
-import hasOwn from 'core-js-pure/es/object/has-own';
+import rawJSON from '@core-js/pure/es/json/raw-json';
+import stringify from '@core-js/pure/es/json/stringify';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import isFrozen from '@core-js/pure/es/object/is-frozen';
+import hasOwn from '@core-js/pure/es/object/has-own';
 
 QUnit.test('JSON.rawJSON', assert => {
   assert.isFunction(rawJSON);
@@ -20,17 +19,15 @@ QUnit.test('JSON.rawJSON', assert => {
   }), '1', 'created in toJSON');
   assert.same(calls, 1, 'toJSON called once');
 
-  if (DESCRIPTORS) {
-    calls = 0;
-    assert.same(stringify(defineProperty({}, 'a', {
-      enumerable: true,
-      get() {
-        calls += 1;
-        return rawJSON('1');
-      },
-    })), '{"a":1}', 'created in getter');
-    assert.same(calls, 1, 'getter called once');
-  }
+  calls = 0;
+  assert.same(stringify(defineProperty({}, 'a', {
+    enumerable: true,
+    get() {
+      calls += 1;
+      return rawJSON('1');
+    },
+  })), '{"a":1}', 'created in getter');
+  assert.same(calls, 1, 'getter called once');
 
   calls = 0;
   assert.same(stringify({ a: 0 }, (key, value) => {
@@ -53,7 +50,7 @@ QUnit.test('JSON.rawJSON', assert => {
   const raw = rawJSON(1);
   assert.true(hasOwn(raw, 'rawJSON'), 'own rawJSON');
   assert.same(raw.rawJSON, '1', 'is string 1');
-  if (FREEZING) assert.true(isFrozen(raw), 'frozen');
+  assert.true(isFrozen(raw), 'frozen');
 
   assert.same(stringify(rawJSON('"qwe"')), '"qwe"');
   assert.same(stringify(rawJSON('null')), 'null');

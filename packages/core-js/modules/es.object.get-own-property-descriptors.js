@@ -1,16 +1,16 @@
+// @types: proposals/object-get-own-property-descriptors
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var ownKeys = require('../internals/own-keys');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var createProperty = require('../internals/create-property');
 
 // `Object.getOwnPropertyDescriptors` method
 // https://tc39.es/ecma262/#sec-object.getownpropertydescriptors
-$({ target: 'Object', stat: true, sham: !DESCRIPTORS }, {
+$({ target: 'Object', stat: true }, {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object) {
-    var O = toIndexedObject(object);
+    var O = toObject(object);
     var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
     var keys = ownKeys(O);
     var result = {};
@@ -21,5 +21,5 @@ $({ target: 'Object', stat: true, sham: !DESCRIPTORS }, {
       if (descriptor !== undefined) createProperty(result, key, descriptor);
     }
     return result;
-  }
+  },
 });

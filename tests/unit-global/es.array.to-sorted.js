@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#toSorted', assert => {
   const { toSorted } = Array.prototype;
 
@@ -131,10 +129,8 @@ QUnit.test('Array#toSorted', assert => {
   } };
   assert.true(array.toSorted() instanceof Array, 'non-generic');
 
-  if (STRICT) {
-    assert.throws(() => toSorted.call(null), TypeError, 'ToObject(this)');
-    assert.throws(() => toSorted.call(undefined), TypeError, 'ToObject(this)');
-  }
+  assert.throws(() => toSorted.call(null), TypeError, 'ToObject(this)');
+  assert.throws(() => toSorted.call(undefined), TypeError, 'ToObject(this)');
 
   assert.true('toSorted' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

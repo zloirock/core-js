@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers.js';
 
-import from from 'core-js-pure/es/array/from';
-import Map from 'core-js-pure/es/map';
+import from from '@core-js/pure/es/array/from';
+import Map from '@core-js/pure/es/map';
 
 QUnit.test('Map.groupBy', assert => {
   const { groupBy } = Map;

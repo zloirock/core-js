@@ -1,0 +1,1 @@
+for (Iterator of streams) use(Iterator.range(0, 5));

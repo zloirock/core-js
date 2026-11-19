@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-joint-iteration)
 
 ## Modules
-[`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js).
+[`es.iterator.zip`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.zip-keyed.js).
 
 ## Built-ins signatures
 ```ts
@@ -28,9 +28,12 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/joint-iteration
-core-js(-pure)/es|stable|actual|full/iterator/zip
-core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/zip
+{ core-js, @core-js/pure }/es|stable|actual|full/iterator/zip-keyed
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/joint-iteration`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/joint-iteration.d.ts)
 
 ## Examples
 ```js

@@ -1,15 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
 var decimalDigits = require('../internals/number-decimal-digits');
-var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
 var $String = String;
-var repeat = uncurryThis($repeat);
+// @dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var join = uncurryThis([].join);
 var stringSlice = uncurryThis(''.slice);
 var nativeToFixed = uncurryThis(1.1.toFixed);
@@ -28,10 +29,7 @@ var ACCEPTS_100_DIGITS = !fails(function () {
   nativeToFixed(1, 100);
 });
 
-var FORCED = !ROUNDS_PROPERLY || !ACCEPTS_100_DIGITS || !fails(function () {
-  // V8 ~ Android 4.3-
-  nativeToFixed({});
-});
+var FORCED = !ROUNDS_PROPERLY || !ACCEPTS_100_DIGITS;
 
 // `Number.prototype.toFixed` method
 // https://tc39.es/ecma262/#sec-number.prototype.tofixed
@@ -62,5 +60,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     } else {
       result = sign + result;
     } return result;
-  }
+  },
 });

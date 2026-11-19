@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/require-number-to-fixed-digits-argument -- required for testing */
 QUnit.test('Number#toFixed', assert => {
   const { toFixed } = Number.prototype;
-  const zeros = count => Array(count + 1).join('0');
+  function zeros(count) { return Array(count + 1).join('0'); }
   assert.isFunction(toFixed);
   assert.name(toFixed, 'toFixed');
   assert.arity(toFixed, 1);

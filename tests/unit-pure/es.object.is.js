@@ -1,4 +1,4 @@
-import is from 'core-js-pure/es/object/is';
+import is from '@core-js/pure/es/object/is';
 
 QUnit.test('Object.is', assert => {
   assert.isFunction(is);

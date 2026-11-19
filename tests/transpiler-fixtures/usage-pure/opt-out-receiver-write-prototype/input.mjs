@@ -1,0 +1,6 @@
+// Keep disabled source slots native while independent live claims remain eligible.
+export let r;
+export const effects = [];
+// core-js-disable-next-line
+Map.prototype.custom = function () { return 17; };
+r = new Map().custom();

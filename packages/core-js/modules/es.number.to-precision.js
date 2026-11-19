@@ -1,10 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
 var decimalDigits = require('../internals/number-decimal-digits');
-var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
@@ -12,7 +12,8 @@ var $String = String;
 var $isFinite = isFinite;
 var abs = Math.abs;
 var nativeToPrecision = uncurryThis(1.1.toPrecision);
-var repeat = uncurryThis($repeat);
+// @dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var join = uncurryThis([].join);
 var stringSlice = uncurryThis(''.slice);
 
@@ -35,12 +36,6 @@ var ACCEPTS_100_DIGITS = !fails(function () {
 });
 
 var FORCED = !ROUNDS_PROPERLY || !ACCEPTS_100_DIGITS || fails(function () {
-  // IE7-
-  return nativeToPrecision(1, undefined) !== '1';
-}) || !fails(function () {
-  // V8 ~ Android 4.3-
-  nativeToPrecision({});
-}) || fails(function () {
   // Safari <11 && FF <50
   nativeToPrecision(Infinity, Infinity);
   nativeToPrecision(NaN, Infinity);
@@ -76,5 +71,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     if (e === p - 1) return s + m;
     if (e >= 0) return s + stringSlice(m, 0, e + 1) + '.' + stringSlice(m, e + 1);
     return s + '0.' + repeat('0', -(e + 1)) + m;
-  }
+  },
 });

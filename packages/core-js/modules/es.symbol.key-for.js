@@ -6,7 +6,7 @@ var tryToString = require('../internals/try-to-string');
 var shared = require('../internals/shared');
 var NATIVE_SYMBOL_REGISTRY = require('../internals/symbol-registry-detection');
 
-var SymbolToStringRegistry = shared('symbol-to-string-registry');
+var SymbolToStringRegistry = NATIVE_SYMBOL_REGISTRY || shared('symbol-to-string-registry');
 var $TypeError = TypeError;
 
 // `Symbol.keyFor` method
@@ -15,5 +15,5 @@ $({ target: 'Symbol', stat: true, forced: !NATIVE_SYMBOL_REGISTRY }, {
   keyFor: function keyFor(sym) {
     if (!isSymbol(sym)) throw new $TypeError(tryToString(sym) + ' is not a symbol');
     if (hasOwn(SymbolToStringRegistry, sym)) return SymbolToStringRegistry[sym];
-  }
+  },
 });

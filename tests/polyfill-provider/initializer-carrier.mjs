@@ -1,0 +1,206 @@
+import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import {
+  chainAssignOverPureNav,
+  initializerEffectParts,
+  residualReadOwnsValue,
+  planInitializerCarrier,
+  planInitializerNavigation,
+  planConsumedInitializerCarrier,
+  sentinelMemoInitShape,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { renderShortCircuitGuard } from '../../packages/core-js-polyfill-provider/render.js';
+import { createChecker } from './harness.mjs';
+
+const { check, checkDeep, finish, runBoth } = createChecker('initializer-carrier');
+
+for (const [name, facts, expected] of [
+  ['one reader carries its source', {}, 'dispatch'],
+  ['several readers share the prefix', { readCount: 2, prefix: true, repeatable: true }, 'lift'],
+  ['several opaque reads need one capture', { readCount: 2, prefix: true }, 'memo'],
+  ['a header keeps the only evaluation in place', { readCount: 2, forInit: true }, 'dispatch'],
+  ['an expression slot cannot lift', { readCount: 2, statement: false }, 'dispatch'],
+  ['a collapsed read retains its capture', { inline: false }, 'memo'],
+  ['a bodyless residual needs a braced lift', { residual: true, bodyless: true }, 'lift'],
+  ['a surviving residual shares a capture', { residual: true }, 'memo'],
+  ['earlier effects require splitting the slot', {
+    residual: true, consumesPattern: () => true, precedersPure: () => false,
+  }, 'split'],
+  ['a surviving loop source stays in its header', { residual: true, forInit: true }, 'residual'],
+  ['no legal prefix slot leaves the route untouched', { residual: true, statement: false }, null],
+  ['an emptied statement needs no further carrier', { residual: true, consumesPattern: () => true }, null],
+]) check(name, planInitializerCarrier(facts), expected);
+
+for (const [source, carries] of [
+  ['held = globalThis.Array', true],
+  ['held = other = (effect(), row.items)', true],
+  ['held = getRow().items', false],
+  ['held += row.items', false],
+  ['row.items', false],
+]) runBoth('a stored navigation keeps its source assignments', `let held, other; const ref = ${ source };`, (parser, program, label) => {
+  const { init } = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'ref').node;
+  check(label, chainAssignOverPureNav(init), carries ? init : null);
+});
+
+for (const [source, shared, sameRealm] of [
+  ['receiver.name', true, true],
+  ['read()', true, true],
+  ['(touch(), receiver)', true, true],
+  ['pick ? window : self', true, false],
+  ['window || self', true, false],
+  ['[1, 2]', true, true],
+  ['({ row: [] })', true, true],
+  ['[touch()]', false, false],
+  ['receiver', false, false],
+  ['0', false, false],
+]) runBoth('a residual and its extraction share a receiver', `const { at } = ${ source };`, (parser, program, label) => {
+  const init = unwrapRuntimeExpr(parser.pickPath(program, 'VariableDeclarator').node.init);
+  check(`${ label }/ordinary receiver`, sentinelMemoInitShape(init, false), shared);
+  check(`${ label }/all proxy`, sentinelMemoInitShape(init, true), sameRealm);
+});
+
+let questions = 0;
+function unexpected() {
+  questions++;
+  return false;
+}
+check('inline does not ask speculative consumption', planInitializerCarrier({ consumesPattern: unexpected }), 'dispatch');
+check('bodyless does not ask preceding declaration facts', planInitializerCarrier({
+  residual: true, bodyless: true, consumesPattern: unexpected, precedersPure: unexpected,
+}), 'lift');
+check('unused questions remain unasked', questions, 0);
+
+for (const [name, init, prefixCount, tailName] of [
+  ['plain value', 'globalThis', null, null],
+  ['sequence', '(first(), globalThis)', 1, 'globalThis'],
+  ['nested sequence', '(first(), (second(), globalThis))', 2, 'globalThis'],
+  ['store', '(held = globalThis)', 1, 'globalThis'],
+  ['stored prefix', '(held = (first(), globalThis))', 1, 'globalThis'],
+  ['chained store', '(held = second = (first(), globalThis))', 1, 'globalThis'],
+  ['sequence and store', '(first(), held = (second(), globalThis))', 2, 'globalThis'],
+  ['wrapped sequence', '((first(), globalThis) as typeof globalThis)', 1, 'globalThis'],
+]) runBoth(name, `let held, second; const value = ${ init };`, (parser, program, label) => {
+  const source = parser.pickPath(program, 'VariableDeclarator', path => path.node.id.name === 'value').node.init;
+  const before = JSON.stringify(program.node);
+  const parts = initializerEffectParts(source);
+  check(`${ label }/prefix count`, parts?.prefix.length ?? null, prefixCount);
+  check(`${ label }/tail`, parts?.tail.name ?? null, tailName);
+  if (parts) {
+    check(`${ label }/borrowed tail`, initializerEffectParts(source).tail, parts.tail);
+    checkDeep(`${ label }/borrowed effects`, initializerEffectParts(source).prefix, parts.prefix);
+  }
+  check(`${ label }/query does not rewrite source`, JSON.stringify(program.node), before);
+});
+
+for (const [name, init, sibling, carried, memo, forInit = false] of [
+  ['sole prefix', '(effect(), globalThis)', '', true, false],
+  ['sole store', '(held = globalThis)', '', true, false],
+  ['store in header', '(held = globalThis)', '', true, false, true],
+  ['prefix in header is not an early lift', '(effect(), globalThis)', '', false, false, true],
+  ['surviving sibling shares prefix', '(effect(), globalThis)', ', other', false, true],
+  ['surviving sibling shares store', '(held = globalThis)', ', other', false, true],
+  ['effectful call with a sibling', '(() => { effect(); return globalThis; })()', ', other', false, true],
+  ['pure call with a sibling', '(() => globalThis)()', ', other', false, false],
+  ['opaque call with a sibling', 'unknown()', ', other', false, false],
+  ['bare effectful call in header', '(() => { effect(); return globalThis; })()', ', other', false, false, true],
+  ['prefix and pure call in header', '(effect(), (() => globalThis)())', ', other', false, true, true],
+  ['prefix and effectful call in header', '(effect(), (() => { effect(); return globalThis; })())', ', other', false, false, true],
+  ['ordinary root has no moved effects', 'globalThis', '', false, false],
+  ['user member names no builtin surface', '(effect(), user)', ', other', false, false],
+]) runBoth(name, `let held; const { Array: { prototype: { at: method } }${ sibling } } = ${ init };`, (parser, program, label) => {
+  const path = parser.pickPath(program, parser.name === 'babel' ? 'ObjectProperty' : 'Property', item => item.node.value.name === 'method');
+  const declaration = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern').node;
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { adapter, path, scope: path.scope, resolvePure: () => null, isOwnAlias: () => false };
+  const input = { init: declaration.init, prop: path.node, kind: 'instance', entry: 'array/instance/at',
+    keys: ['Array', 'prototype'], sourcePattern: declaration.id, forInit };
+  const before = JSON.stringify(program.node);
+  let patternReads = 0;
+  input.sourcePattern = {
+    ...declaration.id,
+    get properties() {
+      patternReads++;
+      return declaration.id.properties;
+    },
+  };
+  check(`${ label }/no navigation has no carrier`, planInitializerNavigation({ ...input, keys: [] }, ctx), null);
+  check(`${ label }/no navigation does not scan bindings`, patternReads, 0);
+  const plan = planInitializerNavigation(input, ctx);
+  check(`${ label }/navigation inspects source readers`, patternReads > 0, true);
+  check(`${ label }/carried`, !!plan?.carried, carried);
+  check(`${ label }/memo receiver`, !!plan && !plan.carried, memo);
+  checkDeep(`${ label }/repeat query`, planInitializerNavigation(input, ctx), plan);
+  check(`${ label }/source untouched`, JSON.stringify(program.node), before);
+});
+
+for (const [name, init, pattern, collapseLeaf, expected] of [
+  ['one opaque read', 'make()', '{ at: method }', false, 'dispatch'],
+  ['one collapsed read', 'make()', '{ at: method }', true, 'memo'],
+  ['one defaulted collapsed read', 'make()', '{ name: method = fallback() }', 'default', 'dispatch'],
+  ['two opaque reads', 'make()', '{ at: method, includes: another }', false, 'memo'],
+  ['two reads with a stable tail', '(effect(), globalThis)', '{ at: method, includes: another }', false, 'lift'],
+  ['a stored stable tail', '(held = (effect(), globalThis))', '{ at: method, includes: another }', false, 'lift'],
+  ['a getter cannot be read twice', '(effect(), user.value)', '{ at: method, includes: another }', false, 'memo'],
+  ['a user realm conditional needs its capture', 'value == null ? void 0 : globalThis', '{ at: method, includes: another }', false, 'memo'],
+  ['a user condition runs once', '(effect(), false) ? void 0 : self', '{ at: method, includes: another }', false, 'memo'],
+  ['a generated guard keeps its probe', 'value == null ? void 0 : globalThis', '{ at: method, includes: another }', false, 'guard'],
+  ['a user conditional needs its capture', 'value == null ? void 0 : user', '{ at: method, includes: another }', false, 'memo'],
+  ['a collapsed store is still its own value', '(held = globalThis)', '{ at: method }', true, 'dispatch'],
+]) runBoth(name, `let held; const ${ pattern } = ${ init };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const ctx = { adapter, path, scope: path.scope, resolveGlobalPolyfill: () => null };
+  const reads = path.node.id.properties.map(prop => ({ kind: 'instance', prop,
+    collapseLeaf: collapseLeaf === 'default' ? { defaultPattern: prop.value } : collapseLeaf }));
+  const before = JSON.stringify(program.node);
+  const initNode = name === 'a generated guard keeps its probe'
+    ? renderShortCircuitGuard(path.node.init.test, path.node.init.alternate) : path.node.init;
+  const plan = planConsumedInitializerCarrier(initNode, reads, ctx);
+  check(`${ label }/carrier`, plan.carrier, expected);
+  checkDeep(`${ label }/repeat`, planConsumedInitializerCarrier(initNode, reads, ctx), plan);
+  check(`${ label }/source untouched`, JSON.stringify(program.node), before);
+});
+
+// Two actual readers can reuse a realm-returning call only when the root has a
+// ponyfill and the call itself is repeatable. Keep the user's effects on their prefix.
+for (const [name, result, available, expected] of [
+  ['pure realm', 'return globalThis;', true, 'lift'],
+  ['unserved realm', 'return globalThis;', false, 'memo'],
+  ['effectful call', 'effect(); return globalThis;', true, 'memo'],
+  ['user result', 'return user;', true, 'memo'],
+]) runBoth(name, `function realm() { ${ result } } const { at, includes } = (prefix(), realm());`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.type === 'ObjectPattern');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const pure = { entry: 'global-this', hintName: 'globalThis' };
+  const ctx = { adapter, path, scope: path.scope, resolveGlobalPolyfill: key => available && key === 'globalThis' ? pure : null };
+  const reads = path.node.id.properties.map(prop => ({ kind: 'instance', prop }));
+  const plan = planConsumedInitializerCarrier(path.node.init, reads, ctx);
+  check(`${ label }/carrier`, plan.carrier, expected);
+  check(`${ label }/root import`, plan.pure || null, expected === 'lift' ? pure : null);
+  check(`${ label }/prefix`, plan.prefix[0], parser.pickPath(program, 'CallExpression', item => item.node.callee.name === 'prefix').node);
+});
+
+checkDeep('receiver-less claims keep only effects', planConsumedInitializerCarrier(null, [{ kind: 'static' }], {}),
+  { carrier: 'effects' });
+checkDeep('an empty read group keeps only effects', planConsumedInitializerCarrier(null, [], {}), { carrier: 'effects' });
+
+// A constructor probe supplies a global residual; a static residual still needs its method.
+for (const [pattern, kind, expected] of [
+  ['{ Map: { missing } }', 'global', true],
+  ['{ from: { name } }', 'static', false],
+  ['{ at: { name } }', 'instance', false],
+  ['{ Map: value }', 'global', false],
+  ['{ Map: [value] }', 'global', false],
+  ['{ Map: { missing } = fallback }', 'global', false],
+]) runBoth(`residual value owner/${ kind }/${ pattern }`, `const ${ pattern } = source;`, (parser, program, label) => {
+  const [prop] = parser.pickPath(program, 'VariableDeclarator').node.id.properties;
+  const reads = [{ kind, prop }];
+  const before = JSON.stringify(prop);
+  check(`${ label }/one read`, residualReadOwnsValue(reads), expected);
+  check(`${ label }/no read`, residualReadOwnsValue([]), false);
+  check(`${ label }/multiple reads`, residualReadOwnsValue([...reads, ...reads]), false);
+  check(`${ label }/query keeps the pattern`, JSON.stringify(prop), before);
+});
+
+finish();

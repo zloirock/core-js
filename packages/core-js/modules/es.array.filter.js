@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var $filter = require('../internals/array-iteration').filter;
+var arraySpeciesCreate = require('../internals/array-species-create');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
 
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('filter');
@@ -10,6 +11,6 @@ var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('filter');
 // with adding support of @@species
 $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
   filter: function filter(callbackfn /* , thisArg */) {
-    return $filter(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-  }
+    return $filter(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined, arraySpeciesCreate);
+  },
 });

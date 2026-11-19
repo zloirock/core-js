@@ -1,0 +1,10 @@
+// boolean item - non-string, caught by findIndex
+export default {
+  plugins: [
+    ['@core-js', {
+      method: 'entry-global',
+      version: '4.0',
+      additionalPackages: ['ok', true],
+    }],
+  ],
+};

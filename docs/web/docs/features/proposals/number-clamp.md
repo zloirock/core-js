@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-math-clamp)
 
 ## Modules
-[`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.clamp.js).
+[`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.number.clamp.js).
 
 ## Built-ins signatures
 ```ts
@@ -14,9 +14,12 @@ class Number {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/math-clamp-v2
-core-js(-pure)/full/number(/virtual)/clamp
+core-js/proposals/number-clamp
+{ core-js, @core-js/pure }/full/number(/prototype)/clamp
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/number-clamp`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/number-clamp.d.ts)
 
 ## Examples
 ```js

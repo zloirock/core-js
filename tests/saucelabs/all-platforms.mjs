@@ -55,8 +55,9 @@ export function fromCatalog(catalog) {
     if (!version || !os || mobile.has(browser) && !device) continue;
     const family = browser === 'ipad' ? 'iphone' : browser;
     // the manual matrix is a part of the full one; besides it, Edge of the catalog is Chromium and repeats Chrome,
-    // and the units are not kept passing in Firefox before 7
-    if (!manualPlatform(entry) && (browser === 'MicrosoftEdge' || browser === 'firefox' && +version < 7 || repeated[family]?.has(version))) continue;
+    // and Firefox before 15 and Internet Explorer before 11 are below the supported baseline
+    if (!manualPlatform(entry) && (browser === 'MicrosoftEdge' || browser === 'firefox' && +version < 15 ||
+      browser === 'internet explorer' && +version < 11 || repeated[family]?.has(version))) continue;
     const key = `${ family }/${ version }`;
     const previous = selected.get(key);
     if (!previous || rank(entry) < rank(previous)) selected.set(key, entry);

@@ -1,13 +1,13 @@
 # ECMAScript: Error
+
 ## Modules
-[`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
+[`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.constructor.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.suppressed-error.constructor.js).
 
 ## Built-ins signatures
 ```ts
 class Error {
   static isError(value: any): boolean;
   constructor(message?: string, { cause: any }?): %Error%;
-  toString(): string; // different fixes
 }
 
 class [
@@ -43,10 +43,9 @@ class SuppressedError extends Error {
 ```plaintext
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
-core-js(-pure)/es|stable|actual|full/error/is-error
-core-js/es|stable|actual|full/error/to-string
-core-js(-pure)/es|stable|actual|full/aggregate-error
-core-js(-pure)/es|stable|actual|full/suppressed-error
+{ core-js, @core-js/pure }/es|stable|actual|full/error/is-error
+{ core-js, @core-js/pure }/es|stable|actual|full/aggregate-error
+{ core-js, @core-js/pure }/es|stable|actual|full/suppressed-error
 ```
 
 ## Examples
@@ -60,8 +59,6 @@ aggregate.errors[1] === error2; // => true
 const cause = new TypeError('Something wrong');
 const error = new TypeError('Here is what went wrong', { cause });
 error.cause === cause; // => true
-
-Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
 
 ## `Error.isError` examples

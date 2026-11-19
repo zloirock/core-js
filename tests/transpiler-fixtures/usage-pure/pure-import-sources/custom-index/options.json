@@ -1,0 +1,18 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "package": "my-pure",
+        "additionalPackages": [
+          "@vendor/pure"
+        ],
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

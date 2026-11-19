@@ -1,0 +1,1 @@
+const it = obj[Symbol.iterator];

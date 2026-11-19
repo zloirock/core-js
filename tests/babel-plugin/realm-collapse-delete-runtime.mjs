@@ -1,0 +1,180 @@
+/* eslint-disable max-depth -- Cross parser, phase and realm boundaries. */
+// Mutation guards retain the source receiver, exceptions and effect order.
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
+import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
+import { createChecker, scenarioSource } from '../polyfill-provider/harness.mjs';
+import { importSet } from '../transpiler-differential/harness.mjs';
+
+const requireBabel = process.env.BABEL_REQUIRE_FROM
+  ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href)
+  : createRequire(import.meta.url);
+const { transformAsync } = requireBabel('@babel/core');
+const { check, finish } = createChecker('realm-collapse-delete-runtime');
+const cases = [
+  ['sequence-delete', 'return delete (effects.push("prefix"), globalThis.window)?.window.slotD;'],
+  ['declined-sequence', 'return delete (effects.push("prefix"), globalThis?.window)?.slotD;'],
+  ['quiet-sequence', 'return delete (0, globalThis.window)?.slotD;'],
+  ['nested-sequence', 'return delete (effects.push("a"), (effects.push("b"), globalThis.window))?.["slotD"];'],
+  ['outer-guard', 'return delete globalThis.self.window?.window.slotD;'],
+  ['outer-guard-sequence', 'return delete (effects.push("prefix"), globalThis.self.window)?.window.slotD;'],
+  ['outer-guard-update', 'return (globalThis.self.window?.window).slotD++;'],
+  ['outer-guard-write', 'return (globalThis.self.window?.window).slotD = (effects.push("rhs"), 31);'],
+  ['outer-guard-pattern', 'let source = [31]; [ (globalThis.self.window?.window).slotD ] = source; return true;'],
+  ['outer-guard-loop', 'for ((globalThis.self.window?.window).slotD of [31]) effects.push("body"); return true;'],
+  ['branch-consequent', 'const x = { window: { slotD: 23 } }; const d = delete (choice ? globalThis : x).window.slotD; return [d, x.window.slotD];'],
+  ['branch-alternate', 'const x = { window: { slotD: 23 } }; const d = delete (choice ? x : globalThis).window.slotD; return [d, x.window.slotD];'],
+  ['null-test', 'return delete (globalThis == null).window.slotD;'],
+  ['nonnull-test', 'return delete (globalThis != null).window.slotD;'],
+  ['logical-control', 'return delete (choice && globalThis).window.slotD;'],
+  ['stored-guard', 'let held; const d = delete (held = globalThis.window)?.slotD; return [d, typeof held];'],
+  ['sealed-read', 'return typeof (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];'],
+  ['sealed-delete', 'return delete (globalThis.window?.Promise)[(effects.push("key"), "noSuchStatic")];'],
+  ['double-sealed', 'return typeof ((globalThis.window?.Promise))[(effects.push("key"), "noSuchStatic")];'],
+  ['dynamic-key', 'const key = () => "resolve"; return typeof (globalThis.window?.Promise)[key()];'],
+  ['effectful-key', 'const key = () => (effects.push("key"), "resolve"); return typeof (globalThis.window?.Promise)[key()];'],
+  ['throwing-key', 'const key = () => { effects.push("key"); throw new RangeError(); }; return typeof (globalThis.window?.Promise)[key()];'],
+  ['instance', 'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at(-1);'],
+  ['optional-instance-call', 'return (effects.push("prefix"), globalThis).window?.globalThis.items?.at?.(-1);'],
+  ['call-leaf-prefix', `function root() { return globalThis.window; }
+    return (effects.push("first"), (effects.push("second"), root())).self?.includes(1);`],
+  ['call-leaf-throw', `function root() { return globalThis.window; }
+    return (effects.push("first"), missingReceiverPrefix, effects.push("late"), root()).self?.includes(1);`],
+  ['call-leaf-argument', `function root() { return globalThis.window; }
+    return (effects.push("before"), root({ value: missingArgument })).self?.[(effects.push("late"), "Math")].PI;`],
+  ['call-leaf-prefix-before-argument', `function root() { return globalThis.window; }
+    return (effects.push("before"), missingPrefix, effects.push("late"), root([missingArgument])).self?.Math.PI;`],
+  ['call-leaf-return', `const root = () => (missingReturnPrefix, globalThis.window);
+    return (effects.push("before"), root()).self?.[(effects.push("late"), "Math")].PI;`],
+  ['call-static-argument-tdz', `function root() { return Array; }
+    const value = (effects.push("before"), root(later)).from([3]);
+    const later = 1; return value;`],
+  ['nested-sequence-zero', 'return (0, (0, globalThis.self))?.Math.PI;'],
+  ['nested-sequence-alias', 'const realm = globalThis; return (0, (0, realm.self)).slotD;'],
+  ['excluded-sequence-delete', 'return delete (0, (0, (0, globalThis.self)).slotD);', { exclude: ['web.self'] }],
+  ['nested-sequence-name', 'return (effects.push("before"), (missingPrefix, globalThis.self))?.[(effects.push("late"), "Math")].PI;'],
+  ['nested-sequence-getter', `var box = { get key() { effects.push("get"); throw new RangeError(); } };
+    return (0, (box.key, globalThis.self))?.Math.PI;`],
+  ['nested-sequence-coercion', `var box = { valueOf() { effects.push("valueOf"); return 1; } };
+    return (0, (+box, globalThis.self)).Math.PI;`],
+  ['nested-sequence-redefined-slot', `const box = { key: 1 };
+    Object.defineProperty(box, "key", { get() { effects.push("get"); return 2; } });
+    let M; ({ Map: M } = (box.key, globalThis)); return typeof M;`],
+  ['nested-sequence-late-var', 'const result = (0, (box.key, globalThis.self))?.Math.PI; var box = { key: 1 }; return result;'],
+  ['nested-sequence-tdz', 'const r = (0, (later, globalThis.self)).slotD; let later; return r;'],
+  ['alias-unbacked-sequence-name', 'const realm = globalThis; return (0, missingPrefix, realm.self)?.self.window.slotD;'],
+  ['alias-unbacked-sequence-window', 'const realm = globalThis; return (effects.push("prefix"), realm.self)?.window.slotD;'],
+  ['alias-unbacked-sequence-self-window', 'const realm = globalThis; return (effects.push("prefix"), realm.self)?.self.window.slotD;', {}, true, 'core-js/modules/web.self.js'],
+  ['alias-unbacked-sequence-excluded-self', 'const realm = globalThis; return (effects.push("prefix"), realm.self)?.self.window.slotD;', { exclude: ['web.self'] }, true],
+  ['global-sequence-before-static', `Object.defineProperty(globalThis, "sequenceKey", { get() { effects.push("get"); return 1; } });
+    (globalThis.sequenceKey, Promise).resolve((effects.push("arg"), 2)); return 27;`],
+  ['throwing-global-sequence-before-static', `Object.defineProperty(globalThis, "sequenceKey", { get() { effects.push("get"); throw new RangeError(); } });
+    (globalThis.sequenceKey, Promise).resolve((effects.push("arg"), 2)); return 27;`],
+  ['alias-unbacked-sequence-coercion', `const realm = globalThis;
+    var box = { valueOf() { effects.push("coerce"); throw new RangeError(); } };
+    return (+box, realm.self)?.self.window.slotD;`],
+  ['pattern-sequence-name', 'const { self: { Array: A } } = (effects.push("before"), missingPrefix, globalThis); return typeof A;'],
+  ['pattern-sequence-tdz', 'let M; ({ Map: M } = (effects.push("before"), later, effects.push("late"), globalThis)); let later; return typeof M;'],
+  ['terminal', 'return typeof (effects.push("prefix"), globalThis.window)?.self;'],
+  ['claimed-delete', 'return delete globalThis.self?.window?.window?.Reflect.slot;'],
+  ['claimless-delete', 'return delete globalThis.self?.window?.window?.self.slotD;'],
+  ['vestigial-delete', 'const g = globalThis; return delete g.window?.Reflect?.slot;'],
+  ['vestigial-read', 'const g = globalThis; return g.window?.Reflect?.slot;'],
+  ['written-call-root', 'const root = () => globalThis; globalThis.slotD = 27; return root().self.window?.slotD === globalThis.self.window?.slotD;'],
+  ['defined-call-root', `function get() { return globalThis; }
+    Object.defineProperty(globalThis, "slotD", { value: 27, configurable: true });
+    return (effects.push("prefix"), get().self).window?.slotD === globalThis.self.window?.slotD;`],
+  ['stored-native-leaf', `let held = "unset";
+    try { return typeof (held = globalThis.window.window?.Array)?.isArray; }
+    finally { effects.push(held === "unset" ? "unset" : typeof held); }`],
+  ['stored-native-leaf-chrome', `let held = "unset";
+    try { return typeof (held = globalThis.window["window"]?.Array)?.isArray; }
+    finally { effects.push(held === "unset" ? "unset" : typeof held); }`, { targets: { chrome: 60 } }],
+  ['parenthesized-store', `let held = "unset";
+    try { return typeof (held = ((globalThis.window).window)?.Array)?.isArray; }
+    finally { effects.push(held === "unset" ? "unset" : typeof held); }`, { targets: { chrome: 60 } }],
+  ['alias-pattern-read', 'const w = globalThis.window; let isArray; ({ Array: { isArray } } = w.globalThis); return typeof isArray;', { targets: { chrome: 60 } }],
+  ['native-realm-pattern', `const { self: { Set: { name }, Map: { groupBy } } } = globalThis;
+    return [name, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['native-realm-iterator', `const { self: { [Symbol.iterator]: iter, Map: { groupBy } } } = globalThis;
+    return [typeof iter, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['native-realm-partial-bindings', `try { var { self: { Set: { name }, Map: { groupBy } } } = globalThis; }
+    catch (error) { return [error.name, typeof name, typeof groupBy]; }
+    return [name, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['native-realm-iterator-default', `try { var { self: { [Symbol.iterator]: iter = effects.push("default"), Map: { groupBy } } } = globalThis; }
+    catch (error) { return [error.name, typeof iter, typeof groupBy]; }
+    return [iter, groupBy([3], x => x).get(3)];`, { targets: { chrome: 100 } }, true],
+  ['excluded-store', 'let held; return [delete (held = (effects.push("prefix"), globalThis)).self.slotD, typeof held];', { exclude: ['web.self'] }],
+];
+// Export rewriting must not mutate a shared identifier used by the kept store.
+for (const createParenthesizedExpressions of [false, true]) {
+  const source = 'export let held; export const deleted = delete (held = globalThis).self.customProp;';
+  const { code } = await transformAsync(source, {
+    configFile: false, babelrc: false, filename: 'input.mjs',
+    plugins: [[babelPlugin, { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, exclude: ['web.self'] }],
+      requireBabel('@babel/plugin-transform-modules-commonjs')],
+    parserOpts: { createParenthesizedExpressions },
+  });
+  const exports = {};
+  Function('require', 'exports', code)(requireBabel, exports);
+  check(`exported-store/${ createParenthesizedExpressions }/value`, exports.held === globalThis, true);
+  check(`exported-store/${ createParenthesizedExpressions }/delete`, exports.deleted, true);
+}
+const tmp = path.join(import.meta.dirname, '../transpiler-differential/tmp');
+await fs.ensureDir(tmp);
+const directory = await fs.mkdtemp(path.join(tmp, 'realm-collapse-delete-'));
+let serial = 0;
+try {
+  for (const [name, body, extra = {}, nativeRealm = false, globalReference] of cases) {
+    const source = scenarioSource(`export const effects = []; export function read(choice) { ${ body } }`);
+    for (const method of ['usage-global', 'usage-pure']) {
+      const options = { method, version: '4.0', targets: { ie: 11 }, ...extra };
+      const outputs = [['native', source]];
+      for (const host of ['babel', 'babel-parens', 'unplugin', 'pre+post']) {
+        let code = source;
+        if (host.startsWith('babel')) code = (await transformAsync(source, {
+          configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, options]],
+          parserOpts: { createParenthesizedExpressions: host === 'babel-parens' },
+        })).code;
+        else {
+          const plugin = createUnplugin(options);
+          for (const pass of host === 'pre+post' ? ['pre', 'post'] : ['single']) code = plugin.transform(code, 'input.mjs', pass)?.code ?? code;
+        }
+        outputs.push([host, code]);
+      }
+      const imports = JSON.stringify([...importSet(outputs[1][1])].sort());
+      for (const [host, code] of outputs.slice(2)) check(`${ name }/${ method }/${ host }/imports`,
+        JSON.stringify([...importSet(code)].sort()), imports);
+      for (const present of [false, true]) {
+        let wanted;
+        for (const [host, output] of outputs) {
+          const module = path.join(directory, `case-${ serial++ }.mjs`);
+          await fs.writeFile(module, output);
+          const file = path.join(directory, `case-${ serial++ }.mjs`);
+          await fs.writeFile(file, `const root = Function('return this')();
+            ${ nativeRealm && !present ? 'delete root.self;' : 'root.self = root;' }
+            ${ present ? 'root.window = root;' : 'delete root.window;' }
+            root.slotD = 17; root.items = [1, 3];
+            ${ host === 'native' && method === 'usage-global' && globalReference ? `await import(${ JSON.stringify(globalReference) });` : '' }
+            const mod = await import(${ JSON.stringify(pathToFileURL(module).href) });
+            export const effects = mod.effects;
+            let value;
+            try { value = mod.read(false); } catch (error) { value = error.name; }
+            export const r = [value, root.slotD];`);
+          for (const strip of host === 'native' ? [false] : [false, true]) {
+            const actual = await runInWorker(file, { strip, stripGlobals: nativeRealm ? ['Promise'] : ['Promise', 'globalThis'] });
+            if (host === 'native') {
+              check(`${ name }/${ present }/native runs`, actual.startsWith('OK|'), true);
+              wanted = actual;
+            } else check(`${ name }/${ method }/${ host }/${ present }/${ strip }`, actual, wanted);
+          }
+        }
+      }
+    }
+  }
+} finally {
+  await fs.remove(directory);
+}
+finish();

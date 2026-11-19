@@ -15,9 +15,14 @@ const skip = [
 ];
 
 const ignoreWords = [
+  'ND',
   'aNumber',
+  'forHead',
+  'forIn',
+  'importEnd',
   'larg',
   'outLow',
+  'prevEnd',
   'statics',
 ];
 

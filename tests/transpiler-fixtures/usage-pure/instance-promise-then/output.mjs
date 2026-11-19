@@ -1,0 +1,1 @@
+promise.then(cb);

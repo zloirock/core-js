@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var fails = require('../internals/fails');
 var call = require('../internals/function-call');
@@ -15,11 +16,11 @@ var classof = require('../internals/classof');
 var isObject = require('../internals/is-object');
 var $toString = require('../internals/to-string');
 var toUSVString = require('../internals/to-usv-string');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
+var create = Object.create;
 var NativeURLSearchParams = getBuiltIn('URLSearchParams');
 var nativeParamsToString = isCallable(NativeURLSearchParams) && uncurryThis(NativeURLSearchParams.prototype.toString);
 
@@ -43,16 +44,16 @@ var hasFormType = function (body) {
 };
 
 var patchFetch = function (NATIVE_INSTANCES) {
-  var Headers = getBuiltIn('Headers');
-  var NativeRequest = getBuiltIn('Request');
-  var NativeResponse = getBuiltIn('Response');
+  var Headers = globalThis.Headers;
+  var NativeRequest = globalThis.Request;
+  var NativeResponse = globalThis.Response;
   // native instances need no wrappers where the fetch API takes a native `URLSearchParams`
   if (NATIVE_INSTANCES && !fails(function () {
     var params = new NativeURLSearchParams('a=1');
     return !hasFormType(new NativeRequest('http://a', { method: 'POST', body: params })) || !hasFormType(new NativeResponse(params));
   })) return;
   if (isCallable(Headers)) {
-    var nativeFetch = getBuiltIn('fetch');
+    var nativeFetch = globalThis.fetch;
     var RequestPrototype = NativeRequest && NativeRequest.prototype;
     var HeadersPrototype = Headers.prototype;
     var headersHas = uncurryThis(HeadersPrototype.has);
@@ -81,7 +82,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
           if (headers === undefined && isRequest(input)) headers = requestHeaders ? requestHeaders(input) : input.headers;
           return create(init, {
             body: createPropertyDescriptor(0, serializeBody(body)),
-            headers: createPropertyDescriptor(0, wrapHeaders(headers))
+            headers: createPropertyDescriptor(0, wrapHeaders(headers)),
           });
         }
       }
@@ -111,7 +112,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
           } catch (error) {
             return call(promiseReject, Promise, error);
           }
-        }
+        },
       });
     }
 
@@ -123,7 +124,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
         var options = wrapRequestOptions(input, init);
         var request = options !== init ? createRequest(input, options)
           : init === undefined ? new NativeRequest(input) : new NativeRequest(input, init);
-        return inheritIfRequired(request, this, RequestConstructor);
+        return inheritIfRequired(request, this, RequestPrototype);
       };
 
       RequestPrototype.constructor = RequestConstructor;
@@ -131,7 +132,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
       copyConstructorProperties(RequestConstructor, NativeRequest);
 
       $({ global: true, constructor: true, dontCallGetSet: true, forced: true }, {
-        Request: RequestConstructor
+        Request: RequestConstructor,
       });
     }
 
@@ -150,11 +151,11 @@ var patchFetch = function (NATIVE_INSTANCES) {
           init = {
             headers: wrapHeaders(responseHeaders ? responseHeaders(response) : response.headers),
             status: responseStatus ? responseStatus(response) : response.status,
-            statusText: responseStatusText ? responseStatusText(response) : response.statusText
+            statusText: responseStatusText ? responseStatusText(response) : response.statusText,
           };
           body = serializeBody(body);
         }
-        return inheritIfRequired(new NativeResponse(body, init), this, ResponseConstructor);
+        return inheritIfRequired(new NativeResponse(body, init), this, ResponsePrototype);
       };
 
       ResponsePrototype.constructor = ResponseConstructor;
@@ -162,14 +163,14 @@ var patchFetch = function (NATIVE_INSTANCES) {
       copyConstructorProperties(ResponseConstructor, NativeResponse);
 
       $({ global: true, constructor: true, dontCallGetSet: true, forced: true }, {
-        Response: ResponseConstructor
+        Response: ResponseConstructor,
       });
     }
   }
 };
 
 var patchXMLHttpRequest = function () {
-  var XMLHttpRequest = getBuiltIn('XMLHttpRequest');
+  var XMLHttpRequest = globalThis.XMLHttpRequest;
   var XHRPrototype = XMLHttpRequest && XMLHttpRequest.prototype;
   var toLowerCase = uncurryThis(''.toLowerCase);
 
@@ -192,7 +193,7 @@ var patchXMLHttpRequest = function () {
             var string = $toString(method);
             xhr.method = toLowerCase(string);
             return string;
-          }
+          },
         };
         if (args.length > 1) {
           var index = args.length > 4 && args[4] !== undefined && args[4] !== null ? 4
@@ -205,7 +206,7 @@ var patchXMLHttpRequest = function () {
               previous = state.xhr;
               state.xhr = xhr;
               return string;
-            }
+            },
           };
         }
         // `open` can synchronously dispatch readystatechange, including author header changes.
@@ -221,7 +222,7 @@ var patchXMLHttpRequest = function () {
         var header;
         // Convert the name once, at the native method's normal Web IDL conversion step.
         var result = call(nativeSetRequestHeader, this, {
-          toString: function () { return header = $toString(name); }
+          toString: function () { return header = $toString(name); },
         }, value);
         if (toLowerCase(header) === 'content-type') {
           var state = enforceState(this);
@@ -240,15 +241,15 @@ var patchXMLHttpRequest = function () {
           }
         }
         return call(nativeSend, this, body);
-      }
+      },
     });
   }
 };
 
 var patchSendBeacon = function () {
-  var Navigator = getBuiltIn('Navigator');
+  var Navigator = globalThis.Navigator;
   var NavigatorPrototype = Navigator && Navigator.prototype;
-  var Blob = getBuiltIn('Blob');
+  var Blob = globalThis.Blob;
   if (NavigatorPrototype && isCallable(NavigatorPrototype.sendBeacon) && isCallable(Blob)) {
     var nativeSendBeacon = NavigatorPrototype.sendBeacon;
     var getUserAgent = uncurryThisAccessor(NavigatorPrototype, 'userAgent', 'get');
@@ -261,7 +262,7 @@ var patchSendBeacon = function () {
         var data = arguments.length > 1 ? arguments[1] : null;
         if (classof(data) === URL_SEARCH_PARAMS) data = new Blob([serializeBody(data)], { type: FORM_CONTENT_TYPE });
         return call(nativeSendBeacon, this, url, data);
-      }
+      },
     });
   }
 };

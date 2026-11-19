@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('Array#slice', assert => {
   const { slice } = Array.prototype;
@@ -26,10 +26,10 @@ QUnit.test('Array#slice', assert => {
   if (list) {
     assert.returns(() => isArray(slice.call(list)), true, 'works on NodeList');
   }
-  if (STRICT) {
-    assert.throws(() => slice.call(null), TypeError);
-    assert.throws(() => slice.call(undefined), TypeError);
-  }
+
+  assert.throws(() => slice.call(null), TypeError);
+  assert.throws(() => slice.call(undefined), TypeError);
+
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {
@@ -37,7 +37,7 @@ QUnit.test('Array#slice', assert => {
   } };
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.slice().foo, 1, '@@species');
-  const descriptor = DESCRIPTORS && Object.getOwnPropertyDescriptor(Array, Symbol.species);
+  const descriptor = Object.getOwnPropertyDescriptor(Array, Symbol.species);
   if (descriptor && descriptor.configurable) {
     Object.defineProperty(Array, Symbol.species, { configurable: true, get: () => function () {
       return { foo: 1 };

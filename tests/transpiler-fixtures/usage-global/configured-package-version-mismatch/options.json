@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "node_modules",
+        "mode": "actual",
+        "targets": {
+          "ie": "11"
+        },
+        "package": "../transpiler-fixtures/usage-global/configured-package-version-mismatch/runtime"
+      }
+    ]
+  ]
+}

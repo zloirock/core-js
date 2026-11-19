@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('Iterator#map', assert => {
   const { map } = Iterator.prototype;
@@ -12,16 +11,14 @@ QUnit.test('Iterator#map', assert => {
 
   assert.arrayEqual(map.call(createIterator([1, 2, 3]), it => it ** 2).toArray(), [1, 4, 9], 'basic functionality');
   map.call(createIterator([1]), function (arg, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
     assert.same(counter, 0, 'counter');
   }).toArray();
 
-  if (STRICT) {
-    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => map.call({}, () => { /* empty */ }).next(), TypeError);
   assert.throws(() => map.call([], () => { /* empty */ }).next(), TypeError);
@@ -49,6 +46,19 @@ QUnit.test('Iterator#map', assert => {
   {
     const mapped = map.call({ next: () => mapped.next() }, x => x);
     assert.throws(() => mapped.next(), TypeError, 'throws on re-entering a running helper');
+  }
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it3 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => map.call(it3, () => { throw new Error('test'); }).next(), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
   }
 
   // https://issues.chromium.org/issues/336839115

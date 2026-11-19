@@ -1,5 +1,5 @@
+// @types: proposals/array-buffer-transfer
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
@@ -11,15 +11,15 @@ var nativeGetter = uncurryThisAccessor(ArrayBufferPrototype, 'detached', 'get');
 
 // `ArrayBuffer.prototype.detached` getter
 // https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.detached
-if (DESCRIPTORS && (!nativeGetter || !fails(function () {
+if (!nativeGetter || !fails(function () {
   // Older full polyfills accepted receivers without ArrayBuffer internal state.
   nativeGetter({});
-}))) {
+})) {
   defineBuiltInAccessor(ArrayBufferPrototype, 'detached', {
     configurable: true,
     get: function detached() {
       arrayBufferByteLength(this);
       return isDetached(this);
-    }
+    },
   });
 }

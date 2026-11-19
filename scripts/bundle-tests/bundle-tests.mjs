@@ -1,9 +1,17 @@
+import { generateTestsIndex } from './generate-tests-index.mjs';
+
+await generateTestsIndex({ name: 'unit-global', pkg: 'core-js' });
+await generateTestsIndex({ name: 'unit-pure', pkg: '@core-js/pure' });
+
+echo(chalk.green('tests indexes generated'));
+
 await Promise.all([
   ['unit-global/index', 'unit-global'],
   ['unit-pure/index', 'unit-pure'],
-].map(([entry, output]) => $`webpack \
+].map(([entry, output, config]) => $`webpack \
   --entry ../../tests/${ entry }.js \
   --output-filename ${ output }.js \
+  ${ config ? ['--config', config] : [] } \
 `));
 
 await Promise.all([

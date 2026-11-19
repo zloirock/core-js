@@ -1,0 +1,17 @@
+{
+  "sourceType": "script",
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "importStyle": "require",
+        "debug": true,
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}

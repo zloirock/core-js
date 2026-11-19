@@ -1,0 +1,105 @@
+import type compat from "@core-js/compat/compat";
+
+type CompatOptions = Exclude<Parameters<typeof compat>[0], undefined>;
+
+type Method = 'entry-global' | 'usage-global' | 'usage-pure';
+
+type Mode = 'es' | 'stable' | 'actual' | 'full';
+
+// rich Targets re-exported from `@core-js/compat/compat` - same shape as babel-plugin's
+// `CompatOptions["targets"]`. preserves per-engine literal keys (chrome / firefox /
+// node / ...), `esmodules: true | 'intersect'`, and `browsers: BrowserslistQuery` form
+type Targets = CompatOptions["targets"];
+
+interface BaseOptions {
+  /** used `core-js` version. Special values: `'node_modules'` (default; auto-detect the configured package from the project working directory); `'package.json'` (read the configured package from CWD `package.json`'s `dependencies` / `devDependencies` / `peerDependencies`). When specified as an explicit SemVer string, the minor component is required, e.g. `'4.1'` */
+  version?: string | null;
+  /** entry point layer: 'es', 'stable', 'actual', or 'full', by default 'actual' */
+  mode?: Mode | null;
+  /** the package to use for imports, by default 'core-js' for global, '@core-js/pure' for pure */
+  package?: string | null;
+  /** additional packages to recognize as core-js entry points */
+  additionalPackages?: readonly string[] | null;
+  /** browserslist targets */
+  targets?: Targets | null;
+  /** include polyfill modules by module name (e.g. `'es.array.at'`) or pattern.
+   *  String patterns are raw regex syntax (not glob) anchored to start/end; use `es\\..*`
+   *  to match all `es.` modules. `*` is a regex quantifier. Entry paths (`'array/at'`) are allowed
+   *  only for `method: 'usage-pure'`. */
+  include?: readonly (string | RegExp)[] | null;
+  /** exclude polyfill modules - same pattern semantics as `include` */
+  exclude?: readonly (string | RegExp)[] | null;
+  /** enable debug output */
+  debug?: boolean | null;
+  /** custom function to decide whether to inject a polyfill */
+  shouldInjectPolyfill?: ((name: string, defaultShouldInject: boolean) => boolean) | null;
+  /** resolve injected imports from the project working directory; missing entries throw */
+  absoluteImports?: boolean | null;
+  /** directory to search for browserslist config (for monorepos) */
+  configPath?: string | null;
+  /** browserslist env name (falls back to `production` / `defaults`) */
+  browserslistEnv?: string | null;
+  /** do not use browserslist config, only explicit `targets` */
+  ignoreBrowserslistConfig?: boolean | null;
+  /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from surviving ESM syntax and source format */
+  importStyle?: 'import' | 'require' | null;
+}
+
+interface EntryGlobalOptions extends BaseOptions {
+  method: 'entry-global';
+  /** Entry imports run at pre; compiled components have a narrow post stage on ordered hosts. */
+  phase?: 'pre' | null;
+}
+
+interface UsageOptions extends BaseOptions {
+  method: 'usage-global' | 'usage-pure';
+  /** Where in the bundler plugin chain to run:
+   *  - `'pre'` (default): before siblings; compiled components alone also run after their compiler.
+   *    Ordinary JS keeps one pass, so sibling-generated helpers are not covered.
+   *  - `'post'`: after siblings - covers helpers; stripped type info may over-polyfill.
+   *  - `'pre+post'`: pre handles user code, post catches helpers (inherits post's risk).
+   */
+  phase?: 'pre' | 'post' | 'pre+post' | null;
+}
+
+/** discriminated union: TS catches `phase: 'post'` on `entry-global` at compile time */
+type Options = EntryGlobalOptions | UsageOptions;
+
+type BundlerPlugin<T> = (options: Options) => T;
+
+export declare const vite: BundlerPlugin<any>;
+export declare const webpack: BundlerPlugin<any>;
+export declare const rollup: BundlerPlugin<any>;
+export declare const esbuild: BundlerPlugin<any>;
+export declare const rspack: BundlerPlugin<any>;
+export declare const rsbuild: BundlerPlugin<any>;
+export declare const rolldown: BundlerPlugin<any>;
+export declare const farm: BundlerPlugin<any>;
+export declare const bun: BundlerPlugin<any>;
+
+/** identifier-filter used by every adapter's `transformInclude` hook. exposed so consumers
+ *  can pre-filter resources outside the plugin (custom loaders, etc.). `enforce` says where the
+ *  caller sits against the plugins that compile a framework SFC into JavaScript: at `'post'` such
+ *  an id carries their output rather than the author's markup */
+export declare function shouldTransform(id: string, enforce?: 'pre' | 'post'): boolean;
+
+/** the unplugin factory backing every named adapter above. shape mirrors upstream's
+ *  `UnpluginInstance<Options>` but avoids the import to keep the typed surface from
+ *  pulling in transitive bundler deps (rollup, esbuild, bun, rspack, farm, ...) that
+ *  consumers of this `.d.ts` may not have installed */
+interface UnpluginInstance {
+  vite: BundlerPlugin<any>;
+  webpack: BundlerPlugin<any>;
+  rollup: BundlerPlugin<any>;
+  esbuild: BundlerPlugin<any>;
+  rspack: BundlerPlugin<any>;
+  rsbuild: BundlerPlugin<any>;
+  rolldown: BundlerPlugin<any>;
+  farm: BundlerPlugin<any>;
+  bun: BundlerPlugin<any>;
+  raw: (options: Options, meta: any) => any;
+}
+declare const unplugin: UnpluginInstance;
+export default unplugin;
+
+export type { Options, Method, Mode, Targets };

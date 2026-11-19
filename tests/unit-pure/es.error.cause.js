@@ -1,8 +1,13 @@
 /* eslint-disable sonarjs/inconsistent-function-call -- required for testing */
-import { PROTO } from '../helpers/constants.js';
+import Error from '@core-js/pure/es/error';
+import EvalError from '@core-js/pure/es/eval-error';
+import RangeError from '@core-js/pure/es/range-error';
+import ReferenceError from '@core-js/pure/es/reference-error';
+import SyntaxError from '@core-js/pure/es/syntax-error';
+import TypeError from '@core-js/pure/es/type-error';
+import URIError from '@core-js/pure/es/uri-error';
 
-import path from 'core-js-pure/es/error';
-import create from 'core-js-pure/es/object/create';
+const { create } = Object;
 
 function runErrorTestCase($Error, ERROR_NAME, WEB_ASSEMBLY) {
   QUnit.test(`${ ERROR_NAME } constructor with 'cause' param`, assert => {
@@ -10,9 +15,9 @@ function runErrorTestCase($Error, ERROR_NAME, WEB_ASSEMBLY) {
     assert.arity($Error, 1);
     assert.name($Error, ERROR_NAME);
 
-    if (PROTO && $Error !== path.Error) {
+    if ($Error !== Error) {
       // eslint-disable-next-line no-prototype-builtins -- safe
-      assert.true(path.Error.isPrototypeOf($Error), 'constructor has `Error` in the prototype chain');
+      assert.true(Error.isPrototypeOf($Error), 'constructor has `Error` in the prototype chain');
     }
 
     assert.true($Error(1) instanceof $Error, 'no cause, without new');
@@ -45,10 +50,16 @@ function runErrorTestCase($Error, ERROR_NAME, WEB_ASSEMBLY) {
   });
 }
 
-for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']) {
-  runErrorTestCase(path[ERROR_NAME], ERROR_NAME);
-}
+const ERRORS = [
+  [Error, 'Error'],
+  [EvalError, 'EvalError'],
+  [RangeError, 'RangeError'],
+  [ReferenceError, 'ReferenceError'],
+  [SyntaxError, 'SyntaxError'],
+  [TypeError, 'TypeError'],
+  [URIError, 'URIError'],
+];
 
-if (path.WebAssembly) for (const ERROR_NAME of ['CompileError', 'LinkError', 'RuntimeError']) {
-  if (path.WebAssembly[ERROR_NAME]) runErrorTestCase(path.WebAssembly[ERROR_NAME], ERROR_NAME, true);
+for (const [ErrorConstructor, name] of ERRORS) {
+  runErrorTestCase(ErrorConstructor, name);
 }

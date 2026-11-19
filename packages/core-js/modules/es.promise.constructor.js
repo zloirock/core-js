@@ -3,10 +3,9 @@ var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var IS_NODE = require('../internals/environment-is-node');
 var globalThis = require('../internals/global-this');
-var path = require('../internals/path');
 var call = require('../internals/function-call');
 var defineBuiltIn = require('../internals/define-built-in');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var setToStringTag = require('../internals/set-to-string-tag');
 var setSpecies = require('../internals/set-species');
 var aCallable = require('../internals/a-callable');
@@ -19,7 +18,8 @@ var microtask = require('../internals/microtask');
 var hostReportErrors = require('../internals/host-report-errors');
 var perform = require('../internals/perform');
 var Queue = require('../internals/queue');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var NativePromiseConstructor = require('../internals/promise-native-constructor');
 var PromiseConstructorDetection = require('../internals/promise-constructor-detection');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
@@ -28,12 +28,11 @@ var PROMISE = 'Promise';
 var FORCED_PROMISE_CONSTRUCTOR = PromiseConstructorDetection.CONSTRUCTOR;
 var NATIVE_PROMISE_REJECTION_EVENT = PromiseConstructorDetection.REJECTION_EVENT;
 var NATIVE_PROMISE_SUBCLASSING = PromiseConstructorDetection.SUBCLASSING;
-var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
-var setInternalState = InternalStateModule.set;
+var getInternalPromiseState = internalStateGetterFor(PROMISE);
 var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructor.prototype;
 var PromiseConstructor = NativePromiseConstructor;
 var PromisePrototype = NativePromisePrototype;
-var TypeError = globalThis.TypeError;
+var $TypeError = TypeError;
 var document = globalThis.document;
 var process = globalThis.process;
 var newPromiseCapability = newPromiseCapabilityModule.f;
@@ -48,7 +47,7 @@ var REJECTED = 2;
 var HANDLED = 1;
 var UNHANDLED = 2;
 
-var Internal, OwnPromiseCapability, PromiseWrapper, nativeThen;
+var Internal, OwnPromiseCapability, nativeThen;
 
 // helpers
 var isThenable = function (it) {
@@ -80,7 +79,7 @@ var callReaction = function (reaction, state) {
         }
       }
       if (result === reaction.promise) {
-        reject(new TypeError('Promise-chain cycle'));
+        reject(new $TypeError('Promise-chain cycle'));
       } else if (then = isThenable(result)) {
         call(then, result, resolve, reject);
       } else resolve(result);
@@ -170,7 +169,7 @@ var internalResolve = function (state, value, unwrap) {
   state.done = true;
   if (unwrap) state = unwrap;
   try {
-    if (state.facade === value) throw new TypeError("Promise can't be resolved itself");
+    if (state.facade === value) throw new $TypeError("Promise can't be resolved itself");
     var then = isThenable(value);
     if (then) {
       microtask(function () {
@@ -221,7 +220,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
       reactions: new Queue(),
       rejection: false,
       state: PENDING,
-      value: null
+      value: null,
     });
   };
 
@@ -250,7 +249,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
   };
 
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
-    return C === PromiseConstructor || C === PromiseWrapper
+    return C === PromiseConstructor
       ? new OwnPromiseCapability()
       : newGenericPromiseCapability(C);
   };
@@ -275,19 +274,15 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
     } catch (error) { /* empty */ }
 
     // make `instanceof Promise` work for native promise-based APIs
-    if (setPrototypeOf) {
-      setPrototypeOf(NativePromisePrototype, PromisePrototype);
-    }
+    setPrototypeOf(NativePromisePrototype, PromisePrototype);
   }
 }
 
 // `Promise` constructor
 // https://tc39.es/ecma262/#sec-promise-executor
 $({ global: true, constructor: true, wrap: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
-  Promise: PromiseConstructor
+  Promise: PromiseConstructor,
 });
-
-PromiseWrapper = path.Promise;
 
 setToStringTag(PromiseConstructor, PROMISE, false, true);
 setSpecies(PROMISE);

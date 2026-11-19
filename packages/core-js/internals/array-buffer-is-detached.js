@@ -2,30 +2,24 @@
 var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
-var getNativePrototype = require('../internals/array-buffer-native-prototype');
 var getInternalState = require('../internals/internal-state').get;
-var classof = require('../internals/classof-raw');
 var fails = require('../internals/fails');
 var postMessage = require('../internals/message-channel-post');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var Uint8Array = globalThis.Uint8Array;
-var ArrayBufferPrototype = globalThis.ArrayBuffer && globalThis.ArrayBuffer.prototype;
-var nativeSlice = ArrayBufferPrototype && ArrayBufferPrototype.slice;
-var NATIVE_UINT8_ARRAY = Uint8Array && !Uint8Array.sham;
+var nativeSlice = ArrayBuffer.prototype.slice;
 var CHECK_BY_CLONING = PROPER_STRUCTURED_CLONE_TRANSFER ? false : undefined;
 var STOP = { valueOf: function () { throw STOP; } };
 
 var throwsOnDetached = function (O, slice) {
   try {
-    if (NATIVE_UINT8_ARRAY) {
-      // a buffer can be larger than the maximum typed array length
-      // eslint-disable-next-line no-new -- thrower
-      new Uint8Array(O, 0, 0);
-    }
+    // a buffer can be larger than the maximum typed array length
+    // eslint-disable-next-line no-new -- thrower
+    new Uint8Array(O, 0, 0);
     // Without MessageChannel, old V8 needs slice to recognize detached WebAssembly buffers.
     // https://issues.chromium.org/issues/42209506
-    if (slice && (!NATIVE_UINT8_ARRAY || !postMessage)) {
+    if (slice && !postMessage) {
       // Stop slice before species lookup and allocation.
       call(slice, O, STOP);
     }
@@ -36,26 +30,25 @@ var throwsOnDetached = function (O, slice) {
 };
 
 module.exports = function (O) {
-  var state = getInternalState(O);
-  if (state.detached) return true;
-  // a full polyfill never has a detachable backing store
-  if (state.type === 'ArrayBuffer') return false;
-  if (NATIVE_UINT8_ARRAY && CHECK_BY_CLONING === false) return throwsOnDetached(O);
-  var prototype = getNativePrototype(O, true);
-  if (prototype && classof(prototype) === 'SharedArrayBuffer') return false;
-  // a polyfill of `slice` installed on this prototype later checks the detachment itself
-  var slice = NATIVE_UINT8_ARRAY || prototype === ArrayBufferPrototype ? nativeSlice : prototype && prototype.slice;
+  if (getInternalState(O).detached) return true;
+  if (CHECK_BY_CLONING === false) return throwsOnDetached(O);
+  var byteLength;
+  try {
+    // callers pass ArrayBuffer or SharedArrayBuffer; the getter rejects shared buffers
+    byteLength = arrayBufferByteLength(O);
+  } catch (error) {
+    return false;
+  }
   if (CHECK_BY_CLONING === undefined && postMessage) {
     // old WebKit accepts detached buffers in both view constructors and slice
-    // The probe must actually detach: Deno 1.13 rejects ArrayBuffer transfer.
+    // the probe must actually detach: Deno 1.13 rejects ArrayBuffer transfer
     CHECK_BY_CLONING = !fails(function () {
-      var Constructor = prototype && prototype.constructor;
-      var buffer = NATIVE_UINT8_ARRAY ? new Uint8Array(1).buffer : new Constructor(1);
+      var buffer = new Uint8Array(1).buffer;
       postMessage(null, [buffer]);
-      return arrayBufferByteLength(buffer) !== 0 || throwsOnDetached(buffer, slice);
+      return arrayBufferByteLength(buffer) !== 0 || throwsOnDetached(buffer, nativeSlice);
     });
   }
-  return throwsOnDetached(O, slice) || !!CHECK_BY_CLONING && arrayBufferByteLength(O) === 0 && fails(function () {
+  return throwsOnDetached(O, nativeSlice) || !!CHECK_BY_CLONING && byteLength === 0 && fails(function () {
     postMessage(O);
   });
 };

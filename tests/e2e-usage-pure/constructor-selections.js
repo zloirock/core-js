@@ -1,0 +1,367 @@
+import { withTemporaryProperty } from '../helpers/restore-property.cjs';
+
+QUnit.test('constructor selections: conditional pattern aliases retain raw static reads', assert => {
+  let M;
+  if (assert) ({ Map: M } = globalThis);
+  assert.true('groupBy' in M);
+
+  let P;
+  if (assert) ({ Promise: P } = globalThis);
+  function read({ try: method } = P) { return typeof method; }
+  assert.same(read(), 'function');
+
+  let S;
+  if (assert) ({ Symbol: S } = globalThis);
+  const { iterator: value = 'fallback' } = S;
+  // Symbol is object-backed on engines without native symbols.
+  assert.same(value, Symbol.iterator);
+});
+
+QUnit.test('constructor selections: a closure before its realm initializer keeps statics', assert => {
+  function read() { return realm.Promise.resolve(7); }
+  // eslint-disable-next-line no-var -- the pre-initializer closure exercises a hoisted binding
+  var realm = globalThis;
+  return read().then(value => assert.same(value, 7));
+});
+
+QUnit.test('constructor selections: captured intrinsic sibling keeps the static and identity', assert => {
+  function read(source) {
+    let name, groupBy;
+    const host = { name, groupBy } = source || Map;
+    return [host, typeof name, groupBy];
+  }
+  const builtin = read(null);
+  assert.same(builtin[0], Map);
+  assert.same(builtin[1], 'string');
+  assert.same(typeof builtin[2], 'function');
+  assert.deepEqual(builtin[2]([7], value => value).get(7), [7]);
+  const user = { name: 'user', groupBy: 9 };
+  assert.deepEqual(read(user), [user, 'string', 9]);
+});
+
+QUnit.test('constructor selections: opaque keys keep native statics as an accepted pure boundary', assert => {
+  function read(array, key) {
+    let C = Object;
+    if (array) C = Array;
+    return C[key];
+  }
+  assert.same(read(true, 'from'), Object.getOwnPropertyDescriptor(Array, 'from')?.value);
+  assert.same(read(false, 'groupBy'), Object.getOwnPropertyDescriptor(Object, 'groupBy')?.value);
+});
+
+QUnit.test('constructor selections: captured realm assignments keep the realm and polyfill the alias', assert => {
+  function read(enabled) {
+    let C;
+    const realm = enabled && ({ Map: C } = globalThis);
+    if (!enabled) return [realm, C];
+    const { groupBy: method = 'fallback' } = C;
+    return [realm, method];
+  }
+  const [realm, method] = read(true);
+  assert.same(realm, globalThis);
+  assert.deepEqual(method([7], value => value).get(7), [7]);
+  assert.deepEqual(read(false), [false, undefined]);
+});
+
+QUnit.test('constructor selections: aliases keep separate receiver cache domains', assert => {
+  function read(flag) {
+    const { Map: M } = globalThis;
+    const box = { x: flag ? M : Math };
+    const first = 'groupBy' in box.x;
+    let C = M;
+    if (flag) C = Math;
+    return [first, 'groupBy' in C];
+  }
+  assert.deepEqual(read(true), [true, false]);
+  assert.deepEqual(read(false), [false, true]);
+});
+
+QUnit.test('constructor selections: an opaque selected source can replace the realm', assert => {
+  function read(flag, factory) {
+    // eslint-disable-next-line no-useless-assignment -- the initial realm must not prove an opaque later value
+    let realm = globalThis;
+    ({ value: realm } = flag ? { value: globalThis } : factory());
+    return [realm === globalThis, realm.Array.from([7])[0]];
+  }
+  function makeUserRealm() { return { value: { Array: { from: () => [9] } } }; }
+  assert.deepEqual(read(true, makeUserRealm), [true, 7]);
+  assert.deepEqual(read(false, makeUserRealm), [false, 9]);
+});
+
+QUnit.test('constructor selections: a fallback its constructor left decides reads that left statics', assert => {
+  let effects = 0;
+  let calls = 0;
+  function make() {
+    calls++;
+    return Promise;
+  }
+  assert.deepEqual((Array ?? WeakSet).from('ab'), ['a', 'b']);
+  assert.deepEqual(((effects++, Object) || WeakMap).fromEntries([['k', 1]]), { k: 1 });
+  assert.same(effects, 1);
+  assert.same(typeof (make() || Set).withResolvers, 'function');
+  assert.same(calls, 1);
+  let stored;
+  assert.deepEqual(((stored = Map) || Set).groupBy([1, 2], value => value % 2).get(1), [1]);
+  assert.same(stored, Map);
+  const { of } = (effects++, Array) || WeakSet;
+  assert.deepEqual(of(3), [3]);
+  assert.same(effects, 2);
+});
+
+QUnit.test('constructor selections: a global core-js extends in place decides off the realm too', assert => {
+  // every engine carries it, so the member read over the selection takes the polyfilled static
+  let effects = 0;
+  assert.deepEqual((globalThis.Array || WeakSet).from('cd'), ['c', 'd']);
+  assert.same((globalThis.Math || (effects++, WeakMap)).sumPrecise([1, 2]), 3);
+  assert.same(effects, 0);
+  const { fromEntries } = globalThis.Object || (effects++, Set);
+  assert.deepEqual(fromEntries([['k', 2]]), { k: 2 });
+  assert.same(effects, 0);
+  // ... and so does one it patches in place and ships no pure replacement of
+  assert.true((globalThis.Number || (effects++, WeakMap)).isInteger(5));
+  assert.same(typeof (globalThis.RegExp || (effects++, Set)).escape, 'function');
+  assert.true((globalThis.TypeError || (effects++, Map)).isError(new TypeError('x')));
+  const { isSafeInteger } = globalThis.Number || (effects++, WeakSet);
+  assert.true(isSafeInteger(7));
+  assert.same(effects, 0);
+});
+
+QUnit.test('constructor selections: a left read off the realm decides only where the build serves it', assert => {
+  // a realm read of a global the engine lacks is `undefined`, so the right runs and needs its own polyfill
+  withTemporaryProperty(Function('return this')(), 'Document', undefined, () => {
+    const { of } = globalThis.Document || Array;
+    assert.deepEqual(of(1, 2), [1, 2]);
+    let effects = 0;
+    const { from } = (effects++, globalThis.Document) ?? Array;
+    assert.deepEqual(from('ab'), ['a', 'b']);
+    assert.same(effects, 1);
+    // ... and so is an alias holding that read
+    const Doc = globalThis.Document;
+    const { from: viaAlias } = Doc || Array;
+    assert.deepEqual(viaAlias('cd'), ['c', 'd']);
+    // ... and a call returning it
+    function getDocument() {
+      return globalThis.Document;
+    }
+    const { from: viaCall } = getDocument() || Array;
+    assert.deepEqual(viaCall('ef'), ['e', 'f']);
+  });
+});
+
+QUnit.test('constructor selections: a right static named like an instance method keeps its own entry', assert => {
+  // `entries` / `values` name instance methods too, and that must not hand the claim to a left the engine
+  // lacks: the right runs, and its static is the polyfill, on every spelling of the left and every host
+  withTemporaryProperty(Function('return this')(), 'Document', undefined, () => {
+    const source = { a: 1 };
+    const { entries } = globalThis.Document || Object;
+    assert.deepEqual(entries(source), [['a', 1]]);
+    const { values } = globalThis.Document ?? Object;
+    assert.deepEqual(values(source), [1]);
+    const Doc = globalThis.Document;
+    const { entries: viaAlias } = Doc || Object;
+    assert.deepEqual(viaAlias(source), [['a', 1]]);
+    const { Document: Bound } = globalThis;
+    const { values: viaBinding } = Bound ?? Object;
+    assert.deepEqual(viaBinding(source), [1]);
+    function getDocument() {
+      return globalThis.Document;
+    }
+    const { entries: viaCall } = getDocument() || Object;
+    assert.deepEqual(viaCall(source), [['a', 1]]);
+    let viaAssignment;
+    if (assert) ({ values: viaAssignment } = globalThis.Document || Object);
+    assert.deepEqual(viaAssignment(source), [1]);
+    function read({ entries: viaDefault } = globalThis.Document ?? Object) {
+      return viaDefault(source);
+    }
+    assert.deepEqual(read(), [['a', 1]]);
+  });
+});
+
+QUnit.test('constructor selections: a member read over an undecided selection serves its native-owner arm', assert => {
+  // the selection is captured once and the value that arrived picks the read: an arm naming a constructor
+  // core-js ships no replacement of reads its static through the polyfill - an engine lacking the native
+  // one included - and any other value reads its own member
+  function from(source) {
+    return (source || Array).from('ab');
+  }
+  assert.deepEqual(from(undefined), ['a', 'b']);
+  assert.same(from({ from: () => 'own' }), 'own');
+  let effects = 0;
+  function fromEntries(source) {
+    return (source ?? (effects++, Object)).fromEntries([['k', 1]]);
+  }
+  assert.deepEqual(fromEntries(null), { k: 1 });
+  assert.same(effects, 1);
+  function isInteger(flag, user) {
+    return (flag ? Number : user).isInteger(7);
+  }
+  assert.true(isInteger(true, null));
+  assert.same(isInteger(false, { isInteger: () => 'own' }), 'own');
+  // ... and a realm read of a global the engine lacks hands the read to the right arm
+  withTemporaryProperty(Function('return this')(), 'Document', undefined, () => {
+    assert.deepEqual((globalThis.Document || Array).of(1, 2), [1, 2]);
+  });
+});
+
+QUnit.test('constructor selections: a key other receivers carry as an instance method dispatches on them', assert => {
+  // the constructor arm reads its static through the polyfill, any other value the instance method its
+  // own dispatch finds - invoked on that value, and an absorbed `?.()` asking the method itself
+  function entries(source) {
+    return (source ?? Object).entries({ k: 1 });
+  }
+  assert.deepEqual(entries(null), [['k', 1]]);
+  assert.deepEqual(Array.from(entries([7])), [[0, 7]]);
+  function values(source) {
+    return (source ?? Object).values?.({ k: 2 });
+  }
+  assert.deepEqual(values(undefined), [2]);
+  assert.same(values({}), undefined);
+});
+
+QUnit.test('constructor selections: a static read through a selection of containers', assert => {
+  // a selection the build decides is its live container, so the read is that container's static; an
+  // undecided one is captured once and the arm that ran picks the read - a native static owner's through
+  // the polyfill, an arm swapped whole through its own statics - held, in a slot or spelled in place
+  const decided = typeof Symbol != 'undefined' ? { C: Object } : { C: Array };
+  assert.deepEqual(decided.C.groupBy([1, 2, 3], x => x % 2)[1], [1, 3]);
+  function held(flag) {
+    const box = flag ? { C: Map } : { C: Object };
+    return box.C.groupBy([4, 5], x => x % 2);
+  }
+  assert.true(held(true) instanceof Map);
+  assert.deepEqual(held(false)[0], [4]);
+  function inSlot(flag) {
+    const box = { C: flag ? Map : Object };
+    return box.C.groupBy([6, 7], x => x % 2);
+  }
+  assert.deepEqual(inSlot(true).get(1), [7]);
+  assert.deepEqual(inSlot(false)[0], [6]);
+  function inPlace(flag) {
+    return (flag ? { C: Map } : { C: Object }).C.groupBy([8, 9], x => x % 2);
+  }
+  assert.false(inPlace(false) instanceof Map);
+  assert.deepEqual(inPlace(false)[1], [9]);
+});
+
+QUnit.test('constructor selections: a fallback after a decided object literal reads the literal', assert => {
+  // an object literal is always truthy, so the right of a `||` it decides never runs: a static read
+  // through the literal's slot is that constructor's, held in a const or spelled in place
+  let effects = 0;
+  const box = typeof Symbol != 'undefined' && { A: Array } || (effects++, { A: Object });
+  assert.deepEqual(box.A.of(1, 2), [1, 2]);
+  assert.deepEqual(((typeof Symbol != 'undefined' ? { A: Array } : null) || (effects++, { A: Object })).A.from('ab'), ['a', 'b']);
+  assert.same(effects, 0);
+});
+
+QUnit.test('constructor selections: an arm read off a container slot serves what the slot holds', assert => {
+  function read(flag) {
+    const shelf = { M: Map };
+    const { groupBy, extra } = flag ? shelf.M : Object;
+    const nest = { inner: { P: Promise } };
+    const { allSettled } = flag ? nest.inner.P : Object;
+    return [groupBy, extra, typeof allSettled];
+  }
+  const [groupBy, extra, settled] = read(true);
+  assert.deepEqual(groupBy([1, 2, 3], x => x % 2).get(1), [1, 3]);
+  assert.same(extra, undefined);
+  assert.same(settled, 'function');
+  assert.same(typeof read(false)[0], 'function');
+});
+
+QUnit.test('constructor selections: a pattern over a decided test answer or a right its test runs', assert => {
+  // a selection the build decides to its test's own answer yields that boolean, so a nested pattern over it
+  // throws as native does; a `||` whose test fails runs its right, read as that right alone
+  assert.throws(() => {
+    const { C: { groupBy } } = typeof Symbol == 'undefined' && { C: Map };
+    return groupBy;
+  }, TypeError);
+  assert.throws(() => {
+    const { A: { B: { fromEntries } } } = typeof Symbol != 'undefined' || { A: { B: Object } };
+    return fromEntries;
+  }, TypeError);
+});
+
+QUnit.test('constructor selections: a default over a selection runs where an arm lacks the static', assert => {
+  // the build serves one arm's static, but another arm may lack it: the default runs there, and its write
+  // reaches the reads below
+  function read(flag) {
+    let list = [3, 4];
+    const { from = list = 'ab' } = flag ? Array : Set;
+    return [typeof from, list.at(-1)];
+  }
+  assert.deepEqual(read(true), ['function', 4]);
+  assert.deepEqual(read(false), ['string', 'b']);
+});
+
+QUnit.test('constructor selections: a generic instance beside a fallback static reads the truthy arm', assert => {
+  withTemporaryProperty(Function('return this')(), 'selectedReceiverForTheTest', 'ab', () => {
+    const { includes, groupBy } = globalThis.selectedReceiverForTheTest || Map;
+    assert.true(includes.call('ab', 'b'));
+    assert.same(groupBy, undefined);
+    let assigned, sibling;
+    if (assert) ({ includes: assigned, groupBy: sibling } = globalThis.selectedReceiverForTheTest || Map);
+    assert.true(assigned.call('ab', 'b'));
+    assert.same(sibling, undefined);
+    const { groupBy: first, includes: second } = globalThis.selectedReceiverForTheTest || Map;
+    assert.same(first, undefined);
+    assert.true(second.call('ab', 'b'));
+  });
+  withTemporaryProperty(Function('return this')(), 'selectedReceiverForTheTest', false, () => {
+    const { includes, groupBy } = globalThis.selectedReceiverForTheTest || Map;
+    assert.same(includes, undefined);
+    assert.deepEqual(groupBy([7], value => value).get(7), [7]);
+  });
+});
+
+QUnit.test('constructor selections: selected instance and static getters keep pattern order', assert => {
+  const events = [];
+  const selected = {
+    get includes() { events.push('instance'); return 'own'; },
+    get groupBy() { events.push('static'); return 9; },
+  };
+  withTemporaryProperty(Function('return this')(), 'selectedReceiverForTheTest', selected, () => {
+    const { includes, groupBy } = globalThis.selectedReceiverForTheTest || Map;
+    assert.deepEqual([includes, groupBy], ['own', 9]);
+    assert.deepEqual(events, ['instance', 'static']);
+    events.length = 0;
+    const { groupBy: first, includes: second } = globalThis.selectedReceiverForTheTest || Map;
+    assert.deepEqual([first, second], [9, 'own']);
+    assert.deepEqual(events, ['static', 'instance']);
+  });
+});
+
+QUnit.test('constructor selections: stable source values keep exact selection results', assert => {
+  const effects = [];
+  const empty = '';
+  const negativeZero = -0;
+  function takeAt(value) { return (({ at }) => at)(value); }
+  let selected;
+
+  takeAt(selected = empty && (effects.push('empty-and'), [1]));
+  assert.same(selected, '');
+  takeAt(selected = empty ?? (effects.push('empty-nullish'), [2]));
+  assert.same(selected, '');
+  takeAt(selected = negativeZero && (effects.push('negative-zero-and'), [3]));
+  assert.true(Object.is(selected, -0));
+  assert.deepEqual(effects, []);
+
+  const flag = true;
+  const grouped = (flag ? Map : Object).groupBy([1, 2, 3], value => value % 2);
+  assert.true(grouped instanceof Map);
+  assert.deepEqual(grouped.get(1), [1, 3]);
+});
+
+QUnit.test('constructor selections: a local prototype writer keeps both runtime dispatches', assert => {
+  function read(flag) {
+    const target = [4, 3];
+    const setter = flag ? Object.setPrototypeOf : object => {
+      Object.setPrototypeOf(object, String.prototype);
+      object.toString = () => '43';
+    };
+    setter(target, Array.prototype);
+    return target.at(-1);
+  }
+  assert.same(read(JSON.parse('1')), 3, 'the native setter uses its prototype argument');
+  assert.same(read(JSON.parse('0')), '3', 'the local writer supplies its own prototype');
+});

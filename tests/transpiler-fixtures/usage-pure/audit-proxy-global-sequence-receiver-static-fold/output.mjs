@@ -1,0 +1,12 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+// proxy-global in a sequence receiver ahead of a receiver-dropping static fold. line one keeps a
+// side-effecting prefix and folds the tail proxy-chain (`(eff(), globalThis.Array).from` ->
+// `(eff(), _Array$from)`): the tail globalThis must be marked subsumed so it does not queue a
+// parallel substitution overlapping the eliminated receiver range (which crashed the text compose).
+// The non-tail globalThis.foo read on line two can invoke a getter before Promise.resolve.
+const a = (eff(), _Array$from)([1]);
+const b = (_globalThis.foo, _Promise$resolve)(2);
+a;
+b;

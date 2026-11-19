@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-change-array-by-copy)
 
 ## Modules
-[`es.array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.to-reversed.js), [`es.array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.to-sorted.js), [`es.array.to-spliced`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.to-spliced.js), [`es.array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.with.js), [`es.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-reversed.js), [`es.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-sorted.js) and [`es.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.with.js).
+[`es.array.to-reversed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.to-reversed.js), [`es.array.to-sorted`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.to-sorted.js), [`es.array.to-spliced`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.to-spliced.js), [`es.array.with`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.with.js), [`es.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.to-reversed.js), [`es.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.to-sorted.js) and [`es.typed-array.with`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.with.js).
 
 ## Built-ins signatures
 ```ts
@@ -23,15 +23,18 @@ class %TypedArray% {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/change-array-by-copy-stage-4
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-sorted
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-spliced
-core-js(-pure)/es|stable|actual|full/array(/virtual)/with
+core-js/proposals/change-array-by-copy
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-reversed
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-sorted
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/to-spliced
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/with
 core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/with
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/change-array-by-copy`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/change-array-by-copy.d.ts)
 
 ## Examples
 ```js

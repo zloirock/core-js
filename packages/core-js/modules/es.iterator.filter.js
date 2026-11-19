@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -33,6 +34,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.filter` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.filter
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   filter: function filter(predicate) {
     anObject(this);
@@ -45,7 +47,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (filterWithoutClosingOnEarlyError) return call(filterWithoutClosingOnEarlyError, this, predicate);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      predicate: predicate
+      predicate: predicate,
     });
-  }
+  },
 });

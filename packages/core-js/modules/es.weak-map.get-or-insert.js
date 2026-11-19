@@ -1,3 +1,4 @@
+// @types: proposals/map-upsert
 'use strict';
 var $ = require('../internals/export');
 var WeakMapHelpers = require('../internals/weak-map-helpers');
@@ -14,5 +15,5 @@ $({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
     if (has(this, key)) return get(this, key);
     set(this, key, value);
     return value;
-  }
+  },
 });

@@ -34,7 +34,7 @@ var SUPPLEMENTARY_CAPITALS = [
   [0x104B0, 0x104D3, 0x28], // Osage
   [0x10C80, 0x10CB2, 0x40], // Old Hungarian
   [0x118A0, 0x118BF, 0x20], // Warang Citi
-  [0x1E900, 0x1E921, 0x22] // Adlam
+  [0x1E900, 0x1E921, 0x22], // Adlam
 ];
 // Bidi classes: R holds R and AL, NEUTRAL holds ES, CS, ET, ON and BN
 var L = 0;

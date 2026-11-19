@@ -1,3 +1,5 @@
+// @types: proposals/promise-any
+// @types: proposals/error-cause
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
@@ -6,6 +8,7 @@ var fails = require('../internals/fails');
 var wrapErrorConstructorWithCause = require('../internals/wrap-error-constructor-with-cause');
 
 var AGGREGATE_ERROR = 'AggregateError';
+// @dependency: es.aggregate-error.constructor
 var $AggregateError = getBuiltIn(AGGREGATE_ERROR);
 
 var FORCED = !fails(function () {
@@ -19,5 +22,5 @@ $({ global: true, constructor: true, arity: 2, forced: FORCED }, {
   AggregateError: wrapErrorConstructorWithCause(AGGREGATE_ERROR, function (init) {
     // eslint-disable-next-line no-unused-vars -- required for functions `.length`
     return function AggregateError(errors, message) { return apply(init, this, arguments); };
-  }, FORCED, true)
+  }, FORCED, true),
 });

@@ -1,7 +1,7 @@
-import toExponential from 'core-js-pure/es/number/virtual/to-exponential';
+import toExponential from '@core-js/pure/es/number/prototype/to-exponential';
 
 QUnit.test('Number#toExponential', assert => {
-  const zeros = count => Array(count + 1).join('0');
+  function zeros(count) { return Array(count + 1).join('0'); }
   assert.isFunction(toExponential);
 
   assert.same(toExponential.call(0.00008, 3), '8.000e-5');

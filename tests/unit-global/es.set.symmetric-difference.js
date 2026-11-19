@@ -1,5 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#symmetricDifference', assert => {
   const { symmetricDifference } = Set.prototype;
@@ -19,12 +18,6 @@ QUnit.test('Set#symmetricDifference', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference(new Set([3, 4]))), [1, 2, 4]);
   assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference(createSetLike([4, 5]))), [1, 2, 3, 4, 5]);
   assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference(createSetLike([3, 4]))), [1, 2, 4]);
-
-  // TODO: drop from core-js@4
-  assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference([4, 5])), [1, 2, 3, 4, 5]);
-  assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference([3, 4])), [1, 2, 4]);
-  assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference(createIterable([4, 5]))), [1, 2, 3, 4, 5]);
-  assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference(createIterable([3, 4]))), [1, 2, 4]);
 
   assert.throws(() => new Set([1, 2, 3]).symmetricDifference(), TypeError);
 
@@ -69,7 +62,7 @@ QUnit.test('Set#symmetricDifference', assert => {
     assert.deepEqual(from(baseSet.symmetricDifference(setLike)), ['a', 'b', 'c', 'd', 'e', 'g', 'h', 'i', 'j']);
   }
 
-  if (DESCRIPTORS) {
+  {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     const baseSet = new Set();

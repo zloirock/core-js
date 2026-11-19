@@ -1,0 +1,20 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// Mutually guarded writes keep the same decision whichever alias is queried first.
+let a = Array;
+let b = Map;
+let c = Promise;
+if (!b) if (!c) a = other;
+if (!a) b = another;
+if (!b) c = last;
+export const result = a.from([7]);

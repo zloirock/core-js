@@ -1,14 +1,11 @@
+// @no-types: because of a conflict with lib.dom.d.ts
 'use strict';
-// TODO: in core-js@4, replace the direct /modules/ requires with implicit dependencies
-require('../modules/es.array.iterator');
-require('../modules/es.reflect.own-keys');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
-var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var patchBody = require('../internals/url-search-params-body');
@@ -19,6 +16,7 @@ var defineBuiltIns = require('../internals/define-built-ins');
 var setToStringTag = require('../internals/set-to-string-tag');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var InternalStateModule = require('../internals/internal-state');
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
@@ -26,9 +24,7 @@ var bind = require('../internals/function-bind-context');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var toUSVString = require('../internals/to-usv-string');
-var create = require('../internals/object-create');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var getIterator = require('../internals/get-iterator-internal');
 var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -40,18 +36,20 @@ var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
 var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
 var setInternalState = InternalStateModule.set;
-var hasInternalState = InternalStateModule.has;
-var getInternalParamsState = InternalStateModule.getterFor(URL_SEARCH_PARAMS);
-var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_ITERATOR);
+var getInternalState = InternalStateModule.get;
+var getInternalParamsState = internalStateGetterFor(URL_SEARCH_PARAMS);
+var getInternalIteratorState = internalStateGetterFor(URL_SEARCH_PARAMS_ITERATOR);
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 
-var ownKeys = getBuiltIn('Reflect', 'ownKeys');
-var TypeError = globalThis.TypeError;
+// @dependency: es.reflect.own-keys
+var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
+var $TypeError = TypeError;
 var NativeURL = globalThis.URL;
 var NativeURLSearchParams = globalThis.URLSearchParams;
 var NativeURLSearchParamsPrototype = NativeURLSearchParams && NativeURLSearchParams.prototype;
-var charAt = uncurryThis(''.charAt);
+var create = Object.create;
+var getPrototypeOf = Object.getPrototypeOf;
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -63,10 +61,10 @@ var stringSlice = uncurryThis(''.slice);
 // a usable native `URLSearchParams`, an instance is a native object that inherits from the polyfill and whose
 // internal list follows the list of the polyfill.
 var nativeAppend, nativeDelete, nativeSet, nativeSort, NATIVE_DELETE_BY_VALUE;
-var NATIVE_CARRIER = !!setPrototypeOf && !fails(function () {
+var NATIVE_CARRIER = !fails(function () {
   var params = new NativeURLSearchParams();
   nativeAppend = uncurryThis(NativeURLSearchParamsPrototype.append);
-  nativeDelete = uncurryThis(NativeURLSearchParamsPrototype['delete']);
+  nativeDelete = uncurryThis(NativeURLSearchParamsPrototype.delete);
   nativeSet = uncurryThis(NativeURLSearchParamsPrototype.set);
   nativeAppend(params, 'a', '1');
   nativeAppend(params, 'b', ' +');
@@ -74,7 +72,7 @@ var NATIVE_CARRIER = !!setPrototypeOf && !fails(function () {
   // `set` of Firefox 29-34 leaves the other entries of the name
   nativeSet(params, 'a', '3');
   // an object with an internal state is an instance of the polyfill of another copy of core-js
-  if (hasInternalState(params) || String(params) !== 'a=3&b=+%2B') return true;
+  if (getInternalState(params).type || String(params) !== 'a=3&b=+%2B') return true;
   // optional native methods: without them the native list is rewritten
   nativeAppend(params, 'b', '4');
   nativeDelete(params, 'b', '4');
@@ -93,7 +91,7 @@ var NATIVE_URL_CARRIER = NATIVE_CARRIER && !fails(function () {
   nativeSetSearch = uncurryThisAccessor(NativeURL.prototype, 'search', 'set');
   var params = nativeGetSearchParams(url);
   nativeSetSearch(url, 'b=1&a=+%2B');
-  if (hasInternalState(params) || String(params) !== 'b=1&a=+%2B') return true;
+  if (getInternalState(params).type || String(params) !== 'b=1&a=+%2B') return true;
   nativeSetSearch(url, '');
   return String(params) !== '';
 });
@@ -113,7 +111,7 @@ var replacements = {
   '(': '%28',
   ')': '%29',
   '~': '%7E',
-  '%20': '+'
+  '%20': '+',
 };
 
 var replacer = function (match) {
@@ -129,7 +127,7 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
     type: URL_SEARCH_PARAMS_ITERATOR,
     target: getInternalParamsState(params).entries,
     index: 0,
-    kind: kind
+    kind: kind,
   });
 }, URL_SEARCH_PARAMS, function next() {
   var state = getInternalIteratorState(this);
@@ -153,7 +151,7 @@ var URLSearchParamsState = function (init) {
     if (isObject(init)) this.parseObject(init);
     else {
       var query = toUSVString(init);
-      this.parseQuery(charAt(query, 0) === '?' ? stringSlice(query, 1) : query);
+      this.parseQuery(query[0] === '?' ? stringSlice(query, 1) : query);
     }
   }
 };
@@ -173,11 +171,11 @@ URLSearchParamsState.prototype = {
         : create(URLSearchParamsPrototype);
       setInternalState(that, this);
       this.fill();
-      if (!DESCRIPTORS) that.size = this.entries.length;
     } return that;
   },
   parseObject: function (object) {
     var entries = this.entries;
+    // @dependency: es.array.iterator
     var iteratorMethod = getIteratorMethod(object);
     var index = 0;
     var iterator, next, step, entryIterator, entryNext, pair;
@@ -198,7 +196,7 @@ URLSearchParamsState.prototype = {
       // Web IDL converts the entire sequence before URLSearchParams checks pair lengths.
       while (index < sequence.length) {
         pair = sequence[index++];
-        if (pair.length !== 2) throw new TypeError('Expected sequence with length 2');
+        if (pair.length !== 2) throw new $TypeError('Expected sequence with length 2');
         push(entries, { key: pair[0], value: pair[1] });
       }
     } else {
@@ -229,7 +227,7 @@ URLSearchParamsState.prototype = {
           entry = split(attribute, '=');
           push(entries, {
             key: decodeQueryComponent(shift(entry)),
-            value: decodeQueryComponent(join(entry, '='))
+            value: decodeQueryComponent(join(entry, '=')),
           });
         }
       }
@@ -248,7 +246,6 @@ URLSearchParamsState.prototype = {
   update: function () {
     this.entries.length = 0;
     this.parseQuery(this.url.query);
-    if (!DESCRIPTORS && this.facade) this.facade.size = this.entries.length;
     this.fill();
   },
   // writes a change of the list to the native object of the instance and to the URL: a native `method`
@@ -291,7 +288,7 @@ URLSearchParamsState.prototype = {
       entry = entries[index++];
       nativeAppend(this.facade, entry.key, entry.value);
     }
-  }
+  },
 };
 
 // `URLSearchParams` constructor
@@ -305,7 +302,6 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   setInternalState(that, state);
   state.listed = NATIVE_CARRIER;
   state.fill();
-  if (!DESCRIPTORS) that.size = state.entries.length;
   return that;
 };
 
@@ -322,12 +318,11 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var key = toUSVString(name);
     var val = toUSVString(value);
     push(state.entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.size = state.entries.length;
     state.commit(nativeAppend, key, val);
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
-  'delete': function (name /* , value */) {
+  delete: function (name /* , value */) {
     var state = getInternalParamsState(this);
     var length = validateArgumentsLength(arguments.length, 1);
     var entries = state.entries;
@@ -346,7 +341,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
     }
     var changed = writeIndex < entries.length;
     entries.length = writeIndex;
-    if (!DESCRIPTORS) this.size = entries.length;
     if (!changed) state.updateURL();
     // a removal by value that leaves no entry of the key is a removal by name
     else state.commit(!remains || NATIVE_DELETE_BY_VALUE ? nativeDelete : undefined, key, remains ? value : undefined);
@@ -414,7 +408,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
     }
     entries.length = writeIndex;
     if (!found) push(entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.size = entries.length;
     state.commit(nativeSet, key, val);
   },
   // `URLSearchParams.prototype.sort` method
@@ -453,7 +446,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.entries` method
   entries: function entries() {
     return new URLSearchParamsIterator(this, 'entries');
-  }
+  },
 }, { enumerable: true });
 
 // `URLSearchParams.prototype[@@iterator]` method
@@ -467,12 +460,12 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 
 // `URLSearchParams.prototype.size` getter
 // https://url.spec.whatwg.org/#dom-urlsearchparams-size
-if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
+defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
   get: function size() {
     return getInternalParamsState(this).entries.length;
   },
   configurable: true,
-  enumerable: true
+  enumerable: true,
 });
 
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
@@ -481,7 +474,7 @@ setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 if (!USE_NATIVE_URL) patchBody(NATIVE_URL_CARRIER);
 
 $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
-  URLSearchParams: URLSearchParamsConstructor
+  URLSearchParams: URLSearchParamsConstructor,
 });
 
 // the state of `searchParams` of the `URL` polyfill

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-arraybuffer-base64)
 
 ## Modules
-[`es.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-base64.js), [`es.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-hex.js), [`es.uint8-array.set-from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-base64.js), [`es.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-hex.js), [`es.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-base64.js) and [`es.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-hex.js).
+[`es.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.uint8-array.from-base64.js), [`es.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.uint8-array.from-hex.js), [`es.uint8-array.set-from-base64`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.uint8-array.set-from-base64.js), [`es.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.uint8-array.set-from-hex.js), [`es.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.uint8-array.to-base64.js) and [`es.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.uint8-array.to-hex.js).
 
 ## Built-ins signatures
 ```ts
@@ -27,6 +27,9 @@ core-js/es|stable|actual|full/typed-array/set-from-hex
 core-js/es|stable|actual|full/typed-array/to-base64
 core-js/es|stable|actual|full/typed-array/to-hex
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-buffer-base64`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/array-buffer-base64.d.ts)
 
 ## Examples
 ```js

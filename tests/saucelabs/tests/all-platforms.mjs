@@ -64,20 +64,21 @@ function entry(browser, version, os, device, backend = 'webdriver') {
   const platforms = fromCatalog([
     entry('MicrosoftEdge', '86', 'Windows 10'),
     entry('MicrosoftEdge', '93', 'Windows 10'),
-    entry('firefox', '6', 'Windows 10'),
-    entry('firefox', '7', 'Windows 10'),
+    entry('firefox', '14', 'Windows 10'),
+    entry('firefox', '15', 'Windows 10'),
     entry('firefox', 'dev', 'Windows 10'),
+    entry('internet explorer', '10', 'Windows 2012'),
   ]);
   deepEqual(
     platforms.map(({ name }) => name),
-    ['firefox 7 (Windows 10)', 'firefox dev (Windows 10)', 'MicrosoftEdge 86 (Windows 10)'],
-    'skips Firefox before 7 and the Edge versions that the manual matrix does not have',
+    ['firefox 15 (Windows 10)', 'firefox dev (Windows 10)', 'MicrosoftEdge 86 (Windows 10)'],
+    'skips Firefox before 15, Internet Explorer before 11 and the Edge versions that the manual matrix does not have',
   );
 }
 
 {
-  const emulator = version => ({ ...entry('android', version, 'Linux', 'Medium Phone', 'appium'), long_name: 'Google Medium Phone Emulator' });
-  const simulator = (browser, version) => ({ ...entry(browser, version, 'Mac 11', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' });
+  function emulator(version) { return { ...entry('android', version, 'Linux', 'Medium Phone', 'appium'), long_name: 'Google Medium Phone Emulator' }; }
+  function simulator(browser, version) { return { ...entry(browser, version, 'Mac 11', 'iPhone Simulator', 'appium'), long_name: 'iPhone Simulator' }; }
   const platforms = fromCatalog([
     emulator('8.1'),
     emulator('9.0'),

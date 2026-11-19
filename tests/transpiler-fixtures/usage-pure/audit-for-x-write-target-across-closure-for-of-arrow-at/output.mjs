@@ -1,0 +1,7 @@
+// A `for-x` head WRITES the member slot per iteration, so a body read of that slot is not a prototype lookup - the write-gate
+// leaves it native.
+const src = [1, 2];
+for (src.at of [() => 'assigned']) {
+  const read = () => src.at(0);
+  export1(read);
+}

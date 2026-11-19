@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-relative-indexing-method)
 
 ## Modules
-[`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js) and [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js).
+[`es.array.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.array.at.js), [`es.string.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.at.js) and [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.typed-array.at.js).
 
 ## Built-ins signatures
 ```ts
@@ -23,8 +23,8 @@ class %TypedArray% {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/relative-indexing-method
-core-js(-pure)/es|stable|actual|full/array(/virtual)/at
-core-js(-pure)/es|stable|actual/string(/virtual)/at
+{ core-js, @core-js/pure }/es|stable|actual|full/array(/prototype)/at
+{ core-js, @core-js/pure }/es|stable|actual/string(/prototype)/at
 core-js/es|stable|actual|full/typed-array/at
 ```
 
@@ -39,3 +39,6 @@ new Int32Array([1, 2, 3]).at(-1); // => 3
 'abc'.at(1);  // => 'b'
 'abc'.at(-1); // => 'c'
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/relative-indexing-method`](https://github.com/zloirock/core-js/blob/v4/packages/core-js-types/src/base/proposals/relative-indexing-method.d.ts)

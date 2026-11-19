@@ -1,8 +1,9 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var IteratorPrototype = require('../internals/iterator-prototype');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var IS_PURE = require('../internals/is-pure');
@@ -12,7 +13,7 @@ var FORCED = IS_PURE || function () {
   // https://bugs.webkit.org/show_bug.cgi?id=288714
   try {
     // eslint-disable-next-line es/no-iterator -- required for testing
-    Iterator.from({ 'return': null })['return']();
+    Iterator.from({ return: null }).return();
   } catch (error) {
     return true;
   }
@@ -24,11 +25,15 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.from` method
 // https://tc39.es/ecma262/#sec-iterator.from
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: FORCED }, {
   from: function from(O) {
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     var iteratorRecord = getIteratorFlattenable(O, true);
     return isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new IteratorProxy(iteratorRecord);
-  }
+  },
 });

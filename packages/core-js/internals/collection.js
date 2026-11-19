@@ -2,9 +2,7 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isForced = require('../internals/is-forced');
 var defineBuiltIn = require('../internals/define-built-in');
-var InternalMetadataModule = require('../internals/internal-metadata');
 var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
@@ -15,7 +13,7 @@ var checkCorrectnessOfIteration = require('../internals/check-correctness-of-ite
 var setToStringTag = require('../internals/set-to-string-tag');
 var inheritIfRequired = require('../internals/inherit-if-required');
 
-module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
+module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
   var IS_WEAK = CONSTRUCTOR_NAME.indexOf('Weak') !== -1;
   var ADDER = IS_MAP ? 'set' : 'add';
@@ -43,18 +41,13 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     );
   };
 
-  var REPLACE = isForced(
-    CONSTRUCTOR_NAME,
-    !isCallable(NativeConstructor) || !(IS_WEAK || NativePrototype.forEach && !fails(function () {
-      new NativeConstructor().entries().next();
-    }))
-  );
+  var REPLACE = FORCED || !isCallable(NativeConstructor)
+    || !(IS_WEAK || (NativePrototype.forEach && common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP)));
 
   if (REPLACE) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
-    InternalMetadataModule.enable();
-  } else if (isForced(CONSTRUCTOR_NAME, true)) {
+  } else {
     var instance = new Constructor();
     // early implementations not supports chaining
     var HASNT_CHAINING = instance[ADDER](IS_WEAK ? {} : -0, 1) !== instance;
@@ -75,7 +68,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     if (!ACCEPT_ITERABLES) {
       Constructor = wrapper(function (dummy, iterable) {
         anInstance(dummy, NativePrototype);
-        var that = inheritIfRequired(new NativeConstructor(), dummy, Constructor);
+        var that = inheritIfRequired(new NativeConstructor(), dummy, NativePrototype);
         if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
         return that;
       });
@@ -99,8 +92,6 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   $({ global: true, constructor: true, forced: Constructor !== NativeConstructor }, exported);
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME);
-
-  if (!IS_WEAK) common.setStrong(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 
   return Constructor;
 };

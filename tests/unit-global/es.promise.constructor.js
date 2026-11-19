@@ -1,4 +1,5 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants.js';
+/* eslint-disable unicorn/prefer-promise-with-resolvers -- ok */
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -15,11 +16,11 @@ QUnit.test('Promise', assert => {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    if (STRICT) assert.same(this, undefined, 'correct executor context');
+    assert.same(this, undefined, 'correct executor context');
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
+QUnit.test('Promise operations order', assert => {
   let $resolve, $resolve2;
   assert.expect(1);
   const EXPECTED_ORDER = 'DEHAFGBC';
@@ -147,7 +148,7 @@ if (nativeSubclass) QUnit.test('Promise subclassing with native classes', assert
   });
 });
 
-if (PROTO) QUnit.test('Promise subclassing', assert => {
+QUnit.test('Promise subclassing', assert => {
   function SubPromise(executor) {
     const self = new Promise(executor);
     setPrototypeOf(self, SubPromise.prototype);

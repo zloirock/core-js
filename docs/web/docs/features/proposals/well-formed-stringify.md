@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-well-formed-stringify)
 
 ## Modules
-[`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
+[`es.json.stringify`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.stringify.js).
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,7 @@ namespace JSON {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/well-formed-stringify
-core-js(-pure)/es|stable|actual|full/json/stringify
+{ core-js, @core-js/pure }/es|stable|actual|full/json/stringify
 ```
 
 ## Examples

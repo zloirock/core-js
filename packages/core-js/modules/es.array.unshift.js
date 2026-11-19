@@ -1,20 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
 var apply = require('../internals/function-apply');
-var isArray = require('../internals/is-array');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var setArrayLength = require('../internals/array-set-length');
 var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
+var isArray = Array.isArray;
 var nativeUnshift = [].unshift;
-// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var NON_WRITABLE = { writable: false };
-
-// IE8-
-var INCORRECT_RESULT = [].unshift(0) !== 1;
 
 // the native method should throw a `TypeError` on an array with a property protected like this
 var throwsOn = function (array, key, args) {
@@ -39,12 +35,12 @@ var properCallWithoutArguments = function () {
 
 // non-writable length: V8 ~ Chrome < 71, Safari 14.1 - 15.x and Rhino, FF < 23 throws InternalError
 // https://github.com/mozilla/rhino/issues/2591
-var FORCED = INCORRECT_RESULT || !throwsOn([], 'length', []) || !properCallWithoutArguments();
+var FORCED = !throwsOn([], 'length', []) || !properCallWithoutArguments();
 
 // moving elements one by one is much slower than the native method,
 // so arrays with arguments are passed to it where it handles them properly
 // V8 3.28- (~ Chrome 38-) and Rhino change arrays with a non-writable length or element
-var NATIVE_FOR_ARRAYS = FORCED && !INCORRECT_RESULT && throwsOn([1], 'length', [0]) && throwsOn([1, 2], 1, [0]);
+var NATIVE_FOR_ARRAYS = FORCED && throwsOn([1], 'length', [0]) && throwsOn([1, 2], 1, [0]);
 
 // `Array.prototype.unshift` method
 // https://tc39.es/ecma262/#sec-array.prototype.unshift
@@ -68,5 +64,5 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
         O[j] = arguments[j];
       }
     } return setArrayLength(O, len + argCount);
-  }
+  },
 });

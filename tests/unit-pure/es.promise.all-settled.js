@@ -1,10 +1,9 @@
 import { createIterable } from '../helpers/helpers.js';
 
-import $allSettled from 'core-js-pure/es/promise/all-settled';
-import bind from 'core-js-pure/es/function/bind';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
+import $allSettled from '@core-js/pure/es/promise/all-settled';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise.allSettled', assert => {
   assert.isFunction(Promise.allSettled);
@@ -69,7 +68,7 @@ QUnit.test('Promise.allSettled, subclassing', assert => {
   function SubPromise(executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   }
-  SubPromise.resolve = bind(resolve, Promise);
+  SubPromise.resolve = resolve.bind(Promise);
   assert.true(allSettled.call(SubPromise, [1, 2, 3]) instanceof SubPromise, 'subclassing, `this` pattern');
 
   function FakePromise1() { /* empty */ }
@@ -79,7 +78,7 @@ QUnit.test('Promise.allSettled, subclassing', assert => {
   function FakePromise3(executor) {
     executor(() => { /* empty */ }, null);
   }
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
   assert.throws(() => {
     allSettled.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');

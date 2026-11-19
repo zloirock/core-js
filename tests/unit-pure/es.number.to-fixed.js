@@ -1,7 +1,7 @@
-import toFixed from 'core-js-pure/es/number/to-fixed';
+import toFixed from '@core-js/pure/es/number/to-fixed';
 
 QUnit.test('Number#toFixed', assert => {
-  const zeros = count => Array(count + 1).join('0');
+  function zeros(count) { return Array(count + 1).join('0'); }
   assert.isFunction(toFixed);
   assert.same(toFixed(0.00008, 3), '0.000');
   assert.same(toFixed(0.9, 0), '1');
