@@ -7,8 +7,8 @@ import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.join";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
@@ -39,16 +39,13 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a read by a key no fold names, off a constructor taken through a computed key the claim folds - an effect ahead
 // of the name, a const binding, a concat - may read any of its statics and loads the whole family, as off the
 // plainly keyed constructor. a named static read off such a constructor loads that static alone

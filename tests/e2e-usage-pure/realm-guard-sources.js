@@ -18,7 +18,7 @@ QUnit.test('a constructor fallback evaluates the full prefix before testing the 
     assert.deepEqual(events, present ? ['first', 'prefix', 'key'] : ['first', 'prefix']);
     const nested = [];
     assert.throws(() => {
-      // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- The inner guard cannot skip the outer read.
+      // eslint-disable-next-line no-undef -- The inner guard cannot skip the outer read.
       return (nested.push('before'), missingRealmPrefix, nested.push('after'), realm?.self)?.WeakMap.mode;
     }, ReferenceError);
     assert.deepEqual(nested, ['before']);

@@ -1,6 +1,7 @@
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _unshiftMaybeArray from "@core-js/pure/actual/array/instance/unshift";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // an alias of an array reads the elements its source holds, so a write through the source - a mutator,
 // an element write, a hand-out - reaches a read through the alias too, through a decided selection or
@@ -9,7 +10,7 @@ export function shifted() {
   var _ref;
   const source = ['abc'];
   const list = source;
-  source.unshift([1]);
+  _unshiftMaybeArray(source).call(source, [1]);
   return _flatMaybeArray(_ref = list[0]).call(_ref);
 }
 export function written() {

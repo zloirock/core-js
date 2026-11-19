@@ -22,6 +22,30 @@ ok(!script.includes("import 'core-js/modules/es.typed-array.with.js';"), 'actual
 ok(!script.includes("import 'core-js/modules/es.object.group-by.js';"), 'actual node 16 #7');
 ok(!script.includes("import 'core-js/modules/esnext.string.dedent.js';"), 'actual node 16 #8');
 
+async function build(options) {
+  return (await builder(options)).script;
+}
+
+strictEqual(
+  await build({ targets: 'Android >= 5', format: 'esm' }),
+  await build({ targets: { android: '37' }, format: 'esm' }),
+  'mobile browserslist range includes all required polyfills',
+);
+
+ok((await build({
+  modules: 'es.array.at',
+  targets: 'supports es6-module',
+  format: 'esm',
+})).includes("import 'core-js/modules/es.array.at.js';"), 'supports query including Safari TP preserves older targets');
+
+const allPolyfills = await build({ format: 'esm' });
+
+strictEqual(await build({ exclude: null, format: 'esm' }), allPolyfills, 'exclude: null means no exclusions');
+
+for (const targets of [{}, { esmodules: false }, 'kaios 2.5']) {
+  strictEqual(await build({ targets, format: 'esm' }), allPolyfills, `empty targets: ${ JSON.stringify(targets) }`);
+}
+
 // the entry template of a `bundle` build is generated outside of the package, where the usual walk up to
 // `node_modules` does not find `core-js` - and an unresolved specifier is not a build error, it turns the
 // module into an external import and silently leaves it out of the output

@@ -13,7 +13,7 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.concat";
@@ -40,15 +40,12 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // In usage-global every selection stays as written and each LIVE operand injects its own family: the
 // right of a deciding left never runs and injects nothing, the right the pure rewrite reads past.
 function make() {

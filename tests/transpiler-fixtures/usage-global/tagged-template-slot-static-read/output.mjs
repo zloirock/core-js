@@ -1,11 +1,12 @@
 import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
@@ -26,14 +27,11 @@ import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.iterator.windows";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a tagged template yields what its tag returns, so a static read off a slot holding one names
 // the constructor the tag returns and is served by that static's own entry
 function iterator() {

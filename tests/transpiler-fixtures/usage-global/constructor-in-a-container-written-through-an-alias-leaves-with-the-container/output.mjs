@@ -14,7 +14,7 @@ import "core-js/modules/es.promise.race";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.concat";
@@ -43,15 +43,12 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a container written through an alias that is no plain one carries the constructors it holds into the slot it
 // lands on: handed out with the container that slot belongs to, each keeps its statics - in usage-global its
 // family - through an arm of a selection and a member path alike, and so does one read back through the slot; a

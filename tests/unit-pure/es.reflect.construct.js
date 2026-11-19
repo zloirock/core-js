@@ -16,10 +16,10 @@ QUnit.test('Reflect.construct', assert => {
   assert.same(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
   A.apply = 42;
   assert.same(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
-  const Target = function (value) {
+  function Target(value) {
     this.value = value;
     this.argumentCount = arguments.length;
-  };
+  }
   for (const NewTarget of [function () { /* empty */ }, Target]) {
     const prototype = {};
     const reads = [];

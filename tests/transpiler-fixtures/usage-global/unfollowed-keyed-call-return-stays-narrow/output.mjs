@@ -2,6 +2,7 @@ import "core-js/modules/es.symbol.constructor";
 import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.aggregate-error.constructor";
 import "core-js/modules/es.aggregate-error.cause";
 import "core-js/modules/es.suppressed-error.constructor";
@@ -9,7 +10,7 @@ import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
@@ -33,13 +34,10 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a call no callee answers - a class member, a method whose owner reads `this`, an array slot - is a
 // route the census does not follow: a constructor such a call returns keeps its narrow entry in pure,
 // which carries none of its statics, and usage-global injects no static read off the result

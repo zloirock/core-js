@@ -69,8 +69,12 @@ async function sessionLimits({ pollInterval = POLL_INTERVAL }) {
       await setTimeout(pollInterval);
     }
   }
+
   // `vms` covers every virtual platform, the Mac included, as the dashboard total does; the pools are within it
-  const limit = pool => Math.min(concurrency?.organization?.allowed?.[pool], concurrency?.team?.allowed?.[pool]);
+  function limit(pool) {
+    return Math.min(concurrency?.organization?.allowed?.[pool], concurrency?.team?.allowed?.[pool]);
+  }
+
   if (!(limit('vms') > 0)) throw new Error(`no Sauce Labs virtual machine sessions available, the limit is ${ limit('vms') }`);
   return limit;
 }

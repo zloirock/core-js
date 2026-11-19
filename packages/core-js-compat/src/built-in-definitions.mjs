@@ -459,6 +459,9 @@ export const instance = {
     number: { dependencies: 'number/instance/to-fixed', filters: [['min-args', 1]] },
   },
   toJSON: { global: { date: 'date/to-json' } },
+  toPrecision: {
+    number: { dependencies: 'number/instance/to-precision', filters: [['min-args', 1]] },
+  },
   toReversed: { array: 'array/instance/to-reversed' },
   toSorted: { array: 'array/instance/to-sorted' },
   toSpliced: { array: 'array/instance/to-spliced' },

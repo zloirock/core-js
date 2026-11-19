@@ -30,7 +30,7 @@ module.exports = {
     'dyqFDgeBCcvfGBbqYE',
     'dgPBdrwZBIBHBJBcwAFchWEFHbMBCBGIEDbdhDMFBeqDBDEbtqPC',
     'kdZPCMdolACddtVBCBHCFB',
-    'ceYChzOCMFdojAFbGKcvnXClJDICCBbGC'
+    'ceYChzOCMFdojAFbGKcvnXClJDICCBbGC',
   ],
   // a combining mark of each of those versions
   sentinels: [
@@ -45,6 +45,6 @@ module.exports = {
     '\uD803\uDEFD',
     '\u0897',
     '\u1ACF',
-    '\u05C8'
-  ]
+    '\u05C8',
+  ],
 };

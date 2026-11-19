@@ -13,7 +13,7 @@ Examples of supported engines:
 - Chrome 38
 - Safari 7.1
 - FF15
-- Node 0.11
+- Node 0.11.4
 
 `core-js` provides (as the [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools to work with it - it's useful for integration with tools like `babel` or `swc`. If you want to help, you could take a look at the related section of [`CONTRIBUTING`](contributing#h-how-to-update-core-jscompat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/v4/compat/), the example:
 

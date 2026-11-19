@@ -2606,6 +2606,9 @@ const globalsZX = {
 
 // JSON and Markdown use ESLint's JavaScript language with a custom parser or processor.
 const jsFile = '*.{cjs,js,mjs,json,md}';
+// TypeScript is linted only here, with its own parser on top of the common rules
+const typeDefinitionsTestsFiles = 'tests/type-definitions/**/*.ts';
+const tsFiles = ['packages/core-js-types/src/**/*.d.ts', typeDefinitionsTestsFiles];
 
 export default [
   {
@@ -2627,7 +2630,7 @@ export default [
     ],
   },
   {
-    files: [`**/${ jsFile }`],
+    files: [`**/${ jsFile }`, ...tsFiles],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
@@ -2726,6 +2729,7 @@ export default [
   {
     files: [
       `tests/**/${ jsFile }`,
+      typeDefinitionsTestsFiles,
     ],
     rules: tests,
   },
@@ -2740,7 +2744,11 @@ export default [
     rules: transpiledAndPolyfilled,
   },
   {
-    files: ['tests/compat/tests.js', `tests/unit-global/**/${ jsFile }`],
+    files: [
+      'tests/compat/tests.js',
+      `tests/@(unit-global|e2e-usage-pure)/**/${ jsFile }`,
+      typeDefinitionsTestsFiles,
+    ],
     // These tests exercise Annex B built-ins directly.
     rules: reset(forbidESAnnexBBuiltIns, {}),
   },
@@ -2788,7 +2796,10 @@ export default [
       // These scripts run in the engines being tested.
       'tests/@(compat|unit-bun|unit-deno)/*.js',
       'tests/compat/deno-runner.mjs',
-      'tests/@(helpers|unit-@(browser|global|pure)|wpt-url-resources)/**',
+      'tests/@(helpers|unit-@(browser|global|pure)|e2e-usage-pure|wpt-url-resources)/**',
+      // inputs of the bundlers under test
+      'tests/transpiler-integration/@(input-*|lazy-chunk).js',
+      'tests/transpiler-integration/*/src/**',
       'website/src/**',
     ],
     rules: nodeDev,
@@ -2810,6 +2821,7 @@ export default [
   {
     files: [
       `@(scripts|tests)/*/**/${ jsFile }`,
+      typeDefinitionsTestsFiles,
     ],
     rules: {
       // disable this rule for lazily installed dependencies and for test bundles, which are built before the tests
@@ -2835,10 +2847,7 @@ export default [
     },
   },
   {
-    files: [
-      'packages/core-js-types/src/**/*.d.ts',
-      'tests/type-definitions/**/*.ts',
-    ],
+    files: tsFiles,
     languageOptions: {
       parser: parserTypeScript,
     },
@@ -2846,7 +2855,7 @@ export default [
   },
   {
     files: [
-      'tests/type-definitions/**/*.ts',
+      typeDefinitionsTestsFiles,
     ],
     rules: typeDefinitionsTests,
   },
@@ -2891,6 +2900,13 @@ export default [
   {
     files: ['packages/*/package.json'],
     rules: packagesPackageJSON,
+  },
+  {
+    files: ['packages/core-js-bundle/package.json'],
+    rules: {
+      // the bundles are taken by the paths of their files
+      'package-json/require-exports': OFF,
+    },
   },
   {
     files: ['tests/transpiler-perf/package.json'],

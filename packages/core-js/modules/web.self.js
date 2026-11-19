@@ -35,10 +35,7 @@ try {
         return validateReceiver(this);
       },
       set: function self(value) {
-        var target = validateReceiver(this);
-        // FF < 12 overwrites the property replaced in its own setter with the setter result, unless the setter deletes it
-        delete target.self;
-        defineProperty(target, 'self', {
+        defineProperty(validateReceiver(this), 'self', {
           value: value,
           writable: true,
           configurable: true,

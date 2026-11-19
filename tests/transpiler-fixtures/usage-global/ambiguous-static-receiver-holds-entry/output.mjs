@@ -1,11 +1,12 @@
 import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
@@ -31,14 +32,11 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a static read on a receiver that may hold more than one value names no single constructor, so pure
 // reads it raw off whatever arrived - and an arm it minted a pure constructor into has to be the
 // whole entry, which carries that constructor's statics. usage-global injects for every candidate

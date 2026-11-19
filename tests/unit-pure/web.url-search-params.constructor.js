@@ -376,7 +376,7 @@ QUnit.test('URLSearchParams sequence conversion errors', assert => {
     let nextCalls = 0;
     let innerReturns = 0;
     let outerReturns = 0;
-    const fail = () => { throw error; };
+    function fail() { throw error; }
     const pair = createIterable([], {
       next() {
         nextCalls++;
@@ -1586,7 +1586,7 @@ QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after ex
     const iterator = params[method]();
     const name = String(method);
     const done = { value: undefined, done: true };
-    const result = (key, value) => ({ value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false });
+    function result(key, value) { return { value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false }; }
 
     assert.deepEqual(iterator.next(), done, `${ name }: empty`);
     assert.deepEqual(iterator.next(), done, `${ name }: empty, repeated`);
@@ -1606,7 +1606,7 @@ QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after ex
     const iterator = url.searchParams[method]();
     const name = String(method);
     const done = { value: undefined, done: true };
-    const result = (key, value) => ({ value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false });
+    function result(key, value) { return { value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false }; }
 
     assert.deepEqual(iterator.next(), result('a', '1'), `${ name }: first entry`);
     assert.deepEqual(iterator.next(), done, `${ name }: exhausted`);
@@ -1683,7 +1683,7 @@ QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
 // Deno before 1.9.1 and Bun before 0.5.7 omit the implicit form type.
 // https://github.com/denoland/deno/pull/10203
 // https://github.com/oven-sh/bun/pull/2051
-const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
+const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.', 3)[2] : 0;
 const BODY_TYPE_LEGACY = DENO_VERSION > 0 && (DENO_VERSION < 109 || DENO_VERSION === 109 && DENO_PATCH === 0) || BUN_VERSION > 0 && BUN_VERSION < 5007;
 // Deno before 1.3 rejects `URLSearchParams` as a `Request` body.
 const BODY_UNSUPPORTED = DENO_VERSION > 0 && DENO_VERSION < 103;
@@ -1692,7 +1692,7 @@ const NATIVE_BODIES = typeof GLOBAL.Request == 'function' && typeof GLOBAL.Respo
 
 if (NATIVE_BODIES) QUnit[BODY_UNSUPPORTED ? 'skip' : 'test']('URLSearchParams with native Request and Response', assert => {
   const FORM = 'application/x-www-form-urlencoded;charset=UTF-8';
-  const body = params => new GLOBAL.Response(params).text();
+  function body(params) { return new GLOBAL.Response(params).text(); }
   // untouched after the construction
   const created = new URLSearchParams('c=3&b=2&a=1');
   // changed by the methods that add, replace and remove by name

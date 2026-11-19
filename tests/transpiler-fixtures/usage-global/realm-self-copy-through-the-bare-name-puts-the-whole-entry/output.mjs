@@ -14,7 +14,7 @@ import "core-js/modules/es.promise.race";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
@@ -40,6 +40,7 @@ import "core-js/modules/es.iterator.zip";
 import "core-js/modules/es.iterator.zip-keyed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";
@@ -47,11 +48,7 @@ import "core-js/modules/web.self";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a global's own value written back into its slot through the bare name - read off a realm name, off another
 // realm name, by a logical write - loads the whole family the slot then holds for other code, beyond the
 // statics the later reads load

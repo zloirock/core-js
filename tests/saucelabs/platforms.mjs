@@ -87,8 +87,7 @@ export default [
   desktop('chrome', '134', 'Windows 10'),
   desktop('chrome', '136', 'Windows 10'),
   desktop('chrome', '143', 'Windows 10'),
-  desktop('firefox', '7', 'Windows 10'),
-  desktop('firefox', '11', 'Windows 10'),
+  desktop('firefox', '15', 'Windows 10'),
   desktop('firefox', '26', 'Windows 10'),
   desktop('firefox', '34', 'Windows 10'),
   desktop('firefox', '44', 'Windows 10'),
@@ -102,5 +101,4 @@ export default [
   desktop('firefox', '133', 'Windows 10'),
   desktop('firefox', '140', 'Windows 10'),
   desktop('MicrosoftEdge', '86', 'Windows 10'),
-  desktop('internet explorer', '10', 'Windows 2012'),
 ];

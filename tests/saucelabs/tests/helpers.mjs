@@ -43,10 +43,8 @@ async function runFake({
   let navigated;
   let sessionStart;
   const started = [];
-  let releaseSlow;
-  let nextStarted;
-  const slow = new Promise(resolve => { releaseSlow = resolve; });
-  const next = new Promise(resolve => { nextStarted = resolve; });
+  const { promise: slow, resolve: releaseSlow } = Promise.withResolvers();
+  const { promise: next, resolve: nextStarted } = Promise.withResolvers();
   let fastFinished = false;
   try {
     process.env.SAUCE_USERNAME = 'test';
@@ -368,7 +366,7 @@ async function runFake({
 {
   // a step of the cancelled job kills the runner by the path of its entry
   const workflow = await readFile('.github/workflows/build-and-deploy-pages.yml', 'utf8');
-  const { scripts } = JSON.parse(await readFile('package.json', 'utf8'));
+  const { scripts } = JSON.parse(await readFile('package.json'));
   const pattern = /pkill -KILL -f (?<pattern>\S+)/.exec(workflow)?.groups.pattern;
   ok(pattern && scripts['test-saucelabs'].includes(pattern), 'the cancelled job kills the runner that the test-saucelabs script starts');
 }
@@ -383,7 +381,7 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
   equal(pollDelays.length, 2, 'sends no command to a page before the polling interval passes #1');
   // a timer may fire a little early
   ok(pollDelays.every(delay => delay > 90), 'sends no command to a page before the polling interval passes #2');
-  const { pollDelays: [byDefault] } = await runFake({ polling: {} });
+  const [byDefault] = (await runFake({ polling: {} })).pollDelays;
   ok(byDefault > 4900, 'sends no command to a page before the polling interval passes #3');
 }
 

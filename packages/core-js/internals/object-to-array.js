@@ -1,10 +1,10 @@
 'use strict';
 var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
 var uncurryThis = require('../internals/function-uncurry-this');
-var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var toObject = require('../internals/to-object');
 
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var objectKeys = Object.keys;
 var push = uncurryThis([].push);
 
@@ -12,6 +12,7 @@ var push = uncurryThis([].push);
 var createMethod = function (TO_ENTRIES) {
   return function (it) {
     var O = toObject(it);
+    // the slot is read on a call: the symbol polyfill, loaded at any moment, replaces it to hide its keys
     var keys = NAMES_ORDER ? getOwnPropertyNamesModule.f(O) : objectKeys(O);
     var length = keys.length;
     var i = 0;
@@ -19,7 +20,7 @@ var createMethod = function (TO_ENTRIES) {
     var key, descriptor;
     while (length > i) {
       key = keys[i++];
-      descriptor = getOwnPropertyDescriptorModule.f(O, key);
+      descriptor = getOwnPropertyDescriptor(O, key);
       if (descriptor && descriptor.enumerable) {
         push(result, TO_ENTRIES ? [key, O[key]] : O[key]);
       }

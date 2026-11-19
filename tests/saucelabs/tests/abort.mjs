@@ -38,8 +38,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
   if (!sessionsFile) throw new Error('SAUCE_SESSIONS_FILE is required by the abort scenario');
 
   function deferred() {
-    let resolve;
-    const promise = new Promise(resolvePromise => { resolve = resolvePromise; });
+    const { promise, resolve } = Promise.withResolvers();
     return { promise, resolve };
   }
 
@@ -74,7 +73,7 @@ if (fileURLToPath(import.meta.url) !== process.argv[1]) {
     if (path.endsWith('/concurrency')) return { ok: true, json: async () => ({ concurrency: {
       organization: { allowed: { vms: 3, mac_vms: 2 } }, team: { allowed: { vms: 3, mac_vms: 2 } },
     } }) };
-    const [id] = path.slice('/wd/hub/session/'.length).split('/');
+    const [id] = path.slice('/wd/hub/session/'.length).split('/', 1);
     let payload = {};
     if (path === '/wd/hub/session') {
       const { name } = JSON.parse(options.body).desiredCapabilities;

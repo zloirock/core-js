@@ -35,13 +35,11 @@ import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.math.sum-precise";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.queue-microtask";
 import "core-js/modules/web.self";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // A default on a realm key whose slot the realm always fills never runs: like the dead part of a decided
 // selection it is no usage, whatever spells the realm - itself, an alias, `self`, an assignment's value - on a
 // level as on a leaf. A parameter's realm default stands in for a caller's object, and an undecided selection's

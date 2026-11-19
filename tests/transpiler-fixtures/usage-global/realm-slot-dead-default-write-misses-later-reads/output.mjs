@@ -17,11 +17,9 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // A default on a slot the realm always fills never runs - a realm key's, on a leaf as on a level, and a
 // static's read through such a key - so a write in it reaches no later read, which loads none of the
 // array modules the dead write would bring. A parameter's realm default stands in for a caller's object,

@@ -16,8 +16,9 @@ var EmptyStringDescriptionStore = shared('symbol-empty-string-description');
 var thisSymbolValue = SymbolPrototype && uncurryThis(SymbolPrototype.valueOf);
 var symbolDescriptiveString = SymbolPrototype && uncurryThis(SymbolPrototype.toString);
 var symbolKeyFor = SymbolConstructor && SymbolConstructor.keyFor;
-var STANDARD_SYMBOL_STRING = isCallable(SymbolConstructor) &&
-  String(SymbolConstructor('description detection')) === 'Symbol(description detection)';
+// the method is called directly: V8 ~ Chrome < 41 throws on the conversion of a symbol to a string by `String`
+var STANDARD_SYMBOL_STRING = isCallable(SymbolConstructor) && SymbolPrototype &&
+  symbolDescriptiveString(SymbolConstructor('description detection')) === 'Symbol(description detection)';
 var regexp = /^Symbol\((.*)\)[^)]+$/;
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);

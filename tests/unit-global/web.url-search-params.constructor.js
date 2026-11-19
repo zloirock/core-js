@@ -17,7 +17,7 @@ const USV_STRINGS = [
   ['\uDBFF\uDFFF', '\uDBFF\uDFFF'],
 ];
 
-const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.')[2] : 0;
+const DENO_PATCH = DENO_VERSION ? +GLOBAL.Deno.version.deno.split('.', 3)[2] : 0;
 const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
 const NODE_VERSION = NODE ? nodeVersion[0] * 100 + +nodeVersion[1] : 0;
 // The native `URL` and `URLSearchParams` are used in Node 18.20, 20.12+, 21.7+ and 22+.
@@ -422,7 +422,7 @@ QUnit.test('URLSearchParams sequence conversion errors', assert => {
     let nextCalls = 0;
     let innerReturns = 0;
     let outerReturns = 0;
-    const fail = () => { throw error; };
+    function fail() { throw error; }
     const pair = createIterable([], {
       next() {
         nextCalls++;
@@ -1700,7 +1700,7 @@ QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after ex
     const iterator = params[method]();
     const name = String(method);
     const done = { value: undefined, done: true };
-    const result = (key, value) => ({ value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false });
+    function result(key, value) { return { value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false }; }
 
     assert.deepEqual(iterator.next(), done, `${ name }: empty`);
     assert.deepEqual(iterator.next(), done, `${ name }: empty, repeated`);
@@ -1720,7 +1720,7 @@ QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after ex
     const iterator = url.searchParams[method]();
     const name = String(method);
     const done = { value: undefined, done: true };
-    const result = (key, value) => ({ value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false });
+    function result(key, value) { return { value: method === 'keys' ? key : method === 'values' ? value : [key, value], done: false }; }
 
     assert.deepEqual(iterator.next(), result('a', '1'), `${ name }: first entry`);
     assert.deepEqual(iterator.next(), done, `${ name }: exhausted`);
@@ -1870,7 +1870,7 @@ const XHR_ADDED_CHARSET = FIREFOX_VERSION > 0 && FIREFOX_VERSION < 44;
 const XHR_GET_CONTENT_TYPE = SAFARI_NATIVE && (SAFARI_VERSION < 27 || SAFARI_VERSION === 27 && +(safariVersion?.[2] || 0) < 2);
 const IE_XHR = !!GLOBAL.document?.documentMode;
 
-const createTrackedSignal = () => {
+function createTrackedSignal() {
   const controller = new GLOBAL.AbortController();
   const { signal } = controller;
   const { addEventListener } = signal;
@@ -1880,7 +1880,7 @@ const createTrackedSignal = () => {
     return addEventListener.apply(this, args);
   };
   return { controller, calls };
-};
+}
 
 if (typeof Request == 'function') {
   QUnit.test('URLSearchParams with Request', assert => {
@@ -1925,14 +1925,14 @@ if (typeof Request == 'function') {
   });
 
   if (typeof GLOBAL.AbortController == 'function') QUnit.test('URLSearchParams with Request, signal', assert => {
-    const subscriptions = value => {
+    function subscriptions(value) {
       const { controller, calls } = createTrackedSignal();
       const { signal } = controller;
       const request = new Request('http://example.com/', { body: value, method: 'POST', signal });
       controller.abort();
       if (!DENO_FETCH_LEGACY && !BUN_BODY_LEGACY) assert.true(request.signal.aborted, 'propagates abort');
       return calls.length;
-    };
+    }
     assert.same(subscriptions(new URLSearchParams('a=1')), subscriptions('a=1'), 'preserves signal subscription count');
   });
 
@@ -2015,7 +2015,7 @@ if (typeof Request == 'function') {
 if (GLOBAL.document && typeof Request == 'function') QUnit.test('URLSearchParams with Request of another realm', assert => {
   const iframe = GLOBAL.document.createElement('iframe');
   GLOBAL.document.documentElement.appendChild(iframe);
-  const remove = () => GLOBAL.document.documentElement.removeChild(iframe);
+  function remove() { return GLOBAL.document.documentElement.removeChild(iframe); }
   const params = new URLSearchParams('c=3&b=2&a=0');
   params.append('d', '4');
   params.append('__proto__', '5');
@@ -2194,13 +2194,13 @@ const TEST_SERVER = GLOBAL.TEST_SERVER || (karma ? '/core-js-echo' : undefined);
 if (TEST_SERVER) {
   // QUnit 3 defaults to 3 seconds; network tests need the same 10s limit as timeLimitedPromise.
   const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded;charset=utf-8';
-  const body = () => new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
+  function body() { return new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0'); }
   const expectedBody = 'a=1&a=2&space=hello+world&unicode=%D0%B0';
-  const checkEcho = (assert, result, contentType, checkContentType = true) => {
+  function checkEcho(assert, result, contentType, checkContentType = true) {
     if (DENO_VERSION !== 102) assert.same(result.body, expectedBody, 'serialized body');
     if (checkContentType && (!(DENO_FETCH_LEGACY || BUN_FETCH_TYPE) || contentType === 'application/custom')) assert.same(result.contentType.toLowerCase().replaceAll(/;\s+/g, ';'), contentType, 'content type');
     assert.same(result.method, 'POST', 'method');
-  };
+  }
 
   if (typeof fetch == 'function') QUnit.test('URLSearchParams with fetch', assert => {
     assert.timeout?.(10000);
@@ -2223,14 +2223,14 @@ if (TEST_SERVER) {
 
   if (typeof fetch == 'function' && typeof GLOBAL.AbortController == 'function') QUnit.test('URLSearchParams with fetch, signal', assert => {
     assert.timeout?.(10000);
-    const subscriptions = value => {
+    function subscriptions(value) {
       const { controller, calls } = createTrackedSignal();
       const { signal } = controller;
       return fetch(TEST_SERVER, { body: value, method: 'POST', signal }).then(response => response.json()).then(result => {
         assert.same(result.body, 'a=1');
         return calls.length;
       });
-    };
+    }
     return timeLimitedPromise(10000, Promise.all([subscriptions(new URLSearchParams('a=1')), subscriptions('a=1')]).then(([params, string]) => {
       assert.same(params, string, 'preserves signal subscription count');
     }));
@@ -2254,11 +2254,13 @@ if (TEST_SERVER) {
   });
 
   if (typeof XMLHttpRequest == 'function') {
-    const send = (xhr, data) => new Promise((resolve, reject) => {
-      xhr.onload = () => { resolve(JSON.parse(xhr.responseText)); };
-      xhr.onerror = reject;
-      xhr.send(data);
-    });
+    function send(xhr, data) {
+      return new Promise((resolve, reject) => {
+        xhr.onload = () => { resolve(JSON.parse(xhr.responseText)); };
+        xhr.onerror = reject;
+        xhr.send(data);
+      });
+    }
 
     QUnit.test('URLSearchParams with XMLHttpRequest', assert => {
       assert.timeout?.(10000);
@@ -2381,7 +2383,7 @@ if (TEST_SERVER) {
       } };
       assert.true(GLOBAL.navigator.sendBeacon(input, params), 'queued');
       return timeLimitedPromise(10000, new Promise((resolve, reject) => {
-        const poll = () => {
+        function poll() {
           const xhr = new XMLHttpRequest();
           xhr.open('GET', url);
           xhr.onerror = reject;
@@ -2391,7 +2393,7 @@ if (TEST_SERVER) {
             else resolve(JSON.parse(xhr.responseText));
           };
           xhr.send();
-        };
+        }
         poll();
       })).then(result => {
         assert.same(result.body, `${ expectedBody }&converted=1`, 'converts the URL before extracting the body');

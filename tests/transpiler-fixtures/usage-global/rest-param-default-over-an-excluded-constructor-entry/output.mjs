@@ -18,7 +18,7 @@ import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.string.pad-start";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.concat";
@@ -59,16 +59,13 @@ import "core-js/modules/es.regexp.exec";
 import "core-js/modules/es.regexp.sticky";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // A rest parameter default over a constructor whose constructor entry the build excludes: each claimed static
 // loads its own module whatever spells the receiver - plain, realm member, alias - and a selection reading it off
 // the realm decides for that left, the data subset carrying the constructor, so its fallback loads nothing, in a

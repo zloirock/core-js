@@ -13,7 +13,7 @@ QUnit.test('Array#unshift', assert => {
   assert.same(unshift.call([1], 0), 2, 'proper result');
 
   let touched = false;
-  const accessor = () => { touched = true; };
+  function accessor() { touched = true; }
   unshift.call(defineProperty({ length: 1 }, 0, { get: accessor, set: accessor }));
   assert.false(touched, 'elements are not touched without arguments');
 

@@ -24,7 +24,7 @@ var bind = require('../internals/function-bind-context');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var toUSVString = require('../internals/to-usv-string');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var getIterator = require('../internals/get-iterator-internal');
 var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -36,7 +36,7 @@ var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
 var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
 var setInternalState = InternalStateModule.set;
-var hasInternalState = InternalStateModule.has;
+var getInternalState = InternalStateModule.get;
 var getInternalParamsState = internalStateGetterFor(URL_SEARCH_PARAMS);
 var getInternalIteratorState = internalStateGetterFor(URL_SEARCH_PARAMS_ITERATOR);
 var percentDecode = percentCoding.decode;
@@ -61,10 +61,10 @@ var stringSlice = uncurryThis(''.slice);
 // a usable native `URLSearchParams`, an instance is a native object that inherits from the polyfill and whose
 // internal list follows the list of the polyfill.
 var nativeAppend, nativeDelete, nativeSet, nativeSort, NATIVE_DELETE_BY_VALUE;
-var NATIVE_CARRIER = !!setPrototypeOf && !fails(function () {
+var NATIVE_CARRIER = !fails(function () {
   var params = new NativeURLSearchParams();
   nativeAppend = uncurryThis(NativeURLSearchParamsPrototype.append);
-  nativeDelete = uncurryThis(NativeURLSearchParamsPrototype['delete']);
+  nativeDelete = uncurryThis(NativeURLSearchParamsPrototype.delete);
   nativeSet = uncurryThis(NativeURLSearchParamsPrototype.set);
   nativeAppend(params, 'a', '1');
   nativeAppend(params, 'b', ' +');
@@ -72,7 +72,7 @@ var NATIVE_CARRIER = !!setPrototypeOf && !fails(function () {
   // `set` of Firefox 29-34 leaves the other entries of the name
   nativeSet(params, 'a', '3');
   // an object with an internal state is an instance of the polyfill of another copy of core-js
-  if (hasInternalState(params) || String(params) !== 'a=3&b=+%2B') return true;
+  if (getInternalState(params).type || String(params) !== 'a=3&b=+%2B') return true;
   // optional native methods: without them the native list is rewritten
   nativeAppend(params, 'b', '4');
   nativeDelete(params, 'b', '4');
@@ -91,7 +91,7 @@ var NATIVE_URL_CARRIER = NATIVE_CARRIER && !fails(function () {
   nativeSetSearch = uncurryThisAccessor(NativeURL.prototype, 'search', 'set');
   var params = nativeGetSearchParams(url);
   nativeSetSearch(url, 'b=1&a=+%2B');
-  if (hasInternalState(params) || String(params) !== 'b=1&a=+%2B') return true;
+  if (getInternalState(params).type || String(params) !== 'b=1&a=+%2B') return true;
   nativeSetSearch(url, '');
   return String(params) !== '';
 });

@@ -2,7 +2,7 @@ import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
@@ -28,16 +28,13 @@ import "core-js/modules/es.iterator.zip";
 import "core-js/modules/es.iterator.zip-keyed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a global's own value written back into its slot from its own bare name, or down a chain of writes through
 // realm members, loads the whole family the slot then holds, beyond the statics the later reads load
 URL = URL;

@@ -604,8 +604,6 @@ export const data = {
     firefox: '60',
     hermes: '0.1',
     rhino: '1.7.15',
-    // Array.prototype.values is still disabled in NodeJS 10.8.
-    node: '10.9',
     safari: '10.0',
   },
   'es.array.from-async': { // `Promise` dependency should be loaded before
@@ -935,6 +933,7 @@ export const data = {
     chrome: '66',
     edge: '15',
     firefox: '60',
+    // Array.prototype.values is still disabled in NodeJS 10.8.
     node: '10.9',
     rhino: '1.8.0',
     safari: '10.0',
@@ -1020,17 +1019,16 @@ export const data = {
   },
   // TODO: recheck
   'es.data-view.constructor': {
+    // V8 ~ Chrome 50-53 accepts a negative `byteLength` and rejects a non-integer `byteOffset`
+    chrome: '54', // '26',
     // https://github.com/chakra-core/ChakraCore/commit/17b8f3aae80bcb3aa2d4297360191424879f4800
     edge: '15',
     // https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/40#javascript
     firefox: '40',
-    chrome: '54', // '26',
     hermes: '0.1',
-    node: '0.11.4',
-    rhino: '1.8.0',
-    // setInt8 truncates 2147483649 to 0 in NodeJS 0.11.4.
     // NodeJS 6 (V8 5.0-5.1) accepts a negative byteLength.
-    node: '7.0', // '0.11.5',
+    node: '7.0', // '0.11.4',
+    rhino: '1.8.0',
     safari: '7.1',
   },
   // TODO: recheck
@@ -1039,7 +1037,8 @@ export const data = {
     firefox: '15',
     hermes: '0.1',
     ie: '10',
-    node: '0.11.5', // broken in 0.11.4
+    // setInt8 truncates 2147483649 to 0 in NodeJS 0.11.4.
+    node: '0.11.5',
     rhino: '1.7.13',
     safari: '8.0',
   },
@@ -1642,7 +1641,6 @@ export const data = {
     chrome: '62', // '51',
     // edge: '18',
     firefox: '87',
-    node: '0.11.0',
     hermes: '0.1.1', // '0.1',
     // node: '0.11.0',
     // broken subnormals
@@ -1656,6 +1654,18 @@ export const data = {
     hermes: '0.1.1', // '0.1',
     // broken subnormals
     rhino: '1.8.1', // '1.7.13',
+    safari: '13.1', // '7.1',
+  },
+  'es.number.to-precision': {
+    // up to 100 digits
+    chrome: '62', // '26',
+    // rounding of exact integer ties
+    firefox: '87', // '4',
+    hermes: '0.1.1', // '0.1',
+    // ie: '8',
+    // Rhino 1.8.1+ loses digits of numbers with leading zeros, Rhino 1.8.0- has broken subnormals
+    // https://github.com/mozilla/rhino/issues/2586
+    // rhino: '1.7.13',
     safari: '13.1', // '7.1',
   },
   'es.regexp.constructor': {
@@ -2375,8 +2385,6 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    // Uint8ClampedArray is missing in NodeJS 0.11.0-0.11.3.
-    node: '0.11.4',
     rhino: '1.9.0',
     safari: '10.0',
   },
@@ -2763,19 +2771,6 @@ export const data = {
     node: '22.1',
     safari: '18.0',
   },
-  // TODO: Remove this module from `core-js@4`: every engine that passes the `URL` constructor detection
-  // has the native method, and the polyfill of the constructor defines its own
-  'web.url.to-json': {
-    bun: '0.1.1',
-    chrome: '71',
-    deno: '1.2', // shared URL constructor detection
-    firefox: '57',
-    // `new URL(url, undefined)` throws in Safari 14.0
-    // https://bugs.webkit.org/show_bug.cgi?id=215734
-    ios: '14.3', // need to clarify the release, >14.0 && <= 14.3
-    node: '10.0',
-    safari: '14.0.1', // '14.0',
-  },
   'web.url-search-params.constructor': {
     bun: '0.1.1',
     chrome: '130', // '67', shared URL constructor detection
@@ -2787,32 +2782,49 @@ export const data = {
     node: '20.12', // '20.0', '10.0', shared URL constructor detection
     safari: '15.4', // '14.0.1', '14.0', shared URL constructor detection
   },
-  // The three modules below only add a method to the native constructor,
-  // so their data does not follow the `URL` constructor detection
-  // TODO: In `core-js@4`, set them to the first versions from which "the constructor is polyfilled
-  // or the method is supported" always holds - the minimal versions for Chrome and Firefox
+  // The three modules below only add a method to the native constructors, and the polyfill of the constructors has
+  // these methods. So a module is required only where the constructors pass the detection and the method is missing;
+  // an engine without such versions gets its minimal version
   'web.url-search-params.delete': {
     bun: '1.0.31',
-    chrome: '118',
+    chrome: '1', // the constructors are polyfilled up to 129, the `value` argument is supported from 118
     deno: '1.35',
-    firefox: '115',
-    node: '20.2',
+    firefox: '1', // the constructors are polyfilled up to 132, the `value` argument is supported from 115
+    hermes: '0.1', // the constructors never pass the detection, they are always polyfilled
+    ie: '5.5', // the constructors never pass the detection, they are always polyfilled
+    // the constructors are native only in 18.20.x and from 20.12,
+    // all those versions support the `value` argument (the main line - from 20.2)
+    node: '0.0.1',
+    opera: '10.50', // the constructors never pass the detection, they are always polyfilled
+    rhino: '1.7.13', // no native constructors, they are always polyfilled
     safari: '17.0',
   },
   'web.url-search-params.has': {
     bun: '1.0.31',
-    chrome: '118',
+    chrome: '1', // the constructors are polyfilled up to 129, the `value` argument is supported from 118
     deno: '1.35',
-    firefox: '115',
-    node: '20.2',
+    firefox: '1', // the constructors are polyfilled up to 132, the `value` argument is supported from 115
+    hermes: '0.1', // the constructors never pass the detection, they are always polyfilled
+    ie: '5.5', // the constructors never pass the detection, they are always polyfilled
+    // the constructors are native only in 18.20.x and from 20.12,
+    // all those versions support the `value` argument (the main line - from 20.2)
+    node: '0.0.1',
+    opera: '10.50', // the constructors never pass the detection, they are always polyfilled
+    rhino: '1.7.13', // no native constructors, they are always polyfilled
     safari: '17.0',
   },
   'web.url-search-params.size': {
     bun: '1.0.2',
-    chrome: '113',
+    chrome: '1', // the constructors are polyfilled up to 129, the property is native from 113
     deno: '1.32',
-    firefox: '112',
-    node: '19.8',
+    firefox: '1', // the constructors are polyfilled up to 132, the property is native from 112
+    hermes: '0.1', // the constructors never pass the detection, they are always polyfilled
+    ie: '5.5', // the constructors never pass the detection, they are always polyfilled
+    // the constructors are native only in 18.20.x and from 20.12,
+    // all those versions have the property (the main line - from 19.8)
+    node: '0.0.1',
+    opera: '10.50', // the constructors never pass the detection, they are always polyfilled
+    rhino: '1.7.13', // no native constructors, they are always polyfilled
     safari: '17.0',
   },
 };

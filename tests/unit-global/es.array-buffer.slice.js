@@ -1,5 +1,5 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import { NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG, NODE_EMPTY_DATA_VIEW_BUG } from '../helpers/constants.js';
+import { NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG } from '../helpers/constants.js';
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
 QUnit.test('ArrayBuffer#slice', assert => {
@@ -21,8 +21,9 @@ QUnit.test('ArrayBuffer#slice', assert => {
   assert.arrayEqual(bufferToArray(buffer.slice(-2, -1)), [4]);
   // eslint-disable-next-line unicorn/no-unnecessary-slice-end -- testing
   assert.arrayEqual(bufferToArray(buffer.slice(0, Infinity)), [1, 2, 3, 4, 5]);
-  // the helper reads a buffer through a `DataView`
-  if (!NODE_EMPTY_DATA_VIEW_BUG) assert.arrayEqual(bufferToArray(buffer.slice(-2, -3)), []);
+  // failed in NodeJS 0.11.0-0.11.3 with its own implementation of buffers and views: the helper reads a buffer
+  // through a `DataView`, and a native `DataView` could not be created on an empty buffer or at the end of a buffer
+  assert.arrayEqual(bufferToArray(buffer.slice(-2, -3)), []);
 
   assert.throws(() => slice.call({}), TypeError, 'non-buffer receiver');
   assert.throws(() => slice.call({ byteLength: 8 }, 0, 2), TypeError, 'receiver with a byteLength only');

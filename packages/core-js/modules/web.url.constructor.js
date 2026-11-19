@@ -1,10 +1,12 @@
 // @types: web/url
 'use strict';
 var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var fails = require('../internals/fails');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var ENVIRONMENT = require('../internals/environment');
 var globalThis = require('../internals/global-this');
+var getBuiltIn = require('../internals/get-built-in');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
@@ -12,7 +14,7 @@ var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var arraySlice = require('../internals/array-slice');
 var multibyte = require('../internals/string-multibyte');
 var domainToASCII = require('../internals/url-domain-to-ascii');
@@ -26,7 +28,7 @@ var InternalStateModule = require('../internals/internal-state');
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
 var setInternalState = InternalStateModule.set;
-var hasInternalState = InternalStateModule.has;
+var getInternalState = InternalStateModule.get;
 var getInternalURLState = internalStateGetterFor('URL');
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
@@ -84,9 +86,9 @@ var NATIVE_FALLBACK = 'about:blank';
 // in the prototype chain of an object, some read the internal state of a native object. There, an instance is
 // a native object that inherits from the polyfill and whose internal state follows the state of the polyfill.
 // Browsers have no APIs that tell a native `URL` object from any other one.
-var nativeSetHref = setPrototypeOf && (ENVIRONMENT === 'DENO' || ENVIRONMENT === 'BUN' || ENVIRONMENT === 'NODE') && !fails(function () {
+var nativeSetHref = (ENVIRONMENT === 'DENO' || ENVIRONMENT === 'BUN' || ENVIRONMENT === 'NODE') && !fails(function () {
   // an object with an internal state is an instance of the polyfill of another copy of core-js
-  return hasInternalState(new NativeURL(NATIVE_FALLBACK));
+  return getInternalState(new NativeURL(NATIVE_FALLBACK)).type;
 }) && uncurryThisAccessor(NativeURLPrototype, 'href', 'set');
 
 var stringToCodePoints = function (string) {
@@ -1112,9 +1114,13 @@ defineBuiltIn(URLPrototype, 'toString', function toString() {
 // https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL_static
 // `URL.revokeObjectURL` method
 // https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL_static
-if (NativeURL) ['createObjectURL', 'revokeObjectURL'].forEach(function (method) {
-  if (NativeURL[method]) defineBuiltIn(URLConstructor, method, NativeURL[method].bind(NativeURL), { enumerable: true });
-});
+var exportObjectURLMethods = function (target) {
+  if (NativeURL) ['createObjectURL', 'revokeObjectURL'].forEach(function (method) {
+    if (NativeURL[method]) defineBuiltIn(target, method, NativeURL[method].bind(NativeURL), { enumerable: true });
+  });
+};
+
+exportObjectURLMethods(URLConstructor);
 
 setToStringTag(URLConstructor, 'URL');
 
@@ -1122,3 +1128,6 @@ setToStringTag(URLConstructor, 'URL');
 $({ global: true, constructor: true, wrap: true, arity: 1, forced: !USE_NATIVE_URL }, {
   URL: URLConstructor,
 });
+
+// the pure version exports a usable native constructor wrapped, and the wrapper has no static methods of the native
+if (IS_PURE && USE_NATIVE_URL) exportObjectURLMethods(getBuiltIn('URL'));

@@ -11,7 +11,7 @@ try {
   process.chdir(scripts);
   for (const [name, options, imports, hook] of [
     ['unit-global', { pkg: 'core-js' }, ['es.sample', 'web.sample'], ''],
-    ['unit-pure', { pkg: '@core-js/pure' }, ['es.sample', 'web.sample'], "\nimport core from '@core-js/pure';\ncore.globalThis.core = core;\n"],
+    ['unit-pure', { pkg: '@core-js/pure' }, ['es.sample', 'web.sample'], "\nimport core from '@core-js/pure';\ncore.globalThis.core = core;\ncore.globalThis.PURE = true;\n"],
     ['e2e-usage-pure', { pkg: '@core-js/pure', filter: /^[a-z]/, extensions: ['.js', '.ts'], exportCore: false },
       ['aa-first', 'es.sample', 'typed', 'web.sample', 'zz-last'], ''],
   ]) {

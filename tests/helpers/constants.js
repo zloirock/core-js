@@ -4,7 +4,6 @@ export const OBJECT_NAMES_ORDER = (() => {
     const object = {};
     const alphabet = 'abcdefghijklmnopqrst';
     for (let i = 0; i < alphabet.length; i++) object[alphabet.charAt(i)] = i;
-    // eslint-disable-next-line es/no-object-getownpropertynames -- required for testing
     return Object.getOwnPropertyNames(object).join('') === alphabet;
   } catch {
     return false;
@@ -37,10 +36,6 @@ export const NODE = typeof Bun == 'undefined' && Object.prototype.toString.call(
 
 export const BUN = typeof Bun != 'undefined' && Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
 
-const nodeVersion = NODE ? GLOBAL.process.versions.node.split('.') : [];
-// NodeJS 0.11.0-0.11.3 has its own implementation of buffers and views:
-// a native `DataView` can't be created on an empty buffer or at the end of a buffer.
-export const NODE_EMPTY_DATA_VIEW_BUG = NODE && nodeVersion[0] === '0' && (nodeVersion[1] < 11 || nodeVersion[1] === '11' && nodeVersion[2] < 4);
 // NodeJS 0.11.4 (V8 3.20.2): `%TypedArray%.prototype.set` throws on a number.
 export const NODE_TYPED_ARRAY_SET_NUMBER_BUG = NODE && GLOBAL.process.versions.node === '0.11.4';
 // NodeJS 0.11.4-0.11.8 (V8 3.20-3.21): native `ArrayBuffer.prototype.slice` takes the length from an own `byteLength`.

@@ -9,7 +9,7 @@ import "core-js/modules/es.reflect.has";
 import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.suppressed-error.constructor";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.disposable-stack.constructor";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
@@ -40,6 +40,7 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
@@ -49,11 +50,7 @@ import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // In usage-global the selections stay as written; the operand a presence test never takes injects
 // nothing through the alias, receiver or pattern reading the selection - the realm-detection idiom
 // included - while a test that may answer both ways keeps both operands live.

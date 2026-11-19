@@ -1,6 +1,7 @@
 // Crawler preparation belongs to scoped TypeScript walks. Observe a harmless,
 // non-enumerable Program slot: raw syntax walks and printing never need a parameter list there.
 // The TypeScript control proves that the parser observer reaches the preparation pass.
+// eslint-disable-next-line node/no-unsupported-features/node-builtins -- isolated module hooks of a child process
 import { registerHooks } from 'node:module';
 import * as oxc from 'oxc-parser';
 import { createSyntaxVisitors } from '../../packages/core-js-unplugin/internals/detect-usage.js';

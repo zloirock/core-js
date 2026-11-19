@@ -1,4 +1,5 @@
 // Type-only names do not replace runtime declarations sharing their spelling.
+// eslint-disable-next-line node/no-unsupported-features/node-builtins -- the reference TypeScript stripping of NodeJS
 import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';

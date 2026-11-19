@@ -1,9 +1,9 @@
 import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
 import unshift from '@core-js/pure/es/array/prototype/unshift';
+import preventExtensions from '@core-js/pure/es/object/prevent-extensions';
 
 const { defineProperty } = Object;
-import preventExtensions from '@core-js/pure/es/object/prevent-extensions';
 
 QUnit.test('Array#unshift', assert => {
   assert.isFunction(unshift);
@@ -11,7 +11,7 @@ QUnit.test('Array#unshift', assert => {
   assert.same(unshift.call([1], 0), 2, 'proper result');
 
   let touched = false;
-  const accessor = () => { touched = true; };
+  function accessor() { touched = true; }
   unshift.call(defineProperty({ length: 1 }, 0, { get: accessor, set: accessor }));
   assert.false(touched, 'elements are not touched without arguments');
 

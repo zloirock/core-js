@@ -10,7 +10,6 @@ var nativeFill = [].fill;
 // the native method on an array-like with a non-writable element
 var fillLocked = function (length) {
   return function () {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     nativeFill.call(Object.defineProperty({ length: length }, 0, { writable: false }));
   };
 };

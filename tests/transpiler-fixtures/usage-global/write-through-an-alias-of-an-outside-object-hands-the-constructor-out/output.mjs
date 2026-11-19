@@ -35,7 +35,7 @@ require("core-js/modules/es.promise.try");
 require("core-js/modules/es.promise.with-resolvers");
 require("core-js/modules/es.array.iterator");
 require("core-js/modules/es.async-iterator.async-dispose");
-require("core-js/modules/es.array.from");
+require("core-js/modules/es.array.sort");
 require("core-js/modules/es.array.species");
 require("core-js/modules/es.array-buffer.species");
 require("core-js/modules/es.date.to-primitive");
@@ -71,6 +71,7 @@ require("core-js/modules/es.math.to-string-tag");
 require("core-js/modules/es.regexp.species");
 require("core-js/modules/es.string.from-code-point");
 require("core-js/modules/es.string.iterator");
+require("core-js/modules/es.string.to-well-formed");
 require("core-js/modules/es.typed-array.species");
 require("core-js/modules/esnext.promise.all-keyed");
 require("core-js/modules/esnext.promise.all-settled-keyed");
@@ -78,11 +79,7 @@ require("core-js/modules/web.dom-collections.iterator");
 require("core-js/modules/web.url.constructor");
 require("core-js/modules/web.url.can-parse");
 require("core-js/modules/web.url.parse");
-require("core-js/modules/web.url.to-json");
 require("core-js/modules/web.url-search-params.constructor");
-require("core-js/modules/web.url-search-params.delete");
-require("core-js/modules/web.url-search-params.has");
-require("core-js/modules/web.url-search-params.size");
 // a write through an alias of an object this file does not own - an export object, a member of a realm
 // namespace or of an undeclared global, an alias of such an alias - hands the written constructor out
 // with its statics, as the write spelled through that object does; a write through an alias of a container

@@ -3,6 +3,7 @@ import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
@@ -10,6 +11,7 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
@@ -36,14 +38,11 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // an effect prefix ahead of a receiver runs where the read stands and names nothing: the read lands
 // on the prefix's tail, so a receiver that may hold more than one value takes the whole entry behind
 // a prefix exactly as it does bare - a slot of a selection, a slot of disagreeing returns, a member

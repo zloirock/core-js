@@ -1634,8 +1634,10 @@ const nodeFS = NODE && !DENO && GLOBAL.process.getBuiltinModule?.('fs');
 if (BUN || DENO_VERSION >= 101 || nodeFS) QUnit.test('URL in the APIs of the runtime', assert => {
   // any existing file
   const path = DENO ? GLOBAL.Deno.execPath() : BUN ? GLOBAL.Bun.main : GLOBAL.process.execPath;
-  // eslint-disable-next-line node/no-sync -- a synchronous API keeps the test synchronous
-  const size = file => DENO ? GLOBAL.Deno.statSync(file).size : BUN ? GLOBAL.Bun.file(file).size : nodeFS.statSync(file).size;
+  function size(file) {
+    // eslint-disable-next-line node/no-sync -- a synchronous API keeps the test synchronous
+    return DENO ? GLOBAL.Deno.statSync(file).size : BUN ? GLOBAL.Bun.file(file).size : nodeFS.statSync(file).size;
+  }
   const expected = size(path);
   const pathname = `${ path[0] === '/' ? '' : '/' }${ encodeURI(path.split('\\').join('/')) }`;
 
@@ -1660,7 +1662,8 @@ if (BUN || DENO_VERSION >= 101 || nodeFS) QUnit.test('URL in the APIs of the run
   } catch { /* the runtime takes no such URL */ }
   assert.notSame(other, expected, 'a URL of another scheme after a file URL');
 
-  if (nodeFS) {
+  // only an instance that is a native object of the realm is formatted as a WHATWG URL
+  if (nodeFS && typeof GLOBAL.URL == 'function') {
     const { format } = GLOBAL.process.getBuiltinModule('url');
     assert.same(format(new URL('https://example.com/path?query#hash'), { fragment: false }), 'https://example.com/path?query', 'url.format');
   }
@@ -1671,7 +1674,7 @@ QUnit.test('WPT URL resources', assert => {
   for (const test of urlTestData) {
     if (typeof test == 'string') continue;
     if (test.input === 'http://example.org/test?a#b\u0000c') actual.fragment = test.hash;
-    if (test.input === 'file://spider///') actual.file = test.href;
+    else if (test.input === 'file://spider///') actual.file = test.href;
     if (test.href === 'wow:%EF%BF%BF') actual.noncharacter = test.input;
   }
   for (const { href, new_value: newValue, expected } of settersTestData.hostname) {

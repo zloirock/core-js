@@ -4,7 +4,7 @@ The main library: polyfill implementations that install themselves into the glob
 
 ## Target environment
 
-The baseline is engines **about IE11**: **ES5 with some additions**. Examples of supported engines are IE11, Chrome 38, Safari 7.1, Firefox 15 and Node 0.11 - examples, not an exhaustive list, so treat the baseline as a capability level rather than as that list of names. Engines below it, dropped in v4, include IE10 and earlier, Android 4.4.3 and earlier, PhantomJS, Opera Presto and Duktape.
+The baseline is engines **about IE11**: **ES5 with some additions**. Examples of supported engines are IE11, Chrome 38, Safari 7.1, Firefox 15 and Node 0.11.4 - examples, not an exhaustive list, so treat the baseline as a capability level rather than as that list of names. Engines below it, dropped in v4, include IE10 and earlier, Android 4.4.3 and earlier, PhantomJS, Opera Presto and Duktape.
 
 Syntax stays **ES5** - the additions are runtime capabilities, not syntax. Beyond ES5 the implementation may rely on, for internal use only and tolerating bugs in them:
 

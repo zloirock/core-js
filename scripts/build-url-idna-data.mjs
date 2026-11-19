@@ -33,10 +33,10 @@ function assert(condition, message) {
 
 function * parseRanges(text) {
   for (const line of text.split('\n')) {
-    const content = line.split('#')[0].trim();
+    const content = line.split('#', 1)[0].trim();
     if (!content) continue;
     const fields = content.split(';').map(field => field.trim());
-    const [first, last = first] = fields[0].split('..');
+    const [first, last = first] = fields[0].split('..', 2);
     yield [parseInt(first, 16), parseInt(last, 16), fields];
   }
 }
@@ -241,12 +241,12 @@ const lines = [
   ...Object.entries(tables).map(([name, packed]) => `  ${ name }: '${ packed }',`),
   '  // normalization-sensitive code points by the Unicode version that added them, from the oldest one',
   '  sensitive: [',
-  sensitive.map(packed => `    '${ packed }'`).join(',\n'),
+  ...sensitive.map(packed => `    '${ packed }',`),
   '  ],',
   '  // a combining mark of each of those versions',
   '  sentinels: [',
-  sentinels.map(code => `    '${ escape(code) }'`).join(',\n'),
-  '  ]',
+  ...sentinels.map(code => `    '${ escape(code) }',`),
+  '  ],',
   '};',
   '',
 ];

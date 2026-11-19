@@ -3,6 +3,7 @@ import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.symbol.for";
 import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.error.is-error";
 import "core-js/modules/es.aggregate-error.constructor";
 import "core-js/modules/es.aggregate-error.cause";
@@ -11,7 +12,7 @@ import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
 import "core-js/modules/es.iterator.dispose";
@@ -46,6 +47,7 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
@@ -53,11 +55,7 @@ import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a single return that selects - a conditional, a logical, an alias of a selection - is a route the
 // census does not follow: pure reads the static off the call raw, and each constructor an arm may hand
 // back keeps its narrow entry, which carries none of its statics, while usage-global injects the static

@@ -71,10 +71,12 @@ try {
 
   const prelude = path.join(test262Dir, 'prelude.js');
   // A leading dash in a real glob is part of the pattern.
-  const runFixture = () => within(() => {
-    $.cwd = path.dirname(test262Dir);
-    return run([`${ path.basename(test262Dir) }/test/built-ins/**/*.js`], { test262Dir, prelude }).nothrow().quiet();
-  });
+  function runFixture() {
+    return within(() => {
+      $.cwd = path.dirname(test262Dir);
+      return run([`${ path.basename(test262Dir) }/test/built-ins/**/*.js`], { test262Dir, prelude }).nothrow().quiet();
+    });
+  }
   await fs.writeFile(prelude, '');
   const passed = await runFixture();
   equal(passed.exitCode, 0, passed.toString());

@@ -6,7 +6,7 @@ core-js - modular standard library and polyfill collection for JavaScript. Polyf
 
 Two floors, and they are far apart - check which one you are in before writing a line of code:
 
-- **Polyfill runtime** (`packages/core-js`, `packages/core-js-pure`, `packages/core-js-bundle`): the baseline is engines **about IE11** - **ES5 with some additions**, spelled out in `packages/core-js/AGENTS.md`. IE11, Chrome 38, Safari 7.1, Firefox 15 and Node 0.11 are examples of supported engines, not the definition of the baseline. A polyfill missing or broken there is a product failure, never an acceptable edge case.
+- **Polyfill runtime** (`packages/core-js`, `packages/core-js-pure`, `packages/core-js-bundle`): the baseline is engines **about IE11** - **ES5 with some additions**, spelled out in `packages/core-js/AGENTS.md`. IE11, Chrome 38, Safari 7.1, Firefox 15 and Node 0.11.4 are examples of supported engines, not the definition of the baseline. A polyfill missing or broken there is a product failure, never an acceptable edge case.
 - **Tooling, scripts, Node-only tests**: modern syntax, Node `^22.18.0 || >=24.11.0`.
 
 That range is what the tooling packages support, not what you should develop on: for development prefer a recent Node (26+) and npm (11+), from `nvm` where possible.

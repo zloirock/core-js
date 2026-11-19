@@ -1443,6 +1443,11 @@ export const features = {
     template: $instanceNumber,
     name: 'toFixed',
   },
+  'instance/to-precision': {
+    modules: ['es.number.to-precision'],
+    template: $instanceNumber,
+    name: 'toPrecision',
+  },
   'instance/to-reversed': {
     modules: ['es.array.to-reversed'],
     template: $instanceArray,
@@ -2046,6 +2051,23 @@ export const features = {
     modules: ['es.number.to-fixed'],
     template: $instanceNumber,
     name: 'toFixed',
+  },
+  'number/to-precision': {
+    modules: ['es.number.to-precision'],
+    template: $uncurried,
+    namespace: 'Number',
+    name: 'toPrecision',
+  },
+  'number/prototype/to-precision': {
+    modules: ['es.number.to-precision'],
+    template: $prototype,
+    namespace: 'Number',
+    name: 'toPrecision',
+  },
+  'number/instance/to-precision': {
+    modules: ['es.number.to-precision'],
+    template: $instanceNumber,
+    name: 'toPrecision',
   },
   'object/index': {
     modules: [/^(?:es|esnext)\.object\./],
@@ -3456,7 +3478,7 @@ export const features = {
     globalType: false,
   },
   'url/constructor': {
-    modules: ['web.url.constructor', 'web.url.to-json', /^web\.url-search-params\./],
+    modules: ['web.url.constructor', /^web\.url-search-params\./],
     template: $namespace,
     name: 'URL',
     globalType: false,
@@ -3473,11 +3495,6 @@ export const features = {
     template: $static,
     namespace: 'URL',
     name: 'parse',
-    globalType: false,
-  },
-  'url/to-json': {
-    modules: ['web.url.to-json'],
-    template: $justImport,
     globalType: false,
   },
   'url-search-params/index': {

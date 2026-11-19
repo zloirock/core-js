@@ -2,7 +2,7 @@
 [`URL` standard](https://url.spec.whatwg.org/) implementation.
 
 ## Modules
-[`web.url.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.constructor.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.can-parse.js), [`web.url.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.parse.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.constructor.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.size.js).
+[`web.url.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.constructor.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.can-parse.js), [`web.url.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url.parse.js), [`web.url-search-params.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.constructor.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.url-search-params.size.js).
 
 ## Built-ins signatures
 ```ts
@@ -50,7 +50,6 @@ class URLSearchParams {
 { core-js, @core-js/pure }/stable|actual|full/url
 { core-js, @core-js/pure }/stable|actual|full/url/can-parse
 { core-js, @core-js/pure }/stable|actual|full/url/parse
-core-js/stable|actual|full/url/to-json
 { core-js, @core-js/pure }/stable|actual|full/url-search-params
 ```
 

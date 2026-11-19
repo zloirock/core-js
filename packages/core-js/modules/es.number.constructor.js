@@ -91,9 +91,5 @@ $({ global: true, constructor: true, wrap: true, forced: FORCED }, {
   Number: NumberWrapper,
 });
 
-// Native pure wrappers already preserve these properties in `export`.
-// Forced replacements still need the Number-specific fallback.
-if (FORCED) {
-  if (IS_PURE && PureNumberNamespace) copyConstructorProperties(path[NUMBER], PureNumberNamespace);
-  copyConstructorProperties(path[NUMBER], NativeNumber);
-}
+if (IS_PURE && PureNumberNamespace) copyConstructorProperties(path[NUMBER], PureNumberNamespace);
+if (FORCED || IS_PURE) copyConstructorProperties(path[NUMBER], NativeNumber);

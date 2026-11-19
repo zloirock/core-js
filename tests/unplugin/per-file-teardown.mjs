@@ -1,6 +1,7 @@
 // A persistent plugin must release the last parsed tree, including the class helper's
 // callback installed on its adapter. Observe the parser boundary without changing the
 // production sources; a child process provides explicit GC and isolated module hooks.
+// eslint-disable-next-line node/no-unsupported-features/node-builtins -- isolated module hooks of a child process
 import { registerHooks } from 'node:module';
 import { setTimeout as nextTurn } from 'node:timers/promises';
 

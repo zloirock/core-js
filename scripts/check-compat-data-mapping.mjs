@@ -30,10 +30,8 @@ async function getLatestFromMDN(name, branch) {
 }
 
 async function getLatestFromBaselineBrowserMapping(name) {
-  const {
-    [name]: releases,
-  } = await getJSON('https://web-platform-dx.github.io/baseline-browser-mapping/with_downstream/all_versions_object.json');
-  return getLatest(releases);
+  const browsers = await getJSON('https://web-platform-dx.github.io/baseline-browser-mapping/with_downstream/all_versions_object.json');
+  return getLatest(browsers[name]);
 }
 
 function modernV8ToChrome(string) {

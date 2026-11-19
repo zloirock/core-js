@@ -1,6 +1,6 @@
 QUnit.test('Number#toExponential', assert => {
   const { toExponential } = Number.prototype;
-  const zeros = count => Array(count + 1).join('0');
+  function zeros(count) { return Array(count + 1).join('0'); }
   assert.isFunction(toExponential);
   assert.name(toExponential, 'toExponential');
   assert.arity(toExponential, 1);

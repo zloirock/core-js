@@ -14,7 +14,7 @@ import "core-js/modules/es.promise.race";
 import "core-js/modules/es.promise.try";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
-import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
@@ -32,6 +32,7 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/esnext.promise.all-keyed";
 import "core-js/modules/esnext.promise.all-settled-keyed";
@@ -40,11 +41,7 @@ import "core-js/modules/web.self";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url.parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a detect read through another realm name than its write still feeds that write after an explicit write of the
 // slot, as in the same-name spelling: usage-global loads what each detect reads, whichever side the bare name
 // or a realm member spells, and the whole family of a value it hands into the realm's slot

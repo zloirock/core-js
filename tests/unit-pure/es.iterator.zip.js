@@ -1,6 +1,7 @@
 import { createIterator, observableReturn } from '../helpers/helpers.js';
 
 import from from '@core-js/pure/es/array/from';
+import assign from '@core-js/pure/es/object/assign';
 import defineProperty from '@core-js/pure/es/object/define-property';
 import Iterator from '@core-js/pure/es/iterator';
 import Symbol from '@core-js/pure/es/symbol';
@@ -58,7 +59,7 @@ QUnit.test('Iterator.zip', assert => {
   }
 
   {
-    const it1 = createIterator([1, 2], { ...observableReturn, next() { throw new Error(); } });
+    const it1 = createIterator([1, 2], assign({}, observableReturn, { next() { throw new Error(); } }));
     const it2 = createIterator([3, 4], observableReturn);
     result = zip([it1, it2]);
     assert.throws(() => from(result), Error);

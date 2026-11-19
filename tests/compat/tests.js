@@ -102,13 +102,7 @@ function ACCEPTS_INVALID_URL(input) {
   } catch (error) { /* empty */ }
 }
 
-// The first part of the `URL` and `URLSearchParams` detection: what it was before the checks of hosts,
-// non-special URLs and record keys. The modules that only add a method to the native constructors keep
-// their compat data, so they are tested against this part alone
-// TODO: In `core-js@4`, merge it back into `URL_AND_URL_SEARCH_PARAMS_SUPPORT`: test those modules as
-// "the constructors are polyfilled or the method is supported" and set their compat data to the first versions
-// from which that always holds
-function URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY() {
+function URL_AND_URL_SEARCH_PARAMS_SUPPORT() {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
   var url = new URL('b?a=1&b=2&c=3', 'https://a');
   var searchParams = url.searchParams;
@@ -129,11 +123,7 @@ function URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY() {
     && new URL('https://a#б').hash === '#%D0%B1'
     && result === 'a1c3'
     // throws in Safari 14.0-: https://bugs.webkit.org/show_bug.cgi?id=215734
-    && new URL('https://x', undefined).host === 'x';
-}
-
-function URL_AND_URL_SEARCH_PARAMS_SUPPORT() {
-  return URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY()
+    && new URL('https://x', undefined).host === 'x'
     // forbidden host code points are accepted in Safari 15.3-, NodeJS 18.5- and Deno 1.25.1-
     && !ACCEPTS_INVALID_URL('http://a\u0001b')
     // hosts ending in an invalid number are accepted there, in Chrome 94- and Firefox 118-
@@ -148,6 +138,18 @@ function URL_AND_URL_SEARCH_PARAMS_SUPPORT() {
     && new URL('http://127.0.0.%31').host === '127.0.0.1'
     // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
     && String(new URLSearchParams({ constructor: 1 })) === 'constructor=1';
+}
+
+// A module that only adds a method to the native `URLSearchParams` is required only where the constructor
+// is not polyfilled and the method is missing: the polyfill of the constructor has the method
+function createURLSearchParamsMethodTest(methodSupport) {
+  return function () {
+    var NATIVE_CONSTRUCTORS = false;
+    try {
+      NATIVE_CONSTRUCTORS = URL_AND_URL_SEARCH_PARAMS_SUPPORT();
+    } catch (error) { /* empty */ }
+    return !NATIVE_CONSTRUCTORS || methodSupport();
+  };
 }
 
 // eslint-disable-next-line no-proto -- safe
@@ -187,7 +189,7 @@ function DATA_VIEW_INT8_CONVERSION_BUG() {
   testView.setInt8(0, 2147483648);
   testView.setInt8(1, 2147483649);
 
-  // iOS Safari 7.x bug
+  // NodeJS 0.11.4 and iOS Safari 7.x truncate large values incorrectly
   return !testView.getInt8(0) && !!testView.getInt8(1);
 }
 
@@ -956,12 +958,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Array.prototype[Symbol.unscopables].flatMap;
   },
   'es.array.unshift': function () {
+    var touched = false;
+    function accessor() { touched = true; }
     try {
       Object.defineProperty([], 'length', { writable: false }).unshift();
     } catch (error) {
       if (!(error instanceof TypeError)) return false;
-      var touched = false;
-      var accessor = function () { touched = true; };
       [].unshift.call(Object.defineProperty({ length: 1 }, 0, { get: accessor, set: accessor }));
       // an engine that moves elements without arguments would iterate up to a huge length
       return !touched && [].unshift.call({ length: 0x100000000 }) === 4294967296;
@@ -1036,14 +1038,21 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array-buffer.transfer-to-fixed-length': function () {
     return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
   },
-  'es.data-view.constructor': function () {
+  'es.data-view.constructor': [function () {
     try {
       DataView(new ArrayBuffer(1));
     } catch (error) {
       return new DataView(new ArrayBuffer(1), undefined, undefined).byteLength === 1
         && Object.getPrototypeOf(DataView.prototype) === Object.prototype;
     }
-  },
+  }, function () {
+    // V8 ~ Chrome 50-53 follows ES2015: accepts a negative `byteLength` and rejects a non-integer `byteOffset`
+    try {
+      new DataView(new ArrayBuffer(1), 0, -1);
+    } catch (error) {
+      return true;
+    }
+  }],
   'es.data-view.set-int8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.set-uint8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.get-float16': function () {
@@ -1435,6 +1444,21 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
         // Rhino 1.8.0-
         && 5.054e-321.toFixed(0) === '0';
     }
+  },
+  'es.number.to-precision': function () {
+    // Safari <11 && FF <50
+    Infinity.toPrecision(Infinity);
+    NaN.toPrecision(Infinity);
+    1.0.toPrecision(100);
+    // IE11-, Chakra-based Edge
+    return 1.255.toPrecision(3) === '1.25'
+      // FF86-
+      && (12345).toPrecision(4) === '1.235e+4'
+      && (25).toPrecision(1) === '3e+1'
+      // Rhino 1.8.1+
+      && 0.03125.toPrecision(21) === '0.0312500000000000000000'
+      // Rhino 1.8.0-
+      && 2.5e-323.toPrecision(1) === '2e-323';
   },
   'es.regexp.constructor': [NCG_SUPPORT, function () {
     var re1 = /a/g;
@@ -2228,27 +2252,22 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var parse = URL.parse;
     return parse('https://example.com/').href === 'https://example.com/';
   }],
-  // TODO: Remove this module from `core-js@4`: every engine that passes the `URL` constructor detection
-  // has the native method, and the polyfill of the constructor defines its own
-  'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
-    return URL.prototype.toJSON;
-  }],
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
-  'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
+  'web.url-search-params.delete': createURLSearchParamsMethodTest(function () {
     var params = new URLSearchParams('a=1&a=2&b=3');
     params.delete('a', 1);
     // `undefined` case is a Chromium 117 bug
     // https://issues.chromium.org/issues/40278437
     params.delete('b', undefined);
     return params + '' === 'a=2';
-  }],
-  'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
+  }),
+  'web.url-search-params.has': createURLSearchParamsMethodTest(function () {
     var params = new URLSearchParams('a=1');
     // `undefined` case is a Chromium 117 bug
     // https://issues.chromium.org/issues/40278437
     return params.has('a', 1) && !params.has('a', 2) && params.has('a', undefined);
-  }],
-  'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY, function () {
+  }),
+  'web.url-search-params.size': createURLSearchParamsMethodTest(function () {
     return 'size' in URLSearchParams.prototype;
-  }],
+  }),
 };

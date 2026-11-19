@@ -1,5 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
-import { ok, throws } from 'node:assert/strict';
+import { deepEqual, ok, throws } from 'node:assert/strict';
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
@@ -56,39 +56,51 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'object/from-entries')([['a', 42]]).a === 42);
     ok(load(NS, 'object/values')({ q: 2 })[0] === 2);
     ok(load(NS, 'object/get-own-property-descriptors')({ q: 1 }).q.enumerable);
-    ok(typeof load(NS, 'object/define-getter') == 'function');
-    ok(typeof load(NS, 'object/define-setter') == 'function');
-    ok(typeof load(NS, 'object/lookup-getter') == 'function');
-    ok(typeof load(NS, 'object/lookup-setter') == 'function');
+    load(NS, 'object/define-getter')(O = {}, 'a', () => 42);
+    ok(O.a === 42);
+    load(NS, 'object/define-setter')(O = {}, 'a', function (value) { this.b = value; });
+    O.a = 42;
+    ok(O.b === 42);
+    O = { get a() { return 42; } };
+    ok(load(NS, 'object/lookup-getter')(O, 'a') === Object.getOwnPropertyDescriptor(O, 'a').get);
+    O = { set a(value) { this.b = value; } };
+    ok(load(NS, 'object/lookup-setter')(O, 'a') === Object.getOwnPropertyDescriptor(O, 'a').set);
     ok(typeof load(NS, 'object/prototype/define-getter') == 'function');
     ok(typeof load(NS, 'object/prototype/define-setter') == 'function');
     ok(typeof load(NS, 'object/prototype/lookup-getter') == 'function');
     ok(typeof load(NS, 'object/prototype/lookup-setter') == 'function');
-    ok('values' in load(NS, 'object'));
+    deepEqual(load(NS, 'object').values({ a: 1 }), [1]);
     // eslint-disable-next-line prefer-arrow-callback -- required
     ok(load(NS, 'function/name')(function test() { /* empty */ }) === 'test');
     // eslint-disable-next-line prefer-arrow-callback -- required
     ok(load(NS, 'function/instance/name')(function test() { /* empty */ }) === 'test');
     ok(load(NS, 'function/instance/name')({ name: 'foo' }) === 'foo');
-    load(NS, 'function');
-    ok(Array.isArray(load(NS, 'array/from')('qwe')));
-    ok(typeof load(NS, 'array/from-async') == 'function');
-    ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
+    const functionNamespace = load(NS, 'function');
+    if (PATH === 'core-js') ok(functionNamespace === Function);
+    deepEqual(load(NS, 'array/from')('qwe'), ['q', 'w', 'e']);
+    deepEqual(await load(NS, 'array/from-async')([1, 2], async it => it + 1), [2, 3]);
+    deepEqual(load(NS, 'array/of')('q', 'w', 'e'), ['q', 'w', 'e']);
     ok(load(NS, 'array/at')([1, 2, 3], -2) === 2);
     ok(load(NS, 'array/join')('qwe', 1) === 'q1w1e');
     ok(load(NS, 'array/slice')('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/sort')([1, 3, 2])[1] === 2);
-    ok(typeof load(NS, 'array/map') == 'function');
-    ok(typeof load(NS, 'array/filter') == 'function');
-    ok(typeof load(NS, 'array/flat') == 'function');
-    ok(typeof load(NS, 'array/flat-map') == 'function');
-    ok(typeof load(NS, 'array/push') == 'function');
-    ok(typeof load(NS, 'array/reduce') == 'function');
-    ok(typeof load(NS, 'array/reduce-right') == 'function');
-    ok(typeof load(NS, 'array/reverse') == 'function');
-    ok(typeof load(NS, 'array/index-of') == 'function');
-    ok(typeof load(NS, 'array/last-index-of') == 'function');
-    ok(typeof load(NS, 'array/unshift') == 'function');
+    deepEqual(load(NS, 'array/map')([1, 2, 3], it => it * 2), [2, 4, 6]);
+    deepEqual(load(NS, 'array/filter')([1, 2, 3], it => it % 2), [1, 3]);
+    deepEqual(load(NS, 'array/flat')([1, [2, [3]]]), [1, 2, [3]]);
+    deepEqual(load(NS, 'array/flat-map')([1, 2], it => [it, it + 1]), [1, 2, 2, 3]);
+    O = [1];
+    ok(load(NS, 'array/push')(O, 2, 3) === 3);
+    deepEqual(O, [1, 2, 3]);
+    ok(load(NS, 'array/reduce')([1, 2, 3], (memo, it) => memo * 10 + it, 0) === 123);
+    ok(load(NS, 'array/reduce-right')([1, 2, 3], (memo, it) => memo * 10 + it, 0) === 321);
+    O = [1, 3, 2];
+    ok(load(NS, 'array/reverse')(O) === O);
+    deepEqual(O, [2, 3, 1]);
+    ok(load(NS, 'array/index-of')([1, 2, 1], 1) === 0);
+    ok(load(NS, 'array/last-index-of')([1, 2, 1], 1) === 2);
+    O = [1];
+    ok(load(NS, 'array/unshift')(O, 2, 3) === 3);
+    deepEqual(O, [2, 3, 1]);
     ok(load(NS, 'array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
     ok(load(NS, 'array/copy-within')([1, 2, 3, 4, 5], 0, 3)[0] === 4);
     deepEqual([...load(NS, 'array/entries')([42])], [[0, 42]]);
@@ -110,17 +122,23 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'array/prototype/slice').call('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/prototype/splice').call([1, 2, 3], 1, 2)[0] === 2);
     ok(load(NS, 'array/prototype/sort').call([1, 3, 2])[1] === 2);
-    ok(typeof load(NS, 'array/prototype/map') == 'function');
-    ok(typeof load(NS, 'array/prototype/filter') == 'function');
-    ok(typeof load(NS, 'array/prototype/flat') == 'function');
-    ok(typeof load(NS, 'array/prototype/flat-map') == 'function');
-    ok(typeof load(NS, 'array/prototype/push') == 'function');
-    ok(typeof load(NS, 'array/prototype/reduce') == 'function');
-    ok(typeof load(NS, 'array/prototype/reduce-right') == 'function');
-    ok(typeof load(NS, 'array/prototype/reverse') == 'function');
-    ok(typeof load(NS, 'array/prototype/index-of') == 'function');
-    ok(typeof load(NS, 'array/prototype/last-index-of') == 'function');
-    ok(typeof load(NS, 'array/prototype/unshift') == 'function');
+    deepEqual(load(NS, 'array/prototype/map').call([1, 2, 3], it => it * 2), [2, 4, 6]);
+    deepEqual(load(NS, 'array/prototype/filter').call([1, 2, 3], it => it % 2), [1, 3]);
+    deepEqual(load(NS, 'array/prototype/flat').call([1, [2, [3]]]), [1, 2, [3]]);
+    deepEqual(load(NS, 'array/prototype/flat-map').call([1, 2], it => [it, it + 1]), [1, 2, 2, 3]);
+    O = [1];
+    ok(load(NS, 'array/prototype/push').call(O, 2, 3) === 3);
+    deepEqual(O, [1, 2, 3]);
+    ok(load(NS, 'array/prototype/reduce').call([1, 2, 3], (memo, it) => memo * 10 + it, 0) === 123);
+    ok(load(NS, 'array/prototype/reduce-right').call([1, 2, 3], (memo, it) => memo * 10 + it, 0) === 321);
+    O = [1, 3, 2];
+    ok(load(NS, 'array/prototype/reverse').call(O) === O);
+    deepEqual(O, [2, 3, 1]);
+    ok(load(NS, 'array/prototype/index-of').call([1, 2, 1], 1) === 0);
+    ok(load(NS, 'array/prototype/last-index-of').call([1, 2, 1], 1) === 2);
+    O = [1];
+    ok(load(NS, 'array/prototype/unshift').call(O, 2, 3) === 3);
+    deepEqual(O, [2, 3, 1]);
     ok(load(NS, 'array/prototype/concat').call([1, 2, 3], [4, 5, 6]).length === 6);
     ok(load(NS, 'array/prototype/copy-within').call([1, 2, 3, 4, 5], 0, 3)[0] === 4);
     deepEqual([...load(NS, 'array/prototype/entries').call([42])], [[0, 42]]);
@@ -137,7 +155,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'array/prototype/to-reversed').call([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/prototype/to-sorted').call([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/prototype/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
-    ok('from' in load(NS, 'array'));
+    deepEqual(load(NS, 'array').from('ab'), ['a', 'b']);
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(new (load(NS, 'error/constructor'))(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'error/is-error')(new Error()));
@@ -183,11 +201,13 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'number/parse-int')('2.1') === 2);
     ok(load(NS, 'number/to-exponential')(1, 1) === '1.0e+0');
     ok(load(NS, 'number/to-fixed')(1, 1) === '1.0');
+    ok(load(NS, 'number/to-precision')(1.234, 3) === '1.23');
     ok(load(NS, 'parse-float')('1.5') === 1.5);
     ok(load(NS, 'parse-int')('2.1') === 2);
     ok(load(NS, 'number/prototype/to-exponential').call(1, 1) === '1.0e+0');
     ok(load(NS, 'number/prototype/to-fixed').call(1, 1) === '1.0');
-    ok('isNaN' in load(NS, 'number'));
+    ok(load(NS, 'number/prototype/to-precision').call(1.234, 3) === '1.23');
+    ok(load(NS, 'number').isNaN(NaN) === true);
     ok(typeof load(NS, 'reflect/namespace') == 'object');
     ok(load(NS, 'reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
     ok(load(NS, 'reflect/construct')(function () {
@@ -230,20 +250,20 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'string/includes')('qwe', 'w'));
     ok(load(NS, 'string/repeat')('q', 3) === 'qqq');
     ok(load(NS, 'string/starts-with')('qwe', 'qw'));
-    ok(typeof load(NS, 'string/anchor') == 'function');
-    ok(typeof load(NS, 'string/big') == 'function');
-    ok(typeof load(NS, 'string/blink') == 'function');
-    ok(typeof load(NS, 'string/bold') == 'function');
-    ok(typeof load(NS, 'string/fixed') == 'function');
-    ok(typeof load(NS, 'string/fontcolor') == 'function');
-    ok(typeof load(NS, 'string/fontsize') == 'function');
-    ok(typeof load(NS, 'string/italics') == 'function');
-    ok(typeof load(NS, 'string/link') == 'function');
-    ok(typeof load(NS, 'string/small') == 'function');
-    ok(typeof load(NS, 'string/strike') == 'function');
-    ok(typeof load(NS, 'string/sub') == 'function');
-    ok(typeof load(NS, 'string/sup') == 'function');
-    ok(typeof load(NS, 'string/replace-all') == 'function');
+    ok(load(NS, 'string/anchor')('a', 'b') === '<a name="b">a</a>');
+    ok(load(NS, 'string/big')('a') === '<big>a</big>');
+    ok(load(NS, 'string/blink')('a') === '<blink>a</blink>');
+    ok(load(NS, 'string/bold')('a') === '<b>a</b>');
+    ok(load(NS, 'string/fixed')('a') === '<tt>a</tt>');
+    ok(load(NS, 'string/fontcolor')('a', 'b') === '<font color="b">a</font>');
+    ok(load(NS, 'string/fontsize')('a', 'b') === '<font size="b">a</font>');
+    ok(load(NS, 'string/italics')('a') === '<i>a</i>');
+    ok(load(NS, 'string/link')('a', 'b') === '<a href="b">a</a>');
+    ok(load(NS, 'string/small')('a') === '<small>a</small>');
+    ok(load(NS, 'string/strike')('a') === '<strike>a</strike>');
+    ok(load(NS, 'string/sub')('a') === '<sub>a</sub>');
+    ok(load(NS, 'string/sup')('a') === '<sup>a</sup>');
+    ok(load(NS, 'string/replace-all')('aba', 'a', 'c') === 'cbc');
     ok(load(NS, 'string/pad-start')('a', 3) === '  a');
     ok(load(NS, 'string/pad-end')('a', 3) === 'a  ');
     ok(load(NS, 'string/is-well-formed')('a'));
@@ -262,25 +282,25 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'string/prototype/trim-end').call(' a ') === ' a');
     ok(load(NS, 'string/prototype/trim-left').call(' a ') === 'a ');
     ok(load(NS, 'string/prototype/trim-right').call(' a ') === ' a');
-    ok(typeof load(NS, 'string/prototype/anchor') == 'function');
-    ok(typeof load(NS, 'string/prototype/big') == 'function');
-    ok(typeof load(NS, 'string/prototype/blink') == 'function');
-    ok(typeof load(NS, 'string/prototype/bold') == 'function');
-    ok(typeof load(NS, 'string/prototype/fixed') == 'function');
-    ok(typeof load(NS, 'string/prototype/fontcolor') == 'function');
-    ok(typeof load(NS, 'string/prototype/fontsize') == 'function');
-    ok(typeof load(NS, 'string/prototype/italics') == 'function');
-    ok(typeof load(NS, 'string/prototype/link') == 'function');
-    ok(typeof load(NS, 'string/prototype/small') == 'function');
-    ok(typeof load(NS, 'string/prototype/strike') == 'function');
-    ok(typeof load(NS, 'string/prototype/sub') == 'function');
-    ok(typeof load(NS, 'string/prototype/sup') == 'function');
+    ok(load(NS, 'string/prototype/anchor').call('a', 'b') === '<a name="b">a</a>');
+    ok(load(NS, 'string/prototype/big').call('a') === '<big>a</big>');
+    ok(load(NS, 'string/prototype/blink').call('a') === '<blink>a</blink>');
+    ok(load(NS, 'string/prototype/bold').call('a') === '<b>a</b>');
+    ok(load(NS, 'string/prototype/fixed').call('a') === '<tt>a</tt>');
+    ok(load(NS, 'string/prototype/fontcolor').call('a', 'b') === '<font color="b">a</font>');
+    ok(load(NS, 'string/prototype/fontsize').call('a', 'b') === '<font size="b">a</font>');
+    ok(load(NS, 'string/prototype/italics').call('a') === '<i>a</i>');
+    ok(load(NS, 'string/prototype/link').call('a', 'b') === '<a href="b">a</a>');
+    ok(load(NS, 'string/prototype/small').call('a') === '<small>a</small>');
+    ok(load(NS, 'string/prototype/strike').call('a') === '<strike>a</strike>');
+    ok(load(NS, 'string/prototype/sub').call('a') === '<sub>a</sub>');
+    ok(load(NS, 'string/prototype/sup').call('a') === '<sup>a</sup>');
     ok(load(NS, 'string/prototype/pad-start').call('a', 3) === '  a');
     ok(load(NS, 'string/prototype/pad-end').call('a', 3) === 'a  ');
     ok(load(NS, 'string/prototype/is-well-formed').call('a'));
     ok(load(NS, 'string/prototype/to-well-formed').call('a') === 'a');
-    ok('next' in load(NS, 'string/prototype/iterator').call('qwe'));
-    ok('raw' in load(NS, 'string'));
+    deepEqual([...load(NS, 'string/prototype/iterator').call('qwe')], ['q', 'w', 'e']);
+    ok(load(NS, 'string').raw({ raw: ['a', 'b'] }, 1) === 'a1b');
     ok(new (load(NS, 'range-error/constructor'))(1, { cause: 7 }).cause === 7);
     ok(new (load(NS, 'range-error'))(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'range-error/is-error')(new Error()));
@@ -312,24 +332,27 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'date/prototype/to-json').call(Infinity) === null);
     ok(load(NS, 'date'));
     ok(typeof load(NS, 'symbol/constructor') == 'function');
-    ok(typeof load(NS, 'symbol/for') == 'function');
-    ok(typeof load(NS, 'symbol/key-for') == 'function');
-    ok(Function[load(NS, 'symbol/has-instance')](it => it));
-    ok(load(NS, 'symbol/is-concat-spreadable'));
-    ok(load(NS, 'symbol/iterator'));
-    ok(load(NS, 'symbol/match'));
-    ok(load(NS, 'symbol/match-all'));
-    ok(load(NS, 'symbol/replace'));
-    ok(load(NS, 'symbol/search'));
-    ok(load(NS, 'symbol/species'));
-    ok(load(NS, 'symbol/split'));
-    ok(load(NS, 'symbol/to-primitive'));
-    ok(load(NS, 'symbol/to-string-tag'));
-    ok(load(NS, 'symbol/unscopables'));
-    ok(load(NS, 'symbol/async-iterator'));
+    ok(load(NS, 'symbol/for')('entry') === Symbol.for('entry'));
+    ok(load(NS, 'symbol/key-for')(Symbol.for('entry')) === 'entry');
+    ok(load(NS, 'symbol/has-instance') === Symbol.hasInstance);
+    ok(load(NS, 'symbol/is-concat-spreadable') === Symbol.isConcatSpreadable);
+    ok(load(NS, 'symbol/iterator') === Symbol.iterator);
+    ok(load(NS, 'symbol/match') === Symbol.match);
+    ok(load(NS, 'symbol/match-all') === Symbol.matchAll);
+    ok(load(NS, 'symbol/replace') === Symbol.replace);
+    ok(load(NS, 'symbol/search') === Symbol.search);
+    ok(load(NS, 'symbol/species') === Symbol.species);
+    ok(load(NS, 'symbol/split') === Symbol.split);
+    ok(load(NS, 'symbol/to-primitive') === Symbol.toPrimitive);
+    ok(load(NS, 'symbol/to-string-tag') === Symbol.toStringTag);
+    ok(load(NS, 'symbol/unscopables') === Symbol.unscopables);
+    ok(load(NS, 'symbol/async-iterator') === Symbol.asyncIterator);
     load(NS, 'symbol/description');
     ok(load(NS, 'symbol/instance/description')(Symbol('instance')) === 'instance');
-    ok(typeof load(NS, 'symbol') == 'function');
+    const symbol = load(NS, 'symbol')('entry');
+    ok(typeof symbol === 'symbol');
+    ok(symbol.description === 'entry');
+    ok(Symbol.keyFor(symbol) === undefined);
     const Map = load(NS, 'map/constructor');
     ok(new Map([[1, 2], [3, 4]]).size === 2);
     const Set = load(NS, 'set/constructor');
@@ -363,18 +386,25 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'weak-map/prototype/get-or-insert').call(new WeakMap([[{}, 2]]), {}, 3) === 3);
     ok(load(NS, 'weak-map/prototype/get-or-insert-computed').call(new WeakMap([[{}, 2]]), {}, () => 3) === 3);
     const Promise = load(NS, 'promise/constructor');
-    ok('then' in Promise.prototype);
+    ok(await new Promise(resolve => resolve(42)) === 42);
     ok(load(NS, 'promise/all')([1, 2, 3]) instanceof Promise);
-    ok(load(NS, 'promise/all-settled')([1, 2, 3]) instanceof Promise);
-    ok(load(NS, 'promise/any')([1, 2, 3]) instanceof Promise);
+    deepEqual(await load(NS, 'promise/all-settled')([1, load(NS, 'promise/reject')(2)]), [
+      { status: 'fulfilled', value: 1 },
+      { status: 'rejected', reason: 2 },
+    ]);
+    ok(await load(NS, 'promise/any')([load(NS, 'promise/reject')(1), 2]) === 2);
     ok(load(NS, 'promise/race')([1, 2, 3]) instanceof Promise);
     // eslint-disable-next-line unicorn/prefer-top-level-await, promise/prefer-await-to-callbacks, promise/prefer-await-to-then -- testing
     ok(load(NS, 'promise/reject')(42).then(null, error => error) instanceof Promise);
     ok(load(NS, 'promise/resolve')(42) instanceof Promise);
-    ok(load(NS, 'promise/try')(() => 42) instanceof Promise);
-    ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
+    ok(await load(NS, 'promise/try')(() => 42) === 42);
+    const withResolvers = load(NS, 'promise/with-resolvers')();
+    withResolvers.resolve(42);
+    ok(await withResolvers.promise === 42);
     ok(load(NS, 'promise/catch')(new Promise(resolve => resolve), it => it) instanceof Promise);
-    ok(load(NS, 'promise/finally')(new Promise(resolve => resolve), it => it) instanceof Promise);
+    O = 0;
+    ok(await load(NS, 'promise/finally')(load(NS, 'promise/resolve')(1), () => { O++; }) === 1);
+    ok(O === 1);
     ok(load(NS, 'promise/prototype/catch').call(new Promise(resolve => resolve), it => it) instanceof Promise);
     ok(load(NS, 'promise/prototype/finally').call(new Promise(resolve => resolve), it => it) instanceof Promise);
     ok(load(NS, 'map') === Map);
@@ -383,19 +413,21 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'weak-set') === WeakSet);
     ok(load(NS, 'promise') === Promise);
     ok(load(NS, 'is-iterable')([]));
-    ok(typeof load(NS, 'get-iterator-method')([]) == 'function');
-    ok('next' in load(NS, 'get-iterator')([]));
-    ok('Map' in load(NS));
+    ok(load(NS, 'get-iterator-method')([]).call([42]).next().value === 42);
+    ok(load(NS, 'get-iterator')([42]).next().value === 42);
+    ok(new (load(NS).Map)([[1, 2]]).get(1) === 2);
     ok(typeof load(NS, 'iterator/constructor') == 'function');
-    ok(typeof load(NS, 'iterator/chunks') == 'function');
+    deepEqual([...load(NS, 'iterator/chunks')([1, 2, 3].values(), 2)], [[1, 2], [3]]);
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
-    ok(typeof load(NS, 'iterator/from') == 'function');
-    ok(typeof load(NS, 'iterator/drop') == 'function');
-    ok(typeof load(NS, 'iterator/every') == 'function');
-    ok(typeof load(NS, 'iterator/filter') == 'function');
-    ok(typeof load(NS, 'iterator/find') == 'function');
-    ok(typeof load(NS, 'iterator/flat-map') == 'function');
-    ok(typeof load(NS, 'iterator/for-each') == 'function');
+    deepEqual([...load(NS, 'iterator/from')([1, 2])], [1, 2]);
+    deepEqual([...load(NS, 'iterator/drop')([1, 2, 3].values(), 2)], [3]);
+    ok(load(NS, 'iterator/every')([1, 2, 3].values(), it => it > 1) === false);
+    deepEqual([...load(NS, 'iterator/filter')([1, 2, 3].values(), it => it > 1)], [2, 3]);
+    ok(load(NS, 'iterator/find')([1, 2, 3].values(), it => it > 1) === 2);
+    deepEqual([...load(NS, 'iterator/flat-map')([1, 2].values(), it => [it, it + 10])], [1, 11, 2, 12]);
+    O = [];
+    ok(load(NS, 'iterator/for-each')([1, 2].values(), it => O.push(it * 2)) === undefined);
+    deepEqual(O, [2, 4]);
     ok(load(NS, 'iterator/includes')([1, 2].values(), 2) === true);
     ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     deepEqual([...load(NS, 'iterator/map')([1, 2, 3].values(), it => it * 2)], [2, 4, 6]);
@@ -423,7 +455,9 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/prototype/take') == 'function');
     ok(typeof load(NS, 'iterator/prototype/to-array') == 'function');
     ok(typeof load(NS, 'iterator/prototype/windows') == 'function');
-    ok(typeof load(NS, 'iterator') == 'function');
+    const Iterator = load(NS, 'iterator');
+    throws(() => new Iterator(), TypeError);
+    deepEqual(Iterator.from([1, 2]).toArray(), [1, 2]);
     ok(new (load(NS, 'syntax-error/constructor'))(1, { cause: 7 }).cause === 7);
     ok(new (load(NS, 'syntax-error'))(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'syntax-error/is-error')(new Error()));
@@ -439,13 +473,25 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(new (load(NS, 'uri-error'))(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'uri-error/is-error')(new Error()));
     ok(load(NS, 'uri-error') === URIError);
-    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
-    ok(typeof load(NS, 'disposable-stack') == 'function');
-    ok(load(NS, 'symbol/async-dispose'));
-    ok(load(NS, 'symbol/dispose'));
+    const DisposableStack = load(NS, 'disposable-stack');
+    const stack = new DisposableStack();
+    let disposed = false;
+    stack.defer(() => { disposed = true; });
+    stack.dispose();
+    ok(disposed);
+    ok(load(NS, 'disposable-stack/constructor') === DisposableStack);
+    ok(typeof load(NS, 'symbol/async-dispose') === 'symbol');
+    ok(load(NS, 'symbol/async-dispose') === load(NS, 'symbol').asyncDispose);
+    ok(typeof load(NS, 'symbol/dispose') === 'symbol');
+    ok(load(NS, 'symbol/dispose') === load(NS, 'symbol').dispose);
     load(NS, 'async-iterator');
-    ok(typeof load(NS, 'async-disposable-stack') == 'function');
-    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
+    const AsyncDisposableStack = load(NS, 'async-disposable-stack');
+    const asyncStack = new AsyncDisposableStack();
+    let asyncDisposed = false;
+    asyncStack.defer(async () => { asyncDisposed = true; });
+    await asyncStack.disposeAsync();
+    ok(asyncDisposed);
+    ok(load(NS, 'async-disposable-stack/constructor') === AsyncDisposableStack);
 
     const instanceAt = load(NS, 'instance/at');
     ok(typeof instanceAt == 'function');
@@ -685,6 +731,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceToFixed({}) === undefined);
     ok(typeof instanceToFixed(1) == 'function');
     ok(instanceToFixed(1).call(1, 1) === '1.0');
+
+    const instanceToPrecision = load(NS, 'instance/to-precision');
+    ok(typeof instanceToPrecision == 'function');
+    ok(instanceToPrecision({}) === undefined);
+    ok(typeof instanceToPrecision(1) == 'function');
+    ok(instanceToPrecision(1).call(1.234, 3) === '1.23');
 
     const instanceToReversed = load(NS, 'instance/to-reversed');
     ok(typeof instanceToReversed == 'function');
@@ -1062,6 +1114,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof numberInstanceToFixed == 'function');
     ok(typeof numberInstanceToFixed(1) == 'function');
     ok(numberInstanceToFixed(1).call(3.14, 1) === '3.1');
+
+    const numberInstanceToPrecision = load(NS, 'number/instance/to-precision');
+    ok(typeof numberInstanceToPrecision == 'function');
+    ok(typeof numberInstanceToPrecision(1) == 'function');
+    ok(numberInstanceToPrecision(1).call(3.14, 2) === '3.1');
   }
 
   for (const NS of ['stable', 'actual', 'full']) {
@@ -1072,7 +1129,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(exception.name === 'SyntaxError');
     ok(exception.message === 'message');
     ok(exception.code === 12);
-    ok(typeof load(NS, 'dom-exception') == 'function');
+    ok(load(NS, 'dom-exception') === DOMException);
     load(NS, 'dom-collections');
     load(NS, 'dom-collections/for-each');
     load(NS, 'dom-collections/iterator');
@@ -1084,15 +1141,21 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'dom-collections/prototype/keys');
     load(NS, 'dom-collections/prototype/values');
     ok(load(NS, 'self').Math === Math);
-    ok(typeof load(NS, 'set-immediate') == 'function');
+    const setImmediate = load(NS, 'set-immediate');
+    ok(await new Promise(resolve => setImmediate(resolve, 42)) === 42);
     ok(load(NS, 'structured-clone')(42) === 42);
-    ok(typeof load(NS, 'clear-immediate') == 'function');
-    ok(typeof load(NS, 'queue-microtask') == 'function');
+    let immediateCalled = false;
+    load(NS, 'clear-immediate')(setImmediate(() => { immediateCalled = true; }));
+    await new Promise(resolve => setImmediate(resolve));
+    ok(immediateCalled === false);
+    let microtaskCalled = false;
+    ok(load(NS, 'queue-microtask')(() => { microtaskCalled = true; }) === undefined);
+    await Promise.resolve();
+    ok(microtaskCalled);
     const URL = load(NS, 'url/constructor');
     ok(typeof URL == 'function');
     ok(load(NS, 'url/can-parse')('a:b') === true);
     ok(load(NS, 'url/parse')('a:b').href === 'a:b');
-    load(NS, 'url/to-json');
     ok(load(NS, 'url') === URL);
     const URLSearchParams = load(NS, 'url-search-params/constructor');
     ok(typeof URLSearchParams == 'function');
@@ -1117,25 +1180,33 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full']) {
-    ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
-    ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
+    deepEqual(await load(NS, 'promise/all-keyed')({ a: Promise.resolve(1), b: 2 }), { __proto__: null, a: 1, b: 2 });
+    deepEqual(await load(NS, 'promise/all-settled-keyed')({ a: Promise.resolve(1), b: Promise.reject(2) }), {
+      __proto__: null,
+      a: { status: 'fulfilled', value: 1 },
+      b: { status: 'rejected', reason: 2 },
+    });
   }
 
   for (const NS of ['full']) {
-    ok(load(NS, 'symbol/metadata'));
+    ok(typeof load(NS, 'symbol/metadata') === 'symbol');
+    ok(load(NS, 'symbol/metadata') === load(NS, 'symbol').metadata);
     ok(typeof load(NS, 'async-iterator/constructor') == 'function');
-    ok(typeof load(NS, 'async-iterator/from') == 'function');
-    ok(typeof load(NS, 'async-iterator/drop') == 'function');
-    ok(typeof load(NS, 'async-iterator/every') == 'function');
-    ok(typeof load(NS, 'async-iterator/filter') == 'function');
-    ok(typeof load(NS, 'async-iterator/find') == 'function');
-    ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
-    ok(typeof load(NS, 'async-iterator/for-each') == 'function');
-    ok(typeof load(NS, 'async-iterator/map') == 'function');
-    ok(typeof load(NS, 'async-iterator/reduce') == 'function');
-    ok(typeof load(NS, 'async-iterator/some') == 'function');
-    ok(typeof load(NS, 'async-iterator/take') == 'function');
-    ok(typeof load(NS, 'async-iterator/to-array') == 'function');
+    const asyncIteratorFrom = load(NS, 'async-iterator/from');
+    ok((await load(NS, 'async-iterator/drop')(asyncIteratorFrom([1, 2, 3]), 2).next()).value === 3);
+    ok(await load(NS, 'async-iterator/every')(asyncIteratorFrom([1, 2, 3]), async it => it > 1) === false);
+    ok((await load(NS, 'async-iterator/filter')(asyncIteratorFrom([1, 2, 3]), async it => it > 1).next()).value === 2);
+    ok(await load(NS, 'async-iterator/find')(asyncIteratorFrom([1, 2, 3]), async it => it > 1) === 2);
+    ok((await load(NS, 'async-iterator/flat-map')(asyncIteratorFrom([1, 2]), async it => [it * 2]).next()).value === 2);
+    const asyncValues = [];
+    ok(await load(NS, 'async-iterator/for-each')(asyncIteratorFrom([1, 2]), async it => asyncValues.push(it * 2)) === undefined);
+    deepEqual(asyncValues, [2, 4]);
+    ok((await asyncIteratorFrom([Promise.resolve(2)]).next()).value === 2);
+    ok((await load(NS, 'async-iterator/map')(asyncIteratorFrom([1, 2]), async it => it * 2).next()).value === 2);
+    ok(await load(NS, 'async-iterator/reduce')(asyncIteratorFrom([1, 2, 3]), async (memo, it) => memo * 10 + it, 0) === 123);
+    ok(await load(NS, 'async-iterator/some')(asyncIteratorFrom([1, 2, 3]), async it => it > 1) === true);
+    deepEqual(await load(NS, 'async-iterator/take')(asyncIteratorFrom([1, 2, 3]), 2).toArray(), [1, 2]);
+    deepEqual(await load(NS, 'async-iterator/to-array')(asyncIteratorFrom([1, 2, 3])), [1, 2, 3]);
     ok(typeof load(NS, 'async-iterator/prototype/drop') == 'function');
     ok(typeof load(NS, 'async-iterator/prototype/every') == 'function');
     ok(typeof load(NS, 'async-iterator/prototype/filter') == 'function');
@@ -1150,8 +1221,8 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
-    ok(typeof load(NS, 'iterator/to-async') == 'function');
-    ok(typeof load(NS, 'iterator/windows') == 'function');
+    ok((await load(NS, 'iterator/to-async')([1, 2].values()).next()).value === 1);
+    deepEqual([...load(NS, 'iterator/windows')([1, 2, 3].values(), 2)], [[1, 2], [2, 3]]);
     ok(typeof load(NS, 'iterator/prototype/to-async') == 'function');
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/prototype/clamp').call(6, 2, 4) === 4);
@@ -1160,10 +1231,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'string/dedent')`
       a${ 1 }b
     ` === 'a1b');
-    ok(load(NS, 'symbol/custom-matcher'));
+    ok(typeof load(NS, 'symbol/custom-matcher') === 'symbol');
+    ok(load(NS, 'symbol/custom-matcher') === load(NS, 'symbol').customMatcher);
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'symbol/metadata'));
+    ok(typeof load(NS, 'symbol/metadata') === 'symbol');
+    ok(load(NS, 'symbol/metadata') === load(NS, 'symbol').metadata);
 
     const instanceClamp = load(NS, 'instance/clamp');
     ok(typeof instanceClamp == 'function');
@@ -1249,10 +1322,14 @@ for (PATH of ['@core-js/pure', 'core-js']) {
 }
 
 for (const NS of ['es', 'stable', 'actual', 'full']) {
-  ok('next' in load(NS, 'string/match-all')('a', /./g));
-  ok(typeof load(NS, 'array-buffer') == 'function');
-  ok(typeof load(NS, 'array-buffer/constructor') == 'function');
-  ok(typeof load(NS, 'array-buffer/is-view') == 'function');
+  deepEqual(Array.from(load(NS, 'string/match-all')('a1b2', /\d/g), it => it[0]), ['1', '2']);
+  const ArrayBuffer = load(NS, 'array-buffer');
+  const buffer = new ArrayBuffer(4);
+  ok(buffer.byteLength === 4);
+  ok(Object.prototype.toString.call(buffer) === '[object ArrayBuffer]');
+  ok(load(NS, 'array-buffer/constructor') === ArrayBuffer);
+  ok(load(NS, 'array-buffer/is-view')(new Uint8Array(1)) === true);
+  ok(load(NS, 'array-buffer/is-view')(buffer) === false);
   load(NS, 'array-buffer/slice');
   load(NS, 'array-buffer/detached');
   load(NS, 'array-buffer/transfer');
@@ -1260,9 +1337,12 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
   ok(typeof load(NS, 'data-view/constructor') == 'function');
   load(NS, 'data-view/get-float16');
   load(NS, 'data-view/set-float16');
-  ok(typeof load(NS, 'data-view') == 'function');
+  const view = new (load(NS, 'data-view'))(buffer);
+  view.setUint8(0, 42);
+  ok(view.getUint8(0) === 42);
+  ok(view.buffer === buffer);
 
-  ok(load(NS, 'typed-array').Uint32Array === load(NS, 'typed-array/uint32-array'));
+  ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 
   const typedArrays = [
     'float32-array',

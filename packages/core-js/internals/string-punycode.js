@@ -301,5 +301,5 @@ module.exports = {
   decode: decode,
   encode: encode,
   ucs2decode: ucs2decode,
-  ucs2encode: ucs2encode
+  ucs2encode: ucs2encode,
 };

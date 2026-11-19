@@ -6,23 +6,31 @@ var isCallable = require('../internals/is-callable');
 var path = require('../internals/path');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
+var inheritIfRequired = require('../internals/inherit-if-required');
 var hasOwn = require('../internals/has-own-property');
 // add debugging info
 require('../internals/shared-store');
 
 var create = Object.create;
 
-var wrapConstructor = function (NativeConstructor) {
+var wrapConstructor = function (NativeConstructor, arity) {
+  var NativePrototype = NativeConstructor.prototype;
   var Wrapper = function (a, b, c) {
+    var instance;
     if (this instanceof Wrapper) {
       switch (arguments.length) {
-        case 0: return new NativeConstructor();
-        case 1: return new NativeConstructor(a);
-        case 2: return new NativeConstructor(a, b);
-      } return new NativeConstructor(a, b, c);
+        case 0: instance = new NativeConstructor(); break;
+        case 1: instance = new NativeConstructor(a); break;
+        case 2: instance = new NativeConstructor(a, b); break;
+        default: instance = new NativeConstructor(a, b, c);
+      } return inheritIfRequired(instance, this, NativePrototype);
     } return apply(NativeConstructor, this, arguments);
   };
-  Wrapper.prototype = NativeConstructor.prototype;
+  Wrapper.prototype = NativePrototype;
+  // function length is not configurable in some old engines
+  try {
+    defineBuiltIn(Wrapper, 'length', arity === undefined ? NativeConstructor.length : arity, { nonWritable: true });
+  } catch (error) { /* empty */ }
   return Wrapper;
 };
 
@@ -95,7 +103,7 @@ module.exports = function (options, source) {
       // bind methods to global for calling from export context
       : options.bind && USE_NATIVE ? baseResultProperty.bind(globalThis)
       // wrap global constructors for prevent changes in this version
-      : options.wrap && USE_NATIVE ? wrapConstructor(baseResultProperty)
+      : options.wrap && USE_NATIVE ? wrapConstructor(baseResultProperty, options.arity)
       // expose a copy of a native namespace object (see `options.namespace` above) - the
       // module-passed `source[key]` object IS the namespace container it exports
       : options.namespace && USE_NATIVE ? copyOwnProperties(baseResultProperty, source[key])

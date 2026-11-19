@@ -73,7 +73,7 @@ export default function ({
   if (!external) {
     inverse = !!inverse;
 
-    exclude = normalizeModules(exclude);
+    exclude = normalizeModules(exclude ?? []);
 
     modules = modules ? [...normalizeModules(modules)] : actual;
 

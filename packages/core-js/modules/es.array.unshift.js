@@ -9,7 +9,6 @@ var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-intege
 
 var isArray = Array.isArray;
 var nativeUnshift = [].unshift;
-// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var NON_WRITABLE = { writable: false };
 

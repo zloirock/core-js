@@ -4,6 +4,7 @@ import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.assign";
 import "core-js/modules/es.object.group-by";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
@@ -11,6 +12,7 @@ import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.push";
+import "core-js/modules/es.array.sort";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
@@ -37,14 +39,11 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.to-well-formed";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
-import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";
-import "core-js/modules/web.url-search-params.delete";
-import "core-js/modules/web.url-search-params.has";
-import "core-js/modules/web.url-search-params.size";
 // a name some write reassigns is read through the identity guard its writes register, and so is a plain
 // alias of it; an alias of a selection of it with another value holds what no such guard names, so the read
 // stays as written and the constructor takes its whole entry - a written for-of head and a written binding,
