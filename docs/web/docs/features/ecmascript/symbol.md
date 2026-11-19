@@ -4,31 +4,33 @@
 
 ## Built-ins signatures
 ```ts
-class Symbol {
-  constructor(description?): symbol;
-  readonly attribute description: string | void;
-  @@toPrimitive(hint: 'default' | 'number' | 'string'): symbol;
-  @@toStringTag: 'Symbol';
-  static asyncDispose: @@asyncDispose;
-  static asyncIterator: @@asyncIterator;
-  static dispose: @@dispose;
-  static hasInstance: @@hasInstance;
-  static isConcatSpreadable: @@isConcatSpreadable;
-  static iterator: @@iterator;
-  static match: @@match;
-  static matchAll: @@matchAll;
-  static replace: @@replace;
-  static search: @@search;
-  static species: @@species;
-  static split: @@split;
-  static toPrimitive: @@toPrimitive;
-  static toStringTag: @@toStringTag;
-  static unscopables: @@unscopables;
-  static for(key: string): symbol;
-  static keyFor(sym: symbol): string | void;
-  static useSimple(): void;
-  static useSetter(): void;
-}
+const Symbol: {
+  (description?): symbol;
+  prototype: {
+    readonly attribute description: string | void;
+    @@toPrimitive(hint: 'default' | 'number' | 'string'): symbol;
+    @@toStringTag: 'Symbol';
+  };
+  asyncDispose: @@asyncDispose;
+  asyncIterator: @@asyncIterator;
+  dispose: @@dispose;
+  hasInstance: @@hasInstance;
+  isConcatSpreadable: @@isConcatSpreadable;
+  iterator: @@iterator;
+  match: @@match;
+  matchAll: @@matchAll;
+  replace: @@replace;
+  search: @@search;
+  species: @@species;
+  split: @@split;
+  toPrimitive: @@toPrimitive;
+  toStringTag: @@toStringTag;
+  unscopables: @@unscopables;
+  for(key: string): symbol;
+  keyFor(sym: symbol): string | void;
+  useSimple(): void;
+  useSetter(): void;
+};
 
 class Object {
   static getOwnPropertySymbols(object: any): Array<symbol>;

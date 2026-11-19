@@ -8,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class Promise {
-  finally(onFinally: Function): Promise;
+  finally<T>(this: Promise<T>, onFinally?: any): Promise<T>;
 }
 ```
 

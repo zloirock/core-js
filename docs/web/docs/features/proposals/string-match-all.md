@@ -7,7 +7,8 @@
 ## Built-ins signatures
 ```ts
 class String {
-  matchAll(regexp: RegExp): Iterator;
+  matchAll<T>(matcher: { @@matchAll(input: string): T }): T;
+  matchAll(pattern?: string | RegExp): Iterator;
 }
 ```
 

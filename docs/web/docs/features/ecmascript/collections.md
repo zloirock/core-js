@@ -166,13 +166,13 @@ new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ### Built-ins signatures
 ```ts
 class WeakMap {
-  constructor(iterable?: Iterable<[key, value]>): WeakMap;
+  constructor(iterable?: Iterable<[object | nonRegisteredSymbol, value]>): WeakMap;
   delete(key: object | symbol): boolean;
-  get(key: object | symbol): any;
-  getOrInsert(key: object | symbol, value: any): any;
-  getOrInsertComputed(key: object | symbol, callbackfn: (key: any) => any): any;
+  get(key: object | symbol): value | undefined;
+  getOrInsert(key: object | nonRegisteredSymbol, value: any): any;
+  getOrInsertComputed(key: object | nonRegisteredSymbol, callbackfn: (key: any) => any): any;
   has(key: object | symbol): boolean;
-  set(key: object | symbol, val: any): this;
+  set(key: object | nonRegisteredSymbol, val: any): this;
 }
 ```
 ### [Entry points]({docs-version}/docs/usage#h-entry-points)
@@ -220,8 +220,8 @@ person.getName(); // => 'Vasya'
 ### Built-ins signatures
 ```ts
 class WeakSet {
-  constructor(iterable?: Iterable<value>): WeakSet;
-  add(key: object | symbol): this;
+  constructor(iterable?: Iterable<object | nonRegisteredSymbol>): WeakSet;
+  add(key: object | nonRegisteredSymbol): this;
   delete(key: object | symbol): boolean;
   has(key: object | symbol): boolean;
 }

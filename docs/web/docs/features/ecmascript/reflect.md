@@ -6,8 +6,8 @@
 ## Built-ins signatures
 ```ts
 namespace Reflect {
-  apply(target: Function, thisArgument: any, argumentsList: Array<mixed>): any;
-  construct(target: Function, argumentsList: Array<mixed>, newTarget?: Function): Object;
+  apply(target: Function, thisArgument: any, argumentsList: object & ArrayLike<mixed>): any;
+  construct(target: Function, argumentsList: object & ArrayLike<mixed>, newTarget?: Function): Object;
   defineProperty(target: Object, propertyKey: PropertyKey, attributes: PropertyDescriptor): boolean;
   deleteProperty(target: Object, propertyKey: PropertyKey): boolean;
   get(target: Object, propertyKey: PropertyKey, receiver?: any): any;

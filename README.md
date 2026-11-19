@@ -1027,7 +1027,7 @@ Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-j
 ```ts
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
-  static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
+  static raw({ raw: ArrayLike<mixed> }, ...substitutions: Array<mixed>): string;
   at(index: int): string | void;
   includes(searchString: string, position?: number): boolean;
   startsWith(searchString: string, position?: number): boolean;
@@ -1037,11 +1037,16 @@ class String {
   padEnd(length: number, fillStr?: string = ' '): string;
   codePointAt(pos: number): number | void;
   match(template: any): any; // ES2015+ fix for @@match support
-  matchAll(regexp: RegExp): Iterator;
+  matchAll<T>(matcher: { @@matchAll(input: string): T }): T;
+  matchAll(pattern?: string | RegExp): Iterator;
   replace(template: any, replacer: any): any; // ES2015+ fix for @@replace support
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+  replaceAll(searchValue: string | RegExp, replacement: string): string;
+  replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
+  replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;
   search(template: any): any; // ES2015+ fix for @@search support
-  split(template: any, limit?: int): Array<string>; // ES2015+ fix for @@split support, some fixes for old engines
+  split(separator: RegExp, limit?: int): Array<string | undefined>;
+  split<T>(separator: { @@split(input: string, limit?: int): T }, limit?: int): T; // ES2015+ fix for @@split support, some fixes for old engines
+  split(separator?: any, limit?: int): Array<string>;
   trim(): string;
   trimLeft(): string;
   trimRight(): string;
@@ -1077,7 +1082,7 @@ class RegExp {
   @@matchAll(string: string): Iterator;
   @@replace(string: string, replaceValue: Function | string): string;
   @@search(string: string): number;
-  @@split(string: string, limit?: number): Array<string>;
+  @@split(string: string, limit?: number): Array<string | undefined>;
   readonly attribute dotAll: boolean; // IE9+
   readonly attribute flags: string;   // IE9+
   readonly attribute sticky: boolean; // IE9+
@@ -1246,8 +1251,10 @@ Number('0o7654321'); // => 2054353
 ```
 Modules [`es.number.epsilon`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.epsilon.js), [`es.number.is-finite`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-finite.js), [`es.number.is-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-integer.js), [`es.number.is-nan`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-nan.js), [`es.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-safe-integer.js), [`es.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.max-safe-integer.js), [`es.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.min-safe-integer.js), [`es.number.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-float.js), [`es.number.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-int.js), [`es.number.to-exponential`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-exponential.js), [`es.number.to-fixed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-fixed.js), [`es.number.to-precision`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-precision.js), [`es.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-int.js), [`es.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-float.js).
 ```ts
+function Number(value?: any): number;
+
 class Number {
-  constructor(value: any): number;
+  constructor(value?: any): Number;
   toExponential(digits?: number): string;
   toFixed(digits?: number): string;
   toPrecision(precision?: number): string;
@@ -1381,7 +1388,7 @@ class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled?: Function, onRejected?: Function): Promise;
   catch(onRejected: Function): Promise;
-  finally(onFinally: Function): Promise;
+  finally<T>(this: Promise<T>, onFinally?: any): Promise<T>;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise;
@@ -1564,29 +1571,31 @@ setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 #### ECMAScript: Symbol[⬆](#index)
 Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match-all.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js).
 ```ts
-class Symbol {
-  constructor(description?): symbol;
-  readonly attribute description: string | void;
-  static asyncDispose: @@asyncDispose;
-  static asyncIterator: @@asyncIterator;
-  static dispose: @@dispose;
-  static hasInstance: @@hasInstance;
-  static isConcatSpreadable: @@isConcatSpreadable;
-  static iterator: @@iterator;
-  static match: @@match;
-  static matchAll: @@matchAll;
-  static replace: @@replace;
-  static search: @@search;
-  static species: @@species;
-  static split: @@split;
-  static toPrimitive: @@toPrimitive;
-  static toStringTag: @@toStringTag;
-  static unscopables: @@unscopables;
-  static for(key: string): symbol;
-  static keyFor(sym: symbol): string | void;
-  static useSimple(): void;
-  static useSetter(): void;
-}
+const Symbol: {
+  (description?): symbol;
+  prototype: {
+    readonly attribute description: string | void;
+  };
+  asyncDispose: @@asyncDispose;
+  asyncIterator: @@asyncIterator;
+  dispose: @@dispose;
+  hasInstance: @@hasInstance;
+  isConcatSpreadable: @@isConcatSpreadable;
+  iterator: @@iterator;
+  match: @@match;
+  matchAll: @@matchAll;
+  replace: @@replace;
+  search: @@search;
+  species: @@species;
+  split: @@split;
+  toPrimitive: @@toPrimitive;
+  toStringTag: @@toStringTag;
+  unscopables: @@unscopables;
+  for(key: string): symbol;
+  keyFor(sym: symbol): string | void;
+  useSimple(): void;
+  useSetter(): void;
+};
 
 class Object {
   static getOwnPropertySymbols(object: any): Array<symbol>;
@@ -1839,13 +1848,13 @@ new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 Modules [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert-computed.js).
 ```ts
 class WeakMap {
-  constructor(iterable?: Iterable<[key, value]>): WeakMap;
+  constructor(iterable?: Iterable<[object | nonRegisteredSymbol, value]>): WeakMap;
   delete(key: object | symbol): boolean;
-  get(key: object | symbol): any;
-  getOrInsert(key: object | symbol, value: any): any;
-  getOrInsertComputed(key: object | symbol, callbackfn: (key: any) => any): any;
+  get(key: object | symbol): value | undefined;
+  getOrInsert(key: object | nonRegisteredSymbol, value: any): any;
+  getOrInsertComputed(key: object | nonRegisteredSymbol, callbackfn: (key: any) => any): any;
   has(key: object | symbol): boolean;
-  set(key: object | symbol, val: any): this;
+  set(key: object | nonRegisteredSymbol, val: any): this;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -1888,8 +1897,8 @@ person.getName();            // => 'Vasya'
 Modules [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
 ```ts
 class WeakSet {
-  constructor(iterable?: Iterable<value>): WeakSet;
-  add(key: object | symbol): this;
+  constructor(iterable?: Iterable<object | nonRegisteredSymbol>): WeakSet;
+  add(key: object | nonRegisteredSymbol): this;
   delete(key: object | symbol): boolean;
   has(key: object | symbol): boolean;
 }
@@ -2264,8 +2273,8 @@ Uint8Array.fromHex('48656c6c6f20576f726c64'); // => Uint8Array([72, 101, 108, 10
 Modules [`es.reflect.apply`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.apply.js), [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.construct.js), [`es.reflect.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.delete-property.js), [`es.reflect.get`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.has.js), [`es.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set-prototype-of.js), [`es.reflect.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.to-string-tag.js).
 ```ts
 namespace Reflect {
-  apply(target: Function, thisArgument: any, argumentsList: Array<mixed>): any;
-  construct(target: Function, argumentsList: Array<mixed>, newTarget?: Function): Object;
+  apply(target: Function, thisArgument: any, argumentsList: object & ArrayLike<mixed>): any;
+  construct(target: Function, argumentsList: object & ArrayLike<mixed>, newTarget?: Function): Object;
   defineProperty(target: Object, propertyKey: PropertyKey, attributes: PropertyDescriptor): boolean;
   deleteProperty(target: Object, propertyKey: PropertyKey): boolean;
   get(target: Object, propertyKey: PropertyKey, receiver?: any): any;
@@ -2855,7 +2864,8 @@ core-js/proposals/string-padding
 ##### [`String.prototype.matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index)
 ```ts
 class String {
-  matchAll(regexp: RegExp): Iterator;
+  matchAll<T>(matcher: { @@matchAll(input: string): T }): T;
+  matchAll(pattern?: string | RegExp): Iterator;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2865,7 +2875,9 @@ core-js/proposals/string-match-all
 ##### [`String.prototype.replaceAll`](https://github.com/tc39/proposal-string-replaceall)[⬆](#index)
 ```ts
 class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+  replaceAll(searchValue: string | RegExp, replacement: string): string;
+  replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
+  replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2953,7 +2965,7 @@ core-js/proposals/promise-any
 ##### [`Promise.prototype.finally`](https://github.com/tc39/proposal-promise-finally)[⬆](#index)
 ```ts
 class Promise {
-  finally(onFinally: Function): Promise;
+  finally<T>(this: Promise<T>, onFinally?: any): Promise<T>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3065,8 +3077,8 @@ class Map {
 }
 
 class WeakMap {
-  getOrInsert(key: object | symbol, value: any): any;
-  getOrInsertComputed(key: object | symbol, callbackfn: (key: any) => any): any;
+  getOrInsert(key: object | nonRegisteredSymbol, value: any): any;
+  getOrInsertComputed(key: object | nonRegisteredSymbol, callbackfn: (key: any) => any): any;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3350,11 +3362,11 @@ Modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/pa
 ```ts
 class Observable {
   constructor(subscriber: Function): Observable;
-  subscribe(observer: { start?: Function, next?: Function, error?: Function, complete?: Function }): Subscription;
+  subscribe(observer?: { start?: Function, next?: Function, error?: Function, complete?: Function }): Subscription;
   subscribe(next: Function, error?: Function, complete?: Function): Subscription;
   @@observable(): this;
   static of(...items: Array<mixed>): Observable;
-  static from(x: Observable | Iterable): Observable;
+  static from(x: Observable | IterableObject | { @@observable(): { subscribe: Function } }): Observable;
   static readonly attribute @@species: this;
 }
 

@@ -13,7 +13,7 @@ Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-j
 ```ts
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
-  static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
+  static raw({ raw: ArrayLike<mixed> }, ...substitutions: Array<mixed>): string;
   at(index: int): string | void;
   includes(searchString: string, position?: number): boolean;
   startsWith(searchString: string, position?: number): boolean;
@@ -23,11 +23,16 @@ class String {
   padEnd(length: number, fillStr?: string = ' '): string;
   codePointAt(pos: number): number | void;
   match(template: any): any; // ES2015+ fix for @@match support
-  matchAll(regexp: RegExp): Iterator;
+  matchAll<T>(matcher: { @@matchAll(input: string): T }): T;
+  matchAll(pattern?: string | RegExp): Iterator;
   replace(template: any, replacer: any): any; // ES2015+ fix for @@replace support
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+  replaceAll(searchValue: string | RegExp, replacement: string): string;
+  replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
+  replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;
   search(template: any): any; // ES2015+ fix for @@search support
-  split(template: any, limit?: int): Array<string>; // ES2015+ fix for @@split support, some fixes for old engines
+  split(separator: RegExp, limit?: int): Array<string | undefined>;
+  split<T>(separator: { @@split(input: string, limit?: int): T }, limit?: int): T; // ES2015+ fix for @@split support, some fixes for old engines
+  split(separator?: any, limit?: int): Array<string>;
   trim(): string;
   trimLeft(): string;
   trimRight(): string;
@@ -63,7 +68,7 @@ class RegExp {
   @@matchAll(string: string): Iterator;
   @@replace(string: string, replaceValue: Function | string): string;
   @@search(string: string): number;
-  @@split(string: string, limit?: number): Array<string>;
+  @@split(string: string, limit?: number): Array<string | undefined>;
   readonly attribute dotAll: boolean; // IE9+
   readonly attribute flags: string;   // IE9+
   readonly attribute sticky: boolean; // IE9+

@@ -9,7 +9,7 @@ class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled?: Function, onRejected?: Function): Promise;
   catch(onRejected: Function): Promise;
-  finally(onFinally: Function): Promise;
+  finally<T>(this: Promise<T>, onFinally?: any): Promise<T>;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise;

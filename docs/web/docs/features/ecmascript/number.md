@@ -6,8 +6,10 @@ The `Number` constructor supports binary and octal literals.
 
 ## Built-ins signatures
 ```ts
+function Number(value?: any): number;
+
 class Number {
-  constructor(value: any): number;
+  constructor(value?: any): Number;
   toExponential(digits?: number): string;
   toFixed(digits?: number): string;
   toPrecision(precision?: number): string;

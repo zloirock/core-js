@@ -13,8 +13,8 @@ class Map {
 }
 
 class WeakMap {
-  getOrInsert(key: object | symbol, value: any): any;
-  getOrInsertComputed(key: object | symbol, callbackfn: (key: any) => any): any;
+  getOrInsert(key: object | nonRegisteredSymbol, value: any): any;
+  getOrInsertComputed(key: object | nonRegisteredSymbol, callbackfn: (key: any) => any): any;
 }
 ```
 

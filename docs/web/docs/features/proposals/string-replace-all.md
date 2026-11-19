@@ -8,7 +8,9 @@
 ## Built-ins signatures
 ```ts
 class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+  replaceAll(searchValue: string | RegExp, replacement: string): string;
+  replaceAll(searchValue: string, replacer: (match, offset, input) => string): string;
+  replaceAll(searchValue: RegExp, replacer: (match, capture1, ..., captureN, offset, input, groups?) => string): string;
 }
 ```
 
