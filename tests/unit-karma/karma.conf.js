@@ -45,6 +45,8 @@ module.exports = config => config.set({
   pingTimeout: 30000,
   customLaunchers,
   browsers,
+  // Redrawing every browser after each test can block the echo server on Windows CI's synchronous stdout.
+  reporters: [process.env.CI ? 'dots' : 'progress'],
   logLevel: config.LOG_ERROR,
   singleRun: true,
 });
