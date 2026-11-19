@@ -7,21 +7,19 @@
 
 ## Built-ins signatures
 ```ts
+type ZipSource<T> = IterableObject<T> | Iterator<T>;
+
 class Iterator {
-  static zip<T extends readonly Iterable<unknown>[]>(
-    iterables: T,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
-    }
-  ): Iterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
-  static zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
-    iterables: V,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
-    }
-  ): Iterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+  static zip(iterables: Iterable<ZipSource<value>>, options?: { mode?: 'shortest' | 'strict' = 'shortest' }): Iterator<Array<value>>;
+  static zip(iterables: Iterable<ZipSource<value>>, options: {
+    mode: 'longest', padding?: IterableObject<paddingValue>,
+  }): Iterator<Array<value | paddingValue | undefined>>;
+  static zipKeyed(iterables: Record<key, ZipSource<value> | undefined>, options?: {
+    mode?: 'shortest' | 'strict' = 'shortest',
+  }): Iterator<Partial<Record<key, value>>>;
+  static zipKeyed(iterables: Record<key, ZipSource<value> | undefined>, options: {
+    mode: 'longest', padding?: Partial<Record<key, paddingValue>>,
+  }): Iterator<Partial<Record<key, value | paddingValue | undefined>>>;
 }
 ```
 

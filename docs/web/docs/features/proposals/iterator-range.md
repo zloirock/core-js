@@ -8,8 +8,14 @@
 ## Built-ins signatures
 ```ts
 class Iterator {
-  static range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
-  static range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
+  static range(start: number, end: number, stepOrOptions?: number | null | {
+    step?: number | null = end > start ? 1 : -1,
+    inclusive?: boolean = false,
+  } = end > start ? 1 : -1): NumericRangeIterator;
+  static range(start: bigint, end: bigint | Infinity | -Infinity, stepOrOptions?: bigint | null | {
+    step?: bigint | null = end > start ? 1n : -1n,
+    inclusive?: boolean = false,
+  } = end > start ? 1n : -1n): NumericRangeIterator;
 }
 ```
 

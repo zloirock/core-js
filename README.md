@@ -893,23 +893,21 @@ await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), i => i ** 
 #### ECMAScript: Iterator[⬆](#index)
 Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.chunks.js), [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.includes.js), [`es.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.join.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js), [`es.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.windows.js), [`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js).
 ```ts
+type ZipSource<T> = IterableObject<T> | Iterator<T>;
+
 class Iterator {
   static concat(...items: Array<IterableObject>): Iterator<any>;
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
-  static zip<T extends readonly Iterable<unknown>[]>(
-    iterables: T,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
-    }
-  ): Iterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
-  static zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
-    iterables: V,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
-    }
-  ): Iterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+  static zip(iterables: Iterable<ZipSource<value>>, options?: { mode?: 'shortest' | 'strict' = 'shortest' }): Iterator<Array<value>>;
+  static zip(iterables: Iterable<ZipSource<value>>, options: {
+    mode: 'longest', padding?: IterableObject<paddingValue>,
+  }): Iterator<Array<value | paddingValue | undefined>>;
+  static zipKeyed(iterables: Record<key, ZipSource<value> | undefined>, options?: {
+    mode?: 'shortest' | 'strict' = 'shortest',
+  }): Iterator<Partial<Record<key, value>>>;
+  static zipKeyed(iterables: Record<key, ZipSource<value> | undefined>, options: {
+    mode: 'longest', padding?: Partial<Record<key, paddingValue>>,
+  }): Iterator<Partial<Record<key, value | paddingValue | undefined>>>;
   chunks(chunkSize: number): Iterator<any>;
   drop(limit: uint): Iterator<any>;
   every(callbackfn: (value: any, counter: uint) => boolean): boolean;
@@ -2089,7 +2087,7 @@ class [
 }
 
 class %TypedArray% {
-  at(index: int): number | void;
+  at(index: int): number | bigint | void;
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
@@ -2401,7 +2399,7 @@ class String {
 }
 
 class %TypedArray% {
-  at(index: int): number | void;
+  at(index: int): number | bigint | void;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2755,21 +2753,19 @@ core-js(-pure)/es|stable|actual|full/iterator/join
 ##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
 Modules [`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js).
 ```ts
+type ZipSource<T> = IterableObject<T> | Iterator<T>;
+
 class Iterator {
-  static zip<T extends readonly Iterable<unknown>[]>(
-    iterables: T,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
-    }
-  ): Iterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
-  static zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
-    iterables: V,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
-    }
-  ): Iterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+  static zip(iterables: Iterable<ZipSource<value>>, options?: { mode?: 'shortest' | 'strict' = 'shortest' }): Iterator<Array<value>>;
+  static zip(iterables: Iterable<ZipSource<value>>, options: {
+    mode: 'longest', padding?: IterableObject<paddingValue>,
+  }): Iterator<Array<value | paddingValue | undefined>>;
+  static zipKeyed(iterables: Record<key, ZipSource<value> | undefined>, options?: {
+    mode?: 'shortest' | 'strict' = 'shortest',
+  }): Iterator<Partial<Record<key, value>>>;
+  static zipKeyed(iterables: Record<key, ZipSource<value> | undefined>, options: {
+    mode: 'longest', padding?: Partial<Record<key, paddingValue>>,
+  }): Iterator<Partial<Record<key, value | paddingValue | undefined>>>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3236,8 +3232,14 @@ require('core-js/actual/async-iterator');
 Modules [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js).
 ```ts
 class Iterator {
-  static range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
-  static range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
+  static range(start: number, end: number, stepOrOptions?: number | null | {
+    step?: number | null = end > start ? 1 : -1,
+    inclusive?: boolean = false,
+  } = end > start ? 1 : -1): NumericRangeIterator;
+  static range(start: bigint, end: bigint | Infinity | -Infinity, stepOrOptions?: bigint | null | {
+    step?: bigint | null = end > start ? 1n : -1n,
+    inclusive?: boolean = false,
+  } = end > start ? 1n : -1n): NumericRangeIterator;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)

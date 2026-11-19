@@ -16,7 +16,7 @@ class String {
 }
 
 class %TypedArray% {
-  at(index: int): number | void;
+  at(index: int): number | bigint | void;
 }
 ```
 
