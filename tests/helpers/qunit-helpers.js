@@ -97,8 +97,12 @@ assign(assert, {
   name(fn, expected, message) {
     const applicable = typeof fn == 'function' && 'name' in fn;
     const actual = fn.name;
+    // swc renames a function expression named like a referenced global, `Map` to `Map1`, and the library
+    // cannot restore a name that is not configurable, as in Firefox before 38
+    // TODO: drop after the release of swc with the fix of https://github.com/swc-project/swc/issues/12528
+    const renamed = applicable && actual === `${ expected }1` && getOwnPropertyDescriptor(fn, 'name')?.configurable === false;
     this.pushResult({
-      result: applicable ? actual === expected : true,
+      result: applicable && !renamed ? actual === expected : true,
       actual,
       expected,
       message: applicable

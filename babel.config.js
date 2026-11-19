@@ -54,4 +54,8 @@ module.exports = {
     skipForOfIteratorClosing: true,
     superIsCallableConstructor: true,
   },
+  generatorOpts: {
+    // the bundles stay ASCII: IE11 reads U+FFFE and U+FFFF of a script as U+FFFD
+    jsescOption: { minimal: false },
+  },
 };
