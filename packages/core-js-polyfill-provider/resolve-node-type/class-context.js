@@ -30,12 +30,9 @@ import { isAmbientClassNode } from './name-resolution.js';
 import { collectQualifiedSegments, openTypeArg } from './ast-shapes.js';
 import { MAX_DEPTH } from './base.js';
 import {
-  classConstructorFunction,
+  classMayReplaceInstance,
   classSuperPath,
-  collectOwnReturns,
-  flattenBranchingValueNodes,
   getHeritageTypeArgs,
-  prototypeValueMayDispatch,
 } from '../helpers/ast-patterns.js';
 
 // ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
@@ -171,11 +168,7 @@ export function createClassContext({
     let result = true;
     let depth = MAX_DEPTH;
     for (let current = classPath; current;) {
-      const body = classConstructorFunction(current.node)?.body;
-      if (!depth-- || current.node.decorators?.length
-        || collectOwnReturns(body).some(ret => flattenBranchingValueNodes([ret.argument]).some(
-          value => value.type !== 'ThisExpression' && prototypeValueMayDispatch(value, true),
-        ))) {
+      if (!depth-- || classMayReplaceInstance(current.node)) {
         result = false;
         break;
       }

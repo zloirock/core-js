@@ -166,6 +166,7 @@ import {
   writtenPatternSlotValues,
   provablyPrecedes,
   zeroArgIifeSideEffectFree,
+  EQUALITY_OPERATORS,
   ESCAPED_CONTAINER_NAMES,
   rootProgramOf,
   anyWriteOutrunsUse,
@@ -2452,8 +2453,6 @@ function servedPrototypeMethod({ constructorNode, key, read, ctx }) {
     || ctx.adapter?.isMutatedStaticSlot?.(owner.global, 'prototype', at)) return null;
   return { global: null, type: 'function', substituted: true };
 }
-
-const EQUALITY_OPERATORS = new Set(['==', '===', '!=', '!==']);
 
 // a read a presence test can be dropped with: a name, or a plain member chain off one - no call, no
 // `?.` that may yield nothing, and no hop through an environment probe (`window`, `global`) a host may

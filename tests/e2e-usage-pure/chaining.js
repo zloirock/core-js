@@ -335,6 +335,18 @@ QUnit.test('chain: inherited call, bind and prototype constructor keep their beh
   assert.true(C.prototype.has.call(value, 1));
 });
 
+QUnit.test('chain: borrowed native and active Map methods accept the same instance', assert => {
+  // core-js-disable-next-line
+  const C = Map;
+  const m = new Map();
+  m.set(1, 7);
+  const { get } = Map.prototype;
+  assert.true(C.prototype.has.call(m, 1));
+  assert.same(get.call(m, 1), 7);
+  assert.true(m instanceof Map);
+  assert.same(Map.groupBy([3], x => x).get(3)[0], 3);
+});
+
 QUnit.test('chain: optional ordinary calls distinguish nullish from falsy', assert => {
   let reads = 0;
   function argument() {

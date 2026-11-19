@@ -16,6 +16,8 @@ import { pushMultimap } from './pattern-matching.js';
 
 export { pureImportSourceEntry } from './path-normalize.js';
 
+export const EQUALITY_OPERATORS = new Set(['==', '===', '!=', '!==']);
+
 // the escape census, keyed by PROGRAM node -> the NAMES a value handed out (a call argument, a
 // member-assignment RHS, a throw / yield / export-default), alias hops followed. written by the
 // mutation pre-pass, read wherever a claim needs to know the container is still this file's own -
@@ -7066,9 +7068,11 @@ function pairerSources(rhs, ctx) {
 
 // The read a pattern slot takes from a receiver, or an invocation when its caller reads through.
 // Nested levels read through only on request; both pairers take that same source spelling.
-function patternSourceSlotRead(rhs, key, ctx, nested = false) {
-  return key !== null && (isReceiverShapedNode(rhs) || (ctx?.readsThrough && invocationNode(rhs)))
+function patternSourceSlotRead(rhs, key, ctx, nested, property) {
+  const read = key !== null && (isReceiverShapedNode(rhs) || ctx?.readsThrough && invocationNode(rhs))
     && (!nested || ctx?.readsThrough) ? receiverSlotRead(rhs, key) : null;
+  if (read && property) ctx?.readSites?.set(read, property);
+  return read;
 }
 
 // The literal source governed by native-wrapper destructuring, including a transparent IIFE return.
@@ -7666,7 +7670,7 @@ function pairPatternValues(pattern, rhs, name, ctx, pair) {
           : [];
       const paired = candidates.filter(Boolean);
       if (isDestructurePattern(slot)) {
-        const levels = paired.length ? paired : [patternSourceSlotRead(rhs, key, ctx, true)].filter(Boolean);
+        const levels = paired.length ? paired : [patternSourceSlotRead(rhs, key, ctx, true, prop)].filter(Boolean);
         for (const cand of levels) out.push(...pair(slot, cand, ctx));
         if (includeDefaults && prop.value.type === 'AssignmentPattern') out.push(...pair(slot, prop.value.right, ctx));
         continue;
@@ -7679,7 +7683,7 @@ function pairPatternValues(pattern, rhs, name, ctx, pair) {
       // `globalThis.Promise` exactly like the identifier-assignment form (`M = globalThis.Promise`).
       // an unresolvable receiver just fails downstream resolution, same as no value
       else {
-        const read = patternSourceSlotRead(rhs, key, ctx);
+        const read = patternSourceSlotRead(rhs, key, ctx, false, prop);
         if (read) out.push(read);
       }
     }
@@ -14698,6 +14702,15 @@ export function classConstructorFunction(classNode) {
   const ctor = (classNode.body?.body ?? []).find(member => member?.kind === 'constructor');
   if (!ctor) return null;
   return ctor.params ? ctor : ctor.value ?? null;
+}
+
+// The class itself can replace the constructed instance, independently of what its base does.
+export function classMayReplaceInstance(node) {
+  return !!node.decorators?.length || collectOwnReturns(classConstructorFunction(node)?.body).some(
+    ret => flattenBranchingValueNodes([ret.argument]).some(
+      value => value.type !== 'ThisExpression' && prototypeValueMayDispatch(value, true),
+    ),
+  );
 }
 
 // `export const X = ...` / `export default function X() {}` bind `X` in the module scope

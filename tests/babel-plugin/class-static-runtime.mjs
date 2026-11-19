@@ -53,6 +53,100 @@ const cases = [
   ['opted-native-instance', `// core-js-disable-next-line
 const C = Map;
 return C.prototype.has.call(new C(), 1);`, false, []],
+  ['opted-borrowed-method', `// core-js-disable-next-line
+const C = Map;
+const m = new Map(); m.set(1, 7);
+const get = Map.prototype.get;
+return [C.prototype.has.call(m, 1), Reflect.apply(get, m, [1]), m instanceof Map, m.constructor === Map,
+  Object.getPrototypeOf(m) === Map.prototype, Map.groupBy([3], x => x).get(3)[0]];`, [true, 7, true, true, true, 3], []],
+  ...[
+    ['direct', 'return m instanceof Map;', true],
+    ['callback', 'return [m].every(x => x instanceof Map);', 'TypeError'],
+    ['returned-pair', 'return [m, Map];', 'TypeError'],
+    ['returned-copy', 'const copy = (0, m); return [copy, Map];', 'TypeError'],
+    ['collection-lookup', 'return !m.has(1) && m instanceof Map;', true],
+    ['user-method', 'const user = { isPrototypeOf(x) { return x instanceof Map; } }; return user.isPrototypeOf.call(Map.prototype, m);', 'TypeError'],
+    ['borrowed-callback', 'let same; m.set(1, 1); Map.prototype.forEach.call(m, (v, k, x) => { same = x instanceof Map; }); return same;', 'TypeError'],
+  ].map(([name, result, onBorrow]) => [
+    `opted-consumer-${ name }`,
+    `function read(probe) {
+      // core-js-disable-next-line
+      const C = Map;
+      const m = new Map();
+      if (probe) C.prototype.has.call(m, 1);
+      ${ result }
+    }
+    function check(probe) {
+      try {
+        const result = read(probe);
+        return Array.isArray(result) ? result[0] instanceof result[1] : result;
+      } catch (error) { return error.name; }
+    }
+    return [check(false), check(true)];`,
+    [true, true], [], true, [true, onBorrow],
+  ]),
+  ['opted-receiver-key-order', `// core-js-disable-next-line
+const C = Map;
+const fn = C[(effects.push('prototype'), 'prototype')][(effects.push('key'), 'has')];
+return fn.bind((effects.push('instance'), new globalThis.Map()))((effects.push('arg'), 1));`, false, ['prototype', 'key', 'instance', 'arg']],
+  ['opted-receiver-pattern', `// core-js-disable-next-line
+const C = Set;
+const { Set: S, Map: M } = globalThis;
+const value = new S(); value.add(3);
+return [C.prototype.has.apply(value, [3]), M.groupBy([5], x => x).get(5)[0]];`, [true, 5], []],
+  ['opted-nested-receiver-pattern', `// core-js-disable-next-line
+const C = Map;
+const { Map: { prototype: p }, Set: S } = globalThis;
+const local = new Map([[1, 7]]);
+return [C.prototype.has.call(local, 1), p.get.call(local, 1), new S([7]).has(7)];`, [true, 7, true], []],
+  ['opted-wrong-family', `// core-js-disable-next-line
+const C = Map;
+try { C.prototype.has.call(new Set(), (effects.push('argument'), 1)); } catch (error) { return error.name; }`, 'TypeError', ['argument']],
+  ['opted-inherited-instance', `// core-js-disable-next-line
+const C = Map;
+class Bag extends Map { constructor() { super(); this.set(1, 7); } }
+const value = new Bag();
+return [C.prototype.has.call(value, 1), Map.prototype.get.call(value, 1), value instanceof Bag, Bag.groupBy([5], x => x).get(5)[0]];`,
+  [true, 7, true, 5], []],
+  ['opted-prototype-constructor', `// core-js-disable-next-line
+const C = Map;
+const value = new Map.prototype.constructor();
+return [C.prototype.has.call(value, 1), Map.prototype.has.call(value, 1)];`, [false, false], []],
+  ['opted-reflect-construction', `// core-js-disable-next-line
+const C = Map;
+const value = Reflect.construct(Map, [], Map);
+return [C.prototype.has.call(value, 1), Map[Symbol.hasInstance](value), Function.prototype[Symbol.hasInstance].call(Map, value),
+  Object.is(value.constructor, Map)];`, [false, true, true, true], []],
+  ['opted-borrow-with-factory', `// core-js-disable-next-line
+const C = Map;
+const local = new Map();
+const { has } = Map.prototype;
+if (effects.length) { C.prototype.has.call(local, 1); has.call(local, 1); }
+const other = Map.groupBy([7], x => x);
+return [has.call(other, 7), C.prototype.has.call(new Map(), 1)];`, [true, false], []],
+  ['opted-one-method-on-both-brands', `// core-js-disable-next-line
+const C = Map;
+const local = new Map(), other = Map.groupBy([7], x => x);
+const { has } = Map.prototype;
+try {
+  C.prototype.has.call(local, 1); has.call(local, 1);
+  return has.call(other, 7);
+} catch (error) { return error.name; }`, true, [], true, 'TypeError'],
+  ['opted-selected-callback-argument', `// core-js-disable-next-line
+const C = Map;
+const local = new Map(), has = Map.prototype.has;
+function read(external) {
+  if (effects.length) C.prototype.has.call(local, 7);
+  return has.call(effects.length ? local : external, 7);
+}
+return [Map.groupBy([7], x => x)].some(read);`, true, []],
+  ['opted-borrow-with-escaped-class', `// core-js-disable-next-line
+const C = Map;
+class Bag extends Map {}
+const m = new Bag();
+function read(ctor) { return ctor.groupBy([4], x => x).get(4)[0]; }
+if (effects.length) C.prototype.has.call(m, 1);
+return read(Bag);`, 4, []],
   ['alias-control', 'const C = Map; return C.prototype.has.call(new Map(), 1);', false, []],
   ['opted-leaf', `// core-js-disable-next-line
 const C = Map;
@@ -183,7 +277,7 @@ return C.prototype.has.call(new C(), 1);`, false, []],
 ];
 let index = 0;
 try {
-  for (const [name, body, expected, events, stripped = true] of cases) {
+  for (const [name, body, expected, events, stripped = true, transformed = expected] of cases) {
     const source = scenarioSource(`export const effects = []; export const r = (() => { ${ body } })();`);
     // Promise's native constructor is already sufficient on this target; only its static is missing.
     const options = name === 'promise' ? { ...OPTIONS, targets: { chrome: 100 } } : OPTIONS;
@@ -206,7 +300,7 @@ try {
         await fs.outputFile(file, code);
         for (const strip of host === 'native' || !stripped ? [false] : [false, true]) {
           check(`${ name }/${ host }/${ lowered }/${ strip }`, await runInWorker(file, { strip }),
-            `OK|${ JSON.stringify(expected) }|${ JSON.stringify(events) }`);
+            `OK|${ JSON.stringify(host === 'native' ? expected : transformed) }|${ JSON.stringify(events) }`);
         }
       }
     }

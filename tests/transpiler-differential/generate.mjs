@@ -26041,6 +26041,37 @@ function * generateEffectfulRealmReceivers() {
   ]) yield { ...snippet(`effectful-realm-receiver/${ name }`, `(() => { ${ body } })()`, { rig: true }), strip: true };
 }
 
+// A borrowed native method and an active method share one written receiver.
+function * generateBorrowedPrototypeReceivers() {
+  for (const family of ['Map', 'Set', 'WeakMap', 'WeakSet']) for (const stored of [false, true]) yield {
+    ...snippet(`class-static/borrowed-prototype/${ family }/${ stored }`, `(() => {
+      // core-js-disable-next-line
+      const C = ${ family };
+      const key = {};
+      const value = new ${ family }();
+      value.${ family.endsWith('Map') ? 'set(key, 1)' : 'add(key)' };
+      ${ stored ? 'const has = C.prototype.has;' : '' }
+      return [${ stored ? 'Reflect.apply(has, value, [key])' : 'C.prototype.has.call(value, key)' },
+        ${ family }.prototype.has.call(value, key), value instanceof ${ family }, Map.groupBy([3], x => x).get(3)[0]];
+    })()`), strip: true, isolated: true,
+  };
+  // With the borrow disabled at runtime, an opaque consumer must see the same brand.
+  for (const [name, result] of [
+    ['callback', 'return [m].every(x => x instanceof Map);'],
+    ['pair', 'return [m, Map];'],
+  ]) yield { ...snippet(`class-static/borrowed-prototype/consumer-${ name }`, `(() => {
+    function read(probe) {
+      // core-js-disable-next-line
+      const C = Map;
+      const m = new Map();
+      if (probe) C.prototype.has.call(m, 1);
+      ${ result }
+    }
+    const result = read(false);
+    return Array.isArray(result) ? result[0] instanceof result[1] : result;
+  })()`), strip: true, isolated: true };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27868,4 +27899,5 @@ export function * generate() {
   yield * generateCallReceiverPrefixes();
   yield * generateFoldedSequencePrefixes();
   yield * generateEffectfulRealmReceivers();
+  yield * generateBorrowedPrototypeReceivers();
 }

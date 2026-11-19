@@ -12,7 +12,9 @@ import {
   terminalNavCollapsePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
-import { collectFileCensus, markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  classMayReplaceInstance, collectFileCensus, markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -169,6 +171,69 @@ for (const [base, retains] of [['globalThis', true], ['globalThis.window', false
     const path = parser.pickPath(program, 'VariableDeclarator');
     const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({ preserveRealmReads: true })]);
     check(label, !!nativeRealmReads?.(unwrapRuntimeExpr(path.node.init)), retains);
+  });
+}
+for (const [body, replaces] of [
+  ['', false], ['constructor() { super(); return this; }', false], ['constructor() { return {}; }', true],
+]) runBoth(`construction/${ body }`, `class Bag extends Map { ${ body } }`, (parser, program, label) => {
+  check(label, classMayReplaceInstance(program.node.body[0]), replaces);
+});
+runBoth('borrowed prototype receiver', `const C = Map;
+  let value = new Map(); const before = value;
+  value = new Map();
+  const lookup = Map.prototype.has;
+  C.prototype.has.call(value, 1);
+  lookup.call(value, 2);
+  before instanceof Map;
+  value instanceof Map;
+  Map.groupBy([3], x => x);`, (parser, program, label) => {
+  const seed = program.node.body[0].declarations[0].init;
+  const constructions = parser.collectPaths(program, 'NewExpression').map(p => p.node.callee);
+  const tests = parser.collectPaths(program, 'BinaryExpression').map(p => p.node.right);
+  const lookup = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'lookup').node.init;
+  const independent = parser.pickPath(program, 'MemberExpression', item => item.node.property.name === 'groupBy').node.object;
+  for (const preserveRealmReads of [true, false]) for (const disabled of [true, false]) {
+    const isOptedOut = disabled ? node => node === seed : null;
+    const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({ preserveRealmReads, isOptedOut })]);
+    const kept = preserveRealmReads && disabled;
+    checkDeep(`${ label }/pure=${ preserveRealmReads }/disabled=${ disabled }`,
+      [seed, ...constructions, lookup, ...tests, independent].map(node => !!nativeRealmReads?.(node)),
+      [kept, false, kept, kept, false, kept, false]);
+  }
+});
+for (const [name, observer, kept, family = 'Map'] of [
+  ['instanceof', 'm instanceof Map', true],
+  ['callback', '[m].every(x => x instanceof Map)', false],
+  ['pair', '[m, Map]', false],
+  ['argument', 'external(m, Map)', false],
+  ['returned-mutator', '[m.set(1, 2), Map]', false],
+  ['unknown-mutator', '(m.add(1), m instanceof Map)', false],
+  ['unknown-set-mutator', '(m.set(1, 2), m instanceof Set)', false, 'Set'],
+  ['unknown-static', '(D.groupBy([]), m instanceof Set)', false, 'Set'],
+  ['known-static', '(D.groupBy([], x => x), m instanceof Map)', true],
+  ['unknown-prototype-method', 'external.isPrototypeOf.call(Map.prototype, m)', false],
+  ['unknown-has-instance', 'external[Symbol.hasInstance].call(Map, m)', false],
+  ['known-prototype-method', 'Object.prototype.isPrototypeOf.call(Map.prototype, m)', true],
+  ['stored', 'globalThis.holder = m', false],
+]) runBoth(`borrowed receiver consumer/${ name }`, `function read(probe) {
+  const C = ${ family }; const D = ${ family }; const m = new D(); if (probe) C.prototype.has.call(m, 1); return ${ observer };
+}`, (parser, program, label) => {
+  const [alias, active] = program.node.body[0].body.body;
+  const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({
+    preserveRealmReads: true, isOptedOut: node => node === alias.declarations[0].init,
+  })]);
+  check(label, !!nativeRealmReads?.(active.declarations[0].init), kept);
+});
+// Flat source with many local copies must not consume the JavaScript call stack.
+const copies = Array.from({ length: 2500 }, (_, i) => `const m${ i + 1 } = m${ i };`).join('\n');
+for (const [name, last, kept] of [['closed', 'm2500 instanceof Map', true], ['open', '[m2500, Map]', false]]) {
+  runBoth(`borrowed receiver copies/${ name }`, `function read() { const C = Map; const m0 = new Map();
+    ${ copies } C.prototype.has.call(m0, 1); return ${ last }; }`, (parser, program, label) => {
+    const [alias, instance] = program.node.body[0].body.body;
+    const { nativeRealmReads } = collectFileCensus(program.node, [escapedCtorReferencesReducer({
+      preserveRealmReads: true, isOptedOut: node => node === alias.declarations[0].init,
+    })]);
+    check(label, !!nativeRealmReads?.(instance.declarations[0].init.callee), kept);
   });
 }
 runBoth('guard on a reused program', 'function read() { const s = globalThis.self; if (s) { s[(effect(), "self")]; } }',
