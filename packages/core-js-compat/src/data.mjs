@@ -1094,7 +1094,7 @@ export const data = {
   },
   'es.math.sum-precise': {
     // https://bugs.webkit.org/show_bug.cgi?id=315450
-    // bun: '1.2.18',
+    bun: '1.4.5', // '1.2.18',
     // https://issues.chromium.org/issues/500536164
     // https://issues.chromium.org/issues/572987948
     chrome: '158', // '147',
