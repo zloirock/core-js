@@ -85,6 +85,57 @@ return [C.prototype.has.call(m, 1), Reflect.apply(get, m, [1]), m instanceof Map
     return [check(false), check(true)];`,
     [true, true], [], true, [true, onBorrow],
   ]),
+  ...[
+    ['shared-constructor', `const a = new Map(), b = new Map(), D = Map;
+      return [C.prototype.has.call(a, 1), a instanceof D, b instanceof D, D.prototype.has.call(b, 1)];`, [false, true, true, false]],
+    ['shared-new-target', `const m = new Map(), D = Map, other = new D([[1, 7]]);
+      return [C.prototype.has.call(m, 1), m instanceof D, D.prototype.get.call(other, 1), other instanceof D, other instanceof Map];`,
+    [false, true, 7, true, true]],
+    ['shared-methods', `const a = new Map([[1, 1]]), b = new Map([[1, 2]]), c = new Map([[1, 3]]);
+      const f = Map.prototype.get, g = Map.prototype.get;
+      return [g.call(c, 1), g.call(b, 1), f.call(b, 1), f.call(a, 1), C.prototype.has.call(a, 1), c instanceof Map];`,
+    [3, 2, 2, 1, true, true]],
+    ['returned-instance', 'function make() { return new Map([[1, 7]]); } return C.prototype.get.call(make(), 1);', 7],
+    ['local-holder', 'const box = { m: new Map([[1, 5]]), has: C.prototype.has }; return box.has.call(box.m, 1);', true],
+    ['inline-parameter', 'return (m => C.prototype.has.call(m, 1))(new Map([[1, 7]]));', true],
+    ['local-parameter', 'function read(m) { return C.prototype.has.call(m, 1); } return read(new Map([[1, 7]]));', true],
+    ['iterator', 'const m = new Map([[1, 7]]), iter = C.prototype[Symbol.iterator]; return iter.call(m).next().value;', [1, 7]],
+  ].map(([name, body, wanted]) => [`opted-traced-${ name }`, `// core-js-disable-next-line
+const C = Map;
+${ body }`, wanted, []]),
+  ['opted-installed-accessor', `// core-js-disable-next-line
+const C = Map;
+const prior = Object.getOwnPropertyDescriptor(C.prototype, 'has');
+let calls = 0;
+try {
+  Object.defineProperty(C.prototype, 'has', { configurable: true, get() {
+    calls++; return function () { return calls * 10 + (this instanceof C); };
+  } });
+  return C.prototype.has.call(new Map(), 1);
+} finally { Object.defineProperty(C.prototype, 'has', prior); }`, 11, []],
+  ['opted-installed-opaque-accessor', `// core-js-disable-next-line
+const C = Map;
+const prior = Object.getOwnPropertyDescriptor(C.prototype, 'has');
+let published;
+function install(descriptor) { Object.defineProperty(C.prototype, 'has', descriptor); }
+try {
+  install({ configurable: true, get() { return function () { published = this; }; } });
+  C.prototype.has.call(new Map(), 1);
+  return published instanceof Map;
+} finally { Object.defineProperty(C.prototype, 'has', prior); }`, true, []],
+  ['opted-installed-instance-hook', `// core-js-disable-next-line
+const C = Map;
+const prior = Object.getOwnPropertyDescriptor(C.prototype, 'has');
+let seen;
+Object.defineProperty(C, Symbol.hasInstance, { configurable: true, value(x) { seen = x; return true; } });
+try {
+  Object.defineProperty(C.prototype, 'has', { configurable: true, value: function () { return this instanceof C; } });
+  return C.prototype.has.call(new Map());
+} finally {
+  delete C[Symbol.hasInstance];
+  Object.defineProperty(C.prototype, 'has', prior);
+  effects.push(seen instanceof Map);
+}`, true, [true]],
   ['opted-receiver-key-order', `// core-js-disable-next-line
 const C = Map;
 const fn = C[(effects.push('prototype'), 'prototype')][(effects.push('key'), 'has')];

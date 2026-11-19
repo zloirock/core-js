@@ -26070,6 +26070,28 @@ function * generateBorrowedPrototypeReceivers() {
     const result = read(false);
     return Array.isArray(result) ? result[0] instanceof result[1] : result;
   })()`), strip: true, isolated: true };
+  for (const [name, body] of [
+    ['shared', `const a = new Map(), b = new Map(), D = Map;
+      return [C.prototype.has.call(a, 1), a instanceof D, b instanceof D, D.prototype.has.call(b, 1)];`],
+    ['factory', 'function make() { return new Map([[1, 7]]); } return C.prototype.get.call(make(), 1);'],
+    ['holder', 'const box = { m: new Map(), has: C.prototype.has }; return box.has.call(box.m, 1);'],
+    ['argument', 'function read(m) { return C.prototype.has.call(m, 1); } return read(new Map());'],
+    ['iterator', 'const iter = C.prototype[Symbol.iterator]; return iter.call(new Map([[1, 7]])).next().value;'],
+    ['installed-getter', `const prior = Object.getOwnPropertyDescriptor(C.prototype, 'has'); let hits = 0;
+      try {
+        Object.defineProperty(C.prototype, 'has', { configurable: true, get() { hits++; return function () { return hits + (this instanceof C); }; } });
+        return C.prototype.has.call(new Map());
+      } finally { Object.defineProperty(C.prototype, 'has', prior); }`],
+    ['opaque-descriptor', `const prior = Object.getOwnPropertyDescriptor(C.prototype, 'has'); let seen;
+      const descriptor = { configurable: true, value: function () { seen = this; } };
+      try {
+        Object.defineProperty(C.prototype, 'has', descriptor); C.prototype.has.call(new Map()); return seen instanceof Map;
+      } finally { Object.defineProperty(C.prototype, 'has', prior); }`],
+  ]) yield { ...snippet(`class-static/borrowed-prototype/flow-${ name }`, `(() => {
+    // core-js-disable-next-line
+    const C = Map;
+    ${ body }
+  })()`), strip: true, isolated: true };
 }
 
 export function * generate() {

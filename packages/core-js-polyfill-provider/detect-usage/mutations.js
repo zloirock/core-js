@@ -1,3 +1,4 @@
+import { pushMultimap } from '../helpers/pattern-matching.js';
 import { pureImportSubpath } from '../helpers/path-normalize.js';
 // Monkey-patch detection: canonicalizes patched receivers through the SAME resolution canons the
 // read side uses (`resolveObjectName` for names, `walkStaticReceiverChain` for static containers,
@@ -63,6 +64,7 @@ import {
   ESCAPED_CTOR_NAMES,
   escapeStampedName,
   findNearestVarScopeOwner,
+  findEnclosingFunctionLikePath,
   findObjectKeyBeforeSpread,
   objectPropertyReadValue,
   flattenBranchKeys,
@@ -244,9 +246,6 @@ import { bareReceiverGuardRenders } from './members.js';
 // cannot canonicalize to a built-in downstream and stay silent. object / class containers
 // fire only for CHAIN targets (`NS.M.of = 1`) - a bare `config.port = 1` on a literal-bound
 // name resolves to nothing
-
-// These native collection methods neither return their receiver nor pass it to a callback.
-const COLLECTION_LOOKUPS = new Set(['has', 'clear', 'delete']);
 
 // `Array.prototype` methods that mutate in place, read off the SAME `mutatesElements` flag the type
 // tables already carry - the reason a method belongs here is a property of `Array.prototype`, not of
@@ -3219,6 +3218,7 @@ function returnHintOwner(hint) {
 
 // how many values one computed key may fold to before the census stops listing them (`censusKeyNames`),
 // and the name a well-known symbol key stands for there: a slot no static is spelled as
+const COLLECTION_FAMILIES = new Set(['Map', 'Set', 'WeakMap', 'WeakSet']);
 const MAX_KEY_VALUES = 16;
 const WELL_KNOWN_SYMBOL_KEY = '@@symbol';
 
@@ -3356,6 +3356,8 @@ export function escapedCtorReferencesReducer({
   let effectfulRealmReaders;
   let hasDisabledConstructor = false;
   let borrowedCalls;
+  let borrowedCallers;
+  let symbolWriteTargets;
   const argumentsHosts = new WeakSet();
   const argumentsReferenceCache = new WeakMap();
   const knownCtorCandidateCache = new WeakMap();
@@ -3911,6 +3913,7 @@ export function escapedCtorReferencesReducer({
       if (chain.some(([name, owner]) => classStaticsHandedOut(name, owner))) open.add(host);
     }
     for (const host of open) callsTo.delete(host);
+    if (hasDisabledConstructor) borrowedCallers = callsTo;
     for (const { node, frame } of parameterHosts) {
       const calls = callsTo.get(node) ?? [];
       const relevant = (node.params ?? []).some(param => carriesKnownCtor(param))
@@ -3982,6 +3985,10 @@ export function escapedCtorReferencesReducer({
   function fileSlotWrite(target, value, frame, installedKey = undefined) {
     if (ignoredWriteValues.has(value)) return;
     for (const chain of writeTargetChains(target)) {
+      if (optedOutNodes && preserveRealmReads && (installedKey === null || installedKey === undefined && chain.keys.at(-1) === null)) {
+        const member = installedKey === undefined ? unwrapRuntimeExpr(target) : null;
+        (symbolWriteTargets ??= new Map()).set(member?.object ?? target, member?.property);
+      }
       fileChainWrite(chain, { value, scopes: frame?.scopes ?? [], thisOwner: frame?.thisOwner, installedKey });
     }
   }
@@ -4732,7 +4739,7 @@ export function escapedCtorReferencesReducer({
       const bind = boundInvocation(node);
       if (hasDisabledConstructor) {
         const borrow = bind && !callablePropertyWrites.has('Function') ? bind : pairing;
-        if (borrow.thisArg && borrow.thisArg.type !== 'SpreadElement') (borrowedCalls ??= []).push(borrow);
+        if (borrow.thisArg && borrow.thisArg.type !== 'SpreadElement') (borrowedCalls ??= new Map()).set(node, borrow);
       }
       const bound = bind && calleeFunctionOf(unwrapRuntimeExpr(bind.callee), localCallables, callableScope);
       if (bound) boundCalls.set(node, { callee: bound, pairing: bind });
@@ -4835,12 +4842,17 @@ export function escapedCtorReferencesReducer({
   // namespace obligation.
   function fileExplicitStoreWrites(resolvedCallees) {
     for (const node of callNodes) {
-      const { decided, builtin } = callDisposition(node, resolvedCallees);
-      const store = decided && builtin && callBuiltin(node);
-      if (store) for (const { targetNode, key, value } of mutatorInstalledValues(
-        store.namespace, store.method, store.args, { accessors: true },
-      )) {
-        if (!value) continue;
+      const disposition = callDisposition(node, resolvedCallees);
+      const store = disposition.decided && disposition.builtin && callBuiltin(node);
+      if (!store) continue;
+      const entries = mutatorInstalledValues(store.namespace, store.method, store.args, { accessors: true });
+      if (borrowedCalls && store.namespace === 'Object' && store.method === 'defineProperty') disposition.definedProperties = entries;
+      for (const { targetNode, key, value } of entries) {
+        if (!value) {
+          // An opaque descriptor still changes which function a borrowed call can invoke.
+          if (borrowedCalls) fileSlotWrite(targetNode, null, { scopes: referenceScopes.get(node) }, key);
+          continue;
+        }
         const target = unwrapRuntimeExpr(targetNode);
         // A fresh empty target whose result is discarded exposes no installed value.
         if (target?.type === 'ObjectExpression' && !target.properties.length && unreadCallResults.has(node)) continue;
@@ -5166,191 +5178,307 @@ export function escapedCtorReferencesReducer({
     const scopes = aliasReferenceScopes(aliasInit, node);
     return computeStoredValues(aliasInit, node.name, new Set(), slots, scopes, receiverEntries(node, scopes, paths), readSites);
   }
-  // Decide one allocation at a time. Publish its native reads only after every use of
-  // the instance and every active constructor or method it would change is accounted for.
+  // Trace value positions in both directions using the completed alias and caller census.
+  // The collection policy asks for one origin and checks every consumer of that value.
   function retainBorrowedPrototypeReads(retain, paths) {
     const patternSites = new WeakMap();
-    function memberKey(node) { return escapeStampedName(node, censusResolveKey); }
-    function prototypeOwner(node) { return isMemberAccessNode(node) && memberKey(node) === 'prototype' ? node.object : null; }
-    function pathOf(node) { return climbTransparentWrapperPath(syntheticNodeAncestry(programNode, node, paths)); }
-    function native(node) { return optedOutNodes.has(patternSites.get(node) ?? node) || isOptedOut(node, true); }
-    function origin(source) {
-      const seen = new Set();
-      let node = peelCalleeValue(source);
-      while (node?.type === 'Identifier' && classifyRealmReference(node) !== 'proven') {
-        if (seen.has(node)) return null;
-        seen.add(node);
-        const values = receiverValues(node, paths, null, patternSites);
-        if (values.length !== 1) return null;
-        node = peelCalleeValue(values[0]);
-      }
-      return node;
+    const state = { names: new Set(), roots: new Map(), slots: new Map() };
+    let refs, wildcardWrite;
+    function symbolWritten() {
+      return symbolWriteTargets && (wildcardWrite ??= [...symbolWriteTargets].some(([target, key]) => {
+        // A known property name, including a numeric loop index, cannot replace a symbol.
+        const keyValue = origin(key)?.value;
+        if (typeof keyValue === 'number' || typeof keyValue === 'string') return false;
+        const sources = target?.type === 'Identifier' ? receiverValues(target, paths, null, patternSites) : [target];
+        return !sources.length || sources.some(source => {
+          const value = origin(source);
+          return value?.type !== 'ObjectExpression' && value?.type !== 'ArrayExpression';
+        });
+      }));
     }
-    function constructorName(read) {
+    function pathOf(node) { return climbTransparentWrapperPath(syntheticNodeAncestry(programNode, node, paths)); }
+    function keyOf(node) { return escapeStampedName(node, censusResolveKey); }
+    function nameOf(read) {
       const name = realmGlobalName(programNode, read);
       if (name || !hasPureImports || !isMemberAccessNode(read)) return name;
-      // A second pass sees the imported globalThis or self at the root of the retained read.
-      const { root, keys } = memberChainKeys(read, memberKey);
+      const { root, keys } = memberChainKeys(read, keyOf);
       const key = keys.pop();
       return key && hasConstructorEntry(key) && keys.every(hop => POSSIBLE_GLOBAL_OBJECTS.has(hop))
         && POSSIBLE_GLOBAL_OBJECTS.has(entryToGlobalHint(pureEntryOf(root))) ? key : null;
     }
-    let refs;
-    function retainInstance(instance, calls) {
-      const construction = isCallShape(instance) && callBuiltin(instance);
-      const args = construction?.namespace === 'Reflect' && construction.method === 'construct' ? construction.args : null;
-      const calleeNode = instance?.type === 'NewExpression' ? instance.callee : args?.[0];
-      if (!calleeNode) return;
-      const used = new Set();
-      const reads = new Set();
-      const classes = new Set();
-      function use(node, read = origin(node)) {
-        used.add(node);
-        if (read) reads.add(read);
-        return read;
+    function closedFunction(fn) { return fn && !fn.async && !fn.generator && borrowedCallers?.has(fn) && !referencesArguments(fn); }
+    function origin(source) {
+      const seen = new Set();
+      let node = peelCalleeValue(source);
+      while (node && !seen.has(node)) {
+        seen.add(node);
+        let values;
+        if (node.type === 'Identifier' && classifyRealmReference(node) !== 'proven') {
+          values = receiverValues(node, paths, null, patternSites);
+        } else if (isMemberAccessNode(node) && !nameOf(node)) {
+          const slot = chainSlotValues(aliasInit, node, state, written, null, true);
+          if (slot.outside || slot.absent || !slot.values.length) return node;
+          values = slot.values;
+        } else if (closedFunction(callCallees.get(node))) values = calleeReturnValues(callCallees.get(node));
+        else return node;
+        if (values.length !== 1) return null;
+        node = peelCalleeValue(values[0]);
       }
-      function constructor(node) {
-        let value = use(node);
-        while (CLASS_NODE_TYPES.has(value?.type)) {
-          if (classes.has(value) || classMayReplaceInstance(value) || classReachesItselfUnnamed(value)) return null;
-          classes.add(value);
-          value = use(value.superClass);
-        }
-        if (isMemberAccessNode(value) && memberKey(value) === 'constructor') {
-          return use(prototypeOwner(use(value.object)));
-        }
-        return value;
+      return null;
+    }
+    function native(node) { return optedOutNodes.has(patternSites.get(node) ?? node) || isOptedOut(node, true); }
+    function prototypeOwner(node) { return isMemberAccessNode(node) && keyOf(node) === 'prototype' ? node.object : null; }
+    function symbolKey(method, key, entry) {
+      if (!method.computed) return false;
+      const symbol = origin(method.property);
+      return pureEntryOf(method.property) === entry
+        || isMemberAccessNode(symbol) && keyOf(symbol) === key && nameOf(origin(symbol.object)) === 'Symbol';
+    }
+    function slotWritten(method) {
+      return censusSlotWritten(programNode, aliasInit, method) || method.computed && memberReadKeyName(method) === null && symbolWritten();
+    }
+    function lookup(method, family) {
+      if (!isMemberAccessNode(method) || slotWritten(method)) return false;
+      const key = keyOf(method);
+      if (key === 'has' || key === 'delete') return true;
+      if (key === 'get') return family.endsWith('Map');
+      return (family === 'Map' || family === 'Set') && (key === 'clear' || symbolKey(method, 'iterator', 'symbol/iterator'));
+    }
+    // Only the immediately preceding installation can prove what the direct borrow will call.
+    function observesInstalledBrand(call, method, owner) {
+      if (call.callee?.object !== method || call.callee.computed || method.computed || method.object.computed
+        || method.object.object !== owner || owner?.type !== 'Identifier') return false;
+      const statement = pathOf(call)?.parentPath;
+      if (statement?.node.type !== 'ReturnStatement' || statement.node.argument !== call) return false;
+      const body = statementListOf(statement.parentPath?.node);
+      const previous = body?.[body.indexOf(statement.node) - 1]?.expression;
+      const entries = callDispositions.get(previous)?.definedProperties;
+      if (entries?.length !== 1 || spineHasOptionalHop(previous)) return false;
+      const [{ targetNode, key, value: fn }] = entries;
+      const target = prototypeOwner(targetNode);
+      const ctor = origin(owner);
+      if (target?.type !== 'Identifier' || origin(target) !== ctor || key !== keyOf(method)
+        || !native(ctor) || symbolWritten() || fn?.type !== 'FunctionExpression' || fn.async || fn.generator
+        || fn.params.some(param => param.type !== 'Identifier') || fn.body.body.length !== 1 || !thisReaders.has(fn)) return false;
+      // Every occurrence of this must be the input of a brand test. No call may publish it through eval.
+      const terms = [singleReturnBodyExpression(fn.body)];
+      for (const term of terms) {
+        const expr = unwrapRuntimeExpr(term);
+        if (expr?.type === 'BinaryExpression') {
+          if (expr.operator === 'instanceof' && unwrapRuntimeExpr(expr.left)?.type === 'ThisExpression'
+            && expr.right.type === 'Identifier' && origin(expr.right) === ctor) continue;
+          terms.push(expr.left, expr.right);
+        } else if (expr?.type !== 'Identifier' && !PRIMITIVE_LITERAL_TYPES.has(expr?.type)) return false;
       }
-      const owner = constructor(calleeNode);
-      const name = constructorName(owner);
-      if (!['Map', 'Set', 'WeakMap', 'WeakSet'].includes(name) || args?.[2] && constructorName(constructor(args[2])) !== name) return;
-      const map = name === 'Map' || name === 'WeakMap';
-      function lookup(key) {
-        return key === 'get' ? map : COLLECTION_LOOKUPS.has(key) && Object.hasOwn(knownBuiltInReturnTypes.instanceMethods[name], key);
-      }
-      let needed = false;
-      for (const { callee, thisArg } of calls) {
-        const method = origin(callee);
-        if (!isMemberAccessNode(method) || !lookup(memberKey(method))
-          || censusSlotWritten(programNode, aliasInit, method)) continue;
-        const proto = origin(method.object);
-        const object = prototypeOwner(proto);
-        const read = origin(object);
-        if (constructorName(read) !== name) continue;
-        used.add(thisArg);
-        use(callee, method);
-        use(method.object, proto);
-        use(object, read);
-        needed ||= native(read) || native(owner);
-      }
-      if (!needed) return;
-      refs ??= Map.groupBy(nameUses, ref => ref.name);
-      function observe(other, prototype) {
-        const peer = use(other);
-        const read = prototype ? use(prototypeOwner(peer))
-          : classes.has(peer) ? owner : peer;
-        return constructorName(read) === name;
-      }
-      const instances = new Set([instance]);
-      const captures = new Set();
-      function followBinding(target, declaration, positions) {
-        if (exportedCallableNames.has(target.name)) return false;
+      return true;
+    }
+    function everyUse(read, accept, consumed, acrossCalls) {
+      const positions = new Set();
+      function binding(target, declaration, scope) {
+        if (target?.type !== 'Identifier' || exportedCallableNames.has(target.name)) return false;
+        refs ??= Map.groupBy(nameUses, ref => ref.name);
         for (const ref of refs.get(target.name) ?? []) {
           const parent = pathOf(ref)?.parentPath?.node;
           if (ref === target || parent?.type === 'AssignmentExpression' && parent.operator === '=' && parent.left === ref) continue;
-          const entries = receiverEntries(ref, aliasReferenceScopes(aliasInit, ref), paths);
-          if (entries.some(entry => entry.target ? entry.target === target
-            : nodeRangeContains(declaration, entry.value) || nodeRangeContains(entry.value.pattern, declaration))) positions.add(ref);
+          const scopes = aliasReferenceScopes(aliasInit, ref);
+          const reaches = scope ? declarations.resolve(ref.name, scopes ?? []) === scope
+            : receiverEntries(ref, scopes, paths).some(entry => {
+              if (entry.target) return entry.target === target;
+              return nodeRangeContains(declaration, entry.value) || nodeRangeContains(entry.value.pattern, declaration);
+            });
+          if (reaches) positions.add(ref);
         }
         return true;
       }
-      function followUse(value, positions) {
-        const outer = pathOf(value);
-        const node = outer?.node;
-        const parent = outer?.parentPath?.node;
-        if (used.has(value) || used.has(node)) return true;
+      const site = patternSites.get(read);
+      if (site && isDestructurePattern(site.value)) return true;
+      if (site || read.type === 'ClassDeclaration') {
+        if (!binding(site ? site.value : read.id, site ?? read)) return false;
+      } else positions.add(read);
+      for (const value of positions) {
+        const path = pathOf(value);
+        const node = path?.node;
+        const up = path?.parentPath;
+        const parent = up?.node;
+        const accounted = consumed?.(node);
+        if (accounted === false) return false;
+        if (accounted) continue;
         if (!parent) return false;
         if (parent.type === 'ExpressionStatement' || parent.type === 'UnaryExpression' && parent.operator === 'void'
-          || FUNCTION_LIKE_NODE_TYPES.has(parent.type) && parent.params?.includes(node)) return true;
+          || FUNCTION_LIKE_NODE_TYPES.has(parent.type) && parent.params?.includes(node)) continue;
         if (parent.type === 'SequenceExpression' && parent.expressions.at(-1) === node
           || parent.type === 'ConditionalExpression' && parent.test !== node) {
           positions.add(parent);
-          return true;
-        }
-        if (parent.type === 'VariableDeclarator' && parent.init === node && parent.id.type === 'Identifier') {
-          return followBinding(parent.id, parent, positions);
-        }
-        if (parent.type === 'AssignmentExpression' && parent.operator === '='
-          && parent.right === node && parent.left.type === 'Identifier') {
+        } else if (parent.type === 'VariableDeclarator' && parent.init === node) {
+          if (!binding(parent.id, parent)) return false;
+        } else if (parent.type === 'AssignmentExpression' && parent.operator === '=' && parent.right === node) {
+          if (!declarations.declares(parent.left.name, referenceScopes.get(parent.left) ?? [])
+            || !binding(parent.left, parent)) return false;
           positions.add(parent);
-          return declarations.declares(parent.left.name, referenceScopes.get(parent.left) ?? [])
-            && followBinding(parent.left, parent, positions);
+        } else if (acrossCalls && (parent.type === 'ReturnStatement'
+          || parent.type === 'ArrowFunctionExpression' && parent.body === node)) {
+          const fn = findEnclosingFunctionLikePath(up)?.node;
+          if (!closedFunction(fn)) return false;
+          for (const { callee } of borrowedCallers.get(fn)) {
+            const call = pathOf(callee)?.parentPath?.node;
+            if (callCallees.get(call) !== fn) return false;
+            positions.add(call);
+          }
+        } else if (acrossCalls && parent.type === 'CallExpression' && closedFunction(callCallees.get(parent))
+          && !isMemberAccessNode(peelCalleeValue(parent.callee)) && parent.arguments.includes(node)) {
+          const fn = callCallees.get(parent);
+          const pairing = invocationOf(parent);
+          if (pairing.argsUnknown || !binding(dropLeadingThisParam(fn.params)[pairing.args.indexOf(node)], fn, fn)) return false;
+        } else if (isPropertyNode(parent) && parent.value === node && up.parentPath?.node.type === 'ObjectExpression') {
+          const holder = up.parentPath.node;
+          const key = synthSlotName(parent);
+          if (key === null || !everyUse(holder, (ref, memberPath) => {
+            const member = memberPath?.node;
+            if (!isMemberAccessNode(member) || member.object !== ref || censusSlotWritten(programNode, aliasInit, member)) return false;
+            const slot = keyOf(member);
+            const field = slot !== null && objectLiteralSlotMember(holder, slot);
+            if (!field || field.method || field.kind === 'get' || field.kind === 'set'
+              || memberPath.parentPath?.node.callee === member) return false;
+            if (slot === key) positions.add(member);
+            return true;
+          })) return false;
+        } else if (!accept(node, up)) return false;
+      }
+      return true;
+    }
+    const byOperand = new Map();
+    const pending = new Set();
+    for (const [call, { callee, thisArg }] of borrowedCalls) {
+      const method = origin(callee);
+      if (!isMemberAccessNode(method)) continue;
+      const owner = prototypeOwner(origin(method.object));
+      const family = nameOf(origin(owner));
+      if (!COLLECTION_FAMILIES.has(family) || !lookup(method, family) && !observesInstalledBrand(call, method, owner)) continue;
+      const borrow = { family, callee, method, owner, thisArg, instance: origin(thisArg) };
+      for (const operand of [thisArg, callee, method.object, owner]) pushMultimap(byOperand, operand, borrow);
+      pending.add(borrow);
+    }
+    for (const seed of pending) {
+      const { family } = seed;
+      const calls = new Set();
+      const consumed = new Set();
+      const classes = new Set();
+      const work = new Map();
+      let needed = false;
+      function use(operand) {
+        const read = origin(operand);
+        if (read) {
+          consumed.add(operand);
+          if (!work.has(read)) work.set(read, false);
         }
-        const test = outer.parentPath.parentPath?.node;
-        if (positions === captures) {
-          const call = isCallShape(parent) && builtinCallees.get(parent);
-          return (isMemberAccessNode(parent) && parent.object === node && memberKey(parent) === 'groupBy'
+        return read;
+      }
+      function owner(operand) {
+        let read = use(operand);
+        const seen = new Set();
+        while (CLASS_NODE_TYPES.has(read?.type)) {
+          if (seen.has(read) || classMayReplaceInstance(read) || classReachesItselfUnnamed(read)) return null;
+          seen.add(read);
+          if (!classes.has(read)) {
+            classes.add(read);
+            walkAstNodes({ root: read.body, visit(node) {
+              if (node.type === 'ThisExpression' || node.type === 'CallExpression' && node.callee.type === 'Super') work.set(node, true);
+            } });
+          }
+          read = use(read.superClass);
+        }
+        return isMemberAccessNode(read) && keyOf(read) === 'constructor' ? use(prototypeOwner(use(read.object))) : read;
+      }
+      function addAllocation(instance) {
+        if (work.get(instance) === true) return true;
+        const call = isCallShape(instance) && callBuiltin(instance);
+        const args = call?.namespace === 'Reflect' && call.method === 'construct' ? call.args : null;
+        const read = owner(instance?.type === 'NewExpression' ? instance.callee : args?.[0]);
+        if (nameOf(read) !== family || args?.[2] && nameOf(owner(args[2])) !== family) return false;
+        work.set(instance, true);
+        needed ||= native(read);
+        return true;
+      }
+      function connectBorrow(call) {
+        if (calls.has(call)) return true;
+        if (call.family !== family || !addAllocation(call.instance)) return false;
+        calls.add(call);
+        consumed.add(call.thisArg);
+        use(call.callee);
+        use(call.method.object);
+        const constructor = use(call.owner);
+        needed ||= native(constructor);
+        return true;
+      }
+      function observe(other, prototype) {
+        const peer = use(other);
+        return nameOf(prototype ? use(prototypeOwner(peer)) : classes.has(peer) ? owner(other) : peer) === family;
+      }
+      function accepts(node, parentPath, instance) {
+        const parent = parentPath.node;
+        const test = parentPath.parentPath?.node;
+        if (parent.type === 'BinaryExpression' && parent.operator === 'instanceof') {
+          // A custom @@hasInstance receives the tested instance and can publish it.
+          if (symbolWritten()) return false;
+          return instance ? parent.left === node && observe(parent.right, false)
+            : parent.right === node && addAllocation(origin(parent.left));
+        }
+        if (!instance) {
+          if (parent.type === 'NewExpression' && parent.callee === node) return addAllocation(parent);
+          const call = callBuiltin(parent);
+          return family === 'Map' && (isMemberAccessNode(parent) && parent.object === node && keyOf(parent) === 'groupBy'
             && isCallShape(test) && test.callee === parent
-            || call?.namespace === 'Map' && call.method === 'groupBy' && invocationOf(parent).thisArg === node)
-            && name === 'Map' && observe(node, false);
-        }
-        if (parent.type === 'BinaryExpression' && parent.operator === 'instanceof' && parent.left === node) {
-          return observe(parent.right, false);
+            || call?.namespace === 'Map' && call.method === 'groupBy' && invocationOf(parent).thisArg === node);
         }
         let prototype;
         if (isMemberAccessNode(parent) && parent.object === node) {
-          const key = memberKey(parent);
-          if (isCallShape(test) && test.callee === parent && !censusSlotWritten(programNode, aliasInit, parent)) {
-            if (lookup(key)) return true;
-            if (key === (map ? 'set' : 'add')) {
-              positions.add(test);
-              return true;
-            }
+          const called = isCallShape(test) && test.callee === parent;
+          if (called && lookup(parent, family)) return true;
+          const key = keyOf(parent);
+          if (called && key === (family.endsWith('Map') ? 'set' : 'add') && !slotWritten(parent)) {
+            work.set(test, true);
+            return true;
           }
           if (key !== 'constructor' && key !== '__proto__') return false;
           prototype = key === '__proto__';
-        } else if (isCallShape(parent)) {
-          const { callee, args: operands, thisArg } = invocationOf(parent);
-          if (operands[0] !== node) return false;
-          const builtin = builtinCallees.get(parent);
-          if ((builtin?.namespace === 'Object' || builtin?.namespace === 'Reflect') && builtin.method === 'getPrototypeOf') {
-            prototype = true;
-          } else if (isMemberAccessNode(callee) && !censusSlotWritten(programNode, aliasInit, callee)) {
-            const isPrototypeTest = memberKey(callee) === 'isPrototypeOf';
-            const symbol = callee.computed && origin(callee.property);
-            if (!isPrototypeTest && !(callee.computed && (pureEntryOf(callee.property) === 'symbol/has-instance'
-              || memberKey(symbol) === 'hasInstance' && constructorName(symbol?.object) === 'Symbol'))) return false;
-            if (thisArg && constructorName(origin(prototypeOwner(origin(callee.object)))) !== (isPrototypeTest ? 'Object' : 'Function')) {
-              return false;
-            }
-            return observe(thisArg ?? callee.object, isPrototypeTest);
+        } else {
+          if (!isCallShape(parent)) return false;
+          const call = callBuiltin(parent);
+          const pairing = invocationOf(parent);
+          if (pairing.args[0] !== node) return false;
+          if ((call?.namespace === 'Object' || call?.namespace === 'Reflect') && call.method === 'getPrototypeOf') prototype = true;
+          else {
+            const { callee, thisArg } = pairing;
+            if (!isMemberAccessNode(callee) || slotWritten(callee)) return false;
+            const isPrototype = keyOf(callee) === 'isPrototypeOf';
+            if (!isPrototype && !symbolKey(callee, 'hasInstance', 'symbol/has-instance')) return false;
+            if (thisArg && nameOf(origin(prototypeOwner(origin(callee.object)))) !== (isPrototype ? 'Object' : 'Function')) return false;
+            return observe(thisArg ?? callee.object, isPrototype);
           }
-          if (!prototype) return false;
-        } else return false;
+        }
         if (test?.type === 'BinaryExpression' && EQUALITY_OPERATORS.has(test.operator)) {
           return observe(test.left === parent ? test.right : test.left, prototype);
         }
-        const call = isCallShape(test) && callBuiltin(test);
-        if (call?.namespace !== 'Object' || call.method !== 'is') return false;
-        return observe(call.args[0] === parent ? call.args[1] : call.args[1] === parent && call.args[0], prototype);
+        const call = callBuiltin(test);
+        return call?.namespace === 'Object' && call.method === 'is'
+          && observe(call.args[0] === parent ? call.args[1] : call.args[1] === parent && call.args[0], prototype);
       }
-      for (const cls of classes) {
-        const binding = cls.type === 'ClassDeclaration' ? cls.id : pathOf(cls)?.parentPath?.node?.id;
-        if (binding && !followBinding(binding, cls, captures)) return;
-        walkAstNodes({ root: cls.body, visit(node) {
-          if (node.type === 'ThisExpression' || node.type === 'CallExpression' && node.callee.type === 'Super') instances.add(node);
-        } });
+      // Newly reached methods and constructors may lead to another allocation. Publish
+      // only after all their terminal uses have been checked, including returned values.
+      let closed = connectBorrow(seed);
+      if (!needed) continue;
+      for (const [read, instance] of work) {
+        if (!closed) break;
+        if (!instance && native(read)) continue;
+        closed = everyUse(read, (node, parent) => accepts(node, parent, instance), node => {
+          const peers = byOperand.get(node);
+          if (peers) return peers.every(connectBorrow);
+          return consumed.has(node) || null;
+        }, instance);
       }
-      for (const value of instances) if (!followUse(value, instances)) return;
-      for (const read of reads) if (!native(read) && !classes.has(read)) {
-        const site = patternSites.get(read);
-        if (!site) captures.add(read);
-        else if (site.value?.type === 'Identifier' && !followBinding(site.value, site, captures)) return;
-      }
-      for (const value of captures) if (!followUse(value, captures)) return;
-      for (const read of reads) if (!classes.has(read)) retain(patternSites.get(read) ?? read);
+      for (const call of calls) pending.delete(call);
+      if (closed) for (const [read, instance] of work) if (!instance && !classes.has(read)) retain(patternSites.get(read) ?? read);
     }
-    for (const [instance, calls] of Map.groupBy(borrowedCalls, call => origin(call.thisArg))) retainInstance(instance, calls);
   }
   // An effectful realm key reads the original value, even if a declaration, assignment or
   // parameter captured it earlier. Follow only its value sources in the completed census.

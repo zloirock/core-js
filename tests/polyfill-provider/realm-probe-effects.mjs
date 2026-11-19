@@ -13,7 +13,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import {
-  classMayReplaceInstance, collectFileCensus, markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr,
+  classMayReplaceInstance, collectFileCensus, markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr, walkAstNodes,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
@@ -223,6 +223,67 @@ for (const [name, observer, kept, family = 'Map'] of [
     preserveRealmReads: true, isOptedOut: node => node === alias.declarations[0].init,
   })]);
   check(label, !!nativeRealmReads?.(active.declarations[0].init), kept);
+});
+// A native borrow may change a construction only if all uses of every linked value are visible.
+for (const [name, body, expected] of [
+  ['shared observer', 'const a = new Map(), b = new Map(), D = Map; C.prototype.has.call(a, 1); return [a instanceof D, b instanceof D];', [true, true]],
+  ['open peer', 'const a = new Map(), b = new Map(), D = Map; C.prototype.has.call(a, 1); save(b); return [a instanceof D, b instanceof D];', [false, false]],
+  ['closed factory', 'function make() { return new Map(); } return C.prototype.has.call(make(), 1);', [true]],
+  ['open factory result', 'function make() { return new Map(); } save(make()); return C.prototype.has.call(make(), 1);', [false]],
+  ['handed out factory', 'function make() { return new Map(); } save(make); return C.prototype.has.call(make(), 1);', [false]],
+  ['closed formal', 'function read(m) { return C.prototype.has.call(m, 1); } return read(new Map());', [true]],
+  ['open formal', 'function read(m) { C.prototype.has.call(m, 1); return [m, Map]; } return read(new Map());', [false]],
+  ['handed out reader', 'function read(m) { return C.prototype.has.call(m, 1); } save(read); return read(new Map());', [false]],
+  ['arguments', 'function read(m) { save(arguments); return C.prototype.has.call(m, 1); } return read(new Map());', [false]],
+  ['closed holder', 'const box = { m: new Map(), has: C.prototype.has }; return box.has.call(box.m, 1);', [true]],
+  ['handed out holder', 'const box = { m: new Map(), has: C.prototype.has }; save(box); return box.has.call(box.m, 1);', [false]],
+  ['getter on holder', 'const box = { m: new Map(), get x() { save(this); } }; void box.x; return C.prototype.has.call(box.m, 1);', [false]],
+  ['iterator', 'const m = new Map(); return C.prototype[Symbol.iterator].call(m).next();', [true]],
+  ['shadowed symbol', 'const Symbol = { iterator: "user" }; const m = new Map(); return C.prototype[Symbol.iterator].call(m);', [false]],
+  ['changed iterator', 'C.prototype[Symbol.iterator] = external; return C.prototype[Symbol.iterator].call(new Map());', [false]],
+  ['escaped peer method', `const a = new Map(), b = new Map(), get = Map.prototype.get;
+    C.prototype.has.call(a, 1); get.call(a, 1); get.call(b, 1); return [b, Map];`, [false, false]],
+  ['open result of copy', 'const box = { m: new Map() }; const alias = box; save(alias.m); return C.prototype.has.call(box.m, 1);', [false]],
+  ['opaque factory arm', 'function make(flag) { return flag ? new Map() : external; } return C.prototype.has.call(make(save()), 1);', [false]],
+  ['iterator through unknown', 'const m = new Map(); save(m); return C.prototype[Symbol.iterator].call(m);', [false]],
+  ['changed method', 'Object.defineProperty(C.prototype, "has", { get() { return external; } }); return C.prototype.has.call(new Map(), 1);', [false]],
+  ['known observer', `Object.defineProperty(C.prototype, 'has', { get() { return function () { return this instanceof C; }; } });
+    return C.prototype.has.call(new Map());`, [true]],
+  ['map get with unknown result type', 'return C.prototype.get.call(new Map(), 1);', [true]],
+  ['second use of this escapes', `Object.defineProperty(C.prototype, 'has', { get() {
+    return function () { return (this instanceof C) + this; };
+  } }); return C.prototype.has.call(new Map());`, [false]],
+  ['unknown descriptor', "Object.defineProperty(C.prototype, 'has', external); return C.prototype.has.call(new Map());", [false]],
+  ['instance hook', `Object.defineProperty(C, Symbol.hasInstance, { value: external });
+    const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [false]],
+  ['separate dynamic slot', 'const box = {}; box[external] = 1; const m = new Map(); C.prototype.has.call(m); return m instanceof C;', [true]],
+  ['reassigned separate slot', `let box = {}; Object.defineProperty(box, external, { get() { box = {}; return 1; } });
+    const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [true]],
+  ['numeric loop index', `function fill(box) { for (let i = 0; i < 3; i++) box[i] = external; } save(fill);
+    const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [true]],
+  ['possibly symbolic index', `let key = 0; if (save()) key = Symbol.hasInstance; C[key] = external;
+    const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [false]],
+  ['open default index', `function install(key = 0) { C[key] = external; } save(install);
+    const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [false]],
+  ['possibly shared slot', `let box = {}; if (save()) box = C; Object.defineProperty(box, external, { value: save });
+    const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [false]],
+  ['open default target', `function install(box = {}) { Object.defineProperty(box, external, { value: save }); }
+    save(install); const m = new Map(); C.prototype.has.call(m); return m instanceof C;`, [false]],
+  ['published receiver', `Object.defineProperty(C.prototype, 'has', { value: function () { return save(this); } });
+    return C.prototype.has.call(new Map());`, [false]],
+  ['intervening call', `Object.defineProperty(C.prototype, 'has', { value: function () { return this instanceof C; } });
+    save(); return C.prototype.has.call(new Map());`, [false]],
+]) runBoth(`borrowed collection flow/${ name }`, `function test(save, external) { const C = Map; ${ body } }`, (parser, program, label) => {
+  const root = program.node;
+  const disabled = root.body[0].body.body[0].declarations[0].init;
+  const { nativeRealmReads } = collectFileCensus(root, [escapedCtorReferencesReducer({
+    preserveRealmReads: true, isOptedOut: node => node === disabled,
+  })]);
+  const actual = [];
+  walkAstNodes({ root, visit(node) {
+    if (node.type === 'NewExpression') actual.push(!!nativeRealmReads?.(node.callee));
+  } });
+  checkDeep(label, actual, expected);
 });
 // Flat source with many local copies must not consume the JavaScript call stack.
 const copies = Array.from({ length: 2500 }, (_, i) => `const m${ i + 1 } = m${ i };`).join('\n');
