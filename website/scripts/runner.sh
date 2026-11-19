@@ -13,22 +13,22 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
 kill_old_build() {
-    if [ -f "$PID_FILE" ]; then
-        OLD_PID=$(cat "$PID_FILE")
-        # while the old build still holds the lock: once it is stopped, a waiting build may take it and write this file
-        rm -f "$PID_FILE"
+    # Only the lock holder removes its PID file, before releasing the lock in cleanup.
+    if OLD_PID=$(cat "$PID_FILE" 2>/dev/null) && ps -p "$OLD_PID" > /dev/null 2>&1 &&
+        [ "$(readlink "$LOCK_FILE")" = "$REPLACE_HOLDER" ]; then
+        REPLACE_HOLDER=
+        kill -TERM -"$OLD_PID"
+        echo "Previous build $OLD_PID in progress. Terminating..."
+        sleep 2
         if ps -p "$OLD_PID" > /dev/null 2>&1; then
-            kill -TERM -"$OLD_PID"
-            echo "Previous build $OLD_PID in progress. Terminating..."
-            sleep 2
-            if ps -p "$OLD_PID" > /dev/null 2>&1; then
-                kill -KILL -"$OLD_PID"
-                echo "PID $OLD_PID still alive, sending SIGKILL!"
-            fi
+            kill -KILL -"$OLD_PID"
+            echo "PID $OLD_PID still alive, sending SIGKILL!"
         fi
     fi
 }
 
+# The holder at entry may still be starting its child. Retry once its PID appears under that same lock.
+REPLACE_HOLDER=$(readlink "$LOCK_FILE")
 kill_old_build
 
 WAITED=0
@@ -50,6 +50,7 @@ until ln -s "$$" "$LOCK_FILE" 2>/dev/null; do
         echo "Another build holds the lock for too long, exit"
         exit 1
     else
+        [ "$HOLDER" = "$REPLACE_HOLDER" ] && kill_old_build
         [ "$WAITED" -eq 0 ] && echo "Build $HOLDER in progress, waiting..."
         sleep 5
         WAITED=$((WAITED + 5))

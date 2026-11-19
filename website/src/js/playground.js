@@ -1,4 +1,4 @@
-/* global Babel -- global scope directive */
+/* global Babel, getStoredItem, setStoredItem -- globals from the page */
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import { createPopper } from '@popperjs/core';
@@ -24,14 +24,6 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])`;
 
-const specSymbols = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  '\'': '&apos;',
-};
-
 let initialized = false;
 function init() {
   if (initialized) return;
@@ -48,11 +40,6 @@ function init() {
   const tooltipText = document.querySelector('#tooltip-text');
 
   if (!codeInput) return;
-
-  function writeResult(text, type = 'log') {
-    const serializedText = serializeLog(text).replaceAll(/["&'<>]/g, it => specSymbols[it]);
-    resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
-  }
 
   Babel.registerPlugin('playground-plugin', babel => {
     const { types: t } = babel;
@@ -85,6 +72,18 @@ function init() {
   });
 
   function runCode(code) {
+    // Formatting a value can run a getter that starts another run. Each console writes to its own node.
+    const output = document.createElement('div');
+    resultBlock.textContent = '';
+    resultBlock.appendChild(output);
+    function writeResult(text, type) {
+      if (!output.parentNode) return;
+      const line = document.createElement('div');
+      line.className = `console ${ type }`;
+      line.textContent = serializeLog(text);
+      output.appendChild(line);
+    }
+
     const origConsole = globalThis.console;
     const console = {
       log: (...args) => {
@@ -118,6 +117,8 @@ function init() {
   function serializeLog(value, visited = new WeakSet()) {
     if (typeof value == 'string') return JSON.stringify(value);
     if (typeof value == 'function') return `[Function ${ value.name || 'anonymous' }]`;
+    if (typeof value == 'bigint') return `${ value }n`;
+    if (Object.is(value, -0)) return '-0';
     if (typeof value != 'object' || value === null) return String(value);
 
     if (value instanceof Promise) {
@@ -238,12 +239,23 @@ function init() {
     }, time);
   }
 
-  codeInput.addEventListener('input', () => {
+  const sharedCode = pageParams.get('code');
+  codeInput.value = sharedCode ?? (getStoredItem('code') || defaultCode);
+  let lastSaved = sharedCode === null ? codeInput.value : null;
+
+  function highlightCode() {
     codeOutput.removeAttribute('data-highlighted');
     let val = codeInput.value;
     if (val.at(-1) === '\n') val += ' ';
     codeOutput.textContent = val;
     hljs.highlightElement(codeOutput);
+  }
+
+  highlightCode();
+  codeInput.addEventListener('input', () => {
+    // The user can restore this tab's original text after another tab saved a different draft.
+    lastSaved = null;
+    highlightCode();
   });
 
   codeInput.addEventListener('scroll', () => {
@@ -254,7 +266,6 @@ function init() {
   runButtons.forEach(runButton => {
     runButton.addEventListener('click', e => {
       e.preventDefault();
-      resultBlock.innerHTML = '';
       runCode(codeInput.value);
       if (!elementInViewport(resultBlock)) scrollToElement(resultBlock);
     });
@@ -274,26 +285,9 @@ function init() {
   });
 
   setInterval(() => {
-    localStorage.setItem('code', codeInput.value);
+    const code = codeInput.value;
+    if (code !== lastSaved && setStoredItem('code', code)) lastSaved = code;
   }, 2000);
-
-  codeOutput.textContent = codeInput.value;
-  hljs.highlightElement(codeOutput);
-  let event;
-  if (typeof Event === 'function') {
-    event = new Event('input', { bubbles: true });
-  } else {
-    event = document.createEvent('Event');
-    event.initEvent('input', true, true);
-  }
-  if (pageParams.has('code')) {
-    codeInput.value = pageParams.get('code');
-    codeInput.dispatchEvent(event);
-  } else {
-    const code = localStorage.getItem('code');
-    codeInput.value = code && code !== '' ? code : defaultCode;
-    codeInput.dispatchEvent(event);
-  }
 
   if (document.referrer !== '') {
     backLinkBlock.classList.add('active');

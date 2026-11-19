@@ -9,20 +9,20 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <script>
-      var theme = localStorage.getItem('theme');
-      if (theme === null) {
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          theme = 'theme-dark';
-        } else {
-          theme = 'theme-light';
-        }
+      function getStoredItem(key) {
+        try { return localStorage.getItem(key); } catch (error) { return null; }
       }
-      var html = document.querySelector('html');
+      function setStoredItem(key, value) {
+        try { localStorage.setItem(key, value); return true; } catch (error) { return false; }
+      }
+      var theme = getStoredItem('theme');
+      if (theme !== 'theme-light' && theme !== 'theme-dark') {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'theme-dark' : 'theme-light';
+      }
       setTheme(theme);
       function setTheme(theme) {
-        localStorage.setItem('theme', theme);
-        html.className = '';
-        html.classList.add(theme);
+        document.documentElement.className = theme;
+        setStoredItem('theme', theme);
       }
     </script>
     {core-js-bundle-esmodules}

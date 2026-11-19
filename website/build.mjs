@@ -20,7 +20,7 @@ const DEFAULT_VERSION = await getDefaultVersion(config.versionsFile, BRANCH);
 const LINKS_DEFAULT_VERSION = BRANCH ? '' : DEFAULT_VERSION;
 const HEADING_ID_PREFIX = 'h-';
 
-let htmlFileName = '';
+let pagePath = '';
 let docsMenu = '';
 let isBlog = false;
 let isDocs = false;
@@ -40,49 +40,32 @@ async function getAllMdFiles(dir) {
   return files;
 }
 
-async function buildDocsMenu(item) {
-  if (Object.hasOwn(item, 'children')) {
-    let result = `<li class="collapsible"><a href="#">${ item.title }</a><ul>`;
-    for (const child of item.children) {
-      result += await buildDocsMenu(child);
-    }
-    result += '</ul></li>';
-    return result;
-  }
+const docsMenus = new Map();
 
-  return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ LINKS_DEFAULT_VERSION }">${ item.title }</a></li>`;
-}
+async function getDocsMenu(version) {
+  if (docsMenus.has(version)) return docsMenus.get(version);
 
-const docsMenus = [];
-const docsMenuItems = [];
-
-async function getDocsMenuItems(version) {
-  if (docsMenuItems[version]) return docsMenuItems[version];
-
-  echo(chalk.green(`Getting menu items from file for version: ${ version }`));
   const jsonPath = BRANCH ? `${ config.docsDir }docs/menu.json` : `${ config.docsDir }${ version }/docs/menu.json`;
+  let items = [];
   try {
-    docsMenuItems[version] = await readJson(jsonPath);
-    return docsMenuItems[version];
+    items = await readJson(jsonPath);
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     echo(chalk.yellow(`Menu JSON file not found: ${ jsonPath }`));
-    return [];
   }
-}
 
-async function buildDocsMenuForVersion(version) {
-  if (docsMenus[version]) return docsMenus[version];
-
-  echo(chalk.green(`Building docs menu for version: ${ version }`));
-  const menuItems = await getDocsMenuItems(version);
-  if (!menuItems.length) return '';
-  let menu = '<ul><li>{versions-menu}</li>';
-  for (const item of menuItems) {
-    menu += await buildDocsMenu(item);
+  let firstUrl;
+  function render(item) {
+    if (Object.hasOwn(item, 'children')) {
+      return `<li class="collapsible"><a href="#">${ item.title }</a><ul>${ item.children.map(render).join('') }</ul></li>`;
+    }
+    firstUrl ||= item.url;
+    return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ LINKS_DEFAULT_VERSION }">${ item.title }</a></li>`;
   }
-  menu += '</ul>';
-  docsMenus[version] = menu;
+
+  const html = items.length ? `<ul><li>{versions-menu}</li>${ items.map(render).join('') }</ul>` : '';
+  const menu = { html, firstUrl };
+  docsMenus.set(version, menu);
   return menu;
 }
 
@@ -136,21 +119,33 @@ function stripTags(html) {
   return html.replaceAll(/<[^<>]*>/g, '');
 }
 
-// heading ids get a prefix, so an anchor written as on GitHub has to get it too
-function headingId(anchor) {
-  const id = anchor.toLowerCase();
-  return id.startsWith(HEADING_ID_PREFIX) ? id : HEADING_ID_PREFIX + id;
+function decodeUrlPart(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
-// an in-page anchor points to the current page
-function resolveAnchor(href) {
-  return `${ htmlFileName.replace('.html', '') }#${ headingId(href.slice(1)) }`;
+function docPath(url) {
+  const pathname = path.posix.normalize(decodeUrlPart(url.split(/[#?]/, 1)[0]));
+  return pathname.endsWith('/') ? `${ pathname }index` : pathname.replace(/\.html$/, '');
 }
 
-// a link to another page of the site keeps its path, its anchor is a heading id of that page
-function resolvePageAnchor(href) {
-  const index = href.indexOf('#');
-  return index === -1 ? href : `${ href.slice(0, index) }#${ headingId(href.slice(index + 1)) }`;
+// Only Markdown heading links carry the marker. Resolve them against the destination page, including its index alias.
+function resolveHeadingLinks(html, pages, indexes) {
+  return html.replaceAll(/href="(?<page>[^"#]*)#\0(?<slug>[^"]*)"/g, (_, page, slug) => {
+    const decoded = decodeUrlPart(slug);
+    const id = decoded.toLowerCase();
+    let prefix = HEADING_ID_PREFIX;
+    if (id.startsWith(prefix)) {
+      const target = docPath(page);
+      const headings = pages.get(indexes.get(target) ?? indexes.get(`${ target }/index`) ?? target)?.headings;
+      if (!headings?.has(prefix + id)) prefix = '';
+    }
+    const hash = decoded === slug || decoded === id ? slug.toLowerCase() : encodeURIComponent(id);
+    return `href="${ page }#${ prefix }${ hash }"`;
+  });
 }
 
 // no scheme, no protocol-relative host, not an anchor, a query or a placeholder
@@ -173,8 +168,8 @@ const linkRenderer = {
     // the lexed content, not its text parsed again: an autolink's text would turn into a link nested in the link
     const htmlContent = this.parser.parseInline(tokens);
     const inPage = href.startsWith('#');
-    if (inPage) href = resolveAnchor(href);
-    else if (href.startsWith('{docs-version}')) href = resolvePageAnchor(href);
+    if (inPage) href = pagePath + href;
+    if (inPage || href.startsWith('{docs-version}')) href = href.replace('#', '#\0');
     else if (fileMetadata.repoPath && isRelativePath(href)) href = resolveRepositoryPath(href);
     const isExternal = /^https?:\/\//.test(href);
     let html = `<a href="${ href }"`;
@@ -213,7 +208,7 @@ const ANCHOR_ICON = '<svg viewBox="0 0 16 16" version="1.1" width="16" height="1
 // the headings of the blog previews, which come to the blog index already rendered, stay without an anchor
 function headingWithAnchor({ id, level, text }) {
   return `<h${ level } id="${ id }" class="with-anchor">${ text }<a class="anchor with-docs-version" data-default-version="${
-    LINKS_DEFAULT_VERSION }" href="${ htmlFileName.replace('.html', '') }#${ id }">${ ANCHOR_ICON }</a></h${ level }>`;
+    LINKS_DEFAULT_VERSION }" href="${ pagePath }#${ id }">${ ANCHOR_ICON }</a></h${ level }>`;
 }
 
 function buildMenus(html) {
@@ -233,7 +228,7 @@ function buildMenus(html) {
     result += `<div class="table-of-contents sticky"><div class="container">${
       menuTrigger('toc-links', 'Table of contents') }<div class="toc-links" id="toc-links">
           ${ headings.map(({ id, text, level }) => `<div class="toc-link"><a href="${
-            htmlFileName.replace('.html', '') }#${ id }" class="h${
+            pagePath }#${ id }" class="h${
             level } with-docs-version scroll-to" data-hash="#${ id }" data-default-version="${ LINKS_DEFAULT_VERSION }">${
             // the rendered heading without its tags: `raw` is the source of the slug, without entities
             stripTags(text) }</a></div>`).join('\n') }
@@ -270,7 +265,7 @@ async function buildBlogMenu() {
       continue;
     }
     // the preview goes to the blog index, its in-page anchors have to point to the post page
-    htmlFileName = mdPath.replace(config.docsDir, '').replace(/\.md$/i, '.html');
+    pagePath = mdPath.slice(config.docsDir.length, -3);
     let htmlContent = await marked.parse(content);
     htmlContent = htmlContent.replace(/<h1[^>]*>.*?<\/h1>/i, '');
     const hrIndex = htmlContent.search(/<hr>/i);
@@ -293,11 +288,6 @@ async function buildBlogMenu() {
   echo(chalk.green(`File created: ${ blogIndexPath }`));
 
   return menu;
-}
-
-async function getVersionFromMdFile(mdPath) {
-  const match = mdPath.match(/\/web\/(?<version>[^/]+)\/docs\//);
-  return match?.groups?.version ?? DEFAULT_VERSION;
 }
 
 // what `{docs-version}/` of docs paths becomes: a branch build has one version and writes its pages without its directory
@@ -341,20 +331,15 @@ async function buildPlayground(template, version, versions) {
   }
 }
 
-async function createDocsIndexes(versions) {
-  if (BRANCH) versions = [{ path: '' }];
-
+async function getDocsIndexes(versions) {
+  const indexes = new Map();
   for (const version of versions) {
     if (version.default && versions.length > 1) continue;
-    const versionPath = version.path;
-    const menuItems = await getDocsMenuItems(versionPath);
-    if (!menuItems.length) continue;
-    const firstDocPath = path.join(config.resultDir,
-      `${ menuItems[0].url }.html`.replace('{docs-version}/', docsVersionPath(versionPath)));
-    const indexFilePath = path.join(config.resultDir, `${ versionPath }/docs/`, 'index.html');
-    await copy(firstDocPath, indexFilePath);
-    echo(chalk.green(`File created: ${ indexFilePath }`));
+    const prefix = docsVersionPath(version.path);
+    const { firstUrl } = await getDocsMenu(version.path);
+    if (firstUrl) indexes.set(`${ prefix }docs/index`, docPath(firstUrl.replace('{docs-version}/', prefix)));
   }
+  return indexes;
 }
 
 async function getVersions() {
@@ -392,6 +377,8 @@ async function build() {
   let currentVersion = '';
   let versionsMenu = '';
   let isChangelog;
+  const pages = new Map();
+  const indexes = await getDocsIndexes(versions);
   for (const mdPath of mdFiles) {
     const content = await readFile(mdPath, 'utf8');
     isDocs = mdPath.includes('/docs');
@@ -400,16 +387,16 @@ async function build() {
 
     const title = getTitle(content);
 
-    const versionFromMdFile = await getVersionFromMdFile(mdPath);
+    pagePath = mdPath.slice(config.docsDir.length, -3);
+    const versionFromMdFile = versions.find(version => pagePath.startsWith(`${ version.path }/docs/`))?.path ?? DEFAULT_VERSION;
     if (currentVersion !== versionFromMdFile) {
       currentVersion = versionFromMdFile;
-      docsMenu = await buildDocsMenuForVersion(currentVersion);
+      docsMenu = (await getDocsMenu(currentVersion)).html;
       versionsMenu = await buildVersionsMenu(versions, currentVersion, 'docs/');
     }
 
-    htmlFileName = mdPath.replace(config.docsDir, '').replace(/\.md$/i, '.html');
-    const htmlFilePath = path.join(config.resultDir, htmlFileName);
     const htmlContent = insertBlogPreviews(isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content));
+    const headings = new Set(getHeadingList().map(({ id }) => id));
 
     let resultHtml = template.replace('{content}', htmlContent.replaceAll('$', '&#36;'));
 
@@ -419,15 +406,22 @@ async function build() {
     resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{docs-version}/', docsVersionPath(currentVersion));
+    pages.set(pagePath, { html: resultHtml, headings });
+  }
 
+  for (const [page, { html }] of pages) {
+    const htmlFilePath = path.join(config.resultDir, `${ page }.html`);
+    const resultHtml = resolveHeadingLinks(html, pages, indexes);
     await mkdir(path.dirname(htmlFilePath), { recursive: true });
-
     await writeFile(htmlFilePath, resultHtml, 'utf8');
     echo(chalk.green(`File created: ${ htmlFilePath }`));
   }
 
   await buildPlaygrounds(template, versions);
-  await createDocsIndexes(versions);
+  for (const [index, source] of indexes) {
+    if (index === source && pages.has(source)) continue;
+    await copy(path.join(config.resultDir, `${ source }.html`), path.join(config.resultDir, `${ index }.html`));
+  }
 }
 
 await build();

@@ -53,7 +53,7 @@ function init() {
   const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
   const themeSwitcher = document.querySelector('.theme-switcher');
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
-  const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
+  const docsMenuItems = document.querySelectorAll('.docs-menu li > a.with-docs-version');
   const docsCollapsibleMenuItems = document.querySelectorAll('.docs-menu .docs-links ul > li.collapsible');
   const contentMenu = document.querySelector('.table-of-contents');
   const contentMenuTrigger = document.querySelector('.table-of-contents .mobile-trigger');
@@ -151,9 +151,9 @@ function init() {
       const defaultVersion = link.getAttribute('data-default-version');
       // the links of a branch build have no version
       if (!defaultVersion) return;
-      const re = new RegExp(`${ defaultVersion }/`);
-      const newLink = link.getAttribute('href').replace(re, '');
-      link.setAttribute('href', newLink);
+      const prefix = `${ defaultVersion }/`;
+      const href = link.getAttribute('href');
+      if (href.startsWith(prefix)) link.setAttribute('href', href.slice(prefix.length));
     });
   }
 
@@ -169,24 +169,23 @@ function init() {
   }
 
   function highlightActiveDocsMenuItem() {
-    if (!isDocsPage()) return;
+    if (!isDocsPage() || !docsMenuItems.length) return;
 
-    let found = false;
+    const pageUrl = href => href.split(/[#?]/, 1)[0].replace(/\.html$/, '');
+    const current = pageUrl(location.href);
     for (const link of docsMenuItems) {
-      const href = link.getAttribute('href');
-      if (href && href === currentPath) {
+      if (pageUrl(link.href) === current) {
         setActiveDocsMenuItem(link);
-        found = true;
-        break;
+        return;
       }
     }
 
-    !found && setActiveDocsMenuItem(docsMenuItems[0]);
+    setActiveDocsMenuItem(docsMenuItems[0]);
   }
 
   function openFirstCollapsibleMenuItem() {
     if (!isDocsPage()) return;
-    docsCollapsibleMenuItems[0].classList.add('active');
+    docsCollapsibleMenuItems[0]?.classList.add('active');
   }
 
   function highlightMainMenu() {
