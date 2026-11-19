@@ -8,8 +8,10 @@ import {
   planArrayWrapperCapture, planRetainedObjectCapture, renderArrayWrapperCapture, renderNestedKeyedPatternCapture, renderRetainedObjectCapture,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { planKeyedClaimCapture } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
+import { escapedCtorReferencesReducer } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import {
-  canSplitDestructureExport, collectFoldedReceiverSideEffects, literalDestructureSource, noteRelocatedHeadName, unwrapRuntimeExpr,
+  canSplitDestructureExport, collectFileCensus, collectFoldedReceiverSideEffects, literalDestructureSource,
+  literalIsFreshAtRead, noteRelocatedHeadName, unwrapRuntimeExpr,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { toHint } from '../../packages/core-js-polyfill-provider/resolve-node-type/base.js';
 import { createChecker, findNode } from './harness.mjs';
@@ -24,6 +26,25 @@ for (const [source, literal] of [
 ]) runBoth('only a literal wrapper supplies the pattern slots', `const { C } = ${ source };`, (parser, program, label) => {
   const { init } = parser.pickPath(program, 'VariableDeclarator').node;
   check(label, literalDestructureSource(init)?.type ?? null, literal);
+});
+
+for (const [body, fresh] of [
+  ['[1][0];', true],
+  ['const box = [1]; box[0]; box[0] = 5;', true],
+  ['const box = [1]; box[0] = 5; box[0];', false],
+  ['const box = [1]; change(); box[0]; function change() { box[0] = 5; }', false],
+  ['const box = [1]; box[0]; publish(box);', false],
+  ['const box = [1]; const alias = box; alias[0];', false],
+  ['const box = [1]; [1][0];', false],
+]) runBoth(`literal freshness/${ body }`, `function read() { ${ body } }`, (parser, program, label) => {
+  const literal = parser.pickPath(program, 'ArrayExpression').node;
+  const access = parser.pickPath(program, 'ExpressionStatement', path => path.node.expression.type === 'MemberExpression');
+  const path = access.get('expression').get('object');
+  collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
+    method: 'usage-pure', collectBindingReferences: parser.makeResolver().collectBindingReferences,
+  });
+  check(label, literalIsFreshAtRead(path.node, literal, { scope: path.scope, adapter, path }), fresh);
 });
 
 for (const [source, split] of [

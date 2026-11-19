@@ -1,9 +1,31 @@
 import { trustedBindingHint } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { resolveBindingToGlobal } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, runBoth, finish } = createChecker('trusted-binding-hint');
+const { check, checkDeep, checkTruthy, runBoth, finish } = createChecker('trusted-binding-hint');
+
+for (const [source, expected] of [
+  ['const base = Map; const target = base; target.slot;', 'Map'],
+  ['function f(Map) { const target = Map; target.slot; }', null],
+  ['let target = Map; target = user; target.slot;', null],
+  ['import target from "@core-js/pure/actual/global-this"; target.slot;', 'globalThis'],
+  ['import target from "user-package"; target.slot;', null],
+]) runBoth(`global binding/${ source }`, source, (parser, program, label) => {
+  const path = parser.pickPath(program, 'MemberExpression').get('object');
+  const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+  const seen = new Set(['outer']);
+  const query = { name: path.node.name, scope: path.scope, path, read: path.node, usageNode: path.node, adapter, seen };
+  check(`${ label }/lookup`, resolveBindingToGlobal(query), expected);
+  check(`${ label }/sibling with known binding`, resolveBindingToGlobal({ ...query, binding: adapter.getBinding(query) }), expected);
+  checkDeep(`${ label }/stack after both reads`, [...seen], ['outer']);
+  if (expected) {
+    seen.add(query.name);
+    check(`${ label }/active cycle`, resolveBindingToGlobal(query), null);
+    check(`${ label }/outer frame still owns the guard`, seen.has(query.name), true);
+  }
+});
 
 // Each provenance route still requires a usable registration and a completed write.
 const routes = [

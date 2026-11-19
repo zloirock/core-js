@@ -6,6 +6,7 @@ import {
   createPolyfillContext,
   entryToGlobalHint,
   hasConstructorEntry,
+  hasMemberDefinitionKey,
   hasNarrowEntry,
   hasNarrowEntryStaticKey,
   resolve,
@@ -15,7 +16,7 @@ import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plug
 import { createDetectionAdapter, enrichMutatedStatics } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
 import { adapters, createChecker } from './harness.mjs';
 
-const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
+const { check, checkDeep, checkTruthy, doesNotThrow, finish, runBoth, throwsWith } = createChecker('resolver');
 
 // --- resolve(meta): top-level meta dispatcher ---
 // API quirk: misses return `undefined` (not `null`). `kind: 'instance'` is NOT a
@@ -138,6 +139,14 @@ for (const [name, pure, global, constructor] of [
 for (const [key, expected] of [['groupBy', true], ['ownKeys', true], ['getPrototypeOf', true], ['trunc', false], ['fromEntries', false]]) {
   check(`hasNarrowEntryStaticKey/${ key }`, hasNarrowEntryStaticKey(key), expected);
 }
+
+for (const [key, expected] of [
+  ['at', true], ['withResolvers', true], ['__proto__', true],
+  ['Map', false], ['valueOf', false], ['userKey', false],
+]) runBoth(`member definition/${ key }`, `receiver.${ key };`, (parser, program, label) => {
+  const { property } = parser.pickPath(program, 'MemberExpression').node;
+  check(label, hasMemberDefinitionKey(property.name), expected);
+});
 
 // --- createPolyfillContext: top-level operations ---
 

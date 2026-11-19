@@ -1,7 +1,7 @@
 // A kept write preserves its stored value; a sequence keeps effects outside its chosen tail.
 // Source proofs and rewritten binding facts are independent inputs to the same decisions.
 import {
-  isPureNavReceiver, keptWriteRidesValue, navHopChain, runSwallowsStoreProbe,
+  isPureNavReceiver, keptWriteRidesValue, navHopChain, peelDeadChainMarker, runSwallowsStoreProbe,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { renderSubstitutedSequenceReceiver } from '../../packages/core-js-polyfill-provider/render.js';
 import { planKeptSequenceReceiver } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
@@ -123,18 +123,25 @@ for (const [expression, nav, keys, computed] of [
   check(`${ label }/computed`, !!result.computed, computed);
 });
 
-for (const [expression, expected] of [
+for (const plugins of [[], ['estree']]) for (const [expression, expected] of [
   ['globalThis?.self', ['self']],
   ['globalThis.self?.Array', ['self', 'Array']],
   ['globalThis.window?.self', []],
-]) runBoth(`guarded navigation shape/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
+  ['globalThis?.self as unknown', ['self']],
+  ['globalThis.window?.self as unknown', []],
+]) runBoth(`guarded navigation shape/${ plugins[0] ?? 'default' }/${ expression }`, `const result = ${ expression };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator').get('init');
   const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
   const before = JSON.stringify(path.node);
   const guardCtx = { resolvePure, aliasCtx: { adapter, scope: path.scope, path } };
+  const chain = path.node.type === 'TSAsExpression' ? path.node.expression : path.node;
+  const marked = parser.name === 'oxc' || plugins.includes('estree');
+  check(`${ label }/parser shape`, chain.type, marked ? 'ChainExpression' : 'OptionalMemberExpression');
+  check(`${ label }/marker with proof`, peelDeadChainMarker(path.node, guardCtx), marked && expected.length ? chain.expression : path.node);
+  check(`${ label }/marker without proof`, peelDeadChainMarker(path.node), path.node);
   checkDeep(`${ label }/source hop keys`, navHopChain(path.node, guardCtx).keys, expected);
   check(`${ label }/source untouched`, JSON.stringify(path.node), before);
-});
+}, plugins);
 
 for (const [expression, landing, prefix = ''] of [
   ['(first(), (second(), globalThis.self))?.custom', 'self'],

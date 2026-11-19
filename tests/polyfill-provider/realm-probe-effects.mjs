@@ -6,11 +6,12 @@ import {
   destructureProbePlan,
   discardRescueNodes,
   effectfulClaimReadProbe,
+  effectfulRealmHop,
   foldableRealmHop,
   resolveKey,
   terminalNavCollapsePlan,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { markRenderedProbeRead, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { markRenderedProbeRead, memberKeepsReceiverThrow, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
@@ -23,6 +24,21 @@ function context(parser, path, method = 'usage-pure') {
 function resolvePure({ name }) {
   return ['globalThis', 'self', 'Promise'].includes(name) ? { entry: name, hintName: name } : null;
 }
+for (const [expression, keepsThrow, effectfulHop] of [
+  ['globalThis.self', true, false],
+  ['globalThis["self"]', true, false],
+  ['globalThis?.self', false, false],
+  ['globalThis[key]', false, false],
+  ['globalThis[(touch(), key)]', false, true],
+  ['globalThis?.[(touch(), "window")]', false, true],
+  ['globalThis[(touch(), "user")]', false, false],
+  ['globalThis()', false, false],
+]) runBoth(`realm member/${ expression }`, `const key = "self"; const value = ${ expression };`, (parser, program, label) => {
+  const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'value').get('init');
+  const node = unwrapRuntimeExpr(path.node);
+  check(`${ label }/retains receiver throw`, memberKeepsReceiverThrow(node), keepsThrow);
+  check(`${ label }/effectful realm key`, effectfulRealmHop(node, context(parser, path)), effectfulHop);
+});
 for (const [value, expected] of [
   ['held = globalThis.self', true], ['held = globalThis["self"]', true],
   ['held = globalThis', false], ['held = globalThis.user', false],
