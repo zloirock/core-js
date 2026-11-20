@@ -5,4 +5,5 @@
 import _Set from '@core-js/pure/actual/set';
 const s = new _Set();
 const x = arr?.flat?.();
+const captured = getArr()?.flat?.();
 const y = str?.padStart(8);

@@ -555,6 +555,13 @@ export default function createPlugin(options) {
   // `isChunkLoaderBundler` for the bundler set + rationale)
   const isWebpack = isChunkLoaderBundler(bundler);
 
+  // Reserve the generation before parsing so a declined pre also supersedes its predecessor.
+  function beginSnapshot(id, environment, request) {
+    const entry = {};
+    snapshots.store(id, entry, environment, request);
+    return entry;
+  }
+
   function runTransform(code, id, pass = 'single', environment = '', hostOptions = {}) {
     try {
       // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
@@ -597,6 +604,7 @@ export default function createPlugin(options) {
     // missing polyfill rather than a dangling reference - it keeps deferring so post emits the
     // canonical merged side-effect block once
     const deferImports = pass === 'pre' && method !== 'usage-pure';
+    const pending = pass === 'pre' ? beginSnapshot(id, environment, hostOptions.request) : null;
     let inherit = null;
     // did the inherited pre-pass actually rewrite the source (and thus emit a content-bearing
     // map)? a no-op pre (usage-global detection only) emits no map, so post must NOT chain
@@ -626,7 +634,9 @@ export default function createPlugin(options) {
     // can bail without leaking pre's deferred imports. `snapshots.take(id)` commits only AFTER
     // the disable check passes - bail paths leave the snapshot intact for a subsequent retry
     if (pass === 'post') {
-      const stored = snapshots.peek(id, environment);
+      const stored = snapshots.peek(id, environment, hostOptions.request);
+      hostOptions.requires = stored.requires?.slice();
+      hostOptions.stale = stored.stale;
       inherit = stored.snapshot;
       inheritedPreRewrote = stored.preRewroteSource;
       inheritedMutatedStatics = stored.mutatedStatics;
@@ -679,7 +689,7 @@ export default function createPlugin(options) {
     // commit the peeked snapshot now that disable-check passed. the entire-file-disabled bail
     // and the fatal-parse bail both keep the snapshot in cache so a retry (sibling-plugin re-
     // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
-    if (pass === 'post') snapshots.take(id, environment);
+    if (pass === 'post') snapshots.take(id, environment, hostOptions.request);
 
     // Usage builds scopes up front. Entry prepares only if its prefix extraction needs scopes.
     // Only TS parser languages can produce signatures whose patterns the crawler cannot walk.
@@ -1127,7 +1137,7 @@ export default function createPlugin(options) {
         const inputMap = readInputSourceMap(comments, id);
         // Report only the finalized dependency registry, after pure-import pruning. The host
         // validates external require protocols against its actual resolution and output format.
-        if (hostOptions.onRequire && importStyle === 'require') {
+        if (hostOptions.onRequire && !deferImports && importStyle === 'require') {
           for (const moduleName of injector.globalImports) {
             hostOptions.onRequire(resolveImportPath(injector.globalImportPackages.get(moduleName) ?? injector.pkg,
               `modules/${ moduleName }`, injector.absoluteImports), false);
@@ -1161,11 +1171,12 @@ export default function createPlugin(options) {
       // state, never its tree - emission mutates that tree in place and only the detection
       // conveniences carry an undo ledger, so post re-parses its own input
       function storeAstPreSnapshot(preRewroteSource) {
-        snapshots.store(id, {
+        Object.assign(pending, {
           snapshot: injector.snapshot(),
           preRewroteSource,
           mutatedStatics,
-        }, environment);
+          requires: hostOptions.requires,
+        });
       }
       if (method === 'entry-global') return runEntryGlobal();
 
@@ -1616,6 +1627,7 @@ export default function createPlugin(options) {
   return {
     name: 'core-js-unplugin',
     transform: runTransform,
+    beginSnapshot,
     // released by the unplugin wrapper in `buildEnd` to bound snapshot retention in
     // long-running dev servers where a pre pass ran but the matching post was skipped
     // (tree-shake, sibling bail, module invalidation)

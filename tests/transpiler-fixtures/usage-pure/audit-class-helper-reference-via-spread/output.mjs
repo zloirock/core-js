@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-// a class extends a polyfillable base and uses rest-pattern spread that downstream
-// transforms lower into a helper call. globals referenced by the injected helper code
-// (Promise / Array) must also get their pure-mode polyfills emitted, same as any
-// hand-written reference to those identifiers
+// Source pass over a class with async and spread. A separate phase test lowers the class
+// between hooks and checks the polyfill used by the emitted async helper.
 class X extends _Promise {
   async m() {
     const arr = [...args];

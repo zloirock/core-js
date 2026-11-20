@@ -53,14 +53,12 @@ export function verifyInNode(code, label, ext = '.mjs') {
   return verifyResult(code, label, '[results.clamp, results.cooked]', [4, 'hello'], ext);
 }
 
-// The sibling's injected call must be rewritten by post; a native join would pass on Node.
-// Bundlers rename and wrap helper bindings differently, so check for the surviving raw call.
+// The sibling adds Array#at between the two passes. Execute its result without the native method.
 export async function verifyPhases(code, label, ext = '.mjs') {
-  await verifyResult(code, label, '[results.patched, results.control, mod.injected ?? results.injected]',
-    ['patched', 4, 'sib'], ext);
-  if (/\[\s*(?<q1>["'])s\k<q1>\s*,\s*(?<q2>["'])ib\k<q2>\s*\]\s*\.\s*join\s*\(/u.test(code)) {
-    throw new Error(`${ label }: sibling-injected call was left unpolyfilled`);
-  }
+  const expression = '[results.patched, results.control, mod.injected ?? results.injected]';
+  const expected = ['patched', 4, 'sib'];
+  await verifyResult(code, label, expression, expected, ext);
+  return verifyResult(code, label, expression, expected, ext, true);
 }
 
 // The lazy body must run through the bundler's loader and own its polyfills without natives.

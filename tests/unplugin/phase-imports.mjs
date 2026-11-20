@@ -1,6 +1,16 @@
 // Every fixture must retain its imports across pre+post. No known phase deltas remain.
 export const KNOWN_PHASE_IMPORT_DIFFERENCES = new Map();
 
+// A measured two-pass transform must run both public hooks around its sibling.
+export function selectTransformStages(plugins, filename, phase) {
+  const stages = plugins.filter(stage => stage.transformInclude(filename));
+  if (!stages.length || (phase === 'pre+post'
+    && (stages.length !== 2 || stages[0].enforce !== 'pre' || stages[1].enforce !== 'post'))) {
+    throw new Error(`Expected ${ phase } stages for ${ filename }, got ${ stages.map(stage => stage.enforce).join(', ') || 'none' }`);
+  }
+  return stages;
+}
+
 // Both passes use one plugin and filename, including when pre abstains or emits empty code.
 export function transformPrePost(plugin, source, id) {
   const pre = plugin.transform(source, id, 'pre');

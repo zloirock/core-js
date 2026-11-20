@@ -1,5 +1,5 @@
-// Pre-pass injects `_Array$from`; post-pass must still recognise it as the array constructor source.
-// Receiver narrowing on the alias-stored result must survive the dedup boundary across passes.
+// The array returned by Array.from narrows the following instance reads. A phase test
+// introduces another read on xs after pre has replaced Array.from with an import.
 const xs = Array.from('abc');
 const e = xs.entries();
 const k = xs.keys();

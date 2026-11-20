@@ -46,6 +46,24 @@ for (const host of ['vite', 'rolldown', 'webpack', 'rspack']) for (const phase o
   }
   check(`${ host }/${ phase }/changed source clears metadata`, info.coreJSRequires?.length ?? 0, 0);
 }
+// Post must carry the current pre's require as well as its own freshly introduced one.
+for (const host of ['vite', 'rolldown', 'webpack', 'rspack']) {
+  const [pre, post] = unplugin.raw({ method: 'usage-pure', phase: 'pre+post', targets: { ie: 11 } }, { framework: host });
+  const info = {};
+  const context = {
+    getModuleInfo() { return { meta: info }; },
+    getNativeBuildContext() { return { loaderContext: { _module: { type: 'javascript/auto', buildInfo: info } } }; },
+  };
+  const id = '/both.cjs';
+  const first = (pre.transform.handler ?? pre.transform).call(context, 'module.exports = [1].at(0);', id);
+  Object.assign(info, first.meta);
+  const last = (post.transform.handler ?? post.transform).call(context, `${ first.code }\nmodule.exports = Array.from("a");`, id);
+  Object.assign(info, last.meta);
+  check(`${ host }/current require from each stage`, JSON.stringify(info.coreJSRequires), JSON.stringify([
+    ['@core-js/pure/actual/array/instance/at', true], ['@core-js/pure/actual/array/from', true],
+  ]));
+}
+
 for (const [format, platform, code, reject] of [
   ['es', 'neutral', 'const r = 1;', true], ['cjs', 'neutral', '', false],
   ['es', 'node', '', false], ['es', 'neutral', 'const require = loader;', false],

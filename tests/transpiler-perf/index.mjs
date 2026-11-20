@@ -18,6 +18,7 @@ import { transform as lower } from 'esbuild';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import unplugin from '../../packages/core-js-unplugin/index.js';
 import { censusWalkTruncations } from '../../packages/core-js-polyfill-provider/detect-usage/mutations.js';
+import { selectTransformStages } from '../unplugin/phase-imports.mjs';
 import { APPLICATIONS, applicationSource } from './applications.mjs';
 
 const { cyan, green, red, yellow } = chalk;
@@ -732,10 +733,8 @@ function createTransform(emitter, mode, {
     };
     return async source => (await transformAsync(source, config)).code;
   }
-  const stages = unplugin.raw({ ...options, phase }, { framework: 'vite' }).filter(stage => stage.transformInclude(filename));
-  if (!stages.length) throw new Error(`Public stages rejected ${ filename }`);
+  const stages = selectTransformStages(unplugin.raw({ ...options, phase }, { framework: 'vite' }), filename, phase);
   function transformStage(stage, code) {
-    if (!stage.transformInclude(filename)) throw new Error(`Public stage rejected ${ filename }`);
     return stage.transform(code, filename)?.code ?? code;
   }
   if (lowering) return async source => {

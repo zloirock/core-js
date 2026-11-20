@@ -5,6 +5,8 @@ import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start
 // `flat` / `padStart` get their own canonical paths. `_ref`-emitting optional-chain
 // rewrite must allocate a fresh ref past the import header.
 import _Set from '@core-js/pure/actual/set';
+var _ref;
 const s = new _Set();
 const x = arr == null ? void 0 : _flatMaybeArray(arr)?.call(arr);
+const captured = null == (_ref = getArr()) ? void 0 : _flatMaybeArray(_ref)?.call(_ref);
 const y = str == null ? void 0 : _padStartMaybeString(str).call(str, 8);

@@ -1467,12 +1467,38 @@ function checkSnapshotHMRMultiTimestamp() {
 }
 checkSnapshotHMRMultiTimestamp();
 
+for (const [label, a, b, hit] of [
+  ['empty timestamp is user input', '/s.js?vue&t=', '/s.js?vue', false],
+  ['repeated query order', '/s.js?k=a&k=b', '/s.js?k=b&k=a', false],
+  ['different keys may move', '/s.js?k=a&t=5&z=1&k=b', '/s.js?z=1&k=a&k=b', true],
+  ['remote share and local path', '\\\\host\\share\\s.js', '/host/share/s.js', false],
+  ['network URL and UNC', 'file://HOST/share/s.js', '\\\\host\\share\\s.js', true],
+  ['extended UNC', '\\\\?\\UNC\\HOST\\share\\s.js', 'file://host/share/s.js', true],
+  ['local file URL with one slash', 'file:/src/a%20b.js', '/src/a b.js', true],
+  ['encoded POSIX backslash is not a separator', 'file:///src/a%5Cb.js', '/src/a/b.js', false],
+  ['encoded space', 'file:///src/a%20b.js', '/src/a b.js', true],
+  ['literal percent', 'file:///src/a%20b.js', '/src/a%20b.js', false],
+  ['encoded separator', 'file:///src/a%2Fb.js', '/src/a/b.js', false],
+  ['escaped hash in directory', 'file:///C%23/a.js', '/C#/a.js', true],
+]) check(`snapshot/${ label }`, probeSnapshotHit(a, b), hit);
+
+for (const [id, admitted] of [
+  ['file:///src/a.js#route/child', true], ['file:///src/a.png#route/a.js', false],
+  ['file:///src/a.js#route/child?commonjs-proxy', true], ['file:///src/a.js?commonjs-proxy#route/child', false],
+  ['file:///src/a.js#route/child?commonjsExternal', true], ['file:///src/a.js?x?commonjsExternal', false],
+  ['file:/src/a.js#router/route', true], ['file:///src/a.js#router/route?url', true], ['/src/C#/a.js', true],
+]) check(`admission/fragment/${ id }`, shouldTransform(id), admitted);
+
+const hashFileCache = new SnapshotCache();
+hashFileCache.store('file:///src/a%23b.js?x#first', { tag: 1 });
+hashFileCache.store('file:///src/a%23b.js?x#second', { tag: 2 }, 'ssr');
+hashFileCache.store('/src/a.js', { tag: 3 });
+check('watch invalidates decoded hash path', hashFileCache.invalidate('file:///src/a%23b.js'), true);
+check('watch invalidates all variants only', hashFileCache.size(), 1);
+check('watch preserves neighboring file', hashFileCache.take('/src/a.js')?.tag, 3);
+
 // --- SnapshotCache: file://localhost authority ---
-// some bundlers / Node URL helpers serialize file URLs with an explicit `localhost` host
-// per RFC 3986 instead of the canonical triple-slash form. without the optional host
-// segment in VITE_SCHEME_PREFIX_RE the prefix wouldn't strip and `file://localhost/...`
-// stayed distinct from `/...` -> snapshot lookup miss across pre+post pipelines that
-// normalize file URLs differently
+// A localhost authority names the local filesystem, including with an upper-case scheme.
 function checkSnapshotFileLocalhost() {
   check('snapshot/file://localhost matches triple-slash form',
     probeSnapshotHit('file://localhost/abs/foo.js', 'file:///abs/foo.js'), true);
@@ -1487,9 +1513,7 @@ function checkSnapshotFileLocalhost() {
   // `//` so non-`localhost` authorities pass through untouched
   check('snapshot/file://otherhost authority rejected (different paths)',
     probeSnapshotHit('file://otherhost/abs/foo.js', '/abs/foo.js'), false);
-  // four-slash file URL `file:////abs/path` (Windows-friendly absolute) - prefix strips
-  // the `file://`, leaves `//abs/path`, REPEATED_SLASHES_RE collapses to `/abs/path`
-  check('snapshot/file:/// quad-slash collapses via REPEATED_SLASHES_RE',
+  check('snapshot/file:/// quad-slash names a local path',
     probeSnapshotHit('file:////abs/quad.js', '/abs/quad.js'), true);
 }
 checkSnapshotFileLocalhost();
@@ -3302,13 +3326,20 @@ function checkLifecycleHookAttachment() {
   check('lifecycle/pre+post yields two subs', prePost.length, 2);
   check('lifecycle/hooks on the LAST sub only (pre sub has none)', typeof prePost[0].buildEnd, 'undefined');
   check('lifecycle/last sub carries buildEnd', typeof prePost.at(-1).buildEnd, 'function');
-  // calling the hooks drives plugin.reset() / invalidateSnapshot() without throwing
-  let threw = false;
-  try {
-    prePost.at(-1).buildEnd();
-    prePost.at(-1).watchChange('/some-file.js');
-  } catch { threw = true; }
-  check('lifecycle/hooks drain snapshot state without throwing', threw, false);
+  const [pre, post] = unplugin.raw({ method: 'usage-global', phase: 'pre+post', targets: { ie: 11 } }, { framework: 'vite' });
+  const ids = ['/first.js', '/second.js'];
+  function warm() {
+    for (const id of ids) pre.transform('[1].at(0);', id);
+  }
+  function retained(id) {
+    return post.transform('export default 0;', id)?.code.includes('es.array.at') ?? false;
+  }
+  warm();
+  post.watchChange(ids[0]);
+  checkDeep('lifecycle/watch drops only the changed file', ids.map(retained), [false, true]);
+  warm();
+  post.buildEnd();
+  checkDeep('lifecycle/build end drops both files', ids.map(retained), [false, false]);
 }
 checkLifecycleHookAttachment();
 

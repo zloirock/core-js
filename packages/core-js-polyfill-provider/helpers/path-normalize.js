@@ -24,10 +24,13 @@ export function stripQueryHash(id) {
   const offset = uncPrefixOffset(id);
   const query = id.indexOf('?', offset);
   const end = query === -1 ? id.length : query;
-  // Bundlers pass filesystem paths: a hash in a directory name is not a fragment.
-  // Query values may themselves contain slashes, so inspect only the path before `?`.
+  const firstHash = id.indexOf('#', offset);
+  if (firstHash === -1 || firstHash >= end) return id.slice(0, end);
+  // A file URL's fragment is opaque, even when it contains a slash. Filesystem ids
+  // can have a literal hash in a directory name. Ignore slashes inside query values.
+  if (/^(?:\/@id\/|\/@fs(?=\/))*file:/i.test(id)) return id.slice(0, firstHash);
   const separator = Math.max(id.lastIndexOf('/', end - 1), id.lastIndexOf('\\', end - 1));
-  const hash = id.indexOf('#', Math.max(offset, separator + 1));
+  const hash = firstHash > separator ? firstHash : id.indexOf('#', separator + 1);
   return id.slice(0, hash === -1 ? end : Math.min(end, hash));
 }
 

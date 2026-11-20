@@ -16,13 +16,13 @@ import {
 // `pre` such an id still holds the author's markup, at `post` the JavaScript they turned it into.
 // It is the only phase-dependent input here; every other rule is a language fact of the id.
 export function shouldTransform(id, enforce = 'pre') {
-  // `\0` marks virtual modules; `?commonjs-*` / `?commonjsExternal` are Rollup commonjs-plugin proxy /
-  // external bodies. these are raw-id guards (the commonjs markers are anchored to the first `?` and
-  // `\0` can sit mid-id), kept verbatim rather than folded into the structured query parse
-  if (id.includes('\0') || id.includes('?commonjs-') || id.includes('?commonjsExternal')) return false;
+  if (id.includes('\0')) return false;
   const compiled = enforce === 'post';
   const parsed = parseModuleId(id);
-  const { path, params } = parsed;
+  const { path, params, hash } = parsed;
+  // Rollup appends these markers to proxy module ids. A fragment can contain the same text.
+  const resource = hash ? id.slice(0, -hash.length) : id;
+  if (resource.includes('?commonjs-') || resource.includes('?commonjsExternal')) return false;
   // Vite asset imports: resolved body isn't user JS even if the path looks like one
   if (isViteAssetQuery(params)) return false;
   // a real JS/TS source file by extension, `.d.ts` declarations excluded - the language canon
@@ -74,42 +74,40 @@ const unplugin = createUnplugin((options, meta) => {
   const webpackLike = bundler === 'webpack' || bundler === 'rspack' || bundler === 'rsbuild';
   const externalESM = bundler === 'vite' || bundler === 'rolldown';
   let viteCacheRoot;
+  let viteServe = false;
 
   function stage(enforce, pass, compiledOnly = false) {
     const admissionPhase = PRE_POST_UNSAFE_BUNDLERS.has(bundler) ? 'pre' : enforce;
-    function include(id) {
+    function include(id, filePhase = admissionPhase) {
       return (!viteCacheRoot || !stripQueryHash(id).replaceAll('\\', '/').startsWith(viteCacheRoot))
-        && shouldTransform(id, admissionPhase) && (!compiledOnly || !shouldTransform(id, 'pre'));
+        && shouldTransform(id, filePhase) && (!compiledOnly || !shouldTransform(id, 'pre'));
+    }
+    // Vite 6+ names the environment; earlier versions distinguish SSR via hook options.
+    function environmentOf(context, hookOptions) {
+      return context?.environment?.name ?? (hookOptions?.ssr ? 'ssr' : '');
     }
     // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
     // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
     // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
     function transform(code, id, hookOptions) {
-      // Vite runs ONE plugin instance across several environments (client / ssr / custom): the same
-      // id, the same object, independent pipelines - so the pre-to-post snapshot must be partitioned
-      // by them or one environment's state lands in another's output. Vite 6+ names the environment
-      // on the hook context and covers the custom ones; older Vite only flags `options.ssr`. every
-      // other host runs a single pipeline (webpack's loader passes no third argument at all) and
-      // shares the default bucket
-      const environment = this?.environment?.name ?? (hookOptions?.ssr ? 'ssr' : '');
+      const environment = environmentOf(this, hookOptions);
       const moduleType = webpackLike ? webpackModuleType(this) : undefined;
       if (moduleType === null) return null;
-      let requires;
-      const onRequire = webpackLike || externalESM || hookOptions?.validateRequires
-        ? (source, value) => { (requires ??= []).push([source, value]); } : null;
-      const result = plugin.transform.call(this, code, id, pass, environment, { moduleType, loader: hookOptions?.loader, onRequire });
-      // Dependency metadata survives the host's module cache. Post adds to pre's obligations;
-      // a fresh source transform replaces them, including when it no longer injects anything.
-      const followsPre = resolvedPhase === 'pre+post' && pass === 'post';
+      // Vite dev gives all transform hooks of one request the same context, even if another
+      // generation of this module finishes first. Build hosts pair phases by module id.
+      const host = { moduleType, loader: hookOptions?.loader, request: viteServe ? this : undefined };
+      if (webpackLike || externalESM || hookOptions?.validateRequires) {
+        host.onRequire = (source, value) => { (host.requires ??= []).push([source, value]); };
+      }
+      const result = plugin.transform.call(this, code, id, pass, environment, host);
+      const { requires } = host;
       if (webpackLike) {
         const { _module: module } = this?.getNativeBuildContext?.().loaderContext ?? {};
-        const info = module?.buildInfo;
-        if (info) info.coreJSRequires = followsPre ? [...info.coreJSRequires ?? [], ...requires ?? []] : requires;
-      } else if (externalESM) {
-        const previous = this?.getModuleInfo?.(id)?.meta.coreJSRequires;
-        if (requires || previous) return {
+        if (module?.buildInfo) module.buildInfo.coreJSRequires = requires;
+      } else if (externalESM && !host.stale && (requires || this?.getModuleInfo?.(id)?.meta.coreJSRequires?.length)) {
+        return {
           ...result ?? { code, map: null },
-          meta: { coreJSRequires: followsPre ? [...previous ?? [], ...requires ?? []] : requires ?? [] },
+          meta: { coreJSRequires: requires ?? [] },
         };
       }
       // eslint-disable-next-line promise/prefer-await-to-then -- only esbuild is async; keep other transform hooks synchronous
@@ -121,7 +119,18 @@ const unplugin = createUnplugin((options, meta) => {
       transformInclude: include,
       // Optimized dependency chunks can contain core-js itself. Their generated paths no
       // longer carry package ownership, and Vite owns their already-bundled dependency graph.
-      vite: { configResolved(config) { viteCacheRoot = `${ config.cacheDir.replaceAll('\\', '/').replace(/\/$/, '') }/`; } },
+      vite: {
+        configResolved(config) {
+          viteCacheRoot = `${ config.cacheDir.replaceAll('\\', '/').replace(/\/$/, '') }/`;
+          viteServe = config.command === 'serve';
+        },
+        ...pass === 'pre' && { transform(code, id, hookOptions) {
+          if (include(id)) return transform.call(this, code, id, hookOptions);
+          // The component compiler owns the raw source. Remember only which dev request
+          // arrived so its late post cannot publish metadata over a newer compile.
+          if (viteServe && include(id, 'post')) plugin.beginSnapshot(id, environmentOf(this, hookOptions), this);
+        } },
+      },
       // rollup / rolldown ignore the vite-style top-level `enforce` (upstream maps it for
       // webpack-family rules, farm priorities and vite's plugin sorting, but its rollup
       // conversion leaves the field foreign) - without ordering, `pre+post` degenerates to two
