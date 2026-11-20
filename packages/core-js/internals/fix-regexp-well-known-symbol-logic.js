@@ -11,6 +11,17 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var SPECIES = wellKnownSymbol('species');
 var RegExpPrototype = RegExp.prototype;
 
+// Firefox 49-52 accepts a symbol in the RegExpCreate fallback of match and search.
+var hasCorrectSymbolFallback = function (method, symbol) {
+  if (typeof symbol != 'symbol') return true;
+  try {
+    ''[method](symbol);
+  } catch (error) {
+    return error instanceof TypeError;
+  }
+  return false;
+};
+
 module.exports = function (KEY, exec, FORCED, SHAM) {
   var SYMBOL = wellKnownSymbol(KEY);
 
@@ -52,13 +63,7 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
 
   FORCED = !DELEGATES_TO_SYMBOL || !DELEGATES_TO_EXEC || FORCED;
 
-  if (
-    FORCED ||
-    // Firefox 49-52 accepts Symbols in the RegExpCreate fallback
-    (KEY === 'match' || KEY === 'search') && typeof SYMBOL == 'symbol' && !fails(function () {
-      ''[KEY](SYMBOL);
-    })
-  ) {
+  if (FORCED || (KEY === 'match' || KEY === 'search') && !hasCorrectSymbolFallback(KEY, SYMBOL)) {
     var nativeRegExpMethod = /./[SYMBOL];
     var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2, forceStringMethod) {
       var $exec = regexp.exec;

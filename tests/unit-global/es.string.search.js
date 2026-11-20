@@ -74,6 +74,7 @@ QUnit.test('String#search regression', assert => {
 
   assert.throws(() => ''.search.call(Symbol('search test'), /./), 'throws on symbol context');
   assert.throws(() => ''.search(Symbol('search test')), TypeError, 'throws on symbol argument');
+  assert.throws(() => ''.search(Symbol.search), TypeError, 'throws on Symbol.search');
 
   // a regex-like argument without `@@search` is converted to a string, not read as a regex
   const regExpLike = { source: 'b', toString() { return 'a'; } };

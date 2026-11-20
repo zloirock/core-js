@@ -1943,7 +1943,7 @@ export const data = {
   },
   'es.string.match': {
     chrome: '51',
-    firefox: '49',
+    firefox: '53', // '49', https://bugzilla.mozilla.org/show_bug.cgi?id=1317309
     hermes: '0.1',
     rhino: '1.9.0',
     safari: '10.0',
@@ -2005,7 +2005,7 @@ export const data = {
   },
   'es.string.search': {
     chrome: '51',
-    firefox: '49',
+    firefox: '53', // '49', https://bugzilla.mozilla.org/show_bug.cgi?id=1317309
     hermes: '0.1',
     rhino: '1.9.0',
     safari: '10.0',

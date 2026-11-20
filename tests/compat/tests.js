@@ -134,6 +134,17 @@ var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
   return Symbol['for'] && Symbol.keyFor;
 }];
 
+// Firefox 49-52 accepts a symbol in the RegExpCreate fallback of match and search.
+var hasCorrectSymbolFallback = function (method, symbol) {
+  if (typeof symbol != 'symbol') return true;
+  try {
+    ''[method](symbol);
+  } catch (error) {
+    return error instanceof TypeError;
+  }
+  return false;
+};
+
 var ACCEPTS_INVALID_URL = function (input) {
   try {
     return !!new URL(input);
@@ -1686,7 +1697,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     re[Symbol.match]('');
 
     // eslint-disable-next-line regexp/prefer-regexp-exec -- required for testing
-    return ''.match(O) === 7 && execCalled;
+    return ''.match(O) === 7 && execCalled && hasCorrectSymbolFallback('match', Symbol.match);
   },
   'es.string.match-all': function () {
     try {
@@ -1750,7 +1761,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     };
     re[Symbol.search]('');
 
-    return ''.search(O) === 7 && execCalled;
+    return ''.search(O) === 7 && execCalled && hasCorrectSymbolFallback('search', Symbol.search);
   },
   'es.string.split': function () {
     var O = {};

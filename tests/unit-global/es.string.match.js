@@ -173,6 +173,7 @@ QUnit.test('String#match regression', assert => {
 
   assert.throws(() => ''.match.call(Symbol('match test'), /./), 'throws on symbol context');
   assert.throws(() => ''.match(Symbol('match test')), TypeError, 'throws on symbol argument');
+  assert.throws(() => ''.match(Symbol.match), TypeError, 'throws on Symbol.match');
 });
 
 QUnit.test('RegExp#@@match appearance', assert => {
