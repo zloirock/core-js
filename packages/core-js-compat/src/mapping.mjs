@@ -433,6 +433,7 @@ export default {
     [151, 101],
     [152, 102],
     [154, 103],
+    [156, 104],
   ],
   // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/
