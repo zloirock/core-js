@@ -7,7 +7,8 @@ import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
 import { makeBabelPlugin } from './babel.mjs';
 import { pluginOpts } from './cells.mjs';
-import { HERE, NODE_MODULES, isCoreJsModule, isWorkspaceCoreJsModule, toPosix } from './paths.mjs';
+import { HERE, NODE_MODULES, isCoreJsModule, toPosix } from './paths.mjs';
+import { assertWorkspacePayload } from './payload.mjs';
 import { tsSources } from './ts-sources.mjs';
 import { join, relative } from 'node:path';
 
@@ -76,15 +77,6 @@ function noExternals({ chunk }, label) {
 // the ES5 premise belongs to the build: the pre-flight realm and every browser but IE11 are modern
 function es5({ code }, label) {
   assertES5(code, label);
-}
-
-// the COUNT cannot answer this: specifier TEXT outlives `sideEffects: false` tree-shaking the polyfills
-const MIN_CORE_JS_BYTES = 10_000;
-export function assertWorkspacePayload({ chunk }, label) {
-  const bytes = Object.entries(chunk.modules)
-    .filter(([id]) => isWorkspaceCoreJsModule(id))
-    .reduce((n, [, m]) => n + m.renderedLength, 0);
-  if (bytes < MIN_CORE_JS_BYTES) throw new Error(`${ label }: only ${ bytes }b of workspace core-js reached the bundle`);
 }
 
 // a build that injected nothing has verified nothing

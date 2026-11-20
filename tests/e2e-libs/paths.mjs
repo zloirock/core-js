@@ -8,12 +8,6 @@ export const ARTIFACTS = join(HERE, 'artifacts');
 export const SNAPSHOTS = join(HERE, 'snapshots');
 export const NODE_MODULES = join(HERE, 'node_modules');
 
-export function isWorkspaceCoreJsModule(id) {
-  const file = toPosix(id);
-  const workspace = toPosix(join(ROOT, 'packages'));
-  return file.startsWith(`${ workspace }/core-js/`) || file.startsWith(`${ workspace }/core-js-pure/`);
-}
-
 // the trailing separator is load-bearing: without it `core-js` matches inside `core-js-builder`.
 const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\][^/\\]+)[/\\]/;
 

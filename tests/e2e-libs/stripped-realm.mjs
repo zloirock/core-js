@@ -13,8 +13,11 @@ const RUN_DEADLINE_MS = 120_000;
 // held to the label SEQUENCE, not the count: a realm reproducing OTHER checks ran another exercise
 export async function strippedLeg(code, label, expected, timeout = RUN_DEADLINE_MS) {
   const timers = new Set();
+  let finished = false;
   function remember(timer) {
-    timers.add(timer);
+    // A queued microtask may reach the timer API after the verdict has already settled.
+    if (finished) clearTimeout(timer);
+    else timers.add(timer);
     return timer;
   }
 
@@ -55,6 +58,7 @@ export async function strippedLeg(code, label, expected, timeout = RUN_DEADLINE_
       : errorReason(err);
     return { ok: false, reason };
   } finally {
+    finished = true;
     for (const timer of timers) clearTimeout(timer);
   }
 }
