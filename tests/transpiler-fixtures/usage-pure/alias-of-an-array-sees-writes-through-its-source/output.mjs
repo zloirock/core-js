@@ -18,14 +18,14 @@ export function written() {
   const source = ['abc'];
   const list = source;
   source[0] = [1];
-  return _findLastIndexMaybeArray(_ref2 = list[0]).call(_ref2, Boolean);
+  return (_findLastIndexMaybeArray(_ref2 = list[0]) || 0).call(_ref2, Boolean);
 }
 export function handedOut(fill) {
   var _ref3;
   const source = ['abc'];
   const list = source;
   fill(source);
-  return _findLastMaybeArray(_ref3 = list[0]).call(_ref3, Boolean);
+  return (_findLastMaybeArray(_ref3 = list[0]) || 0).call(_ref3, Boolean);
 }
 export function untouched() {
   var _ref4;

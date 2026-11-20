@@ -4102,8 +4102,7 @@ for (const [name, source, expected] of [
   check(label, receiverPerformsEveryInitEffect(init, receiver, null, isQuiet), expected);
 });
 
-// Argument timing does not need a guard for plain values or deferred function bodies.
-// TDZ examples intentionally read before initialization; plain reads add no effect-order guard.
+// Arguments run before the non-callable error. External getters and lexical TDZ reads remain observable.
 for (const [name, expression, expected, before = 'const index = 0;', after = ''] of [
   ['literal', '0', false],
   ['negative index', '-1', false],
@@ -4112,7 +4111,7 @@ for (const [name, expression, expected, before = 'const index = 0;', after = '']
   ['constant arithmetic', 'index - 1', false],
   ['string length arithmetic', "'abc'.length - 1", false],
   ['parameter', 'value', false],
-  ['external value', 'externalValue', false],
+  ['external value', 'externalValue', true],
   ['initialized lexical', 'index', false],
   ['function body deferred', '() => effect()', false],
   ['array allocation', '[value, -1]', false],
@@ -4130,7 +4129,8 @@ for (const [name, expression, expected, before = 'const index = 0;', after = '']
   ['coercing template', '`value:${value}`', true],
   ['class computed key', 'class { [effect()]() {} }', true],
   ['class static effect', 'class { static { effect(); } }', true],
-  ['strict equality', 'value === externalValue', false],
+  ['strict equality', 'value === externalValue', true],
+  ['local strict equality', 'value === index', false],
   ['argument call', 'effect()', true],
   ['property read', 'value.key', true],
   ['string length key effect', "'abc'[(effect(), 'length')]", true],
@@ -4139,8 +4139,8 @@ for (const [name, expression, expected, before = 'const index = 0;', after = '']
   ['spread allocation', '[...value]', true],
   ['object spread', '{ ...value }', true],
   ['computed method key', '{ [effect()]() {} }', true],
-  ['lexical TDZ value', 'later', false, '', 'const later = 0;'],
-  ['lexical TDZ typeof', 'typeof later', false, '', 'const later = 0;'],
+  ['lexical TDZ value', 'later', true, '', 'const later = 0;'],
+  ['lexical TDZ typeof', 'typeof later', true, '', 'const later = 0;'],
 ]) runBoth(`call argument timing/${ name }`,
   `function probe(value) { ${ before } consume(${ expression }); ${ after } }`, (parser, program, label) => {
     const path = parser.pickPath(program, 'CallExpression', candidate => candidate.node.callee.name === 'consume');

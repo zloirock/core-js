@@ -23,7 +23,7 @@ assign(a, {
 const {
   M: A
 } = a;
-export const viaDestructured = (A === Array ? _Array$from : A.from.bind(A))(src);
+export const viaDestructured = _Array$from.call.call(A === Array ? _Array$from : A.from, A, src);
 const b = {
   M: Math
 };
@@ -33,7 +33,7 @@ define(b, 'M', {
 const {
   M: B
 } = b;
-export const viaAlias = (B === Object ? _Object$groupBy : B.groupBy.bind(B))(src, x => x);
+export const viaAlias = _Object$groupBy.call.call(B === Object ? _Object$groupBy : B.groupBy, B, src, x => x);
 const c = {
   M: Math
 };
@@ -41,7 +41,7 @@ _Reflect$set(c, 'M', Number);
 const {
   M: C
 } = c;
-export const viaPureImport = (C === Number ? _Number$isInteger : C.isInteger.bind(C))(src);
+export const viaPureImport = _Number$isInteger.call.call(C === Number ? _Number$isInteger : C.isInteger, C, src);
 const d = {
   M: Math
 };
@@ -49,7 +49,7 @@ _Reflect$set.call(null, d, 'M', String);
 const {
   M: D
 } = d;
-export const viaCall = (D === String ? _String$fromCodePoint : D.fromCodePoint.bind(D))(src);
+export const viaCall = _String$fromCodePoint.call.call(D === String ? _String$fromCodePoint : D.fromCodePoint, D, src);
 const e = {
   M: Math
 };
@@ -59,4 +59,4 @@ _Reflect$apply(_Object$defineProperty, null, [e, 'M', {
 const {
   M: E
 } = e;
-export const viaApply = (E === _Promise ? _Promise$allSettled : E.allSettled.bind(E))(src);
+export const viaApply = _Promise$allSettled.call.call(E === _Promise ? _Promise$allSettled : E.allSettled, E, src);

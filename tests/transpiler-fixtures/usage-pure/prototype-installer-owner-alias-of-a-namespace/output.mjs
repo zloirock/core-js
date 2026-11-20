@@ -13,7 +13,7 @@ export const a = _atMaybeArray(aliased).call(aliased, -1);
 const G = _Reflect;
 const viaRealm = {};
 _Reflect$setPrototypeOf(viaRealm, Array.prototype);
-export const b = _flatMapMaybeArray(viaRealm).call(viaRealm, f);
+export const b = (_flatMapMaybeArray(viaRealm) || 0).call(viaRealm, f);
 export function shadowed(Reflect) {
   const S = Reflect;
   const target = {};

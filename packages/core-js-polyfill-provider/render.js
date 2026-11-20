@@ -23,7 +23,7 @@ import {
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
 import { observablePrefixElements, observablePrefixOperand } from './detect-usage/resolve.js';
-import { symbolStaticMeta } from './detect-usage/globals.js';
+import { staticMethodType, symbolStaticMeta } from './detect-usage/globals.js';
 import { polyfillOrderComparator, sortByPolyfillOrder } from './plugin-options/inject.js';
 
 // the render canon's node factory - the one place emitted nodes take shape, in the
@@ -197,10 +197,22 @@ export function planOptionalMethodCall({ callee, receiver = callee.object, call 
 // Zero boxes without throwing and has no call method; falsy non-callables reject at the same point.
 // Optional calls retain the nullish short-circuit. Quiet arguments need no timing repair.
 function renderMethodCallMember(method, { optional = false, methodGuarded = false, args = [], ctx = null } = {}) {
-  const base = !optional && !methodGuarded && args.some(argument => callArgumentMayBeObserved(hostSlotNode(argument), ctx))
-    ? logicalExpression('||', method, literal(0)) : method;
-  // The argument's own claim may later replace an observable lookup with a pure import.
-  if (base !== method) base.extra = { corejsMethodCallGuard: true };
+  let base = method;
+  if (!optional && !methodGuarded && args.length) {
+    let quietNames;
+    const readCtx = { ...ctx, readIdentifier(node) {
+      if (callArgumentMayBeObserved(node, ctx)) return true;
+      (quietNames ??= []).push(node.name);
+      return false;
+    } };
+    let guarded = false;
+    for (const argument of args) if (callArgumentMayBeObserved(hostSlotNode(argument), readCtx)) guarded = true;
+    if (guarded) {
+      base = logicalExpression('||', method, literal(0));
+      // The final tree knows its imports. Keep the local reads already proved quiet in this call.
+      base.extra = { corejsMethodCallGuard: quietNames ?? [] };
+    }
+  }
   return memberExpression(base, identifier('call'), { optional });
 }
 
@@ -380,11 +392,13 @@ export function renderOptionalMethodCall(plan, {
 }
 
 // After claims settle, remove guards whose observable arguments became plain values.
-export function settleMethodCallGuard(call) {
+export function settleMethodCallGuard(call, ctx) {
   const member = unwrapRuntimeExpr(call.callee);
   const guard = member?.object;
   if (!guard?.extra?.corejsMethodCallGuard || member.computed || member.property?.name !== 'call') return;
-  if (call.arguments.slice(1).every(argument => !callArgumentMayBeObserved(argument))) {
+  const readCtx = { ...ctx, readIdentifier: node => !guard.extra.corejsMethodCallGuard.includes(node.name)
+    && callArgumentMayBeObserved(node, ctx) };
+  if (call.arguments.slice(1).every(argument => !callArgumentMayBeObserved(argument, readCtx))) {
     member.object = guard.left;
   }
 }
@@ -1230,8 +1244,10 @@ export function renderCtorIdentityNarrow(plan, rawBranch, {
   cloneCall = (_source, callee, args, optional) => callExpression(callee, args, { optional }),
   mintRef, embed = node => node, ctx = null,
 }) {
+  const sharedCall = call && !call.optional && !plan.hoisted && !captureReceiver && !plan.sealedCall
+    && isReusableReceiver(plan.recvIdent, { interveningEffects: true, ctx });
   function invoke(callee, raw, receiver = null) {
-    if (!call) return callee;
+    if (!call || sharedCall) return callee;
     const optional = raw && !!call.optional;
     const args = call.arguments.map(argument => embed(argument, 'argument'));
     let built = receiver ? renderMethodCall(planMethodCall({
@@ -1270,6 +1286,15 @@ export function renderCtorIdentityNarrow(plan, rawBranch, {
     invoke(identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName)), false),
     alternate,
   ), fallback);
+  if (sharedCall) {
+    // Borrow call from the imported method when possible. A static value such as Symbol.iterator
+    // cannot supply it; a fresh function still lets both branches evaluate their arguments first.
+    const callable = staticMethodType(plan.ctorName, plan.key)
+      ? identifier(guard.consequent.name) : arrowFunctionExpression([], blockStatement([]));
+    const invokeMethod = memberExpression(callable, identifier('call'));
+    return cloneCall(call, memberExpression(invokeMethod, identifier('call')),
+      [guard, spellRecv(), ...call.arguments.map(arg => embed(arg, 'argument'))], false);
+  }
   return captureReceiver ? renderCapturedReceiver(spellRecv(), captureReceiver, guard) : guard;
 }
 
@@ -1398,7 +1423,7 @@ export function renderInstanceDefaultGuard({ assignedRef, call, defaultValue, re
     ]), literal(defaultName), { computed: true });
   }
   return conditionalExpression(
-    binaryExpression('===', assignmentExpression('=', assignedRef, call), voidZero()),
+    binaryExpression('===', assignedRef ? assignmentExpression('=', assignedRef, call) : call, voidZero()),
     defaultValue,
     reread,
   );

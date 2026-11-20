@@ -8,6 +8,6 @@ import _at from "@core-js/pure/actual/instance/at";
 export function f(a, b, c) {
   const at = (a == null ? void 0 : _at(a).call(a, -1).x)?.y;
   const fl = (b == null ? void 0 : _flatMaybeArray(b).call(b).x)?.y;
-  const fd = (c == null ? void 0 : _findLastMaybeArray(c).call(c, Boolean).x)?.y;
+  const fd = (c == null ? void 0 : (_findLastMaybeArray(c) || 0).call(c, Boolean).x)?.y;
   return [at, fl, fd];
 }

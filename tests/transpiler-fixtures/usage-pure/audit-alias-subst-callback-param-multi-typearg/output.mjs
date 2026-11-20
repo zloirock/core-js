@@ -8,5 +8,5 @@ type Holder<T, U> = {
 declare const h: Holder<number, string>;
 h.use((a, b) => {
   _atMaybeArray(a).call(a, 0);
-  _findLastMaybeArray(b).call(b, Boolean);
+  (_findLastMaybeArray(b) || 0).call(b, Boolean);
 });

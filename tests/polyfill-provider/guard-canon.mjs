@@ -280,7 +280,13 @@ for (const [source, expected] of [
   check(`${ label }/pure call`, rendered.consequent.callee.name, '_Object$entries');
   const rawCall = unwrapRuntimeExpr(rendered.alternate);
   check(`${ label }/raw optional flag`, rawCall.callee.optional, !!path.parentPath.node.optional);
-  check(`${ label }/raw dispatcher`, rawCall.callee.object.callee.name, '_entries');
+  const dispatch = rawCall.callee.object;
+  if (path.parentPath.node.optional) check(`${ label }/optional dispatcher`, dispatch.callee.name, '_entries');
+  else {
+    check(`${ label }/argument runs before a non-callable error`, dispatch.operator, '||');
+    check(`${ label }/non-callable fallback`, dispatch.right.value, 0);
+    check(`${ label }/ordinary dispatcher`, dispatch.left.callee.name, '_entries');
+  }
   check(`${ label }/raw invokes through call`, rawCall.callee.property.name, 'call');
   check(`${ label }/raw receiver leads the arguments`, rawCall.arguments.map(node => node.name).join(','), 'ref,argument');
 });
@@ -961,7 +967,8 @@ for (const [source, expected] of [
   ['(receiver.of)(effect());', 'call'],
   ['receiver.of({ value: effect() });', 'call'],
   ['receiver.of(...effect());', 'call'],
-  ['receiver.of(value);', 'read'],
+  ['receiver.of(value);', 'call'],
+  ['const value = 1; receiver.of(value);', 'read'],
   ['receiver.of(-1);', 'read'],
   ['receiver.of(1 + 2);', 'read'],
   ['receiver.of?.(effect());', 'call'],

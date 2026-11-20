@@ -15,7 +15,7 @@ let list = list == null ? void 0 : _includes(list);
 var copy = copy == null ? void 0 : _flatMaybeArray(copy);
 let held;
 held = held == null ? void 0 : _fillMaybeArray(held);
-held == null ? void 0 : _findMaybeArray(held).call(held, Boolean);
+held == null ? void 0 : (_findMaybeArray(held) || 0).call(held, Boolean);
 for (;;) {
   let item = item == null ? void 0 : _findLastMaybeArray(item);
   break;

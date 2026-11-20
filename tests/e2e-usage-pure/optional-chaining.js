@@ -362,7 +362,9 @@ QUnit.test('optional poly tail + surviving optional under operator: nullish shor
   assert.same(null?.at(-1).x?.y ? 'then' : 'else', 'else');
   // live root: the chain runs; `.x` is absent so the surviving `?.y` short-circuits to undefined
   assert.true(Number.isNaN([2, 3]?.at(-1).x?.y ** 2));
-  assert.same([2, 3]?.findLast(Boolean).x?.y || 7, 7);
+  const visited = [];
+  assert.same([2, 3]?.findLast(value => visited.push(value)).x?.y || 7, 7);
+  assert.deepEqual(visited, [3]);
 });
 
 // the same poly-optional tail + surviving optional in a PLAIN ASSIGNMENT (no operator). babel and
@@ -372,8 +374,10 @@ QUnit.test('optional poly tail + surviving optional under operator: nullish shor
 QUnit.test('optional poly tail + surviving optional in plain assignment: undefined on both paths', assert => {
   const nullRoot = null?.at(-1).x?.y;
   assert.same(nullRoot, undefined);
-  const liveRoot = [2, 3]?.findLast(Boolean).x?.y;
+  const visited = [];
+  const liveRoot = [2, 3]?.findLast(value => visited.push(value)).x?.y;
   assert.same(liveRoot, undefined);
+  assert.deepEqual(visited, [3]);
 });
 
 // optional CALL on a NON-static member of a polyfilled global (`Promise` / `Map` are in `globals`

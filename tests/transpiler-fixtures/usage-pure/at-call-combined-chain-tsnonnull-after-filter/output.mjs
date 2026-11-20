@@ -8,4 +8,4 @@ var _ref, _ref2, _ref3, _ref4;
 // reach the optional chainStart so every intermediate hop is marked; a wrapper-blind walk stopped at
 // the `!`, left map/filter unmarked, and re-matched the inner chain - a second, overlapping rewrite.
 const arr: number[] = [1];
-null == (_ref = _flatMaybeArray(arr)) ? void 0 : _atMaybeArray(_ref2 = _filterMaybeArray(_ref3 = _mapMaybeArray(_ref4 = _ref.call(arr)).call(_ref4, x => x)).call(_ref3, Boolean)!).call(_ref2, -1);
+null == (_ref = _flatMaybeArray(arr)) ? void 0 : _atMaybeArray(_ref2 = (_filterMaybeArray(_ref3 = _mapMaybeArray(_ref4 = _ref.call(arr)).call(_ref4, x => x)) || 0).call(_ref3, Boolean)!).call(_ref2, -1);

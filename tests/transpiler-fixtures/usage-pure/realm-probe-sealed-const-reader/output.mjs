@@ -5,5 +5,5 @@ import _self from "@core-js/pure/actual/self";
 // Local names and computed keys must not change the polyfill or exception.
 export function read() {
   const P = "Promise";
-  return typeof ((null == _globalThis.window ? void 0 : _self)["Promise"], _Promise$resolve);
+  return typeof ((null == _globalThis.window ? void 0 : _self)[P], _Promise$resolve);
 }

@@ -18,12 +18,12 @@ null == (_ref = _flatMaybeArray(arr)?.call(arr)) || null == (_ref2 = _flatMapMay
 // The effectful inner key keeps its nested guard on both emitters and runs between the receiver and dispatch.
 null == (_ref3 = null == (_ref4 = _flatMaybeArray(arr)?.call(arr))
 	? void 0
-	: (eff2(), _findMaybeArray(_ref4).call(_ref4, h))) ? void 0 : _at(_ref3).call(_ref3, 6);
+	: (eff2(), (_findMaybeArray(_ref4) || 0).call(_ref4, h))) ? void 0 : _at(_ref3).call(_ref3, 6);
 
 // inner computed-key SE + hop-key SE replay in native order: the receiver memo hoists
 // AHEAD of the key effects even under the inner chain's guard
 null == (_ref5 = (arr, k1(), _flatMaybeArray(arr))) || null == (_ref6 = (
 	_ref7 = _ref5.call(arr),
 	k2(),
-	_findLastMaybeArray(_ref7).call(_ref7, q)
+	(_findLastMaybeArray(_ref7) || 0).call(_ref7, q)
 )) ? void 0 : _at(_ref6).call(_ref6, 9);

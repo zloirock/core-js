@@ -8,6 +8,6 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 const {
   1: viaKeyed
 } = [...rest, _Map];
-export const a = (viaKeyed === _Map ? _Map$groupBy : viaKeyed.groupBy.bind(viaKeyed))(src, x => x);
+export const a = _Map$groupBy.call.call(viaKeyed === _Map ? _Map$groupBy : viaKeyed.groupBy, viaKeyed, src, x => x);
 const [, viaPositional] = [...rest, Object];
-export const b = (viaPositional === Object ? _Object$fromEntries : viaPositional.fromEntries.bind(viaPositional))(src);
+export const b = _Object$fromEntries.call.call(viaPositional === Object ? _Object$fromEntries : viaPositional.fromEntries, viaPositional, src);

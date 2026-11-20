@@ -14,4 +14,4 @@ const {
     N: viaPattern
   }
 } = box;
-export const grouped = (viaPattern === Object ? _Object$groupBy : viaPattern.groupBy.bind(viaPattern))(src, x => x);
+export const grouped = _Object$groupBy.call.call(viaPattern === Object ? _Object$groupBy : viaPattern.groupBy, viaPattern, src, x => x);

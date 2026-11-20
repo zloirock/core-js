@@ -10,7 +10,7 @@ let C;
 C = _Map;
 switch (k) {
   default:
-    use((C === _Map ? _Map$groupBy : C === Object ? _Object$groupBy : C.groupBy.bind(C))(xs, f));
+    use(_Map$groupBy.call.call(C === _Map ? _Map$groupBy : C === Object ? _Object$groupBy : C.groupBy, C, xs, f));
   case (C = Object, 1):
     ;
 }

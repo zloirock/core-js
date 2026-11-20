@@ -3,5 +3,5 @@ function dfl(a = [1]) {
   return a;
 }
 const viaDefaultOverridden = dfl(...[[2]]);
-_findLastMaybeArray(viaDefaultOverridden).call(viaDefaultOverridden, Boolean);
+(_findLastMaybeArray(viaDefaultOverridden) || 0).call(viaDefaultOverridden, Boolean);
 export { viaDefaultOverridden };

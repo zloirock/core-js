@@ -7,4 +7,4 @@ var _ref, _ref2;
 enum Patched {
   MAP = 'map'
 }
-export const r8 = null == (_ref = _flatMaybeArray(arr)) ? void 0 : _mapMaybeArray(_ref2 = _ref.call(arr)).call(_ref2, f);
+export const r8 = null == (_ref = _flatMaybeArray(arr)) ? void 0 : (_mapMaybeArray(_ref2 = _ref.call(arr)) || 0).call(_ref2, f);

@@ -2597,7 +2597,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     && !isReReferenceableAcrossReads(unwrapRuntimeExpr(receiver), readContext));
   const compactCapture = hasCompactNested && (compactWithBindings || sourceSpread
     || inDeclaration && elements.some(item => item.kind === 'rebuilt'
-    && arrayWrapperNeighbourEffect(init, item.index, pattern)));
+    && arrayWrapperNeighbourEffect(init, item.index, pattern, readContext)));
   const needsCapture = compactCapture || (!compactNested && (!expandedElements
     || capturesReceivers || (bindsBefore && bindsAfter)
     || elements.some(item => item.kind === 'rebuilt'
@@ -2605,13 +2605,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
     && (!item.nested || item.children.some((child, index) => child.kind === 'consumed'
       && item.children.slice(0, index).some(before => before.kind === 'verbatim'))))
     || item.children.some(child => child.extractions?.some(extraction => extraction.defaultNode))
-    || arrayWrapperNeighbourEffect(init, item.index, pattern)))));
-  // A retained default belongs to its original binding position. Moving it into a
-  // whole-array capture would run it before the earlier element's extracted reads.
-  if (needsCapture && elements.some(item => item.kind === 'verbatim'
-    && item.node?.type === 'AssignmentPattern')) {
-    return positionalArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp, isClaimedProp });
-  }
+    || arrayWrapperNeighbourEffect(init, item.index, pattern, readContext)))));
   // An opaque spread stays in the original literal; only its proven prefix pairs.
   // These source positions have already passed the paired-host proof. Retain all
   // native bindings in the capture, including the argument of an array rest slot.
@@ -2629,7 +2623,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
   };
   // The capture above owns the full source. Only a compact plan lifts discarded
   // leading slots, before its receiver memos and any residual binding writes.
-  const leading = leadingDiscardedEffectSlots(init, pattern).map(index => {
+  const leading = leadingDiscardedEffectSlots(init, pattern, readContext).map(index => {
     const effect = init.elements[index];
     init.elements[index] = null;
     return effect;
@@ -2671,7 +2665,7 @@ function pairedArrayDestructurePlan({ path, adapter, resolvePure, isDisabledProp
   if (!dropsResidual && memos.some(receiver => init.elements.slice(0, init.elements.indexOf(receiver))
     .some(node => node && !isReReferenceableAcrossReads(unwrapRuntimeExpr(node), readContext)))) return null;
   const after = !dropsResidual && (bindsBefore || effects || elements.some(item => item.kind === 'rebuilt'
-    && arrayWrapperNeighbourEffect(init, item.index, pattern)));
+    && arrayWrapperNeighbourEffect(init, item.index, pattern, readContext)));
   const splitDeclaration = inDeclaration && dropsResidual && !compactNested
     && host === declaration && !!statementListOf(host.parentPath?.node);
   // A surviving memoized slot keeps the established declaration groups: preceding
@@ -4369,6 +4363,11 @@ export function renderSynthReplacement(entries, {
   cloneHost = cloneNode,
   embed = node => node,
 }) {
+  if (receiver.type === 'ConditionalExpression' && rescueSe === receiver) {
+    // The two backed realm names share this mirror. The test may itself have been rewritten.
+    const literal = renderLiteral({ receiver: receiver.consequent, memo: null });
+    return literal && sequenceExpression([embed(cloneHost(receiver.test)), embed(literal)]);
+  }
   const source = synthReadReceiver(receiver, aliasCtx ?? {});
   dropRescueReceiver ??= shouldDropRescueReceiver(source);
   const partial = entries.some(entry => !slotFor(entry));

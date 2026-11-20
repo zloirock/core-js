@@ -7,4 +7,4 @@ var _ref, _ref2, _ref3;
 // after the install may meet the user's slot and keeps its guard
 export const early = _atMaybeArray(_ref = _Array$from(items)).call(_ref, -1);
 if (flag) window.Array = ShimArray;
-export const late = null == (_ref2 = Array) ? void 0 : _findLastMaybeArray(_ref3 = _ref2.of(1)).call(_ref3, Boolean);
+export const late = null == (_ref2 = Array) ? void 0 : (_findLastMaybeArray(_ref3 = _ref2.of(1)) || 0).call(_ref3, Boolean);

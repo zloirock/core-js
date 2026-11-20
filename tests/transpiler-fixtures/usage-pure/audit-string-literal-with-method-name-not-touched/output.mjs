@@ -4,4 +4,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // by AST nodes, so string content is never touched
 const a = _at(arr).call(arr, -1);
 const message = "calling .at(0) on the array";
-const b = _findLastMaybeArray(arr2).call(arr2, p);
+const b = (_findLastMaybeArray(arr2) || 0).call(arr2, p);

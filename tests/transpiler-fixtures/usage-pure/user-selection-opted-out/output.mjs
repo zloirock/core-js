@@ -20,7 +20,7 @@ export const viaRealm = root === _globalThis ? _Map : root.Map;
 export const bareLine = (WeakRef || Object).fromEntries(pairs); // core-js-disable-line
 // core-js-disable-next-line
 const R = FinalizationRegistry ?? Promise;
-export const viaBareAlias = (R === _Promise ? _Promise$allSettled : R.allSettled.bind(R))(list);
+export const viaBareAlias = _Promise$allSettled.call.call(R === _Promise ? _Promise$allSettled : R.allSettled, R, list);
 // core-js-disable-next-line
 export const freshLine = ({
   C: Map

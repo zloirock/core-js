@@ -17,7 +17,7 @@ function writesVar() {
   viaVar = held;
 }
 writesVar();
-(viaVar === Array ? _Array$from : viaVar.from.bind(viaVar))(list);
+viaVar === Array ? _Array$from(list) : viaVar.from(list);
 let viaBlock = _Set;
 function writesBlock() {
   {
@@ -36,7 +36,7 @@ function writesHop() {
   viaHop = hop;
 }
 writesHop();
-use(() => (viaHop === Array ? _Array$fromAsync : viaHop.fromAsync.bind(viaHop))(list));
+use(() => viaHop === Array ? _Array$fromAsync(list) : viaHop.fromAsync(list));
 let source = _Promise;
 let viaDefault = _Set;
 function writesDefault(x = viaDefault = source) {
@@ -44,4 +44,4 @@ function writesDefault(x = viaDefault = source) {
   return x;
 }
 writesDefault();
-(viaDefault === _Promise ? _Promise$try : viaDefault.try.bind(viaDefault))(fn);
+viaDefault === _Promise ? _Promise$try(fn) : viaDefault.try(fn);

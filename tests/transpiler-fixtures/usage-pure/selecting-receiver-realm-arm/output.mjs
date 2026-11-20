@@ -22,7 +22,7 @@ export function direct(flag) {
 }
 export function aliased(flag) {
   const held = (flag ? realm() : opaque()).Array;
-  return held === Array ? _Array$of(1) : held.of(1);
+  return _Array$of.call.call(held === Array ? _Array$of : held.of, held, 1);
 }
 export function spelled(flag) {
   var _ref2;

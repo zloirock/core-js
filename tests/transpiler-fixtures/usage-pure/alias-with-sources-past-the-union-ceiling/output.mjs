@@ -75,4 +75,4 @@ if (c) other = Object;
 let held = _Map;
 if (d0) held = first;
 if (d1) held = other;
-export const grouped = (held === _Map ? _Map$groupBy : held.groupBy.bind(held))(list, key);
+export const grouped = _Map$groupBy.call.call(held === _Map ? _Map$groupBy : held.groupBy, held, list, key);

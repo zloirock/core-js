@@ -11,7 +11,7 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // void store
 let n;
 export const instanceClaim = null == (_ref = n = _globalThis.window) ? void 0 : _at(_ref2 = _ref.getBox()).call(_ref2, 0);
-export const combinedClaim = null == (_ref3 = n = _globalThis.window) || null == (_ref4 = _flatMaybeArray(_ref5 = _ref3.box)) ? void 0 : _findLastMaybeArray(_ref6 = _ref4.call(_ref5)).call(_ref6, Boolean);
+export const combinedClaim = null == (_ref3 = n = _globalThis.window) || null == (_ref4 = _flatMaybeArray(_ref5 = _ref3.box)) ? void 0 : (_findLastMaybeArray(_ref6 = _ref4.call(_ref5)) || 0).call(_ref6, Boolean);
 // NEGATIVE: a probe below that cannot short-circuit is dead with the hop above it
 export const deadProbe = _nameMaybeFunction(_WeakSet);
 export { n };

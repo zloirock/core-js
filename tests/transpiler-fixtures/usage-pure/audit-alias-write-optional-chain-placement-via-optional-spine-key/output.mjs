@@ -5,4 +5,4 @@ let NK;
 a?.b[{
   Number: NK
 } = _globalThis].c;
-export const viaOptionalSpineKey = (NK === Number ? _Number$isFinite : NK.isFinite.bind(NK))(value);
+export const viaOptionalSpineKey = _Number$isFinite.call.call(NK === Number ? _Number$isFinite : NK.isFinite, NK, value);

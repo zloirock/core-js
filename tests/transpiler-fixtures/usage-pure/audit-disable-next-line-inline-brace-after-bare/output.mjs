@@ -6,4 +6,4 @@ import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
   use(l.at(2));
   use(m.findLastIndex(g));
 }
-export const afterBare = _flatMapMaybeArray(n).call(n, h);
+export const afterBare = (_flatMapMaybeArray(n) || 0).call(n, h);

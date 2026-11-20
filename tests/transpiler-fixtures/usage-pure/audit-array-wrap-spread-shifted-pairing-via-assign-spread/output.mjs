@@ -17,4 +17,4 @@ let ax, AM, AS;
 [ax, {
   Promise: AM
 }] = [...tail, _globalThis];
-export const viaAssignSpread = (AM === _Promise ? _Promise$try : AM.try.bind(AM))(task);
+export const viaAssignSpread = _Promise$try.call.call(AM === _Promise ? _Promise$try : AM.try, AM, task);

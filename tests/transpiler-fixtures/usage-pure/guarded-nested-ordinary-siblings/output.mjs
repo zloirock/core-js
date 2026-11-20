@@ -12,11 +12,11 @@ const _ref = {
       };
     },
     get realm() {
-      _pushMaybeArray(log).call(log, typeof first);
+      (_pushMaybeArray(log) || 0).call(log, typeof first);
       return _globalThis;
     },
     get includes() {
-      _pushMaybeArray(log).call(log, typeof Value);
+      (_pushMaybeArray(log) || 0).call(log, typeof Value);
       return function () {
         return 42;
       };

@@ -15,6 +15,11 @@ const requireBabel = process.env.BABEL_REQUIRE_FROM
 const { transformAsync } = requireBabel('@babel/core');
 const { check, finish } = createChecker('realm-guard-sources-runtime');
 const cases = [
+  ...['.self', "['self']", '[hop]'].map(key => [
+    `kept-window/${ key }`,
+    `const hop = 'self'; return typeof (effects.push('outer'), (effects.push('inner'), globalThis.window${ key }))?.Array.prototype.at;`,
+    'function', ['outer', 'inner'], 'TypeError',
+  ]),
   ['constructor-prefix-landing', 'return typeof (effects.push("prefix"), globalThis)?.Map?.name;', 'string', ['prefix'], 'string'],
   ['constructor-key-landing', 'return typeof globalThis?.[(effects.push("key"), "Map")]?.name;', 'string', ['key'], 'string'],
   ['constructor-both-effects', 'return typeof (effects.push("prefix"), globalThis)?.[(effects.push("key"), "Map")]?.name;',
@@ -154,7 +159,9 @@ try {
           // A stored conditional remains a native read in pure; retain its full
           // semantics and its absent-host stripped control, without claiming support.
           for (const strip of host === 'native' || nativeStore && method === 'usage-pure' && hasWindow ? [false] : [false, true]) {
-            const expected = hasWindow ? present : absent;
+            // A kept window probe yields undefined in pure even where the original plain hop throws.
+            const kept = name.startsWith('kept-window/') && method === 'usage-pure' && host !== 'native';
+            const expected = hasWindow ? present : kept ? 'undefined' : absent;
             const wanted = `OK|${ serialize(expected) }|${ serialize(hasWindow ? [...events, ...branchEvents] : events) }`;
             check(`${ name }/${ method }/${ host }/${ hasWindow }/${ strip }`,
               await runInWorker(file, { strip, stripGlobals: targets.chrome ? [] : ['Iterator', 'globalThis'] }), wanted);

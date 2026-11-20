@@ -6,6 +6,6 @@ var _ref;
 // A guard carries the prototype install into its rendered branches. Both an early closure
 // query and a later receiver query retain that source fact; query order cannot erase the install.
 const owners = {};
-export const early = () => _findLastMaybeArray(owners).call(owners, f);
+export const early = () => (_findLastMaybeArray(owners) || 0).call(owners, f);
 _ref = c ? Object : _Reflect, _ref === Object ? _Object$setPrototypeOf(owners, Array.prototype) : _ref.setPrototypeOf(owners, Array.prototype);
 export const late = _at(owners).call(owners, -1);

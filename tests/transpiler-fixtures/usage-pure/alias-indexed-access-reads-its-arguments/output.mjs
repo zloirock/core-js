@@ -18,5 +18,5 @@ export function hasHost(hosts: Get<Config, 'hosts'>) {
   return _includesMaybeArray(hosts).call(hosts, 'a');
 }
 export function firstTruthy(value: Values<Config>) {
-  return _findMaybeArray(value).call(value, Boolean);
+  return (_findMaybeArray(value) || 0).call(value, Boolean);
 }

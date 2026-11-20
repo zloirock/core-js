@@ -61,7 +61,11 @@ function copyMeta(source, target) {
   if (source.end !== undefined) target.end = source.end;
   if (source.loc !== undefined) target.loc = cloneLoc(source.loc);
   if (source.range !== undefined) target.range = [...source.range];
-  if (source.extra?.corejsMethodCallGuard) target.extra = { ...target.extra, corejsMethodCallGuard: true };
+  if (source.typeArguments) target.typeArguments = structuredClone(source.typeArguments);
+  if (source.typeParameters) target.typeParameters = structuredClone(source.typeParameters);
+  if (source.extra?.corejsMethodCallGuard) {
+    target.extra = { ...target.extra, corejsMethodCallGuard: [...source.extra.corejsMethodCallGuard] };
+  }
   if (source.extra?.corejsObjectCapture) target.extra = { ...target.extra, corejsObjectCapture: true };
   for (const key of ['leadingComments', 'trailingComments', 'innerComments']) {
     if (source[key]) target[key] = source[key].map(comment => convertComment(comment));

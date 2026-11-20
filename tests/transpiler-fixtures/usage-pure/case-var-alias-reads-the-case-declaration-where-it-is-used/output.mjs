@@ -13,4 +13,4 @@ switch (k) {
     const P = _Promise;
     var Q = P;
 }
-use((M === _Iterator ? _Iterator$from : M.from.bind(M))([1]), (Q === _Promise ? _Promise$try : Q.try.bind(Q))(f));
+use((M === _Iterator ? _Iterator$from : M.from.bind(M))([1]), _Promise$try.call.call(Q === _Promise ? _Promise$try : Q.try, Q, f));

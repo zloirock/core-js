@@ -32,6 +32,6 @@ for (const g = (_pushMaybeArray(log).call(log, 'k'), _Map$groupBy); false;) brea
 for (const a = (_atMaybeArray(arr).call(arr, 0), _Promise$any); false;) break;
 for (const o = (_flatMaybeArray(arr).call(arr), _Reflect$ownKeys); false;) break;
 for (const s = (k = _globalThis, _includesMaybeArray(arr).call(arr, 1), _Symbol$for); false;) break;
-for (const v = (_globalThis[_findLastMaybeArray(arr).call(arr, Boolean), 'Object'], _Object$values); false;) break;
+for (const v = (_globalThis[(_findLastMaybeArray(arr) || 0).call(arr, Boolean), 'Object'], _Object$values); false;) break;
 for (const i = (_padStartMaybeString(_ref = obj.text).call(_ref, 4, '.'), _Symbol$asyncIterator); false;) break;
 export { log, k };

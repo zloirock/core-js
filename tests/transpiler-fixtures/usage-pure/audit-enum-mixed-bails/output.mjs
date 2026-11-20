@@ -8,4 +8,4 @@ enum Mixed {
 }
 declare const x: Mixed;
 const arr: string[] = ['a', 'b'];
-_atMaybeArray(arr).call(arr, x as any);
+(_atMaybeArray(arr) || 0).call(arr, x as any);

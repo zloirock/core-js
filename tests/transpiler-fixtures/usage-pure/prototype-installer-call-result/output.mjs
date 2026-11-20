@@ -12,7 +12,7 @@ export const a = _atMaybeArray(_ref = Object.setPrototypeOf({
   length: 1
 }, Array.prototype)).call(_ref, -1);
 const held = Object.setPrototypeOf({}, Array.prototype);
-export const b = _findLastMaybeArray(held).call(held, f);
+export const b = (_findLastMaybeArray(held) || 0).call(held, f);
 export const c = _flatMaybeArray(_ref2 = Object.setPrototypeOf(new Foo(), Array.prototype)).call(_ref2);
 export const d = _includesMaybeString(_ref3 = Object.setPrototypeOf({}, String.prototype)).call(_ref3, 'x');
 export const e = _codePointAtMaybeString(_ref4 = Object.setPrototypeOf('abc', Array.prototype)).call(_ref4, 0);

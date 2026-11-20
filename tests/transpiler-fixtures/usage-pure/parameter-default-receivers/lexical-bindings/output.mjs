@@ -18,7 +18,7 @@ export class Box extends Base {
     return _includesMaybeArray(_ref2 = super.data).call(_ref2, 1);
   })(), last = (() => {
     var _ref3, _ref4;
-    return null == (_ref3 = arguments[0]) ? void 0 : _findLastMaybeArray(_ref4 = _ref3.data).call(_ref4, Boolean);
+    return null == (_ref3 = arguments[0]) ? void 0 : (_findLastMaybeArray(_ref4 = _ref3.data) || 0).call(_ref4, Boolean);
   })()) {
     return [value, found, last];
   }

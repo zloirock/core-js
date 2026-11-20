@@ -37,12 +37,13 @@ for (const [yielded, realm] of [
     check(`${ label }/speculation`, JSON.stringify(program.node), before);
   });
 for (const [value, pure, retained] of [
-  ['choice ? globalThis : self', true, true],
+  ['choice ? globalThis : self', false, true],
+  ['local ? globalThis : self', true, true],
   ['test() ? globalThis : self', false, true],
   ['test() ? (other() ? globalThis : self) : globalThis', false, true],
   ['test() ? globalThis : user', false, false],
   ['choice && globalThis', false, false],
-]) runBoth(`selection policy/${ value }`, `const result = ${ value };`, (parser, program, label) => {
+]) runBoth(`selection policy/${ value }`, `const local = decide(); const result = ${ value };`, (parser, program, label) => {
   const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
   const ctx = context(parser, path);
   const before = JSON.stringify(program.node);
@@ -74,7 +75,10 @@ for (const [source, expected, capture] of [
 ]) runBoth(`retained memo/${ source }`, `function get() { return globalThis; } const result = ${ source };`,
   (parser, program, label) => {
     const path = parser.pickPath(program, 'VariableDeclarator', item => item.node.id.name === 'result');
-    const ctx = { ...context(parser, path), resolvePure };
+    const ctx = { ...context(parser, path), resolvePure, injectorState: {
+      isOwnPassPureBinding: name => name === '_self',
+      getPureImport: name => name === '_self' ? { entry: 'self' } : null,
+    } };
     const node = unwrapRuntimeExpr(path.node.init);
     const before = JSON.stringify(node);
     const events = [];

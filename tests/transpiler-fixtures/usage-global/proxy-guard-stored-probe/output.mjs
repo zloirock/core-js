@@ -8,6 +8,15 @@ import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.set.constructor";
+import "core-js/modules/es.set.species";
+import "core-js/modules/es.set.difference";
+import "core-js/modules/es.set.intersection";
+import "core-js/modules/es.set.is-disjoint-from";
+import "core-js/modules/es.set.is-subset-of";
+import "core-js/modules/es.set.is-superset-of";
+import "core-js/modules/es.set.symmetric-difference";
+import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
@@ -24,5 +33,5 @@ export const computed = (r = globalThis.self[effects++, 'window'])?.Object.entri
   a: 3
 });
 export const middle = (s = (effects++, globalThis).window.self)?.Map.length;
-export const residualStatic = (p = globalThis.self.window)?.Map.length;
+export const residualStatic = (p = globalThis.self.window)?.Set.length;
 export { p, q, r, s, effects };

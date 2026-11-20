@@ -9,4 +9,4 @@ _Reflect$set(bag, 'b', Object);
 const {
   b: viaSet
 } = bag;
-export const grouped = (viaSet === Object ? _Object$groupBy : viaSet.groupBy.bind(viaSet))(src, x => x);
+export const grouped = _Object$groupBy.call.call(viaSet === Object ? _Object$groupBy : viaSet.groupBy, viaSet, src, x => x);

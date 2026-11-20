@@ -8,13 +8,9 @@ const {
   Array: {
     from
   }
-} = (_pushMaybeArray(log).call(log, 1), c) ? {
+} = (_pushMaybeArray(log).call(log, 1), c, {
   Array: {
     from: _Array$from
   }
-} : {
-  Array: {
-    from: _Array$from
-  }
-};
+});
 from([1]);

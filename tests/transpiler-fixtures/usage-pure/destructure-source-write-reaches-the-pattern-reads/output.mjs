@@ -12,12 +12,12 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 let C;
 C = _Map;
 const {
-  a = (C === _Map ? _Map$groupBy : C === Object ? _Object$groupBy : C.groupBy.bind(C))(xs, f)
+  a = _Map$groupBy.call.call(C === _Map ? _Map$groupBy : C === Object ? _Object$groupBy : C.groupBy, C, xs, f)
 } = (C = Object, obj);
 let D;
 D = Array;
 const {
-  [(D === Array ? _Array$from : D === _Iterator ? _Iterator$from : D.from.bind(D))(ys).length]: v
+  [_Array$from.call.call(D === Array ? _Array$from : D === _Iterator ? _Iterator$from : D.from, D, ys).length]: v
 } = (D = _Iterator, obj);
 let E;
 E = _Promise;

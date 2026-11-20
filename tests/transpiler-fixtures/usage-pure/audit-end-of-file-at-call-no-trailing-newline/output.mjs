@@ -5,4 +5,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // check keeps the emitter from queueing edits past end-of-source
 const a = _at(arr).call(arr, -1);
 const b = _flatMaybeArray(arr).call(arr);
-_findLastMaybeArray(arr).call(arr, p);
+(_findLastMaybeArray(arr) || 0).call(arr, p);

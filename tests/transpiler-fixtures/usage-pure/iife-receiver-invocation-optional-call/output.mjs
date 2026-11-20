@@ -11,7 +11,7 @@ export const r = (() => {
     from,
     length
   }) => [from([6])[0], length])(function (_ref) {
-    return {
+    return null == _ref ? _ref : {
       from: _Array$from,
       get length() {
         return _ref.length;

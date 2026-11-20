@@ -14,7 +14,7 @@ declare function get<T, K extends keyof T>(source: T, key: K): T[K];
 declare const config: Config;
 _atMaybeArray(_ref = valueOf(config)).call(_ref, 0);
 _includesMaybeArray(_ref2 = get(config, 'hosts')).call(_ref2, 'a');
-_findMaybeArray(_ref3 = valueOf({
+(_findMaybeArray(_ref3 = valueOf({
   hosts: ['a'],
   ports: ['b']
-})).call(_ref3, Boolean);
+})) || 0).call(_ref3, Boolean);

@@ -9,7 +9,7 @@ const events = [];
 const row = [[], 0];
 _Object$defineProperty(row, 1, {
   get() {
-    _pushMaybeArray(events).call(events, typeof method);
+    (_pushMaybeArray(events) || 0).call(events, typeof method);
     return 9;
   }
 });

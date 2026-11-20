@@ -17,6 +17,6 @@ const kept = [1];
 if (typeof _Symbol != 'undefined') Object.setPrototypeOf(kept, String.prototype);
 use(_padEndMaybeString(kept).call(kept, 3));
 const picked = [1];
-use(_findLastMaybeArray(picked).call(picked, Boolean));
+use((_findLastMaybeArray(picked) || 0).call(picked, Boolean));
 const fallen = [1];
 use(_flatMaybeArray(fallen).call(fallen));

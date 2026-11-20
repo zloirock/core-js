@@ -12,7 +12,7 @@ Object.setPrototypeOf(constructed, Array.prototype);
 export const a = _atMaybeArray(constructed).call(constructed, -1);
 const written = new _Map();
 written.__proto__ = Array.prototype;
-export const b = _findLastMaybeArray(written).call(written, f);
+export const b = (_findLastMaybeArray(written) || 0).call(written, f);
 const listed = [1];
 Object.setPrototypeOf(listed, String.prototype);
 export const d = _includesMaybeString(listed).call(listed, '1');

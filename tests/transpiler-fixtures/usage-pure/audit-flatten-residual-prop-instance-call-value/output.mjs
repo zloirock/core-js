@@ -10,7 +10,7 @@ var {
   Array: {
     from
   },
-  tail = _findLastMaybeArray(_ref = [5]).call(_ref, Boolean)
+  tail = (_findLastMaybeArray(_ref = [5]) || 0).call(_ref, Boolean)
 } = {
   Array: {
     from: _Array$from

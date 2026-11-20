@@ -4,4 +4,4 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 type FirstNumber<T> = T extends [infer U extends number, ...any[]] ? U : never;
 declare const f: FirstNumber<[number, string]>;
 const arr: number[] = [];
-_includesMaybeArray(arr).call(arr, f);
+(_includesMaybeArray(arr) || 0).call(arr, f);

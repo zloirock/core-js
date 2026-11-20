@@ -1,6 +1,20 @@
 /* eslint-disable no-unsafe-optional-chaining -- The source boundaries are asserted. */
 import { withWindowPresence } from './unbacked-window-host.cjs';
 
+QUnit.test('an inner condition can replace a static receiver after an identity test', assert => {
+  function read(useBuiltin) {
+    let C = { from() { return [4]; } };
+    if (useBuiltin) C = Array;
+    function select() {
+      C = Array;
+      return false;
+    }
+    return C === Array ? 1 : select() ? 2 : C.from([7])[0];
+  }
+  assert.same(read(true), 1);
+  assert.same(read(false), 7);
+});
+
 QUnit.test('selected statics survive optional calls and receiver captures', assert => {
   for (const choice of [false, true]) {
     const A = choice ? Array : null;

@@ -19,11 +19,11 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
 declare const nums: number[] | null;
 declare const strs: string[] | null;
 nums == null ? void 0 : _toFixedMaybeNumber(_ref = _atMaybeArray(nums).call(nums, -1)!).call(_ref, 2).toString();
-nums == null ? void 0 : _toExponentialMaybeNumber(_ref2 = _findLastIndexMaybeArray(nums).call(nums, Boolean)!!).call(_ref2, 1).length;
+nums == null ? void 0 : _toExponentialMaybeNumber(_ref2 = (_findLastIndexMaybeArray(nums) || 0).call(nums, Boolean)!!).call(_ref2, 1).length;
 strs == null ? void 0 : _padStartMaybeString(_ref3 = strs.toString()!).call(_ref3, 4)[0];
 strs == null ? void 0 : _repeatMaybeString(_ref4 = _trimEndMaybeString(_ref5 = _joinMaybeArray(strs).call(strs, "")!).call(_ref5)).call(_ref4, 2).toUpperCase();
 // @ts-expect-error the member read is the probe, and the right answer is a type without it
 strs == null ? true : delete _padEndMaybeString(_ref6 = strs.reduce((p, n) => p + n)!).call(_ref6, 4).k;
 (strs == null ? void 0 : _startsWithMaybeString(_ref7 = strs.reduceRight((p, n) => p + n)!).call(_ref7, "a"))?.valueOf();
-_endsWithMaybeString(_ref8 = (strs == null ? void 0 : _findMaybeArray(strs).call(strs, Boolean))!).call(_ref8, "b").valueOf();
-_includesMaybeString(_ref9 = (strs == null ? void 0 : _findLastMaybeArray(strs).call(strs, Boolean)) as string).call(_ref9, "c").valueOf();
+_endsWithMaybeString(_ref8 = (strs == null ? void 0 : (_findMaybeArray(strs) || 0).call(strs, Boolean))!).call(_ref8, "b").valueOf();
+_includesMaybeString(_ref9 = (strs == null ? void 0 : (_findLastMaybeArray(strs) || 0).call(strs, Boolean)) as string).call(_ref9, "c").valueOf();

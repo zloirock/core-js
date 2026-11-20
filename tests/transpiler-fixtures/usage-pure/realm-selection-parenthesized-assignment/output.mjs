@@ -5,7 +5,7 @@ import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 // Parentheses around the realm choice do not change either claim.
 const G = _globalThis;
 let a, g;
-const held = (a = _Promise$allSettled, {
+const held = (flag, a = _Promise$allSettled, {
   Map: {
     groupBy: g
   }

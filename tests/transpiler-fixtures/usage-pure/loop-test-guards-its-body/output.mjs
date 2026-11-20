@@ -16,7 +16,7 @@ export function scan(item: string | string[]) {
 }
 export function arrays(list: string | string[]) {
   while (typeof list !== 'string') {
-    _findMaybeArray(list).call(list, Boolean);
+    (_findMaybeArray(list) || 0).call(list, Boolean);
     list = next();
   }
 }

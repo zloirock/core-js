@@ -477,6 +477,15 @@ checkTruthy('meta/range is a clone', convertedMeta.range !== withMeta.range);
 check('meta/range values survive', convertedMeta.range.join(','), '3,4');
 checkTruthy('meta/comment loc is a clone', convertedMeta.leadingComments[0].loc !== withMeta.leadingComments[0].loc);
 check('meta/comment loc values survive', convertedMeta.leadingComments[0].loc.end.column, 7);
+// Babel 7 and 8 name a call's type arguments differently. Both trees belong to the new call.
+for (const key of ['typeArguments', 'typeParameters']) {
+  const source = callExpression(identifier('f'), []);
+  source[key] = { type: 'TSTypeParameterInstantiation', params: [{ type: 'TSNumberKeyword' }] };
+  const converted = estreeToBabel(source);
+  check(`meta/${ key } preserves the type`, converted[key].params[0].type, 'TSNumberKeyword');
+  converted[key].params[0].type = 'TSStringKeyword';
+  check(`meta/${ key } owns its type tree`, source[key].params[0].type, 'TSNumberKeyword');
+}
 // innerComments ride the same conversion as leading/trailing - locked element-wise
 const withInner = objectExpression([]);
 withInner.innerComments = [{ type: 'Block', value: ' inner ' }];

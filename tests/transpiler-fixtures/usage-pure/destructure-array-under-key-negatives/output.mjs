@@ -17,7 +17,7 @@ use(notIterable);
 const shifted = {
   k: [Math]
 };
-_unshiftMaybeArray(_ref = shifted.k).call(_ref, other);
+(_unshiftMaybeArray(_ref = shifted.k) || 0).call(_ref, other);
 const {
   k: [{
     log1p: afterShift

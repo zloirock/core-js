@@ -7,5 +7,5 @@ import _at from "@core-js/pure/actual/instance/at";
 // source does - unless a `?.` of the source's own, or of the claim's own call, stands in between.
 let boxes;
 boxes == null ? true : delete _at(boxes).call(boxes, -1).j.k;
-boxes == null ? true : delete _findLastMaybeArray(boxes).call(boxes, Boolean).j?.k;
+boxes == null ? true : delete (_findLastMaybeArray(boxes) || 0).call(boxes, Boolean).j?.k;
 boxes == null ? true : delete _toReversedMaybeArray(boxes)?.call(boxes)[0].k;

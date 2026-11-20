@@ -21,4 +21,4 @@ enum E {
   A,
   B
 }
-export const afterEnum = _toSortedMaybeArray(c).call(c, f);
+export const afterEnum = (_toSortedMaybeArray(c) || 0).call(c, f);

@@ -1,4 +1,4 @@
-// An unbound name can read a global accessor. Capture it before the optional null test.
+// Each optional read of an unbound receiver needs its own method family in usage-global.
 export const value = rows?.at?.(0);
-export const method = rows?.at;
-export const sealed = (rows?.at)(0);
+export const method = rows?.findLast;
+export const sealed = (rows?.flat)(0);

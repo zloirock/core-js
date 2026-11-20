@@ -21,13 +21,13 @@ const _ref = {
           return _globalThis;
         },
         get last() {
-          _pushMaybeArray(log).call(log, typeof Value);
+          (_pushMaybeArray(log) || 0).call(log, typeof Value);
           return 3;
         }
       };
     },
     get after() {
-      _pushMaybeArray(log).call(log, typeof Value);
+      (_pushMaybeArray(log) || 0).call(log, typeof Value);
       return 4;
     }
   },

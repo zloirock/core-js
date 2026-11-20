@@ -15,7 +15,7 @@ setProto(aliased, Array.prototype);
 export const a = _atMaybeArray(aliased).call(aliased, -1);
 const decided = {};
 Object.setPrototypeOf(decided, Array.prototype);
-export const b = _findLastMaybeArray(decided).call(decided, f);
+export const b = (_findLastMaybeArray(decided) || 0).call(decided, f);
 const O = Object;
 const ctorAlias = {};
 O.setPrototypeOf(ctorAlias, Array.prototype);
@@ -25,7 +25,7 @@ const {
 } = Object;
 const destructured = {};
 setPrototypeOf(destructured, Array.prototype);
-export const d = _flatMapMaybeArray(destructured).call(destructured, f);
+export const d = (_flatMapMaybeArray(destructured) || 0).call(destructured, f);
 const parenthesized = {};
 Object.setPrototypeOf(parenthesized, Array.prototype);
 export const g = _toReversedMaybeArray(parenthesized).call(parenthesized);

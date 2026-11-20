@@ -3287,8 +3287,8 @@ export default function createAstDestructureEmitter({
       const host = destructurePatternHostPath(metaPath);
       const collapses = host?.node ? realmSelectingHostCollapses(host.node,
         { adapter, injectorState, scope: host.scope, path: host }) : [];
-      for (const { container, key, init, operand } of collapses) {
-        container[key] = cloneNode(operand);
+      for (const { container, key, init, operand, test } of collapses) {
+        container[key] = cloneNode(test ? sequenceExpression([test, operand]) : operand);
         markSubtreeSkipped(skippedNodes, init);
         markRewrite();
       }

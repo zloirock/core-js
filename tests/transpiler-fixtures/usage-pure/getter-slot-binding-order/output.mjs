@@ -8,7 +8,7 @@ export function readBeforeBinding(log) {
       w: _ref
     } = {
       get w() {
-        _pushMaybeArray(log).call(log, typeof Value);
+        (_pushMaybeArray(log) || 0).call(log, typeof Value);
         return _globalThis;
       }
     },

@@ -12,9 +12,9 @@ const f = x => {
 };
 const g = x => {
   var _ref3;
-  return _findLastMaybeArray(_ref3 = _flatMaybeArray(arr).call(arr)).call(_ref3, p);
+  return (_findLastMaybeArray(_ref3 = _flatMaybeArray(arr).call(arr)) || 0).call(_ref3, p);
 };
 const h = x => {
   var _ref4;
-  return _findLastIndexMaybeArray(_ref4 = _flatMaybeArray(arr).call(arr)).call(_ref4, p);
+  return (_findLastIndexMaybeArray(_ref4 = _flatMaybeArray(arr).call(arr)) || 0).call(_ref4, p);
 };

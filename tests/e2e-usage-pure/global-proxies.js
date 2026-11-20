@@ -355,12 +355,17 @@ QUnit.test('global-proxy: chain-assign hop with keyless computed leaf collapses'
 // with a sequence-prefix SE: the SE must run exactly once and the guard must short-circuit
 // (the helper THROWS on undefined where native yields it) - one emitter used to drop both
 QUnit.test('global-proxy: kept-root symbol access keeps its SE and guard', assert => {
-  let a;
-  let sc = 0;
-  const method = (sc++, a = globalThis.window)?.self[Symbol.iterator];
-  assert.same(sc, 1);
-  assert.same(a, globalThis.window);
-  assert.same(method, globalThis.window === undefined ? undefined : method);
+  function marker() { /* iterator identity */ }
+  for (const present of [false, true]) withWindowPresence(present, live => {
+    withRealmSlot(Symbol.iterator, marker, () => {
+      let a;
+      let sc = 0;
+      const method = (sc++, a = globalThis.window)?.self[Symbol.iterator];
+      assert.same(sc, 1);
+      assert.same(a, globalThis.window);
+      assert.same(method, live ? marker : undefined);
+    });
+  });
 });
 
 // well-known-symbol receiver folding by CONTEXT: the GET folds the `window.self` nav to the
@@ -3616,8 +3621,7 @@ QUnit.test('global-proxy: a stored run spells the probe its guard observes', ass
   const hasWindow = globalThis.window !== undefined;
   let swallowed;
   const midHop = (swallowed = globalThis.window.self.Number)?.isInteger(1);
-  const answeredOrSkipped = midHop === true || midHop === undefined;
-  assert.true(answeredOrSkipped, 'the run executes whichever branch the phase renders');
+  assert.same(midHop, swallowed === undefined ? undefined : true, 'the call follows the stored receiver');
   const heldOrAbsent = swallowed === undefined || typeof swallowed === 'function';
   assert.true(heldOrAbsent, 'and the store holds the realm constructor or nothing at all');
   if (hasWindow) assert.true(midHop, 'a host that has the probe answers through it');

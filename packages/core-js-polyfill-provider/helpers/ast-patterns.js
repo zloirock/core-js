@@ -146,6 +146,8 @@ export function escapeStampedName(node, resolveKey = null) {
 
 // `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
+// The realm's value globals are non-writable data properties.
+export const NON_WRITABLE_VALUE_GLOBALS = new Set(knownBuiltInReturnTypes.nonWritableValueGlobals);
 // an already-resolved NAME narrowed to the proxy-global surface, or null. the closing step of every
 // resolver that answers "which proxy global is this" - the chain-root walk, the branch walk and the
 // cycle guards all end here, so the narrow is asked in one place instead of once per resolver
@@ -931,6 +933,7 @@ export function deleteHostAboveChain(startPath, chainNode, unwrap) {
   for (let up = step?.parentPath; up?.node; step = up, up = up.parentPath) {
     const { node } = up;
     if (node.type === 'UnaryExpression') return node.operator === 'delete';
+    if (node.type === 'ConditionalExpression' && !(isRenderedStoredValue(node) && node.alternate === step.node)) return false;
     // a WRITE on the way up STORES this value: the delete is not its only consumer any more, so
     // the erase verdict's premise - that nothing over the navigation is read - stops there. the
     // one write it does not stop at is the LOWERED guard scaffold's own memo (`null == (_ref =
@@ -12549,8 +12552,7 @@ export function claimDeleteOperand(path) {
   for (;;) {
     const up = step?.parentPath;
     if (!up?.node) return false;
-    const throughBranch = up.node.type === 'ConditionalExpression'
-      && (up.node.alternate === step.node || up.node.consequent === step.node);
+    const throughBranch = isRenderedStoredValue(up.node) && up.node.alternate === step.node;
     if (!throughBranch && unwrapRuntimeExpr(up.node) !== unwrapRuntimeExpr(step.node)) return isDeleteTarget(up.node);
     step = up;
   }
@@ -13976,7 +13978,7 @@ export function discardedWrapperEffects(initNode, patternNode) {
 // slot behind that one runs after the element every claim reads and stays where it is; a spread
 // cannot move at all (its iteration is the effect); a rest gathers what the pattern did not name,
 // so nothing there is discarded. one decision, spliced by each emitter in its own dialect
-export function leadingDiscardedEffectSlots(initNode, patternNode) {
+export function leadingDiscardedEffectSlots(initNode, patternNode, ctx = null) {
   const core = initNode?.type === 'ArrayExpression' ? initNode : null;
   if (!core || patternNode?.type !== 'ArrayPattern') return [];
   if (patternNode.elements.some(item => item?.type === 'RestElement')) return [];
@@ -13985,7 +13987,7 @@ export function leadingDiscardedEffectSlots(initNode, patternNode) {
   const slots = [];
   for (let at = 0; at < last; at += 1) {
     const element = core.elements[at];
-    if (element && element.type !== 'SpreadElement' && mayHaveSideEffects(element)) slots.push(at);
+    if (element && element.type !== 'SpreadElement' && callArgumentMayBeObserved(element, ctx)) slots.push(at);
   }
   return slots;
 }
@@ -13999,12 +14001,17 @@ export function leadingDiscardedEffectSlots(initNode, patternNode) {
 // then reads anything off one of them. an effect-bearing NEIGHBOUR therefore pins the order
 // (runtime-checked: native `g() | read at`, hoisted `read at | g()`), and the claim stays
 // native. `index` is the slot the consumed pattern sits in; a non-literal init pins nothing
-export function arrayWrapperNeighbourEffect(initNode, index, patternNode = null) {
+export function arrayWrapperNeighbourEffect(initNode, index, patternNode = null, ctx = null) {
   if (initNode?.type !== 'ArrayExpression') return false;
   // the slots the lift takes are `leadingDiscardedEffectSlots`' own answer - the one set every host
   // splices out, so what this predicate treats as gone is exactly what leaves
-  const lifted = new Set(leadingDiscardedEffectSlots(initNode, patternNode));
-  return initNode.elements.some((item, at) => at !== index && mayHaveSideEffects(item) && !lifted.has(at));
+  const lifted = new Set(leadingDiscardedEffectSlots(initNode, patternNode, ctx));
+  return initNode.elements.some((item, at) => {
+    if (at === index || lifted.has(at)) return false;
+    const value = unwrapRuntimeExpr(item);
+    return value?.type === 'Identifier' ? !isReusableReceiver(value, { ctx, interveningEffects: true })
+      : callArgumentMayBeObserved(value, ctx);
+  });
 }
 
 // does the (post-rename) pattern still spell a computed key with an effect?
@@ -15224,12 +15231,27 @@ export function performsNothing(value, ctx = null) {
 
 // Unlike discarding source, rejecting a call may skip allocations whose values it never consumes.
 // Coercion, getters and argument iteration still precede the non-callable error.
-// Plain value reads, including typeof, do not justify a guard; preserving a missing/TDZ
-// read's ReferenceError over this TypeError is outside this effect-order repair.
+// A free identifier reads the host's global object and can invoke an accessor.
 export function callArgumentMayBeObserved(value, ctx = null, depth = 0) {
   const node = unwrapRuntimeExpr(value);
-  if (node?.type === 'Identifier') return false;
   if (!node || performsNothing(node, ctx)) return false;
+  if (node.type === 'Identifier') {
+    if (ctx?.readIdentifier) return ctx.readIdentifier(node, ctx);
+    if (!ctx?.adapter) return !ctx?.injectorState?.isOwnPassPureBinding?.(node.name);
+    const binding = ctx.adapter.getBinding?.({ scope: ctx.scope, path: ctx.path, name: node.name, read: node });
+    if (!binding || isAmbientBinding(binding)) return !NON_WRITABLE_VALUE_GLOBALS.has(node.name);
+    if (!nodeCarriesSourceSpan(node)) return false;
+    const decl = binding.node ?? binding.path?.node;
+    // A later or self-referential parameter default still reads an uninitialized binding.
+    if (binding.kind === 'param') return !precedesOrUnordered(decl, node);
+    if (!CLASS_NODE_TYPES.has(decl?.type) && ((binding.kind !== 'let' && binding.kind !== 'const')
+      || decl?.type !== 'VariableDeclarator')) return false;
+    // After a pattern splits, its source declaration still orders its reads even when the new declarator has no span.
+    const anchor = nodeCarriesSourceSpan(decl) ? decl : binding.declarationPath?.parentPath?.node;
+    return nodeCarriesSourceSpan(anchor) && !initializerReachesRead({
+      adapter: ctx.adapter, binding, declaratorNode: anchor, usagePath: ctx.path, usageNode: node, requireInitialized: true,
+    });
+  }
   if (depth >= SIDE_EFFECTS_MAX_DEPTH) return true;
   if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') return false;
   function observes(child) {

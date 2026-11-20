@@ -9,9 +9,9 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 // (one method per row, so every row is observable by its own module)
 let viaReassign = Object;
 if (c) [, viaReassign] = [...xs, Object];
-export const a = (viaReassign === Object ? _Object$entries : _entries(viaReassign).bind(viaReassign))(src);
+export const a = _Object$entries.call.call(viaReassign === Object ? _Object$entries : _entries(viaReassign), viaReassign, src);
 let viaKeyedReassign = Object;
 if (c) ({
   1: viaKeyedReassign
 } = [...xs, Object]);
-export const b = (viaKeyedReassign === Object ? _Object$keys : _keys(viaKeyedReassign).bind(viaKeyedReassign))(src);
+export const b = _Object$keys.call.call(viaKeyedReassign === Object ? _Object$keys : _keys(viaKeyedReassign), viaKeyedReassign, src);

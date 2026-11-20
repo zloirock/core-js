@@ -21,8 +21,8 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
 // probe read straight off the realm keeps its test.
 const realm = _globalThis;
 let effects = 0;
-export const joined = _joinMaybeArray(_ref = _mapMaybeArray(_ref2 = _Array$from([1, 2])).call(_ref2, String)).call(_ref);
+export const joined = _joinMaybeArray(_ref = (_mapMaybeArray(_ref2 = _Array$from([1, 2])) || 0).call(_ref2, String)).call(_ref);
 export const flatAt = _atMaybeArray(_ref3 = _flatMaybeArray(_ref4 = _Array$of(1, [2])).call(_ref4)).call(_ref3, 0);
-export const found = _findLastMaybeArray(_ref5 = _toSortedMaybeArray(_ref6 = (effects++, _Object$values)([3])).call(_ref6)).call(_ref5, Boolean);
+export const found = (_findLastMaybeArray(_ref5 = _toSortedMaybeArray(_ref6 = (effects++, _Object$values)([3])).call(_ref6)) || 0).call(_ref5, Boolean);
 export const kind = typeof _includesMaybeArray(_fillMaybeArray(_ref7 = _Object$getOwnPropertyNames([4])).call(_ref7, 0));
-export const probed = null == _globalThis.window ? void 0 : _findIndexMaybeArray(_ref8 = _toReversedMaybeArray(_ref9 = _Object$entries([5, 6])).call(_ref9)).call(_ref8, Boolean);
+export const probed = null == _globalThis.window ? void 0 : (_findIndexMaybeArray(_ref8 = _toReversedMaybeArray(_ref9 = _Object$entries([5, 6])).call(_ref9)) || 0).call(_ref8, Boolean);

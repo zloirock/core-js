@@ -4,4 +4,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // substring nearly matches needle. AST visit isolates emission to the actual call expr
 const log = `result ${_at(arr).call(arr, 0)}`;
 const note = `arr.at(0) is the literal text here`;
-const b = _findLastMaybeArray(arr).call(arr, p);
+const b = (_findLastMaybeArray(arr) || 0).call(arr, p);

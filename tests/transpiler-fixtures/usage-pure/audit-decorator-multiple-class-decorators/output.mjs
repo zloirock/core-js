@@ -4,6 +4,6 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // multiple class decorators stacked. each decorator's argument may carry independent
 // polyfillable expressions. decorator visitor must walk all three without skipping.
 @dec1(_at(arr).call(arr, 0))
-@dec2(_includes(other).call(other, z))
+@dec2((_includes(other) || 0).call(other, z))
 @dec3(_Promise$resolve(0))
 class C {}

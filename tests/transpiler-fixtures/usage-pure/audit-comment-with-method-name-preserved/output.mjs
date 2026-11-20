@@ -5,4 +5,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // arr.at(0) here is just text in the comment
 const a = _at(arr).call(arr, -1);
 /* arr.at(...) inside a block comment */
-const b = _findLastMaybeArray(arr).call(arr, p);
+const b = (_findLastMaybeArray(arr) || 0).call(arr, p);

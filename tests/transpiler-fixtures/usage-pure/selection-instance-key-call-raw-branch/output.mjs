@@ -14,4 +14,4 @@ const pairs = {
 };
 export const viaCall = (_ref = source ?? Object, _ref === Object ? _Object$entries(pairs) : _entries(_ref).call(_ref, pairs));
 export const viaOptionalCall = (_ref2 = source ?? Object, _ref2 === Object ? _Object$values(pairs) : _values(_ref2)?.call(_ref2, pairs));
-export const viaOptionalMember = (_ref3 = shim || Object, null == _ref3 ? void 0 : _ref3 === Object ? _Object$keys(input) : _keys(_ref3).call(_ref3, input));
+export const viaOptionalMember = (_ref3 = shim || Object, null == _ref3 ? void 0 : _ref3 === Object ? _Object$keys(input) : (_keys(_ref3) || 0).call(_ref3, input));

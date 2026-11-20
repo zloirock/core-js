@@ -4,7 +4,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 const log = [];
 const extra = {
   get value() {
-    _pushMaybeArray(log).call(log, typeof from);
+    (_pushMaybeArray(log) || 0).call(log, typeof from);
     return 7;
   }
 };

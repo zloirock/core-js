@@ -12,4 +12,4 @@ setPrototypeOf(constructed, Array.prototype);
 export const a = constructed.at(-1);
 const literal = {};
 setPrototypeOf(literal, Array.prototype);
-export const b = _findLastMaybeArray(literal).call(literal, f);
+export const b = (_findLastMaybeArray(literal) || 0).call(literal, f);

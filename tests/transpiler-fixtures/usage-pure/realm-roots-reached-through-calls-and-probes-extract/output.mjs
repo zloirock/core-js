@@ -13,10 +13,10 @@ const {
   }
 } = (() => _globalThis)();
 let it, zz;
-e(), it = _getIteratorMethod(_globalThis), {
+c, e(), it = _getIteratorMethod(_globalThis), {
   zz
 } = _globalThis;
-const it2 = (e(), _getIteratorMethod(_globalThis));
+const it2 = (c, e(), _getIteratorMethod(_globalThis));
 const {
   z
 } = _globalThis;

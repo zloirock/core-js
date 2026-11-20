@@ -6,5 +6,5 @@ type Tree = {
   label: string;
 };
 declare const t: Tree;
-_includesMaybeArray(_ref = t.children).call(_ref, t);
+(_includesMaybeArray(_ref = t.children) || 0).call(_ref, t);
 _atMaybeString(_ref2 = t.label).call(_ref2, -1);

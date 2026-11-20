@@ -16,13 +16,13 @@ const {
   Array: {
     from: f
   }
-} = {
+} = (c, {
   get [_Symbol$iterator]() {
     return _getIteratorMethod(_globalThis);
   },
   Array: {
     from: _Array$from
   }
-};
+});
 it2;
 f(x);

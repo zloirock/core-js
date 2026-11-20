@@ -8,7 +8,7 @@ let from, mapped, others;
 var _unused;
 ({
   Array: _unused,
-  mapped = _flatMapMaybeArray(_ref = [10]).call(_ref, String),
+  mapped = (_flatMapMaybeArray(_ref = [10]) || 0).call(_ref, String),
   ...others
 } = _globalThis);
 from = _Array$from;

@@ -5,4 +5,4 @@ tail: {
   use(i.flatMap(f));
   use(j.values());
 }
-export const afterLabel = _includes(k).call(k, v);
+export const afterLabel = (_includes(k) || 0).call(k, v);

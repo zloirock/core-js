@@ -6,4 +6,4 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // not the case here. verifies that legitimate repeated method calls at distinct
 // source positions don't false-trigger the dedup branch
 const a = _flatMaybeArray(arr).call(arr) === _flatMaybeArray(arr).call(arr);
-const b = _flatMaybeArray(arr).call(arr) && _flatMaybeArray(arr).call(arr) && _findLastMaybeArray(arr).call(arr, p);
+const b = _flatMaybeArray(arr).call(arr) && _flatMaybeArray(arr).call(arr) && (_findLastMaybeArray(arr) || 0).call(arr, p);

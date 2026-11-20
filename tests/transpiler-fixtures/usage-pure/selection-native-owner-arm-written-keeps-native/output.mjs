@@ -9,4 +9,4 @@ export const viaWrittenStatic = (shim || Number).isSafeInteger(7);
 _globalThis.Math = ShimMath;
 export const viaWrittenSlot = (shim || Math).trunc(1.5);
 Object.values = shimValues;
-export const viaWrittenInstanceKey = _values(_ref = source ?? Object).call(_ref, pairs);
+export const viaWrittenInstanceKey = (_values(_ref = source ?? Object) || 0).call(_ref, pairs);

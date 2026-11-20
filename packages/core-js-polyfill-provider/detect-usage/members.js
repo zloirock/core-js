@@ -83,6 +83,7 @@ import {
   navigatedSelectionArms,
   nestedAssignmentStatementOf,
   staticContainerReceiverName,
+  containerReceiverWithPrimary,
   unionKeyedCarrierRides,
   discardRescueNodesWithReads,
   provenRealmCallName,
@@ -173,22 +174,35 @@ export function planLogicalSlotPatch(meta, path, { tests, skippedNodes, resolveP
   };
 }
 
+function guardComparatorName(name) {
+  return POSSIBLE_GLOBAL_OBJECTS.has(name) ? 'globalThis' : name;
+}
+
 // is this read the RAW branch of a ctor-identity guard this plugin already emitted (`M === _Map ?
 // _Map$groupBy : M.groupBy`)? a second pass over its own output sees the alternate as an ordinary
 // read off a written binding and would guard it again, twice per read
-function insideEmittedCtorGuardBranch(path, adapter) {
+function insideEmittedCtorGuardBranch(path, adapter, receiver, candidate = 'globalThis') {
+  if (receiver?.type !== 'Identifier') return false;
+  const expected = guardComparatorName(candidate);
   for (let up = path?.parentPath, child = path?.node; up?.node; child = up.node, up = up.parentPath) {
     const { node } = up;
-    if (node.type !== 'ConditionalExpression' || node.alternate !== child) continue;
+    if (node.type !== 'ConditionalExpression' || node.alternate !== child) {
+      if (isMemberAccessNode(node) && node.object === child || isCallShape(node) && node.callee === child
+        || node.type === 'BinaryExpression' && node.operator === 'in' && node.left === child
+        || SKIPPABLE_WRAPPER_TYPES.has(node.type)) continue;
+      break;
+    }
     const { test } = node;
-    if (test?.type !== 'BinaryExpression' || test.operator !== '===') continue;
-    for (const side of [test.left, test.right]) {
-      if (side?.type === 'Identifier' && adapter.getBinding?.({
-        scope: up.scope,
-        name: side.name,
-        path: up,
-        read: side,
-      })?.polyfillHint) return true;
+    // An intervening test can assign the receiver before its alternate reads it.
+    if (test?.type !== 'BinaryExpression' || test.operator !== '===') break;
+    const side = test.left.name === receiver.name ? test.right : test.right.name === receiver.name ? test.left : null;
+    if (side?.type !== 'Identifier') break;
+    const binding = adapter.getBinding?.({ scope: up.scope, name: side.name, path: up, read: side });
+    if (binding) {
+      if (guardComparatorName(binding.polyfillHint) === expected) return true;
+    } else {
+      if (!isKnownGlobalName(side.name) || isMutatedGlobalSlot(adapter, side.name, { node: side, path: up })) break;
+      if (side.name === expected) return true;
     }
   }
   return false;
@@ -1480,18 +1494,18 @@ function buildMemberMeta({ node, scope, adapter, path, resolveStaticKey = null, 
     // same expression completes before it (`(g = globalThis, v = g.window.self).Promise`). the
     // anchor rides its OWN parameter - `usageNode` is a dominance ANCHOR PATH for the walks below,
     // and handing them a node silently passed the gate a conditional write must fail
-    let objectName = resolveObjectName({
+    const primary = resolveObjectName({
       objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget, resolveStaticKey, proxySegments,
-    })
-      ?? staticContainerReceiverName({
-        node: classifyTarget,
-        scope,
-        adapter,
-        path,
-        unionSink: containerUnion,
-        conditionalSink: conditionalCalls,
-        selectionSink: selectionArms,
-      });
+    });
+    let objectName = containerReceiverWithPrimary(primary, {
+      node: classifyTarget,
+      scope,
+      adapter,
+      path,
+      unionSink: containerUnion,
+      conditionalSink: conditionalCalls,
+      selectionSink: selectionArms,
+    }, proxySegments);
     // Lowering spells an optional value as a conditional. A plain realm read above
     // it still names the defined arm, but owes the nullable source's throw probe.
     if (!objectName && classifyTarget.type === 'ConditionalExpression' && isPristineProxyGlobal(adapter, key)
@@ -1824,7 +1838,7 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     // every realm proxy (`window`, `self`, `globalThis`) names the ONE realm object, so they share
     // one comparator, spelled as the realm root: a bare `window` / `self` would throw where the
     // realm lacks it, while `globalThis` is the realm under every spelling
-    const ctorName = POSSIBLE_GLOBAL_OBJECTS.has(name) ? 'globalThis' : name;
+    const ctorName = guardComparatorName(name);
     if (candidates.some(candidate => candidate.ctorName === ctorName)) continue;
     const readsStatic = POSSIBLE_GLOBAL_OBJECTS.has(name) ? readKeys.find(key => typeof key === 'string'
       && resolvePure({ kind: 'property', object: meta.key, key, placement: 'static' }, null)?.kind === 'static') : undefined;
@@ -1845,9 +1859,8 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   const isCallee = ((parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
     && unwrapRuntimeExpr(parent.callee) === memberNode)
     || isTaggedTemplateTagPosition(parent, memberNode);
-  // Move a captured receiver's call into its branches, and an uncaptured ordinary call whose
-  // arguments are observable: binding a possibly absent raw method would reject before them.
-  // Each branch preserves `this`; quiet uncaptured calls keep their bound spelling.
+  // Absorb a captured call or an ordinary call whose arguments can be observed. Binding a
+  // missing raw method would reject before its arguments. Quiet calls keep their bound spelling.
   // A tagged-template tag is not a call this render can absorb.
   // A sealed callee also invokes the short-circuited value. Its absent branch retains
   // that invocation, including argument evaluation before the non-callable throw.
@@ -1935,6 +1948,7 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     decidedSelection: receiver === memberNode.object ? null : peelReceiverSequenceTail(memberNode.object),
     seqPrefix: captureReceiver ? [] : seqPrefix,
     staticPure: primary.staticPure,
+    key: meta.key,
     isCallee,
     chainTail,
     branches,
@@ -2040,6 +2054,7 @@ export function handleMemberExpressionNode({
     // unlike a leaf-hop pure import. gate on a proxy-global root so a real-object receiver
     // (`arr[Symbol.iterator]`) stays untouched (it is the genuine argument)
     let symbolReceiverProxyRoot = null;
+    let keepSymbolReceiver = false;
     // the receiver subsume + proxy-root collapse serve exactly the ITERATOR strand: only the
     // emitters' `handleSymbolIterator` consumes `symbolReceiverProxyRoot`, and only when its
     // entry survives the include/exclude filter. a NON-iterator well-known key
@@ -2087,7 +2102,13 @@ export function handleMemberExpressionNode({
       // stranded the raw nav (no renderer left after the emitters' bail, off-engine throw)
       const taggedAnchor = climbTransparentWrapperPath(path);
       const isTaggedTag = isTaggedTemplateTagPosition(taggedAnchor.parentPath?.node, taggedAnchor.node);
-      if (iteratorStrandLive && !isTaggedTag && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
+      if (iteratorStrandLive && resolvePure && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
+        && spineHasOptionalHop(receiverChain) && navValueCanShortCircuit(receiverChain, resolvePure, { scope, adapter, path })) {
+        // An open chain owns the key and call in its live arm. A sealed one passes its
+        // possibly undefined result to the helper, which performs the mandatory read.
+        if (!sealedLayerBetween(node.object, receiverChain)) return;
+        keepSymbolReceiver = true;
+      } else if (iteratorStrandLive && !isTaggedTag && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
         // subsume the chain so the identifier visitor does not queue a parallel rewrite (unplugin crash)
         if (suppressProxyGlobals) markSubsumedProxyChain({ node: receiverChain, handledObjects, scope, adapter, path });
         symbolReceiverProxyRoot = resolveSymbolReceiverProxyRoot({
@@ -2119,6 +2140,7 @@ export function handleMemberExpressionNode({
     const sideEffects = [];
     // a collapsed proxy receiver carries its OWN SE in `droppedSe` (embedded in `(droppedSe, _root)`), so
     // the receiver SE must NOT also enter meta.sideEffects (would double-run). otherwise collect it here
+    if (keepSymbolReceiver) meta.keepSymbolReceiver = true;
     if (symbolReceiverProxyRoot) meta.symbolReceiverProxyRoot = symbolReceiverProxyRoot;
     else unwrapParensCollectingEffects(node.object, sideEffects);
     meta.receiverEffectCount = sideEffects.length;
@@ -2226,7 +2248,7 @@ export function handleMemberExpressionNode({
         path,
         read: guardIdent,
       }) : null;
-      const writeObjects = (guardIdent?.type === 'Identifier'
+      let writeObjects = (guardIdent?.type === 'Identifier'
         ? aliasWriteCtorNames({ name: guardIdent.name, scope, adapter, path, binding: guardedBinding, read: guardIdent }) : [])
         .filter(name => !hopBase || POSSIBLE_GLOBAL_OBJECTS.has(name));
       for (const name of iteratedObjects) if (!writeObjects.includes(name)) writeObjects.push(name);
@@ -2236,8 +2258,10 @@ export function handleMemberExpressionNode({
       // off a binding already swapped to the pure ctor, answering `undefined` where native has
       // the static - the miss usage-pure may never ship. NOT inside a guard this plugin already
       // emitted, where the same read is the raw branch and a second pass would guard it twice
-      const guardedHint = writeObjects.includes(guardedBinding?.guardedAliasHint) ? guardedBinding.guardedAliasHint
-        : insideEmittedCtorGuardBranch(path, adapter) ? null : writeObjects[0] ?? null;
+      // A negative identity test rules out its own constructor. Another candidate may still match.
+      if (writeObjects.length) writeObjects = writeObjects.filter(name => !insideEmittedCtorGuardBranch(path, adapter, guardIdent, name));
+      const guardedHint = writeObjects.includes(guardedBinding?.guardedAliasHint)
+        ? guardedBinding.guardedAliasHint : writeObjects[0] ?? null;
       // a SIDE-EFFECTING computed KEY stays raw: the guard's consequent replaces the whole member
       // and would skip the key's effect on the taken path (native always evaluates it). a RECEIVER
       // effect is not that - it runs once ahead of the test, where the source runs it, so the count
@@ -2250,7 +2274,7 @@ export function handleMemberExpressionNode({
         // guard-only one so the pure callbacks still see the read (they render and return).
         // `bailOnSideEffectKey` keeps the same raw canon for the synthesized shape
         const key = meta?.key ?? resolveKey({
-          node: node.property, computed: node.computed, scope, adapter, path, bailOnSideEffectKey: true,
+          node: node.property, computed: node.computed, scope, adapter, path, bailOnSideEffectKey: true, requireInitialized: true,
         });
         if (key && meta) {
           Object.assign(meta, {
@@ -2443,11 +2467,11 @@ export function symbolIteratorHint(entry) {
 function guardedRealmSymbolIn({ left, scope, adapter, path, resolvePure, resolveStaticKey }) {
   // The RHS stays in mutually exclusive branches, each after the source key read.
   if (left.type !== 'MemberExpression' || left.optional) return null;
-  if (insideEmittedCtorGuardBranch(path, adapter)) return null;
   const symbolNode = unwrapTransparentSeq(left.object);
   if (symbolNode?.type !== 'MemberExpression' || symbolNode.optional || memberKeyName(symbolNode) !== 'Symbol') return null;
   const receiver = unwrapTransparentSeq(symbolNode.object);
-  if (receiver?.type !== 'Identifier' || isMutatedGlobalSlot(adapter, 'Symbol', path && { node: symbolNode, path })) return null;
+  if (receiver?.type !== 'Identifier' || insideEmittedCtorGuardBranch(path, adapter, receiver)
+    || isMutatedGlobalSlot(adapter, 'Symbol', path && { node: symbolNode, path })) return null;
   const name = resolveKey({
     node: left.property, computed: left.computed, scope, adapter, path, resolveStaticKey, bailOnSideEffectKey: true,
   });
@@ -2481,15 +2505,15 @@ function inOperandReceiver({ node, scope, adapter, path }) {
   const rightObject = peelReceiverSequenceTail(decidedRunningOperand(peelReceiverSequenceTail(node.right), { scope, adapter, path }));
   const containerUnion = [];
   const conditionalCalls = [];
-  const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path })
-    ?? staticContainerReceiverName({
-      node: rightObject,
-      scope,
-      adapter,
-      path,
-      unionSink: containerUnion,
-      conditionalSink: conditionalCalls,
-    });
+  const primary = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
+  const objectName = containerReceiverWithPrimary(primary, {
+    node: rightObject,
+    scope,
+    adapter,
+    path,
+    unionSink: containerUnion,
+    conditionalSink: conditionalCalls,
+  });
   return { rightObject, objectName: conditionalCalls.length && adapter.method === 'usage-pure' ? null : objectName, containerUnion };
 }
 

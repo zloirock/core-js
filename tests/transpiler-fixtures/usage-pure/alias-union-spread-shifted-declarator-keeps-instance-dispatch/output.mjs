@@ -8,8 +8,8 @@ import _Object$values from "@core-js/pure/actual/object/values";
 // an instance method off a collection (one method per row, so every row is observable by its own
 // module)
 const [, viaDeclarator] = [...xs, Object];
-export const d = (viaDeclarator === Object ? _Object$values : _values(viaDeclarator).bind(viaDeclarator))(src);
+export const d = _Object$values.call.call(viaDeclarator === Object ? _Object$values : _values(viaDeclarator), viaDeclarator, src);
 const {
   1: viaKeyedDeclarator
 } = [...xs, Object];
-export const e = (viaKeyedDeclarator === Object ? _Object$entries : _entries(viaKeyedDeclarator).bind(viaKeyedDeclarator))(src);
+export const e = _Object$entries.call.call(viaKeyedDeclarator === Object ? _Object$entries : _entries(viaKeyedDeclarator), viaKeyedDeclarator, src);

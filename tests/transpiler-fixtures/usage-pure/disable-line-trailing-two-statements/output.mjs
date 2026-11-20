@@ -8,7 +8,7 @@ import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
 use(a.at(0));
 // core-js-disable-next-line
 use(b.flat()); // core-js-disable-line
-export const after = _toSortedMaybeArray(c).call(c, cmp);
+export const after = (_toSortedMaybeArray(c) || 0).call(c, cmp);
 // core-js-disable-next-line
 if (cond) {
   use(d.findLast(f));

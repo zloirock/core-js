@@ -6,6 +6,6 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // and gets no separator after the receiver. treating the comment as the arity signal once
 // emitted `.call(arr, /* hint */)` - a trailing comma,
 // and a parse error for the whole module on the ES5 baseline this method targets.
-_includes(arr).call(arr, /* needle */x);
+(_includes(arr) || 0).call(arr, /* needle */x);
 _flatMaybeArray(arr).call(arr) /* hint */;
-_findLastMaybeArray(arr).call(arr, x /* trailing */);
+(_findLastMaybeArray(arr) || 0).call(arr, x /* trailing */);

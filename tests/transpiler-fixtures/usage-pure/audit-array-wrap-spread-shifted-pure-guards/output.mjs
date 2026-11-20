@@ -39,5 +39,5 @@ export const viaPreSpreadExact = new W();
 // poisons certainty, all-proxy arms included - the guard tests the one candidate it can name
 const [, {
   Symbol: SY
-}] = [...tail, _globalThis];
+}] = [...tail, (flip, _globalThis)];
 export const viaShiftedUnionPure = SY === _Symbol ? _Symbol$asyncIterator : SY.asyncIterator;

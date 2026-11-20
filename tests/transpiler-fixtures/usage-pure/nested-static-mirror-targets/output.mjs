@@ -47,7 +47,7 @@ let defaults = 0;
 export const result = [from([7])[0], from === pureFrom, typeof bind, typeof box.value, defaults, events];
 function observe() {
   try {
-    _pushMaybeArray(events).call(events, typeof boundFrom);
+    (_pushMaybeArray(events) || 0).call(events, typeof boundFrom);
   } catch (error) {
     (_pushMaybeArray(events) || 0).call(events, _nameMaybeFunction(error));
   }

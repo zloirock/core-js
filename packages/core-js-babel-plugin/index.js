@@ -666,7 +666,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         return injector.addPureImport(entry, hint);
       }
 
-      function handleSymbolIterator(path, sideEffects, receiverEffectCount, symbolReceiverProxyRoot) {
+      function handleSymbolIterator(path, { sideEffects, receiverEffectCount, symbolReceiverProxyRoot, keepSymbolReceiver }) {
         // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
@@ -703,7 +703,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         // [Symbol.iterator]`) is not covered by symbolReceiverProxyRoot (it resolves only the hop directly before
         // the symbol); collapse it through the shared receiver collapse so it matches unplugin - a raw
         // `globalThis.self` off the deeper chain reads undefined off-engine. no-op once already collapsed
-        if (synthSwap && path.scope
+        if (!keepSymbolReceiver && synthSwap && path.scope
           && (path.node.object?.type === 'MemberExpression' || path.node.object?.type === 'OptionalMemberExpression')) {
           const collapsedRecv = synthSwap.collapseProxyGlobalReceiver(path.node.object, { aliasCtx: { scope: path.scope, adapter, path } });
           if (collapsedRecv) path.node.object = collapsedRecv;
@@ -1049,10 +1049,9 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
           call: callPath?.node,
           ctx: { scope: path.scope, path, adapter, injectorState: injector },
           embed: node => hostSlot(t.cloneNode(node)),
-          cloneCall: (source, callee, args, optional) => hostSlot({
-            ...t.cloneNode(source), callee: estreeToBabel(callee),
-            arguments: args.map(estreeToBabel), optional,
-          }, { chain: optional }),
+          cloneCall: (source, callee, args, optional) => ({
+            ...t.cloneNode(source), type: 'CallExpression', callee, arguments: args, optional,
+          }),
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           captureReceiver: plan.captureReceiver && !plan.hoistInsideCapture ? hostSlot(captureSource) : null,
           spellRecv: () => {
@@ -1387,7 +1386,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
             // provenance gate: a string-spelled key (`arr['Symbol.iterator']`) is a plain
             // property read and stays raw
             if (isSourcedSymbolIteratorMeta(meta)) {
-              return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount, meta.symbolReceiverProxyRoot);
+              return handleSymbolIterator(path, meta);
             }
           }
         }

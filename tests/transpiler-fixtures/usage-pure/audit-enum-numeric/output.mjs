@@ -9,4 +9,4 @@ enum Color {
 }
 declare const c: Color;
 const arr: string[] = ['a', 'b', 'c'];
-_atMaybeArray(arr).call(arr, c);
+(_atMaybeArray(arr) || 0).call(arr, c);

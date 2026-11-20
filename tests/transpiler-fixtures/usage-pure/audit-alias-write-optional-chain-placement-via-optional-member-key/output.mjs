@@ -8,4 +8,4 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 let AW, IW, MW, PW, SW;
 // computed key under an optional member may never evaluate - guarded
 a?.[PW = _Promise, _globalThis];
-export const viaOptionalMemberKey = (PW === _Promise ? _Promise$allSettled : PW.allSettled.bind(PW))(list);
+export const viaOptionalMemberKey = PW === _Promise ? _Promise$allSettled(list) : PW.allSettled(list);

@@ -7,7 +7,7 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 const seen = [];
 for (const [{
   at: viaDefault = fb
-}] of [[{}]]) _pushMaybeArray(seen).call(seen, viaDefault === fb);
+}] of [[{}]]) (_pushMaybeArray(seen) || 0).call(seen, viaDefault === fb);
 for (const _ref3 of [[[1, 2]]]) {
   const [_ref2] = _ref3;
   const viaPlain = _atMaybeArray(_ref2);

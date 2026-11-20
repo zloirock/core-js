@@ -12,4 +12,4 @@ let third = Object;
 other = held || third;
 held = flag ? third : held;
 [held] = [other];
-export const grouped = (held === _Map ? _Map$groupBy : held === Object ? _Object$groupBy : held.groupBy.bind(held))(list, key);
+export const grouped = _Map$groupBy.call.call(held === _Map ? _Map$groupBy : held === Object ? _Object$groupBy : held.groupBy, held, list, key);

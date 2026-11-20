@@ -13821,10 +13821,9 @@ for (const key of ['0', '42']) {
     });
 }
 
-// an optional chain short-circuits through a TS wrapper the same as without one - `a?.b!.c` and
-// `(a?.b as T).c` are `undefined` whenever `a` is nullish. reading the wrapper as the end of the
-// chain reported it never-nullish, and the truthy-fold then collapsed `<chain> || "x"` to the
-// chain's own family, handing an Array-specific helper the string the runtime actually produces
+// A continuous chain short-circuits across a non-null assertion. Grouping the cast ends
+// the chain and the following read throws. The resolver conservatively keeps its nullish
+// marker on both shapes, so a fallback can never force an Array-only helper.
 const CHAIN_WRAPPER_SHAPES = [
   ['bare', 'a?.b.c'],
   ['non-null assertion between hops', 'a?.b!.c'],
@@ -13832,11 +13831,11 @@ const CHAIN_WRAPPER_SHAPES = [
 ];
 for (const [label, chain] of CHAIN_WRAPPER_SHAPES) {
   runBoth(`optional chain (${ label }) keeps the fold open`,
-    `declare const a: { b?: { c: number[] } };\nconst v = ${ chain } || "x";\nv.at(0);`,
+    `declare const a: { b: { c: number[] } } | null;\nconst x = ${ chain };\nconst v = ${ chain } || "x";\nv.at(0);`,
     (adapter, prog, lbl) => {
-      const resolved = atReceiver(adapter, prog);
-      if (resolved?.constructor === 'Array') return fail(lbl, 'a short-circuiting chain folded to its own family');
-      pass();
+      const value = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(value.get('init')), { primitive: false, ctor: 'Array', nullish: true });
+      check(lbl, atReceiver(adapter, prog), null);
     });
 }
 

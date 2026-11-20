@@ -11,5 +11,5 @@ type Holder<U> = {
 declare const h: Holder<number>;
 h.use(p => {
   var _ref;
-  _findLastMaybeArray(_ref = p.items).call(_ref, Boolean);
+  (_findLastMaybeArray(_ref = p.items) || 0).call(_ref, Boolean);
 });

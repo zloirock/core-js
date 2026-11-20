@@ -13,6 +13,6 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 const box = _globalThis.box;
 export const liveLinkBelow = null == (_ref = box?.list.pick?.()) ? void 0 : _at(_ref).call(_ref, 0);
 export const optionalCallee = null == (_ref2 = box?.pick?.()) ? void 0 : _includes(_ref2).call(_ref2, 1);
-export const callLinkBelow = null == (_ref3 = _flatMaybeArray(_ref4 = box.list)?.call(_ref4).pick?.()) ? void 0 : _findLastMaybeArray(_ref3).call(_ref3, Boolean);
+export const callLinkBelow = null == (_ref3 = _flatMaybeArray(_ref4 = box.list)?.call(_ref4).pick?.()) ? void 0 : (_findLastMaybeArray(_ref3) || 0).call(_ref3, Boolean);
 // NEGATIVE: a served callee is a lookup of its own
 export const servedCallee = null == box || null == (_ref5 = _toSortedMaybeArray(_ref6 = box.list)?.call(_ref6)) ? void 0 : _withMaybeArray(_ref5).call(_ref5, 0, 1);

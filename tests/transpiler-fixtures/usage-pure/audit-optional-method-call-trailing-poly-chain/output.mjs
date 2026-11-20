@@ -7,4 +7,4 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
 // hops onto a single memoized inner result; queuing each trailing poly separately overlaps
 // ranges and crashes. a side-effecting receiver (`getList()`) is memoized and evaluated once.
 null == (_ref = obj.m) ? void 0 : _at(_ref2 = _at(_ref3 = _ref.call(obj)).call(_ref3, 0)).call(_ref2, 1);
-null == (_ref4 = getList(), _ref5 = _ref4.fetch) ? void 0 : _findLastMaybeArray(_ref6 = _flatMaybeArray(_ref7 = _ref5.call(_ref4)).call(_ref7)).call(_ref6, p);
+null == (_ref4 = getList(), _ref5 = _ref4.fetch) ? void 0 : (_findLastMaybeArray(_ref6 = _flatMaybeArray(_ref7 = _ref5.call(_ref4)).call(_ref7)) || 0).call(_ref6, p);

@@ -61,20 +61,23 @@ for (const parser of adapters) {
     check(`${ parser.name }/remove ${ removed }/${ spans }/absent hop`, removals, 1);
   }
   for (const wrap of [value => value, value => `(${ value })`, value => `(((${ value })))`, value => `(${ value } as any)`]) {
-    for (const shape of ['declaration', 'assignment', 'array']) for (const realm of [true, false]) {
+    for (const shape of ['declaration', 'assignment', 'array']) for (const [realm, bound] of [[true, false], [true, true], [false, true]]) {
       const receiver = wrap(`flag ? globalThis : ${ realm ? 'globalThis' : 'other' }`);
       const source = shape === 'declaration' ? `const { Math: M } = ${ receiver };`
         : shape === 'assignment' ? `let M; ({ Math: M } = ${ receiver });`
           : `const [{ Math: M }] = ${ wrap(`[${ receiver }]`) };`;
-      const tree = parser.parseAndScope(source);
+      const tree = parser.parseAndScope((bound ? 'const flag = choose(); ' : '') + source);
       const host = parser.pickPath(tree, shape === 'assignment' ? 'AssignmentExpression' : 'VariableDeclarator',
-        item => shape === 'assignment' || !!item.node.init);
+        item => shape === 'assignment' || item.node.id.name !== 'flag' && !!item.node.init);
       const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
       const ctx = { adapter, scope: host.scope, path: host };
       const before = JSON.stringify(host.node);
       const sites = realmSelectingHostCollapses(host.node, ctx);
       check(`${ parser.name }/${ shape }/${ receiver }/collapse`, sites.length, realm ? 1 : 0);
-      for (const site of sites) check(`${ parser.name }/${ shape }/original slot`, site.container[site.key], site.init);
+      for (const site of sites) {
+        check(`${ parser.name }/${ shape }/original slot`, site.container[site.key], site.init);
+        check(`${ parser.name }/${ shape }/retained condition`, site.test?.name, bound ? undefined : 'flag');
+      }
       check(`${ parser.name }/${ shape }/read only`, JSON.stringify(host.node), before);
       adapter.method = 'usage-global';
       check(`${ parser.name }/${ shape }/global`, realmSelectingHostCollapses(host.node, ctx).length, 0);

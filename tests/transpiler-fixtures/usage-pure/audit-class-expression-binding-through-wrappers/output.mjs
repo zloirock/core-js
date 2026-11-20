@@ -25,4 +25,4 @@ const anonymous = class {
 export const exported = class W {
   static list = [5];
 };
-export const r = [_mapMaybeArray(_ref = named.list).call(_ref, v => v), _filterMaybeArray(_ref2 = wrapped.list).call(_ref2, Boolean), _flatMapMaybeArray(_ref3 = cast.list).call(_ref3, v => v), _findMaybeArray(_ref4 = anonymous.list).call(_ref4, Boolean), _at(_ref5 = exported.list).call(_ref5, 0)];
+export const r = [_mapMaybeArray(_ref = named.list).call(_ref, v => v), (_filterMaybeArray(_ref2 = wrapped.list) || 0).call(_ref2, Boolean), _flatMapMaybeArray(_ref3 = cast.list).call(_ref3, v => v), (_findMaybeArray(_ref4 = anonymous.list) || 0).call(_ref4, Boolean), _at(_ref5 = exported.list).call(_ref5, 0)];

@@ -7,4 +7,4 @@ var _ref, _ref2, _ref3;
 // non-optional tail. the outer transform folds the consecutive `?.` leads into its receiver and
 // keeps none of the tail's dots optional. each inner rewrite must land against that
 // partially-deoptionalized receiver instead of re-stripping the surviving structural dots
-const r = null == (_ref = arr == null ? void 0 : _flatMaybeArray(arr).call(arr)) ? void 0 : _includes(_ref2 = _at(_ref3 = _flatMapMaybeArray(_ref).call(_ref, f)).call(_ref3, 0)).call(_ref2, 1);
+const r = null == (_ref = arr == null ? void 0 : _flatMaybeArray(arr).call(arr)) ? void 0 : _includes(_ref2 = _at(_ref3 = (_flatMapMaybeArray(_ref) || 0).call(_ref, f)).call(_ref3, 0)).call(_ref2, 1);

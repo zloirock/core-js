@@ -15,7 +15,7 @@ class A {
     return b.flat();
   }
   o() {
-    return _includes(c).call(c, v);
+    return (_includes(c) || 0).call(c, v);
   }
 }
 class B {

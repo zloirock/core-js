@@ -1104,6 +1104,9 @@ export function collectInjectorCensus(program, {
   const nestedGuardMemoCandidates = [];
   const memoStatementWrites = [];
   const memoBindings = new Map();
+  const callContext = { injectorState: {
+    isOwnPassGeneratedName: name => mintedRefNames.has(name), isOwnPassPureBinding: name => pureNames.has(name),
+  } };
   const ancestors = [];
   const ancestorKeys = [];
   const ancestorListKeys = [];
@@ -1116,7 +1119,7 @@ export function collectInjectorCensus(program, {
   walkAstNodes({ root: program, visit(node, parent, key, listKey) {
     // Normalize only our annotated call members in the existing final-tree walk.
     if ((node.type === 'CallExpression' || node.type === 'OptionalCallExpression')
-      && node.callee?.object?.extra?.corejsMethodCallGuard) settleMethodCallGuard(node);
+      && node.callee?.object?.extra?.corejsMethodCallGuard) settleMethodCallGuard(node, callContext);
     // a `:` slot is where babel's uid scan stops: a name written past one claims nothing
     // (`declare const v: { _ref2(): void }` leaves `_ref2` free), while a type-alias RHS or
     // an interface body carries no such wrapper and is walked at any depth

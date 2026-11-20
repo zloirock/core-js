@@ -322,7 +322,7 @@ export default function createAstUsagePureCallback({
       pendingEffects: meta.sideEffects ?? [],
       receiverEffectCount: meta.receiverEffectCount ?? 0,
     };
-    if (!proxyRootFired) collapseSymbolReceiver(meta, metaPath, state);
+    if (!proxyRootFired && !meta.keepSymbolReceiver) collapseSymbolReceiver(meta, metaPath, state);
     if (replaceInstanceLike({
       metaPath,
       entry,

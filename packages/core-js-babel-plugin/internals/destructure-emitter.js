@@ -36,6 +36,7 @@ import {
   renderMemoReadTarget,
   renderForInitSink,
   renderResidualAnchor,
+  sequenceExpression,
 } from '@core-js/polyfill-provider/render';
 import { brand } from '@core-js/polyfill-provider/helpers/error-tag';
 import { firstSpelledOffset, ownedLeadingComments } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -2816,13 +2817,11 @@ export default function createDestructureEmitter({
   // the other and the two import sets part over dead code
   function collapseRealmSelectingHost(declarator) {
     if (!declarator?.node) return;
-    // the answer speaks only for a selection of realm names and proxy navs, all of them effect-free,
-    // so nothing here asks `mayHaveSideEffects` of the init: its verdict is CACHED per node, and
-    // taking it this early freezes a value the passes still to run would answer differently
+    // Both arms yield the same realm. Carry an observable test ahead of the chosen operand.
     const collapses = realmSelectingHostCollapses(declarator.node,
       { adapter, injectorState: injector, scope: declarator.scope, path: declarator });
-    for (const { container, key, init, operand } of collapses) {
-      container[key] = t.cloneNode(operand, true);
+    for (const { container, key, init, operand, test } of collapses) {
+      container[key] = t.cloneNode(test ? sequenceExpression([test, operand]) : operand, true);
       realmCollapsedHosts.add(declarator.node);
       t.traverseFast(init, node => { skippedNodes.add(node); });
     }

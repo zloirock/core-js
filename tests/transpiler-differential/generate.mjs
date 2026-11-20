@@ -26094,6 +26094,108 @@ function * generateBorrowedPrototypeReceivers() {
   })()`), strip: true, isolated: true };
 }
 
+function * generateRealmReceiverObservations() {
+  for (const rig of [false, true]) {
+    for (const [shape, expr] of [
+      ['sealed-key', '(globalThis.window?.self)[(note("key"), "Array")][(note("method"), "from")]((note("arg"), [3]))'],
+      ['optional-key', '(globalThis.window?.self)?.[(note("key"), "Array")]?.from((note("arg"), [3]))'],
+      ['sealed-iterator', '(globalThis.window?.self.window)[(note("key"), Symbol.iterator)]'],
+      ['live-iterator', 'globalThis.window?.self.window[(note("key"), Symbol.iterator)]()'],
+      ['delete-value', 'delete (flag ? globalThis.window?.Map : null)'],
+      // A kept plain window read has a separate absent-host contract in pure.
+      ['computed-tail', rig ? 'typeof (note("outer"), (note("inner"), globalThis.window[hop]))?.Array.prototype.at'
+        : 'typeof (note("outer"), (note("inner"), globalThis.window?.[hop]))?.Array.prototype.at'],
+    ]) yield snippet(`realm-receiver/chain/${ shape }/${ rig }`, `(() => {
+      const hop = 'self'; const flag = true;
+      function note(key) { log.push(key); }
+      try { const value = ${ expr }; return typeof value === 'function' ? 'method' : value; }
+      catch (error) { return error.name; }
+    })()`, { rig });
+  }
+  for (const [shape, chain] of [
+    ['bare', 'a?.b.c'], ['non-null', 'a?.b!.c'], ['grouped', '(a?.b as { c: number[] }).c'],
+  ]) yield { ...snippet(`realm-receiver/typescript/${ shape }`, `(() => {
+    function read(a: { b: { c: number[] } } | null) {
+      try { return (${ chain } || 'fallback').at(0); } catch (error) { return error.name; }
+    }
+    return [read(null), read({ b: { c: [7] } })];
+  })()`), ts: true };
+  for (const flag of [false, true]) for (const [shape, expression] of [
+    ['continuous', 'factory?.().Array.from((note("arg"), [3]))'],
+    ['sealed', '(factory?.()).Array.from((note("arg"), [3]))'],
+    ['optional-reader', '(factory?.().Array)?.from((note("arg"), [3]))'],
+  ]) yield snippet(`realm-receiver/factory/${ shape }/${ flag }`, `(() => {
+    function note(key) { log.push(key); } let factory;
+    if (${ flag }) factory = () => (note('factory'), globalThis);
+    try { return ${ expression }; } catch (error) { return error.name; }
+  })()`);
+  for (const [shape, body] of [
+    ['in-probe', "try { return 'at' in window.Array.prototype; } catch (error) { return error.name; }"],
+    ['selection-tdz', 'const { Map: C } = pick ? globalThis : globalThis; let pick; return typeof C;'],
+    ['selected-assignment', `const realm = globalThis; let group, all;
+      const held = ({ Promise: { allSettled: all }, Map: { groupBy: group } } = (log.push('test') ? globalThis : realm));
+      return [held === realm, typeof all, group([7], x => x).get(7)[0]];`],
+    ['selected-sibling-source', `const { Set: { name }, [Symbol.iterator]: iterator } = globalThis.Set ? globalThis : globalThis;
+      return [name, typeof iterator];`],
+    ['selected-binding-order', `for (const { Map: M, [(log.push(typeof M), 'Set')]: S } =
+      log.push('test') ? globalThis : self; ;) { return [typeof M, typeof S]; }`],
+    ...[['Number', 'EPSILON'], ['Symbol', 'iterator']].map(([owner, key]) => [`noncallable-static-${ key }`, `
+      function read(flag) { let C; if (flag) C = ${ owner }; else C = { ${ key }() { return this === C ? 7 : 0; } };
+        try { return C.${ key }((log.push('arg'), 1)); } catch (error) { return error.name; } }
+      return [read(false), read(true)];`]),
+    ['continuation', `function read(flag) { let C; if (flag) C = Map; else C = {};
+      return C?.groupBy?.([], x => x).size.toString(); } return [read(false), read(true)];`],
+    ['key-tdz', `const C = true ? Array : { from: 42 }; function read() { try { return typeof C?.[key]; }
+      catch (error) { return error.name; } } const before = read(); const key = 'from'; return [before, read()];`],
+    ['shadowed-realm', `let r = globalThis; if (log.push('branch')) {
+      const self = { Array: { from() { return 'local'; } } }; r = self; } return r.Array.from([3]);`],
+    ['leading-get', `const box = { get extra() { log.push('extra'); return 0; } };
+      const [, { row: { at } }] = [box.extra, { get row() { log.push('row'); return [1]; } }]; return typeof at;`],
+    ['argument-coercion', 'const key = { valueOf() { log.push(\'coerce\'); return 0; } }; return (() => Array)(\'\' + key).from([3]);'],
+    ['return-coercion', 'const key = { valueOf() { log.push(\'coerce\'); return 0; } }; return (() => (\'\' + key, Array))().from([3]);'],
+    ['caller-argument', `Object.defineProperty(globalThis, 'receiverOptions', { configurable: true, get() { log.push('arg'); } });
+      try { const receiver = null; (receiver?.at)(receiverOptions); } finally { delete globalThis.receiverOptions; }`],
+    ['discarded-name', `Object.defineProperty(globalThis, 'receiverOptions', { configurable: true, get() { log.push('get'); } });
+      try { function realm() { return globalThis; } const { of } = (receiverOptions, realm().Array); return of(1); }
+      finally { delete globalThis.receiverOptions; }`],
+    ['getter-capture', `let source = [1]; const first = source;
+      Object.defineProperty(globalThis, 'receiverRows', { configurable: true, get() { log.push('recv'); return source; } });
+      Object.defineProperty(first, 'at', { get() { source = [2]; return Array.prototype.at; } });
+      try { return receiverRows.at(0); } finally { delete globalThis.receiverRows; }`],
+    ['iterator-capture', `let source = [1];
+      Reflect.defineProperty(globalThis, 'receiverRows', { configurable: true, get() { log.push('recv'); return source; } });
+      function swap() { log.push('key'); source = [2]; }
+      try { return Array.from(receiverRows[(swap(), Symbol.iterator)]()); } finally { delete globalThis.receiverRows; }`],
+    ['ordered-array-default', `const value = [3]; const getter = { get at() { log.push('get'); return Array.prototype.at; } };
+      Object.defineProperty(globalThis, 'receiverRows', { configurable: true, get() { log.push('source'); return getter; } });
+      Object.defineProperty(globalThis, 'receiverLast', { configurable: true, get() { log.push('last'); } });
+      try {
+        const [{ at }, last = (log.push('default'), at.call(value, 0))] = [receiverRows, receiverLast];
+        return last;
+      } finally { delete globalThis.receiverRows; delete globalThis.receiverLast; }`],
+    ['written-container', 'let env = globalThis; if (log.push("branch")) env = { Items: Array }; return env.Items.from([8]);'],
+    ['delete-method', 'const yes = true; return delete (yes ? Map.groupBy : null);'],
+  ]) yield { ...snippet(`realm-receiver/value/${ shape }`, `(() => {
+    try { ${ body } } catch (error) { return error.name; }
+  })()`), isolated: true };
+  for (const [shape, expression] of [
+    ['static', 'M.from([7])'], ['iterator-in', 'r.Symbol.iterator in []'],
+  ]) yield { name: `realm-receiver/import-identity/${ shape }`, strip: true, isolated: true,
+    code: `import P from '@core-js/pure/actual/promise';
+      const opt = {}; let M, r; if (opt) { M = globalThis.Array; r = globalThis; }
+      export const rValue = opt === P ? 'skip' : ${ expression }; export { rValue as r }; export const effects = [];` };
+  yield {
+    name: 'realm-receiver/import-identity/remaining-constructor', strip: true, isolated: true,
+    code: `import M from '@core-js/pure/actual/map/constructor';
+      function group(chooseMap) {
+        let C;
+        if (chooseMap) C = globalThis.Map; else C = globalThis.Object;
+        return C === M ? 'map' : C.groupBy([7], x => x)[7][0];
+      }
+      export const r = group(false); export const effects = [];`,
+  };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -27922,4 +28024,5 @@ export function * generate() {
   yield * generateFoldedSequencePrefixes();
   yield * generateEffectfulRealmReceivers();
   yield * generateBorrowedPrototypeReceivers();
+  yield * generateRealmReceiverObservations();
 }

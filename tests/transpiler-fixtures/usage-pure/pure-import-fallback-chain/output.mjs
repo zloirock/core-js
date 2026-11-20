@@ -14,4 +14,4 @@ const N = narrow;
 export const fromNarrow = (N === _Promise ? _Promise$withResolvers : N.withResolvers.bind(N))();
 const older = ES;
 const E = older;
-export const fromES = (E === _Promise ? _Promise$allKeyed : E.allKeyed.bind(E))(entries);
+export const fromES = _Promise$allKeyed.call.call(E === _Promise ? _Promise$allKeyed : E.allKeyed, E, entries);

@@ -13,7 +13,7 @@ box.Array = FakeArray;
 const {
   Array: A
 } = box;
-(A === Array ? _Array$from : A.from.bind(A))(src);
+_Array$from.call.call(A === Array ? _Array$from : A.from, A, src);
 box.Array.from(src);
 const {
   Map: M

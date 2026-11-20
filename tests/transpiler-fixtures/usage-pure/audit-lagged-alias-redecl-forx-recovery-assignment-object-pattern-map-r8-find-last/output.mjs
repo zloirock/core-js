@@ -6,5 +6,5 @@ import _Map from "@core-js/pure/actual/map/constructor";
   let K;
   K = _Map;
   K = [5];
-  _globalThis.r8 = _findLastMaybeArray(K).call(K, Boolean);
+  _globalThis.r8 = (_findLastMaybeArray(K) || 0).call(K, Boolean);
 }

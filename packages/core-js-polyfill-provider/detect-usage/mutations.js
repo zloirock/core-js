@@ -149,6 +149,7 @@ import {
   peelToBareExpr,
   plainSynthKeyName,
   positionalElements,
+  NON_WRITABLE_VALUE_GLOBALS,
   POSSIBLE_GLOBAL_OBJECTS,
   PRIMITIVE_LITERAL_TYPES,
   programTopLevelIsRealm,
@@ -222,7 +223,7 @@ import {
   withinAliasWalkBudget,
   writeTargetsReadSlot,
 } from './resolve.js';
-import { isKnownGlobalName, NON_WRITABLE_VALUE_GLOBALS, staticReceiverHint } from './globals.js';
+import { isKnownGlobalName, staticReceiverHint } from './globals.js';
 import { canonicalArrayIndex, dropLeadingThisParam, nodeRangeContains, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { findEnumMember } from '../resolve-node-type/enum-types.js';
 import { bodyRunsWhileTestHolds, nodeAlwaysHardExits } from '../resolve-node-type/exit-analysis.js';

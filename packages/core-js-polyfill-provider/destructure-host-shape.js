@@ -121,6 +121,7 @@ import {
   proxyGlobalRootName,
   proxyReceiverValueCanBeUndefined,
   resolveObjectName,
+  servedRead,
 } from './detect-usage/resolve.js';
 import {
   decidedRunningOperand,
@@ -403,13 +404,17 @@ export function renderArrayWrapperCapture(plan, { mintRef, embed = node => node,
     if (element.nativeBinding) nativeBindings.add(element.pattern);
     if (element.receiver) reusedReceivers.add(element.pattern);
     if (element.defaultValue) defaulted.add(element.pattern);
+    const { pattern } = element;
+    // Capture the raw element. Its default runs at the original binding, after earlier property reads.
+    const defaultedPattern = pattern.type === 'AssignmentPattern';
+    const binding = defaultedPattern ? pattern.left : pattern.type === 'RestElement' ? pattern.argument : pattern;
     return {
       ...element,
       ref,
-      declarator: element.receiverUnused || element.nativeBinding ? null : variableDeclarator(
-        retain(element.pattern.type === 'RestElement' ? element.pattern.argument : element.pattern),
-        identifier(ref),
-      ),
+      declarator: element.receiverUnused || element.nativeBinding ? null : variableDeclarator(retain(binding),
+        defaultedPattern ? renderInstanceDefaultGuard({
+          call: identifier(ref), defaultValue: retain(pattern.right), reread: identifier(ref), defaultName: binding.name,
+        }) : identifier(ref)),
     };
   });
   function capturePattern(pattern) {
@@ -2305,6 +2310,8 @@ export function keyedReadReceiverProven({ init, hostPath, adapter, nested = fals
     const name = resolveObjectName({ objectNode: spelling, ...hop.ctx })
       ?? staticContainerReceiverName({ node: spelling, ...hop.ctx, rescuesReceiverRead: true });
     if (!isStaticPlacement(name ?? '')) return false;
+    // A native realm probe can yield undefined before the first computed key.
+    if (POSSIBLE_GLOBAL_OBJECTS.has(name) && !servedRead(spelling, hop.ctx)?.substituted) return false;
   }
   return true;
 }

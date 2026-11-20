@@ -28,7 +28,7 @@ if (lists.length) {
 if (lists.length) var allSettled = _Promise$allSettled;
 if (lists.length) var of = _Array$of;
 if (lists.length) {
-  _findLastIndexMaybeArray(lists).call(lists, Boolean), stamp();
+  (_findLastIndexMaybeArray(lists) || 0).call(lists, Boolean), stamp();
   var entries = _Object$entries;
   var fromEntries = _Object$fromEntries;
 }

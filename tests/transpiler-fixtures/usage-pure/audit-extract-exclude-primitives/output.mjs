@@ -5,4 +5,4 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 type Nums = Extract<string | number, number>;
 declare const n: Nums;
 const s: string = 'abc';
-_atMaybeString(s).call(s, n);
+(_atMaybeString(s) || 0).call(s, n);

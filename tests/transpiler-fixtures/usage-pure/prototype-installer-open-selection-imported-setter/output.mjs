@@ -11,4 +11,4 @@ _ref = c ? Object : _Reflect, _ref === Object ? _Object$setPrototypeOf(owners, A
 export const a = _at(owners).call(owners, -1);
 const setters = {};
 (c ? _Object$setPrototypeOf : _Reflect$setPrototypeOf)(setters, Array.prototype);
-export const b = _findLastMaybeArray(setters).call(setters, f);
+export const b = (_findLastMaybeArray(setters) || 0).call(setters, f);

@@ -125,6 +125,7 @@ import {
   peelZeroArgIifeReturn,
   positionalElementPath,
   plainSynthKeyName,
+  NON_WRITABLE_VALUE_GLOBALS,
   POSSIBLE_GLOBAL_OBJECTS,
   PRIMITIVE_LITERAL_TYPES,
   propBindingIdentifier,
@@ -229,9 +230,11 @@ import {
   decidedRunningPart,
   decidedRunningPath,
   reachableAliasValues,
+  descendToChainRoot,
   reassignedAliasValues,
   realmSelectionCollapseOperand,
   realmSelectionLeafKind,
+  hasSamePureRealmArms,
   resolveKey as sharedResolveKey,
   resolveStringKey,
   resolveObjectName,
@@ -282,7 +285,6 @@ import {
 } from '../index.js';
 import {
   KNOWN_NAMESPACE_GLOBALS,
-  NON_WRITABLE_VALUE_GLOBALS,
   implementsPrototypeMethod,
   isKnownGlobalName,
   NATIVE_STATIC_OWNERS,
@@ -603,16 +605,16 @@ function buildDestructuringInitMetaCore({
   // and nested-destructure reads pair with, so the flat spelling stops under-resolving
   if (isReceiverShapedNode(unwrapped)) {
     const selectionArms = [];
-    const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path, resolveStaticKey })
-      ?? staticContainerReceiverName({
-        node: unwrapped,
-        scope,
-        adapter,
-        path,
-        unionSink,
-        selectionSink: selectionArms,
-        rescuesReceiverRead: path?.node?.type === 'VariableDeclarator' || path?.node?.type === 'AssignmentExpression',
-      });
+    const primary = resolveObjectName({ objectNode: unwrapped, scope, adapter, path, resolveStaticKey });
+    const objectName = containerReceiverWithPrimary(primary, {
+      node: unwrapped,
+      scope,
+      adapter,
+      path,
+      unionSink,
+      selectionSink: selectionArms,
+      rescuesReceiverRead: path?.node?.type === 'VariableDeclarator' || path?.node?.type === 'AssignmentExpression',
+    });
     // ... and a member reading a slot through a selection of containers names one constructor per arm:
     // the member channel's identity guard over those arms whose static core-js does not swap in (`c ? {
     // C: Map } : { C: Object }`), on the receiver it captures
@@ -1119,6 +1121,12 @@ export function visitFallbackSynthBranches({
     const ctx = { scope, path, adapter };
     const walk = fallbackBranchWalk(inner, ctx);
     if (walk) {
+      // Backed realm names select the same object. Register one mirror and keep the
+      // condition at the receiver's original position, before any computed key.
+      if (walk.slots.length === 2 && hasSamePureRealmArms(inner, ctx)) {
+        const pure = isViableBranchForKey({ branch: inner.consequent, key, ...ctx, resolvePure });
+        if (pure) return register({ source, pure, callBranch: true, rescueSe: inner });
+      }
       let any = false;
       for (const slot of walk.slots) {
         const childDefault = fallbackBranchDefault(inner, slot, defaultNode);
@@ -1867,7 +1875,7 @@ export function liftedRealmNavEffect(node, { scope, adapter, path }) {
   // a BARE call the inline canon proves to yield a proxy global, running no effect on the way, owes
   // nothing either: the discard drops it with the value nothing reads any more
   if (provenRealmCall(peeled, { scope, adapter, path })) {
-    return { effects: prefix.flatMap(expression => discardRescueNodes({ node: expression, scope, adapter, path })) };
+    return { effects: prefix.flatMap(expression => discardRescueNodesWithReads({ node: expression, scope, adapter, path })) };
   }
   const { root, keys } = memberChainKeys(peeled, staticMemberKeyName);
   const call = peelSequenceTail(unwrapTransparentSeq(root), { step: unwrapTransparentSeq });
@@ -1875,7 +1883,7 @@ export function liftedRealmNavEffect(node, { scope, adapter, path }) {
   if (keys.some(key => key !== 'prototype' && !POSSIBLE_GLOBAL_OBJECTS.has(key) && !CAPITALISED_IDENT.test(key))) return null;
   const realm = resolveObjectName({ objectNode: call, scope, adapter, path, usageNode: call });
   if (!isPristineProxyGlobal(adapter, realm)) return null;
-  return { effects: discardRescueNodes({ node, scope, adapter, path }) };
+  return { effects: discardRescueNodesWithReads({ node, scope, adapter, path }) };
 }
 
 // the single ATTACH point of the usage-global reachable union: every member / `in` / destructure
@@ -5112,6 +5120,22 @@ function containerSlotRescueNodes({ node, scope, adapter, path }) {
   return rescued.length ? rescued : null;
 }
 
+// A global member spelled through a local realm alias can also reach a local container.
+// Keep the primary answer and collect the other slot values for import-only consumers.
+export function containerReceiverWithPrimary(primary, options, proxySegments) {
+  const { node, adapter, scope, path, unionSink } = options;
+  if (!primary) return staticContainerReceiverName(options);
+  if (unionSink && adapter.method === 'usage-global' && isMemberAccessNode(node)) {
+    const tail = proxySegments?.get(node)?.tail ?? proxySegments?.get(node.object)?.tail ?? node;
+    const { root } = descendToChainRoot(tail);
+    if (root?.type === 'Identifier' && adapter.hasBinding({ scope, path, name: root.name, read: root })) {
+      const other = staticContainerReceiverName(options);
+      if (other && other !== primary && !unionSink.includes(other)) unionSink.push(other);
+    }
+  }
+  return primary;
+}
+
 // Resolve a member or alias through the shared container walk, including literal and call roots.
 // Binding values must reach the use; slot writes are checked separately. Closed callers can
 // refine a parameter candidate; `unionSink` collects alternatives for import-only consumers, and
@@ -5540,6 +5564,7 @@ function walkStaticReceiverStep(hop, {
     }
     const rewritten = !resolveLeaf && pluginRewrittenHopName(binding, standing().hop);
     if (rewritten) {
+      if (walkPath.length && unionSink) collectReassignedHopUnion({ ...standing(), binding, name: current.name });
       // the name the hop resolves to stands where the alias is declared, as its initializer would
       current = { type: 'Identifier', name: rewritten };
       currentScope = aliasDeclScope(binding, currentScope);

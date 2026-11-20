@@ -11,7 +11,7 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 let C;
 C = _Map;
 export class Grouped {
-  static byParity = (C === _Map ? _Map$groupBy : C === Object ? _Object$groupBy : C.groupBy.bind(C))(xs, x => x % 2);
+  static byParity = _Map$groupBy.call.call(C === _Map ? _Map$groupBy : C === Object ? _Object$groupBy : C.groupBy, C, xs, x => x % 2);
   static [(C = Object, 'k')] = 1;
 }
 let K;

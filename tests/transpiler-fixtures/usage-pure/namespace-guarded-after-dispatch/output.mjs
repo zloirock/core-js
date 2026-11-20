@@ -8,11 +8,11 @@ namespace N {
   const _ref = {
     array: [41],
     get realm() {
-      _pushMaybeArray(log).call(log, typeof first);
+      (_pushMaybeArray(log) || 0).call(log, typeof first);
       return _globalThis;
     },
     get tail() {
-      _pushMaybeArray(log).call(log, typeof Value);
+      (_pushMaybeArray(log) || 0).call(log, typeof Value);
       return 3;
     }
   };

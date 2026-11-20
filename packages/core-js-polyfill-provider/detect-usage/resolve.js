@@ -94,6 +94,7 @@ import {
   nodeCarriesSourceSpan,
   noReassignmentReachesUsage,
   pathOfNode,
+  patternLevelKeepsSentinels,
   patternLiteralKeyPath,
   findObjectKeyBeforeSpread,
   followConstLiteralAlias,
@@ -117,6 +118,7 @@ import {
   peelSequenceTail,
   peelZeroArgIifeReturn,
   plainSynthKeyName,
+  NON_WRITABLE_VALUE_GLOBALS,
   POSSIBLE_GLOBAL_OBJECTS,
   pureCtorNameFromImportSource,
   pureImportEntryOf,
@@ -186,7 +188,6 @@ import {
 import {
   KNOWN_FUNCTION_GLOBALS,
   NATIVE_STATIC_OWNERS,
-  NON_WRITABLE_VALUE_GLOBALS,
   SYMBOL_STATIC_KEYS,
   implementsPrototypeMethod,
   isKnownGlobalName,
@@ -2236,19 +2237,22 @@ function everyReachableValueNamesRealm({ binding, path, name, ctx = null, usageN
     ? unwrapRuntimeExpr(bindingNode.init) : null;
   function namesRealm(value) {
     // a decided selection is the operand it always yields (`decidedSelectionValue`)
-    const named = peelRealmLogicalDefault(unwrapRuntimeExpr(ctx ? decidedSelectionValue(value, ctx) : value));
+    const site = ctx && pathOfNode(path, value);
+    const scope = site?.scope ?? binding.scope ?? ctx?.scope;
+    const at = site ?? bindingDeclarationPath(binding) ?? path;
+    const named = peelRealmLogicalDefault(unwrapRuntimeExpr(ctx ? decidedSelectionValue(value, { ...ctx, scope, path: at }) : value));
     if (named?.type !== 'Identifier') return false;
     // ... and only while the slot still stands: a name the file REPLACES holds the user's object,
     // not the realm, so the values are no longer one object under several names
     if (ctx?.adapter && isMutatedGlobalSlot(ctx.adapter, named.name)) return false;
-    if (guaranteedRealmObjectName(named.name)) return true;
+    if (guaranteedRealmObjectName(named.name)) return !ctx?.adapter?.hasBinding?.({ scope, name: named.name, path: at, read: named });
     // ... read through the MINTED spelling too: by the time this resolution runs, the walk may have
     // swapped the source name for the ponyfill binding it stands for (`globalThis` -> `_globalThis`),
     // and the hint is what names the realm behind it
-    const hint = ctx?.adapter?.getBindingPolyfillHint?.(ctx.scope, named.name)
+    const hint = ctx?.adapter?.getBindingPolyfillHint?.(scope, named.name)
       ?? bindingPolyfillHint({
-        binding: ctx?.adapter?.getBinding?.({ scope: ctx.scope, name: named.name, path: ctx.path, read: named }),
-        scope: ctx?.scope,
+        binding: ctx?.adapter?.getBinding?.({ scope, name: named.name, path: at, read: named }),
+        scope,
         name: named.name,
         adapter: ctx?.adapter,
       });
@@ -2558,13 +2562,20 @@ function logicalPresenceAnswer(node, ctx, answers) {
   return answer;
 }
 
+// The in-test still evaluates an unserved realm probe, including the base of a prototype read.
+export function presenceReceiverNeedsProbe(receiver, ctx, disposition = droppablePresenceRead(receiver)) {
+  return disposition === 'probe'
+    && !presenceReadServed(isPrototypeRead(receiver) ? receiver.object : receiver, ctx)?.substituted;
+}
+
 // ... an `in` test of a static key on a served global (`'allSettled' in Promise`), true where the build serves the
 // static - pure reads it off the namespace a constructor tested by key resolves to - or of a method key on its
 // prototype, true where a read of the method would be (`'finally' in Promise.prototype`)
 function presenceInAnswer(node, ctx) {
   const key = extractStaticString(node.left, null);
   const receiver = unwrapRuntimeExpr(node.right);
-  if (typeof key !== 'string' || !droppablePresenceRead(receiver)) return null;
+  const droppable = typeof key === 'string' && droppablePresenceRead(receiver);
+  if (!droppable || presenceReceiverNeedsProbe(receiver, ctx, droppable)) return null;
   const owner = presenceReadServed(receiver, ctx);
   if (owner?.global) {
     const backing = servedStaticBacking({ object: owner.global, key, read: receiver, ctx });
@@ -2752,6 +2763,15 @@ export function realmSelectionLeafKind(node, { adapter = null, injectorState = n
   return guaranteedRealmObjectName(hop) ? 'surface' : 'probe';
 }
 
+// Direct pure realm imports have the same value. An excluded or shadowed name
+// can still produce a different value or throw when its branch is selected.
+export function hasSamePureRealmArms(node, ctx) {
+  return node.type === 'ConditionalExpression' && [node.consequent, node.alternate].every(arm => arm.type === 'Identifier'
+    && guaranteedRealmObjectName(arm.name)
+    && realmSelectionLeafKind(arm, ctx) === 'surface'
+    && ctx.adapter?.served?.({ kind: 'global', name: arm.name }, ctx.path, { node: arm, path: ctx.path })?.substituted);
+}
+
 // the operand a value-SELECTING receiver always yields the REALM through, or null where some value it
 // can yield is not the realm. one answer for both legs' mirror-or-flatten decision: a selection every
 // value of which IS the realm has no branch worth swapping, so the flatten binds the polyfill to that
@@ -2770,7 +2790,7 @@ export function realmSelectionCollapseOperand(node, ctx, { preserveTest = false 
       core = unwrapTransparentSeq(core[decided.fold], ctx);
     }
     if (core?.type === 'ConditionalExpression') {
-      if (!preserveTest && mayHaveSideEffects(core.test, ctx)) return null;
+      if (!preserveTest && observablePrefixOperand(core.test, ctx)) return null;
       const consequent = realmSelectionCollapseOperand(core.consequent, ctx, { preserveTest });
       return consequent && realmSelectionCollapseOperand(core.alternate, ctx, { preserveTest }) ? consequent : null;
     }
@@ -2805,7 +2825,8 @@ export function realmProbeArmSelection(node, ctx) {
   return realmSelectionLeafKind(core.left, ctx) === 'probe';
 }
 
-// the SITES a destructure host offers the collapse above, as `{ container, key, init, operand }`:
+// The destructure sites whose receiver can collapse to one realm operand. An observable test
+// stays before that operand; a nested test can only disappear if its own arm can collapse.
 // the host's own init slot and, where that init is an array WRAPPER, each element paired with a
 // pattern element. empty where the host is not a destructure, gathers a rest, or the method only
 // reads, or the source opts out. both bindings walk the list and do their own swap - the answer
@@ -2831,9 +2852,21 @@ export function realmSelectingHostCollapses(hostNode, ctx) {
     const init = container[key];
     const core = unwrapRuntimeExpr(init);
     if (core?.type !== 'LogicalExpression' && core?.type !== 'ConditionalExpression') return;
-    const operand = realmSelectionCollapseOperand(core, ctx);
+    let operand = realmSelectionCollapseOperand(core, ctx);
+    let test = null;
+    if (!operand && core.type === 'ConditionalExpression' && observablePrefixOperand(core.test, ctx)) {
+      // A global binding may feed a later computed key. Its mirror owns that order.
+      // Ordinary slots on two identical realm imports only need the original test.
+      if (hostNode.type === 'VariableDeclarator' && patternLevelKeepsSentinels(target, ctx)
+        && (!hasSamePureRealmArms(core, ctx) || target.properties.some(prop => {
+          const name = resolveKey({ node: prop.key, computed: prop.computed, ...ctx });
+          return name === null || name === undefined || isKnownGlobalName(name);
+        }))) return;
+      operand = realmSelectionCollapseOperand(core.alternate, ctx) && realmSelectionCollapseOperand(core.consequent, ctx);
+      test = core.test;
+    }
     if (operand && operand !== core && !ctx.adapter.isOptedOut?.(init, true)
-      && !ctx.adapter.isOptedOut?.(operand, true)) sites.push({ container, key, init, operand });
+      && !ctx.adapter.isOptedOut?.(operand, true)) sites.push({ container, key, init, operand, test });
   }
   consider(hostNode, slot);
   // an ARRAY WRAPPER pairs each of its elements with the pattern's own, so a selection standing in
@@ -4497,13 +4530,15 @@ export function planKeptSequenceTail(node, ctx) {
     const probeStop = !!probeRootKind && !inCallerCorrectFallbackSlot(ctx.aliasCtx?.path)
       && proxyHopLacksPureEntry(realmHopKeyName(peeled, ctx.aliasCtx), meta => ctx.resolveGlobalPolyfill(meta.name));
     if (!wholeKind && !probeStop) return null;
+    const pure = ctx.resolveGlobalPolyfill(realmHopKeyName(navNode, ctx.aliasCtx));
+    if (!pure) return null;
     return {
       holder: write ?? seq.expressions,
       key: write ? 'right' : seq.expressions.length - 1,
       // At the nested-sequence boundary, a kept write and a proven alias carry the realm value
       // into the outer null test.  Flat sequence memos retain their environmental probe.
       probe: probeStop && !(nested && (write || probeRootKind === 'alias')) ? peeled : null,
-      pure: ctx.resolveGlobalPolyfill(navNode.property.name),
+      pure,
     };
   }
   return null;
@@ -4928,6 +4963,10 @@ export function discardedIdentifierMayThrow(node, ctx) {
   // A pending pure import has a registry binding before its declaration reaches the tree.
   if (binding.node === null && binding.polyfillHint && pureImportSubpath(binding.importSource, adapter.packages)) return false;
   if (binding.kind === 'var' || binding.kind === 'hoisted') return false;
+  if (binding.kind === 'param') {
+    const owner = binding.scope?.block ?? binding.scope?.path?.node;
+    return !nodeRangeContains(owner?.body, node);
+  }
   const declaratorNode = bindingDeclaratorNode(binding);
   return declaratorNode?.type !== 'VariableDeclarator'
     || !initializerReachesRead({ adapter, binding, declaratorNode, usagePath: path, usageNode: node, requireInitialized: true });
@@ -4935,9 +4974,10 @@ export function discardedIdentifierMayThrow(node, ctx) {
 
 // A discarded comma operand still resolves its names and can run a getter or coercion.
 export function observablePrefixOperand(expression, ctx) {
-  if (mayHaveSideEffects(expression, { ...ctx, readIdentifier: discardedIdentifierMayThrow })) return true;
-  if (!callArgumentMayBeObserved(expression, ctx)) return false;
+  const readCtx = { ...ctx, readIdentifier: discardedIdentifierMayThrow };
+  if (mayHaveSideEffects(expression, readCtx)) return true;
   const member = unwrapRuntimeExpr(expression);
+  if (member?.type === 'Identifier' || !callArgumentMayBeObserved(expression, readCtx)) return false;
   if (!ctx?.adapter || !isMemberAccessNode(member)) return true;
   const key = memberKeyName(member);
   if (key === null || key === '__proto__') return true;
@@ -4966,7 +5006,7 @@ export function observablePrefixElements(expressions, ctx) {
 // nested single-return callees with the advanced hop until a returned value or an effect answers
 function hasObservableEffectsRec(hop) {
   function argumentRuns(argument) {
-    return mayHaveSideEffects(argument, { ...hop.ctx, readIdentifier: discardedIdentifierMayThrow });
+    return observablePrefixOperand(argument, hop.ctx);
   }
   while (true) {
     // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
@@ -5005,7 +5045,7 @@ function hasObservableEffectsRec(hop) {
     const peeled = peelReceiverSequenceTail(next);
     const returned = unwrapRuntimeExpr(next);
     if (returned?.type === 'SequenceExpression' && returned.expressions.slice(0, -1)
-      .some(expression => mayHaveSideEffects(expression, { ...resolved.ctx, readIdentifier: discardedIdentifierMayThrow }))) return true;
+      .some(expression => observablePrefixOperand(expression, resolved.ctx))) return true;
     // recurse when the (peeled) target is an inline-resolvable call (`() => inner()` with its own effects)
     if (isCallShape(peeled)) {
       // the inner call sits in the callee's body - resolve it there, with the advanced cycle set
@@ -5915,7 +5955,7 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
   // boundaries: that claim's value does not discharge a throwing read through an inner seal.
   for (let boundary = outerBoundary; boundary; boundary = sealedChainBoundary(boundary.inner)) {
     const key = realmHopKeyName(boundary.member, aliasCtx, {
-      allowSideEffectKeys: boundary.member === sourceValue, keepsKeyNode: boundary.member === sourceValue,
+      allowSideEffectKeys: true, keepsKeyNode: true,
     });
     const stored = peelChainAssignment(peelReceiverSequenceTail(boundary.inner));
     const value = stored.outer ? peelChainRootValue(stored.value) : boundary.inner;
@@ -5923,10 +5963,11 @@ function sealedClaimProbePlan(source, resolvePure, aliasCtx, {
       resolvePure, aliasCtx, { throughChainAssign: true })) continue;
     // An erased computed read evaluates its original key before throwing on an
     // absent receiver. The probe owns that key, including its live child claims.
-    const keyNode = boundary.member === sourceValue && sourceValue.computed ? sourceValue.property : null;
+    const keyNode = boundary.member.computed ? boundary.member.property : null;
     const facts = { source, boundary, key, keyNode, navStart: boundary.inner.start, effectsHost: boundary.inner, preserveRead };
     // The assignment owns its RHS and any prefix. Keep the plain read above it
     // as a unit so a short circuit stores undefined and throws before the next key or argument.
+    if (isCallShape(value) && value.optional) return { ...facts, kind: 'read' };
     if (stored.outer) {
       if (!preserveRead && !allowStoreHolder && (definedBranchOfGuardConditional(value)
         || navValueCanShortCircuit(value, resolvePure, aliasCtx, { throughChainAssign: true }))) return { ...facts, kind: 'read' };
@@ -6501,6 +6542,7 @@ function walkNavShortCircuitSource(cur, resolvePure, aliasCtx, throughChainAssig
     // `self` and `window` are one object), so it collapses like its unsealed twin instead of keeping
     // a `window` read off the PONYFILL, undefined in the realms the polyfill exists for. what a seal
     // OWES its consumers is `chainSealsAShortCircuit`, built on this verdict
+    if (isCallShape(object) && object.optional && callYieldCanBeUndefined(object, aliasCtx, resolvePure)) return object;
     cur = object;
   }
   return source;
@@ -6521,6 +6563,7 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   { throughChainAssign = false, observableRead = false } = {}) {
   const core = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') {
+    if (isCallShape(core) && core.optional) return callYieldCanBeUndefined(core, aliasCtx, resolvePure);
     return undefinableProxyRootValue(core, resolvePure, aliasCtx);
   }
   if (navValueCanShortCircuit(core, resolvePure, aliasCtx, { throughChainAssign, observableRead })) return true;

@@ -7,7 +7,7 @@ var _ref, _ref2;
 // string literal (the needle deopt is position-aware); an optional MEMBER read over a
 // static through `super`
 export const r1 = a == null ? void 0 : _at(_ref = a.b.c()).call(_ref, 0);
-export const r2 = obj == null ? void 0 : _includes(_ref2 = obj['a?.b']).call(_ref2, z);
+export const r2 = obj == null ? void 0 : (_includes(_ref2 = obj['a?.b']) || 0).call(_ref2, z);
 class C extends Array {
   m() {
     var _ref3;

@@ -15,14 +15,14 @@ O.setPrototypeOf(heldOwners, Array.prototype);
 export const a = _at(heldOwners).call(heldOwners, -1);
 const setters = {};
 (c ? Object.setPrototypeOf : fn)(setters, Array.prototype);
-export const b = _findLastMaybeArray(setters).call(setters, f);
+export const b = (_findLastMaybeArray(setters) || 0).call(setters, f);
 const setPrototype = c ? _Reflect$setPrototypeOf : fn;
 const heldSetters = {};
 setPrototype(heldSetters, Array.prototype);
 export const d = _flatMaybeArray(heldSetters).call(heldSetters);
 const logical = {};
 (c && _Reflect).setPrototypeOf(logical, Array.prototype);
-export const e = _flatMapMaybeArray(logical).call(logical, f);
+export const e = (_flatMapMaybeArray(logical) || 0).call(logical, f);
 const written = {};
 (c ? (target, proto) => {
   target.__proto__ = proto;

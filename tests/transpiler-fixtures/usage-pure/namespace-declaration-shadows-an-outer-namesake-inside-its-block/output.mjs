@@ -7,4 +7,4 @@ namespace Inner {
   const a = 'abc';
   use(_atMaybeString(a).call(a, -1));
 }
-use(_findLastMaybeArray(a).call(a, Boolean));
+use((_findLastMaybeArray(a) || 0).call(a, Boolean));

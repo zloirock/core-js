@@ -35,7 +35,7 @@ function fb(x: Apply<Array>) {
 // @ts-expect-error a higher-kinded application tsc refuses is the shape under test
 type Two<F, G> = F<G<0>>;
 function g2<F, G>(x: Two<F, G>) {
-  return _findLastMaybeArray(x).call(x, Boolean);
+  return (_findLastMaybeArray(x) || 0).call(x, Boolean);
 }
 // a two-hop chain THROUGH a param stays productive (Outer -> Inner -> G<0> -> Boxed)
 type Outer<F> = Inner<F>;

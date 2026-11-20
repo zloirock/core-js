@@ -238,7 +238,7 @@ export function * navGuardCollapseRoutes(plan, { source, reader = null, aliasCtx
 export function sealedClaimDisposition(node, resolvePure, aliasCtx, retainedReader = null) {
   const boundary = sealedChainBoundary(node);
   const key = boundary && realmHopKeyName(boundary.member, aliasCtx, {
-    allowSideEffectKeys: boundary.member === node, keepsKeyNode: boundary.member === node,
+    allowSideEffectKeys: true, keepsKeyNode: true,
   });
   if (!boundary || key === null || retainedReader === boundary.member) return null;
   const realmHop = POSSIBLE_GLOBAL_OBJECTS.has(key) && isPristineProxyGlobal(aliasCtx?.adapter, key);

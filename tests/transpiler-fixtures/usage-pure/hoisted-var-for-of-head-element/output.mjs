@@ -6,10 +6,10 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 // hoists out of a nested block: a static read off it is guarded on that element in pure and injected
 // in usage-global, the same on both parsers
 for (var M of [_Map]) {}
-(M === _Map ? _Map$groupBy : M.groupBy.bind(M))(src, fn);
+_Map$groupBy.call.call(M === _Map ? _Map$groupBy : M.groupBy, M, src, fn);
 function inner() {
   if (flag) {
     for (var P of [_Promise]) {}
   }
-  return (P === _Promise ? _Promise$try : P.try.bind(P))(fn);
+  return _Promise$try.call.call(P === _Promise ? _Promise$try : P.try, P, fn);
 }

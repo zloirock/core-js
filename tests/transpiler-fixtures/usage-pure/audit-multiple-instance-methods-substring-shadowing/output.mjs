@@ -5,5 +5,5 @@ import _at from "@core-js/pure/actual/instance/at";
 // nth-occurrence must locate `.at(...)` on the right receiver. Three different methods
 // to ensure each polyfill picks its own emission slot
 _at(arr1).call(arr1, -1);
-_findLastMaybeArray(arr10).call(arr10, p);
+(_findLastMaybeArray(arr10) || 0).call(arr10, p);
 _flatMaybeArray(arr1).call(arr1);

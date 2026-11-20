@@ -5,7 +5,7 @@ class C {
     let T;
     T = _Map;
     T = [6];
-    C.r9 = _findLastIndexMaybeArray(T).call(T, Boolean);
+    C.r9 = (_findLastIndexMaybeArray(T) || 0).call(T, Boolean);
   }
 }
 export { C };

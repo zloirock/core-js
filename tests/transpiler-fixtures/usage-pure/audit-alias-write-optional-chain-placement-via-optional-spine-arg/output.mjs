@@ -8,4 +8,4 @@ import _Symbol$for from "@core-js/pure/actual/symbol/for";
 let AW, IW, MW, PW, SW;
 // deep chain: the call is plain but an optional hop sits below its callee - guarded
 a?.b.c((SW = _Symbol, _globalThis));
-export const viaOptionalSpineArg = (SW === _Symbol ? _Symbol$for : SW.for.bind(SW))(wellKnownKey);
+export const viaOptionalSpineArg = SW === _Symbol ? _Symbol$for(wellKnownKey) : SW.for(wellKnownKey);

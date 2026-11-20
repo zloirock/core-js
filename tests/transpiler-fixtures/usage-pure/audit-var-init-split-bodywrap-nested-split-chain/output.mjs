@@ -6,6 +6,6 @@ import _includes from "@core-js/pure/actual/instance/includes";
 // compose, and the inner split + chain fold inside it - all three behaviors exercised at once
 const includes = _includes((_flatMaybeArray(xs) || 0).call(xs, h(() => {
   var _ref;
-  return _at(_ref = _flatMaybeArray(ys).call(ys, z)).call(_ref, 0);
+  return _at(_ref = (_flatMaybeArray(ys) || 0).call(ys, z)).call(_ref, 0);
 })));
 includes("x");

@@ -5,7 +5,7 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 var _ref, _ref2, _ref3;
 // Two literal receivers in one declaration keep independent captures.
 const {
-  next: nx = _findLastMaybeArray(_ref = [1]).call(_ref, Boolean)
+  next: nx = (_findLastMaybeArray(_ref = [1]) || 0).call(_ref, Boolean)
 } = _getIteratorMethod([14]);
-const ny = (_ref2 = _nameMaybeFunction(_getIteratorMethod([15]))) === void 0 ? _findLastIndexMaybeArray(_ref3 = [2]).call(_ref3, Boolean) : _ref2;
+const ny = (_ref2 = _nameMaybeFunction(_getIteratorMethod([15]))) === void 0 ? (_findLastIndexMaybeArray(_ref3 = [2]) || 0).call(_ref3, Boolean) : _ref2;
 export const viaTwoMemos = [nx, ny];

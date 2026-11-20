@@ -9,4 +9,4 @@ var _ref, _ref2, _ref3;
 enum HopKeys {
   MAP = 'map'
 }
-export const r4 = null == (_ref = _flatMaybeArray(arr)) || null == (_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, f)) ? void 0 : _at(_ref2).call(_ref2, 0);
+export const r4 = null == (_ref = _flatMaybeArray(arr)) || null == (_ref2 = (_mapMaybeArray(_ref3 = _ref.call(arr)) || 0).call(_ref3, f)) ? void 0 : _at(_ref2).call(_ref2, 0);

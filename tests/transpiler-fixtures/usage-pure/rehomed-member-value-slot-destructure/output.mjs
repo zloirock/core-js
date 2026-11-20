@@ -20,4 +20,4 @@ const {
     A
   }
 } = box;
-(A === _Map ? _Map$groupBy : A.groupBy.bind(A))(src, fn);
+_Map$groupBy.call.call(A === _Map ? _Map$groupBy : A.groupBy, A, src, fn);

@@ -12,7 +12,7 @@ var _ref, _ref2, _ref3;
 // so a polyfilled constructor keeps its narrow entry and one core-js does not polyfill loads nothing.
 // the same method off a receiver nothing types is no known library, and its argument still escapes
 export const symbols = _mapMaybeArray(_ref = _Array$from(names)).call(_ref, _Symbol);
-export const numbers = _filterMaybeArray(_ref2 = String(text).split(',')).call(_ref2, Number);
-export const patterns = _flatMapMaybeArray(_ref3 = _Object$values(table)).call(_ref3, RegExp);
+export const numbers = (_filterMaybeArray(_ref2 = String(text).split(',')) || 0).call(_ref2, Number);
+export const patterns = (_flatMapMaybeArray(_ref3 = _Object$values(table)) || 0).call(_ref3, RegExp);
 export const labelled = _Array$of(1, 2).every(String);
-export const errors = _findMaybeArray(messages).call(messages, Error);
+export const errors = (_findMaybeArray(messages) || 0).call(messages, Error);

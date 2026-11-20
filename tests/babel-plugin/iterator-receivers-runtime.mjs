@@ -42,6 +42,14 @@ const cases = [
     true, false, true,
   ],
   [
+    'selected-probe-before-key',
+    `function select() { effects.push("select"); return choice; }
+      for (const { [(effects.push("key"), Symbol.iterator)]: it, zz } = select() ? globalThis : globalThis.window;;) {
+        return [typeof it, typeof zz];
+      }`,
+    true, false, true,
+  ],
+  [
     'probe-optional',
     'const { [Symbol.iterator]: it } = globalThis.window?.self; return typeof it;',
     true, false, true,

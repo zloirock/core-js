@@ -27,4 +27,4 @@ export const calleeCast = h === Array ? (_Array$of as any)(1, 2) : h.of(1, 2);
 export const callCast = h === Array ? _Array$of(1, 2) as any : h.of(1, 2);
 export const foreignMember = h === Array ? _Array$of(1, 2) : h.from([1]);
 export const foreignGuardName = h === Object ? _Array$of(1, 2) : (h === Array ? _Array$of : h.of.bind(h))(1, 2);
-export const notARender = h === Array ? make(1, 2) : (h === Array ? _Array$of : h.of.bind(h))(1, 2);
+export const notARender = h === Array ? make(1, 2) : h.of(1, 2);

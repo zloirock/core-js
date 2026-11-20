@@ -8,6 +8,7 @@ import {
   valueMayBeNullish,
   walkAstChildren,
 } from './ast-patterns.js';
+import { presenceReceiverNeedsProbe } from '../detect-usage/resolve.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
 
 // does the operand the fold would DISCARD carry an `in` of its own? that one THROWS on a bad right
@@ -35,7 +36,7 @@ function foldPlan({ meta, left, right, ctx }) {
   // short-circuits, whatever the resolved type hint claims) and must not carry an `in` of its own
   // (its throw is not among the effects the harvest replays). either way the test stays live and
   // the constant answers after it
-  if (valueMayBeNullish(right) || discardedOperandOwnsInTest(right)) {
+  if (valueMayBeNullish(right) || ctx && presenceReceiverNeedsProbe(unwrapRuntimeExpr(right), ctx) || discardedOperandOwnsInTest(right)) {
     return { kind: 'fold-after-test', leadingSe: [], skip: null };
   }
   const rescue = new Set(meta.sideEffects);

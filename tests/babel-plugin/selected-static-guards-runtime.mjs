@@ -16,8 +16,17 @@ const { transformAsync } = requireBabel('@babel/core');
 const lowerOptional = requireBabel('@babel/plugin-transform-optional-chaining').default;
 const { check, finish } = createChecker('selected-static-guards-runtime');
 const cases = [
+  ['receiver-reassigned-in-an-inner-test', `let C = { from() { return [4]; } };
+    if (choice) C = Array;
+    return C === Array ? 1 : (C = Array, false) ? 2 : C.from([7])[0];`],
+  ['receiver-reassigned-by-an-inner-call', `let C = { from() { return [4]; } };
+    if (choice) C = Array;
+    function select() { C = Array; return false; }
+    return C === Array ? 1 : select() ? 2 : C.from([7])[0];`],
   ['alias-nullable', 'const O = choice ? Object : null; return O?.fromEntries([["x", 3]]);'],
   ['alias-array-tail', 'const A = choice ? Array : null; return A?.from([3]).length;'],
+  ['optional-method-continued-call', 'const P = choice ? Map : {}; return P?.groupBy?.([1], x => x).size.toString();'],
+  ['optional-method-sealed-call', 'const P = choice ? Map : {}; return (P?.groupBy?.([1], x => x)).size.toString();'],
   ['alias-optional-call', 'const A = choice ? Array : {}; return A.from?.((effects.push("arg"), [3]));'],
   ['alias-both-optional', 'const A = choice ? Array : null; return A?.from?.([3]);'],
   ['alias-sealed', 'const A = choice ? Array : null; return (A?.from)((effects.push("arg"), [3]));'],
@@ -29,6 +38,12 @@ const cases = [
   }; } }; return (choice ? Object : custom)?.entries((effects.push("arg"), { x: 3 })).at(0);`],
   ['inline-noncallable', `const custom = { get entries() { effects.push("get"); return 3; } };
     return (choice ? Object : custom)?.entries((effects.push("arg"), {})).at(0);`],
+  ['ordinary-call-noncallable', `let C = Object; const custom = { get groupBy() {
+    effects.push("get"); return { call() { effects.push("wrong"); } };
+  } }; if (choice) C = custom; return C.groupBy((effects.push("arg"), [3]), x => x)[3][0];`],
+  ['ordinary-call-changing-receiver', `let C = Object; const custom = { get groupBy() {
+    effects.push("get"); C = Object; return function () { return this === custom ? 7 : 9; };
+  } }; if (choice) C = custom; return C.groupBy((effects.push("arg"), [3]), x => x);`],
   ['inline-throw', `const custom = { get entries() { effects.push("get"); throw new RangeError(); } };
     return (choice ? Object : custom)?.entries((effects.push("arg"), {})).at(0);`],
   ['inline-shadow', `function take(Object) { return (choice ? Object : null)?.entries({}).at(0); }

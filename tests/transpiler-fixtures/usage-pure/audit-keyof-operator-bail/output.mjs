@@ -7,4 +7,4 @@ type Shape = {
 };
 declare const k: keyof Shape;
 const arr: string[] = ['x'];
-_atMaybeArray(arr).call(arr, k as any);
+(_atMaybeArray(arr) || 0).call(arr, k as any);

@@ -8,4 +8,4 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 let AW, IW, MW, PW, SW;
 // argument of an OPTIONAL call may never evaluate - guarded
 host?.doThing((MW = _Map, _globalThis));
-export const viaOptionalCallArg = (MW === _Map ? _Map$groupBy : MW.groupBy.bind(MW))(items, tag);
+export const viaOptionalCallArg = MW === _Map ? _Map$groupBy(items, tag) : MW.groupBy(items, tag);

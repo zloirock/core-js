@@ -7,5 +7,5 @@ import _includes from "@core-js/pure/actual/instance/includes";
 export const el = <div>
     {/* core-js-disable-next-line */}
     {a.at(0)} {b.flat()}
-    {_includes(c).call(c, v)}
+    {(_includes(c) || 0).call(c, v)}
   </div>;

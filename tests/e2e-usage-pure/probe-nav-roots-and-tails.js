@@ -335,17 +335,19 @@ QUnit.test('destructure probes: declaration siblings and loop header keep one re
 });
 QUnit.test('destructure probes: a bodyless assignment rejects its nullish source', assert => {
   for (const present of [false, true]) withWindowPresence(present, live => {
-    const log = [];
-    let of, value;
-    try {
-      if (log.push('before')) ({ of } = globalThis.window?.[log.push([7].at(0)), 'Array']);
-      value = of(3);
-    } catch (error) {
-      value = error instanceof TypeError ? 'TypeError' : 'other';
+    for (const enter of [false, true]) {
+      const log = [];
+      let of, value;
+      try {
+        if (log.push('before') && enter) ({ of } = globalThis.window?.[log.push([7].at(0)), 'Array']);
+        if (enter) value = of(3);
+      } catch (error) {
+        value = error instanceof TypeError ? 'TypeError' : 'other';
+      }
+      assert.deepEqual(value, enter ? live ? [3] : 'TypeError' : undefined);
+      assert.same(typeof of, enter && live ? 'function' : 'undefined');
+      assert.deepEqual(log, enter && live ? ['before', 7] : ['before']);
     }
-    assert.deepEqual(value, live ? [3] : 'TypeError', 'coercion precedes the first extracted write');
-    assert.same(typeof of, live ? 'function' : 'undefined', 'a failed destructure leaves its target unwritten');
-    assert.deepEqual(log, live ? ['before', 7] : ['before'], 'the guarded key keeps its original position');
   });
 });
 /* eslint-enable no-sequences, no-unsafe-optional-chaining, no-unreachable-loop -- discarded initializer probes */
