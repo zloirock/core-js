@@ -45,9 +45,8 @@ function syntheticSingleScope(names) {
   return parts.join('\n');
 }
 
-// every use in the reassignment synthetic asks the preceding-sibling guard scan too, but a
-// guard-DENSE list additionally pays the guard extraction per statement - a quadratic in
-// either the scan or the extraction overshoots this shape first
+// Each use follows a new array assignment, which invalidates the preceding typeof guard.
+// The provider's ast-context-complexity suite also covers the cost of guards that stay live.
 function syntheticGuardDense(names) {
   const parts = [];
   for (let i = 0; i < names; i++) {

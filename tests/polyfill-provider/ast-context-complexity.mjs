@@ -12,6 +12,8 @@ import {
   reassignmentDominatesUsage,
   reassignmentValueEnumeration,
   receiverSlotRead,
+  runsWithoutOwnVarSlot,
+  synthHoistedBinding,
   walkAstChildren,
   walkAstNodes,
   varInitDominatesUsage,
@@ -97,6 +99,85 @@ for (const parser of adapters) {
     } finally {
       for (const node of nested.body.body) delete node.guardWalkProbe;
     }
+  }
+
+  // Each parameter gets its type from a different early exit in the same statement list.
+  // Rebuilding the index for every use rereads the preceding guards even if their types are cached.
+  for (const size of [16, 64]) {
+    const names = Array.from({ length: size }, (unused, i) => `v${ i }`);
+    const types = names.map((unused, i) => i % 2 ? 'string' : 'number');
+    const body = names.map((name, i) => `if (typeof ${ name } !== '${ types[i] }') return; ${ name };`);
+    const program = parser.parseAndScope(`function probe(${ names.join(', ') }) { ${ body.join('\n') } }`);
+    const uses = parser.collectPaths(program, 'ExpressionStatement');
+    const fn = parser.pickPath(program, 'FunctionDeclaration');
+    const resolver = parser.makeResolver();
+    let reads = 0;
+    for (const { node } of parser.collectPaths(program, 'IfStatement')) {
+      const { test } = node;
+      Object.defineProperty(node, 'test', {
+        get() { reads++; return test; },
+      });
+    }
+    const label = `${ parser.name }/preceding guard index/${ size }`;
+    // Count actual parameter slots examined, including native array searches.
+    const last = fn.get('params').at(-1);
+    let paramReads = 0;
+    fn.node.params = new Proxy(fn.node.params, {
+      get(params, key) {
+        if (typeof key === 'string' && /^\d+$/.test(key)) paramReads++;
+        return params[key];
+      },
+    });
+    check(`${ label }/live parameter`, runsWithoutOwnVarSlot(last), true);
+    check(`${ label }/indexed parameter read`, paramReads, 1);
+    for (const key of [undefined, 0]) {
+      check(`${ label }/missing or stale parameter key ${ key }`, runsWithoutOwnVarSlot({ parentPath: fn, node: last.node, key }), true);
+    }
+    paramReads = 0;
+    checkDeep(`${ label }/types`, uses.map(use => resolver.resolveNodeType(use.get('expression'))?.type), types);
+    checkTruthy(`${ label }/linear guard reads (${ reads })`, reads >= size && reads <= 4 * size);
+    check(`${ label }/parameter slots read from the body`, paramReads, 0);
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    checkTruthy(`${ label }/missing name`, uses.every(path => !lookup({ scope: path.scope, name: 'missing', path })));
+    check(`${ label }/parameter slots searched for a constructor property`, paramReads, 0);
+  }
+
+  // One constructor can contain both ordinary parameters and TS parameter properties. Each
+  // guarded use also looks up an unrelated name; neither lookup should rescan its parameters.
+  for (const size of [16, 64]) {
+    const names = Array.from({ length: size }, (_, i) => `v${ i }`);
+    const properties = names.map(name => `public ${ name }: string`);
+    const source = `class C { constructor(ordinary, ${ properties.join(', ') }) { ${ names.join('; ') }; } }`;
+    const program = parser.parseAndScope(source);
+    const uses = parser.collectPaths(program, 'ExpressionStatement');
+    const ctor = parser.pickPath(program, 'TSParameterProperty').parentPath;
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    function read(path, name) {
+      return lookup({ scope: path.scope, name, path });
+    }
+    const label = `${ parser.name }/constructor parameter index/${ size }`;
+    let reads = 0;
+    ctor.node.params = new Proxy(ctor.node.params, {
+      get(params, key) {
+        if (typeof key === 'string' && /^\d+$/.test(key)) reads++;
+        return params[key];
+      },
+    });
+    withTraversalCaches(false, () => {
+      checkTruthy(`${ label }/absent names`, uses.every(path => !read(path, 'missing')));
+      checkTruthy(`${ label }/linear misses (${ reads })`, reads <= size + 1);
+      check(`${ label }/first property`, read(uses[0], names[0])?.kind, 'param');
+      reads = 0;
+      checkTruthy(`${ label }/distinct property bindings`, uses.every((path, i) => read(path, names[i])?.kind === 'param'));
+      checkTruthy(`${ label }/linear reads after first path list (${ reads })`, reads <= 6 * size);
+    }, { stableParameterProperties: true });
+    // A sibling can replace one slot in place between walks, even when the array length is unchanged.
+    const property = parser.pickPath(parser.parseAndScope('class D { constructor(public missing: string) {} }'), 'TSParameterProperty');
+    ctor.node.params[size] = property.node;
+    withTraversalCaches(true, () => {
+      check(`${ label }/sibling's new name`, read(uses[0], 'missing')?.kind, 'param');
+      check(`${ label }/sibling's removed name`, !!read(uses[0], names.at(-1)), false);
+    });
   }
 
   // A deferred read keeps later writes without indexing its body for a loop. An explicit
@@ -499,6 +580,47 @@ for (const parser of adapters) {
       check(`${ label }/replacement after restore`, withCanonQuestion(() => lookup()).constantViolations.some(item => (item.node ?? item) === original), false);
     } finally {
       root.traverse = traverse;
+    }
+  }
+
+  // The tracker already knows this var and its write. Only a missing binding needs
+  // the write index again to construct a replacement.
+  {
+    const program = parser.parseAndScope(`var rows = []; rows = [1]; ${ 'rows.at(0);'.repeat(32) }`);
+    const paths = parser.collectPaths(program, 'MemberExpression');
+    const write = parser.pickPath(program, 'AssignmentExpression').node;
+    const adapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({ method: 'usage-pure' });
+    const lookup = wrapScopeBindingLookup((scope, name) => scope.getBinding(name));
+    function query(path) { return { scope: path.scope, name: 'rows', path }; }
+    const binding = lookup(query(paths[0]));
+    adapter.getBinding(query(paths[0]));
+    const label = `${ parser.name }/native var with writes`;
+    // Babel records the assignment, ESTree its target. Both represent this single write.
+    const writes = binding.constantViolations.map(path => path.node === write.left ? path.parentPath.node : path.node);
+    checkDeep(`${ label }/write retained`, writes, [write]);
+    const incomplete = { kind: 'var', path: binding.path, scope: binding.scope, constant: true, constantViolations: [] };
+    const repaired = wrapScopeBindingLookup(() => incomplete)(query(paths[0]));
+    checkDeep(`${ label }/missing native write recovered`, repaired.constantViolations.map(v => v.node), [write]);
+    const original = Map.prototype.get;
+    let lookups = 0;
+    try {
+      // eslint-disable-next-line no-extend-native -- Count only this parsed owner's write list.
+      Map.prototype.get = function (key) {
+        const result = original.call(this, key);
+        if (key === 'rows' && Array.isArray(result) && result.includes(write)) lookups++;
+        return result;
+      };
+      checkDeep(`${ label }/recovered writes`, synthHoistedBinding(paths[0], 'rows').constantViolations, [write]);
+      checkTruthy(`${ label }/recovery consults index`, lookups > 0);
+      lookups = 0;
+      checkTruthy(`${ label }/native identity`, paths.every(path => lookup(query(path)) === binding));
+      check(`${ label }/redundant write lookups`, lookups, 0);
+      lookups = 0;
+      checkTruthy(`${ label }/adapter declaration`, paths.every(path => adapter.getBinding(query(path)).node === binding.path.node));
+      checkTruthy(`${ label }/adapter write lookups`, lookups <= paths.length, `${ lookups } lookups`);
+    } finally {
+      // eslint-disable-next-line no-extend-native -- Restore the original method.
+      Map.prototype.get = original;
     }
   }
 

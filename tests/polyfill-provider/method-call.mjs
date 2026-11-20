@@ -3,12 +3,49 @@ import {
   cloneNode, hostSlot, identifier, planMethodCall, planOptionalMethodCall, renderOptionalMethodCall, renderReceiverMemo,
   renderMethodCall, renderMethodLookup,
 } from '../../packages/core-js-polyfill-provider/render.js';
-import { callResultIsChainBase, calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { createUsageHandlerCore } from '../../packages/core-js-polyfill-provider/detect-usage/visitors.js';
+import estreeToBabel from '../../packages/core-js-babel-plugin/internals/estree-to-babel.js';
+import {
+  callResultIsChainBase, calleeParenWrapped, peelNestedSequenceExpressions, unwrapRuntimeExpr, withTraversalCaches,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, finish, runBoth } = createChecker('method-call');
+
+// Only the generated .call member belongs to this walk; user members below it still request imports.
+{
+  const core = createUsageHandlerCore({ adapter: {}, method: 'usage-pure' });
+  function handled(node) {
+    return core.memberAlreadyHandled({ node });
+  }
+  check('rendered invocation/removed path', handled(null), false);
+  const emitted = [];
+  withTraversalCaches(false, () => {
+    const argument = { type: 'MemberExpression', object: identifier('user'), property: identifier('call'), computed: false };
+    const call = renderMethodCall(planMethodCall({ receiver: identifier('rows'), args: [argument] }), {
+      helper: identifier('_at'), mintRef: () => '_ref',
+    });
+    for (const [host, tree] of [['estree', call], ['babel', estreeToBabel(call)]]) {
+      const member = tree.callee;
+      emitted.push(member);
+      check(`rendered invocation/${ host }/dispatch`, handled(member), true);
+      check(`rendered invocation/${ host }/argument`, handled(tree.arguments[1]), false);
+      check(`rendered invocation/${ host }/source lookalike`, handled({ ...member }), false);
+      withTraversalCaches(false, () => check(`rendered invocation/${ host }/nested pass`, handled(member), false));
+      check(`rendered invocation/${ host }/resumed pass`, handled(member), true);
+      member.computed = true;
+      check(`rendered invocation/${ host }/computed key`, handled(member), false);
+      member.computed = false;
+      const previous = member.object;
+      member.object = identifier('other');
+      check(`rendered invocation/${ host }/new receiver`, handled(member), false);
+      member.object = previous;
+    }
+  });
+  checkDeep('rendered invocation/next walk', emitted.map(handled), [false, false]);
+}
 
 for (const [source, continues] of [
   ['rows.at?.(arg());', false],

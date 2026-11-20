@@ -23,7 +23,6 @@ import {
   foldWalkReach,
   methodReadsUsageCensus,
   withTraversalCaches,
-  withVarScopeOwners,
   memberKeyName,
   memberKeyNamesReducer,
   nestedTSRuntimeDeclarationsReducer,
@@ -298,7 +297,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
   }
 
   // babel 8 keys a path by its parent path, so the pure walk keeps the var-scope owners
-  // (`withVarScopeOwners`); babel 7 keys it by the parent node and re-parents it
+  // (`withTraversalCaches`); babel 7 keys it by the parent node and re-parents it
   const pathsKeepParent = Number.parseInt(babelVersion, 10) >= 8;
   // set at program entry, read by the late-bound compat callbacks below
   let currentSynthSwap = null;
@@ -2276,7 +2275,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         function walk() {
           return path.traverse(visitors);
         }
-        withTraversalCaches(!isPure, isPure && pathsKeepParent ? () => withVarScopeOwners(walk) : walk);
+        withTraversalCaches(!isPure, walk, { pathsKeepParent, stableParameterProperties: true });
         destructureEmit.pruneEmptiedHostDeclarators();
         destructureEmit.prepareSplitLiftedPrefixes();
         destructureEmit.splitFlatMultiDecls();

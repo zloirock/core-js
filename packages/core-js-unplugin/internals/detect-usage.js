@@ -524,12 +524,8 @@ function resolveClosestBinding({ scope, name, path, getScopeBinding, read = null
 // ... the resolution itself, run once per (scope, name, use node, read) through the memo above
 function resolveClosestBindingUncached({ scope, name, path, getScopeBinding, read }) {
   const native = getScopeBinding({ scope, name, path, read });
-  const synth = hoistedBindingVisibleInScope(scope, path, name);
-  if (!synth) return { native, synth: null };
-  if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
-    return { native, synth: null };
-  }
-  return { native: null, synth };
+  const synth = hoistedBindingVisibleInScope(scope, path, name, native);
+  return synth ? { native: null, synth } : { native, synth: null };
 }
 
 // the estree half of the adapter mirror: `createBabelAdapter` (babel-plugin's internals/detect-usage.js)

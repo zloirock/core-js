@@ -20,7 +20,6 @@ import {
   patternOrderReducer,
   methodReadsUsageCensus,
   withTraversalCaches,
-  withVarScopeOwners,
   runsWithoutOwnVarSlot,
   sequenceElementsKept,
   sortedPrefixLength,
@@ -1491,14 +1490,14 @@ export default function createPlugin(options) {
         }, completedClaims), createUsageVisitors({ ...usageVisitorOptions, onUsage: callback }));
         // Usage handlers own descendants only; the traversal adds its root setup without
         // re-merging every descendant handler. A pure walk keeps only rewrite-safe facts.
-        withVarScopeOwners(() => walkUsage({
+        withTraversalCaches(false, () => walkUsage({
           ...walkVisitors,
           $: { scope: true },
           Program(path) {
             injector.rootScope = path.scope;
             memoProgramPath = path;
           },
-        }));
+        }), { pathsKeepParent: true, stableParameterProperties: true });
         destructureEmit.drain();
         // the partly dead user selections still standing fold to what they yield - an operand, kept a
         // value in its slot (`foldedOperandNeedsValue`), or the value a decided test answers: a claim owns

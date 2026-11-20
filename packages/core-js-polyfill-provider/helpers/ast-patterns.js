@@ -2235,27 +2235,37 @@ export function isForInitDeclaration(declarationParent, declaration) {
 // Member ancestry, the nearest var-scope owner of a path (`findNearestVarScopeOwner`) and the value
 // canon's per-node answers (`canonAnswerTable`) and plain object keys are reusable in a read-only traversal.
 // Replacing an interior ancestor can preserve both endpoint paths, so endpoint checks cannot validate a
-// cached run. Scope them to the synchronous walk; pure emission and later sibling passes stay live.
+// cached run. A pure usage walk can retain the owners on hosts with stable path parents and the
+// names of TS parameter properties: its own emitters never introduce or rename these properties.
+// Restore all tables before a sibling transform can edit the tree.
 let memberContextPaths = null;
 let varScopeOwners = null;
 let canonAnswers = null;
 let objectPropertyKeys = null;
-export function withTraversalCaches(readOnly, visit) {
+let parameterPropertySlots = null;
+let renderedMethodCallReceivers = null;
+export function withTraversalCaches(readOnly, visit, { pathsKeepParent = false, stableParameterProperties = readOnly } = {}) {
   const previousPaths = memberContextPaths;
   const previousOwners = varScopeOwners;
   const previousAnswers = canonAnswers;
   const previousKeys = objectPropertyKeys;
+  const previousSlots = parameterPropertySlots;
+  const previousCalls = renderedMethodCallReceivers;
   memberContextPaths = readOnly ? new WeakMap() : null;
   varScopeOwners = readOnly ? new WeakMap() : null;
+  parameterPropertySlots = stableParameterProperties ? new WeakMap() : null;
+  renderedMethodCallReceivers = readOnly ? null : new WeakMap();
   canonAnswers = readOnly ? { tables: new Map(), spineRoots: new WeakMap(), cuts: 0 } : null;
   objectPropertyKeys = readOnly ? new WeakMap() : null;
   try {
-    return visit();
+    return !readOnly && pathsKeepParent ? withVarScopeOwners(visit) : visit();
   } finally {
     memberContextPaths = previousPaths;
     varScopeOwners = previousOwners;
     canonAnswers = previousAnswers;
     objectPropertyKeys = previousKeys;
+    parameterPropertySlots = previousSlots;
+    renderedMethodCallReceivers = previousCalls;
   }
 }
 
@@ -2564,6 +2574,14 @@ function collectScopeVars(scopeNode) {
   return locals;
 }
 
+// A body read never enters the parameter list. For a parameter, verify the path's
+// index against the live node before falling back to a search for a missing or stale key.
+function isFunctionParamChild(fn, child) {
+  if (fn.body === child.node) return false;
+  const { params } = fn;
+  return !!params && (params[child.key] === child.node || params.includes(child.node));
+}
+
 // both parameter owners of this path from ONE climb to the nearest function, asked once per use node:
 // that function where its parameter list holds the path (`paramOwner`), and the catch clause whose
 // PARAMETER holds it (`catchParamOwner`), each or null - and the parameter regions that function itself
@@ -2578,7 +2596,7 @@ function enclosingParameterOwners(usePath) {
   let child = memberContextPath(usePath);
   for (let p = child?.parentPath; p?.node; child = memberContextPath(p), p = child.parentPath) {
     if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) {
-      return { paramOwner: p.node.params?.includes(child.node) ? p : null, catchParamOwner, closureRegions: parameterRegionsHolding(p) };
+      return { paramOwner: isFunctionParamChild(p.node, child) ? p : null, catchParamOwner, closureRegions: parameterRegionsHolding(p) };
     }
     if (!catchParamOwner && p.node.type === 'CatchClause' && p.node.param === child.node) catchParamOwner = p;
   }
@@ -2600,7 +2618,7 @@ function parameterRegionsHolding(fnPath) {
   for (let child = fnPath, p = fnPath.parentPath; p?.node; child = p, p = p.parentPath) {
     if (p.node.type === 'CatchClause' && p.node.param === child.node) clauses.push(p.node);
     if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) {
-      if (p.node.params?.includes(child.node)) functions.push(p.node);
+      if (isFunctionParamChild(p.node, child)) functions.push(p.node);
       const outer = parameterRegionsHolding(p);
       functions.push(...outer.functions);
       clauses.push(...outer.clauses);
@@ -2619,7 +2637,7 @@ function parameterRegionsHolding(fnPath) {
 export function runsWithoutOwnVarSlot(path) {
   for (let child = path, p = path?.parentPath; p?.node; child = p, p = p.parentPath) {
     if (isDeferredContextStep(p.node, child)) {
-      return !FUNCTION_LIKE_NODE_TYPES.has(p.node.type) || !!p.node.params?.includes(child.node);
+      return !FUNCTION_LIKE_NODE_TYPES.has(p.node.type) || isFunctionParamChild(p.node, child);
     }
     if (isVarScopeBoundary(p.node.type) && !FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return false;
   }
@@ -2649,7 +2667,7 @@ export function varlessMemoSlot(path) {
     if (CLASS_NODE_TYPES.has(p.node.type) && p.node.superClass === child.node) slot ??= { owner: p.node, key: 'superClass' };
     if (CLASS_FIELD_TYPES.has(p.node.type) && p.node.value === child.node) slot ??= { owner: p.node, key: 'value' };
     if (isDeferredContextStep(p.node, child)) {
-      if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return p.node.params?.includes(child.node) ? slot : null;
+      if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return isFunctionParamChild(p.node, child) ? slot : null;
       return slot;
     }
     if (isVarScopeBoundary(p.node.type) && !FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return null;
@@ -2680,8 +2698,7 @@ function definitionTimeSlotFrameOf(holderPath) {
   if (!holder) return null;
   if (FUNCTION_LIKE_NODE_TYPES.has(holder.type)) return holderPath;
   const owner = holderPath.parentPath;
-  return owner?.node && FUNCTION_LIKE_NODE_TYPES.has(owner.node.type)
-    && owner.node.params?.includes(holder) ? owner : null;
+  return owner?.node && FUNCTION_LIKE_NODE_TYPES.has(owner.node.type) && isFunctionParamChild(owner.node, holderPath) ? owner : null;
 }
 
 // every frame a definition-time slot puts this use outside of, in ONE climb, plus the
@@ -2860,6 +2877,9 @@ function ancestryUnchanged(bindingPath, chain) {
 // UP, and the walk over an owner's own vars stops at a nested namespace boundary. shared by the
 // var-declarator lookup and the sloppy block-function lookup below
 function climbVarScopeOwners(path, visit) {
+  let owner = findNearestVarScopeOwner(path);
+  // The program is outside every parameter and definition-time frame.
+  if (owner?.node.type === 'Program') return visit(owner);
   // a use inside a function's PARAMETER list sits outside the region that function's own `var`s
   // cover, so its nearest owner contributes nothing and the climb starts one frame out
   // ... a use inside a DEFINITION-TIME slot sits outside the frames that slot's holder opens
@@ -2871,7 +2891,7 @@ function climbVarScopeOwners(path, visit) {
   // ... and a use inside a closure written in a parameter list sits outside that list's owner the same way
   const { paramOwner, closureRegions, definitionTimeFrames } = useRegionFrames(path);
   const paramFrame = paramOwner?.node ?? null;
-  for (let owner = findNearestVarScopeOwner(path); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
+  for (; owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
     if (owner.node !== paramFrame && !closureRegions.functions.includes(owner.node) && !definitionTimeFrames?.has(owner.node)) {
       const result = visit(owner);
       if (result !== undefined) return result;
@@ -3100,13 +3120,11 @@ function memoizeDeclaratorSearch(found, violationNodes) {
 // carries `.node` (declarator / function) + recomputed violations, the minimum the static-receiver
 // walk + reassignment gates read (they fall back to `.node` when there is no `.path`)
 export function synthHoistedBinding(path, name) {
-  const found = path ? findVarOwnerDeclaring(path, name) : null;
-  if (!found) {
-    // the Annex-B climb only finds something in a SLOPPY owner: a module has none, so the lookups
-    // of every modern bundle skip that second climb outright
-    const hoisted = path && anySloppyOwnerAbove(path) ? findSloppyBlockFunctionInPath(path, name) : null;
-    return hoisted ? synthHoistedFunctionBinding(hoisted) : null;
-  }
+  return hoistedBindingVisibleInScope(null, path, name);
+}
+
+function bindingForHoistedDeclaration(found, name) {
+  if (found.fn) return synthHoistedFunctionBinding(found);
   const violationNodes = scannedWrites(found, name);
   const search = memoizeDeclaratorSearch(found, violationNodes);
   return {
@@ -3132,9 +3150,7 @@ export function synthHoistedBinding(path, name) {
     ownerScope: found.owner.scope,
     resolveDeclarationScope: () => search().declaratorPath?.scope ?? found.owner.scope ?? null,
     kind: 'var',
-    // every declarator of the name in the owner, in source order. a consumer deciding whether a
-    // NATIVE binding it also holds is a shadow or just another declarator of this same var needs
-    // the whole list - `node` alone answers only for the first one
+    // All declarations of the name in source order, including init-less redeclarations.
     declarators: found.declarators,
     constantViolations: violationNodes,
     importSource: null,
@@ -3393,8 +3409,10 @@ export function isSloppyAtPath(path) {
 // presence (`findTSRuntimeBindingInPath`). one the climb finds below the scope asked is none of its answer, as an
 // alias walk asks in the alias's declaration scope while it keeps the deeper consumer's path
 export function hoistedDeclarationInScope(scope, anchor, name) {
-  const found = findVarOwnerDeclaring(anchor, name) ?? findSloppyBlockFunctionInPath(anchor, name);
-  return found && !synthOwnerStrictlyInsideScope(scope, { ownerScope: found.owner.scope }) ? found : null;
+  if (!anchor) return null;
+  const found = findVarOwnerDeclaring(anchor, name)
+    ?? (anySloppyOwnerAbove(anchor) ? findSloppyBlockFunctionInPath(anchor, name) : null);
+  return found && scope && synthOwnerStrictlyInsideScope(scope, { ownerScope: found.owner.scope }) ? null : found;
 }
 
 // names a block-scoped statement re-binds: `let`/`const` declarator, class / function decl -
@@ -3866,16 +3884,22 @@ function hoistedBindingTwin(synthCache, path, name, native = null, lookupScope =
   // first because it is the free half: only a `var` view can be anchored on a re-declaration, so
   // every other kind keeps the native answer without paying the owner climb below
   if (!path || (native && native.kind !== 'var')) return null;
-  const synth = hoistedBindingVisibleInScope(lookupScope, path, name);
+  const found = hoistedDeclarationInScope(lookupScope, path, name);
+  if (!found) return null;
   // ... and a native `var` declared OUTSIDE the twin's owner is the outer binding the twin shadows
   // from inside that owner (`function g() { { var a = 'x' } a.at() }` reads g's own `a`, not the
   // enclosing function's) - the same preference the estree adapter's closest-binding lookup takes.
   // a tracker registering a `var` in the scope it stands in - a loop's, a block's, a catch body's, a
   // switch's - keeps there a view anchored on the hoisted declarator that misses every write outside
   // that scope, a closure's or a later statement's, so the twin displaces that view too
-  if (native && (!synth || (synth.node === native.path?.node && (native.scope?.block ?? native.scope?.path?.node) === synth.ownerNode)
-    || (!synth.declarators.includes(native.path?.node) && pathContainedBy(native.path, synth.ownerNode)))) return null;
-  const declaratorPath = synth?.resolveDeclaratorPath();
+  if (native) {
+    const declaration = native.path?.node;
+    const owner = found.owner.node;
+    if (declaration === (found.declarator ?? found.fn) && (native.scope?.block ?? native.scope?.path?.node) === owner) return null;
+    if (!found.declarators?.includes(declaration) && pathContainedBy(native.path, owner)) return null;
+  }
+  const synth = bindingForHoistedDeclaration(found, name);
+  const declaratorPath = synth.resolveDeclaratorPath();
   if (!declaratorPath) return null;
   // an incomplete write map cannot be handed to the flow gates - decline the twin entirely and let
   // the caller's own miss handling degrade to the generic answer, which is always sound
@@ -3942,9 +3966,10 @@ function parameterPropertyTwin(synthCache, path, name, native = null, lookupScop
     const { node, scope } = cur;
     // An existing binding in this owner hides every outer parameter property.
     if (scope && native?.scope === scope) return null;
-    if (!FUNCTION_LIKE_NODE_TYPES.has(node.type)) continue;
-    const index = (node.params ?? []).findIndex(param => param?.type === 'TSParameterProperty'
-      && tsRuntimeBindingName(patternSlotTarget(param.parameter)) === name);
+    // Only constructors can declare a parameter property; ESTree keeps the kind on the method.
+    const method = node.type === 'FunctionExpression' ? cur.parentPath?.node : node;
+    if (method?.kind !== 'constructor') continue;
+    const index = parameterPropertyIndex(node, name);
     if (index === -1) continue;
     // A real declaration inside this region is closer than any enclosing parameter
     // property. A native outer binding may instead be shadowed by the constructor.
@@ -3955,8 +3980,17 @@ function parameterPropertyTwin(synthCache, path, name, native = null, lookupScop
     if (!scope) return null;
     let byName = synthCache.get(scope);
     if (!byName) synthCache.set(scope, byName = new Map());
-    if (byName.has(name)) return byName.get(name);
-    const paramPath = cur.get('params')[index]?.get('parameter');
+    const property = node.params[index];
+    const previous = byName.get(name);
+    if (previous && previous.node === property.parameter) return previous;
+    // Both parsers materialize every path for get('params'). Reuse this list for other
+    // properties of the same constructor, verifying its owner and the current slot.
+    const slots = parameterPropertySlots?.get(node.params);
+    if (slots && (slots.owner !== cur || slots.paths[index]?.node !== property)) {
+      slots.owner = cur;
+      slots.paths = cur.get('params');
+    }
+    const paramPath = (slots?.paths ?? cur.get('params'))[index]?.get('parameter');
     const writePaths = ownerWritePathIndex(cur);
     let constantViolations = [];
     for (const write of collectScopeReassignmentNodes(cur, name)) {
@@ -4125,10 +4159,13 @@ export function synthOwnerStrictlyInsideScope(scope, synth) {
 
 // the var-hoist binding (`synthHoistedBinding`) of `name` a lookup in `scope` takes for the use at `path`: an
 // alias walk resolves an initializer in its declaration scope while it keeps the deeper consumer's path, and a
-// declaration a climb from that path finds below the scope asked is none of its answer
-export function hoistedBindingVisibleInScope(scope, path, name) {
-  const synth = path ? synthHoistedBinding(path, name) : null;
-  return synth && !synthOwnerStrictlyInsideScope(scope, synth) ? synth : null;
+// declaration a climb from that path finds below the scope asked is none of its answer. For closest-binding
+// lookup, a native declaration in the same owner also takes precedence over synthesizing a binding.
+export function hoistedBindingVisibleInScope(scope, path, name, native = null) {
+  const found = hoistedDeclarationInScope(scope, path, name);
+  if (!found) return null;
+  if (native && (native.path?.node === (found.declarator ?? found.fn) || pathContainedBy(native.path, found.owner.node))) return null;
+  return bindingForHoistedDeclaration(found, name);
 }
 
 // the lexical scope a `let` / `const` declarator is reached from - the first host above its
@@ -11649,27 +11686,30 @@ function getTSRuntimeBindings(scopeNode) {
   return cached;
 }
 
-// a parameter property (`constructor(private Map: T)`) declares its name in the constructor's own
-// scope, and neither parser's scope tracker registers it - the accessibility wrapper is a TS node
-// both of them walk past. A body read of that name therefore falls through to the global, which
-// `usage-pure` answers by substituting the polyfill OVER the caller's argument. Kept out of the
-// statement scan above because its reach is narrower: a statement declaration shadows the whole
-// subtree, this one does not reach the decorators (see the climb)
-const parameterPropertyNamesCache = new WeakMap();
-
-function getParameterPropertyNames(scopeNode) {
-  let cached = parameterPropertyNamesCache.get(scopeNode);
-  if (cached) return cached;
-  if (!Array.isArray(scopeNode?.params)) return null;
-  cached = new Set();
-  for (const param of scopeNode.params) {
-    if (param?.type !== 'TSParameterProperty') continue;
-    const target = param.parameter?.type === 'AssignmentPattern' ? param.parameter.left : param.parameter;
-    const name = tsRuntimeBindingName(target);
-    if (name) cached.add(name);
+// A constructor parameter property binds the constructor body but not a parameter decorator.
+// Inside an owned walk the slot index is valid across body rewrites. Outside it, inspect the live parameters.
+function parameterPropertyIndex(node, name) {
+  const params = node?.params;
+  if (!params?.length) return -1;
+  function propertyName(param) {
+    return param?.type === 'TSParameterProperty' ? tsRuntimeBindingName(patternSlotTarget(param.parameter)) : undefined;
   }
-  parameterPropertyNamesCache.set(scopeNode, cached);
-  return cached;
+  if (parameterPropertySlots) {
+    let slots = parameterPropertySlots.get(params);
+    if (!slots) {
+      slots = { byName: new Map(), owner: null, paths: null };
+      for (let i = 0; i < params.length; i++) {
+        const key = propertyName(params[i]);
+        if (key && !slots.byName.has(key)) slots.byName.set(key, i);
+      }
+      parameterPropertySlots.set(params, slots);
+    }
+    const slot = slots.byName.get(name);
+    if (slot === undefined) return -1;
+    // A renderer can move a parameter. Confirm the slot before using it to obtain a path.
+    if (propertyName(params[slot]) === name) return slot;
+  }
+  return params.findIndex(param => propertyName(param) === name);
 }
 
 // walk path's ancestor chain checking each anchor body for TS runtime declarations.
@@ -11698,7 +11738,7 @@ export function findTSRuntimeBindingInPath(path, name, stopNode = null) {
   for (let cur = memberContextPath(path); cur && cur.node !== stopNode; cur = memberContextPath(cur.parentPath)) {
     if (definitionTimeFrames?.has(cur.node)) continue;
     if (cur.node !== paramFrame && !closureFrames.includes(cur.node) && getTSRuntimeBindings(cur.node)?.has(name)) return true;
-    if (getParameterPropertyNames(cur.node)?.has(name)) return true;
+    if (parameterPropertyIndex(cur.node, name) !== -1) return true;
   }
   return false;
 }
@@ -15432,6 +15472,16 @@ export function markRenderedProbeRead(node) {
 // Whether this read is already owned by a shared probe or capture render.
 export function isRenderedProbeRead(node) {
   return !!node && renderedProbeReads.has(node);
+}
+// The current render owns the .call it generated, but its receiver and arguments still get visited.
+export function markRenderedMethodCallMember(node) {
+  renderedMethodCallReceivers?.set(node, node.object);
+  return node;
+}
+// A changed receiver or key, or a later traversal over the same tree, gets normal usage detection.
+export function isRenderedMethodCallMember(node) {
+  return node?.property?.name === 'call' && !node.computed && !!node.object
+    && renderedMethodCallReceivers?.get(node) === node.object;
 }
 // returns the node so a render site can mark in the value position it writes
 export function markRenderedStoredValue(node) {

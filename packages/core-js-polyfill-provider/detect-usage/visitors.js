@@ -32,6 +32,7 @@ import {
   ownRelocatedHeadElement,
   hasRestSiblingExcept,
   isExportSpecifierLocal,
+  isRenderedMethodCallMember,
   isTypeAnnotationNodeType,
   isUndefinedNode,
   pathValueSlot,
@@ -117,6 +118,7 @@ export function createUsageHandlerCore({
   // inside the outer span, while a hop recorded as still-live gets
   // its render driven through `onSuppressedProxyHop`
   function memberAlreadyHandled(path) {
+    if (isRenderedMethodCallMember(path.node)) return true;
     if (!handledObjects.has(path.node)) return false;
     if (keptProxyHops?.has(path.node)) onSuppressedProxyHop?.(path);
     return true;

@@ -3,6 +3,7 @@ import {
   isValidIdentifierName,
   PRIMITIVE_LITERAL_TYPES,
   markGeneratedMemoDeclarator,
+  markRenderedMethodCallMember,
   markRenderedStoredValue,
   markRenderedProbeRead,
   callArgumentMayBeObserved,
@@ -213,7 +214,7 @@ function renderMethodCallMember(method, { optional = false, methodGuarded = fals
       base.extra = { corejsMethodCallGuard: quietNames ?? [] };
     }
   }
-  return memberExpression(base, identifier('call'), { optional });
+  return markRenderedMethodCallMember(memberExpression(base, identifier('call'), { optional }));
 }
 
 // Apply one call decision, including its first receiver, capture, key effects and invocation.
