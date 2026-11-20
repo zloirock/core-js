@@ -1,7 +1,14 @@
 // A parser leg that makes no assertion must not count as a passing scenario.
-import { createChecker } from './harness.mjs';
+import { createChecker, registeredSuiteImports } from './harness.mjs';
 
-const { check, throwsWith, finish } = createChecker('harness-contracts');
+const { check, checkDeep, throwsWith, finish } = createChecker('harness-contracts');
+const imports = registeredSuiteImports(`
+  import './first.mjs'; // import './disabled.mjs';
+  const label = "import './text.mjs'";
+  if (false) await import('./skipped.mjs');
+  await import('./gate.mjs');
+`);
+checkDeep('only the static suite and the awaited gate run', [...imports], ['./first.mjs', './gate.mjs']);
 const originalEcho = globalThis.echo;
 const lines = [];
 globalThis.echo = (...parts) => lines.push(parts);

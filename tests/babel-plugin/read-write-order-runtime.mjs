@@ -162,10 +162,10 @@ try {
       check(`${ name }/${ method }/phase imports`, JSON.stringify([...importSet(post)].sort()), JSON.stringify([...importSet(single)].sort()));
       for (const [host, output] of [['native', source], ['babel', babel], ['unplugin', single], ['pre+post', post]]) {
         if (host === 'native' && method === 'usage-pure') continue;
-        const imports = new Set(importSet(output));
+        const imports = importSet(output);
         if (host !== 'native' && method === 'usage-global') checkGlobalImports(name, host, imports);
         if (method === 'usage-pure' && (name === 'loop-default' || name === 'parameter-default')) {
-          check(`${ name }/${ host }/static default import`, imports.has('core-js/actual/object/entries'), true);
+          check(`${ name }/${ host }/static default import`, imports.has('@core-js/pure/actual/object/entries'), true);
         }
         const file = path.join(DIR, `case-${ count++ }.mjs`);
         await fs.outputFile(file, output);

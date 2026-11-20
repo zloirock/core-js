@@ -872,15 +872,18 @@ function * generateStaticRestHosts() {
     ['array', '[{ of, from, ...rest }]', '[Array]'],
     ['alias-array', '[{ of, from, ...rest }]', 'source', 'const source = [Array];'],
     ['written-array', '[{ of, from, ...rest }]', 'source',
-      'const source = [Array]; source[0] = { of: () => [7], from: () => [8] };'],
+      'const source = [Array]; source[0] = { of: () => [7], from: () => [8], extra: 11 };'],
     ['written-array-string', '[{ of, from, ...rest }]', 'source',
-      "const source = [Array]; source[0] = { of: () => 'abc', from: () => 'def' };"],
+      "const source = [Array]; source[0] = { of: () => 'abc', from: () => 'def', extra: 12 };"],
     ['call', '{ of, from, ...rest }', 'get()'],
     ['effect', '{ of, from, ...rest }', '(log.push("receiver"), Array)'],
     ['select', '{ of, from, ...rest }', 'cond ? Array : Array'],
   ];
-  const observe = '[of(1).at(-1), from([2]).at(-1)]';
   for (const [shape, lhs, rhs, setup = ''] of shapes) {
+    const excluded = shape === 'outer' ? ['w'] : shape === 'proxy' ? ['Array'] : ['of', 'from'];
+    const slots = excluded.map(key => `Object.prototype.hasOwnProperty.call(rest, "${ key }")`);
+    if (shape === 'outer' || shape.startsWith('written-')) slots.push('rest.extra');
+    const observe = `[of(1).at(-1), from([2]).at(-1), ${ slots.join(', ') }]`;
     const hosts = [
       ['declaration', `const ${ lhs } = ${ rhs }; return ${ observe };`],
       ['assignment', `let of, from, rest; (${ lhs } = ${ rhs }); return ${ observe };`],
@@ -1544,28 +1547,28 @@ function * generateObjectHopPairing() {
 // the oracle for every effect the host carries (lead, prefix, keys, tail), the value for the binding.
 // a loop whose body never runs binds nothing, so those rows observe the hoisted `var` by type
 const SKS_HOSTS = [
-  { id: 'statement', bind: (p, s) => `var lead = hit(), ${ p } = ${ s }, tail = hit();` },
+  { id: 'statement', bind: (p, s) => `var lead = hit("lead"), ${ p } = ${ s }, tail = hit("tail");` },
   { id: 'pure-lead', bind: (p, s) => `var lead = 1, ${ p } = ${ s };` },
-  { id: 'host-first', bind: (p, s) => `var ${ p } = ${ s }, tail = hit();` },
-  { id: 'for-init', bind: (p, s) => `for (var lead = hit(), ${ p } = ${ s }; false;) break;` },
-  { id: 'bodyless-if', bind: (p, s) => `if (n >= 0) var lead = hit(), ${ p } = ${ s }, tail = hit();` },
-  { id: 'bodyless-while', bind: (p, s) => `while (n < 0) var lead = hit(), ${ p } = ${ s };`, dead: true },
-  { id: 'bodyless-do', bind: (p, s) => `do var ${ p } = ${ s }, tail = hit(); while (n < 0);` },
+  { id: 'host-first', bind: (p, s) => `var ${ p } = ${ s }, tail = hit("tail");` },
+  { id: 'for-init', bind: (p, s) => `for (var lead = hit("lead"), ${ p } = ${ s }; false;) break;` },
+  { id: 'bodyless-if', bind: (p, s) => `if (n >= 0) var lead = hit("lead"), ${ p } = ${ s }, tail = hit("tail");` },
+  { id: 'bodyless-while', bind: (p, s) => `while (n < 0) var lead = hit("lead"), ${ p } = ${ s };`, dead: true },
+  { id: 'bodyless-do', bind: (p, s) => `do var ${ p } = ${ s }, tail = hit("tail"); while (n < 0);` },
 ];
 const SKS_RECEIVERS = [
   { id: 'static', src: 'Array', key: 'of', observe: 'String(m(1, 2))' },
-  { id: 'static-prefix', src: '(hit(), Array)', key: 'of', observe: 'String(m(1, 2))' },
+  { id: 'static-prefix', src: '(hit("source"), Array)', key: 'of', observe: 'String(m(1, 2))' },
   { id: 'static-default', src: 'Array', key: 'of', dflt: ' = null', observe: 'String(m(1, 2))' },
   { id: 'ctor', src: 'globalThis', key: 'Map', observe: 'String(new m([[1, 2]]).get(1))' },
   { id: 'literal-instance', src: '[5, 6]', key: 'at', observe: 'String(m.call([5, 6], 1))' },
-  { id: 'literal-prefix', src: '(hit(), [5, 6])', key: 'at', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'literal-prefix', src: '(hit("source"), [5, 6])', key: 'at', observe: 'String(m.call([5, 6], 1))' },
   { id: 'member-instance', src: 'sksHolder.p', setup: 'const sksHolder = { p: [5, 6] };', key: 'at', observe: 'String(m.call([5, 6], 1))' },
-  { id: 'seq-instance', src: '(hit(), sksArr)', setup: 'const sksArr = [5, 6];', key: 'at', observe: 'String(m.call([5, 6], 1))' },
+  { id: 'seq-instance', src: '(hit("source"), sksArr)', setup: 'const sksArr = [5, 6];', key: 'at', observe: 'String(m.call([5, 6], 1))' },
 ];
 const SKS_PATTERNS = [
-  { id: 'sole', pattern: (key, dflt) => `{ [(hit(), '${ key }')]: m${ dflt } }` },
-  { id: 'sibling', pattern: (key, dflt) => `{ [(hit(), '${ key }')]: m${ dflt }, sksOther }` },
-  { id: 'unclaimed-key', pattern: (key, dflt) => `{ [(hit(), 'x')]: sksX, [(hit(), '${ key }')]: m${ dflt }, sksOther }` },
+  { id: 'sole', pattern: (key, dflt) => `{ [(hit("key"), '${ key }')]: m${ dflt } }` },
+  { id: 'sibling', pattern: (key, dflt) => `{ [(hit("key"), '${ key }')]: m${ dflt }, sksOther }` },
+  { id: 'unclaimed-key', pattern: (key, dflt) => `{ [(hit("other-key"), 'x')]: sksX, [(hit("key"), '${ key }')]: m${ dflt }, sksOther }` },
 ];
 function * generateSeKeySiblingHosts() {
   yield { ...snippet('sekey-sibling-hosts/binding-order/array-wrapped-tdz',
@@ -1609,7 +1612,7 @@ function * generateSeKeySiblingHosts() {
         const cell = `${ host.id }/${ receiver.id }/${ shape.id }`;
         const bind = host.bind(shape.pattern(receiver.key, receiver.dflt ?? ''), receiver.src);
         const observe = host.dead ? 'String(typeof m)' : receiver.observe;
-        const expr = `(() => { let n = 0; const hit = () => { n += 1; return 0; }; ${ receiver.setup ?? '' }`
+        const expr = `(() => { let n = 0; const hit = label => { log.push(label); n += 1; return 0; }; ${ receiver.setup ?? '' }`
           + ` ${ bind } return [${ observe }, String(n)]; })()`;
         yield { ...snippet(`sekey-sibling-hosts/${ cell }`, expr), strip: true };
       }
@@ -1721,22 +1724,26 @@ function * generateVarRedeclClosureRead() {
 // realm no longer carries - and the import sets of the two legs have to agree on every cell
 const LHS_ITERABLES = [
   { id: 'literal-array-slot', src: '[{ y: [5, 6] }]' },
-  { id: 'literal-cross-family', src: '[{ y: [5, 6] }, { y: "ab" }]' },
+  { id: 'literal-cross-family', src: '[{ y: first }, { y: "ab" }]', setup: 'const first = [5, 6];' },
   { id: 'literal-lacking-hop', src: '[{ y: [5, 6] }, { z: 1 }]' },
   { id: 'bound-iterable', src: 'lhsRows', setup: 'const lhsRows = [{ y: [5, 6] }];' },
   { id: 'spread-iterable', src: '[{ y: [5, 6] }, ...lhsMore]', setup: 'const lhsMore = [];' },
 ];
 const LHS_CLAIMS = [
-  { id: 'at', inner: 'at: m', observe: 'String(m.call([5, 6], 1))' },
-  { id: 'includes', inner: 'includes: m', observe: 'String(m.call([5, 6], 6))' },
+  { id: 'at', inner: 'at: m', observe: 'm.call(receiver, 1)', borrowed: 'm.call(first, 1)' },
+  { id: 'includes', inner: 'includes: m', observe: 'm.call(receiver, typeof receiver === "string" ? "ab" : 6)', borrowed: 'm.call(first, "5,6")' },
 ];
 function * generateLoopHeadNestedSlot() {
   for (const iterable of LHS_ITERABLES) {
     for (const claim of LHS_CLAIMS) {
       const cell = `${ iterable.id }/${ claim.id }`;
-      // the first element is the one the observable reads; a later element only widens the fold
+      // Exercise both receiver families. The deliberately incomplete second element must stay unread.
+      const cross = iterable.id === 'literal-cross-family';
+      const receiver = cross ? 'out.length ? "ab" : first' : '[5, 6]';
+      // Both at methods work on a string. Borrowing each on the first array distinguishes them.
+      const result = cross ? `[${ claim.observe }, ${ claim.borrowed }]` : claim.observe;
       const expr = `(() => { ${ iterable.setup ?? '' } const out = [];`
-        + ` for (const { y: { ${ claim.inner } } } of ${ iterable.src }) { out.push(${ claim.observe }); break; }`
+        + ` for (const { y: { ${ claim.inner } } } of ${ iterable.src }) { const receiver = ${ receiver }; out.push(${ result });${ iterable.id === 'literal-lacking-hop' ? ' break;' : '' } }`
         + ' return out; })()';
       yield { ...snippet(`loop-head-nested-slot/${ cell }`, expr), strip: true };
     }
@@ -1873,7 +1880,7 @@ const C_SLOTS = [
   { id: 'escape-apply-array', setup: 'const eat = t => { t.k = { of: () => "AP" }; }; const w = { k: Array }; eat.apply(null, [w]);', use: 'w.k.of(1)', strip: false },
   // the REPOSITION spellings beyond the four locked earlier
   { id: 'reposition-fill', setup: 'const b = [{ q: 1 }, Array]; b.fill(b[1]);', use: 'typeof b[0].of', strip: false },
-  { id: 'reposition-sort', setup: 'const b = [Array, { q: 1 }]; b.sort(() => 1);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-sort', setup: 'const b = [Array, { q: 1 }]; b.sort((a, z) => Number(a === Array) - Number(z === Array));', use: '[b[0].q, typeof b[0].of]', strip: false },
   { id: 'reposition-concat-key', setup: 'const b = [{ q: 1 }, Array]; b["rev" + "erse"]();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-dynamic-key', setup: 'const b = [{ q: 1 }, Array]; const m = "reverse"; b[m]();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-optional-call', setup: 'const b = [{ q: 1 }, Array]; b?.reverse();', use: 'typeof b[0].of', strip: false },
@@ -2688,8 +2695,8 @@ function * generateContainerLocalTypes() {
 // starts at 0. a positional source sliced past 0 holds a different type at every index, so
 // answering with the container types the slice by the source's element 0 - a wrong family, which
 // usage-pure turns into a throw the native leg sees. container kind is the branching axis: the
-// tuple rows have to widen while the array rows have to stay narrow, so a fix that simply widens
-// every rest read fails the same family that catches the original defect. the slice START branches
+// tuple and array rows expose an incorrect family at runtime. The fixture
+// usage-pure/audit-rest-slice-not-whole-rhs pins helper specialization. The slice START branches
 // for the same reason - at 0 the slice IS the whole source and stays exact for both kinds.
 // the three hosts are three different lanes: an init annotation goes through the destructure
 // key-path walk, an annotation written ON the pattern through the typed-member walk, and a
@@ -4905,7 +4912,7 @@ const SE_SHAPES = [
 function * generateSideEffectConsumers() {
   for (const shape of SE_SHAPES) {
     const inner = `(() => { const o = { list: [3, [4]], text: "ab" }; let held; const v = ${ shape.expr }; `
-      + 'log.push(String(v)); return String(v); })()';
+      + 'return v; })()';
     yield { ...snippet(`se-consumers/${ shape.id }`, inner), strip: false };
   }
 }
@@ -5151,7 +5158,7 @@ const GRD_DEPTHS = [
   { id: 'flat-static', pattern: 'Object: { keys: k }', names: 'k', observe: 'typeof k' },
   { id: 'descended', pattern: 'Object: { keys: { bind: b } }', names: 'b', observe: 'typeof b' },
   // the strip-armed depth: `Array.from` is a static the manifest removes, so a cell that SERVES the
-  // claim proves the injection there. the two cells below that do not serve it say so by name
+  // claim proves the injection there. also on the assignment and partial hosts
   { id: 'armed', pattern: 'Array: { from: f }', names: 'f', observe: 'typeof f' },
 ];
 const GRD_HOSTS = [
@@ -5159,25 +5166,15 @@ const GRD_HOSTS = [
   { id: 'assign', build: (pattern, names, src) => `let ${ names }; ({ ${ pattern } } = ${ src });` },
   { id: 'partial', build: (pattern, names, src) => `let ${ names }, q; ({ ${ pattern }, customQ: q } = ${ src });` },
 ];
-// a cell NOT covered, with the reason: the sequence-returning getter on an ASSIGNMENT host makes the
-// babel leg narrow `Object.keys` to the GENERIC instance `keys` dispatcher (`_keys(holder.g.Object)`)
-// where this leg keeps the source - a wrong narrow whose `typeof` answers "function" either way, so
-// only the import set sees it. a gap in the product, never a row to carry red
-const GRD_SKIP = new Set(['getter-seq/flat-static/assign']);
-// ... and the cells where the same receiver leaves the ARMED static unserved on both legs: the kept
-// source reads the realm's own `Array.from`, which the stripped realm no longer carries, so import
-// parity is their oracle instead
-const GRD_NO_STRIP = new Set(['getter-seq/armed/assign', 'getter-seq/armed/partial']);
 function * generateGetterReceiverDescent() {
   for (const recv of GRD_RECEIVERS) {
     for (const depth of GRD_DEPTHS) {
       for (const host of GRD_HOSTS) {
         const cell = `${ recv.id }/${ depth.id }/${ host.id }`;
-        if (GRD_SKIP.has(cell)) continue;
         const body = `${ recv.setup } ${ host.build(depth.pattern, depth.names, recv.src) }`
           + ` log.push("b"); return [${ depth.observe }, log.join()];`;
         yield { ...snippet(`getter-receiver-descent/${ cell }`, `(() => { ${ body } })()`),
-          strip: !GRD_NO_STRIP.has(cell) };
+          strip: true };
       }
     }
   }
@@ -8067,8 +8064,8 @@ const M_SIBLINGS = [
 ];
 function * generateMutatedSibling() {
   for (const s of M_SIBLINGS) {
-    const body = `(() => { const _o = ${ s.recv }.${ s.mut }; try { ${ s.recv }.${ s.mut } = () => "P"; return ${ s.use }; } finally { ${ s.recv }.${ s.mut } = _o; } })()`;
-    yield { ...snippet(`mutated-sibling/${ s.recv }/mut-${ s.mut }-use-${ s.useKey }`, body), strip: false };
+    const body = `(() => { const desc = _nativeObject.getOwnPropertyDescriptor(${ s.recv }, "${ s.mut }"); try { ${ s.recv }.${ s.mut } = () => "P"; return ${ s.use }; } finally { restoreProperty(${ s.recv }, "${ s.mut }", desc); } })()`;
+    yield mutationSnippet(`mutated-sibling/${ s.recv }/mut-${ s.mut }-use-${ s.useKey }`, body);
   }
 }
 
@@ -8295,8 +8292,8 @@ const M_NARROW = [
 ];
 function * generateMutatedNarrowChain() {
   for (const s of M_NARROW) {
-    const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = ${ s.patch }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
-    yield { ...snippet(`mutated-narrow-chain/${ s.recv }.${ s.key }`, body), strip: false };
+    const body = `(() => { const desc = _nativeObject.getOwnPropertyDescriptor(${ s.recv }, "${ s.key }"); try { ${ s.recv }.${ s.key } = ${ s.patch }; return ${ s.use }; } finally { restoreProperty(${ s.recv }, "${ s.key }", desc); } })()`;
+    yield mutationSnippet(`mutated-narrow-chain/${ s.recv }.${ s.key }`, body);
   }
 }
 
@@ -8312,12 +8309,11 @@ function * generateMutatedComputedKey() {
 }
 
 // the patch arrives through a wrapper-fronted namespace (`(0, Object).assign(recv, { key: ... })`,
-// a common minified shape) that still resolves to the global Object; restore via a computed key so
-// neither touch is a plain dotted write the binding-blind path could detect on its own
+// a common minified shape). The foreign cleanup cannot mark the slot as mutated on its own.
 function * generateMutatedWrapperAssign() {
   for (const s of M_STATICS) {
-    const body = `(() => { const _k = "${ s.key }"; const _o = ${ s.recv }[_k]; try { (0, Object).assign(${ s.recv }, { ${ s.key }: () => "P" }); return ${ s.use }; } finally { ${ s.recv }[_k] = _o; } })()`;
-    yield { ...snippet(`mutated-wrapper-assign/${ s.recv }.${ s.key }`, body), strip: false };
+    const body = `(() => { const desc = _nativeObject.getOwnPropertyDescriptor(${ s.recv }, "${ s.key }"); try { (0, Object).assign(${ s.recv }, { ${ s.key }: () => "P" }); return ${ s.use }; } finally { restoreProperty(${ s.recv }, "${ s.key }", desc); } })()`;
+    yield mutationSnippet(`mutated-wrapper-assign/${ s.recv }.${ s.key }`, body);
   }
 }
 
@@ -9928,15 +9924,14 @@ const PURE_FULL_ENV_FAMILIES = new Set([
   'destructure-edge',
 ]);
 
-// ASI left-fusion: a destructure whose lifted side-effect re-roots its statement-overwrite on a hazard char
-// (`/re/` divides, `+x` / `-x` continue a binary) must not fuse into a `;`-less value-consuming prev statement.
-// the observable returns the prev binding `a` (corrupted by a fused `i++ + x`) plus the polyfilled method's
-// type; a fused `i++ / re` throws (`re` undefined). babel inserts via AST (immune), so a missing unplugin guard
-// diverges by value or throw. covers the two statement-overwrite sites the corpus's IIFE-braced hosts cannot reach
+// Preserve the boundary following a semicolon-free initializer. These destructuring cases
+// keep their regex or unary expression inside the RHS after extraction.
 const D_ASI_FUSION = [
   { id: 'flatten-regex', body: 'let i = 0; const a = i++\nconst { Array: { from } } = (/re/.test("a"), globalThis); return [a, typeof from];' },
   { id: 'flatten-plus', body: 'let i = 0; const a = i++\nconst { Object: { fromEntries } } = (+(7), globalThis); return [a, typeof fromEntries];' },
   { id: 'cascade-minus', body: 'let i = 0, m; const a = i++\n({ Map: { groupBy: m } } = (-(3), globalThis)); return [a, typeof m];' },
+  // Here the rewrite really starts a statement with '+'. Omitting its separator changes previous.
+  { id: 'split-plus', body: 'let from, i = 0; const previous = i++\n(+7, ({ from } = Array)); return [previous, from([3])[0]];' },
 ];
 function * generateAsiFusion() {
   for (const c of D_ASI_FUSION) yield { ...snippet(`asi-fusion/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
@@ -9955,12 +9950,16 @@ const BRANCH_KEY = [
   { id: 'destructure-nested', body: 'const { Array: { [cond ? "from" : "of"]: f } } = globalThis; return typeof f;' },
   // nested arms recurse; `??` exercises the LogicalExpression slot pair
   { id: 'member-call-three-arm', body: 'return typeof [3, [1, 2]][cond ? (nul ? "at" : "flat") : "includes"];' },
-  { id: 'member-call-nullish', body: 'return [3, [1, 2], 5][nul ?? "toSorted"]().length;' },
+  { id: 'member-call-nullish', body: 'return [3, [1, 2], 5][(cond ? "at" : null) ?? "toSorted"]().length;' },
   // a TYPED receiver narrows the arm variants (no array rows for a string receiver)
   { id: 'member-call-string', body: 'const s = "abcde"; return s[cond ? "at" : "includes"](1);' },
 ];
 function * generateBranchKey() {
-  for (const c of BRANCH_KEY) yield { ...snippet(`branch-key/${ c.id }`, `(() => { ${ c.body } })()`), strip: false };
+  for (const c of BRANCH_KEY) {
+    const calls = c.id === 'member-call-three-arm' ? '[read(true, true), read(true, false), read(false, false)]' : '[read(true), read(false)]';
+    const expr = `(() => { function read(cond, nul) { ${ c.body } } return ${ calls }; })()`;
+    yield { ...snippet(`branch-key/${ c.id }`, expr), strip: false };
+  }
 }
 
 // bare get-iterator paren-lookup with an OPTIONAL receiver and a computed-key side effect
@@ -11469,7 +11468,7 @@ const log = [];
   recordGetter(source, 'at', log, 20);
   recordGetter(source, 'other', log, 40);
   observed.push(readScalarArraySibling(() => source, () => log.push('key')));
-  observed.push(log);
+  observed.push(log.slice());
   log.length = 0;
   const rows = [7, 8];
   Object.defineProperty(rows, 'before', { value: iterable, enumerable: true });
@@ -11571,7 +11570,7 @@ function * generateGetterRealmReads() {
         const key = ['group', 'By'].join('');
         export const r = Reflect.get(Ctor, key)([1, 2, 3], x => x % 2).get(1);
         export { effects };`,
-      strip: true,
+      strip: true, isolated: true,
     };
   }
 }
@@ -11701,7 +11700,7 @@ function * generateScopedContainerEscapes() {
           const Ctor = read(); const key = ['group', 'By'].join('');
           export const r = Reflect.get(Ctor, key)([1, 2, 3], x => x % 2).get(1);
           export { effects };`,
-        strip: true,
+        strip: true, isolated: true,
       };
     }
   }
@@ -11721,7 +11720,7 @@ function * generateScopedContainerEscapes() {
           (observe.results || (observe.results = [])).push(kind === 'map' ? value.get(1)[0] : typeof value.resolve);
         }
         export const r = observe.results; export const effects = [];`,
-      strip: true,
+      strip: true, isolated: true,
     };
   }
 }
@@ -13611,35 +13610,35 @@ function * generateResidualCtorStatics() {
 const SELECTING_INNER_DEFAULT_ROWS = [
   { id: 'objkey-assign',
     body: 'const box = {}; let gb; ({ k: { Map: { groupBy: gb }, Promise: { race: box.race } '
-      + '} = globalThis.window ?? globalThis } = {}); return [typeof gb, typeof box.race];', strip: false },
+      + '} = globalThis.window ?? globalThis } = {}); return [typeof gb, typeof box.race];' },
   { id: 'objkey-decl',
-    body: 'const { k: { Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis } = {}; return [typeof gb, typeof z];', strip: false },
+    body: 'const { k: { Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis } = {}; return [typeof gb, typeof z];' },
   { id: 'objkey-decl-binding-only', body: 'const { k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = {}; return [typeof gb];' },
   { id: 'element-assign',
     body: 'const box = {}; let gb; [{ Map: { groupBy: gb }, Promise: { race: box.race } '
-      + '} = globalThis.window ?? globalThis] = []; return [typeof gb, typeof box.race];', strip: false },
+      + '} = globalThis.window ?? globalThis] = []; return [typeof gb, typeof box.race];' },
   { id: 'element-decl',
-    body: 'const [{ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis] = []; return [typeof gb, typeof z];', strip: false },
+    body: 'const [{ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis] = []; return [typeof gb, typeof z];' },
   { id: 'catch-param',
     body: 'let r; try { throw []; } catch ([{ Map: { groupBy: gb }, Promise: { customZ: z } '
-      + '} = globalThis.window ?? globalThis]) { r = [typeof gb, typeof z]; } return r;', strip: false },
+      + '} = globalThis.window ?? globalThis]) { r = [typeof gb, typeof z]; } return r;' },
   { id: 'function-param',
-    body: 'return (([{ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis]) => [typeof gb, typeof z])([]);', strip: false },
+    body: 'return (([{ Map: { groupBy: gb }, Promise: { customZ: z } } = globalThis.window ?? globalThis]) => [typeof gb, typeof z])([]);' },
   // ... whatever the host's literal holds for the slot: absent, a spread / computed key / getter no
   // pairing can read through, a hole or an `undefined` element, an outer level that throws natively
   // before the default runs - the default's own arms are the mirror's, and a present slot wins
   { id: 'outer-level-absent-throws',
     body: 'let gb, r; try { ({ w: { k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } } = {}); r = typeof gb; } catch (e) { r = e.name; } return r;', strip: false },
-  { id: 'host-spread', body: 'let gb; const extra = {}; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { ...extra }); return [typeof gb];', strip: false },
+  { id: 'host-spread', body: 'let gb; const extra = {}; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { ...extra }); return [typeof gb];' },
   { id: 'host-computed-key-present',
     body: "let gb; const kk = 'k'; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { [kk]: { Map: { groupBy: () => 'own' } } });"
       + ' return [gb()];', strip: false },
-  { id: 'host-getter', body: 'let gb; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { get k() { return undefined; } }); return [typeof gb];', strip: false },
-  { id: 'element-hole', body: 'let gb; [, { Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [1, , 3]; return [typeof gb];', strip: false },
-  { id: 'element-undefined', body: 'let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [undefined]; return [typeof gb];', strip: false },
+  { id: 'host-getter', body: 'let gb; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { get k() { return undefined; } }); return [typeof gb];' },
+  { id: 'element-hole', body: 'let gb; [, { Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [1, , 3]; return [typeof gb];' },
+  { id: 'element-undefined', body: 'let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [undefined]; return [typeof gb];' },
   { id: 'element-present-wins', body: "let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [{ Map: { groupBy: () => 'own' } }]; return [gb()];", strip: false },
-  { id: 'spread-array-host', body: 'let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [...[]]; return [typeof gb];', strip: false },
-  { id: 'two-nested-defaults', body: 'const { k: { m: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = {} } = {}; return [typeof gb];', strip: false },
+  { id: 'spread-array-host', body: 'let gb; [{ Map: { groupBy: gb } } = globalThis.window ?? globalThis] = [...[]]; return [typeof gb];' },
+  { id: 'two-nested-defaults', body: 'const { k: { m: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = {} } = {}; return [typeof gb];' },
   // ... and an ALL-proxy selecting default (`self ?? globalThis`) takes the shared plan's literal:
   // the arm behind a truthy proxy is dead and the literal replaces the whole selection
   { id: 'all-proxy-arms-assign', body: 'let gb; ({ k: { Map: { groupBy: gb } } = self ?? globalThis } = {}); return [typeof gb];' },
@@ -13651,34 +13650,34 @@ const SELECTING_INNER_DEFAULT_ROWS = [
   // runs it, once, and only when the host's slot is empty
   { id: 'seq-objkey-assign',
     body: 'let h = 0; const box = {}; let gb; ({ k: { Map: { groupBy: gb }, Promise: { race: box.race } '
-      + '} = (h++, globalThis.window ?? globalThis) } = {}); return [typeof gb, typeof box.race, h];', strip: false },
+      + '} = (h++, globalThis.window ?? globalThis) } = {}); return [typeof gb, typeof box.race, h];' },
   { id: 'seq-objkey-decl',
     body: 'let h = 0; const { k: { Map: { groupBy: gb }, Promise: { customZ: z } } = (h++, globalThis.window ?? globalThis) } = {}; '
-      + 'return [typeof gb, typeof z, h];', strip: false },
+      + 'return [typeof gb, typeof z, h];' },
   { id: 'seq-objkey-assign-present-key',
     body: "let h = 0; let gb; ({ k: { Map: { groupBy: gb } } = (h++, globalThis.window ?? globalThis) } = { k: { Map: { groupBy: () => 'own' } } }); "
       + 'return [gb(), h];', strip: false },
   { id: 'seq-element-assign',
-    body: 'let h = 0; let gb; [{ Map: { groupBy: gb } } = (h++, globalThis.window ?? globalThis)] = []; return [typeof gb, h];', strip: false },
+    body: 'let h = 0; let gb; [{ Map: { groupBy: gb } } = (h++, globalThis.window ?? globalThis)] = []; return [typeof gb, h];' },
   // ... and an SE-KEY sibling inside that default names a STATIC of its own receiver, which the
   // generic instance ladder also answers: the leaf is the mirror's to spell, and a route that keeps
   // the key alive and dispatches anyway bound `_keys(host)` - an array where the source binds the
   // function. the row observes WHAT the leaf holds, not only that it was written
   { id: 'se-key-sibling-decl',
     body: "let h = 0; const { k: { Map: { groupBy: gb }, Object: { [(h++, 'keys')]: ks } } = (globalThis.window ?? globalThis) } = {}; "
-      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];', strip: false },
+      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];' },
   { id: 'seq-se-key-sibling-decl',
     body: "let h = 0; const { k: { Map: { groupBy: gb }, Object: { [(h++, 'keys')]: ks } } = (h++, globalThis.window ?? globalThis) } = {}; "
-      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];', strip: false },
+      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];' },
   { id: 'seq-se-key-sibling-assign',
     body: "let h = 0; let gb, ks; ({ k: { Map: { groupBy: gb }, Object: { [(h++, 'keys')]: ks } } = (h++, globalThis.window ?? globalThis) } = {}); "
-      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];', strip: false },
+      + 'return [typeof gb, typeof ks, Array.isArray(ks), h];' },
   { id: 'objkey-present-key',
     body: "const box = {}; let gb; ({ k: { Map: { groupBy: gb } } = globalThis.window ?? globalThis } = { k: { Map: { groupBy: () => 'own' } } }); return [gb()];", strip: false },
 ];
 function * generateSelectingInnerDefaults() {
   for (const row of SELECTING_INNER_DEFAULT_ROWS) {
-    yield { ...snippet(`selecting-inner-default/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip };
+    yield { ...snippet(`selecting-inner-default/${ row.id }`, `(() => { ${ row.body } })()`), strip: row.strip !== false };
   }
 }
 
@@ -13980,7 +13979,7 @@ const BRANCH_DIVERT_ROWS = [
       + ' try { return [JSON.stringify(f(1, true))]; } catch (e) { return ["THREW"]; }' },
   { id: 'labelled-break-in-an-arm',
     body: 'function f(c) { outer: { if (c) break outer; var M = globalThis; } return M.Array.from([1]); }'
-      + ' try { return [JSON.stringify(f(true)), JSON.stringify(f(false))]; } catch (e) { return ["THREW"]; }' },
+      + ' return [true, false].map(c => { try { return JSON.stringify(f(c)); } catch (e) { return e.name; } });' },
   { id: 'loop-conditional-continue',
     body: 'function f(c) { for (let i = 0; i < 1; i++) { try { if (c) continue; var M = globalThis; } finally { } }'
       + ' return M.Array.from([1]); }'
@@ -17252,9 +17251,12 @@ function * generateRealmMemberPresenceTests() {
       for (const [label, global, shim, use, pattern] of PRESENCE_MEMBER_GLOBALS) {
         for (const [shape, place] of PRESENCE_MEMBER_READS) {
           const { before, after } = place(global, use, pattern);
-          const install = guard(spell(global), `globalThis.${ global } = Shim`);
-          const body = `${ shim } const realm = globalThis; try { ${ before } ${ install } ${ after } } catch (error) { return error.constructor.name; }`;
-          yield { ...snippet(`realm-member-presence-tests/${ test }/${ host }/${ label }/${ shape }`, `(() => { ${ body } })()`), strip: true };
+          const install = guard(spell(global), `(log.push("install"), globalThis.${ global } = Shim)`);
+          const body = `${ shim } const realm = globalThis; const root = Function('return this')();
+            const descriptor = _nativeObject.getOwnPropertyDescriptor(root, "${ global }");
+            try { ${ before } ${ install } ${ after } } catch (error) { return error.constructor.name; }
+            finally { restoreProperty(root, "${ global }", descriptor); }`;
+          yield mutationSnippet(`realm-member-presence-tests/${ test }/${ host }/${ label }/${ shape }`, `(() => { ${ body } })()`);
         }
       }
     }
@@ -17272,14 +17274,14 @@ function * generateRealmMemberPresenceTests() {
 // boundary of a static install): in the stripped realm the user's shim legitimately answers, so those rows
 // ride the full environment alone too
 const NEVER_TAKEN_INSTALLS = [
-  ['global', "typeof Iterator == 'undefined'", 'globalThis.Iterator = Shim', 'Iterator.from([3, 4]).next().value', true],
-  ['bare-global', "typeof Iterator == 'undefined'", 'Iterator = Shim', 'Iterator.from([3, 4]).next().value', true],
-  ['self-global', "typeof Iterator == 'undefined'", 'self.Iterator = Shim', 'Iterator.from([3, 4]).next().value', true],
-  ['realm', "typeof globalThis == 'undefined'", 'self.globalThis = self', 'globalThis.Map.groupBy([3, 4], x => x % 2).size', true],
-  ['static', '!Array.from', 'Array.from = Shim.from', 'Array.from([3, 4]).length', false],
-  ['realm-static', '!globalThis.Array.from', 'globalThis.Array.from = Shim.from', 'Array.from([3, 4]).length', false],
-  ['typeof-static', "typeof Map.groupBy != 'function'", 'Map.groupBy = Shim.groupBy', 'Map.groupBy([3, 4], x => x % 2).size', false],
-  ['symbol', "typeof Symbol == 'undefined'", 'globalThis.Symbol = Shim', '[3, 4][Symbol.iterator]().next().value', false],
+  ['global', "typeof Iterator == 'undefined'", 'globalThis.Iterator', 'Shim', 'Iterator.from([3, 4]).next().value', true],
+  ['bare-global', "typeof Iterator == 'undefined'", 'Iterator', 'Shim', 'Iterator.from([3, 4]).next().value', true],
+  ['self-global', "typeof Iterator == 'undefined'", 'self.Iterator', 'Shim', 'Iterator.from([3, 4]).next().value', true],
+  ['realm', "typeof globalThis == 'undefined'", 'self.globalThis', 'self', 'globalThis.Map.groupBy([3, 4], x => x % 2).size', true],
+  ['static', '!Array.from', 'Array.from', 'Shim.from', 'Array.from([3, 4]).length', false],
+  ['realm-static', '!globalThis.Array.from', 'globalThis.Array.from', 'Shim.from', 'Array.from([3, 4]).length', false],
+  ['typeof-static', "typeof Map.groupBy != 'function'", 'Map.groupBy', 'Shim.groupBy', 'Map.groupBy([3, 4], x => x % 2).size', false],
+  ['symbol', "typeof Symbol == 'undefined'", 'globalThis.Symbol', 'Shim', '[3, 4][Symbol.iterator]().next().value', false],
 ];
 const NEVER_TAKEN_SHIM = 'const Shim = { from: () => ({ next: () => ({ value: -1 }), length: -1 }), groupBy: () => ({ size: -1 }) };';
 const NEVER_TAKEN_FRAMES = [
@@ -17294,10 +17296,16 @@ const NEVER_TAKEN_FRAMES = [
   ['and-host', (test, install, read) => `${ test } && (${ install }); return ${ read };`],
 ];
 function * generateInstallsInArmsNeverTaken() {
-  for (const [kind, test, install, read, strip] of NEVER_TAKEN_INSTALLS) {
+  for (const [kind, test, targetName, replacement, read, strip] of NEVER_TAKEN_INSTALLS) {
+    const [owner, key] = targetName.split('.', 2);
+    const target = key && owner !== 'globalThis' && owner !== 'self' ? `root.${ owner }` : 'root';
+    const slot = key ?? owner;
     for (const [frame, build] of NEVER_TAKEN_FRAMES) {
-      const body = `${ NEVER_TAKEN_SHIM } try { ${ build(test, install, read) } } catch (error) { return error.constructor.name; }`;
-      yield { ...snippet(`installs-in-arms-never-taken/${ kind }/${ frame }`, `(() => { ${ body } })()`), strip };
+      const body = `${ NEVER_TAKEN_SHIM } const root = Function('return this')(); const receiver = ${ target };
+        const descriptor = receiver && _nativeObject.getOwnPropertyDescriptor(receiver, "${ slot }");
+        try { ${ build(test, `(log.push("install"), ${ targetName } = ${ replacement })`, read) } } catch (error) { return error.constructor.name; }
+        finally { if (receiver) restoreProperty(receiver, "${ slot }", descriptor); }`;
+      yield { ...mutationSnippet(`installs-in-arms-never-taken/${ kind }/${ frame }`, `(() => { ${ body } })()`), strip };
     }
   }
 }
@@ -18687,13 +18695,16 @@ function * generateForOfPassthroughTargets() {
     for (const [targetId, target] of Object.entries(FOR_OF_PASSTHROUGH_TARGETS)) {
       for (const passthrough of ['length', 'name']) {
         const head = wrapPattern(`{ [(hits.push("k"), "from")]: f, ${ passthrough }: ${ target } }`);
-        yield {
-          ...snippet(`for-of-passthrough-targets/${ nestingId }/${ targetId }/${ passthrough }`,
-            '(() => { const o = {}; const k = "p"; const hits = []; '
-            + `function g() { hits.push("g"); return o; } let f; for (${ head } of [${ wrapInit('Array') }]) break; `
-            + 'return [typeof f, o.p, hits.join()]; })()'),
-          strip: true,
-        };
+        const body = `(() => { const o = {}; const k = "p"; const hits = [];
+          function g() { hits.push("g"); return o; }
+          const descriptor = _nativeObject.getOwnPropertyDescriptor(Array, "${ passthrough }");
+          restoreProperty(Array, "${ passthrough }", { configurable: true, get() { hits.push("read"); return descriptor.value; } });
+          try {
+            let f; for (${ head } of [${ wrapInit('Array') }]) break;
+            return [typeof f, o.p, hits];
+          } finally { restoreProperty(Array, "${ passthrough }", descriptor); }
+        })()`;
+        yield mutationSnippet(`for-of-passthrough-targets/${ nestingId }/${ targetId }/${ passthrough }`, body);
       }
     }
   }
@@ -23477,14 +23488,14 @@ function * generateBindingReadPositions() {
   };
   for (const value of ['[1, 2]', '"ab"']) for (const outside of [false, true]) yield {
     ...snippet(`binding-read/key/${ value }/${ outside }`, `(() => {
-      let result;
+      const result = [];
       const key = 'items';
       class Box { static {
         const key = 'items';
         const box = { [key]: ${ value } };
-        { const key = 'other'; result = box.items.at(-1); }
+        { const key = 'other'; result.push(box.items.at(-1)); }
       } }
-      ${ outside ? `const box = { [key]: ${ value }, other: {} }; result = box.items.at(-1);` : '' }
+      ${ outside ? `const box = { [key]: ${ value }, other: {} }; result.push(box.items.at(-1));` : '' }
       return result;
     })()`), strip: true,
   };
@@ -24385,11 +24396,14 @@ function * generateNestedReceiverRoots() {
         import { withTemporaryProperty } from ${ JSON.stringify(propertyHost) };
         export const effects = []; const root = globalThis;
         function read(choice) { ${ body } }
-        export const r = withWindowPresence(${ present }, () =>
+        function evaluate(choice) {
+          return withWindowPresence(${ present }, () =>
           withTemporaryProperty(root, 'slotD', 17, () => withTemporaryProperty(root, 'items', [1, 3], () => {
-            let value; try { value = read(false); } catch (error) { value = error.name; }
+            let value; try { value = read(choice); } catch (error) { value = error.name; }
             return [value, root.slotD];
           })));
+        }
+        export const r = ${ ['branch-consequent', 'branch-alternate', 'logical-control'].includes(name) ? '[evaluate(false), evaluate(true)]' : 'evaluate(false)' };
       `,
     };
   }

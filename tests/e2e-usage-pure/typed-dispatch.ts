@@ -21,11 +21,14 @@ QUnit.test('typed dispatch: parameter annotation narrows the receiver', assert =
 });
 
 QUnit.test('typed dispatch: annotation union receiver keeps multi-type dispatch', assert => {
-  function pick(): string | string[] {
-    return (globalThis as any).neverSetFlag ? 'ab' : ['a', 'b'];
+  function pick(text: boolean): string | string[] {
+    return text ? 'ab' : ['a', 'b'];
   }
-  const v = pick();
-  assert.true(v.includes('a'));
+  function read(text: boolean) {
+    return pick(text).includes('ab');
+  }
+  assert.true(read(true));
+  assert.false(read(false));
 });
 
 QUnit.test('typed dispatch: generic element passthrough', assert => {

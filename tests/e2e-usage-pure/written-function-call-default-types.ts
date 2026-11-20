@@ -14,9 +14,11 @@ QUnit.test('written function defaults: null keeps the caller fallback live', ass
 });
 
 QUnit.test('destructured written functions retain the inferred field union', assert => {
-  const choose = () => false;
-  const box = { fn: ({ rows } = { rows: choose() ? ['a'] : 'ab' }) => rows };
-  box.fn = ({ rows } = { rows: choose() ? ['a'] : 'ab' }) => rows;
-  assert.true(box.fn().includes('a'));
-  assert.true(box.fn({ rows: choose() ? ['a'] : 'ab' }).includes('a'));
+  function probe(array: boolean) {
+    const box = { fn: ({ rows } = { rows: array ? ['a'] : 'ab' }) => rows };
+    box.fn = ({ rows } = { rows: array ? ['a'] : 'ab' }) => rows;
+    return [box.fn().includes('ab'), box.fn({ rows: array ? ['a'] : 'ab' }).includes('ab')];
+  }
+  assert.deepEqual(probe(false), [true, true]);
+  assert.deepEqual(probe(true), [false, false]);
 });

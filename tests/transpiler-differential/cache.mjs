@@ -16,7 +16,7 @@ import { generate } from './generate.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { coverageShortfalls, emptyCoverage, skippedTotal } from './coverage.mjs';
 import { buildStripScript } from './strip-manifest.mjs';
-import { readRuntimeStamps } from './runtime-stamps.mjs';
+import { readRuntimeStamps, RUNTIME_TREES as TREES } from './runtime-stamps.mjs';
 import { openWorktreeCache } from './worktree-cache.mjs';
 
 const { ensureDir, outputFile, readJson, removeSync, writeJson } = fs;
@@ -26,7 +26,7 @@ const { check, checkDeep, finish } = createChecker('differential-cache');
 // NOT the ambient `__dirname`: zxi IMPORTS this file rather than running it as the entry point, so
 // that global points at the bootstrap's directory
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TMP = join(HERE, 'tmp', `cache-test-${ process.pid }`);
+const TMP = join(HERE, 'tmp', `run-${ process.pid }`);
 const CACHE = join(TMP, 'cache.json');
 await ensureDir(TMP);
 // on EXIT rather than at the end of the file: an assertion that throws, or a shard that dies
@@ -164,6 +164,12 @@ check('  and a later cell does not resurrect it', auditing.collectCases().live, 
 // dropping it from the working set only stops this run from WRITING it - the copy already in the
 // file outlives the merge unless eviction travels as its own channel
 checkDeep('  and it is reported for eviction', auditing.collectEvicted(), ['live']);
+// A drift in another cell can trigger a live replay after the same group proved volatile.
+await auditing.cached({ type: 'native', code: SRC, evaluate: () => 'OK|stable-drift' });
+check('the mixed audit requests replay', auditing.auditDrifted(), true);
+await auditing.beginCase({ name: 'live', code: SRC, live: true });
+await auditing.cached({ type: 'pure-babel', code: OUT, evaluate: () => 'OK|successful-replay' });
+check('a green replay cannot reattach the volatile group', auditing.collectCases().live, undefined);
 process.env.DIFF_AUDIT_EVERY = '0';
 
 // the audit is a SAMPLE that rotates: at a rate above 1 it must take some groups and leave others,
@@ -205,6 +211,26 @@ await beginCase({ name: 'failing', code: SRC });
 await cached({ type: 'pure-babel', code: OUT, evaluate: () => 'ERR|Error' });
 discardCase('failing');
 check('a failing snippet caches nothing', collectCases().failing, undefined);
+check('a live failure evicts an earlier stored success', store.collectEvicted().includes('failing'), true);
+
+// A cacheable success followed by a failing live verdict must run live again next time.
+await beginCase({ name: 'live', code: SRC, live: true });
+const failedLive = await evaluated('live', 'pure-babel', OUT, 'ERR|TypeError');
+if (failedLive.key !== 'OK|planted-out') discardCase('live');
+await beginCase({ name: 'live', code: SRC });
+const sameRun = await evaluated('live', 'pure-babel', OUT, 'ERR|TypeError');
+check('reopening the evicted case cannot read the old disk value', sameRun.key, 'ERR|TypeError');
+const replayFile = join(TMP, 'after-failure.json');
+const retained = mergeCases({ existing: (await readJson(CACHE)).cases, sets: [collectCases()],
+  names: new Set(['live', 'moved']), evicted: store.collectEvicted() });
+checkDeep('a live failure keeps the other stored group', Object.keys(retained), ['moved']);
+await writeJson(replayFile, { cases: retained });
+process.env.DIFF_CACHE = replayFile;
+const retry = await import('./cache-store.mjs?after-failure');
+await retry.beginCase({ name: 'live', code: SRC });
+const afterFailure = await retry.cached({ type: 'pure-babel', code: OUT, evaluate: () => 'ERR|TypeError' });
+checkDeep('the next run observes the deterministic failure live', [afterFailure, retry.cacheStats.evaluated], ['ERR|TypeError', 1]);
+process.env.DIFF_CACHE = CACHE;
 
 // --- unit: runtime stamps ---
 const STAMPED = {
@@ -229,14 +255,14 @@ for (const tree of ['pure', 'global']) {
 checkDeep('matching runtime retains imported source cells', applyRuntimeStamps(withImport, STAMPED.runtime, runtimeSources).cases, withImport.cases);
 
 // Identical runtime content permits reuse across worktree paths without hiding a runtime edit.
-const TREES = { pure: ['pure'], global: ['global/modules', 'global/internals'] };
 const LEFT = join(TMP, 'left');
 const RIGHT = join(TMP, 'right');
 const runtimeFiles = {
-  'pure/index.js': 'module.exports = 1;',
-  'pure/package.json': '{ "main": "index.js" }',
-  'global/modules/index.js': 'module.exports = 2;',
-  'global/internals/index.js': 'module.exports = 3;',
+  'packages/core-js-pure/index.js': 'module.exports = 1;',
+  'packages/core-js-pure/package.json': '{ "main": "index.js" }',
+  'packages/core-js/package.json': '{ "exports": "./modules/index.js" }',
+  'packages/core-js/modules/index.js': 'module.exports = 2;',
+  'packages/core-js/internals/index.js': 'module.exports = 3;',
 };
 for (const root of [LEFT, RIGHT]) {
   for (const [name, source] of Object.entries(runtimeFiles)) await outputFile(join(root, name), source);
@@ -250,14 +276,20 @@ const runtimeCells = { ...STAMPED, runtime: original.runtime };
 const afterMove = applyRuntimeStamps({ ...runtimeCells, runtime: relocated.compatible }, relocated.runtime);
 checkDeep('a checkout move preserves every evaluation cell', afterMove.cases, STAMPED.cases);
 checkDeep('a checkout move invalidates no runtime', afterMove.stale, []);
-await outputFile(join(RIGHT, 'pure/README.md'), 'Changed documentation');
+await outputFile(join(RIGHT, 'packages/core-js-pure/README.md'), 'Changed documentation');
 checkDeep('documentation does not invalidate runtime', (await readRuntimeStamps(RIGHT, TREES)).runtime, original.runtime);
+
+await outputFile(join(RIGHT, 'packages/core-js/package.json'), '{ "exports": "./internals/index.js" }');
+const exportEdit = await readRuntimeStamps(RIGHT, TREES);
+check('only changing package exports invalidates global cells', exportEdit.runtime.global !== original.runtime.global, true);
+check('a global export change keeps the pure runtime', exportEdit.runtime.pure, original.runtime.pure);
+await outputFile(join(RIGHT, 'packages/core-js/package.json'), runtimeFiles['packages/core-js/package.json']);
 
 // Reproduce the previous coordinator's stamp independently, including its absolute paths.
 const legacy = {};
 for (const [tree, directories] of Object.entries(TREES)) {
   const hash = createHash('sha256');
-  const files = Object.keys(runtimeFiles).filter(file => directories.some(directory => file.startsWith(`${ directory }/`))).sort();
+  const files = Object.keys(runtimeFiles).filter(file => directories.some(directory => file === directory || file.startsWith(`${ directory }/`))).sort();
   // glob's absolute paths use forward slashes on Windows too.
   for (const file of files) hash.update(join(LEFT, file).replaceAll('\\', '/')).update('\0').update(runtimeFiles[file]).update('\0');
   legacy[tree] = hash.digest('hex').slice(0, 12);
@@ -268,20 +300,20 @@ const foreign = await readRuntimeStamps(RIGHT, TREES, legacy);
 checkDeep('unknown legacy origins cannot authorize reuse', foreign.compatible, legacy);
 check('unknown legacy origins invalidate runtime cells', applyRuntimeStamps({ ...STAMPED, runtime: foreign.compatible }, foreign.runtime).stale.length, 6);
 
-await outputFile(join(RIGHT, 'pure/package.json'), '{ "main": "other.js" }');
+await outputFile(join(RIGHT, 'packages/core-js-pure/package.json'), '{ "main": "other.js" }');
 const manifestEdit = await readRuntimeStamps(RIGHT, TREES, original.runtime);
 checkDeep('a manifest edit invalidates only its runtime', applyRuntimeStamps({ ...runtimeCells, runtime: manifestEdit.compatible }, manifestEdit.runtime).stale, purePart.stale);
-await outputFile(join(LEFT, 'pure/index.js'), 'module.exports = 4;');
+await outputFile(join(LEFT, 'packages/core-js-pure/index.js'), 'module.exports = 4;');
 const contentEdit = await readRuntimeStamps(LEFT, TREES, legacy);
 check('legacy stamps cannot hide a runtime edit', contentEdit.compatible.pure === contentEdit.runtime.pure, false);
 check('a pure edit preserves the unchanged legacy global tree', contentEdit.compatible.global, contentEdit.runtime.global);
-await fs.rename(join(RIGHT, 'global/internals/index.js'), join(RIGHT, 'global/internals/renamed.js'));
+await fs.rename(join(RIGHT, 'packages/core-js/internals/index.js'), join(RIGHT, 'packages/core-js/internals/renamed.js'));
 const pathEdit = await readRuntimeStamps(RIGHT, TREES, original.runtime);
 check('a runtime file rename changes its stamp', pathEdit.runtime.global === original.runtime.global, false);
-await outputFile(join(RIGHT, 'global/internals/extra.js'), 'module.exports = 3;');
+await outputFile(join(RIGHT, 'packages/core-js/internals/extra.js'), 'module.exports = 3;');
 const addedFile = await readRuntimeStamps(RIGHT, TREES);
 check('an added runtime file changes its stamp', addedFile.runtime.global === pathEdit.runtime.global, false);
-await fs.remove(join(RIGHT, 'global/internals/extra.js'));
+await fs.remove(join(RIGHT, 'packages/core-js/internals/extra.js'));
 check('removing the added file restores the stamp', (await readRuntimeStamps(RIGHT, TREES)).runtime.global, pathEdit.runtime.global);
 
 // --- coordinator storage: worktree ownership and donor isolation ---
@@ -329,14 +361,14 @@ check('reset of a missing cache does not borrow', resetC.borrowedFrom, null);
 await outputFile(ownerB.file, '{ broken');
 check('a broken own cache is not silently replaced by a donor', (await openWorktreeCache({ ...ownedOptions, root: TREE_B })).borrowedFrom, null);
 await fs.remove(ownerB.file);
-await outputFile(join(TREE_B, 'pure/index.js'), 'module.exports = 99;');
+await outputFile(join(TREE_B, 'packages/core-js-pure/index.js'), 'module.exports = 99;');
 const incompatibleB = await openWorktreeCache({ ...ownedOptions, root: TREE_B });
 checkDeep('different runtime content cannot borrow a donor', incompatibleB.stored, {});
 const otherMachinery = await openWorktreeCache({ ...ownedOptions, root: TREE_C, name: 'cache-other-machinery-node.json' });
 check('different machinery or Node cannot borrow a donor', otherMachinery.borrowedFrom, null);
-await outputFile(join(TREE_C, 'global/modules/index.js'), 'module.exports = 99;');
+await outputFile(join(TREE_C, 'packages/core-js/modules/index.js'), 'module.exports = 99;');
 checkDeep('both runtime stamps must match a donor', (await openWorktreeCache({ ...ownedOptions, root: TREE_C })).stored, {});
-await outputFile(join(TREE_C, 'global/modules/index.js'), runtimeFiles['global/modules/index.js']);
+await outputFile(join(TREE_C, 'packages/core-js/modules/index.js'), runtimeFiles['packages/core-js/modules/index.js']);
 await ownerB.write({ round: 20, cases: STAMPED.cases });
 const staleOwnB = await openWorktreeCache({ ...ownedOptions, root: TREE_B });
 check('a changed own runtime cannot trigger borrowing', staleOwnB.borrowedFrom, null);
@@ -468,6 +500,8 @@ check('a shard set overwrites the cells it carries', merged.kept.native, 'new');
 checkDeep('  and leaves the cells it never touched', merged.kept['global-babel'], { h: 'g', r: 'untouched' });
 const evictedOut = mergeCases({ existing, sets: [], names: new Set(['kept', 'dropped']), evicted: ['kept'] });
 checkDeep('an evicted group leaves the file even when the shard wrote nothing', Object.keys(evictedOut), ['dropped']);
+checkDeep('an eviction also outranks incoming groups', mergeCases({ existing, sets: [existing],
+  names: new Set(['kept', 'dropped']), evicted: ['kept'] }), { dropped: existing.dropped });
 // manual invalidation: the file must end up holding exactly what the run computed, so a group the
 // run never touched cannot survive from the stored copy
 const afterReset = mergeCases({ existing, sets: [{ kept: { src: 's', native: 'new' } }], names: new Set(['kept', 'dropped']), reset: true });

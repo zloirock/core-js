@@ -7,6 +7,5 @@ export function importSet(code) {
   const parsed = parseFixtureOrNull('input.ts', code) ?? parseFixtureOrNull('input.tsx', code);
   if (!parsed) throw new Error('output does not parse for the differential import-set compare');
   return new Set(importSources(parsed.program)
-    .filter(source => /^@?core-js(?:\/pure)?\//u.test(source))
-    .map(source => source.replace('@core-js/pure', 'core-js')));
+    .filter(source => /^(?:core-js|@core-js\/pure)(?:\/|$)/u.test(source)));
 }

@@ -4,6 +4,7 @@
 // the list is hand-maintained, so it is reconciled against the directory at the end: a suite
 // added here and left out of the list is run by nothing and reported by nothing
 import { fileURLToPath } from 'node:url';
+import { registeredSuiteImports } from './harness.mjs';
 import './harness-contracts.mjs';
 import './render-node-ownership.mjs';
 import './unclaimed-flattens.mjs';
@@ -184,9 +185,9 @@ await import('./tsc-validity.mjs');
 // everything in this directory is either imported above or a shared helper
 const HELPERS = new Set(['index.mjs', 'harness.mjs', 'debug-report.mjs']);
 const here = path.dirname(fileURLToPath(import.meta.url));
-const listed = await fs.readFile(path.join(here, 'index.mjs'), 'utf8');
+const listed = registeredSuiteImports(await fs.readFile(path.join(here, 'index.mjs'), 'utf8'));
 const orphans = (await fs.readdir(here))
-  .filter(file => file.endsWith('.mjs') && !HELPERS.has(file) && !listed.includes(`'./${ file }'`));
+  .filter(file => file.endsWith('.mjs') && !HELPERS.has(file) && !listed.has(`./${ file }`));
 if (orphans.length) throw new Error(`polyfill-provider: ${ orphans.join(', ') } imported by nothing`);
 
 const { green } = chalk;

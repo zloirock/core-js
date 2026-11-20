@@ -12,6 +12,18 @@ import { createResolveNodeType } from '../../packages/core-js-polyfill-provider/
 import { nodeType as estreeNodeType, types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
 import { neutralizeUnwalkedParamPatterns } from '../../packages/core-js-unplugin/internals/plugin.js';
 
+// The suite index registers static imports and a final top-level awaited import.
+export function registeredSuiteImports(source) {
+  const { program } = babelParse(source, { sourceType: 'module', createImportExpressions: true });
+  const suites = new Set();
+  for (const node of program.body) {
+    if (node.type === 'ImportDeclaration') suites.add(node.source.value);
+    const awaited = node.expression?.type === 'AwaitExpression' && node.expression.argument;
+    if (awaited?.type === 'ImportExpression' && awaited.source.type === 'StringLiteral') suites.add(awaited.source.value);
+  }
+  return suites;
+}
+
 // `@babel/traverse` is a CJS module re-exported as default under ESM consumption
 const babelTraverse = _babelTraverse.default ?? _babelTraverse;
 

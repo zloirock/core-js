@@ -34,7 +34,7 @@ const { readFile } = fs;
 // Which runtime tree a transformed cell depends on. Raw sources that import core-js invalidate
 // their whole group separately; other native/arming cells survive a runtime edit. Pure legs pull
 // `@core-js/pure` (its ENTRY layer, which `build-entries` generates), the usage-global ones pull
-// `core-js/modules` (whose closure is modules + internals and reaches nothing else)
+// `core-js/modules` (the global package manifest, modules and internals).
 const RUNTIME_TYPES = {
   pure: ['pure-babel', 'pure-unplugin', 'strip-babel', 'strip-unplugin'],
   global: ['global-babel', 'global-unplugin'],
@@ -74,7 +74,7 @@ let round = 0;
 // this shard's working set: what the coordinator merges back. it holds every cell the shard TOUCHED
 // (hit or evaluated), not only the new ones, so a group is written back complete
 const collected = {};
-// groups the audit proved unreproducible. Dropping one from `collected` only stops this run from
+// Failed and non-reproducible groups. Dropping one from `collected` only stops this run from
 // WRITING it; the copy already in the file survives the merge, so eviction needs its own channel
 const evicted = new Set();
 let currentName = null;
@@ -143,7 +143,8 @@ export async function beginCase({ name, code, ts = false, live = false, prefix =
   // a corpus edit invalidates what follows it, which is the work that genuinely has to be redone
   currentSrc = caseSrc({ code, ts, prefix, sourceType, isolated });
   currentSourceHash = hashCode(code, ts, sourceType);
-  const stored = cases[name];
+  const discarded = evicted.has(name);
+  const stored = discarded ? null : cases[name];
   currentStored = !live && stored?.src === currentSrc ? stored : null;
   // the audit keeps the stored group for COMPARISON while running every cell of it: sampling one
   // cell out of an otherwise cached group is exactly the mixing described above
@@ -151,7 +152,8 @@ export async function beginCase({ name, code, ts = false, live = false, prefix =
   currentAuditDrift = false;
   currentHits = 0;
   currentEvaluations = 0;
-  currentSet = collected[name] = { src: currentSrc };
+  currentSet = { src: currentSrc };
+  if (!discarded) collected[name] = currentSet;
 }
 
 // did this group answer partly from the cache and partly from live runs? such a verdict compared
@@ -207,8 +209,7 @@ export async function cached({ type, code, evaluate }) {
         currentAuditDrift = true;
       } else {
         cacheStats.volatile++;
-        evicted.add(currentName);
-        delete collected[currentName];
+        discardCase(currentName);
       }
     }
   }
@@ -223,6 +224,7 @@ export async function cached({ type, code, evaluate }) {
 // not as a crash sentinel, so caching it would pin the snippet red forever with a failure nobody
 // can reproduce by hand. Green snippets are the only ones worth memoizing.
 export function discardCase(name) {
+  evicted.add(name);
   delete collected[name];
 }
 
@@ -276,7 +278,7 @@ export function mergeCases({ existing, sets, names, evicted: dropped = [], reset
   for (const [name, group] of Object.entries(kept)) if (names.has(name) && !drop.has(name)) merged[name] = group;
   for (const set of sets) {
     for (const [name, group] of Object.entries(set)) {
-      if (!names.has(name)) continue;
+      if (!names.has(name) || drop.has(name)) continue;
       const previous = merged[name]?.src === group.src ? merged[name] : {};
       merged[name] = { ...previous, ...group };
     }

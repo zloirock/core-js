@@ -154,11 +154,16 @@ QUnit.test('control-flow: finally runs after a polyfilled try value is computed'
 
 QUnit.test('control-flow: optional catch binding handles a throw from polyfill input', assert => {
   let caught = false;
+  const seen = [];
   try {
-    Array.from(null);
+    Array.from([7], item => {
+      seen.push(item);
+      throw new RangeError();
+    });
   } catch {
     caught = true;
   }
+  assert.deepEqual(seen, [7]);
   assert.true(caught);
 });
 

@@ -323,7 +323,7 @@ export const r = read();`, 'OK|[7,true,"__undefined__","__undefined__"]|[]'],
   ]) {
     scenarioSource(constructorSibling);
     for (const [host, output] of (await transformOutputs(constructorSibling, { ...OPTIONS, exclude: [] })).slice(1)) {
-      check(`declined/constructor/${ name }/${ host }/import`, importSet(output).has('core-js/actual/map/constructor'), true);
+      check(`declined/constructor/${ name }/${ host }/import`, importSet(output).has('@core-js/pure/actual/map/constructor'), true);
       const file = path.join(DIR, `case-${ count++ }.mjs`);
       await fs.outputFile(file, `import expectedMap from '@core-js/pure/actual/map/constructor';\n${ output }`);
       for (const strip of [false, true]) check(`declined/constructor/${ name }/${ host }/${ strip ? 'stripped' : 'full' }`,

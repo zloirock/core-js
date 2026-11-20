@@ -9,24 +9,23 @@ export function runInWorker(file, options = {}) {
   return new Promise(resolve => {
     const worker = new Worker(WORKER, { workerData: { file, ...options }, execArgv: [] });
     let result = null;
-    function record(key) {
-      result ??= key;
-    }
+    let guard;
+    let terminating = false;
     worker.once('message', key => {
-      record(key);
+      result ??= key;
       // grace window: a snippet that left a live handle (a timer, an open port) keeps the
       // thread alive past its natural wind-down - fall back to forcible teardown then.
-      // unref'd so the guard itself never holds the shard open; firing after a clean exit
-      // terminates an already-dead worker (a settled no-op)
-      const guard = setTimeout(() => {
+      // A forced exit can retain this result; any earlier exception still takes precedence.
+      guard = setTimeout(() => {
+        terminating = true;
         // eslint-disable-next-line promise/prefer-await-to-then, no-empty-function -- fire-and-forget fallback teardown
         worker.terminate().catch(() => {});
       }, 2000);
       guard.unref();
     });
     worker.once('error', error => {
-      record(`WORKER-CRASH|${ error?.message ?? error }`);
-      // an errored worker may never end on its own - forcible teardown only on this path
+      result = `WORKER-CRASH|${ error?.message ?? error }`;
+      // Shut down on an uncaught error even if the worker has already posted a result.
       // eslint-disable-next-line promise/prefer-await-to-then, promise/no-promise-in-callback, no-empty-function -- fire-and-forget teardown of a dead worker
       worker.terminate().catch(() => {});
     });
@@ -34,6 +33,10 @@ export function runInWorker(file, options = {}) {
     // thread ends NATURALLY - no `terminate()` on the happy path, and no overlap between one
     // worker's teardown and the next one's spawn (both belong to the forcible-disposal race
     // class behind the Windows ACCESS_VIOLATION crashes at this spawn volume)
-    worker.once('exit', () => resolve(result ?? 'WORKER-CRASH|exited without result'));
+    worker.once('exit', code => {
+      clearTimeout(guard);
+      if (code && !(terminating && code === 1) && !result?.startsWith('WORKER-CRASH|')) resolve(`WORKER-CRASH|exit code ${ code }`);
+      else resolve(result ?? 'WORKER-CRASH|exited without result');
+    });
   });
 }

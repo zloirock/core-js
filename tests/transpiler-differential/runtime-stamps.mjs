@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 
+// Hash the loaded implementation of each flavour and the manifests that resolve its imports.
+export const RUNTIME_TREES = { pure: ['packages/core-js-pure'], global: ['packages/core-js/modules', 'packages/core-js/internals', 'packages/core-js/package.json'] };
+
 // Worktrees can borrow evaluations: their runtime identity is relative paths plus file bytes.
 // Accept an old absolute-path stamp only when it matches these exact files in this checkout.
 export async function readRuntimeStamps(root, trees, previous = {}) {
@@ -11,13 +14,13 @@ export async function readRuntimeStamps(root, trees, previous = {}) {
     legacy[tree] = undefined;
   }
   await Promise.all(Object.entries(trees).map(async ([tree, directories]) => {
-    const found = await Promise.all(directories.map(directory => glob(['**/*.js', '**/package.json'], {
-      cwd: path.join(root, directory), absolute: true, onlyFiles: true,
-    })));
+    const patterns = directories.flatMap(entry => entry.endsWith('/package.json') ? entry
+      : [`${ entry }/**/*.js`, `${ entry }/**/package.json`]);
+    const found = await glob(patterns, { cwd: root, absolute: true, onlyFiles: true });
     const current = createHash('sha256');
     const absolute = createHash('sha256');
     // NUL separates path and content, so moving bytes across their boundary cannot preserve a stamp.
-    for (const file of found.flat().sort()) {
+    for (const file of found.sort()) {
       const bytes = await fs.readFile(file);
       current.update(path.relative(root, file).replaceAll('\\', '/')).update('\0').update(bytes).update('\0');
       absolute.update(file).update('\0').update(bytes).update('\0');

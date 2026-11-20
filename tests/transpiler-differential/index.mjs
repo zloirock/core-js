@@ -22,6 +22,7 @@ import { CACHE_MACHINERY, STRIP_DEPS } from './cache-machinery.mjs';
 import { applyRuntimeStamps, mergeCases, nextRound } from './cache-store.mjs';
 import { LEGS, coverageShortfalls, mergeCoverage, skippedTotal } from './coverage.mjs';
 import { generate } from './generate.mjs';
+import { RUNTIME_TREES } from './runtime-stamps.mjs';
 import { openWorktreeCache } from './worktree-cache.mjs';
 import './corpus-coverage.mjs';
 import './method-call-evaluation.mjs';
@@ -118,16 +119,6 @@ for (const name of STRIP_DEPS) machinery.update((await fs.readJson(join(ROOT, 'n
 machinery.update(process.version);
 const CACHE_DIR = join(os.homedir(), '.cache', 'core-js-differential');
 const CACHE_NAME = `cache-${ machinery.digest('hex').slice(0, 12) }.json`;
-// the runtime a cached result depends on is NOT in the code that produced it: an output is a list
-// of imports, so a polyfill edit moves the result without moving a single byte of the output. the
-// two flavours pull different trees (usage-pure the generated `@core-js/pure` entry layer,
-// usage-global `core-js/modules` and its internals closure). Raw-source cells survive unless
-// their source imports a runtime too; that source invalidates its whole group on a runtime edit
-// only what a run actually loads: the modules and the manifests that resolve them. READMEs and
-// ignore files sit in the same directories and change far more often than the code does, and
-// counting them would throw the cache away on a documentation edit. content, never mtime - an
-// idempotent `npm run prepare` rewrites the generated pure tree with identical bytes
-const RUNTIME_TREES = { pure: ['packages/core-js-pure'], global: ['packages/core-js/modules', 'packages/core-js/internals'] };
 // manual reset, for a suspicion the cache hashes cannot express. It discards the CONTENTS; the file
 // is still read, because the audit's rotation counter is coverage bookkeeping rather than cached
 // data - resetting it would restart the sample from the same cells after every manual reset

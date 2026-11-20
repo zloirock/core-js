@@ -5,6 +5,6 @@ QUnit.test('mutation call channel: a call before its callee initializes patches 
     early.call(Math);
   } catch { /* the callee is still undefined */ }
   // eslint-disable-next-line no-var, no-useless-assignment, unicorn/consistent-function-style -- the hoisted, not yet initialized binding is the case under test
-  var early = function () { this.clz32 = () => 'PATCHED'; };
-  assert.same(Math.clz32(1), 31);
+  var early = function () { this.sign = () => 'PATCHED'; };
+  assert.same(Math.sign(-3), -1);
 });

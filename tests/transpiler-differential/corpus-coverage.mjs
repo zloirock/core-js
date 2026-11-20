@@ -6,19 +6,21 @@ import { importSet } from './import-sources.mjs';
 
 function checkCorpusCoverage() {
   const { check, checkDeep, finish } = createChecker('differential-corpus-coverage');
-  const first = 'core-js/actual/global-this';
-  const second = 'core-js/actual/set';
+  const first = '@core-js/pure/actual/global-this';
+  const second = '@core-js/pure/actual/set';
   for (const [name, source, expected] of [
     ['same line', 'import R from \'@core-js/pure/actual/global-this\'; import C from \'@core-js/pure/actual/set\';', [first, second]],
     ['multiline', 'import {\n default as R\n} from\n\'@core-js/pure/actual/global-this\';', [first]],
-    ['bare', 'import \'core-js/actual/set\';', [second]],
-    ['requires', 'const R = require(\'core-js/actual/global-this\'); const C = require(\'core-js/actual/set\');', [first, second]],
+    ['bare', 'import \'core-js/actual/set\';', ['core-js/actual/set']],
+    ['requires', 'const R = require(\'core-js/actual/global-this\'); const C = require(\'core-js/actual/set\');', ['core-js/actual/global-this', 'core-js/actual/set']],
     ['comment', '// import \'core-js/actual/set\';\nimport R from \'@core-js/pure/actual/global-this\';', [first]],
     ['string beside import', 'import R from \'@core-js/pure/actual/global-this\'; const text = "require(\'core-js/actual/set\')";', [first]],
     ['export', 'export { default as C } from \'@core-js/pure/actual/set\';', [second]],
     ['dynamic', 'const R = import(\'@core-js/pure/actual/global-this\');', [first]],
-    ['wrapper return', 'const C = require(\'core-js/actual/set\'); return C;', [second]],
+    ['wrapper return', 'const C = require(\'core-js/actual/set\'); return C;', ['core-js/actual/set']],
     ['jsx', 'import C from \'@core-js/pure/actual/set\'; const element = <C/>;', [second]],
+    ['both packages', "import '@core-js/pure/actual/set'; import 'core-js/actual/set';", [second, 'core-js/actual/set']],
+    ['package roots', "import '@core-js/pure'; import 'core-js'; import '@core-js/compat';", ['@core-js/pure', 'core-js']],
     ['foreign', 'import C from "foreign/actual/set";', []],
     ['empty', '', []],
   ]) checkDeep(`import collection/${ name }`, [...importSet(source)], expected);
@@ -26,6 +28,12 @@ function checkCorpusCoverage() {
   const matrices = {
     'destructure-grammar': [2122, 1093],
     'static-rest-host': [96, 74],
+    'getter-realm-escape': [4, 4],
+    'scoped-container-escape': [12, 12],
+    'mutated-sibling': [3, 3],
+    'mutated-narrow-chain': [2, 2],
+    'mutated-wrapper-assign': [5, 5],
+    'selecting-inner-default': [26, 21],
     'object-hop-pairing': [164, 84],
     'parameter-receiver': [126, 74],
     'captured-container-write': [80, 46],
@@ -50,9 +58,13 @@ function checkCorpusCoverage() {
     ['sole-chain-computed-targets', new Map()],
     ...Object.keys(matrices).map(name => [name, new Map()]),
   ]);
-  for (const { name, strip } of generate()) {
+  for (const { name, strip, isolated } of generate()) {
     const slash = name.indexOf('/');
-    const family = families.get(name.slice(0, slash));
+    const prefix = name.slice(0, slash);
+    if (prefix === 'getter-realm-escape' || prefix === 'scoped-container-escape') {
+      check(`${ name } starts with a fresh namespace`, isolated, true);
+    }
+    const family = families.get(prefix);
     if (!family) continue;
     const cell = name.slice(slash + 1);
     check(`${ name } is unique`, family.has(cell), false);
