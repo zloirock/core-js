@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS, OBJECT_NAMES_ORDER, SAFARI_PROXY_SYMBOL_ORDER } from '../helpers/constants.js';
+import { DESCRIPTORS, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS, OBJECT_NAMES_ORDER, RHINO, SAFARI_PROXY_SYMBOL_ORDER } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import create from 'core-js-pure/es/object/create';
@@ -103,7 +103,7 @@ if (DESCRIPTORS) QUnit.test('Object.assign enumerability changes', assert => {
 });
 
 // eslint-disable-next-line es/no-proxy -- testing
-if (typeof Proxy == 'function' && !FIREFOX_LEGACY_PROXY) QUnit.test('Object.assign proxy operation order', assert => {
+if (typeof Proxy == 'function' && !FIREFOX_LEGACY_PROXY) QUnit[RHINO ? 'skip' : 'test']('Object.assign proxy operation order', assert => {
   const log = [];
   const symbol = Symbol('proxy key');
   const nativeSymbol = typeof symbol == 'symbol';

@@ -37,6 +37,9 @@ export const FIREFOX_SPLIT_OWN_KEYS = FIREFOX_VERSION >= 33 && FIREFOX_VERSION <
 // https://bugs.webkit.org/show_bug.cgi?id=216227
 export const SAFARI_PROXY_SYMBOL_ORDER = /Version\/(?:1[0-3]|14\.0)\D.*Safari\/|(?:iPad|iPhone|iPod).*OS (?:1[0-3]|14_[0-4])\D/.test(GLOBAL.navigator?.userAgent);
 
+// Rhino's Reflect.ownKeys moves proxy symbol keys after string keys.
+export const RHINO = Object.prototype.toString.call(GLOBAL.Continuation?.prototype) === '[object Continuation]';
+
 export const NATIVE = GLOBAL.NATIVE || false;
 
 export const DENO = !!GLOBAL.Deno?.version?.deno;

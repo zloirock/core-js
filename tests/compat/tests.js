@@ -74,6 +74,22 @@ var DESCRIPTORS = function () {
   }
 }();
 
+var OBJECT_ENUMERATION_SUPPORT = function (name) {
+  var method = Object[name];
+  if (!method || !DESCRIPTORS) return !!method;
+  var defineProperty = Object.defineProperty;
+  var read = '';
+  var source = { a: 1, b: 2, c: 3 };
+  defineProperty(source, 'b', { enumerable: false });
+  defineProperty(source, 'a', { get: function () {
+    defineProperty(source, 'b', { enumerable: true, get: function () { read += 'b'; } });
+    defineProperty(source, 'c', { enumerable: false, get: function () { read += 'c'; } });
+  } });
+  if (name === 'assign') method({}, source);
+  else method(source);
+  return read === 'b';
+};
+
 var V8_PROTOTYPE_DEFINE_BUG = function () {
   return Object.defineProperty(function () { /* empty */ }, 'prototype', {
     value: 42,
@@ -1243,15 +1259,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   'es.object.assign': function () {
-    if (DESCRIPTORS && Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
-      enumerable: true,
-      get: function () {
-        Object.defineProperty(this, 'b', {
-          value: 3,
-          enumerable: false
-        });
-      }
-    }), { b: 2 })).b !== 1) return false;
+    if (!OBJECT_ENUMERATION_SUPPORT('assign')) return false;
     var A = {};
     var B = {};
     var symbol = Symbol('assign detection');
@@ -1271,7 +1279,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.object.define-property': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG],
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
-    return Object.entries;
+    return OBJECT_ENUMERATION_SUPPORT('entries');
   },
   'es.object.freeze': function () {
     return Object.freeze(true);
@@ -1341,7 +1349,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return String(O) === '[object foo]';
   }],
   'es.object.values': function () {
-    return Object.values;
+    return OBJECT_ENUMERATION_SUPPORT('values');
   },
   'es.parse-float': function () {
     try {

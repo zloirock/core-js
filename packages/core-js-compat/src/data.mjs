@@ -1245,7 +1245,7 @@ export const data = {
     // edge: '13',
     firefox: '36',
     hermes: '0.4',
-    rhino: '1.9.0',
+    // rhino: '1.9.0', // skips keys that become enumerable
     safari: '9.0',
   },
   // TODO: Remove from `core-js@4`
@@ -1297,7 +1297,7 @@ export const data = {
     edge: '14',
     firefox: '47',
     hermes: '0.1',
-    rhino: '1.7.14',
+    // rhino: '1.7.14', // skips keys that become enumerable
     safari: '10.1',
   },
   'es.object.freeze': {
@@ -1475,7 +1475,7 @@ export const data = {
     edge: '14',
     firefox: '47',
     hermes: '0.1',
-    rhino: '1.7.14',
+    // rhino: '1.7.14', // skips keys that become enumerable
     safari: '10.1',
   },
   'es.parse-float': {

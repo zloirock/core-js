@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added detection of native `Object.{ assign, entries, values }` skipping properties that become enumerable during iteration in [Rhino](https://github.com/mozilla/rhino/issues/2596)
 - Added missed detection of native `DataView` constructor accepting a negative `byteLength` and rejecting a non-integer `byteOffset` in V8 ~ Chrome 50-53
 - Added missed detection of native `ArrayBuffer.prototype.slice` returning an empty buffer for a detached one instead of throwing in V8 ~ Chrome < 52 and Safari < 14.1
 - Fixed `ArrayBuffer.prototype.slice` polyfill: the receiver is checked before the conversion of arguments, an own `byteLength` property of a buffer no longer replaces its length, a detached buffer is rejected instead of returning an empty one in FF45

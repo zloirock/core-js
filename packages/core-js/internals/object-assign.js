@@ -4,6 +4,7 @@ var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
 var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
+var objectEnumerationBug = require('../internals/object-enumeration-bug');
 var objectKeys = require('../internals/object-keys');
 var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
 var ownKeys = require('../internals/own-keys');
@@ -14,23 +15,11 @@ var IndexedObject = require('../internals/indexed-object');
 
 // eslint-disable-next-line es/no-object-assign -- safe
 var $assign = Object.assign;
-// eslint-disable-next-line es/no-object-defineproperty -- required for testing
-var defineProperty = Object.defineProperty;
 var concat = uncurryThis([].concat);
 
 // `Object.assign` method
 // https://tc39.es/ecma262/#sec-object.assign
-module.exports = !$assign || fails(function () {
-  // should have correct order of operations (Edge bug)
-  if (DESCRIPTORS && $assign({ b: 1 }, $assign(defineProperty({}, 'a', {
-    enumerable: true,
-    get: function () {
-      defineProperty(this, 'b', {
-        value: 3,
-        enumerable: false
-      });
-    }
-  }), { b: 2 })).b !== 1) return true;
+module.exports = objectEnumerationBug('assign') || fails(function () {
   // should work with symbols and should have deterministic property order (V8 bug)
   var A = {};
   var B = {};
