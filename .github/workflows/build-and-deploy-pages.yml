@@ -174,16 +174,13 @@ jobs:
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
           SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
           SAUCE_SESSIONS_FILE: ${{ runner.temp }}/sauce-sessions
-      - name: Close the Sauce Labs sessions of a cancelled run
-        if: cancelled()
+      - name: Close remaining Sauce Labs sessions
+        if: failure() || cancelled()
         run: |
           # the runner outlives the cancelled step and would open a new session in place of each closed one
           pkill -KILL -f tests/saucelabs/unit.mjs || true
-          [ -f "$SAUCE_SESSIONS_FILE" ] || exit 0
-          while read -r id; do
-            curl -sS -o /dev/null --max-time 30 -u "$SAUCE_USERNAME:$SAUCE_ACCESS_KEY" -X DELETE \
-              "https://ondemand.us-west-1.saucelabs.com/wd/hub/session/$id" || true
-          done < "$SAUCE_SESSIONS_FILE"
+          [ -s "$SAUCE_SESSIONS_FILE" ] || exit 0
+          node tests/saucelabs/close-sessions.mjs
         env:
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
           SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}

@@ -21,11 +21,17 @@ async function responseTest(body, status = 200) {
       const paths = [];
       globalThis.fetch = async (url, request) => {
         paths.push([new URL(url).pathname, request.method]);
-        return { ok: true, status: 200, text: async () => JSON.stringify(request.method === 'DELETE' ? {}
-          : w3c ? { sessionId: 'orphan' } : { value: { sessionId: 'orphan' } }) };
+        if (request.method === 'POST') return { ok: true, status: 200, text: async () => JSON.stringify(
+          w3c ? { sessionId: 'orphan' } : { sessionId: 42, value: { sessionId: 'orphan' } },
+        ) };
+        if (paths.length === 2) throw new Error('connection reset after DELETE');
+        return w3c ? { ok: true, status: 200, text: async () => '{"status":6}' }
+          : { ok: false, status: 404, text: async () => '{"value":{"error":"invalid session id"}}' };
       };
-      await rejects(createSession({ ...options, w3c }), /no session id/, 'closes a created session returned in the wrong protocol dialect #1');
-      deepEqual(paths, [['/wd/hub/session', 'POST'], ['/wd/hub/session/orphan', 'DELETE']], 'closes a created session returned in the wrong protocol dialect #2');
+      const tracked = [];
+      await rejects(createSession({ ...options, w3c, trackSession: (id, open) => tracked.push([id, open]) }), /no session id/);
+      deepEqual(paths, [['/wd/hub/session', 'POST'], ['/wd/hub/session/orphan', 'DELETE'], ['/wd/hub/session/orphan', 'DELETE']]);
+      deepEqual(tracked, [['orphan', true], ['orphan', false]], 'tracks a session returned in the wrong dialect until the hub confirms it is gone');
     }
   } finally {
     globalThis.fetch = previous;
@@ -60,7 +66,7 @@ await responseTest('<html>unavailable</html>', 502);
         ['/wd/hub/session', 'POST'],
         ['/wd/hub/session/test-session/url', 'POST'],
         [`/wd/hub/session/test-session/${ w3c ? 'execute/sync' : 'execute' }`, 'POST'],
-        ['/wd/hub/session/test-session', 'DELETE'],
+        ...Array(3).fill(['/wd/hub/session/test-session', 'DELETE']),
       ], 'rejects null responses to every session command in both dialects #2');
     }
   } finally {

@@ -16,7 +16,7 @@ async function runFake({
   limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
   polling = { pollInterval: 0 },
   latePage = false, pendingFailures = [],
-  limitOutages = 0,
+  limitOutages = 0, quitOutages = 0, base = 'http://EXAMPLE.test:80/branch/?from=pages#readme',
 } = {}) {
   const previous = {
     username: process.env.SAUCE_USERNAME,
@@ -62,7 +62,7 @@ async function runFake({
       await mkdir(sessionsFile);
     }
     globalThis.$ = {};
-    globalThis.argv = { _: ['http://example.test/branch', 'a'.repeat(40)] };
+    globalThis.argv = { _: [base, 'a'.repeat(40)] };
     globalThis.chalk = { cyan: String, green: String, red: String, yellow: String };
     globalThis.echo = message => output.push(message);
     const start = Date.now();
@@ -98,6 +98,7 @@ async function runFake({
         payload = sessionNull ? null : { sessionId: dynamicQueue || platforms ? name : `test-session-${ sessions }` };
       } else if (options.method === 'DELETE') {
         quits++;
+        if (quits <= quitOutages) return { ok: false, status: 503, text: async () => '{}' };
         open--;
         const pool = platforms?.find(platform => path.includes(`/${ platform.name }`))?.pool;
         if (pool) openPools[pool]--;
@@ -105,7 +106,7 @@ async function runFake({
         payload = {};
       } else if (path.endsWith('/url')) {
         const { url: page } = JSON.parse(options.body);
-        navigations.push(page);
+        navigations.push(new URL(page).href);
         const retry = page === `http://example.test/branch/${ retryPage }`;
         if (retry && sessions <= hangs) hungPage = page;
         navigated = performance.now();
@@ -122,36 +123,30 @@ async function runFake({
           annotationRequests++;
           annotations.push(script);
           payload = { status: 13, value: { message: 'annotation unavailable' } };
-        } else if (noReporter && script.startsWith('var results = ')) {
-          const now = Date.now() + 2 * 6e4;
-          Date.now = () => now;
-          const window = { location: { href: navigations.at(-1) }, bundleCommits: commits };
-          payload = { value: runInNewContext(`(function () { ${ script } })()`, { window }) };
         } else if (script.startsWith('var results = ')) {
           if (dynamicQueue && path.includes('/slow')) await slow;
           if (hungPage) {
             const now = start + sessions * 16 * 6e4;
             Date.now = () => now;
           }
-          if (wrongPage) {
+          if (wrongPage || noReporter) {
             const now = Date.now() + 2 * 6e4;
             Date.now = () => now;
           }
-          payload = { value: JSON.stringify({
-            // a busy browser stays on the hung page, a slow one shows another page at the first poll
-            url: pageUrl || (wrongPage || latePage && firstPoll ? 'http://example.test/branch/unit-browser/other.html'
-              : hungPage || navigations.at(-1)),
-            commits,
-            results: hungPage
-              ? { done: false, failures: pendingFailures, currentTest: { module: 'Promises', test: 'pending callback' } }
-              : nextResult,
-          }) };
+          // a busy browser stays on the hung page, a slow one shows another page at the first poll
+          const href = pageUrl || (wrongPage || latePage && firstPoll ? 'http://example.test/branch/unit-browser/other.html' : hungPage || navigations.at(-1));
+          const window = { location: { href }, bundleCommits: commits };
+          if (!noReporter) window.qunitResults = hungPage
+            ? { done: false, failures: pendingFailures, currentTest: { module: 'Promises', test: 'pending callback' } }
+            : nextResult;
+          const document = { querySelectorAll: () => ({ length: href.endsWith('/pure.html') ? 2 : 3 }) };
+          payload = { value: runInNewContext(`(function () { ${ script } })()`, { window, document }) };
           if (!hungPage) nextResult = pass;
         } else payload = { value: null };
       }
       return { ok: true, text: async () => JSON.stringify(payload) };
     };
-    const { run } = await import('../helpers.mjs');
+    const { run } = await import(`../helpers.mjs?base=${ encodeURIComponent(base) }`);
     const suite = {
       name: 'unit', pages, platforms: [{
         name: 'test browser', w3c: false, capabilities: { browserName: 'firefox', version: '7' },
@@ -177,6 +172,13 @@ async function runFake({
     if (limitStatus !== 200 || !limits?.team) {
       await rejects(run(suite), /could not read the Sauce Labs concurrency limit: (?:HTTP 401|.*JSON)|no Sauce Labs virtual machine sessions available, the limit is 0/, 'the run fails');
       return { sessions, limitRequests, output: output.join('\n') };
+    }
+    if (quitOutages >= 3) {
+      await rejects(run(suite), /Sauce Labs run stopped: DELETE /, 'the run stops when a session stays open');
+      const listedAfter = await readFile(sessionsFile, 'utf8');
+      const attempts = quits;
+      await import('../close-sessions.mjs');
+      return { sessions, quits: attempts, listedAfter, open };
     }
     if (foreignBundles) await rejects(run(suite), new RegExp(`Sauce Labs run stopped: unit-browser/global\\.html: bundles of .* instead of ${ 'a'.repeat(40) }`), 'the run stops on foreign bundles');
     else if (emptyPool || !evaluate(firstResult).passed || noReporter || hangs === 3 || sessionNull || navigationErrors === 3 || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
@@ -235,7 +237,8 @@ async function runFake({
 }
 
 {
-  const { output, sessions } = await runFake({ pageUrl: 'https://example.test/branch/unit-browser/global.html' });
+  const { output, sessions, navigations } = await runFake({ pageUrl: 'https://example.test/branch/unit-browser/global.html' });
+  deepEqual(navigations, ['http://example.test/branch/unit-browser/global.html'], 'accepts the canonical browser URL for EXAMPLE.test:80');
   equal(sessions, 1, 'accepts HTTPS redirects to the same published page #1');
   match(output, /all the browsers passed/, 'accepts HTTPS redirects to the same published page #2');
 }
@@ -321,12 +324,19 @@ async function runFake({
     equal(markerRequests, 1, 'stops on foreign bundles before waiting for QUnit #7');
     doesNotMatch(output, /all the browsers passed|assertions passed|retrying/, 'stops on foreign bundles before waiting for QUnit #8');
   }
-  const { output: matching } = await runFake({ marker: commit, commits: [commit, commit] });
-  doesNotMatch(matching, /bundles of|commit marker in the bundles/, 'passes a page that executed bundles of the tested commit #1');
+  const { output: matching } = await runFake({ marker: commit, commits: [commit, commit, commit] });
+  doesNotMatch(matching, /bundles of|bundles reported their commit|no commit marker/, 'passes a page that executed bundles of the tested commit #1');
   match(matching, /all the browsers passed/, 'passes a page that executed bundles of the tested commit #2');
   const { output: unmarked } = await runFake({ marker: commit, commits: [] });
   match(unmarked, /unit-browser\/global\.html: no commit marker in the bundles/, 'only warns about bundles without a commit marker #1');
   match(unmarked, /all the browsers passed/, 'only warns about bundles without a commit marker #2');
+  const { output: partial } = await runFake({ marker: commit, commits: [commit, commit], pages: ['unit-browser/global.html', 'unit-browser/pure.html'] });
+  match(partial, /global\.html: only 2 of 3 bundles reported their commit/);
+  doesNotMatch(partial, /pure\.html: .*bundles/);
+  match(partial, /all the browsers passed/);
+  const { output: missingReporter } = await runFake({ noReporter: true, marker: commit, commits: [commit] });
+  match(missingReporter, /global\.html: only 1 of 3 bundles reported their commit/);
+  match(missingReporter, /global\.html: no results reporter on the page/);
 }
 
 {
@@ -451,5 +461,23 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
   await runFake({ firstResult: fail });
   equal(process.exitCode, exitCode, 'fails the process if the run never settles #3');
 }
+
+{
+  const { sessions, quits, peak, listedAfter } = await runFake({ navigationErrors: 1, quitOutages: 1 });
+  equal(sessions, 2);
+  equal(quits, 3);
+  equal(peak, 1, 'closes the first session before retrying the page');
+  equal(listedAfter, '');
+}
+
+{
+  const { sessions, quits, listedAfter, open } = await runFake({ platforms: [{ name: 'first' }, { name: 'next' }], quitOutages: 3 });
+  equal(sessions, 1, 'keeps the occupied slot after the last failed DELETE');
+  equal(quits, 3);
+  equal(listedAfter, 'first\n', 'keeps the session id for workflow cleanup');
+  equal(open, 0, 'workflow cleanup closes the listed session');
+}
+
+await rejects(() => runFake({ base: 'http://example.test:bad/branch' }), /pass the http\(s\) URL/, 'rejects an invalid branch URL before opening a session');
 
 echo(chalk.green('Sauce Labs run tested'));

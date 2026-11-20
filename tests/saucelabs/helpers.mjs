@@ -27,10 +27,11 @@ if (!username || !accessKey) throw new Error('SAUCE_USERNAME and SAUCE_ACCESS_KE
 if (extra.length) throw new Error(`unexpected arguments ${ extra.join(' ') }, pass the URL and an optional commit`);
 if (COMMIT && !/^[\da-f]{40}$/.test(COMMIT)) throw new Error('commit must be a full 40-character SHA');
 if (!/^[a-z]+-[a-z]+-\d+$/.test(region)) throw new Error(`SAUCE_REGION is a data center like us-west-1 or eu-central-1, not ${ region }`);
-if (!/^https?:\/\/./.test(BASE_URL)) throw new Error(`pass the http(s) URL of the branch directory on GitHub Pages, not ${ BASE_URL }`);
+const directory = /^https?:\/\//i.test(BASE_URL) && URL.parse(BASE_URL);
+if (!directory) throw new Error(`pass the http(s) URL of the branch directory on GitHub Pages, not ${ BASE_URL }`);
 
 const { cyan, green, red, yellow } = chalk;
-const base = BASE_URL.replace(/\/$/, '');
+const base = directory.href.split(/[#?]/, 1)[0].replace(/\/$/, '');
 const hub = `https://ondemand.${ region }.saucelabs.com/wd/hub`;
 const api = `https://api.${ region }.saucelabs.com`;
 const dashboard = region === 'us-west-1' ? 'https://app.saucelabs.com' : `https://app.${ region }.saucelabs.com`;
@@ -88,7 +89,8 @@ function sessionCapabilities(suite, { name, w3c, capabilities: browser }) {
 
 async function runPage({ reporter, evaluate, pollInterval = POLL_INTERVAL }, session, page, controller) {
   const { signal } = controller;
-  const expected = `${ base }/${ page }`;
+  const expected = new URL(`${ base }/${ page }`).href;
+  const secure = new URL(expected.replace(/^http:/, 'https:')).href;
   await session.execute(`sauce:context=${ page }`);
   signal.throwIfAborted();
   await session.navigate(expected);
@@ -98,13 +100,18 @@ async function runPage({ reporter, evaluate, pollInterval = POLL_INTERVAL }, ses
     // the driver of Firefox 48 - 50 cancels a timer of the page on each command, and one
     // right after the navigation takes the timer QUnit resumes with, so the wait goes first
     await setTimeout(pollInterval, undefined, { signal });
-    const state = await session.execute(`var results = window.${ reporter }; var commits = window.bundleCommits || []; return results || commits.length ? JSON.stringify({ url: window.location.href, results: results, commits: commits }) : null;`);
+    const state = await session.execute(`var results = window.${ reporter };
+      var commits = window.bundleCommits || [];
+      return results || commits.length ? JSON.stringify({
+        url: window.location.href, results: results, commits: commits,
+        bundleCount: document.querySelectorAll('script[src*="/bundles/"]').length
+      }) : null;`);
     signal.throwIfAborted();
     const elapsed = Date.now() - start;
-    const { url, results, commits } = state ? JSON.parse(state) : {};
+    const { url, results, commits, bundleCount } = state ? JSON.parse(state) : {};
     const foreign = COMMIT && [...new Set(commits)].filter(commit => commit !== COMMIT);
     // GitHub Pages upgrades HTTP to HTTPS where the browser supports its TLS
-    if ((results || foreign?.length) && url !== expected && !(expected.startsWith('http:') && url === expected.replace(/^http:/, 'https:'))) {
+    if (state && url !== expected && url !== secure) {
       // a slow simulator shows the previous page for a while after the navigation command
       if (elapsed > REPORTER_TIMEOUT) throw new WebDriverError(`unexpected page ${ url } instead of ${ expected }`);
       continue;
@@ -113,18 +120,18 @@ async function runPage({ reporter, evaluate, pollInterval = POLL_INTERVAL }, ses
       controller.abort(new Error(`${ page }: bundles of ${ foreign.join(', ') } instead of ${ COMMIT }`));
       signal.throwIfAborted();
     }
-    if (results?.done) return { page, commits, ...evaluate(results) };
+    if (results?.done) return { page, commits, bundleCount, ...evaluate(results) };
     if (results && elapsed > RUN_TIMEOUT) {
       const current = results.currentTest;
       const testName = current && `${ current.module ? `${ current.module } > ` : '' }${ current.test }`;
-      return { page, commits, ...evaluate(results), passed: false, unfinished: true,
+      return { page, commits, bundleCount, ...evaluate(results), passed: false, unfinished: true,
         error: `not finished in ${ RUN_TIMEOUT / 6e4 } minutes${ testName ? `; current test: ${ testName }` : '' }` };
     }
-    if (!results && elapsed > REPORTER_TIMEOUT) return { page, passed: false, details: [], error: 'no results reporter on the page' };
+    if (!results && elapsed > REPORTER_TIMEOUT) return { page, commits, bundleCount, passed: false, details: [], error: 'no results reporter on the page' };
   }
 }
 
-// a cancelled step does not signal npm's children, so a later step closes these
+// The workflow closes sessions left here after a failure or cancellation.
 const openSessions = new Set();
 let sessionsWritten;
 
@@ -162,8 +169,8 @@ async function runSession(suite, platform, controller, pages) {
     accessKey,
     w3c: platform.w3c,
     capabilities: sessionCapabilities(suite, platform),
+    trackSession,
   });
-  await trackSession(session.id, true);
   const start = pages.length;
   let hung;
   let jobResult;
@@ -197,12 +204,7 @@ async function runSession(suite, platform, controller, pages) {
     if (jobResult !== 'failed') await annotateJob(session, platform, 'failed');
     throw failure;
   } finally {
-    try {
-      await session.quit();
-      await trackSession(session.id, false);
-    } catch (error) {
-      echo(yellow(`${ platform.name }: ${ error.message }`));
-    }
+    await session.quit();
   }
   return session.id;
 }
@@ -226,6 +228,8 @@ async function runPlatform(suite, platform, controller) {
       const [hung] = pages.splice(unfinished);
       message = `${ hung.page }: ${ hung.error }`;
     } catch (error) {
+      // A session that could not be closed still occupies its slot.
+      if (openSessions.has(error.sessionId)) controller.abort(error);
       if (signal.aborted || !(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId, pages };
       ({ sessionId: id, message } = error);
     }
@@ -237,10 +241,13 @@ function report({ platform, id, pages = [], error }) {
   const title = titled(platform, id);
   const lines = [error ? red(`${ title }: ${ error.message }`) : cyan(title)];
   let platformPassed = !error;
-  for (const { page, sessionId, passed, summary, details, commits, error: pageError = summary } of pages) {
+  for (const { page, sessionId, passed, summary, details, commits, bundleCount, error: pageError = summary } of pages) {
     const source = sessionId === id ? '' : ` (${ sessionUrl(sessionId) })`;
     // appended to each bundle by the Pages build; a deploy by an older workflow has none
-    if (COMMIT && commits && !commits.length) lines.push(yellow(`  ${ page }: no commit marker in the bundles`));
+    if (COMMIT && commits && (!commits.length || commits.length < bundleCount)) {
+      const warning = commits.length ? `only ${ commits.length } of ${ bundleCount } bundles reported their commit` : 'no commit marker in the bundles';
+      lines.push(yellow(`  ${ page }: ${ warning }`));
+    }
     if (passed) {
       lines.push(green(`  ${ page }: ${ summary }${ source }`));
       continue;
