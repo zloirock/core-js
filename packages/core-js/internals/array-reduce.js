@@ -1,4 +1,5 @@
 'use strict';
+var hasIndex = require('../internals/array-has-index');
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
@@ -19,7 +20,7 @@ var createMethod = function (IS_RIGHT) {
     var index = IS_RIGHT ? length - 1 : 0;
     var i = IS_RIGHT ? -1 : 1;
     if (argumentsLength < 2) while (true) {
-      if (index in self) {
+      if (hasIndex(self, index)) {
         memo = self[index];
         index += i;
         break;
@@ -29,7 +30,7 @@ var createMethod = function (IS_RIGHT) {
         throw new $TypeError(REDUCE_EMPTY);
       }
     }
-    for (;IS_RIGHT ? index >= 0 : length > index; index += i) if (index in self) {
+    for (;IS_RIGHT ? index >= 0 : length > index; index += i) if (hasIndex(self, index)) {
       memo = callbackfn(memo, self[index], index, O);
     }
     return memo;

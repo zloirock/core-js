@@ -452,7 +452,6 @@ export const data = {
     edge: '13',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1165052
     firefox: '48',
-    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.to-reversed': {
@@ -1665,7 +1664,6 @@ export const data = {
     edge: '12',
     firefox: '42',
     hermes: '0.7',
-    rhino: '1.8.0',
     safari: '10.0',
   },
   'es.reflect.is-extensible': {

@@ -1,5 +1,7 @@
 import Promise from 'core-js-pure/es/promise';
 import create from 'core-js-pure/es/object/create';
+import defineProperty from 'core-js-pure/es/object/define-property';
+import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 
@@ -18,6 +20,18 @@ export function nullProto(source) {
     if (Object.prototype.hasOwnProperty.call(source, key)) result[key] = source[key];
   }
   return result;
+}
+
+// The species lookup shortens the source, exposing an inherited index beyond its new length.
+export function createSpeciesShrinkingArray() {
+  const prototype = create(Array.prototype);
+  prototype[2] = 'inherited';
+  const array = setPrototypeOf([1, 2, 3], prototype);
+  defineProperty(array, 'constructor', { get() {
+    array.length = 1;
+    return Array;
+  } });
+  return array;
 }
 
 export function createIterator(elements, methods) {

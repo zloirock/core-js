@@ -1,4 +1,5 @@
 'use strict';
+var hasIndex = require('../internals/array-has-index');
 var isArray = require('../internals/is-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
@@ -14,7 +15,7 @@ var flattenIntoArray = function (target, original, source, sourceLen, start, dep
   var element, elementLen;
 
   while (sourceIndex < sourceLen) {
-    if (sourceIndex in source) {
+    if (hasIndex(source, sourceIndex)) {
       element = mapFn ? mapFn(source[sourceIndex], sourceIndex, original) : source[sourceIndex];
 
       if (depth > 0 && isArray(element)) {

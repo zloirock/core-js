@@ -1,4 +1,5 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, PROTO, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import map from 'core-js-pure/es/array/map';
@@ -41,5 +42,8 @@ QUnit.test('Array#map', assert => {
     } finally {
       defineProperty(Array, Symbol.species, descriptor);
     }
+  }
+  if (DESCRIPTORS && PROTO) {
+    assert.same(map(createSpeciesShrinkingArray(), it => it)[2], 'inherited', 'copies inherited elements after species lookup');
   }
 });

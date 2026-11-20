@@ -1,4 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, PROTO, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import flatMap from 'core-js-pure/es/array/flat-map';
@@ -35,4 +36,7 @@ QUnit.test('Array#flatMap', assert => {
     return { foo: 1 };
   } };
   assert.same(flatMap(array, it => it).foo, 1, '@@species');
+  if (DESCRIPTORS && PROTO) {
+    assert.same(flatMap(createSpeciesShrinkingArray(), it => it)[1], 'inherited', 'copies inherited elements after species lookup');
+  }
 });

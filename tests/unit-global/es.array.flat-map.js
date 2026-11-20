@@ -1,5 +1,6 @@
 /* eslint-disable unicorn/prefer-array-flat -- required for testing */
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, PROTO, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 QUnit.test('Array#flatMap', assert => {
   const { flatMap } = Array.prototype;
@@ -40,4 +41,7 @@ QUnit.test('Array#flatMap', assert => {
   } };
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.flatMap(it => it).foo, 1, '@@species');
+  if (DESCRIPTORS && PROTO) {
+    assert.same(createSpeciesShrinkingArray().flatMap(it => it)[1], 'inherited', 'copies inherited elements after species lookup');
+  }
 });

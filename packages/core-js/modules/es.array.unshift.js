@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var hasIndex = require('../internals/array-has-index');
 var apply = require('../internals/function-apply');
 var isArray = require('../internals/is-array');
 var toObject = require('../internals/to-object');
@@ -61,7 +62,7 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
       var k = len;
       while (k--) {
         var to = k + argCount;
-        if (k in O) O[to] = O[k];
+        if (hasIndex(O, k)) O[to] = O[k];
         else deletePropertyOrThrow(O, to);
       }
       for (var j = 0; j < argCount; j++) {

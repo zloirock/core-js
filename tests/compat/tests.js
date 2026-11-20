@@ -303,10 +303,11 @@ function createStringTrimMethodTest(METHOD_NAME) {
 
 function createArrayMethodSpeciesTest(METHOD_NAME, args) {
   return function () {
-    var array = [];
+    var array = [1];
     var constructor = array.constructor = {};
-    constructor[Symbol.species] = function () {
-      return { foo: 1 };
+    constructor[Symbol.species] = function (length) {
+      // Rhino 1.9.0 - 1.9.2 calculates the deletion count after constructing the splice result.
+      return { foo: METHOD_NAME === 'splice' ? length : 1 };
     };
     return array[METHOD_NAME].apply(array, args || []).foo === 1;
   };
@@ -733,7 +734,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.species': [SYMBOLS_SUPPORT, function () {
     return Array[Symbol.species];
   }],
-  // with an argument, like the module detection: https://github.com/mozilla/rhino/issues/2589
+  // Test a nonzero deletion count. With no arguments, Rhino 1.9.0 - 1.9.2 also discards the species result.
+  // https://github.com/mozilla/rhino/issues/2589
   'es.array.splice': createArrayMethodSpeciesTest('splice', [Boolean]),
   'es.array.to-reversed': function () {
     return [].toReversed;
@@ -1478,7 +1480,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Reflect.getPrototypeOf;
   },
   'es.reflect.has': function () {
-    return Reflect.has;
+    // https://github.com/mozilla/rhino/issues/2599
+    return Reflect.has([1], 0);
   },
   'es.reflect.is-extensible': function () {
     return Reflect.isExtensible;

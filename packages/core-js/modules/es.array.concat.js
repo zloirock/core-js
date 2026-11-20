@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var hasIndex = require('../internals/array-has-index');
 var fails = require('../internals/fails');
 var isArray = require('../internals/is-array');
 var isObject = require('../internals/is-object');
@@ -47,7 +48,7 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
       if (isConcatSpreadable(E)) {
         len = lengthOfArrayLike(E);
         doesNotExceedSafeInteger(n + len);
-        for (k = 0; k < len; k++, n++) if (k in E) createProperty(A, n, E[k]);
+        for (k = 0; k < len; k++, n++) if (hasIndex(E, k)) createProperty(A, n, E[k]);
       } else {
         doesNotExceedSafeInteger(n + 1);
         createProperty(A, n++, E);

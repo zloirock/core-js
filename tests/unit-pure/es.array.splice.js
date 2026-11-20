@@ -1,4 +1,5 @@
-import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, PROTO, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import splice from 'core-js-pure/es/array/splice';
@@ -37,10 +38,15 @@ QUnit.test('Array#splice', assert => {
   }
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
-  array.constructor = { [Symbol.species]: function () {
-    return { foo: 1 };
+  array.constructor = { [Symbol.species]: function (length) {
+    return { foo: length };
   } };
-  assert.same(splice(array).foo, 1, '@@species');
+  assert.same(splice(array).foo, 0, '@@species');
+  array[0] = 1;
+  assert.same(splice(array, 0).foo, 1, 'species receives the deletion count');
+  if (DESCRIPTORS && PROTO) {
+    assert.same(splice(createSpeciesShrinkingArray(), 0, 3)[2], 'inherited', 'copies inherited elements after species lookup');
+  }
 });
 
 QUnit.test('Array#splice, zero-length species', assert => {

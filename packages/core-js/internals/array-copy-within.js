@@ -1,4 +1,5 @@
 'use strict';
+var hasIndex = require('../internals/array-has-index');
 var toObject = require('../internals/to-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -23,7 +24,7 @@ module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /*
     to += count - 1;
   }
   while (count-- > 0) {
-    if (from in O) O[to] = O[from];
+    if (hasIndex(O, from)) O[to] = O[from];
     else deletePropertyOrThrow(O, to);
     to += inc;
     from += inc;

@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var hasIndex = require('../internals/array-has-index');
 var toObject = require('../internals/to-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
@@ -39,14 +40,14 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     A = arraySpeciesCreate(O, actualDeleteCount);
     for (k = 0; k < actualDeleteCount; k++) {
       from = actualStart + k;
-      if (from in O) createProperty(A, k, O[from]);
+      if (hasIndex(O, from)) createProperty(A, k, O[from]);
     }
     setArrayLength(A, actualDeleteCount);
     if (insertCount < actualDeleteCount) {
       for (k = actualStart; k < len - actualDeleteCount; k++) {
         from = k + actualDeleteCount;
         to = k + insertCount;
-        if (from in O) O[to] = O[from];
+        if (hasIndex(O, from)) O[to] = O[from];
         else deletePropertyOrThrow(O, to);
       }
       for (k = len; k > len - actualDeleteCount + insertCount; k--) deletePropertyOrThrow(O, k - 1);
@@ -54,7 +55,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
       for (k = len - actualDeleteCount; k > actualStart; k--) {
         from = k + actualDeleteCount - 1;
         to = k + insertCount - 1;
-        if (from in O) O[to] = O[from];
+        if (hasIndex(O, from)) O[to] = O[from];
         else deletePropertyOrThrow(O, to);
       }
     }

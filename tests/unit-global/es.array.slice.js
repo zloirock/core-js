@@ -1,4 +1,5 @@
-import { DESCRIPTORS, GLOBAL, STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants.js';
+import { createSpeciesShrinkingArray } from '../helpers/helpers.js';
 
 QUnit.test('Array#slice', assert => {
   const { slice } = Array.prototype;
@@ -49,4 +50,27 @@ QUnit.test('Array#slice', assert => {
       Object.defineProperty(Array, Symbol.species, descriptor);
     }
   }
+});
+
+QUnit.test('Array#slice snapshots the length before converting start and end', assert => {
+  for (const atStart of [true, false]) {
+    const array = [1, 2, 3];
+    const bound = { valueOf() {
+      array.length = 1;
+      return atStart ? 0 : 3;
+    } };
+    const result = atStart ? array.slice(bound) : array.slice(0, bound);
+    assert.same(result.length, 3, atStart ? 'start' : 'end');
+    assert.same(result[0], 1);
+    assert.false(1 in result);
+    assert.false(2 in result);
+  }
+});
+
+if (DESCRIPTORS && PROTO) QUnit.test('Array#slice reads inherited elements after the source shrinks', assert => {
+  const result = createSpeciesShrinkingArray().slice();
+  assert.same(result.length, 3);
+  assert.same(result[0], 1);
+  assert.false(1 in result);
+  assert.same(result[2], 'inherited');
 });

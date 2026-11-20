@@ -1,6 +1,7 @@
 'use strict';
 /* eslint-disable es/no-array-prototype-lastindexof -- safe */
 var apply = require('../internals/function-apply');
+var hasIndex = require('../internals/array-has-index');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -23,6 +24,6 @@ module.exports = FORCED ? function lastIndexOf(searchElement /* , fromIndex = @[
   var index = length - 1;
   if (arguments.length > 1) index = min(index, toIntegerOrInfinity(arguments[1]));
   if (index < 0) index = length + index;
-  for (;index >= 0; index--) if (index in O && O[index] === searchElement) return index || 0;
+  for (;index >= 0; index--) if (hasIndex(O, index) && O[index] === searchElement) return index || 0;
   return -1;
 } : $lastIndexOf;

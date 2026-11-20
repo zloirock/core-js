@@ -1,5 +1,10 @@
 # Changelog
 ### Unreleased
+- Fixed the `Array.prototype.slice` polyfill truncating the result when converting the bounds or reading the species constructor shortens the source array
+- Added a workaround in array method and `Reflect.has` polyfills for numeric `in` checks missing inherited indices beyond the length of packed arrays in V8 3.31-4.6 ([original optimization](https://issues.chromium.org/42207024#comment5), [removed in V8 4.7](https://github.com/v8/v8/commit/3dc9b122fa9f7d551e05f5b9d7415bcfdcac92db))
+- Added detection of native `Reflect.has` missing indexed properties in [Rhino 1.8.0-1.9.2](https://github.com/mozilla/rhino/issues/2599)
+- Added a workaround in `ToPropertyKey` for native `Object.defineProperty` duplicating dense array indices passed as concatenated strings in [Rhino 1.7.14-1.9.2](https://github.com/mozilla/rhino/issues/2600)
+- Added a workaround for Rhino 1.9.0-1.9.2, where native `Array.prototype.splice` [passes zero to the species constructor before computing the deletion count](https://github.com/mozilla/rhino/blob/ae05f8160ee90d23e67e38fb5d4005771a2ace3f/rhino/src/main/java/org/mozilla/javascript/NativeArray.java#L1317-L1335) and [discards the species result and skips reading and writing `length` on calls without arguments](https://github.com/mozilla/rhino/issues/2589)
 - Added detection of native `Object.{ assign, entries, values }` skipping properties that become enumerable during iteration in [Rhino](https://github.com/mozilla/rhino/issues/2596)
 - Added missed detection of native `DataView` constructor accepting a negative `byteLength` and rejecting a non-integer `byteOffset` in V8 ~ Chrome 50-53
 - Added missed detection of native `ArrayBuffer.prototype.slice` returning an empty buffer for a detached one instead of throwing in V8 ~ Chrome < 52 and Safari < 14.1

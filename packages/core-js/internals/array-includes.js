@@ -1,4 +1,5 @@
 'use strict';
+var hasIndex = require('../internals/array-has-index');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -19,7 +20,7 @@ var createMethod = function (IS_INCLUDES) {
       if (value !== value) return true;
     // Array#indexOf ignores holes, Array#includes - not
     } else for (;length > index; index++) {
-      if ((IS_INCLUDES || index in O) && O[index] === el) return IS_INCLUDES || index || 0;
+      if ((IS_INCLUDES || hasIndex(O, index)) && O[index] === el) return IS_INCLUDES || index || 0;
     } return !IS_INCLUDES && -1;
   };
 };

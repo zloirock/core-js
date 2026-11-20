@@ -1,4 +1,5 @@
 'use strict';
+var hasIndex = require('../internals/array-has-index');
 var bind = require('../internals/function-bind-context');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
@@ -24,7 +25,7 @@ var createMethod = function (TYPE) {
     var resIndex = 0;
     var target = IS_MAP ? arraySpeciesCreate($this, length) : IS_FILTER || IS_FILTER_REJECT ? arraySpeciesCreate($this, 0) : undefined;
     var value, result;
-    for (;length > index; index++) if (NO_HOLES || index in self) {
+    for (;length > index; index++) if (NO_HOLES || hasIndex(self, index)) {
       value = self[index];
       result = boundFunction(value, index, O);
       if (TYPE) {

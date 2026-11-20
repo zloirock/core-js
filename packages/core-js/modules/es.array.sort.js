@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var hasIndex = require('../internals/array-has-index');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
@@ -92,7 +93,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     var itemsLength, index;
 
     for (index = 0; index < arrayLength; index++) {
-      if (index in array) push(items, array[index]);
+      if (hasIndex(array, index)) push(items, array[index]);
     }
 
     internalSort(items, getSortCompare(comparefn));
