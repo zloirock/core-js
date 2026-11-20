@@ -18,7 +18,7 @@ function isSnapshotted(method) {
   return method !== 'entry-global';
 }
 
-export function cell({ lib, method, provider, phase }) {
+function cell({ lib, method, provider, phase }) {
   // segments are the source and the label is derived, not the reverse: `join` would put the platform
   // separator in, and karma matches `files` through glob, where a backslash escapes and matches nothing
   const segments = [lib.name, provider, method, ...phase ? [phase] : []];

@@ -12,7 +12,7 @@ export const METHODS = ['entry-global', 'usage-global', 'usage-pure'];
 // has a false side that means "everything else", so an unchecked name lands there and builds and runs
 // as unplugin under a cell label carrying the typo.
 export const PROVIDERS = ['babel-plugin', 'unplugin'];
-export const PHASES = ['pre', 'post', 'pre+post'];
+const PHASES = ['pre', 'post', 'pre+post'];
 
 // An axis owns its vocabulary: a value this matrix does not cover is a mistake to report, never a
 // branch to fall out of. Silence here is expensive - the run stays GREEN and covers something other
@@ -24,7 +24,7 @@ function checkAxis(axis, value, covered) {
 }
 
 // `undefined` means "this pair has no phase axis", which is a real answer rather than a missing one
-export function isPhase(value) {
+function isPhase(value) {
   return value === undefined || PHASES.includes(value);
 }
 

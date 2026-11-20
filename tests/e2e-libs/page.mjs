@@ -41,7 +41,7 @@ function esc(value) {
 }
 
 // self-contained but for `bundle.js` beside it, which is what makes it uploadable as it stands
-function html(cell, checks, bannerProgram) {
+function html(cell, checks, script) {
   const title = cell.lib.name;
   const subtitle = [cell.provider, cell.method, ...cell.phase ? [cell.phase] : []].join(' / ');
   const rows = checks.map(check => `<tr class="${ check.pass ? 'ok' : 'bad' }"><td>${ esc(check.label) }</td><td>${ check.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
@@ -66,8 +66,8 @@ function html(cell, checks, bannerProgram) {
   <table id="${ PAGE.table }"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
   <script>${ TRAP }</script>
   <script src="bundle.js"></script>
-  <script>${ cellScript(cell.label, checks.map(check => check.label)) }</script>
-  <script>${ bannerProgram }</script>
+  <script>${ script }</script>
+  <script>${ BANNER }</script>
 </body></html>
 `;
 }
@@ -96,7 +96,8 @@ export async function writeCell(cell, code, checks) {
   const dir = join(ARTIFACTS, ...cell.segments);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'bundle.js'), code);
-  await writeFile(join(dir, 'cell.js'), cellScript(cell.label, checks.map(check => check.label)));
-  await writeFile(join(dir, 'index.html'), html(cell, checks, BANNER));
+  const script = cellScript(cell.label, checks.map(check => check.label));
+  await writeFile(join(dir, 'cell.js'), script);
+  await writeFile(join(dir, 'index.html'), html(cell, checks, script));
   await writeFile(join(dir, 'frame.html'), frameHtml(cell.segments));
 }
