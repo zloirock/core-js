@@ -1,11 +1,14 @@
 #!/bin/bash
-# a newer build of a target - `latest` or a branch - replaces its running build; builds of other targets wait
+# a newer build of the full site or of the same branch replaces its running build; builds of other targets wait
 # for the lock instead, since they share `builds/` and `bundles/`
 # runners of branches without this version share the server: they create and remove the same lock, a symlink to the
 # PID of its holder, and exit while it exists; `runner.pid` stays theirs, they kill the build it names
 LOCK_FILE=./runner.lock
-# `~` is not allowed in git branch names, so different branches never share a file
-PID_FILE="./runner.$(printf '%s' "${1:-latest}" | tr '/' '~').pid"
+PID_FILE=./runner-site.pid
+if [ -n "$1" ]; then
+    # `~` is not allowed in git branch names, so different branches never share a file
+    PID_FILE="./runner-branch.${1//\//~}.pid"
+fi
 # a build takes minutes, so a longer wait means a hung one
 LOCK_TIMEOUT=1800
 
