@@ -24,20 +24,10 @@ import {
 // the parse keeps `preserveParens` for detection, but the PRINT normalizes parens to the
 // minimal structural set, exactly like the babel leg: esrap re-derives every required paren
 // from precedence. redundant source parens are formatting, not part of the emitted tree.
-// the parens esrap cannot re-derive are the ones that KEEP semantics away -
-// the hosts named below, a paren-wrapped string at statement position the first: it is NOT
-// a directive, so one layer stays or the reprint would promote it into the directive prologue
 function peelParens(child, parent, commentBetween, directiveBetween) {
   if (!child || child.type !== 'ParenthesizedExpression') return child;
   let inner = child.expression;
   while (inner.type === 'ParenthesizedExpression') inner = inner.expression;
-  // keep a string statement out of the directive prologue. a comment before a `throw` /
-  // `yield` operand also needs one layer: flushing it after the keyword would introduce
-  // a forbidden line terminator (esrap guards `return` itself, not these two)
-  if (parent?.type === 'ExpressionStatement' && inner.type === 'Literal' && typeof inner.value === 'string') {
-    child.expression = inner;
-    return child;
-  }
   if ((parent?.type === 'ThrowStatement' || parent?.type === 'YieldExpression') && commentBetween(child, inner)
     || directiveBetween && (directiveBetween(child.start, inner.start) || directiveBetween(inner.end, child.end))) {
     child.expression = inner;
@@ -61,7 +51,7 @@ function parenthesize(expression) {
   return { type: 'ParenthesizedExpression', expression, loc: expression.loc };
 }
 
-// esrap 2.4.0 gaps, held by the printer and roundtrip checks; every override
+// esrap 2.4.2 gaps, held by the printer and roundtrip checks; every override
 // carries its reproducing shape and dies as upstream catches up
 function withCorpusGapOverrides(language, tails, script) {
   // Grammar lookahead depends on the first expression, not only on precedence.
@@ -82,13 +72,6 @@ function withCorpusGapOverrides(language, tails, script) {
     }
     return null;
   }
-  // An arrow's nested object left edge opens a block; esrap handles only the direct object.
-  const baseArrow = language.ArrowFunctionExpression;
-  language.ArrowFunctionExpression = (node, context) => {
-    if (node.body?.type === 'BlockStatement' || node.body?.type === 'ObjectExpression'
-      || expressionLeftEdge(node.body)?.type !== 'ObjectExpression') return baseArrow(node, context);
-    baseArrow({ ...node, body: parenthesize(node.body) }, context);
-  };
   // An expression after `export default` must not become a hoisted declaration.
   const baseExportDefault = language.ExportDefaultDeclaration;
   language.ExportDefaultDeclaration = (node, context) => {
@@ -122,37 +105,6 @@ function withCorpusGapOverrides(language, tails, script) {
     if (node.expression.type !== 'TSInstantiationExpression') return baseInstantiation(node, context);
     baseInstantiation({ ...node, expression: parenthesize(node.expression) }, context);
   };
-  // esrap prints a destructuring pattern's annotation but never its `?` (a declare-signature
-  // `([a]?: T[])` / `({ a }?: O)` param; Identifier carries its own upstream). the annotation is
-  // stripped from what the base sees only so the marker can land BEFORE it, in source order -
-  // and the tree stays unmutated
-  for (const type of ['ArrayPattern', 'ObjectPattern']) {
-    const basePattern = language[type];
-    language[type] = (node, context) => {
-      if (!node.optional) return basePattern(node, context);
-      const { typeAnnotation, ...bare } = node;
-      basePattern(bare, context);
-      context.write('?');
-      if (typeAnnotation) context.visit(typeAnnotation);
-    };
-  }
-  // oxc gives the inner parameter an empty decorators array. esrap prefers that array
-  // over the parameter property's own decorators and drops them; omit only the empty slot
-  const baseParameterProperty = language.TSParameterProperty;
-  language.TSParameterProperty = (node, context) => {
-    if (!node.decorators?.length || node.parameter.decorators?.length) return baseParameterProperty(node, context);
-    baseParameterProperty({ ...node, parameter: { ...node.parameter, decorators: undefined } }, context);
-  };
-  // a TS cast as a pattern default's target needs parens: esrap prints `{ a: o.f as any = d }`, which a
-  // TS parser reads as a cast of an assignment and rejects
-  const baseAssignmentPattern = language.AssignmentPattern;
-  language.AssignmentPattern = (node, context) => {
-    const { type } = node.left ?? {};
-    if (type !== 'TSAsExpression' && type !== 'TSSatisfiesExpression' && type !== 'TSTypeAssertion') {
-      return baseAssignmentPattern(node, context);
-    }
-    baseAssignmentPattern({ ...node, left: parenthesize(node.left) }, context);
-  };
   // esrap shares the rest visitor with spread syntax and omits parameter decorators.
   const baseRest = language.RestElement;
   language.RestElement = (node, context) => {
@@ -184,7 +136,7 @@ function withCorpusGapOverrides(language, tails, script) {
   // The paren layer retained for a directive or commented `throw` / `yield` operand opens its
   // operand on a fresh line, the way the author wrote it: esrap flushes the comment right after
   // the `(` otherwise, and a line-bound directive that leaves its own line is what the roundtrip
-  // gate holds against. the kept string-statement layer has no comment inside and prints inline
+  // gate holds against.
   const baseParenthesized = language.ParenthesizedExpression;
   language.ParenthesizedExpression = (node, context) => {
     if (!node.commentInside) return baseParenthesized(node, context);
@@ -221,25 +173,6 @@ function withCorpusGapOverrides(language, tails, script) {
       }));
     };
   }
-  // Import phases change evaluation, including on a dynamic import with unchanged options.
-  const baseImportExpression = language.ImportExpression;
-  language.ImportExpression = (node, context) => {
-    if (!node.phase) return baseImportExpression(node, context);
-    baseImportExpression(node, withWrites(context, (text, at) => {
-      context.write(text === 'import' ? `import.${ node.phase }` : text, at);
-    }));
-  };
-  const baseImportType = language.TSImportType;
-  language.TSImportType = (node, context) => {
-    if (!node.options) return baseImportType(node, context);
-    baseImportType(node, withWrites(context, (text, at) => {
-      if (text === ')') {
-        context.write(', ');
-        context.visit(node.options);
-      }
-      context.write(text, at);
-    }));
-  };
   // esrap omits computed enum brackets and the static index-signature modifier.
   const baseEnumMember = language.TSEnumMember;
   language.TSEnumMember = (node, context) => {
@@ -270,23 +203,6 @@ function withCorpusGapOverrides(language, tails, script) {
     if (!tail) return;
     writeListTail(tail, context, 'code');
     tails.written.add(tail);
-  };
-  // esrap writes a default or namespace name without visiting it. Keep its trailing comment
-  // before `from`; a namespace name also needs its own map anchor, beyond the `* as ` prefix.
-  const baseImport = language.ImportDeclaration;
-  language.ImportDeclaration = (node, context) => {
-    if (!node.phase && !node.specifiers?.some(specifier => specifier.type === 'ImportNamespaceSpecifier'
-      || tails.ownerEnds.has(specifier))) return baseImport(node, context);
-    baseImport(node, withWrites(context, (text, at) => {
-      if (at?.type === 'ImportNamespaceSpecifier') {
-        context.write('* as ', at);
-        context.write(at.local.name, at.local);
-      } else context.write(node.phase && text === 'import' ? `import ${ node.phase }` : text, at);
-      const trailing = tails.byEnd.get(tails.ownerEnds.get(at));
-      if (!trailing || tails.written.has(trailing)) return;
-      writeListTail(trailing, context, 'code');
-      tails.written.add(trailing);
-    }));
   };
   // an empty list has no member to follow: a carrier stands in for one. an empty switch body breaks
   // its line ahead of the carrier itself, an argument list does not

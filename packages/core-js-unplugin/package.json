@@ -75,9 +75,9 @@
     "@core-js/polyfill-provider": "4.0.0-alpha.1",
     "@jridgewell/remapping": "^2.3.5",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "esrap": "2.4.0",
+    "esrap": "2.4.2",
     "estree-toolkit": "1.7.14",
-    "oxc-parser": "^0.157.0",
+    "oxc-parser": "^0.159.0",
     "unplugin": "^3.7.0"
   },
   "engines": {

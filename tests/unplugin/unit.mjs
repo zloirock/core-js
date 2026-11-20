@@ -4975,6 +4975,8 @@ function checkAstPrintQuirks() {
   // Structure catches lost syntax; spelling also guards ES5 longhand and required grouping.
   for (const [label, source, fragment, tsOnly = false] of [
     ['empty type import', 'import type {} from "pkg";', 'import type {} from "pkg";'],
+    ['directive followed by a string expression', '"use client"; ("use strict");', '"use client";\n("use strict");'],
+    ['string after an empty statement', ';"use strict";', '("use strict");'],
     // eslint-disable-next-line no-template-curly-in-string -- TypeScript template literal source
     ['template literal type', 'type T = `prefix_${string}_suffix`;', '`prefix_${string}_suffix`'],
     ['import type source', 'type T = import("pkg").Foo<string>;', 'import("pkg").Foo<string>'],
@@ -4989,6 +4991,7 @@ function checkAstPrintQuirks() {
     ['instantiated assertion', 'const f = (<any>g)<string>;', '(<any>g)<string>', true],
     ['nested instantiation', 'const f = (g<number>)<string>;', '(g<number>)<string>'],
     ['cast update', '(x as number)++;', '(x as number)++;'],
+    ['cast default target', '({ a: (x as number) = 1 } = obj);', 'a: (x as number) = 1'],
     ['satisfies assignment', '(x satisfies any) = y;', '(x satisfies any) = y;'],
     ['array optional parameter', 'declare function f([x]?: number[]): void;', '[x]?: number[]'],
     ['object optional parameter', 'declare function f({ x }?: { x: number }): void;', '{ x }?:'],
@@ -5021,8 +5024,7 @@ function checkAstPrintQuirks() {
       check(`${ prefix }/fixed point`, astPrint(printed, file).code, printed);
     }
   }
-  // The parameter-property shim only repairs an empty inner slot. A populated slot
-  // remains authoritative, and printing must preserve both source decorator arrays.
+  // Inner parameter decorators take precedence. Printing must preserve both source arrays.
   for (const file of ['input.ts', 'input.tsx']) {
     const source = 'class C { constructor(@outer private x: any) {} }';
     // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
@@ -5118,10 +5120,10 @@ function checkAstPrintTrailingComments() {
     ['cast', 'x = a /* c */ as any;', 'x = a /* c */ as any;'],
     ['parameter default', 'function p(a /* c */ = 1) {}', 'p(a /* c */ = 1)'],
     ['statement terminator', 'f(x) /* c */;', 'f(x) /* c */;'],
-    // esrap writes these names without visiting them
     ['default import', 'import a /* c */ from "m";', 'import a /* c */ from "m";'],
     ['namespace import', 'import * as n /* c */ from "m";', 'import * as n /* c */ from "m";'],
-    // ... and a template's quasi, whose span ends past the `${`: no visit writes the comment there, so
+    ['namespace binding', 'import d /* d */, * as /* before */ n /* after */ from "m";', 'd /* d */, * as /* before */ n /* after */ from'],
+    // A template quasi's span ends past the `${`: no visit writes the comment there, so
     // it goes back to the cursor and the file prints again
     // eslint-disable-next-line no-template-curly-in-string -- template literal source
     ['after a template opener', 'x = `a${ /* c */ b }d`;', '${/* c */ b}'],
@@ -5259,8 +5261,8 @@ function checkMintedLiteralSpelling() {
     const program = { type: 'Program', body: [mintStatement(mintLiteral(value))], sourceType: 'module' };
     return printProgram({ program, comments: [], source: '', id: 'input.mjs' }).code.trim();
   }
-  check('a minted string keeps babel\'s double quotes', printed('a\'b'), '"a\'b";');
-  check('a double quote inside it escapes', printed('a"b'), '"a\\"b";');
+  check('a minted string keeps babel\'s double quotes', printed('a\'b'), '("a\'b");');
+  check('a double quote inside it escapes', printed('a"b'), '("a\\"b");');
   check('null prints null', printed(null), 'null;');
   check('true prints true', printed(true), 'true;');
   check('a number prints itself', printed(0), '0;');
