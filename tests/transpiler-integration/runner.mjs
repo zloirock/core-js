@@ -12,6 +12,11 @@ import { assetExternals } from './asset-externals.mjs';
 import { leadingCommentsAndMaps } from './leading-comments-maps.mjs';
 
 const { readFile, writeFile } = fs;
+const { dirname, join, resolve } = path;
+const { cyan, green, red, yellow } = chalk;
+
+const testDir = import.meta.dirname;
+const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
 
 // The targets are this suite's: every builder is handed the same explicit IE11 list, so a cell that
 // differs differs by the bundler rather than by whatever browserslist the working directory answers
@@ -19,11 +24,6 @@ const { readFile, writeFile } = fs;
 function pluginOpts(method, phase) {
   return matrixPluginOpts(method, phase, { targets: { ie: 11 } });
 }
-const { dirname, join, resolve } = path;
-const { cyan, green, red, yellow } = chalk;
-
-const testDir = import.meta.dirname;
-const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
 
 function inputOf(method) {
   return resolve(testDir, `input-${ method }.js`);
@@ -201,6 +201,8 @@ const builders = {
       const buildScript = join(dir, 'build.mjs');
       await writeFile(buildScript, `
         import { bun as plugin } from ${ JSON.stringify(pathToFileURL(unpluginPath).href) };
+        // Resolve the workspace core-js version from the project for the shared node_modules option.
+        process.chdir(${ JSON.stringify(testDir) });
         const result = await Bun.build({
           entrypoints: [${ JSON.stringify(input) }],
           outdir: ${ JSON.stringify(dir) },

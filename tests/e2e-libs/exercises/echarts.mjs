@@ -82,6 +82,7 @@ function option(values) {
 // the generated class names carry a per-INSTANCE counter, so two renders of the same option differ in
 // them and in nothing else; the geometry underneath is what these checks are about
 function normalize(svg) {
+  // eslint-disable-next-line unicorn/prefer-string-replace-all -- keep the fixture from injecting replaceAll itself
   return svg.replace(/zr\d+-cls-\d+/g, 'cls').replace(/zr\d+-c\d+/g, 'clip');
 }
 
