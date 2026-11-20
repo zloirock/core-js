@@ -28,11 +28,17 @@ if (process.env.CI || which('iexplore.exe', { nothrow: true })) {
   browsers.push('IE_NFM');
 }
 
+function SummaryReporter(baseReporterDecorator) {
+  baseReporterDecorator(this);
+  this.onBrowserComplete = browser => this.write('%s\n', this.renderBrowser(browser));
+}
+
 module.exports = config => config.set({
   plugins: [
     'karma-*',
     '@onslip/karma-playwright-launcher',
     { 'middleware:echo': ['factory', createEchoMiddleware] },
+    { 'reporter:summary': ['type', SummaryReporter] },
   ],
   files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
   middleware: ['echo'],
@@ -45,8 +51,8 @@ module.exports = config => config.set({
   pingTimeout: 30000,
   customLaunchers,
   browsers,
-  // Redrawing every browser after each test can block the echo server on Windows CI's synchronous stdout.
-  reporters: [process.env.CI ? 'dots' : 'progress'],
+  // A synchronous write per passing test can stall the echo server on Windows CI.
+  reporters: [process.env.CI ? 'summary' : 'dots'],
   logLevel: config.LOG_ERROR,
   singleRun: true,
 });
