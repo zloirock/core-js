@@ -2824,6 +2824,7 @@ export default [
       'tests/@(compat|unit-bun|unit-deno)/*.js',
       'tests/compat/deno-runner.mjs',
       'tests/@(helpers|unit-@(browser|global|pure)|e2e-usage-pure|wpt-url-resources)/**',
+      'tests/e2e-libs/harness/*.js',
       // inputs of the bundlers under test
       'tests/transpiler-integration/@(input-*|lazy-chunk).js',
       'tests/transpiler-integration/*/src/**',
@@ -2875,9 +2876,7 @@ export default [
   },
   {
     // the page programs of tests/e2e-libs and the helper they share: hand-written ES5, loaded
-    // into a browser by a `<script>`, and nothing at run time checks either property. `es5` alone as
-    // the built-in set, so `no-undef` answers for a name the floor does not have as well as for one
-    // nothing declares - the suite's own globals are the two below
+    // into a browser by a `<script>`. The suite declares the two extra globals below.
     files: [
       'tests/e2e-libs/harness/*.js',
     ],
@@ -2892,7 +2891,6 @@ export default [
       },
     },
     rules: {
-      ...disable(nodeDev),
       ...useES5Syntax,
       ...forbidModernBuiltIns,
       // the three the shared ES2015 set omits, and `no-undef` cannot stand in for them: flat config

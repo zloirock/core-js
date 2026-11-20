@@ -52,6 +52,7 @@ export function run() {
   check('trim_end', trimEnd('  both  '), '  both');
 
   // --- predicates: each asked both ways, so a constant answer reddens ---
+  // eslint-disable-next-line math/prefer-number-max-safe-integer -- keep the boundary literal in the fixture
   check('is_length', [isLength(9007199254740991), isLength(9007199254740992), isLength(-1), isLength(1.5)],
     [true, false, false, false]);
   check('is_weak_set', [isWeakSet(new WeakSet()), isWeakSet(new Set()), isWeakSet({})], [true, false, false]);

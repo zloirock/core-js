@@ -202,6 +202,7 @@ export function run() {
   // round-trip below travels as text, the way a saved level would
   const json = Serializer.toJson(world);
   check('json_ref_graph', [Array.isArray(json), round(num(json[0] && json[0].gravity && json[0].gravity.y))], [true, GRAVITY]);
+  // eslint-disable-next-line unicorn/prefer-structured-clone -- exercise the serializer through JSON text
   const restored = Serializer.fromJson(JSON.parse(JSON.stringify(json)));
   // that it is a REBUILT world, not the one that was serialized: counting bodies alone is satisfied
   // by a `fromJson` handing its argument's own world straight back, and so is the height below
