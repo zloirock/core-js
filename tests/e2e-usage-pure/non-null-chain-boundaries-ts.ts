@@ -8,6 +8,7 @@ QUnit.test('non-null chain: assertions preserve short-circuit boundaries', asser
   assert.same(root?.fn!()[key()], undefined, 'the open chain skips the call and its tail');
   assert.same(effects, 0, 'the computed tail is skipped');
   assert.throws(() => (root?.fn)!()[key()], TypeError, 'a required call outside the chain still throws');
+  assert.throws(() => (root?.fn!)()[key()], TypeError, 'grouping the assertion also ends the chain before the call');
   assert.same(effects, 0, 'the failed call precedes the computed tail');
   assert.same((root?.fn)!?.()[key()], undefined, 'an optional call after the seal can short-circuit again');
   assert.same(effects, 0, 'the optional call skips its computed tail');
@@ -30,6 +31,9 @@ QUnit.test('non-null chain: calls preserve the receiver and evaluation order', a
   assert.deepEqual(effects, ['get', 'this', 'key']);
   effects.length = 0;
   assert.deepEqual((root?.fn)!()[key()], [1, 2]);
+  assert.deepEqual(effects, ['get', 'this', 'key']);
+  effects.length = 0;
+  assert.deepEqual((root?.fn!)()[key()], [1, 2]);
   assert.deepEqual(effects, ['get', 'this', 'key']);
   effects.length = 0;
   assert.deepEqual((root?.fn)!?.()[key()], [1, 2]);

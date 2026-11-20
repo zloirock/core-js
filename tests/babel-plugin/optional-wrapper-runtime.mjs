@@ -38,9 +38,40 @@ const cases = [
     + 'values.push(w?.Array.of((effects.push("arg"), 3))!.length); return values[0];'],
   ['unbound-optional-call', 'let f: any; return f?.()?.self.box;'],
 ];
-const directory = await fs.mkdtemp(path.join(import.meta.dirname, '../transpiler-differential/tmp/optional-wrappers-'));
+const tmp = path.join(import.meta.dirname, '../transpiler-differential/tmp');
+await fs.ensureDir(tmp);
+const directory = await fs.mkdtemp(path.join(tmp, 'optional-wrappers-'));
 let serial = 0;
 try {
+  // Load the printed TypeScript in Node to check the generator's placement of both `!` and the type arguments.
+  const receiver = { f(value) { return this === receiver && value === 1; } };
+  for (const [expression, optional, nullResult] of [
+    ['(o?.f)!?.<number>(++calls)', true], ['(o?.f!)?.<number>(++calls)', true],
+    ['((o?.f)<number>)?.(++calls)', true], ['((o.f!)<number>)?.(++calls)', true, 'TypeError'],
+    ['o?.f?.<number>(++calls)', true], ['o.f!?.<number>(++calls)', true, 'TypeError'], ['o?.f!<number>(++calls)', false],
+  ]) {
+    const source = `
+      export let calls = 0;
+      export function read(o: { f?<T>(value: T): boolean }) {
+        try { return ${ expression }; } catch (error: any) { return error.name; }
+      }
+    `;
+    for (const createParenthesizedExpressions of [false, true]) {
+      const { code } = await transformAsync(source, {
+        configFile: false, babelrc: false, filename: 'optional-call.ts', parserOpts: { plugins: ['typescript'], createParenthesizedExpressions },
+        plugins: [[babelPlugin, { method: 'entry-global', targets: { ie: 11 } }]],
+      });
+      const file = path.join(directory, `call-${ serial++ }.mts`);
+      await fs.writeFile(file, code);
+      const result = await import(pathToFileURL(file).href);
+      const label = `${ expression }/explicit parens=${ createParenthesizedExpressions }`;
+      check(`${ label }/null receiver`, result.read(null), nullResult);
+      check(`${ label }/live receiver`, result.read(receiver), true);
+      check(`${ label }/missing method`, result.read({}), optional ? undefined : 'TypeError');
+      check(`${ label }/argument evaluations`, result.calls, optional ? 1 : 2);
+    }
+  }
+
   for (const [name, body, stripGlobals = STRIP_GLOBALS] of cases) {
     const source = scenarioSource(`export const effects = []; export function read(choice) { ${ body } }`);
     for (const method of ['usage-global', 'usage-pure']) {

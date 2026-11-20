@@ -553,7 +553,7 @@ export const USAGE_VISITORS_RELEASE_HANDLED = Symbol('core-js.usageVisitors.rele
 // core paired with a newer generator can safely keep the fallback.
 export function generatorWorkarounds(version) {
   const core = semver(version);
-  function before(v7, v8) {
+  function before(v7, v8 = v7) {
     return version.includes('-') || compare(core, '<', core.major === 7 ? v7 : v8);
   }
   return {
@@ -563,8 +563,10 @@ export function generatorWorkarounds(version) {
     tag: before('7.29.13', '8.0.5'),
     // TODO: Remove the optional-new fallback after dropping generators before 7.29.12 / 8.0.10.
     newCallee: before('7.29.12', '8.0.10'),
+    // Core 7.29.13 allows both the broken generator 7.29.13 and the fixed 7.29.14.
+    wrappedChain: before('8.1.2'),
     // TODO: Remove the write-target fallback after dropping Babel 7 and Babel 8 before 8.0.10.
-    write: version.includes('-') || compare(core, '<', '8.0.10'),
+    write: before('8.0.10'),
   };
 }
 
@@ -629,13 +631,13 @@ export function instantiationSlotNeedsParens(node) {
 // Older optional-chain transforms need the member callee exposed to preserve its receiver.
 function foldInstantiationIntoTypeArgumentHost(path) {
   const parent = typeArgumentHostOf(path);
-  if (!parent) return false;
+  if (!parent) return null;
   const key = 'typeArguments' in path.node ? 'typeArguments' : 'typeParameters';
   // a host cannot carry two type-argument lists; leave the nested spelling to the paren restoration
-  if (parent[key]) return false;
+  if (parent[key]) return null;
   parent[key] = path.node[key];
   path.replaceWith(path.node.expression);
-  return true;
+  return parent;
 }
 
 // slot shapes whose own trailing token FUSES with the `<` opening the type arguments, so the drop
@@ -670,7 +672,7 @@ function conditionalTestHost(path) {
 }
 
 // the fold as a VISITOR, and the wrapper is load-bearing: `path.traverse` throws on any truthy
-// return from a visitor method, and the fold answers whether it folded. mounting it bare passes
+// return from a visitor method, and the fold returns the host it changed. mounting it bare passes
 // every fixture that reaches no instantiation and throws on every one that does
 function foldInstantiationTypeArguments(path) {
   foldInstantiationIntoTypeArgumentHost(path);
@@ -706,20 +708,35 @@ const OPTIONAL_CHAIN_PAREN_TYPES = new Set([
   'OptionalMemberExpression',
   'OptionalCallExpression',
 ]);
-const CHAIN_PAREN_KEYS = { TaggedTemplateExpression: 'tag', NewExpression: 'callee', TSNonNullExpression: 'expression' };
+const CHAIN_PAREN_KEYS = {
+  TaggedTemplateExpression: 'tag',
+  NewExpression: 'callee',
+  TSNonNullExpression: 'expression',
+  CallExpression: 'callee',
+  MemberExpression: 'object',
+  OptionalCallExpression: 'callee',
+};
 
-// A tag or constructor callee seals its optional chain; a non-null assertion seals only a parenthesized
-// operand. Even current generators drop this latter seal, including under further TS wrappers.
-// A real paren node already preserves the boundary. Counting and restoration share this test.
+// The host determines which chain boundaries its generator can lose. An explicit paren node keeps its own boundary.
 function chainHostOwesRestoredParens(node) {
   let core = node[CHAIN_PAREN_KEYS[node.type]];
+  // Keep the source's chain boundary on the same side of `!` through a TS reprint.
+  // Downstream transforms can use that boundary to recover a method's receiver.
   if (node.type === 'TSNonNullExpression' && !core.extra?.parenthesized) return false;
+  // Babel 7 prints TS type parameters before `?.(`. Group the callee so Node can strip
+  // `(o?.f)<T>?.()`. Grouping a non-optional continuation would end its chain too early.
+  if (node.type === 'OptionalCallExpression') {
+    if (!node.optional || !node.typeParameters) return false;
+    if (core.type === 'TSNonNullExpression') return true;
+  }
+  // Ordinary calls and members already group bare chains.
+  if ((node.type === 'CallExpression' || node.type === 'MemberExpression')
+    && core.type !== 'TSNonNullExpression' && core.type !== 'TSInstantiationExpression') return false;
   while (CHAIN_HOP_WRAPPER_TYPES.has(core.type)) core = core.expression;
-  return core.type !== 'ParenthesizedExpression' && OPTIONAL_CHAIN_PAREN_TYPES.has(core.type);
+  return OPTIONAL_CHAIN_PAREN_TYPES.has(core.type);
 }
 
-// Older generators print optional-chain tags and constructor callees bare. Even newer
-// ones print `(a?.b)!()` as `a?.b!()`, letting the chain swallow a required call.
+// Restore the grouping older generators drop from optional-chain hosts.
 function restoreOptionalChainParens(path) {
   if (chainHostOwesRestoredParens(path.node)) {
     const key = CHAIN_PAREN_KEYS[path.node.type];
@@ -744,8 +761,11 @@ export function foldInstantiationsPass(programPath, legacy, traverseFast, parame
   function count(node) {
     if (node.type === 'TSInstantiationExpression'
       || parameterPropertyVisitors && node.type === 'TSParameterProperty' && node.decorators?.length) needsPaths = true;
-    else if (!parensPending && (node.type === 'TSNonNullExpression'
-      || legacy.tag && node.type === 'TaggedTemplateExpression' || legacy.newCallee && node.type === 'NewExpression')) {
+    else if (!parensPending && (node.type === 'TSNonNullExpression' || legacy.tag && node.type === 'TaggedTemplateExpression'
+      || legacy.newCallee && node.type === 'NewExpression'
+      || legacy.wrappedChain && (
+        node.type === 'CallExpression' || node.type === 'OptionalCallExpression' || node.type === 'MemberExpression'
+      ))) {
       parensPending = chainHostOwesRestoredParens(node);
     } else if (!parensPending && legacy.write && assertedWriteKey(node)) parensPending = true;
   }
@@ -754,7 +774,10 @@ export function foldInstantiationsPass(programPath, legacy, traverseFast, parame
     ...parameterPropertyVisitors,
     ...parameterPropertyVisitors && { enter: ({ node }) => { count(node); } },
     TSInstantiationExpression(path) {
-      if (!foldInstantiationIntoTypeArgumentHost(path) && legacy.instantiation) parensPending = true;
+      // The raw walk saw the host before it acquired these type arguments.
+      const host = foldInstantiationIntoTypeArgumentHost(path);
+      if (host) count(host);
+      else if (legacy.instantiation) parensPending = true;
     },
   });
   return parensPending;
@@ -766,7 +789,12 @@ export function restoreParenCompensations(programPath, originalBodyNodes, legacy
   const visitors = {
     ...parameterPropertyVisitors,
     TSInstantiationExpression: legacy.instantiation ? restoreLegacyInstantiationParens : foldInstantiationTypeArguments,
-    [legacy.tag ? 'TaggedTemplateExpression|TSNonNullExpression' : 'TSNonNullExpression']: restoreOptionalChainParens,
+    TSNonNullExpression: restoreOptionalChainParens,
+    ...legacy.wrappedChain && {
+      // Children restore assertion boundaries and fold type arguments into their call before its exit.
+      'CallExpression|MemberExpression|OptionalCallExpression': { exit: restoreOptionalChainParens },
+    },
+    ...legacy.tag && { TaggedTemplateExpression: restoreOptionalChainParens },
     ...legacy.newCallee && { NewExpression: restoreOptionalChainParens },
     ...legacy.write && {
       'UpdateExpression|AssignmentExpression|AssignmentPattern'({ node }) {

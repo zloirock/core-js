@@ -6,3 +6,4 @@ const box = {
   }
 };
 box.read<number>?.(7);
+(box?.read)<number>?.(7);

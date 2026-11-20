@@ -20,15 +20,12 @@ const requireBabel = BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { transformAsync, transformSync, transformFromAstSync, traverse, version } = requireBabel('@babel/core');
+const { parse } = requireBabel('@babel/parser');
 
 const { checkTruthy, finish } = createChecker('late-paren-compensation-gate');
 
-// All supported generators still drop this seal without compensation: when o is
-// null the ordinary call must throw. Its AST records which statements post() reached.
-function sealedNonNullCall(t) {
-  const member = t.optionalMemberExpression(t.identifier('o'), t.identifier('f'), false, true);
-  member.extra = { parenthesized: true };
-  return t.callExpression(t.tsNonNullExpression(member), []);
+function parseTS(source) {
+  return parse(source, { sourceType: 'module', plugins: ['typescript'] });
 }
 
 // sibling ordered AFTER core-js: its exit runs once ours already did, so what it plants here is
@@ -39,7 +36,8 @@ function makeSiblingPlanting(where, observed) {
     visitor: {
       Program: {
         exit(programPath) {
-          const planted = sealedNonNullCall(t);
+          // Folding the argument records a visit even when the generator preserves the callee's parens itself.
+          const planted = parseTS('(o?.f!)((g<number>)())').program.body[0].expression;
           observed.planted = planted;
           if (where === 'new-statement') {
             programPath.pushContainer('body', t.expressionStatement(planted));
@@ -51,7 +49,8 @@ function makeSiblingPlanting(where, observed) {
     },
     // Read the tree after core-js's post().
     post() {
-      observed.compensated = observed.planted.callee.expression.type === 'ParenthesizedExpression';
+      observed.visited = observed.planted.arguments[0].callee.type === 'Identifier';
+      observed.compensated = observed.planted.callee.type === 'ParenthesizedExpression';
     },
   });
 }
@@ -80,11 +79,13 @@ async function plant(where, source, parserPlugins = [], release = version) {
 
 // a sibling-added TOP-LEVEL statement is what the gated descent exists to cover, and the whole
 // reason the pass sits in `post()` rather than at our own exit
-{
-  const { compensated, code } = await plant('new-statement', 'var a = [1, 2].flat();');
-  checkTruthy('sibling-added top-level statement is compensated', compensated);
-  checkTruthy('and prints with the parens that seal the call', code.includes('(o?.f)!()'));
+for (const [release, nonNull] of [['7.29.13', true], ['8.1.1', true], ['8.1.2', false]]) {
+  const { visited, compensated } = await plant('new-statement', 'var a = [1, 2].flat();', [], release);
+  checkTruthy(`sibling-added top-level statement is visited/${ release }`, visited);
+  checkTruthy(`non-null parens are restored only when needed/${ release }`, compensated === nonNull);
 }
+const planted = await plant('new-statement', '');
+checkTruthy('printed call ends the optional chain', parseTS(planted.code).program.body.at(-1).expression.type === 'CallExpression');
 
 // the price of the gate, and the reason it is spelled as a gate rather than a full re-walk: a
 // statement that was already there when we finished is not re-entered, so a sibling mutating INSIDE
@@ -92,22 +93,22 @@ async function plant(where, source, parserPlugins = [], release = version) {
 // reach only for a sibling that builds a new sealed chain inside an existing statement, so
 // everything the early pass saw is still all there is. If the trade is revisited, this case says so
 {
-  const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();');
-  checkTruthy('nothing pending: an existing statement is not re-entered', !compensated);
+  const { visited } = await plant('in-existing-statement', 'var a = [1, 2].flat();');
+  checkTruthy('nothing pending: an existing statement is not re-entered', !visited);
 }
 
 // and the flag is what decides, not luck: the SAME plant in the SAME position is reached once the
 // file owes parens on its own, because then the late pass takes the full walk
 {
-  const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = (o?.f)!();', ['typescript']);
-  checkTruthy('parens pending: the full walk reaches the same plant', compensated);
+  const { visited } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = (o?.f)!();', ['typescript'], '8.1.1');
+  checkTruthy('parens pending: the full walk reaches the same plant', visited);
 }
 
 // what makes a file owe them is the tag being an optional CHAIN, not its being tagged: a template
 // tag is common enough that counting every one would hand the full walk to most files that use one
 {
-  const { compensated } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = String.raw`x`;');
-  checkTruthy('a plain template tag does not owe parens, so the walk stays gated', !compensated);
+  const { visited } = await plant('in-existing-statement', 'var a = [1, 2].flat();\nvar b = String.raw`x`;');
+  checkTruthy('a plain template tag does not owe parens, so the walk stays gated', !visited);
 }
 
 // Patched generators print both tag spellings without help. Older ones need the
@@ -125,9 +126,9 @@ for (const [release, pending] of [['7.29.11', true], ['7.29.12', false], ['8.0.9
 for (const release of [version, '7.29.7', '8.0.4']) {
   const workarounds = generatorWorkarounds(release);
   for (const source of ['(o?.f)`x`', '(o?.f!)`x`']) {
-    const { compensated, code } = await plant('in-existing-statement',
+    const { visited, code } = await plant('in-existing-statement',
       `const tag = ${ source }; var seed = 0;`, ['typescript'], release);
-    checkTruthy(`tag gets a late walk only on old generators: ${ release }/${ source }`, compensated === workarounds.tag);
+    checkTruthy(`tag gets a late walk only on old generators: ${ release }/${ source }`, visited === workarounds.tag);
     checkTruthy(`tag remains grouped: ${ release }/${ source }`, code.includes(source));
   }
 
@@ -136,23 +137,30 @@ for (const release of [version, '7.29.7', '8.0.4']) {
     ['(x as number)++', workarounds.write],
     ['(<number>obj.x) = value', workarounds.write],
   ]) {
-    const { compensated } = await plant('in-existing-statement', `const value = ${ source }; var seed = 0;`, ['typescript'], release);
-    checkTruthy(`a fixed generator needs no late walk: ${ release }/${ source }`, compensated === pending);
+    const { visited } = await plant('in-existing-statement', `const value = ${ source }; var seed = 0;`, ['typescript'], release);
+    checkTruthy(`a fixed generator needs no late walk: ${ release }/${ source }`, visited === pending);
   }
 }
 
-for (const [source, pending] of [['(o?.f)!()', true], ['o?.f!()', false]]) {
-  const { compensated } = await plant('in-existing-statement',
-    `var a = [1, 2].flat();\nvar b = ${ source };`, ['typescript']);
-  checkTruthy(`a non-null assertion owes a late walk only for a sealed operand: ${ source }`, compensated === pending);
+for (const [release, legacy] of [['7.29.13', true], ['8.1.1', true], ['8.1.2-beta.0', true], ['8.1.2', false]]) {
+  for (const [source, pending] of [
+    ['(o?.f)!()', true], ['(o?.f!)()', legacy], ['(o?.f!).x', legacy], ['o?.f!()', false],
+    ['(o?.f)!?.()', true], ['o?.f!?.()', false], ['use((o?.f)!)', true],
+  ]) {
+    const { visited, code } = await plant('in-existing-statement',
+      `var b = ${ source };\nvar a = [1, 2].flat();`, ['typescript'], release);
+    checkTruthy(`non-null seal schedules a late walk/${ release }/${ source }`, visited === pending);
+    if (source.includes('(o?.f)!')) {
+      checkTruthy(`grouping on the assertion operand survives/${ release }/${ source }`, code.includes(source), code);
+    }
+  }
 }
 
 // What the late pass DOES with what it reaches. The fold half runs early, ahead of the lowerings
 // that misread the node - but an instantiation a later-ordered sibling inserts was never early, and
 // the paren restoration alone covers only the shapes the fold leaves behind. So the fold runs here
-// too. The oracle is the ASSOCIATION, not parseability: every one of these reprints into something
-// that parses, and four of them parse as a DIFFERENT expression - the call swallowed by an arrow
-// body, by a ternary branch, by an assignment, by a logical operand.
+// too. The stripped output must compile, and the reprint must preserve the outer expression:
+// an arrow body, a ternary branch, an assignment or a logical operand can swallow a call.
 const SHAPES = [
   ['slot-legal identifier', 'var r = (f<string>)(1);'],
   ['member callee', 'var r = (h.m<string>)(1);'],
@@ -170,16 +178,13 @@ const SHAPES = [
   ['tagged-template host', 'var r = (t<string>)`x`;'],
   ['conditional test', 'var r = ((s = f)<string>) ? 1 : 2;'],
   ['optional call host', 'var r = (h.m<string>)?.(1);'],
+  ['optional call after a chain instantiation', 'var r = ((o?.f)<string>)?.(1);'],
+  ['optional call after a non-null instantiation', 'var r = ((o.f!)<string>)?.(1);'],
   ['sealed instantiation call', 'var r = ((o?.f)<string>)(1);'],
   ['sealed non-null call', 'var r = (o?.f)!();'],
   ['sealed non-null member', 'var r = (o?.f)!.x;'],
   ['nested sealed assertion', 'var r = (o?.f!)!();'],
 ];
-
-const { parse } = requireBabel('@babel/parser');
-function parseTS(source) {
-  return parse(source, { sourceType: 'module', plugins: ['typescript'] });
-}
 
 // Older traversal tables omit a parameter property's decorators in both the raw
 // counter and the late restoration. Exercise the omission even on patched hosts.
@@ -284,26 +289,35 @@ function siblingPlanting(snippet) {
   });
 }
 
-for (const release of [version, '7.29.7', '8.0.4']) {
-  for (const [name, snippet] of SHAPES) {
-    const { code } = await transformAsync('var seed = [1, 2].flat();\n', {
-      configFile: false,
-      babelrc: false,
-      filename: 'planted.ts',
-      parserOpts: { plugins: ['typescript'] },
-      plugins: [
-        [withBabelVersion(release), { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
-        siblingPlanting(snippet),
-      ],
-    });
-    const emitted = code.split('\n').filter(line => !line.startsWith('import') && !line.startsWith('var seed')).join('\n');
-    let reprinted = null;
-    try {
-      reprinted = plantedExpressionType(emitted);
-    } catch { /* stays null: unparsable output fails the check below with the same verdict */ }
-    checkTruthy(`sibling-planted ${ release }/${ name }: reprint evaluates as the same expression`,
-      reprinted === plantedExpressionType(snippet));
+const plantedDir = await fs.mkdtemp(path.join(os.tmpdir(), 'core-js-planted-'));
+let plantedNumber = 0;
+try {
+  for (const release of [version, '7.29.7', '8.0.4']) {
+    for (const [name, snippet] of SHAPES) {
+      const { code } = await transformAsync('var seed = [1, 2].flat();\n', {
+        configFile: false,
+        babelrc: false,
+        filename: 'planted.ts',
+        parserOpts: { plugins: ['typescript'] },
+        plugins: [
+          [withBabelVersion(release), { method: 'usage-global', version: '4.0', targets: { ie: 11 } }],
+          siblingPlanting(snippet),
+        ],
+      });
+      const emitted = code.split('\n').filter(line => !line.startsWith('import') && !line.startsWith('var seed')).join('\n');
+      const file = path.join(plantedDir, `case-${ plantedNumber++ }.mts`);
+      await fs.writeFile(file, `function planted() {\n${ emitted }\n}`);
+      let reprinted = null;
+      try {
+        await import(pathToFileURL(file).href);
+        reprinted = plantedExpressionType(emitted);
+      } catch { /* stays null: unparsable output fails the check below with the same verdict */ }
+      checkTruthy(`sibling-planted ${ release }/${ name }: reprint compiles with the same outer expression`,
+        reprinted === plantedExpressionType(snippet));
+    }
   }
+} finally {
+  await fs.remove(plantedDir);
 }
 
 // the one shape an EMITTER puts into an instantiation slot: the guarded ctor narrow swaps a member
@@ -355,6 +369,7 @@ for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
       for (const [expression, throws] of [
         ['o?.f!()', false], ['(o?.f)!()', true], ['(o?.f!)!()', true],
         ['((o?.f)<number>)()', true], ['(o?.f)<number>?.()', false],
+        ['(o?.f!)()', true], ['(o?.f!!)()', true], ['(o?.f!).x', true],
         ['(o?.f)!?.()', false], ['(o?.f)!.x', true], ['(o?.f)?.x', false],
       ]) {
         const source = `const o: any = null; let result;
