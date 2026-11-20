@@ -294,8 +294,11 @@ try {
 
 // the fixed address: one tag for every browser, the bundle chosen when the script is asked for.
 // mounted under a path, so that the tag has to carry the mount point here as well
+let fixedService;
 const fixed = await serve((app, middleware) => {
-  app.use('/app', middleware({ delivery: 'fixed' }));
+  const adapter = middleware({ delivery: 'fixed' });
+  fixedService = adapter.service;
+  app.use('/app', adapter);
   app.get('/app', (request, response) => response.type('html').send(PAGE));
 });
 
@@ -311,6 +314,8 @@ try {
   strictEqual(chromePage.headers.get('vary'), null, 'adapter-6 #3');
   strictEqual(chromePage.headers.get('content-length'), null, 'adapter-6 #4');
 
+  // While a browser's bucket is cold, the fixed address can serve the same baseline to both.
+  await fixedService.start().warmed;
   const chrome = await fixed.get(src, { 'user-agent': CHROME, 'accept-encoding': 'gzip' });
   const ie = await fixed.get(src, { 'user-agent': IE, 'accept-encoding': 'gzip' });
 

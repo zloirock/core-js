@@ -1,3 +1,5 @@
+import report from './report.js';
+
 async function observe(promise) {
   try {
     return { result: await promise };
@@ -6,26 +8,17 @@ async function observe(promise) {
   }
 }
 
-export default function createLifecycle({ load, createService, log }) {
-  let service;
+export default function createLifecycle({ load, createService, log, retryManifestRead = false }) {
   let started;
   let state = 'started';
-  let baselineReady = false;
+  let serveScript;
   let fullyWarmed = false;
   let errorCode;
 
   function fail(code, detail) {
     state = 'error';
     errorCode = code;
-    try {
-      log(code, detail);
-    } catch (loggingError) {
-      try {
-        process.stderr.write(`service container ${ code }: ${ detail }; logging failed: ${ loggingError }\n`);
-      } catch {
-        // No output channel remains; do not replace the recorded startup failure with a logging error.
-      }
-    }
+    report(() => log(code, detail), `service container ${ code }`, detail);
   }
 
   async function prepare() {
@@ -33,10 +26,20 @@ export default function createLifecycle({ load, createService, log }) {
     try {
       modules = await load();
     } catch (error) {
+      if (retryManifestRead && typeof error?.syscall === 'string') {
+        if (errorCode !== 'manifest_unavailable') fail('manifest_unavailable', error);
+        return false;
+      }
       fail('manifest_invalid', error);
       return;
     }
 
+    if (errorCode === 'manifest_unavailable') {
+      state = 'started';
+      errorCode = undefined;
+    }
+
+    let service;
     try {
       service = createService(modules);
     } catch (error) {
@@ -63,7 +66,7 @@ export default function createLifecycle({ load, createService, log }) {
       return;
     }
 
-    baselineReady = true;
+    serveScript = (...args) => service.serveScript(...args);
     state = 'ready';
     const outcome = await warmOutcome;
     if ('error' in outcome) {
@@ -79,17 +82,21 @@ export default function createLifecycle({ load, createService, log }) {
     status() {
       return {
         state,
-        baselineReady,
+        baselineReady: serveScript !== undefined,
         fullyWarmed,
         ...errorCode === undefined ? {} : { errorCode },
       };
     },
     start() {
-      if (!started) started = prepare();
+      started ??= (async () => {
+        const result = await prepare();
+        if (result === false) started = undefined;
+        return result;
+      })();
       return started;
     },
-    serveScript(...args) {
-      if (baselineReady) return service.serveScript(...args);
+    get serveScript() {
+      return serveScript;
     },
   };
 }

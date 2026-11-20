@@ -42,3 +42,20 @@ throws(() => settingsFrom({ ...cache, CORE_JS_IMAGE_DIGEST: `sha256:../${ digest
   /CORE_JS_IMAGE_DIGEST/, 'container-settings-3 #3');
 throws(() => settingsFrom({ ...cache, CORE_JS_CACHE_DIR: '', CORE_JS_IMAGE_DIGEST: `sha256:${ digest }` }),
   /CORE_JS_CACHE_DIR/, 'container-settings-3 #4');
+
+const versioned = { CORE_JS_RELEASES_DIR: 'deploy/releases' };
+deepStrictEqual(settingsFrom(versioned), {
+  releases: { directory: 'deploy/releases', retentionSeconds: 604800 },
+  cacheDirectory: null, host: '0.0.0.0', port: 3000,
+}, 'container-releases-1 #1');
+deepStrictEqual(settingsFrom({ ...versioned, CORE_JS_RELEASE_RETENTION_SECONDS: '1' }).releases,
+  { directory: 'deploy/releases', retentionSeconds: 1 }, 'container-releases-1 #2');
+throws(() => settingsFrom({ ...versioned, ...cache }), /CORE_JS_MANIFEST_PATH/, 'container-releases-1 #3');
+throws(() => settingsFrom({ CORE_JS_RELEASES_DIR: '' }), /CORE_JS_RELEASES_DIR/, 'container-releases-1 #4');
+throws(() => settingsFrom({ ...cache, CORE_JS_RELEASE_RETENTION_SECONDS: '1' }),
+  /CORE_JS_RELEASES_DIR/, 'container-releases-1 #5');
+
+for (const value of ['', '0', '-1', '01', '1e3', ' 60', '9007199254740992', 60]) {
+  throws(() => settingsFrom({ ...versioned, CORE_JS_RELEASE_RETENTION_SECONDS: value }),
+    /CORE_JS_RELEASE_RETENTION_SECONDS/, `container-releases-1 #6: ${ value }`);
+}

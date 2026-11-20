@@ -108,3 +108,83 @@ Expect HTTP `200` with JavaScript, `Vary: User-Agent, Accept-Encoding`, and an `
 ## Update the service
 
 For a new manifest or image, start a replacement container without stopping the current one. Wait for your required readiness state, then switch the application's proxy to the replacement. Keep the old instance available until traffic has moved. The container does not perform that switch, and editing the mounted manifest does not update an already running instance.
+
+If the new application needs additional modules, add them to the existing manifest and
+roll it out to every container serving `/polyfills.js` before publishing the application.
+Keep modules that older pages still use. You can remove them in a later update, once visitors
+can no longer load those pages, including from cached HTML.
+
+## Use versioned URLs
+
+Use this mode when visitors can load several versions of the application, for example when
+some terminals are pinned to an older release, during a gradual rollout, or while old HTML
+is cached. Each version of the HTML points to the manifest for its own release. The container
+chooses a bundle for the requesting browser.
+
+Mount a readable directory at `/releases` and set `CORE_JS_RELEASES_DIR=/releases` in place of
+`CORE_JS_MANIFEST_PATH`. The container checks the directory at startup and about once a second
+afterward.
+The proxy should forward `/polyfills/` with the same headers and cache rules as `/polyfills.js`.
+If the app already uses `/polyfills.js`, route the new prefix to a versioned container alongside
+the existing container. Keep the fixed route available until visitors can no longer load HTML
+that uses it.
+
+1. Publish a manifest such as `release-42.json` in the directory. Use the same `modules` format
+   as above. Release IDs are 1 to 64 lowercase ASCII letters, digits, or hyphens, starting with
+   a letter or digit. Write the manifest to a temporary name in the same directory, then rename
+   it into place. Use a new ID for each release and keep each published manifest immutable.
+2. Wait for `GET /status/release-42` to report `baselineReady: true` on every container serving
+   the script. Then publish the HTML with a blocking tag before the application scripts.
+
+   ```html
+   <script src="/polyfills/release-42.js"></script>
+   ```
+
+### Keep several releases active
+
+A release stays active indefinitely while its manifest is present and it has no retirement
+marker. For example, terminals pinned to release 41 can keep receiving HTML with
+`/polyfills/release-41.js` while other terminals use `/polyfills/release-42.js` or a later release.
+Keep the manifests for all active releases on every replica.
+
+### Retire a release
+
+Once the origin stops serving a release's HTML to all users, add an empty file named
+`<release>.retired.<unix-seconds>` to record when that happened. For example, to retire
+`release-41` at the current time, run this in the mounted directory:
+
+```sh
+touch "release-41.retired.$(date +%s)"
+```
+
+Set `CORE_JS_RELEASE_RETENTION_SECONDS` to cover how long cached HTML can still be served after
+retirement. The default is seven days (604800 seconds). The container keeps serving the release
+until the recorded time plus the retention period, including across restarts. When removing
+expired releases from the directory, remove the manifest before its marker. Use the same files
+and retention setting across replicas.
+
+### Check release status
+
+`GET /status` reports the result of scanning the releases directory. If a scan fails, it
+reports `state: "error"` and `errorCode: "releases_unavailable"`. A release with a ready baseline
+can still serve its bundle when its manifest becomes unreadable. Pending warm-up waits for
+the affected files to become readable. A filesystem error while reading a manifest during
+preparation sets `errorCode: "manifest_unavailable"` in the release status. The container
+retries the read on a later scan.
+Once a listed marker reaches its deadline, the release stays unavailable while the container
+checks a missing marker target. A readable retirement marker confirms expiry.
+The container continues discovering other releases. Per-release status has the same fields
+as in single-manifest mode. Unknown or expired releases return `404` for both status and
+script requests. A known release whose baseline is still building returns `503` for the script.
+A failed release reports its own error code and leaves other releases available. Use a fresh
+release ID to stage a corrected manifest.
+
+Before switching traffic to a replacement versioned container, check its `GET /status/<release>`
+for every release whose URL still needs to work, including releases in their retention period.
+Wait for each release to report `baselineReady: true`.
+
+With disk caching enabled, each release has its own cache under
+`<cache-directory>/<image-digest>/releases/<release>` (the digest directory omits the
+`sha256:` prefix). Before removing a retired release's cache, wait until the release has
+expired on all containers using it and any warm-up in progress has finished or the container
+running it has stopped.
