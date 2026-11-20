@@ -3,6 +3,16 @@ const failures = require('./expected-failures');
 
 const expectedFailures = new Set(failures);
 
+const featuresExclude = [
+  'arraybuffer-transfer',
+  'error-stack-accessor',
+  'immutable-arraybuffer',
+  'regexp-duplicate-named-groups',
+  'regexp-modifiers',
+  'regexp-v-flag',
+  'resizable-arraybuffer',
+];
+
 const include = [
   'Array',
   // 'ArrayBuffer',
@@ -63,6 +73,7 @@ const exclude = [
 ];
 
 module.exports = test => {
+  if (test.attrs?.features && featuresExclude.some(feature => test.attrs.features.includes(feature))) return null;
   const file = test.file.replaceAll('\\', '/');
   if (!include.some(namespace => file.includes(`built-ins/${ namespace }/`))) return null;
   if (exclude.some(it => file.includes(it))) return null;

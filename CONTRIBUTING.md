@@ -138,7 +138,7 @@ You can run parts of the test case separately:
   ```sh
   npm run zxi time cd tests/test262/tests.mjs
   ```
-  To narrow a run, pass paths relative to `tests/test262`, for example `npm run test262 -- 'node_modules/test262/test/built-ins/Uint8Array/**/*.js'`.
+  To narrow a run, pass paths relative to `tests/test262`, for example `npm run test262 -- 'node_modules/test262/test/built-ins/Uint8Array/**/*.js'`. Each path or pattern must match a test file before exclusions are applied.
 - [Promises/A+](https://github.com/promises-aplus/promises-tests) and [ES6 `Promise`](https://github.com/promises-es6/promises-es6) test cases:
   ```sh
   npx run-s prepare test-promises

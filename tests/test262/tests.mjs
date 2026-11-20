@@ -56,6 +56,8 @@ try {
   const failure = 'throw new Error("This test must be excluded");\n';
   const fixtures = {
     'Array/prototype/map/probe.js': metadata + body,
+    'Array/prototype/map/.local/probe.js': metadata + body,
+    'Array/prototype/map/nested_FIXTURE/probe.js': metadata + failure,
     'Uint8Array/fromHex/probe.js': metadata + body,
     'Array/prototype/map/feature-excluded.js': metadata.replace('esid:', 'features: [regexp-v-flag]\nesid:') + failure,
     'DataView/prototype/setFloat16/immutable-buffer.js': metadata.replace('esid:', 'features: [immutable-arraybuffer]\nesid:') + failure,
@@ -65,20 +67,41 @@ try {
   for (const [file, contents] of Object.entries(fixtures)) {
     await fs.outputFile(path.join(test262Dir, 'test/built-ins', file), contents);
   }
+  await fs.outputFile(path.join(test262Dir, 'local/built-ins/Array/probe.js'), metadata + body);
   if (expectedFailures.length) {
     await fs.outputFile(path.join(test262Dir, 'test', expectedFailures[0]), metadata + failure);
   }
 
   const prelude = path.join(test262Dir, 'prelude.js');
-  // A leading dash in a real glob is part of the pattern.
-  const runFixture = () => within(() => {
+  const suite = path.basename(test262Dir);
+  const builtIns = `${ suite }/test/built-ins`;
+  const map = `${ builtIns }/Array/prototype/map`;
+  const runFixture = (...patterns) => within(() => {
     $.cwd = path.dirname(test262Dir);
-    return run([`${ path.basename(test262Dir) }/test/built-ins/**/*.js`], { test262Dir, prelude }).nothrow().quiet();
+    return run(patterns, { test262Dir, prelude }).nothrow().quiet();
   });
   await fs.writeFile(prelude, '');
-  const passed = await runFixture();
+  // A leading dash in a real glob is part of the pattern.
+  const passed = await runFixture(`${ builtIns }/**/*.js`);
   equal(passed.exitCode, 0, passed.toString());
   match(passed.stdout, /Ran 4 tests\s+4 passed\s+0 failed/);
+
+  const probe = path.sep === '/' ? 'pr\\obe.js' : 'probe.js';
+  const selected = await runFixture(`${ map }/${ probe }`, `${ map }/.local/probe.js`, `${ suite }/local/built-ins/Array/probe.js`);
+  equal(selected.exitCode, 0, selected.toString());
+  match(selected.stdout, /Ran 6 tests\s+6 passed\s+0 failed/);
+
+  const missing = await runFixture(`${ map }/Probe.js`, `${ map }/nested_FIXTURE/probe.js`);
+  equal(missing.exitCode, 1, missing.toString());
+  match(missing.stderr, /No Test262 files match .*Probe\.js/);
+  match(missing.stderr, /No Test262 files match .*nested_FIXTURE/);
+  const mixed = await runFixture(`${ map }/probe.js`, `${ builtIns }/**/missing-*.js`);
+  equal(mixed.exitCode, 1, mixed.toString());
+  match(mixed.stderr, /No Test262 files match .*missing-\*\.js/);
+
+  const excluded = await runFixture(`${ builtIns }/Function/prototype/toString/probe.js`, `${ map }/feature-excluded.js`);
+  equal(excluded.exitCode, 0, excluded.toString());
+  match(excluded.stdout, /Ran 0 tests/);
 
   await fs.writeFile(prelude, 'Array.prototype.map = function () { return []; };\n');
   const failed = await runFixture();
