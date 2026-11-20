@@ -1,4 +1,4 @@
-import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
+import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { mkdir, mkdtemp, readdir, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -36,6 +36,30 @@ deepStrictEqual(plan(null).byEngine.keys().toArray(), ['chrome', 'safari'], 'bui
 
 // the baseline comes from the range as a whole, never from one of the thresholds
 deepStrictEqual(plan(null).baseline.modules, ['es.a', 'es.b'], 'build-plan #4');
+
+const legacy = createService({ scope: ['es.array.at'], targets: { ie: '11' } });
+const modern = createService({ scope: ['es.array.at'], targets: { chrome: '80' } });
+deepStrictEqual(legacy.plan.baseline.modules, modern.plan.baseline.modules, 'buckets-3 #6');
+notStrictEqual(legacy.plan.baseline.bundleId, modern.plan.baseline.bundleId, 'buckets-3 #7');
+notStrictEqual(legacy.plan.byEngine.get('ie')[0].bundleId, modern.plan.byEngine.get('chrome')[0].bundleId,
+  'buckets-3 #8');
+
+// Also pin the identity of a non-baseline bucket. Changing its compilation floor
+// can leave its selected modules unchanged.
+function chromeBucket(floor) {
+  const options = { scope: ['es.array.at', 'es.object.group-by'], targets: { chrome: floor, ie: '11' } };
+  const { plan: browserPlan } = createService(options);
+  const [{ bundleId }] = browserPlan.byEngine.get('chrome');
+  return browserPlan.buckets.find(bucket => bucket.bundleId === bundleId);
+}
+const chrome100 = chromeBucket('100');
+const chrome110 = chromeBucket('110');
+deepStrictEqual(chrome100.modules, chrome110.modules, 'buckets-3 #9');
+notStrictEqual(chrome100.bundleId, chrome110.bundleId, 'buckets-3 #10');
+
+const serverOnly = createService({ scope: ['es.array.at'], targets: { node: '22' }, warn: noop });
+deepStrictEqual(serverOnly.plan.baseline.modules, ['es.array.at'], 'targets-1 #9');
+deepStrictEqual(plan({ node: '22', chrome: '90' }).baseline.targets, { chrome: '90' }, 'targets-1 #10');
 
 // and now the same thing over the real data: a small scope, thirteen engines, no fixtures
 const scope = ['es.array.at', 'es.object.group-by', 'es.string.replace-all', 'es.iterator.map'];

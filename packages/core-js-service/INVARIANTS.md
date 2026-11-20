@@ -111,14 +111,15 @@ trap below is named, and the suite names its assertions after them.
   does the declaration as a whole. The parser drops what it does not track silently: one key lost
   sends its visitors to the baseline, and a declaration from which NOTHING survived leaves an empty
   plan - every visitor on the baseline and the service quietly no longer doing the one thing it is
-  for. The keys are reported one by one, the empty whole once more
-- **buckets-1** - the same module list is the same bundle name, whichever engine asked for it and
-  whatever order the list arrived in
+  for. The baseline uses the same browser floors. An empty result uses the full core-js floor.
+  The keys are reported one by one, the empty whole once more
+- **buckets-1** - engines requiring the same module set share one bucket within the plan.
+  The builder receives the lowest version of each engine in that bucket
 - **buckets-2** - the matcher table and the warm-up list are two projections of one pass. Two
   passes could drift, and a matcher naming a bundle the warm-up never built means a build on the
   request path - the one thing the warm-up exists to prevent
 - **buckets-3** - the bundle name tells apart everything that tells the bytes apart: the module
-  list, both package versions, and `minify`. That address is served with `immutable` for a year,
+  list, the resolved compilation targets, package versions, and `minify`. That address is served with `immutable` for a year,
   so turning a constant into an option without hashing it serves the wrong file for that year, and
   nothing repairs it at the clients that cached it
 - **Every version that decides the BYTES is in the name, and the boundary is the published
@@ -335,13 +336,10 @@ The scenarios: they coordinate the domain and the infrastructure and carry no ru
 - **Unknown means the STORE does not have it**, not that the current plan does not name it. A page
   from the deploy before this one is already in a browser and its tag is parser-blocking, so a bundle
   the store still holds is served whoever planned it; how many deploys that survives is `retain`.
-- **A bundle name covers the module list, never the targets it was built for.** Inside the builder
-  `targets` decides the downleveling as well as the filtering, so one identifier can name ES5 bytes
-  in one generation and arrow functions in the next. An identifier THIS plan names is therefore
-  answered from THIS generation only - anything else hands the previous plan's syntax level to the
-  engine this plan routed there. An identifier the plan does not name has no such reader and is
-  served from wherever it survives.
-  Both misses cost a lookup in memory and nothing else
+- Each planned identifier is served from the current generation once all its representations are
+  ready. An old page can request an identifier outside the plan. Negotiation for that identifier
+  uses the valid representations on disk, including when its generation used different compression
+  settings or predates stored digests.
 
 ## UI
 
@@ -399,12 +397,11 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   is never even looked at. Express puts exactly that on the error page it generates for itself, and a
   browser asks for `/favicon.ico` unprompted - reporting it greets every first visit with a warning
   about pages that are fine
-- The last-resort anchor, the first `<script`, can be inside a comment or a string, and the tag
-  would go in there and never run. It is last for that reason - the anchors above it are the ones
-  that matter in practice
-- **What a second pass looks for is the TAG, not the address of the bundle.** A page that merely
-  links to it - a status page, a documentation sample - carries the address as well, and a bare
-  substring search leaves that page without polyfills and without a word
+- Insertion uses source offsets of parsed HTML elements. It preserves raw script text, comments
+  and inert template contents. An existing blocking classic script with the same source prevents
+  a second insertion. A charset declaration before the first script keeps its original position.
+- For script elements the effective CSP directive is `script-src-elem`, followed by `script-src`
+  and `default-src` in order of fallback.
 - **The route is pasted in front of `/<id>.js`, so it is normalized down to the empty string.**
   A route of `'/'` would otherwise produce `//<id>.js` - a protocol-relative URL, which sends the
   browser to a HOST named after the bundle instead of to us. The writer of the address (`urlOf`)
@@ -418,6 +415,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   the one that replaces it later ends up on the outside and sees the body first. The failure is
   silent - gzipped bytes, nothing inserted, no polyfills anywhere - so the gzip magic number is
   checked for and reported
+- A partial response keeps its original range and bytes. An already encoded body passes through
+  with its declared content coding.
 - **adapter-2** - the headers the insertion made wrong are repaired exactly when it happened and
   never otherwise. `Content-Length` no longer matches and cannot be recomputed - only the beginning
   of the response is held - and Express computes the `ETag` from the body BEFORE the edit, so a
@@ -431,6 +430,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   otherwise not name it. The field is APPENDED: `compression` puts `Accept-Encoding` there on the
   way out, an application that does its own device detection may already name
   `User-Agent`, and `*` covers everything a cache cannot see.
+  An injected response loses the source file's `Last-Modified`. Express must compare incoming
+  date validators against the delivered HTML, whose bundle address may change between deployments.
   When the headers cannot be repaired the tag is not inserted at all. `res.writeHead` puts them on
   the wire before the body is written, and from there a `Content-Length` that no longer matches
   CUTS the page off at the client - Express refuses the repair outright, which ends the response
@@ -470,7 +471,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
 - **Borrowed bytes are copied only when they outlive the call that brought them.** `res.write`
   reports the write as done through its callback, and a pooled stream reuses its buffer the moment
   it hears that - so what is held across calls has to be ours. What is flushed inside the same call
-  never is. And a chunk can be a `Uint8Array` rather than a Buffer or a string: `String(view)`
+  can still be in use by the socket: the final underlying write owns the callback and backpressure
+  propagates to the caller. And a chunk can be a `Uint8Array` rather than a Buffer or a string: `String(view)`
   turns one into the comma-separated list of its byte VALUES, destroying the response
 - **The buffered prefix is read and written back as latin1, not utf8.** latin1 is byte-preserving,
   so a multi-byte character split across two chunks survives; utf8 would replace the half we hold
@@ -509,7 +511,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   removes only directories shaped like a generation - a store pointed at a path holding anything else
   loses nothing of it - never the one being served, and never the `retain` newest of the rest (one by
   default; `0` keeps only the current, `null` prunes nothing). A failed warm-up preserves earlier
-  generations. Pruning picks candidates from one directory listing and skips generations another
+  generations. Reusing a cached baseline refreshes its activation time for subsequent rollbacks.
+  Pruning picks candidates from one directory listing and skips generations another
   instance has already removed. `has` therefore asks about the
   generation being served while `get` answers from any that is retained: a bundle inherited from an
   older generation would leave this one incomplete, and pruning the older one would then cost a

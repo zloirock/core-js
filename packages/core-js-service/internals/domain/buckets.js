@@ -5,11 +5,12 @@ import { compareVersions } from './target.js';
 // the name of a built bundle is a hash of everything that decides its bytes. the address it
 // becomes is served with `immutable` for a year, so anything that changes the bytes and stays out of
 // the hash serves the wrong file for that year, unfixable at the clients that cached it
-function toBundleId({ modules, versions, minify }) {
+function toBundleId({ modules, targets }, versions, minify) {
   const hash = createHash('sha256');
 
   hash.update(`core-js ${ versions.coreJS }\n@core-js/compat ${ versions.compat }\n`);
   hash.update(`@core-js/builder ${ versions.builder }\nminify ${ minify }\n`);
+  hash.update(`targets ${ canonical(targets) }\n`);
   // sorted where it is hashed, so that the same set is the same bundle whoever built the list
   for (const name of [...modules].sort()) hash.update(`${ name }\n`);
 
@@ -54,10 +55,10 @@ export default function buildBuckets({ targets, listModules, versions, minify, s
 
   for (const { engine, version, share } of targets.list) {
     const modules = listModules({ [engine]: version });
-    const bundleId = toBundleId({ modules, versions, minify });
+    const key = JSON.stringify(modules.toSorted());
 
-    let bucket = buckets.get(bundleId);
-    if (!bucket) buckets.set(bundleId, bucket = { bundleId, modules, targets: {}, share: 0 });
+    let bucket = buckets.get(key);
+    if (!bucket) buckets.set(key, bucket = { modules, targets: {}, share: 0 });
     bucket.share += share;
 
     // the whole target set of the bucket, because the builder decides the downleveling from it.
@@ -68,22 +69,26 @@ export default function buildBuckets({ targets, listModules, versions, minify, s
 
     let entries = byEngine.get(engine);
     if (!entries) byEngine.set(engine, entries = []);
-    entries.push({ version, bundleId });
+    entries.push({ version, bucket });
   }
 
-  for (const entries of byEngine.values()) entries.sort((a, b) => compareVersions(a.version, b.version));
+  // Only the completed bucket knows every target that the builder will compile for.
+  const baseline = { modules: listModules(targets.range), targets: targets.range };
+  baseline.bundleId = toBundleId(baseline, versions, minify);
 
-  // the baseline comes from the declared range as a whole, never from a threshold: it is what a
-  // visitor gets whenever the plan has nothing better
-  const baselineModules = listModules(targets.range);
+  const baselineKey = JSON.stringify(baseline.modules.toSorted());
+  for (const [key, bucket] of buckets) {
+    // The baseline already covers every declared engine that needs this same set.
+    bucket.bundleId = key === baselineKey ? baseline.bundleId : toBundleId(bucket, versions, minify);
+  }
+  for (const [engine, entries] of byEngine) {
+    entries.sort((a, b) => compareVersions(a.version, b.version));
+    byEngine.set(engine, entries.map(({ version, bucket }) => ({ version, bundleId: bucket.bundleId })));
+  }
 
   return {
     generation: toGenerationId({ scope, exclude, declaration: targets.range, versions, minify, compression }),
-    baseline: {
-      bundleId: toBundleId({ modules: baselineModules, versions, minify }),
-      modules: baselineModules,
-      targets: targets.range,
-    },
+    baseline,
     byEngine,
     buckets: buckets.values().toArray(),
   };

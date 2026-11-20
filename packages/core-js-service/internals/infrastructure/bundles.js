@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { brotliCompress, gzip } from 'node:zlib';
@@ -123,12 +123,20 @@ export default function createBundles({ directory = null, generation, compressio
       if (!Array.isArray(modules)) return;
 
       const representations = new Map();
-      for (const encoding of encodings) {
-        const stored = representation(await readFile(join(from, bundleId + REPRESENTATIONS[encoding].extension)));
-        // Sidecars written before digests were recorded still work with retained bundle URLs.
-        if (digests !== undefined && digests?.[encoding] !== stored.digest) return;
-        representations.set(encoding, stored);
+      const current = storedIn === generation;
+      // A retained generation may predate digests or have used different encodings.
+      for (const encoding of current ? encodings : Object.keys(REPRESENTATIONS)) {
+        if (!current && digests !== undefined && !Object.hasOwn(digests ?? {}, encoding)) continue;
+        try {
+          const stored = representation(await readFile(join(from, bundleId + REPRESENTATIONS[encoding].extension)));
+          if (digests === undefined || digests?.[encoding] === stored.digest) {
+            representations.set(encoding, stored);
+          }
+        } catch (error) {
+          if (current || error.code !== 'ENOENT') throw error;
+        }
       }
+      if (!representations.size || (current && representations.size !== encodings.length)) return;
       memory.set(bundleId, { modules: Object.freeze(modules), representations, generation: storedIn });
     } catch { /* absent, or half-written by a build that died: this process will build it */ }
   }
@@ -139,13 +147,15 @@ export default function createBundles({ directory = null, generation, compressio
     return memory.get(bundleId) ?? null;
   }
 
-  async function getRepresentation(bundleId, encoding) {
-    return (await find(bundleId))?.representations.get(encoding) ?? null;
+  async function getRepresentations(bundleId, currentOnly = false) {
+    const bundle = await find(bundleId);
+    if (currentOnly && bundle?.generation !== generation) return null;
+    return bundle?.representations ?? null;
   }
 
   return {
     encodings,
-    getRepresentation,
+    getRepresentations,
     generation,
 
     // in the generation being SERVED, where `get` answers from any generation still retained: a
@@ -160,8 +170,8 @@ export default function createBundles({ directory = null, generation, compressio
     // bytes, never a path, and asynchronous even where the implementation is not - a path would
     // pin the store to a local disk forever
     async get(bundleId, encoding) {
-      const stored = await getRepresentation(bundleId, encoding);
-      if (stored === null) return null;
+      const stored = (await getRepresentations(bundleId))?.get(encoding);
+      if (stored === undefined) return null;
       // the public copy needs its own backing memory to keep stored bytes and digest in sync
       const bytes = Buffer.alloc(stored.bytes.length);
       stored.bytes.copy(bytes);
@@ -191,6 +201,16 @@ export default function createBundles({ directory = null, generation, compressio
       const bundle = { modules: Object.freeze([...modules]), representations, generation };
       memory.set(bundleId, bundle);
       await writeBundle(bundleId, bundle);
+    },
+
+    async activate() {
+      if (root === null) return;
+      try {
+        const now = new Date();
+        await utimes(join(root, generation), now, now);
+      } catch (error) {
+        warn('bundles:no-activation-time', `the current generation's activation time could not be recorded (${ error.message })`);
+      }
     },
 
     // the generation being served is never removed, and neither are the `retain` newest of the

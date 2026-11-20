@@ -32,7 +32,9 @@ export default function createWarm(plan, { bundles, build, warn, concurrency = C
 
     // most of the traffic sits in a handful of buckets
     async buckets() {
-      const queue = plan.buckets.toSorted((a, b) => b.share - a.share);
+      const queue = plan.buckets
+        .filter(bucket => bucket.bundleId !== plan.baseline.bundleId)
+        .sort((a, b) => b.share - a.share);
       const built = [];
       const failed = [];
       // a cursor rather than `shift`, which reindexes what it leaves behind. nothing awaits between

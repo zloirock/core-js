@@ -93,5 +93,5 @@ export default function collectTargets({ data, declaration = null, shares = null
       + 'built per browser and every visitor gets the baseline');
   }
 
-  return { range: declaration, list };
+  return { range: floors?.size ? Object.fromEntries(floors) : null, list };
 }

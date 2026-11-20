@@ -35,27 +35,43 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
   const head = [];
   let size = 0;
 
+  // Express checks freshness before its first write. An HTML file's timestamp
+  // can survive a deployment that changes the injected bundle address.
+  if (request.headers['if-modified-since'] && !request.headers.range
+    && (request.method === 'GET' || request.method === 'HEAD')) {
+    const { getHeader } = response;
+    response.getHeader = function (name) {
+      if (name.toLowerCase() === 'last-modified' && isHTML(this)) return undefined;
+      return getHeader.call(this, name);
+    };
+    original.getHeader = getHeader;
+  }
+
   // putting the originals back is what ends the interception: from here on the application's calls
   // reach them directly, and neither of the two closures below runs again
   function restore() {
+    if (original.getHeader) response.getHeader = original.getHeader;
     response.end = original.end;
     response.write = original.write;
   }
 
   // the three ways the insertion is given up on: the beginning goes out exactly as it arrived, and
   // the developer is told once - a page without polyfills is a page, but nobody can see it is one
-  function giveUp(condition, message) {
+  function giveUp(condition, message, callback) {
     warn(condition, message);
 
-    return writeOut(0);
+    return writeOut(0, null, callback);
   }
 
-  function flush() {
+  function flush(callback) {
     restore();
 
     // nothing was written, so there is no document to put a tag into - and a response with no
     // body must not be given one: a 304 with a body is a protocol violation
     if (!size) return true;
+    if (response.statusCode === 206 || response.getHeader('content-range') !== undefined) {
+      return writeOut(0, null, callback);
+    }
 
     // only the beginning is ever looked at, so only the beginning is joined and decoded: doing it
     // to everything held would make three full passes over the whole response to read its first
@@ -65,10 +81,12 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
     // both this and `compression` replace `res.write`, and the one that replaces it LATER sees the
     // body first - so this middleware is registered AFTER it. the failure is silent: gzipped
     // bytes, nothing inserted, no polyfills anywhere
-    if (prefix.length > 1 && prefix.readUInt16BE(0) === GZIP) {
+    const encoding = response.getHeader('content-encoding');
+    const alreadyEncoded = !response.headersSent && encoding && String(encoding).trim().toLowerCase() !== 'identity';
+    if (alreadyEncoded || (prefix.length > 1 && prefix.readUInt16BE(0) === GZIP)) {
       return giveUp('adapter:compressed', 'the HTML response was already compressed when it reached the '
         + 'polyfill middleware, so no polyfill tag could be inserted - register this middleware AFTER '
-        + '`compression`, not before it');
+        + '`compression`, not before it', callback);
     }
 
     // latin1, not utf8: it is byte-preserving, so a multi-byte character split across two chunks
@@ -88,7 +106,7 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
       });
     } catch (error) {
       return giveUp('adapter:tag-failed', `the polyfill tag could not be built (${ error.message }), so `
-        + 'the page is served exactly as it would be without this middleware');
+        + 'the page is served exactly as it would be without this middleware', callback);
     }
 
     // the headers the insertion made wrong: the length and the `ETag` were computed before the edit,
@@ -101,11 +119,12 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
       if (response.headersSent) {
         return giveUp('adapter:headers-sent', 'the response headers were already sent when the polyfill '
           + 'tag was ready, so no tag could be inserted - `Content-Length` would no longer match the '
-          + 'body. Set the headers with `res.setHeader` rather than `res.writeHead`');
+          + 'body. Set the headers with `res.setHeader` rather than `res.writeHead`', callback);
       }
 
       response.removeHeader('content-length');
       response.removeHeader('etag');
+      response.removeHeader('last-modified');
 
       if (config.delivery !== 'fixed') {
         varyBy(response, 'user-agent');
@@ -113,27 +132,25 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
       }
     }
 
-    original.write.call(response, Buffer.from(patched, 'latin1'));
-
-    return writeOut(prefix.length);
+    return writeOut(prefix.length, Buffer.from(patched, 'latin1'), callback);
   }
 
   // everything past the beginning leaves as it arrived: never decoded, never copied
-  function writeOut(from) {
-    let skip = from;
-    let isWritten = true;
-
+  function writeOut(skip, first, callback) {
+    let pending = first;
+    let writable = true;
     for (const chunk of head) {
       if (skip >= chunk.length) {
         skip -= chunk.length;
         continue;
       }
-
-      isWritten = original.write.call(response, skip ? chunk.subarray(skip) : chunk);
+      if (pending && !original.write.call(response, pending)) writable = false;
+      pending = chunk.subarray(skip);
       skip = 0;
     }
 
-    return isWritten;
+    // The last write owns the callback, including when the prefix is the entire body.
+    return original.write.call(response, pending, callback) && writable;
   }
 
   function collect(chunk, encoding) {
@@ -177,8 +194,8 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
 
     if (chunk) collect(chunk, encoding);
 
-    if (size >= HTML_PREFIX) flush();
-    else copyLastChunk();
+    if (size >= HTML_PREFIX) return flush(callback);
+    copyLastChunk();
 
     if (callback) callback();
 

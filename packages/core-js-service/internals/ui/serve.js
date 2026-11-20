@@ -46,13 +46,13 @@ function rankFrom({ quality, wildcard }) {
 // the adapter wrote it into the tag
 export default function createServe({ getBundle, encodings, baselineId, urlOf, warn }) {
   return async function serve(request, response, bundleId) {
-    const encoding = negotiate(request.headers['accept-encoding'], encodings);
+    const bundle = await getBundle(bundleId);
+    const available = bundle.state === 'ready' ? bundle.representations.keys().toArray() : encodings;
+    const encoding = negotiate(request.headers['accept-encoding'], available);
 
     // a client that has refused everything we hold, `*;q=0` and all. a degenerate case and a
     // client-side mistake: an ordinary proxy asking for `identity` is served the uncompressed copy
     if (encoding === null) return end(response, 406);
-
-    const bundle = await getBundle(bundleId, encoding);
 
     // an unknown identifier is a 404 and nothing else - no building, no searching. otherwise the
     // path is an amplifier: a cheap request against expensive work
@@ -82,7 +82,7 @@ export default function createServe({ getBundle, encodings, baselineId, urlOf, w
     // always, because at least two encodings are stored and the answer therefore depends on the
     // header by construction - and added to what the rest of the stack already said it varies by
     varyBy(response, 'accept-encoding');
-    send(request, response, bundle.bytes, encoding, `"${ bundleId }-${ encoding }"`);
+    send(request, response, bundle.representations.get(encoding).bytes, encoding, `"${ bundleId }-${ encoding }"`);
   };
 }
 
@@ -95,13 +95,13 @@ export function createServeScript({ getBundle, encodings, baselineId, chooseBund
     if (encoding === null) return end(response, 406);
 
     let bundleId = chooseBundle(request.headers);
-    let bundle = await getBundle(bundleId, encoding);
+    let bundle = await getBundle(bundleId);
 
     // a bucket still warming is the baseline's bytes under this same address: the address promises
     // no particular bundle, so there is nothing to redirect to
     if (bundle.state !== 'ready' && bundleId !== baselineId) {
       bundleId = baselineId;
-      bundle = await getBundle(bundleId, encoding);
+      bundle = await getBundle(bundleId);
     }
 
     if (bundle.state !== 'ready') {
@@ -119,8 +119,9 @@ export function createServeScript({ getBundle, encodings, baselineId, chooseBund
     varyBy(response, 'accept-encoding');
     // package versions and plan inputs can stay the same across image builds. the digest covers
     // the actual representation so an older image's bytes cannot be confirmed with a 304
-    const etag = `"${ generation }-${ bundleId }-${ encoding }-${ bundle.digest }"`;
-    send(request, response, bundle.bytes, encoding, etag);
+    const { bytes, digest } = bundle.representations.get(encoding);
+    const etag = `"${ generation }-${ bundleId }-${ encoding }-${ digest }"`;
+    send(request, response, bytes, encoding, etag);
   };
 }
 

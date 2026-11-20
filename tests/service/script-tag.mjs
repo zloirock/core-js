@@ -129,3 +129,25 @@ strictEqual(withPolicy('default-src').markup, '<head>', 'script-tag-3 #16');
 // a directive that only STARTS like one of ours is not one of ours
 strictEqual(withPolicy('default-src-foo').markup,
   '<head><script src="/__core-js/abc.js"></script>', 'script-tag-3 #17');
+
+const opening = '<!doctype html><head>';
+const tag = `<script src="${ SRC }"></script>`;
+for (const content of [
+  '<script>const template = "<meta charset=utf-8>";</script>',
+  '<title>Example: <meta charset=utf-8></title>',
+  '<template><meta charset="utf-8"></template>',
+  '<script src="/app.js"></script><meta charset="utf-8">',
+]) strictEqual(tagged(opening + content), opening + tag + content, 'script-tag-2 #4');
+
+for (const content of [
+  `<!-- ${ tag } -->`,
+  `<template>${ tag }</template>`,
+  `<script type="application/json" src="${ SRC }"></script>`,
+  `<img src="${ SRC }">`,
+]) strictEqual(tagged(opening + content), opening + tag + content, 'script-tag-1 #9');
+const installed = `${ opening }<SCRIPT type=text/javascript SRC='${ SRC }'></SCRIPT>`;
+strictEqual(tagged(installed), installed, 'script-tag-1 #10');
+
+strictEqual(withPolicy("script-src 'none'; script-src-elem 'self'").markup, tagged('<head>'), 'script-tag-3 #18');
+strictEqual(withPolicy("script-src-elem 'self'; script-src 'none'").markup, tagged('<head>'), 'script-tag-3 #19');
+strictEqual(withPolicy("script-src 'self'; script-src-elem 'none'").markup, '<head>', 'script-tag-3 #20');

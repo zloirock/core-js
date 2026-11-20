@@ -87,7 +87,7 @@ try {
   strictEqual((await restarted.get('abc', 'identity')).toString('utf8'), SCRIPT, 'bundles #12');
   deepStrictEqual(await restarted.modules('abc'), ['es.array.at'], 'bundles #13');
   for (const encoding of disk.encodings) {
-    deepStrictEqual(await restarted.getRepresentation('abc', encoding), await disk.getRepresentation('abc', encoding),
+    deepStrictEqual((await restarted.getRepresentations('abc')).get(encoding), (await disk.getRepresentations('abc')).get(encoding),
       'bundles-5 #1');
   }
   strictEqual(await restarted.has('missing'), false, 'bundles #14');
@@ -155,8 +155,8 @@ try {
     const reloaded = store({ directory: compressedDirectory, compression });
     strictEqual(await reloaded.has('abc'), true, 'bundles-4 #15');
     for (const encoding of compressed.encodings) {
-      deepStrictEqual(await reloaded.getRepresentation('abc', encoding),
-        await compressed.getRepresentation('abc', encoding), 'bundles-5 #2');
+      deepStrictEqual((await reloaded.getRepresentations('abc')).get(encoding),
+        (await compressed.getRepresentations('abc')).get(encoding), 'bundles-5 #2');
     }
   }
 

@@ -1,4 +1,8 @@
 import { deepStrictEqual, match, notStrictEqual, ok, strictEqual } from 'node:assert/strict';
+import { brotliCompress } from 'node:zlib';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import compression from 'compression';
 import express from 'express';
@@ -525,3 +529,49 @@ const carrier = polyfillService({ scope: SCOPE });
 strictEqual(typeof carrier.service.chooseBundle({ 'user-agent': CHROME }), 'string', 'adapter #28');
 strictEqual(carrier.service.urlOf(carrier.service.plan.baseline.bundleId),
   `/__core-js/${ carrier.service.plan.baseline.bundleId }.js`, 'adapter #37');
+
+const directory = await mkdtemp(join(tmpdir(), 'core-js-static-'));
+await writeFile(join(directory, 'index.html'), PAGE);
+await writeFile(join(directory, 'data.txt'), 'unchanged');
+const compressedPage = await promisify(brotliCompress)(Buffer.from(PAGE));
+let writable;
+const staticSite = await serve((app, middleware) => {
+  app.use(middleware({ targets: { ie: '11' } }));
+  app.get('/compressed', (request, response) => {
+    response.type('html').set('Content-Encoding', 'br').end(compressedPage);
+  });
+  app.get('/pooled', (request, response) => {
+    const bytes = Buffer.alloc(256 * 1024, 'a');
+    response.type('html');
+    writable = response.write(bytes, () => bytes.fill(0));
+    response.end();
+  });
+  app.use(express.static(directory));
+});
+try {
+  const compressed = await staticSite.get('/compressed', { 'accept-encoding': 'br' });
+  strictEqual(await compressed.text(), PAGE, 'adapter-1 #7');
+
+  const pooled = await staticSite.get('/pooled', {});
+  ok((await pooled.text()).endsWith('a'.repeat(256 * 1024)), 'adapter-3 #5');
+  strictEqual(writable, false, 'adapter-3 #6');
+
+  const partial = await staticSite.get('/', { range: 'bytes=0-14' });
+  strictEqual(partial.status, 206, 'adapter-2 #24');
+  strictEqual(await partial.text(), PAGE.slice(0, 15), 'adapter-2 #17');
+  strictEqual(partial.headers.get('content-range'), `bytes 0-14/${ PAGE.length }`, 'adapter-2 #18');
+
+  const full = await staticSite.get('/', {});
+  strictEqual(full.headers.get('last-modified'), null, 'adapter-2 #19');
+  const text = await staticSite.get('/data.txt', {});
+  const date = text.headers.get('last-modified');
+  ok(date, 'adapter-2 #20');
+  const conditional = { 'if-modified-since': date, 'cache-control': 'max-age=0' };
+  strictEqual((await staticSite.get('/data.txt', conditional)).status, 304, 'adapter-2 #21');
+  const changed = await staticSite.get('/', conditional);
+  strictEqual(changed.status, 200, 'adapter-2 #22');
+  ok(srcOf(await changed.text()), 'adapter-2 #23');
+} finally {
+  await staticSite.close();
+  await rm(directory, { recursive: true, force: true });
+}

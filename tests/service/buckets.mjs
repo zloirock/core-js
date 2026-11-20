@@ -141,3 +141,5 @@ function ordered(range) {
 
 strictEqual(ordered({ chrome: '80', edge: '110' }).generation, ordered({ edge: '110', chrome: '80' }).generation,
   'buckets-4 #6');
+
+strictEqual(plan.byEngine.get('chrome')[0].bundleId, plan.baseline.bundleId, 'buckets-2 #4');

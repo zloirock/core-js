@@ -45,7 +45,7 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     listModules: createListModules(config),
     warn,
   });
-  const { getRepresentation, ...bundles } = createBundles({
+  const { activate, getRepresentations, ...bundles } = createBundles({
     directory: config.directory,
     generation: plan.generation,
     compression: config.compression,
@@ -54,11 +54,17 @@ export default function createService({ warn: warnSink, ...options } = {}) {
   });
   const identify = createResolver({ parseUserAgent });
   const warm = createWarm(plan, { bundles, build: createBuilder(config), warn });
-  const getBundle = createGetBundle(plan, { has: bundles.has, getRepresentation });
+  const getBundle = createGetBundle(plan, getRepresentations);
   const chooseBundle = createChooseBundle(plan, { resolve: identify });
   const scriptUrl = `${ config.route }/${ SCRIPT_NAME }`;
   function urlOf(bundleId) {
     return `${ config.route }/${ bundleId }.js`;
+  }
+
+  async function startBaseline() {
+    const built = await warm.baseline();
+    await activate();
+    return built;
   }
 
   let started = null;
@@ -102,7 +108,7 @@ export default function createService({ warn: warnSink, ...options } = {}) {
     // requests wait for, and `warmed` is the rest of the plan, which nothing waits for
     start() {
       if (started === null) {
-        const ready = warm.baseline();
+        const ready = startBaseline();
         const warmed = warmAndPrune(ready, warm, bundles);
 
         markHandled(ready);

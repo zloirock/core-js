@@ -1,4 +1,8 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
+import { mkdtemp, rm, utimes } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import createService from '@core-js/service';
 import createGetBundle from '../../packages/core-js-service/internals/application/get-bundle.js';
 import createServe, { createServeScript, negotiate } from '../../packages/core-js-service/internals/ui/serve.js';
 
@@ -35,16 +39,13 @@ strictEqual(negotiate(`${ 'z'.repeat(2000) }, gzip`, ['br', 'gzip']), 'br', 'ser
 
 const BYTES = Buffer.from('!function () {}();');
 
-function store(has) {
-  return {
-    // the store answers this for the generation it SERVES; the stub holds one generation, so what it
-    // has under any encoding is what it has
-    async has(bundleId) {
-      return [...has].some(key => key.startsWith(`${ bundleId } `));
-    },
-    async getRepresentation(bundleId, encoding) {
-      return has.has(`${ bundleId } ${ encoding }`) ? { bytes: BYTES, digest: 'fixture' } : null;
-    },
+function store(ready) {
+  return async bundleId => {
+    const representations = new Map();
+    for (const encoding of STORED) {
+      if (ready.has(`${ bundleId } ${ encoding }`)) representations.set(encoding, { bytes: BYTES, digest: 'fixture' });
+    }
+    return representations.size ? representations : null;
   };
 }
 
@@ -144,16 +145,12 @@ await previous.serve(outlived.request, outlived.response, 'left-behind');
 strictEqual(outlived.response.statusCode, 200, 'get-bundle-1 #6');
 strictEqual(outlived.response.headers.etag, '"left-behind-gzip"', 'get-bundle-1 #7');
 
-// and the same identifier held by an OLDER generation does not count as warm: the name covers the
-// module list, never the targets it was built for, so those bytes carry the previous plan's syntax
-// level. the visitor this plan routed here goes to the baseline until our own copy exists
+// A planned bundle waits for this generation to have all its configured encodings.
 const retained = {
   serve: createServe({
-    getBundle: createGetBundle(plan, {
-      // held on disk from a retained generation, but not in the one being served
-      async has() { return false; },
-      async getRepresentation() { return { bytes: BYTES, digest: 'fixture' }; },
-    }),
+    getBundle: createGetBundle(plan, async (bundleId, currentOnly) => currentOnly
+      ? null
+      : new Map([['gzip', { bytes: BYTES, digest: 'fixture' }]])),
     encodings: STORED,
     baselineId: 'base',
     urlOf: bundleId => `/__core-js/${ bundleId }.js`,
@@ -268,9 +265,7 @@ await script.serveScript(again.request, again.response);
 strictEqual(again.response.statusCode, 304, 'serve-3 #2');
 strictEqual(again.response.body, undefined, 'serve-3 #3');
 
-// the identifier names the module list, not the targets it was built for: after a deploy the same
-// identifier can carry another syntax level, so a tag without the generation would confirm the
-// previous deploy's bytes with a 304
+// The fixed address must revalidate across generations even when the selected bucket is unchanged.
 const next = fixed({ generation: 'g2' });
 const redeployed = answer({ 'accept-encoding': 'gzip', 'if-none-match': '"g1-warm-gzip-fixture"' });
 
@@ -321,3 +316,37 @@ await script.serveScript(merged.request, merged.response);
 strictEqual(merged.response.headers.vary, 'origin, user-agent, accept-encoding', 'serve-4 #16');
 
 ok(script.reported.length === 0, 'serve-4 #17');
+
+const directory = await mkdtemp(join(tmpdir(), 'core-js-deployments-'));
+async function deploy(module, compression) {
+  const service = createService({ directory, targets: { ie: '11' }, scope: [module], compression });
+  await service.start().warmed;
+  return service;
+}
+try {
+  const a = await deploy('es.array.at');
+  const b = await deploy('es.object.group-by', { br: true, gzip: true, identity: true });
+  const oldId = a.plan.baseline.bundleId;
+  for (const [header, expected] of [['identity', undefined], ['br, gzip', 'gzip']]) {
+    const result = answer({ 'accept-encoding': header });
+    await b.serve(result.request, result.response, oldId);
+    strictEqual(result.response.statusCode, 200, 'get-bundle-1 #11');
+    strictEqual(result.response.headers['content-encoding'], expected, 'get-bundle-1 #12');
+    deepStrictEqual(result.response.body, await a.bundles.get(oldId, expected ?? 'identity'), 'get-bundle-1 #13');
+  }
+  const unsupported = answer({ 'accept-encoding': 'br, identity;q=0' });
+  await b.serve(unsupported.request, unsupported.response, oldId);
+  strictEqual(unsupported.response.statusCode, 406, 'get-bundle-1 #14');
+
+  // Set distinct deployment times even on filesystems with a coarse clock.
+  const earlier = new Date(Date.now() - 120_000);
+  const later = new Date(Date.now() - 60_000);
+  await utimes(join(directory, a.plan.generation), earlier, earlier);
+  await utimes(join(directory, b.plan.generation), later, later);
+  await deploy('es.array.at');
+  const c = await deploy('es.string.replace-all');
+  deepStrictEqual(await c.bundles.get(oldId, 'identity'), await a.bundles.get(oldId, 'identity'), 'bundles-4 #21');
+  strictEqual(await c.bundles.get(b.plan.baseline.bundleId, 'identity'), null, 'bundles-4 #22');
+} finally {
+  await rm(directory, { recursive: true, force: true });
+}
