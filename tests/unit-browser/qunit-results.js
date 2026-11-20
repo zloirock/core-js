@@ -10,11 +10,30 @@
   var SETTLE_TIME = 1000;
   var settle;
   var results = { done: false, failures: [] };
+  var parse = QUnit.dump.parse;
+
+  // QUnit's HTML reporter dumps the values before our log callback runs.
+  QUnit.dump.parse = function (value, type, stack) {
+    var depth = this.depth;
+    try {
+      var text = parse.call(this, value, type, stack);
+      return typeof text === 'string' ? text : String(value);
+    } catch (error) {
+      // Unwind the recursive dump before restoring its indentation depth.
+      if (stack) throw error;
+      this.depth = depth;
+      return '[unprintable]';
+    }
+  };
 
   function dump(value) {
     var text = QUnit.dump.parse(value);
-    if (typeof text !== 'string') text = String(value);
     return text.length > VALUE_LIMIT ? text.slice(0, VALUE_LIMIT) + '...' : text;
+  }
+
+  function resetDone() {
+    if (settle) clearTimeout(settle);
+    results.done = false;
   }
 
   QUnit.log(function (details) {
@@ -28,6 +47,7 @@
   });
 
   QUnit.testStart(function (details) {
+    resetDone();
     results.currentTest = { module: details.module, test: details.name };
   });
 
@@ -36,9 +56,9 @@
   });
 
   QUnit.done(function (details) {
+    resetDone();
     results.failed = details.failed;
     results.total = details.total;
-    clearTimeout(settle);
     settle = setTimeout(function () {
       results.done = true;
     }, SETTLE_TIME);
