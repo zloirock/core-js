@@ -60,6 +60,9 @@ export const NODE_EMPTY_DATA_VIEW_BUG = NODE && nodeVersion[0] === '0' && (nodeV
 export const NODE_TYPED_ARRAY_SET_NUMBER_BUG = NODE && GLOBAL.process.versions.node === '0.11.4';
 // NodeJS 0.11.4-0.11.8 (V8 3.20-3.21): native `ArrayBuffer.prototype.slice` takes the length from an own `byteLength`.
 export const NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG = NODE && /^3\.2[01]\./.test(GLOBAL.process.versions.v8);
+// Node.js 17-20 throws a TypeError for a MessagePort omitted from the transfer list.
+// https://github.com/nodejs/node/issues/40841
+export const NODE_MESSAGE_PORT_TYPE_ERROR = NODE && !DENO && nodeVersion[0] >= 17 && nodeVersion[0] < 21;
 
 const $TYPED_ARRAYS = {
   Float32Array: 4,

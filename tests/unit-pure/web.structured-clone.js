@@ -1,7 +1,7 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
 /* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
-import { DESCRIPTORS, GLOBAL, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, NODE, NODE_MESSAGE_PORT_TYPE_ERROR, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
@@ -1247,9 +1247,8 @@ QUnit.module('structuredClone', () => {
     const channel = fromSource('new MessageChannel()');
     if (channel) {
       try {
-        // Old NodeJS throws a TypeError for a MessagePort omitted from the transfer list.
-        // https://github.com/nodejs/node/issues/40841
-        assert.throws(() => structuredClone(channel.port1), error => error.name === 'DataCloneError' || NODE && error instanceof TypeError, 'MessagePort');
+        assert.throws(() => structuredClone(channel.port1), error => error.name === 'DataCloneError'
+          || NODE_MESSAGE_PORT_TYPE_ERROR && error instanceof TypeError && error.code === 'ERR_MISSING_TRANSFERABLE_IN_TRANSFER_LIST', 'MessagePort');
       } finally {
         channel.port1.close();
         channel.port2.close();
