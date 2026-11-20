@@ -42,7 +42,6 @@ core-js/modules/es.map.get-or-insert
 core-js/modules/es.map.get-or-insert-computed
 core-js/modules/es.map.species
 core-js/modules/es.number.is-finite
-core-js/modules/es.number.is-nan
 core-js/modules/es.object.assign
 core-js/modules/es.object.entries
 core-js/modules/es.object.get-own-property-descriptor

@@ -30,12 +30,12 @@ core-js/modules/es.map.get-or-insert-computed
 core-js/modules/es.map.species
 core-js/modules/es.math.to-string-tag
 core-js/modules/es.number.constructor
-core-js/modules/es.number.is-nan
 core-js/modules/es.number.parse-int
 core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor
 core-js/modules/es.object.get-own-property-descriptors
 core-js/modules/es.object.get-own-property-symbols
+core-js/modules/es.object.get-prototype-of
 core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.set-prototype-of

@@ -2584,6 +2584,23 @@ const markdown = {
   '@stylistic/max-len': [ERROR, { ...base['@stylistic/max-len'][1], code: 200 }],
 };
 
+const e2eHarness = {
+  ...useES5Syntax,
+  ...forbidModernBuiltIns,
+  // the three the shared ES2015 set omits, and `no-undef` cannot stand in for them: flat config
+  // MERGES `languageOptions.globals` across every matching block, so an earlier one goes on
+  // declaring the modern globals whatever this one lists. Named here rather than added to the
+  // shared set, which core-js's own `Map`/`Set` sources are held to
+  'es/no-map': ERROR,
+  'es/no-set': ERROR,
+  'es/no-weak-map': ERROR,
+};
+
+// Flat config merges globals. Remove host-only names inherited from the common binding.
+const e2eHarnessHostGlobals = Object.fromEntries(Object.keys({ ...globals.node, ...globals.worker })
+  .filter(name => !Object.hasOwn(globals.browser, name) && !Object.hasOwn(globals.es5, name))
+  .map(name => [name, 'off']));
+
 const globalsESNext = {
   AsyncIterator: READONLY,
 };
@@ -2884,23 +2901,14 @@ export default [
       ecmaVersion: 5,
       sourceType: 'script',
       globals: {
+        ...e2eHarnessHostGlobals,
         ...globals.es5,
         ...globals.browser,
         E2E: READONLY,
         QUnit: READONLY,
       },
     },
-    rules: {
-      ...useES5Syntax,
-      ...forbidModernBuiltIns,
-      // the three the shared ES2015 set omits, and `no-undef` cannot stand in for them: flat config
-      // MERGES `languageOptions.globals` across every matching block, so an earlier one goes on
-      // declaring the modern globals whatever this one lists. Named here rather than added to the
-      // shared set, which core-js's own `Map`/`Set` sources are held to
-      'es/no-map': ERROR,
-      'es/no-set': ERROR,
-      'es/no-weak-map': ERROR,
-    },
+    rules: e2eHarness,
   },
   {
     files: tsFiles,

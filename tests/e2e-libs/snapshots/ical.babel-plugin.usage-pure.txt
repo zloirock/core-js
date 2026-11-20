@@ -14,7 +14,6 @@
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/map/constructor
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-property
 @core-js/pure/full/object/entries

@@ -15,6 +15,8 @@ if (!process.env.SHARD_PROTOCOL_SILENT) {
   else emitShardSummary({
     passed: Number(index) + 1,
     // the package name is what the old `[^@]*` marker cut short; `@@` inside used to end the match early
-    rows: [{ shard: Number(index), error: 'Cannot find module @rollup/plugin-babel @@ inside, ends with @' }],
+    rows: [{ shard: Number(index), error: 'Cannot find module @rollup/plugin-babel @@ inside, separators \u2028\u2029, ends with @' }],
   });
 }
+
+if (process.env.SHARD_PROTOCOL_FATAL) process.exitCode = 2;

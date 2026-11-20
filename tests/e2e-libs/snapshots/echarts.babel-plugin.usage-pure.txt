@@ -30,7 +30,6 @@
 @core-js/pure/full/number/epsilon
 @core-js/pure/full/number/instance/clamp
 @core-js/pure/full/number/instance/to-fixed
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/number/parse-int
 @core-js/pure/full/object/assign
 @core-js/pure/full/object/create

@@ -125,7 +125,7 @@ const globalSibling = createUnplugin(() => ({
 // The plugin's own name, read off an instance rather than spelled anywhere: `bundlers.mjs` escalates
 // the warning unplugin reports its own parse failures through, and a literal copy of the name would
 // stop matching on a rename in the plugin with every leg still green. The phase suffix - `:post` here
-// - comes off with the split. `tests/e2e-libs/build.mjs` derives it the same way, for the same gate.
+// - comes off with the split. `tests/e2e-libs/bundle.mjs` derives it the same way, for the same gate.
 const [UNPLUGIN_NAME] = [unplugin.rollup(pluginOpts('usage-global', 'post'))].flat()[0].name.split(':', 1);
 
 // `root` is a parameter rather than a constant inside `bundlers.mjs` because only the caller knows
@@ -159,17 +159,13 @@ if (missingAdapter.length || unknownAdapter.length) {
     + ' every bundler core-js ships an entry pair for gets a cell here');
 }
 
-// A chunk-loader classification earns a bundler an extra `es.promise.all`, and the dynamic-import leg
-// at the end of this file is the only place it is observable, so a classified bundler with an adapter
-// here has to have a cell there: the list is kept by hand and a name dropped from it takes its
-// coverage along in silence. Over the adapters, not over the plugin's set - that set names bundlers
-// this suite has nothing to drive. Answered up here with the check above, since both read the
-// adapters alone: at the leg itself it would report after the whole grid had already run.
+// Every chunk loader in the adapter matrix needs a dynamic-import cell. These cells execute a
+// single-file bundle, so they exercise the lazy body without requiring a multi-chunk loader.
 const DYNAMIC_LEG = new Set(['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']);
 const unexercisedChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) && !DYNAMIC_LEG.has(name));
 if (unexercisedChunkLoaders.length) {
   throw new Error(`${ unexercisedChunkLoaders.join(', ') } is classified as a chunk loader in @core-js/unplugin`
-    + ' and has no dynamic-import cell - the one leg where that classification is observable');
+    + ' and has no dynamic-import cell');
 }
 
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever

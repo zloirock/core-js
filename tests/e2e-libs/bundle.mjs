@@ -4,10 +4,10 @@ import nodeResolve from '@rollup/plugin-node-resolve';
 import unplugin from '@core-js/unplugin';
 import { rollup } from 'rollup';
 import { assertES5 } from '../../scripts/assert-es5.mjs';
-import { makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
+import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
 import { makeBabelPlugin } from './babel.mjs';
 import { pluginOpts } from './cells.mjs';
-import { HERE, NODE_MODULES, isCoreJsModule, toPosix } from './paths.mjs';
+import { HERE, NODE_MODULES, isCoreJsModule, isWorkspaceCoreJsModule, toPosix } from './paths.mjs';
 import { tsSources } from './ts-sources.mjs';
 import { join, relative } from 'node:path';
 
@@ -80,11 +80,11 @@ function es5({ code }, label) {
 
 // the COUNT cannot answer this: specifier TEXT outlives `sideEffects: false` tree-shaking the polyfills
 const MIN_CORE_JS_BYTES = 10_000;
-function payload({ chunk }, label) {
+export function assertWorkspacePayload({ chunk }, label) {
   const bytes = Object.entries(chunk.modules)
-    .filter(([id]) => isCoreJsModule(id))
+    .filter(([id]) => isWorkspaceCoreJsModule(id))
     .reduce((n, [, m]) => n + m.renderedLength, 0);
-  if (bytes < MIN_CORE_JS_BYTES) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
+  if (bytes < MIN_CORE_JS_BYTES) throw new Error(`${ label }: only ${ bytes }b of workspace core-js reached the bundle`);
 }
 
 // a build that injected nothing has verified nothing
@@ -92,7 +92,7 @@ function injected({ injected: specifiers }, label) {
   if (!specifiers.length) throw new Error(`${ label }: the provider injected 0 polyfills`);
 }
 
-const GATES = [noExternals, es5, payload, injected];
+const GATES = [noExternals, es5, assertWorkspacePayload, injected];
 
 // A polyfill decides whether it is needed by calling the native and seeing whether it throws, and
 // rollup DELETES that call: the callee is one of the globals it knows as pure, the result is thrown
@@ -127,7 +127,7 @@ export async function assertDetectionsStillNeedHelp() {
         + 'drop the plugin and this check, and re-author the baselines.');
     }
   } finally {
-    await bundle.close();
+    await closeRollupBundle(bundle);
   }
 }
 
@@ -160,6 +160,6 @@ export async function buildCell(cell) {
     for (const check of GATES) check(result, cell.label);
     return result;
   } finally {
-    await bundle.close();
+    await closeRollupBundle(bundle);
   }
 }

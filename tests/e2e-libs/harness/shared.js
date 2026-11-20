@@ -45,10 +45,28 @@
   // `then` is the one replaceable method these programs may call, and the rejection handler goes to
   // that same `then` rather than a later `.catch`, which a substituted implementation could drop.
   window.e2eRun = function (onChecks, onError) {
-    function handOver(res) {
-      onChecks((res && res.checks) || []);
+    function checkForUncaughtError() {
+      if (window.e2eLoadError !== undefined) throw new Error(window.e2eLoadError);
     }
+
+    function handOver(res) {
+      try {
+        checkForUncaughtError();
+        var checks = res && res.checks;
+        if (!Array.isArray(checks)) throw new TypeError('run() did not return a checks array');
+        for (var i = 0; i < checks.length; i++) {
+          var check = checks[i];
+          if (!check || typeof check.label !== 'string' || typeof check.pass !== 'boolean') {
+            throw new TypeError('run() returned a malformed check at index ' + i);
+          }
+        }
+        onChecks(checks);
+      } catch (err) { onError(err); }
+    }
+
     try {
+      checkForUncaughtError();
+      if (typeof E2E === 'undefined' || !E2E || typeof E2E.run !== 'function') throw new Error('the bundle did not expose E2E.run');
       var res = E2E.run();
       if (res && typeof res.then === 'function') res.then(handOver, onError);
       else handOver(res);

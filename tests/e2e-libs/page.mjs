@@ -18,15 +18,18 @@ export const RUN_TIMEOUT_MS = 20_000;
 
 // `expected` is the pre-flight's label SEQUENCE, not its count: a branch that stopped executing and
 // another that started cancel out in a count.
-function cellScript(label, expectedLabels) {
+export function cellScript(label, expectedLabels) {
   // `</` is escaped because this same text is inlined into a `<script>` on the artifact page, where
   // a label carrying one would close the element; inside a string literal the two spellings are equal
-  return `window.E2E_CELL = ${ JSON.stringify({
-    label, expected: expectedLabels, page: PAGE, timeout: RUN_TIMEOUT_MS,
-  }).replaceAll('</', '<\\/') };\n`;
+  const data = JSON.stringify({ label, expected: expectedLabels, page: PAGE, timeout: RUN_TIMEOUT_MS })
+    .replaceAll('</', '<\\/')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
+  return `window.E2E_CELL = ${ data };\n`;
 }
 
 // every page inlines the same program, only the cell script above it differs
+const TRAP = await readFile(join(HARNESS, 'trap.js'), 'utf8');
 const BANNER = (await Promise.all(['shared.js', 'banner.js']
   .map(name => readFile(join(HARNESS, name), 'utf8')))).join('\n');
 
@@ -61,6 +64,7 @@ function html(cell, checks, bannerProgram) {
   <div id="${ PAGE.banner }">running...</div>
   <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
   <table id="${ PAGE.table }"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
+  <script>${ TRAP }</script>
   <script src="bundle.js"></script>
   <script>${ cellScript(cell.label, checks.map(check => check.label)) }</script>
   <script>${ bannerProgram }</script>

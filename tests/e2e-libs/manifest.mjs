@@ -28,3 +28,15 @@ export function save(parsed) {
 export function prepare() {
   return rm(ARTIFACTS, { recursive: true, force: true });
 }
+
+export function reconcileRows(cells, rows) {
+  const byLabel = new Map(rows.map(row => [row.label, row]));
+  if (byLabel.size !== rows.length || rows.length !== cells.length) {
+    throw new Error(`expected ${ cells.length } cell results, got ${ rows.length } (${ byLabel.size } unique)`);
+  }
+  return cells.map(({ label }) => {
+    const row = byLabel.get(label);
+    if (!row) throw new Error(`missing result for ${ label }`);
+    return row;
+  });
+}

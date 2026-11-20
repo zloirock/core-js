@@ -3,8 +3,7 @@
 //
 // Both halves are load-bearing and both have failed. A payload naming `@rollup/...` used to leave the
 // shard reported as having said nothing, and one containing `@@` used to be matched and then torn in
-// half at `JSON.parse`. The marker now opens a line instead, which only holds because
-// `emitShardSummary` writes a newline first - the child below ends its output without one.
+// half at `JSON.parse`. The report must also survive ordinary output without a trailing newline.
 import { runShards } from './fixture-shards.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +19,7 @@ check('and arrive in shard order', totals.rows.map(row => row.shard).join(','), 
 checkTruthy('a payload naming a package survives the marker',
   totals.rows.every(row => row.error.includes('@rollup/plugin-babel')));
 checkTruthy('so does one carrying `@@`', totals.rows.every(row => row.error.includes('@@ inside')));
+checkTruthy('JSON line separators survive the marker', totals.rows.every(row => row.error.includes('\u2028\u2029')));
 
 let refused = null;
 try {
@@ -38,5 +38,13 @@ try {
 }
 checkTruthy('a shard that exits having reported nothing fails the run loudly',
   /produced no result/u.test(silent?.message ?? ''));
+
+let failed = null;
+try {
+  await runShards({ script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_FATAL: '1' } });
+} catch (error) {
+  failed = error;
+}
+checkTruthy('a nonzero exit after a report fails the run', /failed after reporting.*code 2/u.test(failed?.message ?? ''));
 
 finish();

@@ -10,7 +10,6 @@
 @core-js/pure/full/number/instance/clamp
 @core-js/pure/full/number/instance/to-fixed
 @core-js/pure/full/number/is-finite
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-properties
 @core-js/pure/full/object/define-property

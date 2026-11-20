@@ -12,10 +12,6 @@
     window.parent.e2eFrameDone(CELL.label, CELL.expected, window.e2eCompatibilityMode(), checks, reason);
   }
 
-  if (typeof E2E === 'undefined' || !E2E || typeof E2E.run !== 'function') {
-    send(null, 'the bundle did not load - ' + (window.e2eLoadError || 'no error was reported'));
-    return;
-  }
   setTimeout(function () {
     send(null, 'run() did not settle within ' + CELL.timeout + 'ms');
   }, CELL.timeout);

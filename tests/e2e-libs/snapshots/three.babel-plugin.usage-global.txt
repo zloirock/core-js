@@ -30,6 +30,7 @@ core-js/modules/es.array.species
 core-js/modules/es.array.splice
 core-js/modules/es.array.unshift
 core-js/modules/es.array.values
+core-js/modules/es.data-view.constructor
 core-js/modules/es.data-view.get-float16
 core-js/modules/es.data-view.set-float16
 core-js/modules/es.data-view.set-int8
@@ -62,7 +63,6 @@ core-js/modules/es.math.trunc
 core-js/modules/es.number.constructor
 core-js/modules/es.number.epsilon
 core-js/modules/es.number.is-integer
-core-js/modules/es.number.is-nan
 core-js/modules/es.number.to-fixed
 core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor
@@ -83,6 +83,7 @@ core-js/modules/es.promise.resolve
 core-js/modules/es.reflect.construct
 core-js/modules/es.reflect.get
 core-js/modules/es.reflect.namespace
+core-js/modules/es.reflect.own-keys
 core-js/modules/es.regexp.constructor
 core-js/modules/es.regexp.dot-all
 core-js/modules/es.regexp.exec
@@ -106,6 +107,7 @@ core-js/modules/es.string.repeat
 core-js/modules/es.string.replace
 core-js/modules/es.string.starts-with
 core-js/modules/es.string.sub
+core-js/modules/es.string.to-well-formed
 core-js/modules/es.string.trim
 core-js/modules/es.symbol.constructor
 core-js/modules/es.symbol.description
@@ -184,4 +186,3 @@ core-js/modules/web.url-search-params.delete
 core-js/modules/web.url-search-params.has
 core-js/modules/web.url-search-params.size
 core-js/modules/web.url.constructor
-core-js/modules/web.url.to-json

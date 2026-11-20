@@ -183,7 +183,10 @@ export function run() {
   check('curve_length', round(curve.getLength()), 10);
   check('curve_midpoint', arr(curve.getPoint(0.5)), [0, 0, 5]);
   const frames = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 2, 0), new THREE.Vector3(3, 0, 1)]).computeFrenetFrames(4, false);
-  check('curve_frenet_frames', [frames.tangents.length, frames.normals.length, frames.binormals.length], [5, 5, 5]);
+  check('curve_frenet_frames', [
+    frames.tangents.length, frames.normals.length, frames.binormals.length,
+    round(frames.tangents[2].dot(frames.normals[2])), round(frames.normals[2].length()),
+  ], [5, 5, 5, 0, 1]);
   const tube = new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(), new THREE.Vector3(0, 0, 4)), 4, 0.5, 6, false);
   check('curve_tube_vertices', tube.getAttribute('position').count, 35); // (4+1) rings x (6+1) ring verts
   check('curve_ellipse_quarter', arr(new THREE.EllipseCurve(0, 0, 2, 1, 0, 2 * Math.PI, false, 0).getPoint(0.25)), [0, 1]);

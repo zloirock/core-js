@@ -43,7 +43,6 @@ core-js/modules/es.map.species
 core-js/modules/es.math.imul
 core-js/modules/es.number.is-finite
 core-js/modules/es.number.is-integer
-core-js/modules/es.number.is-nan
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
 core-js/modules/es.object.has-own

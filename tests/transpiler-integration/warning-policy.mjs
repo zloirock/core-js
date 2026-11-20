@@ -6,9 +6,18 @@ const FATAL_WARNINGS = new Set(['UNRESOLVED_IMPORT', 'MISSING_EXPORT']);
 export function makeStrictWarn(unpluginName) {
   return function strictWarn(warning, warn) {
     if (FATAL_WARNINGS.has(warning.code)) throw new Error(`${ warning.code }: ${ warning.message }`);
-    if (warning.code === 'PLUGIN_WARNING' && warning.plugin?.startsWith(unpluginName)) {
+    if (warning.code === 'PLUGIN_WARNING'
+      && (warning.plugin === unpluginName || warning.plugin?.startsWith(`${ unpluginName }:`))) {
       throw new Error(`${ warning.plugin }: ${ warning.message }`);
     }
     warn(warning);
   };
+}
+
+export async function closeRollupBundle(bundle) {
+  try {
+    await bundle.close();
+  } catch (error) {
+    console.warn(`could not close Rollup bundle: ${ error?.message ?? String(error) }`);
+  }
 }

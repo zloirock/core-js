@@ -5,7 +5,6 @@ core-js/modules/es.date.to-json
 core-js/modules/es.function.name
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.join
-core-js/modules/es.number.is-nan
 core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.to-string

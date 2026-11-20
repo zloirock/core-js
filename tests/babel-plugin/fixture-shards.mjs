@@ -11,8 +11,8 @@ import { loadBabelOptions } from './fixture-options.mjs';
 // `.*` (greedy to the line's last `@@`), never `[^@]*`: the counters carry per-reason keys, and one
 // of them - `skip:no @core-js plugin in options` - holds the delimiter's own character. The marker
 // then matched nothing at all and the shard's entire verdict set was reported as "produced no
-// result", naming neither the fixture nor the reason. The payload is one line, so `.` cannot leave it
-const MARKER = /@@FIXTURE-SHARD@@(?<json>.*)@@/u;
+// result", naming neither the fixture nor the reason. The payload is one line, so the body excludes CR and LF.
+const MARKER = /@@FIXTURE-SHARD@@(?<json>[^\n\r]*)@@/u;
 
 export const { FIXTURE_SHARD } = process.env;
 
@@ -108,9 +108,10 @@ export async function runShards({ script, shards, extraEnv = {} }) {
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
     let buf = '';
+    child.stdout.setEncoding('utf8');
     child.stdout.on('data', data => { buf += data; });
     child.on('error', reject);
-    child.on('exit', (code, signal) => {
+    child.on('close', (code, signal) => {
       const found = MARKER.exec(buf);
       // child output is replayed VERBATIM (minus the marker) - assertion diffs carry
       // meaningful blank lines that a cosmetic collapse would corrupt
@@ -119,7 +120,15 @@ export async function runShards({ script, shards, extraEnv = {} }) {
         return reject(new Error(`fixture shard ${ index }/${ shards } produced no result `
           + `(code ${ code }, signal ${ signal })\n${ output }`));
       }
-      resolve({ payload: JSON.parse(found.groups.json), output });
+      if (code !== 0 || signal) {
+        return reject(new Error(`fixture shard ${ index }/${ shards } failed after reporting `
+          + `(code ${ code }, signal ${ signal })\n${ output }`));
+      }
+      try {
+        resolve({ payload: JSON.parse(found.groups.json), output });
+      } catch (error) {
+        reject(new Error(`fixture shard ${ index }/${ shards } reported malformed JSON`, { cause: error }));
+      }
     });
   }));
   const results = await Promise.all(runs);

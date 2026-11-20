@@ -55,7 +55,7 @@ export function run() {
   const totals = rollup(ROWS, rows => sum(rows, row => row.value), row => row.when, row => row.kind);
   check('rollup_nested', [totals.get(day(1))?.get('b'), totals.get(day(2))?.get('a'), totals.get(day(2))?.has('b')], [4, 11, false]);
   check('index_unique', index(ROWS.slice(0, 3), row => row.when, row => row.kind).get(day(2))?.get('a').value, 5);
-  check('group_sort', groupSort(ROWS, rows => -rows.length, row => row.kind), ['a', 'b']);
+  check('group_sort', groupSort(ROWS, rows => rows.length, row => row.kind), ['b', 'a']);
 
   // --- InternSet: the set algebra over Dates counts instants, not objects ---
   check('union_interned', union([day(1), day(2)], [day(2), day(3)]).size, 3);
