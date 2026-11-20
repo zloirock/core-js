@@ -1,231 +1,278 @@
 # Changelog
 ### Unreleased
-- Fixed the `Array.prototype.slice` polyfill truncating the result when converting the bounds or reading the species constructor shortens the source array
-- Added a workaround in array method and `Reflect.has` polyfills for numeric `in` checks missing inherited indices beyond the length of packed arrays in V8 3.31-4.6 ([original optimization](https://issues.chromium.org/42207024#comment5), [removed in V8 4.7](https://github.com/v8/v8/commit/3dc9b122fa9f7d551e05f5b9d7415bcfdcac92db))
-- Added detection of native `Reflect.has` missing indexed properties in [Rhino 1.8.0-1.9.2](https://github.com/mozilla/rhino/issues/2599)
-- Added a workaround in `ToPropertyKey` for native `Object.defineProperty` duplicating dense array indices passed as concatenated strings in [Rhino 1.7.14-1.9.2](https://github.com/mozilla/rhino/issues/2600)
-- Added a workaround for Rhino 1.9.0-1.9.2, where native `Array.prototype.splice` [passes zero to the species constructor before computing the deletion count](https://github.com/mozilla/rhino/blob/ae05f8160ee90d23e67e38fb5d4005771a2ace3f/rhino/src/main/java/org/mozilla/javascript/NativeArray.java#L1317-L1335) and [discards the species result and skips reading and writing `length` on calls without arguments](https://github.com/mozilla/rhino/issues/2589)
-- Added detection of native `Object.{ assign, entries, values }` skipping properties that become enumerable during iteration in [Rhino](https://github.com/mozilla/rhino/issues/2596)
-- Added missed detection of native `DataView` constructor accepting a negative `byteLength` and rejecting a non-integer `byteOffset` in V8 ~ Chrome 50-53
-- Added missed detection of native `ArrayBuffer.prototype.slice` returning an empty buffer for a detached one instead of throwing in V8 ~ Chrome < 52 and Safari < 14.1
-- Fixed `ArrayBuffer.prototype.slice` polyfill: the receiver is checked before the conversion of arguments, an own `byteLength` property of a buffer no longer replaces its length, a detached buffer is rejected instead of returning an empty one in FF45
-- `ArrayBuffer.prototype.slice` polyfill passes calls with an explicit end to the native method too where it exists, instead of copying byte by byte, which makes it faster by orders of magnitude on large buffers
-- Fixed `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }` polyfills and `ArrayBuffer.prototype.slice` without arguments or with `undefined` as the end in NodeJS 0.11.0 - 0.11.3, where native methods of `ArrayBuffer` and `DataView` are own properties of instances
-- Fixed `%TypedArray%.prototype.{ set, slice, subarray }` polyfills shadowed by own native methods of typed array instances in NodeJS 0.11.0 - 0.11.3
-- `Array.from`, `Array.fromAsync` and `{ Map, Object }.groupBy` polyfills check the maximum allowed index before requesting the next value and no longer allow the index `2 ** 53 - 1`
-- Fixed symbol keys of groups leaking out to `for-in` and `Object.keys` in obsolete `Array.prototype.{ group, groupBy }` and `%TypedArray%.prototype.groupBy` together with `Symbol` polyfill, like it was fixed for `Object.groupBy`
-- Fixed a misleading error message of `Map`, `Set`, `WeakMap` and `WeakSet` methods called on `null` in the pure version
-- Added missed detection of native `Array.prototype.fill` reading the `length` of array-likes without `ToLength` in V8 ~ Chrome 45-47
-- Fixed `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice }` polyfills ignoring a redefined `Array[@@species]` of the current realm and `@@species` of constructors with an array as `.prototype`; they no longer run `IsConstructor` on each call, which makes them faster on small arrays
-- Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
-- Added missed detection of [native `Array.prototype.flatMap` keeping holes of arrays returned by the callback in Rhino](https://github.com/mozilla/rhino/issues/2588)
-- Added missed detection of native `Array.prototype.unshift` reading the `length` of array-likes without `ToLength` in FF < 55 and IE and moving elements on a call without arguments in IE
-- The `Array.prototype.unshift` polyfill passes arrays with arguments to the native method where it handles them properly, which makes it faster by orders of magnitude on large arrays
-- Fixed the polyfilled array iterator (`Array.prototype.{ entries, keys, values, @@iterator }`) reading the `length` of array-likes without `ToLength`: endless iteration with a missing or non-numeric `length` and of primitives, an extra step with a fractional one; an error on reading `length` no longer skips an element
-- Fixed `Object.{ assign, entries, values }` polyfills ignoring properties that become enumerable during iteration, except in old V8 where collecting all keys breaks property order
-- Reduced redundant proxy traps in `Object.{ assign, entries, values }` polyfills
-- Fixed `Object.assign` ignoring numeric keys of null-prototype objects in IE10
-- Added a workaround for an SWC optimization that rewrites `Array(1)` to `[,]` and hides [the `Array.prototype.includes` bug in Firefox 99-101](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541)
-- Added missed detection of native `Reflect.construct` ignoring `newTarget.prototype` for built-in constructors in [FF44](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472), fixing transpiled subclassing of constructors like `Array`
-- Fixed the `Reflect.construct` polyfill reading arguments after `newTarget.prototype` and reading the argument list length twice, which could lose arguments
-- Added missed detection of native `Array.from` and `%TypedArray%.from` accepting primitive iterator results after warmup in Safari 14
-- Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
-- Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object
-- Replaced an unused export option in the `self` fallback for IE8-
-- Fixed an ordinary assignment to `self` with the polyfilled setter in FF < 12, where it left `undefined` instead of the assigned value
-- Stopped replacing the native `Promise` in [Deno < 1.24](https://github.com/denoland/deno/pull/15211) solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
-- Fixed falsely detected `ArrayBuffer` transfer support in [Deno 1.13](https://github.com/denoland/deno/pull/11840), preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
-- Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
-- Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
-- Added missed detection of native `%TypedArray%.prototype.with` converting the value with `ToNumber` instead of `ToBigInt` on `BigInt` arrays in [Rhino 1.9](https://github.com/mozilla/rhino/pull/2467)
-- Added missed detection of native `%TypedArray%.prototype.slice` returning a view on the source buffer instead of a copy in [Rhino 1.8](https://github.com/mozilla/rhino/pull/1905)
-- Fixed polyfilled typed array methods theoretically rejecting native `Float16Array` instances, including `%TypedArray%.prototype.with`
-- Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
-- Fixed `structuredClone` preserving length-tracking views of resizable and growable shared buffers and throwing `DataCloneError` for out-of-bounds views
-- Fixed `structuredClone` transferring platform objects before validating the transfer list and cloning the value, and processing mixed transfer lists out of order
-- Fixed `structuredClone` and `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills relying on a non-native `structuredClone` installed before `core-js` in modern engines: `ArrayBuffer`s were left attached, and `structuredClone` accepted invalid transfer lists and returned untransferred platform objects
-- Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
-- Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
-- Fixed lost error messages in the `structuredClone` polyfill in old Firefox
-- Fixed `structuredClone` cloning `URL` and `URLSearchParams` as empty objects instead of throwing a `DataCloneError`: polyfilled instances and native ones in NodeJS <= 20 and Deno <= 2.8
-- Fixed detection of detached WebAssembly buffers in [old V8](https://issues.chromium.org/issues/42209506) without `MessageChannel`, including incorrect `structuredClone` errors in NodeJS 8
-- Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer
-- Fixed `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills losing the source on allocation failure, using species, ignoring changes during length coercion, and accepting non-detachable buffers; `transfer` preserves the original maximum length
-- Fixed native `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` crashing on allocation failure in [NodeJS 21 and 22.0-22.3](https://github.com/nodejs/node/pull/52910)
-- Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
-- Fixed `MessageChannel` and native `DOMException` detection in old NodeJS
-- Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
-- Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
-- Throw a `TypeError` when a running polyfilled iterator helper is re-entered
-- Fixed `String` wrapper creation in `Iterator.from`, [#1589](https://github.com/zloirock/core-js/pull/1589)
-- Added detection of [native `Iterator.concat` closing the inner iterator on errors from `next` or getters of the iterator result in V8](https://issues.chromium.org/issues/580293064)
-- Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
-- Fixed `Iterator.zip` closing the input iterator when reading an input result's `value` throws
-- Fixed `Iterator.prototype.flatMap` polyfill closing the source iterator when reading its result's `value` throws
-- Fixed non-boolean `done` values in results of `AsyncIterator.from` and `Iterator.prototype.toAsync` when adapting sync iterators
-- Fixed and updated `Iterator.range` (and obsolete `Number.range` and `BigInt.range`): the iterator tag, read-only accessors, validation of `NaN` steps, yielding infinite endpoints and error messages for legacy methods
-- Fixed [`Iterator.range` with equal inclusive endpoints depending on the step direction](https://github.com/tc39/proposal-iterator.range/issues/83), and preserved the sign of an initial zero
-- Fixed `Array.fromAsync` polyfill constructing the result before opening the iterator, handling array-like inputs through an iterator instead of using their initial length, and skipping `await` for primitive mapper results
-- Added a workaround for [native `Array.fromAsync` in V8 incorrectly closing iterators](https://issues.chromium.org/issues/511947515) on step errors, masking the original error and retrying failed cleanup; also avoided duplicate reads of a sync iterator's `next`
-- Added missed detection of native `Array.fromAsync` reading the iterator's `next` after calling the result constructor in [Firefox](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [Safari / Bun < 1.4.4](https://bugs.webkit.org/show_bug.cgi?id=326074); this also avoids [Firefox masking the original error when iterator cleanup rejects](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778)
-- Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
-- Improved error messages for invalid iterator window sizes and different iterator lengths in strict `Iterator.{ zip, zipKeyed }` mode
-- Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
-- Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
-- Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
-- Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
-- Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
-- Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
-- Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - `URL` and `URLSearchParams` improvements and fixes:
-  - **Raised the bar for native `URL` and `URLSearchParams`: the polyfills replace older native implementations that have dozens of bugs and fail hundreds of [WPT URL tests](https://github.com/web-platform-tests/wpt/blob/master/url/resources/urltestdata.json) - validation and parsing of hosts, IPv4 addresses, non-special URLs, percent-encoding, IDNA processing, lose `URLSearchParams` data, etc. It became reasonable only now, when the polyfills got integration with native APIs and proper Unicode support (see below). The new bar does not cover all those bugs: modern engines still have some of them, and they are left with native implementations to avoid slowing them down with the polyfills**
+  - **Raised the bar for native `URL` and `URLSearchParams`. Older native implementations have bugs in host validation and parsing, IPv4 addresses, non-special URLs, percent-encoding and IDNA processing, and can lose `URLSearchParams` data. Some fail hundreds of [WPT URL tests](https://github.com/web-platform-tests/wpt/blob/master/url/resources/urltestdata.json). Integration with native APIs and improved Unicode support now make it practical to replace these implementations with the polyfills (see below). Modern engines keep their native implementations for performance despite some remaining bugs**
   - Integration with native APIs:
     - Added integration of polyfilled `URL` with NodeJS, Deno and Bun APIs that accept only native `URL` objects, like `Deno.readFile`, `Bun.file`, `node:fs` and `node:http` methods: instances of the `URL` polyfill are native `URL` objects there
     - Added integration of polyfilled `URLSearchParams` with native APIs that accept only native `URLSearchParams` objects, like `fetch`, `Request`, `Response` and APIs of another realm, including the pure version: where the engine has a usable native `URLSearchParams`, instances of the polyfill are native objects, and `fetch` and `Request` are no longer wrapped where they take such instances
     - Added integration of polyfilled `URLSearchParams` with native `Response`, `XMLHttpRequest` and `navigator.sendBeacon` in engines where they do not take such instances, and fixed installation of the native body wrappers in Deno
-    - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
     - Fixed the native body wrappers for polyfilled `URLSearchParams`: subclassing of `Request`, calling an overridden `toString` instead of serializing the internal parameter list, and dropping the headers of a `Request` passed as the input
+    - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
   - Unicode and encoding:
     - Added Unicode normalization and compatibility mapping of `URL` polyfill domains through the native `String.prototype.normalize`, where it's available
     - Fixed mapping of mathematical Latin letters and digits in `URL` domains, [#1223](https://github.com/zloirock/core-js/issues/1223)
-    - Fixed `URL` polyfill joining lone surrogates separated by tabs or newlines instead of replacing them with `U+FFFD` before parsing
     - Fixed `URL` domain case folding for Greek, Cherokee, historic Cyrillic, and Deseret letters
+    - Fixed `URL` polyfill domain case mapping for Georgian, Osage, Old Hungarian, Warang Citi, and Adlam capitals, `U+0130`, and `U+018E` in old engines
     - Added validation of `URL` polyfill domains against the Unicode 18 IDNA mapping table: a domain with an unassigned, disallowed, or unmapped code point is rejected instead of being converted to another host
     - Fixed rejection of disallowed Unicode format controls, tags, ideographic description characters, and compatibility characters containing label separators in `URL` domains
     - Fixed removal of ignored shorthand and musical format controls in `URL` domains
-    - Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
-    - Avoided quadratic Punycode encoding in the `URL` polyfill for labels with many distinct Unicode code points
     - Fixed `URL` polyfill accepting domain labels that begin with a combining mark
     - Added validation of zero width joiners and the Bidi rule in `URL` polyfill domains
     - Added decoding and validation of Punycode labels in non-ASCII `URL` polyfill domains
-    - Fixed `URL` polyfill domain case mapping for Georgian, Osage, Old Hungarian, Warang Citi, and Adlam capitals, `U+0130`, and `U+018E` in old engines
+    - Fixed Punycode overflow in `URL` parsing: constructors and `href` setters throw a `TypeError`, while `host` and `hostname` setters leave the URL unchanged
+    - Avoided quadratic Punycode encoding in the `URL` polyfill for labels with many distinct Unicode code points
+    - Fixed `URL` polyfill joining lone surrogates separated by tabs or newlines instead of replacing them with `U+FFFD` before parsing
     - Fixed decoding of invalid UTF-8 leading bytes in `URLSearchParams` and `URL` queries
     - Fixed `USVString` conversion in `URLSearchParams`, including lone surrogates and record keys that become equal after conversion
   - Fixed `URL` setters skipping value conversion on early returns and changing state before value conversion
   - Updated `URL` polyfill handling of `file:` hosts and empty path segments, `blob:` origins, and empty `pathname` assignments to the current URL Standard, [#1586](https://github.com/zloirock/core-js/issues/1586)
   - Fixed failed `URL#href` assignments corrupting the URL and its `searchParams`, and URL parsing depending on replaced string iterator methods
-  - Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
   - Added a workaround for [`URL.parse` depending on its receiver in Deno](https://github.com/denoland/deno/issues/37104)
   - Fixed pure `URL` static polyfills mutating the global `URL` constructor; pure constructor wrappers now preserve native static properties and arity, with a fix of the incorrect native `Symbol` arity in FF37-42
   - Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
-  - Fixed `URLSearchParams.prototype.delete(name, value)` patch arguments conversion order
   - Fixed the element conversion order and pair length validation in the `URLSearchParams` sequence initializer
-  - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
-  - Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
-  - Fixed the size of URL-bound `URLSearchParams` in engines without property descriptor support
   - Fixed record key enumeration in the `URLSearchParams` polyfill, including symbol keys and properties changed during conversion
-- Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
-- Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
-- Fixed the pure version marking the native `Error.isError` as `.sham`
-- Fixed subclassing some wrapped native constructors in the pure version, [#1585](https://github.com/zloirock/core-js/issues/1585)
-- Fixed ignored `nonWritable` / `nonConfigurable` property attributes in the pure version, including `DisposableStack` / `AsyncDisposableStack` tags and numeric constants
-- Fixed writable `.prototype` properties of polyfilled constructors and constructor wrappers in the pure version without modifying native constructors
-- Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator ([Firefox < 46](https://bugzilla.mozilla.org/show_bug.cgi?id=1067049))
-- Fixed the iterator name correction adding a `name` property to collection prototypes in old engines, a regression since 3.18.0
-- Fixed restoring `Iterator.prototype.constructor` when keeping the native `Iterator`
-- Fixed names and built-in metadata of polyfilled iterator `next` methods
-- Fixed the name of `Date.prototype.toUTCString` when polyfilling `Date.prototype.toGMTString`
-- Fixed missing iterator result validation in `Array.from`, typed arrays, collection and iterator consumers, and `URLSearchParams` polyfills
-- Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
-- Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
-- Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
-- Fixed defining unpolyfillable `Object.setPrototypeOf` as `undefined` in IE10-
-- Fixed property descriptors of `Symbol.prototype[@@toPrimitive]` and `Date.prototype[@@toPrimitive]` polyfills
-- Fixed an extra own property check of non-symbol keys in `Object.prototype.propertyIsEnumerable` from the `Symbol` polyfill, observable with proxies in FF33-35
-- Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
+  - Fixed `URLSearchParams.prototype.delete(name, value)` patch arguments conversion order
+  - Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
+  - Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
+  - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
+  - Fixed the size of URL-bound `URLSearchParams` in engines without property descriptor support
+- `structuredClone`
+  - Fixed `structuredClone` with getters that modify the source: `Map` / `Set` entries are snapshotted before recursive cloning, and deleted own properties of objects and arrays are skipped
+  - Fixed `structuredClone` cloning `URL` and `URLSearchParams` as empty objects instead of throwing a `DataCloneError`: polyfilled instances and native ones in NodeJS <= 20 and Deno <= 2.8
+  - The `structuredClone` polyfill now preserves length tracking for views of resizable `ArrayBuffer`s and growable `SharedArrayBuffer`s when the engine can clone them with that mode intact. The fallback creates fixed-length views
+  - The `structuredClone` polyfill now throws a `DataCloneError` when cloning an out-of-bounds view of a resizable `ArrayBuffer`
+  - Fixed `structuredClone` replacing buffer and view cloning errors with unrelated `DataCloneError` exceptions, and accepting detached views when their buffers had already been cloned
+  - Fixed lost error messages in the `structuredClone` polyfill in old Firefox
+  - Fixed `structuredClone` transferring platform objects before validating the transfer list and cloning the value, and processing mixed transfer lists out of order
+  - Fixed `structuredClone` and `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills relying on a non-native `structuredClone` installed before `core-js` in modern engines: `ArrayBuffer`s were left attached, and `structuredClone` accepted invalid transfer lists and returned untransferred platform objects
+  - Avoided redundant buffer copies in the `structuredClone` transfer fallback and V8 detaching protector invalidation in workers
+- Other web APIs
+  - Fixed detection of incorrect errors from native `atob` / `btoa` in Hermes, `atob` in [Deno < 1.7](https://github.com/denoland/deno/pull/8798), and `btoa` in [Deno < 1.7.5](https://github.com/denoland/deno/pull/9053)
+  - Fixed detection of native `atob` not checking the number of arguments in [Deno < 1.17.3](https://github.com/denoland/deno/pull/13341)
+  - Fixed `MessageChannel` and native `DOMException` detection in old NodeJS
+  - Fixed `DOMException` sometimes missing constants and `prototype.constructor` after the `.stack` patch in Safari 26
+  - Fixed receiver validation in the `self` polyfill and added detection of native getters accepting invalid receivers in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119); the polyfilled setter now accepts `null` and `undefined` as the global object
+  - Fixed an ordinary assignment to `self` with the polyfilled setter in FF < 12, where it left `undefined` instead of the assigned value
+  - Replaced an unused export option in the `self` fallback for IE8-
+- `Object` and `Reflect`
+  - Added detection of native `Object.{ assign, entries, values }` skipping properties that become enumerable during iteration in [Rhino](https://github.com/mozilla/rhino/issues/2596)
+  - Fixed `Object.{ assign, entries, values }` polyfills ignoring properties that become enumerable during iteration, except in old V8 where collecting all keys breaks property order
+  - Reduced redundant proxy traps in `Object.{ assign, entries, values }` polyfills
+  - Fixed `Object.assign` ignoring numeric keys of null-prototype objects in IE10
+  - Added a workaround in `ToPropertyKey` for native `Object.defineProperty` duplicating dense array indices passed as concatenated strings in [Rhino 1.7.14-1.9.2](https://github.com/mozilla/rhino/issues/2600)
+  - Fixed defining unpolyfillable `Object.setPrototypeOf` as `undefined` in IE10-
+  - Added missed detection of native `Reflect.construct` ignoring `newTarget.prototype` for built-in constructors in [FF44](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472), fixing transpiled subclassing of constructors like `Array`
+  - Fixed the `Reflect.construct` polyfill reading arguments after `newTarget.prototype` and reading the argument list length twice, which could lose arguments
+  - Added detection of native `Reflect.has` missing indexed properties in [Rhino 1.8.0-1.9.2](https://github.com/mozilla/rhino/issues/2599)
+- `Symbol`
+  - Fixed `Function#toString` conversion of `Symbol.for` wrapped by the `Symbol.prototype.description` polyfill
+  - Fixed partially incorrect `Symbol.{ dispose, asyncDispose }` descriptors from transpilers helpers / userland code
+  - Fixed property descriptors of `Symbol.prototype[@@toPrimitive]` and `Date.prototype[@@toPrimitive]` polyfills
+  - Fixed an extra own property check of non-symbol keys in `Object.prototype.propertyIsEnumerable` from the `Symbol` polyfill, observable with proxies in FF33-35
+- `Array` methods
+  - `Array.from`, `Array.fromAsync` and `{ Map, Object }.groupBy` polyfills check the maximum allowed index before requesting the next value and no longer allow the index `2 ** 53 - 1`
+  - Fixed missing iterator result validation in `Array.from`, typed arrays, collection and iterator consumers, and `URLSearchParams` polyfills
+  - Added missed detection of native `Array.from` and `%TypedArray%.from` accepting primitive iterator results after warmup in Safari 14
+  - Fixed `Array.fromAsync` polyfill constructing the result before opening the iterator, handling array-like inputs through an iterator instead of using their initial length, and skipping `await` for primitive mapper results
+  - Added a workaround for [native `Array.fromAsync` in V8 incorrectly closing iterators](https://issues.chromium.org/issues/511947515) on step errors, masking the original error and retrying failed cleanup; also avoided duplicate reads of a sync iterator's `next`
+  - Added missed detection of native `Array.fromAsync` reading the iterator's `next` after calling the result constructor in [Firefox](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041), [Safari](https://bugs.webkit.org/show_bug.cgi?id=326074) and Bun versions before 1.4.4. This also avoids [Firefox masking the original error when iterator cleanup rejects](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778)
+  - Added a workaround in array method and `Reflect.has` polyfills for numeric `in` checks missing inherited indices beyond the length of packed arrays in V8 3.31-4.6 ([original optimization](https://issues.chromium.org/42207024#comment5), [removed in V8 4.7](https://github.com/v8/v8/commit/3dc9b122fa9f7d551e05f5b9d7415bcfdcac92db))
+  - Fixed `Array.prototype.{ concat, filter, flat, flatMap, map, slice, splice }` polyfills ignoring a redefined `Array[@@species]` of the current realm and `@@species` of constructors with an array as `.prototype`; they no longer run `IsConstructor` on each call, which makes them faster on small arrays
+  - Fixed the polyfilled array iterator (`Array.prototype.{ entries, keys, values, @@iterator }`) reading the `length` of array-likes without `ToLength`: endless iteration with a missing or non-numeric `length` and of primitives, an extra step with a fractional one; an error on reading `length` no longer skips an element
+  - Added missed detection of native `Array.prototype.fill` reading the `length` of array-likes without `ToLength` in V8 ~ Chrome 45-47
+  - Added missed detection of native `Array.prototype.{ flat, flatMap }` without `@@species` support in Hermes and Rhino < 1.9, like for the rest of `Array.prototype` methods creating arrays
+  - Added missed detection of [native `Array.prototype.flatMap` keeping holes of arrays returned by the callback in Rhino](https://github.com/mozilla/rhino/issues/2588)
+  - Fixed symbol keys of groups leaking out to `for-in` and `Object.keys` in obsolete `Array.prototype.{ group, groupBy }` and `%TypedArray%.prototype.groupBy` together with `Symbol` polyfill, like it was fixed for `Object.groupBy`
+  - Added a workaround for an SWC optimization that rewrites `Array(1)` to `[,]` and hides [the `Array.prototype.includes` bug in Firefox 99-101](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541)
+  - Fixed the `Array.prototype.slice` polyfill truncating the result when converting the bounds or reading the species constructor shortens the source array
+  - Added a workaround for Rhino 1.9.0-1.9.2, where native `Array.prototype.splice` [passes zero to the species constructor before computing the deletion count](https://github.com/mozilla/rhino/blob/ae05f8160ee90d23e67e38fb5d4005771a2ace3f/rhino/src/main/java/org/mozilla/javascript/NativeArray.java#L1317-L1335) and [discards the species result and skips reading and writing `length` on calls without arguments](https://github.com/mozilla/rhino/issues/2589)
+  - Added missed detection of native `Array.prototype.unshift` reading the `length` of array-likes without `ToLength` in FF < 55 and IE and moving elements on a call without arguments in IE
+  - The `Array.prototype.unshift` polyfill passes arrays with arguments to the native method where it handles them properly, which makes it faster by orders of magnitude on large arrays
+- Iterators and iterator helpers
+  - Fixed restoring `Iterator.prototype.constructor` when keeping the native `Iterator`
+  - Fixed handling `arguments[@@iterator]` in `core-js` internals in engines with native `Array` iterator, but without native `arguments` iterator ([Firefox < 46](https://bugzilla.mozilla.org/show_bug.cgi?id=1067049))
+  - Fixed the iterator name correction adding a `name` property to collection prototypes in old engines, a regression since 3.18.0
+  - Fixed names and built-in metadata of polyfilled iterator `next` methods
+  - Throw a `TypeError` when a running polyfilled iterator helper is re-entered
+  - Added detection of [native `Iterator.concat` closing the inner iterator on errors from `next` or getters of the iterator result in V8](https://issues.chromium.org/issues/580293064)
+  - Fixed `String` wrapper creation in `Iterator.from`, [#1589](https://github.com/zloirock/core-js/pull/1589)
+  - Fixed non-boolean `done` values in results of `AsyncIterator.from` and `Iterator.prototype.toAsync` when adapting sync iterators
+  - Fixed and updated `Iterator.range` (and obsolete `Number.range` and `BigInt.range`): the iterator tag, read-only accessors, validation of `NaN` steps, yielding infinite endpoints and error messages for legacy methods
+  - Fixed [`Iterator.range` with equal inclusive endpoints depending on the step direction](https://github.com/tc39/proposal-iterator.range/issues/83), and preserved the sign of an initial zero
+  - Avoided reading the value of a done result in `Iterator.{ zip, zipKeyed }` polyfills, including the `Iterator.zip` padding iterator
+  - Fixed `Iterator.zip` closing the input iterator when reading an input result's `value` throws
+  - Improved error messages for invalid iterator window sizes and different iterator lengths in strict `Iterator.{ zip, zipKeyed }` mode
+  - Fixed `Iterator.prototype.chunks` polyfill calling `next` and `return` on an exhausted source after yielding the final partial chunk
+  - Fixed `Iterator.prototype.flatMap` polyfill closing the source iterator when reading its result's `value` throws
+- Buffers, `DataView` and typed arrays
+  - *Fixed a memory leak in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and `structuredClone` with `transfer` polyfills in engines without a proper native `structuredClone` transfer*
+  - Fixed detection of detached `ArrayBuffer` in `ArrayBuffer.prototype.detached`, `structuredClone` and `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills
+  - Fixed detection of detached WebAssembly buffers in [old V8](https://issues.chromium.org/issues/42209506) without `MessageChannel`, including incorrect `structuredClone` errors in NodeJS 8
+  - Added missed detection of native `ArrayBuffer.prototype.slice` returning an empty buffer for a detached one instead of throwing in V8 ~ Chrome < 52 and Safari < 14.1
+  - Fixed `ArrayBuffer.prototype.slice` polyfill: the receiver is checked before the conversion of arguments, an own `byteLength` property of a buffer no longer replaces its length, a detached buffer is rejected instead of returning an empty one in FF45
+  - `ArrayBuffer.prototype.slice` polyfill passes calls with an explicit end to the native method too where it exists, instead of copying byte by byte, which makes it faster by orders of magnitude on large buffers
+  - Fixed falsely detected `ArrayBuffer` transfer support in [Deno 1.13](https://github.com/denoland/deno/pull/11840), preventing installation of unusable transfer methods and loss of `MessagePort`s in failed mixed transfers
+  - Fixed `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills losing the source on allocation failure, using species, ignoring changes during length coercion, and accepting non-detachable buffers. `transfer` preserves `maxByteLength` for resizable buffers
+  - Fixed native `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` crashing on allocation failure in [NodeJS 21 and 22.0-22.3](https://github.com/nodejs/node/pull/52910)
+  - Added missed detection of native `DataView` constructor accepting a negative `byteLength` and rejecting a non-integer `byteOffset` in V8 ~ Chrome 50-53
+  - Fixed polyfills for `ArrayBuffer.prototype.slice` (when `end` is omitted or `undefined`), `DataView.prototype.{ getFloat16, setFloat16, getUint8Clamped, setUint8Clamped }` and `%TypedArray%.prototype.{ set, slice, subarray }` in NodeJS 0.11.0 - 0.11.3, where native methods are own properties of instances and could shadow the typed array polyfills
+  - Added missed detection of native `%TypedArray%.prototype.slice` returning a view on the source buffer instead of a copy in [Rhino 1.8](https://github.com/mozilla/rhino/pull/1905)
+  - Added missed detection of native `%TypedArray%.prototype.with` converting the value with `ToNumber` instead of `ToBigInt` on `BigInt` arrays in [Rhino 1.9](https://github.com/mozilla/rhino/pull/2467)
+  - Fixed polyfilled typed array methods theoretically rejecting native `Float16Array` instances, including `%TypedArray%.prototype.with`
+  - Added missed detection of [`Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` throwing on resizable buffers in V8 ~ Chrome < 144](https://issues.chromium.org/issues/454630441)
+  - Added missed detection of [`Uint8Array.prototype.setFromBase64` excluding trailing whitespace from the `read` count in V8](https://github.com/simdutf/simdutf/pull/825)
+  - Fixed `Uint8Array.prototype.{ toBase64, toHex, setFromBase64, setFromHex }` polyfills on shared buffers
+- `JSON`
+  - Fixed order of `JSON.parse` dependencies loading, a regression since 3.47.0
+  - Restored native `JSON.parse` delegation without a callable reviver in engines without native symbols, while preserving symbol conversion and detecting native parsing of numbers with leading zeros in IE
+  - Fixed `JSON.parse` polyfill accepting malformed object keys after commas, mishandling rejected reviver property updates, and exposing `context.source` after a zero changes sign
+  - Fixed `JSON.stringify` with an array replacer - the `__proto__` key is no longer lost in [FF < 39](https://bugzilla.mozilla.org/show_bug.cgi?id=837630), polyfilled symbols are no longer serialized as objects (both are regressions since 3.50.0), the length of a proxy of an array is converted to an integer
+  - Fixed `JSON.stringify` polyfill with a `space` containing quotes or lone surrogates - it no longer throws or corrupts keys in case of raw JSON values or an array replacer with integer-like keys, lone surrogates are no longer escaped in engines without well-formed `JSON.stringify`
+  - Fixed `JSON.stringify` polyfill returning a string instead of `undefined` in IE8 for values serialized to `undefined`, for `undefined` and symbols without an array or function replacer it's a regression since 3.47.0
 - `Number.prototype.{ toExponential, toFixed, toPrecision }` improvements and fixes:
   - **`Number.prototype.{ toExponential, toFixed, toPrecision }` polyfills accept up to 100 digits, [as required since ES2018](https://github.com/tc39/ecma262/pull/857)**, added detection of native methods limited to 20 / 21 digits. The `Number.prototype.toExponential` polyfill no longer throws on 21-100 fraction digits in FF86-, a regression since 3.20.0
   - Fixed `Number.prototype.toExponential` polyfill accuracy with decimals close to a rounding half, values next to powers of ten and big fraction digits - it generates exact digits now, for some decimals it's a regression since 3.49.0
-  - Fixed `Number.prototype.toPrecision` polyfill - it had no own implementation and could not fix bugs of native methods, now it generates exact digits. Added missed detection of native `Number.prototype.toPrecision` rounding exact integer ties to even in [FF86-](https://bugzilla.mozilla.org/show_bug.cgi?id=944846), incorrectly rounding some decimals in IE and Chakra-based Edge, losing digits of numbers with leading zeros in [Rhino 1.8.1+](https://github.com/mozilla/rhino/issues/2586) and checking the precision range before non-finite values in FF49- and [Safari 10-](https://bugs.webkit.org/show_bug.cgi?id=171197)
   - Added missed detection of native `Number.prototype.toExponential` incorrectly rounding some decimals in Chakra-based Edge
+  - Fixed `Number.prototype.toPrecision` polyfill - it had no own implementation and could not fix bugs of native methods, now it generates exact digits. Added missed detection of native `Number.prototype.toPrecision` rounding exact integer ties to even in [FF86-](https://bugzilla.mozilla.org/show_bug.cgi?id=944846), incorrectly rounding some decimals in IE and Chakra-based Edge, losing digits of numbers with leading zeros in [Rhino 1.8.1+](https://github.com/mozilla/rhino/issues/2586) and checking the precision range before non-finite values in FF49- and [Safari 10-](https://bugs.webkit.org/show_bug.cgi?id=171197)
   - Added missed detection of native `Number.prototype.{ toExponential, toFixed, toPrecision }` returning garbage, throwing Java exceptions or hanging on subnormal numbers in Rhino 1.8.0-, the polyfills no longer rely on native methods there
-- Added missed detection of imprecise native `Math.log2` on powers of two in [V8 ~ Chrome < 41](https://issues.chromium.org/issues/42206893), [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257) and [Rhino < 1.9.2](https://github.com/mozilla/rhino/pull/2522), the polyfill is also exact on them now
-- Added missed detection of imprecise native `Math.log10` on powers of ten in [V8 ~ Chrome < 41](https://issues.chromium.org/issues/42206893), the polyfill is also exact on them now
-- Added missed detection of native `Math.tanh` returning `NaN` on big arguments and `0` on tiny ones in [V8 ~ Chrome < 48](https://issues.chromium.org/issues/41480547)
-- Added missed detection of imprecise native `Math.atanh` in [V8 ~ Chrome < 53](https://issues.chromium.org/issues/42206569) and [Rhino < 1.9.2](https://github.com/mozilla/rhino/pull/2522) and `Math.log1p` in [V8 ~ Chrome < 39](https://issues.chromium.org/issues/42206797)
-- Added missed detection of imprecise native `Math.{ acosh, asinh, atanh, expm1, log1p }` in [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257)
-- Improved accuracy of `Math.{ expm1, sinh, tanh }` polyfills with small arguments and of `Math.atanh` polyfill near `-1`
-- `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
-- Fixed `Symbol`, typed array and weak collection polyfills depending on `Array.prototype.concat` or `Array.prototype.push` replaced after loading `core-js`
-- Fixed some polyfills depending on global `TypeError`, `isFinite`, `parseInt`, `String` or `Object` replaced after loading `core-js`
-- Improve `IsConstructor` checks on proxies, including revoked proxies, without reading their properties
-- Improve some more [`document.all` (falsy callable)](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot) cases handling
+- `Math`
+  - Added detection of imprecise native `Math.log2` on powers of two and `Math.log10` on powers of ten in [V8 ~ Chrome < 41](https://issues.chromium.org/issues/42206893), and of the `Math.log2` bug in [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257) and [Rhino < 1.9.2](https://github.com/mozilla/rhino/pull/2522). Both polyfills now return exact results on powers of their respective bases
+  - Added missed detection of imprecise native `Math.atanh` in [V8 ~ Chrome < 53](https://issues.chromium.org/issues/42206569) and [Rhino < 1.9.2](https://github.com/mozilla/rhino/pull/2522) and `Math.log1p` in [V8 ~ Chrome < 39](https://issues.chromium.org/issues/42206797)
+  - Added missed detection of imprecise native `Math.{ acosh, asinh, atanh, expm1, log1p }` in [FF < 48](https://bugzilla.mozilla.org/show_bug.cgi?id=933257)
+  - Added missed detection of native `Math.tanh` returning `NaN` on big arguments and `0` on tiny ones in [V8 ~ Chrome < 48](https://issues.chromium.org/issues/41480547)
+  - Improved accuracy of `Math.{ expm1, sinh, tanh }` polyfills with small arguments and of `Math.atanh` polyfill near `-1`
+  - `Math.sumPrecise` polyfill adds values on the fly instead of buffering the whole input, so it uses constant memory
+- Fixed the name of `Date.prototype.toUTCString` when polyfilling `Date.prototype.toGMTString`
+- Stopped replacing the native `Promise` in [Deno < 1.24](https://github.com/denoland/deno/pull/15211) solely for `unhandledrejection` support, fixing broken Web Streams and timers; this emulation remains available in the pure version
+- Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
+- Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
+- The `String.prototype.{ match, search }` polyfills now check that native methods throw a `TypeError` for a symbol argument. [Firefox 49-52](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) accepted the argument
+- `core-js-pure`
+  - Fixed subclassing some wrapped native constructors in the pure version, [#1585](https://github.com/zloirock/core-js/issues/1585)
+  - Fixed writable `.prototype` properties of polyfilled constructors and constructor wrappers in the pure version without modifying native constructors
+  - Fixed ignored `nonWritable` / `nonConfigurable` property attributes in the pure version, including `DisposableStack` / `AsyncDisposableStack` tags and numeric constants
+  - Fixed the pure version marking the native `Error.isError` as `.sham`
+  - Fixed a misleading error message of `Map`, `Set`, `WeakMap` and `WeakSet` methods called on `null` in the pure version
+- Polyfill internals
+  - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
+  - Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
+  - Fixed some polyfills depending on global `TypeError`, `isFinite`, `parseInt`, `String` or `Object` replaced after loading `core-js`
+  - Fixed `Symbol`, typed array and weak collection polyfills depending on `Array.prototype.concat` or `Array.prototype.push` replaced after loading `core-js`
+  - Improve `IsConstructor` checks on proxies, including revoked proxies, without reading their properties
+  - Improve some more [`document.all` (falsy callable)](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot) cases handling
 - Entries fixes:
-  - Added missed `JSON.parse` to `JSON.rawJSON` entries dependencies to validate input with the corrected parser
-  - Added missed `JSON.stringify` to `JSON.rawJSON` entries dependencies, a regression since 3.47.0
-  - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
   - Added missed `Map` to `/actual/array/` namespace entries dependencies, a regression since 3.29.1
-  - Added missing `Iterator.prototype[Symbol.dispose]` dependencies to iterator factory entries, and `Iterator.prototype.toAsync` dependencies to `full/iterator/{ concat, zip, zip-keyed, range }`
-  - Fixed `ArrayBuffer` and `DataView` dependencies of some entries, for `/array-buffer/constructor` entries it's a regression since 3.36.0
   - Fixed order of dependencies loading in some entries, for `/array/from-async` and `/array/` namespace entries it's a regression since 3.43.0
   - Added missed `Array[@@species]`, `Object.prototype.toString`, iterators and other dependencies to some entries
+  - Fixed `ArrayBuffer` and `DataView` dependencies of some entries, for `/array-buffer/constructor` entries it's a regression since 3.36.0
+  - Added missing `Iterator.prototype[Symbol.dispose]` dependencies to iterator factory entries, and `Iterator.prototype.toAsync` dependencies to `full/iterator/{ concat, zip, zip-keyed, range }`
+  - Added `JSON.parse` to the `JSON.rawJSON` entries for input validation with the corrected parser and restored their `JSON.stringify` dependency to fix a regression introduced in 3.47.0
+  - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
   - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/string/virtual/` and `Number.prototype.clamp` to `/full/number/virtual/` namespace entries
   - Fixed `/full/instance/clamp` entry, it checked `String.prototype` instead of `Number.prototype`
   - Fixed `/error/to-string`, `/function/has-instance` and `/dom-collections/for-each` entry exports to accept the receiver as the first argument
   - Removed unneeded dependencies and workarounds from some entries
-- Fixed missing polyfills and rejected exact versions for mobile `browserslist` targets in `core-js-compat` and `core-js-builder`
-- Fixed handling of Safari Technology Preview and `latest` targets in `core-js-compat` and `core-js-builder`; invalid non-numeric target versions now throw a `RangeError` naming the engine and value
-- Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
-- Fixed `exclude` in `core-js-compat` and `core-js-builder` treating stable `es.*` modules and their legacy `esnext.*` aliases inconsistently; excluding either name now excludes both
-- Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`; it now behaves like an omitted option
-- Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
+- `core-js-compat` and `core-js-builder`
+  - Fixed missing polyfills and rejected exact versions for mobile `browserslist` targets in `core-js-compat` and `core-js-builder`
+  - Fixed handling of Safari Technology Preview and `latest` targets in `core-js-compat` and `core-js-builder`; invalid non-numeric target versions now throw a `RangeError` naming the engine and value
+  - Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
+  - Fixed `exclude` in `core-js-compat` and `core-js-builder` treating stable `es.*` modules and their legacy `esnext.*` aliases inconsistently; excluding either name now excludes both
+  - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`; it now behaves like an omitted option
+  - Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
 - Compat data improvements:
-  - Added Safari 27.3 compat data:
+  - *Added Safari 27.3 compat data*:
     - Shipped [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features
     - Shipped [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration)
     - Shipped [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking)
     - Shipped [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes)
     - Shipped [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join)
-    - `Promise.try` updated following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883)
+    - Updated `Promise.try` to use `PromiseResolve` semantics
     - Fixed `Error.isError`
     - Added `DOMException#stack`
-  - `URL` and `URLSearchParams` marked as properly supported from Chrome 130, Firefox 133, Safari 15.4, iOS 15.4, NodeJS 20.12 and Deno 1.25.2 because of hundreds bugs of older native implementations in validation and parsing of hosts, non-special URLs and IDNA processing, and data loss in `URLSearchParams`
-  - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
-  - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
-  - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
-  - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari / Bun < 1.4.4 due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074); corrected Bun detection in compat tests
-  - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
-  - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
-  - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
-  - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments
-  - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
-  - `queueMicrotask` marked as properly supported from Deno 1.24.3 instead of 1.0 because of incorrect arity
-  - Fixed NodeJS compat data for array iterators, `Array.prototype.{ reduce, reduceRight }`, `ArrayBuffer`, `ArrayBuffer.prototype.slice`, `DataView`, `Math.imul` and `%TypedArray%.prototype.subarray`
-  - `ArrayBuffer.prototype.slice` marked as properly supported from Chrome 52 and Safari 14.1 instead of Chrome 31 and Safari 12.1 because of the detached buffers bug above
-  - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.5 because of the arguments conversion bug above
-  - `Function.prototype[@@hasInstance]` marked as supported from Chrome 50 instead of 51
-  - Fixed [Deno 1.1.1](https://github.com/denoland/deno/releases/tag/v1.1.1) compat data mapping: `AggregateError`, `Promise.any` and `String.prototype.replaceAll` are available from this version
-  - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from:
+  - *Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` properly supported from*:
     - [V8 ~ Chrome 154](https://github.com/v8/v8/commit/5b5d90c5082ed1e6cf293d3008a33b81aae8cfbb)
     - [FF156](https://bugzilla.mozilla.org/show_bug.cgi?id=2062293)
+    - Safari 27.3
     - [Bun 1.4.1](https://bun.com/blog/bun-v1.4.1#upgraded-javascriptcore)
-  - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
-  - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
-  - `Math.log2` marked as properly supported from Chrome 41, FF48 and Rhino 1.9.2 because of imprecision on powers of two (see above)
-  - `Math.log10` marked as properly supported from Chrome 41 because of imprecision on powers of ten (see above)
-  - `Math.tanh` marked as properly supported from Chrome 48, `Math.atanh` - from Chrome 53 and Rhino 1.9.2, `Math.log1p` - from Chrome 39, `Math.{ acosh, asinh, atanh, expm1, log1p }` - from FF48 because of the bugs above
-  - `Number.prototype.{ toExponential, toFixed, toPrecision }` marked as properly supported from [V8 ~ Chrome 62](https://github.com/v8/v8/blob/6.2-lkgr/src/builtins/builtins-number.cc), [Safari 13.1](https://bugs.webkit.org/show_bug.cgi?id=199163) and Hermes 0.1.1 because of the limit of digits, `Number.prototype.toPrecision` - from FF87 because of the rounding bug above; `Number.prototype.{ toExponential, toFixed }` - from Rhino 1.8.1 because of the subnormal numbers bug above; `Number.prototype.toExponential` no longer marked as supported in Edge 18, `Number.prototype.toPrecision` - in IE, EdgeHTML-based Edge and Rhino
-  - `Math.sumPrecise` marked as properly supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
-  - `Math.sumPrecise` marked as [properly supported](https://github.com/WebKit/WebKit/pull/65558) from Bun 1.4.5
-  - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 because of the resizable buffer and `read` count bugs (see above)
-  - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
-  - `Set.prototype.union` marked as properly supported from [V8 ~ Chrome 133](https://issues.chromium.org/issues/352690887) where it gets the iterator record of a set-like object before cloning `this`
-  - `self` marked as properly supported from Edge 87: unlike Chrome 86, Edge 86 has it as a data property
-  - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
-  - `Array.prototype.splice` marked as supported from Rhino 1.9.0
-  - `Array.prototype.fill` marked as properly supported from Chrome 48 instead of Chrome 45 because of the bug above
-  - `Array.prototype.unshift` marked as properly supported from FF55 instead of FF23 and Edge 16 instead of Edge 12 and no longer marked as supported in IE because of the bugs above
-  - Fixed Rhino compat data: `Promise.withResolvers` marked as supported from [1.9.0](https://github.com/mozilla/rhino/pull/1980), `Array.fromAsync` and `%TypedArray%.prototype.with` marked as not supported, `Error.prototype.toString`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray` marked as supported from 1.7.13, `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, some, sort, toLocaleString }` - from [1.8.0](https://github.com/mozilla/rhino/commit/db117290720838a54126f6a27da117097f539353)
-  - Fixed Firefox compat data: `Date.prototype.toISOString` marked as supported from [FF6](https://bugzilla.mozilla.org/show_bug.cgi?id=649575), `Object.getOwnPropertyNames` - from FF33, `Number` constructor - from [FF36](https://bugzilla.mozilla.org/show_bug.cgi?id=1079120), `Array.prototype.{ map, splice }` - from [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052), `Symbol.hasInstance` - from [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906), `DOMException.prototype[@@toStringTag]` - from [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799), `Iterator.prototype.{ drop, take }` - from [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666)
-  - Fixed IE compat data: `%TypedArray%.prototype.subarray` marked as supported from IE11, the `DOMException` `.stack` patch is no longer required in IE10+
-  - Fixed Safari compat data: `%TypedArray%.prototype.set` marked as supported from Safari 14.0
-  - Chromium-based Edge and Opera no longer inherit EdgeHTML and Presto data where Chrome needs a later version: `Array.prototype.{ reduce, reduceRight }` are no longer marked as supported in Edge 79-82, `Object.{ defineProperty, defineProperties }` - in Opera 15-23, `atob` - in Opera 15-20
-  - Fixed [Opera 120](https://blogs.opera.com/desktop/2025/07/opera-120/) compat data mapping: `RegExp.escape`, `SuppressedError`, `DisposableStack`, `AsyncDisposableStack` and `Iterator.prototype[@@dispose]` are no longer marked as supported
-  - Fixed Electron [0.21](https://github.com/electron/electron/blob/v0.21.0/atom/common/chrome_version.h), [0.30](https://github.com/electron/electron/blob/v0.30.0/atom/common/chrome_version.h), [0.31](https://github.com/electron/electron/blob/v0.31.0/atom/common/chrome_version.h) and [1.4](https://github.com/electron/electron/blob/v1.4.0/atom/common/chrome_version.h) compat data mapping
-  - [Updated Electron 46 and added 47](https://releases.electronjs.org/) compat data mapping
-  - Updated Opera 140+ compat data mapping
-  - Added Opera for Android [103](https://forums.opera.com/topic/89817/opera-for-android-103) and [104](https://forums.opera.com/topic/90033/opera-for-android-104) compat data mapping
-  - Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
+  - *`URL` and `URLSearchParams` marked as properly supported from the following versions*:
+    - Chrome 130
+    - Firefox 133
+    - Safari 15.4
+    - iOS 15.4
+    - NodeJS 20.12
+    - Deno 1.25.2
+  - Other web APIs
+    - `atob` marked as properly supported from Deno 1.17.3, `btoa` - from Deno 1.11; `atob` no longer marked as supported in Hermes / React Native because of the error handling bugs above
+    - Aligned `atob` / `btoa` probes with module checks for arity, basic encoding / decoding, `btoa(null)` conversion and the error from `atob()` without arguments
+    - `queueMicrotask` marked as properly supported from Deno 1.24.3 instead of 1.0 because of incorrect arity
+    - Marked `self` as unsupported in [Bun](https://github.com/oven-sh/bun/issues/47793) and [Deno](https://github.com/denoland/deno/issues/37119) because their getters accept invalid receivers
+    - `self` marked as properly supported from Edge 87: unlike Chrome 86, Edge 86 has it as a data property
+  - `Array` methods
+    - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
+    - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074). Bun is marked as supported from 1.4.4, which fixed the initialization bug. Corrected Bun detection in compat tests
+    - `Array.prototype.fill` marked as properly supported from Chrome 48 instead of Chrome 45 because of the bug above
+    - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
+    - `Array.prototype.unshift` marked as properly supported from FF55 instead of FF23 and Edge 16 instead of Edge 12 and no longer marked as supported in IE because of the bugs above
+  - Buffers, `DataView` and typed arrays
+    - `ArrayBuffer.prototype.slice` marked as properly supported from Chrome 52 and Safari 14.1 instead of Chrome 31 and Safari 12.1 because of the detached buffers bug above
+    - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
+    - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.0 because of the arguments conversion bug above
+    - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 instead of 140 because of failures on views of resizable buffers. `setFromBase64` also excluded trailing whitespace from its `read` count
+  - `Number` and `Math`
+    - `Number.prototype.{ toExponential, toFixed, toPrecision }`
+      - All three methods are marked as properly supported from [V8 ~ Chrome 62](https://github.com/v8/v8/blob/6.2-lkgr/src/builtins/builtins-number.cc), [Safari 13.1](https://bugs.webkit.org/show_bug.cgi?id=199163) and Hermes 0.1.1, where they accept up to 100 digits
+      - `toPrecision` is marked as properly supported from FF87 because earlier versions round exact integer ties incorrectly
+      - `toExponential` and `toFixed` are marked as properly supported from Rhino 1.8.1 because earlier versions mishandle subnormal numbers
+      - `toExponential` is no longer marked as supported in Edge 18
+      - `toPrecision` is no longer marked as supported in IE, EdgeHTML-based Edge and Rhino
+    - Because of imprecision on powers of their respective bases (see above), `Math.log2` and `Math.log10` are marked as properly supported from Chrome 41, and `Math.log2` from FF48 and Rhino 1.9.2
+    - `Math.{ acosh, asinh }` marked as supported from [Rhino 1.9.2](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_2_Release)
+    - `Math.tanh` marked as properly supported from Chrome 48, `Math.atanh` - from Chrome 53 and Rhino 1.9.2, `Math.log1p` - from Chrome 39, `Math.{ acosh, asinh, atanh, expm1, log1p }` - from FF48 because of the bugs above
+    - `Math.sumPrecise` marked as properly supported from [V8 ~ Chrome 158](https://github.com/v8/v8/commit/b8851805ce36c5db7c2be14d94bef42b8baf5dbf) where the bug with modified prototypes of array iterators was fixed
+    - `Math.sumPrecise` marked as [properly supported](https://github.com/WebKit/WebKit/pull/65558) from Bun 1.4.5
+  - Other ECMAScript built-ins
+    - `Iterator.concat` no longer marked as supported in V8-based engines because of the iterator-closing bug above
+    - `Reflect.construct` marked as properly supported from [FF45](https://bugzilla.mozilla.org/show_bug.cgi?id=1055472) instead of FF44 because of the built-in constructor bug above
+    - `Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) instead of FF135 - before that, they were available only in Nightly
+    - `Function.prototype[@@hasInstance]` marked as supported from Chrome 50 instead of 51
+    - `Promise`, its original methods, `finally` and `allSettled` marked as supported from Deno 1.0 instead of 1.24
+    - `Set.prototype.union` marked as properly supported from [V8 ~ Chrome 133](https://issues.chromium.org/issues/352690887) where it gets the iterator record of a set-like object before cloning `this`
+    - Aligned the `String.fromCodePoint` probe with the module arity check; marked as properly supported from [FF35](https://bugzilla.mozilla.org/show_bug.cgi?id=1062484) instead of FF29
+  - Engine-specific data corrections
+    - Corrected minimum Firefox versions
+      - [FF6](https://bugzilla.mozilla.org/show_bug.cgi?id=649575) for `Date.prototype.toISOString`
+      - FF33 for `Object.getOwnPropertyNames`
+      - [FF36](https://bugzilla.mozilla.org/show_bug.cgi?id=1079120) for the `Number` constructor
+      - [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052) for `Array.prototype.{ map, splice }`
+      - [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906) for `Symbol.hasInstance`
+      - [FF53](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) instead of FF49 for `String.prototype.{ match, search }`
+      - [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799) for `DOMException.prototype[@@toStringTag]`
+      - [FF157](https://bugzilla.mozilla.org/show_bug.cgi?id=2062666) for `Iterator.prototype.{ drop, take }`
+    - Fixed IE compat data: `%TypedArray%.prototype.subarray` marked as supported from IE11, the `DOMException` `.stack` patch is no longer required in IE10+
+    - Corrected minimum NodeJS versions in the compat data
+      - 0.11.0 for `Array.prototype.{ reduce, reduceRight }`
+      - 0.11.2 for `Math.imul`
+      - 0.11.4 for the `ArrayBuffer` constructor, `ArrayBuffer.prototype.slice` and `%TypedArray%.prototype.subarray`
+      - 10.9 for array iterators (`es.array.iterator`)
+    - Corrected Rhino compat data
+      - 1.7.13 and later for `Error.prototype.toString`, `ArrayBuffer.isView` and `%TypedArray%.prototype.subarray`
+      - [1.8.0](https://github.com/mozilla/rhino/commit/db117290720838a54126f6a27da117097f539353) and later for `%TypedArray%.prototype.{ copyWithin, every, filter, find, findIndex, forEach, includes, indexOf, join, lastIndexOf, map, reduce, reduceRight, reverse, some, sort, toLocaleString }`
+      - [1.9.0](https://github.com/mozilla/rhino/pull/1980) and later for `Promise.withResolvers`
+      - Marked `Array.fromAsync` and `%TypedArray%.prototype.with` as unsupported
+    - Fixed Safari compat data: `%TypedArray%.prototype.set` marked as supported from Safari 14.0
+  - Version mappings and data inheritance
+    - *Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping*, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
+    - Updated Opera 140+ compat data mapping
+    - Chromium-based Edge and Opera no longer inherit support from EdgeHTML and Presto where Chrome requires a later version. The resulting minimum versions also affect builds targeting those older engines
+      - Edge 83 instead of 12 for `Array.prototype.{ reduce, reduceRight }`
+      - Opera 21 instead of 10.5 for `atob`
+      - Opera 24 instead of 12 for `Object.{ defineProperty, defineProperties }`
+    - Fixed [Opera 120](https://blogs.opera.com/desktop/2025/07/opera-120/) compat data mapping: `RegExp.escape`, `SuppressedError`, `DisposableStack`, `AsyncDisposableStack` and `Iterator.prototype[@@dispose]` are no longer marked as supported
+    - Added Opera for Android [103](https://forums.opera.com/topic/89817/opera-for-android-103) and [104](https://forums.opera.com/topic/90033/opera-for-android-104) compat data mapping
+    - [Updated Electron 46 and added 47](https://releases.electronjs.org/) compat data mapping
+    - Fixed Electron [0.21](https://github.com/electron/electron/blob/v0.21.0/atom/common/chrome_version.h), [0.30](https://github.com/electron/electron/blob/v0.30.0/atom/common/chrome_version.h), [0.31](https://github.com/electron/electron/blob/v0.31.0/atom/common/chrome_version.h) and [1.4](https://github.com/electron/electron/blob/v1.4.0/atom/common/chrome_version.h) compat data mapping
+    - Fixed [Deno 1.1.1](https://github.com/denoland/deno/releases/tag/v1.1.1) compat data mapping: `AggregateError`, `Promise.any` and `String.prototype.replaceAll` are available from this version
 
 ### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
 - Changes [v3.50.0...v3.51.0](https://github.com/zloirock/core-js/compare/v3.50.0...v3.51.0) (62 commits)
