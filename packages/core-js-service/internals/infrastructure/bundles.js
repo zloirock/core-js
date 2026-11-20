@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { brotliCompress, gzip } from 'node:zlib';
@@ -31,13 +31,23 @@ export default function createBundles({ directory = null, generation, compressio
 
   const loaded = loadFromDisk();
 
+  async function activationTime(folder) {
+    try {
+      return Number(await readFile(join(folder, '.activated'), 'utf8'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      // Generations from releases before the activation marker used directory timestamps.
+      return (await stat(folder)).mtimeMs;
+    }
+  }
+
   async function otherGenerations() {
     const others = [];
 
     for (const entry of await readdir(root, { withFileTypes: true })) {
       if (!entry.isDirectory() || !GENERATION_LIKE.test(entry.name) || entry.name === generation) continue;
       try {
-        others.push([entry.name, (await stat(join(root, entry.name))).mtimeMs]);
+        others.push([entry.name, await activationTime(join(root, entry.name))]);
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
@@ -66,7 +76,7 @@ export default function createBundles({ directory = null, generation, compressio
 
           const bundleId = file.slice(0, -5);
 
-          if (!memory.has(bundleId)) await readBundle(bundleId, name);
+          if (memory.get(bundleId)?.generation !== generation) await readBundle(bundleId, name);
         }
       } catch { /* a generation nobody has written yet, or one this process cannot read */ }
     }
@@ -137,6 +147,15 @@ export default function createBundles({ directory = null, generation, compressio
         }
       }
       if (!representations.size || (current && representations.size !== encodings.length)) return;
+      // The same immutable address can survive several deployments with different encodings.
+      // Discovery visits the newest first, so keep its bytes for any encoding both stores have.
+      const newer = memory.get(bundleId);
+      if (newer) {
+        for (const [encoding, stored] of representations) {
+          if (!newer.representations.has(encoding)) newer.representations.set(encoding, stored);
+        }
+        return;
+      }
       memory.set(bundleId, { modules: Object.freeze(modules), representations, generation: storedIn });
     } catch { /* absent, or half-written by a build that died: this process will build it */ }
   }
@@ -206,8 +225,7 @@ export default function createBundles({ directory = null, generation, compressio
     async activate() {
       if (root === null) return;
       try {
-        const now = new Date();
-        await utimes(join(root, generation), now, now);
+        await commit(join(root, generation, '.activated'), String(performance.timeOrigin + performance.now()));
       } catch (error) {
         warn('bundles:no-activation-time', `the current generation's activation time could not be recorded (${ error.message })`);
       }

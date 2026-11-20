@@ -43,8 +43,8 @@ async function serve(build) {
 
   return {
     reported,
-    async get(path, headers, method = 'GET') {
-      return fetch(`http://127.0.0.1:${ port }${ path }`, { headers, method });
+    async get(path, headers, method = 'GET', signal = undefined) {
+      return fetch(`http://127.0.0.1:${ port }${ path }`, { headers, method, signal });
     },
     async close() {
       server.closeAllConnections();
@@ -58,10 +58,22 @@ function srcOf(markup) {
 }
 
 // the ordinary arrangement: the middleware after `compression`, an HTML page and a JSON endpoint
+let callbacks = 0;
+let compressedWritable;
 const site = await serve((app, middleware) => {
   app.use(compression());
   app.use(middleware());
   app.get('/', (request, response) => response.type('html').send(PAGE));
+  app.get('/write-callback', (request, response) => {
+    const bytes = Buffer.alloc(256 * 1024, 'x');
+    response.type('html');
+    response.write(OPENING);
+    compressedWritable = response.write(bytes, () => {
+      callbacks++;
+      bytes.fill(0);
+      response.end('done');
+    });
+  });
   app.get('/data', (request, response) => response.json({ ok: true }));
   app.get('/chunked', (request, response) => {
     response.type('html');
@@ -121,6 +133,12 @@ try {
   // client compressed
   strictEqual(page.headers.get('content-encoding'), 'gzip', 'adapter-1 #1');
   deepStrictEqual(site.reported, [], 'adapter-1 #2');
+
+  const streamedGzip = await site.get('/write-callback', { 'accept-encoding': 'gzip' }, 'GET', AbortSignal.timeout(10_000));
+  strictEqual(streamedGzip.headers.get('content-encoding'), 'gzip', 'adapter-3 #7');
+  ok((await streamedGzip.text()).endsWith(`${ 'x'.repeat(256 * 1024) }done`), 'adapter-3 #8');
+  strictEqual(callbacks, 1, 'adapter-3 #9');
+  strictEqual(compressedWritable, false, 'adapter-3 #10');
 
   // an application that says it already varies by the visitor is not told twice
   const varied = await site.get('/varied', { 'user-agent': CHROME });
@@ -536,9 +554,13 @@ await writeFile(join(directory, 'data.txt'), 'unchanged');
 const compressedPage = await promisify(brotliCompress)(Buffer.from(PAGE));
 let writable;
 const staticSite = await serve((app, middleware) => {
+  app.use('/source', express.static(directory));
   app.use(middleware({ targets: { ie: '11' } }));
   app.get('/compressed', (request, response) => {
     response.type('html').set('Content-Encoding', 'br').end(compressedPage);
+  });
+  app.get('/partial', (request, response) => {
+    response.status(206).type('html').set('Content-Range', `bytes 0-14/${ PAGE.length }`).end(PAGE.slice(0, 15));
   });
   app.get('/pooled', (request, response) => {
     const bytes = Buffer.alloc(256 * 1024, 'a');
@@ -556,13 +578,47 @@ try {
   ok((await pooled.text()).endsWith('a'.repeat(256 * 1024)), 'adapter-3 #5');
   strictEqual(writable, false, 'adapter-3 #6');
 
-  const partial = await staticSite.get('/', { range: 'bytes=0-14' });
+  // An explicitly partial upstream response cannot be edited in isolation.
+  const partial = await staticSite.get('/partial', { range: 'bytes=0-14' });
   strictEqual(partial.status, 206, 'adapter-2 #24');
   strictEqual(await partial.text(), PAGE.slice(0, 15), 'adapter-2 #17');
   strictEqual(partial.headers.get('content-range'), `bytes 0-14/${ PAGE.length }`, 'adapter-2 #18');
 
+  const textRange = await staticSite.get('/data.txt', { range: 'bytes=0-3' });
+  strictEqual(textRange.status, 206, 'adapter-2 #31');
+  strictEqual(await textRange.text(), 'unch', 'adapter-2 #32');
+  strictEqual(textRange.headers.get('content-range'), 'bytes 0-3/9', 'adapter-2 #33');
+
   const full = await staticSite.get('/', {});
+  const markup = await full.text();
   strictEqual(full.headers.get('last-modified'), null, 'adapter-2 #19');
+  const head = await staticSite.get('/', {}, 'HEAD');
+  for (const name of ['content-length', 'etag', 'last-modified', 'accept-ranges', 'vary']) {
+    strictEqual(head.headers.get(name), full.headers.get(name), `adapter-2 #25: ${ name }`);
+  }
+  strictEqual(await head.text(), '', 'adapter-2 #26');
+
+  const wildcard = await staticSite.get('/', { 'if-none-match': '*', 'cache-control': 'max-age=0' });
+  strictEqual(wildcard.status, 304, 'adapter-2 #34');
+  strictEqual(wildcard.headers.get('vary'), full.headers.get('vary'), 'adapter-2 #35');
+  strictEqual(wildcard.headers.get('etag'), null, 'adapter-2 #36');
+  strictEqual(wildcard.headers.get('last-modified'), null, 'adapter-2 #37');
+
+  const source = await staticSite.get('/source/', {}, 'HEAD');
+  const etag = source.headers.get('etag');
+  ok(etag, 'adapter-2 #27');
+  for (const headers of [
+    { range: 'bytes=0-14' },
+    { range: `bytes=${ PAGE.length }-` },
+    { range: 'bytes=0-14', 'if-range': etag },
+    { range: 'bytes=0-14', 'if-modified-since': source.headers.get('last-modified') },
+    { 'if-none-match': etag },
+  ]) {
+    const result = await staticSite.get('/', { ...headers, 'cache-control': 'max-age=0' });
+    strictEqual(result.status, 200, 'adapter-2 #28');
+    strictEqual(result.headers.get('content-range'), null, 'adapter-2 #29');
+    strictEqual(await result.text(), markup, 'adapter-2 #30');
+  }
   const text = await staticSite.get('/data.txt', {});
   const date = text.headers.get('last-modified');
   ok(date, 'adapter-2 #20');

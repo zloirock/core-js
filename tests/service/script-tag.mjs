@@ -151,3 +151,21 @@ strictEqual(tagged(installed), installed, 'script-tag-1 #10');
 strictEqual(withPolicy("script-src 'none'; script-src-elem 'self'").markup, tagged('<head>'), 'script-tag-3 #18');
 strictEqual(withPolicy("script-src-elem 'self'; script-src 'none'").markup, tagged('<head>'), 'script-tag-3 #19');
 strictEqual(withPolicy("script-src 'self'; script-src-elem 'none'").markup, '<head>', 'script-tag-3 #20');
+
+const app = '<script>window.start()</script>';
+const existing = `<SCRIPT nonce="kept" src='${ SRC }'></SCRIPT>`;
+const charset = '<meta charset=utf-8>';
+strictEqual(tagged(opening + charset + app + existing), opening + charset + existing + app, 'script-tag-1 #11');
+strictEqual(tagged(opening + existing + app), opening + existing + app, 'script-tag-1 #12');
+const cut = `<script src='${ SRC }'>`;
+strictEqual(tagged(`${ opening + app + cut }ignored`), `${ opening + cut }</script>${ app
+}<script type="application/octet-stream">ignored`, 'script-tag-1 #13');
+const escaped = `<script src="&#47;${ SRC.slice(1) }"></script>`;
+for (const spelling of [escaped, escaped.replaceAll('"', "'"), escaped.replaceAll('"', '')]) {
+  strictEqual(tagged(opening + spelling), opening + spelling, 'script-tag-1 #14');
+}
+const quoted = '<html lang="en" data-example=">"><head>';
+strictEqual(tagged(quoted + charset + app), quoted + charset + tag + app, 'script-tag-2 #5');
+
+const dataFirst = `${ opening }<script type="application/json">{}</script>${ existing }${ app }`;
+strictEqual(tagged(dataFirst), dataFirst, 'script-tag-1 #15');

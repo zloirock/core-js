@@ -1,5 +1,6 @@
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
-import { mkdtemp, rm, utimes } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import createService from '@core-js/service';
@@ -318,8 +319,8 @@ strictEqual(merged.response.headers.vary, 'origin, user-agent, accept-encoding',
 ok(script.reported.length === 0, 'serve-4 #17');
 
 const directory = await mkdtemp(join(tmpdir(), 'core-js-deployments-'));
-async function deploy(module, compression) {
-  const service = createService({ directory, targets: { ie: '11' }, scope: [module], compression });
+async function deploy(module, compression, options) {
+  const service = createService({ directory, targets: { ie: '11' }, scope: [module], compression, ...options });
   await service.start().warmed;
   return service;
 }
@@ -347,6 +348,70 @@ try {
   const c = await deploy('es.string.replace-all');
   deepStrictEqual(await c.bundles.get(oldId, 'identity'), await a.bundles.get(oldId, 'identity'), 'bundles-4 #21');
   strictEqual(await c.bundles.get(b.plan.baseline.bundleId, 'identity'), null, 'bundles-4 #22');
+
+  const variants = { directory: join(directory, 'variants'), retain: 2 };
+  const identity = await deploy('es.array.at', { identity: true }, variants);
+  const gzip = await deploy('es.array.at', { gzip: true }, variants);
+  const combined = await deploy('es.string.replace-all', { identity: true }, variants);
+  for (const [encoding, source] of [['identity', identity], ['gzip', gzip]]) {
+    const result = answer({ 'accept-encoding': encoding });
+    await combined.serve(result.request, result.response, oldId);
+    strictEqual(result.response.statusCode, 200, 'get-bundle-1 #15');
+    deepStrictEqual(result.response.body, await source.bundles.get(oldId, encoding), 'get-bundle-1 #16');
+  }
+  strictEqual(await gzip.bundles.get(oldId, 'identity'), null, 'bundles-4 #23');
+
+  const overlap = { directory: join(directory, 'overlap'), targets: { chrome: '100', ie: '11' }, retain: 1 };
+  const initial = await deploy('es.array.at', undefined, overlap);
+  const slow = createService({ ...overlap, scope: ['es.array.at', 'es.object.group-by'] });
+  const writing = Promise.withResolvers();
+  const resume = Promise.withResolvers();
+  const { put } = slow.bundles;
+  slow.bundles.put = async (id, bundle) => {
+    if (id !== slow.plan.baseline.bundleId) {
+      writing.resolve();
+      await resume.promise;
+    }
+    return put(id, bundle);
+  };
+  const { warmed: slowWarm } = slow.start();
+  try {
+    const paused = await Promise.race([writing.promise, slowWarm]);
+    strictEqual(paused, undefined, 'bundles-4 #26');
+    await deploy('es.array.at', undefined, overlap);
+  } finally {
+    resume.resolve();
+    await slowWarm;
+  }
+  // Give the late writes a distinguishable directory mtime even on a coarse filesystem.
+  const future = new Date(Date.now() + 60_000);
+  await utimes(join(overlap.directory, slow.plan.generation), future, future);
+  const after = await deploy('es.string.replace-all', undefined, overlap);
+  const rollbackResponse = answer({ 'accept-encoding': 'identity' });
+  await after.serve(rollbackResponse.request, rollbackResponse.response, initial.plan.baseline.bundleId);
+  strictEqual(rollbackResponse.response.statusCode, 200, 'bundles-4 #24');
+  deepStrictEqual((await readdir(overlap.directory)).toSorted(),
+    [after.plan.generation, initial.plan.generation].toSorted(), 'bundles-4 #25');
+
+  // Recreate a pre-migration disk layout from its public hash inputs.
+  const migration = { directory: join(directory, 'migration'), scope: ['es.array.at'],
+    compression: { identity: true }, ignoreBrowserslistConfig: true, retain: 0 };
+  const { coreJS, compat, builder } = createService(migration).config.versions;
+  const versions = `core-js ${ coreJS }\n@core-js/compat ${ compat }\n@core-js/builder ${ builder }\nminify true\n`;
+  function legacyId(input) {
+    return createHash('sha256').update(versions + input).digest('hex').slice(0, 16);
+  }
+  const legacy = join(migration.directory, legacyId('targets null\nes.array.at\ncompression {"identity":{}}\n'));
+  const obsolete = legacyId('es.array.at\n');
+  await mkdir(legacy, { recursive: true });
+  await writeFile(join(legacy, `${ obsolete }.js`), '/* old bundle */');
+  await writeFile(join(legacy, `${ obsolete }.json`), JSON.stringify({ modules: migration.scope }));
+  const upgraded = createService(migration);
+  await upgraded.start().warmed;
+  const obsoleteResponse = answer({ 'accept-encoding': 'identity' });
+  await upgraded.serve(obsoleteResponse.request, obsoleteResponse.response, obsolete);
+  strictEqual(obsoleteResponse.response.statusCode, 404, 'bundles-4 #27');
+  deepStrictEqual(await readdir(migration.directory), [upgraded.plan.generation], 'bundles-4 #28');
 } finally {
   await rm(directory, { recursive: true, force: true });
 }

@@ -34,6 +34,9 @@ function listModules(spec) {
 
 const plan = buildBuckets({ targets, listModules, versions, minify: true, scope: SCOPE });
 
+// Disk generation of this exact fixture when bundle identifiers only hashed the module list.
+notStrictEqual(plan.generation, 'bc5df22ebad0c017', 'buckets-4 #8');
+
 // the same module list is the same name, whichever engine asked for it
 strictEqual(plan.buckets.length, 3, 'buckets-1 #1');
 strictEqual(plan.byEngine.get('chrome').at(-1).bundleId, plan.byEngine.get('edge')[0].bundleId, 'buckets-1 #2');

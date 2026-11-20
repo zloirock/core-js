@@ -1,4 +1,5 @@
 /* eslint-disable promise/prefer-await-to-callbacks -- the signature of `res.write` and `res.end` */
+import { ServerResponse } from 'node:http';
 import { HTML_PREFIX } from '../../../config.js';
 import varyBy from '../vary.js';
 
@@ -34,25 +35,76 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
   const original = { end: response.end, write: response.write };
   const head = [];
   let size = 0;
+  let rangeHidden = false;
+  let validatingHTML = false;
 
-  // Express checks freshness before its first write. An HTML file's timestamp
-  // can survive a deployment that changes the injected bundle address.
-  if (request.headers['if-modified-since'] && !request.headers.range
-    && (request.method === 'GET' || request.method === 'HEAD')) {
-    const { getHeader } = response;
-    response.getHeader = function (name) {
-      if (name.toLowerCase() === 'last-modified' && isHTML(this)) return undefined;
-      return getHeader.call(this, name);
-    };
-    original.getHeader = getHeader;
+  const { headers, method } = request;
+  const { range } = headers;
+  const ifRange = headers['if-range'];
+  const retrieval = method === 'GET' || method === 'HEAD';
+
+  function canTransform() {
+    const encoding = response.getHeader('content-encoding');
+    return isHTML(response) && (!encoding || String(encoding).trim().toLowerCase() === 'identity');
   }
 
-  // putting the originals back is what ends the interception: from here on the application's calls
-  // reach them directly, and neither of the two closures below runs again
+  // express.static snapshots Range before it knows the file type, then checks If-Range
+  // after setting it. An obsolete source range must fall back to a full transformed GET.
+  function restoreRange() {
+    if (!rangeHidden) return;
+    rangeHidden = false;
+    headers.range = range;
+    if (ifRange === undefined) delete headers['if-range'];
+    else headers['if-range'] = ifRange;
+  }
+
+  if (retrieval && range) {
+    original.setHeader = response.setHeader;
+    function updateRange() {
+      if (canTransform()) {
+        rangeHidden = true;
+        delete headers.range;
+        headers['if-range'] = 'W/"core-js-transformed"';
+      } else restoreRange();
+    }
+    response.setHeader = function (name, value) {
+      const result = original.setHeader.call(this, name, value);
+      if (/^content-(?:encoding|type)$/i.test(name)) updateRange();
+      return result;
+    };
+    updateRange();
+  }
+
+  if (retrieval && (range || headers['if-modified-since'] || headers['if-none-match'])) {
+    original.getHeader = response.getHeader;
+    response.getHeader = function (name) {
+      if (/^(?:etag|last-modified)$/i.test(name)) {
+        validatingHTML = canTransform();
+        if (validatingHTML) return undefined;
+      }
+      return original.getHeader.call(this, name);
+    };
+  }
+
   function restore() {
+    if (original.setHeader) {
+      restoreRange();
+      response.setHeader = original.setHeader;
+    }
     if (original.getHeader) response.getHeader = original.getHeader;
     response.end = original.end;
     response.write = original.write;
+  }
+
+  function documentHeaders() {
+    response.removeHeader('content-length');
+    response.removeHeader('etag');
+    response.removeHeader('last-modified');
+    response.removeHeader('accept-ranges');
+    if (config.delivery !== 'fixed') {
+      varyBy(response, 'user-agent');
+      varyBy(response, 'accept-encoding');
+    }
   }
 
   // the three ways the insertion is given up on: the beginning goes out exactly as it arrived, and
@@ -122,14 +174,7 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
           + 'body. Set the headers with `res.setHeader` rather than `res.writeHead`', callback);
       }
 
-      response.removeHeader('content-length');
-      response.removeHeader('etag');
-      response.removeHeader('last-modified');
-
-      if (config.delivery !== 'fixed') {
-        varyBy(response, 'user-agent');
-        varyBy(response, 'accept-encoding');
-      }
+      documentHeaders();
     }
 
     return writeOut(prefix.length, Buffer.from(patched, 'latin1'), callback);
@@ -194,7 +239,15 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
 
     if (chunk) collect(chunk, encoding);
 
-    if (size >= HTML_PREFIX) return flush(callback);
+    if (size >= HTML_PREFIX) {
+      if (!callback || original.write === ServerResponse.prototype.write) return flush(callback);
+      // Middleware such as compression accepts the bytes but drops the write callback.
+      // Own the caller's view before acknowledging it, even if the encoder is still reading it.
+      if (ArrayBuffer.isView(chunk)) copyLastChunk();
+      const writable = flush();
+      queueMicrotask(callback);
+      return writable;
+    }
     copyLastChunk();
 
     if (callback) callback();
@@ -205,6 +258,18 @@ function intercept(request, response, base, { config, srcFor, scriptTag, warn })
 
   response.end = function (rawChunk, rawEncoding, rawCallback) {
     const [chunk, encoding, callback] = normalize(rawChunk, rawEncoding, rawCallback);
+
+    // Express removes Content-Type before ending a wildcard 304. It still describes
+    // the negotiated document, just like HEAD, even though neither has bytes to inspect.
+    const { statusCode } = response;
+    const metadataOnly = (statusCode === 304 && validatingHTML)
+      || (method === 'HEAD' && statusCode >= 200 && ![204, 205, 206, 304].includes(statusCode)
+        && !response.getHeader('content-range') && canTransform());
+    if (metadataOnly && !response.headersSent) {
+      restore();
+      documentHeaders();
+      return original.end.call(this, callback);
+    }
 
     if (!isHTML(response)) {
       decline(chunk);

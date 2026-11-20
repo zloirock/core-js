@@ -25,6 +25,8 @@ function toGenerationId({ scope, exclude, declaration, versions, minify, compres
 
   hash.update(`core-js ${ versions.coreJS }\n@core-js/compat ${ versions.compat }\n`);
   hash.update(`@core-js/builder ${ versions.builder }\nminify ${ minify }\n`);
+  // Older stores named bundles by module list alone and must age out as a separate generation.
+  hash.update('bundle-id-format 2\n');
   hash.update(`targets ${ canonical(declaration) }\n`);
   for (const name of [...scope].sort()) hash.update(`${ name }\n`);
   // `exclude` decides the plan as much as the scope does, and a pattern can be a RegExp - which

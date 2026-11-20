@@ -129,7 +129,8 @@ trap below is named, and the suite names its assertions after them.
   one shared store. `bowser` and `caniuse-lite` are out for the opposite reason - they decide which
   bundle a visitor is sent to and the order the warm-up builds in, never the bytes of one bundle
 - **buckets-4** - the generation names the whole plan where a bundle name names one bundle: the
-  scope, `exclude`, the declared targets, all three package versions, `minify` and `compression`.
+  scope, `exclude`, the declared targets, all three package versions, `minify`, `compression` and the
+  bundle identifier format. A change to that format starts a new retention window.
   One module added to the scope renames most of the bundles under it, so a store that kept every
   plan in one directory would collect a full plan of dead files per deploy. `exclude` belongs in it
   for the same reason the scope does - it decides the module list of every bucket - and a pattern
@@ -381,7 +382,8 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   baseline's bytes under the same address, not a redirect; no baseline at all is a `503` with
   `no-store`, a statement about the moment, where a 404 would be one about the address
 - **script-tag-1** - the tag runs before the code that counts on it; arriving late is
-  indistinguishable from not arriving
+  indistinguishable from not arriving. A matching parser-blocking tag already ahead of application
+  code is reused. A matching tag found after application code is moved ahead of it
 - **script-tag-2** - and never before the charset declaration, which is why that one is found by
   scanning rather than by a pattern. A browser decides the encoding of a document from its first
   1024 bytes; a declaration pushed past that boundary stops working and the whole page is decoded
@@ -415,8 +417,9 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   the one that replaces it later ends up on the outside and sees the body first. The failure is
   silent - gzipped bytes, nothing inserted, no polyfills anywhere - so the gzip magic number is
   checked for and reported
-- A partial response keeps its original range and bytes. An already encoded body passes through
-  with its declared content coding.
+- Express serves a complete injectable HTML document for a byte-range request. Source offsets
+  cannot describe the edited document. Already encoded and explicitly partial responses pass
+  through with their original bytes and headers.
 - **adapter-2** - the headers the insertion made wrong are repaired exactly when it happened and
   never otherwise. `Content-Length` no longer matches and cannot be recomputed - only the beginning
   of the response is held - and Express computes the `ETag` from the body BEFORE the edit, so a
@@ -431,7 +434,9 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   way out, an application that does its own device detection may already name
   `User-Agent`, and `*` covers everything a cache cannot see.
   An injected response loses the source file's `Last-Modified`. Express must compare incoming
-  date validators against the delivered HTML, whose bundle address may change between deployments.
+  date and entity-tag validators against the delivered HTML, whose bundle address may change
+  between deployments. HEAD omits the source length, validators and range support and carries
+  the same negotiation fields as GET for an injectable document.
   When the headers cannot be repaired the tag is not inserted at all. `res.writeHead` puts them on
   the wire before the body is written, and from there a `Content-Length` that no longer matches
   CUTS the page off at the client - Express refuses the repair outright, which ends the response
@@ -471,8 +476,9 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
 - **Borrowed bytes are copied only when they outlive the call that brought them.** `res.write`
   reports the write as done through its callback, and a pooled stream reuses its buffer the moment
   it hears that - so what is held across calls has to be ours. What is flushed inside the same call
-  can still be in use by the socket: the final underlying write owns the callback and backpressure
-  propagates to the caller. And a chunk can be a `Uint8Array` rather than a Buffer or a string: `String(view)`
+  can still be in use by the socket. A native write owns its callback. When middleware wraps
+  writes, the adapter owns the bytes before acknowledging them because encoders may drop the
+  callback. Backpressure from either writer propagates to the caller. And a chunk can be a `Uint8Array` rather than a Buffer or a string: `String(view)`
   turns one into the comma-separated list of its byte VALUES, destroying the response
 - **The buffered prefix is read and written back as latin1, not utf8.** latin1 is byte-preserving,
   so a multi-byte character split across two chunks survives; utf8 would replace the half we hold
@@ -511,7 +517,9 @@ Delivery: everything that knows about the protocol. Only `adapter/express` knows
   removes only directories shaped like a generation - a store pointed at a path holding anything else
   loses nothing of it - never the one being served, and never the `retain` newest of the rest (one by
   default; `0` keeps only the current, `null` prunes nothing). A failed warm-up preserves earlier
-  generations. Reusing a cached baseline refreshes its activation time for subsequent rollbacks.
+  generations. Publishing or reusing a baseline records its activation separately from bundle
+  writes, so a delayed warm-up cannot change rollback order. An unplanned address can use the
+  union of verified encodings from retained generations, with the newest copy taking precedence.
   Pruning picks candidates from one directory listing and skips generations another
   instance has already removed. `has` therefore asks about the
   generation being served while `get` answers from any that is retained: a bundle inherited from an

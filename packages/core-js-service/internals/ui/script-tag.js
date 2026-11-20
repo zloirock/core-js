@@ -3,11 +3,39 @@ import { html, parse } from 'parse5';
 // Classic script MIME types, including their historical spellings.
 const JAVASCRIPT_TYPE = /^(?:(?:application|text)\/(?:x-)?(?:ecma|java)script|text\/(?:javascript1\.[0-5]|jscript|livescript))$/i;
 
+// Recognize common document openings without building a tree for the rest of the response.
+// Leave optional tags, comments and unfamiliar attribute syntax to the HTML parser.
+const OPEN_HEAD = /^[\t\n\r ]*(?:<!doctype html>[\t\n\r ]*)?(?:<html(?:[\t\n\r ]+[\w\-:]+=(?:"[^"<]*"|'[^'<]*'|[\w-]+))*[\t\n\r ]*>[\t\n\r ]*)?<head[\t\n\r ]*>/i;
+const ENCODED_SRC = /\bsrc[\t\n\f\r ]*=[\t\n\f\r ]*(?:"[^"]*&|'[^']*&|[^\t\n\f\r "'>]*&)/i;
+const FIRST_CHARSET = /[\t\n\r ]*<meta[\t\n\r ]+charset=(?:"[\w-]+"|'[\w-]+'|[\w-]+)[\t\n\r ]*\/?>/iy;
+
+function simpleInsertionPoint(prefix, src) {
+  const opening = OPEN_HEAD.exec(prefix);
+  if (!opening) {
+    if (!/<(?:!doctype|head|html|meta|script)\b/i.test(prefix)) return { at: 0 };
+    return undefined;
+  }
+  const headEnd = opening[0].length;
+  FIRST_CHARSET.lastIndex = headEnd;
+  let at = headEnd;
+  if (FIRST_CHARSET.test(prefix)) at = FIRST_CHARSET.lastIndex;
+  else if (/<meta[\t\n\f\r />]/i.test(prefix) && /charset|http-equiv/i.test(prefix)) return undefined;
+
+  if (prefix.startsWith(`<script src="${ src }"></script>`, at) && !/[\r"&]/.test(src)) return null;
+  // A character reference in src can spell the same URL without containing it literally.
+  const possibleMatch = prefix.includes(src) || (prefix.includes('&') && ENCODED_SRC.test(prefix));
+  if (possibleMatch && /<script[\t\n\f\r />]/i.test(prefix)) return undefined;
+  return { at };
+}
+
 // Locations refer to the original prefix, including comments and raw script text.
 // Only inspect actual HTML elements; a template's inert content is a separate fragment.
 function insertionPoint(prefix, src) {
+  const simple = simpleInsertionPoint(prefix, src);
+  if (simple !== undefined) return simple;
+
   const document = parse(prefix, { sourceCodeLocationInfo: true });
-  let headEnd, htmlEnd, doctypeEnd, firstScript, charsetEnd;
+  let headEnd, htmlEnd, doctypeEnd, firstScript, firstExecutable, charsetEnd, installed;
   const pending = [document];
   while (pending.length) {
     const node = pending.pop();
@@ -34,8 +62,11 @@ function insertionPoint(prefix, src) {
           firstScript = Math.min(firstScript ?? Infinity, startOffset);
           const attrs = Object.fromEntries(node.attrs.map(({ name, value }) => [name, value]));
           const type = (attrs.type ?? (attrs.language ? `text/${ attrs.language }` : '')).trim();
-          if (attrs.src === src && (!type || JAVASCRIPT_TYPE.test(type))
-            && attrs.async === undefined && attrs.defer === undefined && attrs.nomodule === undefined) return null;
+          const classic = !type || JAVASCRIPT_TYPE.test(type);
+          if (classic || type.toLowerCase() === 'module') firstExecutable = Math.min(firstExecutable ?? Infinity, startOffset);
+          if (attrs.src === src && classic
+            && attrs.async === undefined && attrs.defer === undefined && attrs.nomodule === undefined
+            && (!installed || startOffset < installed.startOffset)) installed = location;
 
           break;
         }
@@ -45,8 +76,10 @@ function insertionPoint(prefix, src) {
     for (const child of node.childNodes ?? []) pending.push(child);
   }
 
-  if (charsetEnd !== undefined && charsetEnd <= (firstScript ?? Infinity)) return charsetEnd;
-  return headEnd ?? htmlEnd ?? doctypeEnd ?? firstScript ?? 0;
+  if (installed && installed.startOffset === firstExecutable) return null;
+  const at = charsetEnd !== undefined && charsetEnd <= (firstScript ?? Infinity)
+    ? charsetEnd : headEnd ?? htmlEnd ?? doctypeEnd ?? firstScript ?? 0;
+  return { at: Math.min(at, firstScript ?? Infinity), installed };
 }
 
 // a policy that blocks the tag fails where nobody is looking - modern browsers stay silent about it
@@ -91,8 +124,19 @@ export default function createScriptTag({ warn }) {
 
     const { nonce, blocked } = allows;
 
-    const at = insertionPoint(prefix, src);
-    if (at === null) return prefix;
+    const point = insertionPoint(prefix, src);
+    if (point === null) return prefix;
+    const { at, installed } = point;
+    if (installed) {
+      const { startOffset, startTag, endTag } = installed;
+      // Keep nonce, integrity and other attributes when moving an existing external script.
+      // Its closing tag may be outside the prefix. Preserve the raw-text context in that case.
+      const tag = endTag ? prefix.slice(startOffset, endTag.endOffset)
+        : `${ prefix.slice(startOffset, startTag.endOffset) }</script>`;
+      const rest = endTag ? prefix.slice(endTag.endOffset)
+        : `<script type="application/octet-stream">${ prefix.slice(startTag.endOffset) }`;
+      return prefix.slice(0, at) + tag + prefix.slice(at, startOffset) + rest;
+    }
 
     if (blocked) {
       warn('script-tag:csp', 'the content security policy of the page allows no nonce, so the polyfill '
