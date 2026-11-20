@@ -6,27 +6,19 @@ permissions:
 
 jobs:
   list-branches:
+    if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     outputs:
       branches: ${{ steps.set-branches.outputs.branches }}
+      snapshot: ${{ steps.set-branches.outputs.snapshot }}
       recipe: ${{ steps.set-branches.outputs.recipe }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - name: Get branch list and set output
         id: set-branches
         run: |
-          BRANCHES=$(
-            git branch -r |
-            grep -Ev '^ *origin/(HEAD|v1|v2)( |$)' |
-            sed 's/^[ *]*//' |
-            sed 's/^origin\///' |
-            jq -R . |
-            jq -cs
-          )
-          echo "branches=$BRANCHES" >> "$GITHUB_OUTPUT"
+          node scripts/pages-branches.mjs >> "$GITHUB_OUTPUT"
           # the artifacts of a branch are cached per build recipe too: a matrix job checks out that branch, not this file
           echo "recipe=$(sha256sum .github/workflows/build-and-deploy-pages.yml | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
@@ -37,27 +29,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: ${{ fromJson(needs.list-branches.outputs.branches) }}
+        include: ${{ fromJson(needs.list-branches.outputs.branches) }}
     name: Build for ${{ matrix.branch }}
+    env:
+      CACHE_KEY: pages-${{ matrix.sha }}-${{ needs.list-branches.outputs.recipe }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ matrix.branch == github.ref_name && github.sha || matrix.branch }}
-      - name: Build cache key
-        id: cache-key
-        env:
-          BRANCH: ${{ matrix.branch }}
-          RECIPE: ${{ needs.list-branches.outputs.recipe }}
-        run: |
-          HASH=$(git rev-parse --short HEAD)
-          SAFE_BRANCH="${BRANCH//\//-}"
-          echo "SAFE_BRANCH=$SAFE_BRANCH" >> "$GITHUB_ENV"
-          echo "CACHE_KEY=$SAFE_BRANCH-$HASH-$RECIPE" >> "$GITHUB_ENV"
+          ref: ${{ matrix.sha }}
       - name: Restore cached artifacts
         id: artifacts-restore
         uses: actions/cache/restore@v6
         with:
-          path: ${{ env.SAFE_BRANCH }}
+          path: ${{ runner.temp }}/branch-pages
           key: ${{ env.CACHE_KEY }}
       - uses: actions/setup-node@v7
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
@@ -72,37 +56,41 @@ jobs:
           npm run bundle
       - name: Prepare build artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
-        # git allows `$`, `;`, `(`, quotes and alike in branch names, so the name is a quoted variable, not a part of the script
         run: |
-          mkdir -p "$SAFE_BRANCH/compat"
-          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js "$SAFE_BRANCH/compat"
-          mkdir -p "$SAFE_BRANCH/bundles"
-          cp tests/bundles/* "$SAFE_BRANCH/bundles"
-          mkdir -p "$SAFE_BRANCH/unit-browser"
-          cp tests/unit-browser/* "$SAFE_BRANCH/unit-browser"
+          out="$RUNNER_TEMP/branch-pages"
+          mkdir -p "$out"/{compat,bundles,unit-browser}
+          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js "$out/compat"
+          cp tests/bundles/* "$out/bundles"
+          cp tests/unit-browser/* "$out/unit-browser"
       - name: Save cached artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
-          path: ${{ env.SAFE_BRANCH }}
+          path: ${{ runner.temp }}/branch-pages
           key: ${{ env.CACHE_KEY }}
       # after the cache save, so a restored build is marked too; the query bypasses the Pages CDN cache
       - name: Mark the commit of the artifacts
+        env:
+          DIRECTORY: ${{ matrix.directory }}
         run: |
           sha=$(git rev-parse HEAD)
-          echo "$sha" > "$SAFE_BRANCH/commit.txt"
-          sed -i "s#\(src='[^':?]*\.js\)'#\1?$sha'#g" "$SAFE_BRANCH"/unit-browser/*.html
-          for bundle in "$SAFE_BRANCH"/bundles/*.js; do
+          mkdir -p "$RUNNER_TEMP/pages"
+          mv "$RUNNER_TEMP/branch-pages" "$RUNNER_TEMP/pages/$DIRECTORY"
+          cd "$RUNNER_TEMP/pages/$DIRECTORY"
+          echo "$sha" > commit.txt
+          sed -i "s#\(src='[^':?]*\.js\)'#\1?$sha'#g" unit-browser/*.html
+          for bundle in bundles/*.js; do
             printf '\n;(window.bundleCommits = window.bundleCommits || []).push("%s");\n' "$sha" >> "$bundle"
           done
       - name: Upload artifacts for branch ${{ matrix.branch }}
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.SAFE_BRANCH }}
-          path: ${{ env.SAFE_BRANCH }}
+          name: branch-${{ needs.list-branches.outputs.snapshot }}-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/pages
+          overwrite: true
 
   combine-pages-and-deploy:
-    needs: build-compat-pages
+    needs: [list-branches, build-compat-pages]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -111,42 +99,27 @@ jobs:
     # a push to any branch deploys the whole site, and Pages refuses a deployment while another one is in progress
     concurrency:
       group: pages
-      cancel-in-progress: false
+      queue: max
     environment:
       name: github-pages
       url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
     outputs:
       page-url: ${{ steps.deployment-retry.outputs.page_url || steps.deployment.outputs.page_url }}
-      testable: ${{ steps.built.outputs.built == 'true' && (steps.deployment.outcome == 'success' || steps.deployment-retry.outcome == 'success') }}
+      test-directory: ${{ steps.current.outputs.test-directory }}
+      sauce-group: ${{ steps.current.outputs.sauce-group }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check the triggering branch before publishing
-        id: current
-        run: |
-          head=$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)
-          if [ "$head" = "$GITHUB_SHA" ]; then
-            echo 'publish=true' >> "$GITHUB_OUTPUT"
-          else
-            echo "Skipping stale deployment: $GITHUB_SHA is not the head of $GITHUB_REF_NAME"
-          fi
-      - name: Download artifacts
-        if: steps.current.outputs.publish == 'true'
+      - name: Download branch artifacts
         uses: actions/download-artifact@v8
         with:
-          path: pages
-      # artifacts are shared by all attempts of a run, so a re-run downloads the Pages artifact of the previous attempt
-      - name: Drop Pages artifacts of previous attempts
-        if: steps.current.outputs.publish == 'true'
-        run: rm -rf pages/github-pages*
-      - name: Check the pages of the triggering commit
-        id: built
-        if: steps.current.outputs.publish == 'true'
-        run: |
-          if [ "$(cat "pages/${GITHUB_REF_NAME//\//-}/commit.txt" 2>/dev/null)" = "$GITHUB_SHA" ]; then
-            echo 'built=true' >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::no pages of $GITHUB_SHA were built, the Sauce Labs run is skipped"
-          fi
+          pattern: branch-${{ needs.list-branches.outputs.snapshot }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/pages
+      - name: Check branch heads and built pages before publishing
+        id: current
+        env:
+          PAGES_SNAPSHOT: ${{ needs.list-branches.outputs.snapshot }}
+        run: node scripts/pages-branches.mjs >> "$GITHUB_OUTPUT"
       - name: Setup Pages
         if: steps.current.outputs.publish == 'true'
         uses: actions/configure-pages@v6
@@ -154,7 +127,7 @@ jobs:
         if: steps.current.outputs.publish == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: pages
+          path: ${{ runner.temp }}/pages
           name: github-pages-${{ github.run_attempt }}
       # Pages deployments can remain queued until the action's timeout. A fresh deployment
       # of the same artifact may succeed after the timed-out deployment is canceled.
@@ -174,14 +147,14 @@ jobs:
           artifact_name: github-pages-${{ github.run_attempt }}
 
   sauce-labs:
-    needs: [list-branches, combine-pages-and-deploy]
-    if: needs.combine-pages-and-deploy.outputs.testable == 'true' && github.repository == 'zloirock/core-js' && contains(fromJson(needs.list-branches.outputs.branches), github.ref_name)
+    needs: combine-pages-and-deploy
+    if: needs.combine-pages-and-deploy.outputs.test-directory != '' && github.repository == 'zloirock/core-js'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     # not the Pages group, so a Sauce Labs run does not hold the deployment slot
     concurrency:
-      group: sauce-labs-${{ github.ref }}
+      group: sauce-labs-${{ needs.combine-pages-and-deploy.outputs.sauce-group }}
       cancel-in-progress: true
     timeout-minutes: 90
     steps:
@@ -191,12 +164,13 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm run prepare-monorepo
-      # HTTP, since Firefox before 27 cannot negotiate the TLS of the Pages CDN; `@uri` for `#` and `%` in branch names
+      # Firefox before 27 cannot negotiate the TLS of the Pages CDN.
       - run: |
           url=${PAGE_URL/#https:/http:}
-          npm run test-saucelabs -- "${url%/}/$(jq -rn --arg branch "${GITHUB_REF_NAME//\//-}" '$branch | @uri')" "$GITHUB_SHA"
+          npm run test-saucelabs -- "${url%/}/$DIRECTORY" "$GITHUB_SHA"
         env:
           PAGE_URL: ${{ needs.combine-pages-and-deploy.outputs.page-url }}
+          DIRECTORY: ${{ needs.combine-pages-and-deploy.outputs.test-directory }}
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
           SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
           SAUCE_SESSIONS_FILE: ${{ runner.temp }}/sauce-sessions
