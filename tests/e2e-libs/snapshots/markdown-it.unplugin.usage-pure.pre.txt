@@ -4,3 +4,4 @@
 -@core-js/pure/full/object/get-own-property-descriptor
 -@core-js/pure/full/object/get-own-property-descriptors
 -@core-js/pure/full/object/get-own-property-symbols
+-@core-js/pure/full/object/get-prototype-of

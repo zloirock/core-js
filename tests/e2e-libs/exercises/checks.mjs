@@ -14,19 +14,21 @@ function unwrap(value) {
   return typeof value?.toJSON === 'function' ? value.toJSON() : value;
 }
 
-// NaN equals NaN here - both sides come from the same computation. What must not hold is `NaN`
-// equalling `null`: JSON renders both as `null`, and a comparison built on that text conflates them.
-function sameNumber(a, b) {
-  return Number.isNaN(a) ? Number.isNaN(b) : a === b;
-}
-
 export function deepEqual(rawA, rawB) {
   const a = unwrap(rawA);
   const b = unwrap(rawB);
-  if (typeof a === 'number' && typeof b === 'number') return sameNumber(a, b);
+  if (a === b) return true;
+  // Compare NaN without using a built-in that the suite is testing.
+  // eslint-disable-next-line no-self-compare, math/prefer-number-is-nan -- only NaN differs from itself
+  if (typeof a === 'number' && typeof b === 'number') return a !== a && b !== b;
   if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length
-      && a.every((item, index) => deepEqual(item, b[index]));
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const present = Object.hasOwn(a, i);
+      if (present !== Object.hasOwn(b, i)) return false;
+      if (present && !deepEqual(a[i], b[i])) return false;
+    }
+    return true;
   }
   if (a && b && typeof a === 'object' && typeof b === 'object') {
     // key ORDER does not decide, which a stringify comparison could not help but let it do; counting
@@ -35,7 +37,7 @@ export function deepEqual(rawA, rawB) {
     return keys.length === Object.keys(b).length
       && keys.every(key => Object.hasOwn(b, key) && deepEqual(a[key], b[key]));
   }
-  return a === b;
+  return false;
 }
 
 // Every exercise reports the same shape - `{ checks }`, one entry per assertion, carrying both sides

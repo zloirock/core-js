@@ -45,7 +45,6 @@ core-js/modules/es.map.get-or-insert-computed
 core-js/modules/es.map.species
 core-js/modules/es.number.constructor
 core-js/modules/es.number.epsilon
-core-js/modules/es.number.is-nan
 core-js/modules/es.number.parse-int
 core-js/modules/es.number.to-fixed
 core-js/modules/es.object.assign

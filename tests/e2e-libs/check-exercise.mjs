@@ -3,6 +3,7 @@
 // nothing here imports core-js, so no global patching leaks from one exercise into the next.
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
+import './suite-tests.mjs';
 import { deepEqual } from './exercises/checks.mjs';
 import { errorReason, renderValue } from './diagnostics.mjs';
 import { withDeadline } from './deadline.mjs';

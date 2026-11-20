@@ -10,24 +10,31 @@ const base = require('./karma.conf.js');
 // served after the included files: karma includes a file matched twice as its FIRST pattern says
 const SERVED = ['../../tests/e2e-libs/artifacts/**/*', '../../tests/e2e-libs/harness/*'];
 
-function resultsReporter(file) {
+function resultsReporter(save) {
   function E2ELibsResults(baseReporterDecorator) {
     baseReporterDecorator(this);
     // the console reporter speaks for the run; this one only records it
     this.adapters = [];
-    const results = [];
-    const errors = [];
+    const results = new Map();
+    const errors = new Map();
+    this.onBrowserStart = browser => {
+      results.set(browser.id, []);
+      errors.delete(browser.id);
+    };
     this.onSpecComplete = (browser, result) => {
-      results.push({ browser: browser.name, label: result.description, success: result.success, log: result.log });
+      results.get(browser.id).push({
+        browser: browser.name, label: result.description, success: result.success, skipped: result.skipped, log: result.log,
+      });
     };
     this.onBrowserError = (browser, error) => {
-      errors.push({ browser: browser.name, error: String(error?.message ?? error) });
+      if (!errors.has(browser.id)) errors.set(browser.id, []);
+      errors.get(browser.id).push({ browser: browser.name, error: String(error?.message ?? error) });
     };
-    this.onRunComplete = browsers => {
-      // synchronous on purpose: karma calls this synchronously and may exit right after it returns
-      // eslint-disable-next-line node/no-sync -- see above
-      writeFileSync(file, `${ JSON.stringify({ browsers: browsers.map(browser => browser.name), results, errors }, null, 1) }\n`);
-    };
+    this.onRunComplete = browsers => save({
+      browsers: browsers.map(browser => browser.name),
+      results: results.values().toArray().flat(),
+      errors: errors.values().toArray().flat(),
+    });
   }
   E2ELibsResults.$inject = ['baseReporterDecorator'];
   return E2ELibsResults;
@@ -37,10 +44,19 @@ module.exports = config => {
   base(config);
   const file = process.env.E2E_LIBS_BROWSER_RESULTS;
   if (!file) throw new Error('E2E_LIBS_BROWSER_RESULTS names no file - start this leg through tests/karma/e2e-libs.mjs');
+  // Karma emits results synchronously and may exit as soon as this callback returns.
+  function save(report) {
+    // eslint-disable-next-line node/no-sync -- the report must be written before Karma exits
+    writeFileSync(file, `${ JSON.stringify(report, null, 1) }\n`);
+  }
   config.set({
+    failOnFailingTestSuite: false, // explicit test failures are gated by the runner
+    failOnSkippedTests: true,
     files: [...config.files, ...SERVED.map(pattern => ({ pattern, included: false, served: true, watched: false }))],
-    plugins: [...config.plugins, { 'reporter:e2e-libs-results': ['type', resultsReporter(file)] }],
+    plugins: [...config.plugins, { 'reporter:e2e-libs-results': ['type', resultsReporter(save)] }],
     // `dots` rather than `progress`: the latter redraws its line, and in a CI log every redraw stays
     reporters: ['dots', 'e2e-libs-results'],
   });
 };
+
+module.exports.resultsReporter = resultsReporter;

@@ -27,7 +27,6 @@
 @core-js/pure/full/map/constructor
 @core-js/pure/full/number/is-finite
 @core-js/pure/full/number/is-integer
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/number/max-safe-integer
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-properties
@@ -56,6 +55,7 @@
 @core-js/pure/full/string/instance/starts-with
 @core-js/pure/full/symbol/async-iterator
 @core-js/pure/full/symbol/constructor
+@core-js/pure/full/symbol/instance/description
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/symbol/to-primitive
 @core-js/pure/full/symbol/to-string-tag

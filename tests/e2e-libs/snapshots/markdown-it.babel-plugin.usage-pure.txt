@@ -16,7 +16,6 @@
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/map/constructor
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/number/parse-int
 @core-js/pure/full/object/assign
 @core-js/pure/full/object/create
@@ -25,6 +24,7 @@
 @core-js/pure/full/object/get-own-property-descriptor
 @core-js/pure/full/object/get-own-property-descriptors
 @core-js/pure/full/object/get-own-property-symbols
+@core-js/pure/full/object/get-prototype-of
 @core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
 @core-js/pure/full/object/set-prototype-of

@@ -27,6 +27,7 @@ core-js/modules/es.array.species
 core-js/modules/es.array.splice
 core-js/modules/es.array.values
 core-js/modules/es.async-iterator.async-dispose
+core-js/modules/es.data-view.constructor
 core-js/modules/es.data-view.get-float16
 core-js/modules/es.data-view.set-float16
 core-js/modules/es.data-view.set-int8

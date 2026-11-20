@@ -123,7 +123,7 @@ async function collectShards() {
   const totals = await runShards({
     script: fileURLToPath(import.meta.url),
     shards: shardCount,
-    extraEnv: libraryFilter === undefined ? {} : { E2E_LIBS_LIB: libraryFilter },
+    extraEnv: { E2E_LIBS_LIB: libraryFilter ?? '' },
   });
   rows.push(...totals.rows ?? []);
   tally.redSnapshots.push(...totals.redSnapshots ?? []);
@@ -163,9 +163,10 @@ if (IS_SHARD) {
 } else {
   if (shardCount > 1) await collectShards();
   if (!rows.length) throw new Error('no cells ran - the registry or METHODS is empty');
+  const orderedRows = manifest.reconcileRows(libraryMethodGroups.flat(), rows);
 
   await mkdir(ARTIFACTS, { recursive: true });
-  await manifest.save({ input, scope: libraryFilter ?? 'all libraries', sharded: shardCount, cells: rows });
+  await manifest.save({ input, scope: libraryFilter ?? 'all libraries', sharded: shardCount, cells: orderedRows });
   announceArtifacts();
 
   // an orphan reddens the run, since no cell can report a baseline nothing produces; one removed under

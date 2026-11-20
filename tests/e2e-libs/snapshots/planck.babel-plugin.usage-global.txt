@@ -15,7 +15,6 @@ core-js/modules/es.iterator.for-each
 core-js/modules/es.json.stringify
 core-js/modules/es.number.constructor
 core-js/modules/es.number.is-finite
-core-js/modules/es.number.is-nan
 core-js/modules/es.number.to-fixed
 core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor

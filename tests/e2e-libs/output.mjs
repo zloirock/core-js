@@ -74,7 +74,7 @@ export function announceRun({ libs, libraryMethodGroups, libraryFilter, shardCou
     + ` - ${ cyan(cellCount) } cell(s)${ libraryFilter ? ` filtered by ${ cyan(libraryFilter) }` : '' }`));
   announceScopedRun(libraryFilter);
   if (shardCount > 1) {
-    fromParentOnly(green(`sharded over ${ cyan(shardCount) } process(es); each one's lines arrive together when it finishes`));
+    fromParentOnly(green(`sharded over ${ cyan(shardCount) } process(es); their lines are replayed in shard order after all shards finish`));
   }
   fromParentOnly(green('each cell is built once, then gated, snapshotted, pre-flighted in node and written as a page;'
     + ` the browsers run those pages afterwards, from ${ cyan('tests/karma/e2e-libs.mjs') }`));

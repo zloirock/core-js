@@ -48,6 +48,7 @@
 @core-js/pure/full/string/instance/starts-with
 @core-js/pure/full/string/instance/trim
 @core-js/pure/full/symbol/constructor
+@core-js/pure/full/symbol/instance/description
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/symbol/to-primitive
 @core-js/pure/full/symbol/to-string-tag

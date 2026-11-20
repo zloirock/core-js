@@ -51,7 +51,6 @@
 @core-js/pure/full/string/instance/trim-end
 @core-js/pure/full/string/instance/trim-start
 @core-js/pure/full/structured-clone
-@core-js/pure/full/symbol
 @core-js/pure/full/symbol/async-dispose
 @core-js/pure/full/symbol/constructor
 @core-js/pure/full/symbol/dispose

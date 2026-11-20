@@ -7,6 +7,8 @@
 //
 // Usage:  npm run test-e2e-libs-karma-run [libFilter]
 import * as manifest from '../e2e-libs/manifest.mjs';
+import './e2e-libs-tests.mjs';
+import { browserOutcome } from './e2e-libs-results.mjs';
 import { announceBrowserRun, announceScopedRun, reportBrowserCell, reportBrowserTally } from '../e2e-libs/output.mjs';
 import { RUN_TIMEOUT_MS } from '../e2e-libs/page.mjs';
 import { ARTIFACTS } from '../e2e-libs/paths.mjs';
@@ -45,40 +47,18 @@ const RESULTS = join(ARTIFACTS, 'browser-results.json');
 await writeFile(FRAMES, `window.E2E_FRAMES = ${ JSON.stringify(frames, null, 1) };\n`);
 await rm(RESULTS, { force: true });
 
-announceScopedRun(libFilter);
+announceScopedRun(libFilter ?? (parsed.scope === 'all libraries' ? undefined : parsed.scope));
 announceBrowserRun(runnable.length);
 
-// a red cell fails the session too, and that is not a launch failure - the results file tells them
-// apart: a run that wrote one finished, whatever its exit code
-let launchError = null;
-try {
-  await start(['tests/e2e-libs/harness/shared', 'tests/e2e-libs/artifacts/frames', 'tests/e2e-libs/harness/qunit'], {
-    config: 'e2e-libs.conf.js',
-    env: { E2E_LIBS_BROWSER_RESULTS: RESULTS },
-  });
-} catch (error) {
-  launchError = error;
-}
+// The specialized Karma config exits nonzero for launch and infrastructure failures, even when
+// a diagnostic cell also failed. Individual verdicts come from the reporter.
+await start(['tests/e2e-libs/harness/shared', 'tests/e2e-libs/artifacts/frames', 'tests/e2e-libs/harness/qunit'], {
+  config: 'e2e-libs.conf.js',
+  env: { E2E_LIBS_BROWSER_RESULTS: RESULTS },
+});
+const report = JSON.parse(await readFile(RESULTS));
+const outcome = browserOutcome(report, frames);
 
-let report;
-try {
-  report = JSON.parse(await readFile(RESULTS));
-} catch (error) {
-  throw launchError ?? new Error(`karma finished without writing ${ RESULTS }`, { cause: error });
-}
-if (report.errors.length) {
-  throw new Error(`the browser leg's page itself failed - ${ report.errors.map(({ browser, error }) => `${ browser }: ${ error }`).join('; ') }`);
-}
-
-// every frame has exactly one result from every browser, or the run is not the run it claims to be
-const outcome = new Map(frames.map(({ label }) => [label, new Map()]));
-for (const { browser, label, success } of report.results) {
-  const perBrowser = outcome.get(label);
-  if (!perBrowser) throw new Error(`${ browser } reported on '${ label }', which no frame of this run is`);
-  if (perBrowser.has(browser)) throw new Error(`${ browser } reported on '${ label }' twice`);
-  perBrowser.set(browser, success);
-}
-// a browser that never reported on a frame is in this list too, so silence reads as red
 function redIn(label) {
   return report.browsers.filter(browser => outcome.get(label).get(browser) !== true);
 }
@@ -103,12 +83,6 @@ for (const cell of runnable) {
 // the file, not only in this log
 for (const cell of parsed.cells) cell.karma ??= 'not run';
 await manifest.save(parsed);
-
-// a red cell, gating or not, is what fails the session; a session that failed with none is
-// unexplained, and an unexplained failure is not a green run
-if (launchError && runnable.every(cell => cell.karma === 'passed')) {
-  throw new Error(`karma failed although every cell is green in every browser - ${ launchError.message }`);
-}
 
 reportBrowserTally({ failed, pages: runnable.length });
 if (failed.length) process.exitCode = 1;

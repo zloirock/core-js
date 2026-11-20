@@ -18,7 +18,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { makeStrictWarn } from './warning-policy.mjs';
+import { closeRollupBundle, makeStrictWarn } from './warning-policy.mjs';
 
 export async function withTmpDir(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'core-js-bundlers-'));
@@ -127,7 +127,7 @@ export function makeBundlers({
         const { output } = await bundle.generate({ format: 'es', sourcemap: true, inlineDynamicImports: !!inlineDynamic });
         return { code: output[0].code, map: output[0].map };
       } finally {
-        await bundle.close();
+        await closeRollupBundle(bundle);
       }
     },
 

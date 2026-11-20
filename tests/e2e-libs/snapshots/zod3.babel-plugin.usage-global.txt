@@ -61,6 +61,7 @@ core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
 core-js/modules/es.reflect.apply
 core-js/modules/es.reflect.construct
+core-js/modules/es.reflect.own-keys
 core-js/modules/es.regexp.constructor
 core-js/modules/es.regexp.dot-all
 core-js/modules/es.regexp.exec
@@ -84,6 +85,7 @@ core-js/modules/es.string.pad-end
 core-js/modules/es.string.repeat
 core-js/modules/es.string.replace
 core-js/modules/es.string.starts-with
+core-js/modules/es.string.to-well-formed
 core-js/modules/es.string.trim
 core-js/modules/es.symbol.constructor
 core-js/modules/es.symbol.description
@@ -108,4 +110,3 @@ core-js/modules/web.url-search-params.delete
 core-js/modules/web.url-search-params.has
 core-js/modules/web.url-search-params.size
 core-js/modules/web.url.constructor
-core-js/modules/web.url.to-json

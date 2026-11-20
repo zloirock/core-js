@@ -29,7 +29,6 @@
 @core-js/pure/full/map/constructor
 @core-js/pure/full/number/instance/to-fixed
 @core-js/pure/full/number/is-integer
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/object/assign
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-properties

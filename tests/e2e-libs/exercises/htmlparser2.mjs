@@ -81,8 +81,8 @@ export function run() {
   // --- parser: implied end tags, void elements, foreign content ---
   check('list_items', selectAll('#list > li', doc).length, 3);
   check('table_cells', selectAll('td', doc).map(element => textContent(element)), ['r1c1', 'r1c2', 'r2c1', 'r2c2']);
-  check('dl_pairs', selectAll('dt, dd', doc).map(element => getName(element)), ['dt', 'dd', 'dt', 'dd']);
-  check('options', selectAll('option', doc).map(element => getAttributeValue(element, 'value')), ['a', 'b']);
+  check('dl_pairs', selectAll('dl > dt, dl > dd', doc).map(element => getName(element)), ['dt', 'dd', 'dt', 'dd']);
+  check('options', selectAll('select > option', doc).map(element => getAttributeValue(element, 'value')), ['a', 'b']);
   check('paragraphs', selectAll('p', doc).length, 3);
   check('void_elements', selectAll('img, br, hr', doc).map(element => getName(element)), ['img', 'br', 'hr']);
   check('svg_adjusted', selectAll('svg *', doc).map(element => getName(element)), ['clipPath', 'path', 'foreignObject', 'div']);

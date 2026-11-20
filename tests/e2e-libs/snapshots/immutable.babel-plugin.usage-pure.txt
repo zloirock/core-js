@@ -25,7 +25,6 @@
 @core-js/pure/full/math/imul
 @core-js/pure/full/number/is-finite
 @core-js/pure/full/number/is-integer
-@core-js/pure/full/number/is-nan
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-property
 @core-js/pure/full/object/get-own-property-symbols
