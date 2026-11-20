@@ -114,9 +114,8 @@ jobs:
         env:
           E2E_LIBS_SHARDS: 4
       # the per-cell pages are the node pre-flight's table, re-runnable in a browser, and
-      # manifest.json carries what the browsers made of each cell - the IE11 verdict among them is
-      # the one only this job produces. A cell that died before its page was written has neither,
-      # and its reason is in the log
+      # manifest.json records aggregate cell verdicts. browser-results.json identifies which
+      # browser reported each one, including IE11. Build failures are reported in the run log.
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

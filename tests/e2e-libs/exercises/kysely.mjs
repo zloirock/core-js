@@ -16,15 +16,9 @@
 // `#allowUnorderedMigrations` defaults to `false`, which a getter that returned nothing reads as
 // too), 42 private fields and 29 private methods.
 //
-// The driver's `streamQuery` hands back a plain ARRAY, which Kysely's `for await` walks through the
-// async-from-sync iterator - so nothing in this file spells a generator or a symbol. It is also
-// what kills the three gating `usage-pure` cells in a realm with no `Symbol`, the shape IE11 has:
-// Babel's `_asyncIterator` keeps `Symbol.iterator` in a variable behind a `typeof Symbol` guard,
-// the provider does not rewrite that read, and without a native Symbol a plain array answers
-// neither the pure key nor `"@@iterator"`. A provider defect, not a limit of the pure version -
-// every `_createForOfIteratorHelper` in the same bundle has its read rewritten to
-// `_getIteratorMethod`, the route the other libraries' pure cells walk arrays by on IE11 - and no
-// local tier sees it: the stripped realm keeps `Symbol` on purpose.
+// The driver's streamQuery returns an array, so Kysely's for-await loop exercises the transpiled
+// async-from-sync iterator even where the host has no Symbol. The post-Babel pure providers must
+// rewrite the lowered iterator helper so it can find the array iterator in that environment.
 //
 // MySQL, not postgres: the postgres adapter calls `BigInt` while its module loads, which IE11 does not
 // survive. The driver returns `numAffectedRows` as a number, and insert / update / delete are only
