@@ -2666,7 +2666,7 @@ export default [
   },
   {
     files: [
-      `website/src/js/${ jsFile }`,
+      `website/src/js/**/${ jsFile }`,
     ],
     languageOptions: {
       sourceType: 'module',
