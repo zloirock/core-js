@@ -16,15 +16,15 @@ async function getStat(pkg) {
 
 const [core, pure, bundle] = await Promise.all([
   getStat('core-js'),
-  ALL && getStat('core-js-pure'),
-  ALL && getStat('core-js-bundle'),
+  ALL ? getStat('core-js-pure') : {},
+  ALL ? getStat('core-js-bundle') : {},
 ]);
 
-for (let [patch, downloads] of Object.entries(core)) {
+for (const patch of Object.keys({ ...core, ...pure, ...bundle })) {
   const version = coerce(patch);
   const { major } = version;
   const minor = `${ major }.${ version.minor }`;
-  if (ALL) downloads += (pure[patch] ?? 0) + (bundle[patch] ?? 0);
+  const downloads = (core[patch] ?? 0) + (pure[patch] ?? 0) + (bundle[patch] ?? 0);
   downloadsByPatch[patch] = downloads;
   downloadsByMinor[minor] = (downloadsByMinor[minor] ?? 0) + downloads;
   downloadsByMajor[major] = (downloadsByMajor[major] ?? 0) + downloads;
