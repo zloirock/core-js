@@ -9,7 +9,8 @@ import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/war
 import { deepEqual as exerciseEqual } from './exercises/checks.mjs';
 import { reconcileRows } from './manifest.mjs';
 import { cellScript } from './page.mjs';
-import { HERE, ROOT, isWorkspaceCoreJsModule } from './paths.mjs';
+import { HERE, ROOT } from './paths.mjs';
+import { assertWorkspacePayload } from './payload.mjs';
 
 const sparse = [];
 sparse.length = 2;
@@ -17,6 +18,15 @@ strictEqual(exerciseEqual(sparse, ['a', 'b']), false);
 strictEqual(exerciseEqual(['a', 'b'], sparse), false);
 strictEqual(exerciseEqual(sparse, sparse.slice()), true);
 strictEqual(exerciseEqual(sparse, [undefined, undefined]), false);
+
+const { hasOwn } = Object;
+try {
+  Object.hasOwn = () => false;
+  strictEqual(exerciseEqual([1], [2]), false);
+  strictEqual(exerciseEqual(sparse, ['a', 'b']), false);
+} finally {
+  Object.hasOwn = hasOwn;
+}
 
 const { isNaN } = Number;
 try {
@@ -36,10 +46,13 @@ throws(() => reconcileRows(cells, [first]), /expected 2 cell results/u);
 throws(() => reconcileRows(cells, [first, first]), /1 unique/u);
 throws(() => reconcileRows(cells, [first, { label: 'unrequested' }]), /missing result for second/u);
 
-for (const directory of ['core-js', 'core-js-pure']) {
-  strictEqual(isWorkspaceCoreJsModule(join(ROOT, 'packages', directory, 'modules', 'es.array.map.js')), true);
-}
-strictEqual(isWorkspaceCoreJsModule(join(HERE, 'node_modules', 'core-js-pure', 'modules', 'es.array.map.js')), false);
+const legacy = join(HERE, 'node_modules', 'core-js-pure', 'modules', 'es.array.map.js');
+const pure = join(ROOT, 'packages', 'core-js-pure', 'modules', 'es.array.map.js');
+const global = join(ROOT, 'packages', 'core-js', 'modules', 'es.array.map.js');
+const chunk = { modules: { [legacy]: { renderedLength: 199_000 }, [pure]: { renderedLength: 2_000 } } };
+throws(() => assertWorkspacePayload({ chunk }, 'XRegExp'), /only 2000b of workspace core-js/u);
+chunk.modules[global] = { renderedLength: 8_000 };
+assertWorkspacePayload({ chunk }, 'XRegExp');
 
 const warn = makeStrictWarn('core-js-unplugin');
 const sibling = { code: 'PLUGIN_WARNING', plugin: 'core-js-unplugin-helper', message: 'sibling warning' };
@@ -107,5 +120,9 @@ const probe = `
     + 'setInterval(function () {}, 60000); setTimeout(function () { resolve({checks:[{label:"ok",pass:true}]}); }, 0);'
     + '}}; }}';
   deepEqual(await run(valid), { ok: true, count: 1 });
+  const late = 'this.E2E={run:function(){function later(n){'
+    + 'if(n)queueMicrotask(function(){later(n-1);});else setInterval(function(){},60000);'
+    + '}later(25);return {checks:[{label:"ok",pass:true}]};}}';
+  deepEqual(await run(late), { ok: true, count: 1 });
 `;
 await promisify(execFile)(process.execPath, ['--input-type=module', '-e', probe], { timeout: 5_000 });

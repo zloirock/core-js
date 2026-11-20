@@ -6,6 +6,9 @@
 // tree-shaking cannot drop it: a helper added to this module injects into the baseline of EVERY
 // library, and those baselines are what the suite exists to hold still.
 
+// Array-index presence uses a baseline primitive even when the Object.hasOwn polyfill is under test.
+const { hasOwnProperty } = Object.prototype;
+
 // `toJSON` first, once, the way `JSON.stringify` does it: for a Date that method IS the value, and
 // walking own properties instead finds none, so every date would equal every other one and `{}`. The
 // cost is that a value compares EQUAL to what its `toJSON` renders, so where the point of a check is
@@ -24,8 +27,8 @@ export function deepEqual(rawA, rawB) {
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      const present = Object.hasOwn(a, i);
-      if (present !== Object.hasOwn(b, i)) return false;
+      const present = hasOwnProperty.call(a, i);
+      if (present !== hasOwnProperty.call(b, i)) return false;
       if (present && !deepEqual(a[i], b[i])) return false;
     }
     return true;
