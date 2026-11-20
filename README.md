@@ -414,7 +414,7 @@ By default, `@babel/plugin-transform-runtime` only polyfills stable features, bu
 ### swc[⬆](#index)
 
 > [!NOTE]
-> `swc` does not accept `core-js@4` yet.
+> SWC's built-in polyfill integration does not yet support `core-js@4`.
 
 Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so well as in `babel`. Example of configuration in `.swcrc`:
 ```json
@@ -422,7 +422,7 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
   "env": {
     "targets": "> 0.25%, not dead",
     "mode": "entry",
-    "coreJs": "4.0"
+    "coreJs": "3.51"
   }
 }
 ```
