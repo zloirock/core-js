@@ -25,8 +25,8 @@
 // `Symbol`. Not `isNative`: by lodash's design it throws once any core-js copy has put its shared store on
 // the global object.
 //
-// RED in the `usage-pure` cells in a realm without `Symbol`, IE11's shape, and declared so in
-// `libraries.mjs` as a browser diagnostic. There the application's `new Map()` is core-js's pure Map,
+// The Map error in `usage-pure` is a known IE11 diagnostic in
+// `tests/karma/e2e-libs-diagnostics.mjs`. There the application's `new Map()` is core-js's pure Map,
 // and lodash knows a Map by its tag or - where the engine's own Map has none, as on IE11 - by the native
 // constructor, and the pure version may touch neither: `isMap` answers false, and `cloneDeep` copies it
 // into an object with Map's prototype and no state, whose `get` throws. That is the pure version's

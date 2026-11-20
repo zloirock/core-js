@@ -25,7 +25,7 @@ $.quote = it => `'${ it }'`;
 // karma job is a real failure, and a slow green one says in its retry lines what it cost. `config`
 // names a configuration of a suite's own, next to `karma.conf.js`, which it builds on, and `env` what
 // it reads from the environment
-export async function start(files, { config, env } = {}) {
+export async function start(files, { config, env, hasTestFailure } = {}) {
   const target = files.map(file => `../../${ file }.js`).join(',');
 
   for (let attempt = 1; ; attempt++) {
@@ -46,10 +46,16 @@ export async function start(files, { config, env } = {}) {
 
     // a signal leaves `exitCode` null and means something outside stopped the run - neither a pass
     // nor a browser that deserves another chance
-    if (signal || attempt === ATTEMPTS || TEST_FAILURE.test(output) || INFRASTRUCTURE_FAILURES.every(it => !it.test(output))) {
+    if (signal || attempt === ATTEMPTS || !await shouldRetryKarma(output, hasTestFailure)) {
       throw new Error(`${ target } failed`);
     }
 
     echo(chalk.yellow(`${ target } failed to run the browsers, retrying (${ attempt + 1 } of ${ ATTEMPTS })`));
   }
+}
+
+// A suite with failOnFailingTestSuite disabled can print failed assertions on an infrastructure
+// exit. Its caller will gate the assertions from the completed retry.
+export async function shouldRetryKarma(output, hasTestFailure = text => TEST_FAILURE.test(text)) {
+  return INFRASTRUCTURE_FAILURES.some(it => it.test(output)) && !await hasTestFailure(output);
 }

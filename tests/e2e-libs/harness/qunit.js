@@ -45,14 +45,10 @@
           if (window.console && window.console.log) {
             window.console.log('[e2e-libs] ' + entry.label + ': ' + passed + '/' + checks.length + ' checks passed');
           }
-          // an exercise reporting FEWER checks here than in node must not pass on the ones it did report.
-          // `expected` is always non-empty, since runtime.mjs refuses a zero-length pre-flight result
-          assert.strictEqual(checks.length, expected.length, entry.label + ': check count differs from the node pre-flight');
-          // the same COUNT under different labels is a different run: a branch that stopped executing and
-          // another that started cancel out in the count alone
-          var drift = window.e2eLabelDrift(checks, expected);
-          assert.strictEqual(drift, -1, drift === -1 ? entry.label + ': check labels match the node pre-flight'
-            : entry.label + ': check ' + drift + ' is "' + checks[drift].label + '" here, "' + expected[drift] + '" in the node pre-flight');
+          // `expected` is the non-empty list from the raw exercise.
+          assert.strictEqual(checks.length, expected.length, entry.label + ': check count differs from the raw exercise');
+          var problem = window.e2eLabelProblem(checks, expected);
+          assert.ok(problem === null, entry.label + ': ' + (problem === null ? 'check labels match the raw exercise' : problem));
           for (k = 0; k < checks.length; k++) {
             assert.pushResult({
               result: !!checks[k].pass, actual: checks[k].actual, expected: checks[k].expected, message: entry.label + ' - ' + checks[k].label,

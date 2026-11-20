@@ -1,5 +1,5 @@
 // How this suite says what went wrong; the page programs answer the same in `harness/shared.js`.
-// Formatters only, and NO zx global anywhere - `preflight-child.mjs` imports this under a bare `node`.
+// No zx globals: `preflight-child.mjs` imports this under a bare `node`.
 
 const REASON_MAX = 200; // a line or two; long enough for a named error and the message after it
 // the POSITION is what makes a frame: without it a line opening `at least one ...` is dropped as one
@@ -54,4 +54,22 @@ export function renderValue(value) {
 
 export function checkFailureLine(check) {
   return `${ check.label } actual=${ renderValue(check.actual) } expected=${ renderValue(check.expected) }`;
+}
+
+export function checkResultProblem(checks, expected) {
+  if (!Array.isArray(checks)) return 'run() did not return a checks array';
+  const count = expected ? Math.max(checks.length, expected.length) : checks.length;
+  for (let index = 0; index < count; index++) {
+    const check = checks[index];
+    const label = check?.label;
+    if (expected && index >= expected.length) return `unexpected check ${ renderValue(label) } at #${ index + 1 }`;
+    if (expected && label !== expected[index]) {
+      const actual = index < checks.length ? renderValue(label) : 'no check';
+      return `check #${ index + 1 } expected ${ renderValue(expected[index]) } from the raw exercise, got ${ actual }`;
+    }
+    if (typeof label !== 'string' || typeof check.pass !== 'boolean') {
+      return `run() returned a malformed check at index ${ index }`;
+    }
+  }
+  return null;
 }

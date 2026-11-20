@@ -10,8 +10,7 @@ import { FIXTURE_SHARD } from '../babel-plugin/fixture-shards.mjs';
 const { basename } = path;
 const { cyan, green, red, yellow } = chalk;
 
-// unplugin's `pre` runs before Babel, so it can miss a polyfill a Babel helper needs - by design on
-// some libraries. Both tiers that can see one say so in these words, prefix and all.
+// In the stripped realm, unplugin's `pre` can miss polyfills for helpers that Babel emits later.
 function preDiagnostic(what) {
   return `pre diagnostic ${ what } - an expected-possible pre failure; not gating`;
 }
@@ -40,7 +39,7 @@ export function announceExercise(name) {
 
 export function reportExercise({ checks, failingChecks }) {
   for (const check of checks) {
-    echo((check.pass ? green : red)(check.pass ? `ok   ${ cyan(check.label) }` : `FAIL ${ checkFailureLine(check) }`));
+    echo((check.pass ? green : red)(check.pass ? `ok   ${ cyan(check.label) }` : `FAIL ${ check.failure }`));
   }
   echo((failingChecks.length ? red : green)(`${ cyan(checks.length) } checks, ${ cyan(failingChecks.length) } failing`));
 }
@@ -95,7 +94,7 @@ export function reportCell(cell, { ok, checks, failingChecks, injected, delta, s
   if (stripped && !stripped.ok) {
     const what = `stripped realm: ${ stripped.reason }`;
     echo(strippedFailed ? red(`    FAIL ${ what }`) : yellow(`    ${ preDiagnostic(what) }`));
-    for (const check of stripped.bad ?? []) echo(red(`        ${ checkFailureLine(check) }`));
+    for (const line of stripped.bad ?? []) echo(red(`        ${ line }`));
   }
 }
 
@@ -136,20 +135,17 @@ export function reportRuntimeTally({ redSnapshots, failed, cells, ok }) {
 }
 
 export function announceBrowserRun(pages) {
-  echo(green(`\n${ cyan(pages) } page(s) in one karma session, each in an iframe of its own, after two isolation controls.`
-    + ` ${ cyan('post') }, ${ cyan('pre+post') } and ${ cyan('entry-global') } gate the job; unplugin's ${ cyan('pre') } is a per-library diagnostic -`));
-  echo(green('it runs before Babel, so it can miss Babel-helper polyfills, and a red one is the signal we want.'));
-  echo(green(`A library may also declare a method it cannot pass here (${ cyan('libraries.mjs') }); its cells are reported without gating.`));
+  echo(green(`\n${ cyan(pages) } page(s) in one karma session, each in an iframe of its own, after two isolation controls.`));
+  echo(green('Known IE11 failures are diagnostics when the cell and error both match.'));
   echo(green(`Per-cell counts print as ${ cyan('"[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed"') }.`));
 }
 
 // karma has printed the failure itself; what this adds is a line the matrix-wide tally traces back to,
 // and which browsers it was red in - one session runs them all, so its exit code cannot say
-export function reportBrowserCell(cell, browsers) {
+export function reportBrowserCell(cell, browsers, diagnostic = false) {
   const where = `in ${ browsers.join(', ') }`;
-  if (cell.gatesInBrowsers) echo(red(`  FAIL ${ cyan(cell.label) } ${ where }`));
-  else if (cell.phase === 'pre') echo(yellow(`  ${ preDiagnostic(`${ cyan(cell.label) } is red ${ where }`) }`));
-  else echo(yellow(`  declared browser diagnostic ${ cyan(cell.label) } is red ${ where } - why it was declared is in its exercise header; not gating`));
+  if (diagnostic) echo(yellow(`  expected browser diagnostic ${ cyan(cell.label) } ${ where }`));
+  else echo(red(`  FAIL ${ cyan(cell.label) } ${ where }`));
 }
 
 export function reportBrowserTally({ failed, pages }) {

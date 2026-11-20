@@ -16,7 +16,7 @@ const PAGE = {
 
 export const RUN_TIMEOUT_MS = 20_000;
 
-// `expected` is the pre-flight's label SEQUENCE, not its count: a branch that stopped executing and
+// `expected` is the raw exercise's label SEQUENCE, not its count: a branch that stopped executing and
 // another that started cancel out in a count.
 export function cellScript(label, expectedLabels) {
   // `</` is escaped because this same text is inlined into a `<script>` on the artifact page, where
@@ -92,11 +92,11 @@ function frameHtml(segments) {
 
 // four files describing ONE build, written together and only on the success path - which is why a
 // run clears what it is about to rebuild before it starts
-export async function writeCell(cell, code, checks) {
+export async function writeCell(cell, code, checks, expectedLabels) {
   const dir = join(ARTIFACTS, ...cell.segments);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'bundle.js'), code);
-  const script = cellScript(cell.label, checks.map(check => check.label));
+  const script = cellScript(cell.label, expectedLabels);
   await writeFile(join(dir, 'cell.js'), script);
   await writeFile(join(dir, 'index.html'), html(cell, checks, script));
   await writeFile(join(dir, 'frame.html'), frameHtml(cell.segments));

@@ -16,6 +16,22 @@
 import hljs from 'highlight.js';
 import { checker } from './checks.mjs';
 
+// Canonical language names shipped by highlight.js 11.12.0.
+const LANGUAGES = ('1c abnf accesslog actionscript ada angelscript apache applescript arcade arduino '
+  + 'armasm asciidoc aspectj autohotkey autoit avrasm awk axapta bash basic bnf brainfuck c cal capnproto '
+  + 'ceylon clean clojure clojure-repl cmake coffeescript coq cos cpp crmsh crystal csharp csp css d dart '
+  + 'delphi diff django dns dockerfile dos dsconfig dts dust ebnf elixir elm erb erlang erlang-repl excel '
+  + 'fix flix fortran freedesktop fsharp gams gauss gcode gherkin glsl gml go golo gradle graphql groovy '
+  + 'haml handlebars haskell haxe hsp http hy inform7 ini irpf90 isbl java javascript jboss-cli json julia '
+  + 'julia-repl kotlin lasso latex ldif leaf less lisp livecodeserver livescript llvm lsl lua makefile '
+  + 'markdown mathematica matlab maxima mel mercury mipsasm mizar mojolicious monkey moonscript n1ql '
+  + 'nestedtext nginx nim nix node-repl nsis objectivec ocaml openscad oxygene parser3 perl pf pgsql php '
+  + 'php-template plaintext pony powershell processing profile prolog properties protobuf puppet purebasic '
+  + 'python python-repl q qml r reasonml rib roboconf routeros rsl ruby ruleslanguage rust sas scala scheme '
+  + 'scilab scss shell smali smalltalk sml sqf sql stan stata step21 stylus subunit swift taggerscript tap tcl '
+  + 'thrift tp twig typescript vala vbnet vbscript vbscript-html verilog vhdl vim wasm wren x86asm xl xml '
+  + 'xquery yaml zephir').split(' ');
+
 function html(code, language) {
   return hljs.highlight(code, { language }).value;
 }
@@ -23,6 +39,10 @@ function html(code, language) {
 export function run() {
   const { checks, check } = checker();
   const names = hljs.listLanguages();
+  check('grammar_registry', {
+    missing: LANGUAGES.filter(name => names.indexOf(name) === -1),
+    unexpected: names.filter(name => LANGUAGES.indexOf(name) === -1),
+  }, { missing: [], unexpected: [] });
   check('registered', names.filter(name => hljs.getLanguage(name).name === 'Plain text'), ['plaintext']);
   const failed = [];
   names.filter(name => !hljs.getLanguage(name).unicodeRegex).forEach(name => {
