@@ -1,7 +1,19 @@
 'use strict';
 // Installed before the bundle in the frame and the standalone page. An uncaught error from either
 // bundle evaluation or the exercise must reach the cell's verdict.
-window.onerror = function (message, source, line) {
-  if (window.e2eLoadError === undefined) window.e2eLoadError = String(message) + ' (' + source + ':' + line + ')';
-  return false;
-};
+(function () {
+  function record(failure) {
+    if (window.e2eUncaughtError !== undefined) return;
+    window.e2eUncaughtError = failure;
+    if (window.e2eOnUncaughtError) window.e2eOnUncaughtError();
+  }
+
+  window.onerror = function (message, source, line) {
+    record({ message: String(message) + ' (' + source + ':' + line + ')' });
+    return false;
+  };
+
+  window.addEventListener('unhandledrejection', function (event) {
+    record({ rejection: event.reason });
+  });
+}());

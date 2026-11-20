@@ -1,18 +1,32 @@
 // The `usage-pure` oracle: a missed REWRITE of a built-in the manifest strips is a raw read that throws
 // here, where every other realm still answers it with the native; one it keeps answers here too.
-// In-process, unlike the pre-flight beside it - the pure flavor writes no global, and a fresh context
-// per cell is then the whole isolation.
+// A child process owns each context, so even code that stalls in a callback has a deadline.
 import { createContext, runInContext } from 'node:vm';
-import { errorReason } from './diagnostics.mjs';
+import { checkFailureLine, checkResultProblem, errorReason } from './diagnostics.mjs';
 import { E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
-import { withDeadline } from './deadline.mjs';
+import { ChildExerciseError, runWithDeadline } from './deadline.mjs';
 
 const STRIP = buildStripScript(E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS);
 const RUN_DEADLINE_MS = 120_000;
 
 // held to the label SEQUENCE, not the count: a realm reproducing OTHER checks ran another exercise
 export async function strippedLeg(code, label, expected, timeout = RUN_DEADLINE_MS) {
-  const timers = new Set();
+  try {
+    return await runWithDeadline(import.meta.url, 'runStripped', [code, label, expected], {
+      ms: timeout,
+      what: `${ label } in the stripped realm`,
+    });
+  } catch (error) {
+    return { ok: false, reason: errorReason(error), exerciseError: error instanceof ChildExerciseError };
+  }
+}
+
+// Only an exercise exception can be a pre-phase diagnostic; a dead runner has no verdict.
+export function strippedFails(result, phase) {
+  return result !== null && !result.ok && (phase !== 'pre' || result.exerciseError !== true);
+}
+
+export async function runStripped(code, label, expected) {
   let finished = false;
   const { promise: callbackFailure, reject } = Promise.withResolvers();
 
@@ -29,53 +43,34 @@ export async function strippedLeg(code, label, expected, timeout = RUN_DEADLINE_
     };
   }
 
-  function remember(timer) {
-    // Promise jobs can still reach the timer API after the verdict has settled.
-    if (finished) clearTimeout(timer);
-    else timers.add(timer);
-    return timer;
-  }
-
-  function clear(timer) {
-    timers.delete(timer);
-    clearTimeout(timer);
-  }
-
-  let stage = 'load';
   try {
     // bare of other node globals, so a pure ponyfill takes the same path it would in a browser
     const context = createContext({
       console,
       queueMicrotask: fn => queueMicrotask(guardCallback(fn)),
-      setTimeout: (fn, ...args) => remember(setTimeout(guardCallback(fn), ...args)),
-      setInterval: (fn, ...args) => remember(setInterval(guardCallback(fn), ...args)),
-      clearTimeout: clear,
-      clearInterval: clear,
+      setTimeout: (fn, ...args) => setTimeout(guardCallback(fn), ...args),
+      setInterval: (fn, ...args) => setInterval(guardCallback(fn), ...args),
+      clearTimeout,
+      clearInterval,
     });
-    runInContext(STRIP, context, { filename: `${ label } [strip]`, timeout });
-    runInContext(code, context, { filename: `${ label } [bundle]`, timeout });
-    stage = 'run()';
-    const result = await withDeadline(() => Promise.race([
-      runInContext('E2E.run()', context, { filename: `${ label } [run]`, timeout }),
+    runInContext(STRIP, context, { filename: `${ label } [strip]` });
+    runInContext(code, context, { filename: `${ label } [bundle]` });
+    const result = await Promise.race([
+      runInContext('E2E.run()', context, { filename: `${ label } [run]` }),
       callbackFailure,
-    ]), { ms: timeout, what: `${ label } run() in the stripped realm` });
+    ]);
 
-    const checks = result?.checks ?? [];
-    const drift = checks.length !== expected.length
-      || expected.some((check, index) => checks[index]?.label !== check.label);
-    if (drift) return { ok: false, reason: `reproduced ${ checks.length } checks, the pre-flight recorded ${ expected.length }` };
-    const bad = checks.filter(check => !check.pass);
-    if (bad.length) return { ok: false, reason: `${ bad.length }/${ checks.length } failed`, bad };
+    const checks = result?.checks;
+    const problem = checkResultProblem(checks, expected);
+    if (problem) return { ok: false, reason: problem, checksFailed: true };
+    const bad = [];
+    for (let index = 0; index < checks.length; index++) {
+      if (!checks[index].pass) bad.push(checkFailureLine(checks[index]));
+    }
+    if (bad.length) return { ok: false, reason: `${ bad.length }/${ checks.length } failed`, checksFailed: true, bad };
     return { ok: true, count: checks.length };
-  } catch (err) {
-    // a throw IS the shape a missed rewrite takes - a raw native read the realm no longer answers -
-    // so it is a verdict on the cell, not a broken leg
-    const reason = err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT'
-      ? `${ label } ${ stage } exceeded ${ timeout }ms in the stripped realm`
-      : errorReason(err);
-    return { ok: false, reason };
   } finally {
+    // Skip late callbacks while the parent is receiving the verdict and stopping this process.
     finished = true;
-    for (const timer of timers) clearTimeout(timer);
   }
 }

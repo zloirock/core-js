@@ -32,44 +32,103 @@
     return mode === undefined || mode === 11 ? undefined : mode;
   };
 
-  // element by element, never through a joined string: a separator can occur INSIDE a label, and two
-  // different sequences would join to the same text. The index tells the reader WHERE they parted.
-  window.e2eLabelDrift = function (checks, expected) {
-    var i;
-    for (i = 0; i < checks.length && i < expected.length; i++) {
-      if (checks[i].label !== expected[i]) return i;
+  window.e2eLabelProblem = function (checks, expected) {
+    var i = 0;
+    while (i < checks.length && i < expected.length && checks[i].label === expected[i]) i++;
+    if (i < expected.length) {
+      var actual = i < checks.length ? '"' + checks[i].label + '"' : 'no check';
+      return 'check #' + (i + 1) + ' expected "' + expected[i] + '" from the raw exercise, got ' + actual;
     }
-    return -1;
+    if (i < checks.length) return 'unexpected check "' + checks[i].label + '" at #' + (i + 1);
+    return null;
   };
+
+  function afterRejections(callback) {
+    // Let the current microtask checkpoint queue unhandledrejection, then queue toggle on
+    // the same DOM manipulation task source so delivery precedes the verdict.
+    setTimeout(function () {
+      if (typeof window.PromiseRejectionEvent === 'function') {
+        var details = document.createElement('details');
+        if (typeof details.open === 'boolean' && 'ontoggle' in details) {
+          details.ontoggle = callback;
+          details.open = true;
+          return;
+        }
+      }
+      // IE11's Promise polyfill dispatches unhandledrejection through native setImmediate.
+      if (typeof window.setImmediate === 'function') window.setImmediate(callback);
+      else setTimeout(callback, 0);
+    }, 0);
+  }
 
   // `then` is the one replaceable method these programs may call, and the rejection handler goes to
   // that same `then` rather than a later `.catch`, which a substituted implementation could drop.
   window.e2eRun = function (onChecks, onError) {
-    function checkForUncaughtError() {
-      if (window.e2eLoadError !== undefined) throw new Error(window.e2eLoadError);
+    var settled = false;
+    var reported = false;
+
+    function fail(err) {
+      if (settled) return;
+      settled = true;
+      window.e2eOnUncaughtError = null;
+      onError(err);
+    }
+
+    // An independent rejection takes precedence over the error reported by the exercise.
+    function deferFailure(err) {
+      afterRejections(function () {
+        if (!settled && !uncaughtError()) fail(err);
+      });
+    }
+
+    function uncaughtError() {
+      var failure = window.e2eUncaughtError;
+      if (failure === undefined) return false;
+      fail(new Error(failure.message || 'unhandled rejection - ' + window.e2eReason(failure.rejection)));
+      return true;
     }
 
     function handOver(res) {
+      if (reported || settled || uncaughtError()) return;
+      reported = true;
       try {
-        checkForUncaughtError();
         var checks = res && res.checks;
         if (!Array.isArray(checks)) throw new TypeError('run() did not return a checks array');
+        var rows = [];
         for (var i = 0; i < checks.length; i++) {
           var check = checks[i];
-          if (!check || typeof check.label !== 'string' || typeof check.pass !== 'boolean') {
+          var label = check && check.label;
+          var pass = check && check.pass;
+          if (typeof label !== 'string' || typeof pass !== 'boolean') {
             throw new TypeError('run() returned a malformed check at index ' + i);
           }
+          rows[i] = { label: label, pass: pass, actual: check.actual, expected: check.expected };
         }
-        onChecks(checks);
-      } catch (err) { onError(err); }
+        afterRejections(function () {
+          if (settled || uncaughtError()) return;
+          settled = true;
+          window.e2eOnUncaughtError = null;
+          try {
+            onChecks(rows);
+          } catch (err) { onError(err); }
+        });
+      } catch (err) { deferFailure(err); }
     }
 
+    // A thenable's first notification wins. Separate uncaught errors can still fail the frame.
+    function reject(err) {
+      if (reported || settled) return;
+      reported = true;
+      deferFailure(err);
+    }
+
+    window.e2eOnUncaughtError = uncaughtError;
     try {
-      checkForUncaughtError();
+      if (uncaughtError()) return;
       if (typeof E2E === 'undefined' || !E2E || typeof E2E.run !== 'function') throw new Error('the bundle did not expose E2E.run');
       var res = E2E.run();
-      if (res && typeof res.then === 'function') res.then(handOver, onError);
+      if (res && typeof res.then === 'function') res.then(handOver, reject);
       else handOver(res);
-    } catch (err) { onError(err); }
+    } catch (err) { reject(err); }
   };
 }());

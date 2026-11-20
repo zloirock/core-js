@@ -2,7 +2,7 @@ import { MinifyOptions } from '@core-js/builder/config.js';
 import { transform as swcTransform } from '@swc/core';
 import { assertDetectionsStillNeedHelp, buildCell } from './bundle.mjs';
 import { groupByLibraryAndMethod } from './cells.mjs';
-import { errorReason } from './diagnostics.mjs';
+import { checkResultProblem, errorReason } from './diagnostics.mjs';
 import { describeInput } from './input.mjs';
 import { librariesMatching, libraries } from './libraries.mjs';
 import * as manifest from './manifest.mjs';
@@ -11,8 +11,9 @@ import { announceArtifacts, announceInput, announceRun, reportCell, reportCellFa
 import { ARTIFACTS } from './paths.mjs';
 import { writeCell } from './page.mjs';
 import { preflight } from './preflight.mjs';
+import { rawChecks } from './raw-exercise.mjs';
 import * as snapshots from './snapshots.mjs';
-import { strippedLeg } from './stripped-realm.mjs';
+import { strippedFails, strippedLeg } from './stripped-realm.mjs';
 import { FIXTURE_SHARD, emitShardSummary, runShards, shardSlice } from '../babel-plugin/fixture-shards.mjs';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -28,6 +29,20 @@ process.on('unhandledRejection', reason => {
 });
 
 const injectionsByGroup = new Map();
+const labelsByExercise = new Map();
+
+async function readRawLabels(exercise) {
+  const checks = await rawChecks(exercise);
+  const failed = checks.find(check => !check.pass);
+  if (failed) throw new Error(`raw exercise failed - ${ failed.failure }`);
+  return checks.map(check => check.label);
+}
+
+function rawLabels(exercise) {
+  if (!labelsByExercise.has(exercise)) labelsByExercise.set(exercise, readRawLabels(exercise));
+  return labelsByExercise.get(exercise);
+}
+
 // The reference injection is the one that the babel-plugin phase produced
 function getReferenceInjection(cell) {
   const injected = injectionsByGroup.get(cell.group);
@@ -38,33 +53,39 @@ function getReferenceInjection(cell) {
 }
 
 async function runCell(cell) {
+  let snapshotState = 'not run';
   try {
+    const expected = await rawLabels(cell.lib.exercise);
     const startedAt = process.hrtime.bigint();
     const { code, injected, origins } = await buildCell(cell);
     const buildMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
 
     if (cell.isReference) injectionsByGroup.set(cell.group, injected);
     const delta = cell.isReference ? null : snapshots.deltaLines(getReferenceInjection(cell), injected);
-    const snapshotState = await getSnapshotState(cell, injected, delta, origins);
+    snapshotState = 'error';
+    snapshotState = await getSnapshotState(cell, injected, delta, origins);
 
     const checks = await preflight(code, cell.label);
-    if (!checks.length) throw new Error('exercise produced 0 checks - nothing verified');
+    const problem = checkResultProblem(checks, expected);
+    if (problem) throw new Error(`pre-flight - ${ problem }`);
     const failingChecks = checks.filter(check => !check.pass);
 
-    // `pre` is red on some libraries by design, so it stays a diagnostic here as it does in the browser
-    const stripped = cell.method === 'usage-pure' ? await strippedLeg(code, cell.label, checks) : null;
-    const strippedFailed = stripped !== null && !stripped.ok && cell.phase !== 'pre';
+    // Missing Babel helper polyfills can make `pre` throw. Its returned checks still gate.
+    const stripped = cell.method === 'usage-pure' ? await strippedLeg(code, cell.label, expected) : null;
+    const strippedFailed = strippedFails(stripped, cell.phase);
 
     const rawKb = kb(Buffer.byteLength(code));
     const wire = await wireSize(code, cell.label);
-    await writeCell(cell, code, checks);
+    await writeCell(cell, code, checks, expected);
 
     // a baseline that is not green reddens its cell, so it may not be prefixed `ok`
-    const ok = !failingChecks.length && GREEN_SNAPSHOT_STATES.has(snapshotState) && !strippedFailed;
+    const verdict = manifest.runtimeVerdict(snapshotState, Boolean(failingChecks.length) || strippedFailed);
+    const ok = verdict.runtime === 'passed';
     if (failingChecks.length || strippedFailed) tally.failed.add(cell.label);
     reportCell(cell, { ok, checks, failingChecks, injected, delta, snapshotState, stripped, strippedFailed, rawKb, wire, buildMs });
     return {
       ...cellIdentity(cell),
+      ...verdict,
       rawKb, minKb: wire.minKb, gzKb: wire.gzKb,
       buildMs: +buildMs.toFixed(0),
       injections: injected.length,
@@ -78,18 +99,14 @@ async function runCell(cell) {
     if (cell.isReference && !injectionsByGroup.has(cell.group)) injectionsByGroup.set(cell.group, null);
     const reason = errorReason(error);
     reportCellFailure(cell, reason);
-    return { ...cellIdentity(cell), error: reason };
+    return { ...cellIdentity(cell), ...manifest.runtimeVerdict(snapshotState, true), error: reason };
   }
 }
-
-// listed by the GREEN states, so a state nobody named here is red - `updated` among them: a baseline
-// written under OVERWRITE compared nothing
-const GREEN_SNAPSHOT_STATES = new Set(['ok', 'skipped', 'providers agree']);
 
 async function getSnapshotState(cell, injected, delta, origins) {
   if (cell.snapshot) {
     const state = await snapshots.compare(cell, cell.isReference ? injected : delta, origins);
-    if (!GREEN_SNAPSHOT_STATES.has(state)) tally.redSnapshots.push(state);
+    if (!manifest.snapshotPassed(state)) tally.redSnapshots.push(state);
     return state;
   }
   if (cell.isReference) return 'skipped';
@@ -98,8 +115,7 @@ async function getSnapshotState(cell, injected, delta, origins) {
 }
 
 function cellIdentity(cell) {
-  return { lib: cell.lib.name, provider: cell.provider, method: cell.method, phase: cell.phase, label: cell.label,
-    gatesInBrowsers: cell.gatesInBrowsers };
+  return { lib: cell.lib.name, provider: cell.provider, method: cell.method, phase: cell.phase, label: cell.label };
 }
 
 function kb(bytes) {

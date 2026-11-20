@@ -48,12 +48,9 @@
       tableSays('the rows above are the node pre-flight; this browser is not the target engine');
       return;
     }
-    if (checks.length !== EXPECTED.length || window.e2eLabelDrift(checks, EXPECTED) !== -1) {
-      // an equal count under different labels is its own sentence: reporting two identical numbers
-      // reads as a runner that cannot tell what it is complaining about
-      paint(FAIL, checks.length === EXPECTED.length
-        ? 'FAIL - ' + checks.length + ' checks, as many as the node pre-flight, but not the same ones'
-        : 'FAIL - got ' + checks.length + ' checks, the node pre-flight recorded ' + EXPECTED.length);
+    var problem = window.e2eLabelProblem(checks, EXPECTED);
+    if (problem !== null) {
+      paint(FAIL, 'FAIL - ' + problem);
       tableSays('the rows above are the node pre-flight, which this browser did not reproduce');
       return;
     }

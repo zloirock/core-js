@@ -13,7 +13,7 @@ const { hasOwnProperty } = Object.prototype;
 // walking own properties instead finds none, so every date would equal every other one and `{}`. The
 // cost is that a value compares EQUAL to what its `toJSON` renders, so where the point of a check is
 // that something WAS rendered, assert its `typeof` alongside it.
-function unwrap(value) {
+export function unwrap(value) {
   return typeof value?.toJSON === 'function' ? value.toJSON() : value;
 }
 

@@ -6,6 +6,17 @@ import { join } from 'node:path';
 
 export const MANIFEST = join(ARTIFACTS, 'manifest.json');
 
+// A baseline written under OVERWRITE has not been verified.
+const GREEN_SNAPSHOT_STATES = new Set(['ok', 'skipped', 'providers agree']);
+
+export function snapshotPassed(state) {
+  return GREEN_SNAPSHOT_STATES.has(state);
+}
+
+export function runtimeVerdict(snapshotState, executionFailed) {
+  return { runtime: !executionFailed && snapshotPassed(snapshotState) ? 'passed' : 'failed', snapshotState };
+}
+
 // read as a consumer, so a missing file is named for what makes one rather than as a bare ENOENT
 export async function read() {
   let parsed;
