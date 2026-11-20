@@ -52,7 +52,8 @@ h1, h2, h3, h4, h5, h6 {
 
   &.with-anchor {
     .anchor {
-      display: none;
+      display: inline-block;
+      opacity: 0;
       width: 1.2rem;
       margin-left: 0.5rem;
       height: 1.5rem;
@@ -70,8 +71,8 @@ h1, h2, h3, h4, h5, h6 {
       }
     }
 
-    &:hover .anchor {
-      display: inline-block;
+    &:hover .anchor, .anchor:focus {
+      opacity: 1;
     }
   }
 }

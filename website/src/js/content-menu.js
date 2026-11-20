@@ -2,41 +2,23 @@ import scrollToElement, { smoothScroll } from './scroll-to.js';
 
 function init() {
   const triggers = document.querySelectorAll('.scroll-to');
-  const menuItems = document.querySelectorAll('.toc-link');
   const offset = 10;
-
-  function unactiveAllMenuItems() {
-    menuItems.forEach(item => {
-      item.classList.remove('active');
-    });
-  }
-
-  function activateMenu(targetHash) {
-    document.querySelector(`a[data-hash="${ targetHash }"]`).parentElement.classList.add('active');
-  }
-
-  function getBlocksBoundaries() {
-    const targetBoundaries = {};
-    triggers.forEach(trigger => {
-      const targetHash = trigger.dataset.hash;
-      const element = document.querySelector(targetHash);
-      if (element) {
-        // `scrollY` is missing in IE
-        targetBoundaries[targetHash] = { top: element.getBoundingClientRect().top + window.pageYOffset };
-      }
-    });
-    return targetBoundaries;
-  }
+  let activeItem;
 
   function observeMenu() {
-    const scroll = window.pageYOffset;
-    const targetBoundaries = getBlocksBoundaries();
-    for (const [hash, target] of Object.entries(targetBoundaries)) {
-      if (target.top > scroll && target.top < scroll + window.innerHeight / 2) {
-        unactiveAllMenuItems();
-        activateMenu(hash);
-        return;
-      }
+    let nextItem;
+    for (const trigger of triggers) {
+      const target = document.querySelector(trigger.dataset.hash);
+      if (!target) continue;
+      const { top } = target.getBoundingClientRect();
+      if (top > window.innerHeight / 2) break;
+      nextItem = trigger.parentElement;
+      if (top >= 0) break;
+    }
+    if (nextItem !== activeItem) {
+      activeItem?.classList.remove('active');
+      nextItem?.classList.add('active');
+      activeItem = nextItem;
     }
   }
 
@@ -60,6 +42,7 @@ function init() {
   });
 
   document.addEventListener('scroll', observeMenu);
+  observeMenu();
 }
 
 // the legacy chunks run after DOMContentLoaded

@@ -174,8 +174,8 @@ function init() {
       }
 
       if (Array.isArray(value)) {
-        const arr = value.map(v => serializeLog(v, visited));
-        return `[${ arr.join(', ') }]`;
+        const arr = Array.prototype.map.call(value, v => serializeLog(v, visited));
+        return `[${ Array.prototype.join.call(arr, ', ') }]`;
       }
 
       const isPlain = Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null;
