@@ -34,6 +34,7 @@ const base = BASE_URL.replace(/\/$/, '');
 const hub = `https://ondemand.${ region }.saucelabs.com/wd/hub`;
 const api = `https://api.${ region }.saucelabs.com`;
 const dashboard = region === 'us-west-1' ? 'https://app.saucelabs.com' : `https://app.${ region }.saucelabs.com`;
+const sessionUrl = id => `${ dashboard }/tests/${ id }`;
 
 async function deployedCommit() {
   try {
@@ -153,7 +154,7 @@ async function annotateJob(session, platform, result) {
   }
 }
 
-async function runSession(suite, platform, controller) {
+async function runSession(suite, platform, controller, pages) {
   const { signal } = controller;
   const session = await createSession({
     hub,
@@ -163,15 +164,15 @@ async function runSession(suite, platform, controller) {
     capabilities: sessionCapabilities(suite, platform),
   });
   await trackSession(session.id, true);
-  const pages = [];
+  const start = pages.length;
   let hung;
   let jobResult;
   try {
-    for (const page of suite.pages) {
+    for (const page of suite.pages.slice(start)) {
       signal.throwIfAborted();
       // a browser busy with a hung page does not navigate
       if (hung) {
-        pages.push({ page, passed: false, details: [], error: `not run, the session stopped at ${ hung }` });
+        pages.push({ page, sessionId: session.id, passed: false, details: [], error: `not run, the session stopped at ${ hung }` });
         continue;
       }
       let result;
@@ -181,12 +182,13 @@ async function runSession(suite, platform, controller) {
         if (!signal.aborted) error.message = `${ page }: ${ error.message }`;
         throw error;
       }
-      pages.push(result);
+      pages.push({ ...result, sessionId: session.id });
       if (result.unfinished) hung = page;
     }
     signal.throwIfAborted();
+    const passed = pages.slice(start).every(page => page.passed);
     // a lost annotation must not retry the platform
-    jobResult = await annotateJob(session, platform, pages.every(({ passed }) => passed) ? 'passed' : 'failed');
+    jobResult = await annotateJob(session, platform, passed ? 'passed' : 'failed');
     signal.throwIfAborted();
   } catch (error) {
     // The abort reason belongs to the whole run; each session keeps its own error and link.
@@ -202,50 +204,49 @@ async function runSession(suite, platform, controller) {
       echo(yellow(`${ platform.name }: ${ error.message }`));
     }
   }
-  return { platform, id: session.id, pages };
+  return session.id;
 }
 
 // a platform in the output, with the link to its session once it has one
 function titled({ name }, id) {
-  return id ? `${ name }: ${ dashboard }/tests/${ id }` : name;
+  return id ? `${ name }: ${ sessionUrl(id) }` : name;
 }
 
 async function runPlatform(suite, platform, controller) {
   const { signal } = controller;
+  const pages = [];
   for (let attempt = 1; ; attempt++) {
     let id, message;
     try {
       signal.throwIfAborted();
-      const result = await runSession(suite, platform, controller);
+      id = await runSession(suite, platform, controller, pages);
       // a hung emulator and an endless test look alike
-      const unfinished = result.pages.find(page => page.unfinished);
-      if (signal.aborted || !unfinished || attempt === ATTEMPTS) return result;
-      ({ id } = result);
-      message = `${ unfinished.page }: ${ unfinished.error }`;
+      const unfinished = pages.findIndex(page => page.unfinished);
+      if (signal.aborted || unfinished === -1 || attempt === ATTEMPTS) return { platform, id, pages };
+      const [hung] = pages.splice(unfinished);
+      message = `${ hung.page }: ${ hung.error }`;
     } catch (error) {
-      if (signal.aborted || !(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId };
+      if (signal.aborted || !(error instanceof WebDriverError) || attempt === ATTEMPTS) return { platform, error, id: error.sessionId, pages };
       ({ sessionId: id, message } = error);
     }
     retrying(`${ titled(platform, id) }: ${ message }`, attempt);
   }
 }
 
-function report({ platform, id, pages, error }) {
-  if (error) {
-    echo(red(`${ titled(platform, id) }: ${ error.message }`));
-    return false;
-  }
-  const lines = [cyan(titled(platform, id))];
-  let platformPassed = true;
-  for (const { page, passed, summary, details, commits, error: pageError = summary } of pages) {
+function report({ platform, id, pages = [], error }) {
+  const title = titled(platform, id);
+  const lines = [error ? red(`${ title }: ${ error.message }`) : cyan(title)];
+  let platformPassed = !error;
+  for (const { page, sessionId, passed, summary, details, commits, error: pageError = summary } of pages) {
+    const source = sessionId === id ? '' : ` (${ sessionUrl(sessionId) })`;
     // appended to each bundle by the Pages build; a deploy by an older workflow has none
     if (COMMIT && commits && !commits.length) lines.push(yellow(`  ${ page }: no commit marker in the bundles`));
     if (passed) {
-      lines.push(green(`  ${ page }: ${ summary }`));
+      lines.push(green(`  ${ page }: ${ summary }${ source }`));
       continue;
     }
     platformPassed = false;
-    lines.push(red(`  ${ page }: ${ pageError }`));
+    lines.push(red(`  ${ page }: ${ pageError }${ source }`));
     for (const detail of details) lines.push(red(detail));
   }
   echo(lines.join('\n'));

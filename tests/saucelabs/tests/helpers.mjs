@@ -3,15 +3,19 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
+import { evaluate } from '../evaluate.mjs';
 
 const sessionsFile = join(await mkdtemp(join(tmpdir(), 'saucelabs-')), 'sessions');
 
+const pass = { done: true, failed: 0, total: 1, failures: [] };
+const fail = { ...pass, failed: 1, failures: [{ test: 'compare', message: 'first assertion' }] };
+
 async function runFake({
-  failed = 0, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationError = false, wrongPage = false,
-  pageUrl, commits, pages = ['unit-browser/global.html'], unwritableSessions = false, noReporter = false,
+  firstResult = pass, marker = 404, hangs = 0, sessionNull = false, dynamicQueue = false, navigationErrors = 0, wrongPage = false,
+  pageUrl, commits, pages = ['unit-browser/global.html'], retryPage = pages[0], unwritableSessions = false, noReporter = false,
   limits = { organization: 1, team: 1 }, limitStatus = 200, platforms,
   polling = { pollInterval: 0 },
-  latePage = false,
+  latePage = false, pendingFailures = [],
   limitOutages = 0,
 } = {}) {
   const previous = {
@@ -41,7 +45,8 @@ async function runFake({
   const annotations = [];
   const pollDelays = [];
   let navigated;
-  let sessionStart;
+  let hungPage;
+  let nextResult = firstResult;
   const started = [];
   let releaseSlow;
   let nextStarted;
@@ -81,7 +86,7 @@ async function runFake({
       if (path === '/wd/hub/session') {
         sessions++;
         peak = Math.max(peak, ++open);
-        sessionStart = navigations.length;
+        hungPage = undefined;
         const capabilities = JSON.parse(options.body).desiredCapabilities;
         doesNotMatch(capabilities.build, /@a{40}/, 'the build name carries no commit');
         equal(capabilities.maxDuration, pages.length * 1080 + 600, 'maxDuration outlives the page timeouts');
@@ -90,7 +95,7 @@ async function runFake({
         if (name === 'next') nextStarted(true);
         const pool = platforms?.find(platform => platform.name === name)?.pool;
         if (pool) poolPeaks[pool] = Math.max(poolPeaks[pool] ?? 0, openPools[pool] = (openPools[pool] ?? 0) + 1);
-        payload = sessionNull ? null : { sessionId: dynamicQueue || platforms ? name : 'test-session' };
+        payload = sessionNull ? null : { sessionId: dynamicQueue || platforms ? name : `test-session-${ sessions }` };
       } else if (options.method === 'DELETE') {
         quits++;
         open--;
@@ -99,10 +104,13 @@ async function runFake({
         if (dynamicQueue && path.includes('/fast')) fastFinished = true;
         payload = {};
       } else if (path.endsWith('/url')) {
-        navigations.push(JSON.parse(options.body).url);
+        const { url: page } = JSON.parse(options.body);
+        navigations.push(page);
+        const retry = page === `http://example.test/branch/${ retryPage }`;
+        if (retry && sessions <= hangs) hungPage = page;
         navigated = performance.now();
         if (!unwritableSessions) listedWhileOpen = await readFile(sessionsFile, 'utf8');
-        payload = navigationError ? { status: 13, value: { message: 'navigation failed' } } : {};
+        payload = retry && sessions <= navigationErrors ? { status: 13, value: { message: 'navigation failed' } } : {};
       } else {
         const { script } = JSON.parse(options.body);
         const firstPoll = navigated !== undefined && script.startsWith('var results = ');
@@ -121,7 +129,7 @@ async function runFake({
           payload = { value: runInNewContext(`(function () { ${ script } })()`, { window }) };
         } else if (script.startsWith('var results = ')) {
           if (dynamicQueue && path.includes('/slow')) await slow;
-          if (sessions <= hangs) {
+          if (hungPage) {
             const now = start + sessions * 16 * 6e4;
             Date.now = () => now;
           }
@@ -130,14 +138,15 @@ async function runFake({
             Date.now = () => now;
           }
           payload = { value: JSON.stringify({
-            // a busy browser stays on its first page, a slow one shows another page at the first poll
+            // a busy browser stays on the hung page, a slow one shows another page at the first poll
             url: pageUrl || (wrongPage || latePage && firstPoll ? 'http://example.test/branch/unit-browser/other.html'
-              : navigations[sessions <= hangs ? sessionStart : navigations.length - 1]),
+              : hungPage || navigations.at(-1)),
             commits,
-            results: sessions <= hangs
-              ? { done: false, failed: 0, total: 0, failures: [], currentTest: { module: 'Promises', test: 'pending callback' } }
-              : { done: true, failed, total: 1, failures: [] },
+            results: hungPage
+              ? { done: false, failures: pendingFailures, currentTest: { module: 'Promises', test: 'pending callback' } }
+              : nextResult,
           }) };
+          if (!hungPage) nextResult = pass;
         } else payload = { value: null };
       }
       return { ok: true, text: async () => JSON.stringify(payload) };
@@ -149,7 +158,7 @@ async function runFake({
       }],
       reporter: 'qunitResults',
       ...polling,
-      evaluate: ({ failed: count }) => ({ passed: count === 0, summary: `${ count } failed`, details: [] }),
+      evaluate,
     };
     if (dynamicQueue) {
       suite.platforms = ['slow', 'fast', 'next', 'last'].map(name => ({
@@ -170,7 +179,7 @@ async function runFake({
       return { sessions, limitRequests, output: output.join('\n') };
     }
     if (foreignBundles) await rejects(run(suite), new RegExp(`Sauce Labs run stopped: unit-browser/global\\.html: bundles of .* instead of ${ 'a'.repeat(40) }`), 'the run stops on foreign bundles');
-    else if (emptyPool || failed || noReporter || hangs === 3 || sessionNull || navigationError || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
+    else if (emptyPool || !evaluate(firstResult).passed || noReporter || hangs === 3 || sessionNull || navigationErrors === 3 || wrongPage) await rejects(run(suite), /Sauce Labs run failed/, 'the run fails');
     else await run(suite);
     return {
       output: output.join('\n'), exitCodeWhileRunning, navigations, annotations, sessions, peak, poolPeaks, quits, annotationRequests, markerRequests, listedWhileOpen,
@@ -192,11 +201,11 @@ async function runFake({
 }
 
 {
-  const { output, sessions, annotationRequests, markerRequests } = await runFake({ failed: 1 });
+  const { output, sessions, annotationRequests, markerRequests } = await runFake({ firstResult: fail });
   equal(sessions, 1, 'reports failed pages and survives a replaced deployment marker #1');
   equal(annotationRequests, 1, 'reports failed pages and survives a replaced deployment marker #2');
   equal(markerRequests, 2, 'reports failed pages and survives a replaced deployment marker #3');
-  match(output, /unit-browser\/global\.html: 1 failed/, 'reports failed pages and survives a replaced deployment marker #4');
+  match(output, /unit-browser\/global\.html: 1 of 1 assertions failed/, 'reports failed pages and survives a replaced deployment marker #4');
   match(output, /commit\.txt shows HTTP 404.*testing the currently served pages/, 'reports failed pages and survives a replaced deployment marker #5');
   match(output, /commit\.txt shows HTTP 404.*after the run/, 'reports failed pages and survives a replaced deployment marker #6');
 }
@@ -207,7 +216,7 @@ async function runFake({
   equal(markerRequests, 2, 'passes served pages despite a missing deployment marker #2');
   match(output, /all the browsers passed/, 'passes served pages despite a missing deployment marker #3');
   match(output, /commit\.txt shows HTTP 404.*after the run/, 'passes served pages despite a missing deployment marker #4');
-  match(output, /^test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session$/m, 'passes served pages despite a missing deployment marker #5');
+  match(output, /^test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-1$/m, 'passes served pages despite a missing deployment marker #5');
 }
 
 {
@@ -245,35 +254,39 @@ async function runFake({
 }
 
 {
-  const { output, sessions } = await runFake({ navigationError: true });
+  const { output, sessions } = await runFake({ navigationErrors: 3 });
   equal(sessions, 3, 'includes a session link when a page fails after session creation #1');
-  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session.*navigation failed$/m, 'includes a session link when a page fails after session creation #2');
-  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session: .*navigation failed, retrying \(2 of 3\)/, 'includes a session link when a page fails after session creation #3');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-3.*navigation failed$/m, 'includes a session link when a page fails after session creation #2');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-1: .*navigation failed, retrying \(2 of 3\)/, 'includes a session link when a page fails after session creation #3');
 }
 
 {
-  const { sessions, annotationRequests } = await runFake({ navigationError: true });
+  const pages = ['unit-browser/global.html', 'unit-browser/pure.html'];
+  const { output, sessions, annotationRequests } = await runFake({ pages, firstResult: fail, retryPage: pages[1], navigationErrors: 3 });
   equal(sessions, 3, 'marks a session failed when navigation fails #1');
   equal(annotationRequests, 3, 'marks a session failed when navigation fails #2');
+  match(output, /test-session-3: unit-browser\/pure\.html: .*navigation failed$/m, 'reports the final navigation error');
+  match(output, /global\.html: 1 of 1 assertions failed \(https:\/\/app\.saucelabs\.com\/tests\/test-session-1\)/, 'keeps completed results when every retry fails');
 }
 
 {
-  const { output, sessions } = await runFake({ hangs: 1 });
+  const { output, sessions } = await runFake({ hangs: 1, pendingFailures: fail.failures });
   equal(sessions, 2, 'restarts a platform whose page does not finish and passes if it recovers #1');
-  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session: unit-browser\/global\.html: not finished in 3 minutes.*retrying \(2 of 3\)/, 'restarts a platform whose page does not finish and passes if it recovers #2');
-  match(output, /all the browsers passed/, 'restarts a platform whose page does not finish and passes if it recovers #3');
+  match(output, /test browser: https:\/\/app\.saucelabs\.com\/tests\/test-session-1: unit-browser\/global\.html: not finished in 3 minutes.*retrying \(2 of 3\)/, 'restarts a platform whose page does not finish and passes if it recovers #2');
+  match(output, /all the browsers passed/, 'a successful retry passes a page that logged an assertion failure before hanging');
 }
 
 {
-  const { output, sessions } = await runFake({ hangs: 3, marker: 'a'.repeat(40) });
+  const { output, sessions } = await runFake({ hangs: 3, pendingFailures: fail.failures, marker: 'a'.repeat(40) });
   equal(sessions, 3, 'reports the active QUnit test when every attempt times out #1');
   match(output, /retrying \(3 of 3\)/, 'reports the active QUnit test when every attempt times out #2');
   match(output, /\n {2}unit-browser\/global\.html: not finished in 3 minutes; current test: Promises > pending callback/, 'reports the active QUnit test when every attempt times out #3');
+  match(output, /\n {4}compare: first assertion/, 'reports assertions from the final attempt when the page never finishes');
 }
 
 {
   const { listedWhileOpen, listedAfter } = await runFake();
-  equal(listedWhileOpen, 'test-session\n', 'lists open sessions for the cleanup of a cancelled run #1');
+  equal(listedWhileOpen, 'test-session-1\n', 'lists open sessions for the cleanup of a cancelled run #1');
   equal(listedAfter, '', 'lists open sessions for the cleanup of a cancelled run #2');
 }
 
@@ -329,6 +342,24 @@ async function runFake({
 {
   const { output } = await runFake({ hangs: 3, pages: ['unit-browser/global.html', 'unit-browser/pure.html'] });
   match(output, /\n {2}unit-browser\/pure\.html: not run, the session stopped at unit-browser\/global\.html/, 'reports the pages after a hung page as not run');
+}
+
+{
+  const pages = ['unit-browser/global.html', 'unit-browser/pure.html'];
+  for (const { firstResult, interruption, summary } of [
+    { firstResult: fail, interruption: { navigationErrors: 1 }, summary: '1 of 1 assertions failed' },
+    { firstResult: { ...fail, failed: 0 }, interruption: { hangs: 1 }, summary: '1 of 1 assertions failed' },
+    { firstResult: { ...pass, total: 0 }, interruption: { navigationErrors: 1 }, summary: 'no assertions ran' },
+    { firstResult: pass, interruption: { hangs: 1 }, summary: '1 assertions passed' },
+  ]) {
+    const { output, navigations, annotations } = await runFake({ pages, firstResult, retryPage: pages[1], ...interruption });
+    deepEqual(navigations.map(url => url.replace('http://example.test/branch/', '')), [...pages, pages[1]], 'retries only the interrupted page');
+    ok(output.includes(`  ${ pages[0] }: ${ summary } (https://app.saucelabs.com/tests/test-session-1)`), 'keeps the completed result and the session that reported it');
+    if (firstResult.failures.length) match(output, /\n {4}compare: first assertion/, 'keeps the original assertion details');
+    match(output, /pure\.html: 1 assertions passed/, 'reports the recovered page');
+    equal(output.includes('all the browsers passed'), firstResult === pass, 'keeps the platform verdict across retries');
+    deepEqual(annotations, ['sauce:job-result=failed', 'sauce:job-result=passed'], 'marks each Sauce job with its own result');
+  }
 }
 
 {
@@ -417,7 +448,7 @@ for (const limits of [{ organization: 2, team: 3 }, { organization: 3, team: 2 }
   const { exitCodeWhileRunning } = await runFake();
   equal(exitCodeWhileRunning, 1, 'fails the process if the run never settles #1');
   equal(process.exitCode, exitCode, 'fails the process if the run never settles #2');
-  await runFake({ failed: 1 });
+  await runFake({ firstResult: fail });
   equal(process.exitCode, exitCode, 'fails the process if the run never settles #3');
 }
 
