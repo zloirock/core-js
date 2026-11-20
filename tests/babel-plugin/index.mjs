@@ -288,7 +288,7 @@ async function runFixture(directory) {
 const subtree = FIXTURE_SHARD ? process.env.FIXTURE_SUBTREE : args[0];
 const fixtures = await collectFixtures(subtree ? `${ fixturesDir }/${ subtree }` : fixturesDir);
 
-// a child reports through the marker only; the parent aggregates and decides the exit
+// a child reports through IPC; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
   for (const directory of shardSlice(fixtures)) await runFixture(directory);
   emitShardSummary({ passed, failed, skipped, created, rewritten, regenerated });

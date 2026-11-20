@@ -491,7 +491,7 @@ if (!subtree) {
   }
 }
 
-// a child reports through the marker only; the parent aggregates and decides the exit
+// a child reports through IPC; the parent aggregates and decides the exit
 if (FIXTURE_SHARD) {
   for (const dir of shardSlice(fixtures)) await runFixture(dir);
   emitShardSummary(counts);
