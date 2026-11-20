@@ -8,11 +8,13 @@ const agents = [
   'Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko',
 ];
 const protocols = ['http', 'https'];
-const limit = argv._[0] ?? 100;
+const limit = Number(argv._[0] ?? 100);
 const attempts = new Map();
 const start = Date.now();
 let tested = 0;
 let withCoreJS = 0;
+
+if (!Number.isSafeInteger(limit) || limit < 0) throw new RangeError('The site limit must be a non-negative integer');
 
 echo(green('downloading and parsing T1M Alexa data, it could take some seconds'));
 // https://s3.amazonaws.com/alexa-static/top-1m.csv.zip is no longer provided, so using the last copy of the dataset from my server
@@ -23,11 +25,9 @@ const response = await fetch('http://es6.zloirock.ru/top-1m.csv.zip');
 const archive = await jszip.loadAsync(await response.arrayBuffer());
 const file = await archive.file('top-1m.csv.deprecated').async('string');
 const BANNER_LINES = 8;
-const sites = file
-  .split('\n', limit + BANNER_LINES)
-  .slice(BANNER_LINES)
-  .map(line => line.match(/^\d+,(?<site>.+)$/).groups.site)
-  .toReversed();
+const lines = file.trimEnd().split('\n', limit + BANNER_LINES).slice(BANNER_LINES);
+if (limit > lines.length) throw new RangeError('The site limit exceeds the size of the ranking');
+const sites = lines.map(line => line.match(/^\d+,(?<site>.+)$/).groups.site).toReversed();
 echo(green(`downloading and parsing the rank took ${ cyan((Date.now() - start) / 1e3) } seconds\n${ gray('-'.repeat(120)) }`));
 
 function timeout(promise, time) {
