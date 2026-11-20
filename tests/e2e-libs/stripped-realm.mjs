@@ -14,8 +14,23 @@ const RUN_DEADLINE_MS = 120_000;
 export async function strippedLeg(code, label, expected, timeout = RUN_DEADLINE_MS) {
   const timers = new Set();
   let finished = false;
+  const { promise: callbackFailure, reject } = Promise.withResolvers();
+
+  // These callbacks run on the host event loop. A missed rewrite there still belongs to this cell.
+  function guardCallback(fn) {
+    if (typeof fn !== 'function') return fn;
+    return function (...args) {
+      if (finished) return;
+      try {
+        Reflect.apply(fn, this, args);
+      } catch (error) {
+        reject(error);
+      }
+    };
+  }
+
   function remember(timer) {
-    // A queued microtask may reach the timer API after the verdict has already settled.
+    // Promise jobs can still reach the timer API after the verdict has settled.
     if (finished) clearTimeout(timer);
     else timers.add(timer);
     return timer;
@@ -31,17 +46,19 @@ export async function strippedLeg(code, label, expected, timeout = RUN_DEADLINE_
     // bare of other node globals, so a pure ponyfill takes the same path it would in a browser
     const context = createContext({
       console,
-      queueMicrotask,
-      setTimeout: (...args) => remember(setTimeout(...args)),
-      setInterval: (...args) => remember(setInterval(...args)),
+      queueMicrotask: fn => queueMicrotask(guardCallback(fn)),
+      setTimeout: (fn, ...args) => remember(setTimeout(guardCallback(fn), ...args)),
+      setInterval: (fn, ...args) => remember(setInterval(guardCallback(fn), ...args)),
       clearTimeout: clear,
       clearInterval: clear,
     });
     runInContext(STRIP, context, { filename: `${ label } [strip]`, timeout });
     runInContext(code, context, { filename: `${ label } [bundle]`, timeout });
     stage = 'run()';
-    const result = await withDeadline(() => runInContext('E2E.run()', context, { filename: `${ label } [run]`, timeout }),
-      { ms: timeout, what: `${ label } run() in the stripped realm` });
+    const result = await withDeadline(() => Promise.race([
+      runInContext('E2E.run()', context, { filename: `${ label } [run]`, timeout }),
+      callbackFailure,
+    ]), { ms: timeout, what: `${ label } run() in the stripped realm` });
 
     const checks = result?.checks ?? [];
     const drift = checks.length !== expected.length

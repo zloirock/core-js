@@ -1,9 +1,4 @@
-// The shard protocol's own contract, exercised through a real fork rather than against a copy of the
-// regex: what a child may put in a payload, and how the parent merges what comes back.
-//
-// Both halves are load-bearing and both have failed. A payload naming `@rollup/...` used to leave the
-// shard reported as having said nothing, and one containing `@@` used to be matched and then torn in
-// half at `JSON.parse`. The report must also survive ordinary output without a trailing newline.
+// Exercise the shard protocol through a real fork, including diagnostics that look like reports.
 import { runShards } from './fixture-shards.mjs';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { fileURLToPath } from 'node:url';
@@ -16,35 +11,28 @@ const totals = await runShards({ script: CHILD, shards: 2 });
 check('numbers add up across shards', totals.passed, 3);
 check('arrays concatenate rather than summing', totals.rows.length, 2);
 check('and arrive in shard order', totals.rows.map(row => row.shard).join(','), '0,1');
-checkTruthy('a payload naming a package survives the marker',
+checkTruthy('a payload naming a package survives transport',
   totals.rows.every(row => row.error.includes('@rollup/plugin-babel')));
 checkTruthy('so does one carrying `@@`', totals.rows.every(row => row.error.includes('@@ inside')));
-checkTruthy('JSON line separators survive the marker', totals.rows.every(row => row.error.includes('\u2028\u2029')));
+checkTruthy('Unicode line separators survive transport', totals.rows.every(row => row.error.includes('\u2028\u2029')));
 
-let refused = null;
-try {
-  await runShards({ script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_BAD: '1' } });
-} catch (error) {
-  refused = error;
+for (const [flag, pattern, shards = 2] of [
+  ['BAD', /incompatible values for shard key `passed`/u],
+  ['MIXED', /incompatible values for shard key `passed`/u],
+  ['ARRAY', /must report exactly one result object/u],
+  ['DUPLICATE', /must report exactly one result object/u],
+  ['SILENT', /produced no result/u],
+  ['FATAL', /failed after reporting.*code 2/u],
+  ['FRACTIONAL_COUNT', /expected a positive integer shard count, got 2\.5/u, 2.5],
+  ['ZERO_COUNT', /expected a positive integer shard count, got 0/u, 0],
+]) {
+  let failure;
+  try {
+    await runShards({ script: CHILD, shards, extraEnv: { [`SHARD_PROTOCOL_${ flag }`]: '1' } });
+  } catch (error) {
+    failure = error;
+  }
+  checkTruthy(`rejects ${ flag.toLowerCase() } reports`, pattern.test(failure?.message ?? ''));
 }
-checkTruthy('a value that is neither number nor array is refused, not guessed at',
-  /only numbers and arrays merge/u.test(refused?.message ?? ''));
-
-let silent = null;
-try {
-  await runShards({ script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_SILENT: '1' } });
-} catch (error) {
-  silent = error;
-}
-checkTruthy('a shard that exits having reported nothing fails the run loudly',
-  /produced no result/u.test(silent?.message ?? ''));
-
-let failed = null;
-try {
-  await runShards({ script: CHILD, shards: 1, extraEnv: { SHARD_PROTOCOL_FATAL: '1' } });
-} catch (error) {
-  failed = error;
-}
-checkTruthy('a nonzero exit after a report fails the run', /failed after reporting.*code 2/u.test(failed?.message ?? ''));
 
 finish();

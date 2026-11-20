@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import unplugin from '../../packages/core-js-unplugin/index.js';
+import { closeRollupBundle } from './warning-policy.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const aliases = {
@@ -223,7 +224,7 @@ export async function hostBoundaries(run) {
           const result = await build.generate({ format: 'iife' });
           verify(result.output[0].code);
         } finally {
-          await build.close();
+          await closeRollupBundle(build);
         }
       });
     }

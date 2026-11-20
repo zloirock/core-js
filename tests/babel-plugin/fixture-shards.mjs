@@ -1,18 +1,12 @@
 // process-level sharding for the transpiler-fixture runners (babel-plugin / unplugin),
 // mirroring the transpiler-differential parent/shard protocol: the parent re-forks its own
 // zx script N times with `FIXTURE_SHARD=k/N`, each child runs a deterministic slice and
-// reports what it has to hand back through a stdout marker; failure / rewrite lines stream
+// reports its result over the fork IPC channel; failure / rewrite lines stream
 // through the buffered child output. children run through the zx CLI so the runner scripts
 // keep their zx globals without a zxi round-trip (deps are already installed by the parent's zxi)
 import { fork } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { loadBabelOptions } from './fixture-options.mjs';
-
-// `.*` (greedy to the line's last `@@`), never `[^@]*`: the counters carry per-reason keys, and one
-// of them - `skip:no @core-js plugin in options` - holds the delimiter's own character. The marker
-// then matched nothing at all and the shard's entire verdict set was reported as "produced no
-// result", naming neither the fixture nor the reason. The payload is one line, so the body excludes CR and LF.
-const MARKER = /@@FIXTURE-SHARD@@(?<json>[^\n\r]*)@@/u;
 
 export const { FIXTURE_SHARD } = process.env;
 
@@ -25,11 +19,9 @@ export function shardSlice(list) {
   return list.filter((_, i) => i % total === index);
 }
 
-// the child's final line: what it has to hand back, machine-parseable and colorless. `@` goes out in
-// its own JSON escape so the payload can never hold the terminator - a shard that reports a failure
-// reason names packages, and `@rollup/...` would end the match early. `JSON.parse` gives it straight back
+// Keep results separate from stdout: diagnostics can print arbitrary fixture text.
 export function emitShardSummary(payload) {
-  process.stdout.write(`@@FIXTURE-SHARD@@${ JSON.stringify(payload).replaceAll('@', '\\u0040') }@@\n`);
+  process.send(payload);
 }
 
 function zxCliPath() {
@@ -100,6 +92,7 @@ export function defaultShardCount(fixtureCount) {
 // runner parameters travel via `extraEnv`, not CLI args - the zx CLI keeps the script name
 // in `argv._`, so positional args would land off-by-one against the zxi-invoked parent
 export async function runShards({ script, shards, extraEnv = {} }) {
+  if (!Number.isSafeInteger(shards) || shards < 1) throw new Error(`expected a positive integer shard count, got ${ shards }`);
   const cli = zxCliPath();
   const runs = Array.from({ length: shards }, (_, index) => new Promise((resolve, reject) => {
     const child = fork(cli, [script], {
@@ -107,16 +100,18 @@ export async function runShards({ script, shards, extraEnv = {} }) {
       env: { ...process.env, ...extraEnv, FIXTURE_SHARD: `${ index }/${ shards }`, FORCE_COLOR: '1' },
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
-    let buf = '';
+    let output = '';
+    let payload;
+    let duplicate = false;
     child.stdout.setEncoding('utf8');
-    child.stdout.on('data', data => { buf += data; });
+    child.stdout.on('data', data => { output += data; });
+    child.on('message', message => {
+      if (payload !== undefined) duplicate = true;
+      payload = message;
+    });
     child.on('error', reject);
     child.on('close', (code, signal) => {
-      const found = MARKER.exec(buf);
-      // child output is replayed VERBATIM (minus the marker) - assertion diffs carry
-      // meaningful blank lines that a cosmetic collapse would corrupt
-      const output = buf.replace(MARKER, '');
-      if (!found) {
+      if (payload === undefined) {
         return reject(new Error(`fixture shard ${ index }/${ shards } produced no result `
           + `(code ${ code }, signal ${ signal })\n${ output }`));
       }
@@ -124,20 +119,22 @@ export async function runShards({ script, shards, extraEnv = {} }) {
         return reject(new Error(`fixture shard ${ index }/${ shards } failed after reporting `
           + `(code ${ code }, signal ${ signal })\n${ output }`));
       }
-      try {
-        resolve({ payload: JSON.parse(found.groups.json), output });
-      } catch (error) {
-        reject(new Error(`fixture shard ${ index }/${ shards } reported malformed JSON`, { cause: error }));
+      if (duplicate || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return reject(new Error(`fixture shard ${ index }/${ shards } must report exactly one result object\n${ output }`));
       }
+      resolve({ payload, output });
     });
   }));
   const results = await Promise.all(runs);
-  const totals = {};
+  const totals = Object.create(null);
   for (const { payload, output } of results) {
     for (const [key, value] of Object.entries(payload)) {
-      if (typeof value === 'number') totals[key] = (totals[key] ?? 0) + value;
-      else if (Array.isArray(value)) totals[key] = (totals[key] ?? []).concat(value);
-      else throw new Error(`shard reported \`${ key }\` as ${ typeof value } - only numbers and arrays merge`);
+      const previous = totals[key];
+      if (typeof value === 'number' && (previous === undefined || typeof previous === 'number')) {
+        totals[key] = (previous ?? 0) + value;
+      } else if (Array.isArray(value) && (previous === undefined || Array.isArray(previous))) {
+        totals[key] = (previous ?? []).concat(value);
+      } else throw new Error(`incompatible values for shard key \`${ key }\` - only numbers and arrays of the same kind merge`);
     }
     const trimmed = output.trim();
     if (trimmed) echo(trimmed);

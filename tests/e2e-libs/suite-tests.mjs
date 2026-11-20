@@ -124,5 +124,17 @@ const probe = `
     + 'if(n)queueMicrotask(function(){later(n-1);});else setInterval(function(){},60000);'
     + '}later(25);return {checks:[{label:"ok",pass:true}]};}}';
   deepEqual(await run(late), { ok: true, count: 1 });
+  const latePromise = 'this.E2E={run:function(){'
+    + '(async function () { for (var i = 0; i < 25; i++) await 0; setInterval(function () {}, 60000); })();'
+    + 'return {checks:[{label:"ok",pass:true}]};}}';
+  deepEqual(await run(latePromise), { ok: true, count: 1 });
+  // A raw Promise read would succeed in the pre-flight, but the stripped realm removes it.
+  for (const schedule of ['setTimeout', 'setInterval', 'queueMicrotask']) {
+    const broken = 'this.E2E={run:function(){return {then:function(){'
+      + schedule + '(function(){Promise.resolve();},0);'
+      + '}};}}';
+    match((await run(broken)).reason, /Promise is not defined/);
+  }
+  deepEqual(await run(valid), { ok: true, count: 1 });
 `;
 await promisify(execFile)(process.execPath, ['--input-type=module', '-e', probe], { timeout: 5_000 });
