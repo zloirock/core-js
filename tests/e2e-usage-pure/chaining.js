@@ -351,7 +351,11 @@ QUnit.test('chain: local return and parameter keep a borrowed Map method usable'
   // core-js-disable-next-line
   const C = Map;
   function make() { return new Map([[1, 7]]); }
-  function read(m) { return C.prototype.get.call(m, 1); }
+  function read(m) {
+    assert.same(m.get(1), new C([[1, 7]]).get(1), 'the factory follows native Map iterable support');
+    m.set(1, 7);
+    return C.prototype.get.call(m, 1);
+  }
   assert.same(read(make()), 7);
   assert.same(Map.groupBy([3], x => x).get(3)[0], 3);
 });
