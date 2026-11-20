@@ -224,9 +224,8 @@
   - Fixed Electron [0.21](https://github.com/electron/electron/blob/v0.21.0/atom/common/chrome_version.h), [0.30](https://github.com/electron/electron/blob/v0.30.0/atom/common/chrome_version.h), [0.31](https://github.com/electron/electron/blob/v0.31.0/atom/common/chrome_version.h) and [1.4](https://github.com/electron/electron/blob/v1.4.0/atom/common/chrome_version.h) compat data mapping
   - [Updated Electron 46 and added 47](https://releases.electronjs.org/) compat data mapping
   - Updated Opera 140+ compat data mapping
-  - Added [Opera for Android 103](https://forums.opera.com/topic/89817/opera-for-android-103) compat data mapping
-  - Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
   - Added Opera for Android [103](https://forums.opera.com/topic/89817/opera-for-android-103) and [104](https://forums.opera.com/topic/90033/opera-for-android-104) compat data mapping
+  - Added [Yandex Browser for Android](https://github.com/web-platform-dx/baseline-browser-mapping#list-of-downstream-browsers) compat data mapping, allowed `yandex-android` target in `core-js-compat` / `core-js-builder`, [#1590](https://github.com/zloirock/core-js/pull/1590)
 
 ### [3.51.0 - 2026.10.19](https://github.com/zloirock/core-js/releases/tag/v3.51.0)
 - Changes [v3.50.0...v3.51.0](https://github.com/zloirock/core-js/compare/v3.50.0...v3.51.0) (62 commits)
