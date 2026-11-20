@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { closeRollupBundle, makeStrictWarn } from './warning-policy.mjs';
 
-export async function withTmpDir(fn) {
+async function withTmpDir(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'core-js-bundlers-'));
   try {
     return await fn(dir);
