@@ -39,7 +39,7 @@ await settled();
 
 const normal = fixture();
 deepStrictEqual(normal.lifecycle.status(), { state: 'started', baselineReady: false, fullyWarmed: false }, 'container-lifecycle-1 #1');
-strictEqual(normal.lifecycle.serveScript('request'), undefined, 'container-lifecycle-2 #1');
+strictEqual(normal.lifecycle.serveScript, undefined, 'container-lifecycle-2 #1');
 strictEqual(normal.lifecycle.start(), normal.lifecycle.start(), 'container-lifecycle-1 #2');
 await settled();
 deepStrictEqual(normal.calls, ['load', ['create', ['es.array.at']], 'start'], 'container-lifecycle-1 #3');
@@ -63,7 +63,7 @@ for (const [label, options, code] of [
   failure.lifecycle.start();
   await settled();
   deepStrictEqual(failure.lifecycle.status(), { state: 'error', baselineReady: false, fullyWarmed: false, errorCode: code }, label);
-  strictEqual(failure.lifecycle.serveScript('request'), undefined, 'container-lifecycle-2 #4');
+  strictEqual(failure.lifecycle.serveScript, undefined, 'container-lifecycle-2 #4');
   failure.lifecycle.start();
   await settled();
   strictEqual(failure.calls.filter(call => call === 'load').length, 1, 'container-lifecycle-4 #2');
