@@ -4,6 +4,7 @@
 import { inspect } from 'node:util';
 
 const REASON_MAX = 200; // a line or two; long enough for a named error and the message after it
+const VALUE_MAX = 2048;
 // the POSITION is what makes a frame: without it a line opening `at least one ...` is dropped as one
 const STACK_FRAME = /^at\s.*:\d+:\d+\)?$/;
 const NAMED_ERROR = /^\w*(?:Error|Exception)\b/;
@@ -44,8 +45,10 @@ export function errorReason(err) {
 // Node's inspector distinguishes missing array slots, undefined, strings and non-JSON values.
 export function renderValue(value) {
   try {
-    const text = typeof value === 'string' ? JSON.stringify(value) : inspect(value, { customInspect: false, depth: 6, breakLength: Infinity });
-    return text.length > 2048 ? `${ text.slice(0, 2045) }...` : text;
+    const text = typeof value === 'string'
+      ? JSON.stringify(value.slice(0, VALUE_MAX))
+      : inspect(value, { customInspect: false, depth: 6, breakLength: Infinity });
+    return text.length > VALUE_MAX ? `${ text.slice(0, VALUE_MAX - 3) }...` : text;
   } catch {
     return '<unrenderable>';
   }

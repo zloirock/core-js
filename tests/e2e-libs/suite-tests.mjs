@@ -40,7 +40,8 @@ strictEqual(renderValue(sparse) === renderValue([undefined, undefined]), false);
 function books(title) { return { author: { all: [{ title }] } }; }
 const detail = checkFailureLine({ label: 'books', actual: books('BrokenA'), expected: books('Alpha') });
 strictEqual(detail.includes('BrokenA') && detail.includes('Alpha'), true);
-strictEqual(renderValue('x'.repeat(4096)).length, 2048);
+const longString = '\n'.repeat(4096);
+strictEqual(renderValue(longString), `${ JSON.stringify(longString).slice(0, 2045) }...`);
 const hostile = { get [Symbol.toStringTag]() { throw new Error('broken tag'); } };
 hostile.cycle = hostile;
 strictEqual(checkFailureLine({ label: 'hostile', actual: hostile, expected: {} }).startsWith('hostile actual='), true);
@@ -164,7 +165,7 @@ const oneRead = {
   get then() {
     if (++thenReads > 1) throw new Error('then read twice');
     function then(resolve) { if (this === oneRead) resolve({ checks: valid }); }
-    Object.defineProperty(then, 'call', { value: null });
+    then.call = null;
     return then;
   },
 };
@@ -196,6 +197,10 @@ await rejects(browserRun, /uncaught in frame/u);
 
 // The exercise's rejection and the native marker share a tracker. Timers can run before
 // either event. Only the marker itself may release a pending verdict.
+function runTasks(tasks) {
+  for (const task of tasks) task();
+  tasks.length = 0;
+}
 const timers = [];
 const pendingRejections = [];
 const rejectionEvents = new Map();
@@ -231,9 +236,9 @@ runInNewContext(browserPrograms, {
 });
 const verdict = new Promise((resolve, reject) => modern.e2eRun(resolve, reject));
 pendingRejections.push(() => dispatch({}, 'same-turn rejection'));
-while (timers.length) timers.shift()();
+runTasks(timers);
 strictEqual(pendingRejections.length, 2);
-while (pendingRejections.length) pendingRejections.shift()();
+runTasks(pendingRejections);
 await rejects(verdict, /unhandled rejection - same-turn rejection/u);
 strictEqual(prevented, 1);
 strictEqual(stopped, 1);
@@ -243,8 +248,8 @@ modernExercise.run = () => {
   throw new Error('known failure');
 };
 const afterThrow = new Promise((resolve, reject) => modern.e2eRun(resolve, reject));
-while (timers.length) timers.shift()();
-while (pendingRejections.length) pendingRejections.shift()();
+runTasks(timers);
+runTasks(pendingRejections);
 await rejects(afterThrow, /unhandled rejection - same-turn independent failure/u);
 
 const immediates = [];
@@ -256,8 +261,8 @@ modernExercise.run = () => {
   throw new Error('known failure');
 };
 const legacyThrow = new Promise((resolve, reject) => modern.e2eRun(resolve, reject));
-while (timers.length) timers.shift()();
-while (immediates.length) immediates.shift()();
+runTasks(timers);
+runTasks(immediates);
 await rejects(legacyThrow, /unhandled rejection - legacy independent failure/u);
 strictEqual(modern.e2eLabelProblem(valid, ['working', 'lost']),
   'check #2 expected "lost" from the raw exercise, got no check');
