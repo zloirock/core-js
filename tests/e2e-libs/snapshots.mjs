@@ -74,11 +74,12 @@ export async function compare(cell, lines, origins) {
   return 'drift';
 }
 
-// Follow the same matrix and library-name grammar used to create baselines.
-const suffixes = allCells([{ name: '' }]).map(cell => cell.snapshot).filter(Boolean);
+// Recognize the on-disk format even after a provider or phase leaves the active matrix.
+const SNAPSHOT_SUFFIX = /\.(?:babel-plugin\.usage-(?:global|pure)|unplugin\.usage-(?:global|pure)\.(?:post|pre(?:\+post)?))\.txt$/u;
 
 export function isSnapshotName(name) {
-  return suffixes.some(suffix => name.endsWith(suffix) && PLAIN_SEGMENT.test(name.slice(0, -suffix.length)));
+  const suffix = SNAPSHOT_SUFFIX.exec(name);
+  return suffix !== null && PLAIN_SEGMENT.test(name.slice(0, suffix.index));
 }
 
 // A baseline with no cell behind it is invisible to everything else - nothing reads it, so nothing

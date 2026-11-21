@@ -248,7 +248,16 @@ export function run() {
   check('line: it tracks the bars', aligned, [true, true, true]);
   check('line: the path joins the symbols', elements.some(element => {
     if (element.tag !== 'path' || element.attrs.fill !== 'none' || !element.attrs.stroke) return false;
-    const { commands } = new SVGPathData(element.attrs.d).toAbs();
+    const path = new SVGPathData(element.attrs.d).toAbs();
+    // zrender emits a translation or a full affine matrix in image coordinates.
+    if (element.attrs.transform) {
+      const translation = transformOf(element, 'translate');
+      const matrix = transformOf(element, 'matrix');
+      if (translation?.length === 2) path.translate(translation[0], translation[1]);
+      else if (matrix?.length === 6) path.matrix(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+      else return false;
+    }
+    const { commands } = path;
     if (commands.length !== vertices.length) return false;
     for (let i = 0; i < commands.length; i++) {
       const command = commands[i];

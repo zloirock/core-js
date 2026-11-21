@@ -37,7 +37,8 @@ function fakeDialect(respond, log) {
     // so nothing here spells a generator or a symbol
     streamQuery: compiled => {
       log.push(compiled.sql);
-      return respond(compiled.sql).map(row => ({ rows: [row] }));
+      const rows = respond(compiled.sql);
+      return [{ rows: rows.slice(0, 2) }, { rows: rows.slice(2) }];
     },
   };
   function done() {
@@ -54,7 +55,7 @@ function fakeDialect(respond, log) {
   };
 }
 
-const PEOPLE = [{ id: 1, first_name: 'Ada' }, { id: 2, first_name: 'Grace' }];
+const PEOPLE = [{ id: 1, first_name: 'Ada' }, { id: 2, first_name: 'Grace' }, { id: 3, first_name: 'Lin' }];
 
 function answer(text) {
   if (text.indexOf('from `person`') !== -1) return PEOPLE;
@@ -113,11 +114,11 @@ export function run() {
   /* eslint-disable promise/prefer-await-to-then -- see above */
   return db.selectFrom('person').selectAll().execute()
     .then(rows => {
-      check('execute_select', rows.map(row => row.first_name), ['Ada', 'Grace']);
+      check('execute_select', rows.map(row => row.first_name), ['Ada', 'Grace', 'Lin']);
       return drain(db.selectFrom('person').selectAll().stream());
     })
     .then(names => {
-      check('stream_select', names, ['Ada', 'Grace']);
+      check('stream_select', names, ['Ada', 'Grace', 'Lin']);
       log.length = 0;
       return migrator.migrateToLatest();
     })

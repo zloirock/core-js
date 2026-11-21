@@ -131,7 +131,8 @@ export function run() {
   // `decodeEntities: false` swaps the attribute encoder for `replaceQuotes`, the graph's only
   // `String#replaceAll`; `xmlMode: 'foreign'` is what consults dom-serializer's two name Maps
   check('outer_html_raw', getOuterHTML(selectOne('div[title]', doc), { decodeEntities: false }).indexOf('title="he said &quot;hi&quot;"') > 0, true);
-  check('foreign_render', getOuterHTML(selectOne('svg', doc), { xmlMode: 'foreign' }).indexOf('viewBox') > 0, true);
+  const xml = parseDocument('<svg viewbox="0 0 1 1"><clippath/></svg>', { xmlMode: true });
+  check('foreign_render', getOuterHTML(firstChild(xml), { xmlMode: 'foreign' }), '<svg viewBox="0 0 1 1"><clipPath/></svg>');
   check('xml_cdata', textContent(firstChild(parseDocument('<r><![CDATA[<x> & y]]></r>', { xmlMode: true }))), '<x> & y');
 
   // --- css-select / css-what / nth-check ---

@@ -15,7 +15,7 @@ const { hasOwnProperty } = Object.prototype;
 // that something WAS rendered, assert its `typeof` alongside it.
 export function unwrap(value) {
   const toJSON = value?.toJSON;
-  return typeof toJSON === 'function' ? toJSON.call(value) : value;
+  return typeof toJSON === 'function' ? Function.prototype.call.call(toJSON, value) : value;
 }
 
 export function deepEqual(rawA, rawB) {

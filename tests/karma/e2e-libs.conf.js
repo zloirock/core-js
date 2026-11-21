@@ -4,7 +4,7 @@
 // must not include, and a reporter that writes every cell's result per browser to the file the runner
 // names. One session runs every cell, so the session's exit code cannot say which cell failed, and
 // karma's text output reports a test failure and a load error in two different shapes.
-const { writeFileSync } = require('node:fs');
+const { renameSync, writeFileSync } = require('node:fs');
 const base = require('./karma.conf.js');
 
 // served after the included files: karma includes a file matched twice as its FIRST pattern says
@@ -51,23 +51,28 @@ function resultsReporter(save) {
   return E2ELibsResults;
 }
 
+// Karma may exit during a checkpoint. Readers must see either complete report.
+function saveReport(file, report) {
+  const pending = `${ file }.tmp`;
+  /* eslint-disable node/no-sync -- publish the checkpoint before the next reporter runs */
+  writeFileSync(pending, `${ JSON.stringify(report, null, 1) }\n`);
+  renameSync(pending, file);
+  /* eslint-enable node/no-sync -- checkpoint published */
+}
+
 module.exports = config => {
   base(config);
   const file = process.env.E2E_LIBS_BROWSER_RESULTS;
   if (!file) throw new Error('E2E_LIBS_BROWSER_RESULTS names no file - start this leg through tests/karma/e2e-libs.mjs');
-  // Karma emits results synchronously and may exit as soon as this callback returns.
-  function save(report) {
-    // eslint-disable-next-line node/no-sync -- the report must be written before Karma exits
-    writeFileSync(file, `${ JSON.stringify(report, null, 1) }\n`);
-  }
   config.set({
     failOnFailingTestSuite: false, // explicit test failures are gated by the runner
     failOnSkippedTests: true,
     files: [...config.files, ...SERVED.map(pattern => ({ pattern, included: false, served: true, watched: false }))],
-    plugins: [...config.plugins, { 'reporter:e2e-libs-results': ['type', resultsReporter(save)] }],
+    plugins: [...config.plugins, { 'reporter:e2e-libs-results': ['type', resultsReporter(report => saveReport(file, report))] }],
     // `dots` rather than `progress`: the latter redraws its line, and in a CI log every redraw stays
     reporters: ['e2e-libs-results', 'dots'],
   });
 };
 
 module.exports.resultsReporter = resultsReporter;
+module.exports.saveReport = saveReport;

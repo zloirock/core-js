@@ -44,7 +44,8 @@ export function errorReason(err) {
 // Node's inspector distinguishes missing array slots, undefined, strings and non-JSON values.
 export function renderValue(value) {
   try {
-    return typeof value === 'string' ? JSON.stringify(value) : inspect(value, { customInspect: false, breakLength: Infinity });
+    const text = typeof value === 'string' ? JSON.stringify(value) : inspect(value, { customInspect: false, depth: 6, breakLength: Infinity });
+    return text.length > 2048 ? `${ text.slice(0, 2045) }...` : text;
   } catch {
     return '<unrenderable>';
   }

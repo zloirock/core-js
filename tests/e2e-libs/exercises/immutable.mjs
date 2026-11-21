@@ -19,8 +19,9 @@ export function run() {
   const list = List([1, 2, 3]).push(4).map(x => x * 2).filter(x => x > 2);
   check('list', [list.toArray(), list.first(), list.last()], [[4, 6, 8], 4, 8]);
   const deep = fromJS({ a: { b: [1, 2, { c: 3 }] } });
-  check('deep', [deep.getIn(['a', 'b', 2, 'c']), deep.setIn(['a', 'b', 0], 9).toJS().a.b[0], is(fromJS({ x: [1] }), fromJS({ x: [1] }))],
-    [3, 9, true]);
+  const updated = deep.setIn(['a', 'b', 0], 9);
+  check('deep', [deep.getIn(['a', 'b', 2, 'c']), deep.getIn(['a', 'b', 0]), updated.toJS().a.b[0], is(fromJS({ x: [1] }), fromJS({ x: [1] }))],
+    [3, 1, 9, true]);
   check('seq', Seq([1, 2, 3, 4, 5]).filter(x => x % 2).map(x => x ** 2).toArray(), [1, 9, 25]);
   const Point = Record({ x: 0, y: 0 });
   const point = new Point({ x: 2 });
