@@ -61,6 +61,7 @@ deepEqual(targetsParser({ esmodules: true }), new Map([
   ['chrome-android', '61'],
   ['deno', '1.0'],
   ['edge', '16'],
+  ['electron', '2.0'],
   ['firefox', '60'],
   ['firefox-android', '60'],
   ['ios', '10.3'],
@@ -148,8 +149,10 @@ deepEqual(targetsParser({
 deepEqual(targetsParser({
   esmodules: 'intersect',
   browsers: 'chrome 56, firefox 50, safari 10',
+  electron: '1.8',
 }), new Map([
   ['chrome', '61'],
+  ['electron', '2.0'],
   ['firefox', '60'],
   ['safari', '10.1'],
 ]), 'targets.esmodules: intersect, versions raised to esmodules minimum');
@@ -157,8 +160,10 @@ deepEqual(targetsParser({
 deepEqual(targetsParser({
   esmodules: 'intersect',
   browsers: 'chrome 80, firefox 70',
+  electron: 20,
 }), new Map([
   ['chrome', '80'],
+  ['electron', '20'],
   ['firefox', '70'],
 ]), 'targets.esmodules: intersect, versions above esmodules minimum unchanged');
 

@@ -40,9 +40,7 @@ for (const scope of [data, external]) {
         module.edge = String(Math.max(chrome, 79));
       }
     }
-    if (/^(?:es|esnext|web)\./.test(key)) {
-      map('ChromeToElectron');
-    }
+    map('ChromeToElectron');
     if (chrome && module.opera < 15 && mappings.ChromeToOpera(chrome) > 15) {
       module.opera = String(mappings.ChromeToOpera(chrome));
     }

@@ -175,6 +175,7 @@
   - Fixed `/error/to-string`, `/function/has-instance` and `/dom-collections/for-each` entry exports to accept the receiver as the first argument
   - Removed unneeded dependencies and workarounds from some entries
 - `core-js-compat` and `core-js-builder`
+  - Fixed Electron targets being dropped by `esmodules: 'intersect'` and included Electron 2.0 in the `esmodules: true` targets
   - Fixed missing polyfills and rejected exact versions for mobile `browserslist` targets in `core-js-compat` and `core-js-builder`
   - Fixed handling of Safari Technology Preview and `latest` targets in `core-js-compat` and `core-js-builder`; invalid non-numeric target versions now throw a `RangeError` naming the engine and value
   - Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
