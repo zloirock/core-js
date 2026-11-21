@@ -26,10 +26,15 @@ await fs.ensureDir(tmp);
 const directory = await fs.mkdtemp(path.join(tmp, 'standalone-imports-'));
 let serial = 0;
 try {
-  for (const [name, source, expected = 'OK|7|[]'] of [
+  for (const [name, source, expected = 'OK|7|[]', stripPrelude = ''] of [
     ...['Error', 'TypeError'].map(receiver => [receiver,
       `export const effects = []; export const r = [${ receiver }.isError(new Error('x')), ${ receiver }.isError({})];`, 'OK|[true,false]|[]']),
     ['call-result', 'export const effects = []; function pick(P) { return P || Promise; } export const r = await ({ P: pick() }).P.try(() => 7);'],
+    // Node 22 has no native getOrInsert to compare against in the differential corpus.
+    ['instance-super-weak-map', `class Cache extends WeakMap { read(key, value) { return super.getOrInsert(key, value); } }
+      const cache = new Cache(); const key = {};
+      export const effects = []; export const r = [cache.read(key, 7), cache.get(key), cache.read(key, 9)];`,
+    'OK|[7,7,7]|[]', 'import "data:text/javascript,delete WeakMap.prototype.getOrInsert";\n'],
     ['disabled-static', `export const effects = []; const wrapper = { C: Iterator }; const {
       // core-js-disable-next-line
       C: { from },
@@ -39,9 +44,11 @@ try {
     for (const host of ['babel', 'unplugin', 'pre+post']) {
       const code = await transform(source, options, host);
       const file = path.join(directory, `case-${ serial++ }.mjs`);
-      await fs.writeFile(file, code);
-      for (const strip of [false, true]) check(`${ name }/${ method }/${ host }/${ strip }`,
-        await runInWorker(file, { strip }), name === 'disabled-static' && method === 'usage-global' && strip ? 'ERR|TypeError' : expected);
+      for (const strip of [false, true]) {
+        await fs.writeFile(file, strip ? stripPrelude + code : code);
+        check(`${ name }/${ method }/${ host }/${ strip }`, await runInWorker(file, { strip }),
+          name === 'disabled-static' && method === 'usage-global' && strip ? 'ERR|TypeError' : expected);
+      }
     }
   }
   // The shared stripped realm keeps filter. Remove it before the tested module imports core-js.

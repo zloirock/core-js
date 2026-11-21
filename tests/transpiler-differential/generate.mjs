@@ -2465,9 +2465,7 @@ function * generateClassReceiverContracts() {
     ['own-method', "const a = [1]; const alias = a; alias.map = () => 'text';", 'a.map(x => x).at(0)'],
     ['replace-hook', 'const pattern = { [Symbol.replace]() { return [42]; } };', "'a'.replace(pattern, 'b').at(0)"],
     ['regexp-hook', 'const pattern = /a/; pattern[Symbol.replace] = () => [42];', "'a'.replace(pattern, 'b').at(0)"],
-    ['instance-super', 'class Bag extends Set { join(x) { return super.union(x); } }'
-      + ' class Cache extends WeakMap { read(key) { return super.getOrInsert(key, 7); } }'
-      + ' const cache = new Cache(); const key = {};', '[[...new Bag([1]).join(new Set([2]))], cache.read(key), cache.get(key)]'],
+    ['instance-super', 'class Bag extends Set { join(x) { return super.union(x); } }', '[...new Bag([1]).join(new Set([2]))]'],
     ['own-static-getter', 'class Bag extends Set { static get union() { effects.push("get");'
       + ' return function (x) { return this === Bag ? x : 0; }; } }', 'Bag.union(9)'],
     ['field-arrow-callback', 'class C { #v = [3]; write = () => { this.#v = "xy"; }; read() { return this.#v.at(0); } }'
