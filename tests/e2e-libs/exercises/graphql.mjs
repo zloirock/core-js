@@ -92,13 +92,14 @@ export function run() {
 
   const tagged = {};
   tagged[Symbol.toStringTag] = 'GraphQLObjectType';
-  let differentRealm = false;
+  let foreignTypeResult;
   try {
-    isObjectType(tagged);
+    foreignTypeResult = isObjectType(tagged);
   } catch (error) {
-    differentRealm = /from another module or realm/.test(error.message);
+    if (!/from another module or realm/.test(error.message)) throw error;
+    foreignTypeResult = 'different realm';
   }
-  check('foreign_type_tag', differentRealm, !(globalThis.process && globalThis.process.env.NODE_ENV === 'production'));
+  check('foreign_type_tag', foreignTypeResult, globalThis.process?.env.NODE_ENV === 'production' ? false : 'different realm');
 
   // --- execution: arguments with defaults, aliases, fragments on an interface and a union ---
   const books = exec('{ author(id: "a1") { name all: books { title } long: books(min: 200) { title } } }');
