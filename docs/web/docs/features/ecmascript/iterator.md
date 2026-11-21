@@ -25,7 +25,7 @@ class Iterator {
   every(callbackfn: (value: any, counter: uint) => boolean): boolean;
   filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
   find(callbackfn: (value: any, counter: uint) => boolean): any;
-  flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
+  flatMap(callbackfn: (value: any, counter: uint) => IterableObject<any> | Iterator<any>): Iterator<any>;
   forEach(callbackfn: (value: any, counter: uint) => void): void;
   includes(searchElement: any, skippedElements?: number): boolean;
   join(separator?: string): string;

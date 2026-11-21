@@ -8,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class String {
-  static cooked(template: Array<string>, ...substitutions: Array<string>): string;
+  static cooked(template: ArrayLike<string>, ...substitutions: Array<mixed>): string;
 }
 ```
 

@@ -12,12 +12,12 @@ class Iterator {
 }
 
 class AsyncIterator {
-  static from(iterable: AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
+  static from(iterable: AsyncIterable | Iterable | AsyncIterator | Iterator): AsyncIterator<any>;
   drop(limit: uint): AsyncIterator<any>;
   every(async callbackfn: (value: any, counter: uint) => boolean): Promise<boolean>;
   filter(async callbackfn: (value: any, counter: uint) => boolean): AsyncIterator<any>;
   find(async callbackfn: (value: any, counter: uint) => boolean): Promise<any>;
-  flatMap(async callbackfn: (value: any, counter: uint) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
+  flatMap(async callbackfn: (value: any, counter: uint) => AsyncIterable | IterableObject | AsyncIterator | Iterator): AsyncIterator<any>;
   forEach(async callbackfn: (value: any, counter: uint) => void): Promise<void>;
   map(async callbackfn: (value: any, counter: uint) => any): AsyncIterator<any>;
   reduce(async callbackfn: (memo: any, value: any, counter: uint) => any, initialValue?: any): Promise<any>;
