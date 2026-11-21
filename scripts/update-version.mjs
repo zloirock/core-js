@@ -4,45 +4,49 @@ const [PREV_VERSION, NEW_VERSION] = (await Promise.all([
   readJson('packages/core-js/package.json'),
   readJson('package.json'),
 ])).map(it => it.version);
+const [PREV_VERSION_MINOR, NEW_VERSION_MINOR] = [PREV_VERSION, NEW_VERSION].map(version => version.match(/^\d+\.\d+(?=\.)/)[0]);
 
-function getMinorVersion(version) {
-  return version.match(/^(?<minor>\d+\.\d+)\..*/).groups.minor;
-}
-
-const PREV_VERSION_MINOR = getMinorVersion(PREV_VERSION);
-const NEW_VERSION_MINOR = getMinorVersion(NEW_VERSION);
 const CHANGELOG = 'CHANGELOG.md';
 const LICENSE = 'LICENSE';
-const README = 'README.md';
-const README_COMPAT = 'packages/core-js-compat/README.md';
-const README_DENO = 'deno/corejs/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
-const USAGE = 'docs/web/docs/usage.md';
 const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
+
+function updateVersionDocs(text) {
+  if (PREV_VERSION === NEW_VERSION) return text;
+
+  const replaceMinor = version => version === PREV_VERSION_MINOR ? NEW_VERSION_MINOR : version;
+  const installVersion = /(?<=\bnpm (?:i|install)(?: --save)? ["']?(?:core-js(?:-bundle|-pure)?|@core-js\/[\w-]+)@)(?<minor>\d+\.\d+)\.\d+(?<suffix>[\w+\-.]*)/g;
+  const updateVersionOption = options => options.replace(/(?<=(?:["']version["']|\bversion)\s*:\s*["'])\d+\.\d+(?=["'])/, replaceMinor);
+
+  return text
+    .replaceAll(installVersion, (version, minor, suffix) => {
+      if (minor === PREV_VERSION_MINOR && (!suffix || version === PREV_VERSION)) return NEW_VERSION;
+      return version;
+    })
+    .replaceAll(`https://deno.land/x/corejs@v${ PREV_VERSION }/`, `https://deno.land/x/corejs@v${ NEW_VERSION }/`)
+    .replaceAll(/(?<=(?:["']core[Jj]s["']|\bcore[Jj]s)\s*:\s*["'])\d+\.\d+(?=["'])/g, replaceMinor)
+    .replaceAll(/(?:["']corejs["']|\bcorejs)\s*:\s*\{[^}]*\}/g, updateVersionOption)
+    .replaceAll(/["']polyfill-corejs3["']\s*,\s*\{[\S\s]*?\}\s*\]/g, updateVersionOption)
+    .replaceAll(/\bcompat\s*\(\s*\{[\S\s]*?\}\s*\)/g, updateVersionOption)
+    .replaceAll(/(?<=\bget(?:Entries|Modules)ListForTargetVersion\(\s*["']|["']core-js-compat\/get-modules-list-for-target-version["']\s*\)\s*\(\s*["'])\d+\.\d+(?=["']\s*\))/g, replaceMinor);
+}
 
 const license = await readFile(LICENSE, 'utf8');
 const OLD_YEAR = +license.match(/2025–(?<year>\d{4}) C/).groups.year;
 await writeFile(LICENSE, license.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
-const readme = await readFile(README, 'utf8');
-await writeFile(README, readme.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
-
-const readmeCompat = await readFile(README_COMPAT, 'utf8');
-await writeFile(README_COMPAT, readmeCompat.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
-
-const readmeDeno = await readFile(README_DENO, 'utf8');
-await writeFile(README_DENO, readmeDeno.replaceAll(PREV_VERSION, NEW_VERSION));
+for (const file of ['README.md', 'packages/core-js-compat/README.md', 'deno/corejs/README.md', 'docs/web/docs/usage.md']) {
+  const text = await readFile(file, 'utf8');
+  await writeFile(file, updateVersionDocs(text));
+}
 
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
-
-const usage = await readFile(USAGE, 'utf8');
-await writeFile(USAGE, usage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const packages = await Promise.all((await glob('packages/*/package.json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
