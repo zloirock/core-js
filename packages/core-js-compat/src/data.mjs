@@ -336,9 +336,10 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
+    ios: '4.0',
     opera: '10.50',
     rhino: '1.7.13',
-    safari: '4.0',
+    safari: '4.1',
   },
   'es.array.iterator': {
     chrome: '66',

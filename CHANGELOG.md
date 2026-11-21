@@ -213,6 +213,7 @@
   - `Array` methods
     - `Array.from` and `%TypedArray%.from` marked as properly supported from Safari 15.0 because of incorrect iterator result validation after warmup (see above)
     - Marked `Array.fromAsync` as unsupported in [V8 due to incorrect iterator closing](https://issues.chromium.org/issues/511947515), in Firefox due to [incorrect iterator initialization](https://bugzilla.mozilla.org/show_bug.cgi?id=2088041) and [error handling during cleanup](https://bugzilla.mozilla.org/show_bug.cgi?id=2078778), and in [Safari due to incorrect iterator initialization](https://bugs.webkit.org/show_bug.cgi?id=326074). Bun is marked as supported from 1.4.4, which fixed the initialization bug. Corrected Bun detection in compat tests
+    - `Array.isArray` marked as supported from Safari 4.1 and iOS 4.0
     - `Array.prototype.fill` marked as properly supported from Chrome 48 instead of Chrome 45 because of the bug above
     - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
     - `Array.prototype.unshift` marked as properly supported from FF55 instead of FF23 and Edge 16 instead of Edge 12 and no longer marked as supported in IE because of the bugs above
