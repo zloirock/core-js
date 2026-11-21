@@ -1,13 +1,9 @@
 'use strict';
 /* eslint-disable no-console -- output */
 const { promisify } = require('util');
-const fs = require('fs');
 // TODO: replace by `fs.promises` after dropping NodeJS < 10 support
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-const writeFile = promisify(fs.writeFile);
-const { dirname, join } = require('path');
-const tmpdir = require('os').tmpdir();
+const writeFile = promisify(require('fs').writeFile);
+const { dirname } = require('path');
 // TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
 const mkdirp = promisify(require('mkdirp'));
 const webpack = promisify(require('webpack'));
@@ -44,10 +40,8 @@ module.exports = async function ({
 
   if (list.length) {
     if (format === 'bundle') {
-      const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
-      const tempFile = join(tmpdir, tempFileName);
-
-      await webpack({
+      const assetName = 'core-js.js';
+      const { compilation } = await webpack({
         mode: 'none',
         node: {
           global: false,
@@ -55,20 +49,14 @@ module.exports = async function ({
           setImmediate: false,
         },
         entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
-        output: {
-          filename: tempFileName,
-          hashFunction: 'md5',
-          path: tmpdir,
-        },
+        output: { filename: assetName, hashFunction: 'md5' },
+        plugins: [compiler => compiler.hooks.shouldEmit.tap('core-js-builder', () => false)],
       });
-
-      const file = await readFile(tempFile, 'utf8');
-
-      await unlink(tempFile);
+      const source = compilation.assets[assetName].source();
 
       code = `!function (undefined) { 'use strict'; ${
         // compress `__webpack_require__` with `keep_fnames` option
-        String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
+        String(source).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
       } }();\n`;
     } else {
       const template = it => format === 'esm'
