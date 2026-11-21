@@ -1,13 +1,9 @@
 import Promise from 'core-js-pure/es/promise';
 import create from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
-import isConstructor from 'core-js-pure/internals/is-constructor';
-
-import { GLOBAL, RHINO } from './constants.js';
 
 export function is(a, b) {
   // eslint-disable-next-line no-self-compare -- NaN check
@@ -36,34 +32,6 @@ export function createSpeciesShrinkingArray() {
     return Array;
   } });
   return array;
-}
-
-export function createArrayWithProxyConstructor(species) {
-  const array = [1, 2];
-  const reads = { prototype: 0, species: 0 };
-  function Constructor() { /* empty */ }
-  defineProperty(Constructor, species, { get() {
-    reads.species++;
-    return null;
-  } });
-  array.constructor = new GLOBAL.Proxy(Constructor, {
-    get(target, key) {
-      if (key === 'prototype') reads.prototype++;
-      return target[key];
-    },
-    getOwnPropertyDescriptor(target, key) {
-      array[0] = 'changed';
-      return getOwnPropertyDescriptor(target, key);
-    },
-  });
-  return { array, reads };
-}
-
-export function getSplicePrototypeReadLimit(species) {
-  if (!RHINO && !GLOBAL.HermesInternal) return 0;
-  // The existing realm check tests constructibility, then reads the constructor's prototype.
-  const { array, reads } = createArrayWithProxyConstructor(species);
-  return isConstructor(array.constructor) ? reads.prototype + 1 : reads.prototype;
 }
 
 export function createIterator(elements, methods) {

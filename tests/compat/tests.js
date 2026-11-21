@@ -760,6 +760,21 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   // Test a nonzero deletion count. With no arguments, Rhino 1.9.0 - 1.9.2 also discards the species result.
   // https://github.com/mozilla/rhino/issues/2589
   'es.array.splice': [createArrayMethodSpeciesTest('splice', [Boolean]), function () {
+    // V8 < 8.2 keeps -0 from the deletion count for the species constructor or the result `length`,
+    // V8 7.1+ only while elements follow the start
+    // https://github.com/v8/v8/blob/91b36861e4bfb2cc2e93ca309f943b81767b8b44/src/js/array.js#L54-L62
+    // https://github.com/v8/v8/blob/cc8cb891eabb0480570388b487df181aa509ea69/src/js/array.js#L512
+    // https://github.com/v8/v8/blob/027689dbfcb2a9bbc8ceec4db2631c558e879633/src/builtins/array-splice.tq#L392-L394
+    var count;
+    var array = [1];
+    array.constructor = {};
+    array.constructor[Symbol.species] = function (length) {
+      count = length;
+      return {};
+    };
+    var result = array.splice(0, -0);
+    return 1 / count > 0 && 1 / result.length > 0;
+  }, function () {
     // https://issues.chromium.org/issues/42210878#comment18
     var O = createSpliceTestObject();
     var length = O.length;

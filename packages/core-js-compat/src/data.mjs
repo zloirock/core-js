@@ -449,7 +449,7 @@ export const data = {
     safari: '10.0',
   },
   'es.array.splice': {
-    // Chrome 68 - 70 pass; V8 7.1 regressed when splice moved to Torque.
+    // V8 < 8.2 keeps -0 from the deletion count; V8 7.1 lost the length limit when splice moved to Torque.
     // https://issues.chromium.org/issues/42210878#comment18
     // https://bugzilla.mozilla.org/show_bug.cgi?id=924058
     firefox: '55',

@@ -89,7 +89,8 @@ for (const name in $TYPED_ARRAYS) TYPED_ARRAYS.push({
 
 export const TYPED_ARRAYS_WITH_BIG_INT = [...TYPED_ARRAYS];
 
-for (const name of ['BigInt64Array', 'BigUint64Array']) if (GLOBAL[name]) TYPED_ARRAYS_WITH_BIG_INT.push({
+// ChakraCore 1.10 - 1.11 have `BigUint64Array`, but no `BigInt`
+for (const name of ['BigInt64Array', 'BigUint64Array']) if (GLOBAL[name] && GLOBAL.BigInt) TYPED_ARRAYS_WITH_BIG_INT.push({
   name,
   TypedArray: GLOBAL[name],
   bytes: 8,

@@ -14,12 +14,16 @@ var createProperty = require('../internals/create-property');
 var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
 var createSpliceTestObject = require('../internals/array-splice-test-object');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 
+var SPECIES = wellKnownSymbol('species');
 var nativeSplice = [].splice;
 var max = Math.max;
 var min = Math.min;
 var NATIVE_ON_ARRAYS;
 var NATIVE_WITH_FEW_ITEMS;
+var NEGATIVE_ZERO_COUNT;
 
 var rejectsOverflow = function () {
   var O = createSpliceTestObject(nativeSplice, 1);
@@ -31,14 +35,38 @@ var rejectsOverflow = function () {
   }
 };
 
+// A deletion count that truncates to -0 is kept as -0: V8 5.1 passes it to the species constructor,
+// V8 5.1 - 7.0 set it as the `length` of the result, V8 7.1 - 8.1 do both while elements follow the start.
+// https://github.com/v8/v8/blob/91b36861e4bfb2cc2e93ca309f943b81767b8b44/src/js/array.js#L54-L62
+// https://github.com/v8/v8/blob/cc8cb891eabb0480570388b487df181aa509ea69/src/js/array.js#L512
+// https://github.com/v8/v8/blob/027689dbfcb2a9bbc8ceec4db2631c558e879633/src/builtins/array-splice.tq#L392-L394
+// An own `constructor` of an array would reset the V8 species protector, a prototype does not.
+var keepsPositiveZero = function () {
+  var count;
+  var Constructor = function () { /* empty */ };
+  Constructor[SPECIES] = function (length) {
+    count = length;
+    return {};
+  };
+  var result = apply(nativeSplice, setPrototypeOf([1], { constructor: Constructor }), [0, -0]);
+  return 1 / count > 0 && 1 / result.length > 0;
+};
+
+// -0, -0.5 and alike; anything but a number could turn into them only through its conversion
+var mayTruncateToNegativeZero = function (count) {
+  return typeof count != 'number' || count > -1 && 1 / count < 0;
+};
+
 // V8 < 6.8, Firefox < 55, Safari < 14, Chakra and Hermes 0.12 - 0.13 miss the length limit.
 // V8 7.1+ rounds length + insertCount before subtracting actualDeleteCount.
 // https://issues.chromium.org/issues/42210878
 // https://issues.chromium.org/issues/42210878#comment18
 var FORCED = function () {
   if (typeof nativeSplice != 'function' || !arrayMethodHasSpeciesSupport('splice')) return true;
-  if (rejectsOverflow(-1, 1, 0, 0)) return false;
-  NATIVE_WITH_FEW_ITEMS = rejectsOverflow(-1, 0, 0);
+  var keepsLimit = rejectsOverflow(-1, 1, 0, 0);
+  NEGATIVE_ZERO_COUNT = !keepsPositiveZero();
+  if (keepsLimit && !NEGATIVE_ZERO_COUNT) return false;
+  NATIVE_WITH_FEW_ITEMS = keepsLimit || rejectsOverflow(-1, 0, 0);
   NATIVE_ON_ARRAYS = true;
   return true;
 };
@@ -47,14 +75,16 @@ var FORCED = function () {
 // https://tc39.es/ecma262/#sec-array.prototype.splice
 $({ target: 'Array', proto: true, forced: FORCED }, {
   splice: function splice(start, deleteCount /* , ...items */) {
-    // Keep native species lookup on arrays. An array proxy can still report a length above 2^32 - 1.
-    if (NATIVE_WITH_FEW_ITEMS && (arguments.length < 4 || deleteCount === 0) || NATIVE_ON_ARRAYS && isArray(this)) {
+    var argumentsLength = arguments.length;
+    // Keep native species lookup on arrays, unless the native keeps -0 from the deletion count.
+    // An array proxy can still report a length above 2^32 - 1.
+    if ((NATIVE_WITH_FEW_ITEMS && (argumentsLength < 4 || deleteCount === 0) || NATIVE_ON_ARRAYS && isArray(this))
+      && !(NEGATIVE_ZERO_COUNT && argumentsLength > 1 && mayTruncateToNegativeZero(deleteCount))) {
       return apply(nativeSplice, this, arguments);
     }
     var O = toObject(this);
     var len = lengthOfArrayLike(O);
     var actualStart = toAbsoluteIndex(start, len);
-    var argumentsLength = arguments.length;
     var insertCount, actualDeleteCount, newLen, A, k, from, to;
     if (argumentsLength === 0) {
       insertCount = actualDeleteCount = 0;
