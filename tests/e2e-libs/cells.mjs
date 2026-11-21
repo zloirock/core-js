@@ -5,6 +5,7 @@ import { METHODS, PROVIDERS, phasesFor, pluginOpts as matrixOpts } from '../tran
 
 export { METHODS, PROVIDERS, phasesFor };
 
+export const RUN_TIMEOUT_MS = 20_000;
 export const SUPPORTED_ENGINES = 'IE 11, Chrome>=38, Safari>=7.1, FF>=15';
 
 // a cell carries a phase its (method, provider) pair supports, so an unsupported one is a defect here

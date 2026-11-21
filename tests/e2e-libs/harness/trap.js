@@ -6,6 +6,14 @@
   // delivered by the same tracker as an unhandled rejection from the exercise.
   // eslint-disable-next-line es/no-promise -- optional native rejection tracker, absent in IE11
   var NativePromise = window.Promise;
+  // Schedule nested thenable calls with the host facilities captured before the bundle.
+  var queue = window.queueMicrotask || window.setImmediate || setTimeout;
+  var nativeThen = NativePromise && NativePromise.prototype.then;
+  var ready = !window.queueMicrotask && nativeThen && new NativePromise(function (resolve) { resolve(); });
+  window.e2eQueueJob = function (job) {
+    if (ready) Function.prototype.call.call(nativeThen, ready, job);
+    else queue.call(window, job);
+  };
   var marker;
   var notify;
   function record(failure) {

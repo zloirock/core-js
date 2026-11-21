@@ -3,6 +3,7 @@
 // rules that bind them are in `AGENTS.md`, next to what puts them under eslint at all.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { RUN_TIMEOUT_MS } from './cells.mjs';
 import { ARTIFACTS, HERE } from './paths.mjs';
 
 const HARNESS = join(HERE, 'harness');
@@ -13,8 +14,6 @@ const PAGE = {
   pass: 'green',
   fail: 'red',
 };
-
-export const RUN_TIMEOUT_MS = 20_000;
 
 // `expected` is the raw exercise's label SEQUENCE, not its count: a branch that stopped executing and
 // another that started cancel out in a count.

@@ -7,12 +7,10 @@
 //
 // Usage:  npm run test-e2e-libs-karma-run [libFilter]
 import * as manifest from '../e2e-libs/manifest.mjs';
-import './e2e-libs-tests.mjs';
 import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure } from './e2e-libs-results.mjs';
 import { announceBrowserRun, announceScopedRun, reportBrowserCell, reportBrowserTally } from '../e2e-libs/output.mjs';
-import { RUN_TIMEOUT_MS } from '../e2e-libs/page.mjs';
+import { RUN_TIMEOUT_MS } from '../e2e-libs/cells.mjs';
 import { ARTIFACTS } from '../e2e-libs/paths.mjs';
-import { start } from './helpers.mjs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -40,8 +38,12 @@ const frames = [
 
 const FRAMES = join(ARTIFACTS, 'frames.js');
 const RESULTS = join(ARTIFACTS, 'browser-results.json');
-await writeFile(FRAMES, `window.E2E_FRAMES = ${ JSON.stringify(frames, null, 1) };\n`);
 await rm(RESULTS, { force: true });
+await writeFile(FRAMES, `window.E2E_FRAMES = ${ JSON.stringify(frames, null, 1) };\n`);
+
+// Browser installation and the WebKit self-test can fail before Karma starts.
+await import('./e2e-libs-tests.mjs');
+const { start } = await import('./helpers.mjs');
 
 announceScopedRun(libFilter ?? (parsed.scope === 'all libraries' ? undefined : parsed.scope));
 announceBrowserRun(runnable.length);

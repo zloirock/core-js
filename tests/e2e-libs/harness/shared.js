@@ -103,14 +103,41 @@
       deferFailure(err);
     }
 
+    // Each thenable can notify once, including while the value it supplied is still pending.
+    function resolve(value, nested) {
+      var then = value && (typeof value === 'object' || typeof value === 'function') && value.then;
+      if (typeof then !== 'function') {
+        handOver(value);
+        return;
+      }
+      function subscribe() {
+        if (settled || reported) return;
+        var called = false;
+        try {
+          Function.prototype.call.call(then, value, function (next) {
+            if (called) return;
+            called = true;
+            try {
+              resolve(next, true);
+            } catch (err) { reject(err); }
+          }, function (err) {
+            if (called) return;
+            called = true;
+            reject(err);
+          });
+        } catch (err) {
+          if (!called) reject(err);
+        }
+      }
+      if (nested) window.e2eQueueJob(subscribe);
+      else subscribe();
+    }
+
     window.e2eOnUncaughtError = uncaughtError;
     try {
       if (uncaughtError()) return;
       if (typeof E2E === 'undefined' || !E2E || typeof E2E.run !== 'function') throw new Error('the bundle did not expose E2E.run');
-      var res = E2E.run();
-      var then = res && res.then;
-      if (typeof then === 'function') Function.prototype.call.call(then, res, handOver, reject);
-      else handOver(res);
+      resolve(E2E.run());
     } catch (err) { reject(err); }
   };
 }());

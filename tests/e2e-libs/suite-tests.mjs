@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
-import { allCells } from './cells.mjs';
+import { allCells, RUN_TIMEOUT_MS } from './cells.mjs';
 import { checkFailureLine, checkResultProblem, errorReason, renderValue } from './diagnostics.mjs';
 import { deepEqual as exerciseEqual } from './exercises/checks.mjs';
 import { reconcileRows, runtimeVerdict } from './manifest.mjs';
@@ -140,6 +140,7 @@ assertES5(script, 'generated cell script');
 const window = {};
 runInNewContext(script, { window });
 strictEqual(window.E2E_CELL.label, label);
+strictEqual(window.E2E_CELL.timeout, RUN_TIMEOUT_MS);
 strictEqual(window.E2E_CELL.expected[0], label);
 strictEqual(script.includes('<'), false);
 
@@ -173,7 +174,7 @@ const oneRead = {
   // eslint-disable-next-line unicorn/no-thenable -- exercise a thenable with an accessor
   get then() {
     if (++thenReads > 1) throw new Error('then read twice');
-    function then(resolve) { if (this === oneRead) resolve({ checks: valid }); }
+    function then(resolve) { if (this === oneRead) resolve(Promise.resolve({ checks: valid })); }
     then.call = null;
     return then;
   },
@@ -181,6 +182,50 @@ const oneRead = {
 E2E.run = () => oneRead;
 strictEqual((await browserRun())[0].label, valid[0].label);
 strictEqual(thenReads, 1);
+thenReads = 0;
+E2E.run = () => ({
+  // eslint-disable-next-line unicorn/no-thenable -- the first resolution adopts another thenable
+  then(resolve, reject) {
+    resolve(oneRead);
+    reject(new Error('late outer notification'));
+  },
+});
+strictEqual((await browserRun())[0].label, valid[0].label);
+strictEqual(thenReads, 1);
+// Calling a nested thenable inline lets it observe an unfinished outer call and consumes
+// one stack frame per resolution. The exercise's terminal checks still snapshot immediately.
+for (const host of [{ queueMicrotask }, { Promise }, { setImmediate }]) {
+  const realm = { ...host, addEventListener() { /* no independent rejection in this probe */ } };
+  const check = { label: 'ready', pass: false };
+  let chain = { checks: [check] };
+  for (let index = 0; index < 5000; index++) {
+    const next = chain;
+    chain = {
+      // eslint-disable-next-line unicorn/no-thenable -- each step publishes state after resolving
+      then(resolve) {
+        resolve(next);
+        check.pass = true;
+      },
+    };
+  }
+  runInNewContext(browserPrograms, { window: realm, E2E: { run: () => chain }, setTimeout });
+  let timer;
+  try {
+    const rows = await new Promise((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('nested thenables did not settle')), 10_000);
+      realm.e2eRun(resolve, reject);
+    });
+    strictEqual(rows[0].pass, true);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+E2E.run = () => ({
+  // eslint-disable-next-line unicorn/no-thenable -- adoption must forward a nested getter failure
+  then(resolve) { resolve({ get then() { throw new Error('nested getter'); } }); },
+});
+await rejects(browserRun, /nested getter/u);
+
 strictEqual(window.e2eReason({
   get message() { throw new Error('no message'); },
   toString() { throw new Error('no string'); },
