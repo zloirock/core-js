@@ -929,6 +929,8 @@ QUnit.test('URLSearchParams#delete conversion order and errors', assert => {
       throw error;
     },
   };
+  assert.throws(() => params.delete.call({}, value), TypeError, 'validates the receiver with only a name');
+  assert.throws(() => params.delete.call({}, value, undefined), TypeError, 'validates the receiver with undefined');
   assert.throws(() => URLSearchParams.prototype.delete.call({}, name, value), TypeError, 'validates the receiver first');
   assert.deepEqual(log, [], 'invalid receiver does not convert arguments');
   assert.throws(() => params.delete(name, value), error, 'propagates the conversion error');
@@ -1194,6 +1196,38 @@ QUnit.test('URLSearchParams#has', assert => {
   assert.throws(() => {
     return new URLSearchParams('').has();
   }, 'throws w/o arguments');
+});
+
+QUnit.test('URLSearchParams#has converts arguments before reading the list', assert => {
+  const params = new URLSearchParams();
+  const calls = [];
+  const name = { toString() {
+    calls.push('name');
+    return 'a';
+  } };
+  const value = { toString() {
+    calls.push('value');
+    params.append('a', '2');
+    return '2';
+  } };
+
+  const invalidName = { toString() { throw new Error('unexpected conversion'); } };
+  assert.throws(() => params.has.call({}, invalidName), TypeError, 'validates the receiver with only a name');
+  assert.throws(() => params.has.call({}, invalidName, undefined), TypeError, 'validates the receiver with undefined');
+  assert.throws(() => params.has.call({}, name, value), TypeError, 'validates the receiver first');
+  assert.true(params.has(name, value), 'finds a match added during conversion');
+  assert.deepEqual(calls, ['name', 'value'], 'converts each argument once and in order');
+  assert.false(params.has('a', { toString() {
+    params.delete('a');
+    return '2';
+  } }), 'ignores a match removed during conversion');
+
+  for (const key of ['lastMatch', 'lastParen']) {
+    /(a)\1/.test('aa');
+    const before = RegExp[key];
+    params.has('🦄');
+    assert.same(RegExp[key], before, `preserves RegExp.${ key } when converting the name`);
+  }
 });
 
 QUnit.test('URLSearchParams#set', assert => {

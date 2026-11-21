@@ -15,11 +15,14 @@ var params = new $URLSearchParams('a=1');
 if (params.has('a', 2) || !params.has('a', undefined)) {
   defineBuiltIn(URLSearchParamsPrototype, 'has', function has(name /* , value */) {
     var length = arguments.length;
-    var $value = length < 2 ? undefined : arguments[1];
-    if (length && $value === undefined) return $has(this, name);
-    var values = getAll(this, name); // also validates `this`
+    var value = length < 2 ? undefined : arguments[1];
+    // Check the receiver before converting user arguments.
+    if (typeof name != 'string' || (value !== undefined && typeof value != 'string')) $has(this, '');
     validateArgumentsLength(length, 1);
-    var value = toUSVString($value);
+    var key = toUSVString(name);
+    if (value === undefined) return $has(this, key);
+    value = toUSVString(value);
+    var values = getAll(this, key);
     var index = 0;
     while (index < values.length) {
       if (values[index++] === value) return true;

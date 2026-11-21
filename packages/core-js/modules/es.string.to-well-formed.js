@@ -6,10 +6,8 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var toString = require('../internals/to-string');
 var fails = require('../internals/fails');
 
-var $Array = Array;
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
-var join = uncurryThis([].join);
+var stringSlice = uncurryThis(''.slice);
 // eslint-disable-next-line es/no-string-prototype-towellformed -- safe
 var $toWellFormed = ''.toWellFormed;
 var REPLACEMENT_CHARACTER = '\uFFFD';
@@ -26,18 +24,17 @@ $({ target: 'String', proto: true, forced: TO_STRING_CONVERSION_BUG }, {
     var S = toString(requireObjectCoercible(this));
     if (TO_STRING_CONVERSION_BUG) return call($toWellFormed, S);
     var length = S.length;
-    var result = $Array(length);
+    var result = '';
+    var start = 0;
     for (var i = 0; i < length; i++) {
       var charCode = charCodeAt(S, i);
-      // single UTF-16 code unit
-      if ((charCode & 0xF800) !== 0xD800) result[i] = charAt(S, i);
-      // unpaired surrogate
-      else if (charCode >= 0xDC00 || i + 1 >= length || (charCodeAt(S, i + 1) & 0xFC00) !== 0xDC00) result[i] = REPLACEMENT_CHARACTER;
-      // surrogate pair
-      else {
-        result[i] = charAt(S, i);
-        result[++i] = charAt(S, i);
+      if ((charCode & 0xF800) !== 0xD800) continue;
+      if (charCode < 0xDC00 && i + 1 < length && (charCodeAt(S, i + 1) & 0xFC00) === 0xDC00) {
+        i++;
+      } else {
+        result += stringSlice(S, start, i) + REPLACEMENT_CHARACTER;
+        start = i + 1;
       }
-    } return join(result, '');
+    } return start ? result + stringSlice(S, start) : S;
   }
 });

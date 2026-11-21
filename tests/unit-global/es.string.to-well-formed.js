@@ -22,6 +22,7 @@ QUnit.test('String#toWellFormed', assert => {
   assert.same(toWellFormed.call('\uDCA9a'), '\uFFFDa', '\uDCA9a');
   assert.same(toWellFormed.call('a\uD83Da'), 'a\uFFFDa', 'a\uD83Da');
   assert.same(toWellFormed.call('a\uDCA9a'), 'a\uFFFDa', 'a\uDCA9a');
+  assert.same(toWellFormed.call('a\uD800b💩c\uDC00d'), 'a\uFFFDb💩c\uFFFDd', 'preserves the text between unpaired surrogates');
 
   assert.same(toWellFormed.call({
     toString() {

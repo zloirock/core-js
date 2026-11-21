@@ -23,12 +23,13 @@ params['delete']('b', undefined);
 if (params + '' !== 'a=2') {
   defineBuiltIn(URLSearchParamsPrototype, 'delete', function (name /* , value */) {
     var length = arguments.length;
-    var $value = length < 2 ? undefined : arguments[1];
-    if (length && $value === undefined) return $delete(this, name);
-    has(this, ''); // validates `this`
+    var value = length < 2 ? undefined : arguments[1];
+    // Check the receiver before converting user arguments.
+    if (typeof name != 'string' || (value !== undefined && typeof value != 'string')) has(this, '');
     validateArgumentsLength(length, 1);
     var key = toUSVString(name);
-    var value = toUSVString($value);
+    if (value === undefined) return $delete(this, key);
+    value = toUSVString(value);
     var entries = [];
     var firstIndexes = create(null);
     forEach(this, function (v, k) {

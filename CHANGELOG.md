@@ -32,7 +32,7 @@
   - Fixed enumerability of `URL.{ canParse, parse, createObjectURL, revokeObjectURL }` polyfills
   - Fixed the element conversion order and pair length validation in the `URLSearchParams` sequence initializer
   - Fixed record key enumeration in the `URLSearchParams` polyfill, including symbol keys and properties changed during conversion
-  - Fixed `URLSearchParams.prototype.delete(name, value)` patch arguments conversion order
+  - Fixed argument conversion order in the `URLSearchParams.prototype.delete` and `URLSearchParams.prototype.has` patches
   - Avoided rebuilding unaffected parameters and redundant native `delete` calls in the `URLSearchParams.prototype.delete(name, value)` patch for old engines
   - Made duplicate removal in the `URLSearchParams` polyfill's `delete` and `set` methods linear
   - Fixed `URLSearchParams` polyfill iterators ignoring new entries after returning `done: true`
@@ -152,6 +152,7 @@
 - Fixed `String.dedent` line splitting, CR / CRLF normalization, validation of raw templates with large lengths, and vertical tab escapes in old IE; documented its frozen `raw` requirement
 - Fixed `String.prototype.{ match, matchAll, search }` polyfills with a non-regex argument: like `RegExpCreate`, they convert it to a string, so a regex-like object is no longer read by its `source`, and the pure version of `matchAll` throws on a symbol
 - The `String.prototype.{ match, search }` polyfills now check that native methods throw a `TypeError` for a symbol argument. [Firefox 49-52](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) accepted the argument
+- The `String.prototype.toWellFormed` polyfill now returns already well-formed strings directly, avoiding a temporary array
 - `core-js-pure`
   - Fixed subclassing some wrapped native constructors in the pure version, [#1585](https://github.com/zloirock/core-js/issues/1585)
   - Fixed writable `.prototype` properties of polyfilled constructors and constructor wrappers in the pure version without modifying native constructors
@@ -162,6 +163,7 @@
   - Fixed loading of `core-js` with [`node --disable-proto=throw`](https://nodejs.org/api/cli.html#--disable-protomode)
   - Fixed loading of `core-js` when a polyfilled property already contains `null` or a value of an incompatible type
   - Fixed some polyfills depending on global `TypeError`, `isFinite`, `parseInt`, `String` or `Object` replaced after loading `core-js`
+  - Stopped the internal `ToString` operation from reading `Symbol.toStringTag` on primitive strings
   - Fixed `Symbol`, typed array and weak collection polyfills depending on `Array.prototype.concat` or `Array.prototype.push` replaced after loading `core-js`
   - Improve `IsConstructor` checks on proxies, including revoked proxies, without reading their properties
   - Improve some more [`document.all` (falsy callable)](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot) cases handling

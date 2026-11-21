@@ -1,10 +1,9 @@
 'use strict';
-// TODO: in core-js@4, replace direct /modules/ requires with implicit dependencies
+// TODO: in core-js@4, replace the direct /modules/ require with an implicit dependency
 require('../modules/es.string.from-code-point');
-require('../modules/es.string.to-well-formed');
 var getBuiltIn = require('../internals/get-built-in');
-var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
+var toUSVString = require('../internals/to-usv-string');
 
 var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
@@ -13,7 +12,6 @@ var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
-var toWellFormed = uncurryThis(getBuiltInPrototypeMethod('String', 'toWellFormed'));
 
 var FALLBACK_REPLACER = '\uFFFD';
 var VALID_HEX = /^[0-9a-f]+$/i;
@@ -114,7 +112,7 @@ var encode = function (input) {
   try {
     return $encodeURIComponent(input);
   } catch (error) {
-    return $encodeURIComponent(toWellFormed(input));
+    return $encodeURIComponent(toUSVString(input));
   }
 };
 
