@@ -2,7 +2,9 @@ import semver from 'semver';
 
 const { coerce, cmp } = semver;
 const { cyan, green } = chalk;
-const ALL = !argv._.includes('main-only');
+const packages = argv._.includes('main-only')
+  ? ['core-js']
+  : ['core-js', 'core-js-pure', 'core-js-bundle', '@core-js/pure', '@core-js/bundle'];
 const downloadsByPatch = {};
 const downloadsByMinor = {};
 const downloadsByMajor = {};
@@ -14,18 +16,16 @@ async function getStat(pkg) {
   return downloads;
 }
 
-const [core, pure, bundle] = await Promise.all([
-  getStat('core-js'),
-  ALL ? getStat('core-js-pure') : {},
-  ALL ? getStat('core-js-bundle') : {},
-]);
+for (const stats of await Promise.all(packages.map(getStat))) {
+  for (const [patch, downloads] of Object.entries(stats)) {
+    downloadsByPatch[patch] = (downloadsByPatch[patch] ?? 0) + downloads;
+  }
+}
 
-for (const patch of Object.keys({ ...core, ...pure, ...bundle })) {
+for (const [patch, downloads] of Object.entries(downloadsByPatch)) {
   const version = coerce(patch);
   const { major } = version;
   const minor = `${ major }.${ version.minor }`;
-  const downloads = (core[patch] ?? 0) + (pure[patch] ?? 0) + (bundle[patch] ?? 0);
-  downloadsByPatch[patch] = downloads;
   downloadsByMinor[minor] = (downloadsByMinor[minor] ?? 0) + downloads;
   downloadsByMajor[major] = (downloadsByMajor[major] ?? 0) + downloads;
   total += downloads;
