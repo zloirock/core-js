@@ -49,6 +49,8 @@ async function bundle({ bundled, minified, options = {} }) {
       unsafe_undefined: true,
     },
     format: {
+      // a classic script without `charset` is decoded in the encoding of the page
+      ascii_only: true,
       max_line_len: 32000,
       preamble: config.banner,
       webkit: true,
