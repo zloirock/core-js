@@ -167,6 +167,7 @@
   - Added missed `Array[@@species]`, `Object.prototype.toString`, iterators and other dependencies to some entries
   - Fixed `ArrayBuffer` and `DataView` dependencies of some entries, for `/array-buffer/constructor` entries it's a regression since 3.36.0
   - Added missing `Iterator.prototype[Symbol.dispose]` dependencies to iterator factory entries, and `Iterator.prototype.toAsync` dependencies to `full/iterator/{ concat, zip, zip-keyed, range }`
+  - Added the missing `AsyncIterator.prototype[Symbol.asyncDispose]` dependency to `AsyncIterator.from` entries and retained the `Promise` dependency when bundling the standalone `core-js-pure/actual/async-iterator` namespace
   - Added `JSON.parse` to the `JSON.rawJSON` entries for input validation with the corrected parser and restored their `JSON.stringify` dependency to fix a regression introduced in 3.47.0
   - Added missed `Date.prototype.toISOString` to `Date.prototype.toJSON` and `JSON.stringify` entries dependencies, for `JSON.stringify` entries it's a regression since 3.36.0
   - Added missed `String.prototype.{ isWellFormed, toWellFormed }` to `/string/virtual/` and `Number.prototype.clamp` to `/full/number/virtual/` namespace entries

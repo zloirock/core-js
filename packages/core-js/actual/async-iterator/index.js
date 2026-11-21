@@ -1,6 +1,7 @@
 'use strict';
 require('../../stable/async-iterator');
 require('../../modules/es.array.iterator');
+require('../../modules/es.promise');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.async-iterator.constructor');
 require('../../modules/esnext.async-iterator.async-dispose');
