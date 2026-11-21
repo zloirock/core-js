@@ -1,8 +1,7 @@
-// Three-level nesting with inner default: `function({a: {b: {entries} = Map} = inner} = outer)`.
-// Probes whether the destructuring-init metadata resolves the innermost `entries` against `Map`
-// (the third-level AssignmentPattern.right) and emits Map.entries polyfill, rather than
-// falling back to outer `inner` or `outer` typeless metas.
-function f({ a: { b: { entries } = Map } = { b: undefined } } = { a: undefined }) {
-  return entries;
+// The inner default supplies Map.groupBy. A caller can supply both properties.
+function f({ a: { b: { entries, groupBy } = Map } = { b: undefined } } = { a: undefined }) {
+  return [entries, groupBy];
 }
 export { f };
+export const groups = f()[1]([3], x => x).get(3);
+export const supplied = f({ a: { b: { entries: 1, groupBy: 2 } } });

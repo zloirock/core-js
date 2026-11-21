@@ -13,3 +13,4 @@ function strangerOfTheSameName() {
   new Poison().items = "string";
 }
 strangerOfTheSameName();
+export const first = new Holder().getFirst();

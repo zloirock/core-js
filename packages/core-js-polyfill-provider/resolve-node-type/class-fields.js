@@ -305,10 +305,10 @@ export function createClassFields({
   // in-module descendant declares an own static member of the same name. explicit `Base.<field>`
   // access is unaffected (it reads the named class's own slot), so the caller gates this on
   // `this`-rooted reads only
-  function staticFieldShadowable(classPath, fieldName, anchorNamespaceOverrides = false) {
+  function staticFieldShadowable(classPath, fieldName, anchorNamespaceOverrides = false, localOnly = false) {
     const program = findProgramPath(classPath);
     if (!program) return true;
-    const descendant = closedDescendants(classPath, program);
+    const descendant = localOnly ? collectClassDescendantPaths(classPath, program) : closedDescendants(classPath, program);
     if (!descendant) return true;
     for (const sub of descendant.paths) {
       if (sub !== classPath && declaresStaticMember(sub, fieldName)) return true;

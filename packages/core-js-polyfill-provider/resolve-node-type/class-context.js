@@ -30,9 +30,14 @@ import { isAmbientClassNode } from './name-resolution.js';
 import { collectQualifiedSegments, openTypeArg } from './ast-shapes.js';
 import { MAX_DEPTH } from './base.js';
 import {
+  callArgumentPathAt,
+  CLASS_FIELD_TYPES,
+  classConstructorFunction,
   classMayReplaceInstance,
   classSuperPath,
+  effectiveArgsLength,
   getHeritageTypeArgs,
+  resolveCallArgumentCoords,
 } from '../helpers/ast-patterns.js';
 
 // ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
@@ -49,6 +54,7 @@ export function createClassContext({
   t,
   resolveRuntimeExpression,
   isReflectConstructCallee,
+  isMutatedStatic,
   buildSubstMap,
   constructionTypeArgs,
   resolveClassInheritance,
@@ -215,13 +221,18 @@ export function createClassContext({
     if ((t.isCallExpression(node) || t.isOptionalCallExpression(node))
       && isReflectConstructCallee(node.callee, objectPath.scope)
       && node.arguments?.[0]) {
-      const ctorIndex = node.arguments[2] ? 2 : 0;
-      const classPath = resolveExpressionToClassPath(objectPath.get('arguments')[ctorIndex]);
-      const target = ctorIndex ? resolveExpressionToClassPath(objectPath.get('arguments')[0]) : classPath;
-      // the arguments travel in an array, so nothing binds the class's type parameters
-      if (classPath && target && classConstructionPreservesInstance(target)) {
-        return { classPath, isStatic: false, receiverArgs: openClassArgs(classPath.node) };
-      }
+      const args = objectPath.get('arguments');
+      const first = resolveCallArgumentCoords(node.arguments, 0, isMutatedStatic);
+      const third = resolveCallArgumentCoords(node.arguments, 2, isMutatedStatic);
+      if (!first || (!third && effectiveArgsLength(node.arguments, isMutatedStatic) === null)) return null;
+      const target = resolveExpressionToClassPath(callArgumentPathAt(args, first));
+      const classPath = third ? resolveExpressionToClassPath(callArgumentPathAt(args, third)) : target;
+      if (!classPath || !target || !classConstructionPreservesInstance(target)) return null;
+      const viaPrototype = classPath.node !== target.node;
+      // Only the target initializes the instance. A distinct newTarget supplies just its prototype.
+      if (viaPrototype && (target.node.superClass || classConstructorFunction(target.node)
+        || target.node.body?.body?.some(member => !member.static && CLASS_FIELD_TYPES.has(member.type)))) return null;
+      return { classPath, isStatic: false, viaPrototype, receiverArgs: openClassArgs(classPath.node) };
     }
     // this.prop inside a class member: the instance was made with type arguments the class body
     // cannot see, so its own parameters stay open

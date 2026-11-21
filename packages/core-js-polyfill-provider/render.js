@@ -77,6 +77,18 @@ export function memberExpression(object, property, { computed = false, optional 
   return { type: 'MemberExpression', object, property, computed, optional };
 }
 
+// Preserve the source member and its call (including optional calls). Only an absent
+// inherited key on the proven class receives the ponyfill. A supplied implementation keeps its
+// original receiver, and extracting the method leaves the imported function unbound.
+export function renderInheritedFallbackReceiver(meta, receiver, imported, invoked) {
+  const owner = identifier(meta.inheritedFallbackOwner.name);
+  const missing = unaryExpression('!', binaryExpression('in', literal(meta.key), owner));
+  const test = receiver.type === 'ThisExpression' ? logicalExpression('&&',
+    binaryExpression('===', cloneNode(receiver), cloneNode(owner)), missing) : missing;
+  const method = invoked ? renderBoundRawBranch(imported, cloneNode(receiver)) : imported;
+  return conditionalExpression(test, objectExpression([objectProperty(identifier(meta.key), method)]), cloneNode(receiver));
+}
+
 // The served read is the condition; only the source fallback writes the native target.
 // Receiver and computed key run before dispatch, once, and a failed lookup reuses the
 // captured receiver with the proven key. The live target wrappers and RHS move unchanged.

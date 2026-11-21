@@ -20,6 +20,7 @@ import {
   isReReferenceableReceiver,
   patternComputedKeysSynthSafe,
   planSideEffectKeyStrategy,
+  constructorDefaultStaticFallback,
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
   renderSynthTree,
@@ -1614,7 +1615,7 @@ export default function createAstDestructureEmitter({
         if (chain.length === 0 && (hostParent.node.type === 'AssignmentPattern' || hostParent.node === cur.node)
           && registerSimpleSynthSlot({ metaPath, pattern, hostParent, kind, entry, hintName })) return;
         if (renderNestedParamSynth({ metaPath, meta })) return;
-        paramExtractFallback({ metaPath, kind, entry, hintName, pattern });
+        paramExtractFallback({ metaPath, meta, kind, entry, hintName, pattern });
         return;
       }
       // ... a CATCH parameter binds like a declarator, and so does a for-x head written without one: the
@@ -1646,14 +1647,21 @@ export default function createAstDestructureEmitter({
 
   // A declined parameter mirror may still use a proven body extraction. Otherwise keep
   // the parameter native; a leaf default would change a supplied undefined property.
-  function paramExtractFallback({ metaPath, kind, entry, hintName, pattern }) {
+  function paramExtractFallback({ metaPath, meta, kind, entry, hintName, pattern }) {
     const prop = metaPath.node;
     if (kind === 'instance') return;
     // a pattern whose branches a SIBLING prop already mirrored is served from the literal, and this
     // extraction would bind the same name a second time - and out of the CALLER's reach, where the
     // literal keeps it caller-correct. the capture route asks the same marker one level over
     if (branchMirrorPatterns.has(pattern)) return;
-    if (paramsHaveInvisibleCallers(metaPath, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
+    if (paramsHaveInvisibleCallers(metaPath, { paramNeverOverridden: paramDefaultNeverOverridden })) {
+      const fallback = constructorDefaultStaticFallback(metaPath, meta, () => injectPureImport(entry, hintName));
+      if (fallback) {
+        prop.value = { type: 'AssignmentPattern', left: prop.value, right: fallback };
+        markRewrite();
+      }
+      return;
+    }
     const keyHasSideEffect = computedKeyHasSideEffects(prop, { scope: metaPath.scope, adapter, path: metaPath });
     if (!keyHasSideEffect) tryBodyExtractParam({ metaPath, prop, pattern, entry, hintName });
   }

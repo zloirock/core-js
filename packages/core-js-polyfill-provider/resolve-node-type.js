@@ -29,6 +29,8 @@ import {
   ownerWritePathIndex,
   patternSlotCertainDefault,
   pathOfNode,
+  memberChainKeys,
+  nodePositionKey,
   positionalElementPath,
   POSSIBLE_GLOBAL_OBJECTS,
   peelParenAndTSParentPath,
@@ -960,6 +962,7 @@ function createResolveNodeType(babelNodeType, t, {
     babelNodeType,
     isMemberLike,
     isMutatedStatic,
+    instanceSlotWritten,
     isNullableOrNever: (...args) => isNullableOrNever(...args),
     resolveMemberPropertyName: (...args) => resolveMemberPropertyName(...args),
     resolveGlobalName: (...args) => resolveGlobalName(...args),
@@ -1390,6 +1393,36 @@ function createResolveNodeType(babelNodeType, t, {
   // walk past a written slot reads a value the runtime may no longer hold. the same record answers
   // which prototype slots the file writes (`prototypeChainMayLend`)
   const slotCensusAdapter = { ...babelBindingAdapter, isWrittenContainerSlot, isMutatedStaticSlot: isMutatedStatic };
+  const observedSlotAdapter = {
+    ...slotCensusAdapter,
+    isWrittenContainerSlot: (...args) => getDecisionAdapter()?.hasObservedSlotWrite?.(...args),
+  };
+  // A method installed on this.field invalidates its return hint for readers of
+  // the same field, including captures and the subclass that runs an inherited reader.
+  function fieldMemberWritten(path, key) {
+    const writes = getDecisionAdapter()?.fieldMemberWrites;
+    const named = writes?.get(key);
+    const dynamic = writes?.get(null);
+    if (!named && !dynamic) return false;
+    const source = resolveRuntimeExpression(path);
+    if (!isMemberLike(source)) return false;
+    const field = resolveMemberPropertyName(source);
+    const homes = [named?.get(field), named?.get(null), dynamic?.get(field), dynamic?.get(null)].filter(Boolean);
+    if (!homes.length) return false;
+    const base = resolveRuntimeExpression(source.get('object'));
+    const cls = resolveClassContext(base);
+    if (!cls || cls.isStatic) return !cls;
+    function ownsWrite(owner) {
+      return homes.some(set => set.has(nodePositionKey(owner.node) ?? owner.node));
+    }
+    return ownsWrite(cls.classPath) || classAncestorPaths(cls.classPath).some(ownsWrite)
+      || base.node.type === 'ThisExpression' && collectClassDescendantPaths(cls.classPath, findProgramPath(base))?.paths.some(ownsWrite);
+  }
+  function instanceSlotWritten(path, key) {
+    if (fieldMemberWritten(path, key)) return true;
+    const { root, keys } = memberChainKeys(path?.node);
+    return containerSlotWritten(root, [...keys, key], { scope: path?.scope, adapter: observedSlotAdapter, path });
+  }
   function pathSlotWritten(holderPath, keys) {
     if (!keys.length) return false;
     const keyPath = keys.map(key => typeof key === 'symbol' ? key : String(key));
@@ -1890,6 +1923,7 @@ function createResolveNodeType(babelNodeType, t, {
     reset: resetClassContext,
   } = createClassContext({
     t,
+    isMutatedStatic,
     resolveRuntimeExpression,
     isReflectConstructCallee,
     buildSubstMap,
@@ -3865,6 +3899,7 @@ function createResolveNodeType(babelNodeType, t, {
         && bindingAnalysisCluster.isBindingExportedByName(name, findProgramPath(binding.path))) return null;
       return binding ? bindingAnalysisCluster.collectBindingReferences(binding, path) : null;
     },
+    descendantShadowsStatic: (path, key) => staticFieldShadowable(anchorPathScope(path), key, false, true),
     isObject,
     isString,
     // the call-site scan both the type resolver (default-type authoritativeness) and the

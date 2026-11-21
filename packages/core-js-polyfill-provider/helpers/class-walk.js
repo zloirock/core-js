@@ -1,7 +1,7 @@
 import { subsume } from './subsumption.js';
 import { hasConstructorEntry, hasOwnStaticDefinition, hasStaticDefinitionKey, namespaceEntryCarriesStatic } from '../index.js';
 import { pureImportSubpath } from './path-normalize.js';
-import { isKnownGlobalName, isSourcedSymbolIteratorMeta } from '../detect-usage/globals.js';
+import { isKnownGlobalName, isSourcedSymbolIteratorMeta, NATIVE_STATIC_OWNERS } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import { hasRange, nodeRangeContains } from '../resolve-node-type/base.js';
 import {
@@ -33,6 +33,7 @@ import {
   isDestructurePattern,
   isGuardedAliasingWrite,
   isMemberAccessNode,
+  isThisReceiver,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
@@ -1312,7 +1313,8 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
 // - `getInjector`: lazy accessor for the per-file ImportInjector (factory may run before pre())
 // caches on the closure - call once per file
 export function createClassHelpers({
-  t, adapter, resolveKey, getInjector = null, attachUnionExtras = null, containerReceiverName = null, resolvePure = null,
+  t, adapter, resolveKey, getInjector = null, attachUnionExtras = null, containerReceiverName = null,
+  resolvePure = null, descendantShadowsStatic = null,
 }) {
   function isClassMember(node) {
     return t.isClassMethod(node) || t.isClassPrivateMethod(node)
@@ -1380,10 +1382,10 @@ export function createClassHelpers({
   // find `{ key: binding }` / shorthand `{ key }` in ObjectPattern where value binds to
   // targetName. returns the property key via canonical resolveKey, so a computed `{ [CONST]: x }`
   // resolves too (not just Identifier / StringLiteral)
-  function findDestructureKeyForBinding(objectPattern, targetName, scope) {
+  function findDestructureKeyForBinding(objectPattern, targetName, scope, path) {
     for (const p of objectPattern.properties ?? []) {
       if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
-      const keyName = resolveKey({ node: p.key, computed: p.computed, scope, adapter });
+      const keyName = resolveKey({ node: p.key, computed: p.computed, scope, adapter, path });
       if (!keyName) continue;
       const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
       if (value?.type !== 'Identifier' || value.name !== targetName) continue;
@@ -1399,8 +1401,7 @@ export function createClassHelpers({
   function resolveSuperClassName(start, scope, seen = new Set(), path = null, classAnchor = null) {
     let { name } = start,
         read = start;
-    while (!seen.has(name)) {
-      seen.add(name);
+    while (seen.size < MAX_KEY_DEPTH) {
       // polyfillHint wins: `handleDestructuredProperty` rewrites destructure-with-default
       // shapes in-place, so `binding.path.init` is unrecoverable. plugin adapters expose
       // via binding object; resolver-tier adapter via side-channel
@@ -1419,6 +1420,9 @@ export function createClassHelpers({
       }
       const binding = hintBinding?.declarationPath ? { ...hintBinding, path: hintBinding.declarationPath }
         : adapter.getBinding ? hintBinding : scope?.getBinding?.(name);
+      const identity = binding?.path?.node;
+      if (identity && seen.has(identity)) return null;
+      if (identity) seen.add(identity);
       // no binding: TS-runtime fallback (`enum X` / `namespace X` / `import X = require()`)
       // anchored on `path` - estree-toolkit's scope tracker misses these
       if (!binding) {
@@ -1443,12 +1447,8 @@ export function createClassHelpers({
         }) : null;
         if (!reaching) return null;
         const reachingValue = unwrapInitForResolution(reaching);
-        if (reachingValue?.type === 'Identifier') {
-          name = reachingValue.name;
-          read = reachingValue;
-          continue;
-        }
-        return resolveBindingToGlobalName(reachingValue, scope, seen, anchor, anchor);
+        const at = pathOfNode(anchor, reachingValue) ?? anchor;
+        return resolveBindingToGlobalName(reachingValue, at?.scope ?? scope, seen, at, at);
       }
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
@@ -1485,7 +1485,7 @@ export function createClassHelpers({
       // ObjectPattern: `const { Promise: MyP } = R` -> `const MyP = R.Promise`. unplugin
       // keeps raw destructure; babel-plugin already rewrites it
       if (decl.id?.type === 'ObjectPattern') {
-        const keyName = findDestructureKeyForBinding(decl.id, name, scope);
+        const keyName = findDestructureKeyForBinding(decl.id, name, declScope, captureAnchor);
         if (!keyName) return null;
         // a bare proxy-global init short-circuits to the key, and so does a member chain whose
         // LEAF is itself a proxy-global (`globalThis.self.window` re-enters the global surface).
@@ -1519,14 +1519,15 @@ export function createClassHelpers({
   // Identifier -> reachable static container (ClassDeclaration / ClassExpression /
   // ObjectExpression via `const X = ...`). seen guards alias cycles
   function bindingContainerValue(name, scope, seen, classAnchor = null, read = null) {
-    if (seen.has(name)) return null;
-    seen.add(name);
     const binding = adapter.getBinding ? adapter.getBinding({ scope, name, path: classAnchor, read }) : scope?.getBinding?.(name);
     // method-aware reassignment bail. usage-global resolves the static container regardless (over-
     // inject-safe; its anchor stays null, so dominance can't be proven and the inject-if-maybe-needed
     // bias wins). usage-pure resolves only when no reassignment reaches the class-definition capture
     // point - `classAnchor` (the class node) for the `class C extends NS.Base` path - else bails
-    if (!binding) return null;
+    const declPath = binding?.declarationPath ?? binding?.path;
+    const declNode = declPath?.node;
+    if (!declNode || seen.has(declNode) || seen.size >= MAX_KEY_DEPTH) return null;
+    seen.add(declNode);
     if (reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor })) {
       // ONE reassignment policy with the super-class sibling: keep resolving through the value the
       // reassignment REACHES (the dominating write is the captured container) - enumerable for
@@ -1537,15 +1538,16 @@ export function createClassHelpers({
         ? reachingReassignmentValueNode({
           binding, usagePath: classAnchor, usageNode: classAnchor?.node ?? null, requireSingleObservation: method === 'usage-pure',
         }) : null;
-      return reaching ? resolveToContainer(reaching, scope, seen, classAnchor) : null;
+      const at = reaching && pathOfNode(classAnchor, reaching);
+      return reaching ? resolveToContainer(reaching, at?.scope ?? scope, seen, at ?? classAnchor) : null;
     }
-    const declNode = binding.declarationPath?.node ?? binding.path?.node;
+    const declScope = aliasDeclScope(binding, scope);
     if (declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression') return declNode;
     // destructured container: `const { sub: NS } = lib` -> NS is `lib.sub`. resolve that member
     // access to its container so a later `NS.X` indexes the inner object. mirrors
     // resolveSuperClassName's ObjectPattern branch, which maps to a global name instead of a container
     if (declNode?.type === 'VariableDeclarator' && declNode.id?.type === 'ObjectPattern') {
-      const keyName = findDestructureKeyForBinding(declNode.id, name, scope);
+      const keyName = findDestructureKeyForBinding(declNode.id, name, declScope, declPath);
       const init = unwrapInitForResolution(declNode.init);
       if (!keyName || !init) return null;
       return resolveToContainer({
@@ -1553,17 +1555,17 @@ export function createClassHelpers({
         object: init,
         property: { type: 'Identifier', name: keyName },
         computed: false,
-      }, scope, seen, classAnchor);
+      }, declScope, seen, declPath);
     }
     // a container bound through a zero-arg IIFE (`const NS = (() => ({...}))(); NS.X`) resolves
     // to the IIFE's returned container, same as the inline-IIFE extends clause
-    return peelIifeReturnTarget(unwrapInitForResolution(declNode?.init), adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
+    return resolveToContainer(declNode.init, declScope, seen, declPath);
   }
 
   // member-access value lookup: outer -> container, look up leaf property. shared by
   // resolveToContainer (recurses on value) and resolveBindingToGlobalName (maps to global)
   function resolveMemberAccess(memberNode, scope, seen, classAnchor = null) {
-    const propName = resolveKey({ node: memberNode.property, computed: memberNode.computed, scope, adapter });
+    const propName = resolveKey({ node: memberNode.property, computed: memberNode.computed, scope, adapter, path: classAnchor });
     if (!propName) return null;
     const outer = resolveToContainer(memberNode.object, scope, seen, classAnchor);
     if (!outer) return null;
@@ -1577,15 +1579,12 @@ export function createClassHelpers({
   function resolveToContainer(node, scope, seen, classAnchor = null) {
     const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node), adapter.isMutatedStaticSlot ?? adapter.isMutatedStatic);
     if (peeled?.type === 'Identifier') {
-      // the binding's value may be another alias or member hop rather than the container itself
-      // (`const NS0 = { Base: Map }; const NS = NS0`) - re-enter, exactly like the member arm
-      // below. handing the init back verbatim left every such value indexed as nothing
-      const value = bindingContainerValue(peeled.name, scope, seen, classAnchor, peeled);
-      return !value || isNamespaceContainer(value) ? value : resolveToContainer(value, scope, seen, classAnchor);
+      return bindingContainerValue(peeled.name, scope, seen, classAnchor, peeled);
     }
     if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
       const value = resolveMemberAccess(peeled, scope, seen, classAnchor);
-      return value ? resolveToContainer(value, scope, seen, classAnchor) : null;
+      const at = value && pathOfNode(classAnchor, value);
+      return value ? resolveToContainer(value, at?.scope ?? scope, seen, at ?? classAnchor) : null;
     }
     // direct container - inline `({Promise}).Promise`. rare but free via the same path
     return isNamespaceContainer(peeled) ? peeled : null;
@@ -1615,8 +1614,6 @@ export function createClassHelpers({
     if (receiver?.type !== 'Identifier') return null;
     key ??= resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter, path });
     if (!hasStaticDefinitionKey(key)) return null;
-    if (adapter.method !== 'usage-global'
-      && containerSlotWritten(receiver, [key], { scope: path.scope, adapter, path }, path.node, inheritedCallPreserves)) return null;
     const value = resolveToContainer(receiver, path.scope, new Set(), path);
     return value?.type === 'ClassDeclaration' || value?.type === 'ClassExpression' ? value : null;
   }
@@ -1630,15 +1627,21 @@ export function createClassHelpers({
     const scope = anchor?.scope ?? path.scope;
     const holder = anchor?.parentPath?.node;
     const owner = holder?.type === 'VariableDeclarator' ? holder : classNode;
-    const own = classStaticSlotMember(classNode, key, {
+    const own = classOwnStatic(classNode, key, path, scope, anchor);
+    const deletion = owner.id && adapter.classSlotDeletion?.(owner, key, path);
+    if (deletion === 'certain' || (deletion && !needsValue)) return false;
+    return (needsValue ? own !== null : !!own)
+      || !!(needsValue && owner.id && adapter.isWrittenContainerSlot?.(
+        owner.id.name, [key], owner, path, path.node, inheritedCallPreserves));
+  }
+
+  function classOwnStatic(classNode, key, path, scope, anchor) {
+    return classStaticSlotMember(classNode, key, {
       readNode: path.node,
       keyOf: member => privateNameSpelling(member.key) ?? resolveKey({
         node: member.key, computed: member.computed, scope, adapter, path: anchor,
       }),
     });
-    return (needsValue ? own !== null : !!own)
-      || !!(needsValue && owner.id && adapter.isWrittenContainerSlot?.(
-        owner.id.name, [key], owner, path, path.node, inheritedCallPreserves));
   }
 
   // The extends expression captures its value at the class definition. A local
@@ -1750,7 +1753,7 @@ export function createClassHelpers({
     if (!key) return null;
     const namedClass = namedClassReceiver(path, key, receiver);
     const info = namedClass ? { classNode: namedClass, isStatic: true } : findEnclosingClassMember(path);
-    if (!info?.isStatic || (namedClass && classStaticIsShadowed(namedClass, key, path, callProof))) return null;
+    if (!info?.isStatic) return null;
     // anchor the reassignment proof at the class node (where `extends` captures the base), not the
     // method-nested super site. the extends clause is the sole evaluation point of the superclass
     // alias, so a reassignment after capture - even one textually before the super call inside a
@@ -1762,6 +1765,25 @@ export function createClassHelpers({
     // Array = Object; super.from() }`) must not be seen - using the method scope follows the wrong
     // binding and drops the inherited-static polyfill (ie:11). classAnchor is the class node path
     const classScope = classAnchor?.scope ?? path.scope;
+    const needsProof = callProof || adapter.method === 'usage-pure';
+    let fallbackOwner;
+    if (needsProof && classAnchor) {
+      const owner = classAnchor.parentPath?.node?.type === 'VariableDeclarator' ? classAnchor.parentPath.node : info.classNode;
+      if (owner.id && adapter.hasObservedSlotWrite?.(owner.id.name, ['__proto__'], owner, path, path.node)) return null;
+      if (namedClass || isThisReceiver(receiver)) {
+        const uncertain = classOwnStatic(info.classNode, key, path, classScope, classAnchor) === undefined
+          || owner.id && adapter.classSlotDeletion?.(owner, key, path) === 'possible'
+          || !namedClass && descendantShadowsStatic?.(classAnchor, key);
+        if (uncertain) {
+          // A guarded read can supply a missing inherited method on this particular class.
+          // A borrowed call must still read its actual receiver, including getters and proxies.
+          if (callProof || !isMemberAccessNode(path.node) || path.node.object !== receiver || path.node.computed
+            || !owner.id || !namedClass && resolveToContainer(owner.id, path.scope, new Set(), path) !== info.classNode) return null;
+          fallbackOwner = namedClass ? receiver : owner.id;
+        }
+      }
+    }
+    if (namedClass && !fallbackOwner && classStaticIsShadowed(namedClass, key, path, callProof)) return null;
     let carried = false;
     let open = false;
     const meta = buildSuperStaticMeta(info.classNode, key,
@@ -1776,6 +1798,10 @@ export function createClassHelpers({
       receiver, [key], { scope: path.scope, adapter, path }, path.node, inheritedCallPreserves, true,
     );
     if (meta) {
+      if (fallbackOwner) {
+        if (!NATIVE_STATIC_OWNERS.has(meta.object) || !hasOwnStaticDefinition(meta.object, key)) return null;
+        meta.inheritedFallbackOwner = fallbackOwner;
+      }
       if (carried) meta.inheritedStaticCarried = true;
       if (namedClass) meta.inheritedReceiver = receiver;
       // An opaque handout can expose any inherited static. A captured builtin's
@@ -1855,7 +1881,13 @@ export function createClassHelpers({
     if (!info || !t.isClassBody(info.classBodyNode)) return false;
     // resolve computed keys in the CLASS-definition scope (where `[CONST]` is evaluated), not a
     // method-local shadow - mirrors the extends-clause scope choice in resolveStaticInheritedMember
-    const classScope = ancestorPathOf(path, info.classNode)?.scope ?? path.scope;
+    const anchor = ancestorPathOf(path, info.classNode);
+    const classScope = anchor?.scope ?? path.scope;
+    if (info.isStatic && !key.startsWith('Symbol.') && hasStaticDefinitionKey(key)) {
+      const own = classOwnStatic(info.classNode, key, path, classScope, anchor);
+      const owner = anchor?.parentPath?.node.type === 'VariableDeclarator' ? anchor.parentPath.node : info.classNode;
+      return !!own && !adapter.classSlotDeletion?.(owner, key, path);
+    }
     return getOwnNames(info.classBodyNode, info.isStatic ? 'static' : 'instance', classScope).has(key);
   }
 

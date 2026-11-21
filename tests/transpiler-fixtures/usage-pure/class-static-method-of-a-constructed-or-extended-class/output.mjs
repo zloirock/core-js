@@ -1,5 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
+import _String$raw from "@core-js/pure/actual/string/raw";
 // a class this file also constructs or extends keeps its statics' callers where the file sees every one: an
 // instance reaches the statics only through a `constructor` read, which this file never spells, and a subclass
 // calls them as its own. a class handed out pairs nothing: its callers outside pass whatever they pass
@@ -19,7 +20,7 @@ class Base {
 class Derived extends Base {}
 class Shared {
   static plain(S, strings) {
-    return S.raw(strings);
+    return (S === String ? _String$raw : S.raw.bind(S))(strings);
   }
 }
 hand(Shared);

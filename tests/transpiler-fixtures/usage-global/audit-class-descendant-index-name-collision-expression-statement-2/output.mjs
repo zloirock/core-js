@@ -1,7 +1,15 @@
-// the same shape with no name collision: the control that pins the name as the only variable
+import "core-js/modules/es.array.includes";
+// The writes belong to an unrelated superclass even when its name matches the reader's.
+class Keeper {
+  entries = ["a", "b"];
+  hasFirst() {
+    return this.entries.includes("a");
+  }
+}
 function strangerWithoutCollision() {
   class Unrelated {}
   class Tainted extends Unrelated {}
   new Tainted().entries = "string";
 }
 strangerWithoutCollision();
+export const found = new Keeper().hasFirst();

@@ -130,6 +130,7 @@ import {
   patternHopKeysToHost,
   planSideEffectKeyStrategy,
   pruneHopFromLevels,
+  constructorDefaultStaticFallback,
   qualifiesForParamBodyExtract,
   planParameterInstanceExtraction,
   receiverPerformsEveryInitEffect,
@@ -1165,7 +1166,11 @@ export default function createDestructureEmitter({
         collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right', aliasCtxFromPath(paramDefault));
       }
       // An open caller set cannot justify replacing a caller-supplied value.
-      if (paramsHaveInvisibleCallers(prop, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
+      if (paramsHaveInvisibleCallers(prop, { paramNeverOverridden: paramDefaultNeverOverridden })) {
+        const fallback = constructorDefaultStaticFallback(prop, meta, () => injectPureImport(entry, hintName).name);
+        if (fallback) prop.get('value').replaceWith(t.assignmentPattern(prop.node.value, estreeToBabel(fallback)));
+        return;
+      }
       // a side-effecting computed key (`{ [(eff(), 'from')]: from }`) must NOT body-extract: that
       // removes the key text and drops the prefix effects.
       if (!computedKeyHasSideEffects(prop.node, aliasCtxFromPath(prop))) tryBodyExtractFromParamDestructure(prop, entry, hintName);

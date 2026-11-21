@@ -100,6 +100,7 @@ import {
   renderInExpressionPlan,
   renderLogicalSlotPatch,
   planMethodCall,
+  renderInheritedFallbackReceiver,
   renderMethodCall,
   renderShortCircuitGuard,
   renderSealedCallFallback,
@@ -743,6 +744,7 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
         t,
         adapter,
         resolveKey: sharedResolveKey,
+        descendantShadowsStatic: typeResolvers.descendantShadowsStatic,
         getInjector: () => injector,
         attachUnionExtras: attachMemberUnionExtras,
         containerReceiverName: staticContainerReceiverName,
@@ -906,6 +908,11 @@ function createFilePlugin(api, options, getBabelTargets, isWebpack) {
       function replaceInheritedStatic(path, id, meta) {
         const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
+        if (meta.inheritedFallbackOwner) {
+          path.get('object').replaceWith(estreeToBabel(renderInheritedFallbackReceiver(meta, path.node.object, id,
+            (callParent?.isCallExpression() || callParent?.isOptionalCallExpression()) && callParent.node.callee === callerPath.node)));
+          return;
+        }
         if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node) {
           const callExpr = estreeToBabel(renderMethodCall(planMethodCall({

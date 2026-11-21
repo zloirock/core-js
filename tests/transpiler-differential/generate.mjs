@@ -2233,6 +2233,59 @@ function * generateContainerSlots() {
   }
 }
 
+// A constructor's visible call can prove a candidate while a second caller supplies an
+// override. Compare actual results in fresh realms so no other case can install a static.
+function * generateClassReceiverContracts() {
+  const cases = [
+    ['open-static', 'function run(k) { class C { static read(T) { return T.from([1])[0]; } } const c = new C();'
+      + ' return [C.read(Array), c[k].read({ from() { return [this.n]; }, n: 9 })]; }', "run('constructor')"],
+    ['reinvoked', "const first = new (function ({ from, [(effects.push('key'), 'extra')]: x } = Array) {"
+      + " this.read = () => typeof from === 'function' ? from([1])[0] : typeof from; })(); const F = first.constructor;",
+    "[first.read(), new F(undefined).read(), new F({ get from() { effects.push('get'); return () => [9]; } }).read(), new F({}).read()]"],
+    ['captured-heritage', 'class Own { static race() { return 7; } } const ns = { Base: Own }; const captured = ns;'
+      + ' function run() { const ns = { Base: Promise }; class C extends captured.Base { static read() { return super.race([1]); } } return C.read(); }', 'run()'],
+    ['computed-own', 'function run(key) { class C extends Array { static [key]() { return [9]; } static read() { return this.from([1])[0]; } } return C.read(); }',
+      "[run('of'), run('from')]"],
+    ['descendant-static', 'class C extends Array { static read() { return this.from([1])[0]; } } class D extends C { static from() { return [9]; } }',
+      '[C.read(), D.read()]'],
+    ['deleted-override', 'function run(drop) { class C extends Array { static from() { return [9]; } } if (drop) delete C.from; return C.from([1])[0]; }',
+      '[run(false), run(true)]'],
+    ['new-super', "class A extends Array { static from() { return 'a'; } } class B extends Array { static read() { return super.from([1]); } }"
+      + ' Object.setPrototypeOf(B, A);', 'B.read()'],
+    ['own-method', "const a = [1]; const alias = a; alias.map = () => 'text';", 'a.map(x => x).at(0)'],
+    ['replace-hook', 'const pattern = { [Symbol.replace]() { return [42]; } };', "'a'.replace(pattern, 'b').at(0)"],
+    ['regexp-hook', 'const pattern = /a/; pattern[Symbol.replace] = () => [42];', "'a'.replace(pattern, 'b').at(0)"],
+    ['instance-super', 'class Bag extends Set { join(x) { return super.union(x); } }'
+      + ' class Cache extends WeakMap { read(key) { return super.getOrInsert(key, 7); } }'
+      + ' const cache = new Cache(); const key = {};', '[[...new Bag([1]).join(new Set([2]))], cache.read(key), cache.get(key)]'],
+    ['own-static-getter', 'class Bag extends Set { static get union() { effects.push("get");'
+      + ' return function (x) { return this === Bag ? x : 0; }; } }', 'Bag.union(9)'],
+    ['field-arrow-callback', 'class C { #v = [3]; write = () => { this.#v = "xy"; }; read() { return this.#v.at(0); } }'
+      + ' const c = new C(); await Promise.resolve().then(c.write);', 'c.read()'],
+    ['captured-field-write', "class T { rows = [2]; } const obj = new T(); const rows = obj.rows; const other = rows; other.map = () => 'xy';",
+      '[rows.map(x => x).at(1), obj.rows.map(x => x).at(0)]'],
+    ['instance-field-method', "class A { rows = [2]; change() { this.rows.map = () => 'xy'; } read() { return this.rows.map(x => x).at(1); } }"
+      + ' const a = new A(); a.change(); const rows = a.rows;', '[a.read(), rows.map().at(0)]'],
+    ['captured-field-scope', "class T { rows = [2]; } const obj = new T(); function change() { const obj = new T(); obj.rows.map = () => 'xy'; }"
+      + " change(); const rows = obj.rows; const first = rows.map(x => x).at(0); rows.map = () => 'z';", '[first, rows.map().at(0)]'],
+    ['reflect-field', "class C { m = [7]; } class D { get m() { return 'd'; } }", 'Reflect.construct(C, [], D).m.at(0)'],
+    ['reflect-prototype', "class C { m() { return 'c'; } } class D { m() { return [7]; } }", 'Reflect.construct(C, ...[[], D]).m().at(0)'],
+    ['constructor-body', 'class C extends Array<number> { constructor(); constructor() { super(); return new String("hello") as unknown as C; } }',
+      'new C().at(0)', true],
+  ];
+  const store = 'class Store { rows = [1]; first() { return this.rows.at(0); } }';
+  for (const [name, setup] of [
+    ['same-name', "const Base = Store; { class Store extends Base { rows = 'abc'; } result = new Store().first(); }"],
+    ['shadowed-alias', "const A = Store; { const Store = A; class B extends Store { rows = 'abc'; } result = new B().first(); }"],
+    ['late-reassignment', "let A = Store; class B extends A { rows = 'abc'; } A = class {}; result = new B().first();"],
+  ]) cases.push([name, `${ store } let result; ${ setup }`, 'result']);
+  for (const [name, setup, result, ts] of cases) yield {
+    name: `class-receiver-contract/${ name }`,
+    code: `export const effects = []; ${ setup }\nexport const r = ${ result };`,
+    strip: true, isolated: true, ...ts ? { ts } : {},
+  };
+}
+
 // Run each source in its own realm: a sibling's full constructor can otherwise supply the missing static.
 function * generateContainerMutationContracts() {
   const cases = [
@@ -28347,4 +28400,5 @@ export function * generate() {
   yield * generateIteratedElementReads();
   yield * generateExtractedArrayMethodReads();
   yield * generateContainerMutationContracts();
+  yield * generateClassReceiverContracts();
 }

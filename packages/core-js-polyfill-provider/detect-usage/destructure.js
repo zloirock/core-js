@@ -105,6 +105,7 @@ import {
   stmtRebindNames,
   paramListRunsWork,
   patternBindingCount,
+  patternBindsName,
   patternBindsOnlySentinels,
   patternHasRestReadBeforeNestedBinding,
   patternKeepsEffectfulKey,
@@ -258,6 +259,7 @@ import {
 } from './resolve.js';
 import {
   assignmentExpression,
+  binaryExpression,
   callExpression,
   cloneNode,
   conditionalExpression,
@@ -275,6 +277,7 @@ import {
   renderMemoActivation,
   sequenceExpression,
   synthEntryKey,
+  voidZero,
 } from '../render.js';
 import {
   entryToGlobalHint,
@@ -2422,6 +2425,26 @@ export function planSideEffectKeyStrategy({
 // emitters emit the identical diagnostic (babel emitted it inline; unplugin previously stayed silent)
 export function conditionalDestructureLeftUntouchedWarning(key) {
   return `conditional destructure with polyfill candidate left untouched ("${ key }" on fallback branch) - runtime availability depends on the selected branch`;
+}
+
+// A constructor may be called again through the first instance. If a computed sibling
+// prevents mirroring the default, keep every native Get in the pattern. Supply the missing
+// static only when this invocation used the default. At the first binding of parameter zero
+// no earlier parameter or key could have altered the constructor's own arguments object.
+export function constructorDefaultStaticFallback(propPath, meta, inject) {
+  const pattern = propPath.parentPath;
+  const param = pattern?.parentPath;
+  const fn = param?.parentPath;
+  if (propPath.node.value?.type !== 'Identifier' || propPath.node.computed || pattern.node.properties[0] !== propPath.node
+    || param?.node.type !== 'AssignmentPattern' || fn?.node.params?.[0] !== param.node
+    || fn.node.type !== 'FunctionExpression' || param.node.right.type !== 'Identifier'
+    || param.node.right.name !== meta?.object || !NATIVE_STATIC_OWNERS.has(meta.object)
+    || findIifeCallSite(fn, param.node)?.callPath.node.type !== 'NewExpression'
+    || fn.node.params.some(slot => patternBindsName(slot, 'arguments'))) return null;
+  const args = identifier('arguments');
+  const supplied = logicalExpression('&&', memberFromKeyName(args, 'length'),
+    binaryExpression('!==', memberFromKeyName(identifier('arguments'), '0'), voidZero()));
+  return conditionalExpression(supplied, voidZero(), identifier(inject()));
 }
 
 // A body extraction needs a parameter binding and no parameter-scope reads or body

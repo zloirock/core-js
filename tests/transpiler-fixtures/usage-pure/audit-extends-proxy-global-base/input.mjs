@@ -1,12 +1,17 @@
-// `class Sub extends globalThis.Base` proxy-global path: the subclass-index must resolve
-// `globalThis.Base` to `Base` so Sub is registered. otherwise Sub's external instance
-// writes are missed when folding Base's field type, and `s.box.at(0)` falls to the
-// unsafe array-narrowed polyfill while runtime sees a string
+// The superclass is captured when extends runs. Replacing the global later cannot change it.
 class Base {
   box = [1, 2, 3];
   first() { return this.box.at(0); }
 }
-class Sub extends globalThis.Base {}
-const s = new Sub();
-s.box = "stringified";
-s.first();
+class Foreign { first() { return "foreign"; } }
+const previous = Object.getOwnPropertyDescriptor(globalThis, "Base");
+globalThis.Base = Base;
+class LocalSub extends globalThis.Base {}
+globalThis.Base = Foreign;
+class ForeignSub extends globalThis.Base {}
+if (previous) Object.defineProperty(globalThis, "Base", previous);
+else delete globalThis.Base;
+const local = new LocalSub();
+local.box = "stringified";
+const foreign = new ForeignSub();
+export const result = [local instanceof Base, local.first(), foreign instanceof Base, foreign.first()];

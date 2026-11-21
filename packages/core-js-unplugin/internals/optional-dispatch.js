@@ -41,6 +41,7 @@ import {
   identifier,
   memberExpression,
   nullGuardTest,
+  renderInheritedFallbackReceiver,
   renderMethodCall,
   renderMethodLookup,
   renderReceiverEffects,
@@ -659,6 +660,15 @@ export default function createOptionalDispatchChannel(ctx) {
   function emitInheritedStatic(meta, metaPath) {
     const callerPath = climbToCallerPath(metaPath);
     const parent = callerPath?.node;
+    if (meta.inheritedFallbackOwner) {
+      const { result } = resolvePureOrGlobalFallback(meta, metaPath);
+      if (!result) return;
+      const id = identifier(injectPureImport(result.entry, result.hintName));
+      metaPath.node.object = renderInheritedFallbackReceiver(meta, metaPath.node.object, id,
+        parent?.type === 'CallExpression' && unwrapRuntimeExpr(parent.callee) === metaPath.node);
+      markRewrite();
+      return;
+    }
     if (metaPath.node.optional && !meta.inheritedReceiver) return;
     // A value read does not bind its receiver, including `super.from`. Preserve its
     // computed-key effects around the imported binding, just as for a named class.

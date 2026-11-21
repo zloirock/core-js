@@ -16,6 +16,7 @@
 // Public surface mirrors the previous factory functions - external callers are heavy
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
+import { constructionExposesStatics } from '../detect-usage/mutations.js';
 import {
   $Object,
   $Primitive,
@@ -72,7 +73,6 @@ import {
   staticMemberKeyName,
   privateNameSpelling,
   unwrapRuntimeExpr,
-  readsConstructorKey,
   rootProgramOf,
   walkAstNodes,
   writesPastCeiling,
@@ -1393,7 +1393,7 @@ export function createPatternBindings({
           const host = peelTransparentExprAncestorPath(ref)?.parentPath;
           if (host?.node.type === 'NewExpression' && unwrapRuntimeExpr(host.node.callee) === ref.node) {
             const program = rootProgramOf(host);
-            if (!program || readsConstructorKey(program)) return null;
+            if (!program || constructionExposesStatics(program, ref.node)) return null;
             continue;
           }
           if (CLASS_NODE_TYPES.has(host?.node.type) && unwrapRuntimeExpr(host.node.superClass) === ref.node) {

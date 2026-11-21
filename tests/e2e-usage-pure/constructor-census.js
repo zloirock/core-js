@@ -125,3 +125,48 @@ QUnit.test('constructor census: a read past the write ceiling keeps its static',
   C = Map;
   assert.deepEqual(C.groupBy([3, 7], value => value % 2).get(1), [3, 7]);
 });
+
+QUnit.test('an instance constructor can call the same static with a different receiver', assert => {
+  const log = [];
+  // eslint-disable-next-line unicorn/no-static-only-class -- the instance exposes the static through its constructor
+  class Reader {
+    static read(source) { return source.from([1])[0]; }
+  }
+  const reader = new Reader();
+  const custom = {
+    get from() {
+      log.push('get');
+      return function () { return [this.value]; };
+    },
+    value: 9,
+  };
+  function callAgain(key) { return reader[key].read(custom); }
+  assert.strictEqual(Reader.read(Array), 1);
+  assert.strictEqual(callAgain('constructor'), 9);
+  assert.deepEqual(log, ['get']);
+});
+
+QUnit.test('constructing again selects the parameter default at each call', assert => {
+  const log = [];
+  const first = new function ({ from, [(log.push('key'), 'name')]: extra } = Array) {
+    this.read = () => typeof from === 'function' ? from([1])[0] : typeof from;
+    this.extra = extra;
+  }();
+  const Again = first.constructor;
+  const supplied = new Again({
+    get from() { log.push('get'); return () => [9]; },
+    name: 4,
+  });
+  assert.deepEqual([first.read(), supplied.read(), supplied.extra, new Again(undefined).read(), new Again({}).read()],
+    [1, 9, 4, 1, 'undefined']);
+  assert.deepEqual(log, ['key', 'get', 'key', 'key', 'key']);
+});
+
+QUnit.test('instance super calls the inherited Set union method', assert => {
+  class Bag extends Set {
+    join(other) { return super.union(other); }
+  }
+  const bag = new Bag([1]);
+  assert.deepEqual([...bag.join(new Set([2]))], [1, 2]);
+  assert.deepEqual([...bag], [1]);
+});

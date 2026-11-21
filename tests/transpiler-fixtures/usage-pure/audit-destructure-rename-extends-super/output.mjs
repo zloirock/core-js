@@ -1,10 +1,9 @@
 import _Set from "@core-js/pure/actual/set/constructor";
-// shorthand destructure `const { Set } = globalThis` - Set keeps its global name via the
-// shorthand key (equivalent to `Set: Set`). extending that alias and calling `super.union`
-// routes to the Set polyfill - Set.prototype.union is an ES2025 method that needs polyfilling
+// A destructured Set alias supplies the prototype for an instance super call.
 const Set = _Set;
 class C extends Set {
-  static combine(a, b) {
-    return super.union(a, b);
+  combine(other) {
+    return super.union(other);
   }
 }
+export const values = [...new C([1]).combine(new Set([2]))];

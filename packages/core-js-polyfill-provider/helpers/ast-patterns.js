@@ -30,8 +30,8 @@ export const ESCAPED_CONTAINER_NAMES = new WeakMap();
 export const LOCAL_MEMBER_CALLEES = new WeakMap();
 
 // Program -> source-position map of read-only parameters supplied by one built-in at every
-// closed call site. Reset with the escape census, including facts for cloned parameters. The scoped
-// resolver validates only these candidates; unrelated parameters never need its caller walk.
+// closed call site, or candidate identities supplied by visible calls of an open method. Only
+// the former can establish a unique receiver. Cloned parameters keep their source position.
 export const PARAMETER_STATIC_SOURCES = new WeakMap();
 
 // Read a file census fact at the same source site after a host has cloned its subtree.
@@ -1466,6 +1466,9 @@ export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null }
   // (`findIifeCallSite`): a tagged template hands the function its strings array and the
   // interpolations, so its params stay unaccounted for
   const call = immediateInvocationOf(fnPath);
+  // A constructor can publish its instance through either the result or its own this.
+  // The instance exposes the function again even when the expression has no name.
+  if (call?.node.type === 'NewExpression') return true;
   if (call && isIifeCallNode(call.node) && !namedFunctionSelfReferences(fnPath)) return false;
   return !paramNeverOverridden?.(paramPath);
 }
@@ -14778,9 +14781,13 @@ export function classSuperPath(classPath) {
 // ESTree on the FunctionExpression that member wraps - one read, so the two parsers cannot answer
 // differently about the same class
 export function classConstructorFunction(classNode) {
-  const ctor = (classNode.body?.body ?? []).find(member => member?.kind === 'constructor');
-  if (!ctor) return null;
-  return ctor.params ? ctor : ctor.value ?? null;
+  let signature = null;
+  for (const member of classNode.body?.body ?? []) if (member.kind === 'constructor') {
+    const fn = member.value ?? member;
+    if (fn.body) return fn;
+    signature ??= fn;
+  }
+  return signature;
 }
 
 // The class itself can replace the constructed instance, independently of what its base does.

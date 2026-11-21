@@ -39,9 +39,12 @@ import {
   callArgumentPathAt,
   FUNCTION_LIKE_NODE_TYPES,
   getTypeArgs,
+  pathOfNode,
   peelTransparentWrapperPath,
+  resolveCallArgument,
   resolveCallArgumentCoords,
   SKIPPABLE_WRAPPER_TYPES,
+  unwrapRuntimeExpr,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 
@@ -57,10 +60,14 @@ const RETURNING_INVOCATION_TYPES = new Set([
 ]);
 
 const MAX_PEEL = 16;
+const STRING_PROTOCOLS = {
+  match: 'match', matchAll: 'matchAll', replace: 'replace', replaceAll: 'replace', search: 'search', split: 'split',
+};
 
 export function createKnownGlobals({
   babelNodeType,
   isMemberLike,
+  instanceSlotWritten,
   isMutatedStatic = () => false,
   isNullableOrNever,
   resolveMemberPropertyName,
@@ -219,16 +226,27 @@ export function createKnownGlobals({
 
   // resolve return type of a known instance member (method or property) from a lookup table
   // for methods, objectType is passed through to typeFromHint to resolve 'inherit'
-  function resolveKnownInstanceMember(path, table, callPath) {
-    const name = resolveMemberPropertyName(path);
-    if (!name) return null;
-    const objectType = resolveNodeType(path.get('object'));
+  function resolveKnownInstanceMember(path, table, callPath,
+    object = path.get('object'), name = resolveMemberPropertyName(path), pairing = null) {
+    if (!name || !object) return null;
+    const objectType = resolveNodeType(object);
     if (!objectType) return null;
     const key = objectType.primitive ? (PRIMITIVE_WRAPPERS[objectType.type] || null) : objectType.constructor;
     if (!key) return null;
     const hint = lookupNested(table, key, name);
-    if (!hint) return null;
-    return typeFromHint(hint, objectType, callPath);
+    if (!hint || instanceSlotWritten?.(object, name) || isMutatedStatic(`${ key }.prototype`, name, { node: path.node, path })) return null;
+    if (key === 'String' && hasOwn(STRING_PROTOCOLS, name)
+      && (pairing ? pairing.argsUnknown || pairing.args.length : callPath?.node.arguments?.length)) {
+      const argument = pairing ? !pairing.argsUnknown && pathOfNode(callPath, resolveCallArgument(pairing.args, 0))
+        : directiveArgument(callPath);
+      if (!argument) return null;
+      const symbol = STRING_PROTOCOLS[name];
+      const value = unwrapRuntimeExpr(argument.node);
+      const regexp = value.type === 'RegExpLiteral' || !!value.regex;
+      if (regexp ? isMutatedStatic('RegExp.prototype', `Symbol.${ symbol }`)
+        : !resolveNodeType(argument)?.primitive) return null;
+    }
+    return typeFromHint(hint, objectType, pairing ? null : callPath);
   }
 
   // the ARGUMENT directives: what a call resolves to when the answer lives in the call itself

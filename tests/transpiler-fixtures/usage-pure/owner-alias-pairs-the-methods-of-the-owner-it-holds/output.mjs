@@ -1,5 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
+import _String$raw from "@core-js/pure/actual/string/raw";
 // a name bound to an owner whole (`const Alias = Owner`) calls the owner's own methods: a call through it
 // pairs its arguments as the owner's own spelling does, a literal's method and a class's static alike,
 // through every link of the chain - and whatever opens the alias, handing it out, opens the owner too
@@ -18,7 +19,7 @@ const Num = Numbers;
 const Again = Num;
 class Opened {
   static plain(S, strings) {
-    return S.raw(strings);
+    return (S === String ? _String$raw : S.raw.bind(S))(strings);
   }
 }
 const Shared = Opened;

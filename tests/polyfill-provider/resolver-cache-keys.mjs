@@ -89,7 +89,7 @@ await checkBoth('class body: static and instance of one name stay apart', `
   class C {
     static m(): string { return 'a'; }
     // @ts-expect-error duplicate members are the shape under test
-    m(): number[] { return [1]; }
+    m(): string { return 'first'; }
     // @ts-expect-error duplicate members are the shape under test
     m(): string[] { return ['a']; }
   }

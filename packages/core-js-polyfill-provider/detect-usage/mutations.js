@@ -227,7 +227,7 @@ import {
   withinAliasWalkBudget,
   writeTargetsReadSlot,
 } from './resolve.js';
-import { isKnownGlobalName, staticReceiverHint } from './globals.js';
+import { isKnownGlobalName, NATIVE_STATIC_OWNERS, staticReceiverHint } from './globals.js';
 import { canonicalArrayIndex, dropLeadingThisParam, nodeRangeContains, PRIMITIVE_WRAPPERS } from '../resolve-node-type/base.js';
 import { findEnumMember } from '../resolve-node-type/enum-types.js';
 import { bodyRunsWhileTestHolds, nodeAlwaysHardExits } from '../resolve-node-type/exit-analysis.js';
@@ -556,6 +556,10 @@ function recordHopInvocation(node, recordReceiver) {
 // Collect names on the pristine tree, before either emitter rewrites it. Registration is separate
 // from the name sets: side queries share resolution state without publishing their answers there.
 const ESCAPE_CENSUS = new WeakMap();
+
+export function constructionExposesStatics(program, callee) {
+  return readsConstructorKey(program) || (ESCAPE_CENSUS.get(program)?.computedConstructorRead(callee) ?? true);
+}
 
 // a parameter pattern nests, and so do the defaults on its slots - the ceiling is the same one the
 // census puts on every other descent
@@ -3841,6 +3845,25 @@ export function escapedCtorReferencesReducer({
   // a `constructor` read reaches (`readsConstructorKey`), and a subclass calls them as its own unless its static
   // context reaches past its name or it is handed on in turn (a namesake's reads count, to stay on the safe
   // side); every other read - an argument, a return, a key no canon names - hands them out
+  // A dynamic key can recover the constructor of the instance actually indexed.
+  // Resolve the key and the receiver in their recorded scopes, once per file.
+  let computedConstructors;
+  function computedConstructorRead(callee) {
+    if (!computedConstructors) {
+      computedConstructors = new Set();
+      for (const member of memberUses) {
+        if (!member.computed || staticMemberKeyName(member) !== null) continue;
+        const instances = aliasedValues(aliasInit, member.object, new Set());
+        if (instances.every(instance => !(instance.type === 'NewExpression'))) continue;
+        const keys = censusKeyNames(member.property, 0, false);
+        if (keys && !keys.includes('constructor')) continue;
+        for (const instance of instances) if (instance.type === 'NewExpression') {
+          computedConstructors.add(unwrapRuntimeExpr(instance.callee));
+        }
+      }
+    }
+    return computedConstructors.has(callee);
+  }
   let classReads;
   function classStaticsHandedOut(name, owner, seen = new Set()) {
     classReads ??= new Map();
@@ -3855,7 +3878,7 @@ export function escapedCtorReferencesReducer({
       seen.add(node);
       const alias = ownerAliasReads.get(node);
       if (alias) return classStaticsHandedOut(alias.name, alias.owner, seen);
-      if (constructedRefs.has(node)) return readsConstructorKey(programNode);
+      if (constructedRefs.has(node)) return constructionExposesStatics(programNode, node);
       const subclass = heritageRefs.get(node);
       return !subclass || subclass.type !== 'ClassDeclaration' || !subclass.id || classReachesItselfUnnamed(subclass)
         || classStaticsHandedOut(subclass.id.name, null, seen);
@@ -4492,7 +4515,7 @@ export function escapedCtorReferencesReducer({
     programNode = node;
     LOCAL_MEMBER_CALLEES.set(node, memberCallees);
     PARAMETER_STATIC_SOURCES.set(node, parameterSources);
-    ESCAPE_CENSUS.set(node, census = { boundCalls, maySkipInvokedBody });
+    ESCAPE_CENSUS.set(node, census = { boundCalls, maySkipInvokedBody, computedConstructorRead });
     ESCAPED_CTOR_NAMES.set(node, ctorNames);
     CTOR_ALIAS_INITS.set(node, aliasInit);
     CENSUS_STATIC_RECEIVERS.delete(node);
@@ -4814,6 +4837,18 @@ export function escapedCtorReferencesReducer({
         let sites = callableScope.parameterCallSites.get(stands);
         if (!sites) callableScope.parameterCallSites.set(stands, sites = []);
         sites.push({ pairing });
+      } else if (stands && callableScope.classStaticChains.has(stands) && !optedOutNodes?.has(node) && !pairing.argsUnknown) {
+        // A visible call of an open static method supplies candidates, never a unique receiver.
+        // Native constructors need an identity guard; a substituted namespace carries its statics.
+        for (const [index, param] of dropLeadingThisParam(stands.params).entries()) {
+          if (param.type !== 'Identifier') continue;
+          const value = unwrapRuntimeExpr(resolveCallArgument(pairing.args, index));
+          if (value?.type !== 'Identifier' || !NATIVE_STATIC_OWNERS.has(value.name) || optedOutNodes?.has(value)
+            || declarations.declares(value.name, referenceScopes.get(value) ?? [])) continue;
+          const slot = nodePositionKey(param) ?? param;
+          if (!parameterSources.has(slot)) parameterSources.set(slot, { guarded: new Set() });
+          parameterSources.get(slot).guarded.add(value.name);
+        }
       }
       // calleeFunctionOf also proves fixed object methods with no this-dependent behavior.
       // Their return values pass through the same call graph as identifier-bound functions.
@@ -6658,7 +6693,19 @@ function buildContainerIndex(declared, containerDeclarations, unrootedKeys) {
     if (!keys) containerSlotIndex.byName.set(declaration.name, keys = []);
     if (!keys.includes(key)) keys.push(key);
   }
-  return { qualify, containers, containerSlotIndex };
+  // The type resolver can present the other parser's copy of a lexical scope.
+  let sourceScopes;
+  function scopedKey(name, scope) {
+    let id = scopeIds.get(scope);
+    if (id === undefined) {
+      const position = nodePositionKey(scope);
+      if (!position) return null;
+      sourceScopes ??= new Map([...scopeIds].filter(([node]) => node).map(([node, number]) => [`${ node.type }:${ nodePositionKey(node) }`, number]));
+      id = sourceScopes.get(`${ scope.type }:${ position }`);
+    }
+    return id === undefined ? null : `${ name }#${ id }`;
+  }
+  return { qualify, scopedKey, containers, containerSlotIndex };
 }
 
 // `qualify` resolves a name in its scope chain to its declaration key: the alias and its target
@@ -7045,6 +7092,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   const rawSlotWrites = [];
   const selectedWrites = new WeakSet();
   const rawUnrootedKeys = new Set();
+  const fieldMemberWrites = new Map();
   // receivers of an in-place array mutator: these REPOSITION existing indices, so the literal's
   // element list stops describing what a slot holds. `push` only appends and the `to*` / `with`
   // family returns copies, so neither disturbs an existing index
@@ -7056,8 +7104,8 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
   let currentScopes = [];
   let currentThisOwner = null;
   // a slot write / escape record, stamped with the chain it was spelled in
-  function recordSlotWrite(name, keys, value = null, scopes = currentScopes, write = null, escape = null) {
-    rawSlotWrites.push([name, keys, value, scopes, write, escape]);
+  function recordSlotWrite(name, keys, value = null, scopes = currentScopes, write = null, escape = null, site = write) {
+    rawSlotWrites.push([name, keys, value, scopes, write, escape, site]);
   }
   // a repositioning invocation's record, stamped the same way
   function recordRepositioned(name, values, scopes = currentScopes) {
@@ -7565,15 +7613,28 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         if (keys[last] === 'length') keys[last] = null;
         else if (keys[last] === null && keys.length === chain.keys.length && member.computed
           && wksComputedKeyName(member.property) === 'iterator') keys[last] = Symbol.iterator;
-        recordSlotWrite(root.name, keys, value, currentScopes, write);
+        recordSlotWrite(root.name, keys, value, currentScopes, write, null, currentMutationSite);
       }
     }
   }
 
   // ... and a write through a receiver no name spells (`UNROOTED_WRITE_KEYS`)
-  function recordUnrootedWrite(chain, owner = currentThisOwner) {
+  function recordUnrootedWrite(chain, owner = currentThisOwner, scopes = currentScopes) {
     const key = unrootedWriteKey(chain, owner);
     if (key !== null) rawUnrootedKeys.add(key);
+    else if (chain.root?.type === 'ThisExpression' && chain.keys.length > 1) {
+      // An instance write leaves class statics alone, but a method on the value
+      // of an instance field can now return a different type.
+      const home = scopes.findLast(scope => CLASS_NODE_TYPES.has(scope.type));
+      if (!home) return;
+      const method = chain.keys.at(-1);
+      let fields = fieldMemberWrites.get(method);
+      if (!fields) fieldMemberWrites.set(method, fields = new Map());
+      const field = chain.keys.at(-2);
+      let homes = fields.get(field);
+      if (!homes) fields.set(field, homes = new Set());
+      homes.add(nodePositionKey(home) ?? home);
+    }
   }
 
   // the receiver of an in-place array mutator: a bare name repositions its own container; a MEMBER
@@ -7585,7 +7646,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     for (const chain of writeTargetChains(owner)) {
       const { root, keys } = chainSlotPath(chain);
       if (!keys) {
-        recordUnrootedWrite(chain, thisOwner);
+        recordUnrootedWrite(chain, thisOwner, scopes);
         continue;
       }
       const slot = keys.at(-1) === null ? keys : [...keys, null];
@@ -7803,7 +7864,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         // DERIVES is no reaching candidate
         const arg = unwrapRuntimeExpr(node.argument);
         if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') {
-          recordMemberSlotWrite(arg);
+          recordMemberSlotWrite(arg, null, node);
           pushTarget(arg);
         } else if (arg?.type === 'Identifier') pushTarget(arg);
         break;
@@ -7815,7 +7876,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         if (node.operator === 'delete') {
           const target = unwrapRuntimeExpr(node.argument);
           if (target?.type === 'MemberExpression' || target?.type === 'OptionalMemberExpression') {
-            recordMemberSlotWrite(target);
+            recordMemberSlotWrite(target, null, node);
             pushTarget(target);
           }
         }
@@ -8264,8 +8325,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         const { root, keys } = chainSlotPath({ root: chain.root, keys: [...chain.keys, key] });
         if (keys) filed.push([root.name, keys, value, scopes, node]);
         else {
-          const written = unrootedWriteKey({ root: chain.root, keys: [...chain.keys, key] }, thisOwner);
-          if (written !== null) rawUnrootedKeys.add(written);
+          recordUnrootedWrite({ root: chain.root, keys: [...chain.keys, key] }, thisOwner, scopes);
         }
       }
       rawSlotWrites.splice(at, 0, ...filed);
@@ -8304,12 +8364,7 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     });
   }
 
-  // the written-container record, filed once: the escape census asks it of a read it would take as served
-  // (`CONTAINER_SLOT_RECORDS`), ahead of this reducer's own result where the reducers run in that order
-  let records = null;
-  function fileContainerRecords() {
-    if (records) return records;
-    prepare();
+  function fileCallContainers() {
     // a binding of a NAMED invocation holds the container its callee yields, as one of an inline one
     // does: filed now that the escape census has resolved the callees, so a write through the
     // binding registers against the literal the reader walks and a pattern over the call re-homes
@@ -8331,6 +8386,16 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       recordPatternLiteralReHomes(pattern, yielded.literal);
       currentScopes = restore;
     }
+    return callees;
+  }
+
+  // the written-container record, filed once: the escape census asks it of a read it would take as served
+  // (`CONTAINER_SLOT_RECORDS`), ahead of this reducer's own result where the reducers run in that order
+  let records = null;
+  function fileContainerRecords() {
+    if (records) return records;
+    prepare();
+    const callees = fileCallContainers();
     const { ownedStoreTargets, assignStores } = fileExplicitStores(CALL_BUILTINS.get(programNode), callees);
     // only a root BOUND to a container literal matters: `config.foo = v` over a plain object is
     // ordinary code, and reporting it would deopt every namespace read in the file. ONE published
@@ -8363,14 +8428,17 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
       }
       return values;
     }
-    const { qualify, containers, containerSlotIndex } = buildContainerIndex(declared, containerDeclarations, rawUnrootedKeys);
+    const { qualify, scopedKey, containers, containerSlotIndex } = buildContainerIndex(declared, containerDeclarations, rawUnrootedKeys);
     containerSlotIndex.programNode = programNode;
+    if (fieldMemberWrites.size) containerSlotIndex.fieldMemberWrites = fieldMemberWrites;
     containerSlotIndex.assignWrites = assignStores;
     publishWrittenAliases();
     const plainAliases = publishPlainAliases(aliasValues, recordEscapedContainers, qualify, containers);
     const slotPathMemo = new Map();
     const installedWrappers = [];
-    for (const [name, keys, value, scopes, write, escape] of rawSlotWrites) {
+    const otherWriteKeys = new Set();
+    const otherWrites = new Map();
+    for (const [name, keys, value, scopes, write, escape, site = write] of rawSlotWrites) {
       if (escape?.call && ownedStoreTargets.get(escape.call) === escape.argument) continue;
       const key = qualify(name, scopes);
       if (!key) continue;
@@ -8380,10 +8448,24 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         // a write that stores what can hold a built-in PROMOTES an inert array-literal binding, as
         // the mutator install below does (`const w = [1]; w[0] = Map`)
         const entry = containers.get(root);
-        if (!entry?.container && !(entry?.arrayLiteral && (write || value && canHoldBuiltIn(value)))) continue;
+        if (!entry?.container && !(entry?.arrayLiteral && (write || value && canHoldBuiltIn(value)))) {
+          // A captured instance field has no literal slot to resolve, but replacing
+          // its method still invalidates the return type of a call through any alias.
+          if (site) {
+            const slot = containerSlotKey(root, path ?? [null]);
+            let writes = otherWrites.get(slot);
+            if (!writes) {
+              otherWriteKeys.add(path?.at(-1) ?? null);
+              otherWrites.set(slot, writes = []);
+            }
+            if (!writesPastCeiling(writes) && writes.at(-1) !== site) writes.push(site);
+          }
+          continue;
+        }
         // Keep exact write sites for the dominance query; an aliased site also owes a receiver proof.
         // Keep an aliased invocation for scoped builtin proofs, but not for proofs
         // that assume its argument is the queried container's direct spelling.
+        if (write && (!path || path.includes(null))) (containerSlotIndex.computedWrites ??= new Set()).add(root);
         const values = writtenSlot(containerSlotKey(root, path ?? [null]), path && !path.includes(null) ? write : null,
           root === key || escape?.iteration ? escape : escape?.call ? { ...escape, aliased: true } : null);
         if (write && (root !== key || selectedWrites.has(write))) containerSlotIndex.aliasedWrites.add(write);
@@ -8406,6 +8488,27 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         for (const value of values) if (value) sink.push(value);
       }
     }
+    if (otherWrites.size) containerSlotIndex.otherSlotWritten = (read, keys, usagePath, adapter) => {
+      if (!otherWriteKeys.has(keys.at(-1)) && !otherWriteKeys.has(null)) return false;
+      const binding = adapter.getBinding({ scope: usagePath.scope, name: read.name, path: usagePath, read });
+      if (!binding) return false;
+      const scopes = aliasReferenceScopes(CTOR_ALIAS_INITS.get(programNode), read);
+      const scope = binding.scope?.block ?? binding.scope?.path?.node;
+      const lexical = (binding.path?.node ?? binding.node)?.type === 'VariableDeclarator' && binding.kind !== 'var';
+      const key = scopes ? qualify(read.name, scopes)
+        : scopedKey(read.name, lexical && FUNCTION_LIKE_NODE_TYPES.has(scope?.type) ? scope.body : scope);
+      if (!key) return false;
+      return canonicalSlotPaths(plainAliases, key, keys, slotPathMemo).some(([root, path]) => {
+        if (!path) return true;
+        const prefixes = slotPathPrefixes(root, path);
+        return prefixes.some((prefix, at) => {
+          const writes = otherWrites.get(at === path.length ? prefix : `${ prefix }.*`);
+          return writes && (writesPastCeiling(writes) || !noReassignmentReachesUsage({
+            reassignmentNodes: writes, usagePath, usageNode: read, bindingScopeNode: scope,
+          }));
+        });
+      });
+    };
     propagateWrapperWrites({
       writtenContainerSlots,
       containers,
@@ -9451,6 +9554,42 @@ export function createDetectionAdapter({
             objectName: object, keyName: key, scope: read.path.scope, adapter, path: read.path,
           }))
         && !slotReadPrecedesItsWrites({ object, key, read, mutatedSet, adapter });
+    },
+    // Nested writes through a class instance, keyed by the method and field they replace.
+    get fieldMemberWrites() {
+      return getContainerSlotIndex?.()?.fieldMemberWrites;
+    },
+    // An instance return hint assumes the method the source selected. Passing the
+    // object on is not itself a write; a named store or a computed write can replace it.
+    hasObservedSlotWrite(name, keys, owner, path, read) {
+      const slots = getWrittenContainerSlots?.();
+      if (!slots) return false;
+      const index = getContainerSlotIndex?.();
+      if (read?.type === 'Identifier' && keys[0] !== '__proto__' && index?.otherSlotWritten?.(read, keys, path, adapter)) return true;
+      return containerKeys(name, owner).some(root => {
+        const slot = containerSlotKey(root, keys);
+        if (keys[0] === '__proto__' && index?.escapes.get(`${ root }.*`)?.some(escape => {
+          const call = escape?.call && CALL_BUILTINS.get(index.programNode)?.(escape.call);
+          return call?.method === 'setPrototypeOf' && (call.namespace === 'Object' || call.namespace === 'Reflect')
+            && unwrapRuntimeExpr(call.args[0]) === escape.argument;
+        })) return true;
+        return (slots.has(slot) || index?.computedWrites?.has(root)) && adapter.isWrittenContainerSlot(name, keys, owner, path, read);
+      });
+    },
+    // A deleted own static exposes its superclass. Only an unconditional deletion with
+    // no other writer proves the inheritance lookup for a replacement.
+    classSlotDeletion(owner, key, path) {
+      const index = getContainerSlotIndex?.();
+      const root = index?.owners.get(nodePositionKey(owner) ?? owner);
+      if (!root) return null;
+      const slot = containerSlotKey(root, [key]);
+      const writes = index.writes.get(slot);
+      if (!writes?.some(write => write.type === 'UnaryExpression' && write.operator === 'delete')) return null;
+      const slots = getWrittenContainerSlots();
+      return writes.every(write => write.type === 'UnaryExpression' && write.operator === 'delete')
+        && !slots.get(slot)?.length && !slots.has(`${ root }.*`) && !index.unrootedKeys?.has(key)
+        && writes.every(write => !index.aliasedWrites.has(write))
+        && reassignmentDominatesUsage({ reassignmentNodes: writes, usagePath: path, adapter }) ? 'certain' : 'possible';
     },
     // Does a recorded write or escape invalidate this container slot at the read? The record's own answer
     // (`containerSlotRecordWritten`), separately from builtin mutations, with this side's proofs that a record

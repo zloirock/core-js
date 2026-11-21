@@ -33,7 +33,7 @@
 // binding-analysis cluster instantiated upstream (factory function declaration is hoisted;
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { MAX_DEPTH, PRIMITIVE_WRAPPERS, $Object, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam } from './base.js';
+import { MAX_DEPTH, $Object, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam } from './base.js';
 import {
   collectQualifiedSegments,
   discriminateOverloads,
@@ -148,10 +148,7 @@ export function createCallResolution({
     const method = instanceDispatcherKey(pathOfNode(callee, dispatch.callee));
     if (!method) return null;
     const receiver = pathOfNode(callee.parentPath, pairing.thisArg);
-    const type = receiver && resolveNodeType(receiver);
-    const family = type?.primitive ? PRIMITIVE_WRAPPERS[type.type] : type?.constructor;
-    const hint = family && lookupNested(KNOWN_INSTANCE_METHOD_RETURN_TYPES, family, method);
-    return hint ? typeFromHint(hint, type) : null;
+    return resolveKnownInstanceMember(callee, KNOWN_INSTANCE_METHOD_RETURN_TYPES, callee.parentPath, receiver, method, pairing);
   }
 
   // ES construct semantics: a constructor's PRIMITIVE return is DISCARDED and the fresh object

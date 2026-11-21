@@ -4,8 +4,12 @@ import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-collections.iterator";
+// An instance super call reads and initializes the inherited WeakMap slot.
 class A extends WeakMap {
-  static f(k) {
+  read(k) {
     return super.getOrInsert(k, 1);
   }
 }
+const cache = new A();
+const key = {};
+export const values = [cache.read(key), cache.get(key)];

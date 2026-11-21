@@ -1541,6 +1541,16 @@ function superStaticMeta(adapter, prog, method = 'usage-global') {
   const read = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'Super');
   return resolveStaticInheritedMember(read);
 }
+// The heritage alone already pulls in WeakMap modules in global mode. Check the receiver
+// at the super site itself so an instance-only key cannot masquerade as a static lookup.
+for (const [member, source, expected] of [
+  ['static prototype-only', 'class A extends WeakMap { static read(k) { return super.getOrInsert(k, 1); } }', ['WeakMap', 'static']],
+  ['instance prototype-only', 'class A extends WeakMap { read(k) { return super.getOrInsert(k, 1); } }', null],
+  ['static inherited', 'class A extends Array { static read(xs) { return super.from(xs); } }', ['Array', 'static']],
+]) runBoth(`resolveStaticInheritedMember/distinguishes ${ member }`, source, (adapter, prog, lbl) => {
+  const meta = superStaticMeta(adapter, prog);
+  checkDeep(lbl, meta && [meta.object, meta.placement], expected);
+});
 function staticExtra(object) {
   return { kind: 'property', object, key: 'from', placement: 'static', receiverHint: 'function', inheritedStatic: true };
 }

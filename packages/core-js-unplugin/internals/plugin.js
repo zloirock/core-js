@@ -1188,6 +1188,7 @@ export default function createPlugin(options) {
         t: types,
         adapter: estreeAdapter,
         resolveKey: sharedResolveKey,
+        descendantShadowsStatic: typeResolvers.descendantShadowsStatic,
         getInjector: () => injector,
         attachUnionExtras: attachMemberUnionExtras,
         containerReceiverName: staticContainerReceiverName,

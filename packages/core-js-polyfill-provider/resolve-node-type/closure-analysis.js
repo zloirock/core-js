@@ -48,6 +48,7 @@ import {
   POSITION_FORWARDS,
   POSITION_INSPECTS,
   propertyKeyName,
+  reassignmentReachesUsage,
   propertyInstallsPrototype,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
@@ -736,20 +737,19 @@ export function createClosureAnalysis({
       const index = getModuleFieldIndex(programPath);
       const names = new Set([className]);
       const paths = [classPath];
-      const queue = [className];
-      // the index is keyed by the super's NAME alone, so a class of the same name in another scope
-      // hands over ITS subclasses as if they were ours - carry the class NODES to check against
       const nodes = new Set([classPath.node]);
-      while (queue.length) {
-        const name = queue.shift();
-        for (const sub of index.subclassesBySuper.get(name) ?? []) {
+      // Proven extends clauses are indexed by binding identity. Only unresolved heritage
+      // shares a name bucket; visit each bucket once even when several classes share its name.
+      const visited = new Set();
+      for (const parent of paths) for (const key of [parent.node, classBindingName(parent)]) {
+        if (visited.has(key)) continue;
+        visited.add(key);
+        for (const sub of index.subclassesBySuper.get(key) ?? []) {
           const subName = classBindingName(sub);
-          if (!subName || names.has(subName)) continue;
-          if (classRefLandsOutside(sub.node.superClass, sub.scope, nodes)) continue;
+          if (!subName || nodes.has(sub.node)) continue;
           nodes.add(sub.node);
           names.add(subName);
           paths.push(sub);
-          queue.push(subName);
         }
       }
       return { names, paths, nodes };
@@ -1024,9 +1024,8 @@ export function createClosureAnalysis({
       },
     );
   }
-  // the class-hierarchy indexes are keyed by a bare NAME, so a same-named class in another scope
-  // drops its own entries into our bucket. given a reference TO a class (an `extends` clause, a
-  // `new` callee) and the scope that reference lives in, is it PROVEN to name a class outside the
+  // A constructor lookup by name may find a namesake. Given its lexical scope, does the
+  // reference provably name a class outside the
   // set? a reference resolving to nothing is not proof and answers false: it can still be a real
   // one at runtime (`extends mix(Base)`, a class-valued binding no declaration backs), and dropping
   // it would hide a real write behind a retained narrow - the unsound direction
@@ -1064,12 +1063,16 @@ export function createClosureAnalysis({
   // reads an inner shadow of the root as the root. `const Alias = Source` walks one hop at a
   // time; `unwrapExpressionChain` peels paren / SE / TS wrappers on the init.
   // cycle or `let A = X; A = Y` reassignment -> null
-  function aliasChainCanonicalRoot(name, scope) {
+  function aliasChainCanonicalRoot(read, scope) {
+    let { name } = read;
     const seen = new Set();
-    while (!seen.has(name)) {
-      seen.add(name);
+    while (true) {
       const binding = getScopeBinding({ scope, name });
-      if (binding?.constantViolations?.length) return null;
+      if (binding?.constantViolations?.length && reassignmentReachesUsage({
+        binding, adapter: babelBindingAdapter, path: pathOfNode(binding.path, read), usageNode: read,
+      })) return null;
+      if (seen.has(binding)) return null;
+      seen.add(binding);
       const init = unwrapExpressionChain(binding?.path?.node?.init);
       if (init?.type !== 'Identifier') return { name, scope };
       // advance scope to the binding's declaration scope so the next hop's `getBinding`
@@ -1077,8 +1080,8 @@ export function createClosureAnalysis({
       // outer; `function f() { const P = X; ... }` inner) would otherwise mis-resolve
       scope = aliasDeclScope(binding, scope);
       name = init.name;
+      read = init;
     }
-    return null;
   }
 
   // canonical root of an `extends` clause node: the NAME plus the scope it is canonical in, since
@@ -1089,7 +1092,7 @@ export function createClosureAnalysis({
   // canonical for them. unsupported shapes return null - over-registration WIDENS the base's field fold
   function extendsClauseCanonical(superClass, scope) {
     superClass = unwrapRuntimeExpr(superClass);
-    if (superClass?.type === 'Identifier') return aliasChainCanonicalRoot(superClass.name, scope);
+    if (superClass?.type === 'Identifier') return aliasChainCanonicalRoot(superClass, scope);
     if (superClass?.type !== 'MemberExpression' || superClass.computed) return null;
     const proxy = globalProxyMemberName({ node: superClass, scope, adapter: babelBindingAdapter, path: null });
     if (proxy) return { name: proxy, scope };
@@ -1111,19 +1114,18 @@ export function createClosureAnalysis({
     return extendsClauseCanonical(superClass, scope)?.name ?? null;
   }
 
-  // multi-name variant of `extendsClauseName` for the module-field index. ambiguous shapes
-  // (`extends mix(Base)`, `extends cond ? A : B`) register under EVERY candidate name -
-  // over-registration widens the base's field fold conservatively
-  function collectExtendsCandidateNames(superClass, scope, out = []) {
+  // A known class indexes its own subclasses by identity. An unresolved base retains the
+  // name fallback; a selection or mixin contributes each candidate conservatively.
+  function collectExtendsCandidates(superClass, scope, out = []) {
     superClass = unwrapRuntimeExpr(superClass);
     if (!superClass) return out;
-    const single = extendsClauseName(superClass, scope);
-    if (single) {
-      out.push(single);
+    const base = extendsClauseCanonical(superClass, scope);
+    if (base) {
+      out.push(classDeclFromBindingName(base.name, base.scope)?.node ?? base.name);
       return out;
     }
     const children = EXTENDS_CHILD_RESOLVERS[superClass.type]?.(superClass);
-    if (children) for (const child of children) collectExtendsCandidateNames(child, scope, out);
+    if (children) for (const child of children) collectExtendsCandidates(child, scope, out);
     return out;
   }
 
@@ -1184,14 +1186,8 @@ export function createClosureAnalysis({
           // over-registration on the subclass side is the safe direction - it WIDENS
           // base's field-flow with subclass writes, falling back to generic dispatch
           // (the conservative outcome). silent bail on unrecognized shapes is benign
-          const names = collectExtendsCandidateNames(p.node.superClass, p.scope);
-          // dedupe: `extends cond ? Base : Base` would otherwise register subclass twice
-          // under the same key, double-counting writes through the subclass instance
-          const seen = new Set();
-          for (const name of names) {
-            if (seen.has(name)) continue;
-            seen.add(name);
-            pushMultimap(subclassesBySuper, name, p);
+          for (const parent of new Set(collectExtendsCandidates(p.node.superClass, p.scope))) {
+            pushMultimap(subclassesBySuper, parent, p);
           }
         },
         // index ALL assignments, updates and deletions of member slots. Deletion can reveal

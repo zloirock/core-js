@@ -29,6 +29,8 @@ import {
   isPristineProxyGlobal,
   isReusableReceiver,
   CENSUS_STATIC_RECEIVERS,
+  PARAMETER_STATIC_SOURCES,
+  sourceCensusFact,
   isTaggedTemplateTagPosition,
   mayHaveSideEffects,
   memberChainEndPath,
@@ -2252,6 +2254,13 @@ export function handleMemberExpressionNode({
         ? aliasWriteCtorNames({ name: guardIdent.name, scope, adapter, path, binding: guardedBinding, read: guardIdent }) : [])
         .filter(name => !hopBase || POSSIBLE_GLOBAL_OBJECTS.has(name));
       for (const name of iteratedObjects) if (!writeObjects.includes(name)) writeObjects.push(name);
+      if (guardedBinding?.kind === 'param' && !hopBase && adapter.method === 'usage-pure') {
+        const param = guardedBinding.path ?? guardedBinding.declarationPath;
+        for (const name of sourceCensusFact(PARAMETER_STATIC_SOURCES, param?.node, path)?.guarded ?? []) {
+          if (!isMutatedGlobalSlot(adapter, name) && !adapter.isMutatedStatic?.(name, meta?.key ?? staticMemberKeyName(node))
+            && !writeObjects.includes(name)) writeObjects.push(name);
+        }
+      }
       // ... and when NOTHING registered an alias at all (`let M; if (c) M = globalThis.Map` -
       // the write's RHS resolves on its own, so the member channel swaps it and the registry
       // never sees the binding), the enumeration IS the hint: without it the read went out raw
