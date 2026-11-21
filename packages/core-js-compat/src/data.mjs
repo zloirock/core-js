@@ -2255,7 +2255,7 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.fill': {
-    chrome: '58',
+    chrome: '59',
     firefox: '55',
     hermes: '0.1',
     rhino: '1.9.0',

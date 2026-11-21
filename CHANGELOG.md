@@ -221,6 +221,7 @@
     - `ArrayBuffer.prototype.slice` marked as properly supported from Chrome 52 and Safari 14.1 instead of Chrome 31 and Safari 12.1 because of the detached buffers bug above
     - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` marked as properly supported from NodeJS 22.4 because of the allocation failure crash (see above)
     - `DataView` marked as properly supported from Chrome 54 and NodeJS 7.0 instead of Chrome 26 and NodeJS 0.11.0 because of the arguments conversion bug above
+    - `%TypedArray%.prototype.fill` marked as properly supported from Chrome 59 because Chrome 58 converts the value once per element ([V8 fix](https://github.com/v8/v8/commit/2b1b32253bd4f0d6d97ae6c804d8e66eb1bfd07b))
     - `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }` marked as properly supported from Chrome 144 instead of 140 because of failures on views of resizable buffers. `setFromBase64` also excluded trailing whitespace from its `read` count
   - `Number` and `Math`
     - `Number.prototype.{ toExponential, toFixed, toPrecision }`
