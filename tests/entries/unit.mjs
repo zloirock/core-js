@@ -13,7 +13,39 @@ function load(...components) {
   return require(path);
 }
 
+// Exercise cold public entries with third-party shims already installed.
+function checkSpliceEntries() {
+  const { splice, toSpliced } = Array.prototype;
+  let largeCalls = 0;
+  function wrap(method) {
+    return function (...args) {
+      if (this.length === Number.MAX_SAFE_INTEGER) {
+        largeCalls++;
+        return [];
+      }
+      return Reflect.apply(method, this, args);
+    };
+  }
+  const spliceShim = wrap(splice);
+  const toSplicedShim = wrap(toSpliced);
+  /* eslint-disable no-extend-native -- simulate preinstalled shims during entry initialization */
+  try {
+    Array.prototype.splice = spliceShim;
+    Array.prototype.toSpliced = toSplicedShim;
+    const probe = require(`${ PATH }/internals/array-splice-test-object`)(splice, 1);
+    for (const index of [0, Number.MAX_SAFE_INTEGER - 3]) throws(() => Reflect.get(probe, index));
+    deepEqual(load('es', 'array/splice')([1], 0, 1), [1]);
+    deepEqual(load('es', 'array/to-spliced')([1], 0), []);
+    ok(largeCalls === 0);
+  } finally {
+    if (Array.prototype.splice === spliceShim) Array.prototype.splice = splice;
+    if (Array.prototype.toSpliced === toSplicedShim) Array.prototype.toSpliced = toSpliced;
+  }
+  /* eslint-enable no-extend-native -- end of the preinstalled shim fixture */
+}
+
 for (PATH of ['core-js-pure', 'core-js']) {
+  checkSpliceEntries();
   for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
@@ -1324,6 +1356,11 @@ for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
 }
+
+// A conforming implementation also passes the compatibility probes after the global entries install it.
+await import('../compat/tests.js');
+ok(globalThis.tests['es.array.splice'].every(test => test()));
+ok(globalThis.tests['es.array.to-spliced']());
 
 echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
 

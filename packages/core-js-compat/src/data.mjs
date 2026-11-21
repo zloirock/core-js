@@ -449,11 +449,12 @@ export const data = {
     safari: '10.0',
   },
   'es.array.splice': {
-    chrome: '51',
-    edge: '13',
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1165052
-    firefox: '48',
-    safari: '10.0',
+    // Chrome 68 - 70 pass; V8 7.1 regressed when splice moved to Torque.
+    // https://issues.chromium.org/issues/42210878#comment18
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=924058
+    firefox: '55',
+    // https://bugs.webkit.org/show_bug.cgi?id=211205
+    safari: '14.0',
   },
   'es.array.to-reversed': {
     chrome: '110',
@@ -472,13 +473,15 @@ export const data = {
     safari: '16.0',
   },
   'es.array.to-spliced': {
-    chrome: '110',
-    deno: '1.27',
+    // https://issues.chromium.org/issues/587994321
+    // https://bugs.webkit.org/show_bug.cgi?id=320830
+    bun: '1.4.3',
     firefox: '115',
-    hermes: '0.13',
-    'react-native': '0.74',
+    // https://github.com/meta/hermes/blob/static_h/doc/blog/2026-06-05-new-hermes-stable-release.md#bug-fixes
+    hermes: '260318099.0.0',
+    'react-native': '0.88',
     rhino: '1.8.0',
-    safari: '16.0',
+    safari: '27.3',
   },
   'es.array.unscopables.flat': {
     chrome: '73',

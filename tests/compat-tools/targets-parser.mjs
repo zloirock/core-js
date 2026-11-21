@@ -176,14 +176,15 @@ for (const targets of [
   { esmodules: 'intersect', browsers: 'safari TP' },
 ]) {
   deepEqual(targetsParser(targets), new Map([
-    ['safari', '999999'],
+    ['safari', '999999999'],
   ]), `latest Safari version: ${ JSON.stringify(targets) }`);
 }
 
-deepEqual(targetsParser({ chrome: 'latest', safari: 'TP', ios_saf: '15.4' }), new Map([
-  ['chrome', '999999'],
+deepEqual(targetsParser({ chrome: 'latest', hermes: 'latest', safari: 'TP', ios_saf: '15.4' }), new Map([
+  ['chrome', '999999999'],
+  ['hermes', '999999999'],
   ['ios', '15.4'],
-  ['safari', '999999'],
+  ['safari', '999999999'],
 ]), 'latest versions mixed with numeric versions and aliases');
 
 for (const targets of [

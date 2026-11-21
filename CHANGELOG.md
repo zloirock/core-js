@@ -87,6 +87,9 @@
   - Added a workaround for an SWC optimization that rewrites `Array(1)` to `[,]` and hides [the `Array.prototype.includes` bug in Firefox 99-101](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541)
   - Fixed the `Array.prototype.slice` polyfill truncating the result when converting the bounds or reading the species constructor shortens the source array
   - Added a workaround for Rhino 1.9.0-1.9.2, where native `Array.prototype.splice` [passes zero to the species constructor before computing the deletion count](https://github.com/mozilla/rhino/blob/ae05f8160ee90d23e67e38fb5d4005771a2ace3f/rhino/src/main/java/org/mozilla/javascript/NativeArray.java#L1317-L1335) and [discards the species result and skips reading and writing `length` on calls without arguments](https://github.com/mozilla/rhino/issues/2589)
+  - Fixed `Array.prototype.splice` on ordinary array-like objects near the `2 ** 53 - 1` length limit. It could reject a valid replacement or modify the receiver when the new length exceeded the limit ([V8 regression](https://issues.chromium.org/issues/42210878#comment18))
+  - Fixed `Array.prototype.toSpliced` returning the wrong length or copying the wrong trailing elements for array-like objects with lengths near `2 ** 53 - 1`. It now throws `RangeError` when the result length equals that limit ([V8 rounding bug](https://issues.chromium.org/issues/587994321), [WebKit exception fix](https://bugs.webkit.org/show_bug.cgi?id=320830))
+  - Added detection of `toSpliced` shims that read elements in the deleted range, including the [Closure Compiler polyfill](https://github.com/google/closure-compiler/blob/4ce366282f1b5f3df4edc726c6b29f720409209b/src/com/google/javascript/jscomp/js/es6/array/tospliced.js#L36-L40)
   - Added missed detection of native `Array.prototype.unshift` reading the `length` of array-likes without `ToLength` in FF < 55 and IE and moving elements on a call without arguments in IE
   - The `Array.prototype.unshift` polyfill passes arrays with arguments to the native method where it handles them properly, which makes it faster by orders of magnitude on large arrays
 - Iterators and iterator helpers
@@ -216,6 +219,8 @@
     - `Array.isArray` marked as supported from Safari 4.1 and iOS 4.0
     - `Array.prototype.fill` marked as properly supported from Chrome 48 instead of Chrome 45 because of the bug above
     - Because of the bugs above, `Array.prototype.flat` marked as properly supported from Rhino 1.9.0, `Array.prototype.flatMap` no longer marked as supported in Rhino, both no longer marked as supported in Hermes / React Native
+    - Marked native `Array.prototype.splice` as unsupported in V8-based engines and EdgeHTML, and as supported from [Firefox 55](https://bugzilla.mozilla.org/show_bug.cgi?id=924058) and [Safari / iOS 14.0](https://bugs.webkit.org/show_bug.cgi?id=211205)
+    - Marked native `Array.prototype.toSpliced` as unsupported in V8-based engines, and as supported from Safari / iOS 27.3, Bun 1.4.3, Hermes 260318099.0.0 and React Native 0.88
     - `Array.prototype.unshift` marked as properly supported from FF55 instead of FF23 and Edge 16 instead of Edge 12 and no longer marked as supported in IE because of the bugs above
   - Buffers, `DataView` and typed arrays
     - `ArrayBuffer.prototype.slice` marked as properly supported from Chrome 52 and Safari 14.1 instead of Chrome 31 and Safari 12.1 because of the detached buffers bug above
@@ -249,7 +254,7 @@
       - [FF6](https://bugzilla.mozilla.org/show_bug.cgi?id=649575) for `Date.prototype.toISOString`
       - FF33 for `Object.getOwnPropertyNames`
       - [FF36](https://bugzilla.mozilla.org/show_bug.cgi?id=1079120) for the `Number` constructor
-      - [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052) for `Array.prototype.{ map, splice }`
+      - [FF48](https://bugzilla.mozilla.org/show_bug.cgi?id=1165052) for `Array.prototype.map`
       - [FF50](https://bugzilla.mozilla.org/show_bug.cgi?id=1054906) for `Symbol.hasInstance`
       - [FF53](https://bugzilla.mozilla.org/show_bug.cgi?id=1317309) instead of FF49 for `String.prototype.{ match, search }`
       - [FF78](https://bugzilla.mozilla.org/show_bug.cgi?id=1277799) for `DOMException.prototype[@@toStringTag]`

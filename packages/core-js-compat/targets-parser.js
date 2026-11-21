@@ -100,7 +100,7 @@ module.exports = function (targets) {
 
   for (const [engine, value] of normalized) {
     // Treat TP and latest as newer than known numeric releases.
-    const version = /^(?:latest|tp)$/i.test(value) ? '999999' : value;
+    const version = /^(?:latest|tp)$/i.test(value) ? '999999999' : value;
     if (!/^\d/.test(version)) {
       throw new RangeError(`Invalid version "${ version }" for "${ engine }"`);
     }

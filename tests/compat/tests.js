@@ -324,6 +324,18 @@ function createArrayMethodSpeciesTest(METHOD_NAME, args) {
   };
 }
 
+function createSpliceTestObject() {
+  // eslint-disable-next-line math/prefer-number-max-safe-integer -- also used in engines without Number.MAX_SAFE_INTEGER
+  var O = { length: 0x1FFFFFFFFFFFFF };
+  if (DESCRIPTORS) {
+    var stop = function () { throw new Error('Unexpected index access'); };
+    var guard = { get: stop, set: stop };
+    Object.defineProperty(O, 0, guard);
+    Object.defineProperty(O, O.length - 3, guard);
+  }
+  return O;
+}
+
 function createSetLike(size) {
   return {
     size: size,
@@ -747,7 +759,16 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   }],
   // Test a nonzero deletion count. With no arguments, Rhino 1.9.0 - 1.9.2 also discards the species result.
   // https://github.com/mozilla/rhino/issues/2589
-  'es.array.splice': createArrayMethodSpeciesTest('splice', [Boolean]),
+  'es.array.splice': [createArrayMethodSpeciesTest('splice', [Boolean]), function () {
+    // https://issues.chromium.org/issues/42210878#comment18
+    var O = createSpliceTestObject();
+    var length = O.length;
+    try {
+      [].splice.call(O, -1, 1, 0, 0);
+    } catch (error) {
+      return error instanceof TypeError && O.length === length && !(length - 1 in O) && !(length in O);
+    }
+  }],
   'es.array.to-reversed': function () {
     return [].toReversed;
   },
@@ -755,7 +776,21 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return [].toSorted;
   },
   'es.array.to-spliced': function () {
-    return [].toSpliced;
+    // https://issues.chromium.org/issues/587994321
+    var O = createSpliceTestObject();
+    var toSpliced = [].toSpliced;
+    var from = O.length - 2;
+    O[from] = 1;
+    O[from + 1] = 2;
+    var result = toSpliced.call(O, 0, from, 0, 0, 0, 0);
+    if (result.length !== 6 || result[4] !== 1 || result[5] !== 2) return false;
+    // https://bugs.webkit.org/show_bug.cgi?id=320830
+    function throwsOn(args, ErrorConstructor) {
+      try {
+        toSpliced.apply(O, args);
+      } catch (error) { return error instanceof ErrorConstructor; }
+    }
+    return throwsOn([], RangeError) && throwsOn([-1, 1, 0, 0], TypeError);
   },
   'es.array.unscopables.flat': function () {
     return Array.prototype[Symbol.unscopables].flat;

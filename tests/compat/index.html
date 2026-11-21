@@ -31,6 +31,11 @@ td,a {
 .data {
   text-align: center;
 }
+/* Version columns follow the current browser result. */
+.data + .data {
+  max-width: 4em;
+  word-wrap: break-word;
+}
 </style>
 <table id='table'></table>
 <script src='./compat-data.js'></script>
