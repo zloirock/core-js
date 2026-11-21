@@ -165,7 +165,8 @@ export function run() {
   // inside a try/catch; IE11 cannot parse that, so there it answers from the manual fallback path ---
   const catState = EditorState.create({ doc: 'hello world_x 42' });
   const categorize = catState.charCategorizer(0);
-  check('char_categories', [categorize('a'), categorize(' '), categorize('+')], [CharCategory.Word, CharCategory.Space, CharCategory.Other]);
+  check('char_categories', ['a', 'é', '界', ' ', '+'].map(categorize),
+    [CharCategory.Word, CharCategory.Word, CharCategory.Word, CharCategory.Space, CharCategory.Other]);
   const word = EditorState.create({ doc: 'hello world' }).wordAt(3);
   check('char_word_at', [word.from, word.to], [0, 5]);
 

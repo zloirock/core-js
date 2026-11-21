@@ -342,7 +342,7 @@ export function run() {
     collect(generate(0, x => x < 3, x => x + 1)),
     collect(of(1, 2, 3).pipe(ignoreElements(), defaultIfEmpty('ignored'))),
 
-    firstValueFrom(of(42)),
+    firstValueFrom(of(42, 43)),
     lastValueFrom(from([7, 8, 9])),
     // eslint-disable-next-line promise/prefer-await-to-then -- keeps this module regenerator-free
   ]).then(results => {

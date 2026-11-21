@@ -90,6 +90,16 @@ export function run() {
   check('tags', [schema[Symbol.toStringTag], schema.getType('Book')[Symbol.toStringTag]], ['GraphQLSchema', 'GraphQLObjectType']);
   check('type_predicates', [isObjectType(schema.getType('Book')), isObjectType(schema.getType('Order')), isScalarType(schema.getType('Int'))], [true, false, true]);
 
+  const tagged = {};
+  tagged[Symbol.toStringTag] = 'GraphQLObjectType';
+  let differentRealm = false;
+  try {
+    isObjectType(tagged);
+  } catch (error) {
+    differentRealm = /from another module or realm/.test(error.message);
+  }
+  check('foreign_type_tag', differentRealm, !(globalThis.process && globalThis.process.env.NODE_ENV === 'production'));
+
   // --- execution: arguments with defaults, aliases, fragments on an interface and a union ---
   const books = exec('{ author(id: "a1") { name all: books { title } long: books(min: 200) { title } } }');
   check('execute_args', books.data, { author: { name: 'Ann', all: [{ title: 'Alpha' }, { title: 'Beta' }], long: [{ title: 'Beta' }] } });

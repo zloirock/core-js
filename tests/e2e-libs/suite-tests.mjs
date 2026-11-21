@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { assertES5 } from '../../scripts/assert-es5.mjs';
 import { closeRollupBundle, makeStrictWarn } from '../transpiler-integration/warning-policy.mjs';
+import { allCells } from './cells.mjs';
 import { checkFailureLine, checkResultProblem, errorReason, renderValue } from './diagnostics.mjs';
 import { deepEqual as exerciseEqual } from './exercises/checks.mjs';
 import { reconcileRows, runtimeVerdict } from './manifest.mjs';
@@ -25,7 +26,9 @@ let reads = 0;
 const projected = {
   get toJSON() {
     const value = ++reads;
-    return function () { return this === projected ? value : null; };
+    function method() { return this === projected ? value : null; }
+    method.call = () => 2;
+    return method;
   },
 };
 strictEqual(exerciseEqual(projected, 1), true);
@@ -34,6 +37,10 @@ strictEqual(reads, 1);
 strictEqual(errorReason({ get stderr() { throw new Error('broken stderr'); }, message: 'original cause' }), 'original cause');
 strictEqual(renderValue(undefined) === renderValue('undefined'), false);
 strictEqual(renderValue(sparse) === renderValue([undefined, undefined]), false);
+function books(title) { return { author: { all: [{ title }] } }; }
+const detail = checkFailureLine({ label: 'books', actual: books('BrokenA'), expected: books('Alpha') });
+strictEqual(detail.includes('BrokenA') && detail.includes('Alpha'), true);
+strictEqual(renderValue('x'.repeat(4096)).length, 2048);
 const hostile = { get [Symbol.toStringTag]() { throw new Error('broken tag'); } };
 hostile.cycle = hostile;
 strictEqual(checkFailureLine({ label: 'hostile', actual: hostile, expected: {} }).startsWith('hostile actual='), true);
@@ -75,8 +82,14 @@ const global = join(ROOT, 'packages', 'core-js', 'modules', 'es.array.map.js');
 strictEqual(isCoreJsModule(pure), true);
 if (process.platform === 'win32') strictEqual(isCoreJsModule(join(ROOT.toUpperCase(), 'packages', 'core-js', 'index.js')), true);
 strictEqual(isCoreJsModule(legacy), true);
-strictEqual(isCoreJsModule(join('/tmp', 'work', 'packages', 'core-js', 'tests', 'exercise.mjs')), false);
+strictEqual(isCoreJsModule(join(`${ ROOT }-sibling`, 'node_modules', 'fixture', 'packages', 'core-js', 'tests', 'exercise.mjs')), false);
 strictEqual(isCoreJsModule(join(ROOT, 'packages', 'core-js', 'node_modules', 'three', 'index.js')), false);
+for (const { snapshot } of allCells([{ name: 'example' }])) {
+  if (snapshot) strictEqual(isSnapshotName(snapshot), true);
+}
+// A previously emitted suffix stays recognizable after its phase is removed.
+strictEqual(isSnapshotName('minimatch.unplugin.usage-global.pre+post.txt'), true);
+strictEqual(isSnapshotName('minimatch.unplugin.usage-global.notes.txt'), false);
 strictEqual(isSnapshotName('retired.lib.unplugin.usage-pure.pre+post.txt'), true);
 strictEqual(isSnapshotName('review-notes.md'), false);
 strictEqual(isSnapshotName('notes about.babel-plugin.usage-global.txt'), false);
@@ -150,7 +163,9 @@ const oneRead = {
   // eslint-disable-next-line unicorn/no-thenable -- exercise a thenable with an accessor
   get then() {
     if (++thenReads > 1) throw new Error('then read twice');
-    return function (resolve) { if (this === oneRead) resolve({ checks: valid }); };
+    function then(resolve) { if (this === oneRead) resolve({ checks: valid }); }
+    Object.defineProperty(then, 'call', { value: null });
+    return then;
   },
 };
 E2E.run = () => oneRead;
@@ -179,41 +194,57 @@ E2E.run = async () => {
 };
 await rejects(browserRun, /uncaught in frame/u);
 
-// Model the DOM task queued for a rejection before toggle from the success path.
+// The exercise's rejection and the native marker share a tracker. Timers can run before
+// either event. Only the marker itself may release a pending verdict.
 const timers = [];
-const domTasks = [];
+const pendingRejections = [];
 const rejectionEvents = new Map();
-const details = {
-  ontoggle: null,
-  get open() { return false; },
-  set open(value) { if (value) domTasks.push(this.ontoggle); },
-};
+let prevented = 0;
+let stopped = 0;
+function dispatch(promise, reason) {
+  rejectionEvents.get('unhandledrejection')({
+    promise, reason,
+    preventDefault() { prevented++; },
+    stopImmediatePropagation() { stopped++; },
+  });
+}
 const modernExercise = { run: () => ({ checks: valid }) };
 const modern = {
   PromiseRejectionEvent: class {},
+  Promise: class {
+    constructor(executor) {
+      executor(undefined, reason => pendingRejections.push(() => dispatch(this, reason)));
+    }
+  },
   addEventListener: (type, handler) => rejectionEvents.set(type, handler),
 };
 runInNewContext(browserPrograms, {
   window: modern,
-  document: { createElement: () => details },
+  // A queued toggle can run while WebKit still holds the rejection.
+  document: { createElement: () => ({
+    ontoggle: null,
+    get open() { return false; },
+    set open(value) { if (value) timers.push(this.ontoggle); },
+  }) },
   E2E: modernExercise,
   setTimeout: task => timers.push(task),
 });
 const verdict = new Promise((resolve, reject) => modern.e2eRun(resolve, reject));
-domTasks.push(() => rejectionEvents.get('unhandledrejection')({ reason: 'same-turn rejection' }));
-timers.shift()();
-strictEqual(timers.length, 0);
-strictEqual(domTasks.length, 2);
-while (domTasks.length) domTasks.shift()();
+pendingRejections.push(() => dispatch({}, 'same-turn rejection'));
+while (timers.length) timers.shift()();
+strictEqual(pendingRejections.length, 2);
+while (pendingRejections.length) pendingRejections.shift()();
 await rejects(verdict, /unhandled rejection - same-turn rejection/u);
+strictEqual(prevented, 1);
+strictEqual(stopped, 1);
 delete modern.e2eUncaughtError;
 modernExercise.run = () => {
-  domTasks.push(() => rejectionEvents.get('unhandledrejection')({ reason: 'same-turn independent failure' }));
+  pendingRejections.push(() => dispatch({}, 'same-turn independent failure'));
   throw new Error('known failure');
 };
 const afterThrow = new Promise((resolve, reject) => modern.e2eRun(resolve, reject));
-timers.shift()?.();
-while (domTasks.length) domTasks.shift()();
+while (timers.length) timers.shift()();
+while (pendingRejections.length) pendingRejections.shift()();
 await rejects(afterThrow, /unhandled rejection - same-turn independent failure/u);
 
 const immediates = [];

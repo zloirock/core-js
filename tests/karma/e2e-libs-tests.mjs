@@ -1,7 +1,25 @@
 import { deepEqual, throws } from 'node:assert/strict';
+import { link, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { checkWebKitRejections } from './e2e-libs-rejections-test.mjs';
 import config from './e2e-libs.conf.js';
 import { browserOutcome, hasLoggedFailure, hasUnexpectedBrowserFailure } from './e2e-libs-results.mjs';
 import { shouldRetryKarma, waitForKarma } from './helpers.mjs';
+
+const scratch = await mkdtemp(join(tmpdir(), 'karma-checkpoint-'));
+try {
+  const path = join(scratch, 'results.json');
+  config.saveReport(path, { attempt: 1 });
+  // Keep the prior checkpoint accessible by name, including on Windows.
+  const previous = join(scratch, 'previous.json');
+  await link(path, previous);
+  config.saveReport(path, { attempt: 2 });
+  deepEqual(JSON.parse(await readFile(previous)), { attempt: 1 });
+  deepEqual(JSON.parse(await readFile(path)), { attempt: 2 });
+} finally {
+  await rm(scratch, { recursive: true, force: true });
+}
 
 const frames = [{ label: 'diagnostic' }];
 const chromium = { id: '1', name: 'Chromium' };
@@ -98,3 +116,5 @@ const expired = await waitForKarma(hanging, 10);
 deepEqual([expired.timedOut, expired.signal], [true, 'SIGKILL']);
 const completed = await waitForKarma(Promise.resolve({ exitCode: 0 }), 10);
 deepEqual([completed.timedOut, completed.exitCode], [false, 0]);
+
+await checkWebKitRejections();

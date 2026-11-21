@@ -42,24 +42,6 @@
     return null;
   };
 
-  function afterRejections(callback) {
-    // Let the current microtask checkpoint queue unhandledrejection, then queue toggle on
-    // the same DOM manipulation task source so delivery precedes the verdict.
-    setTimeout(function () {
-      if (typeof window.PromiseRejectionEvent === 'function') {
-        var details = document.createElement('details');
-        if (typeof details.open === 'boolean' && 'ontoggle' in details) {
-          details.ontoggle = callback;
-          details.open = true;
-          return;
-        }
-      }
-      // IE11's Promise polyfill dispatches unhandledrejection through native setImmediate.
-      if (typeof window.setImmediate === 'function') window.setImmediate(callback);
-      else setTimeout(callback, 0);
-    }, 0);
-  }
-
   // `then` is the one replaceable method these programs may call, and the rejection handler goes to
   // that same `then` rather than a later `.catch`, which a substituted implementation could drop.
   window.e2eRun = function (onChecks, onError) {
@@ -75,7 +57,7 @@
 
     // An independent rejection takes precedence over the error reported by the exercise.
     function deferFailure(err) {
-      afterRejections(function () {
+      window.e2eAfterRejections(function () {
         if (!settled && !uncaughtError()) fail(err);
       });
     }
@@ -103,7 +85,7 @@
           }
           rows[i] = { label: label, pass: pass, actual: check.actual, expected: check.expected };
         }
-        afterRejections(function () {
+        window.e2eAfterRejections(function () {
           if (settled || uncaughtError()) return;
           settled = true;
           window.e2eOnUncaughtError = null;
@@ -127,7 +109,7 @@
       if (typeof E2E === 'undefined' || !E2E || typeof E2E.run !== 'function') throw new Error('the bundle did not expose E2E.run');
       var res = E2E.run();
       var then = res && res.then;
-      if (typeof then === 'function') then.call(res, handOver, reject);
+      if (typeof then === 'function') Function.prototype.call.call(then, res, handOver, reject);
       else handOver(res);
     } catch (err) { reject(err); }
   };
