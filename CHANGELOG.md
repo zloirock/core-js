@@ -184,10 +184,10 @@
   - Fixed handling of Safari Technology Preview and `latest` targets in `core-js-compat` and `core-js-builder`; invalid non-numeric target versions now throw a `RangeError` naming the engine and value
   - Fixed empty target sets selecting no polyfills in `core-js-compat` and `core-js-builder`; they now behave like omitted targets
   - Fixed `exclude` in `core-js-compat` and `core-js-builder` treating stable `es.*` modules and their legacy `esnext.*` aliases inconsistently; excluding either name now excludes both
-  - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`; it now behaves like an omitted option
+  - Fixed `exclude: null` throwing in `core-js-compat` and `core-js-builder`, and `format: null`, `summary: null`, `summary.comment: null` and `summary.console: null` throwing in `core-js-builder`; they now behave like omitted options
   - Fixed loading and target parsing of `core-js-compat` on NodeJS 6.4
   - `core-js-builder` now builds bundles in memory without creating a temporary file
-  - Fixed the reported size of bundles containing non-ASCII characters in `core-js-builder` and `bundle-package`
+  - Fixed the reported size of bundles containing non-ASCII characters in `core-js-builder` and `bundle-package`; the `core-js-builder` summary comment no longer labels the bundle size `w/o comments`, since it counts the comments of the bundled code
 - Compat data improvements:
   - *Added Safari 27.3 compat data*:
     - Shipped [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features

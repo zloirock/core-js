@@ -25,6 +25,7 @@ await builder({ targets: { chrome: '26', firefox: 4, esmodules: true, node: 'cur
 await builder({ format: 'bundle' });
 await builder({ format: 'esm' });
 await builder({ format: 'cjs' });
+await builder({ format: null });
 await builder({ filename: '/foo/bar/baz.js' });
 await builder({ summary: { comment: true } });
 await builder({ summary: { comment: { size: true } } });
@@ -33,6 +34,8 @@ await builder({ summary: { console: true } });
 await builder({ summary: { console: { size: true } } });
 await builder({ summary: { console: { size: false, modules: true } } });
 await builder({ summary: { console: { size: false, modules: true }, comment: { size: false, modules: true } } });
+await builder({ summary: null });
+await builder({ summary: { comment: null, console: null } });
 await builder({
   modules: 'core-js/actual',
   exclude: /^es\.array\./,

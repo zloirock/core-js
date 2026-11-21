@@ -2,7 +2,7 @@ import type compat from "core-js-compat";
 
 type Format = 'bundle' | 'esm' | 'cjs';
 
-type SummaryEntry = boolean | {
+type SummaryEntry = boolean | null | {
   size?: boolean,
   modules?: boolean,
 };
@@ -19,11 +19,11 @@ type CompatOptions = Exclude<Parameters<typeof compat.compat>[0], undefined>;
 type Options = Pick<CompatOptions, "exclude" | "modules" | "targets"> & {
   /** output format, 'bundle' by default, can be 'cjs' or 'esm', and in this case
    *  the result will not be bundled and will contain imports of required modules */
-  format?: Format,
+  format?: Format | null,
   /** optional target filename, if it's missed a file will not be created */
   filename?: string,
   /** shows summary for the bundle, disabled by default */
-  summary?: Summary,
+  summary?: Summary | null,
 };
 
 declare function builder(options?: Options): Promise<string>;

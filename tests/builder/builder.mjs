@@ -66,6 +66,9 @@ const consoleLog = console.log;
 try {
   console.log = message => messages.push(stripVTControlCharacters(message));
   const plain = await builder({ modules: moduleName });
+  for (const options of [{ format: null }, { summary: null }, { summary: { comment: null, console: null } }]) {
+    strictEqual(await builder({ modules: moduleName, ...options }), plain, `${ JSON.stringify(options) } behaves like omitted options`);
+  }
   const bundle = await builder({ modules: moduleName, filename, summary: { comment: true, console: { modules: true } } });
   strictEqual(await fs.readFile(filename, 'utf8'), bundle, 'writes the returned bundle to the requested file');
   const array = runInNewContext(`delete Array.prototype.includes; delete Array.prototype.at;\n${ bundle }\n[NaN]`);
@@ -73,7 +76,7 @@ try {
   strictEqual(array.at, undefined, 'the bundle skips unselected modules');
 
   const body = plain.slice(config.banner.length + 1);
-  ok(bundle.includes(` * size: ${ (Buffer.byteLength(body) / 1024).toFixed(2) }KB`), 'comment summary reports the size of the bundle body');
+  ok(bundle.includes(`/*\n * size: ${ (Buffer.byteLength(body) / 1024).toFixed(2) }KB\n */`), 'comment summary reports the size of the bundle body');
   ok(bundle.includes(` * modules:\n * ${ moduleName }\n`), 'comment summary lists the selected module');
   deepStrictEqual(messages, [stripVTControlCharacters(`bundling ${ filename }, modules:`), moduleName]);
 

@@ -16,7 +16,7 @@ function formatSize(source) {
 
 function normalizeSummary(unit = {}) {
   let size, modules;
-  if (typeof unit != 'object') {
+  if (unit === null || typeof unit != 'object') {
     size = modules = !!unit;
   } else {
     size = !!unit.size;
@@ -33,7 +33,9 @@ module.exports = async function ({
   filename = null,
   summary = {},
 } = {}) {
+  if (format === null) format = 'bundle';
   if (!['bundle', 'cjs', 'esm'].includes(format)) throw new TypeError('Incorrect output type');
+  if (summary === null) summary = {};
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
   const TITLE = filename !== null && filename !== undefined ? filename : '`core-js`';
@@ -70,7 +72,7 @@ module.exports = async function ({
     }
   }
 
-  if (summary.comment.size) script += `/*\n * size: ${ formatSize(code) } w/o comments\n */`;
+  if (summary.comment.size) script += `/*\n * size: ${ formatSize(code) }\n */`;
   if (summary.comment.modules) script += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
 
