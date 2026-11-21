@@ -82,7 +82,7 @@ assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno')
 assert(oculus.engine <= latest(mapping.ChromeAndroidToQuest)[0] || coerce(oculus.version).major === Number(oculus.engine), 'Meta Quest');
 assert(opera.version === String(mapping.ChromeToOpera(opera.engine)), 'Opera');
 assert(operaAndroid.engine <= latest(mapping.ChromeAndroidToOperaAndroid)[0], 'Opera for Android');
-assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
+assert(safari[ios.version]?.engine_version === ios.engine, 'iOS Safari');
 assert(samsung.engine <= latest(mapping.ChromeAndroidToSamsung)[0], 'Samsung Internet');
 assert(yandexAndroid.engine <= latest(mapping.ChromeAndroidToYandexAndroid)[0], 'Yandex Browser for Android');
 
