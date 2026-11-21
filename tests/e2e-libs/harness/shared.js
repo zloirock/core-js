@@ -4,24 +4,23 @@
 // missing file is a name error at the call rather than a silent `undefined`. They are one instrument
 // and carry the same guards, which is what these four are: a guard written twice drifts once.
 (function () {
-  function nameOf(err) {
-    return err && err.name ? String(err.name) : 'failed without a message';
+  function errorField(err, key) {
+    try {
+      var value = err && err[key];
+      if (value) return String(value);
+    } catch (error) { /* try the next source of diagnostic text */ }
+    return '';
   }
 
-  // The ES5 twin of `errorReason` in ../diagnostics.mjs, for a page with no stderr and no line to
-  // trim to.
+  // A rejection may carry an arbitrary object, including throwing getters.
   window.e2eReason = function (err) {
-    if (err && err.message) return String(err.message);
-    var text;
-    // a throwable that cannot be stringified is still a throwable, and this runs on the path that
-    // reports one - where the banner has already latched settled, so a throw strands "running..."
+    var message = errorField(err, 'message');
+    if (message) return message;
     try {
-      text = String(err);
-    } catch (error) {
-      return nameOf(err);
-    }
-    // a rejected promise carries whatever the library threw, and stringifying an object is not a reason
-    return text === '[object Object]' ? nameOf(err) : text;
+      var text = String(err);
+      if (text && text !== '[object Object]') return text;
+    } catch (error) { /* try the name */ }
+    return errorField(err, 'name') || 'failed without a message';
   };
 
   // Only IE exposes documentMode, and its compatibility modes report 5 through 10 while serving a
@@ -127,7 +126,8 @@
       if (uncaughtError()) return;
       if (typeof E2E === 'undefined' || !E2E || typeof E2E.run !== 'function') throw new Error('the bundle did not expose E2E.run');
       var res = E2E.run();
-      if (res && typeof res.then === 'function') res.then(handOver, reject);
+      var then = res && res.then;
+      if (typeof then === 'function') then.call(res, handOver, reject);
       else handOver(res);
     } catch (err) { reject(err); }
   };

@@ -51,14 +51,14 @@ function firstChild(node) {
 const PAGE = '<!doctype html>\n'
   + '<html lang="en"><head><title>T &amp; t</title><style>.a{color:red}</style></head>\n'
   + '<body>\n'
-  + '  <ul id="list" class="a b"><li data-n="1">one &lt;x&gt;<li data-n="2" class="sel">two &#8212; dash<li data-n="3">three &copy;</ul>\n'
+  + '  <ul id="list" class="a b"><li data-n="1">one &lt;x&gt;<li data-n="2nd" class="sel">two &#8212; dash<li data-n="3">three &copy;</ul>\n'
   + '  <table><tr><td>r1c1<td>r1c2<tr><td>r2c1<td>r2c2</table>\n'
   + '  <dl><dt>term<dd>def<dt>t2<dd>d2</dl>\n'
   + '  <select><option value="a">A<option value="b" selected>B</select>\n'
   + '  <p>first<p>second\n'
   + '  <div title=\'he said "hi"\' data-dup="1" data-dup="2">quoted</div>\n'
   + '  <img src="x.png" alt="an image"><br><hr>\n'
-  + '  <svg viewBox="0 0 1 1"><clipPath id="c"><path d="M0 0"/></clipPath><foreignObject><div>inner</div></foreignObject></svg>\n'
+  + '  <svg viewBox="0 0 1 1"><clipPath id="c"><path d="M0 0"/></clipPath><foreignObject><image src="alt.jpg" alt="photo"></foreignObject></svg>\n'
   + '  <script>var s = 1 < 2 && "</scr" + "ipt>";</script>\n'
   + '  <p>tail &nbsp;text &#128; &#x1F600; &amp</p>\n'
   + '  <!-- a comment -->\n'
@@ -83,10 +83,10 @@ export function run() {
   check('table_cells', selectAll('td', doc).map(element => textContent(element)), ['r1c1', 'r1c2', 'r2c1', 'r2c2']);
   check('dl_pairs', selectAll('dl > dt, dl > dd', doc).map(element => getName(element)), ['dt', 'dd', 'dt', 'dd']);
   check('options', selectAll('select > option', doc).map(element => getAttributeValue(element, 'value')), ['a', 'b']);
-  check('paragraphs', selectAll('p', doc).length, 3);
-  check('void_elements', selectAll('img, br, hr', doc).map(element => getName(element)), ['img', 'br', 'hr']);
-  check('svg_adjusted', selectAll('svg *', doc).map(element => getName(element)), ['clipPath', 'path', 'foreignObject', 'div']);
-  check('foreign_integration', textContent(selectOne('svg div', doc)), 'inner');
+  check('paragraphs', selectAll('body > p', doc).length, 3);
+  check('void_elements', selectAll('body > img, body > br, body > hr', doc).map(element => getName(element)), ['img', 'br', 'hr']);
+  check('svg_adjusted', selectAll('svg *', doc).map(element => getName(element)), ['clipPath', 'path', 'foreignObject', 'img']);
+  check('foreign_integration', getName(firstChild(selectOne('svg > *:last-child', doc))), 'img');
   check('script_rawtext', textContent(selectOne('script', doc)).indexOf('</scr') > 0, true);
   // the parser drops the SECOND `data-dup` - that decision is an `Object.hasOwn` call in Parser.ts
   check('dup_attribute', getAttributeValue(selectOne('div[title]', doc), 'data-dup'), '1');
@@ -126,11 +126,11 @@ export function run() {
   /* eslint-enable array-func/no-unnecessary-this-arg -- end of the domutils namespace block */
 
   // --- dom-serializer ---
-  check('outer_html_quotes', getOuterHTML(selectOne('div[title]', doc)).indexOf('&quot;') > 0, true);
+  check('outer_html_quotes', getOuterHTML(selectOne('div[title]', doc)).indexOf('title="he said &quot;hi&quot;"') > 0, true);
   check('inner_html', getInnerHTML(selectOne('#list', doc)).indexOf('<li'), 0);
   // `decodeEntities: false` swaps the attribute encoder for `replaceQuotes`, the graph's only
   // `String#replaceAll`; `xmlMode: 'foreign'` is what consults dom-serializer's two name Maps
-  check('outer_html_raw', getOuterHTML(selectOne('div[title]', doc), { decodeEntities: false }).indexOf('&quot;') > 0, true);
+  check('outer_html_raw', getOuterHTML(selectOne('div[title]', doc), { decodeEntities: false }).indexOf('title="he said &quot;hi&quot;"') > 0, true);
   check('foreign_render', getOuterHTML(selectOne('svg', doc), { xmlMode: 'foreign' }).indexOf('viewBox') > 0, true);
   check('xml_cdata', textContent(firstChild(parseDocument('<r><![CDATA[<x> & y]]></r>', { xmlMode: true }))), '<x> & y');
 
@@ -144,7 +144,7 @@ export function run() {
   check('pseudo_contains', selectAll('li:contains("dash")', doc).length, 1);
   check('pseudo_icontains', selectAll('li:icontains("DASH")', doc).length, 1);
   check('pseudo_has', selectAll('ul:has(li.sel)', doc).length, 1);
-  check('is_match', is(items[1], 'li.sel[data-n="2"]'), true);
+  check('is_match', is(items[1], 'li.sel[data-n="2nd"]'), true);
   // the compiled query is USED as one, not just handed back to `selectAll` - that entry point takes a
   // raw string too, so `compile = source => source` satisfied the count and the check said nothing
   // about compilation having happened
@@ -170,7 +170,7 @@ export function run() {
   check('expensive_descendant', selectAll('body :has(li.sel) li', doc).length, 3);
 
   check('selector_ast', parseSelector('a.b > c')[0].length, 4);
-  check('selector_namespace', parseSelector('*|div')[0][0].type, 'tag');
+  check('selector_namespace', parseSelector('*|div')[0][0], { type: 'tag', name: 'div', namespace: '*' });
   check('selector_comment', parseSelector('div/* c */ span')[0].length, 3);
   // an escape above U+FFFF takes `funescape`'s surrogate-pair branch, past `Number.parseInt` and
   // the `Number.isNaN` guard that rejects a non-codepoint

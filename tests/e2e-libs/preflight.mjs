@@ -1,12 +1,8 @@
-// The full-env pre-flight: the built bundle executed in a fresh node process, every native the
-// polyfills would replace still in place. A process PER BUNDLE, because `mode: 'full'` patches globals
-// permanently - in a shared one a cell's injection would mask another cell's miss.
-export async function preflight(code, label) {
-  const { stdout } = await $({ quiet: true, timeout: '120s', input: code })`node preflight-child.mjs`;
-  if (!stdout.trim()) throw new Error(`${ label }: pre-flight produced no output - run() likely never settled`);
-  try {
-    return JSON.parse(stdout);
-  } catch {
-    throw new Error(`${ label }: pre-flight stdout is not JSON: ${ stdout.slice(0, 200) }`);
-  }
+// Full-env bundles may patch globals and leave timers running. Each gets its own disposable child.
+import { runWithDeadline } from './deadline.mjs';
+
+const child = new URL('./preflight-child.mjs', import.meta.url).href;
+
+export function preflight(code, label) {
+  return runWithDeadline(child, 'runPreflight', [code], { ms: 120_000, what: `${ label } pre-flight` });
 }

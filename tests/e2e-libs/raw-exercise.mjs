@@ -2,7 +2,7 @@ import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { runWithDeadline } from './deadline.mjs';
-import { checkFailureLine, checkResultProblem, renderValue } from './diagnostics.mjs';
+import { captureChecks, checkResultProblem, checkRows, renderValue } from './diagnostics.mjs';
 import { unwrap } from './exercises/checks.mjs';
 
 const RUN_DEADLINE_MS = 60_000;
@@ -15,7 +15,7 @@ export function rawChecks(target, { repeat = false, timeout = RUN_DEADLINE_MS } 
 // Comparison and formatting stay in the child, since actual values may contain functions or symbols.
 export async function runRaw(target, name, repeat, beforeRepeat) {
   const checks = await oneRun(target, name);
-  const rows = checks.map(check => ({ label: check.label, pass: check.pass, failure: check.pass ? null : checkFailureLine(check) }));
+  const rows = checkRows(checks);
   if (repeat) {
     const first = checks.map(check => snapshotActual(check.actual));
     beforeRepeat();
@@ -27,7 +27,7 @@ export async function runRaw(target, name, repeat, beforeRepeat) {
 async function oneRun(target, name) {
   const mod = await import(pathToFileURL(target).href);
   if (typeof mod.run !== 'function') throw new Error(`${ name } does not export run()`);
-  const checks = (await mod.run())?.checks;
+  const checks = captureChecks(await mod.run());
   const problem = checkResultProblem(checks);
   if (problem) throw new Error(`${ name }: ${ problem }`);
   if (!checks.length) throw new Error(`${ name } returned no checks`);

@@ -16,6 +16,7 @@ process.on('uncaughtException', error => {
 });
 
 try {
+  process.send({ type: 'e2e-libs:ready' });
   const result = await run(...args, () => process.send({ type: 'e2e-libs:repeat' }));
   // Give Node a turn to report unhandled rejections before returning the verdict.
   await setImmediate();

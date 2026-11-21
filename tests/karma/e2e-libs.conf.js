@@ -17,18 +17,29 @@ function resultsReporter(save) {
     this.adapters = [];
     const results = new Map();
     const errors = new Map();
+    function checkpoint() {
+      save({
+        browsers: [], // a partial report can gate retries, never declare a successful run
+        results: results.values().toArray().flat().filter(result => !result.success || result.skipped),
+        errors: errors.values().toArray().flat(),
+      });
+    }
     this.onBrowserStart = browser => {
+      const retry = results.has(browser.id);
       results.set(browser.id, []);
       errors.delete(browser.id);
+      if (retry) checkpoint();
     };
     this.onSpecComplete = (browser, result) => {
       results.get(browser.id).push({
         browser: browser.name, label: result.description, success: result.success, skipped: result.skipped, log: result.log,
       });
+      if (!result.success || result.skipped) checkpoint();
     };
     this.onBrowserError = (browser, error) => {
       if (!errors.has(browser.id)) errors.set(browser.id, []);
       errors.get(browser.id).push({ browser: browser.name, error: String(error?.message ?? error) });
+      checkpoint();
     };
     this.onRunComplete = browsers => save({
       browsers: browsers.map(browser => browser.name),
@@ -55,7 +66,7 @@ module.exports = config => {
     files: [...config.files, ...SERVED.map(pattern => ({ pattern, included: false, served: true, watched: false }))],
     plugins: [...config.plugins, { 'reporter:e2e-libs-results': ['type', resultsReporter(save)] }],
     // `dots` rather than `progress`: the latter redraws its line, and in a CI log every redraw stays
-    reporters: ['dots', 'e2e-libs-results'],
+    reporters: ['e2e-libs-results', 'dots'],
   });
 };
 

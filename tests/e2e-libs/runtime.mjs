@@ -158,12 +158,12 @@ const cellsBuiltHere = IS_SHARD ? shardSlice(libraryMethodGroups).flat()
   : shardCount > 1 ? []
   : libraryMethodGroups.flat();
 
+if (!IS_SHARD) await manifest.prepare();
 const input = await describeInput();
 
 // once per run, in the parent: the workaround in `bundle.mjs` has to still have a reason
 if (!IS_SHARD) await assertDetectionsStillNeedHelp();
 
-if (!IS_SHARD) await manifest.prepare();
 await snapshots.ensureDirectory();
 
 announceInput(input);

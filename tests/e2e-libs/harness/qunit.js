@@ -64,5 +64,7 @@
     });
   }
 
+  // The poison and clean controls must run first, even in a reused tab.
+  QUnit.config.reorder = false;
   for (i = 0; i < FRAMES.length; i++) define(FRAMES[i]);
 }());

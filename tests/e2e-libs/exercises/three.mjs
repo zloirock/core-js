@@ -362,11 +362,15 @@ export function run() {
   // reaches into `.data.array` itself: an `interleaveAttributes` that hands its argument straight
   // back would throw from inside three and cost the whole exercise instead of reddening this check
   const [woven] = interleavedAttrs;
+  const position = indexedBox.getAttribute('position');
+  const unpacked = woven?.data && deinterleaveAttribute(woven);
   check('addon_interleave_roundtrip', [
     woven?.data?.stride,
     interleavedAttrs.map(attribute => attribute.offset),
-    woven?.data ? deinterleaveAttribute(woven).count === indexedBox.getAttribute('position').count : undefined,
-  ], [6, [0, 3], true]);
+    unpacked?.itemSize,
+    unpacked?.array?.buffer !== woven?.data?.array.buffer,
+    unpacked?.array && Array.prototype.slice.call(unpacked.array),
+  ], [6, [0, 3], position.itemSize, true, Array.prototype.slice.call(position.array)]);
   // traverseGenerator is a recursive `yield*` - the delegation machinery that runs is the addon's
   check('addon_traverse_generator', [...traverseGenerator(scene)].length, 3);
   const reduceMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());

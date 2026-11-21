@@ -1,6 +1,8 @@
 // How this suite says what went wrong; the page programs answer the same in `harness/shared.js`.
 // No zx globals: `preflight-child.mjs` imports this under a bare `node`.
 
+import { inspect } from 'node:util';
+
 const REASON_MAX = 200; // a line or two; long enough for a named error and the message after it
 // the POSITION is what makes a frame: without it a line opening `at least one ...` is dropped as one
 const STACK_FRAME = /^at\s.*:\d+:\d+\)?$/;
@@ -12,10 +14,11 @@ const ZX_FOOTER = /^(?:exit code|signal):/;
 export function errorReason(err) {
   // each source is tried for CONTENT: on truthiness a stderr of one newline wins and reduces the line
   // to `FAIL <label>: `, and `[object Object]` is a stringification rather than a reason
-  for (const source of [err?.stderr, err?.message, err]) {
+  for (const property of ['stderr', 'message', null]) {
     let text;
     // this runs INSIDE the `catch` that reports a cell: a throw of its own takes the run down unprinted
     try {
+      const source = property === null ? err : err?.[property];
       text = String(source ?? '');
     } catch { continue; }
     if (text === '[object Object]') continue;
@@ -28,32 +31,44 @@ export function errorReason(err) {
     const said = lines.find(line => !ZX_FOOTER.test(line));
     return [said, ...footer].filter(Boolean).join(', ').slice(0, REASON_MAX);
   }
-  return [err?.name, err?.exitCode === undefined ? null : `exit ${ err.exitCode }`].filter(Boolean).join(', ')
-    || 'failed without a message';
+  const parts = [];
+  for (const property of ['name', 'exitCode']) {
+    try {
+      const value = err?.[property];
+      if (value !== undefined && value !== null && value !== '') parts.push(property === 'name' ? String(value) : `exit ${ value }`);
+    } catch { /* Another property may still describe this exception. */ }
+  }
+  return parts.join(', ').slice(0, REASON_MAX) || 'failed without a message';
 }
 
-// The values `JSON.stringify` drops or renders as `null`, as text: it renders `NaN` and `null` alike,
-// which `deepEqual` keeps apart. `-0` stays out - `deepEqual` holds it equal to `0`.
-export function jsonLossyAsText(key, value) {
-  if (typeof value === 'number' && !isFinite(value)) return String(value);
-  if (value === undefined || typeof value === 'symbol') return String(value);
-  return typeof value === 'function' ? `[function ${ value.name || 'anonymous' }]` : value;
-}
-
-// A circular structure is LEGAL here - `actual` is whatever the library handed back - so one that
-// cannot be rendered costs its own line. Raw is not the fallback: `[object Object]` reads as a match.
+// Node's inspector distinguishes missing array slots, undefined, strings and non-JSON values.
 export function renderValue(value) {
-  // unquoted at the top: a replacer can only hand `JSON.stringify` a string, which it then quotes
-  if (typeof value === 'number' && !isFinite(value)) return String(value);
   try {
-    return JSON.stringify(value, jsonLossyAsText);
+    return typeof value === 'string' ? JSON.stringify(value) : inspect(value, { customInspect: false, breakLength: Infinity });
   } catch {
-    return `<unrenderable ${ Object.prototype.toString.call(value) }>`;
+    return '<unrenderable>';
   }
 }
 
 export function checkFailureLine(check) {
   return `${ check.label } actual=${ renderValue(check.actual) } expected=${ renderValue(check.expected) }`;
+}
+
+// Read exercise-owned accessors once. Validation and reporting must use the same values.
+export function captureChecks(result) {
+  const checks = result?.checks;
+  if (!Array.isArray(checks)) return checks;
+  const rows = [];
+  for (let index = 0; index < checks.length; index++) {
+    const check = checks[index];
+    rows.push(check && { label: check.label, pass: check.pass, actual: check.actual, expected: check.expected });
+  }
+  return rows;
+}
+
+// Only these rows cross IPC. A successful comparison may contain opaque or cyclic values.
+export function checkRows(checks) {
+  return checks.map(check => ({ label: check.label, pass: check.pass, failure: check.pass ? null : checkFailureLine(check) }));
 }
 
 export function checkResultProblem(checks, expected) {

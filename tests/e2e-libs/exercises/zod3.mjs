@@ -23,6 +23,7 @@ export function run() {
   const ok = User.safeParse({ name: 'Ada', role: 'admin' });
   check('parse_ok', [ok.success, ok.data], [true, { name: 'Ada', role: 'admin', tags: [] }]);
   const bad = User.safeParse({ name: 'A', age: -1.5, role: 'root' });
+  check('error_prototype', bad.error instanceof z.ZodError, true);
   check('parse_issues', bad.error.issues.map(issue => [issue.path.join('.'), issue.code]).sort(),
     [['age', 'invalid_type'], ['age', 'too_small'], ['name', 'too_small'], ['role', 'invalid_enum_value']].sort());
   const Shape = z.discriminatedUnion('kind', [
@@ -37,8 +38,9 @@ export function run() {
   check('refine', [Even.safeParse(4).success, Even.safeParse(3).error.issues[0].message], [true, 'odd']);
   check('coerce', [z.coerce.number().parse('42'), z.coerce.boolean().parse(0)], [42, false]);
   const Tree = z.lazy(() => z.object({ value: z.number(), children: z.array(Tree) }));
-  check('recursive', Tree.safeParse({ value: 1, children: [{ value: 2, children: [] }] }).success, true);
-  check('record_tuple', [z.record(z.number()).parse({ a: 1 }), z.tuple([z.string(), z.number()]).safeParse(['a', 'b']).success],
-    [{ a: 1 }, false]);
+  check('recursive', [2, 'two'].map(value => Tree.safeParse({ value: 1, children: [{ value, children: [] }] }).success), [true, false]);
+  const Record = z.record(z.number());
+  check('record_tuple', [Record.parse({ a: 1 }), Record.safeParse({ a: 'one' }).success, z.tuple([z.string(), z.number()]).safeParse(['a', 'b']).success],
+    [{ a: 1 }, false, false]);
   return { checks };
 }

@@ -19,10 +19,9 @@ export const RUN_TIMEOUT_MS = 20_000;
 // `expected` is the raw exercise's label SEQUENCE, not its count: a branch that stopped executing and
 // another that started cancel out in a count.
 export function cellScript(label, expectedLabels) {
-  // `</` is escaped because this same text is inlined into a `<script>` on the artifact page, where
-  // a label carrying one would close the element; inside a string literal the two spellings are equal
+  // The HTML parser must never see the start of a tag or comment inside an inline script.
   const data = JSON.stringify({ label, expected: expectedLabels, page: PAGE, timeout: RUN_TIMEOUT_MS })
-    .replaceAll('</', '<\\/')
+    .replaceAll('<', '\\u003C')
     .replaceAll('\u2028', '\\u2028')
     .replaceAll('\u2029', '\\u2029');
   return `window.E2E_CELL = ${ data };\n`;

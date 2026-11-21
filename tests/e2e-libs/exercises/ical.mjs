@@ -65,7 +65,9 @@ export function run() {
 
   vevent.updatePropertyWithValue('summary', 'Retro');
   const text = component.toString();
-  check('stringify', [text.indexOf('SUMMARY:Retro') !== -1, text.indexOf('RRULE:FREQ=WEEKLY;BYDAY=TU,TH;COUNT=5') !== -1, ICAL.parse(text)[0]],
-    [true, true, 'vcalendar']);
+  const calendar = new ICAL.Component(ICAL.parse(text));
+  const restored = calendar.getFirstSubcomponent('vevent');
+  check('stringify', [calendar.name, restored.getFirstPropertyValue('summary'), restored.getFirstPropertyValue('rrule').count,
+    text.split('\r\n').indexOf('RRULE:FREQ=WEEKLY;BYDAY=TU,TH;COUNT=5') !== -1], ['vcalendar', 'Retro', 5, true]);
   return { checks };
 }

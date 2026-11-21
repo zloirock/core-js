@@ -243,8 +243,20 @@ export function run() {
   const firstStep = (vertices[0][1] - vertices[1][1]) / (VALUES[1] - VALUES[0]);
   const secondStep = (vertices[1][1] - vertices[2][1]) / (VALUES[2] - VALUES[1]);
   check('line: the value axis is linear', near(firstStep, secondStep, 0.05), true);
-  check('line: it tracks the bars',
-    near(vertices[1][0], (boxes[1].left + boxes[1].right) / 2, 1), true);
+  const aligned = [];
+  for (let i = 0; i < vertices.length; i++) aligned.push(near(vertices[i][0], (boxes[i].left + boxes[i].right) / 2, 1));
+  check('line: it tracks the bars', aligned, [true, true, true]);
+  check('line: the path joins the symbols', elements.some(element => {
+    if (element.tag !== 'path' || element.attrs.fill !== 'none' || !element.attrs.stroke) return false;
+    const { commands } = new SVGPathData(element.attrs.d).toAbs();
+    if (commands.length !== vertices.length) return false;
+    for (let i = 0; i < commands.length; i++) {
+      const command = commands[i];
+      if (command.type !== (i ? SVGPathData.LINE_TO : SVGPathData.MOVE_TO)
+        || !near(command.x, vertices[i][0]) || !near(command.y, vertices[i][1])) return false;
+    }
+    return true;
+  }), true);
 
   // --- the axes
   const texts = textsOf(elements);
@@ -279,8 +291,8 @@ export function run() {
   // the vertical band is the other half of the same statement: without it the whole map could be
   // drawn off the canvas and every relation between its two features would still hold
   check('geo: it sits in the vertical band it was given',
-    Math.min(west.top, east.top) >= HEIGHT * 0.1 - 2
-      && Math.max(west.bottom, east.bottom) <= HEIGHT * 0.8 + 2, true);
+    near(Math.min(west.top, east.top), HEIGHT * 0.1, 2)
+      && near(Math.max(west.bottom, east.bottom), HEIGHT * 0.8, 2), true);
   check('geo: the two features share that band',
     near(west.top, east.top, 1) && near(west.bottom, east.bottom, 1), true);
   check('geo: the map sits beside the grid', west.left > boxes[2].right, true);
