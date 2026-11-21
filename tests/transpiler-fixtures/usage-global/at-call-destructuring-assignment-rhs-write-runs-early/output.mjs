@@ -8,10 +8,7 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// The right-hand side of a DESTRUCTURING ASSIGNMENT runs before every slot of the pattern it fills,
-// so the `o.f = 'str'` it carries is not ranked against the earlier `this.f.at(0)` by source
-// position. A host lookup that only knew the declarator spelling would miss this one and keep the
-// stale array narrow.
+// The method call precedes this destructuring assignment and sees the original array.
 const o = {
   f: [1, 2],
   m() {
@@ -22,3 +19,16 @@ o.m();
 let q;
 [q] = [o.f = 'str'];
 export { q };
+
+// This default runs after the RHS has replaced the stored array with a string.
+export function duringAssignment() {
+  const box = {
+    f: [7],
+    m() {
+      return this.f.at(0);
+    }
+  };
+  let result;
+  [result = box.m()] = (box.f = 'str', []);
+  return result;
+}

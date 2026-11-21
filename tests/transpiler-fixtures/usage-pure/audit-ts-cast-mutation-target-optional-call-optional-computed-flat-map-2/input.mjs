@@ -1,5 +1,5 @@
-// ... and the enum whose SLOT the program rewrites: the declared value is no longer the runtime key,
-// so the claim stands down whichever channel does the rewriting - a member write, or a call handed
-// the container itself (the write index is keyed by assigned field and cannot see the second)
+// The assignment replaces the enum member before the optional call reads it.
+// The flattened array calls filter with the original callback.
 enum Patched { MAP = 'map' }
+(Patched as any).MAP = 'filter';
 export const r8 = arr.flat?.()[Patched.MAP](f);

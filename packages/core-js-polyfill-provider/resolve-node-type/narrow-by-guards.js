@@ -241,8 +241,8 @@ export function createNarrowByGuards({
       if (!t.isSwitchStatement(switchStmt?.node)) return false;
       const idx = switchStmt.node.cases.indexOf(switchCase.node);
       const facts = caseEvaluationFacts(switchStmt.node, constantViolations, violatesInsideNode);
-      if (!switchCase.node.test) return facts.testAfter[idx + 1];
-      return facts.testBefore[idx] || facts.bodyCount[idx] > facts.bodyCount[facts.feedStart[idx]];
+      return facts.testBefore[idx] || facts.bodyCount[idx] > facts.bodyCount[facts.feedStart[idx]]
+        || (!switchCase.node.test && facts.testAfter[idx + 1]);
     }
     // early-exit invalidation: only the NEAREST guard to usage decides whether the narrow
     // SURVIVES - closer guards re-narrow independently, and a guard with a write in its own live

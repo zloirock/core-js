@@ -9,4 +9,10 @@ switch (out.length) {
     out.push(viaSwitchCase);
   }
 }
+switch (out.length) {
+  default: {
+    const item = { w: Array };
+    item.w = Map;
+  }
+}
 export { out };

@@ -5,3 +5,4 @@ function scopedAlias() {
   return [][scopedIt];
 }
 export const viaScoped = scopedAlias();
+export function outside() { return [][scopedIt]; }

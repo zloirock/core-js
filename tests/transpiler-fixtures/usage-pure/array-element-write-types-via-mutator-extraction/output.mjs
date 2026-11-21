@@ -1,6 +1,7 @@
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _spliceMaybeArray from "@core-js/pure/actual/array/instance/splice";
+import _includes from "@core-js/pure/actual/instance/includes";
 var _ref;
-// a registry METHOD read outside a call position extracts the function value - its later
-// call is untrackable, so the extraction bails regardless of which method leaves
+// Keep a generic dispatcher after extracting a mutator.
 const extracted = [[1], [2]];
-export const viaMutatorExtraction = _includesMaybeArray(_ref = extracted[0]).call(_ref, 5);
+const m = _spliceMaybeArray(extracted);
+export const viaMutatorExtraction = _includes(_ref = extracted[0]).call(_ref, 5);

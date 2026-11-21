@@ -7,3 +7,6 @@ function scopedAlias() {
   return _getIteratorMethod([]);
 }
 export const viaScoped = scopedAlias();
+export function outside() {
+  return [][scopedIt];
+}

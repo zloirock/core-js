@@ -255,6 +255,10 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
   let sortedAssignmentCache = new WeakMap();
   let deferredViolationAnswers = new WeakMap();
 
+  // Writes lifted to the same invocation still complete in order inside its body.
+  function byCompletion(a, b) {
+    return a.end - b.end || a.ap.node.end - b.ap.node.end;
+  }
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
     // A tracker can file namespace/static-block locals on the surrounding scope.
@@ -286,7 +290,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     }
     // ranked by COMPLETION: a write takes effect when its assignment completes, so one enclosing another
     // of the same binding (`var x = (x = 'a', [1])`, `x = (x = 'a', [1]), 0`) ranks after the inner one
-    out.sort((a, b) => a.end - b.end);
+    out.sort(byCompletion);
     return out;
   }
 
@@ -369,7 +373,7 @@ export function createStraightLineFlow({ t, babelNodeType, decidedLiveNode = () 
     // the extras are per-query, so they build fresh and merge into the cached base by completion
     if (extraViolations?.length) {
       sortedAssigns = [...sortedAssigns, ...buildSortedAssignments({ ...binding, constantViolations: extraViolations })]
-        .sort((a, b) => a.end - b.end);
+        .sort(byCompletion);
     }
     if (!sortedAssigns.length) return null;
 

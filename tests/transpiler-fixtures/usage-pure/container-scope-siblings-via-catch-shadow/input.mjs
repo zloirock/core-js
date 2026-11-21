@@ -3,6 +3,11 @@
 // a loop head (for-of, for-in, a for-init declarator), a block, a switch case and a catch parameter shadowing the name alike.
 const out = [];
 const holder = { w: Object };
+try {
+  throw { w: Array };
+} catch (holder) {
+  holder.w = Map;
+}
 const { fromEntries: viaCatchShadow } = holder.w;
 out.push(viaCatchShadow);
 export { out };

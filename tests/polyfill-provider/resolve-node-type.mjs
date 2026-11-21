@@ -10759,6 +10759,29 @@ for (const [label, before, after, narrow] of [
         : checkGenericAt(adapter, prog, lbl));
 }
 
+// A standard iterator exposes slot values. A consumer can change their contents or methods.
+for (const [label, use, receiver, family] of [
+  ['iterated element', 'for (const el of rows) touch(el);', 'rows[0]', 'Array'],
+  ['retained element', 'for (const el of rows) touch(el); const first = rows[0];', 'first', 'Array'],
+  ['nested slot', 'for (const el of rows) touch(el);', 'rows[0][0]', null],
+  ['retained nested slot', 'for (const el of rows) touch(el); const first = rows[0];', 'first[0]', null],
+  ['spread copy', 'touch([...rows]);', 'rows[0]', 'Array'],
+  ['spread arguments', 'touch(...rows);', 'rows[0]', 'Array'],
+  ['spread contents', 'touch(...rows);', 'rows[0][0]', null],
+  ['replaced method result', 'for (const el of rows) el.slice = () => "ab";', 'rows[0].slice()', null],
+  ['container handed out', 'for (const el of rows) touch(el); touch(rows);', 'rows[0]', null],
+  ['replaced slot', 'for (const el of rows) touch(el); rows[0] = "ab";', 'rows[0]', 'string'],
+  ['conditional replacement', 'for (const el of rows) touch(el); if (flag) rows[0] = "ab";', 'rows[0]', null],
+]) runBoth(`element access after iteration: ${ label }`,
+  `declare const flag: boolean, touch: (...args: any[]) => void;
+  const rows: any[] = [[[1]]]; ${ use } const result = ${ receiver }.at(0);`,
+  (parser, program, name) => {
+    const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+    const resolver = parser.makeResolver({ spellsMemberKey: () => false });
+    checkHintSet(name, resolver.resolvePropertyUnionHints(member), family?.toLowerCase() ?? null);
+    check(`${ name } has no proven member values`, resolver.resolveNodeType(member.get('object'))?.constructor ?? null, null);
+  });
+
 runBoth('element access: element write retypes - slice route bails',
   'var rest = "s";\n{ var [h, ...rest] = [[1], 2, 3]; }\nrest[0] = "x";\nconst v = rest[0].at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl), undefined, 'script');
@@ -10766,6 +10789,20 @@ runBoth('element access: element write retypes - slice route bails',
 runBoth('element access: mutating method call bails',
   'const a = [1, 2];\na.unshift("x");\nconst v = a[0].at(0);',
   (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+for (const [label, use, narrow] of [
+  ['hand out includes', 'take(a.includes);', true],
+  ['save a computed method', 'const has = a["includes"]; take(has);', true],
+  ['extract through a cast', 'take((a as number[][]).includes);', true],
+  ['extract from an alias', 'const alias = a; take(alias.includes);', true],
+  ['extract a mutator', 'take(a.splice);', false],
+  ['pass the receiver as well', 'take(a.includes, a);', false],
+  ['pass the receiver to a local helper namesake',
+    'function _includesMaybeArray(list: unknown) { take(list); } _includesMaybeArray(a);', false],
+]) runBoth(`element access: ${ label }`,
+  `declare function take(...args: unknown[]): void; const a = [[1], [2]]; ${ use } const v = a[0].at(-1);`,
+  (adapter, prog, lbl) => narrow ? checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' })
+    : checkGenericAt(adapter, prog, lbl));
 
 runBoth('element access: call-argument escape bails',
   'declare function touch(xs: unknown): void;\nconst a = [1, 2];\ntouch(a);\n// @ts-expect-error the member read is the probe, and the right answer is a type without it\n'

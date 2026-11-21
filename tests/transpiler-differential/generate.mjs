@@ -2745,6 +2745,56 @@ function * generateEnumRewrites() {
     '(() => { enum S { Ready = "xy" }\nreturn String(S.Ready.at(-1)); })()'), ts: true, strip: true };
 }
 
+function * generateEnumMethodKeyWrites() {
+  // The at key has to work after the native method is removed. For a conditional key,
+  // map and filter produce different values even when both source methods are present.
+  for (const [label, declared, write, argument] of [
+    ['assigned-key', 'slice', '(K as any).name = "at";', '-1'],
+    ...[false, true].map(flag => [`conditional-key-${ flag }`, 'map',
+      `if (JSON.parse("${ flag }")) (K as any).name = "filter";`, 'n => (log.push(n), n % 2)']),
+  ]) yield { ...snippet(`enum-rewrite/${ label }`,
+    `(() => { enum K { name = "${ declared }" }\n${ write }\nreturn [[1, 2], [3]].flat?.()[K.name](${ argument }); })()`),
+  ts: true, strip: true };
+}
+
+function * generateIteratedElementReads() {
+  for (const [name, body, read] of [
+    ['own-method', `for (const el of rows) Object.defineProperty(el, 'at', {
+      get() { log.push('get'); return function (index) { log.push(this === el, index); return 17; }; },
+    });`, 'rows[0].at(-1)'],
+    ['changed-method-return', 'for (const el of rows) el.slice = () => "ab";', 'rows[0].slice().at(-1)'],
+    ['changed-contents', 'for (const el of rows) el[0] = "ab";', 'rows[0][0].at(-1)'],
+    ['copied-contents', 'const copy = [...rows]; copy[0][0] = "ab";', 'rows[0][0].at(-1)'],
+    ['replaced-slot', 'for (const el of rows) log.push(el.length); rows[0] = "ab";', 'rows[0].at(-1)'],
+    ['replaced-prototype', 'for (const el of rows) { el.toString = () => "ab"; Object.setPrototypeOf(el, String.prototype); }',
+      'rows[0].at(-1)'],
+  ]) yield { ...snippet(`iterated-element/${ name }`, `(() => { const rows = [[[7]]]; ${ body } return ${ read }; })()`), strip: true };
+}
+
+function * generateExtractedArrayMethodReads() {
+  for (const [name, extract] of [
+    ['unbound', 'const has = rows.includes; log.push(has.call([3], 3));'],
+    ['getter', `Object.defineProperty(rows, 'includes', {
+      get() { log.push(this === rows); this[0] = 'abc'; return function () { return this[0]; }; },
+    }); const has = rows.includes; log.push(has.call([3]));`],
+    ['receiver-passed', 'function use(fn, list) { log.push(fn.call(list, list[0])); list[0] = "xy"; } use(rows.includes, rows);'],
+  ]) yield { ...snippet(`array-method-extraction/${ name }`,
+    `(() => { const rows = [[7]]; ${ extract } return rows[0].at(-1); })()`), strip: true };
+  yield { ...snippet('array-method-extraction/wrapped', `(() => {
+    const rows = [[7]]; const has = (rows as number[][]).includes;
+    return [has.call(rows, rows[0]), rows[0].at(-1)];
+  })()`), ts: true, strip: true };
+  yield {
+    name: 'array-method-extraction/shadowed-import',
+    code: `import has from '@core-js/pure/actual/array/instance/includes';
+      const rows = [[7]];
+      { const has = list => { list[0] = 'xy'; }; has(rows); }
+      export const r = rows[0].at(-1);
+      export const effects = [];`,
+    strip: true,
+  };
+}
+
 // --- how a directive READS its argument, crossed with the shape it is invoked through ---
 // the registry answers some calls off the CALL rather than off the method: `argument` hands back
 // argument 0, `argument-element` the common type of its elements, `argument-return` the return of
@@ -26210,6 +26260,184 @@ function * generateRealmReceiverObservations() {
   };
 }
 
+// Reaching writes are facts about a binding and an execution position. Each pair
+// changes the owner or the order while retaining the spelling of the final read.
+function * generateReachingWritePositions() {
+  for (const kind of ['async function', 'function*', 'async function*', 'function']) {
+    const ordinary = kind === 'function';
+    yield { name: `write-position/annex-b/${ kind }`, sourceType: 'script', strip: true,
+      code: `function read() { { ${ kind } Map() {} ${ ordinary ? 'Map.groupBy = () => 9;' : '' } }
+        return ${ ordinary ? 'Map.groupBy()' : 'Map.groupBy([7], x => x).get(7)[0]' }; }
+        module.exports = { r: read(), effects: [] };` };
+  }
+  for (const local of ['var C;', 'function C() {}', '']) {
+    yield { name: `write-position/default/${ local || 'plain' }`, strip: true,
+      code: `export const effects = []; let C = Array;
+        function install(value = (C = { from(xs) { effects.push(xs[0]); return [19]; } })) { ${ local } }
+        install(); export const r = C.from([8])[0];` };
+  }
+  for (const construct of ['if', 'switch']) for (const shadow of [false, true]) {
+    const alternate = shadow ? '{ let C; C = Array; }' : 'C = Array;';
+    const branch = construct === 'if' ? `if (flag) C = Array; else ${ alternate }`
+      : `switch (flag) { case true: C = Array; break; default: ${ alternate } }`;
+    yield { name: `write-position/${ construct }/shadow-${ shadow }`,
+      code: `function read(flag) { let C = { from() { return 7; } }; ${ branch } return C.from([3]); }
+        export const r = [read(false), read(true)]; export const effects = [];` };
+  }
+  for (const [shape, setup, value, change] of [
+    ['constant', 'const selected = Array;', 'selected', ''],
+    ['binding', 'let selected = Array;', 'selected', 'selected = custom;'],
+    ['member', 'const box = { selected: Array };', 'box.selected', 'box.selected = custom;'],
+    ['key', 'const box = { yes: Array, no: custom }; let key = "yes";', 'box[key]', 'key = "no";'],
+  ]) yield { name: `write-position/branch-value/${ shape }`,
+    code: `export const effects = []; function read(flag) {
+      const custom = { from() { effects.push("custom"); return 7; } }; ${ setup }
+      let C; if (flag) C = ${ value }; else { ${ change } C = ${ value }; } return C.from([3]);
+    } export const r = [read(false), read(true)];` };
+  for (const write of ['for (xs of ["xNaNy"]) {}', 'for ([xs] of [["xNaNy"]]) {}', 'for (xs in { xNaNy: 0 }) {}', 'xs = "xNaNy";']) {
+    yield { name: `write-position/argument/${ write }`, strip: true,
+      code: `let xs = [123]; export const r = (() => xs.includes(NaN))((() => { ${ write } })()); export const effects = [];` };
+  }
+  for (const source of ['const o = { [await 0]() {} };', 'class C { [await 0]() {} }', 'await 0;']) {
+    yield { name: `write-position/suspension/${ source }`, strip: true,
+      code: `let x = [7]; async function read() { if (Array.isArray(x)) { ${ source } return x.at(0); } }
+        const running = read(); x = "abc"; export const r = await running; export const effects = [];` };
+  }
+  for (const [shape, setup, operand] of [
+    ['class-reassignment', 'class Box { static C = Object; } if (choose()) Box = { C: Map };', 'Box.C'],
+    ['alias-shadow', 'const source = { C: Map }; const alias = source; function read() { var source = alias; return source.C.groupBy; }', null],
+    ['class-scope', 'const C = Map; class Box { static slot = C; } function read() { const C = Object; return Box.slot.groupBy; }', null],
+    ['written-slot', 'const box = { C: Object }; if (choose()) { const Next = Map; box.C = Next; }', 'box.C'],
+    ['helper-slot', 'function fill(box) { if (box) box.C = Map; } function read() { const box = { C: Object }; fill(box); const { C: { groupBy } } = box; return groupBy; }', null],
+    ['numeric-key', 'const offset = 1; const box = { 3: Map, 12: Object };', 'box[offset + 2]'],
+    ['string-key', 'const offset = "1"; const box = { 3: Object, 12: Map };', 'box[offset + 2]'],
+  ]) yield { name: `write-position/static-slot/${ shape }`,
+    code: `function choose() { return JSON.parse("true"); } ${ setup }
+      const group = ${ operand ? `${ operand }.groupBy` : 'read()' };
+      export const r = group([7], x => x).get(7)[0]; export const effects = [];` };
+  for (const call of ['fill(box)', 'fill(...[box])', 'fill.apply(null, [box])']) {
+    yield { name: `write-position/conditional-helper/${ call }`,
+      code: `function fill(box) { if (box) box.C = Map; } function read(flag) {
+        const box = { C: Object }; if (flag) ${ call }; const { C: { groupBy } } = box;
+        const result = groupBy([7], Boolean); return flag ? result.get(true)[0] : result.true[0];
+      } export const r = [read(false), read(true)]; export const effects = [];` };
+  }
+  yield { name: 'write-position/conditional-helper/next-iteration',
+    code: `function fill(box) { if (box) box.C = Map; } const box = { C: Object }, result = [];
+      for (let i = 0; i < 2; i++) { const { C: { groupBy } } = box; const groups = groupBy([7], Boolean);
+        result.push(i ? groups.get(true)[0] : groups.true[0]); if (!i) fill(box); }
+      export const r = result; export const effects = [];` };
+  for (const operator of ['||=', '??=']) yield { name: `write-position/logical-mutation/${ operator }`, isolated: true,
+    code: `export const effects = []; let C = Array;
+      (C ${ operator } Object).from = () => { effects.push("called"); return [9]; };
+      export const r = Array.from([1])[0];` };
+  yield { name: 'write-position/mutation-rhs-scope', isolated: true,
+    code: `export const effects = []; let target = Object; if (JSON.parse("true")) { const C = Map; target = C; }
+      target.groupBy = () => { effects.push("called"); return 9; }; export const r = Map.groupBy([7], Boolean);` };
+  for (const count of [2, 66]) for (const flag of [false, true]) {
+    const writes = Array.from({ length: count }, (unused, i) => {
+      const [test, value] = i % 2 === 0 ? ['!flag', 'Object'] : ['flag', 'Map'];
+      return `if (${ test }) { const Local = ${ value }; target = Local; }`;
+    }).join('\n');
+    yield { name: `write-position/mutation-scope/${ count }/${ flag }`, isolated: true,
+      code: `const flag = JSON.parse("${ flag }"); let target; ${ writes }
+        target.groupBy = () => 19; export const r = flag ? Map.groupBy([7], Boolean) : Object.groupBy([7], Boolean);
+        export const effects = [];` };
+  }
+  yield { name: 'write-position/destructured-key', strip: true,
+    code: `const key = "groups"; const { [key]: C } = { groups: Map, rows: Object };
+      function read() { const key = "rows"; return C.groupBy([7], Boolean).get(true)[0]; }
+      export const r = read(); export const effects = [];` };
+  for (const access of ['return Array[key()]("ab");', 'const { [key()]: fn } = Array; return fn("ab");']) {
+    yield { name: `write-position/key-return/${ access }`, strip: true,
+      code: `const k = "from"; const key = () => k; function read() { const k = "of"; ${ access } }
+        export const r = read(); export const effects = [];` };
+  }
+  yield { name: 'write-position/switch/lexical-discriminant', strip: true,
+    code: `function read() {
+      switch (typeof Map.groupBy) { case 'function': const Map = { None: 0 }; return Map.None; default: return -1; }
+    } export const r = read(); export const effects = [];` };
+  for (const [shape, cases] of [
+    ['earlier-test', 'case (x = [8], "number"): return 1; case "object": return 2; default: return x.at(0);'],
+    ['later-test', 'default: return x.at(0); case (x = [8], "number"): return 1; case "object": return 2;'],
+    ['fallthrough', 'case "string": x = [8]; default: return x.at(0);'],
+  ]) yield { name: `write-position/switch/${ shape }`, ts: true, strip: true,
+    code: `function read(x: string | number[]) { switch (typeof x) { ${ cases } } }
+      export const r = read("s"); export const effects = [];` };
+  for (const [shape, expression] of [
+    ['first', 'slot = (slot = "inner", [7]);'],
+    ['last', 'slot = "inner"; slot = [7];'],
+    ['nested-body', '(() => { slot = [7]; })(); slot = "done";'],
+    ['argument-before-body', '(() => { slot = [7]; })(slot = "argument");'],
+  ]) {
+    yield { name: `write-position/iife/${ shape }`, strip: true,
+      code: `let slot = "initial"; (() => { ${ expression } })(); export const r = slot.at(0); export const effects = [];` };
+  }
+  for (const operator of ['&&=', '||=', '??=']) yield { name: `write-position/logical-branch/${ operator }`, isolated: true,
+    code: `let owner = Map; (owner ${ operator } Array).from = () => [9];
+      export const r = [Array.from([1])[0], typeof Map.from === 'function' && Map.from()[0]]; export const effects = [];` };
+  for (const [kind, setup, key, slots] of [
+    ['enum', 'enum Key { Offset = 1 }', 'Key.Offset + 2', '3: Map, 12: Object'],
+    ['undefined', 'let key;', 'key + 2', 'NaN: Map, undefined2: Object'],
+  ]) yield { name: `write-position/static-slot/plus-${ kind }`, ts: kind === 'enum',
+    code: `${ setup } const box = { ${ slots } }; export const r = box[${ key }].groupBy([7], Boolean).get(true)[0];
+      export const effects = [];` };
+  yield { name: 'write-position/static-slot/numeric-and-string', strip: true,
+    code: `const n = 1, s = '1'; const box = { 3: Map, 12: Object };
+      export const r = [box[n + 2].groupBy([8], Boolean).get(true)[0], box[s + 2].groupBy([7], Boolean).true[0]];
+      export const effects = [];` };
+  yield { name: 'write-position/class-field/numeric-addition', strip: true,
+    code: `class Box { static [1 + 2] = Map; static 12 = Object; }
+      export const r = Box[3].groupBy([7], Boolean).get(true)[0]; export const effects = [];` };
+  yield { name: 'write-position/destructure/default-after-rhs', strip: true,
+    code: `const box = { f: [7], m() { return this.f.at(0); } }; let value;
+      [value = box.m()] = (box.f = "str", []); export const r = value; export const effects = [];` };
+  yield { name: 'write-position/closure/calls-between-writes', strip: true,
+    code: `let C = Array; const first = read(); C = Int16Array; const second = read(); C = Math;
+      function read() { return C.of(7); }
+      export const r = [Array.isArray(first), second instanceof Int16Array, second[0]]; export const effects = [];` };
+  yield { name: 'write-position/closure/class-initialization',
+    code: `let C = Set; function define() { return class { static v = (C = Array); [(C = Iterator, "x")] = 1; }; }
+      define(); const later = () => C.from([7])[0]; define(); export const r = later(); export const effects = [];` };
+  yield { name: 'write-position/closure/symbol-scope', strip: true,
+    code: `function inside() { const { iterator: local = 0 } = Symbol; return typeof [][local]; }
+      function outside() { try { return typeof [][local]; } catch (error) { return error.name; } }
+      export const r = [inside(), outside()]; export const effects = [];` };
+  yield { name: 'write-position/enum/patched-key', ts: true, strip: true,
+    code: `enum Patched { KEY = "map" } (Patched as any).KEY = "filter";
+      export const r = [[1, 2, 3]].flat?.()[Patched.KEY](x => x > 1); export const effects = [];` };
+  for (const [key, invocation] of [
+    ['apply', 'alias.apply(null, [box])'], ['call', 'alias.call(null, box)'], ['bind', 'alias.bind(null, box)()'],
+  ]) {
+    yield { name: `write-position/conditional-helper/own-${ key }`, strip: true, isolated: true,
+      code: `function read(override) {
+        function fill(target) { target.C = Map; }
+        const alias = fill;
+        if (override) fill.${ key } = () => () => {};
+        const box = { C: Object }; ${ invocation };
+        const { C: { groupBy } } = box;
+        const groups = groupBy([7], Boolean);
+        return override ? groups.true[0] : groups.get(true)[0];
+      } export const r = [read(true), read(false)]; export const effects = [];` };
+  }
+  yield { name: 'write-position/conditional-helper/stored-bind', strip: true, isolated: true,
+    code: `function fill(target) { target.C = Map; }
+      function read(run) {
+        const box = { C: Object }, bound = fill.bind(null, box);
+        if (run) bound();
+        const { C: { groupBy } } = box;
+        const groups = groupBy([7], Boolean);
+        return run ? groups.get(true)[0] : groups.true[0];
+      } export const r = [read(false), read(true)]; export const effects = [];` };
+  yield { name: 'write-position/conditional-helper/invoker-before-argument', strip: true, isolated: true,
+    code: `export const effects = [];
+      function fill(box) { box.C = Map; }
+      const box = { C: Object };
+      fill.apply(null, [(fill.apply = () => effects.push('late'), effects.push('arg'), box)]);
+      const { C: { groupBy } } = box;
+      export const r = groupBy([7], Boolean).get(true)[0];` };
+}
+
 export function * generate() {
   yield * generateSourceGoals();
   yield * generateLoopAliasOwners();
@@ -28039,4 +28267,8 @@ export function * generate() {
   yield * generateEffectfulRealmReceivers();
   yield * generateBorrowedPrototypeReceivers();
   yield * generateRealmReceiverObservations();
+  yield * generateReachingWritePositions();
+  yield * generateEnumMethodKeyWrites();
+  yield * generateIteratedElementReads();
+  yield * generateExtractedArrayMethodReads();
 }

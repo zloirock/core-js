@@ -1692,7 +1692,6 @@ export function createPatternBindings({
         name,
         writeNodes: writes.toSorted((a, b) => b.start - a.start),
         readNode: usagePath.node,
-        exactWrites: true,
         completions: local.completions,
       });
       const adapter = getDecisionAdapter();

@@ -3132,9 +3132,9 @@ runBoth('escaped-ctor census/a spread hands the container out whole', 'const NS 
 runBoth('escaped-ctor census/a nameless class declaration exposes its static through its export',
   'const x = {};\nexport default class { static Base = Map; }',
   (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));
-runBoth('escaped-ctor census/a nameless class declaration binds no container name',
-  'const x = {};\nexport default class { static Base = Map; }\nsink(x.Base);',
-  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));
+runBoth('escaped-ctor census/an unexported anonymous class binds no container name',
+  'const x = {};\n(class { static Base = Map; });\nsink(x.Base);',
+  (adapter, prog, lbl) => check(lbl, censusNames(prog.node), false));
 runBoth('escaped-ctor census/a named class declaration binds its statics',
   'class NS { static Base = Map; }\nsink(NS.Base);',
   (adapter, prog, lbl) => check(lbl, censusNames(prog.node), true));

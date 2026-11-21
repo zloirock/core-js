@@ -5,18 +5,19 @@ import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
-import { createChecker } from '../polyfill-provider/harness.mjs';
+import { createChecker, scenarioSource } from '../polyfill-provider/harness.mjs';
 
 const requireBabel = process.env.BABEL_REQUIRE_FROM
   ? createRequire(pathToFileURL(`${ path.resolve(process.env.BABEL_REQUIRE_FROM) }/`).href) : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
 
-async function transform(source, options, host) {
+async function transform(source, options, host, filename = 'input.mjs') {
   if (host === 'babel') return (await transformAsync(source, {
-    configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, options]],
+    configFile: false, babelrc: false, filename, plugins: [[babelPlugin, options]],
+    parserOpts: filename.endsWith('.ts') ? { plugins: ['typescript'] } : undefined,
   })).code;
   const plugin = createUnplugin(options);
-  for (const phase of host === 'pre+post' ? ['pre', 'post'] : ['single']) source = plugin.transform(source, 'input.mjs', phase)?.code ?? source;
+  for (const phase of host === 'pre+post' ? ['pre', 'post'] : ['single']) source = plugin.transform(source, filename, phase)?.code ?? source;
   return source;
 }
 
@@ -42,6 +43,32 @@ try {
       for (const strip of [false, true]) check(`${ name }/${ method }/${ host }/${ strip }`,
         await runInWorker(file, { strip }), name !== 'disabled-static' ? 'OK|[true,false]|[]'
           : method === 'usage-global' && strip ? 'ERR|TypeError' : 'OK|7|[]');
+    }
+  }
+  // The shared stripped realm keeps filter. Remove it before the tested module imports core-js.
+  await fs.writeFile(path.join(directory, 'without-filter.mjs'), "delete Array.prototype.filter; if ('filter' in []) throw Error('filter still present');");
+  for (const conditional of [false, true]) {
+    const source = `export const effects: number[] = [];
+      function read(flag: boolean) {
+        enum Methods { Name = 'map' }
+        ${ conditional ? 'if (flag) ' : '' }(Methods as any).Name = 'filter';
+        return [[1, 2], [3]].flat?.()[Methods.Name](value => { effects.push(value); return value % 2; });
+      }`;
+    scenarioSource(source);
+    for (const method of ['usage-pure', 'usage-global']) for (const host of ['babel', 'unplugin', 'pre+post']) {
+      const output = await transform(source, { method, version: '4.0', targets: { ie: 11 } }, host, 'input.ts');
+      const { code } = await transformAsync(output, {
+        filename: 'input.ts', configFile: false, babelrc: false, plugins: [requireBabel.resolve('@babel/plugin-transform-typescript')],
+      });
+      for (const strip of [false, true]) {
+        const file = path.join(directory, `enum-${ serial++ }.mjs`);
+        const calls = conditional && strip ? '[read(false)]' : '[read(false), read(true)]';
+        const prelude = strip ? 'import "./without-filter.mjs";\n' : '';
+        await fs.writeFile(file, `${ prelude }${ code }\nexport const r = ${ calls };`);
+        const expected = conditional && strip ? 'OK|[[1,0,1]]|[1,2,3]'
+          : `OK|[${ conditional ? '[1,0,1]' : '[1,3]' },[1,3]]|[1,2,3,1,2,3]`;
+        check(`enum key/${ method }/${ host }/conditional=${ conditional }/missing filter=${ strip }`, await runInWorker(file, { strip: false }), expected);
+      }
     }
   }
 } finally {

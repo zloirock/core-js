@@ -25,6 +25,7 @@ const set = () => {
     Base: Promise
   };
 };
+set();
 const nested = {
   inner: closureNs
 };

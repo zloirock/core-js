@@ -100,6 +100,7 @@ import {
   followConstLiteralAlias,
   bodyWritesThroughParameter,
   CENSUS_CONTAINER_TYPES,
+  CENSUS_KEY_NAMES,
   paramListRunsWork,
   paramReboundInBody,
   paramReturnsTheValue,
@@ -2016,7 +2017,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     // a CALL init pairs through the call canon's returned literal, each value in the scope its
     // identifiers resolve in; an inline literal pairs where the declaration stands
     const called = callInitSlotValues({ pattern, init, name, scope: initScope, adapter, path, seen, resolveKey });
-    const pairingCtx = called ? called.ctx : { scope, adapter, path, resolveKey };
+    const pairingCtx = called?.ctx ?? { scope: initScope, adapter, path: bindingDeclarationPath(binding) ?? path, resolveKey };
     // a slot default makes the value default-or-runtime, and this union sees only the values
     // `patternSlotValues` could pair (its contract is over-approximation - a dynamic / spread-
     // shifted / foreign pair contributes nothing), so a lone resolved default wrongly reads as
@@ -3313,8 +3314,9 @@ export function reachableAliasValues({
   seen,
   usageNode: rootRead = null,
   includeDeclaredCandidates = false,
+  values = [],
 }) {
-  const values = primary ? [primary] : [];
+  if (primary) values.push(primary);
   const reached = { value: new Set(), call: new Set() };
   const ceiling = MAX_KEY_DEPTH - aliasWalks;
   // the values of one alias and the hops its sources spell, in the order the walk meets them: `{ value }` a
@@ -5131,11 +5133,17 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx = null
 // body returns its one param, folded through the shared inline canon; an effectful call folds only
 // where the node stays (usage-global, or a consumer holding the key in place).
 // A no-effects query can fold a quiet call too, but never inherits that retention allowance.
-function identityCallKeyArgument(node, adapter, { scope, path, usageNode, seen, keepsKeyNode = false }, bailOnSideEffectKey) {
+function identityCallKeyArgument(node, adapter, ctx, bailOnSideEffectKey) {
+  const { scope, path, usageNode, seen, keepsKeyNode } = ctx;
   const inlined = inlineCallReturnExpression({ node, readNode: usageNode, seen, ctx: { scope, adapter, path } });
   if (!inlined?.node || inlined.node === node) return null;
   const effectful = node.arguments?.some(mayHaveSideEffects) || inlineCallHasObservableEffects({ callNode: node, scope, adapter, path });
   if (effectful && (bailOnSideEffectKey || adapter.method === 'usage-pure' && !keepsKeyNode)) return null;
+  const valuePath = pathOfNode(inlined.ctx.path, inlined.node);
+  ctx.scope = valuePath?.scope ?? inlined.ctx.scope;
+  ctx.path = valuePath ?? inlined.ctx.path;
+  ctx.seen = inlined.seen;
+  ctx.usageNode = inlined.node;
   return unwrapTransparentSeq(inlined.node);
 }
 
@@ -5152,15 +5160,18 @@ function isNumericLiteralKeyNode(node) {
 // none of its own, so `[3, 4][E.A](0)` stayed raw while every other spelling of that key claimed.
 // the key resolver's other arms keep their method-aware gates - this fills only the shape they
 // never answered
-function resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey) {
+function resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey, plusOperand) {
   if (!computed) return null;
   if (node?.type === 'Identifier' && adapter.method === 'usage-global') {
     const binding = adapter.getBinding?.({ scope, name: node.name, path, read: node });
     const declaration = bindingDeclaratorNode(binding);
-    return declaration?.type === 'VariableDeclarator' && declaration.id?.type === 'Identifier'
+    if (declaration?.type === 'VariableDeclarator' && declaration.id?.type === 'Identifier'
       && !declaration.init && !declaration.declare && !binding.constantViolations?.length
       && !forXHeadLoopPath(bindingDeclarationPath(binding))
-      && !isAmbientBindingShape(declaration, bindingDeclarationPath(binding)?.parentPath?.node) ? 'undefined' : null;
+      && !isAmbientBindingShape(declaration, bindingDeclarationPath(binding)?.parentPath?.node)) {
+      return plusOperand ? undefined : 'undefined';
+    }
+    return null;
   }
   if (!resolveStaticKey) return null;
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
@@ -5257,6 +5268,7 @@ export function resolveKey({
   resolveStaticKey = null,
   keepsKeyNode = false,
   requireInitialized = false,
+  plusOperand = false,
 }) {
   while (true) {
     // an over-deep chain and an ABSENT key answer alike: a mutator called with fewer arguments than it
@@ -5264,11 +5276,13 @@ export function resolveKey({
     // runtime, and callers already treat a null key as "not resolvable"
     if (depth > MAX_KEY_DEPTH || !node) return null;
     if (computed) {
-      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, { scope, adapter, path, usageNode, seen, keepsKeyNode });
+      const ctx = { scope, adapter, path, usageNode, seen, keepsKeyNode };
+      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter, ctx);
+      ({ scope, path, usageNode, seen } = ctx);
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
       const operand = decidedKeyOperand(node, { scope, adapter, path, seen, depth });
       if (!operand && node?.type === 'ConditionalExpression') return agreeingKey(node, {
-        scope, adapter, path, seen, depth, bailOnSideEffectKey, usageNode, resolveStaticKey, keepsKeyNode, requireInitialized,
+        scope, adapter, path, seen, depth, bailOnSideEffectKey, usageNode, resolveStaticKey, keepsKeyNode, requireInitialized, plusOperand,
       })?.key ?? null;
       if (operand) {
         node = operand;
@@ -5281,7 +5295,7 @@ export function resolveKey({
     // are one property). naming only strings split READ from WRITE: a mutation through the numeric
     // spelling stayed untracked while a read resolved, so a user's patch lost to the polyfill
     if (adapter.isStringLiteral(node) || isNumericLiteralKeyNode(node)) {
-      return adapter.isStringLiteral(node) ? adapter.getStringValue(node) : String(node.value);
+      return adapter.isStringLiteral(node) ? adapter.getStringValue(node) : plusOperand ? node.value : String(node.value);
     }
     // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
     if (node.type === 'TemplateLiteral') {
@@ -5314,7 +5328,7 @@ export function resolveKey({
     }
     if (node.type === 'Identifier' && computed) {
       const hop = followKeyIdentifier({ node, seen, scope, adapter, path, usageNode, requireInitialized });
-      if (hop?.symbolKey) return hop.symbolKey;
+      if (hop?.symbolKey) return plusOperand ? null : hop.symbolKey;
       if (hop?.refused) return null;
       if (hop) {
         ({ node, seen, scope } = hop);
@@ -5328,20 +5342,25 @@ export function resolveKey({
       // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
       // cycle guard on the right branch after the left added `a` to the shared Set
       const left = resolveKey({
-        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized,
+        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized, plusOperand: true,
         node: node.left,
         computed: true,
         seen: new Set(seen),
         depth: depth + 1,
       });
       const right = resolveKey({
-        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized,
+        scope, adapter, path, resolveStaticKey, usageNode, bailOnSideEffectKey, requireInitialized, plusOperand: true,
         node: node.right,
         computed: true,
         seen: new Set(seen),
         depth: depth + 1,
       });
-      if (left !== null && right !== null) return left + right;
+      if (left !== null && right !== null) return plusOperand ? left + right : String(left + right);
+      // The census also knows scalar enum values. Only a single settled result names the entire key.
+      if (!plusOperand && !bailOnSideEffectKey && adapter.method === 'usage-global' && path) {
+        const names = CENSUS_KEY_NAMES.get(rootProgramOf(path))?.(node, true);
+        if (names?.length === 1) return names[0];
+      }
     }
     // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
     // fork `seen` per side so shared-binding probe (e.g. `obj[s[s]]` re-entering `s`) doesn't
@@ -5361,9 +5380,9 @@ export function resolveKey({
         seen: new Set(seen),
         depth: depth + 1,
       });
-      if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
+      if (name && !name.startsWith('Symbol.')) return plusOperand ? null : `Symbol.${ name }`;
     }
-    return resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey);
+    return resolveUnfollowedKey(node, computed, scope, adapter, path, resolveStaticKey, plusOperand);
   }
 }
 

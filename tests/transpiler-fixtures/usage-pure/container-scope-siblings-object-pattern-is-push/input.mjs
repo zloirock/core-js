@@ -6,4 +6,5 @@ for (let i = 0, item = { w: Object }; i < 1; i++) {
   const { is: viaForInit } = item.w;
   out.push(viaForInit);
 }
+for (let i = 0, item = { w: Array }; i < 1; i++) item.w = Map;
 export { out };

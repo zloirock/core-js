@@ -512,12 +512,34 @@ for (const [label, source, expected] of [
   const keys = CENSUS_KEY_NAMES.get(program.node)(member.node);
   check(name, keys?.join(',') ?? null, expected);
 });
+for (const [label, setup, later, expected] of [
+  ['plain write', "(E as any).K = 'filter';", '', 'filter'],
+  ['bracket write', "(E as any)['K'] = 'filter';", '', 'filter'],
+  ['two writes', "(E as any).K = 'slice'; (E as any).K = 'filter';", '', 'filter'],
+  ['later write', "(E as any).K = 'filter';", "(E as any).K = 'slice';", 'filter'],
+  ['conditional write', "if (flag) (E as any).K = 'filter';", '', null],
+  ['conditional overwrite', "(E as any).K = 'filter'; if (flag) (E as any).K = 'slice';", '', null],
+  ['aliased write', "(E as any).K = 'filter'; const alias = E; (alias as any).K = 'slice';", '', null],
+  ['method changes slot', "(E as any).K = 'filter'; (E as any).__defineGetter__('K', () => 'slice');", '', null],
+  ['shadowed writer', "{ const E = { K: 'slice' }; E.K = 'filter'; }", '', null],
+  ['opaque value', '(E as any).K = other;', '', null],
+]) runBoth(`claimable enum key ${ label }`, `enum E { K = 'map' } ${ setup } use([1][E.K]); ${ later }`, (adapter, program, name) => {
+  collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+  const member = adapter.pickPath(program, 'MemberExpression', p => p.node.object?.type === 'ArrayExpression');
+  check(name, adapter.makeResolver().resolveClaimableComputedKeyName(member.node.property, member.scope, member), expected);
+});
 runBoth('enum receiver escape without raw census', 'enum E { at = "at" } use(E.at);', (adapter, program, name) => {
   ESCAPED_CONTAINER_NAMES.set(program.node, new Set(['E']));
   const member = adapter.pickPath(program, 'MemberExpression', p => p.node.object?.name === 'E');
   const type = adapter.makeResolver().resolvePropertyObjectType(member);
   check(name, type ? type.primitive ? type.type : type.constructor : null, null);
 });
+runBoth('exported enum can be changed by its consumer', "export enum E { K = 'map' } (E as any).K = 'filter'; use(); use([1][E.K]);",
+  (adapter, program, name) => {
+    collectFileCensus(program.node, [escapedCtorReferencesReducer()]);
+    const member = adapter.pickPath(program, 'MemberExpression', p => p.node.object?.type === 'ArrayExpression');
+    check(name, adapter.makeResolver().resolveClaimableComputedKeyName(member.node.property, member.scope, member), null);
+  });
 
 // Callable-value and constructor-identity questions share a member but require separate cache modes.
 runBoth('class field constructor after callable query',

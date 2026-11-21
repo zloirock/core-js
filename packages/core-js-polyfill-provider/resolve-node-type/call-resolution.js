@@ -51,7 +51,6 @@ import {
   classConstructorFunction,
   cleanDestructureAliasWrites,
   callPairing,
-  kebabToCamel,
   pathOfNode,
   forOfHeadElements,
   getCallSiteTypeArgs,
@@ -98,7 +97,7 @@ export function createCallResolution({
   resolveKnownInstanceMember,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   staticPairFromPolyfillEntry,
-  polyfillEntryAt,
+  instanceDispatcherKey,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
   swapAliasToTSTypeQueryWithSubst,
@@ -146,13 +145,12 @@ export function createCallResolution({
     const invoked = unwrapExpressionChain(pairing.thisArg);
     if (dispatch.arguments.length !== 1 || selected?.type !== 'Identifier' || invoked?.type !== 'Identifier'
       || selected.name !== invoked.name) return null;
-    const entry = polyfillEntryAt(pathOfNode(callee, dispatch.callee));
-    const segments = entry?.split('/');
-    if (segments?.at(-2) !== 'instance') return null;
+    const method = instanceDispatcherKey(pathOfNode(callee, dispatch.callee));
+    if (!method) return null;
     const receiver = pathOfNode(callee.parentPath, pairing.thisArg);
     const type = receiver && resolveNodeType(receiver);
     const family = type?.primitive ? PRIMITIVE_WRAPPERS[type.type] : type?.constructor;
-    const hint = family && lookupNested(KNOWN_INSTANCE_METHOD_RETURN_TYPES, family, kebabToCamel(segments.at(-1)));
+    const hint = family && lookupNested(KNOWN_INSTANCE_METHOD_RETURN_TYPES, family, method);
     return hint ? typeFromHint(hint, type) : null;
   }
 

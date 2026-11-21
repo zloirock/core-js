@@ -6,4 +6,5 @@ for (const item of [{ w: Object }]) {
   const { values: viaForOfHead } = item.w;
   out.push(viaForOfHead);
 }
+for (const item of [{ w: Array }]) item.w = Map;
 export { out };

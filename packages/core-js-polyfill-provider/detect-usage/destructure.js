@@ -1620,10 +1620,9 @@ export function collectMemberUnionCandidates(options) {
   }) : null;
   const parameterNode = parameterBinding?.path?.node ?? parameterBinding?.node;
   const parameterSource = parameterBinding?.kind === 'param' ? sourceCensusFact(PARAMETER_STATIC_SOURCES, parameterNode, path) : null;
-  // A closed proof that every caller supplies a fresh container excludes constructor
-  // candidates; a failed or incomplete source proof does not.
-  const parameterNonStatic = adapter.parameterStaticSources?.get(parameterNode)?.nonStatic;
+  const slotCandidates = [];
   const objects = reachableAliasValues({
+    values: slotCandidates,
     aliasNode: objectNode,
     // the operand a decided selection always yields seeds the union where the caller has no primary of its
     // own: the census of the whole selection named it, and a host with no primary meta (a catch parameter's
@@ -1640,11 +1639,13 @@ export function collectMemberUnionCandidates(options) {
     resolve: ({ node, readNode, ctx }) => resolveObjectName({
       objectNode: node, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path ?? path, usageNode: readNode,
     }) ?? (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression'
-      ? staticContainerReceiverName({ node, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path ?? path }) : null),
+      ? staticContainerReceiverName({ ...ctx, node, path: ctx.path ?? path, unionSink: slotCandidates }) : null),
   });
   // Local calls, parameters and opaque iterations can retain constructor candidates without
   // proving a receiver identity. They owe this read's key, not the constructor's whole family.
-  if (!parameterNonStatic && (computedKeyNode || primaryKey === null || hasStaticDefinitionKey(primaryKey))) {
+  // A closed proof that every caller supplies a fresh container excludes constructor candidates.
+  if (!adapter.parameterStaticSources?.get(parameterNode)?.nonStatic
+    && (computedKeyNode || primaryKey === null || hasStaticDefinitionKey(primaryKey))) {
     for (const name of CENSUS_STATIC_RECEIVERS.get(rootProgramOf(path))?.(objectNode, true) ?? []) {
       if (!objects.includes(name)) objects.push(name);
     }
@@ -4686,6 +4687,7 @@ function classBindingHop({ hop, binding, name, walk }) {
     return reaching ? { follow: reaching } : null;
   }
   if (walk.walkPath.length === 0) return isKnownGlobalName(name) ? null : { leaf: name };
+  collectReassignedHopUnion({ hop, binding, name, walk });
   return { descend: binding.path?.node ?? binding.node };
 }
 
@@ -4734,10 +4736,12 @@ function collectReassignedHopUnion({ hop, binding, name, walk }) {
 // standing in an arm the build never takes reaches nothing (`writeNeverRuns`). each is read for its
 // VALUE, as the mirror reads a level (`levelLiteralThroughIife`): an effect prefix runs where the
 // source spells it, which the selection standing in place keeps, and a store yields what it installs
-function walkAlternativesIntoSink({ hop, walk, values, walkPath = walk.walkPath, containerPath = walk.containerPath }) {
+function walkAlternativesIntoSink({ hop, walk, values, walkPath = walk.walkPath, containerPath = walk.containerPath, written = false }) {
   for (const value of values) {
     if (writeNeverRuns({ write: value, usagePath: hop.ctx.path, adapter: hop.ctx.adapter })) continue;
-    const slotHop = slotValueHop({ hop, walk }, value) ?? { ...hop, node: value };
+    const valuePath = written && pathOfNode(hop.ctx.path, value);
+    const slotHop = valuePath ? { ...hop, node: value, readNode: value, ctx: { ...hop.ctx, scope: valuePath.scope, path: valuePath } }
+      : slotValueHop({ hop, walk }, value) ?? { ...hop, node: value };
     const { literal } = levelLiteralThroughIife(installedWriteValue(slotHop.node));
     const resolved = walkStaticReceiverAlternative({
       ...slotHop, node: literal, seen: walkPath === walk.walkPath ? slotHop.seen : null,
@@ -5541,6 +5545,7 @@ function walkStaticReceiverStep(hop, {
       return CONTINUE_HOP;
     }
     enterContainer(current.name, step.descend);
+    currentScope = bindingDeclarationPath(binding)?.scope ?? aliasDeclScope(binding, currentScope);
     current = step.descend;
     readNode = current;
     classHopEnded = true;
@@ -5556,8 +5561,10 @@ function walkStaticReceiverStep(hop, {
   // its declarator stands rather than at the use `path` anchors
   while (current?.type === 'Identifier' && adapter.hasBinding({ scope: currentScope, name: current.name, path, read: current })) {
     if (++hops > STATIC_WALK_DEPTH || cycleGuardHas(visited, current.name)) return null;
-    visited.add(current.name);
     const binding = adapter.getBinding({ scope: currentScope, name: current.name, path, read: current });
+    const identity = binding?.path?.node ?? binding?.node ?? current.name;
+    if (cycleGuardHas(visited, identity)) return null;
+    visited.add(identity);
     if (resolveLeaf && !walkPath.length) {
       const source = resolveLeaf(standing().hop);
       if (source) return source;
@@ -5634,7 +5641,7 @@ function walkStaticReceiverStep(hop, {
     if (!ignoreWrittenSlots && walkPath.length
       && adapter.isWrittenContainerSlot?.(current.name, walkPath, binding.path?.node ?? binding.node, path, slotReadNode)) {
       const replacementName = adapter.containerSlotWriteDominatesUsage?.(walkPath, binding.path?.node ?? binding.node, path,
-        slotReadNode, writtenStaticOwnerName);
+        slotReadNode, writtenStaticOwnerName, adapter.method === 'usage-global' ? unionSink : null);
       if (replacementName) return adapter.method === 'usage-pure' ? null : replacementName;
     }
     // A fresh replacement can kill the literal's candidate without naming a new constructor.
@@ -5648,6 +5655,7 @@ function walkStaticReceiverStep(hop, {
         values: adapter.writtenContainerSlotValues?.(current.name, walkPath.slice(0, replacedAt + 1),
           binding.path?.node ?? binding.node) ?? [],
         walkPath: walkPath.slice(replacedAt + 1),
+        written: true,
       });
       return reportNonStatic && replacedAt === walkPath.length - 1 ? false : null;
     }
@@ -5914,7 +5922,7 @@ function walkStaticReceiverTerminal({ hop, walk }) {
     if (current?.type === 'ArrayExpression' && adapter.isWrittenContainerSlot?.(containerName, [...containerPath, '*'], containerNode)) {
       for (const element of current.elements) if (canHoldBuiltIn(element)) alternatives.push(element);
     }
-    walkAlternativesIntoSink({ hop, walk, values: alternatives, walkPath: walkPath.slice(1), containerPath: slotPath });
+    walkAlternativesIntoSink({ hop, walk, values: alternatives, walkPath: walkPath.slice(1), containerPath: slotPath, written: true });
   }
   const arraySlot = arrayLiteralSlotValue(current, walkPath[0]);
   const getters = [];

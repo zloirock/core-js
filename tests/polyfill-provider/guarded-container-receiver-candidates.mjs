@@ -91,6 +91,8 @@ const writtenRows = [
   ['generator call', 'function* set(value) { value.realm = Map; } const source = { realm: Object }; set(source);', 'source', null],
   ['deferred body write', 'function set(value) { return () => { value.realm = Map; }; } const source = { realm: Object }; set(source);', 'source', null],
   ['callee reassigned', 'function set(value) { value.realm = Map; } set = replacement; const source = { realm: Object }; set(source);', 'source', null],
+  ['own apply', 'function set(value) { value.realm = Map; } set.apply = noop; const source = { realm: Object }; set.apply(null, [source]);', 'source', null],
+  ['intact apply', 'function set(value) { value.realm = Map; } const source = { realm: Object }; set.apply(null, [source]);', 'source', 'Map'],
   ['optional call', 'function set(value) { value.realm = Map; } const source = { realm: Object }; set?.(source);', 'source', null],
   ['other parameter effect', 'function set(value, other) { other(); value.realm = Map; } const source = { realm: Object }; set(source, effect);', 'source', null],
   ['unrelated assignment effect', 'function set(value) { outside.k = other; value.realm = Map; } const source = { realm: Object }; set(source);', 'source', null],

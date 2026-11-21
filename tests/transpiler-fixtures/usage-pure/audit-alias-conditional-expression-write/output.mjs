@@ -11,20 +11,28 @@ import _Set from "@core-js/pure/actual/set/constructor";
 function viaTernary(c) {
   let M;
   c ? (M = _Map, _globalThis) : 0;
-  return typeof _Map$groupBy;
+  return typeof (M === _Map ? _Map$groupBy : M.groupBy);
 }
 function viaLogical(c) {
   let P;
   c && (P = _Promise, _globalThis);
-  return typeof _Promise$try;
+  return typeof (P === _Promise ? _Promise$try : P.try);
 }
 let S;
 const w = () => (S = _Set, _globalThis);
-export const lazy = [w, typeof S.union];
+export const lazy = [w, observe(() => typeof S.union)];
 let T;
 (T = _Map, _globalThis) ? 1 : 2;
 export const test = typeof _Map$groupBy;
 let Q;
 Q = _Promise;
 export const seq = typeof _Promise$try;
-export const r = [viaTernary(true), viaLogical(true)];
+function observe(read) {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof TypeError) return 'TypeError';
+    throw error;
+  }
+}
+export const r = [viaTernary(true), observe(() => viaTernary(false)), viaLogical(true), observe(() => viaLogical(false))];

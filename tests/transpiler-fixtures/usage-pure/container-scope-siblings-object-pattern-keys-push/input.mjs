@@ -7,4 +7,8 @@ const out = [];
   const { keys: viaBlock } = item.w;
   out.push(viaBlock);
 }
+{
+  const item = { w: Array };
+  item.w = Map;
+}
 export { out };

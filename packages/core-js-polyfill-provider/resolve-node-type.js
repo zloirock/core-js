@@ -23,6 +23,7 @@ import {
   isNullLiteralNode,
   isTypeAnnotationWrapper,
   isVoidExpression,
+  kebabToCamel,
   lookupReadPath,
   objectLevelPairedProperty,
   ownerWritePathIndex,
@@ -548,26 +549,11 @@ function createResolveNodeType(babelNodeType, t, {
     return getterFreshLiterals.has(node);
   }
 
-  // [key] where key is a string/number literal, a const binding (chain) to one, or an
-  // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots).
-  // `literalValue` is the LEAF extractor: the key domain coerces every literal to its string
-  // key (`obj[1]` and `obj['1']` index the same slot), while a caller comparing with `===`
-  // passes an extractor that keeps the runtime type apart. only the leaves differ - the
-  // alias / IIFE / enum-member folding above them is identical, so it is not duplicated
-  // the same key NAME, for a consumer that will CLAIM a polyfill on it. the fold is the one above;
-  // what this adds is the shape gate a claim needs: a name the caller cannot attribute to a plain
-  // container, or one asked without a path to the program, declines rather than claims - over-
-  // resolving calls a method the source does not, under-resolving only degrades the read. the
-  // REWRITTEN member is gated here: a slot the program writes no longer holds the declared value,
-  // so the runtime key is not the folded one and claiming on it would call a different method.
-  // asked of the same per-program write index the TYPE read uses, so the two cannot drift apart
+  // A polyfill claim needs the enum slot's value at this read, including a proven replacement.
   function resolveClaimableComputedKeyName(key, scope, path) {
-    const name = resolveComputedKeyName(key, scope);
-    if (name === null) return null;
     const memberName = getMemberProperty(key);
-    const objectName = key?.object?.type === 'Identifier' ? key.object.name : null;
-    if (!path || !memberName || !objectName) return null;
-    return memberResolveCluster.enumSlotExternallyWritten(path, [objectName], memberName) ? null : name;
+    if (!path || memberName === null || key.object.type !== 'Identifier') return null;
+    return memberResolveCluster.enumKeyAfterWrites(path, key, memberName, resolveComputedKeyName(key, scope), literalKeyValue);
   }
 
   // Initial literal arguments are facts of the complete caller set. An in-flight null also
@@ -631,6 +617,8 @@ function createResolveNodeType(babelNodeType, t, {
     return value;
   }
 
+  // Fold computed keys through literals, aliases, IIFEs and enum declarations. The leaf extractor
+  // preserves the runtime type for strict comparisons and coerces numbers for property names.
   function resolveComputedKeyName(key, scope, literalValue = literalKeyValue, enumDeclarations = true, readPath = null) {
     // follow const-binding chains by looping instead of recursing - the Identifier branch
     // re-drives the whole resolution on the binding's init at an incremented depth
@@ -2193,6 +2181,18 @@ function createResolveNodeType(babelNodeType, t, {
     return () => getScopeBinding(lookup);
   }
 
+  // Recover a dispatched method from its import binding, including helpers introduced during the current pass.
+  function instanceDispatcherKey(path) {
+    if (path?.node?.type !== 'Identifier') return null;
+    const { name } = path.node;
+    const useBinding = useBindingThunk({ scope: path.scope, name, path, read: path.node });
+    const entry = getPolyfillBindingEntry(path.scope, name, hopAnchorStart({ node: path.node, ctx: { path } }), useBinding);
+    const segments = entry?.split('/');
+    // Instance dispatchers are module imports. A closer declaration can use the same name.
+    if (segments?.at(-2) !== 'instance' || useBinding()?.scope?.parent) return null;
+    return kebabToCamel(segments.at(-1));
+  }
+
   // the hop-shaped ask: `hop` stands on the identifier spelling `name`, its anchor
   // (`hopAnchorStart`) is the use position. gates on KNOWN_STATIC_METHOD_RETURN_TYPES the same as
   // `staticPairFromDestructure` does - asymmetric acceptance otherwise resurfaces stale entries for
@@ -2427,9 +2427,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveKnownInstanceMember,
     KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     staticPairFromPolyfillEntry,
-    polyfillEntryAt: path => path && getPolyfillBindingEntry(path.scope, path.node.name,
-      hopAnchorStart({ node: path.node, ctx: { path } }),
-      useBindingThunk({ scope: path.scope, name: path.node.name, path, read: path.node })),
+    instanceDispatcherKey,
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
     swapAliasToTSTypeQueryWithSubst,
@@ -2654,6 +2652,10 @@ function createResolveNodeType(babelNodeType, t, {
     walkObjectLiteralPropertyPath,
     isGetterFreshLiteral,
     pathSlotWritten,
+    instanceDispatcherKey,
+    isWrittenContainerSlot,
+    isMutatedStatic,
+    spellsMemberKey,
     isMemberLike,
     findAmbientClassPath,
     resolveArrayLiteralElement,
@@ -3590,7 +3592,7 @@ function createResolveNodeType(babelNodeType, t, {
     const literal = resolveRuntimeExpression(holderPath, hops);
     if (!t.isArrayExpression(literal?.node) || literal.node.elements.some(element => element?.type === 'SpreadElement')) return null;
     const permutes = [];
-    if (t.isIdentifier(holderPath.node) && (arrayElementsMayBeRetyped(holderPath, anchorPath, { permutes })
+    if (t.isIdentifier(holderPath.node) && (arrayElementsMayBeRetyped(holderPath, anchorPath, { permutes, literalPath: literal })
       || aliasedElementsMayBeRetyped(hops, anchorPath, permutes))) return null;
     const elements = cachedContainerPaths(literal, 'elements').filter(element => element?.node);
     if (index === null || permutes.length) return elements;
@@ -3665,7 +3667,10 @@ function createResolveNodeType(babelNodeType, t, {
       if (fields || index === null) return fields;
     }
     const arms = literalElementUnionPaths(path.get('object'), index, path);
-    return arms ? mergeArmHints(arms, depth) : null;
+    if (arms) return mergeArmHints(arms, depth);
+    // A yielded element can still select a dispatcher even when its methods or contents changed.
+    const hint = index !== null && toHint(resolveArrayIndexAccess(path, true));
+    return TYPE_HINTS.has(hint) ? new Set([hint]) : null;
   }
 
   // A pattern-bound leaf asks the shared field extraction, not the whole initializer. A direct

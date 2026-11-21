@@ -2,6 +2,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // NEGATIVE: a write inside a HOISTED closure called before the capture may run before the
 // read - a textual after-position proves nothing across the function boundary, so bail
 let kh = 'Symbol';
+flipKey();
 const {
   [kh]: HoistedFlip
 } = _globalThis;

@@ -4,12 +4,15 @@ import { adapters, createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish } = createChecker('array-index-complexity');
 
-for (const parser of adapters) {
+for (const parser of adapters) for (const [kind, setup] of [
+  ['pristine', ''], ['iterated', 'for (const el of rows) void el; void [...rows];'], ['extracted', 'use(rows.includes);'],
+]) {
+  const label = `${ parser.name }/${ kind }`;
   const counts = { members: [], references: [] };
   for (const size of [48, 96, 192]) {
-    const program = parser.parseAndScope(`const rows = [[1]]; ${ 'rows[0].at(0);'.repeat(size) }`);
+    const program = parser.parseAndScope(`const rows = [[1]]; ${ setup } ${ 'rows[0].at(0);'.repeat(size) }`);
     const paths = parser.collectPaths(program, 'MemberExpression', path => path.node.computed);
-    const resolver = parser.makeResolver();
+    const resolver = parser.makeResolver({ spellsMemberKey: () => false });
     let reads = 0;
     let names = 0;
     for (const path of paths) {
@@ -25,18 +28,21 @@ for (const parser of adapters) {
       });
     }
     paths.forEach(path => path.node.object.name);
-    check(`${ parser.name }/${ size }/counter control`, reads, size);
-    check(`${ parser.name }/${ size }/reference counter control`, names, size);
+    check(`${ label }/${ size }/counter control`, reads, size);
+    check(`${ label }/${ size }/reference counter control`, names, size);
     reads = 0;
     names = 0;
-    for (const path of paths) check(`${ parser.name }/${ size }/indexed receiver`, resolver.resolveNodeType(path)?.constructor, 'Array');
-    checkTruthy(`${ parser.name }/${ size }/analysis reads the members`, reads > 0);
-    checkTruthy(`${ parser.name }/${ size }/analysis reads the references`, names > 0);
+    for (const path of paths) {
+      if (kind === 'iterated') check(`${ label }/${ size }/indexed dispatcher`, resolver.resolvePropertyUnionHints(path.parentPath)?.has('array'), true);
+      else check(`${ label }/${ size }/indexed receiver`, resolver.resolveNodeType(path)?.constructor, 'Array');
+    }
+    checkTruthy(`${ label }/${ size }/analysis reads the members`, reads > 0);
+    checkTruthy(`${ label }/${ size }/analysis reads the references`, names > 0);
     counts.members.push(reads);
     counts.references.push(names);
   }
-  for (const [kind, values] of Object.entries(counts)) for (let at = 1; at < values.length; at++) {
-    checkTruthy(`${ parser.name }/${ kind }/doubling reads stays linear/${ at }`, values[at] <= 2.5 * values[at - 1], values.join(' -> '));
+  for (const [counter, values] of Object.entries(counts)) for (let at = 1; at < values.length; at++) {
+    checkTruthy(`${ label }/${ counter }/doubling reads stays linear/${ at }`, values[at] <= 2.5 * values[at - 1], values.join(' -> '));
   }
 }
 
@@ -70,6 +76,18 @@ for (const parser of adapters) {
   check(`${ parser.name }/captured reference/bag identity control`, current.referencePaths ?? current.references, references);
   check(`${ parser.name }/captured reference/bag size control`, references.length, length);
   check(`${ parser.name }/captured reference/partial crawl observes the mutator`, resolver.resolveNodeType(paths[1]), null);
+}
+
+// A loop-scope crawl can change the iterable's role without refreshing the outer binding.
+for (const parser of adapters) {
+  const program = parser.parseAndScope('const rows = [[1]]; for (const el of rows) void el; rows[0].at; rows[0].at;');
+  const resolver = parser.makeResolver({ spellsMemberKey: () => false });
+  const reads = parser.collectPaths(program, 'MemberExpression', path => path.node.property?.name === 'at');
+  check(`${ parser.name }/iterable read`, resolver.resolvePropertyUnionHints(reads[0])?.has('array'), true);
+  const loop = parser.pickPath(program, 'ForOfStatement');
+  loop.node.right = { type: 'CallExpression', callee: { type: 'Identifier', name: 'consume' }, arguments: [loop.node.right] };
+  loop.scope.crawl();
+  check(`${ parser.name }/outer array handed to a call`, resolver.resolvePropertyUnionHints(reads[1]), null);
 }
 
 // Even a write to another slot makes the answer depend on which element is being read.

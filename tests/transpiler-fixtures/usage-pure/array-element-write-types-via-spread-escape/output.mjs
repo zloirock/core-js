@@ -1,6 +1,6 @@
-import _includes from "@core-js/pure/actual/instance/includes";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 var _ref;
-// a spread hands every element out at once - the holder may write elements, so it bails
+// The consumer receives a new array containing the original elements.
 const fanned = [[1], [2]];
 use([...fanned]);
-export const viaSpreadEscape = _includes(_ref = fanned[0]).call(_ref, 8);
+export const viaSpreadEscape = _includesMaybeArray(_ref = fanned[0]).call(_ref, 8);

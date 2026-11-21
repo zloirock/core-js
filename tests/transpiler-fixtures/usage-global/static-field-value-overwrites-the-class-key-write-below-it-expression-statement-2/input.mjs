@@ -6,3 +6,5 @@ function define() {
   };
 }
 define();
+export const fromLater = () => D.from([1]);
+define();

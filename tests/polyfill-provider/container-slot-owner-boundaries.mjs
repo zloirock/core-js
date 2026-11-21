@@ -75,6 +75,7 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
   check(`${ label }: unindexed owner has no writes`, adapter.isWrittenContainerSlot('r', ['0'], opaque.node), false);
   checkDeep(`${ label }: unindexed owner has no values`, adapter.writtenContainerSlotValues('r', ['0'], opaque.node), []);
   check(`${ label }: indexed owner keeps writes`, adapter.isWrittenContainerSlot('r', ['0'], array.node), true);
+  check(`${ label }: an unnamed receiver excludes named writes`, adapter.isWrittenContainerSlot(null, ['0']), false);
   checkDeep(`${ label }: indexed owner keeps values`,
     adapter.writtenContainerSlotValues('r', ['0'], array.node).map(node => node.name), ['Map']);
   checkDeep(`${ label }: name-only lookup keeps its union`,
@@ -96,13 +97,14 @@ for (const parser of adapters) for (const method of ['usage-global', 'usage-pure
   }
   const unknown = { ...array.node, start: -2, end: -1 };
   check(`${ label }: a different source position owns no writes`, adapter.isWrittenContainerSlot('r', ['0'], unknown), false);
-  const writesProgram = parser.parseAndScope('const box = { value: Array }; box.value = {}; box.value.from;');
+  const writesProgram = parser.parseAndScope('const box = { value: Array }; box.value = {}; getPrototype().includes = collect; box.value.from;');
   const writesCensus = collectFileCensus(writesProgram.node, [mutationShapesReducer()]);
   const writesAdapter = (parser.name === 'babel' ? createBabelAdapter : createEstreeAdapter)({
     method,
     getWrittenContainerSlots: () => writesCensus.writtenContainerSlots,
     getContainerSlotIndex: () => writesCensus.containerSlotIndex,
   });
+  check(`${ label }: a write through an unnamed receiver reaches its key`, writesAdapter.isWrittenContainerSlot(null, ['includes']), true);
   const owner = parser.pickPath(writesProgram, 'VariableDeclarator').node;
   const usage = parser.pickPath(writesProgram, 'MemberExpression', path => path.node.property.name === 'from');
   for (const node of [owner, { ...owner }]) {

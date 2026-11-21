@@ -2,7 +2,7 @@
 import { adapters, babelAdapter, createChecker } from './harness.mjs';
 import { createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { isAmbientBinding, isAmbientTypeDeclaration, violationDeclarationOf } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { findTSRuntimeBindingInPath, isAmbientBinding, isAmbientTypeDeclaration, violationDeclarationOf } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 
 const { check, checkTruthy, finish } = createChecker('ambient-bindings', {
   tsc: 'These parser-level probes deliberately merge ambient declarations and values, including duplicate and external declarations.',
@@ -45,9 +45,21 @@ for (const parser of adapters) for (const [title, source, runtime] of [...rows, 
   const context = { scope: use.scope, name: 'Map', path: use };
   const label = `${ parser.name }/${ title }`;
   check(`${ label }/runtime shadow`, adapter.hasBinding(context), runtime);
-  for (const binding of [use.scope.getBinding('Map'), adapter.getBinding(context)]) {
-    // Some type declarations are absent from a tracker's binding table altogether.
-    if (binding) check(`${ label }/whole binding`, isAmbientBinding(binding), !runtime);
+  const raw = use.scope.getBinding('Map');
+  if (raw) check(`${ label }/tracker binding`, isAmbientBinding(raw), !runtime);
+  const normalized = adapter.getBinding(context);
+  if (runtime) checkTruthy(`${ label }/runtime binding present`, normalized);
+  if (normalized) check(`${ label }/normalized binding`, isAmbientBinding(normalized), !runtime);
+}
+
+for (const parser of adapters) {
+  const source = "switch (typeof Map.groupBy) { case 'function': enum Map { None = 0 } use(Map.None); }";
+  const program = parser.parseAndScope(source);
+  const adapter = (parser === babelAdapter ? createBabelAdapter : createEstreeAdapter)();
+  for (const [key, local] of [['groupBy', false], ['None', true]]) {
+    const path = parser.pickPath(program, 'MemberExpression', p => p.node.property.name === key);
+    check(`${ parser.name }/case enum scope/${ key }`, findTSRuntimeBindingInPath(path, 'Map'), local);
+    check(`${ parser.name }/case enum lookup/${ key }`, adapter.hasBinding({ scope: path.scope, name: 'Map', path }), local);
   }
 }
 

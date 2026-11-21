@@ -1346,27 +1346,8 @@ export function valueIsDroppedAt(path) {
   return positionDisposition(parent, outer.node, parentPath) === POSITION_CONSUMES;
 }
 
-// the node slots no subtree walk descends into: positions and comment arrays carry no nodes of the
-// program. ONE list, because the two walks that use it differ in their DESCENT RULE and in nothing
-// else - a second hand-written copy drifts silently, and each walk then answers about a different tree
+// Position and comment metadata are outside an invocation's argument expressions.
 const SUBTREE_SKIP_KEYS = new Set(['loc', 'range', 'leadingComments', 'trailingComments']);
-
-// visit every node of a subtree. `stopAtFunction` keeps the walk inside ONE body - a nested
-// function's nodes answer for that function, not for its host, which is the difference between
-// "does this region write" and "does anything anywhere write". the descent `suspensionPointBefore`
-// rests on: it brings the question, the walk brings nothing of its own
-function forEachInSubtree(node, visit, stopAtFunction, root = true, depth = 0) {
-  // bounded like every other walk here: a slot that back-references an ancestor is a parser
-  // property, not a contract, and an unbounded descent turns one into a stack overflow
-  if (depth > MAX_DEPTH || !node || typeof node !== 'object' || typeof node.type !== 'string') return;
-  if (!root && stopAtFunction && FUNCTION_LIKE_NODE_TYPES.has(node.type)) return;
-  visit(node);
-  for (const [key, value] of Object.entries(node)) {
-    if (SUBTREE_SKIP_KEYS.has(key)) continue;
-    if (Array.isArray(value)) for (const item of value) forEachInSubtree(item, visit, stopAtFunction, false, depth + 1);
-    else forEachInSubtree(value, visit, stopAtFunction, false, depth + 1);
-  }
-}
 
 // the positions depend on the FUNCTION alone, so they are collected once per body and searched per
 // read - walking again for every read inside one body made the cost quadratic in the reads it holds
@@ -1382,11 +1363,12 @@ export function suspensionPointBefore(fnNode, beforePos) {
   let positions = suspensionPositions.get(fnNode);
   if (!positions) {
     positions = [];
-    forEachInSubtree(fnNode, node => {
+    walkAstNodes({ root: fnNode.body, visit(node, parent) {
+      if (parent && FUNCTION_LIKE_NODE_TYPES.has(parent.type) && !definitionTimeSlotOf(parent, node)) return false;
       if ((node.type === 'AwaitExpression' || node.type === 'YieldExpression'
         || (node.type === 'ForOfStatement' && node.await))
         && typeof node.start === 'number') positions.push(node.start);
-    }, true);
+    } });
     positions.sort((a, b) => a - b);
     suspensionPositions.set(fnNode, positions);
   }
@@ -1422,7 +1404,8 @@ function invocationArgumentWrites(callNode) {
       if (FUSED_METHOD_TYPES.has(node.type)) for (const dec of node.decorators ?? []) scan(dec, false);
       return;
     }
-    if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
+    if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression'
+      || (isForXStatement(node) && (node.left.type !== 'VariableDeclaration' || node.left.kind === 'var'))) {
       writes = true;
       return;
     }
@@ -3245,13 +3228,14 @@ function annexBBlockingNames(node) {
 }
 function collectScopeBlockFunctions(scopeNode) {
   const names = new Map();
-  function visit(node, blocked) {
+  function visit(node, blocked, direct = false) {
     if (!isASTNode(node)) return;
     if (node.type === 'FunctionDeclaration') {
       // register the block-function's hoisted name ONLY when no intervening block lexically
       // rebinds it (an intervening `let Array` keeps `Array` the GLOBAL - under-suppressing here
       // would drop a needed polyfill). a function is a var-scope boundary - don't descend its body
-      if (node.id?.name && !blocked.has(node.id.name) && !names.has(node.id.name)) names.set(node.id.name, node);
+      if ((direct || (!node.async && !node.generator)) && node.id?.name
+        && !blocked.has(node.id.name) && !names.has(node.id.name)) names.set(node.id.name, node);
       return;
     }
     if (isVarScopeBoundary(node.type)) return;
@@ -3263,7 +3247,7 @@ function collectScopeBlockFunctions(scopeNode) {
   // the owner scope's own body-block lexicals block the hoist too
   const body = Array.isArray(scopeNode?.body) ? scopeNode.body : scopeNode?.body?.body;
   const ownerLex = blockLexicalNames(Array.isArray(body) ? body : null) ?? NO_LEXICAL_NAMES;
-  if (Array.isArray(body)) for (const stmt of body) visit(stmt, ownerLex);
+  if (Array.isArray(body)) for (const stmt of body) visit(stmt, ownerLex, true);
   else visit(scopeNode?.body, ownerLex);
   return names;
 }
@@ -3579,10 +3563,9 @@ function reassignmentScanner(common, bodies) {
     for (const stmt of node.body ?? []) stmtRebindNames(stmt, names);
     return names;
   }
-  // names a var-scope boundary shadows: its params plus its hoisted vars (cached index)
+  // Body-only bindings of a var scope. Parameters are visible in defaults as well.
   function boundaryShadowNames(node, sloppyInside) {
     const names = [];
-    for (const param of node.params ?? []) patternNames(param, names);
     for (const name of cachedScopeVars(node).keys()) names.push(name);
     // ... and, in sloppy code, the block-level functions Annex B hoists onto this boundary - the
     // population the sloppy shadow lookup consults, so a write under such a function targets
@@ -3590,11 +3573,8 @@ function reassignmentScanner(common, bodies) {
     if (sloppyInside) for (const name of cachedScopeBlockFunctions(node).keys()) names.push(name);
     // a `static { }` / namespace body holds its statements DIRECTLY, so the block-level rebind scan
     // never runs over them even though their `let` / `const` / class / function shadow exactly as a
-    // nested block's do; and a named function EXPRESSION binds its own name inside itself. a write
-    // to either targets that INNER binding - recording it against the outer one invents a
-    // reassignment, which costs the outer binding its narrow and leaves the native in its place
+    // nested block's do. A write there targets the inner binding.
     if (Array.isArray(node.body)) for (const stmt of node.body) stmtRebindNames(stmt, names);
-    if (node.type === 'FunctionExpression' && node.id?.name) names.push(node.id.name);
     return names;
   }
   // what a node opens for the walk below it: strictness is inherited downward and only ever
@@ -3605,6 +3585,12 @@ function reassignmentScanner(common, bodies) {
     const boundary = isVarScopeBoundary(node.type);
     const sloppyInside = sloppyHere && node.type !== 'ClassDeclaration' && node.type !== 'ClassExpression'
       && !(boundary && nodeHasUseStrict(node));
+    // Defaults see the parameters and the function expression's name. Body vars live one scope deeper.
+    const parameters = !atOwnerRoot && node.params ? [] : EMPTY_REASSIGNMENTS;
+    if (parameters !== EMPTY_REASSIGNMENTS) {
+      for (const param of node.params) patternNames(param, parameters);
+      if (node.type === 'FunctionExpression' && node.id?.name) parameters.push(node.id.name);
+    }
     const shadowNames = atOwnerRoot ? EMPTY_REASSIGNMENTS
       : boundary ? boundaryShadowNames(node, sloppyInside)
       : blockShadowNames(node);
@@ -3614,6 +3600,7 @@ function reassignmentScanner(common, bodies) {
       sloppyHere,
       sloppyInside,
       shadowNames,
+      parameters,
       nests: boundary && !atOwnerRoot,
       switchSplit: node.type === 'SwitchStatement' && (atOwnerRoot || shadowNames.length > 0),
       slotted: boundary && (node.computed || node.decorators?.length),
@@ -3677,7 +3664,8 @@ function reassignmentScanner(common, bodies) {
     if (slotted) walkAstChildren(node, child => definitionTimeSlotOf(node, child) && visitPlanned(child, childPlan(frame, child)));
     const outer = nested;
     if (frame.nests) nested = node;
-    push(shadowNames);
+    push(frame.parameters);
+    if (!node.params) push(shadowNames);
     recordWrites(node);
     // a function OWNER's own body block is the owner's scope, not a nested block: a declaration at
     // its top level - a hoisted `function name`, a `let` - IS the owner-level binding (a shadow of
@@ -3701,11 +3689,18 @@ function reassignmentScanner(common, bodies) {
         bodies.set(node, collecting);
       }
     } else {
-      walkAstChildren(node, child => (slotted && definitionTimeSlotOf(node, child)) || visitPlanned(child, childPlan(frame, child)));
+      walkAstChildren(node, child => {
+        if (slotted && definitionTimeSlotOf(node, child)) return;
+        const inBody = node.params && child === node.body;
+        if (inBody) push(shadowNames);
+        visitPlanned(child, childPlan(frame, child));
+        if (inBody) pop(shadowNames);
+      });
     }
     collecting = outerTape;
     body = outerBody;
-    pop(shadowNames);
+    if (!node.params) pop(shadowNames);
+    pop(frame.parameters);
     nested = outer;
   }
   // the writes of `nodes`, standing in one slot of the last of `frames` - the nodes from the owner root
@@ -3716,10 +3711,15 @@ function reassignmentScanner(common, bodies) {
     let plan = { atOwnerRoot: true, sloppy };
     for (let i = 0; i < frames.length && plan; i++) {
       const frame = frameOf(frames[i], plan.atOwnerRoot, plan.sloppy);
-      plan = childPlan(frame, frames[i + 1] ?? nodes[0]);
+      const child = frames[i + 1] ?? nodes[0];
+      plan = childPlan(frame, child);
       if (plan?.shadowed) {
-        push(frame.shadowNames);
-        pushed.push(frame.shadowNames);
+        push(frame.parameters);
+        pushed.push(frame.parameters);
+        if (!frame.node.params || child === frame.node.body) {
+          push(frame.shadowNames);
+          pushed.push(frame.shadowNames);
+        }
       }
     }
     const outer = nested;
@@ -5199,7 +5199,7 @@ export function bindingWrittenBeforeUsage({ binding, usagePath, usageNode = null
   const before = reassignmentNodesBeyondDeclarator(binding).filter(node => precedesOrUnordered(node, readNode));
   return before.some(node => nodeDominatesUsage({
     node, usagePath, owner, climb: true, usageNode, adapter, replaces: valueObservedBefore({ declaration, before, node }),
-  }) === true) || !!settlingConstructBefore({ before, usagePath, name: bindingDeclaratorName(binding), readNode });
+  }) === true) || !!settlingConstructBefore({ before, declaration, usagePath, name: bindingDeclaratorName(binding), readNode });
 }
 
 // the aliasing write's guard verdict for a body-extract registration: a hoisted `var`
@@ -5285,35 +5285,22 @@ export function initializerMayRunBeforeUsage({ declaratorNode, usagePath, usageN
 // nothing) and so is a labelled block (`break label` skips the rest of its body)
 const BRANCHING_HOST_TYPES = new Set(['IfStatement', 'SwitchStatement', 'TryStatement']);
 
-// does `statement` WRITE `name`? a `var name = X` declaration or a plain `name = X` expression
-// statement - the unit an arm is credited with. a derived write (`name++`, `name += x`) is not one:
-// it READS the name first, so it cannot be what makes the hoisted `undefined` unreachable
-function statementWritesVarName(statement, name) {
-  if (statement?.type === 'VariableDeclaration' && statement.kind === 'var') {
-    return (statement.declarations ?? []).some(item => item.init && item.id?.type === 'Identifier' && item.id.name === name);
-  }
-  const write = statement?.type === 'ExpressionStatement' ? unwrapRuntimeExpr(statement.expression) : null;
-  if (write?.type !== 'AssignmentExpression' || write.operator !== '=') return false;
-  const target = unwrapRuntimeExpr(write.left);
-  return target?.type === 'Identifier' && target.name === name;
-}
-
 // the CONDITIONAL shape a POSITION settles on its own: a branching construct standing UNGUARDED in
 // the owner and provably before the read, every path through which writes `name` - or hard-exits, so
 // the read was not reached that way. whichever path ran, the read observes a write and never the
 // hoisted `undefined`. completeness is asked of the exit walk's dual, so an `if` needs its
 // `alternate`, a `switch` its `default` and a `try` its handler; a lone `if`, a loop and a labelled
 // block are not complete and keep refusing. the construct is located by climbing from the writes the
-// caller hands in - the DECLARATORS for the positional question, the violation set for the value
-// one. Exact-write mode matches supplied assignment identities, so a shadowing lexical binding
+// caller hands in. Match the supplied declarators and assignment identities, so a shadowing lexical binding
 // cannot complete another binding's branch. The answer is POSITIONAL only: whether the writes
 // AGREE on a value is the caller's own
-export function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNode, exactWrites = false, completions = null }) {
+export function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNode, completions = null }) {
   if (!name || !writeNodes?.length) return null;
-  const allowed = exactWrites ? new Set(writeNodes) : null;
+  const allowed = new Set(writeNodes);
   function hit(statement) {
-    return allowed ? statement?.type === 'ExpressionStatement' && allowed.has(unwrapRuntimeExpr(statement.expression))
-      : statementWritesVarName(statement, name);
+    if (statement.type === 'VariableDeclaration') return statement.declarations.some(node => node.init && allowed.has(node));
+    const write = statement.type === 'ExpressionStatement' && unwrapRuntimeExpr(statement.expression);
+    return write?.operator === '=' && allowed.has(write);
   }
   // the owner's parent index is asked ONCE, and WITHOUT the miss-rebuild: a write this index does
   // not hold sits in a nested var scope, which is no path through the OWNER's own branching, so it
@@ -5345,9 +5332,11 @@ export function completeBranchWritesBefore({ ownerNode, name, writeNodes, readNo
 // owner holding them - the read's own, or the one a closure reading the name sits below, which observes
 // the construct its definition follows - with every such write inside it or superseded by it.
 // `{ construct, owner }`, or null
-function settlingConstructBefore({ before, usagePath, name, readNode }) {
+function settlingConstructBefore({ before, declaration, usagePath, name, readNode }) {
   const owner = before.length ? varScopeOwnerHolding(before.at(-1), usagePath) : null;
-  const construct = owner && completeBranchWritesBefore({ ownerNode: owner.node, name, writeNodes: before, readNode });
+  const construct = owner && completeBranchWritesBefore({
+    ownerNode: owner.node, name, writeNodes: declaration?.init ? [...before, declaration] : before, readNode,
+  });
   return construct && before.every(node => nodeRangeContains(construct, node) || provablyPrecedes(node, construct))
     ? { construct, owner } : null;
 }
@@ -5366,21 +5355,22 @@ function settledWriteValue(node) {
 
 // do two write VALUES spell the same thing? asked of the writes a complete branching construct
 // settles, where the reaching value is whichever path ran - so one may be handed on only if every
-// other would resolve the same. deliberately SHALLOW and syntactic: a bare name, a primitive literal,
-// a static member chain of names, an object literal whose non-computed keys pair one for one.
+// other would resolve the same. A stable name or a primitive may agree across branches, as may
+// an object literal whose non-computed keys and stable values pair one for one.
 // everything else answers false and the caller refuses, because a value this cannot compare is one
 // the walk could still resolve two ways
-function writeValuesAgree(a, b, depth = 0) {
+function writeValuesAgree(a, b, ctx, depth = 0) {
   if (a === b) return true;
   if (!a || !b || depth > MAX_DEPTH || a.type !== b.type) return false;
-  if (a.type === 'Identifier') return a.name === b.name;
+  if (a.type === 'Identifier') {
+    if (a.name !== b.name || !ctx?.adapter) return false;
+    const source = ctx.adapter.getBinding?.({ scope: ctx.scope, path: ctx.path, name: a.name, read: a });
+    return !source || !isReassignedBeyondDeclarator(source);
+  }
   const literal = literalNodeValue(a);
   if (literal !== undefined && (literal === null || typeof literal !== 'object')) return literal === literalNodeValue(b);
   if (a.type === 'ThisExpression') return true;
-  if (a.type === 'MemberExpression') {
-    return !a.computed && !b.computed && a.property?.name === b.property?.name
-      && writeValuesAgree(a.object, b.object, depth + 1);
-  }
+  // Identical member spellings can invoke a getter or read a slot changed in one arm.
   if (a.type !== 'ObjectExpression') return false;
   const own = a.properties ?? [];
   const other = b.properties ?? [];
@@ -5388,7 +5378,7 @@ function writeValuesAgree(a, b, depth = 0) {
     const twin = other[index];
     const key = propertyKeyName(prop);
     return key !== null && key !== undefined && !prop.computed && !twin?.computed
-      && key === propertyKeyName(twin) && writeValuesAgree(prop.value, twin.value, depth + 1);
+      && key === propertyKeyName(twin) && writeValuesAgree(prop.value, twin.value, ctx, depth + 1);
   });
 }
 
@@ -5429,7 +5419,7 @@ export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = n
   return declaratorNode?.id?.type === 'Identifier' && !!completeBranchWritesBefore({
     ownerNode: owner.node,
     name: declaratorNode.id.name,
-    writeNodes: cachedScopeVars(owner.node)?.get(declaratorNode.id.name) ?? [],
+    writeNodes: [declaratorNode, ...collectScopeReassignmentNodes(owner, declaratorNode.id.name)],
     readNode: usageNode ?? usagePath.node,
   });
 }
@@ -6266,7 +6256,7 @@ export function reachingReassignmentValueNode({
   // a read in a closure observes a write landing after its definition too, once re-invoked: pure takes
   // the construct there only where none does, as the closure lane below takes its one write - and only
   // where no function declaration holding the read may run before the construct (`valueObservedBefore`)
-  const settled = settlingConstructBefore({ before, usagePath, name: bindingName, readNode });
+  const settled = settlingConstructBefore({ before, declaration, usagePath, name: bindingName, readNode });
   const closureRead = settled && settled.owner.node !== owner.node;
   if (settled && (!closureRead || ((!requireSingleObservation || writes.every(node => precedesOrUnordered(node, readNode)))
     && !(valueObservedBefore({ declaration, before, node: settled.construct }) && hoistedFunctionRunsBefore({
@@ -6285,7 +6275,7 @@ export function reachingReassignmentValueNode({
     const settledWrites = [...declared, ...before.filter(node => nodeRangeContains(construct, node))];
     const values = settledWrites.map(settledWriteValue);
     const [first] = values;
-    if (first && values.every(value => writeValuesAgree(value, first))
+    if (first && values.every(value => writeValuesAgree(value, first, writeCtx))
       && settledWrites.every(node => !writeReadsBlockShadow(settled.owner.node, node, declaration))) return first;
   }
   // Multiple writes need comparable positions. A generated write without one cannot win
@@ -11735,8 +11725,8 @@ export function findTSRuntimeBindingInPath(path, name, stopNode = null) {
   // does a use inside a closure written in one (`closureRegions`)
   const paramFrame = frames.paramOwner?.node ?? null;
   const closureFrames = frames.closureRegions.functions;
-  for (let cur = memberContextPath(path); cur && cur.node !== stopNode; cur = memberContextPath(cur.parentPath)) {
-    if (definitionTimeFrames?.has(cur.node)) continue;
+  for (let cur = memberContextPath(path), child; cur && cur.node !== stopNode; child = cur.node, cur = memberContextPath(cur.parentPath)) {
+    if (definitionTimeFrames?.has(cur.node) || (cur.node.type === 'SwitchStatement' && cur.node.discriminant === child)) continue;
     if (cur.node !== paramFrame && !closureFrames.includes(cur.node) && getTSRuntimeBindings(cur.node)?.has(name)) return true;
     if (parameterPropertyIndex(cur.node, name) !== -1) return true;
   }

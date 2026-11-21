@@ -51,3 +51,82 @@ QUnit.test('binding reads: nested var exposes the captured container base', asse
   assert.same(result.length, 1);
   assert.true(result instanceof List);
 });
+
+QUnit.test('binding reads: default assignment reaches outside a body-local var', assert => {
+  let C = Array;
+  const effects = [];
+  function install(value = C = {
+    from() {
+      effects.push(7);
+      return 19;
+    },
+  }) { var C; }
+  install();
+  assert.same(C.from([8]), 19);
+  assert.deepEqual(effects, [7]);
+});
+
+QUnit.test('binding reads: a returned key uses its own scope', assert => {
+  const key = 'from';
+  function select() { return key; }
+  function read() {
+    const key = 'of';
+    return Array[select()]('ab');
+  }
+  assert.deepEqual(read(), ['a', 'b']);
+});
+
+QUnit.test('binding reads: an own apply can skip the container write', assert => {
+  function read(override) {
+    function fill(target) { target.C = Map; }
+    if (override) fill.apply = () => null;
+    const box = { C: Object };
+    fill.apply(null, [box]);
+    const { C: { groupBy } } = box;
+    return groupBy([7], Boolean);
+  }
+  assert.deepEqual(read(true).true, [7]);
+  assert.deepEqual(read(false).get(true), [7]);
+});
+
+QUnit.test('binding reads: iteration exposes the element and its mutable contents', assert => {
+  const rows = [[[7]], [[8]]];
+  const events = [];
+  for (const el of rows) {
+    el[0] = 'ab';
+    if (el === rows[0]) Object.defineProperty(el, 'at', {
+      get() {
+        events.push('get');
+        return function (index) {
+          events.push(this === el, index);
+          return 17;
+        };
+      },
+    });
+  }
+  assert.same(rows[0].at(-1), 17);
+  assert.deepEqual(events, ['get', true, -1]);
+  assert.same(rows[1].at(0), 'ab');
+  assert.same(rows[1][0].at(-1), 'b');
+});
+
+QUnit.test('binding reads: extracting an array method preserves its call receiver', assert => {
+  const rows = [[7]];
+  const hasValue = rows.includes;
+  assert.true(hasValue.call([3], 3));
+  assert.same(rows[0].at(-1), 7);
+
+  const changed = [[9]];
+  let reads = 0;
+  Object.defineProperty(changed, 'includes', {
+    get() {
+      reads++;
+      this[0] = 'abc';
+      return hasValue;
+    },
+  });
+  const saved = changed.includes;
+  assert.true(saved.call([5], 5));
+  assert.same(changed[0].at(-1), 'c');
+  assert.same(reads, 1);
+});

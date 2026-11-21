@@ -1069,8 +1069,7 @@ const NAME_ROWS = [
   {
     name: '... an IDENTIFIER parameter holds the value whole, and a MEMBER read off it names what it takes',
     code: 'use(((M) => M.groupBy)(Map));',
-    realm: [],
-    local: [],
+    homeOnly: ['Map'],
   },
   {
     name: '... while a BARE read of that same parameter is the hand-out',
@@ -2445,6 +2444,9 @@ for (const parser of adapters) {
     program.body = parser.parseAndScope(source).node.body;
     const answer = collectFileCensus(program, [escapedCtorReferencesReducer(), mutationShapesReducer()]);
     check(`${ parser.name }: recollected program/${ count }`, answer.escapedCtorNames.has('Map', true), count > 64);
+    const read = findNode(program, node => node.property?.name === 'groupBy');
+    const candidates = [...CENSUS_STATIC_RECEIVERS.get(program)(read.object, true)];
+    check(`${ parser.name }: recollected receiver/${ count }`, JSON.stringify(candidates), count > 64 ? '["Map"]' : '[]');
   }
 }
 

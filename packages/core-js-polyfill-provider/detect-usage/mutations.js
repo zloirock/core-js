@@ -79,6 +79,7 @@ import {
   identifierReferencedInSubtree,
   IMPORT_SPECIFIER_TYPES,
   inlineCallYieldedContainer,
+  invocationCalleeOf,
   invocationNode,
   calleeParameterMemberRead,
   calleeYieldedContainer,
@@ -307,6 +308,7 @@ function collectGateRoots(node, out, programNode, keys = [], depth = 0) {
         }
         break;
       case 'AssignmentExpression':
+        if (root.operator === '&&=' || isLogicalInstallOp(root.operator)) collectGateRoots(root.left, out, programNode, keys, depth + 1);
         root = root.right;
         continue;
       case 'ConditionalExpression':
@@ -435,7 +437,11 @@ function memberReadDetachesRepositioner(node) {
   // literal stays a plain slot read; a foldable spelling resolves like the plain form
   const prop = node.property;
   const name = computedKeyStaticName(prop) ?? (prop?.type === 'Identifier' ? null : plainSynthKeyName(prop));
-  return name !== null ? ARRAY_REPOSITIONING_METHODS.has(name) : true;
+  if (name !== null) return ARRAY_REPOSITIONING_METHODS.has(name);
+  // Adding a numeric literal yields a number, a string containing its numeric spelling, or a throw.
+  // None can select an array repositioning method, even when the other operand is an unknown name.
+  return !(prop?.type === 'BinaryExpression' && prop.operator === '+'
+    && (typeof unwrapRuntimeExpr(prop.left)?.value === 'number' || typeof unwrapRuntimeExpr(prop.right)?.value === 'number'));
 }
 
 // the VALUE arguments a mutator invocation installs, seen from the mutator MEMBER read's own
@@ -3484,6 +3490,7 @@ export function escapedCtorReferencesReducer({
   // ... and the enum blocks among the declarations, by name, each with the scope its name binds in: a
   // member read off one is a key its literal initializer spells (`censusKeyValues`)
   const enumBlocks = new Map();
+  let invokedEnums;
   const referenceScopes = new WeakMap();
   // ... and, for a reference standing in one, the node whose scope it is spelled INSIDE but
   // evaluated OUTSIDE. two such slots: a parameter list, its own lexical region, where a default and
@@ -3637,6 +3644,20 @@ export function escapedCtorReferencesReducer({
       CENSUS_PAIRINGS.set(node, pairing);
     }
     return pairing;
+  }
+
+  // An intact invoker can establish that a call ran the target's body. A callable
+  // handed out or written through can have its own call/apply and skip that body.
+  function maySkipInvokedBody(call, pairing) {
+    const member = peelToBareExpr(invocationCalleeOf(call));
+    if (member === pairing.callee) return false;
+    if (!isMemberAccessNode(member)) return true;
+    const receiver = peelToBareExpr(member.object);
+    if (receiver?.type !== 'Identifier') return true;
+    if (receiver !== pairing.callee) return receiver.name !== 'Reflect' || memberKeyName(member) !== 'apply'
+      || peelToBareExpr(call.arguments?.[0]) !== pairing.callee;
+    const { links } = heldOwner(receiver, sharedCallableScope());
+    return !links.length || links.some(([name, owner]) => openedBinding(name, owner));
   }
 
   // the builtin a resolved call invokes and the arguments paired to it; null for a call standing on a
@@ -4449,11 +4470,11 @@ export function escapedCtorReferencesReducer({
     programNode = node;
     LOCAL_MEMBER_CALLEES.set(node, memberCallees);
     PARAMETER_STATIC_SOURCES.set(node, parameterSources);
-    ESCAPE_CENSUS.set(node, census = {});
+    ESCAPE_CENSUS.set(node, census = { boundCalls, maySkipInvokedBody });
     ESCAPED_CTOR_NAMES.set(node, ctorNames);
     CTOR_ALIAS_INITS.set(node, aliasInit);
     CENSUS_STATIC_RECEIVERS.delete(node);
-    CENSUS_KEY_NAMES.set(node, key => censusKeyNames(key, 0, false));
+    CENSUS_KEY_NAMES.set(node, (key, requireServed = false) => censusKeyNames(key, 0, requireServed));
     CENSUS_ENUM_RECEIVERS.set(node, member => enumMemberKey(member, true));
     RECORDED_MUTATION_ROOTS.delete(node);
     ALIAS_SCOPE_FACTS.set(aliasInit, {
@@ -4745,6 +4766,11 @@ export function escapedCtorReferencesReducer({
       const bound = bind && calleeFunctionOf(unwrapRuntimeExpr(bind.callee), localCallables, callableScope);
       if (bound) boundCalls.set(node, { callee: bound, pairing: bind });
       const spelled = peelCalleeValue(pairing.callee);
+      // A method handed the enum as its receiver can replace an own slot or install an accessor.
+      if (enumBlocks.size && node.type !== 'NewExpression' && isMemberAccessNode(spelled)) {
+        const receiver = unwrapRuntimeExpr(spelled.object);
+        if (receiver?.type === 'Identifier' && enumBlocks.has(receiver.name)) (invokedEnums ??= new Set()).add(receiver.name);
+      }
       const analyzable = spelled?.type === 'Identifier' || FUNCTION_LIKE_NODE_TYPES.has(spelled?.type)
         || CLASS_NODE_TYPES.has(spelled?.type) || isMemberAccessNode(spelled) || spelled?.type === 'Super';
       if (!analyzable) continue;
@@ -5083,7 +5109,7 @@ export function escapedCtorReferencesReducer({
     if (receiverOnly && isMemberAccessNode(object)) return null;
     if (object?.type !== 'Identifier') return receiverOnly ? false : null;
     const blocks = name === null ? null : enumBlocks.get(object.name);
-    if (!blocks || bareReadRefs.has(object.name) || guardedAliases.has(object.name)
+    if (!blocks || invokedEnums?.has(object.name) || bareReadRefs.has(object.name) || guardedAliases.has(object.name)
       || !receiverOnly && censusSlotWritten(programNode, aliasInit, member)) return receiverOnly ? false : null;
     const owner = declarations.resolve(object.name, aliasReferenceScopes(aliasInit, object) ?? []);
     for (const { node, scope } of blocks) {
@@ -9004,6 +9030,8 @@ function containerSlotRecordWritten({ slots, unrootedKeys }, recordKeys, keyPath
 // conservative union a name-only question deserves. An unindexed declaration owns no records;
 // falling back to its name would borrow writes from a different binding.
 function containerRecordKeys(index, object, ownerNode) {
+  // A query with no owner checks only writes through unnamed receivers.
+  if (object === null && !ownerNode) return [];
   if (!index) return [object];
   const owned = ownerNode ? index.owners.get(nodePositionKey(ownerNode) ?? ownerNode) : null;
   return ownerNode ? (owned ? [owned] : []) : index.byName.get(object) ?? [];
@@ -9377,7 +9405,7 @@ export function createDetectionAdapter({
     // enclosing owner completes before the reading closure is created also dominates it there;
     // otherwise only fresh containers without held built-ins can exclude the initial candidate.
     // eslint-disable-next-line max-statements -- direct, call and alias writes share one dominance proof
-    containerSlotWriteDominatesUsage(keyPath, ownerNode, usagePath, usageNode, nameValue = null) {
+    containerSlotWriteDominatesUsage(keyPath, ownerNode, usagePath, usageNode, nameValue = null, candidates = null) {
       // A source-only census query has no read scope or position to prove dominance in.
       if (!usagePath) return false;
       const index = getContainerSlotIndex?.();
@@ -9390,24 +9418,28 @@ export function createDetectionAdapter({
       // A known call can be the write itself. Keep the census wildcard for all other readers;
       // only this dead-initializer proof may replace it with exact effects of a synchronous body.
       if (nameValue && !slots?.has(slotKey) && keyPath.length === 1 && slots?.has(`${ key }.*`)) {
+        const census = ESCAPE_CENSUS.get(index.programNode);
         const escapes = index.escapes?.get(`${ key }.*`);
         const sources = heldContainers(ownerNode, usagePath);
         const binding = adapter.getBinding({ scope: usagePath?.scope, name: ownerNode.id?.name, path: usagePath });
         const owner = findNearestVarScopeOwner(usagePath);
-        if (!escapes?.length || escapes.some(escape => !escape?.call || escape.aliased) || slots.has(`${ slotKey }.*`)
+        if (!census || !escapes?.length || escapes.some(escape => !escape?.call || escape.aliased) || slots.has(`${ slotKey }.*`)
           || sources.some(source => (source?.type !== 'ObjectExpression' && source?.type !== 'ArrayExpression')
             || literalHasUnnameableSlot(source))
           || (binding?.path?.node ?? binding?.node) !== ownerNode || binding.constantViolations?.length || !owner) return false;
         const calls = [];
         const slotMembers = new WeakMap();
-        let replacement = null;
+        const possible = candidates && new Set();
+        let replacement;
         for (const { call, argument } of escapes) {
-          const pairing = censusCallPairing(call);
-          const callee = CALL_CALLEES.get(index.programNode)?.get(call);
+          // A bound argument can reach the body later. Binding alone never establishes its write.
+          const bound = census.boundCalls.get(call);
+          const pairing = bound?.pairing ?? censusCallPairing(call);
+          const callee = bound?.callee ?? CALL_CALLEES.get(index.programNode)?.get(call);
           if (!callee || call.type === 'NewExpression' || spineHasOptionalHop(call)
             || pairing?.argsUnknown || pairing?.args?.some(arg => arg?.type === 'SpreadElement')
             || !provablyPrecedes(ownerNode, call)) return false;
-          const paramIndex = pairing?.args?.findIndex(arg => unwrapRuntimeExpr(arg) === argument) ?? -1;
+          const paramIndex = pairing?.args?.findIndex(arg => peelToBareExpr(arg) === argument) ?? -1;
           if (paramIndex < 0) return false;
           let summaries = callWriteSummaries.get(callee);
           if (!summaries) callWriteSummaries.set(callee, summaries = new Map());
@@ -9420,16 +9452,24 @@ export function createDetectionAdapter({
           }
           const selected = summary.writes.filter(write => write.key === keyPath[0]);
           if (!selected.length) return false;
-          // a callee's write outside the reader's var-scope owner has no path here, and the proof fails on it below
-          const paths = ownerWritePathIndex(owner);
+          if (bound || census.maySkipInvokedBody(call, pairing)) replacement = null;
+          const reachesRead = candidates && !noReassignmentReachesUsage({
+            reassignmentNodes: [call], usagePath, usageNode,
+            bindingScopeNode: binding.scope?.block ?? binding.scope?.path?.node,
+            bindingAnchor: bindingLoopAnchor(binding),
+          });
           for (const write of selected) {
-            const writePath = paths.get(write.node);
+            const writePath = pathOfNode(usagePath, write.node);
             const name = writePath && nameValue(installedWriteValue(write.node.right), writePath, adapter);
-            if (!name || (replacement ??= name) !== name) return false;
+            if (reachesRead && name) possible.add(name);
+            if (replacement === undefined) replacement = name;
+            else if (replacement !== name) replacement = null;
           }
           calls.push(call);
         }
-        return reassignmentDominatesUsage({ reassignmentNodes: calls, usagePath, usageNode, adapter }) && replacement;
+        if (replacement && reassignmentDominatesUsage({ reassignmentNodes: calls, usagePath, usageNode, adapter })) return replacement;
+        if (possible) for (const name of possible) if (!candidates.includes(name)) candidates.push(name);
+        return false;
       }
       // Account for every recorded value and exclude wildcard writers that can restore
       // the old value; a write to an outer slot also invalidates the original inner identity.
@@ -9672,6 +9712,7 @@ function valueFanLeaves(node, leaves, depth = 0) {
       valueFanLeaves(value.right, leaves, depth + 1);
       break;
     case 'AssignmentExpression':
+      if (value.operator === '&&=' || isLogicalInstallOp(value.operator)) valueFanLeaves(value.left, leaves, depth + 1);
       valueFanLeaves(value.right, leaves, depth + 1);
       break;
     default:
@@ -9724,9 +9765,7 @@ function chainPartsOf(node, ctx) {
 
 function resolveLeafName(leaf, ctx) {
   const { scope, adapter, path } = ctx;
-  // top-level `this` IS the global proxy - the same pragmatic canon the read side's chain-root
-  // walk uses. an aliased `this` (`const g = this`) anchors the context check at its
-  // DECLARATOR's path (`thisPath`), where the `this` actually sits
+  // Like the read-side resolver, classify `this` in the scope where the value was captured.
   if (leaf.type === 'ThisExpression') {
     return isTopLevelThisContext(ctx.thisPath ?? path) ? 'globalThis' : null;
   }
@@ -9794,8 +9833,7 @@ function resolveLeafName(leaf, ctx) {
 // design: every REACHABLE value of a (re)assigned alias is poisoned - the safe direction.
 // `receiverDeopts` carries chain ROOT names whose reached value is unknowable (an unreadable
 // hop - `Array[k].x = v` could have patched anything under Array); the handler deopts them
-// whole. `thisPath` (alias fans only) anchors the top-level-`this` context check at the
-// declarator that captured the `this`, not the mutation site
+// whole. Each alias leaf carries the scope of its initializer or reassignment in `thisPath`.
 function resolveMutationSite({
   targetNode, scope: siteScope, adapter: siteAdapter, path: sitePath, resolveStaticKey = null, pastCeilingFans = new WeakMap(),
 }) {
@@ -9816,49 +9854,49 @@ function resolveMutationSite({
   // a global only through a slot of another of its values, while fanning it reads the binding again - per such write
   // and site, and per value of the binding through the chain-root fan below. past the write ceiling
   // (`writesPastCeiling`) a fan per site would walk every write at each site, so the writes are fanned once per
-  // binding (`writtenLeafSpellings`)
+  // binding. Sibling blocks can share an unbound global name but can also declare distinct locals.
   function writtenValueLeaves(binding, name, ctx = siteCtx) {
-    const { scope, adapter, path } = ctx;
-    if (writesPastCeiling(binding.constantViolations)) return writtenLeafSpellings(binding, name, ctx);
-    const values = reassignmentValueNodes({
-      binding, usagePath: path, name, ctx: { scope, adapter, path, resolveKey }, countDeadWrites: true,
-    }) ?? [];
-    const leaves = [];
-    for (const value of values) if (!readsOffBindingItself(value, name)) valueFanLeaves(value, leaves);
-    return leaves;
-  }
-  // the leaves of every write of a binding past the ceiling, once per binding: taken where the binding is declared,
-  // every write counted wherever it stands, without the leaves that name no global, and one leaf per spelling -
-  // `this`, or a name and a chain of static keys off it. a site resolves every leaf of one spelling alike: it looks
-  // the name up in its own scope (`wrapScopeBindingLookup`), as it anchors `this` at the binding's declaration
-  function writtenLeafSpellings(binding, name, { scope, adapter, path }) {
+    if (!binding.constantViolations?.length) return [];
+    const everyWrite = writesPastCeiling(binding.constantViolations);
     const key = binding.node ?? binding;
-    if (pastCeilingFans.has(key)) return pastCeilingFans.get(key);
-    const anchor = binding.declarationPath ?? path;
+    if (everyWrite && pastCeilingFans.has(key)) return pastCeilingFans.get(key);
+    const anchor = everyWrite && binding.declarationPath || ctx.path;
     const values = reassignmentValueNodes({
-      binding,
-      usagePath: anchor,
-      name,
-      ctx: { scope: binding.declarationPath ? binding.scope ?? scope : scope, adapter, path: anchor, resolveKey },
-      countDeadWrites: true,
-      everyWrite: true,
-    }) ?? [];
-    const leaves = [];
-    for (const value of values) if (!readsOffBindingItself(value, name)) valueFanLeaves(value, leaves);
-    const bySpelling = new Map();
-    for (const leaf of leaves) if (!standsForNoGlobal(leaf)) {
-      const spelling = leafSpelling(leaf) ?? leaf;
-      if (!bySpelling.has(spelling)) bySpelling.set(spelling, leaf);
+      binding, usagePath: anchor, name, ctx: { ...ctx, path: anchor, scope: anchor?.scope ?? ctx.scope, resolveKey },
+      countDeadWrites: true, everyWrite,
+    });
+    const answer = [];
+    const spellings = everyWrite && new Map();
+    for (const value of values) {
+      if (readsOffBindingItself(value, name)) continue;
+      for (const node of valueFanLeaves(value, [])) {
+        if (everyWrite && standsForNoGlobal(node)) continue;
+        const path = pathOfNode(anchor, node) ?? anchor;
+        if (spellings && seenWrittenLeaf(spellings, node, path)) continue;
+        answer.push({ node, thisPath: path });
+      }
     }
-    const answer = bySpelling.values().toArray();
-    pastCeilingFans.set(key, answer);
+    if (everyWrite) pastCeilingFans.set(key, answer);
     return answer;
   }
-  // what a value leaf spells: `this`, a name, or a chain of static keys off a name - null for any other leaf
-  function leafSpelling(leaf) {
-    if (leaf.type === 'ThisExpression') return 'this';
+  // Merge equal static paths only when the root has the same meaning at both writes.
+  function seenWrittenLeaf(spellings, leaf, path) {
     const { root, keys } = memberChainKeys(leaf);
-    return root?.type === 'Identifier' && !keys.includes(null) ? JSON.stringify([root.name, ...keys]) : null;
+    if (keys.includes(null)) return false;
+    let owner;
+    if (root?.type === 'ThisExpression') owner = isTopLevelThisContext(path);
+    else if (root?.type === 'Identifier') {
+      const lookup = { scope: path?.scope, name: root.name, path, read: root };
+      const binding = siteAdapter.getBinding(lookup);
+      if (binding?.constantViolations?.length) return false;
+      owner = binding?.node ?? binding?.path?.node ?? (siteAdapter.hasBinding(lookup) ? path?.scope : null);
+    } else return false;
+    let seen = spellings.get(owner);
+    if (!seen) spellings.set(owner, seen = new Set());
+    const spelling = JSON.stringify([root.name, ...keys]);
+    if (seen.has(spelling)) return true;
+    seen.add(spelling);
+    return false;
   }
   // the values a CALL RESULT stands for, through the shared inline canon: the argument an identity
   // callee hands back (any parameter position, an inline-array spread expanded, a tagged template's
@@ -9965,7 +10003,9 @@ function resolveMutationSite({
     // slot fan's correct pair - the selected slot values above are the only sound fan there
     const init = binding.node?.init;
     if (!patternDeclarator) visitAliasValues(init, depth, bindingPath, ctx);
-    visitAliasLeaves(writtenValueLeaves(binding, identNode.name, ctx), depth, bindingPath, ctx);
+    for (const { node, thisPath } of writtenValueLeaves(binding, identNode.name, ctx)) {
+      visitAliasLeaves([node], depth, thisPath, { ...ctx, path: thisPath, scope: thisPath?.scope ?? scope });
+    }
   }
   // a member-chain target whose root reaches a proxy global through a value fan keys the mutation
   // under the chain's constructor leaf when a reachable root value is a proxy global (over-record -
@@ -10000,7 +10040,9 @@ function resolveMutationSite({
       // every leaf the fan can name deopts: `box = c ? Array : Map` reaches BOTH constructors, and
       // stopping at the first left the other one trusted under a patch that may have hit it
       for (const { node: valueLeaf, thisPath: leafAnchor } of chainRootValueLeaves(parts.rootNode, thisPath, ctx)) {
-        const rootName = resolveLeafName(valueLeaf, { ...ctx, thisPath: leafAnchor });
+        const rootName = resolveLeafName(valueLeaf, {
+          ...ctx, scope: leafAnchor?.scope ?? scope, path: leafAnchor ?? path, thisPath: leafAnchor,
+        });
         if (rootName) receiverDeopts.add(rootName);
         // A direct dynamic array read may select any element, as in a lowered for-of.
         // A following hop changes the receiver; class instance fields are not static slots.
@@ -10021,17 +10063,17 @@ function resolveMutationSite({
       // way the bare spelling does
       if (valueLeaf.type === 'Identifier' && valueLeaf.name === 'arguments' && parts.keys.length === 1
         && !adapter.hasBinding({ scope, name: 'arguments', path })) continue;
-      const rootName = resolveLeafName(valueLeaf, { ...ctx, thisPath: leafAnchor });
+      const rootName = resolveLeafName(valueLeaf, {
+        ...ctx, scope: leafAnchor?.scope ?? scope, path: leafAnchor ?? path, thisPath: leafAnchor,
+      });
       if (rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)) {
         names.add(parts.keys.at(-1));
         return;
       }
     }
   }
-  // every reachable value leaf of a chain root: a BOUND identifier fans its init +
-  // reassignment union, an inline value composite fans its own branches. each leaf carries the
-  // anchor its own `this` reads at - the DECLARATION that captured it, not the write's frame -
-  // so a `const g = this` fan answers the same from a write anywhere below it
+  // A bound root contributes its initializer and later writes, each at its own position.
+  // An inline composite contributes its branches at the enclosing expression.
   function chainRootValueLeaves(rootNode, thisPath = null, ctx = siteCtx) {
     const { scope, adapter, path } = ctx;
     const leaves = [];
@@ -10050,8 +10092,9 @@ function resolveMutationSite({
         ? patternSlotValues(decl.id, decl.init, rootNode.name, { scope, adapter, path, resolveKey })
         : [identifierDeclaratorInit(binding), ...bindingParamValues(rootNode, binding, ctx)];
       for (const valueNode of initValues) if (valueNode) valueFanLeaves(valueNode, leaves);
-      leaves.push(...writtenValueLeaves(binding, rootNode.name, ctx));
-    } else valueFanLeaves(rootNode, leaves);
+      return [...leaves.map(node => ({ node, thisPath: anchor })), ...writtenValueLeaves(binding, rootNode.name, ctx)];
+    }
+    valueFanLeaves(rootNode, leaves);
     return leaves.map(node => ({ node, thisPath: anchor }));
   }
   const target = valueFanLeaves(targetNode, []);

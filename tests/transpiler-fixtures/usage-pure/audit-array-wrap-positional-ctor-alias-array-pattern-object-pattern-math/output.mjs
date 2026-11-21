@@ -1,6 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// a same-name redeclaration of STATICS-ONLY hints merges last-wins like the ctor form - the
-// use folds through the last write's hint (runtime last-write-wins)
+// Both var redeclarations keep their native destructuring when the binding is unused.
 var [{
   JSON: VR
 }] = [_globalThis];

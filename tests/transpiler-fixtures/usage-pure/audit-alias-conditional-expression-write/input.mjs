@@ -14,11 +14,14 @@ function viaLogical(c) {
 }
 let S;
 const w = () => ({ Set: S } = globalThis);
-export const lazy = [w, typeof S.union];
+export const lazy = [w, observe(() => typeof S.union)];
 let T;
 (({ Map: T } = globalThis) ? 1 : 2);
 export const test = typeof T.groupBy;
 let Q;
 (0, { Promise: Q } = globalThis);
 export const seq = typeof Q.try;
-export const r = [viaTernary(true), viaLogical(true)];
+function observe(read) {
+  try { return read(); } catch (error) { if (error instanceof TypeError) return 'TypeError'; throw error; }
+}
+export const r = [viaTernary(true), observe(() => viaTernary(false)), viaLogical(true), observe(() => viaLogical(false))];

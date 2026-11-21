@@ -7,4 +7,9 @@ for (const key in { w: Object }) {
   const { entries: viaForInBody } = item.w;
   out.push(viaForInBody, key);
 }
+for (const key in { w: Array }) {
+  const item = { w: Array };
+  item.w = Map;
+  out.push(key);
+}
 export { out };

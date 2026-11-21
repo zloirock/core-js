@@ -1,8 +1,7 @@
 import _at from "@core-js/pure/actual/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// a generator body runs no further than its next `yield`, so a write its driver makes there reaches
-// the read below that parking point and both families inject. a body that parks nowhere runs whole
-// at its call, ahead of the same write, and keeps its narrow
+// The driver writes before the generator starts. Its guard reads that new value on the first next().
+// The ordinary function runs immediately and sees the value from before the write.
 export function belowYield(v, extra) {
   let x = v;
   function* read() {
