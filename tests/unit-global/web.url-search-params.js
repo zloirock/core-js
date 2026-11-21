@@ -1909,6 +1909,20 @@ const createTrackedSignal = () => {
   return { controller, calls };
 };
 
+const changingRequestBody = assert => {
+  let reads = 0;
+  const init = create(defineProperty({}, 'body', { get() {
+    assert.same(this, init, 'body getter receiver');
+    assert.same(++reads, 1, 'reads the body once');
+    return reads === 1 ? 'first' : 'second';
+  } }));
+  defineProperty(init, 'method', { get() {
+    assert.same(this, init, 'non-enumerable method getter receiver');
+    return 'POST';
+  } });
+  return init;
+};
+
 if (typeof Request == 'function') {
   QUnit.test('URLSearchParams with Request', assert => {
     const body = new URLSearchParams('a=1&a=2&space=hello+world&unicode=%D0%B0');
@@ -1927,6 +1941,30 @@ if (typeof Request == 'function') {
     }).then(text => {
       assert.same(text, 'b=1', 'serialized `searchParams` of a URL');
     });
+  });
+
+  if (DESCRIPTORS) QUnit.test('Request reads an ordinary body once', assert => {
+    return new Request('http://example.com/', changingRequestBody(assert)).text().then(text => {
+      assert.same(text, 'first');
+    });
+  });
+
+  if (DESCRIPTORS) QUnit.test('Request keeps an undefined body after its getter deletes itself', assert => {
+    const proto = defineProperty({}, 'body', { configurable: true, get() { delete proto.body; } });
+    const init = create(proto);
+    init.method = 'POST';
+    const input = { toString() {
+      if (!('body' in init)) init.body = 'second';
+      return 'http://example.com/';
+    } };
+    return new Request(input, init).text().then(text => assert.same(text, ''));
+  });
+
+  if (typeof Proxy == 'function') QUnit.test('Request accepts an extra option key without a descriptor', assert => {
+    const init = new Proxy(defineProperty({ method: 'POST' }, 'body', { get() { return 'first'; } }), {
+      ownKeys() { return ['method', 'body', 'extra']; },
+    });
+    return new Request('http://example.com/', init).text().then(text => assert.same(text, 'first'));
   });
 
   QUnit.test('URLSearchParams with Request, preserved options', assert => {
@@ -2238,6 +2276,13 @@ if (TEST_SERVER) {
         checkEcho(assert, result, contentType || FORM_CONTENT_TYPE);
       });
     })));
+  });
+
+  if (typeof fetch == 'function' && DESCRIPTORS) QUnit.test('fetch reads an ordinary body once', assert => {
+    assert.timeout?.(10000);
+    return timeLimitedPromise(10000, fetch(TEST_SERVER, changingRequestBody(assert)).then(response => response.json()).then(result => {
+      assert.same(result.body, 'first');
+    }));
   });
 
   if (typeof fetch == 'function' && typeof Request == 'function') QUnit.test('URLSearchParams with fetch, Request input', assert => {

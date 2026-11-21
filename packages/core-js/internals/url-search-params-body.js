@@ -11,6 +11,12 @@ var inheritIfRequired = require('../internals/inherit-if-required');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var isCallable = require('../internals/is-callable');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
+var ownKeys = require('../internals/own-keys');
+var hasOwn = require('../internals/has-own-property');
+var getPrototypeOf = require('../internals/object-get-prototype-of');
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+var defineProperty = require('../internals/object-define-property').f;
+var DESCRIPTORS = require('../internals/descriptors');
 var classof = require('../internals/classof');
 var isObject = require('../internals/is-object');
 var $toString = require('../internals/to-string');
@@ -71,30 +77,45 @@ var patchFetch = function (NATIVE_INSTANCES) {
       return !!RequestPrototype && isPrototypeOf(RequestPrototype, it);
     };
 
-    // the options with a polyfilled `URLSearchParams` body replaced by its serialization and the form type
-    var wrapRequestOptions = function (input, init) {
-      if (isObject(init)) {
-        var body = init.body;
-        if (classof(body) === URL_SEARCH_PARAMS) {
-          var headers = init.headers;
-          // options without headers keep the headers of the input `Request`
-          if (headers === undefined && isRequest(input)) headers = requestHeaders ? requestHeaders(input) : input.headers;
-          return create(init, {
-            body: createPropertyDescriptor(0, serializeBody(body)),
-            headers: createPropertyDescriptor(0, wrapHeaders(headers))
+    var requestWithOptions = function (input, init, fetch) {
+      var options = init;
+      var owner = DESCRIPTORS && init;
+      var descriptor;
+      while (owner && !(descriptor = getOwnPropertyDescriptor(owner, 'body'))) owner = getPrototypeOf(owner);
+      var body = init.body;
+      if (classof(body) === URL_SEARCH_PARAMS) {
+        var headers = init.headers;
+        // Options without headers keep the headers of the input Request.
+        if (headers === undefined && isRequest(input)) headers = requestHeaders ? requestHeaders(input) : input.headers;
+        options = create(init, {
+          body: createPropertyDescriptor(0, serializeBody(body)),
+          headers: createPropertyDescriptor(0, wrapHeaders(headers))
+        });
+        // Early Deno ignores options when fetching a Request and drops its replacement headers.
+        if (!fetch || isRequest(input)) {
+          input = new NativeRequest(input, options);
+          headers = requestHeaders ? requestHeaders(input) : input.headers;
+          if (!headersHas(headers, 'content-type')) headersSet(headers, 'content-type', FORM_CONTENT_TYPE);
+          if (!fetch) return input;
+        }
+      } else if (DESCRIPTORS && (descriptor ? hasOwn(descriptor, 'get') : body !== undefined)) {
+        // Cache the first body and forward existing options to the original dictionary.
+        options = create(init, { body: createPropertyDescriptor(owner === init && descriptor.enumerable ? 0 : 1, body) });
+        var forward = function (source, key) {
+          if (hasOwn(options, key)) return;
+          var property = getOwnPropertyDescriptor(source, key);
+          if (property) defineProperty(options, key, {
+            configurable: property.configurable, enumerable: source === init && property.enumerable,
+            get: function () { return init[key]; },
+            set: property.writable || property.set ? function (value) { init[key] = value; } : undefined
           });
+        };
+        for (var source = init; source && source !== Object.prototype; source = getPrototypeOf(source)) {
+          var keys = ownKeys(source);
+          for (var i = 0; i < keys.length; i++) forward(source, keys[i]);
         }
       }
-      return init;
-    };
-
-    // a request from the options that `wrapRequestOptions` replaced: for a `Request` input,
-    // Deno 1.0-1.1 ignores the headers of the options, and its `fetch` ignores all of them
-    var createRequest = function (input, options) {
-      var request = new NativeRequest(input, options);
-      var headers = requestHeaders ? requestHeaders(request) : request.headers;
-      if (!headersHas(headers, 'content-type')) headersSet(headers, 'content-type', FORM_CONTENT_TYPE);
-      return request;
+      return fetch ? fetch(input, options) : new NativeRequest(input, options);
     };
 
     if (isCallable(nativeFetch)) {
@@ -106,8 +127,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
             validateArgumentsLength(arguments.length, 1);
             var init = arguments[1];
             if (!isObject(init)) return apply(nativeFetch, undefined, arguments);
-            var options = wrapRequestOptions(input, init);
-            return nativeFetch(options !== init && isRequest(input) ? createRequest(input, options) : input, options);
+            return requestWithOptions(input, init, nativeFetch);
           } catch (error) {
             return call(promiseReject, Promise, error);
           }
@@ -120,8 +140,7 @@ var patchFetch = function (NATIVE_INSTANCES) {
         anInstance(this, RequestPrototype);
         validateArgumentsLength(arguments.length, 1);
         var init = arguments[1];
-        var options = wrapRequestOptions(input, init);
-        var request = options !== init ? createRequest(input, options)
+        var request = isObject(init) ? requestWithOptions(input, init)
           : init === undefined ? new NativeRequest(input) : new NativeRequest(input, init);
         return inheritIfRequired(request, this, RequestConstructor);
       };

@@ -6,7 +6,7 @@
     - Added integration of polyfilled `URL` with NodeJS, Deno and Bun APIs that accept only native `URL` objects, like `Deno.readFile`, `Bun.file`, `node:fs` and `node:http` methods: instances of the `URL` polyfill are native `URL` objects there
     - Added integration of polyfilled `URLSearchParams` with native APIs that accept only native `URLSearchParams` objects, like `fetch`, `Request`, `Response` and APIs of another realm, including the pure version: where the engine has a usable native `URLSearchParams`, instances of the polyfill are native objects, and `fetch` and `Request` are no longer wrapped where they take such instances
     - Added integration of polyfilled `URLSearchParams` with native `Response`, `XMLHttpRequest` and `navigator.sendBeacon` in engines where they do not take such instances, and fixed installation of the native body wrappers in Deno
-    - Fixed the native body wrappers for polyfilled `URLSearchParams`: subclassing of `Request`, calling an overridden `toString` instead of serializing the internal parameter list, and dropping the headers of a `Request` passed as the input
+    - Fixed the native body wrappers for polyfilled `URLSearchParams`: subclassing of `Request`, calling an overridden `toString` instead of serializing the internal parameter list, reading `RequestInit.body` more than once, and dropping the headers of a `Request` passed as the input
     - Fixed the pure version rewriting the native `Request.prototype.constructor` in engines where it polyfills `URLSearchParams`
   - Unicode and encoding:
     - Added Unicode normalization and compatibility mapping of `URL` polyfill domains through the native `String.prototype.normalize`, where it's available
