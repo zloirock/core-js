@@ -102,17 +102,18 @@ const XML = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', pr
 
 function elementsOf(svg) {
   const found = [];
-  (function walk(nodes) {
+  (function walk(nodes, parent) {
     for (const node of nodes) {
       const tag = Object.keys(node).find(key => key !== ':@');
       if (!tag || tag === '#text') continue;
       const children = node[tag];
+      const attrs = node[':@'] ?? {};
       found.push({
-        tag,
-        attrs: node[':@'] ?? {},
+        tag, parent, attrs,
         text: children.filter(child => '#text' in child).map(child => child['#text']).join(''),
       });
-      walk(children);
+      // Only transformed ancestors affect the coordinates of their descendants.
+      walk(children, attrs.transform ? { attrs, parent } : parent);
     }
   })(XML.parse(svg));
   return found;
@@ -127,6 +128,28 @@ function transformOf(element, kind) {
   const value = element.attrs.transform;
   if (typeof value !== 'string' || value.indexOf(`${ kind }(`) !== 0) return null;
   return value.slice(kind.length + 1, -1).trim().split(/[\s,]+/).map(part => +part);
+}
+
+// Apply local transforms from the element outwards, so every measurement uses image coordinates.
+function imagePath(element, data) {
+  const path = new SVGPathData(data).toAbs();
+  for (let node = element; node; node = node.parent) {
+    if (!node.attrs.transform) continue;
+    const translation = transformOf(node, 'translate');
+    if (translation?.length === 2) {
+      path.translate(translation[0], translation[1]);
+    } else {
+      const matrix = transformOf(node, 'matrix');
+      if (matrix?.length !== 6) return null;
+      path.matrix(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+    }
+  }
+  return path;
+}
+
+function originOf(element) {
+  const point = imagePath(element, 'M0 0')?.commands[0];
+  return point ? [point.x, point.y] : null;
 }
 
 // the `<path>` elements of one series, found by the indices echarts stamps on them in its
@@ -145,9 +168,10 @@ const NOTHING = { left: NaN, right: NaN, top: NaN, bottom: NaN };
 
 // svg-pathdata throws on a path it cannot parse and answers an empty one with infinite bounds; both
 // are a shape that is not there, so both become NOTHING and fail by name rather than by exception
-function boxOf(d) {
+function boxOf(element) {
   try {
-    const bounds = new SVGPathData(d).toAbs().getBounds();
+    const bounds = imagePath(element, element.attrs.d)?.getBounds();
+    if (!bounds) return NOTHING;
     if ([bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].some(value => !isFinite(value))) return NOTHING;
     return { left: bounds.minX, right: bounds.maxX, top: bounds.minY, bottom: bounds.maxY };
   } catch {
@@ -157,7 +181,7 @@ function boxOf(d) {
 
 function boxAt(paths, index) {
   const path = paths[index];
-  return path ? boxOf(path.attrs.d) : NOTHING;
+  return path ? boxOf(path) : NOTHING;
 }
 
 function pointAt(points, index) {
@@ -173,7 +197,7 @@ function near(a, b, tolerance) {
 function textsOf(elements) {
   return elements.filter(element => element.tag === 'text').map(element => {
     const parts = transformOf(element, 'translate');
-    return { text: element.text, point: parts && parts.length === 2 ? parts : null };
+    return { text: element.text, point: parts?.length === 2 ? originOf(element) : null };
   });
 }
 
@@ -233,9 +257,8 @@ export function run() {
   // the line stamps its SYMBOLS rather than its polyline, and a symbol is a marker carried on a
   // transform: the datum is where the matrix PLACED it, which is its translation
   const symbols = seriesOf(elements, 1)
-    .map(symbol => transformOf(symbol, 'matrix'))
-    .filter(matrix => matrix && matrix.length === 6)
-    .map(matrix => [matrix[4], matrix[5]]);
+    .filter(symbol => transformOf(symbol, 'matrix')?.length === 6)
+    .map(originOf);
   const vertices = VALUES.map((value, index) => pointAt(symbols, index));
   check('line: a symbol per datum', symbols.length, VALUES.length);
   check('line: a larger value sits higher',
@@ -248,17 +271,8 @@ export function run() {
   check('line: it tracks the bars', aligned, [true, true, true]);
   check('line: the path joins the symbols', elements.some(element => {
     if (element.tag !== 'path' || element.attrs.fill !== 'none' || !element.attrs.stroke) return false;
-    const path = new SVGPathData(element.attrs.d).toAbs();
-    // zrender emits a translation or a full affine matrix in image coordinates.
-    if (element.attrs.transform) {
-      const translation = transformOf(element, 'translate');
-      const matrix = transformOf(element, 'matrix');
-      if (translation?.length === 2) path.translate(translation[0], translation[1]);
-      else if (matrix?.length === 6) path.matrix(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
-      else return false;
-    }
-    const { commands } = path;
-    if (commands.length !== vertices.length) return false;
+    const commands = imagePath(element, element.attrs.d)?.commands;
+    if (commands?.length !== vertices.length) return false;
     for (let i = 0; i < commands.length; i++) {
       const command = commands[i];
       if (command.type !== (i ? SVGPathData.LINE_TO : SVGPathData.MOVE_TO)
