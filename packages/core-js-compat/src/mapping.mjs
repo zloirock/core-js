@@ -212,7 +212,7 @@ export default {
          : chrome <= 82 ? chrome - 13
          : chrome <= 129 ? chrome - 14
          : chrome <= 136 ? chrome - 15
-         : chrome <= 139 ? chrome - 16
+         : chrome <= 156 ? chrome - 16
          : chrome - 17;
   },
   ChromeToAndroid: [
