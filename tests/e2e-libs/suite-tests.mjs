@@ -1,7 +1,7 @@
 import { deepEqual, rejects, strictEqual, throws } from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join, parse } from 'node:path';
 import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { assertES5 } from '../../scripts/assert-es5.mjs';
@@ -42,6 +42,13 @@ const detail = checkFailureLine({ label: 'books', actual: books('BrokenA'), expe
 strictEqual(detail.includes('BrokenA') && detail.includes('Alpha'), true);
 const longString = '\n'.repeat(4096);
 strictEqual(renderValue(longString), `${ JSON.stringify(longString).slice(0, 2045) }...`);
+for (const suffix of ['green', '']) {
+  const failure = checkFailureLine({ label: 'svg', actual: `${ longString }red`, expected: longString + suffix });
+  const tail = longString.slice(-24);
+  strictEqual(failure, `svg actual=at offset 4096 ${ JSON.stringify(`${ tail }red`) } expected=at offset 4096 ${ JSON.stringify(tail + suffix) }`);
+}
+const earlyDifference = checkFailureLine({ label: 'svg', actual: `a${ longString }`, expected: `b${ longString }` });
+strictEqual(earlyDifference.includes('actual=at offset 0 "a') && earlyDifference.includes('expected=at offset 0 "b'), true);
 const hostile = { get [Symbol.toStringTag]() { throw new Error('broken tag'); } };
 hostile.cycle = hostile;
 strictEqual(checkFailureLine({ label: 'hostile', actual: hostile, expected: {} }).startsWith('hostile actual='), true);
@@ -83,7 +90,9 @@ const global = join(ROOT, 'packages', 'core-js', 'modules', 'es.array.map.js');
 strictEqual(isCoreJsModule(pure), true);
 if (process.platform === 'win32') strictEqual(isCoreJsModule(join(ROOT.toUpperCase(), 'packages', 'core-js', 'index.js')), true);
 strictEqual(isCoreJsModule(legacy), true);
-strictEqual(isCoreJsModule(join(`${ ROOT }-sibling`, 'node_modules', 'fixture', 'packages', 'core-js', 'tests', 'exercise.mjs')), false);
+const otherCheckout = join(parse(ROOT).root, `${ basename(ROOT) }-sibling`);
+strictEqual(isCoreJsModule(join(otherCheckout, 'packages', 'core-js', 'index.js')), false);
+strictEqual(isCoreJsModule(join(otherCheckout, 'node_modules', 'fixture', 'packages', 'core-js', 'tests', 'exercise.mjs')), false);
 strictEqual(isCoreJsModule(join(ROOT, 'packages', 'core-js', 'node_modules', 'three', 'index.js')), false);
 for (const { snapshot } of allCells([{ name: 'example' }])) {
   if (snapshot) strictEqual(isSnapshotName(snapshot), true);

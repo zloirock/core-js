@@ -2,7 +2,7 @@ import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { runWithDeadline } from './deadline.mjs';
-import { captureChecks, checkResultProblem, checkRows, renderValue } from './diagnostics.mjs';
+import { captureChecks, checkResultProblem, checkRows, renderValues } from './diagnostics.mjs';
 import { unwrap } from './exercises/checks.mjs';
 
 const RUN_DEADLINE_MS = 60_000;
@@ -61,7 +61,8 @@ function assertDeterministic(name, rows, first, second) {
     if (check.label !== other.label) throw notDeterministic(`check #${ index + 1 } is '${ check.label }' on the first run and '${ other.label }' on the second`);
     const actual = snapshotActual(other.actual);
     if (check.pass !== other.pass || !isDeepStrictEqual(first[index], actual)) {
-      throw notDeterministic(`'${ check.label }' gave ${ renderValue(first[index]) } on the first run and ${ renderValue(actual) } on the second`);
+      const [before, after] = renderValues(first[index], actual);
+      throw notDeterministic(`'${ check.label }' gave ${ before } on the first run and ${ after } on the second`);
     }
   }
 }

@@ -54,8 +54,20 @@ export function renderValue(value) {
   }
 }
 
+// Quote the first differing region when either string is too long to print in full.
+export function renderValues(first, second) {
+  const values = [renderValue(first), renderValue(second)];
+  if (typeof first !== 'string' || typeof second !== 'string' || first === second) return values;
+  if (values.every(text => !text.endsWith('...'))) return values;
+  let offset = 0;
+  while (first[offset] === second[offset]) offset++;
+  const start = Math.max(0, offset - 24);
+  return [first, second].map(value => `at offset ${ offset } ${ renderValue(value.slice(start, offset + 24)) }`);
+}
+
 export function checkFailureLine(check) {
-  return `${ check.label } actual=${ renderValue(check.actual) } expected=${ renderValue(check.expected) }`;
+  const [actual, expected] = renderValues(check.actual, check.expected);
+  return `${ check.label } actual=${ actual } expected=${ expected }`;
 }
 
 // Read exercise-owned accessors once. Validation and reporting must use the same values.

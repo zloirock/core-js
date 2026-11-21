@@ -102,31 +102,68 @@ const XML = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', pr
 
 function elementsOf(svg) {
   const found = [];
-  (function walk(nodes) {
+  (function walk(nodes, parent) {
     for (const node of nodes) {
       const tag = Object.keys(node).find(key => key !== ':@');
       if (!tag || tag === '#text') continue;
       const children = node[tag];
+      const attrs = node[':@'] ?? {};
       found.push({
-        tag,
-        attrs: node[':@'] ?? {},
+        tag, parent, attrs,
         text: children.filter(child => '#text' in child).map(child => child['#text']).join(''),
       });
-      walk(children);
+      // Only transformed ancestors affect the coordinates of their descendants.
+      walk(children, attrs.transform ? { attrs, parent } : parent);
     }
   })(XML.parse(svg));
   return found;
 }
 
-// the numbers inside a `transform` - `matrix(a,b,c,d,e,f)` on a symbol, `translate(x y)` on a label.
-// What is read off it is only where the element was PLACED; the geometry itself is svg-pathdata's.
-// It knows the ONE form echarts writes - a single transform, name first, no whitespace before the
-// parenthesis - and answers null for any other, including forms the SVG grammar allows: the checks
-// that depend on it then fail by name, which is the right outcome for a render whose format moved
-function transformOf(element, kind) {
-  const value = element.attrs.transform;
-  if (typeof value !== 'string' || value.indexOf(`${ kind }(`) !== 0) return null;
-  return value.slice(kind.length + 1, -1).trim().split(/[\s,]+/).map(part => +part);
+// Both transform and viewBox use SVG numbers separated by whitespace or a single comma.
+function numbersOf(body, count) {
+  if (typeof body !== 'string' || /[^\d\t\n\r +,\-.e]/i.test(body)) return null;
+  const args = body.trim().split(/\s*,\s*|\s+/);
+  if (args.length !== count) return null;
+  const numbers = [];
+  for (const arg of args) {
+    if (!/^[+-]?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?$/i.test(arg)) return null;
+    if (!isFinite(arg)) return null;
+    numbers.push(+arg);
+  }
+  return numbers;
+}
+
+// zrender emits one translation or affine matrix.
+function matrixOf(value) {
+  if (value.charAt(value.length - 1) !== ')') return null;
+  const open = value.indexOf('(');
+  const kind = value.slice(0, open);
+  if (kind !== 'translate' && kind !== 'matrix') return null;
+  const numbers = numbersOf(value.slice(open + 1, -1), kind === 'translate' ? 2 : 6);
+  if (!numbers) return null;
+  return kind === 'translate' ? [1, 0, 0, 1, numbers[0], numbers[1]] : numbers;
+}
+
+// Apply local transforms from the element outwards, so every measurement uses image coordinates.
+function imagePath(element, data) {
+  let path;
+  try {
+    path = new SVGPathData(data).toAbs();
+  } catch {
+    return null;
+  }
+  for (let node = element; node; node = node.parent) {
+    if (!node.attrs.transform) continue;
+    const matrix = matrixOf(node.attrs.transform);
+    if (!matrix) return null;
+    path.matrix(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+  }
+  return path;
+}
+
+function pointOf(element, x, y) {
+  const point = imagePath(element, [{ type: SVGPathData.MOVE_TO, relative: false, x, y }])?.commands[0];
+  return point ? [point.x, point.y] : null;
 }
 
 // the `<path>` elements of one series, found by the indices echarts stamps on them in its
@@ -145,9 +182,10 @@ const NOTHING = { left: NaN, right: NaN, top: NaN, bottom: NaN };
 
 // svg-pathdata throws on a path it cannot parse and answers an empty one with infinite bounds; both
 // are a shape that is not there, so both become NOTHING and fail by name rather than by exception
-function boxOf(d) {
+function boxOf(element) {
   try {
-    const bounds = new SVGPathData(d).toAbs().getBounds();
+    const bounds = imagePath(element, element.attrs.d)?.getBounds();
+    if (!bounds) return NOTHING;
     if ([bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].some(value => !isFinite(value))) return NOTHING;
     return { left: bounds.minX, right: bounds.maxX, top: bounds.minY, bottom: bounds.maxY };
   } catch {
@@ -157,7 +195,7 @@ function boxOf(d) {
 
 function boxAt(paths, index) {
   const path = paths[index];
-  return path ? boxOf(path.attrs.d) : NOTHING;
+  return path ? boxOf(path) : NOTHING;
 }
 
 function pointAt(points, index) {
@@ -172,8 +210,8 @@ function near(a, b, tolerance) {
 
 function textsOf(elements) {
   return elements.filter(element => element.tag === 'text').map(element => {
-    const parts = transformOf(element, 'translate');
-    return { text: element.text, point: parts && parts.length === 2 ? parts : null };
+    const { x = 0, y = 0 } = element.attrs;
+    return { text: element.text, point: pointOf(element, +x, +y) };
   });
 }
 
@@ -184,14 +222,18 @@ function textsOf(elements) {
 // the axis is drawn by a different part of the library than the series.
 function valueAxis(texts) {
   const ticks = texts
-    .filter(entry => entry.point && /^-?\d+(?:\.\d+)?$/.test(entry.text))
-    .map(entry => ({ value: Number(entry.text), y: entry.point[1] }))
+    .filter(entry => /^-?\d+(?:\.\d+)?$/.test(entry.text))
+    .map(entry => ({ value: Number(entry.text), y: entry.point?.[1] }))
     .sort((a, b) => a.value - b.value);
   if (ticks.length < 2) return null;
   const [low] = ticks;
   const high = ticks[ticks.length - 1];
-  if (high.value === low.value) return null;
-  return value => low.y + (value - low.value) * ((high.y - low.y) / (high.value - low.value));
+  if (high.value === low.value || high.y === low.y) return null;
+  function yAt(value) {
+    return low.y + (value - low.value) * ((high.y - low.y) / (high.value - low.value));
+  }
+  for (const tick of ticks) if (!near(tick.y, yAt(tick.value), 1)) return null;
+  return yAt;
 }
 
 export function run() {
@@ -206,18 +248,19 @@ export function run() {
   const root = elements.find(element => element.tag === 'svg');
 
   // --- the document itself
-  check('svg: rendered at the requested size',
-    root ? [root.attrs.width, root.attrs.height] : null, [String(WIDTH), String(HEIGHT)]);
+  // The renderer requests this viewport. A shifted viewBox can put the entire map off-screen
+  // while every coordinate measured inside it still agrees.
+  check('svg: rendered at the requested size and viewBox',
+    root ? [root.attrs.width, root.attrs.height, numbersOf(root.attrs.viewBox, 4)] : null,
+    [String(WIDTH), String(HEIGHT), [0, 0, WIDTH, HEIGHT]]);
   check('svg: no NaN reached the output', /NaN/.test(svg), false);
   check('svg: the same option renders the same picture', normalize(second.svg), normalize(svg));
   check('svg: a changed datum renders a different one', normalize(variant.svg) === normalize(svg), false);
 
   // --- the bars: one per datum, and their heights ARE the data
-  // a symbol carries a `matrix` transform and a plain shape carries none - the one discriminator
   const bars = seriesOf(elements, 0);
   check('bars: a shape per datum', bars.length, VALUES.length);
-  const shapes = bars.filter(bar => !transformOf(bar, 'matrix'));
-  const boxes = VALUES.map((value, index) => boxAt(shapes, index));
+  const boxes = VALUES.map((value, index) => boxAt(bars, index));
   const ratios = boxes.map((box, index) => (box.bottom - box.top) / VALUES[index]);
   check('bars: height is proportional to value',
     ratios.every(ratio => near(ratio, ratios[0], 0.01)), true);
@@ -230,14 +273,13 @@ export function run() {
     near(boxes[0].bottom, boxes[1].bottom) && near(boxes[1].bottom, boxes[2].bottom), true);
 
   // --- the line: the same data through a linear scale, read off the symbol placed on each datum
-  // the line stamps its SYMBOLS rather than its polyline, and a symbol is a marker carried on a
-  // transform: the datum is where the matrix PLACED it, which is its translation
-  const symbols = seriesOf(elements, 1)
-    .map(symbol => transformOf(symbol, 'matrix'))
-    .filter(matrix => matrix && matrix.length === 6)
-    .map(matrix => [matrix[4], matrix[5]]);
+  // Read the center of the rendered marker; an empty path or zero scale has no marker.
+  const symbols = seriesOf(elements, 1).map(symbol => {
+    const box = boxOf(symbol);
+    return box.left < box.right && box.top < box.bottom ? [(box.left + box.right) / 2, (box.top + box.bottom) / 2] : null;
+  });
   const vertices = VALUES.map((value, index) => pointAt(symbols, index));
-  check('line: a symbol per datum', symbols.length, VALUES.length);
+  check('line: a symbol per datum', symbols.length === VALUES.length && symbols.indexOf(null) === -1, true);
   check('line: a larger value sits higher',
     vertices[0][1] > vertices[1][1] && vertices[1][1] > vertices[2][1], true);
   const firstStep = (vertices[0][1] - vertices[1][1]) / (VALUES[1] - VALUES[0]);
@@ -248,17 +290,8 @@ export function run() {
   check('line: it tracks the bars', aligned, [true, true, true]);
   check('line: the path joins the symbols', elements.some(element => {
     if (element.tag !== 'path' || element.attrs.fill !== 'none' || !element.attrs.stroke) return false;
-    const path = new SVGPathData(element.attrs.d).toAbs();
-    // zrender emits a translation or a full affine matrix in image coordinates.
-    if (element.attrs.transform) {
-      const translation = transformOf(element, 'translate');
-      const matrix = transformOf(element, 'matrix');
-      if (translation?.length === 2) path.translate(translation[0], translation[1]);
-      else if (matrix?.length === 6) path.matrix(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
-      else return false;
-    }
-    const { commands } = path;
-    if (commands.length !== vertices.length) return false;
+    const commands = imagePath(element, element.attrs.d)?.commands;
+    if (commands?.length !== vertices.length) return false;
     for (let i = 0; i < commands.length; i++) {
       const command = commands[i];
       if (command.type !== (i ? SVGPathData.LINE_TO : SVGPathData.MOVE_TO)
