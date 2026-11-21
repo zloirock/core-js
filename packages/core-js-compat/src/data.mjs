@@ -1597,7 +1597,8 @@ export const data = {
   },
   'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
     bun: '1.3.0',
-    // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
+    // reverted before 133 stable (https://issues.chromium.org/issues/42203506#comment25), re-enabled in early 134
+    // disabled again in later 134 and some 135 builds, restored before 135 stable
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
     chrome: '136',
     firefox: '141',
