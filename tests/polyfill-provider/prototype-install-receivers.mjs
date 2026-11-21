@@ -45,6 +45,8 @@ const cases = [
   ['constructed instance', 'const target = new Map(); Object.setPrototypeOf(target, Array.prototype);', null, 'array'],
   ['constructed instance, proto write', 'const target = new Map(); target.__proto__ = Array.prototype;', null, 'array'],
   ['array literal', 'const target = [1]; Reflect.setPrototypeOf(target, String.prototype);', null, 'string'],
+  ['rejected Reflect install', 'const target = [1]; Object.preventExtensions(target); Reflect.setPrototypeOf(target, String.prototype);', null, 'array,string'],
+  ['rejected namespace alias', 'const R = Reflect; const target = [1]; Object.freeze(target); R.setPrototypeOf(target, String.prototype);', null, 'array,string'],
   ['typed call result', 'const target = Array.from(source); Object.setPrototypeOf(target, String.prototype);', null, 'string'],
   ['class instance', 'class Box {} const target = new Box(); Object.setPrototypeOf(target, Array.prototype);', null, 'array'],
   ['an install on another binding', 'const target = new Map(); Object.setPrototypeOf(other, Array.prototype);', 'Map', null],

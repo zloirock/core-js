@@ -1,3 +1,4 @@
+import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _fillMaybeArray from "@core-js/pure/actual/array/instance/fill";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
@@ -9,7 +10,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10;
 // a slot the source writes holds the user's object, and the read off a probe run reaches it there
 // whichever spelling writes it and wherever: with no ponyfill to stand in for the slot, the guarded
 // read composes with the probe's one test. a slot a ponyfill serves keeps the read its patch reaches
@@ -31,5 +32,5 @@ export const windowRead = null == _globalThis.window ? void 0 : _toReversedMaybe
 export const aliasRead = null == _globalThis.window ? void 0 : _toSortedMaybeArray(_ref7 = _self.throughAlias).call(_ref7);
 export const runRead = null == _globalThis.window ? void 0 : _flatMapMaybeArray(_ref8 = _globalThis.assigned).call(_ref8, x => x);
 export const laterRead = null == _globalThis.window ? void 0 : _fillMaybeArray(_ref9 = _self.later).call(_ref9, 0);
-export const ponyfilledRead = null == _globalThis.window ? void 0 : _self.Map.copyWithin(0);
+export const ponyfilledRead = null == (null == _globalThis.window ? void 0 : _self) ? void 0 : _copyWithinMaybeArray(_ref10 = _self.Map).call(_ref10, 0);
 _globalThis.later = [7];

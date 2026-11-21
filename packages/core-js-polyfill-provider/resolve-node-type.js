@@ -459,6 +459,17 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
+  // A null result means an unknown key. A definite symbol cannot overwrite a string key.
+  function runtimeDefinitionKey(property, name) {
+    if (!property.node.computed) return getKeyName(property.node.key);
+    const key = property.get('key');
+    const value = resolveComputedKeyName(key.node, key.scope, literalExactValue, false, key);
+    if (value !== null && value !== undefined) return String(value);
+    const type = resolveNodeType(key);
+    if (type?.type !== 'symbol') return null;
+    return type.mayBeNullish && (name === 'null' || name === 'undefined') ? null : undefined;
+  }
+
   // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
   // SpreadElement encountered before the match could have injected `key` -> bail.
   // forward iteration with `return-on-first-match` would be double-wrong: it would return an
@@ -469,7 +480,9 @@ function createResolveNodeType(babelNodeType, t, {
   // An identity-only caller can share a data-slot cursor within its immutable closure walk;
   // cache methods as null and each visited key once, so distinct keys also cost one list scan.
   function findObjectLiteralKey(propsPath, key, onMethod, ownDataCache = null) {
-    const data = ownDataCache && memoize(ownDataCache, propsPath, () => ({ at: propsPath.length, keys: new Map() }));
+    // Nullable symbols can spell these two keys. Their lookup cannot reuse the cursor for other names.
+    const data = ownDataCache && key !== 'null' && key !== 'undefined'
+      && memoize(ownDataCache, propsPath, () => ({ at: propsPath.length, keys: new Map() }));
     if (data?.keys.has(key)) return data.keys.get(key)?.get('value') ?? null;
     for (let i = (data?.at ?? propsPath.length) - 1; i >= 0; i--) {
       const prop = propsPath[i];
@@ -479,9 +492,13 @@ function createResolveNodeType(babelNodeType, t, {
         if (data) data.at = 0;
         return null;
       }
-      const name = node.computed ? resolveComputedKeyName(node.key, prop.scope, undefined, false) : getKeyName(node.key);
-      // Only a resolved key participates in explicit-slot precedence.
-      if (data && name !== null && !data.keys.has(name)) data.keys.set(name, babelNodeType(node) === 'ObjectMethod' ? null : prop);
+      const name = runtimeDefinitionKey(prop, key);
+      if (name === null) {
+        if (data) data.at = 0;
+        return null;
+      }
+      if (name === undefined) continue;
+      if (data && !data.keys.has(name)) data.keys.set(name, babelNodeType(node) === 'ObjectMethod' ? null : prop);
       if (name !== key) continue;
       if (data) return data.keys.get(key)?.get('value') ?? null;
       if (babelNodeType(node) === 'ObjectMethod') {
@@ -493,8 +510,9 @@ function createResolveNodeType(babelNodeType, t, {
           for (let j = i - 1; j >= 0; j--) {
             const earlier = propsPath[j];
             if (earlier.node.type === 'SpreadElement') return null;
-            const matches = memberKeyMatches(earlier.node.key, earlier.node.computed, key, earlier.get('key'));
-            if (!matches) continue;
+            const earlierKey = runtimeDefinitionKey(earlier, key);
+            if (earlierKey === null) return null;
+            if (earlierKey !== key) continue;
             if (earlier.node.kind === 'set') continue;
             // nearest earlier definition decides - see the `findObjectMember` twin
             return earlier.node.kind === 'get' ? onMethod(earlier) : null;
@@ -1403,17 +1421,19 @@ function createResolveNodeType(babelNodeType, t, {
     const writes = getDecisionAdapter()?.fieldMemberWrites;
     const named = writes?.get(key);
     const dynamic = writes?.get(null);
-    if (!named && !dynamic) return false;
     const source = resolveRuntimeExpression(path);
     if (!isMemberLike(source)) return false;
     const field = resolveMemberPropertyName(source);
     const homes = [named?.get(field), named?.get(null), dynamic?.get(field), dynamic?.get(null)].filter(Boolean);
-    if (!homes.length) return false;
     const base = resolveRuntimeExpression(source.get('object'));
+    const throughThis = base.node.type === 'ThisExpression';
+    if (!throughThis && !homes.length) return false;
     const cls = resolveClassContext(base);
-    if (!cls || cls.isStatic) return !cls;
+    if (!cls || cls.isStatic) return !!homes.length && !cls;
+    const external = throughThis && classFieldsCluster.externalFieldWriters(cls.classPath, field, key);
+    if (!homes.length && !external?.length) return false;
     function ownsWrite(owner) {
-      return homes.some(set => set.has(nodePositionKey(owner.node) ?? owner.node));
+      return homes.some(set => set.has(nodePositionKey(owner.node) ?? owner.node)) || external?.some(set => set.has(owner.node));
     }
     return ownsWrite(cls.classPath) || classAncestorPaths(cls.classPath).some(ownsWrite)
       || base.node.type === 'ThisExpression' && collectClassDescendantPaths(cls.classPath, findProgramPath(base))?.paths.some(ownsWrite);
@@ -2091,7 +2111,7 @@ function createResolveNodeType(babelNodeType, t, {
     keyMatchesName,
     literalKeyValue,
     singleQuasiString,
-    resolveComputedKeyName,
+    runtimeDefinitionKey,
     buildSubstMap,
     unwrapTypeAnnotation,
     typesEqual,
@@ -2114,6 +2134,7 @@ function createResolveNodeType(babelNodeType, t, {
     findNamespacedFunctionPath,
     findOverloadsForName,
     classCallableSlotReassigned: classFieldsCluster.classCallableSlotReassigned,
+    classNamespaceDeclares: classFieldsCluster.classNamespaceDeclares,
   });
   ({
     classSubstInner,
@@ -2123,7 +2144,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectMember,
   } = classObjectMemberCluster);
   const {
-    memberKeyMatches,
     namespaceExportReturn,
     resolveClassMember,
     applySubstToTypeRefArgs,

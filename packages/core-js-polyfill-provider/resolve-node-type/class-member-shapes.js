@@ -5,7 +5,9 @@
 // Top-level `memberWriteTargetPath` is closure-free (operates on a NodePath's `.node.type` +
 // `.get(...)`); the two factories carry adapter (`t`) and key resolvers required by
 // shape-aware variants.
-import { isDeleteTarget, peelSkippableWrapperPath, unwrapRuntimeExpr, singleQuasiString } from '../helpers/ast-patterns.js';
+import {
+  isDeleteTarget, isMemberAccessNode, peelSkippableWrapperPath, unwrapRuntimeExpr, singleQuasiString,
+} from '../helpers/ast-patterns.js';
 
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
 // target on `.left`, update/delete target on `.argument`. callers ask "is this a member-
@@ -20,7 +22,7 @@ export function memberWriteTargetPath(writePath) {
   // `memberWriteFieldName` off the result, which a TSNonNull/paren wrapper would strand (the
   // write then drops from the field's flow union, leaving a stale narrow that throws on ie:11)
   if (type === 'UpdateExpression' || isDeleteTarget(writePath.node)) return peelSkippableWrapperPath(writePath.get('argument'));
-  if (type === 'MemberExpression') return writePath;
+  if (isMemberAccessNode(writePath.node)) return writePath;
   return peelSkippableWrapperPath(writePath.get('left'));
 }
 
@@ -30,6 +32,7 @@ export function memberWriteTargetPath(writePath) {
 // is the call's first argument. one accessor keeps the two shapes from growing two readers
 export function memberWriteReceiverPath(writePath) {
   const { type } = writePath.node;
+  if (type === 'CallExpression') return writePath.get('arguments')[0];
   if (type === 'ObjectProperty' || type === 'Property') {
     return writePath.parentPath?.parentPath?.get('arguments')?.[0] ?? null;
   }
@@ -75,7 +78,7 @@ export function createMemberWriteShape({ t, getKeyName, resolveComputedKeyName }
     // peel the field name is lost, the write is dropped from the field's type index, and the field
     // keeps a stale narrow that emits a type-specific Maybe helper throwing on the new value (ie:11)
     const target = unwrapRuntimeExpr(targetNode);
-    if (!t.isMemberExpression(target)) return null;
+    if (!isMemberAccessNode(target)) return null;
     // A computed key names a field by its value, never by an identifier's spelling.
     // Scoped queries use the canonical constant-key resolver; context-free queries
     // accept only literal keys and single-quasi templates.

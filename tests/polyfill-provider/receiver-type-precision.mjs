@@ -1,5 +1,5 @@
 // Receiver proofs must retain their mutation, ownership and caller boundaries.
-// Unknown computed keys retain explicit slots as a deliberate precision policy.
+// Computed definitions can replace an explicit slot unless their keys are disjoint.
 // Sources intentionally read absent members; runtime JS accepts these reads even where TS rejects them.
 import { createChecker, expectError } from './harness.mjs';
 import {
@@ -36,21 +36,21 @@ const cases = [
   ['inherited member escapes', 'const box = {}; mutate(box); const result = box.toString;', null],
   ['inherited member write', 'const box = {}; box.toString = [1]; const result = box.toString;', null],
   ['installed prototype', 'const box = {}; Object.setPrototypeOf(box, { toString: [1] }); const result = box.toString;', null],
-  ['unknown data key keeps the named array', 'const box = { rows: [1], [key]: "ab" }; const result = box.rows;', 'Array'],
-  ['unknown method key keeps the named array', 'const box = { rows: [1], [key]() {} }; const result = box.rows;', 'Array'],
-  ['unknown getter key keeps the named array', 'const box = { rows: [1], get [key]() { return "ab"; } }; const result = box.rows;', 'Array'],
+  ['unknown data key can replace the named array', 'const box = { rows: [1], [key]: "ab" }; const result = box.rows;', null],
+  ['unknown method key can replace the named array', 'const box = { rows: [1], [key]() {} }; const result = box.rows;', null],
+  ['unknown getter key can replace the named array', 'const box = { rows: [1], get [key]() { return "ab"; } }; const result = box.rows;', null],
   ['symbol key cannot replace an array', 'const key = Symbol(); const box = { rows: [1], [key]: "ab" }; const result = box.rows;', 'Array'],
-  ['undefined symbol key keeps the named array', 'const key = cond ? Symbol() : void 0; const box = { undefined: [1], [key]: "ab" }; const result = box.undefined;', 'Array'],
-  ['null symbol key keeps the named array', 'const key = cond ? Symbol() : null; const box = { null: [1], [key]: "ab" }; const result = box.null;', 'Array'],
+  ['nullable symbol key can spell undefined', 'const key = cond ? Symbol() : void 0; const box = { undefined: [1], [key]: "ab" }; const result = box.undefined;', null],
+  ['nullable symbol key can spell null', 'const key = cond ? Symbol() : null; const box = { null: [1], [key]: "ab" }; const result = box.null;', null],
   [
     'shadowed symbol call proves the overriding key',
     'function Symbol() { return "rows"; } const key = Symbol(); const box = { rows: [1], [key]: "ab" }; const result = box.rows;',
     'string',
   ],
   [
-    'written symbol binding keeps the named array',
+    'written key loses its original symbol guarantee',
     'let key: any = Symbol(); key = "rows"; const box = { rows: [1], [key]: "ab" }; const result = box.rows;',
-    'Array',
+    null,
   ],
   [
     'changed enum key cannot prove a setter',
@@ -593,18 +593,17 @@ for (const [label, source, expected] of [
   check(name, type ? type.primitive ? type.type : type.constructor : null, expected);
 });
 
-// Unknown computed keys leave explicit slots intact, including deliberate runtime collisions.
-// Resolved keys still decide precedence; the type model does not promise disjoint runtime keys.
+// A computed key can shadow rows. A returned promise or generator also uses its runtime coercion.
 for (const [label, properties, setup, expected, rejected] of [
   ['literal-returning function data', 'rows: [1], [key()]: "ab"', 'function key() { return "rows"; }', 'string'],
   ['literal-returning function getter', 'rows: [1], get [key()]() { return "ab"; }', 'function key() { return "rows"; }', 'string'],
   ['literal-returning function method', 'rows: [1], [key()]() {}', 'function key() { return "rows"; }', 'Function'],
-  ['opaque call key', 'rows: [1], [key(value)]: "ab"', 'function key(value) { return value; }', 'Array'],
+  ['opaque call key', 'rows: [1], [key(value)]: "ab"', 'function key(value) { return value; }', null],
   ['effectful literal return', 'rows: [1], [key()]: "ab"', 'function key() { effect(); return "rows"; }', 'string'],
-  ['branching call key', 'rows: [1], [key()]: "ab"', 'function key() { if (cond) return "rows"; return "other"; }', 'Array'],
-  ['async call key', 'rows: [1], [key()]: "ab"', 'async function key() { return "rows"; }', 'Array', COMPUTED_KEY],
-  ['generator call key', 'rows: [1], [key()]: "ab"', 'function * key() { return "rows"; }', 'Array', COMPUTED_KEY],
-  ['written call key', 'rows: [1], [key()]: "ab"', 'function key() { return "rows"; } key = other;', 'Array', FUNCTION_WRITE],
+  ['branching call key', 'rows: [1], [key()]: "ab"', 'function key() { if (cond) return "rows"; return "other"; }', null],
+  ['async call key', 'rows: [1], [key()]: "ab"', 'async function key() { return "rows"; }', null, COMPUTED_KEY],
+  ['generator call key', 'rows: [1], [key()]: "ab"', 'function * key() { return "rows"; }', null, COMPUTED_KEY],
+  ['written call key', 'rows: [1], [key()]: "ab"', 'function key() { return "rows"; } key = other;', null, FUNCTION_WRITE],
   ['symbol-returning call key', 'rows: [1], [key()]: "ab"', 'function key() { return Symbol(); }', 'Array'],
   ['known later key', 'rows: [1], [key]: "ab"', 'const key = "rows";', 'string', KEY_COLLISION],
   ['known earlier key', '[key]: "ab", rows: [1]', 'const key = "rows";', 'Array', KEY_COLLISION],
@@ -1037,8 +1036,8 @@ for (const [label, properties, tail, expected] of [
   ['replaced descriptor', 'set toString(value) {}', 'Object.defineProperty(box, "toString", { value: "ab" });', null],
   ['deleted setter', 'set toString(value) {}', 'delete box.toString;', null],
   ['escaped owner', 'set toString(value) {}', 'mutate(box);', null],
-  ['unknown key after setter', 'set toString(value) {}, [unknown]: "ab"', '', 'Array'],
-  ['unknown getter before setter', 'get [unknown]() { return "ab"; }, set toString(value) {}', '', 'Array'],
+  ['unknown key after setter', 'set toString(value) {}, [unknown]: "ab"', '', null],
+  ['unknown getter before setter', 'get [unknown]() { return "ab"; }, set toString(value) {}', '', null],
   ['spread before setter', '...other, set toString(value) {}', '', null],
   ['spread after setter', 'set toString(value) {}, ...other', '', null],
 ]) runBoth(`setter receiver default ${ label }`, `const key = "toString"; const box = { ${ properties } };

@@ -102,4 +102,20 @@ for (const [name, source, expected] of [
   });
 }
 
+// Field initialization observes only preceding own fields. An unknown key may collide
+// with a string name, while a symbol or a closed, different key cannot.
+for (const [name, source, expected] of [
+  ['base field before derived initializer', "class A { static x = 'a'; } class B extends A { static y = this.x.at(0); static x = []; }", 'string'],
+  ['last initialized field', 'class C { x = []; y = this.x.at(0); }', 'Array'],
+  ['unknown later field', "function f(key) { class C { x = []; [key] = 'a'; } return new C().x.at(0); }", null],
+  ['known last field', "function f(key) { class C { [key] = 'a'; x = []; } return new C().x.at(0); }", 'Array'],
+  ['distinct symbol key', "const k = Symbol(); const obj = { x: [], [k]: 'a' }; obj.x.at(0);", 'Array'],
+  ['closed noncolliding key', "function f(k) { const obj = { x: [], [k]: 'a' }; return obj.x.at(0); } f('other');", 'Array'],
+  ['setter shadows inherited getter', 'class A { get x() { return []; } } class B extends A { set x(v) {} } new B().x.at(0);', 'undefined'],
+]) runBoth(name, source, (parser, program, label) => {
+  const member = parser.pickPath(program, 'MemberExpression', path => path.node.property?.name === 'at');
+  const type = parser.makeResolver().resolveNodeType(member.get('object'));
+  check(label, type ? type.primitive ? type.type : type.constructor : null, expected);
+});
+
 finish();

@@ -1,6 +1,7 @@
 // An invoker alias preserves the pure import's identity before and after module lowering.
 import invoke from '@core-js/pure/actual/reflect/apply';
+const patched = () => 'abc';
 const alias = invoke;
 function pick(value) { return { value }; }
 alias(pick, null, [Array]).value.from = patched;
-export const result = Array.from([1]);
+export const result = Array.from([1]).at(0);

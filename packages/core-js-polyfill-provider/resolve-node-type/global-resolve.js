@@ -251,7 +251,11 @@ export function createGlobalResolve({
     if (!isGlobalProxy(object)) return null;
     // staticMemberKeyName covers `globalThis.Map`, `globalThis['Map']` AND a SE-bearing key
     // `globalThis[(e++, 'Map')]` -> 'Map', returning null for dynamic keys (generic dispatch)
-    return staticMemberKeyName(path.node);
+    return unmodifiedGlobalMember(staticMemberKeyName(path.node), path);
+  }
+
+  function unmodifiedGlobalMember(name, path) {
+    return name && !isMutatedGlobalSlot(babelBindingAdapter, name, { node: path.node, path }) ? name : null;
   }
 
   // the instance the `.prototype` of the known constructor at the runtime-resolved target of `path` reads
@@ -310,7 +314,9 @@ export function createGlobalResolve({
     // (a computed proxy member `globalThis['Array']`, a post-rewrite alias `_globalThis.Array`)
     const peeled = peelSkippableWrapperPath(superPath)?.node;
     if (!peeled || (peeled.type !== 'MemberExpression' && peeled.type !== 'OptionalMemberExpression')) return null;
-    return globalProxyMemberName({ node: peeled, scope: superPath.scope, adapter: babelBindingAdapter, path: superPath });
+    return unmodifiedGlobalMember(globalProxyMemberName({
+      node: peeled, scope: superPath.scope, adapter: babelBindingAdapter, path: superPath,
+    }), superPath);
   }
 
   function resolveClassInheritance(classPath) {

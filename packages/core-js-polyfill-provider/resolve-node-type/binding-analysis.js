@@ -61,6 +61,8 @@ import {
   jsxIdentifierReferencesBinding,
   isTSTypeOnlyIdentifierPath,
   memberReadKeyName,
+  pathOfNode,
+  walkAstNodes,
   patternSlotTarget,
   patternSlotHost,
   objectOwnThisMethodInfo,
@@ -176,6 +178,7 @@ export function createBindingAnalysis({
   let forwardingRefs = null;
   let localCallMemberReadCache = new WeakMap();
   let parameterMemberReadCache = new WeakMap();
+  let usesMethodReceiver = new WeakMap();
 
   // every module-level export name as a Set: covers `export const X`, `export class X`,
   // `export function X`, `export default class X`, `export default function X`,
@@ -724,6 +727,10 @@ export function createBindingAnalysis({
   // (the result aliases the value back out).
   function callArgumentEscapes({ callNode, argNode, argPath, methodInfo = null, valueRead = false }) {
     if (referenceInstallsUnreadBody(callNode, argNode, argPath, null)) return true;
+    // Promise resolution reads then synchronously even when the new promise is discarded.
+    if (methodInfo && callNode.arguments[0] === argNode
+      && (methodInfo.foreignPrototype || methodInfo.getterKeys?.has('then'))
+      && resolveKnownStaticEntry(callNode.callee, argPath) === KNOWN_STATIC_METHOD_RETURN_TYPES.Promise.resolve) return true;
     if (methodInfo && !methodSafeCallArgSlot(callNode, argPath)) {
       const read = localCallMemberRead(callNode, argNode, argPath);
       if (!read || methodReadLeaks(read, null, methodInfo, valueRead)) return true;
@@ -936,6 +943,7 @@ export function createBindingAnalysis({
     // A retained source path still names its callee slot after Babel replaces that callee with
     // a dispatcher or its parent with an optional-call guard. Node identity alone would turn
     // the original call into a harmless held read.
+    if (ctx?.type === 'TaggedTemplateExpression') return outer.key === 'tag' || unwrapRuntimeExpr(ctx.tag) === memberPath?.node;
     return (ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression')
       && (outer.key === 'callee' || unwrapRuntimeExpr(ctx.callee) === memberPath?.node);
   }
@@ -951,6 +959,22 @@ export function createBindingAnalysis({
     return !valueIsDroppedAt(refPath);
   }
 
+  // A named function stored on a literal may mutate the holder through its dynamic receiver.
+  function indirectMethodMayUseReceiver(identifier, memberPath) {
+    const value = pathOfNode(memberPath, identifier);
+    const fn = value && resolveRuntimeExpression(value);
+    if (!fn || !t.isFunction(fn.node)) return true;
+    if (t.isArrowFunctionExpression(fn.node)) return false;
+    return memoize(usesMethodReceiver, fn.node, () => {
+      let uses = false;
+      walkAstNodes({ root: fn.node, visit(node) {
+        uses ||= node.type === 'ThisExpression' || node.type === 'Identifier' && node.name === 'eval';
+        return !uses;
+      } });
+      return uses;
+    });
+  }
+
   // does a member READ off the tracked object hand out an own-this method? a resolvable key leaks
   // when it names a method and the read is neither a direct call nor discarded; a dynamic key could
   // name ANY method, so it applies whenever the object has one (or hides one behind an untrackable
@@ -964,7 +988,13 @@ export function createBindingAnalysis({
     // directly - nobody scanned what it does with that receiver
     const foreign = !!methodInfo.unscannableBodies
       && !(key !== null && key !== undefined && methodInfo.declaredKeys?.has(key));
+    if (methodInfo.indirectMethods?.size && memberUseIsDirectCall(memberPath)) {
+      if (key === null || key === undefined) return true;
+      const value = methodInfo.indirectMethods.get(key);
+      if (value === null || value && indirectMethodMayUseReceiver(value, memberPath)) return true;
+    }
     if (!foreign && (valueRead || !ownThisMethodKeyMatches(methodInfo, key))) return false;
+    if (foreign && methodInfo.foreignPrototype) return true;
     if (memberUseIsDirectCall(memberPath)) return foreign;
     const ctx = peelTransparentExprAncestorPath(memberPath)?.parentPath?.node;
     if (ctx?.type === 'ExpressionStatement') return false;
@@ -1016,7 +1046,8 @@ export function createBindingAnalysis({
   // writes through its first parameter may install too, but its second argument proves no family:
   // the body supplies an unknown install, never a family from an unselected native setter
   function protoSetterCalleeArms(calleePath, seen = new Set()) {
-    if (namesProtoSetter(calleePath)) return 'lone';
+    const setter = protoSetterOwner(calleePath);
+    if (setter) return setter === 'Reflect' ? 'reflect' : 'lone';
     const callee = peelSkippableWrapperPath(calleePath);
     const { node } = callee;
     const readOffOwners = isMemberAccessNode(node) && !node.computed
@@ -1056,14 +1087,14 @@ export function createBindingAnalysis({
       });
     }
     if (selection) return openArmsPassing(value, readOffOwners ? namesProtoSetterOwner : path => protoSetterCalleeArms(path, seen));
-    return namesProtoSetterOwner(value) ? 'every' : null;
+    return namesProtoSetterOwner(value);
   }
 
   // the lone spelling: the canonical callee pair
-  function namesProtoSetter(calleePath) {
+  function protoSetterOwner(calleePath) {
     const hop = { node: calleePath.node, ctx: { scope: calleePath.scope, path: calleePath } };
     const pair = resolveStaticCalleePair(hop, { method: 'setPrototypeOf' });
-    return pair?.constructor === 'Object' || pair?.constructor === 'Reflect';
+    return pair?.constructor === 'Object' || pair?.constructor === 'Reflect' ? pair.constructor : null;
   }
 
   // an owner arm, read through the value walk the callee pair reads its callee through (an alias, a
@@ -1071,7 +1102,7 @@ export function createBindingAnalysis({
   // namespace (`_Reflect`), which a rewrite may have put there before the install is read
   function namesProtoSetterOwner(armPath) {
     const name = globalNamedThroughOwnImport(resolveRuntimeExpression(armPath));
-    return name === 'Object' || name === 'Reflect';
+    return name === 'Object' ? 'every' : name === 'Reflect' ? 'reflect' : null;
   }
 
   // which arms of the open selection `path` stands on pass `test`: `every` one, only `some`, or none
@@ -1086,6 +1117,7 @@ export function createBindingAnalysis({
     verdicts.set(path.node, null);
     let every = true;
     let some = false;
+    let reflect = false;
     for (const slot of slots) {
       const arm = peelSkippableWrapperPath(path.get(slot));
       const value = resolveRuntimeExpression(arm);
@@ -1095,10 +1127,11 @@ export function createBindingAnalysis({
         verdicts.set(path.node, verdict);
         return verdict;
       }
-      every &&= verdict === 'every';
+      every &&= verdict === 'every' || verdict === 'reflect';
+      reflect ||= verdict === 'reflect';
       some ||= verdict !== null;
     }
-    const verdict = every ? 'every' : some ? 'some' : null;
+    const verdict = every ? reflect ? 'reflect' : 'every' : some ? 'some' : null;
     verdicts.set(path.node, verdict);
     return verdict;
   }
@@ -1171,7 +1204,18 @@ export function createBindingAnalysis({
       }
       if (!methodInfo) return base(parent, refNode, refPath);
       const wrappedPattern = wrapperDestructureReadsSlot(parent, refNode, refPath);
+      const pattern = wrappedPattern ?? destructuringPatternOver(parent, refNode);
+      if (pattern?.type === 'ArrayPattern' && methodInfo.mayIterate) return 'leak';
+      if (pattern?.type === 'ObjectPattern' && methodInfo.foreignPrototype
+        && pattern.properties.some(prop => prop.type !== 'RestElement'
+          && !methodInfo.declaredKeys?.has(propertyKeyName(prop)))) return 'leak';
       if (wrappedPattern) return !valueRead && patternBindsMethodKey(wrappedPattern, methodInfo) ? 'leak' : 'trivial';
+      // ToPrimitive can run an inherited getter or method with the holder as its receiver.
+      if (methodInfo.foreignPrototype && (parent?.type === 'TemplateLiteral'
+        || parent?.computed && (parent.key === refNode || parent.property === refNode)
+        || parent?.type === 'BinaryExpression' && !['===', '!==', 'instanceof'].includes(parent.operator)
+          && (parent.operator !== 'in' || parent.left === refNode)
+        || parent?.type === 'UnaryExpression' && ['+', '-', '~'].includes(parent.operator))) return 'leak';
       // an OBJECT spread copies the holder's own props - methods included - into the new object
       if (parent?.type === 'SpreadElement' && (methodInfo.methodKeys.size || methodInfo.unknownKey)
         && refPath?.parentPath?.parent?.type === 'ObjectExpression') return 'leak';
@@ -1180,7 +1224,7 @@ export function createBindingAnalysis({
       // iterator is free to yield `this` straight to the consumer. `for...in` is NOT one of them:
       // it enumerates keys and never calls into the holder
       if (methodInfo.mayIterate && invokesOwnIterator(parent, refNode, refPath)) return 'leak';
-      if (!valueRead && patternBindsMethodKey(destructuringPatternOver(parent, refNode), methodInfo)) return 'leak';
+      if (!valueRead && patternBindsMethodKey(pattern, methodInfo)) return 'leak';
       return base(parent, refNode, refPath);
     };
   }
@@ -1419,6 +1463,7 @@ export function createBindingAnalysis({
     currentTreeReferences = current;
     localCallMemberReadCache = new WeakMap();
     parameterMemberReadCache = new WeakMap();
+    usesMethodReceiver = new WeakMap();
     exportedNamesCache = new WeakMap();
     programCensusCache = new WeakMap();
     programIndexCache = new WeakMap();

@@ -63,6 +63,7 @@ import {
   isBareUndefinedIdentifier,
   callPairing,
   CLASS_NODE_TYPES,
+  CLASS_DATA_FIELD_TYPES,
   classReachesItselfUnnamed,
   classStaticCallSlot,
   classStaticSlotMember,
@@ -72,6 +73,7 @@ import {
   isMemberMutationContext,
   staticMemberKeyName,
   privateNameSpelling,
+  privateStaticSlotMember,
   unwrapRuntimeExpr,
   rootProgramOf,
   walkAstNodes,
@@ -154,7 +156,8 @@ function classStaticCallerName(member, classPath) {
   const classNode = classPath?.node;
   const privateKey = privateNameSpelling(member.node.key) !== null;
   const key = member.node.static ? privateNameSpelling(member.node.key) ?? foldedPropertyKeyName(member.node) : null;
-  if (key === null || classStaticCallSlot(classNode, key, privateKey) !== member.node || classReachesItselfUnnamed(classNode)) return null;
+  if (key === null || classStaticCallSlot(classNode, key, privateKey) !== member.node
+    || classReachesItselfUnnamed(classNode, key)) return null;
   const outer = classOuterName(classPath);
   return outer && { ...outer, key, privateKey };
 }
@@ -1408,10 +1411,14 @@ export function createPatternBindings({
           const member = peelTransparentExprAncestorPath(ref)?.parentPath;
           const privateName = privateNameSpelling(member?.node?.property);
           const readKey = privateName ?? staticMemberKeyName(member?.node);
-          if (!isMemberAccessNode(member?.node) || unwrapRuntimeExpr(member.node.object) !== ref.node
-            || readKey === null
-            || isMemberMutationContext(member.node, member.parentPath?.node, member.parentPath?.parentPath?.node)) return null;
-          if (readKey !== key || (privateKey ? privateName === null : privateName !== null)) continue;
+          if (!isMemberAccessNode(member?.node) || unwrapRuntimeExpr(member.node.object) !== ref.node || readKey === null) return null;
+          const sameSlot = readKey === key && (privateKey ? privateName !== null : privateName === null);
+          if (isMemberMutationContext(member.node, member.parentPath?.node, member.parentPath?.parentPath?.node)) {
+            // A write to a distinct private data field cannot replace or leak the called method.
+            const field = !sameSlot && privateName && privateStaticSlotMember(anchor.node, privateName);
+            if (!field || !CLASS_DATA_FIELD_TYPES.has(field.type)) return null;
+          }
+          if (!sameSlot) continue;
           ref = member;
         }
         const site = invocationPairingAt(ref, ref.scope, ref, staticIsMutated, getBindingEntry);

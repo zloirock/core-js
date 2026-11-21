@@ -547,22 +547,11 @@ QUnit.test('realm collapse: terminal', assert => {
 
 QUnit.test('realm collapse: claimed-delete', assert => {
   for (const requested of [false, true]) withWindowPresence(requested, present => {
-    const root = globalThis;
-    return withTemporaryProperty(root, 'slotD', 17, () => withTemporaryProperty(root, 'items', [1, 3], () => {
-      const effects = [];
-      function read(choice) {
-        return delete globalThis.self?.window?.window?.Reflect.slot;
-      }
-      let value;
-      try {
-        value = read(false);
-      } catch (error) {
-        value = error.name;
-      }
-      assert.true(value);
-      assert.deepEqual(effects, []);
-      assert.strictEqual(root.slotD, present ? 17 : 17);
-    }));
+    const target = Reflect;
+    withTemporaryProperty(target, 'slot', 17, () => {
+      assert.true(delete globalThis.self?.window?.window?.Reflect.slot);
+      assert.same(Object.hasOwn(target, 'slot'), !present);
+    });
   });
 });
 

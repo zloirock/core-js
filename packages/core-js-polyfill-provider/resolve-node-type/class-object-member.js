@@ -15,7 +15,6 @@
 //   resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs })
 //   methodFnPath(memberPath)
 //   classSubstInner(annotation, subst)
-//   memberKeyMatches(key, computed, name, keyPath)
 //   findObjectMember(objectPath, name)
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
@@ -32,7 +31,7 @@ export function createClassObjectMember({
   keyMatchesName,
   literalKeyValue,
   singleQuasiString,
-  resolveComputedKeyName,
+  runtimeDefinitionKey,
   buildSubstMap,
   unwrapTypeAnnotation,
   typesEqual,
@@ -50,23 +49,15 @@ export function createClassObjectMember({
   buildParentClassSubst,
   resolveClassFieldType,
   staticFieldShadowable,
+  classNamespaceDeclares,
   instanceMemberShadowable,
   getTypeMembers,
   findNamespacedFunctionPath,
   findOverloadsForName,
   classCallableSlotReassigned,
 }) {
-  // Class keys use literal spellings; object slots also resolve scoped constants.
-  // Unknown computed keys do not displace explicitly named slots in the type model.
-  function memberKeyMatches(key, computed, name, keyPath = null) {
-    if (!computed) return keyMatchesName(key, name);
-    const resolved = keyPath
-      ? resolveComputedKeyName(key, keyPath.scope, undefined, false)
-      : literalKeyValue(key) ?? singleQuasiString(key);
-    return resolved === name;
-  }
   // class BODY node -> (name -> the positions of the members whose key matches it). one member
-  // resolution asks `memberKeyMatches` against the same body array three times over - the read
+  // resolution asks about keys against the same body array three times over - the read
   // walk, the own-accessor probe and the bodyless-overload filter - so the array is scanned once
   // per (body, name) instead. POSITIONS, not paths: the path array is re-materialized per query,
   // and a stored path could outlive the traversal that produced it
@@ -80,7 +71,9 @@ export function createClassObjectMember({
       positions = [];
       for (let i = 0; i < members.length; i++) {
         const node = members[i]?.node;
-        if (node && memberKeyMatches(node.key, node.computed, name)) positions.push(i);
+        if (!node?.key) continue;
+        const key = runtimeDefinitionKey(members[i], name);
+        if (key === name || key === null && !name.startsWith('#')) positions.push({ index: i, known: key === name });
       }
       byName.set(name, positions);
     }
@@ -94,26 +87,41 @@ export function createClassObjectMember({
 
   // does the class body own a getter / setter for `name` matching `isStatic`? used to
   // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
-  // though `findClassMember` skips them. own-scope only (no super-chain walk): an INHERITED
-  // setter-only slot reads `undefined`, so the merged-namespace fn that would resolve there
-  // throws at runtime regardless of which type-specific helper is emitted - bias-safe to ignore
+  // when their return has no named receiver. An accessor owns the slot even without a getter.
   function hasOwnAccessor({ classPath, name, isStatic }) {
     const members = classBodyMemberPaths(classPath);
-    for (const position of memberPositionsFor(classPath.node.body, members, name)) {
-      const { node } = members[position];
+    for (const { index, known } of memberPositionsFor(classPath.node.body, members, name)) {
+      if (!known) continue;
+      const { node } = members[index];
       if (!!node.static !== isStatic) continue;
       if (node.kind === 'get' || node.kind === 'set') return true;
     }
     return false;
   }
 
-  function findClassMember({ classPath, name, isStatic, classSubst, viaPrototype = false, depth = 0, visited = undefined }) {
+  // Methods are already installed during field initialization. Fields in the current
+  // class become visible one by one, even when a later field has the same name.
+  function initializerPosition(read, classPath, isStatic) {
+    for (let path = read; path; path = path.parentPath) {
+      if (path.parentPath?.node === classPath.node.body) {
+        const { node } = path;
+        const samePlane = node.type === 'StaticBlock' ? isStatic : isDataFieldMember(node) && !!node.static === isStatic;
+        return samePlane ? Number(path.key) : Infinity;
+      }
+      if (t.isFunction(path.node) || t.isClass(path.node)) break;
+    }
+    return Infinity;
+  }
+
+  function findClassMember({ classPath, name, isStatic, classSubst, viaPrototype = false, read, depth = 0, visited = undefined }) {
+    const limit = initializerPosition(read, classPath, isStatic);
     // instance-only: the nearest prototype member seen so far, held back in case a FIELD turns up
     // further along the chain (see the walk-up note below). it may only be taken once the walk has
     // seen the WHOLE chain - a walk cut short by the depth cap or the cycle guard cannot rule out an
     // ancestor field, and answering with the prototype member there would narrow to a type the
     // shadowing field contradicts
     let heldPrototype = null;
+    let prototypeBlocked = false;
     while (true) {
       if (depth > MAX_DEPTH) return null;
       // which member answers a READ of `name`. a FIELD is defined by [[DefineOwnProperty]] AFTER the
@@ -126,8 +134,11 @@ export function createClassObjectMember({
       const members = classBodyMemberPaths(classPath);
       const positions = memberPositionsFor(classPath.node.body, members, name);
       let onPrototype = null;
+      let uncertainPrototype = false;
+      let setter = null;
       for (let p = positions.length - 1; p >= 0; p--) {
-        const member = members[positions[p]];
+        const { index, known } = positions[p];
+        const member = members[index];
         if (!!member.node.static !== isStatic) continue;
         // reverse order, so the first field reached is the source-LAST one - the define that stands.
         // a prototype-routed read (instance `super.x`) never sees one: the field is an own property
@@ -135,18 +146,25 @@ export function createClassObjectMember({
         // Flow's explicit proto properties belong to that prototype surface too
         if (isDataFieldMember(member.node) || (member.node.type === 'ObjectTypeProperty'
           && !member.node.method && !member.node.proto && member.node.kind === 'init')) {
-          if (viaPrototype) continue;
-          return { member, subst: classSubst ?? null };
+          if (viaPrototype || !depth && index >= limit) continue;
+          return known ? { member, subst: classSubst ?? null } : null;
         }
-        if (member.node.kind === 'set') continue;
-        onPrototype ??= member;
+        if (onPrototype || uncertainPrototype) continue;
+        if (!known) uncertainPrototype = true;
+        else if (member.node.kind === 'set') setter ??= member;
+        else onPrototype = setter && member.node.kind !== 'get' ? setter : member;
       }
       // a STATIC read walks the CONSTRUCTOR chain, so the nearest class declaring the name answers
       // and an own accessor there shadows a field inherited from a base. an INSTANCE field is
       // different: wherever in the chain it is declared, it lands as an own property of the ONE
       // instance and shadows every prototype member in the chain - so hold the prototype member and
       // keep walking, taking it only if no ancestor supplies a field
-      if (onPrototype) {
+      onPrototype ??= setter;
+      if (uncertainPrototype) {
+        if (isStatic) return null;
+        if (!heldPrototype) prototypeBlocked = true;
+      }
+      if (onPrototype && !prototypeBlocked) {
         if (isStatic) return { member: onPrototype, subst: classSubst ?? null };
         heldPrototype ??= { member: onPrototype, subst: classSubst ?? null };
       }
@@ -159,6 +177,7 @@ export function createClassObjectMember({
       const parentPath = resolveSuperClassPath(classPath);
       // no superclass: the chain is fully walked, so a held prototype member is now the answer
       if (!parentPath) return heldPrototype;
+      if (isStatic && classNamespaceDeclares(classPath, name)) return null;
       const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst, classPath.scope);
       classPath = parentPath;
       classSubst = parentSubst;
@@ -210,10 +229,10 @@ export function createClassObjectMember({
   // `receiverArgs` instantiate the class as its receiver does - an annotation's, where a missing one
   // takes its default as at any use, or the ones `resolveClassContext` reads off a runtime receiver
   function resolveClassMember({
-    classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype, unionHints = false, declaredReceiver = false,
+    classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype, read, unionHints = false, declaredReceiver = false,
   }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
-    const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype });
+    const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype, read });
     // hoisted above the found / fall-through dispatch so the shadow bail also guards the
     // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
     // off a merged declaration is just as unsound under a subclass override as off the class body
@@ -228,9 +247,7 @@ export function createClassObjectMember({
     // but doesn't appear in the class body. without this branch the resolver falls through
     // and the call's return type stays unknown, costing instance-method polyfill narrowing
     // on downstream chains like `Foo.bar([...]).map(...)`.
-    // setter-only (`static set foo(v)` with no getter) own the name even though
-    // `findClassMember` skips them - falling through to namespace lookup would resolve a
-    // same-named merged function and emit a polyfill for a value that's actually a setter
+    // An own accessor also blocks the namespace fallback when the class lookup was inconclusive.
     if (isStatic && !hasOwnAccessor({ classPath, name, isStatic })) {
       return resolveMergedNamespaceStatic({ classPath, name, callPath });
     }
@@ -431,7 +448,8 @@ export function createClassObjectMember({
     if (name === undefined || name === null) return undefined;
     const isStatic = !!member.node.static;
     const overloads = memberPositionsFor(member.parentPath.node, siblings, name)
-      .map(position => siblings[position])
+      .filter(position => position.known)
+      .map(position => siblings[position.index])
       .filter(m => !!m.node.static === isStatic
         && m.node.kind !== 'get' && m.node.kind !== 'set' && isBodylessMethodShape(m));
     if (overloads.length < 2) return undefined;
@@ -442,6 +460,10 @@ export function createClassObjectMember({
   }
 
   function resolveClassMemberNode(member, callPath, classSubst, unionHints = false, valueRead = false, declaredReceiver = false) {
+    if (member.node.kind === 'get' || member.node.kind === 'set') {
+      if (classCallableSlotReassigned(member, false) === 'written') return null;
+      if (member.node.kind === 'set') return callPath || unionHints ? null : new $Primitive('undefined');
+    }
     if (unionHints && callPath) return null;
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
     if (unionHints && !isPropertyMember(member.node) && !methodFn) return null;
@@ -600,13 +622,21 @@ export function createClassObjectMember({
 
   // Find the final read descriptor: a paired getter, a data/method member or the setter
   // itself when its slot reads undefined. Spreads leave the read unknown.
-  function findObjectMember(objectPath, name) {
+  function findObjectMember(objectPath, name, alternatives) {
     const properties = cachedContainerPaths(objectPath, 'properties');
     for (let i = properties.length - 1; i >= 0; i--) {
       const prop = properties[i];
-      if (t.isSpreadElement(prop.node)) return null;
-      const matches = memberKeyMatches(prop.node.key, prop.node.computed, name, prop.node.computed ? prop.get('key') : null);
-      if (!matches) continue;
+      if (t.isSpreadElement(prop.node)) {
+        alternatives?.push(null);
+        return null;
+      }
+      const key = runtimeDefinitionKey(prop, name);
+      if (key === null) {
+        if (!alternatives) return null;
+        alternatives.push(prop);
+        continue;
+      }
+      if (key !== name) continue;
       // the LAST declaration for `name` decides its nature (later object-literal members override).
       // a setter as that last declaration makes the key an ACCESSOR: reading it yields the paired
       // getter's value, or `undefined` when setter-only - either way the earlier data property is
@@ -616,8 +646,9 @@ export function createClassObjectMember({
         for (let j = i - 1; j >= 0; j--) {
           const earlier = properties[j];
           if (t.isSpreadElement(earlier.node)) return null;
-          const paired = memberKeyMatches(earlier.node.key, earlier.node.computed, name, earlier.node.computed ? earlier.get('key') : null);
-          if (!paired || earlier.node.kind === 'set') continue;
+          const earlierKey = runtimeDefinitionKey(earlier, name);
+          if (earlierKey === null) return null;
+          if (earlierKey !== name || earlier.node.kind === 'set') continue;
           // the nearest earlier definition decides: a getter pairs with the setter and supplies the
           // read value, while a DATA definition resets the slot to a data descriptor - which the
           // later setter then turns into a setter-only accessor, so any getter behind it is dead
@@ -665,7 +696,6 @@ export function createClassObjectMember({
     resolveClassMember,
     methodFnPath,
     classSubstInner,
-    memberKeyMatches,
     findObjectMember,
     resolveObjectMember,
     applySubstToTypeRefArgs,

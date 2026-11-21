@@ -2233,6 +2233,216 @@ function * generateContainerSlots() {
   }
 }
 
+// Each isolated source reads the value after the class, container or prototype write.
+function * generateClassFieldContracts() {
+  const cases = [
+    ['factory-write', "function make() { const box = { items: [7] }; box.items = 'abc'; return box; }",
+      'make().items.at(0)'],
+    ['factory-held', "function make(x) { const box = { items: [7] }; if (x) box.items = 'str'; return box; } const a = make(false); const b = make(true);",
+      '[a.items.at(0), b.items.at(0)]'],
+    ['factory-clean', 'function make() { const box = { items: [7] }; return box; }',
+      'make().items.at(0)'],
+    ['tag', "const patch = function () { this.items = 'abc'; }; const data = { items: [7], patch }; data.patch`go`;",
+      'data.items.at(0)'],
+    ['tag-carrier', "const patch = function () { this.data.items = 'abc'; }; const data = { items: [7] }; const carrier = { data, patch };"
+      + ' carrier.patch`go`;',
+    'data.items.at(0)'],
+    ['iterator', 'const proto = { *[Symbol.iterator]() { yield this; } }; const holder = { __proto__: proto, data: [7], read() {'
+      + " return this.data.at(0); } }; const [slot] = holder; slot.data = 'xyz';",
+    'holder.read()'],
+    ['wrapped-iterator', 'const proto = { *[Symbol.iterator]() { yield this; } }; const holder = { __proto__: proto, data: [7], read() {'
+      + " return this.data.at(0); } }; const [[slot]] = [holder]; slot.data = 'xyz';",
+    'holder.read()'],
+    ['getter-read', "const proto = { get touch() { this.data = 'xyz'; } }; const holder = { __proto__: proto, data: [7], read() {"
+      + ' return this.data.at(0); } }; void holder.touch;',
+    'holder.read()'],
+    ['getter-destructure', "const proto = { get touch() { this.data = 'xyz'; } }; const holder = { __proto__: proto, data: [7], read() {"
+      + ' return this.data.at(0); } }; const { touch } = holder;',
+    'holder.read()'],
+    ['then', "const proto = { get then() { this.data = 'xyz'; } }; const holder = { __proto__: proto, data: [7], read() {"
+      + ' return this.data.at(0); } }; void Promise.resolve(holder);',
+    'holder.read()'],
+    ['inert-keys', "const proto = { get then() { this.data = 'xyz'; } }; const holder = { __proto__: proto, data: [7], read() {"
+      + ' return this.data.at(0); } }; void Object.keys(holder);',
+    'holder.read()'],
+    ['coercion', "const proto = { toString() { this.data = 'xyz'; return 'key'; } }; const holder = { __proto__: proto, data: [7], read() {"
+      + ' return this.data.at(0); } }; void `${holder}`;', // eslint-disable-line no-template-curly-in-string -- source under test
+    'holder.read()'],
+    ['key-coercion', "const proto = { toString() { this.data = 'xyz'; return 'key'; } }; const holder = { __proto__: proto, data: [7], read() {"
+      + ' return this.data.at(0); } }; void ({})[holder];',
+    'holder.read()'],
+    ['field-alias', 'class Rows { value = [4]; first() { return this.value.map(x => x).at(0); } } const rows = new Rows();'
+      + " const first = rows.first(); const values = rows.value; values.map = () => 'z';",
+    '[first, rows.first()]'],
+    ['private-static', 'class Reader { static #owner = Map; static set(value) { Reader.#owner = value; } static read(items) {'
+      + ' return Reader.#owner.groupBy(items, String); } } Reader.set(Object);',
+    "Reader.read([1])['1']"],
+    ['private-forwarded-shadow', 'class C { static #x = Map; static put(v) { this.#x = v; } static read(xs) { return this.#x.groupBy(xs, String); } }'
+      + ' const saved = C; function set(Object) { saved.put(Object); } set(Object);',
+    "C.read([4])['4']"],
+    ['private-before-after-this', 'class C { static #x = Map; static put(v) { this.#x = v; } static read(xs) { return this.#x.groupBy(xs, String); } }'
+      + " const first = C.read([3]).get('3'); C.put(Object);",
+    "[first, C.read([4])['4']]"],
+    ['private-wrong-brand', 'class C { static #x = Array; static read() { return this.#x.from([4]); } } class Child extends C {}'
+      + ' function read(receiver) { try { return C.read.call(receiver); } catch (e) { return e.name; } }',
+    '[read(C), read(Child), read({})]'],
+    ['private-brand-shadow-source', 'class C { static #x = Object; static pick(v) { C.#x = v; } static read() { return C.#x.groupBy([4], String); } }'
+      + ' function forward(value) { C.pick(value); } const own = { groupBy(xs) { return this === own ? xs : []; } }; forward(own);',
+    'C.read()'],
+    ['private-instance-collision', "class C { #x = 0; static ['#x'] = Array; static put(value) { this.#x = value; }"
+      + " static read() { return C['#x'].from([4]); } } C.put.call(new C(), Object);",
+    'C.read()'],
+    ['private-writer-accessor', "const events = []; class C { static get #x() { events.push('get'); return Array; } static set #x(v) { events.push(v); }"
+      + " static put(v) { this.#x = v; } static read() { return this.#x.from([4]); } } C.put('set');",
+    '[C.read(), events]'],
+    ['private-same-nested', 'class Outer { static #owner = Array; static read() { return this.#owner.from([1]); } static build() { return class Inner {'
+      + ' static #owner = Object; static read() { return this.#owner.groupBy([4], String); } }; } } const Inner = Outer.build();',
+    "[Outer.read(), Inner.read()['4']]"],
+    ['optional-delete', "const box = { __proto__: { data: 'pq' }, data: [1] }; delete box?.data;",
+      'box.data.at(-1)'],
+    ['namespace-member', 'class Base { static getData(): any { return [1]; } } class Sub extends Base {} namespace Sub { export function getData() {'
+      + " return 'apple'; } }",
+    'Sub.getData().at(0)', true],
+    ['namespace-field', "class Base { static data: string | number[] = [1]; } class Sub extends Base {} namespace Sub { export const data = 'apple'; }",
+      'Sub.data.at(0)', true],
+    ['static-order', "class Base { static items = [7]; } class Derived extends Base { static first = this.items.at(-1); static items = 'abc';"
+      + ' static last = this.items.at(-1); }',
+    '[Derived.first, Derived.last]'],
+    ['instance-order', "class Base { items = [7]; } class Derived extends Base { first = this.items.at(-1); items = 'abc'; last = this.items.at(-1);"
+      + ' } const x = new Derived();',
+    '[x.first,x.last]'],
+    ['setter-only', 'class Base { get items() { return [7]; } } class Derived extends Base { set items(x) {} }',
+      "(new Derived().items ?? 'abc').at(-1)"],
+    ['setter-own-field', 'class Base { items = [7]; } class Derived extends Base { set items(x) {} }',
+      'new Derived().items.at(0)'],
+    ['object-computed', "function read(key) { const box = { r: [0], [key]: 'abc' }; return box.r.at(-1); }",
+      "[read('r'), read('z')]"],
+    ['class-computed', "function read(key) { class Box { items = [0]; [key] = 'abc'; } return new Box().items.at(-1); }",
+      "[read('items'),read('z')]"],
+    ['descriptor', "class C { get items() { return [7]; } } const c = new C(); Object.defineProperty(c,'items',{ value: 'abc' });",
+      'c.items.at(-1)'],
+    ['descriptor-call', "class C { get items() { return () => [7]; } } const c = new C(); Object.defineProperty(c,'items',{value: () => 'abc'});",
+      'c.items().at(-1)'],
+    ['virtual-descriptor', 'class A extends Array { static read(v) { return this.from([v])[0]; } } class B extends A {}'
+      + " Object.defineProperty(B,'from',{ value(xs) { return this === B ? [xs[0]+1] : [0]; } });",
+    '[A.read(6),B.read(6)]'],
+    ['proto-inline', '',
+      "'flat' in Object.setPrototypeOf([],null)"],
+    ['proto-result', 'const a = Object.setPrototypeOf([],null);',
+      "'flat' in a"],
+    ['proto-own', 'const a = []; a.flat = undefined;',
+      "'flat' in Object.setPrototypeOf(a,null)"],
+    ['proto-reflect', 'const a = [1]; Object.preventExtensions(a); const ok = Reflect.setPrototypeOf(a,String.prototype);',
+      '[ok,a.at(0)]'],
+    ['proto-reflect-success', "const a = [1]; a.toString = () => '1'; const ok = Reflect.setPrototypeOf(a,String.prototype);",
+      '[ok,a.at(0)]'],
+    ['global-written', "function read() { const Saved = globalThis.Array; try { globalThis.Array = String; return new globalThis.Array('abc').at(0);"
+      + ' } finally { globalThis.Array = Saved; } }',
+    'read()'],
+    ['global-extends', 'function read() { const Saved = globalThis.Array; try { globalThis.Array = String; class D extends globalThis.Array {}'
+      + " return new D('abc').at(0); } finally { globalThis.Array = Saved; } }",
+    'read()'],
+    ['tag-installed', "const h = { items: [3] }; const write = function () { this.items = 'zip'; }; h.update = write; h.update`a`;",
+      'h.items.at(1)'],
+    ['computed-last', "function get(key) { const h = { [key]: 'abc', x: [1] }; return h.x.at(0); }",
+      "[get('x'), get('y')]"],
+    ['class-computed-last', "function get(key) { class D { [key] = 'abc'; x = [1]; } return new D().x.at(0); }",
+      "[get('x'), get('y')]"],
+    ['explicit-class-initializer', "class A { static items = 'abc'; } class B extends A {"
+      + ' static first = B.items.at(-1); static items = [6]; fromInstance = B.items.at(0); }',
+    '[B.first, new B().fromInstance]'],
+    ['class-field-absent', "class C { static first = (this.items ?? 'ok').at(1); static items = [1]; }",
+      'C.first'],
+    ['proto-separate', 'const x = []; Object.setPrototypeOf(x, null);',
+      "'flat' in x"],
+    ['reflect-alias', 'const x = [9]; Object.preventExtensions(x); const R = Reflect; const done = R.setPrototypeOf(x, String.prototype);',
+      '[done, x.at(0)]'],
+    ['write-through-return', "function pick() { return [Array]; } pick.apply(null, [])[0].from = () => 'abc';",
+      'Array.from([1]).at(0)'],
+    ['unwritten-return', "function pick() { return [Array]; } pick.apply(null, [])[0].other = () => 'abc';",
+      'Array.from([1]).at(0)'],
+    ['private-native', 'class Reader { static #owner = Map; static set(value) { Reader.#owner = value; } static read(items) {'
+      + ' return Reader.#owner.groupBy(items, String); } } Reader.set({ groupBy() { return { own: 4 }; } });',
+    'Reader.read([1]).own'],
+    ['namespace-type', "class A { static read(): string | number[] { return [4]; } } class B extends A {} namespace B { export function read() { return 'xyz'; } }"
+      + ' function last(value: ReturnType<typeof B.read>) { return value.at(-1); }',
+    'last(B.read())', true],
+    ['namespace-type-field', "class A { static value: string | number[] = [2]; } class B extends A {} namespace B { export const value = 'xyz'; }"
+      + ' function last(value: typeof B.value) { return value.at(0); }',
+    'last(B.value)', true],
+    ['namespace-middle', "class A { static read(): string | number[] { return [2]; } } class B extends A {} namespace B { export function read() { return 'xyz'; } }"
+      + ' class C extends B {}',
+    'C.read().at(-1)', true],
+    ['namespace-other', "class A { static read() { return [2]; } } class B extends A {} namespace B { export const value = 'xyz'; }",
+      'B.read().at(-1)', true],
+    ['ancestor-own', 'function read(key) { class A { data = [3]; } class B extends A { [key]() {} } return new B().data.at(0); }',
+      "[read('data'), read('other')]"],
+    ['symbol-disjoint', "const k = Symbol(); const rows = { value: [3], [k]: 'z' };",
+      'rows.value.at(0)'],
+    ['descriptor-map', "class C { get items() { return [3]; } } Object.defineProperties(C.prototype, { items: { get() { return 'abc'; } } });",
+      'new C().items.at(-1)'],
+    ['descriptor-other', "class A { get items() { return [2]; } } class B { get items() { return 'other'; } }"
+      + " Reflect.defineProperty(B.prototype,'items',{ get() { return 'xyz'; } });",
+    '[new A().items.at(0), new B().items.at(-1)]'],
+    ['descriptor-pair', "class A { get rows() { return [5]; } set rows(v) { this.other = v; } } const a = new A(); a.rows = 'other';",
+      '[a.rows.at(0), a.other.at(0)]'],
+    ['field-alias-dynamic', 'class Rows { value = [5]; head() { return this.value.map(x => x).at(0); } } const b = new Rows(); function change(k) {'
+      + " const seq = b.value; seq[k] = () => 'abc'; } change('map');",
+    'b.head()'],
+    ['computed-private-static', 'class Reader { static #owner = Map; static set(value) { Reader.#owner = value; } static read(items) {'
+      + " return Reader.#owner.groupBy(items, String); } } const s = { groupBy(list) { return this === s && { '3': list }; } };"
+      + " Reader.set(Object); const a = Reader.read([3])['3']; Reader.set(s);",
+    "[a,Reader.read([3])['3']]"],
+    ['reflect-mixture', 'const target = [7]; Object.preventExtensions(target);'
+      + ' const install = Math.random() < 2 ? Reflect.setPrototypeOf : Object.setPrototypeOf; const ok = install(target, String.prototype);',
+    '[ok,target.at(0)]'],
+    ['no-null-array', 'const a = Object.setPrototypeOf({},null);',
+      "['flat' in a,typeof a.flat]"],
+    ['tag-read-only', 'const value = { rows: [6], tag() { return this.rows; } };',
+      'value.tag`x`.at(0)'],
+    ['discard-coercion', "const seq = { __proto__: { valueOf() { this.x = 'abc'; return 1; } }, x: [3] }; const result = +seq;",
+      '[result,seq.x.at(0)]'],
+    ['nullish-symbol', 'function read(key) { const value = { null: [3], undefined: [4], rows: [5], [key]: "abc" }; return'
+      + ' [value.null.at(0), value.undefined.at(0), value.rows.at(0)]; }',
+    '[read(null), read(void 0), read(Symbol())]'],
+    ['written-symbol', 'let key = Symbol(); key = "rows"; const x = { rows: [1], [key]: "abc" };',
+      'x.rows.at(-1)'],
+    ['setter-dynamic', 'function read(key) { const a = { get [key]() { return "abc"; }, set rows(value) {} }; const {'
+      + ' rows = [6] } = a; return rows.at(0); }',
+    '[read("rows"), read("other")]'],
+    ['getter-same-type', 'function read(key) { const a = { get x() { return [1]; }, [key]: [2] }; a.x.at = 0; return'
+      + ' a.x[0]; }',
+    '[read("x"), read("y")]'],
+    ['async-coerced-key', 'async function key() { return "unused"; } function read() { const box = { rows: [3], [key()]:'
+      + ' "xyz" }; return box.rows.at(-1); } const first = read();'
+      + ' Object.defineProperty(Promise.prototype, Symbol.toPrimitive, { value() { return "rows"; } });',
+    '[first, read()]'],
+    ['generator-coerced-key', 'function * key() {} function read() { const box = { rows: [3], [key()]: "xyz" }; return'
+      + ' box.rows.at(-1); } const first = read(); Object.defineProperty(key.prototype,'
+      + ' Symbol.toPrimitive, { value() { return "rows"; } });',
+    '[first, read()]'],
+    ['read-through-return', 'function pick() { return [Array]; } pick.apply(null, [])[0].from;',
+      'Array.from([1]).at(0)'],
+    ['computed-matches', "function read(key) { const x = { get rows() { return [6]; }, [key]: 'abc' }; return x.rows.at(0); }",
+      "[read('other'),read('rows')]"],
+  ];
+  for (const [kind, slot] of [['private', '#v'], ['public', 'v']]) {
+    const setup = `class C { static ${ slot } = Object; static put(v) { C.${ slot } = v; }`
+      + ` static read() { return C.${ slot }.groupBy([4], String); } }`
+      + ' const own = { groupBy(xs) { return { 4: this === own ? [xs[0] + 1] : [] }; } };';
+    cases.push(
+      [`${ kind }-read-before-write-object`, `${ setup } const first = C.read()[4]; C.put(own);`, '[first, C.read()[4]]'],
+      [`${ kind }-conditional-install-object`, `${ setup } function branch(run) { if (run) C.put(own); return C.read()[4]; }`,
+        '[branch(false), branch(true)]'],
+    );
+  }
+  for (const [name, setup, observation, ts] of cases) yield {
+    name: `class-field-contract/${ name }`,
+    code: `export const effects = []; ${ setup }\nexport const r = ${ observation };`,
+    strip: true, isolated: true, ...ts ? { ts } : {},
+  };
+}
+
 // A constructor's visible call can prove a candidate while a second caller supplies an
 // override. Compare actual results in fresh realms so no other case can install a static.
 function * generateClassReceiverContracts() {
@@ -28400,5 +28610,6 @@ export function * generate() {
   yield * generateIteratedElementReads();
   yield * generateExtractedArrayMethodReads();
   yield * generateContainerMutationContracts();
+  yield * generateClassFieldContracts();
   yield * generateClassReceiverContracts();
 }

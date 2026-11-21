@@ -7577,15 +7577,18 @@ export function classStaticSlotMember(classNode, key, {
   return setter;
 }
 
+// Private slots share a spelling only with other private declarations.
+export function privateStaticSlotMember(classNode, key) {
+  return classStaticSlotMember(classNode, key, { keyOf: member => privateNameSpelling(member.key), ignoreUnknown: true });
+}
+
 // ... and the one a CALL through that key reaches, where a caller census keyed on the class's binding
 // can count every call of it, or null: a decorator may replace the class or the member, a static whose
 // key no canon names may be this one, and an accessor runs a getter instead. Private keys
 // select only private declarations, never a public string spelling the same name.
 export function classStaticCallSlot(classNode, key, privateKey = false) {
   if (key === null || !classStaticsCallable(classNode)) return null;
-  const slot = classStaticSlotMember(classNode, key, privateKey ? {
-    keyOf: member => privateNameSpelling(member.key), ignoreUnknown: true,
-  } : {});
+  const slot = privateKey ? privateStaticSlotMember(classNode, key) : classStaticSlotMember(classNode, key);
   return slot && !slot.decorators?.length && (slot.kind === 'method' || CLASS_DATA_FIELD_TYPES.has(slot.type)) ? slot : null;
 }
 
@@ -7598,13 +7601,22 @@ export function classStaticsCallable(classNode) {
 // does the class reach itself past its binding? `this` in a static member or block is the class or a
 // subclass, `super` there its heritage, and a class expression's own name is a binding only its body
 // sees: a call spelled any of these ways is one no census of a binding counts
-export function classReachesItselfUnnamed(classNode) {
+export function classReachesItselfUnnamed(classNode, calledKey = null) {
   const ownName = classNode?.type === 'ClassExpression' ? classNode.id?.name : null;
   let reaches = false;
   for (const member of classNode?.body?.body ?? []) {
     const staticContext = !!member.static || member.type === 'StaticBlock';
     if (!staticContext && !ownName) continue;
-    walkAstNodes({ root: member, visit(node) {
+    walkAstNodes({ root: member, visit(node, parent) {
+      // Reading a distinct private data field uses the class only for its brand.
+      // A call through that field also passes the class as its receiver.
+      if (calledKey !== null && staticContext && isMemberAccessNode(node) && node.object.type === 'ThisExpression') {
+        const key = privateNameSpelling(node.property);
+        const readsValue = isMemberAccessNode(parent) && parent.object === node
+          || parent?.type === 'AssignmentExpression' && parent.operator === '=' && parent.left === node;
+        if (readsValue && key && key !== calledKey
+          && CLASS_DATA_FIELD_TYPES.has(privateStaticSlotMember(classNode, key)?.type)) return false;
+      }
       if (staticContext && (node.type === 'ThisExpression' || node.type === 'Super')
         || node.type === 'Identifier' && node.name === ownName) reaches = true;
       return !reaches;
@@ -10815,6 +10827,8 @@ export function objectOwnThisMethodInfo(objectNode) {
   // it can be overwritten by exactly that copy. one pass computes all of it: this summary is built
   // per literal on a hot path, and each extra sweep over the properties is paid there
   let unscannableBodies = false;
+  let foreignPrototype = false;
+  let indirectMethods;
   let mayIterate = false;
   let declaredKeys = new Set();
   for (const prop of objectNode.properties ?? []) {
@@ -10836,16 +10850,19 @@ export function objectOwnThisMethodInfo(objectNode) {
       else isMethod = unwrapRuntimeExpr(prop.value)?.type === 'FunctionExpression';
     }
     const key = ownThisMemberKeyName(prop);
-    if (key !== null && key !== undefined) declaredKeys.add(key);
-    // Explicit keys decide descriptor precedence. A setter keeps its paired getter,
-    // while a known data definition resets it; unknown keys leave named slots intact.
     if (key !== null && key !== undefined) {
+      declaredKeys.add(key);
+      if (unwrapRuntimeExpr(prop.value)?.type === 'Identifier' && !prop.method && !isMethod) {
+        (indirectMethods ??= new Map()).set(key, unwrapRuntimeExpr(prop.value));
+      } else indirectMethods?.delete(key);
+      // A setter preserves its paired getter, a data definition resets it.
       if (prop.kind === 'get') (getterKeys ??= new Set()).add(key);
       else if (prop.kind !== 'set') getterKeys?.delete(key);
     }
     // `undefinedShadowed` is read conservatively: a summary carries no scope, and mis-reading an
     // install as absent is the unsafe direction
     if (propertyInstallsPrototype(prop, true)) {
+      foreignPrototype = true;
       unscannableBodies = true;
       mayIterate = true;
     }
@@ -10855,8 +10872,9 @@ export function objectOwnThisMethodInfo(objectNode) {
   }
   // `mayIterate` alone is enough to return a summary: a literal with a computed key and no methods
   // at all can still hand itself to whatever iterates it
-  return methodKeys.size || unknownKey || accessors || unscannableBodies || mayIterate
-    ? { methodKeys, getterKeys, unknownKey, accessors, mayIterate, unscannableBodies, declaredKeys } : null;
+  return methodKeys.size || unknownKey || accessors || unscannableBodies || mayIterate || indirectMethods?.size
+    ? { methodKeys, getterKeys, unknownKey, accessors, mayIterate, unscannableBodies, foreignPrototype, declaredKeys, indirectMethods }
+    : null;
 }
 
 // class twin of `objectOwnThisMethodInfo`: `statics` picks the static side (`this` = the
@@ -10890,8 +10908,17 @@ export function classOwnThisMethodInfo(classNode, statics) {
     if (key === null || key === undefined) unknownKey = true;
     else methodKeys.add(key);
   }
-  return methodKeys.size || unknownKey || accessors
-    ? { methodKeys, getterKeys: null, unknownKey, accessors, mayIterate: false, unscannableBodies: false, declaredKeys: null } : null;
+  return methodKeys.size || unknownKey || accessors ? {
+    methodKeys,
+    getterKeys: null,
+    unknownKey,
+    accessors,
+    mayIterate: false,
+    unscannableBodies: false,
+    foreignPrototype: false,
+    declaredKeys: null,
+    indirectMethods: null,
+  } : null;
 }
 
 // Merge extraction infos without inventing a literal's declared-key set for a class.
@@ -10902,13 +10929,20 @@ export function mergeOwnThisMethodInfo(base, extra) {
   if (!extra) return base;
   const methodKeys = new Set(base.methodKeys);
   for (const key of extra.methodKeys) methodKeys.add(key);
+  let indirectMethods = base.indirectMethods ?? extra.indirectMethods;
+  if (base.indirectMethods && extra.indirectMethods) {
+    indirectMethods = new Map(base.indirectMethods);
+    for (const [key, source] of extra.indirectMethods) indirectMethods.set(key, indirectMethods.has(key) ? null : source);
+  }
   return {
+    indirectMethods,
     methodKeys,
     getterKeys: null,
     unknownKey: base.unknownKey || extra.unknownKey,
     accessors: base.accessors || extra.accessors,
     mayIterate: !!base.mayIterate || !!extra.mayIterate,
     unscannableBodies: !!base.unscannableBodies || !!extra.unscannableBodies,
+    foreignPrototype: !!base.foreignPrototype || !!extra.foreignPrototype,
     declaredKeys: base.declaredKeys && extra.declaredKeys ? new Set([...base.declaredKeys, ...extra.declaredKeys]) : null,
   };
 }

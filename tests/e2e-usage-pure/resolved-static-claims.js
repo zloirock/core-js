@@ -3,11 +3,12 @@ import { withRealmSelf, withWindowWithoutSelf } from './window-without-self-host
 
 QUnit.test('resolved statics preserve receiver, store, key and argument order', assert => {
   const effects = [];
+  const source = Array;
   let held;
-  const value = (effects.push('receiver'), held = Array)[(effects.push('key'), 'from')]((effects.push('arg'), 'ab')).at(0);
+  const value = (effects.push('receiver'), held = Array)[(effects.push(held === source), 'from')]((effects.push('arg'), 'ab')).at(0);
   assert.same(value, 'a');
-  assert.same(typeof held, 'function');
-  assert.deepEqual(effects, ['receiver', 'key', 'arg']);
+  assert.same(held, source);
+  assert.deepEqual(effects, ['receiver', true, 'arg']);
 });
 
 QUnit.test('resolved static guard and seal keep live argument claims', assert => {

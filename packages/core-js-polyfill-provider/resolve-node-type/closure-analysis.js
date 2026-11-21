@@ -615,7 +615,7 @@ export function createClosureAnalysis({
     if (!isMemberAccessNode(memberNode)
       || unwrapRuntimeExpr(memberNode.object) !== p.node) return { kind: 'extraction' };
     const ctx = peelParenAndTSParentPath(memberPath)?.node;
-    if ((ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression') && unwrapRuntimeExpr(ctx.callee) === memberNode) {
+    if (memberUseIsDirectCall(memberPath)) {
       // a `<name>.<X>(...)` call nested in a DEFERRED context fires whenever that context runs, not
       // at the call's source position, so its position cannot bound external writes - treat it as an
       // extraction (Infinity bound). deferred = a function body OR an instance class-field initializer
@@ -658,8 +658,7 @@ export function createClosureAnalysis({
           // parens) is recognised - reading the raw new-expr parent here lands one level short
           const memberPath = entry.wrapperPath.parentPath;
           const ctx = peelParenAndTSParentPath(memberPath)?.node;
-          if ((ctx?.type !== 'CallExpression' && ctx?.type !== 'OptionalCallExpression')
-            || unwrapRuntimeExpr(ctx.callee) !== memberPath.node) continue;
+          if (!memberUseIsDirectCall(memberPath)) continue;
           let ends = newCallsByName.get(name);
           if (!ends) newCallsByName.set(name, ends = []);
           // a deferred-context call (function body / instance field initializer) fires at an unknown
@@ -1170,7 +1169,7 @@ export function createClosureAnalysis({
         leftPath,
         mp => {
           const name = memberWriteFieldName(mp.node, mp.scope);
-          if (name) pushMultimap(writesByField, name, mp);
+          pushMultimap(writesByField, name, mp);
         },
       );
     }
@@ -1196,7 +1195,7 @@ export function createClosureAnalysis({
         // from compound / Update (push an opaque null) at consume time via `writePathContributedValue`
         AssignmentExpression(p) {
           const name = memberWriteFieldName(p.node.left, p.scope);
-          if (name) {
+          if (name !== null && name !== undefined || isMemberAccessNode(unwrapRuntimeExpr(p.node.left))) {
             pushMultimap(writesByField, name, p);
             return;
           }
@@ -1207,12 +1206,12 @@ export function createClosureAnalysis({
         },
         UpdateExpression(p) {
           const name = memberWriteFieldName(p.node.argument, p.scope);
-          if (name) pushMultimap(writesByField, name, p);
+          if (isMemberAccessNode(unwrapRuntimeExpr(p.node.argument))) pushMultimap(writesByField, name, p);
         },
         UnaryExpression(p) {
           if (!isDeleteTarget(p.node)) return;
           const name = memberWriteFieldName(p.node.argument, p.scope);
-          if (name) pushMultimap(writesByField, name, p);
+          if (isMemberAccessNode(unwrapRuntimeExpr(p.node.argument))) pushMultimap(writesByField, name, p);
         },
         // `Object.assign(target, { k: v })` writes `target.k` without a member expression anywhere,
         // so the bare-member visitors above never see it. index each SOURCE PROPERTY under its key -
@@ -1224,14 +1223,23 @@ export function createClosureAnalysis({
           // through the shared callee resolver, not a name match: by the time the census runs the
           // emitter may already have rewritten the call to its pure alias (`_Object$assign`), and
           // the resolver knows that spelling, the proxy-global one, and the user-shadow bail
-          const calleePair = resolveStaticCalleePair({ node: p.node.callee, ctx: { scope: p.scope, path: p } }, { method: 'assign' });
-          if (calleePair?.constructor !== 'Object') return;
+          const callee = unwrapRuntimeExpr(p.node.callee);
+          const spelled = !callee?.computed && callee?.property?.name;
+          if (spelled && spelled !== 'assign' && spelled !== 'defineProperty' && spelled !== 'defineProperties') return;
+          const calleePair = resolveStaticCalleePair({ node: callee, ctx: { scope: p.scope, path: p } });
+          if (calleePair?.method === 'defineProperty' && (calleePair.constructor === 'Object' || calleePair.constructor === 'Reflect')) {
+            const [, key] = p.get('arguments');
+            if (key?.node) pushMultimap(writesByField, resolveComputedKeyName(key.node, key.scope), p);
+            return;
+          }
+          if (calleePair?.constructor !== 'Object' || !['assign', 'defineProperties'].includes(calleePair.method)) return;
           const args = p.get('arguments');
           for (let i = 1; i < args.length; i++) {
             if (args[i].node?.type !== 'ObjectExpression') continue;
             for (const prop of args[i].get('properties')) {
               const name = propertyKeyName(prop.node);
-              if (name) pushMultimap(writesByField, name, prop);
+              if (name) pushMultimap(writesByField, name, calleePair.method === 'assign' ? prop : p);
+              else if (calleePair.method === 'defineProperties') pushMultimap(writesByField, null, p);
             }
           }
         },

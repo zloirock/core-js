@@ -801,12 +801,13 @@ export function createMemberResolve({
     const last = statements?.at(-1);
     if (statements && (last?.node?.type !== 'ReturnStatement' || !last.node.argument
       || statements.slice(0, -1).some(item => !PLAIN_STATEMENT_TYPES.has(item.node?.type)))) return null;
-    const literal = resolveRuntimeExpression(statements ? last.get('argument') : body);
+    const returned = statements ? last.get('argument') : body;
+    const literal = resolveRuntimeExpression(returned);
     if (literal?.node?.type !== 'ObjectExpression') return null;
     const yielded = calleeYieldedContainer(fn, { unwrap: unwrapRuntimeExpr });
     const params = dropLeadingThisParam(fn.params);
     callFreshLiterals.set(literal.node, {
-      params: new Map(yielded?.literal === literal.node ? yielded.slots.map(([, at]) => [params[at].name, at]) : []), callPath,
+      returned, params: new Map(yielded?.literal === literal.node ? yielded.slots.map(([, at]) => [params[at].name, at]) : []), callPath,
     });
     return literal;
   }
@@ -867,7 +868,9 @@ export function createMemberResolve({
       // ... and a literal a GETTER builds fresh per read is read off itself: the writer fold has no
       // earlier caller to account for, and refusing there lost the type of every slot below a getter
       // a slot of a call-fresh literal naming a callee PARAMETER holds the argument the call passed
-      const argument = callFreshLiterals.has(spine.node)
+      const fresh = callFreshLiterals.get(spine.node);
+      if (fresh && pathSlotWritten(fresh.returned, [name])) return null;
+      const argument = fresh
         ? freshLiteralSlotArgument(spine.node, walkObjectLiteralPropertyPath(spine, name)?.node) : null;
       if (argument?.node) return unionHints ? null : resolveNodeType(argument);
       const flowResult = resolveObjectFieldFlow(spine, name, callPath, unionHints, !callPath)
@@ -887,6 +890,7 @@ export function createMemberResolve({
         receiverArgs: ctx.receiverArgs,
         viaPrototype: ctx.viaPrototype,
         viaThis: t.isThisExpression(objectPath.node),
+        read: ctx.isStatic || t.isThisExpression(objectPath.node) ? originalObjectPath : null,
         unionHints,
       });
       if (result) return result;

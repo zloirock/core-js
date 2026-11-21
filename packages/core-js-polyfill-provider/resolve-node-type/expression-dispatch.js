@@ -163,11 +163,8 @@ export function createExpressionDispatch({
     // what `o` was, the argument directive's answer, so it stays unmodelled like `Object.create(P)` and
     // the install channel names its family (`installedPrototypeFamilies`)
     const installed = resultPrototypeArgumentPath(path, 'setPrototypeOf');
-    if (installed && prototypeValueMayDispatch(installed.node, !!getScopeBinding({
-      scope: path.scope,
-      name: 'undefined',
-      path,
-    }))) return null;
+    if (installed) return prototypeValueMayDispatch(installed.node, !!getScopeBinding({ scope: path.scope, name: 'undefined', path }))
+      ? null : new $Object('Object');
     // `import(...)` as a CallExpression with an `Import` callee is the babel@7 spelling and the only
     // one that reaches here: babel@8 and the ESTree pipeline both emit `ImportExpression`, which the
     // node-type switch below answers on its own. Live on that leg, so not dead - and never widen the
@@ -295,7 +292,14 @@ export function createExpressionDispatch({
       const arms = installCalleeArms(ref);
       const member = prototypeWriteHostPath(ref)?.parentPath;
       const assignment = isMemberAccessNode(member?.node) && peelTransparentExprAncestorPath(member).parentPath?.node;
-      let partial = arms === 'some';
+      // Reflect can return false. A fresh ordinary literal still accepts its first
+      // installation when that call precedes every other observation of the binding.
+      const firstInstall = arms === 'reflect' && sourceRef === refs[0]
+        && (host.node.type === 'ObjectExpression' || host.node.type === 'ArrayExpression')
+        && refs.every(other => other === sourceRef || reassignmentDominatesUsage({
+          reassignmentNodes: [prototypeWriteHostPath(ref).parentPath.node], usagePath: other, adapter, climb: true,
+        }));
+      let partial = arms === 'reflect' && !firstInstall ? 'reflect' : arms === 'some';
       if (assignment?.type === 'AssignmentExpression') {
         descriptors ??= refs.flatMap(ownProtoDescriptor);
         // A nonconfigurable own data property permanently shadows the inherited setter.
@@ -376,7 +380,12 @@ export function createExpressionDispatch({
       families.add(family);
     }
     if (!families.size || !readPath || installRunsBeforeRead(path, readPath)) return families;
-    const own = resolveRuntimeNodeType(path, path.node)?.constructor;
+    let own = resolveRuntimeNodeType(path, path.node)?.constructor;
+    // A failed Reflect installation on {} leaves the ordinary object in place.
+    if (!own && path.node.type === 'ObjectExpression' && !path.node.properties.length) {
+      const installs = bindingPrototypeInstalls(path)?.installs;
+      if (installs?.some(({ partial }) => partial === 'reflect') && installs.every(({ partial }) => partial !== true)) own = 'Object';
+    }
     if (!own) return null;
     families.add(own);
     return families;

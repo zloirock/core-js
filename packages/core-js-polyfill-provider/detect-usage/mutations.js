@@ -161,6 +161,7 @@ import {
   pureImportEntryOf,
   pureImportEntryOfProgram,
   privateNameSpelling,
+  privateStaticSlotMember,
   pureImportSourceEntry,
   reassignmentDominatesUsage,
   reassignmentValueNodes,
@@ -4258,6 +4259,17 @@ export function escapedCtorReferencesReducer({
         const guardable = !!hops && (!hops.length || (hops.length === 1 && !!node.optional));
         // Ordinary instance and user-defined keys cannot retain a constructor's static family.
         if (!opaqueOnly || readKey === null || hasStaticDefinitionKey(readKey)) {
+          // A retained this.#field reads the static from its stored value. A pure
+          // constructor installed there must carry the method even before the first write.
+          if (isMemberAccessNode(valueOwner) && valueOwner.object.type === 'ThisExpression') {
+            const key = privateNameSpelling(valueOwner.property);
+            const scopes = frame?.scopes;
+            const ownerClass = key && scopes?.[privateSlotOwnerIndex(scopes, key)];
+            const field = ownerClass && privateStaticSlotMember(ownerClass, key);
+            if (field) for (const value of memberSlotValues(field)) {
+              memberReceivers.push([value, null, readKey, true, false, false, node, false, true]);
+            }
+          }
           const heritage = heritageStaticReceiver(valueOwner, readKey, frame);
           if (heritage) memberReceivers.push([heritage, null, readKey, true, false, false, node]);
           else {
@@ -6928,6 +6940,12 @@ function memberSlotPath(member) {
 function chainSlotPath({ root, keys }) {
   return root?.type === 'Identifier' && keys.length ? { root, keys: slotPathKeys(keys) } : { root, keys: null };
 }
+// The nearest declaration owns the brand even when a nested class uses the same private name.
+function privateSlotOwnerIndex(scopes, key) {
+  return scopes.findLastIndex(scope => CLASS_NODE_TYPES.has(scope.type)
+    && scope.body.body.some(member => privateNameSpelling(member.key) === key));
+}
+
 // ... the key path itself, ended in the wildcard at its first unreadable hop
 function slotPathKeys(keys) {
   const unreadable = keys.indexOf(null);
@@ -7251,21 +7269,13 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
           else if (root?.type === 'ThisExpression' && currentThisOwner?.static) {
             // A static private brand pins this read to its declaring class. Keep the
             // class's scope, not a same-named parameter of the method returning it.
-            let privateName;
-            const chain = memberChainKeys(node, member => {
-              privateName = privateNameSpelling(member.property);
-              return memberKeyName(member) ?? privateName;
-            });
-            const at = privateName ? scopes.findLastIndex(scope => CLASS_NODE_TYPES.has(scope.type)
-              && scope.body?.body.includes(currentThisOwner)) : -1;
-            const owner = at >= 0 && scopes[at];
-            const name = owner && (owner.id?.name ?? classOuterNames.get(owner));
-            const escaped = slotPathKeys(chain.keys);
+            const slot = staticPrivateThisSlot(node, scopes);
+            if (!slot) break;
+            const { at, owner, name, privateName, keys: escaped } = slot;
             if (name) {
               recordSlotWrite(name, escaped.at(-1) === null ? escaped : [...escaped, null], null, scopes.slice(0, at + 1));
               break;
             }
-            if (!owner) break;
             for (const field of owner.body.body) {
               if (field.static && privateNameSpelling(field.key) === privateName) work.push(field.value);
             }
@@ -7607,8 +7617,11 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
     if (write && chains.length > 1) selectedWrites.add(write);
     for (const chain of chains) {
       const { root, keys } = chainSlotPath(chain);
-      if (!keys) recordUnrootedWrite(chain);
-      else {
+      if (!keys) {
+        const slot = root?.type === 'ThisExpression' && currentThisOwner?.static && staticPrivateThisSlot(member, currentScopes);
+        if (slot?.name) recordSlotWrite(slot.name, slot.keys, value, currentScopes.slice(0, slot.at + 1), write, null, currentMutationSite);
+        else recordUnrootedWrite(chain);
+      } else {
         const last = keys.length - 1;
         if (keys[last] === 'length') keys[last] = null;
         else if (keys[last] === null && keys.length === chain.keys.length && member.computed
@@ -7616,6 +7629,20 @@ export function mutationShapesReducer(packages = null, collectMutationSites = fa
         recordSlotWrite(root.name, keys, value, currentScopes, write, null, currentMutationSite);
       }
     }
+  }
+
+  function staticPrivateThisSlot(node, scopes) {
+    let privateName;
+    const chain = memberChainKeys(node, member => {
+      privateName = privateNameSpelling(member.property);
+      return memberKeyName(member) ?? privateName;
+    });
+    if (!privateName || chain.root?.type !== 'ThisExpression') return null;
+    const at = privateSlotOwnerIndex(scopes, privateName);
+    if (at < 0) return null;
+    const owner = scopes[at];
+    if (!privateStaticSlotMember(owner, privateName)) return null;
+    return { at, owner, name: owner.id?.name ?? classOuterNames.get(owner), privateName, keys: slotPathKeys(chain.keys) };
   }
 
   // ... and a write through a receiver no name spells (`UNROOTED_WRITE_KEYS`)
@@ -9801,7 +9828,8 @@ export function createDetectionAdapter({
             && !FUNCTION_LIKE_NODE_TYPES.has(unwrapRuntimeExpr(slot)?.type)))) return false;
       // Re-reading an own data path reaches the same inner container. An accessor, spread
       // or held value does not prove that identity, even when no explicit write was recorded.
-      for (let source of heldContainers(ownerNode, usagePath)) {
+      const containers = CLASS_NODE_TYPES.has(ownerNode.type) ? [ownerNode] : heldContainers(ownerNode, usagePath);
+      for (let source of containers) {
         for (const part of keyPath.slice(0, -1)) {
           if (literalHasUnnameableSlot(source)) return false;
           const held = containerSlotValues(source, part, true);
@@ -9811,8 +9839,8 @@ export function createDetectionAdapter({
         // Discarding the old candidate requires an own data property: a setter can ignore
         // the write, and a getter can return anything.
         if ((nameValue || method === 'usage-pure' || writes.some(write => write.type === 'CallExpression'))
-          && ((source?.type !== 'ObjectExpression' && source?.type !== 'ArrayExpression')
-          || literalHasUnnameableSlot(source)
+          && (!CENSUS_CONTAINER_TYPES.has(source?.type) || literalHasUnnameableSlot(source)
+          || CLASS_NODE_TYPES.has(source.type) && !classStaticCallSlot(source, keyPath.at(-1))
           || containerSlotValues(source, keyPath.at(-1), true).length !== 1)) return false;
       }
       // Alias expansion names POSSIBLE targets. A dead initializer needs the value captured

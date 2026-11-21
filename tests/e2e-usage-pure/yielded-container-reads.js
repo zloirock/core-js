@@ -49,10 +49,11 @@ QUnit.test('yielded containers: a callee that keeps its argument hands back the 
     alias[key] = value;
     return box;
   }
-  assert.same(viaMember({ M: Array }, 'M', replacement).M.groupBy(), 'REPLACED');
-  assert.same(viaBuiltin({ M: Array }, 'M', replacement).M.groupBy(), 'REPLACED');
-  assert.same(viaAlias({ M: Array }, 'M', replacement).M.groupBy(), 'REPLACED');
+  assert.same(viaMember({ M: Map }, 'M', replacement).M.groupBy(), 'REPLACED');
+  assert.same(viaBuiltin({ M: Map }, 'M', replacement).M.groupBy(), 'REPLACED');
+  assert.same(viaAlias({ M: Map }, 'M', replacement).M.groupBy(), 'REPLACED');
   // ... while a callee keeping no other reference hands back the literal the call site spells
   function clean(box) { return box; }
   assert.deepEqual(clean({ A: Array }).A.of(3), [3]);
+  assert.deepEqual(clean({ M: Map }).M.groupBy([3], x => x).get(3), [3]);
 });

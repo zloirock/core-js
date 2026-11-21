@@ -240,3 +240,44 @@ QUnit.test(
     assert.true(holder.data.includes('02'));
   },
 );
+
+QUnit.test('field aliases and inherited static descriptors preserve runtime dispatch', assert => {
+  class Rows {
+    data = [4];
+    read() { return this.data.map(x => x).at(0); }
+  }
+  const rows = new Rows();
+  assert.same(rows.read(), 4);
+  const data = rows.data; // eslint-disable-line prefer-destructuring -- exercise a member alias
+  data.map = () => 'z';
+  assert.same(rows.read(), 'z');
+
+  class Base extends Array {
+    static read(n) { return this.from([n])[0]; }
+  }
+  class Derived extends Base {}
+  Object.defineProperty(Derived, 'from', {
+    value(list) { return [this === Derived ? list[0] + 1 : 0]; },
+  });
+  assert.same(Base.read(6), 6);
+  assert.same(Derived.read(6), 7);
+});
+
+QUnit.test('field reads after an iterator, getter and factory write', assert => {
+  function create() {
+    const box = { rows: [7] };
+    box.rows = 'abc';
+    return box;
+  }
+  assert.same(create().rows.at(0), 'a');
+  const owner = {
+    __proto__: { * [Symbol.iterator]() { yield this; }, get watch() { this.rows = 'read'; } },
+    rows: [7],
+    read() { return this.rows.at(-1); },
+  };
+  const [alias] = owner;
+  alias.rows = 'set';
+  assert.same(owner.read(), 't');
+  assert.same(owner.watch, undefined);
+  assert.same(owner.read(), 'd');
+});

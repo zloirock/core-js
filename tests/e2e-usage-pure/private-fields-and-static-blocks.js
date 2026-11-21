@@ -177,6 +177,7 @@ QUnit.test('static block + extends polyfilled receiver: super.from inside static
     }
   }
   assert.true(MyArr.snapshot instanceof Array);
+  assert.true(MyArr.snapshot instanceof MyArr);
   assert.deepEqual([...MyArr.snapshot], [1, 2, 3]);
 });
 
