@@ -1,13 +1,22 @@
-import "core-js/modules/es.object.get-own-property-descriptor";
+import "core-js/modules/es.object.group-by";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
 // A mutator invoked through call changes the same array receiver as a direct invocation.
 const repositionedByDetachedCall = function () {
-  const called = [Object];
+  const called = [Object, Map];
   called.reverse.call(called);
   const {
     0: {
-      getOwnPropertyDescriptor
+      groupBy
     }
   } = called;
-  return getOwnPropertyDescriptor;
+  return groupBy;
 }();
 export { repositionedByDetachedCall };

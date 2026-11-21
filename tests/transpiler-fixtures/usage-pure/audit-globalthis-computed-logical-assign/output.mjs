@@ -5,3 +5,4 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // global object. bracket keys resolve like the dotted form
 _globalThis['Map'] ||= {};
 _globalThis[`WeakMap`] ||= {};
+export const constructors = [Map, WeakMap];

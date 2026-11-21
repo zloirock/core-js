@@ -1,12 +1,10 @@
 import _Map from "@core-js/pure/actual/map";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _URL from "@core-js/pure/actual/url";
 import _URL$canParse from "@core-js/pure/actual/url/can-parse";
-// a container slot holding a local call hands on whatever the call may return, so a static read off
-// the slot is served where the call names one constructor - a parameter default, through an array slot
-// and a typeof probe alike. a logical arm is a single return that selects, a route the census does not
-// follow: pure keeps the narrow entry there, and usage-global injects the static by its key
+// A call may return its default constructor or select it in the body.
+// An ensuing static read needs the method on the resulting constructor.
 function withDefault(M = _Map) {
   return M;
 }

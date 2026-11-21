@@ -4,3 +4,4 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // resolves, the slot records and the name deopts like the dotted form
 const k = "Map";
 _globalThis[k] ||= {};
+export const ctor = Map;

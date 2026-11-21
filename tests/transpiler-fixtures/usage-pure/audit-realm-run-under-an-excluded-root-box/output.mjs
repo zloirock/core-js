@@ -1,6 +1,8 @@
-// ... and every consumer of such a run rides the same span: a `delete` reaches its slot off it, and
-// a dispatch above it reads its receiver through it - a plan that stood down here left the whole
-// navigation raw, the one spelling the pure method exists to prevent
+import _at from "@core-js/pure/actual/instance/at";
+import _self from "@core-js/pure/actual/self";
+// A local box must not capture the same-named property of the realm.
 const box = {
   self: {}
 };
+export const deleteAboveDispatch = delete _at(_self.box.list).name;
+export const local = box.self;

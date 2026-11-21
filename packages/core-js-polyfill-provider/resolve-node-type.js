@@ -1391,7 +1391,9 @@ function createResolveNodeType(babelNodeType, t, {
   // which prototype slots the file writes (`prototypeChainMayLend`)
   const slotCensusAdapter = { ...babelBindingAdapter, isWrittenContainerSlot, isMutatedStaticSlot: isMutatedStatic };
   function pathSlotWritten(holderPath, keys) {
-    return keys.length > 0 && containerSlotWritten(unwrapRuntimeExpr(holderPath?.node), keys.map(String), {
+    if (!keys.length) return false;
+    const keyPath = keys.map(key => typeof key === 'symbol' ? key : String(key));
+    return containerSlotWritten(unwrapRuntimeExpr(holderPath?.node), keyPath, {
       scope: holderPath?.scope, adapter: slotCensusAdapter, path: holderPath,
     });
   }
@@ -1672,7 +1674,7 @@ function createResolveNodeType(babelNodeType, t, {
     const literal = unwrapRuntimeExpr(loop?.node?.right);
     const literalPath = literal ? walkPathToNode(loop.get('right'), literal) : null;
     if (!literalPath || isMutatedStatic('Array.prototype', 'Symbol.iterator')
-      || pathSlotWritten(loop.get('right'), ['Symbol.iterator'])) return null;
+      || pathSlotWritten(loop.get('right'), [Symbol.iterator])) return null;
     const first = positionalElementPath(literalPath, 0, isMutatedStatic);
     if (unwrapRuntimeExpr(elements[0])?.type === 'Identifier') {
       // an element reading its own head back (`for (const Y of [Y])`) names no value: the head is
@@ -3209,7 +3211,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (!keyPath?.length) return NO_SLOT_ANSWER;
     const iterated = resolveRuntimeExpression(forOfPath.get('right'));
     if (t.isArrayExpression(iterated?.node) && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
-      || pathSlotWritten(forOfPath.get('right'), ['Symbol.iterator']))) return null;
+      || pathSlotWritten(forOfPath.get('right'), [Symbol.iterator]))) return null;
     const elements = iterated?.node?.type === 'ArrayExpression'
       ? cachedContainerPaths(iterated, 'elements') : [];
     const values = elements.map(element => resolveRuntimeExpression(element));
@@ -3576,7 +3578,7 @@ function createResolveNodeType(babelNodeType, t, {
     const index = keyPath.length === 1 ? canonicalArrayIndex(keyPath[0]) : null;
     const iterated = typeof keyPath[0] === 'number';
     const arms = fields || index === null || iterated && (isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
-      || pathSlotWritten(initPath, ['Symbol.iterator'])) ? null : literalElementUnionPaths(initPath, index, anchorPath);
+      || pathSlotWritten(initPath, [Symbol.iterator])) ? null : literalElementUnionPaths(initPath, index, anchorPath);
     const hints = fields ?? (arms ? mergeArmHints(arms, 0) : null);
     if (!ownDefault || !hints) return hints;
     const fallback = mergeArmHints([ownDefault.get('right')], 0);
@@ -3693,7 +3695,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (!declarator.init) {
       const loop = forXHeadLoopPath(declaratorPath);
       if (t.isForOfStatement(loop?.node) && t.isArrayExpression(resolveRuntimeExpression(loop.get('right')).node)
-        && (isMutatedStatic('Array.prototype', 'Symbol.iterator') || pathSlotWritten(loop.get('right'), ['Symbol.iterator']))) return null;
+        && (isMutatedStatic('Array.prototype', 'Symbol.iterator') || pathSlotWritten(loop.get('right'), [Symbol.iterator]))) return null;
       const elements = t.isForOfStatement(loop?.node) && binding.kind === 'const'
         ? literalElementUnionPaths(loop.get('right'), null, path) : null;
       return elements?.length ? mergeArmHints(elements, depth) : null;

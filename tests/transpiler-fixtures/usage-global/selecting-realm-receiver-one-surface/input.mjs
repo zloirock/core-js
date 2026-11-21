@@ -6,6 +6,5 @@ const seen = [];
 const pick = 1;
 const { Array: { prototype: { at } } } = pick ? globalThis : self;
 const { Array: { prototype: { includes } } } = self ?? globalThis;
-const { Array: { prototype: { map } } } = pick && globalThis;
-seen.push(at, includes, map);
+seen.push(at, includes);
 export { seen };

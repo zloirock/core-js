@@ -6,6 +6,7 @@ import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.set.constructor";

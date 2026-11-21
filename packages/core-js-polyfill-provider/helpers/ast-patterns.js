@@ -5679,8 +5679,8 @@ export function installedWriteValue(rhs) {
 // returned node (a literal / concat for a computed key)
 // pattern-aware single-value variant of `reassignmentRhs` for the reaching-definition
 // recovery: a pattern write (`[A] = [Iterator]`) pairs to exactly ONE unambiguous value;
-// a slot default (`[A = X] = [..]`) may or may not apply at runtime -> ambiguous -> null, and so
-// does a slot of a container the file wrote (`patternSlotWritten`).
+// A written slot can still supply a primitive if one write dominates its capture.
+// An uncertain default or a replaced iterator leaves the selected value unknown.
 // a pattern write over a CALL pairs nothing in this layer: the answer is `{ callSite }`, the site
 // the caller's call canon pairs (`handOnCallSite`), not a node
 function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
@@ -5689,17 +5689,28 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
   const write = plainWriteOf(node, ownerNode);
   if (write && isDestructurePattern(write.target)) {
     if (!bindingName) return null;
-    // a CALL value pairs nothing here (the call canon is the detect layer's): the site goes back as
-    // a marker the reaching lanes carry like a value and hand to their caller's sink
+    if (write.target.type === 'ArrayPattern' && (ctx?.adapter?.isMutatedStaticSlot?.('Array.prototype', 'Symbol.iterator')
+      || containerSlotWritten(write.value, [Symbol.iterator], ctx))) return null;
+    // A call source is resolved by the detect layer at its original call site.
     const [callSite] = patternCallSites(write.target, [write.value]);
     if (callSite) return { callSite };
     const certain = patternSlotCertainDefault(write.target, write.value, bindingName, ctx);
     if (certain) return certain;
-    if (patternSlotWritten({ pattern: write.target, init: write.value, name: bindingName, ctx })) return null;
+    if (patternSlotWritten({ pattern: write.target, init: write.value, name: bindingName, ctx })) {
+      const keys = patternRootKeyPathsFor(write.target, bindingName, ctx);
+      const owner = keys?.length === 1 && patternContainerOwner(write.value, ctx);
+      return owner && ctx.adapter.containerSlotWriteDominatesUsage?.(
+        keys[0], owner.ownerNode, ctx.path, write.value, primitiveSlotWrite,
+      ) || null;
+    }
     const values = patternSlotValues(write.target, write.value, bindingName, ctx);
     return values.length === 1 && !patternSlotValueAmbiguous(write.target, write.value, bindingName, ctx) ? values[0] : null;
   }
   return reassignmentRhs(node, ownerNode);
+}
+
+function primitiveSlotWrite(value) {
+  return value && PRIMITIVE_LITERAL_TYPES.has(value.type) ? value : null;
 }
 
 // does the binding `name` reach through a slot default (`[A = X]` / `{ A = X }`), at the top level
@@ -5925,7 +5936,7 @@ export function containerSlotWritten(init, keys, ctx, usageNode = init, escapePr
 // pairing's `{ scope, adapter, path, resolveKey }`; a slot the pattern cannot name reads an UNKNOWN
 // one, which any write on the container reaches
 export function patternSlotWritten({ pattern, init, name, ctx }) {
-  return (patternRootKeyPathsFor(pattern, name, ctx) ?? [[MUTATED_MEMBERS_UNKNOWN]])
+  return (patternRootKeyPathsFor(pattern, name, ctx) ?? [[null]])
     .some(keys => containerSlotWritten(init, keys, ctx));
 }
 
@@ -5997,7 +6008,7 @@ export function writtenContainerSlotValuesAt(init, keyPaths, ctx) {
   }
   const owner = patternContainerOwner(init, ctx);
   if (!owner) return [];
-  return (keyPaths ?? [[MUTATED_MEMBERS_UNKNOWN]]).flatMap(keys => writtenAt(owner, keys, ctx));
+  return (keyPaths ?? [[null]]).flatMap(keys => writtenAt(owner, keys, ctx));
 }
 
 // ... at the slot a pattern binds `name` to
@@ -6625,9 +6636,37 @@ export function arrayWrapSlotValueCandidates(elements, i) {
   // receiver resolver whole - the exact-pair path never flattens, and pure precision gates on
   // `patternSlotSpreadShifted` before reading
   return flattenBranchingValueNodes(
-    elements.slice(elements.findIndex(e => e?.type === 'SpreadElement')).filter(e => e && e.type !== 'SpreadElement'),
+    possibleArrayElements(elements, i, false),
     { keepAndWhole: true },
   );
+}
+
+// A spread of unknown width may contribute zero or more elements. Track the earliest
+// runtime position of each following value, including values inside nested literal spreads.
+function possibleArrayElements(elements, index, rest) {
+  const values = [];
+  let position = 0;
+  let shifted = false;
+  const lists = [elements.values()];
+  while (lists.length) {
+    const { value, done } = lists.at(-1).next();
+    if (done) {
+      lists.pop();
+    } else if (value?.type === 'SpreadElement') {
+      const array = unwrapRuntimeExpr(value.argument);
+      if (array?.type === 'ArrayExpression') lists.push(array.elements.values());
+      else {
+        shifted = true;
+        if (rest) values.push(value.argument);
+      }
+    } else {
+      // Once the slot is open, keep the whole suffix as candidates for conservative readers.
+      if (!rest && !shifted && position > index) break;
+      if (value && (rest ? shifted || position >= index : shifted || position === index)) values.push(value);
+      position++;
+    }
+  }
+  return values;
 }
 
 // the POSITIONALLY-paired init element for an array-wrap pattern slot: array destructuring binds
@@ -7009,7 +7048,7 @@ export function borrowsReceiverSpan(node) {
 export function restCopiedValues(rhs, pattern, from, ctx = null) {
   if (pattern.type === 'ArrayPattern') {
     return rhs.type === 'ArrayExpression'
-      ? rhs.elements.slice(from).filter(Boolean).map(element => element.type === 'SpreadElement' ? element.argument : element)
+      ? possibleArrayElements(rhs.elements, from, true)
       : [rhs];
   }
   if (rhs.type !== 'ObjectExpression') return [rhs];
@@ -9605,8 +9644,8 @@ export function destructureReceiverSlot(node) {
 // `sameCallee`: for a reader that RESOLVES the element rather than mirroring it, a call of the same
 // named function reads the same on every pass too - its return's static, whatever the arguments
 // (`[{ w: e('a') }, { w: e('b') }]`); the mirror never takes that option, a call holds no literal
-export function forOfHeadElements(declaratorPath, { sameCallee = false } = {}) {
-  const elements = forOfHeadIterableElements(declaratorPath);
+export function forOfHeadElements(declaratorPath, { sameCallee = false, staticIsMutated = null } = {}) {
+  const elements = forOfHeadIterableElements(declaratorPath, staticIsMutated);
   if (!elements) return null;
   if (elements.length === 1) return elements;
   return elements.every(element => sameHeadElement(element, elements[0], sameCallee)) ? elements : null;
@@ -9735,9 +9774,9 @@ export function forXHeadLoopPath(headPath) {
 // ... and the same values as a BRANCH SET, making no claim that one receiver answers for the loop:
 // each is what the pattern reads on its own pass. an enumerate-every-candidate consumer (usage-global,
 // whose contract is inject-if-might) wants all of them where the one above insists on agreement
-export function forOfHeadIterableElements(headPath) {
+export function forOfHeadIterableElements(headPath, staticIsMutated = null) {
   const loop = forXHeadLoopPath(headPath);
-  return loop ? forOfIterableElements(loop.node) : null;
+  return loop ? forOfIterableElements(loop.node, staticIsMutated) : null;
 }
 
 // the values an iterated ARRAY LITERAL spells in turn - nothing else makes an iterated value's
@@ -9757,7 +9796,8 @@ export function arrayLiteralIterableElements(node) {
 // ... the elements a for-of LOOP iterates, or null: the node-level half every reader of the head
 // shares - the path readers above, and the census, which visits the loop node and has no path.
 // a HOLE has no element to read; for-await awaits what the literal holds, which is not the node written
-export function forOfIterableElements(loopNode) {
+export function forOfIterableElements(loopNode, staticIsMutated = null) {
+  if (staticIsMutated?.('Array.prototype', 'Symbol.iterator')) return null;
   if (loopNode?.type !== 'ForOfStatement' || loopNode.await) return null;
   const elements = arrayLiteralIterableElements(loopNode.right);
   return elements?.length && elements.every(Boolean) ? elements : null;
@@ -9810,7 +9850,7 @@ export function destructureReceiverNode(host, patternNode = null, staticIsMutate
   // there either, and what the pattern reads is still the element the iterated literal spells
   if (isForXStatement(host?.node)) {
     return patternNode && host.node.left !== patternNode
-      ? null : forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
+      ? null : forOfHeadElements(host, { sameCallee: true, staticIsMutated })?.[0] ?? null;
   }
   if (host?.node?.type === 'AssignmentPattern' && FUNCTION_LIKE_NODE_TYPES.has(host.parentPath?.node?.type)) {
     const site = findIifeCallSite(host.parentPath, host.node);
@@ -9818,7 +9858,7 @@ export function destructureReceiverNode(host, patternNode = null, staticIsMutate
   }
   const slot = destructureReceiverSlot(host?.node);
   if (!slot) return null;
-  return host.node[slot] ?? forOfHeadElements(host, { sameCallee: true })?.[0] ?? null;
+  return host.node[slot] ?? forOfHeadElements(host, { sameCallee: true, staticIsMutated })?.[0] ?? null;
 }
 
 function iifeParameterArgument(host, patternNode, staticIsMutated = null) {
@@ -9921,7 +9961,7 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
   // handed every caller a receiver-less descriptor, and a BRANCHING head (`of [flag ? Array : Set]`)
   // fell out of the per-branch channel that is its only route. paired by POSITION off the loop's own
   // `right`, the same step a wrapped array level takes, so the path companion needs nothing new
-  const head = slot ? forOfHeadReceiverPair(wrapperPath) : null;
+  const head = slot ? forOfHeadReceiverPair(wrapperPath, staticIsMutated) : null;
   if (head) {
     return {
       rhsNode: head.node, slot: 'right', callPath: null, paramIndex: -1,
@@ -9937,13 +9977,13 @@ export function resolveFallbackReceiver(wrapperPath, paramNode, staticIsMutated 
 // the head element a declarator's pattern reads, with the loop path that holds it. SOLE elements
 // only: the per-branch channel rewrites the receiver where it stands, and a literal spelling two of
 // them would leave every later pass reading the one it did not rewrite
-function forOfHeadReceiverPair(declaratorPath) {
+function forOfHeadReceiverPair(declaratorPath, staticIsMutated) {
   // A pattern this pass moved into the body still owns its original element's mirror.
   const relocated = ownRelocatedHeadElement(declaratorPath);
   const source = declaratorPath.node.type === 'AssignmentExpression' ? climbTransparentWrapperPath(declaratorPath) : declaratorPath;
   const loopPath = relocated ? source.parentPath?.parentPath?.parentPath : source.parentPath?.parentPath;
   const headPath = relocated ? loopPath.get('left').get('declarations')[0] : declaratorPath;
-  const elements = forOfHeadElements(headPath, { sameCallee: true });
+  const elements = forOfHeadElements(headPath, { sameCallee: true, staticIsMutated });
   if (elements?.length !== 1) return null;
   const iterable = unwrapRuntimeExpr(loopPath?.node?.right);
   if (!isForXStatement(loopPath?.node) || iterable?.type !== 'ArrayExpression') return null;
@@ -10690,8 +10730,10 @@ export function installedPrototypeValueAt(ref, protoSetterCalleeArms, undefinedS
   if (!parent) return null;
   if ((parent.type === 'MemberExpression' || parent.type === 'OptionalMemberExpression')
     && parent.object === host.node && memberKeyName(parent) === '__proto__') {
-    const assign = host.parentPath.parentPath?.node;
-    return assign?.type === 'AssignmentExpression' && assign.left === parent
+    const member = peelTransparentExprAncestorPath(host.parentPath);
+    const assign = member.parentPath?.node;
+    return assign?.type === 'AssignmentExpression' && assign.left === member.node
+      && (assign.operator === '=' || LOGICAL_ASSIGN_OPS.has(assign.operator))
       && prototypeValueMayDispatch(assign.right, undefinedShadowed) ? assign.right : null;
   }
   if ((parent.type !== 'CallExpression' && parent.type !== 'OptionalCallExpression')

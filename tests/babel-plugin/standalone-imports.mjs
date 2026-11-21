@@ -1,5 +1,4 @@
-// Check import sufficiency in fresh workers. Error statics need an explicit reference on
-// the lowest supported Node; the opted-out static has different pure and global contracts.
+// Check import sufficiency in fresh workers, including statics missing on the lowest supported Node.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -27,9 +26,10 @@ await fs.ensureDir(tmp);
 const directory = await fs.mkdtemp(path.join(tmp, 'standalone-imports-'));
 let serial = 0;
 try {
-  for (const [name, source] of [
+  for (const [name, source, expected = 'OK|7|[]'] of [
     ...['Error', 'TypeError'].map(receiver => [receiver,
-      `export const effects = []; export const r = [${ receiver }.isError(new Error('x')), ${ receiver }.isError({})];`]),
+      `export const effects = []; export const r = [${ receiver }.isError(new Error('x')), ${ receiver }.isError({})];`, 'OK|[true,false]|[]']),
+    ['call-result', 'export const effects = []; function pick(P) { return P || Promise; } export const r = await ({ P: pick() }).P.try(() => 7);'],
     ['disabled-static', `export const effects = []; const wrapper = { C: Iterator }; const {
       // core-js-disable-next-line
       C: { from },
@@ -41,8 +41,7 @@ try {
       const file = path.join(directory, `case-${ serial++ }.mjs`);
       await fs.writeFile(file, code);
       for (const strip of [false, true]) check(`${ name }/${ method }/${ host }/${ strip }`,
-        await runInWorker(file, { strip }), name !== 'disabled-static' ? 'OK|[true,false]|[]'
-          : method === 'usage-global' && strip ? 'ERR|TypeError' : 'OK|7|[]');
+        await runInWorker(file, { strip }), name === 'disabled-static' && method === 'usage-global' && strip ? 'ERR|TypeError' : expected);
     }
   }
   // The shared stripped realm keeps filter. Remove it before the tested module imports core-js.

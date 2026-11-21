@@ -4,3 +4,4 @@
 // global object. bracket keys resolve like the dotted form
 globalThis['Map'] ||= {};
 globalThis[`WeakMap`] ||= {};
+export const constructors = [Map, WeakMap];

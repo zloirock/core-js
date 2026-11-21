@@ -19,10 +19,8 @@ import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.can-parse";
 import "core-js/modules/web.url-search-params.constructor";
-// a container slot holding a local call hands on whatever the call may return, so a static read off
-// the slot is served where the call names one constructor - a parameter default, through an array slot
-// and a typeof probe alike. a logical arm is a single return that selects, a route the census does not
-// follow: pure keeps the narrow entry there, and usage-global injects the static by its key
+// A call may return its default constructor or select it in the body.
+// An ensuing static read needs the method on the resulting constructor.
 function withDefault(M = Map) {
   return M;
 }

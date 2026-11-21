@@ -1,7 +1,5 @@
-// an object SPREAD and a `__proto__` member are routes the census does not follow: a read through
-// the copy or through the prototype names no value, so usage-global injects none of the statics read
-// there, only the constructors themselves, while usage-pure keeps the whole entry of every constructor
-// a spread hands out and leaves the `__proto__` route native
+// A spread can publish the constructors stored on its sources. An inherited slot
+// and an own property of the copied object are distinct sources.
 const src = { M: Map };
 const copy = { ...src };
 copy.M.groupBy(list, fn);

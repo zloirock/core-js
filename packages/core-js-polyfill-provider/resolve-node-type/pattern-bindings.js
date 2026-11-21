@@ -687,7 +687,7 @@ export function createPatternBindings({
   function resolveRuntimeIterableElement(path) {
     const type = resolveNodeType(resolveRuntimeExpression(path));
     if (type?.constructor === 'Array' && (isMutatedStatic('Array.prototype', 'Symbol.iterator')
-      || pathSlotWritten(path, ['Symbol.iterator']))) return null;
+      || pathSlotWritten(path, [Symbol.iterator]))) return null;
     return resolveInnerType(type);
   }
 

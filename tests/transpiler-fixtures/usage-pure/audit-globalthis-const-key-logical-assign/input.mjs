@@ -3,3 +3,4 @@
 // resolves, the slot records and the name deopts like the dotted form
 const k = "Map";
 globalThis[k] ||= {};
+export const ctor = Map;

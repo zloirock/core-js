@@ -1,8 +1,6 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.includes";
-import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.push";
-import "core-js/modules/es.array.species";
 import "core-js/modules/es.global-this";
 import "core-js/modules/web.self";
 // a SELECTING receiver whose every branch names a global OBJECT reads one realm whichever branch
@@ -25,12 +23,5 @@ const {
     }
   }
 } = self ?? globalThis;
-const {
-  Array: {
-    prototype: {
-      map
-    }
-  }
-} = pick && globalThis;
-seen.push(at, includes, map);
+seen.push(at, includes);
 export { seen };

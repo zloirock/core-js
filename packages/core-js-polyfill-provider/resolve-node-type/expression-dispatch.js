@@ -22,9 +22,13 @@ import {
   bindingLoopAnchor,
   cachedContainerPaths,
   installedPrototypeValueAt,
+  isMemberAccessNode,
   isTaggedTemplateQuasiPosition,
   noReassignmentReachesUsage,
+  objectLevelPairedProperty,
   objectLiteralPrototypeValue,
+  memberKeyName,
+  unwrapRuntimeExpr,
   peelTransparentExprAncestorPath,
   prototypeValueMayDispatch,
   prototypeWriteHostPath,
@@ -284,13 +288,44 @@ export function createExpressionDispatch({
     const shadowed = undefinedShadowed ?? (refs.length ? !!getScopeBinding({ scope: path.scope, name: 'undefined', path }) : false);
     const adapter = getDecisionAdapter();
     const installs = [];
+    let descriptors;
     for (const sourceRef of refs) for (const ref of liveInstallReferences(sourceRef)) {
       const value = installedPrototypeValuePathAt(ref, shadowed);
       if (!value || writeNeverRuns({ write: ref.node, usagePath: ref, adapter })) continue;
       const arms = installCalleeArms(ref);
-      installs.push({ value, ref, partial: arms === 'some' });
+      const member = prototypeWriteHostPath(ref)?.parentPath;
+      const assignment = isMemberAccessNode(member?.node) && peelTransparentExprAncestorPath(member).parentPath?.node;
+      let partial = arms === 'some';
+      if (assignment?.type === 'AssignmentExpression') {
+        descriptors ??= refs.flatMap(ownProtoDescriptor);
+        // A nonconfigurable own data property permanently shadows the inherited setter.
+        const fixed = descriptors.length === 1 && descriptors[0].fixed ? [descriptors[0].node] : [];
+        if (fixed.length && reassignmentDominatesUsage({ reassignmentNodes: fixed, usagePath: ref, adapter, climb: true })) continue;
+        partial ||= assignment.operator !== '=' || !!descriptors.length;
+      }
+      installs.push({ value, ref, partial });
     }
     return { binding, installs, undefinedShadowed: shadowed };
+  }
+
+  function ownProtoDescriptor(ref) {
+    const target = prototypeWriteHostPath(ref);
+    const call = target.parentPath;
+    if (call?.node?.type !== 'CallExpression' || call.node.arguments[0] !== target.node) return [];
+    const callee = call.get('callee');
+    const name = memberKeyName(callee.node);
+    if (name !== 'defineProperty' && name !== 'defineProperties' && callee.node.type !== 'Identifier') return [];
+    const pair = resolveStaticCalleePair({ node: callee.node, ctx: { scope: callee.scope, path: callee } });
+    if (pair?.constructor !== 'Object' && pair?.constructor !== 'Reflect') return [];
+    const args = call.node.arguments;
+    const descriptor = pair.method === 'defineProperty' && unwrapRuntimeExpr(args[1])?.value === '__proto__'
+      ? unwrapRuntimeExpr(args[2]) : pair.method === 'defineProperties' && objectLevelPairedProperty(args[1], '__proto__')?.read;
+    if (!descriptor) return [];
+    const fixed = descriptor.type === 'ObjectExpression' && descriptor.properties.every(prop => !prop.computed
+      && prop.type !== 'SpreadElement' && !['configurable', '__proto__'].includes(prop.key?.name ?? prop.key?.value))
+      && !!objectLevelPairedProperty(descriptor, 'value') && !isMutatedStatic('Object.prototype', 'configurable')
+      && !isMutatedStatic(pair.constructor, pair.method);
+    return [{ node: call.node, fixed }];
   }
 
   // ... how the setter call carrying this install spells its callee (`protoSetterCalleeArms`), null for a
@@ -372,7 +407,7 @@ export function createExpressionDispatch({
     const parent = host?.parentPath;
     // `o.__proto__ = P` - the write sits above the member; `setPrototypeOf(o, P)` - the PROTO slot
     if (parent?.node?.type === 'MemberExpression' || parent?.node?.type === 'OptionalMemberExpression') {
-      return parent.parentPath?.get('right');
+      return peelTransparentExprAncestorPath(parent).parentPath?.get('right');
     }
     return parent?.get('arguments')?.[1] ?? null;
   }

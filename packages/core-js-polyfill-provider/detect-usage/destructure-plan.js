@@ -3892,7 +3892,7 @@ export function planLoopHeadExtraction(path, {
   const plan = planCatchClauseExtraction({
     paramNode: declarator.id, bodyNode: path.node.body, scope: path.scope, adapter, path,
     resolvePure, walkNode, objectHint: toHint?.(elementType) ?? null,
-    iterableNode: path.node.right, mirrorHosts: !!forOfHeadIterableElements(host), assignment,
+    iterableNode: path.node.right, mirrorHosts: !!forOfHeadIterableElements(host, adapter.isMutatedStatic), assignment,
   });
   return plan ? { ...plan, left, declarator, assignment, elementType } : null;
 }
@@ -3934,7 +3934,8 @@ export function planCatchClauseExtraction({
   // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from
   // there, with everything the pattern binds beside the claim riding the residual that host can now
   // hold. the rename's own walk re-asks the narrower questions (plain key, statement slot) at emit
-  const elementNodes = arrayLiteralIterableElements(iterableNode)?.filter(Boolean) ?? [];
+  const elementNodes = iterableNode && !adapter.isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
+    ? arrayLiteralIterableElements(iterableNode)?.filter(Boolean) ?? [] : [];
   if (paramNode?.type === 'ArrayPattern') {
     // ... unless every claim below is the receiver mirror's, like the object pattern's below
     if (mirrorHosts) return nestedClaimBeyondMirror(paramNode, elementNodes, { scope, adapter, path, resolvePure })

@@ -4069,12 +4069,12 @@ for (const width of [32, 64]) {
   }, () => ({}));
   for (const phase of ['cold', 'warm']) {
     for (let read = 0; read < width; read++) check(`iterator summary/${ width }/${ phase }/${ read }`,
-      adapter.isWrittenContainerSlot('items', ['Symbol.iterator']), false);
+      adapter.isWrittenContainerSlot('items', [Symbol.iterator]), false);
     check(`iterator summary/${ width }/${ phase }/no repeated list reads`, reads, 0);
   }
   index.nonIterationEscapes.add('items#0.*');
   check(`iterator summary/${ width }/an actual writer still invalidates the slot`,
-    adapter.isWrittenContainerSlot('items', ['Symbol.iterator']), true);
+    adapter.isWrittenContainerSlot('items', [Symbol.iterator]), true);
   index.nonIterationEscapes.clear();
   check(`iterator summary/${ width }/other slots keep their iteration escape`,
     adapter.isWrittenContainerSlot('items', ['at']), true);

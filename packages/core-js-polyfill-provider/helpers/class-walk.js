@@ -38,6 +38,7 @@ import {
   isReassignedBeyondDeclarator,
   isVarScopeBoundary,
   objectPropertiesForKey,
+  objectLevelPairedProperty,
   pairedArrayWrapInitElement,
   patternLiteralKeyPath,
   peelArrayWrapBindingLayers,
@@ -1264,6 +1265,13 @@ export function findNamespaceMemberValue(container, propName, scope, adapter, re
       // candidate to over-inject for, and skipping it keeps the literal's own last-wins answer
       if (p.type === 'SpreadElement') {
         if (spreadVetoes) return null;
+        if (candidateSink) {
+          const operand = unwrapRuntimeExpr(p.argument);
+          const source = operand?.type === 'Identifier' && adapter.getBinding
+            ? followConstIdentifierInit({ node: operand, readNode: operand, ctx: { scope, adapter, path: null } }).node : operand;
+          const copied = objectLevelPairedProperty(source, propName, undefined, { preservesBody: true });
+          if (copied) candidateSink.push(copied.read);
+        }
         continue;
       }
       if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;

@@ -50,6 +50,7 @@ import {
   followConstIdentifierInit,
   valueMayBeNullish,
   forOfHeadElements,
+  forXHeadLoopPath,
   forOfHeadIterableElements,
   forOfHeadDeclarationOf,
   FUNCTION_LIKE_NODE_TYPES,
@@ -7170,7 +7171,7 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDe
     // the loop hosts, the element is the slot, and the swap lands inside the literal on every pass.
     // a for-IN head spells no element to swap, so it declines here as it does one level down
     if (isForXStatement(parent.node) && parent.node.left === cur.node && selfHostAllowed(cur, leafPatternPath)) {
-      const headElements = forOfIterableElements(parent.node);
+      const headElements = forOfIterableElements(parent.node, staticIsMutated);
       return headElements ? { host: parent, slot: 'right', node: parent.node.right, headElements } : null;
     }
     // Recover a relocated binding or assignment head through its live element.
@@ -7188,7 +7189,7 @@ function mirrorPlanHost(leafPatternPath, constructorRest = false, flatInstanceDe
       // the array, so every pass reads its own mirrored value - where a binding lifted out of the
       // head into the body is only ever right while the head runs once
       if (parent.node.init) return { host: parent, slot: 'init', node: parent.node.init };
-      const headElements = forOfHeadIterableElements(parent);
+      const headElements = forOfHeadIterableElements(parent, staticIsMutated);
       const loop = headElements ? parent.parentPath?.parentPath : null;
       return loop?.node ? { host: loop, slot: 'right', node: loop.node.right, headElements } : null;
     }
@@ -10825,9 +10826,11 @@ export function buildDestructureLeafMeta({
       || hasObjectRestAncestor(objectPattern, pattern => patternHasRestReadBeforeNestedBinding(pattern, adapter)))) return null;
   // A replaced iterator may select a value unrelated to the array's stored slot.
   // Pure keeps that selection native; global still owes generic instance imports.
-  if (objectPattern && adapter.isMutatedStatic?.('Array.prototype', 'Symbol.iterator')
-    && destructureHostThroughWrappers(objectPattern, adapter, true)?.indices.length) {
-    return adapter.method === 'usage-global' && key ? { kind: 'property', object: null, key, placement: null } : null;
+  if (objectPattern && adapter.isMutatedStatic?.('Array.prototype', 'Symbol.iterator')) {
+    const host = destructureHostThroughWrappers(objectPattern, adapter, true);
+    if (host?.indices.length || forXHeadLoopPath(host?.host ?? objectPattern.parentPath)) {
+      return adapter.method === 'usage-global' && key ? { kind: 'property', object: null, key, placement: null } : null;
+    }
   }
   const defaultInstance = adapter.method === 'usage-pure' && resolvePure
     && (descriptor.host === 'nested' || descriptor.host === 'array')

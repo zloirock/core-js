@@ -5,3 +5,7 @@ Using targets: <RESOLVED>
 Using polyfills with `usage-pure` method:
 The core-js@4 polyfill added the following polyfills:
   global-this
+
+Warnings:
+  `Map` is written in this file (slot mutation) - the name is left native
+  `WeakMap` is written in this file (slot mutation) - the name is left native

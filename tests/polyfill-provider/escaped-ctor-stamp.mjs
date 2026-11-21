@@ -402,8 +402,20 @@ const NAME_ROWS = [
     ['awaited async call', 'async function f() { return Map; } export async function run() { return (await f()).groupBy([], x => x); }'],
     ['awaited value that is no call', 'export async function run() { return (await Map).groupBy([], x => x); }'],
     ['alias of an awaited async call', 'async function f() { return Map; } export async function run() { const M = await f(); return M.groupBy; }'],
-    ['parameter arm of a single return, in a slot', 'function f(opt) { return opt || Map; } const list = [f()]; list[0].groupBy([], x => x);'],
   ].map(([name, code]) => ({ name: `unsupported route: ${ name }`, code, homeOnly: ['Map'], withContainerCensus: true })),
+  {
+    name: 'namesake loop heads keep the static reads of their own container',
+    code: 'function first() { const a = { C: Object }; const xs = [a]; for (const item of xs) item.C = Map;'
+      + ' const { C: { setPrototypeOf } } = a; return typeof setPrototypeOf; }'
+      + 'function second() { const b = { C: Array }; const ys = [b]; for (const item of ys) item.C = Object;'
+      + ' const { C: { groupBy } } = b; return groupBy([1], x => x)[1]; } export const result = [first(), second()];',
+    homeOnly: ['Map'], withContainerCensus: true,
+  },
+  {
+    name: 'a static read of a selected return in a slot keeps the pure constructor family',
+    code: 'function f(opt) { return opt || Map; } const list = [f()]; list[0].groupBy([], x => x);',
+    heldInSlot: ['Map'], withContainerCensus: true,
+  },
   // ... a single return that selects, whatever spelling reads the call, and a call through a name holding
   // several functions are such returns too
   ...[

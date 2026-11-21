@@ -6,6 +6,7 @@ import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.try";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.chunks";
@@ -16,6 +17,7 @@ import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.iterator.flat-map";
 import "core-js/modules/es.iterator.for-each";
+import "core-js/modules/es.iterator.from";
 import "core-js/modules/es.iterator.includes";
 import "core-js/modules/es.iterator.join";
 import "core-js/modules/es.iterator.map";
@@ -26,14 +28,13 @@ import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.iterator.windows";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// an object SPREAD and a `__proto__` member are routes the census does not follow: a read through
-// the copy or through the prototype names no value, so usage-global injects none of the statics read
-// there, only the constructors themselves, while usage-pure keeps the whole entry of every constructor
-// a spread hands out and leaves the `__proto__` route native
+// A spread can publish the constructors stored on its sources. An inherited slot
+// and an own property of the copied object are distinct sources.
 const src = {
   M: Map
 };

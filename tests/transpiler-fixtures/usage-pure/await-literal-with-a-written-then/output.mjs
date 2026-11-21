@@ -1,4 +1,4 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Set from "@core-js/pure/actual/set";
 // an await hands a value on only where it is no thenable, and a `then` the FILE writes onto
 // `Object.prototype` makes every literal one - an array too: each container below is resolved

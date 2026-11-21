@@ -52,3 +52,28 @@ QUnit.test('written slot statics: a static owner a slot holds, under a selection
   via.C = { fromEntries: () => 'user' };
   assert.same(box.inner.C.fromEntries([['a', 1]]), 'user');
 });
+
+QUnit.test('a literal dotted key and a nested constructor slot are independent', assert => {
+  const holder = { a: { b: { C: Map } } };
+  holder['a.b.C'] = Array;
+  assert.deepEqual(holder.a.b.C.groupBy([3, 4], x => x % 2).get(1), [3]);
+});
+
+QUnit.test('a write through a wrapper reaches an initially empty array', assert => {
+  const list = [];
+  const holder = { list };
+  holder.list[0] = Map;
+  assert.deepEqual(list[0].groupBy([3, 4], x => x % 2).get(0), [4]);
+});
+
+QUnit.test('array destructuring captures the key at the time of the read', assert => {
+  const keys = ['from'];
+  /* eslint-disable prefer-const -- exercise assignment patterns for both captures */
+  let before, after;
+  [before] = keys;
+  keys[0] = 'of';
+  [after] = keys;
+  /* eslint-enable prefer-const -- both assignments are complete */
+  assert.deepEqual(Array[before]('12'), ['1', '2']);
+  assert.deepEqual(Array[after]('12'), ['12']);
+});

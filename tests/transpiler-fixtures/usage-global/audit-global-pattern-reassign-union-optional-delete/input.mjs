@@ -1,0 +1,1 @@
+delete Iterator?.toArray;

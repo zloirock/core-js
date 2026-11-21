@@ -1,3 +1,3 @@
-// the member-read spelling reaches the same written value
+// A write without a reader does not consume the previous slot value.
 const cm = { s: Object };
 cm.s = Array;

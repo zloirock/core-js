@@ -2233,6 +2233,81 @@ function * generateContainerSlots() {
   }
 }
 
+// Run each source in its own realm: a sibling's full constructor can otherwise supply the missing static.
+function * generateContainerMutationContracts() {
+  const cases = [
+    ['written-key', "const keys = ['from']; keys[0] = 'of'; let k; [k] = keys;", "Array[k]('12')"],
+    ['captured-key', "const keys = ['from']; let k; [k] = keys; keys[0] = 'of';", "Array[k]('12')"],
+    ['dotted-key', "const box = { a: { b: { C: Map } } }; box['a.b.C'] = Array;", 'box.a.b.C.groupBy([3], x => x).get(3)'],
+    ['literal-star', "const box = { ['*']: Map, C: Object }; box.C = Array;", "box['*'].groupBy([3], x => x).get(3)"],
+    ['empty-wrapped-array', 'const list = []; const holder = { list }; holder.list[0] = Map;', 'list[0].groupBy([3], x => x).get(3)'],
+    ['array-rest', "const [, ...copy] = [0, Array]; copy[0].of = () => 'patched';", 'Array.of(3)'],
+    ['object-rest', "const { skip, ...copy } = { skip: 0, ctor: Array }; copy.ctor.of = () => 'patched';", 'Array.of(3)'],
+    ['replaced-rest-slot', "const [, ...copy] = [0, Array]; copy[0] = {}; copy[0].of = () => 'patched';", 'Array.of(3)'],
+    ['iterated-array', 'const item = { C: Object }; const items = [item]; for (const v of items) v.C = Map;',
+      'item.C.groupBy([3], x => x).get(3)'],
+    ['iterated-generator', 'const item = { C: Object }; function * items(v) { yield v; } for (const v of items(item)) v.C = Map;',
+      'item.C.groupBy([3], x => x).get(3)'],
+    ['iterated-after-read', 'const item = { C: Object }; const items = [item]; const before = typeof item.C.hasOwn;'
+      + ' for (const v of items) v.C = Map;', '[before, item.C.groupBy([1], x => x).get(1)]'],
+    ['iterated-replaced', 'const a = { C: Object }, b = { C: Object }; const items = [a]; items[0] = b; for (const v of items) v.C = Map;',
+      '[a.C === Object, b.C.groupBy([1], x => x).get(1)]'],
+    ['iterated-custom', 'const a = { C: Object }, b = { C: Object }; const items = [a]; items[Symbol.iterator] = function * () { yield b; };'
+      + ' for (const v of items) v.C = Map;', '[a.C === Object, b.C.groupBy([1], x => x).get(1)]'],
+    ['rest-offset', 'function use(xs) { const [, , ...tail] = [...xs, Map]; return tail; }',
+      "Reflect.get(use([0, 1])[0], ['group', 'By'].join(''))([3], x => x).get(3)"],
+    ['nested-spread', 'function use(xs) { const [C] = [...xs, ...[Map]]; return C.groupBy([3], x => x).get(3); }', 'use([])'],
+    ['returned-alias', 'function registry() { const C = Map; return { C }; }', 'registry().C.groupBy([3], x => x).get(3)'],
+    ['thenable', 'async function pick(flag) { const box = { C: Promise }; if (flag) box.then = done => done({ C: { withResolvers: () => ({ resolve: 7 }) } });'
+      + ' const { C } = await box; return typeof C.withResolvers().resolve; }', '[await pick(false), await pick(true)]'],
+    ['call-result', 'function pick(P) { return P || Promise; } const cap = ({ P: pick() }).P.withResolvers(); cap.resolve(7);', 'await cap.promise'],
+    ['descriptor-getter', "const box = { C: Object }; Object.defineProperty(box, 'C', { get() { return Map; } }); const { C: { groupBy } } = box;",
+      'groupBy([3], x => x).get(3)'],
+    ['selected-mutator', "const install = cond ? Reflect.defineProperty : Object.defineProperty; install(Array, 'of', { value: () => 7 });", 'Array.of(3)'],
+    ['apply-mutator', "Reflect.apply(Object.defineProperty, Object, [Array, 'of', { value: () => 7 }]);", 'Array.of(3)'],
+    ['spread-mutator', "const args = [Array, 'of', { value: () => 7 }]; Object.defineProperty(...args);", 'Array.of(3)'],
+    ['source-write', 'const source = {}; source.of = () => 7; Object.assign(Array, source);', 'Array.of(3)'],
+    ['source-arms', 'function read(flag) { const { src } = { src: flag ? { from: () => 3 } : { of: () => 7 } };'
+      + ' Object.assign(Array, src); return flag ? Array.from([1]) : Array.of(2); }', '[read(true), read(false)]'],
+    ['own-iterator', "const keys = ['from']; keys[Symbol.iterator] = function * () { yield 'of'; }; let k; [k] = keys;", "Array[k]('12')", false],
+    ['prototype-iterator', 'const proto = Array.prototype; const previous = proto[Symbol.iterator]; let result;'
+      + " try { proto[Symbol.iterator] = function * () { yield 'of'; }; function keys() { return ['from']; } let k; [k] = keys(); result = Array[k]('12'); }"
+      + ' finally { proto[Symbol.iterator] = previous; }', 'result', false],
+    ['own-iterator-object-read', "const xs = ['from']; xs[Symbol.iterator] = function * () { yield 'of'; }; let k; ({ 0: k } = xs);",
+      "Array[k]('12')"],
+    ['local-mutator', 'const source = { fill() { return 1; } }; const box = [Object]; source.fill.call(box, Map);', 'box[0].groupBy([1], x => x)[1]'],
+    ['written-spread-argument', "const args = [Array, 'from', { value: () => 7 }]; args[1] = 'of'; Object.defineProperty(...args);", 'Array.of(1)'],
+    ['iterated-escape', 'function get() { const item = { C: Object }; const items = [item]; for (const v of items) v.C = Map; return item; }',
+      'get().C.groupBy([1], x => x).get(1)'],
+    ['wrapped-proto', 'const box = { 0: 3, length: 1 }; (box.__proto__) = Array.prototype;', 'box.at(0)'],
+    ['arithmetic-proto', 'const list = [3]; list.__proto__ += String.prototype;', 'list.at(0)'],
+    ['own-proto', "const list = [3]; Object.defineProperty(list, '__proto__', { value: null, writable: true }); list.__proto__ = String.prototype;",
+      'list.at(0)'],
+    ['inherited-descriptor', "const rows = [3]; rows.toString = () => '7'; Object.defineProperty(rows, '__proto__',"
+      + ' { __proto__: { configurable: true }, value: null, writable: true }); delete rows.__proto__; rows.__proto__ = String.prototype;',
+    'rows.at(0)'],
+    ['spread-overwrite', 'const defaults = { C: Object }; const { C: { groupBy } = Map } = { C: Map, ...defaults };',
+      'groupBy([3], x => x)[3]', false],
+  ];
+  for (const invocation of ['donor.fill.call(box, Map)', 'donor.fill.apply(box, [Map])', 'Reflect.apply(donor.fill, box, [Map])']) {
+    const name = invocation.startsWith('Reflect') ? 'reflect' : invocation.includes('.call') ? 'call' : 'apply';
+    cases.push([`borrowed-${ name }`, `const donor = [Object]; const box = [Object]; ${ invocation }; const { 0: { groupBy } } = box;`,
+      'groupBy([3], x => x).get(3)']);
+  }
+  for (const [name, setup, result, strip = true] of cases) {
+    yield {
+      name: `container-mutation-contract/${ name }`,
+      code: `const cond = true; ${ setup }\nexport const r = ${ result }; export const effects = [];`,
+      strip, isolated: true,
+    };
+  }
+  yield {
+    name: 'container-mutation-contract/asserted-proto',
+    code: 'const box: any = { 0: 3, length: 1 }; (box.__proto__ as any) = Array.prototype; export const r = box.at(0); export const effects = [];',
+    ts: true, strip: true, isolated: true,
+  };
+}
+
 // --- dominating and reaching writes across the alias channels ---
 // the write a read can observe decides the value the emitters may substitute, and the answer has to
 // be ONE across the channels that follow an alias: a callee (`mk()`), an array-wrapper alias in a
@@ -28271,4 +28346,5 @@ export function * generate() {
   yield * generateEnumMethodKeyWrites();
   yield * generateIteratedElementReads();
   yield * generateExtractedArrayMethodReads();
+  yield * generateContainerMutationContracts();
 }

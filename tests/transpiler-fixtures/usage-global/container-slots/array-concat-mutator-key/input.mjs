@@ -3,7 +3,7 @@ const repositionedByConcatKey = (function () {
   const concatBox = [Object, Map];
   // eslint-disable-next-line no-useless-concat -- the folded spelling is the shape under test
   concatBox['rev' + 'erse']();
-  const { 0: { isFrozen } } = concatBox;
-  return isFrozen;
+  const { 0: { groupBy } } = concatBox;
+  return groupBy;
 })();
 export { repositionedByConcatKey };
